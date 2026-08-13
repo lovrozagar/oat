@@ -28,8 +28,10 @@ import {
 	readRootParams,
 	readSoftDelete,
 	readTenantParam,
+	readTenantSource,
 	singularise,
 } from "./extensions.ts"
+import { deriveQueryConventions, type QueryConventions } from "./conventions.ts"
 import { parseRouteRef } from "./load.ts"
 import {
 	type Endpoint,
@@ -51,9 +53,20 @@ export interface OperationModel {
 	effects: EffectSpec[]
 	async: AsyncSpec | null
 	tenantParam: string | null
+	/** Whether tenancy was declared via `x-tenant` or merely guessed from the path. */
+	tenantSource: "tag" | "heuristic" | null
 	pathParams: string[]
 	rootParams: string[]
 	queryParamNames: string[]
+	/**
+	 * Header parameter this operation accepts as an idempotency key, when it declares one.
+	 *
+	 * Read straight from the document rather than from a new meta tag: an API that promises replay
+	 * safety publishes the header, and the promise is what makes the property testable.
+	 */
+	idempotencyHeader: string | null
+	/** What this endpoint's query parameters and envelope mean, derived from the document. */
+	conventions: QueryConventions
 	documentedStatuses: number[]
 	securitySchemes: string[]
 	collection: CollectionShape | null
@@ -99,6 +112,22 @@ export interface SpecModel {
 	gaps: GapCollector
 	securitySchemes: string[]
 	hasAuthOperations: boolean
+}
+
+/**
+ * Header names the operation's success response declares.
+ *
+ * Pagination facts do not always live in the body — `Link` is the obvious case — so a header the
+ * document publishes is part of the response contract and has to be read as such.
+ */
+function successResponseHeaders(op: OperationObject): string[] {
+	const responses = (op.responses ?? {}) as Record<string, { headers?: Record<string, unknown> }>
+	const names = new Set<string>()
+	for (const [status, response] of Object.entries(responses)) {
+		if (!/^2\d\d$/.test(status)) continue
+		for (const name of Object.keys(response?.headers ?? {})) names.add(name)
+	}
+	return [...names]
 }
 
 export function buildModel(doc: OpenApiDocument): SpecModel {
@@ -176,13 +205,32 @@ function modelOperation(
 		path,
 		pathParams,
 		query: collection === null ? null : readQueryCapability(endpoint, collection.itemSchema, gaps),
+		conventions: deriveQueryConventions(
+			op.parameters ?? [],
+			collection,
+			ext<{ grammar?: string }>(op, "x-query"),
+			(message) => gaps.record(operationId, "x-query", message),
+			successResponseHeaders(op),
+		),
 		queryParamNames: (op.parameters ?? []).filter((p) => p.in === "query").map((p) => p.name),
+		idempotencyHeader:
+			(op.parameters ?? []).find(
+				(p) =>
+					p.in === "header"
+					&& /^(x-)?idempotenc(y|e)([-_]?key)?$/i.test(p.name.replace(/\s/g, "")),
+			)?.name ?? null,
 		rootParams: readRootParams(op),
 		route: `${method.toUpperCase()} ${path}`,
 		securitySchemes,
 		softDelete: readSoftDelete(op),
 		tenantParam: readTenantParam(endpoint, gaps),
+		tenantSource: readTenantSource(endpoint),
 	}
+}
+
+function ext<T>(op: OperationObject, key: string): T | undefined {
+	const value = (op as Record<string, unknown>)[key]
+	return value === undefined ? undefined : (value as T)
 }
 
 const PARAM_SEGMENT = /^\{[^}]+\}$/
@@ -215,7 +263,7 @@ function demoteNonEntities(operations: OperationModel[], gaps: GapCollector): vo
 		if (nounsWithItemRoute.has(op.entity)) continue
 
 		const collectionShaped = op.method === "GET" && op.collection !== null
-		if (collectionShaped) {
+		if (collectionShaped && !isVerbPhrase(op.path)) {
 			/* A collection-shaped GET with no item route is usually a named view of another
 			 * entity (`/table-templates/mine`). oat cannot know which, so it says so. */
 			gaps.record(
@@ -231,6 +279,24 @@ function demoteNonEntities(operations: OperationModel[], gaps: GapCollector): vo
 		op.entity = parent
 		op.action = parent === null ? null : "action"
 	}
+}
+
+/**
+ * Whether the final segment reads as a verb rather than a noun — `/pet/findByStatus`,
+ * `/reports/exportAll`, `/users/searchByEmail`.
+ *
+ * Such a segment names an operation, not a collection, even though it returns a collection. Left
+ * alone it becomes an entity called "findbystatus", which is both untestable and noise in the
+ * report.
+ */
+const VERB_PREFIX =
+	/^(find|search|query|list|get|fetch|count|export|import|download|upload|bulk|batch|lookup|resolve|mine|me|all|current|latest|recent|active|archived|default|summary|stats?|statistics|history|preview)([A-Z_-]|$)/
+
+function isVerbPhrase(path: string): boolean {
+	const segments = path.split("/").filter(Boolean)
+	const last = segments.at(-1)
+	if (last === undefined || PARAM_SEGMENT.test(last)) return false
+	return VERB_PREFIX.test(last)
 }
 
 /** Nearest ancestor segment in the path that names a real entity. */

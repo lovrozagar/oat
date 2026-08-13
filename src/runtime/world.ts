@@ -24,6 +24,8 @@ export class SeedError extends Error {
 	constructor(
 		readonly cause_: string,
 		message: string,
+		/** Status the failing request returned, when the failure was an HTTP response. */
+		readonly status?: number,
 	) {
 		super(message)
 	}
@@ -111,7 +113,8 @@ async function createOne(
 	if (exchange.status >= 300) {
 		throw new SeedError(
 			createOp.operationId,
-			`${createOp.operationId} returned ${exchange.status}: ${JSON.stringify(exchange.responseBody).slice(0, 200)}`,
+			`${createOp.operationId} returned ${exchange.status}: ${JSON.stringify(exchange.responseBody).slice(0, 300)}`,
+			exchange.status,
 		)
 	}
 	return (exchange.responseBody ?? {}) as Record_
@@ -157,10 +160,14 @@ export async function seedCohort(
 			headers: options.authHeaders(),
 		})
 		if (exchange.status >= 300) {
+			/* Partial cohorts are still useful — a single rejected variant should not cost the
+			 * entity all of its coverage. Only a completely empty cohort is fatal. */
+			if (records.length > 0) break
 			throw new SeedError(
 				createOp.operationId,
 				`seeding "${member.variant}" returned ${exchange.status}: ` +
-					JSON.stringify(exchange.responseBody).slice(0, 200),
+					JSON.stringify(exchange.responseBody).slice(0, 300),
+				exchange.status,
 			)
 		}
 		records.push((exchange.responseBody ?? {}) as Record_)

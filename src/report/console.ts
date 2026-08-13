@@ -8,6 +8,38 @@
 
 import type { EntityModel, SpecModel } from "../spec/graph.ts"
 
+/**
+ * Which checks each tag makes possible, measured rather than estimated.
+ *
+ * `oat conformance` runs the reference backend twice — once with its tags, once with them
+ * stripped — and asserts this map matches the difference, so it cannot drift into marketing.
+ *
+ * The distinction below is the honest part. Some tags *unlock* checks that are otherwise
+ * impossible: nothing in a document reveals that a 202 is a receipt, or that a column is a
+ * tombstone. Others do not change how much runs at all — they change whether what runs is
+ * trustworthy. Without `x-query`, oat assumes every scalar property is filterable and probes
+ * fields the backend may never have indexed; without `x-tenant`, a cross-tenant read is reported
+ * as an ambiguity because oat only inferred the boundary it thinks was crossed.
+ */
+export const TAG_UNLOCKS: Record<string, readonly string[]> = {
+	"x-async": ["async.reaches-terminal-state", "async.receipt-identifies-the-job"],
+	"x-effects": ["effects.declared-effect-occurs"],
+	"x-immutable": ["patch.immutable-field-rejected"],
+	"x-invalidate": ["invalidation.declared-route-changes"],
+	/* Declaring filterable fields is itself a claim, and a claim is testable: oat probes each
+	 * one and reports the document — not the backend — when a declared filter is refused. */
+	"x-query": ["spec.declared-filterable-is-filterable"],
+	"x-soft-delete": ["softdelete.absent-from-default-list"],
+}
+
+/** Tags that change the *confidence* of checks that already run, not the count. */
+const TAG_SHARPENS: Record<string, string> = {
+	"x-query": "the remaining query checks run against every scalar property, including fields the "
+		+ "backend never indexed — expect findings you will have to dismiss",
+	"x-tenant": "a cross-tenant read is reported as an ambiguity, not a security finding, because "
+		+ "oat inferred the boundary rather than reading it",
+}
+
 const TAG_REMEDY: Record<string, string> = {
 	"x-async": "declare the poll route so the operation's real outcome can be observed",
 	"x-entity": "name the entity and action so this operation joins a lifecycle",
@@ -114,6 +146,40 @@ function doctor(
 	lines.push("")
 	lines.push(`  coverage  ${bar(testable.length, entities.length)}  ${testable.length}/${entities.length} entities fully testable`)
 	lines.push("")
+
+	/*
+	 * What the missing tags cost, in checks. A gap list tells an author what oat could not read;
+	 * this tells them what they get for fixing it, which is the only form of the message anyone
+	 * acts on.
+	 */
+	const declared = new Set(
+		model.operations.flatMap((op) => [
+			...(op.async === null ? [] : ["x-async"]),
+			...(op.effects.length > 0 ? ["x-effects"] : []),
+			...(op.immutable.length > 0 ? ["x-immutable"] : []),
+			...(op.invalidates.length > 0 ? ["x-invalidate"] : []),
+			...(op.softDelete === null ? [] : ["x-soft-delete"]),
+			...(op.tenantSource === "tag" ? ["x-tenant"] : []),
+			...(op.query?.source === "tag" ? ["x-query"] : []),
+		]),
+	)
+	const lockedTags = Object.keys(TAG_UNLOCKS).filter((tag) => !declared.has(tag))
+	const lockedChecks = lockedTags.flatMap((tag) => TAG_UNLOCKS[tag] ?? [])
+	if (lockedChecks.length > 0) {
+		lines.push(`  ${lockedChecks.length} check(s) cannot run against this document`)
+		for (const tag of lockedTags) {
+			lines.push(`    ${tag.padEnd(16)} would enable ${(TAG_UNLOCKS[tag] ?? []).join(", ")}`)
+		}
+		lines.push("")
+	}
+	const vague = Object.keys(TAG_SHARPENS).filter((tag) => !declared.has(tag))
+	if (vague.length > 0) {
+		lines.push("  running, but on inferred information")
+		for (const tag of vague) {
+			lines.push(`    ${tag.padEnd(16)} ${TAG_SHARPENS[tag] ?? ""}`)
+		}
+		lines.push("")
+	}
 
 	const untestable = entities.filter((e) => !testable.includes(e))
 	if (untestable.length > 0) {

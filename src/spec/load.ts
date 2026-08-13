@@ -1,19 +1,105 @@
 import { readFile } from "node:fs/promises"
+import { resolve } from "node:path"
+import { fileURLToPath } from "node:url"
 import type { OpenApiDocument } from "./types.ts"
 
-/** Loads a spec from an http(s) URL or a filesystem path. */
-export async function loadSpec(source: string): Promise<OpenApiDocument> {
-	const text = /^https?:\/\//.test(source)
-		? await fetchText(source)
-		: await readFile(source, "utf8")
+/**
+ * Loads a specification from wherever it lives, in JSON or YAML.
+ *
+ * Three forms are accepted, resolved in a fixed order so the outcome never depends on a guess
+ * about what the string "looks like":
+ *
+ *   1. an absolute `http(s)://` or `file://` URL — used as given
+ *   2. a path that exists on disk — read as a file, relative to the working directory
+ *   3. anything else, when a base URL is known — resolved against it, so `/v1/openapi/spec`
+ *      and `openapi.json` both work next to `baseUrl`
+ *
+ * When none apply the error names every location that was tried, rather than reporting the last
+ * failure as though it were the only attempt.
+ */
+export async function loadSpec(source: string, baseUrl?: string): Promise<OpenApiDocument> {
+	const text = await readSpecSource(source, baseUrl)
+
+	if (text.trim() === "") {
+		throw new Error(`oat: ${source} is empty`)
+	}
+
+	if (looksLikeJson(text)) {
+		try {
+			return JSON.parse(text) as OpenApiDocument
+		} catch (error) {
+			throw new Error(
+				`oat: ${source} starts as JSON but does not parse: ${
+					error instanceof Error ? error.message : String(error)
+				}. ${diagnoseJson(text)}`,
+			)
+		}
+	}
+
 	try {
-		return JSON.parse(text) as OpenApiDocument
-	} catch {
+		const { parse } = await import("yaml")
+		return parse(text) as OpenApiDocument
+	} catch (error) {
 		throw new Error(
-			`oat: could not parse ${source} as JSON. YAML specs must be converted first ` +
-				"(oat keeps its dependency surface minimal on purpose).",
+			`oat: could not parse ${source} as JSON or YAML: ${
+				error instanceof Error ? error.message : String(error)
+			}`,
 		)
 	}
+}
+
+function looksLikeJson(text: string): boolean {
+	const first = text.trimStart()[0]
+	return first === "{" || first === "["
+}
+
+/**
+ * Distinguishes a malformed document from a truncated one. A spec cut short by a proxy or a
+ * download limit is by far the most common cause, and reporting it as invalid syntax sends
+ * people looking for a bug in a file that is actually fine.
+ */
+function diagnoseJson(text: string): string {
+	const opens = (text.match(/[[{]/g) ?? []).length
+	const closes = (text.match(/[\]}]/g) ?? []).length
+	if (opens > closes) {
+		return (
+			`The document has ${opens - closes} more opening than closing brackets, so it is most ` +
+			`likely truncated — it ends after ${text.length} bytes. Check for a download or proxy ` +
+			"size limit."
+		)
+	}
+	return "The document appears complete, so this is a syntax error rather than truncation."
+}
+
+async function readSpecSource(source: string, baseUrl?: string): Promise<string> {
+	if (/^https?:\/\//.test(source)) return fetchText(source)
+	if (source.startsWith("file://")) return readFile(fileURLToPath(source), "utf8")
+
+	const attempted: string[] = []
+
+	/* A real file wins over a route: a spec checked into the repository is the more specific
+	 * intent, and silently fetching instead would hide a typo in the path. */
+	const asPath = resolve(process.cwd(), source)
+	attempted.push(asPath)
+	try {
+		return await readFile(asPath, "utf8")
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+	}
+
+	if (baseUrl !== undefined && baseUrl !== "") {
+		const resolved = new URL(source, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`).toString()
+		attempted.push(resolved)
+		return fetchText(resolved)
+	}
+
+	throw new Error(
+		`oat: could not find a specification at "${source}". Tried:\n` +
+			attempted.map((a) => `  ${a}`).join("\n") +
+			(baseUrl === undefined
+				? "\nPass --base-url (or set baseUrl in the config) to resolve it as a route."
+				: ""),
+	)
 }
 
 async function fetchText(url: string): Promise<string> {

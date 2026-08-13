@@ -1,5 +1,34 @@
 # OpenAPI meta tags
 
+**See [`examples/annotated-openapi.yaml`](./examples/annotated-openapi.yaml) first.** It is a
+complete, valid OpenAPI 3.1 document with every tag below shown *in place* — the fragments here
+tell you what a tag means, that file shows you where it goes.
+
+It is not illustrative. `oat conformance` loads it and asserts the derived model matches what its
+comments claim, so it cannot drift from the implementation:
+
+```
+✓ x-query resolves the filter grammar   "postgrest"
+✓ x-query declares filterable fields    "tag"
+✓ x-tenant is declared, not inferred    "tag"
+✓ x-invalidate names two routes         2
+✓ idempotency header is modelled        "Idempotency-Key"
+✓ x-async is read                       "export.read"
+```
+
+Try it against your own document:
+
+```bash
+oat plan   --spec openapi.yaml --base-url https://api.example.com   # what oat modelled
+oat doctor --spec openapi.yaml --base-url https://api.example.com   # what it had to guess
+```
+
+`doctor` is the one to run first: it reports every place oat fell back to a heuristic, which is
+exactly the list of tags worth adding.
+
+---
+
+
 Vendor-neutral `x-*` extensions oat reads from your spec. Every one is **optional** — oat degrades to a heuristic and reports the degradation as a `COVERAGE_GAP`, never as a failure. Nothing here is oat-specific; they describe your API, not the tester.
 
 Precedence is always: **explicit tag → heuristic → skip with coverage gap**.

@@ -7,15 +7,12 @@
  */
 
 import type { DefectSet } from "./defects.ts"
+import { SqlError } from "./store-api.ts"
 
-export class QueryError extends Error {
-	constructor(
-		readonly code: string,
-		message: string,
-	) {
-		super(message)
-	}
-}
+/* One error type across every store, so the HTTP layer has a single thing to catch. Two
+ * separate classes meant a rejected filter surfaced as 400 on the SQL stores and 500 here — the
+ * conformance suite reported it as a defect, correctly. */
+export { SqlError as QueryError } from "./store-api.ts"
 
 export type Row = Record<string, unknown>
 
@@ -93,7 +90,7 @@ function parseFilter(expression: string, options: QueryOptions, defects: DefectS
 		const combinator = group[1]
 		const children = splitTopLevel(group[2]).map((part) => parseFilter(part, options, defects))
 		if (children.length === 0) {
-			throw new QueryError("invalid_filter", `empty ${combinator}() group`)
+			throw new SqlError("invalid_filter", `empty ${combinator}() group`)
 		}
 		return combinator === "and"
 			? (row) => children.every((child) => child(row))
@@ -102,19 +99,19 @@ function parseFilter(expression: string, options: QueryOptions, defects: DefectS
 
 	const segments = trimmed.split(".")
 	if (segments.length < 3) {
-		throw new QueryError("invalid_filter", `malformed filter term "${trimmed}"`)
+		throw new SqlError("invalid_filter", `malformed filter term "${trimmed}"`)
 	}
 	const [field, op] = segments as [string, string, ...string[]]
 	const rawValue = segments.slice(2).join(".")
 
 	if (!COMPARATORS.has(op)) {
-		throw new QueryError("invalid_filter", `unknown operator "${op}"`)
+		throw new SqlError("invalid_filter", `unknown operator "${op}"`)
 	}
 	if (!options.filterable.includes(field)) {
 		/* Correct behaviour is to reject. The defect drops the term instead — the single most
 		 * common real-world filter bug, and invisible to schema validation. */
 		if (defects.has("FILTER_IGNORED")) return () => true
-		throw new QueryError("invalid_filter", `field "${field}" is not filterable`)
+		throw new SqlError("invalid_filter", `field "${field}" is not filterable`)
 	}
 
 	return buildComparator(field, op, rawValue, defects)
@@ -160,7 +157,7 @@ function buildComparator(
 			if (rawValue === "null") return (row) => row[field] === null || row[field] === undefined
 			if (rawValue === "true") return (row) => row[field] === true
 			if (rawValue === "false") return (row) => row[field] === false
-			throw new QueryError("invalid_filter", `is.${rawValue} is not a recognised predicate`)
+			throw new SqlError("invalid_filter", `is.${rawValue} is not a recognised predicate`)
 		}
 		case "contains":
 			return (row) => Array.isArray(row[field]) && row[field].some((v) => looseEqual(v, value))
@@ -170,7 +167,7 @@ function buildComparator(
 			return (row) => typeof row[field] === "string" && pattern.test(row[field])
 		}
 		default:
-			throw new QueryError("invalid_filter", `unhandled operator "${op}"`)
+			throw new SqlError("invalid_filter", `unhandled operator "${op}"`)
 	}
 }
 
@@ -225,7 +222,7 @@ function parseOrder(expression: string, options: QueryOptions): SortTerm[] {
 	return splitTopLevel(expression).map((term) => {
 		const [field, ...modifiers] = term.split(".")
 		if (field === undefined || !options.sortable.includes(field)) {
-			throw new QueryError("invalid_order", `field "${field ?? ""}" is not sortable`)
+			throw new SqlError("invalid_order", `field "${field ?? ""}" is not sortable`)
 		}
 		const descending = modifiers.includes("desc")
 		return {
@@ -292,6 +289,9 @@ export function runQuery(
 	params: QueryParams,
 	options: QueryOptions,
 	defects: DefectSet,
+	/** Applied before the sparse fieldset, so a derived value cannot reintroduce a deselected
+	 * column. Mirrors the SQL stores so every backend projects identically. */
+	transform?: ((row: Row) => Row) | undefined,
 ): QueryResult {
 	let rows = [...source]
 
@@ -343,7 +343,11 @@ export function runQuery(
 	const limit = defects.has("LIMIT_EXCEEDS_MAX")
 		? requestedLimit
 		: Math.min(requestedLimit, options.maxLimit)
-	const total = defects.has("COUNT_IGNORES_FILTER") ? unfilteredCount : rows.length
+	const total = defects.has("COUNT_ALWAYS_ZERO")
+		? 0
+		: defects.has("COUNT_IGNORES_FILTER")
+			? unfilteredCount
+			: rows.length
 
 	let offset: number
 	let page: number | null
@@ -370,7 +374,9 @@ export function runQuery(
 		? false
 		: offset + window.length < rows.length
 
-	const projected = window.map((row) => project(row, params.select, defects))
+	const projected = window
+		.map((row) => (transform === undefined ? row : transform(row)))
+		.map((row) => project(row, params.select, defects))
 
 	return {
 		count: total,
@@ -403,6 +409,6 @@ export function decodeCursor(cursor: string): string {
 		if (typeof parsed.id !== "string") throw new Error("missing id")
 		return parsed.id
 	} catch {
-		throw new QueryError("invalid_cursor", "cursor is not a value produced by this API")
+		throw new SqlError("invalid_cursor", "cursor is not a value produced by this API")
 	}
 }

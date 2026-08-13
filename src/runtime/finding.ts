@@ -24,8 +24,35 @@ export interface Finding {
 	evidence: Exchange[]
 }
 
+/**
+ * A check that ran, could not reach a verdict, and stopped.
+ *
+ * Distinct from a skip (the entity never had what the check needs) and from a pass (the property
+ * was tested and held). Before this existed a check that bailed halfway — no matching field, an
+ * empty listing, a probe that errored — simply returned, and the report was identical to one
+ * where the property was verified. On a backend with several faults that is most of the suite
+ * going quiet at once, which is the precise moment a reader most needs to know it happened.
+ */
+export interface Inconclusive {
+	check: string
+	entity: string
+	/** Why no verdict was reachable, in the reader's terms. */
+	reason: string
+}
+
 export class FindingCollector {
 	readonly findings: Finding[] = []
+	readonly inconclusive: Inconclusive[] = []
+
+	/**
+	 * Records that a check ran without reaching a verdict. Returns `undefined` so a check can
+	 * `return ctx.findings.unresolved(...)` at the point it gives up, which keeps the reason
+	 * beside the condition that caused it rather than in a comment.
+	 */
+	unresolved(check: string, entity: string, reason: string): undefined {
+		this.inconclusive.push({ check, entity, reason })
+		return undefined
+	}
 
 	report(finding: Finding): void {
 		this.findings.push(finding)

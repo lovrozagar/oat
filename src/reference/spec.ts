@@ -5,7 +5,8 @@
  * heuristic fallbacks. The conformance suite also serves stripped variants to test the fallbacks.
  */
 
-import { ENTITIES, type EntityDef, type FieldDef, fieldsWhere, writableFields } from "./model.ts"
+import { type Dialect, POSTGREST } from "./dialect.ts"
+import { ENTITIES, type EntityDef, type FieldDef, JOB, fieldsWhere, writableFields } from "./model.ts"
 
 type Json = Record<string, unknown>
 
@@ -40,20 +41,30 @@ function bodySchema(entity: EntityDef, phase: "create" | "update"): Json {
 	}
 }
 
-function listSchema(entity: EntityDef): Json {
-	return {
-		additionalProperties: false,
-		properties: {
-			count: { minimum: 0, type: "integer" },
-			hasMore: { type: "boolean" },
-			limit: { minimum: 1, type: "integer" },
-			nextCursor: { oneOf: [{ type: "string" }, { type: "null" }] },
-			page: { oneOf: [{ minimum: 1, type: "integer" }, { type: "null" }] },
-			[entity.plural]: { items: itemSchema(entity), type: "array" },
-		},
-		required: ["count", "hasMore", "limit", "nextCursor", "page", entity.plural],
-		type: "object",
+/** The collection's property name under a dialect — entity-named, or a fixed key like `data`. */
+function collectionKey(entity: EntityDef, dialect: Dialect): string {
+	return dialect.envelope?.collection ?? entity.plural
+}
+
+function listSchema(entity: EntityDef, dialect: Dialect): Json {
+	const env = dialect.envelope
+	/* No envelope: the response *is* the array. A document that says so is the only place oat can
+	 * learn it, so the schema has to say it rather than describe a wrapper that does not exist. */
+	if (env === null) return { items: itemSchema(entity), type: "array" }
+	const key = collectionKey(entity, dialect)
+	const properties: Json = {
+		[env.hasMore]: { type: "boolean" },
+		[env.limit]: { minimum: 1, type: "integer" },
+		[env.page]: { oneOf: [{ minimum: 1, type: "integer" }, { type: "null" }] },
+		[env.total]: { minimum: 0, type: "integer" },
+		[key]: { items: itemSchema(entity), type: "array" },
 	}
+	const required = [env.hasMore, env.limit, env.page, env.total, key]
+	if (env.nextCursor !== undefined) {
+		properties[env.nextCursor] = { oneOf: [{ type: "string" }, { type: "null" }] }
+		required.push(env.nextCursor)
+	}
+	return { additionalProperties: false, properties, required, type: "object" }
 }
 
 function errorSchema(status: number, key: string): Json {
@@ -90,18 +101,91 @@ function errorResponses(codes: number[]): Json {
 	return out
 }
 
-function jsonResponse(description: string, schema: Json): Json {
-	return { content: { "application/json": { schema } }, description }
+function jsonResponse(description: string, schema: Json, headers?: Json): Json {
+	const response: Json = { content: { "application/json": { schema } }, description }
+	if (headers !== undefined) response.headers = headers
+	return response
 }
 
-const LIST_QUERY_PARAMS: Array<[string, Json, string]> = [
-	["filter", { type: "string" }, "PostgREST-style filter expression: field.op.value, and(...), or(...)"],
-	["order", { type: "string" }, "PostgREST-style sort: field[.asc|.desc][.nullsfirst|.nullslast], comma-separated"],
-	["select", { type: "string" }, "Comma-separated sparse fieldset; * selects all"],
-	["q", { maxLength: 200, type: "string" }, "Free-text search across the endpoint's searchable fields"],
-	["cursor", { type: "string" }, "Opaque forward cursor; takes precedence over page"],
-	["page", { minimum: 1, type: "integer" }, "1-based page number"],
-]
+/** RFC 8288 pagination links, declared only by dialects that actually publish them. */
+function listResponseHeaders(dialect: Dialect): Json | undefined {
+	if (dialect.envelope !== null) return undefined
+	return {
+		Link: {
+			description: 'Pagination links; rel="next" is present while further pages remain',
+			schema: { type: "string" },
+		},
+	}
+}
+
+/**
+ * The sort parameter's description, demonstrating the grammar this dialect expects.
+ *
+ * A document that expects `-created_at` and describes `field.asc` is lying, and oat would infer
+ * the wrong grammar from it — correctly, since the document is the only thing it can read.
+ */
+function sortDescription(dialect: Dialect): string {
+	switch (dialect.sortGrammar ?? "dotted") {
+		case "prefixed":
+			return "Sort by field; prefix with - for descending. e.g. -created_at, name"
+		case "colon":
+			return "Sort: field:asc or field:desc, comma-separated. e.g. created_at:desc"
+		case "spaced":
+			return "Sort: field asc or field desc, comma-separated. e.g. created_at desc"
+		case "dotted":
+			return "Sort: field[.asc|.desc][.nullsfirst|.nullslast], comma-separated"
+	}
+}
+
+function listQueryParams(dialect: Dialect, entity: EntityDef): Array<[string, Json, string]> {
+	const p = dialect.params
+	const filterDescription =
+		dialect.grammar === "postgrest"
+			? "PostgREST-style filter expression: field.op.value, and(...), or(...)"
+			: "Filter expression: field=op:value, comma-separated. e.g. status=eq:active"
+	const params: Array<[string, Json, string]> = []
+	if (dialect.grammar === "equality") {
+		/* One parameter per filterable field, which *is* the filter language here. Declaring them
+		 * individually is the only way a document can express this shape, and it is how oat learns
+		 * what may be filtered on. */
+		for (const field of fieldsWhere(entity, "filterable")) {
+			const declared = entity.fields.find((f) => f.name === field)
+			const numeric = declared?.type === "integer" || declared?.type === "number"
+			params.push([
+				field,
+				declared?.enum === undefined
+					? { type: numeric ? "number" : "string" }
+					: { enum: declared.enum, type: "string" },
+				`Exact match on ${field}`,
+			])
+		}
+	} else {
+		params.push([p.filter, { type: "string" }, filterDescription])
+	}
+	params.push(
+		[p.order, { type: "string" }, sortDescription(dialect)],
+		[
+			/* JSON:API carries the resource type in the parameter *name*, so the name itself is
+			 * part of the grammar and has to be declared per entity. */
+			dialect.selectGrammar === "bracketed" ? `${p.select}[${entity.name}]` : p.select,
+			{ type: "string" },
+			"Comma-separated sparse fieldset; * selects all",
+		],
+		[p.search, { maxLength: 200, type: "string" }, "Free-text search across searchable fields"],
+	)
+	/* Exactly one paging model is published, because that is what a real document does — and a
+	 * document advertising a parameter the backend ignores is itself a defect oat reports. */
+	if (p.page !== undefined) {
+		params.push([p.page, { minimum: 1, type: "integer" }, "1-based page number"])
+	}
+	if (p.offset !== undefined) {
+		params.push([p.offset, { minimum: 0, type: "integer" }, "Number of records to skip"])
+	}
+	if (p.cursor !== undefined) {
+		params.push([p.cursor, { type: "string" }, "Opaque forward cursor; takes precedence over page"])
+	}
+	return params
+}
 
 function pathParams(entity: EntityDef, includeItem: boolean): Json[] {
 	const params: Json[] = entity.parents.map((name) => ({
@@ -121,13 +205,29 @@ function tenantParam(entity: EntityDef): string {
 	return entity.parents[0] ?? "project_id"
 }
 
-function buildEntityPaths(entity: EntityDef): Json {
+/**
+ * Read routes belonging to an entity's parent, when a write here changes what they serve.
+ *
+ * Only the table/row relationship qualifies in this fixture: a table publishes `row_count`, so a
+ * row write genuinely changes the table's representation. Declaring routes that a write does not
+ * actually affect would make the invalidation check assert something false.
+ */
+function parentReadRoutes(entity: EntityDef): string[] {
+	if (entity.name !== "row") return []
+	const table = ENTITIES.find((candidate) => candidate.name === "table")
+	if (table === undefined) return []
+	return [`GET ${table.collectionPath}`, `GET ${table.itemPath}`]
+}
+
+function buildEntityPaths(entity: EntityDef, dialect: Dialect): Json {
 	const listRoute = `GET ${entity.collectionPath}`
 	const itemRoute = `GET ${entity.itemPath}`
 	const surface = [listRoute, itemRoute]
 	const title = entity.name[0]?.toUpperCase() + entity.name.slice(1)
 
 	const query: Json = {
+		/* Declared rather than inferred: the grammar decides what oat can even express. */
+		grammar: dialect.grammar,
 		filterable: fieldsWhere(entity, "filterable"),
 		maxLimit: entity.maxLimit,
 		searchable: fieldsWhere(entity, "searchable"),
@@ -141,7 +241,7 @@ function buildEntityPaths(entity: EntityDef): Json {
 			operationId: `${entity.name}.list`,
 			parameters: [
 				...pathParams(entity, false),
-				...LIST_QUERY_PARAMS.map(([name, schema, description]) => ({
+				...listQueryParams(dialect, entity).map(([name, schema, description]) => ({
 					description,
 					in: "query",
 					name,
@@ -150,13 +250,17 @@ function buildEntityPaths(entity: EntityDef): Json {
 				})),
 				{
 					in: "query",
-					name: "limit",
+					name: dialect.params.limit,
 					required: false,
 					schema: { default: entity.defaultLimit, maximum: entity.maxLimit, minimum: 1, type: "integer" },
 				},
 			],
 			responses: {
-				"200": jsonResponse(`List ${entity.plural}`, listSchema(entity)),
+				"200": jsonResponse(
+					`List ${entity.plural}`,
+					listSchema(entity, dialect),
+					listResponseHeaders(dialect),
+				),
 				...errorResponses([400, 401, 403, 404]),
 			},
 			summary: `List ${entity.plural}`,
@@ -168,7 +272,21 @@ function buildEntityPaths(entity: EntityDef): Json {
 		},
 		post: {
 			operationId: `${entity.name}.create`,
-			parameters: pathParams(entity, false),
+			parameters: [
+				...pathParams(entity, false),
+				/* Declared as an ordinary header parameter, because that is how real APIs publish
+				 * it. oat needs no new meta tag to find this: a create operation naming a header
+				 * whose name reads as an idempotency key is enough to know replay is promised. */
+				{
+					description:
+						"Client-supplied key. Replaying a request with the same key must return the "
+						+ "original result rather than creating a second record.",
+					in: "header",
+					name: "Idempotency-Key",
+					required: false,
+					schema: { type: "string" },
+				},
+			],
 			requestBody: {
 				content: { "application/json": { schema: bodySchema(entity, "create") } },
 				required: true,
@@ -181,7 +299,12 @@ function buildEntityPaths(entity: EntityDef): Json {
 			tags: [title],
 			"x-entity": { action: "create", identity: entity.identity, name: entity.name },
 			"x-generated": fieldsWhere(entity, "generated"),
-			"x-invalidate": [listRoute],
+			/*
+			 * A create invalidates its own listing, and — where the entity has a parent that
+			 * carries a derived value — the parent's routes as well. Declaring it is what makes
+			 * the cross-entity consistency testable rather than assumed.
+			 */
+			"x-invalidate": [listRoute, ...parentReadRoutes(entity)],
 			"x-tenant": tenantParam(entity),
 		},
 	}
@@ -227,6 +350,10 @@ function buildEntityPaths(entity: EntityDef): Json {
 			summary: `Update ${entity.name}`,
 			tags: [title],
 			"x-entity": { action: "update", identity: entity.identity, name: entity.name },
+			/* Declared here as well as on create. Real documents often list server-owned fields
+			 * only where they are conspicuous — the fields a caller may not supply — and a tool
+			 * that reads just one operation then treats a generated field as client-owned. */
+			"x-generated": fieldsWhere(entity, "generated"),
 			"x-immutable": entity.fields.filter((f) => f.immutable === true).map((f) => f.name),
 			"x-invalidate": surface,
 			"x-tenant": tenantParam(entity),
@@ -236,9 +363,53 @@ function buildEntityPaths(entity: EntityDef): Json {
 	return { [entity.collectionPath]: collection, [entity.itemPath]: item }
 }
 
-export function buildSpec(): Json {
+export function buildSpec(dialect: Dialect = POSTGREST): Json {
 	const paths: Json = {}
-	for (const entity of ENTITIES) Object.assign(paths, buildEntityPaths(entity))
+	for (const entity of ENTITIES) Object.assign(paths, buildEntityPaths(entity, dialect))
+
+	/* The async lifecycle: a start operation returning a receipt, and a poll route that
+	 * eventually reports a terminal state. x-async ties the two together. */
+	paths[`${JOB.collectionPath}/start`] = {
+		post: {
+			operationId: "job.start",
+			parameters: pathParams(JOB, false),
+			requestBody: {
+				content: {
+					"application/json": {
+						schema: {
+							additionalProperties: false,
+							properties: { name: { maxLength: 128, minLength: 1, type: "string" } },
+							required: ["name"],
+							type: "object",
+						},
+					},
+				},
+				required: true,
+			},
+			responses: {
+				"202": jsonResponse("Job accepted", {
+					additionalProperties: false,
+					properties: { accepted: { type: "boolean" }, job_id: { type: "string" } },
+					required: ["job_id", "accepted"],
+					type: "object",
+				}),
+				...errorResponses([400, 401, 403, 404, 415]),
+			},
+			summary: "Start a job",
+			tags: ["Job"],
+			"x-async": {
+				idFrom: "$.job_id",
+				poll: `GET ${JOB.itemPath}`,
+				pollIntervalMs: 20,
+				successWhen: "status.eq.complete",
+				timeoutMs: 3000,
+				until: "status.in.(complete,failed)",
+			},
+			"x-effects": [{ count: 1, entity: "job", op: "create" }],
+			"x-entity": { action: "action", identity: "id", name: "job" },
+			"x-tenant": tenantParam(JOB),
+		},
+	}
 
 	paths["/v1/auth/token"] = {
 		post: {
@@ -298,8 +469,8 @@ export function buildSpec(): Json {
 }
 
 /** Variant with every oat meta tag removed — exercises the heuristic fallbacks. */
-export function buildUntaggedSpec(): Json {
-	const spec = buildSpec()
+export function buildUntaggedSpec(dialect: Dialect = POSTGREST): Json {
+	const spec = buildSpec(dialect)
 	const strip = (node: unknown): unknown => {
 		if (Array.isArray(node)) return node.map(strip)
 		if (node === null || typeof node !== "object") return node

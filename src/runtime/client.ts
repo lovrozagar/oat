@@ -23,11 +23,36 @@ export interface RequestOptions {
 export class Client {
 	readonly transcript: Exchange[] = []
 	private seq = 0
+	private inFlight = 0
+	private readonly waiting: Array<() => void> = []
 
 	constructor(
 		private readonly baseUrl: string,
 		private readonly globalHeaders: Record<string, string> = {},
+		/**
+		 * Requests allowed in flight at once.
+		 *
+		 * Parallelism past a server's comfort makes every request slower rather than the run
+		 * faster — many APIs queue or throttle, so an unbounded burst trades wall-clock for
+		 * nothing and risks tripping rate limits that then look like backend defects.
+		 */
+		private readonly maxInFlight = 4,
 	) {}
+
+	/** Admission control. Held for the duration of one request, released in a finally. */
+	private async acquire(): Promise<void> {
+		if (this.inFlight < this.maxInFlight) {
+			this.inFlight += 1
+			return
+		}
+		await new Promise<void>((resolve) => this.waiting.push(resolve))
+		this.inFlight += 1
+	}
+
+	private release(): void {
+		this.inFlight -= 1
+		this.waiting.shift()?.()
+	}
 
 	async request(method: string, path: string, options: RequestOptions = {}): Promise<Exchange> {
 		const url = new URL(path.startsWith("http") ? path : `${this.baseUrl}${path}`)
@@ -43,9 +68,16 @@ export class Client {
 		const init: RequestInit = { headers, method }
 		if (options.body !== undefined) init.body = JSON.stringify(options.body)
 
+		await this.acquire()
 		const started = performance.now()
-		const response = await fetch(url, init)
-		const text = await response.text()
+		let response: Response
+		let text: string
+		try {
+			response = await fetch(url, init)
+			text = await response.text()
+		} finally {
+			this.release()
+		}
 		let parsed: unknown = text
 		try {
 			parsed = text === "" ? null : JSON.parse(text)
@@ -74,15 +106,46 @@ export class Client {
 	}
 }
 
-/** Reproducible `curl` for an exchange — the artifact backend teams actually use. */
-export function toCurl(exchange: Exchange, redact: readonly string[] = ["authorization"]): string {
-	const parts = [`curl -i -X ${exchange.method} '${exchange.url}'`]
+export interface CurlOptions {
+	/** Header names whose values are replaced by a shell variable reference. */
+	redact?: readonly string[]
+	/** Origin to replace with `"$BASE"`, so a script can be pointed at another environment. */
+	origin?: string
+}
+
+/**
+ * Reproducible `curl` for an exchange — the artifact backend teams actually use.
+ *
+ * Quoting matters here: anything holding a shell variable must be double-quoted or the script
+ * silently runs against a literal `$BASE` with a literal `$TOKEN`. Everything else is
+ * single-quoted so JSON bodies and query strings survive untouched.
+ */
+export function toCurl(exchange: Exchange, options: CurlOptions = {}): string {
+	const redact = options.redact ?? ["authorization", "cookie", "x-api-key"]
+	const url =
+		options.origin !== undefined && exchange.url.startsWith(options.origin)
+			? `"$BASE${shellEscapeDouble(exchange.url.slice(options.origin.length))}"`
+			: `'${exchange.url}'`
+
+	const parts = [`curl -i -X ${exchange.method} ${url}`]
 	for (const [key, value] of Object.entries(exchange.requestHeaders)) {
-		const shown = redact.includes(key.toLowerCase()) ? "$TOKEN" : value
-		parts.push(`  -H '${key}: ${shown}'`)
+		if (redact.includes(key.toLowerCase())) {
+			/* Preserve the scheme prefix ("Bearer ", "ApiKey ") so the variable holds only the
+			 * secret and the script stays copy-pasteable. */
+			const scheme = /^(\w+)\s+/.exec(value)?.[1]
+			const rendered = scheme === undefined ? "$TOKEN" : `${scheme} $TOKEN`
+			parts.push(`  -H "${key}: ${rendered}"`)
+			continue
+		}
+		parts.push(`  -H '${key}: ${value}'`)
 	}
 	if (exchange.requestBody !== undefined) {
-		parts.push(`  -d '${JSON.stringify(exchange.requestBody)}'`)
+		parts.push(`  -d '${JSON.stringify(exchange.requestBody).replace(/'/g, `'\\''`)}'`)
 	}
 	return parts.join(" \\\n")
+}
+
+/** Escapes the characters that stay special inside double quotes. */
+function shellEscapeDouble(text: string): string {
+	return text.replace(/(["\\`])/g, "\\$1")
 }

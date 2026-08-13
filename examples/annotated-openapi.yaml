@@ -1,0 +1,311 @@
+# A complete, valid OpenAPI 3.1 document showing every tag oat reads, in place.
+#
+# This file is not illustrative — the conformance suite loads it and asserts that oat resolves
+# what the comments claim, so it cannot drift away from the implementation. Run it yourself:
+#
+#     oat plan --spec examples/annotated-openapi.yaml --base-url https://api.example.com
+#
+# Every `x-` tag below is OPTIONAL. Each one either tells oat something it cannot otherwise know,
+# or replaces a guess that oat would report as a coverage gap. Nothing here is oat-specific
+# vocabulary you are locked into: they are plain OpenAPI extensions, and any other tool ignores
+# them.
+
+openapi: 3.1.0
+info:
+  title: Widgets API
+  version: "1.0"
+
+paths:
+  /v1/workspaces/{workspace_id}/widgets:
+    get:
+      operationId: widget.list
+      summary: List widgets
+
+      # ── x-entity ─────────────────────────────────────────────────────────────
+      # Which resource this operation reads, and which property identifies it.
+      # Without this oat guesses the entity from the path and the identity from the
+      # response schema — usually right, and reported as a guess when it has to.
+      x-entity:
+        name: widget
+        action: list
+        identity: id
+
+      # ── x-tenant ─────────────────────────────────────────────────────────────
+      # Names the parameter that scopes this route to a tenant. This is what turns a
+      # cross-tenant read from an AMBIGUITY ("oat inferred a boundary") into a SECURITY
+      # finding ("the document states a boundary and it was crossed").
+      x-tenant: workspace_id
+
+      # ── x-query ──────────────────────────────────────────────────────────────
+      # The one oat cannot work around. `filter` is declared below as `type: string`,
+      # which says nothing about WHICH fields it accepts — so without this tag oat
+      # assumes every scalar property is filterable and warns that it is guessing.
+      x-query:
+        grammar: postgrest          # postgrest | colon | equality — how filter values are written
+        filterable: [id, workspace_id, name, status, priority, created_at]
+        sortable: [name, priority, created_at]
+        searchable: [name, description]   # the fields `q` actually searches
+        selectable: [id, name, status, priority, created_at]
+        maxLimit: 100
+        defaultOrder: created_at.desc
+        # Load-bearing: without a total order, keyset pagination is unsound and page
+        # walks silently drop or duplicate rows. Declaring it lets oat assert it;
+        # omitting it makes oat probe for the instability instead.
+        stableTiebreak: id
+
+      parameters:
+        - { name: workspace_id, in: path, required: true, schema: { type: string } }
+        # The description is not decoration: oat infers the filter grammar from the
+        # syntax demonstrated here when `x-query.grammar` is absent.
+        - name: filter
+          in: query
+          schema: { type: string }
+          description: "PostgREST-style filter: field.op.value, and(...), or(...). e.g. status.eq.active"
+        - name: order
+          in: query
+          schema: { type: string }
+          description: "Sort: field[.asc|.desc], comma-separated. e.g. created_at.desc"
+        - name: select
+          in: query
+          schema: { type: string }
+          description: Comma-separated sparse fieldset
+        - name: q
+          in: query
+          schema: { type: string }
+          description: Free-text search
+        # `limit` carries a maximum and a default, which is how oat tells a page size
+        # from a total when a name is ambiguous (`count` is both, in the wild).
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: cursor, in: query, schema: { type: string } }
+
+      responses:
+        "200":
+          description: A page of widgets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  widgets: { type: array, items: { $ref: "#/components/schemas/Widget" } }
+                  count: { type: integer }
+                  hasMore: { type: boolean }
+                  nextCursor: { type: [string, "null"] }
+                required: [widgets, count, hasMore]
+
+    post:
+      operationId: widget.create
+      summary: Create a widget
+      x-entity: { name: widget, action: create, identity: id }
+      x-tenant: workspace_id
+
+      # ── x-invalidate ─────────────────────────────────────────────────────────
+      # Which read routes this write changes. oat inverts these into the entity's
+      # read surface — it is how the entity graph is built — AND verifies them: a
+      # route named here that returns a byte-identical body after the write is either
+      # a stale projection or a wrong declaration.
+      x-invalidate:
+        - "GET /v1/workspaces/{workspace_id}/widgets"
+        - "GET /v1/workspaces/{workspace_id}/summary"
+
+      # ── x-generated ──────────────────────────────────────────────────────────
+      # Server-owned fields. Excluded from PATCH-minimality comparisons, because a
+      # value the server maintains may legitimately change between two reads.
+      x-generated: [id, workspace_id, created_at, updated_at]
+
+      parameters:
+        - { name: workspace_id, in: path, required: true, schema: { type: string } }
+        # A declared idempotency header is a promise oat will test by replaying the
+        # request: the replay must return the original record, not create a second.
+        - { name: Idempotency-Key, in: header, required: false, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name: { type: string, maxLength: 128 }
+                description: { type: string, maxLength: 512 }
+                status: { type: string, enum: [draft, active, archived] }
+                priority: { type: integer, minimum: 0, maximum: 10 }
+              required: [name]
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Widget" }
+
+  /v1/workspaces/{workspace_id}/widgets/{widget_id}:
+    get:
+      operationId: widget.read
+      x-entity: { name: widget, action: read, identity: id }
+      x-tenant: workspace_id
+      parameters:
+        - { name: workspace_id, in: path, required: true, schema: { type: string } }
+        - { name: widget_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: A widget
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Widget" }
+
+    patch:
+      operationId: widget.update
+      x-entity: { name: widget, action: update, identity: id }
+      x-tenant: workspace_id
+      x-invalidate: ["GET /v1/workspaces/{workspace_id}/widgets"]
+
+      # ── x-immutable ──────────────────────────────────────────────────────────
+      # Fields a client must never be able to write. oat PATCHes each one and expects
+      # a rejection; a backend that accepts a write to the tenant key here is how a
+      # record silently moves between tenants.
+      x-immutable: [id, workspace_id, created_at]
+      x-generated: [updated_at]
+
+      parameters:
+        - { name: workspace_id, in: path, required: true, schema: { type: string } }
+        - { name: widget_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name: { type: string, maxLength: 128 }
+                description: { type: string, maxLength: 512 }
+                status: { type: string, enum: [draft, active, archived] }
+                priority: { type: integer, minimum: 0, maximum: 10 }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Widget" }
+
+    delete:
+      operationId: widget.delete
+      x-entity: { name: widget, action: delete, identity: id }
+      x-tenant: workspace_id
+      x-invalidate: ["GET /v1/workspaces/{workspace_id}/widgets"]
+
+      # ── x-soft-delete ────────────────────────────────────────────────────────
+      # Names the tombstone column. oat then asserts a deleted record disappears from
+      # the default listing rather than expecting a hard 404 that will never come.
+      x-soft-delete: deleted_at
+
+      # ── x-destructive ────────────────────────────────────────────────────────
+      # Advisory: oat will not run this against data it did not create.
+      x-destructive: true
+
+      parameters:
+        - { name: workspace_id, in: path, required: true, schema: { type: string } }
+        - { name: widget_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Deleted }
+
+  # The route `widget.create` declares it invalidates. It exposes a count derived from
+  # another entity, which is exactly the case `x-invalidate` exists to make testable:
+  # oat snapshots this route, creates a widget, and re-reads it. A byte-identical body
+  # means the derived value is stale or the declaration is wrong.
+  /v1/workspaces/{workspace_id}/summary:
+    get:
+      operationId: workspace.summary
+      summary: Workspace totals
+      # Declared as a read of `workspace`, so oat models it as that entity's read
+      # surface rather than inferring a third entity with no way to verify it.
+      x-entity: { name: workspace, action: read, identity: workspace_id }
+      x-tenant: workspace_id
+      parameters:
+        - { name: workspace_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Totals for the workspace
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workspace_id: { type: string }
+                  widget_count: { type: integer }
+                required: [workspace_id, widget_count]
+
+  /v1/workspaces/{workspace_id}/exports:
+    post:
+      operationId: export.start
+      summary: Start an export
+
+      # ── x-async ──────────────────────────────────────────────────────────────
+      # The request returns a receipt, not a result. Without this oat asserts against
+      # the receipt and reports the missing data as a bug; with it, oat follows the
+      # job to a terminal state and asserts on the outcome.
+      x-async:
+        poll: export.read              # operationId that reports progress
+        idFrom: $.export_id            # where the receipt carries the job id
+        until: $.status in [complete, failed]
+        successWhen: $.status == complete
+        timeoutMs: 30000
+        pollIntervalMs: 500
+
+      # ── x-effects ────────────────────────────────────────────────────────────
+      # What this operation changes elsewhere. `x-invalidate` says a route's response
+      # changes; `x-effects` says how, which is what makes it assertable.
+      x-effects:
+        - entity: widget
+          change: none                 # exporting must not mutate what it exports
+
+      x-tenant: workspace_id
+      parameters:
+        - { name: workspace_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  export_id: { type: string }
+                  status: { type: string, enum: [pending, running, complete, failed] }
+                required: [export_id, status]
+
+  /v1/workspaces/{workspace_id}/exports/{export_id}:
+    get:
+      operationId: export.read
+      x-entity: { name: export, action: read, identity: export_id }
+      x-tenant: workspace_id
+      parameters:
+        - { name: workspace_id, in: path, required: true, schema: { type: string } }
+        - { name: export_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Export status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  export_id: { type: string }
+                  status: { type: string, enum: [pending, running, complete, failed] }
+                required: [export_id, status]
+
+components:
+  schemas:
+    Widget:
+      type: object
+      properties:
+        id: { type: string }
+        workspace_id: { type: string }
+        name: { type: string }
+        description: { type: [string, "null"] }
+        status: { type: string, enum: [draft, active, archived] }
+        priority: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        deleted_at: { type: [string, "null"] }
+      required: [id, workspace_id, name, status, priority, created_at, updated_at]

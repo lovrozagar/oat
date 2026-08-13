@@ -92,13 +92,21 @@ const IRREGULAR_PLURALS: Record<string, string> = {
 	statuses: "status",
 }
 
+/**
+ * Word endings that are not plural markers. Without these, `status` becomes `statu` and
+ * `analysis` becomes `analysi` — the kind of mangling that turns a readable report into one
+ * nobody trusts.
+ */
+const NON_PLURAL_ENDINGS = /(?:us|ss|is|os|as|ics|ews|ess|ous|sis)$/
+
 export function singularise(word: string): string {
 	const lower = word.toLowerCase()
 	const irregular = IRREGULAR_PLURALS[lower]
 	if (irregular !== undefined) return irregular
 	if (/(ches|shes|sses|xes|zes)$/.test(lower)) return lower.slice(0, -2)
 	if (/[^aeiou]ies$/.test(lower)) return `${lower.slice(0, -3)}y`
-	if (/s$/.test(lower) && !/ss$/.test(lower)) return lower.slice(0, -1)
+	if (NON_PLURAL_ENDINGS.test(lower)) return lower
+	if (/s$/.test(lower)) return lower.slice(0, -1)
 	return lower
 }
 
@@ -335,6 +343,12 @@ export function readCleanup(op: OperationObject): string | null {
 /* -------------------------------------------------------------------- x-tenant */
 
 const TENANT_PARAM = /^(org(anization)?|tenant|workspace|account|project|app)_?(id|slug)?$/i
+
+export function readTenantSource(endpoint: Endpoint): "tag" | "heuristic" | null {
+	if (typeof ext<unknown>(endpoint.op, "x-tenant") === "string") return "tag"
+	const guess = pathParameterNames(endpoint.path).find((name) => TENANT_PARAM.test(name))
+	return guess === undefined ? null : "heuristic"
+}
 
 export function readTenantParam(endpoint: Endpoint, gaps?: GapCollector): string | null {
 	const tag = ext<unknown>(endpoint.op, "x-tenant")

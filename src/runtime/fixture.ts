@@ -70,7 +70,9 @@ function generateObject(
 	variant: Variant,
 	rand: () => number,
 	index: number,
+	depth = 0,
 ): Record<string, unknown> {
+	if (depth > 4) return {}
 	const properties = schema.properties
 	if (properties === null || typeof properties !== "object") return {}
 	const required = Array.isArray(schema.required) ? (schema.required as string[]) : []
@@ -79,7 +81,7 @@ function generateObject(
 	for (const [name, raw] of Object.entries(properties as Record<string, Schema>)) {
 		if (raw === null || typeof raw !== "object") continue
 		if (raw.readOnly === true) continue
-		const value = generateValue(name, raw, variant, rand, index)
+		const value = generateValue(name, raw, variant, rand, index, depth)
 		if (value === undefined) {
 			if (required.includes(name)) out[name] = fallbackFor(raw)
 			continue
@@ -95,7 +97,10 @@ function generateValue(
 	variant: Variant,
 	rand: () => number,
 	index: number,
+	depth = 0,
 ): unknown {
+	/* Recursive schemas are shared objects after dereferencing, so generation must be bounded. */
+	if (depth > 4) return undefined
 	const nullable = isNullable(schema)
 	if (variant === "null-heavy" && nullable) return null
 
@@ -121,15 +126,34 @@ function generateValue(
 		case "number": {
 			if (variant === "boundary" && typeof concrete.maximum === "number") return concrete.maximum
 			const min = typeof concrete.minimum === "number" ? concrete.minimum : 0
-			/* Staggered and distinct so ordering assertions have a total order to observe. */
-			return type === "integer" ? min + index * 10 : min + index * 10 + Math.round(rand() * 9)
+			/*
+			 * A ladder whose lexical order differs from its numeric order: as text these sort
+			 * 1, 10, 100, 2, 20, 5, 50 — nothing like their numeric order.
+			 *
+			 * An evenly spaced sequence (10, 20, 30…) sorts identically either way, so a backend
+			 * comparing numbers as strings would look correct. Values have to disagree for the
+			 * assertion to carry any signal.
+			 */
+			const ladder = [1, 2, 5, 10, 20, 50, 100]
+			const step = ladder[index % ladder.length] ?? 1
+			return type === "integer" ? min + step : min + step + Math.round(rand() * 9) / 10
 		}
 		case "boolean":
 			return index % 2 === 0
-		case "array":
-			return []
+		case "array": {
+			/* An empty array is not a safe default: `minItems` is common on required collections
+			 * (column definitions, line items), and sending [] fails validation on exactly the
+			 * endpoints most worth testing. */
+			const min = typeof concrete.minItems === "number" ? concrete.minItems : 0
+			const count = Math.max(min, 1)
+			const items = concrete.items
+			if (items === null || typeof items !== "object") return []
+			return Array.from({ length: count }, (_, position) =>
+				generateValue(`${name}_item`, items as Schema, variant, rand, index + position, depth + 1),
+			)
+		}
 		case "object":
-			return {}
+			return generateObject(concrete, variant, rand, index, depth + 1)
 		default:
 			return undefined
 	}

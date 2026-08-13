@@ -6,37 +6,40 @@
  * per case — which is what made prior attempts produce dozens of failures from one broken fixture.
  */
 
-import { buildModel, type EntityModel, type SpecModel } from "../spec/graph.ts"
+import { buildModel, type EntityModel, type OperationModel, type SpecModel } from "../spec/graph.ts"
 import { dereference, loadSpec } from "../spec/load.ts"
+import type { Hooks, Principal } from "../config/define-config.ts"
+import { type AcquireSpec, createPrincipal, type PrincipalRuntime } from "./auth.ts"
 import { CHECKS, type CheckContext } from "./checks.ts"
-import { Client } from "./client.ts"
-import { type Finding, FindingCollector } from "./finding.ts"
+import { Client, type Exchange } from "./client.ts"
+import { type Finding, FindingCollector, type Inconclusive } from "./finding.ts"
+import { Ledger, type TeardownReport } from "./teardown.ts"
 import { SchemaValidator } from "./validate.ts"
-import { type Record_, type Scope, SeedError, resolveScope, seedCohort } from "./world.ts"
+import { type Record_, type Scope, SeedError, fillPath, resolveScope, seedCohort } from "./world.ts"
 
-export interface PrincipalSpec {
-	id: string
-	/** Static headers, or an acquire step resolved against the spec. */
-	headers?: Record<string, string>
-	acquire?: {
-		operationId: string
-		body: unknown
-		credentialFrom: string
-		header?: string
-		template?: string
-	}
-	roots?: Record<string, string>
-}
+/* The principal shape is the public config's — one definition, checked in both places. */
+export type PrincipalSpec = Principal
 
 export interface RunOptions {
 	spec: string
 	baseUrl: string
 	principals: PrincipalSpec[]
+	hooks?: Hooks
 	roots?: Record<string, string>
 	seed?: number
 	cohortSize?: number
 	globalHeaders?: Record<string, string>
 	only?: string[]
+	/** Leaves created records in place. Useful when inspecting a failure by hand. */
+	keepFixtures?: boolean
+	/**
+	 * Entities tested in parallel. Checks within one entity stay sequential — cascade suppression
+	 * reads findings already reported for that entity, and ordering is what keeps one root cause
+	 * from being reported as several.
+	 */
+	concurrency?: number
+	/** Requests allowed in flight at once, across the whole run. */
+	maxInFlight?: number
 }
 
 export interface RunResult {
@@ -45,6 +48,21 @@ export interface RunResult {
 	client: Client
 	entitiesTested: string[]
 	checksRun: string[]
+	/** Checks that never ran, and what each needed. A quiet run is only meaningful alongside it. */
+	checksSkipped: Array<{ check: string; entity: string; needs: string }>
+	/**
+	 * Checks that did not run because something they depend on was already reported broken.
+	 *
+	 * Recorded rather than dropped for the same reason skips are: suppression is correct — one
+	 * root cause should produce one finding — but a suppressed check has *not* passed, and a
+	 * report that shows only the root cause invites the reader to believe everything downstream
+	 * was verified. It was not, and it must be re-run once the cause is fixed.
+	 */
+	checksSuppressed: Array<{ check: string; entity: string; because: string }>
+	/** Checks that ran but could not reach a verdict — see `Inconclusive`. */
+	inconclusive: Inconclusive[]
+	created: number
+	teardown: TeardownReport | null
 }
 
 function readPointer(body: unknown, pointer: string): unknown {
@@ -57,36 +75,128 @@ function readPointer(body: unknown, pointer: string): unknown {
 	return node
 }
 
-async function acquire(
+interface ResolvedPrincipal {
+	id: string
+	headers: () => Record<string, string>
+	roots: Record<string, string>
+	runtime?: PrincipalRuntime
+}
+
+/**
+ * Removes principals the run provisioned.
+ *
+ * Where a flow registers a throwaway account, the account itself is a fixture — and usually the
+ * only handle that can remove everything it created, since per-record deletes are owner-scoped
+ * and the credential dies with the run.
+ */
+async function teardownPrincipals(
+	principals: Array<ResolvedPrincipal | undefined>,
+	hooks: Hooks,
+	findings: FindingCollector,
+): Promise<void> {
+	const teardown = hooks.teardownPrincipal
+	const addresses = principals
+		.map((principal) => principal?.runtime?.address)
+		.filter((address): address is string => typeof address === "string" && address !== "")
+	if (addresses.length === 0) return
+
+	if (teardown === undefined) {
+		findings.gap(
+			"world.teardown",
+			"principal",
+			`${addresses.length} principal(s) provisioned by this run were not removed`,
+			`oat registered ${addresses.join(", ")} to run this test and has no way to delete them. ` +
+				"Supply a teardownPrincipal hook, or these accounts accumulate on every run.",
+		)
+		return
+	}
+
+	for (const address of addresses) {
+		try {
+			await teardown(address)
+		} catch (error) {
+			findings.gap(
+				"world.teardown",
+				"principal",
+				`could not remove provisioned principal ${address}`,
+				error instanceof Error ? error.message : String(error),
+			)
+		}
+	}
+}
+
+/**
+ * Resolves a principal to something that can produce headers on demand.
+ *
+ * Static headers stay static; acquired credentials refresh themselves. Returning a function
+ * rather than a snapshot is what lets a long run outlive a short-lived token — a five-minute TTL
+ * would otherwise turn the back half of every run into spurious 401s.
+ */
+async function resolvePrincipal(
 	principal: PrincipalSpec,
 	model: SpecModel,
 	client: Client,
-): Promise<Record<string, string>> {
-	if (principal.acquire === undefined) return principal.headers ?? {}
-	const op = model.byOperationId.get(principal.acquire.operationId)
-	if (op === undefined) {
-		throw new Error(
-			`oat: principal "${principal.id}" names operation "${principal.acquire.operationId}", ` +
-				"which is not in the document",
-		)
+	hooks: Hooks,
+): Promise<ResolvedPrincipal> {
+	const configured = principal.roots ?? {}
+
+	/* A principal without a flow authenticates by static header — a long-lived API key needs no
+	 * acquisition at all, and forcing one would be ceremony. */
+	if (principal.auth === undefined) {
+		return { headers: () => principal.headers ?? {}, id: principal.id, roots: configured }
 	}
-	const exchange = await client.request(op.method, op.path, { body: principal.acquire.body })
-	if (exchange.status >= 300) {
-		throw new Error(
-			`oat: acquiring credential for "${principal.id}" via ${op.operationId} returned ` +
-				`${exchange.status}: ${JSON.stringify(exchange.responseBody).slice(0, 200)}`,
-		)
+
+	const runtime = await createPrincipal(principal.id, principal.auth, {
+		client,
+		hooks,
+		model,
+		principalId: principal.id,
+	})
+
+	/* A flow that provisions a tenant produces its own roots — the run then needs no fixture
+	 * identifiers configured at all. */
+	const discovered: Record<string, string> = {}
+	for (const [param, key] of Object.entries(principal.rootsFromFlow ?? {})) {
+		const value = runtime.scope[key]
+		if (value !== undefined) discovered[param] = value
 	}
-	const credential = readPointer(exchange.responseBody, principal.acquire.credentialFrom)
-	if (typeof credential !== "string") {
-		throw new Error(
-			`oat: ${principal.acquire.credentialFrom} did not resolve to a string in the response of ` +
-				op.operationId,
-		)
+
+	return {
+		headers: () => ({ ...principal.headers, ...runtime.headers() }),
+		id: principal.id,
+		roots: { ...discovered, ...configured },
+		runtime,
 	}
-	const header = principal.acquire.header ?? "authorization"
-	const template = principal.acquire.template ?? "Bearer {credential}"
-	return { ...principal.headers, [header]: template.replace("{credential}", credential) }
+}
+
+/** Reads whatever the list endpoint already returns, for degraded read-only coverage. */
+async function readExisting(
+	listOp: OperationModel,
+	client: Client,
+	headers: Record<string, string>,
+	roots: Record<string, string>,
+): Promise<{ records: Record_[]; scope: Record<string, string> }> {
+	/* Seed with every known root, not only the list route's own parameters. Sibling routes for
+	 * the same entity are often scoped differently — a global list beside a tenant-scoped item
+	 * route — and a scope built from the list alone leaves those unresolvable. */
+	const scope: Record<string, string> = { ...roots }
+	for (const param of listOp.pathParams) {
+		if (scope[param] === undefined) return { records: [], scope }
+	}
+	try {
+		const exchange = await client.get(fillPath(listOp.path, scope), { headers, query: { limit: 50 } })
+		if (exchange.status >= 300) return { records: [], scope }
+		const body = exchange.responseBody
+		const key = listOp.collection?.key ?? null
+		const items = Array.isArray(body)
+			? body
+			: body !== null && typeof body === "object" && key !== null
+				? ((body as Record<string, unknown>)[key] ?? [])
+				: []
+		return { records: Array.isArray(items) ? (items as Record_[]) : [], scope }
+	} catch {
+		return { records: [], scope }
+	}
 }
 
 function testableEntities(model: SpecModel, only?: string[]): EntityModel[] {
@@ -97,44 +207,57 @@ function testableEntities(model: SpecModel, only?: string[]): EntityModel[] {
 }
 
 export async function run(options: RunOptions): Promise<RunResult> {
-	const raw = await loadSpec(options.spec)
+	const raw = await loadSpec(options.spec, options.baseUrl)
 	const { doc } = dereference(raw)
 	const model = buildModel(doc)
-	const client = new Client(options.baseUrl, options.globalHeaders ?? {})
+	const client = new Client(options.baseUrl, options.globalHeaders ?? {}, options.maxInFlight ?? 4)
 	const findings = new FindingCollector()
 	const validator = new SchemaValidator()
+	const ledger = new Ledger()
 	const seed = options.seed ?? 1
 
 	const [primary, secondary] = options.principals
 	if (primary === undefined) throw new Error("oat: at least one principal is required")
 
-	const primaryHeaders = await acquire(primary, model, client)
-	const secondaryHeaders =
-		secondary === undefined ? undefined : await acquire(secondary, model, client)
+	const hooks = options.hooks ?? {}
+	const alpha = await resolvePrincipal(primary, model, client, hooks)
+	const beta =
+		secondary === undefined ? undefined : await resolvePrincipal(secondary, model, client, hooks)
+
 
 	const entitiesTested: string[] = []
 	const checksRun = new Set<string>()
+	const checksSkipped: Array<{ check: string; entity: string; needs: string }> = []
+	const checksSuppressed: Array<{ check: string; entity: string; because: string }> = []
 
-	for (const entity of testableEntities(model, options.only)) {
+	const testEntity = async (entity: EntityModel): Promise<void> => {
 		const listOp = model.byOperationId.get(entity.list ?? "")
 		const createOp = model.byOperationId.get(entity.create ?? "")
-		if (listOp === undefined || createOp === undefined) continue
+		if (listOp === undefined || createOp === undefined) return
 
-		const rootValues = { ...options.roots, ...primary.roots }
+		await alpha.runtime?.refreshIfStale()
+		await beta?.runtime?.refreshIfStale()
+		const rootValues = { ...options.roots, ...alpha.roots }
 		let scope: Scope
 		let records: Record_[]
+		let degraded = false
 		try {
 			scope = await resolveScope(createOp, model, client, {
-				authHeaders: () => primaryHeaders,
+				authHeaders: alpha.headers,
 				roots: rootValues,
 				seed,
 			})
+			/* Carry every known root, not only what the create route happened to need. Sibling
+			 * routes for one entity are frequently scoped differently — a global create beside a
+			 * tenant-scoped item route — and a scope built from create alone leaves those
+			 * unresolvable, which shows up as a wall of "could not complete" gaps. */
+			scope.values = { ...rootValues, ...scope.values }
 			const cohort = await seedCohort(
 				createOp,
 				model,
 				client,
 				{
-					authHeaders: () => primaryHeaders,
+					authHeaders: alpha.headers,
 					...(options.cohortSize === undefined ? {} : { cohortSize: options.cohortSize }),
 					roots: rootValues,
 					seed,
@@ -142,39 +265,125 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				scope,
 			)
 			records = cohort.records
+			/* Ancestors first, then the cohort — the unwind reverses this, so children are always
+			 * removed before the parents they hang from. */
+			for (const ancestor of scope.created) {
+				ledger.record(ancestor.entity, ancestor.id, scope.values)
+			}
+			for (const record of records) {
+				ledger.record(entity.name, String(record[entity.identity ?? "id"]), scope.values)
+			}
 		} catch (error) {
 			const cause = error instanceof SeedError ? error.cause_ : "unknown"
-			findings.blocked(
+			const status = error instanceof SeedError ? error.status : undefined
+			const message = error instanceof Error ? error.message : String(error)
+
+			/* A create that fails with 5xx is not a fixture problem — it is the defect. Reporting
+			 * it as merely "blocked" buries the most serious thing oat found. */
+			if (status !== undefined && status >= 500) {
+				findings.backend(
+					"create.does-not-error",
+					entity.name,
+					`creating a "${entity.name}" fails with a server error`,
+					`${message}. The request body was generated from the documented schema, so either ` +
+						"the handler rejects input the document permits, or it is failing outright. " +
+						"Everything downstream of this entity is untestable until it is fixed.",
+					client.transcript.filter((e) => e.status >= 500).slice(-1),
+				)
+			}
+
+			/* Fall back to whatever already exists. A backend whose create is broken can still have
+			 * a working list, and read-only coverage beats no coverage — this is exactly the state
+			 * in which a read-path bug is most likely to be sitting undiscovered. */
+			const existing = await readExisting(listOp, client, alpha.headers(), {
+				...options.roots,
+				...alpha.roots,
+			})
+			if (existing.records.length === 0) {
+				findings.blocked(
+					"world.seed",
+					entity.name,
+					`could not seed "${entity.name}"`,
+					`${cause}: ${message}`,
+				)
+				return
+			}
+
+			findings.gap(
 				"world.seed",
 				entity.name,
-				`could not seed "${entity.name}"`,
-				`${cause}: ${error instanceof Error ? error.message : String(error)}`,
+				`seeding "${entity.name}" failed; running read-only checks against existing records`,
+				`${cause}: ${message}. Write-path and lifecycle checks are skipped for this entity.`,
 			)
-			continue
+			scope = { created: [], values: existing.scope }
+			records = existing.records
+			degraded = true
 		}
 
 		let altScope: Record<string, string> | undefined
-		if (secondary !== undefined && secondaryHeaders !== undefined) {
+		if (beta !== undefined) {
 			try {
 				const resolved = await resolveScope(listOp, model, client, {
-					authHeaders: () => secondaryHeaders,
-					roots: { ...options.roots, ...secondary.roots },
+					authHeaders: beta.headers,
+					roots: { ...options.roots, ...beta.roots },
 					seed: seed + 1,
 				})
-				altScope = resolved.values
+				altScope = { ...options.roots, ...beta.roots, ...resolved.values }
 			} catch {
 				/* No isolated tenant available — the isolation checks simply do not apply. */
+				altScope = { ...options.roots, ...beta.roots }
 			}
 		}
 
+		/*
+		 * Anything a check creates is registered for teardown automatically.
+		 *
+		 * Several checks POST directly — replaying an idempotency key, probing a declared
+		 * invalidation, sending a body that validation should have rejected — and those records
+		 * were invisible to the ledger, so oat left them behind in the backend under test while
+		 * reporting that it had cleaned up everything it made. Recording centrally rather than at
+		 * each call site means a new check cannot forget: the wrapper sees every request.
+		 */
+		const trackingClient =
+			createOp === undefined || degraded
+				? client
+				: new Proxy(client, {
+						get(target, property, receiver) {
+							if (property !== "request") return Reflect.get(target, property, receiver)
+							return async (
+								method: string,
+								path: string,
+								options?: Parameters<Client["request"]>[2],
+							): Promise<Exchange> => {
+								const exchange = await target.request(method, path, options ?? {})
+								if (method.toUpperCase() !== "POST" || exchange.status >= 300) return exchange
+								const body = exchange.responseBody
+								if (body === null || typeof body !== "object") return exchange
+								const id = (body as Record<string, unknown>)[entity.identity ?? "id"]
+								if (typeof id !== "string" && typeof id !== "number") return exchange
+								/* Recording the same id twice is harmless — the unwind tolerates a 404
+								 * on an already-removed record — and missing one is not. */
+								ledger.record(entity.name, String(id), scope.values)
+								return exchange
+							}
+						},
+					})
+
 		const ctx: CheckContext = {
-			altAuth: secondaryHeaders === undefined ? undefined : () => secondaryHeaders,
+			altAuth: beta === undefined ? undefined : beta.headers,
+			asyncOps: model.operations.filter((op) => op.entity === entity.name && op.async !== null),
+			effectOps: model.operations.filter(
+				(op) => op.entity === entity.name && op.effects.length > 0,
+			),
 			altScope,
-			auth: () => primaryHeaders,
-			client,
+			auth: alpha.headers,
+			client: trackingClient,
 			collectionKey: listOp.collection?.key ?? null,
-			createOp,
-			deleteOp: model.byOperationId.get(entity.delete ?? ""),
+			/* In degraded mode oat did not write these records, so it has no oracle for them —
+			 * every write-path check must sit out rather than assert against data it did not
+			 * create. */
+			createOp: degraded ? undefined : createOp,
+			deleteOp: degraded ? undefined : model.byOperationId.get(entity.delete ?? ""),
 			entityName: entity.name,
 			findings,
 			identity: entity.identity ?? "id",
@@ -186,20 +395,13 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			scope: scope.values,
 			softDelete: listOp.softDelete,
 			seed,
-			updateOp: model.byOperationId.get(entity.update ?? ""),
+			updateOp: degraded ? undefined : model.byOperationId.get(entity.update ?? ""),
 			validator,
 		}
 
 		entitiesTested.push(entity.name)
 
-		for (const check of CHECKS) {
-			if (!check.applicable(ctx)) continue
-			/* Cascade suppression: a check whose premise is already known broken would report a
-			 * consequence, not a defect. One root cause, one finding. */
-			const blockedBy = check.dependsOn?.find((dependency) =>
-				findings.findings.some((f) => f.check === dependency && f.entity === entity.name),
-			)
-			if (blockedBy !== undefined) continue
+		const runOne = async (check: (typeof CHECKS)[number]): Promise<void> => {
 			checksRun.add(check.id)
 			try {
 				await check.run(ctx)
@@ -212,13 +414,130 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				)
 			}
 		}
+
+		/* Cascade suppression: a check whose premise is already known broken would report a
+		 * consequence, not a defect. One root cause, one finding. */
+		/*
+		 * Cascade suppression, transitively.
+		 *
+		 * A check whose premise is known broken reports a consequence, not a defect. The subtle
+		 * part is that suppression has to propagate: if A is suppressed because B failed, then C
+		 * — which depends on A — must be suppressed too. Consulting only *fired* findings misses
+		 * this, because A never fired; it was skipped. C then runs against the same broken premise
+		 * and reports the root cause a second time under its own name.
+		 *
+		 * So a check is suppressed when any dependency either failed outright or was itself
+		 * suppressed, and the reason carried forward names the original cause rather than the
+		 * intermediate link — which is what the reader has to fix.
+		 */
+		const suppressedBy = new Map<string, string>()
+		const suppressed = (check: (typeof CHECKS)[number]): boolean => {
+			for (const dependency of check.dependsOn ?? []) {
+				const failed = findings.findings.some(
+					(f) => f.check === dependency && f.entity === entity.name,
+				)
+				const inherited = suppressedBy.get(dependency)
+				if (!failed && inherited === undefined) continue
+				const because = failed ? dependency : (inherited as string)
+				suppressedBy.set(check.id, because)
+				checksSuppressed.push({ because, check: check.id, entity: entity.name })
+				return true
+			}
+			return false
+		}
+
+		/*
+		 * Read-only checks accumulate into a batch and fire together; a mutating check flushes the
+		 * batch and then runs alone. A batch also flushes when the next check depends on something
+		 * already inside it, so suppression never has to consult a finding that has not landed yet.
+		 *
+		 * This is where a live run's time actually goes — dozens of independent GETs against one
+		 * entity, each paying full network latency for no reason.
+		 */
+		let batch: Array<(typeof CHECKS)[number]> = []
+		const flush = async (): Promise<void> => {
+			if (batch.length === 0) return
+			const pending = batch
+			batch = []
+			await Promise.all(pending.map(runOne))
+		}
+
+		for (const check of CHECKS) {
+			if (!check.applicable(ctx)) {
+				/* Recorded, not dropped: on an API shaped unlike the fixture this is most of the
+				 * suite, and a silent skip reads exactly like a clean result. */
+				checksSkipped.push({
+					check: check.id,
+					entity: entity.name,
+					needs: check.needs ?? "an unstated precondition",
+				})
+				continue
+			}
+			if (check.mutates === true) {
+				await flush()
+				if (suppressed(check)) continue
+				await runOne(check)
+				continue
+			}
+			if (check.dependsOn?.some((d) => batch.some((queued) => queued.id === d)) === true) {
+				await flush()
+			}
+			if (suppressed(check)) continue
+			batch.push(check)
+		}
+		await flush()
 	}
+
+	/*
+	 * Entities run in parallel; checks within an entity stay strictly sequential.
+	 *
+	 * The ordering inside an entity is load-bearing — cascade suppression consults findings
+	 * already reported for it, so running those concurrently would let a root cause and its
+	 * consequences race and both be reported. Across entities there is no such coupling, and the
+	 * run is almost entirely network wait.
+	 */
+	const queue = testableEntities(model, options.only)
+	const lanes = Math.max(1, Math.min(options.concurrency ?? 1, queue.length))
+	let cursor = 0
+	await Promise.all(
+		Array.from({ length: lanes }, async () => {
+			while (cursor < queue.length) {
+				const entity = queue[cursor++]
+				if (entity === undefined) break
+				await testEntity(entity)
+			}
+		}),
+	)
+
+	/* Unwind after every check has run, never per case: a check may legitimately depend on records
+	 * another one created, and tearing down early turns that into a phantom defect. */
+	const teardown =
+		options.keepFixtures === true || ledger.size === 0
+			? null
+			: await ledger.unwind(model, client, alpha.headers)
+
+	if (teardown !== null && teardown.unsupported.length > 0) {
+		findings.gap(
+			"world.teardown",
+			teardown.unsupported.join(", "),
+			"records created during the run could not be removed",
+			`no delete operation is reachable for ${teardown.unsupported.join(", ")}, so this run left ` +
+				"fixtures behind. Declare x-cleanup to name the route that removes them.",
+		)
+	}
+
+	await teardownPrincipals([alpha, beta], hooks, findings)
 
 	return {
 		checksRun: [...checksRun].sort(),
+		checksSkipped,
+		checksSuppressed,
+		inconclusive: findings.inconclusive,
 		client,
+		created: ledger.size,
 		entitiesTested,
 		findings: findings.findings,
 		model,
+		teardown,
 	}
 }

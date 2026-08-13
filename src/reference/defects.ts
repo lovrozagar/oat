@@ -24,6 +24,67 @@ export const DEFECTS = {
 	COUNT_IGNORES_FILTER: "count reflects the unfiltered set",
 	/** The tenant predicate is applied to the list query but not to filter matches. */
 	TENANT_LEAK_VIA_FILTER: "filter bypasses the tenant predicate",
+	/**
+	 * Denies cross-tenant reads with 403 rather than 404.
+	 *
+	 * The access decision is correct — the record is not served — but the status distinguishes
+	 * "exists, not yours" from "does not exist", which turns the item route into an oracle for
+	 * enumerating other tenants' identifiers.
+	 */
+	EXISTENCE_LEAK_VIA_STATUS: "cross-tenant denial uses 403, revealing that the record exists",
+	/**
+	 * Accepts an Idempotency-Key and creates a second record anyway.
+	 *
+	 * The failure mode is a retry — a timeout, a proxy replay, a double-click — silently
+	 * duplicating a charge or an order. The key is the client's only defence against that, and
+	 * whether it is honoured cannot be established without replaying a request.
+	 */
+	IDEMPOTENCY_IGNORED: "Idempotency-Key is accepted but replay creates a duplicate record",
+	/**
+	 * A write invalidates a route the document says it invalidates — except it does not.
+	 *
+	 * The parent keeps serving a derived value computed before the child write: a denormalised
+	 * counter nobody refreshes, or a cached projection whose key was never busted. The write
+	 * succeeds, the child's own listing is correct, and only the *other* route the document named
+	 * is wrong — which is why nothing short of following `x-invalidate` finds it.
+	 */
+	PARENT_PROJECTION_STALE: "a route named by x-invalidate keeps serving pre-write data",
+	/**
+	 * The collection serves a different value for a field than the item route does.
+	 *
+	 * A denormalised listing, a search index rebuilt on a lag, a cached projection: each read path
+	 * is internally consistent and individually plausible, so every per-projection check passes.
+	 * Only comparing the paths against each other reveals that a client's view of a record depends
+	 * on which route it happened to use.
+	 */
+	LIST_DETAIL_DISAGREE: "the collection and the item route serve different values for a field",
+	/**
+	 * The filter is applied when it is the only query parameter, and dropped once a sort joins it.
+	 *
+	 * Models the real failure: adding an ORDER BY changes which index the planner picks, and the
+	 * predicate rides on the index that is no longer chosen. Each axis is provably correct on its
+	 * own, so a suite that only ever tests one at a time reports the API as clean.
+	 */
+	FILTER_DROPPED_WHEN_SORTED: "a filter stops being applied once a sort is also requested",
+	/**
+	 * The page window is computed over the *unfiltered* set, and the filter is applied to whatever
+	 * that window happened to contain.
+	 *
+	 * Page one usually looks right, which is what makes it survive review. The damage shows up
+	 * further in: pages come back short, records that match the predicate are never returned at
+	 * all, and the total is computed over a different set than the rows. Any code that resolves a
+	 * cursor or an offset before applying the predicate has this bug.
+	 */
+	FILTER_AFTER_PAGINATION: "paging is applied before filtering, so pages miss matching records",
+	/**
+	 * The document declares a field filterable that the backend rejects.
+	 *
+	 * Not a backend bug — the backend is entitled to refuse a field it never indexed. The document
+	 * is what is wrong, and it is wrong in the most expensive way: every client generated from it
+	 * offers a filter that 400s at runtime. oat is the only thing positioned to notice, because it
+	 * is the only thing that reads the claim and then tries it.
+	 */
+	SPEC_OVERCLAIMS_FILTERABLE: "x-query declares a field filterable that the backend rejects",
 	/** Tombstoned records remain in the default listing. */
 	SOFT_DELETE_LEAK: "soft-deleted records still appear in the default list",
 	/** Server-owned fields accept client writes. */
@@ -72,8 +133,41 @@ export const DEFECTS = {
 	EMPTY_RESULT_RETURNS_ALL: "a filter matching nothing falls back to returning everything",
 	/** SQL three-valued logic leaking through: NULL rows vanish from a negated predicate. */
 	NEQ_DROPS_NULLS: "neq silently excludes records whose value is null",
+	/** The total is computed by a query that disagrees with the one producing the rows. */
+	COUNT_ALWAYS_ZERO: "count reports zero while the same body returns records",
 	/** Descending order drops the rows an ascending order includes. */
 	SORT_DESC_DROPS_NULLS: "descending sort omits records with a null sort key",
+	/** An operation declares an effect in the document and does not perform it. */
+	EFFECT_NOT_APPLIED: "declared x-effects side effect never happens",
+	/** An async job never leaves its running state. */
+	ASYNC_NEVER_COMPLETES: "async job stays pending forever and never reaches a terminal state",
+	/** The receipt for an async job omits the identifier needed to poll it. */
+	ASYNC_RECEIPT_MISSING_ID: "async receipt omits the job id the document declares",
+	/**
+	 * DDL names a physical column differently from every read.
+	 *
+	 * SQL-store only, and modelled on a real production bug: SQLite resolves an unknown
+	 * double-quoted identifier as a *string literal* instead of erroring, so the mismatch
+	 * surfaces as every row reporting the column's own name as its value — silent corruption
+	 * rather than a loud failure.
+	 */
+	COLUMN_NAME_MISMATCH: "physical column name differs from the name every read uses",
+	/**
+	 * Numeric columns compared as text, so `amount > 9` misses 10 and ordering reads
+	 * 1, 10, 100, 2. Extremely common wherever query values arrive untyped from a URL.
+	 */
+	NUMERIC_COMPARED_AS_TEXT: "numeric column is compared and ordered as text",
+	/**
+	 * The listing and the cursor lookup disagree about collation, so keyset pagination resolves
+	 * a boundary the listing never had — rows are skipped or repeated between pages.
+	 */
+	COLLATION_INCONSISTENT: "cursor resolution uses a different collation than the listing",
+	/**
+	 * Read-modify-write without locking: the handler reads the row, then writes every column
+	 * back. Two concurrent patches to different fields, and the later write reinstates the
+	 * earlier field's old value — the classic ORM `save(entity)` lost update.
+	 */
+	CONCURRENT_WRITE_LOST: "concurrent writes to different fields lose one of them",
 } as const
 
 export type DefectName = keyof typeof DEFECTS

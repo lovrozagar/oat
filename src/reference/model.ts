@@ -71,6 +71,14 @@ export const TABLE: EntityDef = {
 		{ filterable: true, maxLength: 256, name: "description", nullable: true, sortable: true, type: "string" },
 		...TIMESTAMPS,
 		{ filterable: true, generated: true, name: "deleted_at", nullable: true, sortable: true, type: "integer" },
+		/*
+		 * Derived from another entity: the number of rows this table holds.
+		 *
+		 * Its purpose is to make `x-invalidate` mean something testable. Without a field whose
+		 * value depends on a *different* entity's writes, "creating a row invalidates the tables
+		 * listing" is a claim no observation can contradict.
+		 */
+		{ filterable: true, generated: true, name: "row_count", sortable: true, type: "integer" },
 	],
 	identity: "id",
 	itemParam: "table_id",
@@ -113,7 +121,66 @@ export const ROW: EntityDef = {
 	plural: "rows",
 }
 
-export const ENTITIES: readonly EntityDef[] = [TABLE, ROW]
+/**
+ * An asynchronous job. Present so the async lifecycle — receipt, poll, terminal state — has
+ * something to exercise; extraction, export and batch APIs are all shaped this way.
+ */
+export const JOB: EntityDef = {
+	collectionPath: "/v1/projects/{project_id}/jobs",
+	defaultLimit: 20,
+	fields: [
+		{ generated: true, immutable: true, name: "id", required: true, sortable: true, filterable: true, type: "string" },
+		{ generated: true, immutable: true, name: "project_id", required: true, filterable: true, type: "string" },
+		{ filterable: true, maxLength: 128, name: "name", required: true, searchable: true, sortable: true, type: "string" },
+		/* A second freely-writable string, purely so the concurrency check has two independent
+		 * fields to race on. With only `name` writable it could never establish that two patches
+		 * to *different* fields both survive, and it stood down on every run. */
+		{ filterable: true, maxLength: 256, name: "note", nullable: true, searchable: true, sortable: true, type: "string" },
+		/*
+		 * A low-cardinality field the *client* sets.
+		 *
+		 * Every other field on this entity is either unique per record or server-generated, which
+		 * left no value shared by some records but not all — so any property asserted over a
+		 * proper subset (a filter that matches several rows and excludes others) had nothing to
+		 * work with and stood down. Real collections always have a repeated dimension; a fixture
+		 * without one silently narrows what can be tested.
+		 */
+		{
+			enum: ["export", "import", "sync"],
+			filterable: true,
+			name: "kind",
+			sortable: true,
+			type: "string",
+		},
+		{
+			enum: ["pending", "running", "complete", "failed"],
+			filterable: true,
+			generated: true,
+			name: "status",
+			sortable: true,
+			type: "string",
+		},
+		{ filterable: true, generated: true, name: "progress", sortable: true, type: "integer" },
+		...TIMESTAMPS,
+	],
+	identity: "id",
+	itemParam: "job_id",
+	itemPath: "/v1/projects/{project_id}/jobs/{job_id}",
+	maxLimit: 100,
+	name: "job",
+	parents: ["project_id"],
+	plural: "jobs",
+}
+
+export const ENTITIES: readonly EntityDef[] = [TABLE, ROW, JOB]
+
+/**
+ * The field a spec-overclaim defect withholds from the backend while the document still lists it.
+ *
+ * Chosen as a field every entity has and that no other defect touches, so the overclaim is the
+ * only difference between what the document promises and what the backend accepts.
+ */
+export const OVERCLAIMED_FIELD = "created_at"
 
 export function fieldsWhere(entity: EntityDef, key: keyof FieldDef): string[] {
 	return entity.fields.filter((f) => f[key] === true).map((f) => f.name)

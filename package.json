@@ -1,30 +1,59 @@
 {
   "name": "oat",
   "version": "0.0.0",
-  "description": "OpenAPI Tester — deep behavioural testing of any backend against its OpenAPI specification",
+  "description": "OpenAPI Tester \u2014 deep behavioural testing of any backend against its OpenAPI specification",
   "license": "MIT",
   "type": "module",
-  "engines": { "node": ">=20" },
-  "bin": { "oat": "./dist/cli.js" },
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "oat": "./dist/cli.js"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
-  "files": ["dist", "README.md", "EXTENSIONS.md"],
+  "files": [
+    "dist/cli.js",
+    "dist/index.js",
+    "dist/config",
+    "dist/reference",
+    "dist/report",
+    "dist/runtime",
+    "dist/spec",
+    "README.md",
+    "EXTENSIONS.md",
+    "DESIGN.md",
+    "examples"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch",
     "check": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test --experimental-strip-types 'src/**/*.test.ts'"
+    "test": "npm run build && node --experimental-sqlite dist/cli.js conformance",
+    "conformance": "node --experimental-sqlite dist/cli.js conformance",
+    "demo": "npm run build && node examples/demo.mjs"
   },
-  "keywords": ["openapi", "testing", "contract-testing", "api", "swagger"],
+  "keywords": [
+    "openapi",
+    "testing",
+    "contract-testing",
+    "api",
+    "swagger"
+  ],
   "dependencies": {
     "ajv": "^8.17.1",
-    "ajv-formats": "^3.0.1"
+    "ajv-formats": "^3.0.1",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "postgres": "^3.4.9",
     "typescript": "^5.7.2"
   }
 }
