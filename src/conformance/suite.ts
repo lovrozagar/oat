@@ -108,7 +108,7 @@ export function runParserSuite(): ParserResult[] {
 /**
  * The annotated example document must resolve to what its comments claim.
  *
- * `examples/annotated-openapi.yaml` is the only place that shows a reader where each tag goes in a
+ * `labs/annotated-openapi.yaml` is the only place that shows a reader where each tag goes in a
  * real document, and documentation that drifts from the implementation is worse than none — it
  * teaches a shape that no longer works. Asserting the derived model here means the example cannot
  * rot: rename a tag or change how a role resolves, and this fails.
@@ -117,7 +117,7 @@ export function runParserSuite(): ParserResult[] {
  * a flow sequence) and named an `x-invalidate` route that did not exist in the document.
  */
 export async function runExampleSpecSuite(): Promise<ParserResult[]> {
-	const path = new URL("../../examples/annotated-openapi.yaml", import.meta.url).pathname
+	const path = new URL("../../labs/annotated-openapi.yaml", import.meta.url).pathname
 	const results: ParserResult[] = []
 	const fail = (name: string, why: string, detail: string): void => {
 		results.push({ detail, name, ok: false, why })

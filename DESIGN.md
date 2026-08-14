@@ -242,7 +242,7 @@ oat doctor --spec <url|file>         # what oat can and cannot test, and which t
 
 `oat doctor` matters for adoption: it reports coverage gaps against the spec alone and names the meta tag that would close each one. That is how a backend team discovers what to annotate.
 
-Outputs `oat-report.md`, `oat-report.json`, `repro/*.sh`, and a full HAR transcript so findings are re-inspectable without rerunning. Exit code is the count of **root causes**, not raw failures.
+Outputs `oat-report.md`, `oat-report.json`, `issue-repro/*.sh` (only when there is a finding), and a full HAR transcript so findings are re-inspectable without rerunning. Exit code is the count of **root causes**, not raw failures.
 
 Profiles bound cost: `x-cost: high` operations run once under `crud`, never inside permutation loops. `x-destructive` runs only under `paranoid`.
 

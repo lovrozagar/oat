@@ -43,6 +43,42 @@ export type Defect =
 	| "ignore-cursor"
 	| "invite-noop"
 	| "clobber-patch"
+	| "list-tombstone"
+	| "invert-rank"
+	| "filter-bypass-tenant"
+	| "lie-has-more"
+	| "ignore-max-limit"
+	| "drop-search"
+	| "drop-select"
+	| "drop-sort"
+	| "drop-idempotency"
+	| "accept-immutable"
+	| "skip-enum"
+	| "skip-max-length"
+	| "skip-required"
+	| "revoke-noop"
+	| "ignore-page"
+	| "oracle-status"
+	| "unescape-like"
+	| "async-stall"
+	| "effect-noop"
+	| "overclaim-sort"
+	| "overclaim-select"
+	| "omit-receipt-id"
+	| "lie-count"
+	| "widen-patch"
+	| "accept-unknown-filter"
+	| "ignore-neq"
+	| "and-as-or"
+	| "or-as-and"
+	| "text-compare"
+	| "ignore-limit"
+	| "drop-create-field"
+	| "create-200"
+	| "delete-missing-ok"
+	| "skip-content-type"
+	| "filter-500"
+	| "wrong-error-shape"
 
 export interface QueryNames {
 	filter: string
@@ -58,6 +94,8 @@ export interface World {
 	entities: Entity[]
 	defects?: Defect[]
 	queryNames?: QueryNames
+	/** Extra start/poll surface used to plant x-async / x-effects. */
+	jobs?: boolean
 }
 
 export function hasDefect(world: World, defect: Defect): boolean {

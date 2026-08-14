@@ -13,6 +13,7 @@ coverage/
 oat-report.md
 oat-report.json
 repro/
+issue-repro/
 transcript.har
 oat-out/
 
@@ -20,8 +21,7 @@ oat-out/
 .env
 .env.*
 
-# lab local database
-lab/.data/
+# labs local scratch
 labs/.data/
 labs/.d1.json
 labs/.deploy/

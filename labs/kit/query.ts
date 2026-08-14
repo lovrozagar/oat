@@ -5,13 +5,24 @@ export interface Compiled {
 
 const OPS = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike"])
 
+export interface CompileFilterOptions {
+	/** Treat `%` / `_` in the value as SQL wildcards instead of literals. */
+	unescapeLike?: boolean
+	acceptUnknown?: boolean
+	ignoreNeq?: boolean
+	andAsOr?: boolean
+	orAsAnd?: boolean
+	textCompare?: boolean
+}
+
 export function compileFilter(
 	expression: string,
 	filterable: readonly string[],
 	columns: ReadonlySet<string>,
 	numeric: ReadonlySet<string>,
+	opts: CompileFilterOptions = {},
 ): Compiled {
-	return compileNode(expression.trim(), filterable, columns, numeric)
+	return compileNode(expression.trim(), filterable, columns, numeric, opts)
 }
 
 function compileNode(
@@ -19,14 +30,17 @@ function compileNode(
 	filterable: readonly string[],
 	columns: ReadonlySet<string>,
 	numeric: ReadonlySet<string>,
+	opts: CompileFilterOptions,
 ): Compiled {
 	const and = /^and\((.*)\)$/s.exec(input)
 	if (and?.[1] !== undefined) {
-		return join(splitTop(and[1]).map((p) => compileNode(p, filterable, columns, numeric)), "AND")
+		const op = opts.andAsOr === true ? "OR" : "AND"
+		return join(splitTop(and[1]).map((p) => compileNode(p, filterable, columns, numeric, opts)), op)
 	}
 	const or = /^or\((.*)\)$/s.exec(input)
 	if (or?.[1] !== undefined) {
-		return join(splitTop(or[1]).map((p) => compileNode(p, filterable, columns, numeric)), "OR")
+		const op = opts.orAsAnd === true ? "AND" : "OR"
+		return join(splitTop(or[1]).map((p) => compileNode(p, filterable, columns, numeric, opts)), op)
 	}
 	const match = /^([a-z_]+)\.([a-z]+)\.(.*)$/s.exec(input)
 	if (match === null) throw new QueryError(`malformed filter: ${input}`)
@@ -35,21 +49,40 @@ function compileNode(
 	const raw = match[3] as string
 	if (!OPS.has(op)) throw new QueryError(`unknown filter operator: ${op}`)
 	if (!columns.has(field) || !filterable.includes(field)) {
+		if (opts.acceptUnknown === true) return { args: [], sql: "1 = 1" }
 		throw new QueryError(`unknown filter field: ${field}`)
 	}
-	return compare(field, op, raw, numeric)
+	return compare(field, op, raw, numeric, opts)
 }
 
-function compare(field: string, op: string, raw: string, numeric: ReadonlySet<string>): Compiled {
+function compare(
+	field: string,
+	op: string,
+	raw: string,
+	numeric: ReadonlySet<string>,
+	opts: CompileFilterOptions,
+): Compiled {
 	const ident = `"${field}"`
 	const value = coerce(field, raw, numeric)
 	if (op === "eq") return { args: [value], sql: `${ident} = ?` }
-	if (op === "neq") return { args: [value], sql: `(${ident} IS NULL OR ${ident} <> ?)` }
+	if (op === "neq") {
+		if (opts.ignoreNeq === true) return { args: [], sql: "1 = 1" }
+		return { args: [value], sql: `(${ident} IS NULL OR ${ident} <> ?)` }
+	}
+	if (opts.textCompare === true && numeric.has(field) && (op === "gt" || op === "gte" || op === "lt" || op === "lte")) {
+		const cmp = op === "gt" ? ">" : op === "gte" ? ">=" : op === "lt" ? "<" : "<="
+		return { args: [String(raw)], sql: `CAST(${ident} AS TEXT) ${cmp} ?` }
+	}
 	if (op === "gt") return { args: [value], sql: `${ident} > ?` }
 	if (op === "gte") return { args: [value], sql: `${ident} >= ?` }
 	if (op === "lt") return { args: [value], sql: `${ident} < ?` }
 	if (op === "lte") return { args: [value], sql: `${ident} <= ?` }
 	if (op === "like" || op === "ilike") {
+		if (opts.unescapeLike === true) {
+			const pattern = String(raw).replaceAll("*", "%")
+			const sql = op === "ilike" ? `LOWER(${ident}) LIKE LOWER(?)` : `${ident} LIKE ?`
+			return { args: [pattern], sql }
+		}
 		const escaped = String(raw).replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")
 			.replaceAll("*", "%")
 		const sql = op === "ilike"

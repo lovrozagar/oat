@@ -19,7 +19,7 @@ tried before being wired to anything real:
 
 ```bash
 oat serve --defects STALE_LIST,PATCH_REPLACES      # terminal 1, prints a url
-oat run --config examples/local.config.ts --base-url <that url>
+oat run --config labs/local.config.ts --base-url <that url>
 ```
 
 ```
@@ -36,7 +36,7 @@ oat run --config examples/local.config.ts --base-url <that url>
 `oat-out/` holds the markdown report, a JSON copy for CI, and one runnable `curl` script per
 finding. Drop `--defects` and it reports nothing across 55 checks.
 
-See [examples/](./examples) for typed configs and a run against a live API.
+See [labs/](./labs) for backends, typed configs, and a run against a live API.
 
 ## Install
 
@@ -59,7 +59,7 @@ oat run    --spec ... --base-url https://api.example.com   # execute
 The spec, and a config file. oat never reads your source, assumes your framework, or hardcodes a route. Backend-specific knowledge lives in one of two places:
 
 - **`x-*` meta tags in your spec** — a complete worked document is
-  [`examples/annotated-openapi.yaml`](./examples/annotated-openapi.yaml); reference is
+  [`labs/annotated-openapi.yaml`](./labs/annotated-openapi.yaml); reference is
   [EXTENSIONS.md](./EXTENSIONS.md). All optional; each degrades to a heuristic and reports the degradation rather than guessing silently.
 - **`oat.config.ts`** — auth flow, roots, and the one hook oat cannot infer: resolving values delivered outside HTTP (verification tokens, OTPs).
 

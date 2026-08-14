@@ -5,8 +5,15 @@ import { resolve } from "node:path"
 import { interpolate, loadConfig } from "./config/load.ts"
 import { report } from "./report/console.ts"
 import { renderMatrixGraph, renderMatrixHtml } from "./report/matrix.ts"
-import { renderConsole, renderJson, renderMarkdown, renderRepros } from "./report/render.ts"
-import { createStderrProgress, formatProgressLine } from "./runtime/progress.ts"
+import { ISSUE_REPRO_DIR, renderConsole, renderJson, renderMarkdown, renderRepros } from "./report/render.ts"
+import {
+	createStderrProgress,
+	formatProgressJsonl,
+	formatProgressLine,
+	formatProgressTsv,
+	PROGRESS_GLOSSARY,
+	PROGRESS_TSV_HEADER,
+} from "./runtime/progress.ts"
 import { renderTeardown } from "./runtime/teardown.ts"
 import { buildModel } from "./spec/graph.ts"
 import { dereference, loadSpec } from "./spec/load.ts"
@@ -99,17 +106,24 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	await mkdir(outDir, { recursive: true })
 	const stderrProgress = flags.quiet === true ? undefined : createStderrProgress(startedAt.getTime())
 	const progressLog = createWriteStream(resolve(outDir, "progress.log"))
+	const progressTsv = createWriteStream(resolve(outDir, "progress.tsv"))
+	const progressJsonl = createWriteStream(resolve(outDir, "progress.jsonl"))
+	progressLog.write(`${PROGRESS_GLOSSARY}\n`)
+	progressTsv.write(`${PROGRESS_TSV_HEADER}\n`)
 	let lastLogKey = ""
 	let lastLogAt = 0
 	let lastJsonAt = 0
 	const onProgress = (snap: Parameters<typeof formatProgressLine>[0]): void => {
 		stderrProgress?.emit(snap)
-		const key = `${snap.phase}|${snap.entity ?? ""}|${snap.check ?? snap.message ?? ""}`
+		const key = `${snap.phase}|${snap.entity ?? ""}|${snap.check ?? ""}|${snap.message ?? ""}`
 		const due = Date.now() - lastLogAt >= 2_000
 		if (key !== lastLogKey || due || snap.phase === "done" || snap.phase === "load") {
 			lastLogKey = key
 			lastLogAt = Date.now()
-			progressLog.write(`${new Date().toISOString()}  ${formatProgressLine(snap)}\n`)
+			const now = Date.now()
+			progressLog.write(`${formatProgressLine(snap, now)}\n`)
+			progressTsv.write(`${formatProgressTsv(snap, now)}\n`)
+			progressJsonl.write(`${formatProgressJsonl(snap, now)}\n`)
 		}
 		if (Date.now() - lastJsonAt >= 1_000 || snap.phase === "done") {
 			lastJsonAt = Date.now()
@@ -142,6 +156,8 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	} finally {
 		stderrProgress?.stop()
 		progressLog.end()
+		progressTsv.end()
+		progressJsonl.end()
 	}
 	const durationMs = performance.now() - began
 
@@ -159,16 +175,21 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		startedAt,
 	}
 
-	/* Clear the reproducers from any previous run. A stale script for a finding that no longer
-	 * exists reads as a current defect, and someone will eventually chase one. */
+	/* Wipe both the old name and the current one. A leftover script from a previous
+	 * finding reads as a current defect. The folder is only created when there is an issue. */
 	await rm(resolve(outDir, "repro"), { force: true, recursive: true })
-	await mkdir(resolve(outDir, "repro"), { recursive: true })
+	await rm(resolve(outDir, ISSUE_REPRO_DIR), { force: true, recursive: true })
 	await writeFile(resolve(outDir, "oat-report.md"), renderMarkdown(input))
 	await writeFile(resolve(outDir, "oat-report.json"), renderJson(input))
 	await writeFile(resolve(outDir, "matrix.html"), renderMatrixHtml(input))
 	await writeFile(resolve(outDir, "matrix.json"), renderMatrixGraph(input))
-	for (const script of renderRepros(result.findings, baseUrl)) {
-		await writeFile(resolve(outDir, "repro", script.filename), script.content, { mode: 0o755 })
+	const scripts = renderRepros(result.findings, baseUrl)
+	if (scripts.length > 0) {
+		const dir = resolve(outDir, ISSUE_REPRO_DIR)
+		await mkdir(dir, { recursive: true })
+		for (const script of scripts) {
+			await writeFile(resolve(dir, script.filename), script.content, { mode: 0o755 })
+		}
 	}
 
 	process.stdout.write(renderConsole(input))
@@ -178,7 +199,9 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	process.stdout.write(`  report: ${resolve(outDir, "oat-report.md")}\n`)
 	process.stdout.write(`  matrix: ${resolve(outDir, "matrix.html")}\n`)
 	process.stdout.write(`  graph:  ${resolve(outDir, "matrix.json")}\n`)
-	process.stdout.write(`  progress: ${resolve(outDir, "progress.log")}\n\n`)
+	process.stdout.write(
+		`  progress: ${resolve(outDir, "progress.log")} · ${resolve(outDir, "progress.jsonl")}\n\n`,
+	)
 
 	/* Exit code counts root causes, not raw findings: gaps and blocked entries are information,
 	 * not failures, and a CI gate should react to defects only. */
@@ -374,7 +397,7 @@ async function main(): Promise<number> {
 				`  defects  ${defects.length > 0 ? defects.join(", ") : "none — a correct backend"}\n` +
 				`  keys     key_alpha (proj_alpha) · key_beta (proj_beta)\n\n` +
 				"  point a config at it:\n" +
-				`    oat run --config examples/local.config.ts --base-url ${server.url}\n\n` +
+				`    oat run --config labs/local.config.ts --base-url ${server.url}\n\n` +
 				"  ctrl-c to stop\n\n",
 		)
 		/* Node buffers stdout when it is not a TTY, so a piped `oat serve` would print nothing

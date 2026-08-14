@@ -7,9 +7,11 @@ this file is what you need to *change* it safely.
 **State**: 55 checks · 56 defects · 5 API shapes · 4 storage engines. Everything green, no known
 flakes. Uncommitted — the working tree is the state.
 
-`lab/` is the hand-written articles API (SQLite or D1). `labs/` is the
-family of real backends: **D1 only**, provisioned on Cloudflare, served
-locally against that D1, then deployed as Workers. Secrets stay in `.env`.
+`labs/` is the only backend tree: **D1 only**, provisioned on Cloudflare,
+served locally against that D1, then deployed as Workers. Schema SQL is
+generated from `labs/worlds/catalog.ts` (`labs/kit/schema.ts`) and written
+to `labs/schema/<world>.sql` by `node labs/dump-schema.mjs`. Secrets stay
+in `.env`. The old hand-written `lab/` tree is gone.
 
 ---
 
@@ -226,7 +228,7 @@ testing path itself never touches a database; runtime deps are `ajv`, `ajv-forma
 | dialects ×5 | checks read the document, not the fixture's habits |
 | backends ×4 | engines disagree on NULL ordering, collation, type discipline — that is the point |
 | parser suite | 11 hostile documents; never throw, never hang |
-| example suite | `examples/annotated-openapi.yaml` resolves as its comments claim |
+| example suite | `labs/annotated-openapi.yaml` resolves as its comments claim |
 | tag-unlock suite | `doctor`'s coverage claims are true |
 
 D1 is opt-in (`--backend d1`, needs `CLOUDFLARE_*` env), remote, ~2 min per defect. It runs the

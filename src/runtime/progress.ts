@@ -1,9 +1,13 @@
 /**
- * Live run status. oat used to print nothing until the last check; a 30-minute
- * HTTPS run then looks identical to a hang.
+ * Live run status.
  *
- * stderr: one updating line on a TTY, a new line every entity / heartbeat otherwise
- * (so `tee` actually grows). `progress.log` / `progress.json` live in --out.
+ * Logs are logfmt (key=value, one event per line) — the usual shape for
+ * machines and people. Values are never truncated: a fixed-width table
+ * forced "…" on check names and URLs, and wrapped the header in a normal
+ * editor so the columns stopped lining up.
+ *
+ * stderr and progress.log are the same format. progress.jsonl is the same
+ * events as JSON. progress.tsv is the same columns, tab-separated.
  */
 
 export interface ProgressLast {
@@ -32,27 +36,103 @@ export type ProgressHandler = (snap: ProgressSnapshot) => void
 const HEARTBEAT_MS = 5_000
 const STALL_MS = 15_000
 
+export const PROGRESS_TSV_HEADER = [
+	"ts_ms",
+	"status",
+	"done",
+	"total",
+	"phase",
+	"entity",
+	"check",
+	"msg",
+	"req",
+	"find",
+	"method",
+	"path",
+	"http",
+	"last_ms",
+	"idle_ms",
+	"elapsed_ms",
+].join("\t")
+
+export const PROGRESS_GLOSSARY = [
+	"# logfmt — one event per line, full values, no truncation",
+	"# ts               when this line was written (ISO-8601 UTC). ts_ms is the same instant as unix ms",
+	"# status=ok|stall  stall means idle_ms >= 15000 (last call finished, nothing since)",
+	"# done/total       entity index / how many entities",
+	"# phase            load|auth|seed|test|teardown|done",
+	"# check            check id (empty when not in a check)",
+	"# msg              phase note (seeding, spec URL, teardown count)",
+	"# last_ms          duration of the last HTTP call",
+	"# idle_ms          ms since that call returned — if this climbs, the run is stuck",
+	"# elapsed_ms       wall clock since oat started",
+].join("\n")
+
 export function formatProgressLine(snap: ProgressSnapshot, now = Date.now()): string {
-	const elapsed = formatDuration(snap.elapsedMs)
-	const frac =
-		snap.entityIndex !== undefined && snap.entityTotal !== undefined && snap.entityTotal > 0
-			? `${snap.entityIndex}/${snap.entityTotal}`
-			: "-"
-	const age = snap.last === undefined ? "-" : `${Math.max(0, Math.round((now - snap.last.at) / 1000))}s`
-	const stalled = snap.last !== undefined && now - snap.last.at >= STALL_MS
-	const last =
-		snap.last === undefined
-			? ""
-			: `  ${snap.last.method} ${shortUrl(snap.last.url)} ${snap.last.status} ${snap.last.durationMs}ms ${age} ago`
-	const check = snap.check ?? snap.message ?? ""
-	const bar = renderBar(snap.entityIndex, snap.entityTotal)
-	const head = stalled ? "oat STALL" : "oat"
-	return (
-		`${head}  ${bar} ${frac}  ${snap.phase}` +
-		`${snap.entity !== undefined ? `  ${snap.entity}` : ""}` +
-		`${check !== "" ? `  ${check}` : ""}` +
-		`  req ${snap.requests}  find ${snap.findings}${last}  ${elapsed}`
-	)
+	const f = fields(snap, now)
+	return logfmt({
+		ts: new Date(now).toISOString(),
+		status: f.status,
+		done: f.done,
+		total: f.total,
+		phase: f.phase,
+		entity: f.entity,
+		check: f.check,
+		msg: f.msg,
+		req: f.req,
+		find: f.find,
+		method: f.method,
+		path: f.path,
+		http: f.http,
+		last_ms: f.last_ms,
+		idle_ms: f.idle_ms,
+		elapsed_ms: f.elapsed_ms,
+	})
+}
+
+export function formatProgressTsv(snap: ProgressSnapshot, now = Date.now()): string {
+	const f = fields(snap, now)
+	return [
+		now,
+		f.status,
+		f.done,
+		f.total,
+		f.phase,
+		f.entity,
+		f.check,
+		f.msg,
+		f.req,
+		f.find,
+		f.method,
+		f.path,
+		f.http,
+		f.last_ms,
+		f.idle_ms,
+		f.elapsed_ms,
+	].join("\t")
+}
+
+export function formatProgressJsonl(snap: ProgressSnapshot, now = Date.now()): string {
+	const f = fields(snap, now)
+	return JSON.stringify({
+		check: f.check === "-" ? null : f.check,
+		done: snap.entityIndex ?? null,
+		elapsed_ms: Number(f.elapsed_ms),
+		entity: snap.entity ?? null,
+		find: snap.findings,
+		http: snap.last?.status ?? null,
+		idle_ms: f.idle_ms === "-" ? null : Number(f.idle_ms),
+		last_ms: f.last_ms === "-" ? null : Number(f.last_ms),
+		method: f.method === "-" ? null : f.method,
+		msg: f.msg === "-" ? null : f.msg,
+		path: f.path === "-" ? null : f.path,
+		phase: snap.phase,
+		req: snap.requests,
+		status: f.status,
+		total: snap.entityTotal ?? null,
+		ts: new Date(now).toISOString(),
+		ts_ms: now,
+	})
 }
 
 export function createStderrProgress(startedAt = Date.now()): {
@@ -61,30 +141,28 @@ export function createStderrProgress(startedAt = Date.now()): {
 } {
 	let latest: ProgressSnapshot | undefined
 	let lastKey = ""
-	const tty = process.stderr.isTTY === true
 	let lastWrite = 0
+	let headed = false
 
-	const write = (snap: ProgressSnapshot, newline: boolean): void => {
-		const line = formatProgressLine(snap)
-		if (tty && !newline && snap.phase !== "done") {
-			process.stderr.write(`\r${line}\x1b[K`)
-		} else {
-			if (tty && lastWrite > 0) process.stderr.write("\n")
-			process.stderr.write(`${line}\n`)
+	const write = (snap: ProgressSnapshot): void => {
+		if (!headed) {
+			headed = true
+			process.stderr.write(`${PROGRESS_GLOSSARY}\n`)
 		}
+		process.stderr.write(`${formatProgressLine(snap)}\n`)
 		lastWrite = Date.now()
 	}
 
 	const timer = setInterval(() => {
 		if (latest === undefined) return
-		write({ ...latest, elapsedMs: Date.now() - startedAt }, !tty)
+		write({ ...latest, elapsedMs: Date.now() - startedAt })
 	}, HEARTBEAT_MS)
 	timer.unref()
 
 	return {
 		emit(snap) {
 			latest = snap
-			const key = `${snap.phase}|${snap.entity ?? ""}|${snap.check ?? snap.message ?? ""}`
+			const key = `${snap.phase}|${snap.entity ?? ""}|${snap.check ?? ""}|${snap.message ?? ""}`
 			const keyChanged = key !== lastKey
 			lastKey = key
 			const stalled = snap.last !== undefined && Date.now() - snap.last.at >= STALL_MS
@@ -94,37 +172,66 @@ export function createStderrProgress(startedAt = Date.now()): {
 				|| snap.phase === "auth"
 				|| (snap.phase === "seed" && snap.check === undefined)
 			const due = Date.now() - lastWrite >= 2_000
-			if (force || keyChanged || stalled || due) write(snap, force || keyChanged || !tty)
+			if (force || keyChanged || stalled || due) write(snap)
 		},
 		stop() {
 			clearInterval(timer)
-			if (tty && lastWrite > 0) process.stderr.write("\n")
 		},
 	}
 }
 
-function renderBar(index: number | undefined, total: number | undefined): string {
-	if (index === undefined || total === undefined || total <= 0) return "[----------]"
-	const width = 10
-	const filled = Math.min(width, Math.max(0, Math.round((index / total) * width)))
-	return `[${"#".repeat(filled)}${"-".repeat(width - filled)}]`
+function fields(snap: ProgressSnapshot, now: number): {
+	status: string
+	done: string
+	total: string
+	phase: string
+	entity: string
+	check: string
+	msg: string
+	req: string
+	find: string
+	method: string
+	path: string
+	http: string
+	last_ms: string
+	idle_ms: string
+	elapsed_ms: string
+} {
+	const stalled = snap.last !== undefined && now - snap.last.at >= STALL_MS
+	return {
+		check: snap.check ?? "-",
+		done: snap.entityIndex === undefined ? "-" : String(snap.entityIndex),
+		elapsed_ms: String(Math.max(0, Math.round(snap.elapsedMs))),
+		entity: snap.entity ?? "-",
+		find: String(snap.findings),
+		http: snap.last === undefined ? "-" : String(snap.last.status),
+		idle_ms: snap.last === undefined ? "-" : String(Math.max(0, now - snap.last.at)),
+		last_ms: snap.last === undefined ? "-" : String(snap.last.durationMs),
+		method: snap.last === undefined ? "-" : snap.last.method,
+		msg: snap.message ?? "-",
+		path: snap.last === undefined ? "-" : requestPath(snap.last.url),
+		phase: snap.phase,
+		req: String(snap.requests),
+		status: stalled ? "stall" : "ok",
+		total: snap.entityTotal === undefined ? "-" : String(snap.entityTotal),
+	}
 }
 
-function formatDuration(ms: number): string {
-	const s = Math.max(0, Math.floor(ms / 1000))
-	const m = Math.floor(s / 60)
-	const h = Math.floor(m / 60)
-	if (h > 0) return `${h}h${String(m % 60).padStart(2, "0")}m`
-	if (m > 0) return `${m}m${String(s % 60).padStart(2, "0")}s`
-	return `${s}s`
+function logfmt(pairs: Record<string, string>): string {
+	return Object.entries(pairs)
+		.map(([key, value]) => {
+			if (value !== "" && !/[\s="\\]/.test(value)) return `${key}=${value}`
+			return `${key}=${JSON.stringify(value)}`
+		})
+		.join(" ")
 }
 
-function shortUrl(url: string): string {
+/** Path + query, never truncated. Origin is already in the report backend field. */
+function requestPath(url: string): string {
 	try {
 		const parsed = new URL(url)
-		const clipped = `${parsed.pathname}${parsed.search}`
-		return clipped.length > 72 ? `${clipped.slice(0, 69)}...` : clipped
+		return `${parsed.pathname}${parsed.search}`
 	} catch {
-		return url.length > 72 ? `${url.slice(0, 69)}...` : url
+		return url
 	}
 }

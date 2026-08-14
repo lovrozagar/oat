@@ -110,51 +110,86 @@ export class WorldStore {
 		const selectable = allColumns(entity)
 		const maxLimit = entity.maxLimit ?? 100
 
-		const where: string[] = [`org_id = ?`]
-		const args: Array<string | number | null> = [scope.org_id ?? ""]
-		if (entity.softDelete === true) where.push(`deleted_at IS NULL`)
+		const dropFilter = hasDefect(this.world, "drop-filter")
+		const filterAfterPage = hasDefect(this.world, "filter-after-page")
+		const bypassTenant =
+			hasDefect(this.world, "filter-bypass-tenant")
+			&& params.filter !== undefined
+			&& params.filter !== ""
+		const filterOpts = {
+			acceptUnknown: hasDefect(this.world, "accept-unknown-filter"),
+			andAsOr: hasDefect(this.world, "and-as-or"),
+			ignoreNeq: hasDefect(this.world, "ignore-neq"),
+			orAsAnd: hasDefect(this.world, "or-as-and"),
+			textCompare: hasDefect(this.world, "text-compare"),
+			unescapeLike: hasDefect(this.world, "unescape-like"),
+		}
+
+		const where: string[] = []
+		const args: Array<string | number | null> = []
+		if (!bypassTenant) {
+			where.push(`org_id = ?`)
+			args.push(scope.org_id ?? "")
+		}
+		if (entity.softDelete === true && !hasDefect(this.world, "list-tombstone")) {
+			where.push(`deleted_at IS NULL`)
+		}
 		const parent = parentIdField(entity)
 		if (parent !== null && scope[parent] !== undefined) {
 			where.push(`"${parent}" = ?`)
 			args.push(scope[parent] as string)
 		}
 
-		const dropFilter = hasDefect(this.world, "drop-filter")
-		const filterAfterPage = hasDefect(this.world, "filter-after-page")
 		if (params.filter !== undefined && params.filter !== "" && !dropFilter && !filterAfterPage) {
-			const compiled = compileFilter(params.filter, filterable, columns, numeric)
+			const compiled = compileFilter(params.filter, filterable, columns, numeric, filterOpts)
 			where.push(compiled.sql)
 			args.push(...compiled.args)
 		} else if (params.filter !== undefined && params.filter !== "") {
 			/* Parse so unknown fields still 400; apply later or not at all. */
-			compileFilter(params.filter, filterable, columns, numeric)
+			compileFilter(params.filter, filterable, columns, numeric, filterOpts)
 		}
-		if (params.q !== undefined && params.q !== "" && searchable.length > 0) {
+		if (
+			params.q !== undefined
+			&& params.q !== ""
+			&& searchable.length > 0
+			&& !hasDefect(this.world, "drop-search")
+		) {
 			const needle = `%${params.q.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`
 			where.push(`(${searchable.map((f) => `LOWER("${f}") LIKE LOWER(?) ESCAPE '\\'`).join(" OR ")})`)
 			for (const _ of searchable) args.push(needle)
 		}
 
+		if (where.length === 0) where.push("1 = 1")
 		const whereSql = `WHERE ${where.join(" AND ")}`
 		const counted = await this.db.all(`SELECT COUNT(*) AS n FROM "${entity.plural}" ${whereSql}`, args)
 		const count = Number(counted[0]?.n ?? 0)
-		const order = compileOrder(params.order ?? "created_at.desc", sortable, columns, "id")
+		const compiledOrder = compileOrder(params.order ?? "created_at.desc", sortable, columns, "id")
+		const order = hasDefect(this.world, "drop-sort")
+			? { args: [] as Array<string | number | null>, sql: `"created_at" DESC, "id" ASC` }
+			: compiledOrder
 		const requested = params.limit ?? 20
-		const limit = Math.max(1, Math.min(requested, maxLimit))
+		const limit = hasDefect(this.world, "ignore-limit")
+			? 100_000
+			: hasDefect(this.world, "ignore-max-limit")
+				? Math.max(1, requested)
+				: Math.max(1, Math.min(requested, maxLimit))
 		const page = Math.max(params.page ?? 1, 1)
-		let offset = (page - 1) * limit
-		if (
-			params.cursor !== undefined
-			&& params.cursor !== ""
-			&& !hasDefect(this.world, "ignore-cursor")
-		) {
-			const after = decodeCursor(params.cursor)
-			const idx = await this.db.all(
-				`SELECT id FROM "${entity.plural}" ${whereSql} ORDER BY ${order.sql}`,
-				args,
-			)
-			const at = idx.findIndex((row) => String(row.id) === after)
-			offset = at === -1 ? 0 : at + 1
+		let offset = 0
+		if (!hasDefect(this.world, "ignore-page")) {
+			offset = (page - 1) * limit
+			if (
+				params.cursor !== undefined
+				&& params.cursor !== ""
+				&& !hasDefect(this.world, "ignore-cursor")
+			) {
+				const after = decodeCursor(params.cursor)
+				const idx = await this.db.all(
+					`SELECT id FROM "${entity.plural}" ${whereSql} ORDER BY ${order.sql}`,
+					args,
+				)
+				const at = idx.findIndex((row) => String(row.id) === after)
+				offset = at === -1 ? 0 : at + 1
+			}
 		}
 		const rows = await this.db.all(
 			`SELECT * FROM "${entity.plural}" ${whereSql} ORDER BY ${order.sql} LIMIT ? OFFSET ?`,
@@ -174,11 +209,17 @@ export class WorldStore {
 				sliced = rows.filter((row) => keep.has(String(row.id)))
 			}
 		}
-		const items = sliced.map((row) => project(row, params.select, selectable, columns))
-		const hasMore = offset + items.length < count
+		if (params.select !== undefined && params.select !== "" && hasDefect(this.world, "drop-select")) {
+			/* Validate the projection so unknown fields still 400, then ignore it. */
+			project({}, params.select, selectable, columns)
+		}
+		const items = hasDefect(this.world, "drop-select")
+			? sliced.map((row) => ({ ...row }))
+			: sliced.map((row) => project(row, params.select, selectable, columns))
+		const hasMore = hasDefect(this.world, "lie-has-more") ? false : offset + items.length < count
 		const last = items.at(-1)
 		return {
-			count,
+			count: hasDefect(this.world, "lie-count") ? 0 : count,
 			hasMore,
 			items,
 			limit,
@@ -201,9 +242,14 @@ export class WorldStore {
 		const current = await this.get(entity, orgId, id)
 		if (current === null) return null
 		const next = { ...current, ...patch, updated_at: Date.now() }
+		const extra: string[] = []
+		if (hasDefect(this.world, "widen-patch") && !Object.hasOwn(patch, "kind") && Object.hasOwn(current, "kind")) {
+			next.kind = current.kind === "red" ? "blue" : "red"
+			extra.push("kind")
+		}
 		const cols = hasDefect(this.world, "clobber-patch")
 			? Object.keys(next).filter((key) => key !== "id")
-			: [...Object.keys(patch), "updated_at"]
+			: [...Object.keys(patch), "updated_at", ...extra]
 		await this.db.run(
 			`UPDATE "${entity.plural}" SET ${cols.map((c) => `"${c}" = ?`).join(", ")} WHERE id = ? AND org_id = ?`,
 			[...cols.map((c) => asSql(next[c])), id, orgId],
@@ -277,7 +323,9 @@ export class WorldStore {
 	async deleteGrant(grantId: string): Promise<boolean> {
 		const current = await this.getGrant(grantId)
 		if (current === null) return false
-		await this.db.run(`DELETE FROM invites WHERE grant_id = ?`, [grantId])
+		if (!hasDefect(this.world, "revoke-noop")) {
+			await this.db.run(`DELETE FROM invites WHERE grant_id = ?`, [grantId])
+		}
 		return true
 	}
 

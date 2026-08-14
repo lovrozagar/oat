@@ -163,7 +163,7 @@ export function renderMarkdown(input: ReportInput): string {
 			}
 			if (finding.evidence.length > 0) {
 				lines.push("")
-				lines.push(`Reproduce: \`repro/${slug(`${finding.entity}-${finding.check}`)}.sh\``)
+				lines.push(`Reproduce: \`${ISSUE_REPRO_DIR}/${slug(`${finding.entity}-${finding.check}`)}.sh\``)
 			}
 			lines.push("")
 		}
@@ -195,6 +195,9 @@ export interface ReproScript {
 	filename: string
 	content: string
 }
+
+/** Directory for curl scripts that replay a finding. Absent when the run is clean. */
+export const ISSUE_REPRO_DIR = "issue-repro"
 
 /** One runnable script per finding — the artifact a backend developer actually opens. */
 export function renderRepros(findings: Finding[], baseUrl: string): ReproScript[] {

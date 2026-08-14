@@ -1,6 +1,6 @@
 # OpenAPI meta tags
 
-**See [`examples/annotated-openapi.yaml`](./examples/annotated-openapi.yaml) first.** It is a
+**See [`labs/annotated-openapi.yaml`](./labs/annotated-openapi.yaml) first.** It is a
 complete, valid OpenAPI 3.1 document with every tag below shown *in place* — the fragments here
 tell you what a tag means, that file shows you where it goes.
 

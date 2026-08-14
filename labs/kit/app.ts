@@ -4,6 +4,7 @@ import { buildSpec } from "./spec.ts"
 import { type Grant, type Row, WorldStore } from "./store.ts"
 import {
 	collectionPath,
+	entityByName,
 	hasDefect,
 	itemPath,
 	parentIdField,
@@ -34,11 +35,22 @@ export function createWorldApp(world: World, store: WorldStore): Hono<{ Variable
 
 	app.onError((error, c) => {
 		if (error instanceof QueryError || (error instanceof HttpError && error.status < 500)) {
-			const status = error instanceof HttpError ? error.status : 400
+			const status =
+				error instanceof QueryError && hasDefect(world, "filter-500")
+					? 500
+					: error instanceof HttpError
+						? error.status
+						: 400
 			const key = error instanceof HttpError ? error.key : "invalid_input"
-			return c.json({ error_key: key, message: error.message }, status)
+			if (hasDefect(world, "wrong-error-shape")) {
+				return c.json({ message: error.message }, status as 400)
+			}
+			return c.json({ error_key: key, message: error.message }, status as 400)
 		}
 		console.error(error)
+		if (hasDefect(world, "wrong-error-shape")) {
+			return c.json({ message: "internal error" }, 500)
+		}
 		return c.json({ error_key: "internal_error", message: "internal error" }, 500)
 	})
 
@@ -77,6 +89,46 @@ export function createWorldApp(world: World, store: WorldStore): Hono<{ Variable
 			if (grant.granteeKey !== keyOf(c)) throw new HttpError(403, "forbidden", "invite is not for this principal")
 			if (!hasDefect(world, "invite-noop")) await store.saveGrant({ ...grant, accepted: true })
 			return c.json({ accepted: true })
+		})
+	}
+
+	if (world.jobs === true) {
+		const job = entityByName(world, "job")
+		const artifact = entityByName(world, "artifact")
+		app.post("/v1/orgs/:org_id/jobs/start", async (c) => {
+			assertTenant(c)
+			assertWrite(c.get("role"), "create")
+			if (!isJson(c)) throw new HttpError(415, "unsupported_media_type", "content-type must be application/json")
+			const input = validateBody(job, await readJson(c), "create", world)
+			const now = Date.now()
+			const row: Row = {
+				...defaults(job),
+				...input,
+				created_at: now,
+				id: `job_${now.toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+				org_id: c.get("orgId"),
+				status: hasDefect(world, "async-stall") ? "pending" : "complete",
+				updated_at: now,
+			}
+			const created = await store.insert(job, row)
+			if (!hasDefect(world, "effect-noop")) {
+				const stamp = Date.now()
+				await store.insert(artifact, {
+					...defaults(artifact),
+					created_at: stamp,
+					id: `art_${stamp.toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+					kind: "red",
+					name: `artifact-for-${created.id}`,
+					org_id: c.get("orgId"),
+					status: "active",
+					updated_at: stamp,
+				})
+			}
+			if (hasDefect(world, "omit-receipt-id")) {
+				const { id: _omit, ...receipt } = created
+				return c.json(receipt, 202)
+			}
+			return c.json(created, 202)
 		})
 	}
 
@@ -124,13 +176,15 @@ function mountEntity(
 	app.post(list, async (c) => {
 		assertTenant(c)
 		assertWrite(c.get("role"), "create")
-		if (!isJson(c)) throw new HttpError(415, "unsupported_media_type", "content-type must be application/json")
+		if (!isJson(c) && !hasDefect(world, "skip-content-type")) {
+			throw new HttpError(415, "unsupported_media_type", "content-type must be application/json")
+		}
 		const idem = c.req.header("idempotency-key")
-		if (idem !== undefined && idem !== "") {
+		if (idem !== undefined && idem !== "" && !hasDefect(world, "drop-idempotency")) {
 			const replay = await store.findIdempotent(`${c.get("orgId")}:${entity.name}:${idem}`)
 			if (replay !== null) return c.json(replay, 201)
 		}
-		const input = validateBody(entity, await readJson(c), "create")
+		const input = validateBody(entity, await readJson(c), "create", world)
 		const now = Date.now()
 		const row: Row = {
 			...defaults(entity),
@@ -144,14 +198,19 @@ function mountEntity(
 		const parent = parentIdField(entity)
 		if (parent !== null) row[parent] = c.req.param(parent)
 		for (const derived of entity.derived ?? []) row[derived.name] = 0
+		if (hasDefect(world, "drop-create-field")) delete row.note
 		const created = await store.insert(entity, row)
-		if (idem !== undefined && idem !== "") {
+		if (idem !== undefined && idem !== "" && !hasDefect(world, "drop-idempotency")) {
 			await store.saveIdempotent(`${c.get("orgId")}:${entity.name}:${idem}`, created)
 		}
-		return c.json(created, 201)
+		return c.json(created, hasDefect(world, "create-200") ? 200 : 201)
 	})
 
 	app.get(item, async (c) => {
+		/* Deny the middle rank only so owner GET still works for every other check. */
+		if (hasDefect(world, "invert-rank") && c.get("role") === "member") {
+			throw new HttpError(403, "forbidden", "role cannot read")
+		}
 		const id = c.req.param(idParam)
 		if (c.req.param("org_id") === c.get("orgId")) {
 			const own = await store.get(entity, c.get("orgId"), id)
@@ -162,16 +221,16 @@ function mountEntity(
 			const shared = await store.get(entity, grant.ownerOrg, id)
 			if (shared !== null) return c.json(shared)
 		}
-		throw await deny(store, entity, id, c.get("orgId"))
+		throw await deny(world, store, entity, id, c.get("orgId"))
 	})
 
 	app.patch(item, async (c) => {
 		assertTenant(c)
 		assertWrite(c.get("role"), "update")
 		if (!isJson(c)) throw new HttpError(415, "unsupported_media_type", "content-type must be application/json")
-		const patch = validateBody(entity, await readJson(c), "update")
+		const patch = validateBody(entity, await readJson(c), "update", world)
 		const updated = await store.update(entity, c.get("orgId"), c.req.param(idParam), patch)
-		if (updated === null) throw await deny(store, entity, c.req.param(idParam), c.get("orgId"))
+		if (updated === null) throw await deny(world, store, entity, c.req.param(idParam), c.get("orgId"))
 		return c.json(updated)
 	})
 
@@ -179,7 +238,9 @@ function mountEntity(
 		assertTenant(c)
 		assertWrite(c.get("role"), "delete")
 		const ok = await store.remove(entity, c.get("orgId"), c.req.param(idParam))
-		if (!ok) throw await deny(store, entity, c.req.param(idParam), c.get("orgId"))
+		if (!ok && !hasDefect(world, "delete-missing-ok")) {
+			throw await deny(world, store, entity, c.req.param(idParam), c.get("orgId"))
+		}
 		return c.body(null, 204)
 	})
 
@@ -195,7 +256,7 @@ function mountEntity(
 		}
 		const id = c.req.param(idParam)
 		const row = await store.get(entity, c.get("orgId"), id)
-		if (row === null) throw await deny(store, entity, id, c.get("orgId"))
+		if (row === null) throw await deny(world, store, entity, id, c.get("orgId"))
 		const grant: Grant = {
 			accepted: false,
 			entity: entity.name,
@@ -233,14 +294,18 @@ function defaults(entity: Entity): Row {
 	return row
 }
 
-function validateBody(entity: Entity, input: Row, phase: "create" | "update"): Row {
+function validateBody(entity: Entity, input: Row, phase: "create" | "update", world: World): Row {
 	const allowed = new Set(writableFields(entity))
-	const immutable = new Set(["id", "org_id", "created_at"])
+	const acceptImmutable = hasDefect(world, "accept-immutable")
+	const immutable = acceptImmutable ? new Set<string>() : new Set(["id", "org_id", "created_at"])
+	if (acceptImmutable) {
+		for (const key of ["id", "org_id", "created_at"]) allowed.add(key)
+	}
 	for (const key of Object.keys(input)) {
 		if (immutable.has(key)) throw new HttpError(400, "invalid_input", `field "${key}" is not writable`)
 		if (!allowed.has(key)) throw new HttpError(400, "invalid_input", `unknown field "${key}"`)
 	}
-	if (phase === "create") {
+	if (phase === "create" && !hasDefect(world, "skip-required")) {
 		for (const field of entity.fields) {
 			if (field.required !== true) continue
 			const value = input[field.name]
@@ -252,10 +317,19 @@ function validateBody(entity: Entity, input: Row, phase: "create" | "update"): R
 	for (const field of entity.fields) {
 		const value = input[field.name]
 		if (value === undefined || value === null) continue
-		if (field.enum !== undefined && !field.enum.includes(String(value))) {
+		if (
+			field.enum !== undefined
+			&& !field.enum.includes(String(value))
+			&& !hasDefect(world, "skip-enum")
+		) {
 			throw new HttpError(400, "invalid_input", `field "${field.name}" must be one of ${field.enum.join(", ")}`)
 		}
-		if (field.maxLength !== undefined && typeof value === "string" && value.length > field.maxLength) {
+		if (
+			field.maxLength !== undefined
+			&& typeof value === "string"
+			&& value.length > field.maxLength
+			&& !hasDefect(world, "skip-max-length")
+		) {
 			throw new HttpError(400, "invalid_input", `field "${field.name}" exceeds maxLength ${field.maxLength}`)
 		}
 		if ((field.type === "integer" || field.type === "number") && typeof value !== "number") {
@@ -295,8 +369,17 @@ function assertTenant(c: { req: { param: (n: string) => string }; get: (k: "orgI
 	}
 }
 
-async function deny(store: WorldStore, entity: Entity, id: string, orgId: string): Promise<HttpError> {
-	await store.existsElsewhere(entity, id, orgId)
+async function deny(
+	world: World,
+	store: WorldStore,
+	entity: Entity,
+	id: string,
+	orgId: string,
+): Promise<HttpError> {
+	const exists = await store.existsElsewhere(entity, id, orgId)
+	if (hasDefect(world, "oracle-status") && exists) {
+		return new HttpError(403, "forbidden", `${entity.name} ${id} forbidden`)
+	}
 	return new HttpError(404, "not_found", `${entity.name} ${id} not found`)
 }
 

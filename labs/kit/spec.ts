@@ -229,6 +229,39 @@ export function buildSpec(world: World): Json {
 		}
 	}
 
+	if (world.jobs === true) {
+		const job = entityByName(world, "job")
+		const start = "/v1/orgs/{org_id}/jobs/start"
+		const poll = "/v1/orgs/{org_id}/jobs/{job_id}"
+		paths[start] = {
+			post: {
+				operationId: "job.start",
+				parameters: [{ in: "path", name: "org_id", required: true, schema: { type: "string" } }],
+				requestBody: {
+					content: { "application/json": { schema: writeSchema(job, "create") } },
+					required: true,
+				},
+				responses: {
+					"202": ok(itemSchema(job), "Accepted"),
+					"400": error(400),
+					"415": error(415),
+				},
+				summary: "Start a job",
+				"x-async": {
+					idFrom: "$.id",
+					poll: `GET ${poll}`,
+					pollIntervalMs: 150,
+					successWhen: "status.eq.complete",
+					timeoutMs: 4000,
+					until: "status.in.(complete,failed)",
+				},
+				"x-effects": [{ count: 1, entity: "artifact", op: "create" }],
+				"x-entity": { action: "action", identity: job.identity, name: job.name },
+				"x-tenant": "org_id",
+			},
+		}
+	}
+
 	if (world.entities.some((e) => e.invite === true)) {
 		paths["/v1/invites/{token}/accept"] = {
 			post: {
@@ -290,14 +323,17 @@ function queryTag(world: World, entity: Entity): Json {
 		"created_at",
 		"updated_at",
 	]
+	if (world.defects?.includes("overclaim-sort")) sortable.push("ghost")
 	const searchable = entity.fields.filter((f) => f.searchable === true).map((f) => f.name)
+	const selectable = [...cols]
+	if (world.defects?.includes("overclaim-select")) selectable.push("ghost")
 	return {
 		defaultOrder: "created_at.desc",
 		filterable,
 		grammar: "postgrest",
 		maxLimit: entity.maxLimit ?? 100,
 		searchable,
-		selectable: cols,
+		selectable,
 		sortable,
 		stableTiebreak: "id",
 	}

@@ -2,9 +2,8 @@
 
 Outcomes of pointing oat at specifications it did not generate. Dated 2026-08-13.
 
-This is ROADMAP task **R2** (doctor + plan) plus **R3** against `lab/`
-and the `labs/` family (D1 + Workers). Anyrow still needs
-`ANYROW_TESTER_KEY` for a stranger run.
+This is ROADMAP task **R2** (doctor + plan) plus **R3** against `labs/`
+(D1 + Workers). Anyrow still needs `ANYROW_TESTER_KEY` for a stranger run.
 
 Raw logs: `.oatlogs/doctor-petstore.log`, `.oatlogs/plan-petstore.log`,
 `.oatlogs/doctor-anyrow.log`, `.oatlogs/plan-anyrow.log`.
@@ -58,7 +57,7 @@ out of scope until R3 has a dedicated, disposable API).
 
 ## anyrow (`https://api.anyrow.ai/v1/openapi/spec`)
 
-Fetched 2026-08-13, 125746 bytes. This is the API `examples/anyrow.config.ts` targets.
+Fetched 2026-08-13, 125746 bytes. This is the API `labs/anyrow.config.ts` targets.
 Doctor/plan only — no tester key, so no `oat run`.
 
 ### doctor
@@ -102,7 +101,7 @@ Doctor/plan only — no tester key, so no `oat run`.
 | gap | auth operations missing; `x-invalidate` names routes that do not exist; views promoted to entities |
 | surprise | `project` is “fully testable” with no lifecycle letters |
 
-R3 should run `examples/anyrow.config.ts` with a tester key and record which of the
+R3 should run `labs/anyrow.config.ts` with a tester key and record which of the
 modelled entities actually execute checks, and whether inferred `x-query` produces
 dismissable findings on unindexed columns — the warning doctor already prints.
 
@@ -195,7 +194,7 @@ BACKEND DEFECTS (1)
            invalidation.declared-route-changes
 ```
 
-Repro: `oat-out/lab-d1-stale/repro/comment-invalidation-declared-route-changes.sh`.
+Repro: `oat-out/lab-d1-stale/issue-repro/comment-invalidation-declared-route-changes.sh`.
 Process restored without the bug.
 
 One extra inconclusive on the planted run (`query.filter-selects-from-whole-set`:

@@ -45,10 +45,8 @@ Prove the tool outside the fixture.
       (a public spec is enough for this step). Classify every outcome: modelled, skipped,
       gap, surprise. See [docs/live-runs.md](./docs/live-runs.md).
 - [x] **R3.** `oat run` against a live API that is not the reference fixture.
-      Done against [lab/](./lab/) (Hono + SQLite, same SQL as D1). Latest D1
-      run: 51 checks, 2 entities, no findings. See
-      [docs/live-runs.md](./docs/live-runs.md). Point the same config at D1
-      with `LAB_STORE=d1` after `node lab/provision.mjs`.
+      Done against [labs/](./labs/) (Hono + Cloudflare D1). See
+      [docs/live-runs.md](./docs/live-runs.md).
 - [x] **R4.** Fix the silent skips that R3 produces, if they are oat bugs.
       `x-soft-delete` on the delete operation was ignored; `run.ts` now reads it
       from any operation on the entity. Lab comment list advertised `nextCursor`
@@ -73,7 +71,7 @@ Make a stranger succeed. The engine is ahead of the product.
       parameter was actually inferred.
 - [x] **A3.** One worked finding: a short walkthrough from `doctor` → tag → `run` → finding
       → fix, against the demo API. See “From `doctor` to a fix” in
-      [examples/README.md](./examples/README.md).
+      [labs/README.md](./labs/README.md).
 - [x] **A4.** Decide the adoption bar, in writing, in this file:
       **(a)** useful on an untagged CRUD OpenAPI, or **(b)** useful once `x-query` /
       `x-tenant` are present. Those are different products. Do not imply (a) in the README
@@ -224,7 +222,7 @@ When a task lands, check it off here and add a dated note under [Log](#log).
 
 - Sweep: empty suite output is `✗ no result` (Postgres auth failure is now visible);
   fingerprint is `cksum`, so Linux no longer false-`INVALID`s.
-- Worked finding walkthrough in [examples/README.md](./examples/README.md).
+- Worked finding walkthrough in [labs/README.md](./labs/README.md).
 
 ### 2026-08-13 — R1, R2, A1, A2, A4
 
