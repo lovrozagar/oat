@@ -96,22 +96,28 @@ export function renderMarkdown(input: ReportInput): string {
 	const { findings } = input
 	const real = findings.filter((f) => f.verdict !== "COVERAGE_GAP" && f.verdict !== "BLOCKED")
 	const lines: string[] = []
+	const coverage = coverageByCheck(input)
 
 	lines.push("# oat report")
 	lines.push("")
 	lines.push(`- **Backend**: ${input.baseUrl}`)
 	lines.push(`- **Generated**: ${input.startedAt.toISOString()} (${(input.durationMs / 1000).toFixed(1)}s)`)
-	lines.push(`- **Entities tested**: ${input.entitiesTested.join(", ") || "none"}`)
+	lines.push(`- **Entities tested**: ${entityList(input.entitiesTested)}`)
 	lines.push(`- **Checks run**: ${input.checksRun.length}`)
-	const skippedCount = new Set((input.checksSkipped ?? []).map((s) => s.check)).size
-	if (skippedCount > 0) lines.push(`- **Checks that did not apply**: ${skippedCount}`)
-	const suppressedCount = new Set((input.checksSuppressed ?? []).map((s) => s.check)).size
-	if (suppressedCount > 0) {
-		lines.push(`- **Checks blocked by an earlier failure**: ${suppressedCount}`)
+	if (coverage.never.length > 0) {
+		lines.push(`- **Checks that did not apply anywhere**: ${coverage.never.length}`)
+	}
+	if (coverage.partialSkip.length > 0) {
+		lines.push(`- **Checks that applied only on some entities**: ${coverage.partialSkip.length}`)
+	}
+	const suppressedEverywhere = coverage.blocked.filter((row) => row.ran === 0)
+	if (suppressedEverywhere.length > 0) {
+		lines.push(`- **Checks blocked by an earlier failure**: ${suppressedEverywhere.length}`)
 	}
 	const unresolvedCount = new Set((input.inconclusive ?? []).map((s) => s.check)).size
 	if (unresolvedCount > 0) lines.push(`- **Checks that could not conclude**: ${unresolvedCount}`)
 	lines.push(`- **Requests**: ${input.client.transcript.length}`)
+	lines.push("- **Matrix**: [matrix.html](./matrix.html) · [matrix.json](./matrix.json)")
 	const timing = latency(input.client.transcript)
 	if (timing !== null) {
 		lines.push(
@@ -161,6 +167,25 @@ export function renderMarkdown(input: ReportInput): string {
 			}
 			lines.push("")
 		}
+	}
+
+	if (coverage.never.length > 0) {
+		lines.push("## Did not apply anywhere")
+		lines.push("")
+		for (const row of coverage.never) {
+			lines.push(`- \`${row.check}\` — ${row.needs} (all ${row.skipped} entities)`)
+		}
+		lines.push("")
+	}
+	if (coverage.partialSkip.length > 0) {
+		lines.push("## Applied only on some entities")
+		lines.push("")
+		for (const row of coverage.partialSkip) {
+			lines.push(
+				`- \`${row.check}\` — ran on ${row.ran}, skipped on ${row.skipped} (${named(row.skippedEntities)})`,
+			)
+		}
+		lines.push("")
 	}
 
 	return `${lines.join("\n")}\n`
@@ -217,34 +242,106 @@ function wrap(text: string, width: number): string[] {
 	return lines
 }
 
+interface CheckCoverage {
+	check: string
+	needs: string
+	ran: number
+	skipped: number
+	blocked: number
+	skippedEntities: string[]
+	blockedEntities: string[]
+}
+
+export function coverageByCheck(input: ReportInput): {
+	never: CheckCoverage[]
+	partialSkip: CheckCoverage[]
+	blocked: CheckCoverage[]
+} {
+	const tested = input.entitiesTested.length
+	const rows = new Map<string, CheckCoverage>()
+	const row = (check: string, needs: string): CheckCoverage => {
+		const existing = rows.get(check)
+		if (existing !== undefined) return existing
+		const created: CheckCoverage = {
+			blocked: 0,
+			blockedEntities: [],
+			check,
+			needs,
+			ran: 0,
+			skipped: 0,
+			skippedEntities: [],
+		}
+		rows.set(check, created)
+		return created
+	}
+	for (const entry of input.checksSkipped ?? []) {
+		const current = row(entry.check, entry.needs)
+		current.skipped += 1
+		current.skippedEntities.push(entry.entity)
+	}
+	for (const entry of input.checksSuppressed ?? []) {
+		const current = row(entry.check, "a check it depends on already failed")
+		current.blocked += 1
+		current.blockedEntities.push(entry.entity)
+	}
+	for (const current of rows.values()) {
+		current.ran = Math.max(0, tested - current.skipped - current.blocked)
+	}
+	const all = [...rows.values()].sort((a, b) => a.check.localeCompare(b.check))
+	return {
+		blocked: all.filter((item) => item.blocked > 0),
+		never: all.filter((item) => item.ran === 0 && item.blocked === 0 && item.skipped > 0),
+		partialSkip: all.filter((item) => item.ran > 0 && item.skipped > 0),
+	}
+}
+
+function entityList(names: readonly string[]): string {
+	if (names.length === 0) return "none"
+	if (names.length <= 12) return names.join(", ")
+	return `${names.length} entities`
+}
+
+function named(names: readonly string[], keep = 6): string {
+	if (names.length <= keep) return names.join(", ")
+	return `${names.slice(0, keep).join(", ")} +${names.length - keep} more`
+}
+
 /** Console summary — what shows up in CI logs. */
 export function renderConsole(input: ReportInput): string {
 	const { findings } = input
 	const lines: string[] = []
 	const real = findings.filter((f) => f.verdict !== "COVERAGE_GAP" && f.verdict !== "BLOCKED")
+	const coverage = coverageByCheck(input)
 
 	lines.push("")
-	const skipped = input.checksSkipped ?? []
-	const distinctSkipped = new Set(skipped.map((s) => s.check))
 	lines.push(
 		`  ${input.checksRun.length} checks · ${input.entitiesTested.length} entities · ` +
 			`${input.client.transcript.length} requests · ${(input.durationMs / 1000).toFixed(1)}s` +
 			(latency(input.client.transcript) === null
 				? ""
 				: ` · p95 ${latency(input.client.transcript)?.p95}ms`) +
-			(distinctSkipped.size > 0 ? ` · ${distinctSkipped.size} checks did not apply` : ""),
+			(coverage.never.length > 0 ? ` · ${coverage.never.length} checks did not apply` : "") +
+			(coverage.partialSkip.length > 0 ? ` · ${coverage.partialSkip.length} only on some entities` : ""),
 	)
 	lines.push("")
 
 	const renderSkipped = (): void => {
-		if (distinctSkipped.size === 0) return
-		lines.push("  DID NOT APPLY")
-		const byCheck = new Map<string, string>()
-		for (const entry of skipped) byCheck.set(entry.check, entry.needs)
-		for (const [check, needs] of [...byCheck].sort()) {
-			lines.push(`    ${check.padEnd(40)} needs ${needs}`)
+		if (coverage.never.length > 0) {
+			lines.push("  DID NOT APPLY — no entity had what these need")
+			for (const row of coverage.never) {
+				lines.push(`    ${row.check.padEnd(40)} needs ${row.needs}`)
+			}
+			lines.push("")
 		}
-		lines.push("")
+		if (coverage.partialSkip.length > 0) {
+			lines.push("  APPLIED ONLY ON SOME ENTITIES")
+			for (const row of coverage.partialSkip) {
+				lines.push(
+					`    ${row.check.padEnd(40)} ran on ${row.ran} · skipped on ${row.skipped} (${named(row.skippedEntities)})`,
+				)
+			}
+			lines.push("")
+		}
 	}
 
 	/*
@@ -256,13 +353,24 @@ export function renderConsole(input: ReportInput): string {
 	 * reader to assume everything else was verified.
 	 */
 	const renderUntested = (): void => {
-		const suppressed = input.checksSuppressed ?? []
-		if (suppressed.length > 0) {
+		const blockedAll = coverage.blocked.filter((row) => row.ran === 0)
+		const blockedSome = coverage.blocked.filter((row) => row.ran > 0)
+		if (blockedAll.length > 0) {
 			lines.push("  BLOCKED BY AN EARLIER FAILURE — re-run once the cause is fixed")
-			const byCheck = new Map<string, string>()
-			for (const entry of suppressed) byCheck.set(entry.check, entry.because)
-			for (const [check, because] of [...byCheck].sort()) {
-				lines.push(`    ${check.padEnd(40)} waiting on ${because}`)
+			for (const row of blockedAll) {
+				const because = (input.checksSuppressed ?? []).find((s) => s.check === row.check)?.because
+				lines.push(`    ${row.check.padEnd(40)} waiting on ${because ?? "an earlier check"}`)
+			}
+			lines.push("")
+		}
+		if (blockedSome.length > 0) {
+			lines.push("  BLOCKED ON SOME ENTITIES")
+			for (const row of blockedSome) {
+				const because = (input.checksSuppressed ?? []).find((s) => s.check === row.check)?.because
+				lines.push(
+					`    ${row.check.padEnd(40)} ran on ${row.ran} · blocked on ${row.blocked} (${named(row.blockedEntities)})`
+						+ (because === undefined ? "" : ` · waiting on ${because}`),
+				)
 			}
 			lines.push("")
 		}
@@ -338,6 +446,7 @@ function latency(
 }
 
 export function renderJson(input: ReportInput): string {
+	const coverage = coverageByCheck(input)
 	return `${JSON.stringify(
 		{
 			backend: input.baseUrl,
@@ -370,6 +479,14 @@ export function renderJson(input: ReportInput): string {
 					input.findings.filter((f) => f.verdict === verdict).length,
 				]).filter(([, count]) => (count as number) > 0),
 			),
+			coverage: {
+				neverApplied: coverage.never.map((row) => row.check),
+				partial: coverage.partialSkip.map((row) => ({
+					check: row.check,
+					ran: row.ran,
+					skipped: row.skipped,
+				})),
+			},
 		},
 		null,
 		2,

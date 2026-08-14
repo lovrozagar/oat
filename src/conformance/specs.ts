@@ -169,11 +169,17 @@ export const SPEC_FIXTURES: SpecFixture[] = [
 				"/people": {
 					get: { operationId: "person.list", responses: okResponse({ type: "object" }) },
 				},
+				"/campuses": {
+					get: { operationId: "campus.list", responses: okResponse({ type: "object" }) },
+				},
+				"/inboxes": {
+					get: { operationId: "inbox.list", responses: okResponse({ type: "object" }) },
+				},
 			},
 		},
-		expectOperations: 3,
+		expectOperations: 5,
 		name: "irregular-plurals",
-		why: "status must not become statu, analyses must not become analyse",
+		why: "status must not become statu, campuses must not become campuse",
 	},
 	{
 		doc: {
@@ -238,5 +244,73 @@ export const SPEC_FIXTURES: SpecFixture[] = [
 		expectOperations: 1,
 		name: "external-ref",
 		why: "external refs must be reported, never fetched — a test tool should not follow URLs",
+	},
+	{
+		doc: {
+			openapi: "3.1.0",
+			paths: {
+				"/articles": {
+					get: {
+						operationId: "article.list",
+						parameters: [
+							{ in: "query", name: "sort", schema: { type: "string" } },
+							{ in: "query", name: "fields", schema: { type: "string" } },
+							{ in: "query", name: "q", schema: { type: "string" } },
+							{
+								in: "query",
+								name: "per_page",
+								schema: { default: 10, maximum: 50, minimum: 1, type: "integer" },
+							},
+						],
+						responses: okResponse({
+							properties: {
+								articles: {
+									items: {
+										properties: { id: { type: "string" }, title: { type: "string" } },
+										type: "object",
+									},
+									type: "array",
+								},
+							},
+							type: "object",
+						}),
+					},
+				},
+			},
+		},
+		expectEntities: 1,
+		expectOperations: 1,
+		name: "query-roles-by-alias",
+		why: "untagged x-query must recognize sort/fields/q/per_page, not only filter/order/select",
+	},
+	{
+		doc: {
+			openapi: "3.1.0",
+			paths: {
+				"/articles": {
+					get: {
+						operationId: "article.list",
+						parameters: [
+							{ in: "query", name: "page", schema: { minimum: 1, type: "integer" } },
+							{ in: "query", name: "limit", schema: { default: 20, maximum: 100, type: "integer" } },
+							{ in: "query", name: "status", schema: { type: "string" } },
+						],
+						responses: okResponse({
+							properties: {
+								articles: {
+									items: { properties: { id: { type: "string" } }, type: "object" },
+									type: "array",
+								},
+							},
+							type: "object",
+						}),
+					},
+				},
+			},
+		},
+		expectEntities: 1,
+		expectOperations: 1,
+		name: "pagination-only-is-not-query",
+		why: "page/limit/status is not a query grammar; the heuristic must not invent one",
 	},
 ]

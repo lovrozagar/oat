@@ -1,0 +1,552 @@
+openapi: 3.1.0
+info:
+  title: oat lab — articles
+  version: "1.0"
+  description: >
+    A backend the oat repo owns. Iterate the handler, this document, and oat
+    independently. Two tenants (org_alpha / org_beta) authenticate with API keys.
+
+paths:
+  /v1/auth/token:
+    post:
+      operationId: auth.token
+      summary: Exchange an API key for a bearer token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key]
+              properties:
+                key: { type: string }
+      responses:
+        "200":
+          description: Credential
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access_token, org_id]
+                properties:
+                  access_token: { type: string }
+                  org_id: { type: string }
+        "401":
+          description: Unknown key
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/orgs/{org_id}/articles:
+    get:
+      operationId: article.list
+      summary: List articles in an organisation
+      x-entity: { name: article, action: list, identity: id }
+      x-tenant: org_id
+      x-query:
+        grammar: postgrest
+        filterable: [id, org_id, title, slug, status, position, created_at, updated_at]
+        sortable: [id, title, slug, status, position, created_at, updated_at]
+        searchable: [title, slug, body]
+        selectable: [id, org_id, title, slug, status, body, position, created_at, updated_at, deleted_at]
+        maxLimit: 100
+        defaultOrder: created_at.desc
+        stableTiebreak: id
+      parameters:
+        - { $ref: "#/components/parameters/org_id" }
+        - name: filter
+          in: query
+          schema: { type: string }
+          description: "PostgREST-style filter: field.op.value, and(...), or(...). e.g. status.eq.published"
+        - name: order
+          in: query
+          schema: { type: string }
+          description: "Sort: field[.asc|.desc], comma-separated. e.g. created_at.desc"
+        - name: select
+          in: query
+          schema: { type: string }
+          description: Comma-separated sparse fieldset
+        - name: q
+          in: query
+          schema: { type: string }
+          description: Free-text search across title, slug, body
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: A page of articles
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [articles, count, hasMore]
+                properties:
+                  articles: { type: array, items: { $ref: "#/components/schemas/Article" } }
+                  count: { type: integer }
+                  hasMore: { type: boolean }
+                  nextCursor: { type: [string, "null"] }
+                  page: { type: integer }
+                  limit: { type: integer }
+        "400":
+          description: Bad query
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+    post:
+      operationId: article.create
+      summary: Create an article
+      x-entity: { name: article, action: create, identity: id }
+      x-tenant: org_id
+      x-generated: [id, org_id, comment_count, created_at, updated_at, deleted_at]
+      x-invalidate:
+        - "GET /v1/orgs/{org_id}/articles"
+      parameters:
+        - { $ref: "#/components/parameters/org_id" }
+        - { name: Idempotency-Key, in: header, required: false, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ArticleCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Article" }
+        "400":
+          description: Invalid body
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "415":
+          description: Unsupported content type
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/orgs/{org_id}/articles/{article_id}:
+    get:
+      operationId: article.get
+      summary: Read one article
+      x-entity: { name: article, action: read, identity: id }
+      x-tenant: org_id
+      parameters:
+        - { $ref: "#/components/parameters/org_id" }
+        - { $ref: "#/components/parameters/article_id" }
+      responses:
+        "200":
+          description: The article
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Article" }
+        "404":
+          description: Missing, or not in this organisation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+    patch:
+      operationId: article.update
+      summary: Partial update
+      x-entity: { name: article, action: update, identity: id }
+      x-tenant: org_id
+      x-immutable: [id, org_id, created_at]
+      x-generated: [id, org_id, comment_count, created_at, updated_at, deleted_at]
+      x-invalidate:
+        - "GET /v1/orgs/{org_id}/articles"
+        - "GET /v1/orgs/{org_id}/articles/{article_id}"
+      parameters:
+        - { $ref: "#/components/parameters/org_id" }
+        - { $ref: "#/components/parameters/article_id" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ArticleWrite" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Article" }
+        "400":
+          description: Invalid body
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Missing
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "415":
+          description: Unsupported content type
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+    delete:
+      operationId: article.delete
+      summary: Soft-delete an article
+      x-entity: { name: article, action: delete, identity: id }
+      x-tenant: org_id
+      x-soft-delete: deleted_at
+      x-invalidate:
+        - "GET /v1/orgs/{org_id}/articles"
+        - "GET /v1/orgs/{org_id}/articles/{article_id}"
+      parameters:
+        - { $ref: "#/components/parameters/org_id" }
+        - { $ref: "#/components/parameters/article_id" }
+      responses:
+        "204": { description: Deleted }
+        "404":
+          description: Missing
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/orgs/{org_id}/articles/{article_id}/comments:
+    get:
+      operationId: comment.list
+      summary: List comments on an article
+      x-entity: { name: comment, action: list, identity: id }
+      x-tenant: org_id
+      x-query:
+        grammar: postgrest
+        filterable: [id, org_id, article_id, body, author, kind, created_at, updated_at]
+        sortable: [id, kind, created_at, updated_at]
+        searchable: [body, author]
+        selectable: [id, org_id, article_id, body, author, kind, created_at, updated_at]
+        maxLimit: 100
+        defaultOrder: created_at.desc
+        stableTiebreak: id
+      parameters:
+        - { $ref: "#/components/parameters/org_id" }
+        - { $ref: "#/components/parameters/article_id" }
+        - name: filter
+          in: query
+          schema: { type: string }
+        - name: order
+          in: query
+          schema: { type: string }
+        - name: select
+          in: query
+          schema: { type: string }
+        - name: q
+          in: query
+          schema: { type: string }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: A page of comments
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [comments, count, hasMore]
+                properties:
+                  comments: { type: array, items: { $ref: "#/components/schemas/Comment" } }
+                  count: { type: integer }
+                  hasMore: { type: boolean }
+                  nextCursor: { type: [string, "null"] }
+                  page: { type: integer }
+                  limit: { type: integer }
+        "404":
+          description: Article missing
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    post:
+      operationId: comment.create
+      summary: Add a comment
+      x-entity: { name: comment, action: create, identity: id }
+      x-tenant: org_id
+      x-generated: [id, org_id, article_id, created_at, updated_at]
+      x-invalidate:
+        - "GET /v1/orgs/{org_id}/articles"
+        - "GET /v1/orgs/{org_id}/articles/{article_id}"
+      parameters:
+        - { $ref: "#/components/parameters/org_id" }
+        - { $ref: "#/components/parameters/article_id" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommentCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Comment" }
+        "400":
+          description: Invalid
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Article missing
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/orgs/{org_id}/articles/{article_id}/comments/{comment_id}:
+    get:
+      operationId: comment.get
+      summary: Read one comment
+      x-entity: { name: comment, action: read, identity: id }
+      x-tenant: org_id
+      parameters:
+        - { $ref: "#/components/parameters/org_id" }
+        - { $ref: "#/components/parameters/article_id" }
+        - { $ref: "#/components/parameters/comment_id" }
+      responses:
+        "200":
+          description: The comment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Comment" }
+        "404":
+          description: Missing
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    patch:
+      operationId: comment.update
+      summary: Edit a comment
+      x-entity: { name: comment, action: update, identity: id }
+      x-tenant: org_id
+      x-immutable: [id, org_id, article_id, created_at]
+      x-generated: [id, org_id, article_id, created_at, updated_at]
+      x-invalidate:
+        - "GET /v1/orgs/{org_id}/articles/{article_id}/comments"
+        - "GET /v1/orgs/{org_id}/articles/{article_id}/comments/{comment_id}"
+      parameters:
+        - { $ref: "#/components/parameters/org_id" }
+        - { $ref: "#/components/parameters/article_id" }
+        - { $ref: "#/components/parameters/comment_id" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommentWrite" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Comment" }
+        "400":
+          description: Invalid
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Missing
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      operationId: comment.delete
+      summary: Delete a comment
+      x-entity: { name: comment, action: delete, identity: id }
+      x-tenant: org_id
+      x-invalidate:
+        - "GET /v1/orgs/{org_id}/articles"
+        - "GET /v1/orgs/{org_id}/articles/{article_id}"
+      parameters:
+        - { $ref: "#/components/parameters/org_id" }
+        - { $ref: "#/components/parameters/article_id" }
+        - { $ref: "#/components/parameters/comment_id" }
+      responses:
+        "204": { description: Deleted }
+        "404":
+          description: Missing
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/orgs/{org_id}/articles/{article_id}/invites:
+    post:
+      operationId: article.invite
+      summary: Invite another principal to read this article
+      x-entity: { name: article, action: action, identity: id }
+      x-tenant: org_id
+      x-invite:
+        invite: article.invite
+        accept: invite.accept
+        revoke: article.revoke
+        granteeField: key
+        tokenPointer: $.token
+        grantPointer: $.grant_id
+      parameters:
+        - { $ref: "#/components/parameters/org_id" }
+        - { $ref: "#/components/parameters/article_id" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key]
+              properties:
+                key: { type: string }
+      responses:
+        "201":
+          description: Invite created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [grant_id, token]
+                properties:
+                  grant_id: { type: string }
+                  token: { type: string }
+        "400":
+          description: Bad invitee
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/invites/{token}/accept:
+    post:
+      operationId: invite.accept
+      summary: Accept an invite
+      x-entity: { name: article, action: action, identity: id }
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accepted]
+                properties:
+                  accepted: { type: boolean }
+        "404":
+          description: Unknown invite
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/orgs/{org_id}/articles/{article_id}/grants/{grant_id}:
+    delete:
+      operationId: article.revoke
+      summary: Revoke a grant
+      x-entity: { name: article, action: action, identity: id }
+      x-tenant: org_id
+      parameters:
+        - { $ref: "#/components/parameters/org_id" }
+        - { $ref: "#/components/parameters/article_id" }
+        - { name: grant_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [revoked]
+                properties:
+                  revoked: { type: boolean }
+        "404":
+          description: Unknown grant
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+components:
+  parameters:
+    org_id:
+      name: org_id
+      in: path
+      required: true
+      schema: { type: string }
+    article_id:
+      name: article_id
+      in: path
+      required: true
+      schema: { type: string }
+    comment_id:
+      name: comment_id
+      in: path
+      required: true
+      schema: { type: string }
+
+  schemas:
+    Article:
+      type: object
+      required: [id, org_id, title, status, position, created_at, updated_at]
+      properties:
+        id: { type: string }
+        org_id: { type: string }
+        title: { type: string, maxLength: 128 }
+        slug: { type: [string, "null"], maxLength: 64 }
+        status: { type: string, enum: [draft, published, archived] }
+        body: { type: [string, "null"], maxLength: 2000 }
+        position: { type: integer }
+        comment_count: { type: integer }
+        created_at: { type: integer }
+        updated_at: { type: integer }
+        deleted_at: { type: [integer, "null"] }
+
+    Comment:
+      type: object
+      required: [id, org_id, article_id, body, kind, created_at, updated_at]
+      properties:
+        id: { type: string }
+        org_id: { type: string }
+        article_id: { type: string }
+        body: { type: string, maxLength: 2000 }
+        author: { type: [string, "null"], maxLength: 64 }
+        kind: { type: string, enum: [note, question] }
+        created_at: { type: integer }
+        updated_at: { type: integer }
+
+    CommentCreate:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, maxLength: 2000 }
+        author: { type: [string, "null"], maxLength: 64 }
+        kind: { type: string, enum: [note, question] }
+
+    CommentWrite:
+      type: object
+      properties:
+        body: { type: string, maxLength: 2000 }
+        author: { type: [string, "null"], maxLength: 64 }
+        kind: { type: string, enum: [note, question] }
+
+    ArticleCreate:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, maxLength: 128 }
+        slug: { type: [string, "null"], maxLength: 64 }
+        status: { type: string, enum: [draft, published, archived] }
+        body: { type: [string, "null"], maxLength: 2000 }
+        position: { type: integer }
+
+    ArticleWrite:
+      type: object
+      properties:
+        title: { type: string, maxLength: 128 }
+        slug: { type: [string, "null"], maxLength: 64 }
+        status: { type: string, enum: [draft, published, archived] }
+        body: { type: [string, "null"], maxLength: 2000 }
+        position: { type: integer }
+
+    Error:
+      type: object
+      required: [error_key, message]
+      properties:
+        error_key: { type: string }
+        message: { type: string }

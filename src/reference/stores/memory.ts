@@ -99,10 +99,17 @@ export class MemoryStore implements Store {
 				filterable: this.defects.has("SPEC_OVERCLAIMS_FILTERABLE")
 					? fieldsWhere(entity, "filterable").filter((f) => f !== OVERCLAIMED_FIELD)
 					: fieldsWhere(entity, "filterable"),
+				/* Same overclaim shape, applied to the select role: the document still lists the field,
+				 * the backend now refuses to project it. */
+				excludedSelect: this.defects.has("SPEC_OVERCLAIMS_SELECTABLE") ? [OVERCLAIMED_FIELD] : [],
 				identity: entity.identity,
 				maxLimit: entity.maxLimit,
 				searchable: fieldsWhere(entity, "searchable"),
-				sortable: fieldsWhere(entity, "sortable"),
+				/* Same overclaim shape as filterable, one role over: the document still promises the
+				 * field can be sorted by; the backend refuses it. */
+				sortable: this.defects.has("SPEC_OVERCLAIMS_SORTABLE")
+					? fieldsWhere(entity, "sortable").filter((f) => f !== OVERCLAIMED_FIELD)
+					: fieldsWhere(entity, "sortable"),
 				...(options.softDeleteField === undefined
 					? {}
 					: { softDeleteField: options.softDeleteField }),

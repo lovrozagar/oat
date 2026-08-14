@@ -325,7 +325,12 @@ export class PgStore implements Store {
 			count: this.defects.has("COUNT_ALWAYS_ZERO") ? 0 : total,
 			hasMore,
 			items: transformed.map((row) =>
-				project(row, params.select, this.defects.has("SELECT_IGNORED")),
+				project(
+					row,
+					params.select,
+					this.defects.has("SELECT_IGNORED"),
+					this.defects.has("SPEC_OVERCLAIMS_SELECTABLE") ? [OVERCLAIMED_FIELD] : [],
+				),
 			),
 			limit,
 			nextCursor:
@@ -345,7 +350,10 @@ export class PgStore implements Store {
 		if (group?.[1] && group[2] !== undefined) {
 			const parts = splitTopLevel(group[2]).map((p) => this.compileFilter(p, entity, args))
 			if (parts.length === 0) throw new SqlError("invalid_filter", "empty filter group")
-			return `(${parts.join(group[1] === "and" ? " AND " : " OR ")})`
+			const effective = this.defects.has("FILTER_GROUP_COMBINATOR_SWAPPED")
+				? (group[1] === "and" ? "or" : "and")
+				: group[1]
+			return `(${parts.join(effective === "and" ? " AND " : " OR ")})`
 		}
 
 		const segments = trimmed.split(".")
@@ -431,7 +439,12 @@ export class PgStore implements Store {
 		if (expression !== undefined && expression !== "") {
 			for (const raw of splitTopLevel(expression)) {
 				const [field, ...modifiers] = raw.split(".")
-				if (field === undefined || !fieldsWhere(entity, "sortable").includes(field)) {
+				/* Under the overclaim defect the backend refuses a field the document still declares
+				 * sortable — the backend is not wrong to refuse, the document is wrong to promise. */
+				const sortable = this.defects.has("SPEC_OVERCLAIMS_SORTABLE")
+					? fieldsWhere(entity, "sortable").filter((f) => f !== OVERCLAIMED_FIELD)
+					: fieldsWhere(entity, "sortable")
+				if (field === undefined || !sortable.includes(field)) {
 					throw new SqlError("invalid_order", `field "${field ?? ""}" is not sortable`)
 				}
 				const descending = modifiers.includes("desc")

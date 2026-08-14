@@ -67,6 +67,46 @@ export const DEFECTS = {
 	 */
 	FILTER_DROPPED_WHEN_SORTED: "a filter stops being applied once a sort is also requested",
 	/**
+	 * The filter is applied when it is the only query parameter, and dropped once a sparse
+	 * fieldset joins it.
+	 *
+	 * The realistic shape: a query builder that projects first and then cannot (or does not)
+	 * apply a predicate to a column it just omitted — or that takes a different code path the
+	 * moment `fields=` is present and forgets the WHERE. Each axis is correct alone.
+	 */
+	FILTER_DROPPED_WHEN_SELECTED: "a filter stops being applied once a select is also requested",
+	/**
+	 * The filter is applied when it is the only query parameter, and dropped once a free-text
+	 * search joins it.
+	 *
+	 * Adding `q` often switches the backend onto a search-index path that does not honour the
+	 * structured predicate. Search alone is correct, the filter alone is correct, and together
+	 * the filter silently vanishes.
+	 */
+	FILTER_DROPPED_WHEN_SEARCHED: "a filter stops being applied once a search is also requested",
+	/**
+	 * The filter survives each pair — filter+sort and filter+select — and vanishes only when
+	 * both extra axes are present at once.
+	 *
+	 * A query planner that has a two-axis path and a three-axis path, and only the latter
+	 * forgets the WHERE. Every pairwise check passes; the bug is the triple.
+	 */
+	FILTER_DROPPED_WHEN_SORTED_AND_SELECTED:
+		"a filter stops being applied once a sort and a select are requested together",
+	/**
+	 * The filter survives filter+search and filter+sort, and vanishes only when a search and a
+	 * sort are requested together — typically the search-index path that also tries to honour
+	 * an ORDER BY and drops the structured predicate to do it.
+	 */
+	FILTER_DROPPED_WHEN_SORTED_AND_SEARCHED:
+		"a filter stops being applied once a sort and a search are requested together",
+	/**
+	 * The filter survives filter+search and filter+select, and vanishes only when a search and
+	 * a sparse fieldset are requested together.
+	 */
+	FILTER_DROPPED_WHEN_SEARCHED_AND_SELECTED:
+		"a filter stops being applied once a search and a select are requested together",
+	/**
 	 * The page window is computed over the *unfiltered* set, and the filter is applied to whatever
 	 * that window happened to contain.
 	 *
@@ -85,6 +125,31 @@ export const DEFECTS = {
 	 * is the only thing that reads the claim and then tries it.
 	 */
 	SPEC_OVERCLAIMS_FILTERABLE: "x-query declares a field filterable that the backend rejects",
+	/**
+	 * The document declares a field sortable that the backend rejects.
+	 *
+	 * Same failure as SPEC_OVERCLAIMS_FILTERABLE, one role over: the backend is entitled to refuse
+	 * a field it never indexed for ordering, but the document is wrong to promise it can. Every
+	 * client generated from this document offers an `order` value that 400s at runtime.
+	 */
+	SPEC_OVERCLAIMS_SORTABLE: "x-query declares a field sortable that the backend rejects",
+	/**
+	 * `and(a,b)` and `or(a,b)` are compiled with their joiner swapped: a conjunction evaluates as
+	 * a disjunction and vice versa.
+	 *
+	 * A realistic shape for the bug: a query builder that always joins terms with the same
+	 * operator regardless of which combinator the expression named, because the grouping was
+	 * parsed but never actually consulted when assembling the join. Every single-predicate filter
+	 * check still passes — the defect is invisible until two terms are combined.
+	 */
+	FILTER_GROUP_COMBINATOR_SWAPPED: "and() and or() combinators inside a filter expression are swapped",
+	/**
+	 * The document declares a field selectable that the backend rejects.
+	 *
+	 * The select analogue of SPEC_OVERCLAIMS_FILTERABLE and SPEC_OVERCLAIMS_SORTABLE: the backend
+	 * is entitled to stop projecting a column, but the document is wrong to keep promising it can.
+	 */
+	SPEC_OVERCLAIMS_SELECTABLE: "x-query declares a field selectable that the backend rejects",
 	/** Tombstoned records remain in the default listing. */
 	SOFT_DELETE_LEAK: "soft-deleted records still appear in the default list",
 	/** Server-owned fields accept client writes. */
@@ -168,6 +233,19 @@ export const DEFECTS = {
 	 * earlier field's old value — the classic ORM `save(entity)` lost update.
 	 */
 	CONCURRENT_WRITE_LOST: "concurrent writes to different fields lose one of them",
+	/**
+	 * A lower-ranked role can read a record that a higher-ranked role in the same tenant cannot.
+	 *
+	 * The lattice is inverted on the item route only: a viewer is served, a member is denied,
+	 * the owner still reads. Isolation and the write path stay intact; the failure is purely
+	 * that privilege is not monotonic.
+	 */
+	ROLE_MONOTONICITY_BROKEN:
+		"a lower-ranked role can read a record a higher-ranked same-tenant role cannot",
+	/** Accept completes but the invitee still cannot read the shared record. */
+	INVITE_NEVER_GRANTS: "accepting an invite does not grant access to the record",
+	/** Revoke returns success and the invitee can still read. */
+	REVOKE_IGNORED: "revoking an invite does not remove access",
 } as const
 
 export type DefectName = keyof typeof DEFECTS

@@ -38,11 +38,48 @@ Three artifacts land in `oat-out/`:
 | `oat-report.json` | the same, for CI gating or diffing between runs |
 | `repro/*.sh` | one runnable `curl` script per finding, `BASE` and `TOKEN` as variables |
 
-Drop `--defects` and it reports nothing across 37 checks. That the *clean* case is silent is the
+Drop `--defects` and it reports nothing across 55 checks. That the *clean* case is silent is the
 part worth checking first — a tester that cries wolf is worse than no tester.
 
 `npm run demo` does the same thing in a single process if you would rather not manage two
 terminals.
+
+## From `doctor` to a fix
+
+The commands above show that oat runs. This is what to *do* with what it prints.
+
+**1. Read the document first, offline.** `doctor` does not need a running backend.
+
+```bash
+node dist/cli.js doctor --spec examples/annotated-openapi.yaml
+```
+
+It reports two different kinds of gap. Tags listed under “cannot run” mean those checks
+are impossible until you declare the behaviour (`x-async`, `x-soft-delete`, …). Lines
+under “running, but on inferred information” mean the checks *will* fire, but a
+cross-tenant read will be an `AMBIGUITY` rather than `SECURITY` until you add
+`x-tenant`, and query probes will hit every scalar until you add `x-query`.
+
+**2. Reproduce one finding.** Serve the demo with a single known defect and run:
+
+```bash
+node dist/cli.js serve --defects STALE_LIST          # terminal 1
+node --experimental-strip-types dist/cli.js run \
+  --config examples/local.config.ts --base-url http://127.0.0.1:PORT
+```
+
+`list.read-after-write` fires: the item route serves the record oat just created, the
+list route does not. That is not a schema violation. The report names the check, the
+entity, and the two exchanges.
+
+**3. Act on the diagnosis, not the symptom.** A stale list is a backend bug — the write
+path and the listing have drifted. The matching `curl` under `oat-out/repro/` replays
+the create and the two reads without oat. If the same shape appeared because the
+*document* promised a filter the backend refuses, the verdict would be `SPEC_BUG` and
+the fix would be the document (or an index), not the handler.
+
+**4. Confirm the quiet case.** Drop `--defects`, run again, expect no findings. A tester
+that still complains against a correct backend is not ready to point at yours.
 
 ## Where the spec can live
 

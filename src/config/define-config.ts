@@ -88,6 +88,22 @@ export interface Principal {
 	 * needs no fixture identifiers configured at all.
 	 */
 	rootsFromFlow?: Record<string, string>
+	/**
+	 * Name of this principal's role (`owner`, `admin`, `member`, `viewer`, …). Free-form.
+	 * Isolation still keys off `roots`, not this name: two `owner`s in different tenants are
+	 * peers; an `owner` and a `viewer` sharing roots are a lattice.
+	 */
+	role?: string
+	/**
+	 * Position in the authorization lattice. Higher can do everything a lower rank can.
+	 * Same rank + different `roots` is today's two-tenant isolation pair. Defaults to 0.
+	 */
+	rank?: number
+	/**
+	 * How the owner names this principal when inviting them — an API key, an email, whatever
+	 * the invite operation's body field accepts. Required for `auth.invite-grants-then-revokes`.
+	 */
+	inviteAs?: string
 }
 
 /* ---------------------------------------------------------------------- hooks */
@@ -118,8 +134,8 @@ export interface OatConfig {
 	/** Backend under test. */
 	baseUrl: string
 	/**
-	 * At least one principal. A second in a different tenant is what makes the isolation checks
-	 * possible — without it they are skipped rather than silently passed.
+	 * At least one principal. Isolation needs a second with different `roots`. A lattice
+	 * needs several that share `roots` and differ in `rank`. Extra principals are not ignored.
 	 */
 	principals: [Principal, ...Principal[]]
 	hooks?: Hooks

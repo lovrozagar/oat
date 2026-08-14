@@ -49,16 +49,21 @@ export class Ledger {
 		model: SpecModel,
 		client: Client,
 		headers: () => Record<string, string>,
+		onItem?: (done: number, total: number, item: Disposable) => void,
 	): Promise<TeardownReport> {
 		const report: TeardownReport = { failed: [], removed: 0, unsupported: [] }
 		const unsupported = new Set<string>()
 
 		/* Newest first: a child created inside a parent must be removed before the parent, and
 		 * creation order already encodes that dependency. */
-		for (const item of [...this.items].reverse()) {
+		const queue = [...this.items].reverse()
+		let done = 0
+		for (const item of queue) {
+			onItem?.(done, queue.length, item)
 			const deleteOp = deleteOperationFor(item.entity, model)
 			if (deleteOp === null) {
 				unsupported.add(item.entity)
+				done += 1
 				continue
 			}
 
@@ -74,6 +79,7 @@ export class Ledger {
 					id: item.id,
 					reason: error instanceof Error ? error.message : String(error),
 				})
+				done += 1
 				continue
 			}
 
@@ -96,6 +102,8 @@ export class Ledger {
 					reason: error instanceof Error ? error.message : String(error),
 				})
 			}
+			done += 1
+			onItem?.(done, queue.length, item)
 		}
 
 		report.unsupported = [...unsupported]

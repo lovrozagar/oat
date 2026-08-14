@@ -20,7 +20,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { DefectSet as Defects, type DefectSet } from "./defects.ts"
-import { ENTITIES, type EntityDef, type FieldDef, JOB, fieldsWhere, writableFields } from "./model.ts"
+import { ENTITIES, type EntityDef, type FieldDef, JOB, TABLE, fieldsWhere, writableFields } from "./model.ts"
 import { type Dialect, DIALECTS, POSTGREST, toCanonicalFilter } from "./dialect.ts"
 import { buildSpec, buildUntaggedSpec } from "./spec.ts"
 import { SqlError, type Row, type Store } from "./store-api.ts"
@@ -29,11 +29,15 @@ interface Principal {
 	key: string
 	token: string
 	projectId: string
+	/** Higher can do everything a lower rank can. Viewer 0, member 1, owner 2. */
+	rank: number
 }
 
 const PRINCIPALS: Principal[] = [
-	{ key: "key_alpha", projectId: "proj_alpha", token: "tok_alpha" },
-	{ key: "key_beta", projectId: "proj_beta", token: "tok_beta" },
+	{ key: "key_alpha", projectId: "proj_alpha", rank: 2, token: "tok_alpha" },
+	{ key: "key_beta", projectId: "proj_beta", rank: 2, token: "tok_beta" },
+	{ key: "key_alpha_member", projectId: "proj_alpha", rank: 1, token: "tok_alpha_member" },
+	{ key: "key_alpha_viewer", projectId: "proj_alpha", rank: 0, token: "tok_alpha_viewer" },
 ]
 
 const TENANT_FIELD = "project_id"
@@ -213,6 +217,16 @@ export async function createReferenceServer(
 		return principal
 	}
 
+	function assertWrite(principal: Principal, kind: "create" | "update" | "delete"): void {
+		/* Viewer cannot write; member cannot delete; owner can do everything. */
+		if (kind === "delete" && principal.rank < 2) {
+			throw new HttpError(403, "forbidden", "role cannot delete")
+		}
+		if ((kind === "create" || kind === "update") && principal.rank < 1) {
+			throw new HttpError(403, "forbidden", "role cannot write")
+		}
+	}
+
 	function assertTenant(principal: Principal, scope: Record<string, string>): void {
 		const projectId = scope.project_id
 		if (projectId !== undefined && projectId !== principal.projectId) {
@@ -334,10 +348,31 @@ export async function createReferenceServer(
 		await store.update(table, tableId, { row_count: total })
 	}
 
+	interface Grant {
+		accepted: boolean
+		entity: string
+		grantId: string
+		granteeKey: string
+		resourceId: string
+		token: string
+	}
+	const grants = new Map<string, Grant>()
+
+	function canReadViaGrant(entityName: string, id: string, principal: Principal): boolean {
+		if (defects.has("INVITE_NEVER_GRANTS")) return false
+		for (const grant of grants.values()) {
+			if (grant.entity !== entityName || grant.resourceId !== id) continue
+			if (grant.granteeKey !== principal.key) continue
+			if (grant.accepted) return true
+		}
+		return false
+	}
+
 	async function findItem(entity: EntityDef, principal: Principal, id: string): Promise<Row> {
 		const record = await store.byId(entity, id)
 		if (record === null) throw new HttpError(404, "not_found", `${entity.name} ${id} does not exist`)
-		if (!defects.has("CROSS_TENANT_READ") && !(await ownedByTenant(entity, record, principal))) {
+		const owned = await ownedByTenant(entity, record, principal)
+		if (!defects.has("CROSS_TENANT_READ") && !owned && !canReadViaGrant(entity.name, id, principal)) {
 			/* Correct is 404: the same answer an id that never existed would get. Answering 403
 			 * here is the defect — the denial is right, but the *status* confirms the record is
 			 * real, which is all an attacker enumerating identifiers needs. */
@@ -399,12 +434,75 @@ export async function createReferenceServer(
 			)
 		}
 
+		const inviteMatch = /^\/v1\/projects\/([^/]+)\/tables\/([^/]+)\/invites$/.exec(url.pathname)
+		if (inviteMatch !== null && method === "POST") {
+			const principal = authenticate(req)
+			const projectId = inviteMatch[1] ?? ""
+			const tableId = inviteMatch[2] ?? ""
+			if (projectId !== principal.projectId) {
+				throw new HttpError(403, "forbidden", "resource belongs to another tenant")
+			}
+			assertWrite(principal, "create")
+			requireJson(req, defects)
+			const key = (await readJson(req) as { key?: unknown }).key
+			if (typeof key !== "string" || key === "") {
+				throw new HttpError(400, "invalid_input", 'field "key" is required')
+			}
+			if (PRINCIPALS.find((p) => p.key === key) === undefined) {
+				throw new HttpError(400, "invalid_input", "unknown invitee key")
+			}
+			await findItem(TABLE, principal, tableId)
+			const grant: Grant = {
+				accepted: false,
+				entity: "table",
+				grantId: `grn_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+				granteeKey: key,
+				resourceId: tableId,
+				token: `inv_${Math.random().toString(36).slice(2, 12)}`,
+			}
+			grants.set(grant.grantId, grant)
+			return send(res, 201, { grant_id: grant.grantId, token: grant.token })
+		}
+
+		const acceptMatch = /^\/v1\/invites\/([^/]+)\/accept$/.exec(url.pathname)
+		if (acceptMatch !== null && method === "POST") {
+			const principal = authenticate(req)
+			const token = acceptMatch[1] ?? ""
+			const grant = [...grants.values()].find((item) => item.token === token)
+			if (grant === undefined) throw new HttpError(404, "not_found", "invite not found")
+			if (grant.granteeKey !== principal.key) {
+				throw new HttpError(403, "forbidden", "invite is not for this principal")
+			}
+			grant.accepted = true
+			return send(res, 200, { accepted: true })
+		}
+
+		const revokeMatch = /^\/v1\/projects\/([^/]+)\/tables\/([^/]+)\/grants\/([^/]+)$/.exec(url.pathname)
+		if (revokeMatch !== null && method === "DELETE") {
+			const principal = authenticate(req)
+			const projectId = revokeMatch[1] ?? ""
+			const tableId = revokeMatch[2] ?? ""
+			const grantId = revokeMatch[3] ?? ""
+			if (projectId !== principal.projectId) {
+				throw new HttpError(403, "forbidden", "resource belongs to another tenant")
+			}
+			assertWrite(principal, "delete")
+			const grant = grants.get(grantId)
+			if (grant === undefined || grant.resourceId !== tableId) {
+				throw new HttpError(404, "not_found", "grant not found")
+			}
+			if (!defects.has("REVOKE_IGNORED")) grants.delete(grantId)
+			return send(res, 200, { revoked: true })
+		}
+
 		const match = matchRoute(url.pathname)
 		if (match === null) throw new HttpError(404, "not_found", `no route for ${url.pathname}`)
 
 		const principal = authenticate(req)
-		assertTenant(principal, match.scope)
 		const { entity, scope, itemId } = match
+		/* Item GET may be a delegated read — assertTenant would 403 a valid grant before
+		 * findItem can honour it. Collection GET and mutations stay tenant-bound. */
+		if (!(method === "GET" && itemId !== null)) assertTenant(principal, match.scope)
 
 		if (itemId === null) {
 			if (method === "GET") {
@@ -444,10 +542,21 @@ export async function createReferenceServer(
 						? equalityFilter(url, entity)
 						: url.searchParams.get(dialect.params.filter)
 				let filter: string | undefined
-				/* Only when a sort is also present: alone, the filter behaves perfectly. */
+				/* Alone, the filter behaves perfectly. Each of these defects drops it the moment
+				 * another axis joins the request — the combination is the bug, not either axis. */
 				const sorted = url.searchParams.get(dialect.params.order)
+				const selected = readSelect(url, dialect, entity)
+				const searched = url.searchParams.get(dialect.params.search)
+				const hasSort = sorted !== null && sorted !== ""
+				const hasSelect = selected !== undefined && selected !== "" && selected !== "*"
+				const hasSearch = searched !== null && searched !== ""
 				const dropFilter =
-					defects.has("FILTER_DROPPED_WHEN_SORTED") && sorted !== null && sorted !== ""
+					(defects.has("FILTER_DROPPED_WHEN_SORTED") && hasSort)
+					|| (defects.has("FILTER_DROPPED_WHEN_SELECTED") && hasSelect)
+					|| (defects.has("FILTER_DROPPED_WHEN_SEARCHED") && hasSearch)
+					|| (defects.has("FILTER_DROPPED_WHEN_SORTED_AND_SELECTED") && hasSort && hasSelect)
+					|| (defects.has("FILTER_DROPPED_WHEN_SORTED_AND_SEARCHED") && hasSort && hasSearch)
+					|| (defects.has("FILTER_DROPPED_WHEN_SEARCHED_AND_SELECTED") && hasSearch && hasSelect)
 				if (rawFilter !== null && rawFilter !== "" && !dropFilter) {
 					const canonical = toCanonicalFilter(rawFilter, dialect)
 					if (canonical === null) {
@@ -489,8 +598,8 @@ export async function createReferenceServer(
 						 * converted using the page size actually in force — the same arithmetic the
 						 * caller performed to produce the offset. */
 						page: pageFrom(url, dialect, number(dialect.params.limit) ?? entity.defaultLimit),
-						q: url.searchParams.get(dialect.params.search) ?? undefined,
-						select: readSelect(url, dialect, entity),
+						q: searched ?? undefined,
+						select: selected,
 					},
 					{
 						softDeleteField: entity.softDeleteField,
@@ -518,6 +627,7 @@ export async function createReferenceServer(
 			}
 
 			if (method === "POST") {
+				assertWrite(principal, "create")
 				requireJson(req, defects)
 				/* Scoped by principal as well as key: two tenants using the same key must not be
 				 * able to read each other's result back. */
@@ -561,11 +671,17 @@ export async function createReferenceServer(
 		}
 
 		if (method === "GET") {
+			/* Invert only the middle rank: viewer still reads, owner still reads, member does not.
+			 * Denying the owner would collapse the rest of the suite. */
+			if (defects.has("ROLE_MONOTONICITY_BROKEN") && principal.rank === 1) {
+				throw new HttpError(403, "forbidden", "role cannot read this record")
+			}
 			const record = await findItem(entity, principal, itemId)
 			return send(res, 200, decorate(entity.name === "job" ? projectJob(record) : record))
 		}
 
 		if (method === "PATCH") {
+			assertWrite(principal, "update")
 			requireJson(req, defects)
 			const existing = await findItem(entity, principal, itemId)
 			const patch = validateBody(entity, await readJson(req), "update", defects)
@@ -594,6 +710,7 @@ export async function createReferenceServer(
 		}
 
 		if (method === "DELETE") {
+			assertWrite(principal, "delete")
 			const existing = await store.byId(entity, itemId)
 			if (existing === null) {
 				if (defects.has("DELETE_MISSING_OK")) return send(res, 200, { [entity.identity]: itemId })

@@ -66,6 +66,28 @@ Overrides path-segment entity inference. Needed when the path doesn't follow `/<
 
 ---
 
+## 2b. `x-invite`
+
+```yaml
+x-invite:
+  invite: table.invite       # operationId that creates the invite
+  accept: invite.accept      # operationId the invitee calls
+  revoke: table.revoke       # operationId that removes the grant
+  granteeField: key          # invite body field naming the invitee
+  tokenPointer: $.token      # where the accept token is in the invite response
+  grantPointer: $.grant_id   # where the revoke handle is
+```
+
+Declares the delegated-access flow. oat then asserts the timeline: the invitee cannot read
+before accept, can after, and cannot after revoke. Put the tag on the invite operation.
+
+The invitee's config must set `inviteAs` to the value the invite body expects (an API key,
+an email, …).
+
+**Fallback:** the check does not run. There is no heuristic for a multi-step flow.
+
+---
+
 ## 3. `x-query`
 
 ```yaml
@@ -85,7 +107,10 @@ Without it, oat has to guess which fields are filterable from the item schema an
 
 `stableTiebreak` is load-bearing: **if a sort has no total order, keyset pagination is unsound and page walks silently drop or duplicate rows.** Declaring it lets oat assert it; omitting it makes oat test for the instability instead.
 
-**Fallback:** treat every scalar property of the item schema as filterable/sortable, and warn.
+**Fallback:** if a filter / order / select / search *role* resolves (same aliases
+as the checks — `sort`, `fields`, `q`, `where`, …), treat every scalar property
+of the item schema as filterable/sortable, and warn. Pagination-only lists
+(`page`/`limit`) stay uncovered.
 
 ---
 

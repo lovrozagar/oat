@@ -10,8 +10,9 @@ import { buildModel, type EntityModel, type OperationModel, type SpecModel } fro
 import { dereference, loadSpec } from "../spec/load.ts"
 import type { Hooks, Principal } from "../config/define-config.ts"
 import { type AcquireSpec, createPrincipal, type PrincipalRuntime } from "./auth.ts"
-import { CHECKS, type CheckContext } from "./checks.ts"
+import { CHECKS, type Actor, type CheckContext } from "./checks.ts"
 import { Client, type Exchange } from "./client.ts"
+import type { ProgressHandler, ProgressLast, ProgressSnapshot } from "./progress.ts"
 import { type Finding, FindingCollector, type Inconclusive } from "./finding.ts"
 import { Ledger, type TeardownReport } from "./teardown.ts"
 import { SchemaValidator } from "./validate.ts"
@@ -40,6 +41,8 @@ export interface RunOptions {
 	concurrency?: number
 	/** Requests allowed in flight at once, across the whole run. */
 	maxInFlight?: number
+	/** Live status. Called on phase/entity/check/request; the CLI prints a heartbeat from this. */
+	onProgress?: ProgressHandler
 }
 
 export interface RunResult {
@@ -79,7 +82,16 @@ interface ResolvedPrincipal {
 	id: string
 	headers: () => Record<string, string>
 	roots: Record<string, string>
+	role: string | undefined
+	rank: number
+	inviteAs: string | undefined
 	runtime?: PrincipalRuntime
+}
+
+function sameTenant(a: Record<string, string>, b: Record<string, string>): boolean {
+	const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])]
+	if (keys.length === 0) return true
+	return keys.every((key) => a[key] === b[key])
 }
 
 /**
@@ -143,7 +155,14 @@ async function resolvePrincipal(
 	/* A principal without a flow authenticates by static header — a long-lived API key needs no
 	 * acquisition at all, and forcing one would be ceremony. */
 	if (principal.auth === undefined) {
-		return { headers: () => principal.headers ?? {}, id: principal.id, roots: configured }
+		return {
+			headers: () => principal.headers ?? {},
+			id: principal.id,
+			inviteAs: principal.inviteAs,
+			rank: principal.rank ?? 0,
+			role: principal.role,
+			roots: configured,
+		}
 	}
 
 	const runtime = await createPrincipal(principal.id, principal.auth, {
@@ -164,6 +183,9 @@ async function resolvePrincipal(
 	return {
 		headers: () => ({ ...principal.headers, ...runtime.headers() }),
 		id: principal.id,
+		inviteAs: principal.inviteAs,
+		rank: principal.rank ?? 0,
+		role: principal.role,
 		roots: { ...discovered, ...configured },
 		runtime,
 	}
@@ -207,22 +229,94 @@ function testableEntities(model: SpecModel, only?: string[]): EntityModel[] {
 }
 
 export async function run(options: RunOptions): Promise<RunResult> {
+	const startedAt = Date.now()
+	const findings = new FindingCollector()
+	let last: ProgressLast | undefined
+	let currentPhase: ProgressSnapshot["phase"] = "load"
+	let currentEntity: string | undefined
+	let currentCheck: string | undefined
+	let currentEntityIndex: number | undefined
+	let entityTotal: number | undefined
+	const defectCount = (): number =>
+		findings.findings.filter((f) => f.verdict !== "BLOCKED" && f.verdict !== "COVERAGE_GAP").length
+	const publish = (snap: ProgressSnapshot): void => {
+		options.onProgress?.(snap)
+	}
+	const tick = (partial: {
+		phase: ProgressSnapshot["phase"]
+		entity?: string | undefined
+		entityIndex?: number | undefined
+		entityTotal?: number | undefined
+		check?: string | undefined
+		message?: string | undefined
+		requests?: number | undefined
+	}): void => {
+		currentPhase = partial.phase
+		const snap: ProgressSnapshot = {
+			elapsedMs: Date.now() - startedAt,
+			findings: defectCount(),
+			phase: partial.phase,
+			requests: partial.requests ?? 0,
+		}
+		if (partial.entity !== undefined) snap.entity = partial.entity
+		if (partial.entityIndex !== undefined) snap.entityIndex = partial.entityIndex
+		if (partial.entityTotal !== undefined) snap.entityTotal = partial.entityTotal
+		if (partial.check !== undefined) snap.check = partial.check
+		if (partial.message !== undefined) snap.message = partial.message
+		if (last !== undefined) snap.last = last
+		publish(snap)
+	}
+
+	tick({ message: options.spec, phase: "load", requests: 0 })
 	const raw = await loadSpec(options.spec, options.baseUrl)
 	const { doc } = dereference(raw)
 	const model = buildModel(doc)
-	const client = new Client(options.baseUrl, options.globalHeaders ?? {}, options.maxInFlight ?? 4)
-	const findings = new FindingCollector()
+	const client = new Client(
+		options.baseUrl,
+		options.globalHeaders ?? {},
+		options.maxInFlight ?? 4,
+		(exchange: Exchange) => {
+			last = {
+				at: Date.now(),
+				durationMs: exchange.durationMs,
+				method: exchange.method,
+				status: exchange.status,
+				url: exchange.url,
+			}
+			const snap: ProgressSnapshot = {
+				elapsedMs: Date.now() - startedAt,
+				findings: defectCount(),
+				last,
+				phase: currentPhase,
+				requests: client.transcript.length,
+			}
+			if (currentCheck !== undefined) snap.check = currentCheck
+			if (currentEntity !== undefined) snap.entity = currentEntity
+			if (currentEntityIndex !== undefined) snap.entityIndex = currentEntityIndex
+			if (entityTotal !== undefined) snap.entityTotal = entityTotal
+			publish(snap)
+		},
+	)
 	const validator = new SchemaValidator()
 	const ledger = new Ledger()
 	const seed = options.seed ?? 1
 
-	const [primary, secondary] = options.principals
-	if (primary === undefined) throw new Error("oat: at least one principal is required")
+	if (options.principals[0] === undefined) throw new Error("oat: at least one principal is required")
 
 	const hooks = options.hooks ?? {}
-	const alpha = await resolvePrincipal(primary, model, client, hooks)
-	const beta =
-		secondary === undefined ? undefined : await resolvePrincipal(secondary, model, client, hooks)
+	const resolved: ResolvedPrincipal[] = []
+	for (const principal of options.principals) {
+		resolved.push(await resolvePrincipal(principal, model, client, hooks))
+	}
+	tick({
+		message: `${resolved.length} principal(s)`,
+		phase: "auth",
+		requests: client.transcript.length,
+	})
+	const alpha = resolved[0] as ResolvedPrincipal
+	/* Isolation peer: first principal whose roots are a different tenant — not "whoever is
+	 * second in the array". A same-tenant viewer sitting at index 1 must not steal that slot. */
+	const peer = resolved.slice(1).find((candidate) => !sameTenant(alpha.roots, candidate.roots))
 
 
 	const entitiesTested: string[] = []
@@ -234,9 +328,19 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		const listOp = model.byOperationId.get(entity.list ?? "")
 		const createOp = model.byOperationId.get(entity.create ?? "")
 		if (listOp === undefined || createOp === undefined) return
+		currentEntity = entity.name
+		currentCheck = undefined
+		currentPhase = "seed"
+		tick({
+			entity: entity.name,
+			entityIndex: currentEntityIndex,
+			entityTotal,
+			message: "seeding",
+			phase: "seed",
+			requests: client.transcript.length,
+		})
 
-		await alpha.runtime?.refreshIfStale()
-		await beta?.runtime?.refreshIfStale()
+		for (const principal of resolved) await principal.runtime?.refreshIfStale()
 		const rootValues = { ...options.roots, ...alpha.roots }
 		let scope: Scope
 		let records: Record_[]
@@ -320,20 +424,55 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			degraded = true
 		}
 
-		let altScope: Record<string, string> | undefined
-		if (beta !== undefined) {
+		const actorOf = async (principal: ResolvedPrincipal, seedOffset: number): Promise<Actor> => {
+			const roots = { ...options.roots, ...principal.roots }
 			try {
-				const resolved = await resolveScope(listOp, model, client, {
-					authHeaders: beta.headers,
-					roots: { ...options.roots, ...beta.roots },
-					seed: seed + 1,
+				const next = await resolveScope(listOp, model, client, {
+					authHeaders: principal.headers,
+					roots,
+					seed: seed + seedOffset,
 				})
-				altScope = { ...options.roots, ...beta.roots, ...resolved.values }
+				return {
+					headers: principal.headers,
+					id: principal.id,
+					inviteAs: principal.inviteAs,
+					rank: principal.rank,
+					role: principal.role,
+					roots,
+					scope: { ...roots, ...next.values },
+				}
 			} catch {
-				/* No isolated tenant available — the isolation checks simply do not apply. */
-				altScope = { ...options.roots, ...beta.roots }
+				return {
+					headers: principal.headers,
+					id: principal.id,
+					inviteAs: principal.inviteAs,
+					rank: principal.rank,
+					role: principal.role,
+					roots,
+					scope: roots,
+				}
 			}
 		}
+
+		const actors: Actor[] = [
+			{
+				headers: alpha.headers,
+				id: alpha.id,
+				inviteAs: alpha.inviteAs,
+				rank: alpha.rank,
+				role: alpha.role,
+				roots: { ...options.roots, ...alpha.roots },
+				scope: scope.values,
+			},
+		]
+		for (let i = 1; i < resolved.length; i++) {
+			const principal = resolved[i]
+			if (principal === undefined) continue
+			actors.push(await actorOf(principal, i))
+		}
+		const isolation = actors.find((actor) => !sameTenant(actors[0]?.roots ?? {}, actor.roots))
+		const altScope = isolation?.scope
+		const altAuth = isolation?.headers
 
 		/*
 		 * Anything a check creates is registered for teardown automatically.
@@ -370,12 +509,13 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					})
 
 		const ctx: CheckContext = {
-			altAuth: beta === undefined ? undefined : beta.headers,
+			actors,
+			altAuth,
+			altScope,
 			asyncOps: model.operations.filter((op) => op.entity === entity.name && op.async !== null),
 			effectOps: model.operations.filter(
 				(op) => op.entity === entity.name && op.effects.length > 0,
 			),
-			altScope,
 			auth: alpha.headers,
 			client: trackingClient,
 			collectionKey: listOp.collection?.key ?? null,
@@ -387,13 +527,19 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			entityName: entity.name,
 			findings,
 			identity: entity.identity ?? "id",
+			invite: entity.invite,
 			listOp,
 			model,
 			query: listOp.query,
 			readOp: model.byOperationId.get(entity.read ?? ""),
 			records,
 			scope: scope.values,
-			softDelete: listOp.softDelete,
+			/* Taken from any operation on the entity, not just the list: authors naturally put
+			 * x-soft-delete on the delete route, and a tag that exists but is only read from
+			 * list made softdelete.absent-from-default-list stand down against a real document. */
+			softDelete:
+				model.operations.find((op) => op.entity === entity.name && op.softDelete !== null)
+					?.softDelete ?? listOp.softDelete,
 			seed,
 			updateOp: degraded ? undefined : model.byOperationId.get(entity.update ?? ""),
 			validator,
@@ -403,6 +549,16 @@ export async function run(options: RunOptions): Promise<RunResult> {
 
 		const runOne = async (check: (typeof CHECKS)[number]): Promise<void> => {
 			checksRun.add(check.id)
+			currentCheck = check.id
+			currentPhase = "test"
+			tick({
+				check: check.id,
+				entity: entity.name,
+				entityIndex: currentEntityIndex,
+				entityTotal,
+				phase: "test",
+				requests: client.transcript.length,
+			})
 			try {
 				await check.run(ctx)
 			} catch (error) {
@@ -497,13 +653,16 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	 * run is almost entirely network wait.
 	 */
 	const queue = testableEntities(model, options.only)
+	entityTotal = queue.length
 	const lanes = Math.max(1, Math.min(options.concurrency ?? 1, queue.length))
 	let cursor = 0
 	await Promise.all(
 		Array.from({ length: lanes }, async () => {
 			while (cursor < queue.length) {
+				const index = cursor
 				const entity = queue[cursor++]
 				if (entity === undefined) break
+				currentEntityIndex = index + 1
 				await testEntity(entity)
 			}
 		}),
@@ -511,10 +670,25 @@ export async function run(options: RunOptions): Promise<RunResult> {
 
 	/* Unwind after every check has run, never per case: a check may legitimately depend on records
 	 * another one created, and tearing down early turns that into a phantom defect. */
+	currentPhase = "teardown"
+	currentCheck = undefined
+	tick({
+		message: `${ledger.size} record(s)`,
+		phase: "teardown",
+		requests: client.transcript.length,
+	})
 	const teardown =
 		options.keepFixtures === true || ledger.size === 0
 			? null
-			: await ledger.unwind(model, client, alpha.headers)
+			: await ledger.unwind(model, client, alpha.headers, (done, total, item) => {
+					if (done % 25 !== 0 && done !== total) return
+					tick({
+						entity: item.entity,
+						message: `${done}/${total} ${item.entity} ${item.id}`,
+						phase: "teardown",
+						requests: client.transcript.length,
+					})
+				})
 
 	if (teardown !== null && teardown.unsupported.length > 0) {
 		findings.gap(
@@ -526,7 +700,13 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		)
 	}
 
-	await teardownPrincipals([alpha, beta], hooks, findings)
+	await teardownPrincipals(resolved, hooks, findings)
+
+	tick({
+		message: "done",
+		phase: "done",
+		requests: client.transcript.length,
+	})
 
 	return {
 		checksRun: [...checksRun].sort(),

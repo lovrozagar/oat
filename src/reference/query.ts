@@ -34,6 +34,8 @@ export interface QueryOptions {
 	softDeleteField?: string
 	defaultLimit: number
 	maxLimit: number
+	/** Fields the document still declares selectable that the backend has stopped honouring. */
+	excludedSelect?: readonly string[]
 }
 
 export interface QueryResult {
@@ -92,7 +94,12 @@ function parseFilter(expression: string, options: QueryOptions, defects: DefectS
 		if (children.length === 0) {
 			throw new SqlError("invalid_filter", `empty ${combinator}() group`)
 		}
-		return combinator === "and"
+		/* The joiner is swapped, not the parse: the expression is still read correctly, it is just
+		 * evaluated with the other combinator's semantics. */
+		const effective = defects.has("FILTER_GROUP_COMBINATOR_SWAPPED")
+			? (combinator === "and" ? "or" : "and")
+			: combinator
+		return effective === "and"
 			? (row) => children.every((child) => child(row))
 			: (row) => children.some((child) => child(row))
 	}
@@ -338,7 +345,6 @@ export function runQuery(
 		}
 	}
 	rows = applyOrder(rows, defects.has("ORDER_IGNORED") ? [] : terms, options, defects)
-
 	const requestedLimit = params.limit ?? options.defaultLimit
 	const limit = defects.has("LIMIT_EXCEEDS_MAX")
 		? requestedLimit
@@ -376,7 +382,7 @@ export function runQuery(
 
 	const projected = window
 		.map((row) => (transform === undefined ? row : transform(row)))
-		.map((row) => project(row, params.select, defects))
+		.map((row) => project(row, params.select, defects, options.excludedSelect ?? []))
 
 	return {
 		count: total,
@@ -388,10 +394,19 @@ export function runQuery(
 	}
 }
 
-function project(row: Row, select: string | undefined, defects: DefectSet): Row {
+function project(
+	row: Row,
+	select: string | undefined,
+	defects: DefectSet,
+	excluded: readonly string[] = [],
+): Row {
 	if (select === undefined || select === "" || select === "*") return { ...row }
 	if (defects.has("SELECT_IGNORED")) return { ...row }
 	const fields = select.split(",").map((s) => s.trim()).filter(Boolean)
+	const rejected = fields.find((f) => excluded.includes(f))
+	if (rejected !== undefined) {
+		throw new SqlError("invalid_select", `field "${rejected}" is not selectable`)
+	}
 	const out: Row = {}
 	for (const field of fields) {
 		if (Object.hasOwn(row, field)) out[field] = row[field]

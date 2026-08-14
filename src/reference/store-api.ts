@@ -103,10 +103,22 @@ export function stripParens(value: string): string {
 	return value.startsWith("(") && value.endsWith(")") ? value.slice(1, -1) : value
 }
 
-export function project(row: Row, select: string | undefined, ignore: boolean): Row {
+export function project(
+	row: Row,
+	select: string | undefined,
+	ignore: boolean,
+	/* Fields the document still declares selectable that the backend has stopped honouring — see
+	 * SPEC_OVERCLAIMS_SELECTABLE. Everything else stays as permissive as before: an unrecognised
+	 * field is silently dropped, never rejected. */
+	excluded: readonly string[] = [],
+): Row {
 	if (select === undefined || select === "" || select === "*") return { ...row }
 	if (ignore) return { ...row }
 	const fields = select.split(",").map((s) => s.trim()).filter(Boolean)
+	const rejected = fields.find((f) => excluded.includes(f))
+	if (rejected !== undefined) {
+		throw new SqlError("invalid_select", `field "${rejected}" is not selectable`)
+	}
 	const out: Row = {}
 	for (const field of fields) {
 		if (Object.hasOwn(row, field)) out[field] = row[field]

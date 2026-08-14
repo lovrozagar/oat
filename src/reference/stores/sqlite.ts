@@ -362,7 +362,14 @@ export class SqlStore implements Store {
 			hasMore,
 			items: decoded
 				.map((row) => (options.transform === undefined ? row : options.transform(row)))
-				.map((row) => project(row, params.select, this.defects.has("SELECT_IGNORED"))),
+				.map((row) =>
+					project(
+						row,
+						params.select,
+						this.defects.has("SELECT_IGNORED"),
+						this.defects.has("SPEC_OVERCLAIMS_SELECTABLE") ? [OVERCLAIMED_FIELD] : [],
+					)
+				),
 			limit,
 			nextCursor:
 				hasMore && last !== undefined ? encodeCursor(String(last[entity.identity])) : null,
@@ -382,9 +389,12 @@ export class SqlStore implements Store {
 		if (group?.[1] && group[2] !== undefined) {
 			const parts = splitTopLevel(group[2]).map((part) => this.compileFilter(part, entity))
 			if (parts.length === 0) throw new SqlError("invalid_filter", "empty filter group")
+			const effective = this.defects.has("FILTER_GROUP_COMBINATOR_SWAPPED")
+				? (group[1] === "and" ? "or" : "and")
+				: group[1]
 			return {
 				args: parts.flatMap((p) => p.args),
-				sql: `(${parts.map((p) => p.sql).join(group[1] === "and" ? " AND " : " OR ")})`,
+				sql: `(${parts.map((p) => p.sql).join(effective === "and" ? " AND " : " OR ")})`,
 			}
 		}
 
@@ -472,7 +482,12 @@ export class SqlStore implements Store {
 		if (expression !== undefined && expression !== "") {
 			for (const raw of splitTopLevel(expression)) {
 				const [field, ...modifiers] = raw.split(".")
-				if (field === undefined || !fieldsWhere(entity, "sortable").includes(field)) {
+				/* Under the overclaim defect the backend refuses a field the document still declares
+				 * sortable — the backend is not wrong to refuse, the document is wrong to promise. */
+				const sortable = this.defects.has("SPEC_OVERCLAIMS_SORTABLE")
+					? fieldsWhere(entity, "sortable").filter((f) => f !== OVERCLAIMED_FIELD)
+					: fieldsWhere(entity, "sortable")
+				if (field === undefined || !sortable.includes(field)) {
 					throw new SqlError("invalid_order", `field "${field ?? ""}" is not sortable`)
 				}
 				const descending = modifiers.includes("desc")

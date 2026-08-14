@@ -1,9 +1,12 @@
 #!/usr/bin/env node
+import { createWriteStream, writeFileSync } from "node:fs"
 import { mkdir, rm, writeFile } from "node:fs/promises"
 import { resolve } from "node:path"
 import { interpolate, loadConfig } from "./config/load.ts"
 import { report } from "./report/console.ts"
+import { renderMatrixGraph, renderMatrixHtml } from "./report/matrix.ts"
 import { renderConsole, renderJson, renderMarkdown, renderRepros } from "./report/render.ts"
+import { createStderrProgress, formatProgressLine } from "./runtime/progress.ts"
 import { renderTeardown } from "./runtime/teardown.ts"
 import { buildModel } from "./spec/graph.ts"
 import { dereference, loadSpec } from "./spec/load.ts"
@@ -49,6 +52,7 @@ Flags
   --keep-fixtures  leave created records in place instead of tearing them down
   --concurrency    entities tested in parallel (default 1)
   --max-in-flight  requests allowed in flight at once (default 4)
+  --quiet          no live progress on stderr (progress.log still written)
   --untagged       serve (or test) a document with every x-* tag stripped
   --backend        conformance storage: memory | sqlite | postgres | d1
                    (default: all local; d1 is remote and opt-in)
@@ -91,20 +95,54 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 
 	const startedAt = new Date()
 	const began = performance.now()
-	const result = await run({
-		baseUrl,
-		principals,
-		spec: config.spec,
-		...(config.globalHeaders === undefined ? {} : { globalHeaders: config.globalHeaders }),
-		...(config.hooks === undefined ? {} : { hooks: config.hooks }),
-		...(config.roots === undefined ? {} : { roots: config.roots }),
-		...(config.cohortSize === undefined ? {} : { cohortSize: config.cohortSize }),
-		...(only === undefined ? {} : { only }),
-		...(flags["keep-fixtures"] === true ? { keepFixtures: true } : {}),
-		concurrency: Number.parseInt(str(flags, "concurrency") ?? "", 10) || config.concurrency || 1,
-		maxInFlight: Number.parseInt(str(flags, "max-in-flight") ?? "", 10) || 4,
-		seed: seedFlag === undefined ? (config.seed ?? 1) : Number.parseInt(seedFlag, 10),
-	})
+	const outDir = resolve(str(flags, "out") ?? config.outDir ?? "oat-out")
+	await mkdir(outDir, { recursive: true })
+	const stderrProgress = flags.quiet === true ? undefined : createStderrProgress(startedAt.getTime())
+	const progressLog = createWriteStream(resolve(outDir, "progress.log"))
+	let lastLogKey = ""
+	let lastLogAt = 0
+	let lastJsonAt = 0
+	const onProgress = (snap: Parameters<typeof formatProgressLine>[0]): void => {
+		stderrProgress?.emit(snap)
+		const key = `${snap.phase}|${snap.entity ?? ""}|${snap.check ?? snap.message ?? ""}`
+		const due = Date.now() - lastLogAt >= 2_000
+		if (key !== lastLogKey || due || snap.phase === "done" || snap.phase === "load") {
+			lastLogKey = key
+			lastLogAt = Date.now()
+			progressLog.write(`${new Date().toISOString()}  ${formatProgressLine(snap)}\n`)
+		}
+		if (Date.now() - lastJsonAt >= 1_000 || snap.phase === "done") {
+			lastJsonAt = Date.now()
+			const payload = {
+				...snap,
+				lastAgoMs: snap.last === undefined ? null : Date.now() - snap.last.at,
+				updatedAt: new Date().toISOString(),
+			}
+			writeFileSync(resolve(outDir, "progress.json"), `${JSON.stringify(payload, null, 2)}\n`)
+		}
+	}
+
+	let result: Awaited<ReturnType<typeof run>>
+	try {
+		result = await run({
+			baseUrl,
+			principals,
+			spec: config.spec,
+			...(config.globalHeaders === undefined ? {} : { globalHeaders: config.globalHeaders }),
+			...(config.hooks === undefined ? {} : { hooks: config.hooks }),
+			...(config.roots === undefined ? {} : { roots: config.roots }),
+			...(config.cohortSize === undefined ? {} : { cohortSize: config.cohortSize }),
+			...(only === undefined ? {} : { only }),
+			...(flags["keep-fixtures"] === true ? { keepFixtures: true } : {}),
+			concurrency: Number.parseInt(str(flags, "concurrency") ?? "", 10) || config.concurrency || 1,
+			maxInFlight: Number.parseInt(str(flags, "max-in-flight") ?? "", 10) || 4,
+			seed: seedFlag === undefined ? (config.seed ?? 1) : Number.parseInt(seedFlag, 10),
+			onProgress,
+		})
+	} finally {
+		stderrProgress?.stop()
+		progressLog.end()
+	}
 	const durationMs = performance.now() - began
 
 	const input = {
@@ -121,13 +159,14 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		startedAt,
 	}
 
-	const outDir = resolve(str(flags, "out") ?? config.outDir ?? "oat-out")
 	/* Clear the reproducers from any previous run. A stale script for a finding that no longer
 	 * exists reads as a current defect, and someone will eventually chase one. */
 	await rm(resolve(outDir, "repro"), { force: true, recursive: true })
 	await mkdir(resolve(outDir, "repro"), { recursive: true })
 	await writeFile(resolve(outDir, "oat-report.md"), renderMarkdown(input))
 	await writeFile(resolve(outDir, "oat-report.json"), renderJson(input))
+	await writeFile(resolve(outDir, "matrix.html"), renderMatrixHtml(input))
+	await writeFile(resolve(outDir, "matrix.json"), renderMatrixGraph(input))
 	for (const script of renderRepros(result.findings, baseUrl)) {
 		await writeFile(resolve(outDir, "repro", script.filename), script.content, { mode: 0o755 })
 	}
@@ -136,7 +175,10 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	for (const line of renderTeardown(result.teardown ?? { failed: [], removed: 0, unsupported: [] }, result.created)) {
 		process.stdout.write(`${line}\n`)
 	}
-	process.stdout.write(`  report: ${resolve(outDir, "oat-report.md")}\n\n`)
+	process.stdout.write(`  report: ${resolve(outDir, "oat-report.md")}\n`)
+	process.stdout.write(`  matrix: ${resolve(outDir, "matrix.html")}\n`)
+	process.stdout.write(`  graph:  ${resolve(outDir, "matrix.json")}\n`)
+	process.stdout.write(`  progress: ${resolve(outDir, "progress.log")}\n\n`)
 
 	/* Exit code counts root causes, not raw findings: gaps and blocked entries are information,
 	 * not failures, and a CI gate should react to defects only. */
@@ -162,6 +204,7 @@ async function main(): Promise<number> {
 			runExampleSpecSuite,
 			runTagUnlockSuite,
 			runParserSuite,
+			runCoverageReportSuite,
 			runSuite,
 			sqliteAvailable,
 			d1Available,
@@ -177,6 +220,9 @@ async function main(): Promise<number> {
 		const unlocks = renderParserSuite(await runTagUnlockSuite())
 		process.stdout.write(unlocks.text)
 		parser.failures += unlocks.failures
+		const coverage = renderParserSuite(runCoverageReportSuite())
+		process.stdout.write(coverage.text)
+		parser.failures += coverage.failures
 		if (flags.parser === true) return parser.failures > 0 ? 1 : 0
 
 		if (flags.precision !== undefined) {

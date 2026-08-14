@@ -34,7 +34,7 @@ oat run --config examples/local.config.ts --base-url <that url>
 ```
 
 `oat-out/` holds the markdown report, a JSON copy for CI, and one runnable `curl` script per
-finding. Drop `--defects` and it reports nothing across 37 checks.
+finding. Drop `--defects` and it reports nothing across 55 checks.
 
 See [examples/](./examples) for typed configs and a run against a live API.
 
@@ -69,7 +69,7 @@ A backend adopts oat by adding tags, not by adapting to oat.
 
 oat ships **four** reference backends — in memory, over SQLite, over a real Postgres server, and
 over a remote Cloudflare D1 — behind the same HTTP surface, the same generated OpenAPI document
-and the same defect names. Each is correct by construction and can be told to exhibit any of 37
+and the same defect names. Each is correct by construction and can be told to exhibit any of 56
 named defects, one at a time. `oat conformance` runs the tool against every defect on every
 available backend, asserts it reaches the right diagnosis, and — against a correct backend —
 reports nothing at all.
@@ -101,15 +101,17 @@ convention rather than the contract.
 
 ```
 11/11 hostile specs handled
-── memory   · postgrest ──  recall 40/40 · precision clean
-── sqlite   · postgrest ──  recall 44/44 · precision clean
-── postgres · postgrest ──  recall 44/44 · precision clean
-── memory   · classic   ──  recall 39/39 · precision clean
-── memory   · linked    ──  recall 37/37 · precision clean
-── memory   · jsonapi   ──  recall 39/39 · precision clean
-── memory   · plain     ──  recall 33/33 · precision clean
+── memory   · postgrest ──  recall 54/54 · precision clean
+── sqlite   · postgrest ──  recall 58/58 · precision clean
+── memory   · classic   ──  recall 53/53 · precision clean
+── memory   · linked    ──  recall 51/51 · precision clean
+── memory   · jsonapi   ──  recall 53/53 · precision clean
+── memory   · plain     ──  recall 46/46 · precision clean
 ── combinations         ──  40/40 diagnosed correctly
 ```
+
+Postgres is part of the same matrix when a server is reachable; a silent skip is a harness
+problem, not a clean result. D1 stays opt-in.
 
 Every dialect added so far has immediately found a place where oat had generalised one layer and
 not the next:
@@ -142,13 +144,22 @@ a suite that only ever varies one thing.
 | each axis alone — filter, sort, select, search, page | ✅ |
 | sort + paginate · filter + paginate | ✅ |
 | **filter + sort** | ✅ `query.axes-compose` |
+| **filter + select** | ✅ `query.filter-and-select-compose` |
+| **search + filter** | ✅ `query.search-and-filter-compose` |
+| **filter + sort + select** | ✅ `query.filter-sort-select-compose` |
+| **filter + search + sort** | ✅ `query.filter-search-sort-compose` |
+| **filter + search + select** | ✅ `query.filter-search-select-compose` |
 
-`query.axes-compose` asserts a compositional property, so it needs no ground truth: a filter alone
-and the same filter with a sort must return the same **set**. Ordering reorders a result; it must
-never change its membership. Both sides are gathered across pages, because comparing two truncated
-windows of one set reports a difference that is only paging.
+Each pair asserts a compositional property, so it needs no ground truth: a filter alone and the
+same filter with a sort or a select must return the same **set**; a filter and a search together
+must return the intersection of each axis alone. Ordering reorders a result; a projection changes
+columns; neither may change membership. Both sides are gathered across pages, because comparing
+two truncated windows of one set reports a difference that is only paging.
 
-The remaining cells — `filter + select`, `search + filter`, and every triple — are still untested.
+The triples catch a planner that has a working two-axis path and a broken three-axis path —
+every pair check passes, and the filter vanishes only when both extra axes are present.
+
+The remaining cell is the four-axis request: filter + sort + select + search.
 
 ### The bug this tool keeps having
 
@@ -364,15 +375,15 @@ one identity — which is where oat's design goes:
 | out-of-band token (email link, OTP) | — | `resolveOutOfBand` hook |
 | credential self-refresh mid-run | — | JWT `exp` decode, refreshes before expiry |
 | expected-state oracle | none by design | shadow model of everything it created |
-| two live principals | — | yes (exactly two) |
+| N live principals | — | yes (peer tenants + optional rank lattice) |
 | cross-tenant read / filter / disclosure | — | 3 checks |
-| stateful invariants across a flow | random walk, no oracle | 44 property checks |
+| stateful invariants across a flow | random walk, no oracle | 55 property checks |
 | API-shape portability | — | 5 dialects, roles resolved from the document |
-| **N-role permission matrix** | — | **not yet** |
-| **invite / delegated access** | — | **not yet** |
+| **N-role permission matrix** | — | monotonicity over `rank` |
+| **invite / delegated access** | — | `x-invite` timeline |
 
-The last two rows are the honest gaps, and they are the next real work. Everything above them is
-verified by `oat conformance`; those two are not there at all.
+The last two rows used to be the honest gaps. They are now in the suite — rank
+monotonicity and the invite/accept/revoke timeline — and `oat conformance` asserts them.
 
 ## Status
 

@@ -28,8 +28,13 @@ export const TAG_UNLOCKS: Record<string, readonly string[]> = {
 	"x-invalidate": ["invalidation.declared-route-changes"],
 	/* Declaring filterable fields is itself a claim, and a claim is testable: oat probes each
 	 * one and reports the document — not the backend — when a declared filter is refused. */
-	"x-query": ["spec.declared-filterable-is-filterable"],
+	"x-query": [
+		"spec.declared-filterable-is-filterable",
+		"spec.declared-sortable-is-sortable",
+		"spec.declared-selectable-is-selectable",
+	],
 	"x-soft-delete": ["softdelete.absent-from-default-list"],
+	"x-invite": ["auth.invite-grants-then-revokes"],
 }
 
 /** Tags that change the *confidence* of checks that already run, not the count. */
@@ -45,8 +50,9 @@ const TAG_REMEDY: Record<string, string> = {
 	"x-entity": "name the entity and action so this operation joins a lifecycle",
 	"x-entity.identity": "name the property identifying an instance",
 	"x-invalidate": "list the read routes this mutation must change",
-	"x-query": "declare which fields support filter / order / q / select",
+	"x-query": "declare which fields support the filter / order / search / select roles",
 	"x-tenant": "name the path parameter that scopes this operation to a tenant",
+	"x-invite": "name the invite, accept and revoke operations for delegated access",
 }
 
 function bar(value: number, total: number, width = 24): string {
@@ -114,7 +120,8 @@ function doctor(
 	asJson: boolean,
 ): { text: string; blocking: number } {
 	const entities = [...model.entities.values()].sort((a, b) => a.name.localeCompare(b.name))
-	const testable = entities.filter((e) => e.trackable && e.readSurface.length > 0)
+	const trackable = entities.filter((e) => e.trackable && e.readSurface.length > 0)
+	const listable = trackable.filter((e) => e.list !== undefined)
 	const byTag = new Map<string, typeof model.gaps.gaps>()
 	for (const gap of model.gaps.gaps) {
 		const list = byTag.get(gap.tag) ?? []
@@ -122,7 +129,7 @@ function doctor(
 		byTag.set(gap.tag, list)
 	}
 
-	const blocking = entities.length - testable.length + (model.roots.length > 0 ? 1 : 0)
+	const blocking = entities.length - trackable.length + (model.roots.length > 0 ? 1 : 0)
 
 	if (asJson) {
 		return {
@@ -133,8 +140,10 @@ function doctor(
 					entities: entities.length,
 					externalRefs,
 					gaps: model.gaps.gaps,
+					listableEntities: listable.length,
 					roots: model.roots,
-					testableEntities: testable.length,
+					testableEntities: trackable.length,
+					trackableEntities: trackable.length,
 				},
 				null,
 				2,
@@ -144,7 +153,16 @@ function doctor(
 
 	const lines: string[] = []
 	lines.push("")
-	lines.push(`  coverage  ${bar(testable.length, entities.length)}  ${testable.length}/${entities.length} entities fully testable`)
+	lines.push(
+		`  trackable  ${bar(trackable.length, entities.length)}  ${trackable.length}/${entities.length} ` +
+			"entities have an identity and a read",
+	)
+	lines.push(
+		`  listable   ${bar(listable.length, entities.length)}  ${listable.length}/${entities.length} ` +
+			(listable.length === 0
+				? "entities have a list — query checks will not run"
+				: "entities have a list, so query checks can run"),
+	)
 	lines.push("")
 
 	/*
@@ -163,6 +181,9 @@ function doctor(
 			...(op.query?.source === "tag" ? ["x-query"] : []),
 		]),
 	)
+	for (const entity of entities) {
+		if (entity.invite !== null) declared.add("x-invite")
+	}
 	const lockedTags = Object.keys(TAG_UNLOCKS).filter((tag) => !declared.has(tag))
 	const lockedChecks = lockedTags.flatMap((tag) => TAG_UNLOCKS[tag] ?? [])
 	if (lockedChecks.length > 0) {
@@ -172,7 +193,13 @@ function doctor(
 		}
 		lines.push("")
 	}
-	const vague = Object.keys(TAG_SHARPENS).filter((tag) => !declared.has(tag))
+	const inferredTenant = model.operations.some((op) => op.tenantSource !== null)
+	const vague = Object.keys(TAG_SHARPENS).filter((tag) => {
+		if (declared.has(tag)) return false
+		if (tag === "x-query") return listable.length > 0
+		if (tag === "x-tenant") return inferredTenant
+		return true
+	})
 	if (vague.length > 0) {
 		lines.push("  running, but on inferred information")
 		for (const tag of vague) {
@@ -181,15 +208,24 @@ function doctor(
 		lines.push("")
 	}
 
-	const untestable = entities.filter((e) => !testable.includes(e))
-	if (untestable.length > 0) {
-		lines.push("  not fully testable")
-		for (const entity of untestable) {
+	const untrackable = entities.filter((e) => !trackable.includes(e))
+	if (untrackable.length > 0) {
+		lines.push("  not trackable")
+		for (const entity of untrackable) {
 			const reason =
 				entity.identity === null
 					? "no identity property — instances cannot be tracked across projections"
 					: "no read surface — mutations cannot be verified"
 			lines.push(`    ${entity.name.padEnd(20)} ${reason}`)
+		}
+		lines.push("")
+	}
+	const itemOnly = trackable.filter((e) => e.list === undefined)
+	if (itemOnly.length > 0) {
+		lines.push("  no list — query, pagination and count checks will not run")
+		for (const entity of itemOnly) {
+			const route = entity.read ?? entity.readSurface[0] ?? "item route only"
+			lines.push(`    ${entity.name.padEnd(20)} ${route}`)
 		}
 		lines.push("")
 	}

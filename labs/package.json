@@ -1,0 +1,23 @@
+{
+  "name": "oat-labs",
+  "private": true,
+  "type": "module",
+  "description": "A family of real Hono backends — tiny through platform — for iterating oat",
+  "scripts": {
+    "provision": "node --experimental-strip-types provision.mjs",
+    "start": "node --experimental-strip-types serve.ts",
+    "tiny": "LAB=tiny LAB_PORT=8790 node --experimental-strip-types serve.ts",
+    "shop": "LAB=shop LAB_PORT=8791 node --experimental-strip-types serve.ts",
+    "campus": "LAB=campus LAB_PORT=8792 node --experimental-strip-types serve.ts",
+    "platform": "LAB=platform LAB_PORT=8793 node --experimental-strip-types serve.ts",
+    "deploy": "node --experimental-strip-types deploy.mjs",
+    "iterate": "bash iterate.sh"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.0",
+    "hono": "^4.9.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.28.0"
+  }
+}

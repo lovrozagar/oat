@@ -14,10 +14,18 @@ oat-report.md
 oat-report.json
 repro/
 transcript.har
+oat-out/
 
 # environment
 .env
 .env.*
+
+# lab local database
+lab/.data/
+labs/.data/
+labs/.d1.json
+labs/.deploy/
+labs/.wrangler/
 
 # editors
 .vscode/

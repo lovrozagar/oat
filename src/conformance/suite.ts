@@ -14,7 +14,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
 import { DEFECTS, type DefectName } from "../reference/defects.ts"
-import { renderRepros } from "../report/render.ts"
+import { coverageByCheck, renderConsole, renderRepros, type ReportInput } from "../report/render.ts"
 import { CHECKS } from "../runtime/checks.ts"
 import type { Finding } from "../runtime/finding.ts"
 import { type PrincipalSpec, run } from "../runtime/run.ts"
@@ -57,7 +57,7 @@ export function runParserSuite(): ParserResult[] {
 			}
 			if (fixture.name === "irregular-plurals") {
 				const names = [...model.entities.keys()]
-				for (const bad of ["statu", "analyse", "peopl"]) {
+				for (const bad of ["statu", "analyse", "peopl", "campuse", "inbo"]) {
 					if (names.includes(bad)) problems.push(`mangled plural produced entity "${bad}"`)
 				}
 			}
@@ -65,6 +65,26 @@ export function runParserSuite(): ParserResult[] {
 				const op = model.operations[0]
 				if (op?.collection?.key !== "reports") {
 					problems.push(`collection key resolved to "${op?.collection?.key ?? "none"}", expected "reports"`)
+				}
+			}
+			if (fixture.name === "query-roles-by-alias") {
+				const op = model.operations[0]
+				if (op?.query?.source !== "heuristic") {
+					problems.push(`query source is ${op?.query?.source ?? "null"}, expected heuristic`)
+				}
+				if (op?.query?.maxLimit !== 50) {
+					problems.push(`maxLimit is ${String(op?.query?.maxLimit)}, expected 50 from per_page.maximum`)
+				}
+				if (op?.conventions.order !== "sort" || op?.conventions.select !== "fields" || op?.conventions.search !== "q") {
+					problems.push(
+						`roles resolved to order=${op?.conventions.order} select=${op?.conventions.select} search=${op?.conventions.search}`,
+					)
+				}
+			}
+			if (fixture.name === "pagination-only-is-not-query") {
+				const op = model.operations[0]
+				if (op?.query !== null) {
+					problems.push(`query capability inferred from page/limit/status: ${op?.query?.source ?? "unknown"}`)
 				}
 			}
 
@@ -144,6 +164,47 @@ export async function runExampleSpecSuite(): Promise<ParserResult[]> {
 		})
 	}
 	return results
+}
+
+/**
+ * A skip on one entity must not look like the check never ran.
+ *
+ * Multi-entity labs made this lie: invalidate ran on every child and the console still said
+ * "did not apply" because the parents skipped it.
+ */
+export function runCoverageReportSuite(): ParserResult[] {
+	const input = {
+		checksRun: ["invalidation.declared-route-changes", "list.read-after-write"],
+		checksSkipped: [
+			{ check: "invalidation.declared-route-changes", entity: "parent", needs: "a foreign read route" },
+			{ check: "async.reaches-terminal-state", entity: "parent", needs: "x-async" },
+			{ check: "async.reaches-terminal-state", entity: "child", needs: "x-async" },
+		],
+		checksSuppressed: [],
+		client: { transcript: [] },
+		durationMs: 1,
+		entitiesTested: ["parent", "child"],
+		findings: [],
+	} as unknown as ReportInput
+
+	const coverage = coverageByCheck(input)
+	const text = renderConsole(input)
+	const cases: Array<[string, string, boolean]> = [
+		["invalidate is partial, not never", "it ran on the child", coverage.partialSkip.some((r) => r.check === "invalidation.declared-route-changes")],
+		["async never applied", "neither entity had x-async", coverage.never.some((r) => r.check === "async.reaches-terminal-state")],
+		[
+			"console does not put a ran check under DID NOT APPLY",
+			"the invalidate line lives in APPLIED ONLY ON SOME ENTITIES",
+			text.includes("APPLIED ONLY ON SOME ENTITIES")
+				&& (text.split("APPLIED ONLY ON SOME ENTITIES")[0] ?? "").includes("invalidation") === false,
+		],
+	]
+	return cases.map(([name, why, ok]) => ({
+		detail: ok ? "true" : "false",
+		name,
+		ok,
+		why,
+	}))
 }
 
 /**
@@ -260,6 +321,14 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	IDEMPOTENCY_IGNORED: "idempotency.replay-does-not-duplicate",
 	PARENT_PROJECTION_STALE: "invalidation.declared-route-changes",
 	SPEC_OVERCLAIMS_FILTERABLE: "spec.declared-filterable-is-filterable",
+	SPEC_OVERCLAIMS_SORTABLE: "spec.declared-sortable-is-sortable",
+	FILTER_GROUP_COMBINATOR_SWAPPED: [
+		"filter.and-composes-as-intersection",
+		/* Only fires where an or() combinator exists to swap at all — the postgrest-shaped
+		 * dialects. On the others the swap still corrupts and(), which is the primary. */
+		"filter.or-composes-as-union",
+	],
+	SPEC_OVERCLAIMS_SELECTABLE: "spec.declared-selectable-is-selectable",
 	FILTER_AFTER_PAGINATION: [
 		"query.filter-selects-from-whole-set",
 		/* The same misordering makes a filtered page shorter than the page size, which the
@@ -286,6 +355,11 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 		"pagination.page-walk-covers-set",
 		"count.matches-filtered-set",
 	],
+	FILTER_DROPPED_WHEN_SELECTED: "query.filter-and-select-compose",
+	FILTER_DROPPED_WHEN_SEARCHED: "query.search-and-filter-compose",
+	FILTER_DROPPED_WHEN_SORTED_AND_SELECTED: "query.filter-sort-select-compose",
+	FILTER_DROPPED_WHEN_SORTED_AND_SEARCHED: "query.filter-search-sort-compose",
+	FILTER_DROPPED_WHEN_SEARCHED_AND_SELECTED: "query.filter-search-select-compose",
 	LIST_DETAIL_DISAGREE: [
 		"consistency.projections-agree",
 		/* A listing serving a different value for a searchable field also breaks every predicate
@@ -309,7 +383,12 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	SOFT_DELETE_LEAK: "softdelete.absent-from-default-list",
 	STALE_LIST: "list.read-after-write",
 	TENANT_LEAK_VIA_FILTER: "tenant.filter-does-not-bypass-scope",
-	UNSTABLE_SORT: "pagination.page-walk-covers-set",
+	UNSTABLE_SORT: [
+		"pagination.page-walk-covers-set",
+		/* An unstable default order can hide a just-created record behind a page boundary,
+		 * which the write-visibility check observes as a lost write. Same root cause. */
+		"list.read-after-write",
+	],
 	LIMIT_IGNORED: "pagination.limit-bounds-page-size",
 	LIMIT_EXCEEDS_MAX: "pagination.limit-respects-documented-max",
 	HASMORE_ALWAYS_FALSE: "pagination.has-more-is-accurate",
@@ -371,6 +450,9 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 		"pagination.cursor-agrees-with-page",
 	],
 	COLLATION_INCONSISTENT: "pagination.cursor-agrees-with-page",
+	ROLE_MONOTONICITY_BROKEN: "auth.rank-is-monotonic",
+	INVITE_NEVER_GRANTS: "auth.invite-grants-then-revokes",
+	REVOKE_IGNORED: "auth.invite-grants-then-revokes",
 	CONCURRENT_WRITE_LOST: [
 		"concurrency.no-lost-update",
 		/* The defect *is* read-modify-write: PATCH reads the row, then writes every column back.
@@ -472,11 +554,11 @@ export const DIALECTS_WITH_FILTER_EXPRESSION: ReadonlySet<string> = new Set([
 const ALL_CHECK_IDS = CHECKS.map((check) => check.id)
 
 export const COVERAGE_FLOOR: Record<string, number> = {
-	classic: 43,
-	jsonapi: 43,
-	linked: 43,
-	plain: 41,
-	postgrest: 44,
+	classic: 53,
+	jsonapi: 54,
+	linked: 54,
+	plain: 51,
+	postgrest: 55,
 }
 
 /** Defects that need a filter expression language to exist at all. */
@@ -558,6 +640,8 @@ export const PRINCIPALS: PrincipalSpec[] = [
 			steps: [{ body: { key: "key_alpha" }, operationId: "auth.token" }],
 		},
 		id: "alpha",
+		rank: 2,
+		role: "owner",
 		roots: { project_id: "proj_alpha" },
 	},
 	{
@@ -566,7 +650,30 @@ export const PRINCIPALS: PrincipalSpec[] = [
 			steps: [{ body: { key: "key_beta" }, operationId: "auth.token" }],
 		},
 		id: "beta",
+		inviteAs: "key_beta",
+		rank: 2,
+		role: "owner",
 		roots: { project_id: "proj_beta" },
+	},
+	{
+		auth: {
+			credentialFrom: "$.access_token",
+			steps: [{ body: { key: "key_alpha_member" }, operationId: "auth.token" }],
+		},
+		id: "alpha_member",
+		rank: 1,
+		role: "member",
+		roots: { project_id: "proj_alpha" },
+	},
+	{
+		auth: {
+			credentialFrom: "$.access_token",
+			steps: [{ body: { key: "key_alpha_viewer" }, operationId: "auth.token" }],
+		},
+		id: "alpha_viewer",
+		rank: 0,
+		role: "viewer",
+		roots: { project_id: "proj_alpha" },
 	},
 ]
 

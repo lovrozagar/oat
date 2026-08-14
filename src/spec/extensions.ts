@@ -6,6 +6,7 @@
  * naming the tag that would close it.
  */
 
+import { deriveQueryConventions } from "./conventions.ts"
 import { normalisePath } from "./load.ts"
 import type { Endpoint, OperationObject, ParameterObject } from "./types.ts"
 
@@ -81,10 +82,12 @@ function normaliseRouteRef(ref: string): string {
 const IRREGULAR_PLURALS: Record<string, string> = {
 	addresses: "address",
 	batches: "batch",
+	campuses: "campus",
 	categories: "category",
 	children: "child",
 	companies: "company",
 	entities: "entity",
+	inboxes: "inbox",
 	indices: "index",
 	people: "person",
 	properties: "property",
@@ -216,15 +219,20 @@ export function readQueryCapability(
 	}
 
 	const params = (endpoint.op.parameters ?? []).filter((p) => p.in === "query")
-	const names = new Set(params.map((p) => p.name))
-	const supportsQueryGrammar = names.has("filter") || names.has("order") || names.has("select")
-	if (!supportsQueryGrammar) return null
+	/* Same aliases the checks already use — `sort`/`fields`/`q`/`per_page`, not only the
+	 * fixture spellings `filter`/`order`/`select`/`limit`. Pagination-only params do not
+	 * count: a `page`/`limit` list is not a query grammar. */
+	const conventions = deriveQueryConventions(params, null)
+	const roles = [conventions.filter, conventions.order, conventions.select, conventions.search].filter(
+		(name): name is string => name !== undefined,
+	)
+	if (roles.length === 0) return null
 
 	const scalars = itemSchema === null ? [] : scalarProperties(itemSchema)
 	gaps?.record(
 		endpoint.operationId,
 		"x-query",
-		`endpoint accepts ${[...names].filter((n) => ["filter", "order", "q", "select"].includes(n)).join("/")} ` +
+		`endpoint accepts ${roles.join("/")} ` +
 			`but does not declare which fields support them. Assuming all ${scalars.length} scalar ` +
 			"properties, which will produce false failures on unindexed fields",
 	)
@@ -236,9 +244,11 @@ export function readQueryCapability(
 		sortable: scalars,
 		source: "heuristic",
 	}
-	const limitParam = params.find((p) => p.name === "limit")
-	const max = limitParam?.schema?.maximum
-	if (typeof max === "number") cap.maxLimit = max
+	if (conventions.limit !== undefined) {
+		const limitParam = params.find((p) => p.name === conventions.limit)
+		const max = limitParam?.schema?.maximum
+		if (typeof max === "number") cap.maxLimit = max
+	}
 	return cap
 }
 
@@ -303,6 +313,32 @@ export function readEffects(op: OperationObject): EffectSpec[] {
 		out.push(effect)
 	}
 	return out
+}
+
+export interface InviteSpec {
+	invite: string
+	accept: string
+	revoke: string
+	granteeField: string
+	tokenPointer: string
+	grantPointer: string
+}
+
+export function readInvite(op: OperationObject): InviteSpec | null {
+	const tag = ext<Record<string, unknown>>(op, "x-invite")
+	if (tag === undefined) return null
+	const invite = typeof tag.invite === "string" ? tag.invite : undefined
+	const accept = typeof tag.accept === "string" ? tag.accept : undefined
+	const revoke = typeof tag.revoke === "string" ? tag.revoke : undefined
+	if (invite === undefined || accept === undefined || revoke === undefined) return null
+	return {
+		accept,
+		grantPointer: typeof tag.grantPointer === "string" ? tag.grantPointer : "$.grant_id",
+		granteeField: typeof tag.granteeField === "string" ? tag.granteeField : "key",
+		invite,
+		revoke,
+		tokenPointer: typeof tag.tokenPointer === "string" ? tag.tokenPointer : "$.token",
+	}
 }
 
 export function readSoftDelete(op: OperationObject): string | null {

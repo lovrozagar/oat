@@ -12,6 +12,7 @@ import {
 	type AsyncSpec,
 	type EffectSpec,
 	type EntityAction,
+	type InviteSpec,
 	GapCollector,
 	type QueryCapability,
 	pathParameterNames,
@@ -24,6 +25,7 @@ import {
 	readGenerated,
 	readImmutable,
 	readInvalidate,
+	readInvite,
 	readQueryCapability,
 	readRootParams,
 	readSoftDelete,
@@ -75,6 +77,7 @@ export interface OperationModel {
 	immutable: string[]
 	generated: string[]
 	softDelete: string | null
+	invite: InviteSpec | null
 	cost: "low" | "medium" | "high"
 	destructive: boolean
 	idempotent: boolean
@@ -93,6 +96,7 @@ export interface EntityModel {
 	update?: string
 	delete?: string
 	actions: string[]
+	invite: InviteSpec | null
 	/** Read routes through which an instance is observable — the criss-cross matrix. */
 	readSurface: string[]
 	/** Read routes contributed by `x-invalidate` rather than by sibling inference. */
@@ -223,6 +227,7 @@ function modelOperation(
 		route: `${method.toUpperCase()} ${path}`,
 		securitySchemes,
 		softDelete: readSoftDelete(op),
+		invite: readInvite(op),
 		tenantParam: readTenantParam(endpoint, gaps),
 		tenantSource: readTenantSource(endpoint),
 	}
@@ -325,6 +330,7 @@ function buildEntities(
 			actions: [],
 			declaredSurface: [],
 			identity: null,
+			invite: null,
 			name,
 			readSurface: [],
 			tenantParams: [],
@@ -341,6 +347,7 @@ function buildEntities(
 		if (op.tenantParam !== null && !entity.tenantParams.includes(op.tenantParam)) {
 			entity.tenantParams.push(op.tenantParam)
 		}
+		if (entity.invite === null && op.invite !== null) entity.invite = op.invite
 		switch (op.action) {
 			case "create":
 				entity.create = op.operationId

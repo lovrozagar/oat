@@ -1,10 +1,15 @@
 # oat — working notes for whoever picks this up
 
 Orientation for continuing development. [README.md](./README.md) is for users of the tool;
-[DESIGN.md](./DESIGN.md) is the architecture; this file is what you need to *change* it safely.
+[DESIGN.md](./DESIGN.md) is the architecture; [ROADMAP.md](./ROADMAP.md) is what to build next;
+this file is what you need to *change* it safely.
 
-**State**: 44 checks · 47 defects · 5 API shapes · 4 storage engines. Everything green, no known
+**State**: 55 checks · 56 defects · 5 API shapes · 4 storage engines. Everything green, no known
 flakes. Uncommitted — the working tree is the state.
+
+`lab/` is the hand-written articles API (SQLite or D1). `labs/` is the
+family of real backends: **D1 only**, provisioned on Cloudflare, served
+locally against that D1, then deployed as Workers. Secrets stay in `.env`.
 
 ---
 
@@ -129,6 +134,10 @@ difference between "tested and fine" and "gave up without saying so".
 results across two builds. Cost three debugging rounds before `sweep.sh` grew a fingerprint guard
 that prints `### INVALID`. Same for `verify.sh` — let it finish.
 
+**A long `oat run` is silent on stdout until the end.** Live status is on stderr and in
+`<out>/progress.log` + `progress.json` (entity, check, last request, age). If those
+files stop updating, it is stuck. `--quiet` keeps the files and drops stderr.
+
 **Filtering your own output.** `grep -E "recall|precision|✗"` drops the indented `spurious:` and
 `missed` lines that name the cause. This hid a diagnosis four times. Use `tools/verify.sh`.
 
@@ -139,6 +148,13 @@ what the API returns *now*, not what oat submitted.
 entity — entities are tested *concurrently*, so a derived field moves mid-check. Read
 `x-generated` from **both** create and update: documents commonly declare it only on create, and
 reading one operation caused a 1-in-1350 flake that was really a deterministic bug.
+
+**Trusting `hasMore` to decide a record is missing.** `list.read-after-write` used to treat
+`hasMore: false` as "that was the whole collection". Combined with `HASMORE_ALWAYS_FALSE` or
+an unstable default order on a collection larger than one page (the `row` entity, `maxLimit` 5),
+a record on page two looked like a lost write. Walk by short page, never by the flag — the same
+rule `isComplete` already follows. Do not pin an `order` to work around this: `STALE_LIST` only
+freezes the default listing, and a sorted walk takes a live path that hides the defect.
 
 **Comparing two page walks without pinning the order.** A set gathered by paging is only
 well-defined if the pages come from a stable sequence. Left to the backend's default order — which
@@ -188,8 +204,8 @@ store is dynamically imported for this reason. Twice now.
 | path | |
 | --- | --- |
 | `spec/` | load, dereference, model the document. `conventions.ts` is the role/grammar resolver |
-| `runtime/` | `checks.ts` (all 44), `run.ts` (orchestration, suppression, teardown ledger) |
-| `reference/` | the fixture backend — HTTP layer + 4 stores + 5 dialects + 47 defects |
+| `runtime/` | `checks.ts` (all 55), `run.ts` (orchestration, suppression, teardown ledger) |
+| `reference/` | the fixture backend — HTTP layer + 4 stores + 5 dialects + 56 defects |
 | `conformance/` | `suite.ts` (matrix, floors, expectations), `fuzz.ts` (combinations, precision) |
 | `report/` | `console.ts` (plan/doctor), `render.ts` (markdown/JSON/repros) |
 
@@ -223,30 +239,12 @@ silently returns the column name as data in production* — and worse, returns i
 
 ## Where to go next
 
-1. **Finish the query matrix.** `filter+sort` and `filter+paging` are done. `filter+select`,
-   `search+filter`, and all triples are not. The pattern is established; extending it is
-   mechanical.
-2. **More spec-as-adversary checks.** `spec.declared-filterable-is-filterable` is the first: it
-   reports a **SPEC_BUG** when the document promises a filter the backend refuses. The same shape
-   applies to `sortable`, `selectable`, `maxLimit`, declared enums, declared required fields.
-3. **Compound filter expressions.** Every filter check uses a single predicate. `and(a,or(b,c))`
-   and multi-field sorts with mixed direction are untested.
-4. **N-role permission matrix.** The largest genuine gap, and the one that would make oat
-   categorically better than anything else in this space. Today there are exactly *two*
-   principals — `alpha` and `beta`, in different tenants — and `altAuth` is hardcoded to the
-   second (`run.ts`). Tenancy is therefore tested as a boundary between two peers, never as a
-   *hierarchy*: an owner, an admin, a member and a viewer against the same resource, where the
-   property is that each role's permitted set is a superset of the one below it. That is a
-   monotonicity property — it needs no ground truth, exactly like the rest — and it is the shape
-   of most real authorization bugs. `principals` is already a non-empty tuple, so the config side
-   is mostly there; the work is in `run.ts` (a role lattice instead of `altAuth`) and a handful of
-   new checks.
-5. **Invite / delegated access.** A flow, not a request: A invites B, B accepts, B can now read
-   A's resource — and crucially, B could *not* before, and cannot after A revokes. Needs the auth
-   engine to support a principal whose credential is obtained *through another principal's
-   action*, which `resolveOutOfBand` already half-solves for email verification.
-6. **Run it against something real.** The fixture is thorough but it is a fixture. The most
-   valuable next hour is probably pointing oat at a production API and reading what comes back.
+The queue lives in [ROADMAP.md](./ROADMAP.md). Do not add query-matrix cells from here.
+
+D1 + real comment routes already forced two oat-visible bugs (lost-update
+on full-row PATCH, cursor advertised but ignored) and one planted one
+(`LAB_BUG=stale-comments` → `invalidation.declared-route-changes`).
+Iterate there, not on fixtures, when a check looks too quiet.
 
 ---
 

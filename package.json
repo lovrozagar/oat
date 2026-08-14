@@ -37,7 +37,11 @@
     "check": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --experimental-sqlite dist/cli.js conformance",
     "conformance": "node --experimental-sqlite dist/cli.js conformance",
-    "demo": "npm run build && node examples/demo.mjs"
+    "demo": "npm run build && node examples/demo.mjs",
+    "lab": "node --experimental-sqlite --experimental-strip-types lab/index.ts",
+    "lab:oat": "node --experimental-sqlite --experimental-strip-types dist/cli.js run --config lab/oat.config.ts",
+    "labs": "node --experimental-strip-types labs/serve.ts",
+    "labs:sweep": "bash labs/sweep.sh"
   },
   "keywords": [
     "openapi",

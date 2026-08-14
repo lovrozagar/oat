@@ -6,7 +6,7 @@
  */
 
 import { type Dialect, POSTGREST } from "./dialect.ts"
-import { ENTITIES, type EntityDef, type FieldDef, JOB, fieldsWhere, writableFields } from "./model.ts"
+import { ENTITIES, type EntityDef, type FieldDef, JOB, TABLE, fieldsWhere, writableFields } from "./model.ts"
 
 type Json = Record<string, unknown>
 
@@ -366,6 +366,89 @@ function buildEntityPaths(entity: EntityDef, dialect: Dialect): Json {
 export function buildSpec(dialect: Dialect = POSTGREST): Json {
 	const paths: Json = {}
 	for (const entity of ENTITIES) Object.assign(paths, buildEntityPaths(entity, dialect))
+
+	paths[`${TABLE.itemPath}/invites`] = {
+		post: {
+			operationId: "table.invite",
+			parameters: pathParams(TABLE, true),
+			requestBody: {
+				content: {
+					"application/json": {
+						schema: {
+							additionalProperties: false,
+							properties: { key: { type: "string" } },
+							required: ["key"],
+							type: "object",
+						},
+					},
+				},
+				required: true,
+			},
+			responses: {
+				"201": jsonResponse("Invite created", {
+					additionalProperties: false,
+					properties: { grant_id: { type: "string" }, token: { type: "string" } },
+					required: ["grant_id", "token"],
+					type: "object",
+				}),
+				...errorResponses([400, 401, 403, 404, 415]),
+			},
+			summary: "Invite another principal to read this table",
+			tags: ["Table"],
+			"x-entity": { action: "action", identity: TABLE.identity, name: TABLE.name },
+			"x-invite": {
+				accept: "invite.accept",
+				grantPointer: "$.grant_id",
+				granteeField: "key",
+				invite: "table.invite",
+				revoke: "table.revoke",
+				tokenPointer: "$.token",
+			},
+			"x-tenant": tenantParam(TABLE),
+		},
+	}
+	paths["/v1/invites/{token}/accept"] = {
+		post: {
+			operationId: "invite.accept",
+			parameters: [
+				{ in: "path", name: "token", required: true, schema: { type: "string" } },
+			],
+			responses: {
+				"200": jsonResponse("Invite accepted", {
+					additionalProperties: false,
+					properties: { accepted: { type: "boolean" } },
+					required: ["accepted"],
+					type: "object",
+				}),
+				...errorResponses([400, 401, 404]),
+			},
+			summary: "Accept an invite",
+			tags: ["Table"],
+			"x-entity": { action: "action", identity: TABLE.identity, name: TABLE.name },
+		},
+	}
+	paths[`${TABLE.itemPath}/grants/{grant_id}`] = {
+		delete: {
+			operationId: "table.revoke",
+			parameters: [
+				...pathParams(TABLE, true),
+				{ in: "path", name: "grant_id", required: true, schema: { type: "string" } },
+			],
+			responses: {
+				"200": jsonResponse("Grant revoked", {
+					additionalProperties: false,
+					properties: { revoked: { type: "boolean" } },
+					required: ["revoked"],
+					type: "object",
+				}),
+				...errorResponses([400, 401, 403, 404]),
+			},
+			summary: "Revoke a grant",
+			tags: ["Table"],
+			"x-entity": { action: "action", identity: TABLE.identity, name: TABLE.name },
+			"x-tenant": tenantParam(TABLE),
+		},
+	}
 
 	/* The async lifecycle: a start operation returning a receipt, and a poll route that
 	 * eventually reports a terminal state. x-async ties the two together. */

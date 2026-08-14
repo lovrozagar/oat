@@ -7,6 +7,7 @@
  */
 
 import { filterTerm, selectTerm, sortTerm } from "../spec/conventions.ts"
+import type { InviteSpec } from "../spec/extensions.ts"
 import type { QueryCapability } from "../spec/extensions.ts"
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
 import type { Client, Exchange } from "./client.ts"
@@ -15,6 +16,20 @@ import { driveAsync } from "./async.ts"
 import { buildCohort } from "./fixture.ts"
 import type { SchemaValidator } from "./validate.ts"
 import { type Record_, fillPath } from "./world.ts"
+
+/** A resolved principal as checks see it — identity, lattice position, and how to speak as it. */
+export interface Actor {
+	id: string
+	role: string | undefined
+	/** Higher can do everything a lower rank can. Same rank = peers. */
+	rank: number
+	headers: () => Record<string, string>
+	/** Tenant identity from config / the auth flow — not the full path scope. */
+	roots: Record<string, string>
+	scope: Record<string, string>
+	/** Value the owner puts in an invite body for this principal. */
+	inviteAs: string | undefined
+}
 
 export interface CheckContext {
 	entityName: string
@@ -32,8 +47,14 @@ export interface CheckContext {
 	records: Record_[]
 	query: QueryCapability | null
 	softDelete: string | null
+	invite: InviteSpec | null
 	auth: () => Record<string, string>
-	/** Second principal in a different tenant, when one is configured. */
+	/**
+	 * Every configured principal, primary first. Isolation checks still use `altAuth` (the first
+	 * actor whose scope is a different tenant). Lattice checks walk this list by `rank`.
+	 */
+	actors: Actor[]
+	/** Principal in a different tenant, when one is configured. Derived, not `principals[1]`. */
 	altAuth: (() => Record<string, string>) | undefined
 	altScope: Record<string, string> | undefined
 	validator: SchemaValidator | undefined
@@ -238,6 +259,17 @@ function ids(records: Record_[], identity: string): string[] {
  * much data the system under test happens to be holding.
  */
 const MAX_WALK_PAGES = 6
+/** Hard cap so a live collection of thousands cannot turn one check into a crawl. */
+const WALK_RECORD_CAP = 200
+
+/** Pages needed to cover `total` rows at `pageSize`, never fewer than the default bound. */
+function pagesToCover(total: number | undefined, pageSize: number): number {
+	const size = Math.max(1, pageSize)
+	if (total === undefined || !Number.isFinite(total) || total < 0) return MAX_WALK_PAGES
+	const needed = Math.ceil(total / size) + 1
+	const cap = Math.ceil(WALK_RECORD_CAP / size)
+	return Math.min(cap, Math.max(MAX_WALK_PAGES, needed))
+}
 
 interface Walk {
 	ids: string[]
@@ -374,6 +406,83 @@ function firstFilterable(ctx: CheckContext, predicate: (name: string) => boolean
 	return candidates.find(predicate) ?? null
 }
 
+/**
+ * Finds a record holding non-null values on two distinct, non-identity filterable fields — the
+ * minimum needed to build a compound predicate that is guaranteed to match at least that record.
+ */
+function twoFilterableFields(
+	ctx: CheckContext,
+): { fieldA: string; fieldB: string; target: Record_ } | null {
+	const candidates = (ctx.query?.filterable ?? []).filter((f) => f !== ctx.identity)
+	for (const target of ctx.records) {
+		const present = candidates.filter((f) => target[f] !== null && target[f] !== undefined)
+		if (present[0] !== undefined && present[1] !== undefined) {
+			return { fieldA: present[0], fieldB: present[1], target }
+		}
+	}
+	return null
+}
+
+/** The bare `field.op.value` / `field=op:value` fragment `filterTerm` wraps in its parameter. */
+function filterFragment(
+	conventions: ReturnType<typeof conv>,
+	field: string,
+	value: string,
+): string | null {
+	const term = filterTerm(conventions, field, "eq", value)
+	if (term === null) return null
+	const fragment = Object.values(term)[0]
+	return typeof fragment === "string" ? fragment : null
+}
+
+/**
+ * A conjunction of two equality predicates, in whatever grammar the endpoint speaks.
+ *
+ * Per-field equality ANDs implicitly — two query parameters together already mean "both must
+ * hold" — so the two terms are simply merged. A raw filter expression has no such shortcut: the
+ * postgrest grammar needs an explicit `and(...)`, and the colon grammar (which has no grouping
+ * syntax at all — see `toCanonicalFilter`) ANDs by joining terms with a comma.
+ */
+function andTerm(
+	conventions: ReturnType<typeof conv>,
+	fieldA: string,
+	valueA: string,
+	fieldB: string,
+	valueB: string,
+): Record<string, string> | null {
+	if (conventions.grammar === "equality") {
+		const a = filterTerm(conventions, fieldA, "eq", valueA)
+		const b = filterTerm(conventions, fieldB, "eq", valueB)
+		if (a === null || b === null) return null
+		return { ...a, ...b } as Record<string, string>
+	}
+	if (conventions.filter === undefined) return null
+	const a = filterFragment(conventions, fieldA, valueA)
+	const b = filterFragment(conventions, fieldB, valueB)
+	if (a === null || b === null) return null
+	return { [conventions.filter]: conventions.grammar === "postgrest" ? `and(${a},${b})` : `${a},${b}` }
+}
+
+/**
+ * A disjunction of two equality predicates.
+ *
+ * Only the postgrest grammar has an `or()` combinator at all: per-field equality has no way to
+ * ask for "either" rather than "both", and the colon grammar's comma join is AND-only.
+ */
+function orTerm(
+	conventions: ReturnType<typeof conv>,
+	fieldA: string,
+	valueA: string,
+	fieldB: string,
+	valueB: string,
+): Record<string, string> | null {
+	if (conventions.grammar !== "postgrest" || conventions.filter === undefined) return null
+	const a = filterFragment(conventions, fieldA, valueA)
+	const b = filterFragment(conventions, fieldB, valueB)
+	if (a === null || b === null) return null
+	return { [conventions.filter]: `or(${a},${b})` }
+}
+
 /* -------------------------------------------------------------------- checks */
 
 const readAfterWrite: Check = {
@@ -386,25 +495,45 @@ const readAfterWrite: Check = {
 		if (target === undefined) return
 		const id = String(target[ctx.identity])
 		const pageSize = ctx.query?.maxLimit ?? 100
-		const full = await list(ctx, q(ctx, { limit: pageSize }))
-		if (full.items.some((item) => String(item[ctx.identity]) === id)) return
+		/*
+		 * Walk by short page, never by `hasMore`. Trusting the flag is the same trap
+		 * {@link isComplete} documents: a backend whose more-pages signal is wrong makes a
+		 * record on page two look like a lost write.
+		 *
+		 * Deliberately unsorted. STALE_LIST only freezes the default listing — adding `order`
+		 * takes a live path and the defect vanishes. An unstable default order can hide a
+		 * record for one walk; a repeat that finds it was never a lost write.
+		 */
+		const locate = async (): Promise<{
+			status: "found" | "missing" | "unresolved"
+			last: ListResult | null
+		}> => {
+			const gathered = await collectSet(ctx, pageSize)
+			if (gathered === null) return { last: null, status: "unresolved" }
+			if (gathered.items.some((item) => String(item[ctx.identity]) === id)) {
+				return { last: gathered.last, status: "found" }
+			}
+			return { last: gathered.last, status: "missing" }
+		}
 
-		/* Absent from the first page is not absent from the collection — a cohort larger than
-		 * maxLimit spans several pages. Confirm across the whole walk before calling it missing,
-		 * or every capped collection reports a phantom lost write. */
-		if (envelopeValue(ctx, full, "hasMore") === true && (await walkPages(ctx, pageSize)).ids.includes(id)) return
-
-		/* A record that appears on a repeat request was never lost — it was unreachable for one
+		let located = await locate()
+		/* A record that appears on a repeat walk was never lost — it was unreachable for one
 		 * query. That is an ordering defect, which the pagination checks diagnose precisely;
 		 * reporting it here as a lost write would name the wrong cause. This check is about
 		 * records the list *never* shows. */
-		for (let attempt = 0; attempt < 2; attempt++) {
-			const retry = await list(ctx, q(ctx, { limit: pageSize }))
-			if (retry.items.some((item) => String(item[ctx.identity]) === id)) return
-			if (envelopeValue(ctx, retry, "hasMore") === true && (await walkPages(ctx, pageSize)).ids.includes(id)) return
+		for (let attempt = 0; attempt < 2 && located.status === "missing"; attempt++) {
+			located = await locate()
+		}
+		if (located.status === "found") return
+		if (located.status === "unresolved") {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"the list was rejected, so whether the write is visible cannot be decided",
+			)
 		}
 
-		const evidence: Exchange[] = [full.exchange]
+		const evidence: Exchange[] = located.last === null ? [] : [located.last.exchange]
 		let detail = `created ${ctx.entityName} ${id} is absent from the list projection`
 		if (ctx.readOp !== undefined) {
 			const item = await ctx.client.get(
@@ -635,6 +764,177 @@ const negationPartitions: Check = {
 				[all.last.exchange, matching.last.exchange, complement.last.exchange],
 			)
 		}
+	},
+}
+
+/**
+ * Every filter check above uses a single predicate. Real filters compose them: `and(a,b)`,
+ * `or(a,b)`, and nested combinations of both. This is the first of two checks giving that
+ * combinator its own set-algebra property, needing no ground truth just like the rest: a
+ * conjunction of two predicates must select exactly the intersection of what each selects alone.
+ */
+const filterAndComposesAsIntersection: Check = {
+	applicable: (ctx) => filterable(ctx) && (ctx.query?.filterable.length ?? 0) > 1,
+	dependsOn: [
+		"list.read-after-write",
+		"create.persists-submitted-fields",
+		"filter.equality-selects-exactly-one",
+		/* Both sides are gathered across pages, so a walk that skips or repeats records changes
+		 * the membership being compared for reasons unrelated to composition. */
+		"pagination.page-walk-covers-set",
+	],
+	id: "filter.and-composes-as-intersection",
+	needs: "two filterable fields and a filter parameter or grammar supporting eq",
+	async run(ctx) {
+		const conventions = conv(ctx)
+		const picked = twoFilterableFields(ctx)
+		if (picked === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"no record holds non-null values on two distinct filterable fields to combine",
+			)
+		}
+		const { fieldA, fieldB, target } = picked
+		const valueA = String(target[fieldA])
+		const valueB = String(target[fieldB])
+		const termA = filterTerm(conventions, fieldA, "eq", valueA)
+		const termB = filterTerm(conventions, fieldB, "eq", valueB)
+		const combined = andTerm(conventions, fieldA, valueA, fieldB, valueB)
+		if (termA === null || termB === null || combined === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"this API's filter grammar cannot express a combined predicate",
+			)
+		}
+
+		const limit = ctx.query?.maxLimit ?? 100
+		const onlyA = await collectSet(ctx, limit, termA)
+		const onlyB = await collectSet(ctx, limit, termB)
+		const both = await collectSet(ctx, limit, combined)
+		if (onlyA === null || onlyB === null || both === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"one of the three listings needed for the intersection was rejected",
+			)
+		}
+		if (!onlyA.complete || !onlyB.complete || !both.complete) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"the collection is larger than the walk covers, so the intersection cannot be verified",
+			)
+		}
+
+		const setA = new Set(ids(onlyA.items, ctx.identity))
+		const setB = new Set(ids(onlyB.items, ctx.identity))
+		const expected = new Set([...setA].filter((id) => setB.has(id)))
+		const got = new Set(ids(both.items, ctx.identity))
+		const missing = [...expected].filter((id) => !got.has(id))
+		const extra = [...got].filter((id) => !expected.has(id))
+		if (missing.length === 0 && extra.length === 0) return
+
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"and() does not compose as the intersection of its terms",
+			`and(${fieldA}.eq.${valueA},${fieldB}.eq.${valueB}) returned ${got.size} record(s); ` +
+				`${fieldA}.eq.${valueA} alone returned ${setA.size}, ${fieldB}.eq.${valueB} alone returned ` +
+				`${setB.size}, whose intersection is ${expected.size}. ` +
+				(missing.length > 0 ? `Missing from the combined result: ${missing.slice(0, 3).join(", ")}. ` : "") +
+				(extra.length > 0 ? `Present but should not match both terms: ${extra.slice(0, 3).join(", ")}. ` : "") +
+				"A conjunction must select exactly the records both terms match individually.",
+			[onlyA.last.exchange, onlyB.last.exchange, both.last.exchange],
+		)
+	},
+}
+
+/**
+ * The disjunction counterpart of {@link filterAndComposesAsIntersection}: `or(a,b)` must select
+ * exactly the union of what each predicate selects alone. Only the postgrest-shaped grammar has
+ * an `or()` combinator at all — per-field equality and the colon grammar's comma join are both
+ * AND-only — so this stands down everywhere else rather than inventing a request to send.
+ */
+const filterOrComposesAsUnion: Check = {
+	applicable: (ctx) => conv(ctx).grammar === "postgrest" && (ctx.query?.filterable.length ?? 0) > 1,
+	dependsOn: [
+		"list.read-after-write",
+		"create.persists-submitted-fields",
+		"filter.equality-selects-exactly-one",
+		"pagination.page-walk-covers-set",
+		/* Deliberately does *not* depend on filter.and-composes-as-intersection: and() and or()
+		 * being broken by the same defect is two independent manifestations of one root cause, not
+		 * one causing the other. A defect that swaps the combinators corrupts both requests, and
+		 * suppressing this as and()'s cascade would hide the half of the bug this check is the
+		 * only thing that can see. */
+	],
+	id: "filter.or-composes-as-union",
+	needs: "two filterable fields and an or() combinator (postgrest-shaped filter grammar)",
+	async run(ctx) {
+		const conventions = conv(ctx)
+		const picked = twoFilterableFields(ctx)
+		if (picked === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"no record holds non-null values on two distinct filterable fields to combine",
+			)
+		}
+		const { fieldA, fieldB, target } = picked
+		const valueA = String(target[fieldA])
+		const valueB = String(target[fieldB])
+		const termA = filterTerm(conventions, fieldA, "eq", valueA)
+		const termB = filterTerm(conventions, fieldB, "eq", valueB)
+		const combined = orTerm(conventions, fieldA, valueA, fieldB, valueB)
+		if (termA === null || termB === null || combined === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"this API's filter grammar cannot express a combined predicate",
+			)
+		}
+
+		const limit = ctx.query?.maxLimit ?? 100
+		const onlyA = await collectSet(ctx, limit, termA)
+		const onlyB = await collectSet(ctx, limit, termB)
+		const either = await collectSet(ctx, limit, combined)
+		if (onlyA === null || onlyB === null || either === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"one of the three listings needed for the union was rejected",
+			)
+		}
+		if (!onlyA.complete || !onlyB.complete || !either.complete) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"the collection is larger than the walk covers, so the union cannot be verified",
+			)
+		}
+
+		const setA = new Set(ids(onlyA.items, ctx.identity))
+		const setB = new Set(ids(onlyB.items, ctx.identity))
+		const expected = new Set([...setA, ...setB])
+		const got = new Set(ids(either.items, ctx.identity))
+		const missing = [...expected].filter((id) => !got.has(id))
+		const extra = [...got].filter((id) => !expected.has(id))
+		if (missing.length === 0 && extra.length === 0) return
+
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"or() does not compose as the union of its terms",
+			`or(${fieldA}.eq.${valueA},${fieldB}.eq.${valueB}) returned ${got.size} record(s); ` +
+				`${fieldA}.eq.${valueA} alone returned ${setA.size}, ${fieldB}.eq.${valueB} alone returned ` +
+				`${setB.size}, whose union is ${expected.size}. ` +
+				(missing.length > 0 ? `Missing from the combined result: ${missing.slice(0, 3).join(", ")}. ` : "") +
+				(extra.length > 0 ? `Present but matches neither term individually: ${extra.slice(0, 3).join(", ")}. ` : "") +
+				"A disjunction must select exactly the records either term matches alone.",
+			[onlyA.last.exchange, onlyB.last.exchange, either.last.exchange],
+		)
 	},
 }
 
@@ -1889,8 +2189,11 @@ const filterAndPagingCompose: Check = {
 		const tiebreak = (ctx.query?.sortable ?? []).includes(ctx.identity) ? ctx.identity : undefined
 		const walkOrder =
 			tiebreak === undefined ? undefined : sortTerm(conventions, tiebreak, "asc")
-		const everything = await collectSet(ctx, pageSize, {}, MAX_WALK_PAGES, walkOrder)
-		const serverSide = await collectSet(ctx, pageSize, term, MAX_WALK_PAGES, walkOrder)
+		const probe = await list(ctx, q(ctx, { limit: 1, order: walkOrder }))
+		const reported = envelopeValue(ctx, probe, "total")
+		const pages = pagesToCover(typeof reported === "number" ? reported : undefined, pageSize)
+		const everything = await collectSet(ctx, pageSize, {}, pages, walkOrder)
+		const serverSide = await collectSet(ctx, pageSize, term, pages, walkOrder)
 		if (everything === null || serverSide === null) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -1929,6 +2232,668 @@ const filterAndPagingCompose: Check = {
 			[everything.last.exchange, serverSide.last.exchange],
 		)
 	},
+}
+
+/**
+ * A filter and a sparse fieldset must compose: projecting columns must never change which
+ * records match.
+ *
+ * The failure this catches is a query builder that projects first and then cannot apply a
+ * predicate to a column it just omitted, or that takes a different path the moment `fields=` is
+ * present and forgets the WHERE. Each axis is correct alone — the filter returns the right set,
+ * the select returns the right columns — and together the filter silently vanishes.
+ *
+ * The oracle is the same compositional property as {@link queryAxesCompose}: the filter alone
+ * and the same filter with a select must return the same **set**. Identity is always requested
+ * so the two sides remain comparable.
+ */
+const filterAndSelectCompose: Check = {
+	applicable: (ctx) =>
+		filterable(ctx)
+		&& conv(ctx).select !== undefined
+		&& ctx.records.length > 2,
+	dependsOn: [
+		"list.read-after-write",
+		"create.persists-submitted-fields",
+		"filter.equality-selects-exactly-one",
+		/* If select is accepted and ignored, both sides still carry every column and the
+		 * membership comparison remains well-defined — but a backend that has stopped honouring
+		 * select at all may also have stopped taking the code path this check is probing. */
+		"select.projection-honoured",
+		"pagination.page-walk-covers-set",
+	],
+	id: "query.filter-and-select-compose",
+	needs: "a filterable field, a select parameter, and more than two records",
+	async run(ctx) {
+		const conventions = conv(ctx)
+		const limit = ctx.query?.maxLimit ?? 100
+
+		let field: string | undefined
+		let target: Record_ | undefined
+		for (const candidate of ctx.query?.filterable ?? []) {
+			if (candidate === ctx.identity) continue
+			const values = ctx.records.map((record) => JSON.stringify(record[candidate]))
+			const match = ctx.records.find((record) => {
+				if (record[candidate] === null || record[candidate] === undefined) return false
+				const count = values.filter((v) => v === JSON.stringify(record[candidate])).length
+				return count > 1 && count < ctx.records.length
+			})
+			if (match !== undefined) {
+				field = candidate
+				target = match
+				break
+			}
+		}
+		if (field === undefined || target === undefined) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"no filterable field holds a value shared by several records but not all of them, so "
+					+ "no filter can select a proper subset to project",
+			)
+		}
+
+		const extra =
+			(ctx.query?.selectable ?? []).find((name) => name !== ctx.identity)
+			?? ctx.identity
+		const projection = selectTerm(conventions, [ctx.identity, extra], ctx.entityName)
+		if (projection === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"this API's select grammar cannot express a sparse fieldset",
+			)
+		}
+
+		const term = filterTerm(conventions, field, "eq", String(target[field]))
+		if (term === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				`this API's filter grammar cannot express equality on "${field}"`,
+			)
+		}
+
+		const filtered = await collectSet(ctx, limit, term)
+		const both = await collectSet(ctx, limit, { ...term, ...projection })
+		if (filtered === null || both === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"combining a filter with a select was rejected, so the two cannot be compared",
+			)
+		}
+		if (!filtered.complete || !both.complete) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"the filtered set is larger than the walk covers, so the two runs cannot be compared "
+					+ "as whole sets",
+			)
+		}
+
+		const alone = new Set(ids(filtered.items, ctx.identity))
+		const combined = new Set(ids(both.items, ctx.identity))
+		/* A projection that omitted the identity makes membership unobservable — that is a
+		 * missing column, not a changed set, and select.projection-honoured already owns it. */
+		if (both.items.some((item) => item[ctx.identity] === undefined)) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"the projected page omitted the identity field, so the two sets cannot be compared",
+			)
+		}
+		const missing = [...alone].filter((id) => !combined.has(id))
+		const extraIds = [...combined].filter((id) => !alone.has(id))
+		if (missing.length === 0 && extraIds.length === 0) return
+
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"adding a select changes which records a filter returns",
+			`filter on "${field}" alone matched ${alone.size} record(s); the same filter with `
+				+ `select=${[ctx.identity, extra].join(",")} matched ${combined.size}. `
+				+ (missing.length > 0 ? `Dropped: ${missing.slice(0, 3).join(", ")}. ` : "")
+				+ (extraIds.length > 0 ? `Appeared: ${extraIds.slice(0, 3).join(", ")}. ` : "")
+				+ "A projection must change which columns come back, never which rows — a filter "
+				+ "that only holds while every column is selected is one a query plan is dropping "
+				+ "once it has to name the columns.",
+			[filtered.last.exchange, both.last.exchange],
+		)
+	},
+}
+
+/**
+ * A structured filter and a free-text search must compose as their intersection.
+ *
+ * Adding `q` often switches a backend onto a search-index path that does not honour the
+ * structured predicate — or the reverse: a filter makes the search term a no-op. Each axis is
+ * correct alone; together one of them vanishes. The oracle needs no ground truth: walk each
+ * axis, walk both, and the combined set must equal the intersection.
+ *
+ * The two sides have to overlap without nesting. If the search matches only records the filter
+ * already selected, dropping the filter is invisible — the combined set still equals the
+ * intersection. The token is chosen so each axis matches something the other does not.
+ */
+const searchAndFilterCompose: Check = {
+	applicable: (ctx) =>
+		filterable(ctx)
+		&& conv(ctx).search !== undefined
+		&& (ctx.query?.searchable.length ?? 0) > 0
+		&& ctx.records.length > 2,
+	dependsOn: [
+		"list.read-after-write",
+		"create.persists-submitted-fields",
+		"filter.equality-selects-exactly-one",
+		"search.q-narrows-result",
+		"pagination.page-walk-covers-set",
+	],
+	id: "query.search-and-filter-compose",
+	needs: "a filterable field, a free-text search parameter, and more than two records",
+	async run(ctx) {
+		const conventions = conv(ctx)
+		const limit = ctx.query?.maxLimit ?? 100
+
+		/*
+		 * The first proper-subset filter is not always the one that overlaps a search. A status
+		 * enum that happens to put both "alphabetically" records outside the chosen bucket makes
+		 * every token nested, and dropping the filter becomes invisible. Walk every candidate
+		 * until one overlaps without nesting.
+		 */
+		let field: string | undefined
+		let target: Record_ | undefined
+		let token: string | null = null
+		for (const candidate of ctx.query?.filterable ?? []) {
+			if (candidate === ctx.identity) continue
+			const groups = new Map<string, Record_[]>()
+			for (const record of ctx.records) {
+				if (record[candidate] === null || record[candidate] === undefined) continue
+				const key = JSON.stringify(record[candidate])
+				const group = groups.get(key) ?? []
+				group.push(record)
+				groups.set(key, group)
+			}
+			for (const group of groups.values()) {
+				if (group.length <= 1 || group.length >= ctx.records.length) continue
+				const sample = group[0]
+				if (sample === undefined) continue
+				const guessed = new Set(ids(group, ctx.identity))
+				const found = overlappingSearchToken(ctx, guessed)
+				if (found === null) continue
+				field = candidate
+				target = sample
+				token = found
+				break
+			}
+			if (token !== null) break
+		}
+		if (field === undefined || target === undefined || token === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"no filterable field and search token overlap without nesting, so dropping either "
+					+ "axis would be invisible",
+			)
+		}
+
+		const term = filterTerm(conventions, field, "eq", String(target[field]))
+		if (term === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				`this API's filter grammar cannot express equality on "${field}"`,
+			)
+		}
+
+		const filtered = await collectSet(ctx, limit, term)
+		if (filtered === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"the filtered listing was rejected, so it cannot be compared with a search",
+			)
+		}
+		if (!filtered.complete) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"the filtered set is larger than the walk covers",
+			)
+		}
+
+		const filterIds = new Set(ids(filtered.items, ctx.identity))
+		const searched = await collectSet(ctx, limit, q(ctx, { search: token }) as Record<string, string>)
+		const both = await collectSet(ctx, limit, {
+			...term,
+			...q(ctx, { search: token }),
+		} as Record<string, string>)
+		if (searched === null || both === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"combining a filter with a search was rejected, so the two cannot be compared",
+			)
+		}
+		if (!searched.complete || !both.complete) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"a side of the comparison is larger than the walk covers",
+			)
+		}
+
+		const searchIds = new Set(ids(searched.items, ctx.identity))
+		const expected = new Set([...filterIds].filter((id) => searchIds.has(id)))
+		const got = new Set(ids(both.items, ctx.identity))
+		const missing = [...expected].filter((id) => !got.has(id))
+		const extraIds = [...got].filter((id) => !expected.has(id))
+		if (missing.length === 0 && extraIds.length === 0) return
+
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"a filter and a search do not compose as their intersection",
+			`filter on "${field}" matched ${filterIds.size}; q=${JSON.stringify(token)} matched `
+				+ `${searchIds.size}; both together matched ${got.size} (intersection is `
+				+ `${expected.size}). `
+				+ (missing.length > 0 ? `Missing: ${missing.slice(0, 3).join(", ")}. ` : "")
+				+ (extraIds.length > 0 ? `Extra: ${extraIds.slice(0, 3).join(", ")}. ` : "")
+				+ "A structured predicate and a free-text search must narrow each other. When they "
+				+ "do not, one of them is being dropped the moment the other is present.",
+			[filtered.last.exchange, searched.last.exchange, both.last.exchange],
+		)
+	},
+}
+
+/**
+ * A filter, a sort and a select must compose: adding both extra axes must not change which
+ * records the filter matches.
+ *
+ * Pairwise composition is not enough. A planner that has a working two-axis path and a
+ * broken three-axis path — the moment `order` and `fields` are both present, the WHERE is
+ * dropped — passes every pair check. The oracle is the same membership property as the
+ * pairs: the filter alone and the filter with both extras must return the same set.
+ */
+const filterSortSelectCompose: Check = {
+	applicable: (ctx) =>
+		filterable(ctx)
+		&& conv(ctx).order !== undefined
+		&& conv(ctx).select !== undefined
+		&& (ctx.query?.sortable.length ?? 0) > 0
+		&& ctx.records.length > 2,
+	dependsOn: [
+		"list.read-after-write",
+		"create.persists-submitted-fields",
+		"filter.equality-selects-exactly-one",
+		"sort.order-is-applied",
+		"select.projection-honoured",
+		"pagination.page-walk-covers-set",
+		/* Each pair has to hold before "the triple disagrees" means anything. A pair defect
+		 * would also break this request, and reporting it again would name the wrong cause. */
+		"query.axes-compose",
+		"query.filter-and-select-compose",
+		"query.filter-selects-from-whole-set",
+	],
+	id: "query.filter-sort-select-compose",
+	needs: "a filterable field, a sortable field, a select parameter, and more than two records",
+	async run(ctx) {
+		const conventions = conv(ctx)
+		const limit = ctx.query?.maxLimit ?? 100
+		const picked = properSubsetFilter(ctx)
+		if (picked === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"no filterable field holds a value shared by several records but not all of them",
+			)
+		}
+		const { field, target } = picked
+		const term = filterTerm(conventions, field, "eq", String(target[field]))
+		const extra =
+			(ctx.query?.selectable ?? []).find((name) => name !== ctx.identity) ?? ctx.identity
+		const projection = selectTerm(conventions, [ctx.identity, extra], ctx.entityName)
+		const sortField =
+			(ctx.query?.sortable ?? []).find((name) => name !== field && name !== ctx.identity)
+			?? ctx.identity
+		if (term === null || projection === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"this API cannot express the filter, the sort or the select together",
+			)
+		}
+
+		const filtered = await collectSet(ctx, limit, term)
+		const triple = await collectSet(
+			ctx,
+			limit,
+			{ ...term, ...projection },
+			MAX_WALK_PAGES,
+			sortTerm(conventions, sortField, "desc"),
+		)
+		if (filtered === null || triple === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"combining a filter with a sort and a select was rejected",
+			)
+		}
+		if (!filtered.complete || !triple.complete) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"a side of the comparison is larger than the walk covers",
+			)
+		}
+		if (triple.items.some((item) => item[ctx.identity] === undefined)) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"the projected page omitted the identity field, so the two sets cannot be compared",
+			)
+		}
+
+		const alone = new Set(ids(filtered.items, ctx.identity))
+		const combined = new Set(ids(triple.items, ctx.identity))
+		const missing = [...alone].filter((id) => !combined.has(id))
+		const extraIds = [...combined].filter((id) => !alone.has(id))
+		if (missing.length === 0 && extraIds.length === 0) return
+
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"adding a sort and a select together changes which records a filter returns",
+			`filter on "${field}" alone matched ${alone.size}; the same filter with `
+				+ `order=${sortField} desc and select=${[ctx.identity, extra].join(",")} matched `
+				+ `${combined.size}. `
+				+ (missing.length > 0 ? `Dropped: ${missing.slice(0, 3).join(", ")}. ` : "")
+				+ (extraIds.length > 0 ? `Appeared: ${extraIds.slice(0, 3).join(", ")}. ` : "")
+				+ "Each pair composes; the triple must too. A filter that only holds until both a "
+				+ "sort and a projection are present is one a three-axis query plan is dropping.",
+			[filtered.last.exchange, triple.last.exchange],
+		)
+	},
+}
+
+/**
+ * A filter, a search and a sort must compose: the intersection of filter and search must not
+ * change when a sort is added.
+ *
+ * The search-index path that also tries to honour an ORDER BY is a common place to drop the
+ * structured predicate. Pairwise, filter+search and filter+sort both hold; together they do not.
+ */
+const filterSearchSortCompose: Check = {
+	applicable: (ctx) =>
+		filterable(ctx)
+		&& conv(ctx).search !== undefined
+		&& conv(ctx).order !== undefined
+		&& (ctx.query?.searchable.length ?? 0) > 0
+		&& (ctx.query?.sortable.length ?? 0) > 0
+		&& ctx.records.length > 2,
+	dependsOn: [
+		"list.read-after-write",
+		"create.persists-submitted-fields",
+		"filter.equality-selects-exactly-one",
+		"search.q-narrows-result",
+		"sort.order-is-applied",
+		"pagination.page-walk-covers-set",
+		"query.search-and-filter-compose",
+		"query.axes-compose",
+		"query.filter-selects-from-whole-set",
+	],
+	id: "query.filter-search-sort-compose",
+	needs: "a filterable field, a search parameter, a sortable field, and more than two records",
+	async run(ctx) {
+		const conventions = conv(ctx)
+		const limit = ctx.query?.maxLimit ?? 100
+		const picked = overlappingFilterAndSearch(ctx)
+		if (picked === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"no filterable field and search token overlap without nesting",
+			)
+		}
+		const { field, target, token } = picked
+		const term = filterTerm(conventions, field, "eq", String(target[field]))
+		if (term === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				`this API's filter grammar cannot express equality on "${field}"`,
+			)
+		}
+		const sortField =
+			(ctx.query?.sortable ?? []).find((name) => name !== field && name !== ctx.identity)
+			?? ctx.identity
+		const pair = await collectSet(ctx, limit, {
+			...term,
+			...q(ctx, { search: token }),
+		} as Record<string, string>)
+		const triple = await collectSet(
+			ctx,
+			limit,
+			{ ...term, ...q(ctx, { search: token }) } as Record<string, string>,
+			MAX_WALK_PAGES,
+			sortTerm(conventions, sortField, "desc"),
+		)
+		if (pair === null || triple === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"combining a filter, a search and a sort was rejected",
+			)
+		}
+		if (!pair.complete || !triple.complete) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"a side of the comparison is larger than the walk covers",
+			)
+		}
+
+		const expected = new Set(ids(pair.items, ctx.identity))
+		const got = new Set(ids(triple.items, ctx.identity))
+		const missing = [...expected].filter((id) => !got.has(id))
+		const extraIds = [...got].filter((id) => !expected.has(id))
+		if (missing.length === 0 && extraIds.length === 0) return
+
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"adding a sort changes which records a filter and a search return",
+			`filter on "${field}" with q=${JSON.stringify(token)} matched ${expected.size}; `
+				+ `the same request with order=${sortField} desc matched ${got.size}. `
+				+ (missing.length > 0 ? `Dropped: ${missing.slice(0, 3).join(", ")}. ` : "")
+				+ (extraIds.length > 0 ? `Appeared: ${extraIds.slice(0, 3).join(", ")}. ` : "")
+				+ "A sort must reorder the intersection, never change it.",
+			[pair.last.exchange, triple.last.exchange],
+		)
+	},
+}
+
+/**
+ * A filter, a search and a select must compose: projecting columns must not change the
+ * intersection of filter and search.
+ */
+const filterSearchSelectCompose: Check = {
+	applicable: (ctx) =>
+		filterable(ctx)
+		&& conv(ctx).search !== undefined
+		&& conv(ctx).select !== undefined
+		&& (ctx.query?.searchable.length ?? 0) > 0
+		&& ctx.records.length > 2,
+	dependsOn: [
+		"list.read-after-write",
+		"create.persists-submitted-fields",
+		"filter.equality-selects-exactly-one",
+		"search.q-narrows-result",
+		"select.projection-honoured",
+		"pagination.page-walk-covers-set",
+		"query.search-and-filter-compose",
+		"query.filter-and-select-compose",
+	],
+	id: "query.filter-search-select-compose",
+	needs: "a filterable field, a search parameter, a select parameter, and more than two records",
+	async run(ctx) {
+		const conventions = conv(ctx)
+		const limit = ctx.query?.maxLimit ?? 100
+		const picked = overlappingFilterAndSearch(ctx)
+		if (picked === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"no filterable field and search token overlap without nesting",
+			)
+		}
+		const { field, target, token } = picked
+		const term = filterTerm(conventions, field, "eq", String(target[field]))
+		const extra =
+			(ctx.query?.selectable ?? []).find((name) => name !== ctx.identity) ?? ctx.identity
+		const projection = selectTerm(conventions, [ctx.identity, extra], ctx.entityName)
+		if (term === null || projection === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"this API cannot express the filter, the search or the select together",
+			)
+		}
+		const pair = await collectSet(ctx, limit, {
+			...term,
+			...q(ctx, { search: token }),
+		} as Record<string, string>)
+		const triple = await collectSet(ctx, limit, {
+			...term,
+			...q(ctx, { search: token }),
+			...projection,
+		} as Record<string, string>)
+		if (pair === null || triple === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"combining a filter, a search and a select was rejected",
+			)
+		}
+		if (!pair.complete || !triple.complete) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"a side of the comparison is larger than the walk covers",
+			)
+		}
+		if (triple.items.some((item) => item[ctx.identity] === undefined)) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"the projected page omitted the identity field, so the two sets cannot be compared",
+			)
+		}
+
+		const expected = new Set(ids(pair.items, ctx.identity))
+		const got = new Set(ids(triple.items, ctx.identity))
+		const missing = [...expected].filter((id) => !got.has(id))
+		const extraIds = [...got].filter((id) => !expected.has(id))
+		if (missing.length === 0 && extraIds.length === 0) return
+
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"adding a select changes which records a filter and a search return",
+			`filter on "${field}" with q=${JSON.stringify(token)} matched ${expected.size}; `
+				+ `the same request with select=${[ctx.identity, extra].join(",")} matched ${got.size}. `
+				+ (missing.length > 0 ? `Dropped: ${missing.slice(0, 3).join(", ")}. ` : "")
+				+ (extraIds.length > 0 ? `Appeared: ${extraIds.slice(0, 3).join(", ")}. ` : "")
+				+ "A projection must change columns, never the intersection a filter and a search "
+				+ "already agreed on.",
+			[pair.last.exchange, triple.last.exchange],
+		)
+	},
+}
+
+/** A filterable field whose value selects a proper subset of the cohort. */
+function properSubsetFilter(ctx: CheckContext): { field: string; target: Record_ } | null {
+	for (const candidate of ctx.query?.filterable ?? []) {
+		if (candidate === ctx.identity) continue
+		const values = ctx.records.map((record) => JSON.stringify(record[candidate]))
+		const match = ctx.records.find((record) => {
+			if (record[candidate] === null || record[candidate] === undefined) return false
+			const count = values.filter((v) => v === JSON.stringify(record[candidate])).length
+			return count > 1 && count < ctx.records.length
+		})
+		if (match !== undefined) return { field: candidate, target: match }
+	}
+	return null
+}
+
+/**
+ * A filter value and a search token that overlap without nesting, so dropping either axis
+ * changes the intersection.
+ */
+function overlappingFilterAndSearch(
+	ctx: CheckContext,
+): { field: string; target: Record_; token: string } | null {
+	for (const candidate of ctx.query?.filterable ?? []) {
+		if (candidate === ctx.identity) continue
+		const groups = new Map<string, Record_[]>()
+		for (const record of ctx.records) {
+			if (record[candidate] === null || record[candidate] === undefined) continue
+			const key = JSON.stringify(record[candidate])
+			const group = groups.get(key) ?? []
+			group.push(record)
+			groups.set(key, group)
+		}
+		for (const group of groups.values()) {
+			if (group.length <= 1 || group.length >= ctx.records.length) continue
+			const sample = group[0]
+			if (sample === undefined) continue
+			const found = overlappingSearchToken(ctx, new Set(ids(group, ctx.identity)))
+			if (found === null) continue
+			return { field: candidate, target: sample, token: found }
+		}
+	}
+	return null
+}
+
+/**
+ * A search token that overlaps a filtered set without nesting — each side matches something
+ * the other does not, so dropping either axis changes the intersection.
+ */
+function overlappingSearchToken(ctx: CheckContext, filterIds: Set<string>): string | null {
+	const fields = ctx.query?.searchable ?? []
+	if (fields.length === 0) return null
+
+	const matches = (token: string): Set<string> => {
+		const needle = token.toLowerCase()
+		const hit = new Set<string>()
+		for (const record of ctx.records) {
+			if (fields.some((field) => String(record[field] ?? "").toLowerCase().includes(needle))) {
+				hit.add(String(record[ctx.identity]))
+			}
+		}
+		return hit
+	}
+
+	const candidates: string[] = []
+	for (const record of ctx.records) {
+		for (const name of fields) {
+			const value = record[name]
+			if (typeof value !== "string" || value.length < 2) continue
+			candidates.push(value)
+			if (value.length >= 3) candidates.push(value.slice(0, 3))
+			for (const word of value.split(/\s+/)) {
+				if (word.length >= 2) candidates.push(word)
+			}
+		}
+	}
+
+	for (const token of candidates) {
+		const searchIds = matches(token)
+		const inter = [...searchIds].filter((id) => filterIds.has(id)).length
+		const onlySearch = [...searchIds].filter((id) => !filterIds.has(id)).length
+		const onlyFilter = [...filterIds].filter((id) => !searchIds.has(id)).length
+		if (inter > 0 && onlySearch > 0 && onlyFilter > 0) return token
+	}
+	return null
 }
 
 /**
@@ -1971,9 +2936,15 @@ const declaredFilterableWorks: Check = {
 		let probed = 0
 
 		for (const field of ctx.query?.filterable ?? []) {
+			/* A declared field that never appears on the cohort is still a promise — often the
+			 * most expensive kind, a column the document invented. Probe it with a sentinel. */
 			const sample = ctx.records.find((record) => record[field] != null)
-			if (sample === undefined) continue
-			const term = filterTerm(conventions, field, "eq", String(sample[field]))
+			const term = filterTerm(
+				conventions,
+				field,
+				"eq",
+				sample === undefined ? "oat-declared-field" : String(sample[field]),
+			)
 			if (term === null) continue
 			probed += 1
 			const result = await list(ctx, { ...q(ctx, { limit: 5 }), ...term })
@@ -2002,6 +2973,138 @@ const declaredFilterableWorks: Check = {
 				+ "Every client generated from this document will offer a filter that fails at runtime. "
 				+ "Either the column needs an index or the declaration needs removing — but the "
 				+ "document and the backend currently disagree about what this API can do.",
+			[],
+		)
+	},
+}
+
+/**
+ * The sort analogue of {@link declaredFilterableWorks}: `x-query.sortable` is a promise too, and
+ * an `order` value the backend rejects breaks every client generated from the document exactly
+ * the same way a rejected filter does.
+ */
+const declaredSortableWorks: Check = {
+	applicable: (ctx) =>
+		conv(ctx).order !== undefined
+		&& ctx.query?.source === "tag"
+		&& (ctx.query?.sortable.length ?? 0) > 0
+		&& ctx.records.length > 0,
+	dependsOn: [
+		"list.read-after-write",
+		/* ERROR_500_ON_BAD_FILTER, despite its name, turns *any* SqlError the reference throws
+		 * into a 500 — including a rejected `order` field, not just a malformed filter. Without
+		 * this dependency a rejection lands outside the 4xx window this check looks for and the
+		 * overclaim goes unreported: the same "SILENT" failure error.malformed-filter-not-5xx
+		 * exists to catch, just reached from the sort path instead of the filter path. */
+		"error.malformed-filter-not-5xx",
+		/* Found by the fuzzer, not the matrix: on the SQL stores, ORDER_IGNORED short-circuits
+		 * before the sortable whitelist is even consulted (the field-rejection check sits *after*
+		 * the ignore-order early return), so a backend that has stopped applying `order` at all
+		 * also stops rejecting an overclaimed field — the request simply succeeds with the default
+		 * order. The overclaim is real but unobservable until ordering itself works again. */
+		"sort.order-is-applied",
+	],
+	id: "spec.declared-sortable-is-sortable",
+	needs: "x-query naming sortable fields",
+	async run(ctx) {
+		const conventions = conv(ctx)
+		const rejected: Array<{ field: string; status: number }> = []
+		let probed = 0
+
+		for (const field of ctx.query?.sortable ?? []) {
+			probed += 1
+			const result = await list(ctx, q(ctx, { limit: 5, order: sortTerm(conventions, field, "asc") }))
+			/* Only a rejection counts. Order accepted but not applied is sort.order-is-applied's
+			 * finding, not a capability claim breaking. */
+			if (result.exchange.status >= 400 && result.exchange.status < 500) {
+				rejected.push({ field, status: result.exchange.status })
+			}
+		}
+
+		if (probed === 0) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"no declared sortable field could be probed",
+			)
+		}
+		if (rejected.length === 0) return
+
+		ctx.findings.spec(
+			this.id,
+			ctx.entityName,
+			"the document declares a sort field the backend does not accept",
+			`x-query lists ${rejected.length} field(s) as sortable that the backend rejects: `
+				+ `${rejected.map((r) => `${r.field} (${r.status})`).join(", ")}. `
+				+ "Every client generated from this document will offer an order value that fails at "
+				+ "runtime. Either the column needs an index or the declaration needs removing — but "
+				+ "the document and the backend currently disagree about what this API can do.",
+			[],
+		)
+	},
+}
+
+/**
+ * The select analogue of {@link declaredFilterableWorks} and {@link declaredSortableWorks}:
+ * `x-query.selectable` is a promise too, and a sparse fieldset the backend rejects breaks every
+ * client generated from the document exactly the same way a rejected filter or sort does.
+ */
+const declaredSelectableWorks: Check = {
+	applicable: (ctx) =>
+		conv(ctx).select !== undefined
+		&& ctx.query?.source === "tag"
+		&& (ctx.query?.selectable.length ?? 0) > 0
+		&& ctx.records.length > 0,
+	dependsOn: [
+		"list.read-after-write",
+		/* Same masking risk as the filter and sort overclaim checks: ERROR_500_ON_BAD_FILTER turns
+		 * any rejection — this one included — into a 500, which would fall outside the 4xx window
+		 * below and read as accepted. */
+		"error.malformed-filter-not-5xx",
+		/* Same shape as the sort check's dependency on sort.order-is-applied, found by inspection
+		 * before the fuzzer had to: `project()` returns the row untouched under SELECT_IGNORED
+		 * *before* the excluded-field check runs, so a backend that has stopped honouring `select`
+		 * at all also stops rejecting an overclaimed field — the request just returns every column. */
+		"select.projection-honoured",
+	],
+	id: "spec.declared-selectable-is-selectable",
+	needs: "x-query naming selectable fields",
+	async run(ctx) {
+		const conventions = conv(ctx)
+		const rejected: Array<{ field: string; status: number }> = []
+		let probed = 0
+
+		for (const field of ctx.query?.selectable ?? []) {
+			const projection = selectTerm(conventions, [ctx.identity, field], ctx.entityName)
+			if (projection === null) continue
+			probed += 1
+			const result = await list(ctx, { ...q(ctx, { limit: 5 }), ...projection })
+			/* Only a rejection counts. A field accepted and then ignored is select.projection-
+			 * honoured's finding, not a capability claim breaking. */
+			if (result.exchange.status >= 400 && result.exchange.status < 500) {
+				rejected.push({ field, status: result.exchange.status })
+			}
+		}
+
+		if (probed === 0) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"no declared selectable field could be probed",
+			)
+		}
+		if (rejected.length === 0) return
+
+		ctx.findings.spec(
+			this.id,
+			ctx.entityName,
+			"the document declares a select field the backend does not accept",
+			`x-query lists ${rejected.length} field(s) as selectable that the backend rejects: `
+				+ `${rejected.map((r) => `${r.field} (${r.status})`).join(", ")}. `
+				+ "Every client generated from this document will offer a sparse fieldset that fails at "
+				+ "runtime. Either the field needs to stay projectable or the declaration needs "
+				+ "removing — but the document and the backend currently disagree about what this API "
+				+ "can do.",
 			[],
 		)
 	},
@@ -2094,6 +3197,244 @@ const crossTenantFilterBypass: Check = {
 				"filter matches, so any caller who can guess an id can read it.",
 			[result.exchange],
 		)
+	},
+}
+
+function sameTenantScope(a: Record<string, string>, b: Record<string, string>): boolean {
+	const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])]
+	if (keys.length === 0) return true
+	return keys.every((key) => a[key] === b[key])
+}
+
+/**
+ * Privilege must be monotonic in rank: anything a lower-ranked role can do, a higher-ranked
+ * role in the same tenant must also be able to do.
+ *
+ * The oracle needs no ground truth about what "owner" means. Two principals, same tenant,
+ * different ranks, one item. If the lower one is served and the higher one is denied, the
+ * lattice is upside down — the failure mode of every hand-rolled role table that inverted
+ * a comparison or attached the wrong policy to a name.
+ */
+const rankIsMonotonic: Check = {
+	applicable: (ctx) => {
+		if (ctx.readOp === undefined || ctx.records.length === 0) return false
+		const primary = ctx.actors[0]
+		if (primary === undefined) return false
+		const home = ctx.actors.filter((actor) => sameTenantScope(actor.roots, primary.roots))
+		return new Set(home.map((actor) => actor.rank)).size >= 2
+	},
+	dependsOn: ["list.read-after-write"],
+	id: "auth.rank-is-monotonic",
+	needs: "two same-tenant principals at different ranks, and an item route",
+	async run(ctx) {
+		const target = ctx.records[0]
+		const primary = ctx.actors[0]
+		if (target === undefined || ctx.readOp === undefined || primary === undefined) return
+		const id = String(target[ctx.identity])
+		const home = ctx.actors.filter((actor) => sameTenantScope(actor.roots, primary.roots))
+
+		const readOp = ctx.readOp
+		const probe = async (actor: Actor): Promise<"allow" | "deny" | "error"> => {
+			/* Tenant from the actor; remaining path params (parent ids) from the seeded scope. */
+			const params = { ...ctx.scope, ...actor.roots, ...itemParamFor(ctx, id) }
+			const exchange = await ctx.client.get(fillPath(readOp.path, params), {
+				headers: actor.headers(),
+			})
+			if (exchange.status < 300) return "allow"
+			if (exchange.status === 403 || exchange.status === 404) return "deny"
+			return "error"
+		}
+
+		const outcomes = new Map<string, "allow" | "deny" | "error">()
+		for (const actor of home) {
+			outcomes.set(actor.id, await probe(actor))
+		}
+
+		for (const lower of home) {
+			for (const higher of home) {
+				if (lower.rank >= higher.rank) continue
+				const lo = outcomes.get(lower.id)
+				const hi = outcomes.get(higher.id)
+				if (lo !== "allow" || hi !== "deny") continue
+				ctx.findings.backend(
+					this.id,
+					ctx.entityName,
+					"a lower-ranked role can read a record a higher-ranked role cannot",
+					`${lower.role ?? lower.id} (rank ${lower.rank}) was served ${ctx.entityName} ${id}; ` +
+						`${higher.role ?? higher.id} (rank ${higher.rank}) was denied. Privilege must be ` +
+						"monotonic — a member who can see what an owner cannot is the lattice inverted, " +
+						"not a finer policy.",
+					[],
+				)
+				return
+			}
+		}
+	},
+}
+
+function pointerValue(body: unknown, pointer: string): string | undefined {
+	const path = pointer.replace(/^\$\.?/, "").split(".").filter(Boolean)
+	let node: unknown = body
+	for (const segment of path) {
+		if (node === null || typeof node !== "object") return undefined
+		node = (node as Record<string, unknown>)[segment]
+	}
+	return typeof node === "string" && node !== "" ? node : undefined
+}
+
+/**
+ * Delegated access is a flow, not a request: B cannot read A's record, A invites B, B accepts,
+ * B can read, A revokes, B cannot. Each step is a capability statement the next one depends on.
+ * A grant that appears before accept, never appears, or survives revoke is a different bug
+ * at the same check — the timeline is the property.
+ */
+const inviteGrantsThenRevokes: Check = {
+	applicable: (ctx) =>
+		ctx.invite !== null
+		&& ctx.readOp !== undefined
+		&& ctx.records.length > 0
+		&& ctx.actors.some(
+			(actor) =>
+				actor.inviteAs !== undefined
+				&& ctx.actors[0] !== undefined
+				&& !sameTenantScope(actor.roots, ctx.actors[0].roots),
+		),
+	dependsOn: ["list.read-after-write", "tenant.item-not-readable-cross-tenant"],
+	id: "auth.invite-grants-then-revokes",
+	needs: "x-invite naming invite/accept/revoke, a peer principal with inviteAs, and an item route",
+	async run(ctx) {
+		const spec = ctx.invite
+		const owner = ctx.actors[0]
+		const target = ctx.records[0]
+		if (spec === null || owner === undefined || target === undefined || ctx.readOp === undefined) {
+			return
+		}
+		const delegate = ctx.actors.find(
+			(actor) => actor.inviteAs !== undefined && !sameTenantScope(actor.roots, owner.roots),
+		)
+		if (delegate === undefined || delegate.inviteAs === undefined) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"no peer principal declares inviteAs, so there is no one to invite",
+			)
+		}
+		const inviteOp = ctx.model.byOperationId.get(spec.invite)
+		const acceptOp = ctx.model.byOperationId.get(spec.accept)
+		const revokeOp = ctx.model.byOperationId.get(spec.revoke)
+		if (inviteOp === undefined || acceptOp === undefined || revokeOp === undefined) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"x-invite names an operation that is not in the document",
+			)
+		}
+
+		const id = String(target[ctx.identity])
+		const resource = { ...ctx.scope, ...itemParamFor(ctx, id) }
+
+		const itemPath = ctx.readOp.path
+		const canRead = async (): Promise<boolean> => {
+			const exchange = await ctx.client.get(fillPath(itemPath, { ...delegate.roots, ...resource }), {
+				headers: delegate.headers(),
+			})
+			return exchange.status < 300
+		}
+
+		if (await canRead()) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"the delegate could already read the record, so invite cannot be distinguished from a leak",
+			)
+		}
+
+		const invited = await ctx.client.request(inviteOp.method, fillPath(inviteOp.path, resource), {
+			body: { [spec.granteeField]: delegate.inviteAs },
+			headers: { ...owner.headers(), "content-type": "application/json" },
+		})
+		if (invited.status >= 300) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				`invite returned ${invited.status}, so accept/revoke were never exercised`,
+			)
+		}
+		if (await canRead()) {
+			ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"an invite grants access before it is accepted",
+				`inviting ${delegate.id} made ${ctx.entityName} ${id} readable immediately. The accept ` +
+					"step is then theatre — anyone who can be named in an invite body is already in.",
+				[invited],
+			)
+			return
+		}
+
+		const token = pointerValue(invited.responseBody, spec.tokenPointer)
+		const grantId = pointerValue(invited.responseBody, spec.grantPointer)
+		if (token === undefined) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				`invite response has no token at ${spec.tokenPointer}`,
+			)
+		}
+
+		const accepted = await ctx.client.request(
+			acceptOp.method,
+			fillPath(acceptOp.path, { token }),
+			{ headers: delegate.headers() },
+		)
+		if (accepted.status >= 300) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				`accept returned ${accepted.status}`,
+			)
+		}
+		if (!(await canRead())) {
+			ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"accepting an invite does not grant access",
+				`${delegate.id} accepted an invite to ${ctx.entityName} ${id} and still cannot read it. ` +
+					"The invite flow completed; the grant did not.",
+				[invited, accepted],
+			)
+			return
+		}
+
+		if (grantId === undefined) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				`invite response has no grant id at ${spec.grantPointer}, so revoke cannot be expressed`,
+			)
+		}
+		const revoked = await ctx.client.request(
+			revokeOp.method,
+			fillPath(revokeOp.path, { ...resource, grant_id: grantId }),
+			{ headers: owner.headers() },
+		)
+		if (revoked.status >= 300) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				`revoke returned ${revoked.status}`,
+			)
+		}
+		if (await canRead()) {
+			ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"revoking an invite does not remove access",
+				`${delegate.id} can still read ${ctx.entityName} ${id} after the grant was revoked. ` +
+					"A share that cannot be taken back is a standing leak.",
+				[invited, accepted, revoked],
+			)
+		}
 	},
 }
 
@@ -3052,6 +4393,8 @@ export const CHECKS: readonly Check[] = [
 	equalityFilterSelectsOne,
 	zeroMatchFilter,
 	negationPartitions,
+	filterAndComposesAsIntersection,
+	filterOrComposesAsUnion,
 	likeEscaping,
 	sortReverseSymmetry,
 	searchNarrowsResult,
@@ -3068,7 +4411,14 @@ export const CHECKS: readonly Check[] = [
 	projectionsAgree,
 	queryAxesCompose,
 	filterAndPagingCompose,
+	filterAndSelectCompose,
+	searchAndFilterCompose,
+	filterSortSelectCompose,
+	filterSearchSortCompose,
+	filterSearchSelectCompose,
 	declaredFilterableWorks,
+	declaredSortableWorks,
+	declaredSelectableWorks,
 	noLostUpdate,
 	deleteMissingIs404,
 	softDeleteHidden,
@@ -3083,6 +4433,8 @@ export const CHECKS: readonly Check[] = [
 	crossTenantItemRead,
 	denialDoesNotRevealExistence,
 	crossTenantFilterBypass,
+	rankIsMonotonic,
+	inviteGrantsThenRevokes,
 
 	/* declared side effects and async lifecycles, last: both invoke operations that change the
 	 * world, and both are meaningless if the read surface above is already known broken */

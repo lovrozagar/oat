@@ -1,0 +1,14 @@
+{
+  "name": "oat-lab",
+  "private": true,
+  "type": "module",
+  "description": "Controllable Hono API for iterating oat against a real store (local SQLite or Cloudflare D1)",
+  "scripts": {
+    "start": "node --experimental-sqlite --experimental-strip-types index.ts",
+    "provision": "node provision.mjs"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.0",
+    "hono": "^4.9.0"
+  }
+}

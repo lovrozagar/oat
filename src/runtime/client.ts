@@ -37,6 +37,7 @@ export class Client {
 		 * nothing and risks tripping rate limits that then look like backend defects.
 		 */
 		private readonly maxInFlight = 4,
+		private readonly onExchange?: (exchange: Exchange) => void,
 	) {}
 
 	/** Admission control. Held for the duration of one request, released in a finally. */
@@ -98,6 +99,7 @@ export class Client {
 			url: url.toString(),
 		}
 		this.transcript.push(exchange)
+		this.onExchange?.(exchange)
 		return exchange
 	}
 
