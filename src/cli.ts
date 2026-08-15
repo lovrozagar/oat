@@ -87,10 +87,11 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	const config = interpolate(await loadConfig(configPath))
 	const baseUrl = str(flags, "base-url") ?? config.baseUrl
 	const seedFlag = str(flags, "seed")
-	const only = str(flags, "only")
+	const onlyFromFlag = str(flags, "only")
 		?.split(",")
 		.map((s) => s.trim())
 		.filter(Boolean)
+	const only = onlyFromFlag ?? config.only?.filter((name) => name.trim() !== "")
 
 	/* No cast: the config's principal type *is* the runtime's, so a mistake here is a compile
 	 * error in the user's own config rather than a surprise mid-run. */
@@ -149,10 +150,10 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 			...(config.hooks === undefined ? {} : { hooks: config.hooks }),
 			...(config.roots === undefined ? {} : { roots: config.roots }),
 			...(config.cohortSize === undefined ? {} : { cohortSize: config.cohortSize }),
-			...(only === undefined ? {} : { only }),
-			...(flags["keep-fixtures"] === true ? { keepFixtures: true } : {}),
+			...(only === undefined || only.length === 0 ? {} : { only }),
+			keepFixtures: flags["keep-fixtures"] === true || config.keepFixtures === true,
 			concurrency: Number.parseInt(str(flags, "concurrency") ?? "", 10) || config.concurrency || 1,
-			maxInFlight: Number.parseInt(str(flags, "max-in-flight") ?? "", 10) || 4,
+			maxInFlight: Number.parseInt(str(flags, "max-in-flight") ?? "", 10) || config.maxInFlight || 4,
 			seed: seedFlag === undefined ? (config.seed ?? 1) : Number.parseInt(seedFlag, 10),
 			onProgress,
 		})

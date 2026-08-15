@@ -10,18 +10,42 @@ Schema validators answer _did this response match its declared shape?_ Most real
 - `PATCH { name }` also cleared `instruction`
 - `?filter=id.eq.<another tenant's id>` returns the row
 
-oat asserts the same fact through every projection the API offers, then compares those projections against each other.
+oat asserts the same fact through every projection the API offers, then compares those projections against each other. It does not read your source, assume your framework, or hardcode a route.
+
+This file is the whole operator manual. An agent that has read it can install oat, write every kind of config, run every command, tag a document, interpret every outcome, and know what each check needs and asserts. You do not need any other file to use oat against your own API.
 
 ## Table of contents
 
 - [Install](#install)
+- [How a run works](#how-a-run-works)
 - [Quick start](#quick-start)
+- [Complete configs](#complete-configs)
 - [Commands](#commands)
+  - [oat run](#oat-run)
+  - [oat doctor](#oat-doctor)
+  - [oat plan](#oat-plan)
+  - [oat serve](#oat-serve)
+  - [oat conformance](#oat-conformance)
 - [Configuration](#configuration)
+  - [Top-level fields](#top-level-fields)
+  - [Principals](#principals)
+  - [Auth flows](#auth-flows)
+  - [Hooks](#hooks)
+  - [Environment interpolation](#environment-interpolation)
+  - [Loading TypeScript configs](#loading-typescript-configs)
+- [How the model is derived](#how-the-model-is-derived)
+- [Seeding](#seeding)
+- [Query roles and grammars](#query-roles-and-grammars)
+- [Pagination and envelopes](#pagination-and-envelopes)
 - [OpenAPI meta tags](#openapi-meta-tags)
-- [What gets tested](#what-gets-tested)
+- [Checks](#checks)
+- [Verdicts, skips, and exit codes](#verdicts-skips-and-exit-codes)
 - [Reports](#reports)
-- [Conformance](#conformance)
+- [Progress logs](#progress-logs)
+- [Programmatic API](#programmatic-api)
+- [CI](#ci)
+- [Reference defects (`oat serve --defects`)](#reference-defects-oat-serve---defects)
+- [Limits and non-features](#limits-and-non-features)
 - [What this is not](#what-this-is-not)
 - [Labs](#labs)
 - [License](#license)
@@ -32,34 +56,56 @@ oat asserts the same fact through every projection the API offers, then compares
 npm i -D @lovrozagar/oat
 ```
 
-Requires Node.js 20 or later.
+Requires **Node.js 20+**. The published CLI is compiled JavaScript; `npx oat` / `./node_modules/.bin/oat` is the entry.
+
+The unscoped name `oat` on npm is a different project. Always install `@lovrozagar/oat`. The binary on PATH is still `oat`.
+
+SQLite conformance (`npm test`, `oat conformance` with the sqlite backend) needs `node --experimental-sqlite` on Node 22. The published `oat` binary does not pass that flag for you; `npm test` in this repo does.
+
+```bash
+oat help          # same as oat --help
+oat --help
+```
+
+Unknown commands and missing required flags exit `2`.
+
+## How a run works
+
+1. **Load** the OpenAPI document (URL or path). Internal `$ref`s are inlined. External `$ref`s are reported, never fetched.
+2. **Model** entities by inverting `x-invalidate` (or path heuristics) into a read surface per entity.
+3. **Authenticate** every configured principal (static headers and/or an auth flow). Credentials refresh themselves before they expire.
+4. **Seed** a cohort of records per entity, in parent-before-child order, using each entity's create operation.
+5. **Test** every applicable check, one entity at a time. Checks inside an entity stay ordered. Entities may run in parallel (`concurrency`).
+6. **Teardown** everything the run created, unless `--keep-fixtures` / `keepFixtures: true`.
+
+The first principal is the writer. Isolation needs a second principal with different `roots`. A rank lattice needs two or more principals that share `roots` and differ in `rank`. Invite checks need `x-invite` plus a peer with `inviteAs`.
+
+oat never needs ground truth about your data. A filter and its negation must partition the set; a page walk must cover the collection; a record read four ways must read the same.
+
+oat does **not** use OpenAPI `security` / `securitySchemes`, `servers[]`, cookies, webhooks, callbacks, or `links`. Auth is the config. The origin is `baseUrl`. Request bodies it sends are JSON.
 
 ## Quick start
 
-oat ships a demo API — the same reference backend its self-test uses — so you can try it before pointing it at anything real:
+The package ships a demo API (the same reference backend the self-test uses):
 
 ```bash
-# terminal 1
+# terminal 1 — prints a url, spec, and demo keys
 oat serve --defects STALE_LIST,PATCH_REPLACES
 
 # terminal 2
-oat run --config labs/local.config.ts --base-url <url printed above>
+oat run --config node_modules/@lovrozagar/oat/labs/local.config.ts --base-url <url from serve>
 ```
 
-```
-  25 checks · 3 entities · 164 requests · 0.2s
+Inside this repository (after `npm run build`):
 
-  BACKEND DEFECTS (5)
-    table            list projection does not reflect a completed write
-    table            PATCH changed fields the request did not mention
-
-  cleaned up 22/22 created record(s)
-  report: oat-out/oat-report.md
+```bash
+oat serve --defects STALE_LIST,PATCH_REPLACES
+oat run --config labs/local.config.ts --base-url <url>
 ```
 
-`oat-out/` holds a markdown report, a JSON copy for CI, and one runnable `curl` script per finding (`issue-repro/`). Drop `--defects` and a correct backend reports nothing across 55 checks.
+`oat serve` with no `--defects` is a correct backend. The suite should report nothing.
 
-Against your own API:
+Against your API:
 
 ```bash
 oat doctor --spec https://api.example.com/openapi.json
@@ -67,92 +113,721 @@ oat plan   --spec https://api.example.com/openapi.json
 oat run    --config oat.config.ts
 ```
 
-`doctor` is the adoption command. It runs offline against the spec alone and reports every coverage gap, naming the meta tag that would close it.
+`doctor` is the adoption command. It runs offline against the spec alone and reports every coverage gap, naming the tag that would close it.
 
-## Commands
+## Complete configs
 
-```
-oat run     --config <file>     test a live backend and write a report
-oat plan    --spec <url|file>   derive and print the test model (offline)
-oat doctor  --spec <url|file>   report what oat can and cannot test, and why
-oat serve   [--defects A,B]     run the demo API
-oat conformance                 self-test: injected defects vs detection
-```
+These are copy-paste starting points. Real configs import `defineConfig` from `@lovrozagar/oat`. Files inside this repository import from `../dist/index.js` because they live in the source tree.
 
-Useful flags:
-
-| flag              |                                                                         |
-| ----------------- | ----------------------------------------------------------------------- |
-| `--config`        | config module (`.ts` / `.js` / `.mjs` / `.json`) with a default export  |
-| `--spec`          | OpenAPI document, URL or path                                           |
-| `--base-url`      | backend under test, overrides the config                                |
-| `--only`          | comma-separated entity names                                            |
-| `--out`           | report directory (default `./oat-out`)                                  |
-| `--concurrency`   | entities tested in parallel (default 1)                                 |
-| `--quiet`         | no live progress on stderr (`progress.log` is still written)            |
-| `--keep-fixtures` | leave created records in place                                          |
-| `--backend`       | conformance storage: `memory` \| `sqlite` \| `postgres` \| `d1`         |
-| `--dialect`       | API shape: `postgrest` \| `classic` \| `linked` \| `jsonapi` \| `plain` |
-| `--fuzz`          | inject random defect combinations                                       |
-| `--precision`     | vary cohort data against a correct backend                              |
-
-## Configuration
-
-Two inputs, always: the spec, and a config file. oat never reads your source, assumes your framework, or hardcodes a route. Backend-specific knowledge lives in one of two places:
-
-- **`x-*` tags in the spec** — optional; each degrades to a heuristic and reports the degradation rather than guessing silently. A complete worked document is [`labs/annotated-openapi.yaml`](./labs/annotated-openapi.yaml).
-- **`oat.config.ts`** — auth, roots, and the one hook oat cannot infer: values delivered outside HTTP (verification tokens, OTPs).
-
-A backend adopts oat by adding tags, not by adapting to oat.
-
-Smallest useful config — a long-lived API key and two tenants, so isolation checks can run:
+### Static API keys, two tenants (smallest useful)
 
 ```ts
+// oat.config.ts
 import { defineConfig } from "@lovrozagar/oat"
 
 export default defineConfig({
-	baseUrl: "https://api.example.com",
 	spec: "https://api.example.com/openapi.json",
+	baseUrl: "https://api.example.com",
 	principals: [
 		{
 			id: "alpha",
-			headers: { authorization: `Bearer ${process.env.API_TOKEN}` },
-			roots: { project_id: process.env.PROJECT_A },
+			headers: { authorization: "Bearer ${API_TOKEN}" },
+			roots: { project_id: "${PROJECT_A}" },
 		},
 		{
 			id: "beta",
-			headers: { authorization: `Bearer ${process.env.API_TOKEN_B}` },
-			roots: { project_id: process.env.PROJECT_B },
+			headers: { authorization: "Bearer ${API_TOKEN_B}" },
+			roots: { project_id: "${PROJECT_B}" },
 		},
 	],
 })
 ```
 
-Multi-step login is a chain of operations. Values flow forward through `saveAs`; the credential is taken from the last response:
+```bash
+export API_TOKEN=… API_TOKEN_B=… PROJECT_A=proj_a PROJECT_B=proj_b
+oat run --config oat.config.ts
+```
 
-```ts
+One principal is enough to seed and run CRUD / query / schema checks. The second principal, with different `roots`, is what makes `tenant.*` run. Without it those checks are **did not apply**, not a pass.
+
+Shipped as `labs/minimal.config.ts` (and in the npm package).
+
+### JSON config
+
+Same object. `${NAME}` is interpolated after load. There is no `defineConfig` wrapper.
+
+```json
 {
-  id: "alpha",
-  auth: {
-    credentialFrom: "$.access_token",
-    steps: [{ operationId: "auth.token", body: { key: process.env.API_KEY } }],
-  },
-  roots: { org_id: "org_alpha" },
+  "spec": "https://api.example.com/openapi.json",
+  "baseUrl": "https://api.example.com",
+  "principals": [
+    {
+      "id": "alpha",
+      "headers": { "authorization": "Bearer ${API_TOKEN}" },
+      "roots": { "project_id": "${PROJECT_A}" }
+    }
+  ],
+  "seed": 42,
+  "cohortSize": 7,
+  "concurrency": 1,
+  "outDir": "./oat-out"
 }
 ```
 
-`resolveOutOfBand` on the config is the hook for emailed tokens and OTPs. Credentials refresh from JWT `exp` before they expire. See [`labs/minimal.config.ts`](./labs/minimal.config.ts) and [`labs/anyrow.config.ts`](./labs/anyrow.config.ts).
+```bash
+oat run --config oat.config.json
+```
+
+### Demo server (operation-id login)
+
+Shipped as `labs/local.config.ts`. Points at `oat serve`.
+
+```ts
+import { defineConfig } from "@lovrozagar/oat"
+
+export default defineConfig({
+	spec: "/v1/openapi/spec",
+	baseUrl: "http://127.0.0.1:8787",
+	seed: 42,
+	principals: [
+		{
+			id: "alpha",
+			roots: { project_id: "proj_alpha" },
+			auth: {
+				credentialFrom: "$.access_token",
+				steps: [{ operationId: "auth.token", body: { key: "key_alpha" } }],
+			},
+		},
+		{
+			id: "beta",
+			roots: { project_id: "proj_beta" },
+			auth: {
+				credentialFrom: "$.access_token",
+				steps: [{ operationId: "auth.token", body: { key: "key_beta" } }],
+			},
+		},
+	],
+})
+```
+
+`spec: "/v1/openapi/spec"` is resolved against `baseUrl`. `--base-url` on the CLI overrides the origin without editing the file.
+
+### Two tenants plus a same-tenant rank lattice
+
+See [Principals](#principals). Isolation keys off `roots`. Rank keys off `rank` with shared `roots`.
+
+## Commands
+
+```
+oat run          --config <file>     test a live backend and write a report
+oat doctor       --spec <url|file>   what oat can and cannot test, and why
+oat plan         --spec <url|file>   print the derived model (offline)
+oat serve        [--defects A,B]     run the demo API
+oat conformance                      self-test: injected defects vs detection
+oat help
+```
+
+`--spec` for `doctor` / `plan` can be replaced by `--config` (the spec is read from the config). `--json` makes those two commands emit machine-readable output. `--base-url` on `doctor` / `plan` is only used to resolve a relative spec path.
+
+`--untagged` is a **serve** flag (and a conformance concern). It is not a `run` flag.
+
+### `oat run`
+
+Requires `--config`. CLI flags override the same field in the config when both are set.
+
+| flag              | default                           | meaning                                                                                                                                      |
+| ----------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--config`        | required                          | module or JSON file, default export                                                                                                          |
+| `--base-url`      | `config.baseUrl`                  | backend origin                                                                                                                               |
+| `--only`          | `config.only` or all entities     | comma-separated entity names as `oat plan` prints them (singularised)                                                                        |
+| `--seed`          | `config.seed` or `1`              | fixture generation seed (reproducible)                                                                                                       |
+| `--out`           | `config.outDir` or `./oat-out`    | report directory                                                                                                                             |
+| `--concurrency`   | `config.concurrency` or `1`       | entities in parallel. Use `1` on nested graphs; higher values insert children while a parent page-walk is running and invent pagination bugs |
+| `--max-in-flight` | `config.maxInFlight` or `4`       | HTTP requests allowed at once                                                                                                                |
+| `--keep-fixtures` | `config.keepFixtures` or false    | do not DELETE what the run created                                                                                                           |
+| `--quiet`         | false                             | no stderr progress; files under `--out` still update                                                                                         |
+
+**Exit codes:** `0` no defects, `1` at least one root-cause finding (`BACKEND_BUG`, `SPEC_BUG`, `SECURITY`, `AMBIGUITY`), `2` usage error (missing `--config`, no principals). `COVERAGE_GAP` and `BLOCKED` do not fail the process.
+
+Example:
+
+```bash
+oat run --config oat.config.ts --only store,product --concurrency 1 --out oat-out/prod
+```
+
+`--only store,product` matches the **entity names** from `oat plan`, not path segments. `/v1/stores` is usually the entity `store`. If a name is unknown, that entity is simply not tested (the others still run).
+
+A run with no principals exits `2`. Isolation checks then need a second principal; they are skipped, not failed, when only one is present.
+
+### `oat doctor`
+
+Offline. Loads the document, builds the model, prints coverage.
+
+```bash
+oat doctor --spec https://api.example.com/openapi.json
+oat doctor --config oat.config.ts --json
+oat doctor --spec ./openapi.yaml --base-url https://api.example.com
+```
+
+Human output:
+
+- `trackable` — entities with an identity and a read surface
+- `listable` — those that also have a list (query checks need this)
+- tags that are absent, and the checks each tag would unlock
+- tags that would **sharpen** checks that already run (`x-query`, `x-tenant`)
+- per-operation gaps (`x-entity` could not be inferred, assumed tenant param, …)
+- external `$ref`s that were not fetched
+
+`--json` shape:
+
+```json
+{
+  "blocking": 1,
+  "entities": 12,
+  "trackableEntities": 10,
+  "testableEntities": 10,
+  "listableEntities": 8,
+  "roots": ["organization_id"],
+  "externalRefs": ["https://example.com/shared.yaml"],
+  "gaps": [{ "operationId": "table.list", "tag": "x-query", "detail": "…" }]
+}
+```
+
+Exit `1` if there are **blocking** gaps: entities that are not trackable (no identity / no read), or the document has roots oat cannot create. Advisory gaps (missing `x-query`, no `x-async`) print and still exit `0`.
+
+### `oat plan`
+
+Offline. Prints the derived entity graph, operations, and query capability.
+
+```bash
+oat plan --spec ./openapi.yaml
+oat plan --config oat.config.ts --json
+```
+
+Human columns:
+
+```
+entity              CLRUD  ident      read surface
+store               CLRU·  id         2 route(s) (inferred)
+                                      GET /v1/stores
+                                      GET /v1/stores/{store_id}
+```
+
+`CLRUD` is Create / List / Read / Update / Delete. `·` means that slot is missing. `ident` is the identity property. Read surface is declared (`x-invalidate`) or inferred (sibling collection/item routes).
+
+`--json` is `{ entities, operations, roots }` — the full `SpecModel` maps, including conventions, query capability, async, invite, and path params. Use this when you need to know what oat will call something.
+
+### `oat serve`
+
+In-process demo API. Same fixture as conformance.
+
+```bash
+oat serve
+oat serve --defects STALE_LIST,PATCH_REPLACES
+oat serve --backend sqlite --dialect classic
+oat serve --untagged
+```
+
+| flag         | default     | meaning                                                                                |
+| ------------ | ----------- | -------------------------------------------------------------------------------------- |
+| `--backend`  | `memory`    | `memory` \| `sqlite` \| `postgres`                                                     |
+| `--dialect`  | `postgrest` | `postgrest` \| `classic` \| `linked` \| `jsonapi` \| `plain`                           |
+| `--defects`  | none        | comma-separated names from [Reference defects](#reference-defects-oat-serve---defects) |
+| `--untagged` | false       | serve the same API behind a spec with every `x-*` tag stripped                         |
+
+Printed keys: `key_alpha` (tenant `proj_alpha`), `key_beta` (tenant `proj_beta`). Spec: `{url}/v1/openapi/spec`. Stop with ctrl-c.
+
+`labs/local.config.ts` is written for this server.
+
+Dialects are **reference-backend shapes**, not something you configure against your API. They exist so conformance proves checks read the document rather than one fixture's spelling:
+
+| dialect    | filter                          | sort        | select              | page model              | envelope                          |
+| ---------- | ------------------------------- | ----------- | ------------------- | ----------------------- | --------------------------------- |
+| `postgrest`| `filter=status.eq.active`       | `name.asc`  | `select=id,name`    | `page` + `cursor`       | entity-named + `count`/`hasMore`  |
+| `classic`  | `filter=status=eq:active`       | `sort=`     | `fields=`           | `page` + `per_page`     | `{ data, total_count, has_more }` |
+| `linked`   | postgrest                       | dotted      | `fields=`           | `offset` + `limit`      | raw array + `Link: rel=next`      |
+| `jsonapi`  | postgrest                       | `-name`     | `fields[table]=`    | `page` + `size`         | `{ data, total, has_more }`       |
+| `plain`    | `?status=active` (equality)     | `name:asc`  | `fields=`           | `page` + `limit`        | `{ items, total, has_more }`      |
+
+`postgres` needs a server on the default `postgres` database (local, default `postgres` driver connection). `sqlite` needs Node's `node:sqlite` (`--experimental-sqlite` on Node 22). Missing backends fail at serve time rather than falling back.
+
+### `oat conformance`
+
+Self-test. Not for your API. Injects named defects into the reference backend and asserts oat reports the matching check.
+
+```bash
+# this repo
+npm test
+
+# after install, from a checkout with --experimental-sqlite if you want sqlite
+oat conformance
+oat conformance --backend memory --dialect plain
+oat conformance --fuzz 300 --max-defects 12 --seed 7
+oat conformance --precision 60 --backend memory
+oat conformance --parser
+oat conformance --backend d1
+oat conformance --only STALE_LIST,PATCH_REPLACES
+```
+
+| flag              | meaning                                                                                                                            |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `--backend`       | `memory` \| `sqlite` \| `postgres` \| `d1`. Default: every _local_ backend that is available. `d1` is never default — it is remote |
+| `--dialect`       | pin one shape; default runs postgrest on each backend plus classic/linked/jsonapi/plain on memory                                  |
+| `--fuzz [n]`      | random _sets_ of defects (default 25 if flag is bare)                                                                              |
+| `--max-defects`   | cap per fuzz combination (default 4)                                                                                               |
+| `--precision [n]` | vary _data_ against a correct backend; any finding is a false positive (default 50 if flag is bare)                                |
+| `--seed`          | replay a fuzz/precision run                                                                                                        |
+| `--parser`        | only the hostile-document + example-spec + tag-unlock suites                                                                       |
+| `--only`          | restrict injected defects (comma-separated `STALE_LIST,…`)                                                                         |
+
+A default `oat conformance` (no `--fuzz` / `--precision` / `--parser`) also runs a 40-case combination smoke on memory after the one-at-a-time matrix.
+
+D1 needs `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_D1_DATABASE_ID`, `CLOUDFLARE_API_TOKEN`. Postgres needs a reachable server on the default connection (`database: "postgres"`). Missing backends are skipped with a printed reason, not treated as a pass.
+
+`--parser` still always runs first (hostile documents, `labs/annotated-openapi.yaml` model lock, tag-unlock map). Exit `1` if any parser, matrix, fuzz, or precision case fails.
+
+## Configuration
+
+Two inputs, always: **the spec** and **a config file**. Backend-specific knowledge lives in `x-*` tags and this file. A backend adopts oat by adding tags, not by adapting to oat.
+
+A config is:
+
+- `.ts` / `.js` / `.mjs` with `export default defineConfig({ ... })`, or
+- `.json` with the same object.
+
+Named export without `default` is also accepted (`module.default ?? module`).
+
+### Top-level fields
+
+```ts
+import { defineConfig } from "@lovrozagar/oat"
+
+export default defineConfig({
+	spec: "https://api.example.com/openapi.json", // URL or filesystem path; JSON or YAML
+	baseUrl: "https://api.example.com",
+	principals: [/* at least one; see below */],
+	hooks: {/* optional */},
+	globalHeaders: { "x-request-id": "oat" }, // sent on every request; oat does not inspect them
+	roots: { org_id: "org_shared" }, // path params oat cannot create; also declarable via x-root
+	seed: 42, // fixture generation; a failing run with the same seed is identical
+	cohortSize: 12, // records created per entity (default 7)
+	concurrency: 1, // entities in parallel
+	maxInFlight: 4, // HTTP in flight
+	only: ["store", "product"], // restrict entities
+	keepFixtures: false,
+	outDir: "./oat-out",
+})
+```
+
+| field           | required | default        | notes                                                                 |
+| --------------- | -------- | -------------- | --------------------------------------------------------------------- |
+| `spec`          | yes      |                | See [Spec loading](#spec-loading)                                     |
+| `baseUrl`       | yes      |                | Origin. OpenAPI `servers[]` is ignored                                |
+| `principals`    | yes      |                | Non-empty. First is the writer                                        |
+| `hooks`         | no       |                | `resolveOutOfBand`, `teardownPrincipal`                               |
+| `globalHeaders` | no       | `{}`           | Merged under per-request headers. Opaque to oat                       |
+| `roots`         | no       | `{}`           | Shared path params (merged with each principal's `roots`)             |
+| `seed`          | no       | `1`            | Integer. Same seed → same fixture bodies                              |
+| `cohortSize`    | no       | `7`            | Sliced from the 7 built-in variants. Larger repeats the pattern       |
+| `concurrency`   | no       | `1`            | Entity-level only. Checks inside one entity stay ordered              |
+| `maxInFlight`   | no       | `4`            | Across the whole run                                                  |
+| `only`          | no       | all            | Entity names from `oat plan`                                          |
+| `keepFixtures`  | no       | `false`        | Skip DELETE at the end                                                |
+| `outDir`        | no       | `./oat-out`    | Created if missing                                                    |
+
+`spec` may be a path relative to `baseUrl` (`/v1/openapi/spec`) or an absolute URL or a file.
+
+CLI `--base-url`, `--only`, `--seed`, `--out`, `--concurrency`, `--max-in-flight`, `--keep-fixtures` override these when passed.
+
+### Spec loading
+
+Resolved in this order, never by guessing the string's "look":
+
+1. Absolute `http(s)://` or `file://` — used as given.
+2. A path that exists on disk, relative to the working directory.
+3. Anything else, when `baseUrl` is known — resolved against it (`/v1/openapi/spec`, `openapi.json`).
+
+JSON if the first non-space character is `{` or `[`, otherwise YAML. Empty files error. A JSON document with more opening than closing brackets is diagnosed as truncated (proxy / download limit), not as a syntax error.
+
+OpenAPI 3.0 and 3.1 both work. oat reads `paths`, operations, parameters, request/response JSON schemas, and `x-*` extensions. It does not require a particular `openapi:` version string.
+
+Internal `$ref`s are dereferenced. External `$ref`s stay unresolved and show up in `oat doctor` / the JSON `externalRefs` list.
+
+### Principals
+
+```ts
+{
+  id: "alpha",                          // required, stable name in reports
+  headers: { authorization: "Bearer …" }, // static; enough for a long-lived key
+  auth: { /* AuthFlow — see below */ },
+  roots: { org_id: "org_alpha" },       // this principal's tenant / path params
+  rootsFromFlow: { org_id: "orgId" },   // take path params from values the auth flow bound
+  role: "owner",                        // free-form label in reports
+  rank: 2,                              // higher can do everything a lower rank can; default 0
+  inviteAs: "key_beta",                 // how an owner names this principal in an invite body
+}
+```
+
+Rules that matter:
+
+- **Isolation** (`tenant.*`) needs two principals whose `roots` differ.
+- **Rank** (`auth.rank-is-monotonic`) needs two principals with the _same_ `roots` and different `rank`.
+- **Invite** (`auth.invite-grants-then-revokes`) needs `x-invite` on the spec and a _different-tenant_ principal with `inviteAs` set.
+- Extra principals are not ignored. Isolation picks the first different-`roots` peer. Rank uses the same-tenant pair.
+- `headers` and `auth` compose: static headers are sent, then the flow's credential header is merged on top.
+- A principal with only `headers` (no `auth`) never hits a login route.
+
+Example — two tenants plus a same-tenant lattice:
+
+```ts
+principals: [
+	{
+		id: "alpha",
+		role: "owner",
+		rank: 2,
+		auth: {
+			credentialFrom: "$.access_token",
+			steps: [{ operationId: "auth.token", body: { key: "key_alpha" } }],
+		},
+		roots: { org_id: "org_alpha" },
+	},
+	{
+		id: "alpha_member",
+		role: "member",
+		rank: 1,
+		auth: {
+			credentialFrom: "$.access_token",
+			steps: [{ operationId: "auth.token", body: { key: "key_alpha_member" } }],
+		},
+		roots: { org_id: "org_alpha" },
+	},
+	{
+		id: "beta",
+		role: "owner",
+		rank: 2,
+		inviteAs: "key_beta",
+		auth: {
+			credentialFrom: "$.access_token",
+			steps: [{ operationId: "auth.token", body: { key: "key_beta" } }],
+		},
+		roots: { org_id: "org_beta" },
+	},
+]
+```
+
+### Auth flows
+
+```ts
+auth: {
+  steps: [ /* at least one */ ],
+  credentialFrom: "$.access_token", // JSON path in the last (or saved) response
+  expiresInFrom: "$.expires_in",    // lifetime in seconds
+  header: "authorization",          // default
+  template: "Bearer {credential}",  // default
+  assumeTtlMs: 3600000,             // used only if neither expiresInFrom nor JWT exp is present
+}
+```
+
+Expiry is `expiresInFrom` (seconds) → JWT `exp` claim → `assumeTtlMs`. Refresh happens before dispatch, at roughly three quarters of the assumed window (`assumeTtlMs` default 300000 ms when used as the window), never by retrying a 401.
+
+Each step is one of:
+
+**Operation step** (prefer this — survives the path moving):
+
+```ts
+{
+  operationId: "auth.token",
+  body: { key: "${API_KEY}" },
+  headers: { "x-extra": "1" },
+  query: { realm: "test" },
+  saveAs: { token: "$.access_token" },
+  saveClaimsFrom: { token: "$.access_token", bind: { orgId: "orgs.0.oid" } },
+  bind: { address: "user@example.test" }, // literals, with {name} interpolation
+  expect: [200],                            // default: any 2xx
+}
+```
+
+**Request step** (when the document has no auth operations):
+
+```ts
+{
+  method: "POST",
+  path: "/v1/auth/register/email",
+  body: { email: "{address}", password: "…" },
+  bind: { address: "oat-alpha@example.test" },
+}
+```
+
+**Out-of-band step** (email link, OTP — oat cannot collect this itself):
+
+```ts
+{ outOfBand: { address: "{address}", kind: "email-verify", as: "verifyToken" } }
+```
+
+Later steps interpolate `{name}` from the flow scope. `saveAs` paths are `$.foo.bar` / `$.orgs.0.id` (dot + numeric index only; no JSON Pointer, no filters). `saveClaimsFrom` reads a JWT's _claims_ (signature is not verified — oat is reading its own credential). `rootsFromFlow` maps path parameter names to those bound keys.
+
+`bind` on a step runs **before** the request. `saveAs` / `saveClaimsFrom` run **after**. `credentialFrom` is read from the last HTTP response unless a step already saved `credential`.
+
+If a step's status is not acceptable, auth fails the run (not a finding): `oat: principal "alpha" failed at auth step 2 (POST /v1/…)`.
+
+A complete register → verify → use-claims example:
+
+```ts
+function signUp(email: string): AuthFlow {
+	return {
+		credentialFrom: "$.access_token",
+		expiresInFrom: "$.access_token_expires_in",
+		steps: [
+			{
+				bind: { address: email },
+				body: { email, password: "…" },
+				method: "POST",
+				path: "/v1/auth/register/email",
+			},
+			{ outOfBand: { address: email, as: "verifyToken", kind: "email-verify" } },
+			{
+				body: { token: "{verifyToken}" },
+				method: "POST",
+				path: "/v1/auth/email/verify",
+				saveClaimsFrom: {
+					token: "$.access_token",
+					bind: { orgId: "orgs.0.oid", projectId: "orgs.0.pids.0" },
+				},
+			},
+		],
+	}
+}
+
+principals: [
+	{
+		id: "alpha",
+		auth: signUp("oat-alpha@example.test"),
+		rootsFromFlow: { organization_id: "orgId", project_id: "projectId" },
+	},
+]
+```
+
+The address used for `teardownPrincipal` is `scope.address` or `scope.email` (set via `bind: { address }` or `bind: { email }`).
+
+### Hooks
+
+```ts
+hooks: {
+  // Return null to retry (attempt is 1-based). oat backs off until a value arrives.
+  resolveOutOfBand: async ({ address, kind, attempt }) => {
+    const token = await readMailCatcher(address, kind)
+    return token // or null
+  },
+  // Remove a principal this run provisioned (and everything it created).
+  teardownPrincipal: async (address) => {
+    await fetch(`https://api.example.com/test/cleanup?email=${address}`, { method: "DELETE" })
+  },
+}
+```
+
+Without `resolveOutOfBand`, an `outOfBand` step cannot complete. oat polls the hook up to **6** times: 200 ms, then doubling, capped at 3000 ms. Returning `""` is treated like `null`.
+
+Without `teardownPrincipal`, provisioned accounts are reported as leftover rather than cascade-deleted. Per-record DELETE still runs for seeded rows when a delete (or `x-cleanup`) exists.
+
+### Environment interpolation
+
+After the module loads, every string in the config is scanned for `${NAME}`:
+
+```ts
+headers: {
+	authorization: "Bearer ${API_TOKEN}"
+}
+```
+
+If `API_TOKEN` is unset, oat exits with an error. Do not commit secrets; put them in the environment.
+
+Template literals in a `.ts` config (`Bearer ${process.env.API_TOKEN}`) are evaluated by Node _before_ oat sees the object. Either style works; `${NAME}` is what a `.json` config can use.
+
+Names match `[A-Z0-9_]+` case-insensitively.
+
+### Loading TypeScript configs
+
+`.js` / `.mjs` / `.json` load everywhere.
+
+`.ts` configs require a runtime that can import TypeScript: Node 22.6+ with `--experimental-strip-types`, or Node 23+. The published `oat` binary is itself JS; it still has to `import()` your config. If that fails, the error says so. Workaround: compile the config, or write `.mjs`.
+
+```bash
+node --experimental-strip-types ./node_modules/@lovrozagar/oat/dist/cli.js run --config oat.config.ts
+```
+
+## How the model is derived
+
+`oat plan` is this model. Checks never see raw paths; they see entities, actions, and query **roles**.
+
+### Entity name and action
+
+**Explicit:** `x-entity: { name, action, identity? }` on the operation.
+
+**Heuristic** (when the tag is absent):
+
+1. Split the path on `/`. Ignore `{param}` segments.
+2. The last non-parameter segment is the noun. `v1` / `v2` / `vN` is never a noun.
+3. Singularise that noun (`stores` → `store`, `batches` → `batch`). Irregulars include `people→person`, `categories→category`, `campuses→campus`, `statuses→status`, `children→child`, `companies→company`, `addresses→address`, `indices→index`, `queries→query`, `properties→property`, `entities→entity`, `inboxes→inbox`. Endings `us|ss|is|os|as|ics|ews|ess|ous|sis` are left alone (`status` stays `status`).
+4. If a non-parameter segment follows the noun (`/rows/aggregate`, `/tables/{id}/restore`), action is `action`.
+5. Otherwise: `GET` collection → `list`, `GET` item → `read`, `POST` collection → `create`, `POST` item → `action`, `PUT`/`PATCH` → `update`, `DELETE` → `delete`.
+
+If no noun can be found, the operation is untracked and `doctor` records an `x-entity` gap.
+
+`--only` and report entity names are these singular names.
+
+### Identity
+
+`x-entity.identity` wins. Else the first of `id`, `uuid`, `slug`, `key`, `name` that is **required** on the item schema, else the first of those that exists, else the trailing path-param suffix (`{table_id}` → `id`). Without an identity the entity is not trackable.
+
+### Read surface
+
+The set of `GET` routes through which an instance is visible.
+
+- Declared: every `"METHOD /path"` in any `x-invalidate` that refers to this entity.
+- Inferred: sibling collection and item routes on the same path prefix as a mutator.
+
+`invalidation.declared-route-changes` only runs when a mutator's `x-invalidate` names **another** entity's route.
+
+### Generated / immutable / soft-delete / tenant
+
+See [OpenAPI meta tags](#openapi-meta-tags). Fallbacks:
+
+- `readOnly: true` counts as generated (omitted from create bodies).
+- No immutability testing without `x-immutable`.
+- Tenant param: `x-tenant` or a path param matching `org|organization|tenant|workspace|account|project|app` + optional `_id`/`_slug`. Inferred tenants make a cross-tenant read `AMBIGUITY`, not `SECURITY`.
+
+### Idempotency
+
+No meta tag. If create declares a header matching `Idempotency-Key` / `Idempotence-Key` / `X-Idempotency-Key` (spaces ignored, case-insensitive), `idempotency.replay-does-not-duplicate` runs.
+
+## Seeding
+
+Per entity, oat POSTs the create body built from the request JSON schema.
+
+Default cohort is **7** records, one of each variant, sliced by `cohortSize`:
+
+| variant         | what it is for                                              |
+| --------------- | ----------------------------------------------------------- |
+| `baseline`      | `"Quarterly Report N"`                                      |
+| `lexical-first` | sorts first (`"aaa first alphabetically"`)                  |
+| `lexical-last`  | sorts last (`"zzz last alphabetically"`)                    |
+| `null-heavy`    | `null` on every nullable field                              |
+| `unicode`       | `"日本語 café ñandú"`                                       |
+| `metacharacter` | `"100% _off_ *everything*"` — LIKE / escape probes          |
+| `boundary`      | empty / maxLength / numeric `maximum`                       |
+
+Numbers use the ladder `1, 2, 5, 10, 20, 50, 100` so **lexical order ≠ numeric order** (otherwise a TEXT compare looks correct). Enums walk `index % enum.length`. `readOnly` / `x-generated` fields are omitted. Required fields that cannot be generated get a type fallback (`0`, `false`, `[]`, `{}`, `"value"`). Arrays honour `minItems` (never send `[]` when `minItems ≥ 1`). Nested objects stop at depth 4.
+
+Parent path parameters are created first (depth-first through the owning entity's create). Config / principal `roots` fill parameters oat cannot create.
+
+A create that returns `>= 300` on the first variant fails the entity (downstream checks `BLOCKED`). Later variants that fail just shorten the cohort — a partial cohort is still used.
+
+`--seed` / `seed` makes the bodies identical across runs. It does not make server-assigned ids identical.
+
+Teardown DELETEs created rows (or the `x-cleanup` route) newest-first. Failures and missing delete routes are printed as leftovers, not as check findings. `keepFixtures: true` skips this.
+
+## Query roles and grammars
+
+Checks do not look for a parameter _named_ `filter`. They resolve **roles** from aliases, then write values in the grammar the document demonstrates.
+
+| role              | aliases (normalised: case, `_` / `-`, `perPage` → `per_page`)                       |
+| ----------------- | ----------------------------------------------------------------------------------- |
+| filter            | `filter`, `where`, `query`, `conditions`                                            |
+| order             | `order`, `order_by`, `sort`, `sort_by`, `ordering`                                  |
+| select            | `select`, `fields`, `field`, `include_fields`, `projection`, `only`                 |
+| search            | `q`, `search`, `query_text`, `term`, `keyword`, `text`                              |
+| limit (page size) | `limit`, `per_page`, `page_size`, `pagesize`, `count`, `max_results`, `top`, `size` |
+| page              | `page`, `page_number`, `pagenum`, `p`                                               |
+| offset            | `offset`, `skip`, `start`, `from`                                                   |
+| cursor            | `cursor`, `after`, `starting_after`, `next`, `page_token`, `continuation`           |
+
+A bracketed suffix is a _value_ in the name (`fields[articles]`, `filter[status]`), not part of the role. `count` is a page size only when it looks like one (has `maximum` or a default); otherwise it is treated as a total.
+
+A bounded integer with a default that matches no alias is still taken as page size. A 1-based integer with no maximum is taken as page number.
+
+**Filter grammars** — how oat **writes** a term:
+
+| name        | `eq` / `neq` / `gt` / `like` example                                              | `and` / `or`                         |
+| ----------- | --------------------------------------------------------------------------------- | ------------------------------------ |
+| `postgrest` | `filter=status.eq.active`, `name.neq.x`, `price.gt.10`, `name.like.*foo*`         | `and(a.eq.1,b.eq.2)`, `or(...)`      |
+| `colon`     | `filter=status=eq:active` (comma-joined terms; no grouping)                       | not expressible; those checks skip   |
+| `equality`  | `?status=active` (one query param per field). Only `eq` is expressible            | not expressible                      |
+
+Operators oat can emit: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `like`. Anything else a check needs that the grammar cannot write becomes **did not apply**, not a failed request.
+
+**Sort grammars:** `name.asc` (dotted), `-name` (prefixed / JSON:API; ascending is the bare name), `name:asc` (colon), `name asc` (spaced).
+
+**Select grammars:** `id,name` (csv) or `fields[table]=id,name` (bracketed). If the parameter is already named `fields[articles]`, that name is used verbatim.
+
+### How a grammar is inferred
+
+`x-query.grammar` wins when it is `postgrest` | `colon` | `equality`.
+
+Otherwise oat concatenates the filter/order/select parameter's `example`, `examples`, and `description`:
+
+- Filter: `/postgrest/i` or `field.op.value` / `status.eq.active` → `postgrest`; `status=eq:` → `colon`; else `equality`. A free-text `filter` string that still looks like equality produces an `x-query` gap telling you to declare the grammar.
+- Sort: `name.asc` → dotted; `name:desc` → colon; `name desc` → spaced; leading `-field` → prefixed; else dotted.
+- Select: parameter name or description contains `fields[…]` → bracketed; else csv.
+
+Without `x-query`, if a filter/order/select/search role resolves, oat assumes **every scalar** is filterable/sortable/selectable (`string` / `number` / `integer` / `boolean`, including nullable unions). Searchable-without-tag is further narrowed to names matching `name|title|slug|label|description|email`. `doctor` warns. Pagination-only lists stay uncovered.
+
+Searchable / filterable / sortable / selectable from the tag are used as given. `maxLimit` is also taken from a page-size parameter's `schema.maximum` when the tag omits it.
+
+## Pagination and envelopes
+
+Three page models, all first-class:
+
+- **Page number** (`page` + `limit` roles).
+- **Offset** (`offset` + `limit`). Checks that say "page 3" translate to `offset = (page - 1) * size` (size defaults to 20 only for that translation).
+- **Cursor** (`cursor` role + envelope `nextCursor` or a `Link: rel=next` header).
+
+`hasMore` is taken from the body (`hasMore`, `has_more`, `hasNextPage`, `more`) **or** from a documented `Link` response header. Under Link pagination, **absence** of `rel="next"` means no more pages.
+
+Collection shape is derived from the success JSON schema, not from hardcoded wrapper names:
+
+- Response `type: array` → the body is the list (`key: null`).
+- Otherwise the array property whose items are objects, skipping sidecar names `error(s)`, `warning(s)`, `message(s)`, `meta`, `links`. Resource-named envelopes (`{ tables: [...] }`) work.
+- Sibling keys become envelope fields:
+
+| role        | accepted property names                                      |
+| ----------- | ------------------------------------------------------------ |
+| total       | `count`, `total`, `totalCount`, `total_count`, `totalItems`  |
+| hasMore     | `hasMore`, `has_more`, `hasNextPage`, `more`                 |
+| nextCursor  | `nextCursor`, `next_cursor`, `cursor`, `next`, `endCursor`   |
+| page        | `page`, `pageNumber`, `page_number`, `offset`                |
+| limit       | `limit`, `perPage`, `per_page`, `pageSize`, `page_size`      |
+
+Success schema is the first JSON media type on responses `200`, `201`, `202`, `2XX`, or `default`. Request schema is the first JSON media type on `requestBody`. Non-JSON media types are ignored.
 
 ## OpenAPI meta tags
 
-Vendor-neutral `x-*` extensions oat reads from your spec. Every one is **optional**. Precedence is always: **explicit tag → heuristic → skip with a coverage gap**.
+Vendor-neutral `x-*` extensions. Every one is optional. Precedence: **explicit tag → heuristic → skip with a coverage gap**.
 
-`oat conformance` loads [`labs/annotated-openapi.yaml`](./labs/annotated-openapi.yaml) and asserts the derived model matches what its comments claim, so the examples cannot drift from the implementation.
+A complete document with every tag in place is shipped as `labs/annotated-openapi.yaml` (also in the npm package). `oat conformance` asserts the derived model matches that file.
 
 ```bash
-oat plan   --spec openapi.yaml
-oat doctor --spec openapi.yaml
+oat plan   --spec node_modules/@lovrozagar/oat/labs/annotated-openapi.yaml
+oat doctor --spec node_modules/@lovrozagar/oat/labs/annotated-openapi.yaml
 ```
+
+What each tag **unlocks** (otherwise the check cannot run):
+
+| tag             | checks unlocked                                                                                          |
+| --------------- | -------------------------------------------------------------------------------------------------------- |
+| `x-async`       | `async.reaches-terminal-state`, `async.receipt-identifies-the-job`                                       |
+| `x-effects`     | `effects.declared-effect-occurs`                                                                         |
+| `x-immutable`   | `patch.immutable-field-rejected`                                                                         |
+| `x-invalidate`  | `invalidation.declared-route-changes` (when the list names another entity)                               |
+| `x-query`       | `spec.declared-filterable-is-filterable`, `spec.declared-sortable-is-sortable`, `spec.declared-selectable-is-selectable` |
+| `x-soft-delete` | `softdelete.absent-from-default-list`                                                                    |
+| `x-invite`      | `auth.invite-grants-then-revokes`                                                                        |
+
+What each tag **sharpens** (the check already runs, but the verdict changes):
+
+| tag        | without it                                                                                          |
+| ---------- | --------------------------------------------------------------------------------------------------- |
+| `x-query`  | every scalar is probed, including columns you never indexed — expect findings you will dismiss      |
+| `x-tenant` | a cross-tenant read is `AMBIGUITY`, not `SECURITY`, because the boundary was only inferred          |
 
 ### `x-invalidate`
 
@@ -162,11 +837,13 @@ x-invalidate:
   - GET /v1/projects/{project_id}/tables/{table_id}
 ```
 
-`string[]` of `"METHOD /path"`. Names the read routes this mutation must change. Colon (`/tables/:id`) and brace (`/tables/{id}`) syntax both work; oat normalises to brace.
+`string[]` of `"METHOD /path"`. Colon or brace path params; oat normalises to brace. Method is uppercased.
 
-This is the entity graph. Inverted, it gives every entity its _read surface_ — the projections through which it is observable. Highest-value tag, and the one many specs already emit.
+This is the entity graph. Inverted, it is each entity's read surface. Highest-value tag.
 
-**Fallback:** pair a mutator with the sibling collection and item routes on the same path prefix. Catches the obvious cases, misses cross-entity effects.
+**Fallback:** pair a mutator with sibling collection/item routes on the same path prefix. Misses cross-entity effects.
+
+**Unlocks:** `invalidation.declared-route-changes` (when the list names _another_ entity's route).
 
 ### `x-entity`
 
@@ -174,32 +851,30 @@ This is the entity graph. Inverted, it gives every entity its _read surface_ —
 x-entity:
   name: table
   action: create # create | list | read | update | delete | action
-  identity: id # optional; property that identifies an instance
+  identity: id
 ```
 
-Overrides path-segment entity inference. Needed when the path does not follow `/<plural>/{id}`.
+Overrides path-segment inference. `identity` is required when the item schema has no `id` (or `uuid` / `slug` / `key` / `name`).
 
-`identity` matters when the item schema does not declare an `id` — for example free-form row objects.
-
-**Fallback:** deepest plural segment + HTTP verb. Irregular paths (`/rows/aggregate`) yield nothing and lose lifecycle tracking.
+**Fallback:** deepest plural segment + HTTP verb. See [How the model is derived](#how-the-model-is-derived).
 
 ### `x-invite`
 
 ```yaml
 x-invite:
-  invite: table.invite # operationId that creates the invite
-  accept: invite.accept # operationId the invitee calls
-  revoke: table.revoke # operationId that removes the grant
-  granteeField: key # invite body field naming the invitee
-  tokenPointer: $.token # where the accept token is
-  grantPointer: $.grant_id # where the revoke handle is
+  invite: table.invite
+  accept: invite.accept
+  revoke: table.revoke
+  granteeField: key
+  tokenPointer: $.token
+  grantPointer: $.grant_id
 ```
 
-Declares the delegated-access flow. oat asserts the timeline: the invitee cannot read before accept, can after, and cannot after revoke. Put the tag on the invite operation.
+Put this on the invite operation. Config must give the invitee `inviteAs`. Defaults if omitted: `granteeField: key`, `tokenPointer: $.token`, `grantPointer: $.grant_id`. All three of `invite` / `accept` / `revoke` (operationIds) are required or the tag is ignored.
 
-The invitee's config must set `inviteAs` to the value the invite body expects.
+Timeline asserted: cannot read → invite → still cannot → accept → can → revoke → cannot.
 
-**Fallback:** the check does not run. There is no heuristic for a multi-step flow.
+**Fallback:** the check does not run.
 
 ### `x-query`
 
@@ -212,33 +887,32 @@ x-query:
   maxLimit: 100
   defaultOrder: created_at.desc
   stableTiebreak: id
+  grammar: postgrest   # postgrest | colon | equality
 ```
 
-Declares what the list endpoint's `filter` / `order` / `q` / `select` params actually support.
+States what `filter` / `order` / `q` / `select` actually support. `stableTiebreak` is load-bearing for keyset pagination. `grammar` pins how oat writes values (see [Query roles and grammars](#query-roles-and-grammars)).
 
-Without it, oat has to guess which fields are filterable from the item schema and will report false failures on fields the backend does not index.
+**Fallback:** if those roles resolve, treat every scalar as capable and warn.
 
-`stableTiebreak` is load-bearing: if a sort has no total order, keyset pagination is unsound and page walks silently drop or duplicate rows. Declaring it lets oat assert it; omitting it makes oat test for the instability instead.
-
-**Fallback:** if a filter / order / select / search _role_ resolves (`sort`, `fields`, `q`, `where`, …), treat every scalar property as filterable/sortable and warn. Pagination-only lists stay uncovered.
+**Unlocks:** `spec.declared-filterable-is-filterable`, `spec.declared-sortable-is-sortable`, `spec.declared-selectable-is-selectable`. Sharpens every other query check (without the tag they probe columns you may not have indexed).
 
 ### `x-async`
 
 ```yaml
 x-async:
   poll: "GET /v1/projects/{project_id}/batches/{batch_id}"
-  idFrom: batch_id
+  idFrom: batch_id # or $.id
   until: "status.in.complete,partial,failed"
   successWhen: "status.eq.complete"
   timeoutMs: 120000
   pollIntervalMs: 2000
 ```
 
-Marks an operation whose HTTP response is a receipt, not an outcome. oat drives the poll to a terminal state, then treats that payload as the real result.
+The HTTP response is a receipt. oat polls until `until` matches, then treats that payload as the result. `poll` may be an operationId or `"GET /path/{id}"`. Defaults: `timeoutMs: 120000`, `pollIntervalMs: 2000`.
 
-Without this, every extract / export / batch endpoint is untestable beyond "did it return 200".
+`until` / `successWhen` use the same `field.op.value` predicates as filters (`eq`, `in`, …).
 
-**Fallback:** treated as synchronous; downstream assertions are marked `COVERAGE_GAP`.
+**Fallback:** treated as synchronous; async checks are `COVERAGE_GAP`.
 
 ### `x-effects`
 
@@ -248,13 +922,9 @@ x-effects:
   - { entity: delivery, op: append, count: 1 }
 ```
 
-`x-invalidate` says _this GET changes_; `x-effects` says _how_. That is what lets oat assert an exact delta (`count 4 → 5`, new id present) instead of a weak body inequality.
+`op`: `create` | `append` | `update` | `delete` | `replace`. oat asserts an exact cardinality delta on the named entity's list. `count` defaults to `1` when omitted.
 
-Also tells oat to track and clean up resources created as side effects.
-
-`op`: `create` | `append` | `update` | `delete` | `replace`.
-
-**Fallback:** derived from `x-entity.action` for the operation's own entity only.
+**Fallback:** derived from `x-entity.action` for this entity only.
 
 ### `x-soft-delete`
 
@@ -262,9 +932,7 @@ Also tells oat to track and clean up resources created as side effects.
 x-soft-delete: deleted_at
 ```
 
-On the entity's delete (or any operation on the entity). Tells oat that DELETE tombstones rather than removes.
-
-Changes the post-delete assertion from "absent everywhere" to "absent from the default list". Without this tag, correct soft-delete behaviour is reported as a bug.
+On any operation of the entity (commonly DELETE). Tombstone, not remove. Without it, a correct soft-delete looks like a bug (the row is still GET-able).
 
 ### `x-immutable` / `x-generated`
 
@@ -273,9 +941,9 @@ x-immutable: [id, project_id, created_at]
 x-generated: [id, created_at, updated_at]
 ```
 
-`x-generated` lets oat build valid create bodies without guessing, and assert the fields appear. `x-immutable` powers the update-safety case: PATCH each immutable field and require the stored value to be unchanged.
+Generated fields are omitted from create bodies and expected in responses. Immutable fields must reject or ignore PATCH.
 
-**Fallback:** `readOnly: true` is honoured as generated; no immutability testing without the tag.
+**Fallback:** `readOnly: true` counts as generated. No immutability testing without the tag.
 
 ### `x-tenant`
 
@@ -283,31 +951,20 @@ x-generated: [id, created_at, updated_at]
 x-tenant: project_id
 ```
 
-Names the path parameter that scopes the operation to a tenant.
+Path parameter that scopes the operation.
 
-Drives the isolation matrix: a second principal in another tenant must not see, read, or mutate the record — and `filter=id.eq.<other tenant's id>` must return empty rather than becoming an authz bypass.
-
-**Fallback:** regex over `{organization_id}`, `{project_id}`, `{tenant_id}`, `{workspace_id}`, `{app_slug}`. Without the tag, a cross-tenant read is an ambiguity, not a security finding.
+**Fallback:** regex over `{organization_id}`, `{project_id}`, `{tenant_id}`, `{workspace_id}`, `{app_slug}`, `{org_id}`, `{account_id}`, … (`org|organization|tenant|workspace|account|project|app` + optional `_id`/`_slug`). Without the tag, a cross-tenant read is `AMBIGUITY`, not `SECURITY`.
 
 ### `x-root`
 
 ```yaml
+# on a path parameter, not an operation
 x-root: true
 ```
 
-On a **path parameter**, not an operation. Declares that this resource has no create endpoint and must be supplied by config.
+This resource has no create endpoint; supply it in config `roots` / principal `roots`.
 
-**Fallback:** inferred when a path param has no discoverable create op; everything beneath it is reported `UNSEEDABLE`.
-
-### `x-cost` / `x-destructive` / `x-idempotent`
-
-```yaml
-x-cost: high # low | medium | high
-x-destructive: true # excluded outside --profile paranoid
-x-idempotent: true # oat asserts repeat-equivalence
-```
-
-`x-cost: high` is why an extract runs once instead of inside a permutation loop.
+**Fallback:** inferred when a path param has no create op; everything beneath is `UNSEEDABLE`.
 
 ### `x-cleanup`
 
@@ -315,86 +972,483 @@ x-idempotent: true # oat asserts repeat-equivalence
 x-cleanup: "DELETE /v1/projects/{project_id}/tables/{table_id}"
 ```
 
-Explicit teardown when the delete op is not discoverable from the entity graph.
+Teardown route when the entity has no discoverable delete. Without it, leftover records are reported at end of run.
 
-**Fallback:** the entity's `delete` op; oat reports leaked resources at end of run if there is none.
-
-### `x-fresh-principal`
+### `x-cost` / `x-destructive` / `x-idempotent` / `x-fresh-principal`
 
 ```yaml
+x-cost: high # low | medium | high
+x-destructive: true
+x-idempotent: true
 x-fresh-principal: true
 ```
 
-Operation mutates session or principal state and must run against a freshly provisioned principal (login, logout, token refresh, key rotation).
+These are **parsed onto the operation model**. They are **not yet consulted by `oat run`** — there is no `--profile`. Document them for the model/`plan` output. Replay safety is tested from a documented `Idempotency-Key` header (`idempotency.replay-does-not-duplicate`), not from `x-idempotent`.
 
-## What gets tested
+## Checks
 
-55 property checks. None of them needs ground truth about what your data "should" be. A filter and its negation must partition the set; a page walk must cover the collection; a record read four ways must read the same.
+55 checks. A check that cannot run says so (`did not apply` + `needs`). A check that depends on a broken primitive is `BLOCKED`. A check that ran and stopped is inconclusive, not a pass.
 
-| group              | examples                                                         |
-| ------------------ | ---------------------------------------------------------------- |
-| Foundations        | create lands, schema matches, page size is honoured              |
-| Query, single axis | filter, sort, search, select, cursor vs page, count              |
-| Query, composition | filter+sort, filter+select, search+filter, and the triples       |
-| Spec as adversary  | declared filterable / sortable / selectable fields actually work |
-| Isolation          | cross-tenant item, filter, and existence disclosure              |
-| Authorization      | rank is monotonic; invite grants then revokes                    |
-| Tagged behaviour   | immutable, soft-delete, invalidate, effects, async               |
-| Validation         | enum, maxLength, required, content-type                          |
-| Writes             | PATCH minimality, idempotency, delete 404, lost update           |
+Order is fixed (foundations first) so cascade suppression has a cause to point at. Mutating checks run alone; read-only checks may share in-flight requests under `maxInFlight`.
 
-Every check reaches a stated outcome: a finding, _did not apply_ (with what it needed), _blocked by an earlier failure_ (with the cause), or _could not conclude_ (with why). None of the last three is a pass.
+`depends` is the `dependsOn` list: if any of those already failed **for this entity**, this check is `BLOCKED` rather than reported as a second defect. Suppression is transitive.
 
-Findings are graded by how much the document states. A cross-tenant read is a security finding when `x-tenant` declares the boundary, and an ambiguity when oat only inferred it.
+| id                                         | asserts                                                                                         | needs                                                     | depends |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ------- |
+| `list.read-after-write`                    | a just-created record appears on the list                                                       | create + a seeded record                                  | — |
+| `create.persists-submitted-fields`         | every writable field sent on create is echoed                                                   | create that echoes the record                             | `list.read-after-write` |
+| `create.status-matches-document`           | create status is one the document declared                                                      | create                                                    | — |
+| `schema.success-response-matches-document` | create body validates against the success schema                                                | success schema on create                                  | `create.status-matches-document` |
+| `schema.error-response-matches-document`   | an error body validates against the documented error schema                                     | error schema on the item route                            | — |
+| `pagination.limit-bounds-page-size`        | page size ≤ the requested limit                                                                 | page-size _role_ (aliases include `limit`, `per_page`, …) | `list.read-after-write` |
+| `pagination.limit-respects-documented-max` | requesting more than `maxLimit` does not return more                                            | declared `maxLimit` and a larger cohort                   | `pagination.limit-bounds-page-size` |
+| `pagination.has-more-is-accurate`          | `hasMore` / `Link rel=next` matches whether another page exists                                 | page-forward + `hasMore` or `Link rel=next`               | `pagination.limit-bounds-page-size` |
+| `pagination.page-walk-covers-set`          | walking pages covers the collection with no gaps or dupes                                       | page or offset + ≥3 records                               | `pagination.limit-bounds-page-size` |
+| `pagination.cursor-agrees-with-page`       | cursor walk and page walk yield the same set                                                    | both cursor and page                                      | `pagination.limit-bounds-page-size` |
+| `filter.unknown-field-rejected`            | a filter on a field that does not exist is not silently ignored                                 | a filter expression                                       | — |
+| `filter.equality-selects-exactly-one`      | `id.eq.<one>` returns that one record                                                           | equality on the identity                                  | `list.read-after-write` |
+| `filter.zero-match-returns-none`           | a filter that matches nothing returns an empty page, not the whole set                          | same                                                      | `list.read-after-write` |
+| `filter.negation-partitions-the-set`       | `eq` ∪ `neq` = whole set, intersection empty                                                    | eq and neq                                                | `list.read-after-write`, equality |
+| `filter.and-composes-as-intersection`      | `and(A,B)` = A ∩ B                                                                              | two filterable fields + AND                               | equality / list |
+| `filter.or-composes-as-union`              | `or(A,B)` = A ∪ B                                                                               | `or()` — **postgrest grammar only**                       | equality / list |
+| `filter.like-metacharacters-escaped`       | `%` `_` `*` in a value are literals, not wildcards                                              | like operator                                             | `list.read-after-write` |
+| `filter.numeric-comparison-is-numeric`     | `gt`/`lt` on a number uses numeric order, not TEXT (`1,10,2`)                                   | numeric field + a filter param                            | `list.read-after-write`, unknown-field |
+| `error.malformed-filter-not-5xx`           | garbage filter text is 4xx, never 5xx                                                           | a filter expression                                       | — |
+| `query.filter-selects-from-whole-set`      | a filter is applied to the collection, not to the current page                                  | filterable + ≥3 records                                   | list / walk |
+| `sort.order-is-applied`                    | requesting a sort actually rearranges the page                                                  | order + a sortable field                                  | `pagination.limit-bounds-page-size` |
+| `sort.reverse-symmetry`                    | desc is the reverse of asc (nulls included)                                                     | order + asc/desc                                          | order-is-applied |
+| `search.q-narrows-result`                  | a search term that matches one record does not return the whole set                             | search param + searchable fields                          | `list.read-after-write` |
+| `select.projection-honoured`               | `select=id,name` does not return undeclared fields                                              | select param                                              | — |
+| `count.consistent-with-returned-page`      | envelope total ≥ rows on this page, and is not zero when the page is not                        | envelope total                                            | `list.read-after-write` |
+| `count.matches-filtered-set`               | filtered total equals the size of the filtered walk                                             | total + a filter                                          | list, equality |
+| `query.axes-compose`                       | filter + sort together: filter still holds on the sorted page                                   | filterable + sortable                                     | filter + sort foundations |
+| `query.filter-and-select-compose`          | filter + select together                                                                        | filterable + select                                       | same |
+| `query.search-and-filter-compose`          | search + filter together                                                                        | filterable + search                                       | same |
+| `query.filter-sort-select-compose`         | filter + sort + select                                                                          | filter + sort + select                                    | same |
+| `query.filter-search-sort-compose`         | filter + search + sort                                                                          | filter + search + sort                                    | same |
+| `query.filter-search-select-compose`       | filter + search + select                                                                        | filter + search + select                                  | same |
+| `spec.declared-filterable-is-filterable`   | every `x-query.filterable` field actually accepts a filter                                      | `x-query` naming filterable fields                        | filter foundations |
+| `spec.declared-sortable-is-sortable`       | every `x-query.sortable` field actually accepts a sort                                          | `x-query` naming sortable fields                          | sort foundations |
+| `spec.declared-selectable-is-selectable`   | every `x-query.selectable` field actually accepts a select                                      | `x-query` naming selectable fields                        | select |
+| `tenant.item-not-readable-cross-tenant`    | principal B cannot GET principal A's item                                                       | second principal, different `roots`                       | — |
+| `tenant.denial-does-not-reveal-existence`  | 404 vs 403 (or equivalent) does not distinguish "exists other tenant" from "missing"            | second principal                                          | `tenant.item-not-readable-cross-tenant` |
+| `tenant.filter-does-not-bypass-scope`      | `filter=id.eq.<other tenant>` does not return that row                                          | second principal + a filter                               | `query.filter-selects-from-whole-set` |
+| `auth.rank-is-monotonic`                   | a lower rank cannot do what a higher rank is denied                                             | two same-tenant principals at different `rank`            | `list.read-after-write` |
+| `auth.invite-grants-then-revokes`          | invite → accept grants; revoke takes it back                                                    | `x-invite` + peer with `inviteAs`                         | list, cross-tenant |
+| `patch.immutable-field-rejected`           | PATCHing an `x-immutable` field is rejected or ignored                                          | `x-immutable`                                             | — |
+| `softdelete.absent-from-default-list`      | a soft-deleted row is gone from the default list                                                | `x-soft-delete`                                           | `list.read-after-write` |
+| `invalidation.declared-route-changes`      | after a write, the other entity's listed route actually changes                                 | `x-invalidate` naming another entity                      | list, persist |
+| `effects.declared-effect-occurs`           | `x-effects` cardinality delta is observed on the named list                                     | `x-effects`                                               | `list.read-after-write` |
+| `async.reaches-terminal-state`             | polling `x-async` reaches `until` before `timeoutMs`                                            | `x-async`                                                 | — |
+| `async.receipt-identifies-the-job`         | `idFrom` on the receipt resolves to a pollable job                                              | `x-async` + `idFrom`                                      | — |
+| `patch.minimality`                         | PATCH `{ name }` does not clear other writable fields                                           | update + item route                                       | — |
+| `idempotency.replay-does-not-duplicate`    | same Idempotency-Key + same body does not create a second row                                   | create + documented Idempotency-Key header                | list, persist |
+| `delete.absent-record-returns-404`         | DELETE of a missing id is 404, not 200                                                          | delete                                                    | — |
+| `concurrency.no-lost-update`               | two PATCHes to different fields do not clobber each other                                       | update + two writable strings                             | persist + patch |
+| `validation.enum-enforced`                 | a value outside the enum is rejected                                                            | enum in the request schema                                | — |
+| `validation.max-length-enforced`           | a string over `maxLength` is rejected                                                           | maxLength                                                 | — |
+| `validation.required-enforced`             | omitting a required field is rejected                                                           | required field                                            | — |
+| `validation.content-type-enforced`         | a wrong Content-Type is 415 when 415 is documented                                              | documented 415                                            | — |
+| `consistency.projections-agree`            | list, item, and filtered views of the same field agree                                          | item route + a comparable field                           | list + persist + filter |
+
+On a typical untagged CRUD document (create, list, item, `page`/`limit`, maybe `sort`):
+
+- Foundations, PATCH/delete, and schema checks usually run.
+- The query matrix runs when filter/order/select/search roles resolve.
+- Isolation runs only if you configured two principals.
+- Spec-as-adversary and tagged behaviour never run — `doctor` says so.
+
+Worked examples of what a finding looks like:
+
+```text
+BACKEND_BUG   table   created row missing from GET /tables
+              list.read-after-write
+
+BACKEND_BUG   product  PATCH { name } cleared description
+              patch.minimality
+
+SECURITY      table    GET /tables/{id} readable with the other tenant's key
+              tenant.item-not-readable-cross-tenant
+
+SPEC_BUG      table    x-query.filterable lists "ghost"; filter=ghost.eq.x is 400
+              spec.declared-filterable-is-filterable
+
+COVERAGE_GAP  batch    no x-async; receipt treated as the result
+              async.reaches-terminal-state
+```
+
+## Verdicts, skips, and exit codes
+
+| verdict        | meaning                                                              | fails `oat run`? |
+| -------------- | -------------------------------------------------------------------- | ---------------- |
+| `BACKEND_BUG`  | the handler is wrong                                                 | yes              |
+| `SPEC_BUG`     | the document is wrong (or disagrees with the handler)                | yes              |
+| `SECURITY`     | isolation/authz failure and `x-tenant` (or equivalent) was declared  | yes              |
+| `AMBIGUITY`    | same evidence, but the tenant boundary was only inferred             | yes              |
+| `COVERAGE_GAP` | the check could not run; the report names the missing tag or surface | no               |
+| `BLOCKED`      | a check this one depends on already failed                           | no               |
+
+Separate from findings:
+
+- **did not apply** — entity never had what `needs` lists (printed in the report, not a pass). Example: no `select` parameter → `select.projection-honoured` did not apply.
+- **inconclusive** — the check ran and stopped (empty listing, probe 4xx, no shared filterable field, …). Not a pass. The report prints the reason.
+
+Coverage is split **never** (zero entities could run it) vs **partial** (ran on some entities, skipped on others). A clean run still prints both. "Nothing found" and "nothing was looked for" are different.
+
+Cascade suppression is transitive: one root cause is one finding, not a page of consequences. A blocked check has **not** been verified; re-run after the cause is fixed.
+
+`oat run` exit `1` if any finding has a failing verdict. Gaps and blocked entries do not fail CI.
+
+Console (stdout) after a run:
+
+```
+  50 checks · 5 entities · 842 requests · 41.2s · p95 90ms · 4 checks did not apply
+
+  BACKEND DEFECTS (1)
+    product          PATCH { name } also cleared description
+                     patch.minimality
+
+  DID NOT APPLY — no entity had what these need
+    async.reaches-terminal-state             needs an operation declaring x-async
+
+  leftover teardown printed next
+  report / matrix / graph / progress paths
+```
 
 ## Reports
 
-A run writes:
+Written under `--out` (default `./oat-out`):
 
-| file                       |                                                               |
-| -------------------------- | ------------------------------------------------------------- |
-| `oat-out/oat-report.md`    | human report                                                  |
-| `oat-out/oat-report.json`  | CI / machine copy                                             |
-| `oat-out/issue-repro/*.sh` | one `curl` script per finding — omitted when the run is clean |
-| `oat-out/progress.log`     | live logfmt progress (also `.jsonl` and `.tsv`)               |
+| file               |                                                                                                                                        |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `oat-report.md`    | human report: summary, findings with request/response excerpts, coverage, latency p50/p95/max                                          |
+| `oat-report.json`  | same data for CI                                                                                                                       |
+| `matrix.html`      | visual matrix of entities × checks                                                                                                     |
+| `matrix.json`      | the same graph (AI-friendly), including a mermaid string                                                                               |
+| `issue-repro/*.sh` | one executable `curl` script per finding that has evidence. Directory is omitted when the run is clean. Old `repro/` is deleted at the start of each run |
+| `progress.log`     | logfmt, one event per line, never truncated                                                                                            |
+| `progress.jsonl`   | same events as JSON                                                                                                                    |
+| `progress.tsv`     | same columns, tab-separated                                                                                                            |
+| `progress.json`    | latest snapshot only (overwritten ~1s)                                                                                                 |
 
-Cascade suppression is transitive: one root cause produces one finding, not a page of consequences.
+There is no HAR file. The JSON report and issue-repro scripts carry the exchanges.
 
-## Conformance
+### `oat-report.json`
 
-oat ships four reference backends — memory, SQLite, Postgres, and Cloudflare D1 — behind the same HTTP surface and the same 56 named defects. `oat conformance` injects each defect and asserts the matching diagnosis, then runs a correct backend and asserts nothing is reported.
-
-They are served in five dialects (`postgrest`, `classic`, `linked`, `jsonapi`, `plain`) so a check that only works on one spelling is visible.
-
-```bash
-npm test                         # memory + sqlite, every dialect
-oat conformance --fuzz 300       # random defect combinations
-oat conformance --precision 60   # varied data, correct backend — any finding is a false positive
+```json
+{
+  "backend": "https://api.example.com",
+  "generatedAt": "2026-08-15T12:00:00.000Z",
+  "durationMs": 41200,
+  "requests": 842,
+  "entitiesTested": ["store", "product"],
+  "checksRun": ["list.read-after-write", "patch.minimality"],
+  "checksSkipped": [{ "check": "async.reaches-terminal-state", "entity": "store", "needs": "…" }],
+  "checksSuppressed": [{ "check": "query.axes-compose", "entity": "store", "because": "list.read-after-write" }],
+  "inconclusive": [{ "check": "filter.and-composes-as-intersection", "entity": "store", "reason": "…" }],
+  "summary": { "BACKEND_BUG": 1 },
+  "coverage": {
+    "neverApplied": ["async.reaches-terminal-state"],
+    "partial": [{ "check": "select.projection-honoured", "ran": 1, "skipped": 1 }]
+  },
+  "latency": {
+    "p50": 12,
+    "p95": 90,
+    "max": 400,
+    "slowest": { "method": "GET", "path": "/v1/products" }
+  },
+  "findings": [
+    {
+      "check": "patch.minimality",
+      "verdict": "BACKEND_BUG",
+      "entity": "product",
+      "summary": "PATCH { name } also cleared description",
+      "detail": "…",
+      "evidence": [
+        {
+          "method": "PATCH",
+          "url": "https://api.example.com/v1/products/p1",
+          "status": 200,
+          "requestBody": { "name": "x" },
+          "responseBody": { "name": "x", "description": null }
+        }
+      ]
+    }
+  ]
+}
 ```
 
-The testing path never touches a database. Runtime dependencies are `ajv`, `ajv-formats`, and `yaml`. SQL drivers are optional and loaded on demand.
+Latency is reported, never asserted. oat has no baseline for "too slow".
+
+Gate in CI on process exit code, or on `findings` whose `verdict` is not `COVERAGE_GAP` / `BLOCKED`.
+
+### `matrix.json`
+
+```json
+{
+  "kind": "oat.matrix",
+  "version": 2,
+  "baseUrl": "…",
+  "generatedAt": "…",
+  "thesis": "…",
+  "summary": "…",
+  "index": { "entityCount": 5, "failed": ["product"], "parents": ["store"], "crossClaims": 1, "inbound": {} },
+  "counts": { "failed": 1, "blocked": 0, "held": 40, "skipped": 14 },
+  "entities": [
+    {
+      "name": "product",
+      "identity": "id",
+      "readSurface": ["GET /v1/products", "GET /v1/products/{id}"],
+      "counts": { "failed": 1, "blocked": 0, "held": 20, "skipped": 5 },
+      "roots": ["store_id"],
+      "nodes": [
+        {
+          "id": "product/patch.minimality",
+          "group": "product",
+          "layer": "weft",
+          "status": "failed",
+          "verdict": "BACKEND_BUG",
+          "summary": "…"
+        }
+      ]
+    }
+  ],
+  "invalidate": [
+    { "fromEntity": "product", "fromOp": "product.create", "toEntity": "store", "toRoute": "GET /v1/stores/{id}", "cross": true }
+  ],
+  "edges": [{ "from": "product/list.read-after-write", "to": "product/patch.minimality", "kind": "dependsOn" }],
+  "mermaid": "flowchart LR\n…"
+}
+```
+
+Cell `status`: `held` (passed), `failed`, `blocked`, `skipped`. Edge `kind`: `dependsOn` (cascade) or `uses` (a later check that builds on a warp primitive).
+
+### `issue-repro/<entity>-<check>.sh`
+
+Created only when a finding has HTTP evidence. Not created on a clean run.
+
+```bash
+#!/usr/bin/env bash
+# Generated by oat. Set TOKEN to a valid credential before running.
+# product — PATCH { name } also cleared description
+set -u
+BASE="${BASE:-https://api.example.com}"
+TOKEN="${TOKEN:?set TOKEN to a valid credential}"
+
+# step 1 — observed 200
+curl -sS -X PATCH "$BASE/v1/products/p1" \
+  -H "authorization: Bearer $TOKEN" \
+  -H "content-type: application/json" \
+  -d '{"name":"x"}'
+```
+
+`authorization`, `cookie`, and `x-api-key` are redacted to `$TOKEN`. Replay needs a live credential; ids in the script are whatever the failing run created (gone if teardown ran). Use `--keep-fixtures` when you want to replay against the same rows.
+
+## Progress logs
+
+`progress.log` starts with a glossary. Fields:
+
+| key                        |                                                              |
+| -------------------------- | ------------------------------------------------------------ |
+| `ts`                       | ISO-8601 UTC when the line was written                       |
+| `status`                   | `ok` or `stall` (`idle_ms` ≥ 15000)                          |
+| `done` / `total`           | entity index / how many entities                             |
+| `phase`                    | `load` \| `auth` \| `seed` \| `test` \| `teardown` \| `done` |
+| `entity` / `check`         | current entity and check id                                  |
+| `msg`                      | phase note                                                   |
+| `req` / `find`             | request count, finding count                                 |
+| `method` / `path` / `http` | last HTTP call                                               |
+| `last_ms`                  | duration of that call                                        |
+| `idle_ms`                  | ms since it returned — if this climbs, the run is stuck      |
+| `elapsed_ms`               | wall clock since start                                       |
+
+`--quiet` keeps the files and drops stderr.
+
+Lines are written when the phase/entity/check/message changes, or every 2 s, or on `load`/`done`. `progress.json` is rewritten about once a second.
+
+If `idle_ms` climbs through a long poll (`x-async`) that is expected. If it climbs on a simple GET, the process or the network is stuck. oat's own `fetch` has **no timeout**.
+
+## Programmatic API
+
+```ts
+import {
+	defineConfig,
+	loadConfig,
+	run,
+	loadSpec,
+	dereference,
+	buildModel,
+	renderJson,
+	renderMarkdown,
+} from "@lovrozagar/oat"
+
+const config = defineConfig({
+	spec: "./openapi.yaml",
+	baseUrl: "https://api.example.com",
+	principals: [{ id: "alpha", headers: { authorization: `Bearer ${process.env.API_TOKEN}` } }],
+})
+
+const result = await run({
+	spec: config.spec,
+	baseUrl: config.baseUrl,
+	principals: config.principals,
+	seed: 1,
+	concurrency: 1,
+	maxInFlight: 4,
+	onProgress: (snap) => {
+		// snap.phase, snap.entity, snap.check, snap.message, …
+	},
+})
+
+// result.findings, result.checksSkipped, result.checksSuppressed,
+// result.inconclusive, result.entitiesTested, result.teardown, result.created
+```
+
+`loadConfig(path)` loads `.ts` / `.js` / `.mjs` / `.json` the same way the CLI does. The CLI then expands `${NAME}` in every string. `defineConfig` is an identity function for typing; it does not interpolate. If you call `run()` with an in-process object, resolve secrets yourself (template literals, `process.env`) before passing it.
+
+`run(options)` does not write files. The CLI writes reports after `run` returns. To produce the same artifacts, call `renderMarkdown` / `renderJson` / `renderMatrixHtml` / `renderMatrixGraph` / `renderRepros` with a `ReportInput` (`findings`, `model`, `client`, `baseUrl`, `entitiesTested`, `checksRun`, `startedAt`, `durationMs`, plus optional skip/suppress/inconclusive lists).
+
+Offline:
+
+```ts
+const doc = await loadSpec("./openapi.yaml")
+const { doc: resolved, externalRefs } = dereference(doc)
+const model = buildModel(resolved)
+```
+
+Types exported: `OatConfig`, `Principal`, `AuthFlow`, `AuthStep`, `Hooks`, `RunOptions`, `RunResult`, `Finding`, `Verdict`, `Actor`, `SpecModel`, `EntityModel`, `OperationModel`, `OpenApiDocument`, matrix types.
+
+## CI
+
+```yaml
+# GitHub Actions sketch
+- run: npm i -D @lovrozagar/oat
+- run: oat doctor --spec "$SPEC_URL"
+- run: oat run --config oat.config.ts --concurrency 1
+  env:
+    API_TOKEN: ${{ secrets.API_TOKEN }}
+    API_TOKEN_B: ${{ secrets.API_TOKEN_B }}
+```
+
+Gate on exit code 1 (defects). Read `oat-out/oat-report.json` if you need to classify verdicts.
+
+Nested APIs: keep `--concurrency 1`. Higher values create children while a parent page-walk is in flight and produce false `pagination.page-walk-covers-set` findings.
+
+Wipe leftover rows on a shared database between runs if a previous `--keep-fixtures` or a crashed teardown left data. Leftover rows make numeric/filter checks look like type bugs (`1, 10, 2` from old TEXT-sorted leftovers mixed with a fresh numeric cohort).
+
+## Reference defects (`oat serve --defects`)
+
+Comma-separated. Each is one named lie the demo API can tell. Primary check is what conformance asserts; extras in parentheses are accepted additional symptoms of the same lie.
+
+| defect | primary check | the lie |
+| --- | --- | --- |
+| `STALE_LIST` | `list.read-after-write` | create succeeds, list does not show the row |
+| `CREATE_DROPS_FIELD` | `create.persists-submitted-fields` | a submitted field is dropped |
+| `CREATED_201_AS_200` | `create.status-matches-document` | create returns 200 when the spec says 201 |
+| `RESPONSE_SCHEMA_DRIFT` | `schema.success-response-matches-document` | success body does not match the schema |
+| `ERROR_SCHEMA_DRIFT` | `schema.error-response-matches-document` | error body does not match the schema |
+| `LIMIT_IGNORED` | `pagination.limit-bounds-page-size` | `limit` is accepted and ignored |
+| `LIMIT_EXCEEDS_MAX` | `pagination.limit-respects-documented-max` | documented max is not capped |
+| `HASMORE_ALWAYS_FALSE` | `pagination.has-more-is-accurate` | `hasMore` is always false |
+| `OFF_BY_ONE_PAGE` | `pagination.page-walk-covers-set` | page walk skips or repeats |
+| `UNSTABLE_SORT` | `pagination.page-walk-covers-set` | default order is not a total order |
+| `CURSOR_DRIFT` | `pagination.cursor-agrees-with-page` | cursor and page disagree |
+| `FILTER_IGNORED` | `filter.unknown-field-rejected` | unknown filter field is ignored |
+| `FILTER_EQ_NOT_APPLIED` | `filter.equality-selects-exactly-one` | equality filter is ignored |
+| `EMPTY_RESULT_RETURNS_ALL` | `filter.zero-match-returns-none` | empty match returns the whole set |
+| `NEQ_DROPS_NULLS` | `filter.negation-partitions-the-set` | `neq` drops nulls so the partition leaks |
+| `FILTER_GROUP_COMBINATOR_SWAPPED` | `filter.and-composes-as-intersection` | `and`/`or` are swapped |
+| `LIKE_UNESCAPED` | `filter.like-metacharacters-escaped` | `%`/`_` are wildcards in values |
+| `NUMERIC_COMPARED_AS_TEXT` | `filter.numeric-comparison-is-numeric` | numbers compared as strings |
+| `ERROR_500_ON_BAD_FILTER` | `error.malformed-filter-not-5xx` | bad filter is 500 |
+| `FILTER_AFTER_PAGINATION` | `query.filter-selects-from-whole-set` | filter applied after the page is cut |
+| `ORDER_IGNORED` | `sort.order-is-applied` | sort param is ignored |
+| `SORT_DESC_DROPS_NULLS` | `sort.reverse-symmetry` | desc drops nulls |
+| `SEARCH_IGNORED` | `search.q-narrows-result` | search param is ignored |
+| `SELECT_IGNORED` | `select.projection-honoured` | select param is ignored |
+| `COUNT_ALWAYS_ZERO` | `count.consistent-with-returned-page` | total is always 0 |
+| `COUNT_IGNORES_FILTER` | `count.matches-filtered-set` | total ignores the filter |
+| `FILTER_DROPPED_WHEN_SORTED` | `query.axes-compose` | sort drops the filter |
+| `FILTER_DROPPED_WHEN_SELECTED` | `query.filter-and-select-compose` | select drops the filter |
+| `FILTER_DROPPED_WHEN_SEARCHED` | `query.search-and-filter-compose` | search drops the filter |
+| `FILTER_DROPPED_WHEN_SORTED_AND_SELECTED` | `query.filter-sort-select-compose` | the triple drops the filter |
+| `FILTER_DROPPED_WHEN_SORTED_AND_SEARCHED` | `query.filter-search-sort-compose` | the triple drops the filter |
+| `FILTER_DROPPED_WHEN_SEARCHED_AND_SELECTED` | `query.filter-search-select-compose` | the triple drops the filter |
+| `SPEC_OVERCLAIMS_FILTERABLE` | `spec.declared-filterable-is-filterable` | `x-query` lists a field that 400s |
+| `SPEC_OVERCLAIMS_SORTABLE` | `spec.declared-sortable-is-sortable` | same for sort |
+| `SPEC_OVERCLAIMS_SELECTABLE` | `spec.declared-selectable-is-selectable` | same for select |
+| `CROSS_TENANT_READ` | `tenant.item-not-readable-cross-tenant` | item GET is global by id |
+| `EXISTENCE_LEAK_VIA_STATUS` | `tenant.denial-does-not-reveal-existence` | 403 vs 404 reveals the other tenant's row |
+| `TENANT_LEAK_VIA_FILTER` | `tenant.filter-does-not-bypass-scope` | filter drops the tenant predicate |
+| `ROLE_MONOTONICITY_BROKEN` | `auth.rank-is-monotonic` | a lower rank can do more |
+| `INVITE_NEVER_GRANTS` | `auth.invite-grants-then-revokes` | accept does not grant |
+| `REVOKE_IGNORED` | `auth.invite-grants-then-revokes` | revoke leaves the grant |
+| `IMMUTABLE_WRITABLE` | `patch.immutable-field-rejected` | immutable fields accept writes |
+| `SOFT_DELETE_LEAK` | `softdelete.absent-from-default-list` | tombstone stays on the default list |
+| `PARENT_PROJECTION_STALE` | `invalidation.declared-route-changes` | child write does not bump the parent |
+| `EFFECT_NOT_APPLIED` | `effects.declared-effect-occurs` | declared cardinality delta does not happen |
+| `ASYNC_NEVER_COMPLETES` | `async.reaches-terminal-state` | job stays pending |
+| `ASYNC_RECEIPT_MISSING_ID` | `async.receipt-identifies-the-job` | receipt has no id |
+| `PATCH_REPLACES` | `patch.minimality` | PATCH is implemented as replace |
+| `IDEMPOTENCY_IGNORED` | `idempotency.replay-does-not-duplicate` | Idempotency-Key is ignored |
+| `DELETE_MISSING_OK` | `delete.absent-record-returns-404` | DELETE missing returns 200 |
+| `CONCURRENT_WRITE_LOST` | `concurrency.no-lost-update` | full-row write clobbers a parallel PATCH |
+| `ENUM_NOT_VALIDATED` | `validation.enum-enforced` | enum is not enforced |
+| `MAXLENGTH_NOT_VALIDATED` | `validation.max-length-enforced` | maxLength is not enforced |
+| `REQUIRED_NOT_VALIDATED` | `validation.required-enforced` | required is not enforced |
+| `CONTENT_TYPE_NOT_ENFORCED` | `validation.content-type-enforced` | wrong Content-Type is accepted |
+| `LIST_DETAIL_DISAGREE` | `consistency.projections-agree` | list and item show different values |
+| `COLUMN_NAME_MISMATCH` | `create.persists-submitted-fields` | SQL identifier does not match the field (SQL backends) |
+| `COLLATION_INCONSISTENT` | `pagination.cursor-agrees-with-page` | cursor order ≠ page order (SQL) |
+
+```bash
+oat serve --defects STALE_LIST,PATCH_REPLACES
+oat run --config labs/local.config.ts --base-url <url>
+```
+
+`COLUMN_NAME_MISMATCH`, `NUMERIC_COMPARED_AS_TEXT`, `COLLATION_INCONSISTENT`, and `CONCURRENT_WRITE_LOST` are SQL-only in conformance (the in-memory store cannot exhibit them).
+
+## Limits and non-features
+
+These are deliberate. An agent should not invent a flag for them.
+
+- **No request timeout.** `fetch` waits until the server answers. Watch `idle_ms`.
+- **No retry on 5xx / 429 / 401.** A 401 mid-run is evidence, not a refresh trigger. Refresh is expiry-based only.
+- **No OpenAPI `security`.** Put credentials in `principals`. Cookie auth is a `headers: { cookie: "…" }` (or a flow that sets that header).
+- **No `servers[]`.** Always set `baseUrl`.
+- **JSON request bodies only.** Multipart, form, file upload, and XML are not sent. Those operations will fail to seed or will not apply.
+- **No webhook / callback / link-object following.**
+- **External `$ref`s are not fetched.** In-document `$ref`s are.
+- **No `--profile` / `x-cost` gating.** High-cost operations still run if they are create/list/read/update/delete.
+- **`x-idempotent` is not the idempotency check.** The check keys off a documented `Idempotency-Key` header.
+- **Equality filter grammar** cannot express `neq` / `gt` / `like` / `and` / `or`. Those checks did-not-apply, they do not fail.
+- **`or()` is postgrest-only.**
+- **Concurrency > 1 on nested graphs invents pagination bugs.** Use `1`.
+- **Leftover rows on a shared DB** poison numeric and filter checks. Wipe between runs.
+- **`--only` uses plan names** (`store`, not `stores` or `/v1/stores`).
+- **Default cohort is 7.** `pagination.limit-respects-documented-max` needs `cohortSize > maxLimit`.
+- **First principal is the writer.** Extra principals are peers / lattice, not a pool of writers.
 
 ## What this is not
 
-oat is not a fuzzer. Tools like [Schemathesis](https://schemathesis.readthedocs.io/) generate inputs from your schema and check that responses validate — that finds crashes, 500s, and schema drift. Run both.
+oat is not a fuzzer. Tools like [Schemathesis](https://schemathesis.readthedocs.io/) generate inputs from your schema and check that responses validate. Run both.
 
-The difference is _statefulness_. A fuzzer sends independent requests and has no model of what the API should now contain, so it cannot ask whether the record it just created appears in the listing, whether a filter and its negation partition the set, or whether another tenant can read a record they should not see.
+|                       | schema fuzzers   | oat                                   |
+| --------------------- | ---------------- | ------------------------------------- |
+| multi-step auth       | header injection | declarative chain, JSON-path binding  |
+| out-of-band token     | —                | `resolveOutOfBand`                    |
+| credential refresh    | —                | JWT `exp`                             |
+| expected-state oracle | none             | shadow model of everything it created |
+| N live principals     | —                | peer tenants + rank lattice           |
+| stateful invariants   | random walk      | 55 property checks                    |
 
-|                                         | schema fuzzers   | oat                                   |
-| --------------------------------------- | ---------------- | ------------------------------------- |
-| multi-step auth                         | header injection | declarative chain, JSON-path binding  |
-| out-of-band token                       | —                | `resolveOutOfBand` hook               |
-| credential refresh                      | —                | JWT `exp`, refreshes before expiry    |
-| expected-state oracle                   | none             | shadow model of everything it created |
-| N live principals                       | —                | peer tenants + optional rank lattice  |
-| cross-tenant read / filter / disclosure | —                | 3 checks                              |
-| stateful invariants                     | random walk      | 55 property checks                    |
-| N-role permission matrix                | —                | monotonicity over `rank`              |
-| invite / delegated access               | —                | `x-invite` timeline                   |
+Runtime dependencies of a run against _your_ API: `ajv`, `ajv-formats`, `yaml`. SQL drivers are optional and only loaded for `oat serve` / `oat conformance`.
 
 ## Labs
 
-[`labs/`](./labs) is a family of real Hono backends on Cloudflare D1, used to iterate oat against correct APIs and planted bugs. Schema is generated from [`labs/worlds/catalog.ts`](./labs/worlds/catalog.ts). See [`labs/README.md`](./labs/README.md).
+[`labs/`](./labs) is a family of real Hono + Cloudflare D1 backends this repo uses to iterate oat (correct worlds and planted bugs). Schema is generated from [`labs/worlds/catalog.ts`](./labs/worlds/catalog.ts). See [`labs/README.md`](./labs/README.md). You do not need labs to test your own API.
+
+Shipped in the npm package for copy-paste: `labs/local.config.ts`, `labs/minimal.config.ts`, `labs/anyrow.config.ts`, `labs/annotated-openapi.yaml`.
 
 ## License
 
