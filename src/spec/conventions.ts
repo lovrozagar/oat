@@ -95,10 +95,7 @@ export interface QueryConventions {
  * case-insensitively and with separators normalised, so `perPage`, `per_page` and `PerPage` are
  * one entry.
  */
-const ALIASES: Record<
-	"filter" | "order" | "select" | "search" | "limit" | "page" | "offset" | "cursor",
-	string[]
-> = {
+const ALIASES: Record<"filter" | "order" | "select" | "search" | "limit" | "page" | "offset" | "cursor", string[]> = {
 	cursor: ["cursor", "after", "starting_after", "next", "page_token", "continuation"],
 	filter: ["filter", "where", "query", "conditions"],
 	limit: ["limit", "per_page", "page_size", "pagesize", "count", "max_results", "top", "size"],
@@ -110,15 +107,17 @@ const ALIASES: Record<
 }
 
 function normalise(name: string): string {
-	return name
-		/* A bracketed suffix is a *value* carried in the parameter name — `fields[articles]`,
-		 * `filter[status]` — not part of the role's name. Matching the whole string against the
-		 * alias list would fail to recognise the role at all, and the check that needed it would
-		 * report itself inapplicable against an API that plainly supports it. */
-		.replace(/\[[^\]]*\]$/, "")
-		.replace(/([a-z0-9])([A-Z])/g, "$1_$2")
-		.toLowerCase()
-		.replace(/[-\s]/g, "_")
+	return (
+		name
+			/* A bracketed suffix is a *value* carried in the parameter name — `fields[articles]`,
+			 * `filter[status]` — not part of the role's name. Matching the whole string against the
+			 * alias list would fail to recognise the role at all, and the check that needed it would
+			 * report itself inapplicable against an API that plainly supports it. */
+			.replace(/\[[^\]]*\]$/, "")
+			.replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+			.toLowerCase()
+			.replace(/[-\s]/g, "_")
+	)
 }
 
 function schemaOf(parameter: ParameterObject): SchemaObject {
@@ -135,9 +134,7 @@ function isInteger(parameter: ParameterObject): boolean {
  * belongs to the other's alias list — `count` most notoriously. The declared schema settles it:
  * a page size is the one with an upper bound, a page number the one that starts at 1.
  */
-function resolvePagingRoles(
-	candidates: ParameterObject[],
-): { limit?: string; page?: string; offset?: string } {
+function resolvePagingRoles(candidates: ParameterObject[]): { limit?: string; page?: string; offset?: string } {
 	const roles: { limit?: string; page?: string; offset?: string } = {}
 
 	for (const parameter of candidates) {
@@ -331,13 +328,8 @@ export function filterTerm(
 	}
 }
 
-
 /** Renders a sort term in whichever grammar the endpoint speaks. */
-export function sortTerm(
-	conventions: QueryConventions,
-	field: string,
-	direction: "asc" | "desc",
-): string {
+export function sortTerm(conventions: QueryConventions, field: string, direction: "asc" | "desc"): string {
 	switch (conventions.sortGrammar) {
 		case "dotted":
 			return `${field}.${direction}`

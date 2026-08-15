@@ -39,10 +39,12 @@ export const TAG_UNLOCKS: Record<string, readonly string[]> = {
 
 /** Tags that change the *confidence* of checks that already run, not the count. */
 const TAG_SHARPENS: Record<string, string> = {
-	"x-query": "the remaining query checks run against every scalar property, including fields the "
-		+ "backend never indexed — expect findings you will have to dismiss",
-	"x-tenant": "a cross-tenant read is reported as an ambiguity, not a security finding, because "
-		+ "oat inferred the boundary rather than reading it",
+	"x-query":
+		"the remaining query checks run against every scalar property, including fields the " +
+		"backend never indexed — expect findings you will have to dismiss",
+	"x-tenant":
+		"a cross-tenant read is reported as an ambiguity, not a security finding, because " +
+		"oat inferred the boundary rather than reading it",
 }
 
 const TAG_REMEDY: Record<string, string> = {
@@ -114,11 +116,7 @@ function plan(model: SpecModel, asJson: boolean): string {
 	return lines.join("\n")
 }
 
-function doctor(
-	model: SpecModel,
-	externalRefs: string[],
-	asJson: boolean,
-): { text: string; blocking: number } {
+function doctor(model: SpecModel, externalRefs: string[], asJson: boolean): { text: string; blocking: number } {
 	const entities = [...model.entities.values()].sort((a, b) => a.name.localeCompare(b.name))
 	const trackable = entities.filter((e) => e.trackable && e.readSurface.length > 0)
 	const listable = trackable.filter((e) => e.list !== undefined)
@@ -238,9 +236,7 @@ function doctor(
 
 	if (!model.hasAuthOperations && model.securitySchemes.length > 0) {
 		lines.push("  auth")
-		lines.push(
-			`    document declares ${model.securitySchemes.map((s) => `"${s}"`).join(", ")} but contains no`,
-		)
+		lines.push(`    document declares ${model.securitySchemes.map((s) => `"${s}"`).join(", ")} but contains no`)
 		lines.push("    operation for obtaining a credential. No generic client can bootstrap from")
 		lines.push("    this spec. Add the auth operations, or declare x-auth-flows at document root.")
 		lines.push("")

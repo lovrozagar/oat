@@ -167,10 +167,10 @@ export function createStderrProgress(startedAt = Date.now()): {
 			lastKey = key
 			const stalled = snap.last !== undefined && Date.now() - snap.last.at >= STALL_MS
 			const force =
-				snap.phase === "done"
-				|| snap.phase === "load"
-				|| snap.phase === "auth"
-				|| (snap.phase === "seed" && snap.check === undefined)
+				snap.phase === "done" ||
+				snap.phase === "load" ||
+				snap.phase === "auth" ||
+				(snap.phase === "seed" && snap.check === undefined)
 			const due = Date.now() - lastWrite >= 2_000
 			if (force || keyChanged || stalled || due) write(snap)
 		},
@@ -180,7 +180,10 @@ export function createStderrProgress(startedAt = Date.now()): {
 	}
 }
 
-function fields(snap: ProgressSnapshot, now: number): {
+function fields(
+	snap: ProgressSnapshot,
+	now: number,
+): {
 	status: string
 	done: string
 	total: string

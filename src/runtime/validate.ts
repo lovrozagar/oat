@@ -32,9 +32,7 @@ const OK: ValidationResult = { errors: [], ok: true }
 /* Both packages ship CJS with an interop default, so the callable lives on `.default` under
  * NodeNext resolution — but only at runtime, hence the cast. */
 const Ajv2020 = ((ajvModule as { default?: unknown }).default ?? ajvModule) as AjvConstructor
-const addFormats = ((formatsModule as { default?: unknown }).default ?? formatsModule) as (
-	ajv: AjvLike,
-) => void
+const addFormats = ((formatsModule as { default?: unknown }).default ?? formatsModule) as (ajv: AjvLike) => void
 
 export class SchemaValidator {
 	private readonly ajv: AjvLike
@@ -73,12 +71,7 @@ export class SchemaValidator {
 		}
 	}
 
-	validate(
-		operationId: string,
-		op: OperationObject,
-		status: number,
-		body: unknown,
-	): ValidationResult {
+	validate(operationId: string, op: OperationObject, status: number, body: unknown): ValidationResult {
 		const validate = this.compile(op, `${operationId}:${status}`, status)
 		if (validate === null) return OK
 		if (validate(body) === true) return OK

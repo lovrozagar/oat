@@ -78,9 +78,7 @@ export function deriveCollectionShape(schema: SchemaObject | null): CollectionSh
 		.map(([name, value]) => ({ item: asSchema(value.items), name }))
 		.filter((c) => c.item !== null)
 
-	const chosen =
-		candidates.find((c) => c.item?.type === "object" || c.item?.properties !== undefined) ??
-		candidates[0]
+	const chosen = candidates.find((c) => c.item?.type === "object" || c.item?.properties !== undefined) ?? candidates[0]
 	if (chosen === undefined) return null
 
 	const siblingNames = entries.map(([name]) => name).filter((name) => name !== chosen.name)
@@ -110,17 +108,12 @@ const IDENTITY_CANDIDATES = ["id", "uuid", "slug", "key", "name"]
  * Finds the property that identifies an instance. Prefers a required identity-like property,
  * then any identity-like property, then the trailing path parameter's implied name.
  */
-export function deriveIdentity(
-	itemSchema: SchemaObject | null,
-	pathParamHint?: string,
-): string | null {
+export function deriveIdentity(itemSchema: SchemaObject | null, pathParamHint?: string): string | null {
 	if (itemSchema !== null) {
 		const props = itemSchema.properties
 		if (props !== null && typeof props === "object") {
 			const names = Object.keys(props as Record<string, unknown>)
-			const required = Array.isArray(itemSchema.required)
-				? (itemSchema.required as string[])
-				: []
+			const required = Array.isArray(itemSchema.required) ? (itemSchema.required as string[]) : []
 			for (const candidate of IDENTITY_CANDIDATES) {
 				if (required.includes(candidate)) return candidate
 			}

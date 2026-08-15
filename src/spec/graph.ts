@@ -35,13 +35,7 @@ import {
 } from "./extensions.ts"
 import { deriveQueryConventions, type QueryConventions } from "./conventions.ts"
 import { parseRouteRef } from "./load.ts"
-import {
-	type Endpoint,
-	MUTATING_METHODS,
-	type OpenApiDocument,
-	type OperationObject,
-	listEndpoints,
-} from "./types.ts"
+import { type Endpoint, MUTATING_METHODS, type OpenApiDocument, type OperationObject, listEndpoints } from "./types.ts"
 
 export interface OperationModel {
 	operationId: string
@@ -160,11 +154,7 @@ export function buildModel(doc: OpenApiDocument): SpecModel {
 	}
 }
 
-function modelOperation(
-	endpoint: Endpoint,
-	doc: OpenApiDocument,
-	gaps: GapCollector,
-): OperationModel {
+function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapCollector): OperationModel {
 	const { op, method, path, operationId } = endpoint
 	const responseSchema = successSchema(op)
 	const collection = deriveCollectionShape(responseSchema)
@@ -174,8 +164,7 @@ function modelOperation(
 	const lastParam = pathParams.at(-1)
 
 	const itemSchema = collection?.itemSchema ?? responseSchema
-	const identity =
-		entity?.identity ?? deriveIdentity(itemSchema, lastParam === undefined ? undefined : lastParam)
+	const identity = entity?.identity ?? deriveIdentity(itemSchema, lastParam === undefined ? undefined : lastParam)
 
 	const security = op.security ?? doc.security ?? []
 	const securitySchemes = [...new Set(security.flatMap((group) => Object.keys(group)))]
@@ -219,9 +208,7 @@ function modelOperation(
 		queryParamNames: (op.parameters ?? []).filter((p) => p.in === "query").map((p) => p.name),
 		idempotencyHeader:
 			(op.parameters ?? []).find(
-				(p) =>
-					p.in === "header"
-					&& /^(x-)?idempotenc(y|e)([-_]?key)?$/i.test(p.name.replace(/\s/g, "")),
+				(p) => p.in === "header" && /^(x-)?idempotenc(y|e)([-_]?key)?$/i.test(p.name.replace(/\s/g, "")),
 			)?.name ?? null,
 		rootParams: readRootParams(op),
 		route: `${method.toUpperCase()} ${path}`,
@@ -382,11 +369,7 @@ function buildEntities(
 				entity.declaredSurface.push(ref)
 			}
 			if (!byRoute.has(ref)) {
-				gaps.record(
-					op.operationId,
-					"x-invalidate",
-					`names "${ref}", which is not an operation in this document`,
-				)
+				gaps.record(op.operationId, "x-invalidate", `names "${ref}", which is not an operation in this document`)
 			}
 		}
 	}
@@ -429,10 +412,7 @@ function buildEntities(
  * matches has a create operation. Roots must be supplied by config before a run starts —
  * discovering them late is what turns one missing fixture into a cascade of failures.
  */
-function collectRoots(
-	operations: OperationModel[],
-	entities: Map<string, EntityModel>,
-): string[] {
+function collectRoots(operations: OperationModel[], entities: Map<string, EntityModel>): string[] {
 	const roots = new Set<string>()
 	for (const op of operations) {
 		for (const param of op.rootParams) roots.add(param)

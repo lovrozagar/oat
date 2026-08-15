@@ -30,11 +30,16 @@ export interface PrincipalRuntime {
 
 export function readPath(body: unknown, path: string): unknown {
 	let node: unknown = body
-	for (const segment of path.replace(/^\$\.?/, "").split(".").filter(Boolean)) {
+	for (const segment of path
+		.replace(/^\$\.?/, "")
+		.split(".")
+		.filter(Boolean)) {
 		if (node === null || typeof node !== "object") return undefined
 		const index = Number.parseInt(segment, 10)
 		node = Array.isArray(node)
-			? (Number.isNaN(index) ? undefined : node[index])
+			? Number.isNaN(index)
+				? undefined
+				: node[index]
 			: (node as Record<string, unknown>)[segment]
 	}
 	return node
@@ -167,11 +172,7 @@ export async function runAcquireChain(
 	return { credential, expiresAt: computeExpiry(spec, last, credential), scope }
 }
 
-function computeExpiry(
-	spec: AcquireSpec,
-	last: Exchange | undefined,
-	credential: string,
-): number | null {
+function computeExpiry(spec: AcquireSpec, last: Exchange | undefined, credential: string): number | null {
 	/* Prefer what the API states, then what the credential itself carries, then the configured
 	 * fallback. Guessing an expiry that is too long means requests start failing mid-run for
 	 * reasons that look like backend defects. */
@@ -211,38 +212,27 @@ function resolveRequest(
 		const op = context.model.byOperationId.get(step.operationId)
 		if (op === undefined) {
 			throw new Error(
-				`oat: auth step ${index + 1} names operation "${step.operationId}", which is not in the ` +
-					"document",
+				`oat: auth step ${index + 1} names operation "${step.operationId}", which is not in the ` + "document",
 			)
 		}
 		return {
 			method: op.method,
 			path: String(interpolate(op.path, scope)),
 			...(step.body === undefined ? {} : { body: interpolate(step.body, scope) }),
-			...(step.headers === undefined
-				? {}
-				: { headers: interpolate(step.headers, scope) as Record<string, string> }),
-			...(step.query === undefined
-				? {}
-				: { query: interpolate(step.query, scope) as Record<string, string> }),
+			...(step.headers === undefined ? {} : { headers: interpolate(step.headers, scope) as Record<string, string> }),
+			...(step.query === undefined ? {} : { query: interpolate(step.query, scope) as Record<string, string> }),
 		}
 	}
 
 	if (!isRequestStep(step)) {
-		throw new Error(
-			`oat: auth step ${index + 1} declares neither an operationId nor a method and path`,
-		)
+		throw new Error(`oat: auth step ${index + 1} declares neither an operationId nor a method and path`)
 	}
 	return {
 		method: step.method,
 		path: String(interpolate(step.path, scope)),
 		...(step.body === undefined ? {} : { body: interpolate(step.body, scope) }),
-		...(step.headers === undefined
-			? {}
-			: { headers: interpolate(step.headers, scope) as Record<string, string> }),
-		...(step.query === undefined
-			? {}
-			: { query: interpolate(step.query, scope) as Record<string, string> }),
+		...(step.headers === undefined ? {} : { headers: interpolate(step.headers, scope) as Record<string, string> }),
+		...(step.query === undefined ? {} : { query: interpolate(step.query, scope) as Record<string, string> }),
 	}
 }
 
@@ -251,11 +241,7 @@ function resolveRequest(
  * backoff rather than called once. A single read that happens to race the write looks exactly
  * like a broken delivery mechanism.
  */
-async function resolveOutOfBand(
-	context: AcquireContext,
-	address: string,
-	kind: string,
-): Promise<string> {
+async function resolveOutOfBand(context: AcquireContext, address: string, kind: string): Promise<string> {
 	const hook = context.hooks.resolveOutOfBand
 	if (hook === undefined) {
 		throw new Error(

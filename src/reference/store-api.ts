@@ -114,7 +114,10 @@ export function project(
 ): Row {
 	if (select === undefined || select === "" || select === "*") return { ...row }
 	if (ignore) return { ...row }
-	const fields = select.split(",").map((s) => s.trim()).filter(Boolean)
+	const fields = select
+		.split(",")
+		.map((s) => s.trim())
+		.filter(Boolean)
 	const rejected = fields.find((f) => excluded.includes(f))
 	if (rejected !== undefined) {
 		throw new SqlError("invalid_select", `field "${rejected}" is not selectable`)

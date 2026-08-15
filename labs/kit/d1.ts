@@ -19,14 +19,9 @@ interface D1HttpResponse {
 	result?: Array<{ results?: Record<string, unknown>[]; success?: boolean }>
 }
 
-export function httpDriver(config: {
-	accountId: string
-	databaseId: string
-	apiToken: string
-}): Driver {
+export function httpDriver(config: { accountId: string; databaseId: string; apiToken: string }): Driver {
 	const endpoint =
-		`https://api.cloudflare.com/client/v4/accounts/${config.accountId}` +
-		`/d1/database/${config.databaseId}/query`
+		`https://api.cloudflare.com/client/v4/accounts/${config.accountId}` + `/d1/database/${config.databaseId}/query`
 
 	async function send(sql: string, params: SqlValue[]): Promise<Record<string, unknown>[]> {
 		const response = await fetch(endpoint, {
@@ -40,8 +35,7 @@ export function httpDriver(config: {
 		const body = (await response.json()) as D1HttpResponse
 		if (!response.ok || !body.success) {
 			const detail =
-				body.errors?.map((error) => `${error.code}: ${error.message}`).join("; ")
-				?? `HTTP ${response.status}`
+				body.errors?.map((error) => `${error.code}: ${error.message}`).join("; ") ?? `HTTP ${response.status}`
 			throw new Error(`D1 query failed (${detail}) for: ${sql.slice(0, 160)}`)
 		}
 		return body.result?.[0]?.results ?? []
@@ -75,14 +69,20 @@ export interface D1Binding {
 export function bindingDriver(db: D1Binding): Driver {
 	return {
 		async all(sql, args) {
-			const result = await db.prepare(sql).bind(...args).all()
+			const result = await db
+				.prepare(sql)
+				.bind(...args)
+				.all()
 			return result.results ?? []
 		},
 		async exec(sql) {
 			await db.exec(sql)
 		},
 		async run(sql, args) {
-			await db.prepare(sql).bind(...args).run()
+			await db
+				.prepare(sql)
+				.bind(...args)
+				.run()
 		},
 	}
 }

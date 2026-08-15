@@ -1,14 +1,6 @@
 import { compileFilter, compileOrder, project, QueryError } from "./query.ts"
 import { schemaStatements } from "./schema.ts"
-import {
-	allColumns,
-	entityByName,
-	hasDefect,
-	numericFields,
-	parentIdField,
-	type Entity,
-	type World,
-} from "./types.ts"
+import { allColumns, entityByName, hasDefect, numericFields, parentIdField, type Entity, type World } from "./types.ts"
 
 export type Row = Record<string, unknown>
 
@@ -61,29 +53,27 @@ export class WorldStore {
 	async get(entity: Entity, orgId: string, id: string): Promise<Row | null> {
 		const extra = entity.softDelete === true ? ` AND deleted_at IS NULL` : ""
 		if (hasDefect(this.world, "ignore-tenant-get")) {
-			const rows = await this.db.all(
-				`SELECT * FROM "${entity.plural}" WHERE id = ?${extra}`,
-				[id],
-			)
+			const rows = await this.db.all(`SELECT * FROM "${entity.plural}" WHERE id = ?${extra}`, [id])
 			return rows[0] ?? null
 		}
-		const rows = await this.db.all(
-			`SELECT * FROM "${entity.plural}" WHERE id = ? AND org_id = ?${extra}`,
-			[id, orgId],
-		)
+		const rows = await this.db.all(`SELECT * FROM "${entity.plural}" WHERE id = ? AND org_id = ?${extra}`, [id, orgId])
 		return rows[0] ?? null
 	}
 
 	async existsElsewhere(entity: Entity, id: string, orgId: string): Promise<boolean> {
 		const extra = entity.softDelete === true ? ` AND deleted_at IS NULL` : ""
-		const rows = await this.db.all(
-			`SELECT 1 AS n FROM "${entity.plural}" WHERE id = ? AND org_id != ?${extra}`,
-			[id, orgId],
-		)
+		const rows = await this.db.all(`SELECT 1 AS n FROM "${entity.plural}" WHERE id = ? AND org_id != ?${extra}`, [
+			id,
+			orgId,
+		])
 		return rows.length > 0
 	}
 
-	async list(entity: Entity, scope: Record<string, string>, params: ListParams): Promise<{
+	async list(
+		entity: Entity,
+		scope: Record<string, string>,
+		params: ListParams,
+	): Promise<{
 		items: Row[]
 		count: number
 		hasMore: boolean
@@ -113,9 +103,7 @@ export class WorldStore {
 		const dropFilter = hasDefect(this.world, "drop-filter")
 		const filterAfterPage = hasDefect(this.world, "filter-after-page")
 		const bypassTenant =
-			hasDefect(this.world, "filter-bypass-tenant")
-			&& params.filter !== undefined
-			&& params.filter !== ""
+			hasDefect(this.world, "filter-bypass-tenant") && params.filter !== undefined && params.filter !== ""
 		const filterOpts = {
 			acceptUnknown: hasDefect(this.world, "accept-unknown-filter"),
 			andAsOr: hasDefect(this.world, "and-as-or"),
@@ -148,12 +136,7 @@ export class WorldStore {
 			/* Parse so unknown fields still 400; apply later or not at all. */
 			compileFilter(params.filter, filterable, columns, numeric, filterOpts)
 		}
-		if (
-			params.q !== undefined
-			&& params.q !== ""
-			&& searchable.length > 0
-			&& !hasDefect(this.world, "drop-search")
-		) {
+		if (params.q !== undefined && params.q !== "" && searchable.length > 0 && !hasDefect(this.world, "drop-search")) {
 			const needle = `%${params.q.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`
 			where.push(`(${searchable.map((f) => `LOWER("${f}") LIKE LOWER(?) ESCAPE '\\'`).join(" OR ")})`)
 			for (const _ of searchable) args.push(needle)
@@ -177,16 +160,9 @@ export class WorldStore {
 		let offset = 0
 		if (!hasDefect(this.world, "ignore-page")) {
 			offset = (page - 1) * limit
-			if (
-				params.cursor !== undefined
-				&& params.cursor !== ""
-				&& !hasDefect(this.world, "ignore-cursor")
-			) {
+			if (params.cursor !== undefined && params.cursor !== "" && !hasDefect(this.world, "ignore-cursor")) {
 				const after = decodeCursor(params.cursor)
-				const idx = await this.db.all(
-					`SELECT id FROM "${entity.plural}" ${whereSql} ORDER BY ${order.sql}`,
-					args,
-				)
+				const idx = await this.db.all(`SELECT id FROM "${entity.plural}" ${whereSql} ORDER BY ${order.sql}`, args)
 				const at = idx.findIndex((row) => String(row.id) === after)
 				offset = at === -1 ? 0 : at + 1
 			}
@@ -261,10 +237,12 @@ export class WorldStore {
 		const current = await this.get(entity, orgId, id)
 		if (current === null) return false
 		if (entity.softDelete === true) {
-			await this.db.run(
-				`UPDATE "${entity.plural}" SET deleted_at = ?, updated_at = ? WHERE id = ? AND org_id = ?`,
-				[Date.now(), Date.now(), id, orgId],
-			)
+			await this.db.run(`UPDATE "${entity.plural}" SET deleted_at = ?, updated_at = ? WHERE id = ? AND org_id = ?`, [
+				Date.now(),
+				Date.now(),
+				id,
+				orgId,
+			])
 		} else {
 			await this.db.run(`DELETE FROM "${entity.plural}" WHERE id = ? AND org_id = ?`, [id, orgId])
 		}
@@ -279,10 +257,7 @@ export class WorldStore {
 	}
 
 	async saveIdempotent(key: string, record: Row): Promise<void> {
-		await this.db.run(`INSERT OR REPLACE INTO idempotency (key, record) VALUES (?, ?)`, [
-			key,
-			JSON.stringify(record),
-		])
+		await this.db.run(`INSERT OR REPLACE INTO idempotency (key, record) VALUES (?, ?)`, [key, JSON.stringify(record)])
 	}
 
 	async saveGrant(grant: Grant): Promise<void> {
@@ -341,10 +316,11 @@ export class WorldStore {
 				`SELECT COUNT(*) AS n FROM "${entity.plural}" WHERE "${parent.name}_id" = ?${extra}`,
 				[parentId],
 			)
-			await this.db.run(
-				`UPDATE "${parent.plural}" SET "${derived.name}" = ?, updated_at = ? WHERE id = ?`,
-				[Number(counted[0]?.n ?? 0), Date.now(), parentId],
-			)
+			await this.db.run(`UPDATE "${parent.plural}" SET "${derived.name}" = ?, updated_at = ? WHERE id = ?`, [
+				Number(counted[0]?.n ?? 0),
+				Date.now(),
+				parentId,
+			])
 		}
 	}
 }

@@ -77,11 +77,7 @@ export class SqlStore implements Store {
 	 * Schema creation is a set of round trips on a networked engine, so it cannot live in a
 	 * constructor. `prefix` isolates one run's tables from another's on a shared database.
 	 */
-	static async create(
-		defects: DefectSet,
-		driver: SqliteDriver,
-		prefix = "",
-	): Promise<SqlStore> {
+	static async create(defects: DefectSet, driver: SqliteDriver, prefix = ""): Promise<SqlStore> {
 		const store = new SqlStore(defects, driver, prefix)
 		/* One statement per table would be one network round trip per table. Both drivers accept
 		 * a multi-statement script, so the whole schema costs a single trip. */
@@ -112,8 +108,8 @@ export class SqlStore implements Store {
 		})
 		const table = tableName(entity, this.prefix)
 		return (
-			`CREATE TABLE ${table} (\n${columns.join(",\n")}\n);\n`
-			+ `CREATE INDEX "${this.prefix}idx_${entity.plural}_id" ON ${table} (${col(entity.identity)})`
+			`CREATE TABLE ${table} (\n${columns.join(",\n")}\n);\n` +
+			`CREATE INDEX "${this.prefix}idx_${entity.plural}_id" ON ${table} (${col(entity.identity)})`
 		)
 	}
 
@@ -130,9 +126,7 @@ export class SqlStore implements Store {
 
 	/** The stored column for a field — diverges from the declared name only under the defect. */
 	private physical(name: string): string {
-		return this.defects.has("COLUMN_NAME_MISMATCH") && name === "name"
-			? col("mislabelled_name")
-			: col(name)
+		return this.defects.has("COLUMN_NAME_MISMATCH") && name === "name" ? col("mislabelled_name") : col(name)
 	}
 
 	async insert(entity: EntityDef, record: Row): Promise<Row> {
@@ -143,8 +137,8 @@ export class SqlStore implements Store {
 		/* RETURNING reads the stored row back in the same statement. On a networked engine the
 		 * separate SELECT this replaces doubled the cost of every write. */
 		const written = await this.db.all(
-			`INSERT INTO ${tableName(entity, this.prefix)} (${columns}) VALUES (${placeholders}) `
-				+ `RETURNING ${this.selectList(entity)}`,
+			`INSERT INTO ${tableName(entity, this.prefix)} (${columns}) VALUES (${placeholders}) ` +
+				`RETURNING ${this.selectList(entity)}`,
 			values,
 		)
 		const row = written[0]
@@ -194,8 +188,8 @@ export class SqlStore implements Store {
 		if (names.length === 0) return this.byId(entity, id)
 		const assignments = names.map((n) => `${this.physical(n)} = ?`).join(", ")
 		const written = await this.db.all(
-			`UPDATE ${tableName(entity, this.prefix)} SET ${assignments} `
-				+ `WHERE ${col(entity.identity)} = ? RETURNING ${this.selectList(entity)}`,
+			`UPDATE ${tableName(entity, this.prefix)} SET ${assignments} ` +
+				`WHERE ${col(entity.identity)} = ? RETURNING ${this.selectList(entity)}`,
 			[...names.map((n) => toSql(patch[n])), id],
 		)
 		const row = written[0]
@@ -216,18 +210,15 @@ export class SqlStore implements Store {
 		const merged = { ...current, ...patch }
 		const names = entity.fields.map((f) => f.name)
 		const assignments = names.map((n) => `${this.physical(n)} = ?`).join(", ")
-		await this.db.run(
-			`UPDATE ${tableName(entity, this.prefix)} SET ${assignments} WHERE ${col(entity.identity)} = ?`,
-			[...names.map((n) => toSql(merged[n])), id],
-		)
+		await this.db.run(`UPDATE ${tableName(entity, this.prefix)} SET ${assignments} WHERE ${col(entity.identity)} = ?`, [
+			...names.map((n) => toSql(merged[n])),
+			id,
+		])
 		return this.byId(entity, id)
 	}
 
 	async remove(entity: EntityDef, id: string): Promise<void> {
-		await this.db.run(
-			`DELETE FROM ${tableName(entity, this.prefix)} WHERE ${col(entity.identity)} = ?`,
-			[id],
-		)
+		await this.db.run(`DELETE FROM ${tableName(entity, this.prefix)} WHERE ${col(entity.identity)} = ?`, [id])
 	}
 
 	/**
@@ -304,9 +295,7 @@ export class SqlStore implements Store {
 		const total = { n: Number(counted[0]?.n ?? 0) }
 
 		const requested = params.limit ?? entity.defaultLimit
-		const limit = this.defects.has("LIMIT_EXCEEDS_MAX")
-			? requested
-			: Math.min(requested, entity.maxLimit)
+		const limit = this.defects.has("LIMIT_EXCEEDS_MAX") ? requested : Math.min(requested, entity.maxLimit)
 
 		let offset: number
 		let page: number | null
@@ -329,9 +318,7 @@ export class SqlStore implements Store {
 			page = null
 		} else {
 			const requestedPage = Math.max(params.page ?? 1, 1)
-			offset =
-				(requestedPage - 1) * limit +
-				(this.defects.has("OFF_BY_ONE_PAGE") && requestedPage > 1 ? 1 : 0)
+			offset = (requestedPage - 1) * limit + (this.defects.has("OFF_BY_ONE_PAGE") && requestedPage > 1 ? 1 : 0)
 			page = requestedPage
 		}
 
@@ -353,9 +340,7 @@ export class SqlStore implements Store {
 
 		const decoded = effective.map((row) => this.decode(entity, row))
 		const last = decoded.at(-1)
-		const hasMore = this.defects.has("HASMORE_ALWAYS_FALSE")
-			? false
-			: offset + decoded.length < total.n
+		const hasMore = this.defects.has("HASMORE_ALWAYS_FALSE") ? false : offset + decoded.length < total.n
 
 		return {
 			count: this.defects.has("COUNT_ALWAYS_ZERO") ? 0 : total.n,
@@ -368,21 +353,17 @@ export class SqlStore implements Store {
 						params.select,
 						this.defects.has("SELECT_IGNORED"),
 						this.defects.has("SPEC_OVERCLAIMS_SELECTABLE") ? [OVERCLAIMED_FIELD] : [],
-					)
+					),
 				),
 			limit,
-			nextCursor:
-				hasMore && last !== undefined ? encodeCursor(String(last[entity.identity])) : null,
+			nextCursor: hasMore && last !== undefined ? encodeCursor(String(last[entity.identity])) : null,
 			page,
 		}
 	}
 
 	/* ------------------------------------------------------------- filter → SQL */
 
-	private compileFilter(
-		expression: string,
-		entity: EntityDef,
-	): { sql: string; args: SqlValue[] } {
+	private compileFilter(expression: string, entity: EntityDef): { sql: string; args: SqlValue[] } {
 		const trimmed = expression.trim()
 
 		const group = /^(and|or)\((.*)\)$/s.exec(trimmed)
@@ -390,7 +371,9 @@ export class SqlStore implements Store {
 			const parts = splitTopLevel(group[2]).map((part) => this.compileFilter(part, entity))
 			if (parts.length === 0) throw new SqlError("invalid_filter", "empty filter group")
 			const effective = this.defects.has("FILTER_GROUP_COMBINATOR_SWAPPED")
-				? (group[1] === "and" ? "or" : "and")
+				? group[1] === "and"
+					? "or"
+					: "and"
 				: group[1]
 			return {
 				args: parts.flatMap((p) => p.args),
@@ -419,10 +402,7 @@ export class SqlStore implements Store {
 		const numeric = declared?.type === "integer" || declared?.type === "number"
 		/* SQLite compares by storage class, so a numeric column normally orders numerically.
 		 * Casting to TEXT is what reproduces `amount > 9` missing 10. */
-		const ref =
-			numeric && this.defects.has("NUMERIC_COMPARED_AS_TEXT")
-				? `CAST(${col(field)} AS TEXT)`
-				: col(field)
+		const ref = numeric && this.defects.has("NUMERIC_COMPARED_AS_TEXT") ? `CAST(${col(field)} AS TEXT)` : col(field)
 		const asText = !numeric || this.defects.has("NUMERIC_COMPARED_AS_TEXT")
 		switch (op) {
 			case "eq":
@@ -445,7 +425,9 @@ export class SqlStore implements Store {
 				return { args: [coerce(raw, asText)], sql: `${ref} <= ?` }
 			case "in":
 			case "nin": {
-				const members: SqlValue[] = stripParens(raw).split(",").map((s) => coerce(s.trim()))
+				const members: SqlValue[] = stripParens(raw)
+					.split(",")
+					.map((s) => coerce(s.trim()))
 				const holes = members.map(() => "?").join(", ")
 				return {
 					args: members,
@@ -498,10 +480,7 @@ export class SqlStore implements Store {
 						: descending
 				const declared = entity.fields.find((f) => f.name === field)
 				const numeric = declared?.type === "integer" || declared?.type === "number"
-				const ref =
-					numeric && this.defects.has("NUMERIC_COMPARED_AS_TEXT")
-						? `CAST(${col(field)} AS TEXT)`
-						: col(field)
+				const ref = numeric && this.defects.has("NUMERIC_COMPARED_AS_TEXT") ? `CAST(${col(field)} AS TEXT)` : col(field)
 				terms.push(`${col(field)} IS NULL ${nullsFirst ? "DESC" : "ASC"}`)
 				terms.push(`${ref} ${descending ? "DESC" : "ASC"}`)
 				if (descending && this.defects.has("SORT_DESC_DROPS_NULLS")) {
@@ -549,4 +528,3 @@ function coerce(raw: string, asText = false): SqlValue {
 function escapeLike(value: string): string {
 	return value.replace(/[\\%_]/g, (ch) => `\\${ch}`)
 }
-

@@ -69,7 +69,10 @@ export interface RunResult {
 }
 
 function readPointer(body: unknown, pointer: string): unknown {
-	const path = pointer.replace(/^\$\.?/, "").split(".").filter(Boolean)
+	const path = pointer
+		.replace(/^\$\.?/, "")
+		.split(".")
+		.filter(Boolean)
 	let node: unknown = body
 	for (const segment of path) {
 		if (node === null || typeof node !== "object") return undefined
@@ -318,7 +321,6 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	 * second in the array". A same-tenant viewer sitting at index 1 must not steal that slot. */
 	const peer = resolved.slice(1).find((candidate) => !sameTenant(alpha.roots, candidate.roots))
 
-
 	const entitiesTested: string[] = []
 	const checksRun = new Set<string>()
 	const checksSkipped: Array<{ check: string; entity: string; needs: string }> = []
@@ -404,12 +406,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				...alpha.roots,
 			})
 			if (existing.records.length === 0) {
-				findings.blocked(
-					"world.seed",
-					entity.name,
-					`could not seed "${entity.name}"`,
-					`${cause}: ${message}`,
-				)
+				findings.blocked("world.seed", entity.name, `could not seed "${entity.name}"`, `${cause}: ${message}`)
 				return
 			}
 
@@ -513,9 +510,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			altAuth,
 			altScope,
 			asyncOps: model.operations.filter((op) => op.entity === entity.name && op.async !== null),
-			effectOps: model.operations.filter(
-				(op) => op.entity === entity.name && op.effects.length > 0,
-			),
+			effectOps: model.operations.filter((op) => op.entity === entity.name && op.effects.length > 0),
 			auth: alpha.headers,
 			client: trackingClient,
 			collectionKey: listOp.collection?.key ?? null,
@@ -538,8 +533,8 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			 * x-soft-delete on the delete route, and a tag that exists but is only read from
 			 * list made softdelete.absent-from-default-list stand down against a real document. */
 			softDelete:
-				model.operations.find((op) => op.entity === entity.name && op.softDelete !== null)
-					?.softDelete ?? listOp.softDelete,
+				model.operations.find((op) => op.entity === entity.name && op.softDelete !== null)?.softDelete ??
+				listOp.softDelete,
 			seed,
 			updateOp: degraded ? undefined : model.byOperationId.get(entity.update ?? ""),
 			validator,
@@ -589,9 +584,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		const suppressedBy = new Map<string, string>()
 		const suppressed = (check: (typeof CHECKS)[number]): boolean => {
 			for (const dependency of check.dependsOn ?? []) {
-				const failed = findings.findings.some(
-					(f) => f.check === dependency && f.entity === entity.name,
-				)
+				const failed = findings.findings.some((f) => f.check === dependency && f.entity === entity.name)
 				const inherited = suppressedBy.get(dependency)
 				if (!failed && inherited === undefined) continue
 				const because = failed ? dependency : (inherited as string)

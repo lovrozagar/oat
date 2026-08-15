@@ -54,12 +54,7 @@ class HttpError extends Error {
 
 /* ------------------------------------------------------------------ validation */
 
-function validateBody(
-	entity: EntityDef,
-	body: unknown,
-	phase: "create" | "update",
-	defects: DefectSet,
-): Row {
+function validateBody(entity: EntityDef, body: unknown, phase: "create" | "update", defects: DefectSet): Row {
 	if (body === null || typeof body !== "object" || Array.isArray(body)) {
 		throw new HttpError(400, "invalid_input", "request body must be a JSON object")
 	}
@@ -81,11 +76,7 @@ function validateBody(
 
 	if (phase === "create") {
 		for (const field of allowed.values()) {
-			if (
-				field.required === true &&
-				input[field.name] === undefined &&
-				!defects.has("REQUIRED_NOT_VALIDATED")
-			) {
+			if (field.required === true && input[field.name] === undefined && !defects.has("REQUIRED_NOT_VALIDATED")) {
 				throw new HttpError(400, "invalid_input", `field "${field.name}" is required`)
 			}
 		}
@@ -125,11 +116,7 @@ function coerceField(field: FieldDef, value: unknown, defects: DefectSet): unkno
 	if (typeof value !== "string") {
 		throw new HttpError(400, "invalid_input", `field "${field.name}" must be a string`)
 	}
-	if (
-		field.maxLength !== undefined &&
-		value.length > field.maxLength &&
-		!defects.has("MAXLENGTH_NOT_VALIDATED")
-	) {
+	if (field.maxLength !== undefined && value.length > field.maxLength && !defects.has("MAXLENGTH_NOT_VALIDATED")) {
 		throw new HttpError(400, "invalid_input", `field "${field.name}" exceeds maxLength`)
 	}
 	if (field.enum !== undefined && !field.enum.includes(value) && !defects.has("ENUM_NOT_VALIDATED")) {
@@ -235,11 +222,7 @@ export async function createReferenceServer(
 	}
 
 	/** Walks a record up its parent chain to the owning tenant, driven by the descriptors. */
-	async function ownedByTenant(
-		entity: EntityDef,
-		record: Row,
-		principal: Principal,
-	): Promise<boolean> {
+	async function ownedByTenant(entity: EntityDef, record: Row, principal: Principal): Promise<boolean> {
 		if (entity.fields.some((f) => f.name === TENANT_FIELD)) {
 			return record[TENANT_FIELD] === principal.projectId
 		}
@@ -391,11 +374,7 @@ export async function createReferenceServer(
 		const method = (req.method ?? "GET").toUpperCase()
 
 		if (url.pathname === "/v1/openapi/spec") {
-			return send(
-				res,
-				200,
-				options.untagged === true ? buildUntaggedSpec(dialect) : buildSpec(dialect),
-			)
+			return send(res, 200, options.untagged === true ? buildUntaggedSpec(dialect) : buildSpec(dialect))
 		}
 
 		if (url.pathname === "/v1/auth/token" && method === "POST") {
@@ -416,7 +395,7 @@ export async function createReferenceServer(
 				throw new HttpError(403, "forbidden", "resource belongs to another tenant")
 			}
 			requireJson(req, defects)
-			const name = (await readJson(req) as { name?: unknown }).name
+			const name = ((await readJson(req)) as { name?: unknown }).name
 			if (typeof name !== "string" || name === "") {
 				throw new HttpError(400, "invalid_input", 'field "name" is required')
 			}
@@ -444,7 +423,7 @@ export async function createReferenceServer(
 			}
 			assertWrite(principal, "create")
 			requireJson(req, defects)
-			const key = (await readJson(req) as { key?: unknown }).key
+			const key = ((await readJson(req)) as { key?: unknown }).key
 			if (typeof key !== "string" || key === "") {
 				throw new HttpError(400, "invalid_input", 'field "key" is required')
 			}
@@ -511,10 +490,7 @@ export async function createReferenceServer(
 				 * also swallow filter validation, so the defect would masquerade as several
 				 * unrelated ones. */
 				const plainListing = [...url.searchParams.keys()].every(
-					(k) =>
-						k === dialect.params.limit
-						|| k === dialect.params.page
-						|| k === dialect.params.offset,
+					(k) => k === dialect.params.limit || k === dialect.params.page || k === dialect.params.offset,
 				)
 				if (defects.has("STALE_LIST") && plainListing && staleSnapshot.has(key)) {
 					const frozen = staleSnapshot.get(key) ?? []
@@ -538,9 +514,7 @@ export async function createReferenceServer(
 					return parsed
 				}
 				const rawFilter =
-					dialect.grammar === "equality"
-						? equalityFilter(url, entity)
-						: url.searchParams.get(dialect.params.filter)
+					dialect.grammar === "equality" ? equalityFilter(url, entity) : url.searchParams.get(dialect.params.filter)
 				let filter: string | undefined
 				/* Alone, the filter behaves perfectly. Each of these defects drops it the moment
 				 * another axis joins the request — the combination is the bug, not either axis. */
@@ -551,12 +525,12 @@ export async function createReferenceServer(
 				const hasSelect = selected !== undefined && selected !== "" && selected !== "*"
 				const hasSearch = searched !== null && searched !== ""
 				const dropFilter =
-					(defects.has("FILTER_DROPPED_WHEN_SORTED") && hasSort)
-					|| (defects.has("FILTER_DROPPED_WHEN_SELECTED") && hasSelect)
-					|| (defects.has("FILTER_DROPPED_WHEN_SEARCHED") && hasSearch)
-					|| (defects.has("FILTER_DROPPED_WHEN_SORTED_AND_SELECTED") && hasSort && hasSelect)
-					|| (defects.has("FILTER_DROPPED_WHEN_SORTED_AND_SEARCHED") && hasSort && hasSearch)
-					|| (defects.has("FILTER_DROPPED_WHEN_SEARCHED_AND_SELECTED") && hasSearch && hasSelect)
+					(defects.has("FILTER_DROPPED_WHEN_SORTED") && hasSort) ||
+					(defects.has("FILTER_DROPPED_WHEN_SELECTED") && hasSelect) ||
+					(defects.has("FILTER_DROPPED_WHEN_SEARCHED") && hasSearch) ||
+					(defects.has("FILTER_DROPPED_WHEN_SORTED_AND_SELECTED") && hasSort && hasSelect) ||
+					(defects.has("FILTER_DROPPED_WHEN_SORTED_AND_SEARCHED") && hasSort && hasSearch) ||
+					(defects.has("FILTER_DROPPED_WHEN_SEARCHED_AND_SELECTED") && hasSearch && hasSelect)
 				if (rawFilter !== null && rawFilter !== "" && !dropFilter) {
 					const canonical = toCanonicalFilter(rawFilter, dialect)
 					if (canonical === null) {
@@ -578,8 +552,7 @@ export async function createReferenceServer(
 				 * window contained. Modelled here rather than in each store because it is a bug in
 				 * *ordering of operations*, not in any one engine's query compiler.
 				 */
-				const pageBeforeFilter =
-					defects.has("FILTER_AFTER_PAGINATION") && filter !== undefined
+				const pageBeforeFilter = defects.has("FILTER_AFTER_PAGINATION") && filter !== undefined
 				const result = await store.query(
 					entity,
 					{ ...scope, project_id: principal.projectId },
@@ -590,10 +563,7 @@ export async function createReferenceServer(
 								: (url.searchParams.get(dialect.params.cursor) ?? undefined),
 						filter: pageBeforeFilter ? undefined : filter,
 						limit: number(dialect.params.limit),
-						order: toCanonicalOrder(
-							url.searchParams.get(dialect.params.order) ?? undefined,
-							dialect,
-						),
+						order: toCanonicalOrder(url.searchParams.get(dialect.params.order) ?? undefined, dialect),
 						/* Whichever the dialect publishes. The store pages by number, so an offset is
 						 * converted using the page size actually in force — the same arithmetic the
 						 * caller performed to produce the offset. */
@@ -606,8 +576,7 @@ export async function createReferenceServer(
 						/* Applied to the collection only — the item route never passes through here —
 						 * so a skewed field makes the two projections disagree exactly as a stale
 						 * denormalised listing does. */
-						transform: (row: Row) =>
-							skewForList(entity.name === "job" ? projectJob(row) : row),
+						transform: (row: Row) => skewForList(entity.name === "job" ? projectJob(row) : row),
 					},
 				)
 				if (pageBeforeFilter && filter !== undefined) {
@@ -618,9 +587,7 @@ export async function createReferenceServer(
 						{ softDeleteField: entity.softDeleteField },
 					)
 					const allowed = new Set(matching.items.map((row) => String(row[entity.identity])))
-					result.items = result.items.filter((row) =>
-						allowed.has(String(row[entity.identity])),
-					)
+					result.items = result.items.filter((row) => allowed.has(String(row[entity.identity])))
 				}
 				const listing = paginated(dialect, entity, url, result)
 				return send(res, 200, listing.body, listing.headers)
@@ -801,12 +768,7 @@ export async function createReferenceServer(
 
 type Json = Record<string, unknown>
 
-function send(
-	res: ServerResponse,
-	status: number,
-	body: Json,
-	extraHeaders: Record<string, string> = {},
-): void {
+function send(res: ServerResponse, status: number, body: Json, extraHeaders: Record<string, string> = {}): void {
 	const payload = JSON.stringify(body)
 	res.writeHead(status, {
 		"content-length": Buffer.byteLength(payload),
@@ -841,7 +803,10 @@ function toCanonicalOrder(expression: string | undefined, dialect: Dialect): str
 			const index = term.lastIndexOf(separator)
 			if (index === -1) return `${term}.asc`
 			const field = term.slice(0, index).trim()
-			const direction = term.slice(index + 1).trim().toLowerCase()
+			const direction = term
+				.slice(index + 1)
+				.trim()
+				.toLowerCase()
 			return direction === "asc" || direction === "desc" ? `${field}.${direction}` : term
 		})
 		.join(",")
@@ -868,9 +833,7 @@ function equalityFilter(url: URL, entity: EntityDef): string | null {
 /** Reads the sparse fieldset, whether the resource lives in the parameter name or not. */
 function readSelect(url: URL, dialect: Dialect, entity: EntityDef): string | undefined {
 	const name =
-		dialect.selectGrammar === "bracketed"
-			? `${dialect.params.select}[${entity.name}]`
-			: dialect.params.select
+		dialect.selectGrammar === "bracketed" ? `${dialect.params.select}[${entity.name}]` : dialect.params.select
 	return url.searchParams.get(name) ?? undefined
 }
 
@@ -908,7 +871,14 @@ function paginated(
 	dialect: Dialect,
 	entity: EntityDef,
 	requestUrl: URL,
-	result: { items: Row[]; count: number; hasMore: boolean; nextCursor: string | null; page: number | null; limit: number },
+	result: {
+		items: Row[]
+		count: number
+		hasMore: boolean
+		nextCursor: string | null
+		page: number | null
+		limit: number
+	},
 ): { body: Json; headers: Record<string, string> } {
 	if (dialect.envelope !== null) {
 		const envelope: Record<string, unknown> = {
@@ -974,9 +944,7 @@ export async function createSqliteServer(
 ): Promise<ReferenceServer> {
 	const { SqlStore } = await import("./stores/sqlite.ts")
 	const { nodeSqliteDriver } = await import("./stores/sqlite-driver.ts")
-	return createReferenceServer(options, async (defects) =>
-		SqlStore.create(defects, await nodeSqliteDriver()),
-	)
+	return createReferenceServer(options, async (defects) => SqlStore.create(defects, await nodeSqliteDriver()))
 }
 
 /**

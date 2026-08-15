@@ -21,8 +21,7 @@ for (const id of ids) {
 	}
 	const creds = requireD1(world.id)
 	const endpoint =
-		`https://api.cloudflare.com/client/v4/accounts/${creds.accountId}` +
-		`/d1/database/${creds.databaseId}/query`
+		`https://api.cloudflare.com/client/v4/accounts/${creds.accountId}` + `/d1/database/${creds.databaseId}/query`
 	async function q(sql) {
 		const response = await fetch(endpoint, {
 			body: JSON.stringify({ params: [], sql }),

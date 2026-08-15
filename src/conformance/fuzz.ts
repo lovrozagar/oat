@@ -103,35 +103,23 @@ export interface FuzzOptions {
 }
 
 export async function runFuzz(options: FuzzOptions = {}): Promise<FuzzCase[]> {
-	const {
-		backend = "memory",
-		cases = 25,
-		dialect = "postgrest",
-		maxDefects = 4,
-		seed: rootSeed = 1,
-	} = options
+	const { backend = "memory", cases = 25, dialect = "postgrest", maxDefects = 4, seed: rootSeed = 1 } = options
 
-	const { createMemoryServer, createPostgresServer, createSqliteServer } = await import(
-		"../reference/http.ts"
-	)
+	const { createMemoryServer, createPostgresServer, createSqliteServer } = await import("../reference/http.ts")
 	const factory =
-		backend === "memory"
-			? createMemoryServer
-			: backend === "sqlite"
-				? createSqliteServer
-				: createPostgresServer
+		backend === "memory" ? createMemoryServer : backend === "sqlite" ? createSqliteServer : createPostgresServer
 
 	/* Defects the chosen backend or dialect cannot express are excluded from the draw rather than
 	 * excused afterwards — a case that cannot fail teaches nothing and still costs a run. */
 	const pool = (Object.keys(DEFECTS) as DefectName[]).filter(
 		(name) =>
-			(backend !== "memory" || !SQL_ONLY.has(name))
-			&& (DIALECTS_WITH_CURSOR.has(dialect) || !CURSOR_ONLY.has(name))
+			(backend !== "memory" || !SQL_ONLY.has(name)) &&
+			(DIALECTS_WITH_CURSOR.has(dialect) || !CURSOR_ONLY.has(name)) &&
 			/* A shape publishing no total cannot publish a wrong one, so drawing a count defect
 			 * against it produces a case that cannot fail — and then fails, because nothing
 			 * detects a defect with nowhere to happen. */
-			&& (DIALECTS_WITH_TOTAL.has(dialect) || !COUNT_ONLY.has(name))
-			&& (DIALECTS_WITH_FILTER_EXPRESSION.has(dialect) || !EXPRESSION_ONLY.has(name)),
+			(DIALECTS_WITH_TOTAL.has(dialect) || !COUNT_ONLY.has(name)) &&
+			(DIALECTS_WITH_FILTER_EXPRESSION.has(dialect) || !EXPRESSION_ONLY.has(name)),
 	)
 
 	const results: FuzzCase[] = []
@@ -161,12 +149,7 @@ type Factory = (options: {
 	dialect?: string
 }) => Promise<{ url: string; close: () => Promise<void> }>
 
-async function runOneCase(
-	factory: Factory,
-	injected: DefectName[],
-	seed: number,
-	dialect: string,
-): Promise<FuzzCase> {
+async function runOneCase(factory: Factory, injected: DefectName[], seed: number, dialect: string): Promise<FuzzCase> {
 	const base: FuzzCase = {
 		cascaded: [],
 		findings: 0,
@@ -196,9 +179,7 @@ async function runOneCase(
 		 * consequences. A finding outside this union is oat inventing a defect. */
 		const justified = new Set(injected.flatMap(acceptable))
 
-		const stated = new Map(
-			result.inconclusive.map((entry) => [entry.check, entry.reason] as const),
-		)
+		const stated = new Map(result.inconclusive.map((entry) => [entry.check, entry.reason] as const))
 
 		for (const defect of injected) {
 			const want = primary(defect)
@@ -265,14 +246,13 @@ export function renderFuzz(results: FuzzCase[]): { text: string; failures: numbe
 	const unresolved = results.reduce((sum, result) => sum + result.unresolved.length, 0)
 	lines.push("")
 	lines.push(
-		`  ${results.length - failed.length}/${results.length} combinations diagnosed correctly`
-			+ ` · ${cascaded} suppressed as cascades`
-			+ ` · ${unresolved} reported as inconclusive`,
+		`  ${results.length - failed.length}/${results.length} combinations diagnosed correctly` +
+			` · ${cascaded} suppressed as cascades` +
+			` · ${unresolved} reported as inconclusive`,
 	)
 	lines.push("")
 	return { failures: failed.length, text: lines.join("\n") }
 }
-
 
 export interface PrecisionCase {
 	seed: number
@@ -297,15 +277,9 @@ export async function runPrecision(
 ): Promise<PrecisionCase[]> {
 	const { backend = "memory", cases = 50, dialect = "postgrest", seed: rootSeed = 1 } = options
 
-	const { createMemoryServer, createPostgresServer, createSqliteServer } = await import(
-		"../reference/http.ts"
-	)
+	const { createMemoryServer, createPostgresServer, createSqliteServer } = await import("../reference/http.ts")
 	const factory =
-		backend === "memory"
-			? createMemoryServer
-			: backend === "sqlite"
-				? createSqliteServer
-				: createPostgresServer
+		backend === "memory" ? createMemoryServer : backend === "sqlite" ? createSqliteServer : createPostgresServer
 
 	const results: PrecisionCase[] = []
 	const random = rng(rootSeed)
@@ -362,8 +336,8 @@ export function renderPrecision(results: PrecisionCase[]): { text: string; failu
 	const unresolved = results.reduce((sum, r) => sum + r.inconclusive, 0)
 	lines.push("")
 	lines.push(
-		`  ${results.length - bad.length}/${results.length} cohorts produced no false positives`
-			+ ` · ${unresolved} check(s) reported as inconclusive`,
+		`  ${results.length - bad.length}/${results.length} cohorts produced no false positives` +
+			` · ${unresolved} check(s) reported as inconclusive`,
 	)
 	lines.push("")
 	return { failures: bad.length, text: lines.join("\n") }

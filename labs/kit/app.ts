@@ -135,12 +135,7 @@ export function createWorldApp(world: World, store: WorldStore): Hono<{ Variable
 	return app
 }
 
-function mountEntity(
-	app: Hono<{ Variables: Variables }>,
-	world: World,
-	entity: Entity,
-	store: WorldStore,
-): void {
+function mountEntity(app: Hono<{ Variables: Variables }>, world: World, entity: Entity, store: WorldStore): void {
 	const list = honoPath(collectionPath(world, entity))
 	const item = honoPath(itemPath(world, entity))
 	const idParam = `${entity.name}_id`
@@ -317,18 +312,14 @@ function validateBody(entity: Entity, input: Row, phase: "create" | "update", wo
 	for (const field of entity.fields) {
 		const value = input[field.name]
 		if (value === undefined || value === null) continue
-		if (
-			field.enum !== undefined
-			&& !field.enum.includes(String(value))
-			&& !hasDefect(world, "skip-enum")
-		) {
+		if (field.enum !== undefined && !field.enum.includes(String(value)) && !hasDefect(world, "skip-enum")) {
 			throw new HttpError(400, "invalid_input", `field "${field.name}" must be one of ${field.enum.join(", ")}`)
 		}
 		if (
-			field.maxLength !== undefined
-			&& typeof value === "string"
-			&& value.length > field.maxLength
-			&& !hasDefect(world, "skip-max-length")
+			field.maxLength !== undefined &&
+			typeof value === "string" &&
+			value.length > field.maxLength &&
+			!hasDefect(world, "skip-max-length")
 		) {
 			throw new HttpError(400, "invalid_input", `field "${field.name}" exceeds maxLength ${field.maxLength}`)
 		}
@@ -339,7 +330,10 @@ function validateBody(entity: Entity, input: Row, phase: "create" | "update", wo
 	return input
 }
 
-function scopeOf(c: { req: { param: (n: string) => string }; get: (k: "orgId") => string }, entity: Entity): Record<string, string> {
+function scopeOf(
+	c: { req: { param: (n: string) => string }; get: (k: "orgId") => string },
+	entity: Entity,
+): Record<string, string> {
 	const scope: Record<string, string> = { org_id: c.get("orgId") }
 	const parent = parentIdField(entity)
 	if (parent !== null) scope[parent] = c.req.param(parent)
@@ -369,13 +363,7 @@ function assertTenant(c: { req: { param: (n: string) => string }; get: (k: "orgI
 	}
 }
 
-async function deny(
-	world: World,
-	store: WorldStore,
-	entity: Entity,
-	id: string,
-	orgId: string,
-): Promise<HttpError> {
+async function deny(world: World, store: WorldStore, entity: Entity, id: string, orgId: string): Promise<HttpError> {
 	const exists = await store.existsElsewhere(entity, id, orgId)
 	if (hasDefect(world, "oracle-status") && exists) {
 		return new HttpError(403, "forbidden", `${entity.name} ${id} forbidden`)

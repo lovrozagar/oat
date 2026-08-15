@@ -54,11 +54,7 @@ export interface CohortMember {
 	body: Record<string, unknown>
 }
 
-export function buildCohort(
-	bodySchema: Schema,
-	seed: number,
-	variants: readonly Variant[] = COHORT,
-): CohortMember[] {
+export function buildCohort(bodySchema: Schema, seed: number, variants: readonly Variant[] = COHORT): CohortMember[] {
 	return variants.map((variant, index) => ({
 		body: generateObject(bodySchema, variant, mulberry32(seed + index * 7919), index),
 		variant,
@@ -180,8 +176,7 @@ function concreteBranch(schema: Schema): Schema {
 	const union = schema.oneOf ?? schema.anyOf
 	if (!Array.isArray(union)) return schema
 	const branch = union.find(
-		(candidate) =>
-			candidate !== null && typeof candidate === "object" && (candidate as Schema).type !== "null",
+		(candidate) => candidate !== null && typeof candidate === "object" && (candidate as Schema).type !== "null",
 	)
 	return (branch as Schema | undefined) ?? schema
 }
@@ -193,8 +188,7 @@ function isNullable(schema: Schema): boolean {
 	const union = schema.oneOf ?? schema.anyOf
 	if (!Array.isArray(union)) return false
 	return union.some(
-		(candidate) =>
-			candidate !== null && typeof candidate === "object" && (candidate as Schema).type === "null",
+		(candidate) => candidate !== null && typeof candidate === "object" && (candidate as Schema).type === "null",
 	)
 }
 

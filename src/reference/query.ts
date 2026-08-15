@@ -51,20 +51,7 @@ export interface QueryResult {
 
 type Predicate = (row: Row) => boolean
 
-const COMPARATORS = new Set([
-	"eq",
-	"neq",
-	"gt",
-	"gte",
-	"lt",
-	"lte",
-	"in",
-	"nin",
-	"like",
-	"ilike",
-	"is",
-	"contains",
-])
+const COMPARATORS = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "in", "nin", "like", "ilike", "is", "contains"])
 
 /** Splits on commas that sit at paren depth zero. */
 function splitTopLevel(input: string): string[] {
@@ -97,7 +84,9 @@ function parseFilter(expression: string, options: QueryOptions, defects: DefectS
 		/* The joiner is swapped, not the parse: the expression is still read correctly, it is just
 		 * evaluated with the other combinator's semantics. */
 		const effective = defects.has("FILTER_GROUP_COMBINATOR_SWAPPED")
-			? (combinator === "and" ? "or" : "and")
+			? combinator === "and"
+				? "or"
+				: "and"
 			: combinator
 		return effective === "and"
 			? (row) => children.every((child) => child(row))
@@ -124,12 +113,7 @@ function parseFilter(expression: string, options: QueryOptions, defects: DefectS
 	return buildComparator(field, op, rawValue, defects)
 }
 
-function buildComparator(
-	field: string,
-	op: string,
-	rawValue: string,
-	defects: DefectSet,
-): Predicate {
+function buildComparator(field: string, op: string, rawValue: string, defects: DefectSet): Predicate {
 	const value = coerce(rawValue)
 
 	switch (op) {
@@ -140,8 +124,7 @@ function buildComparator(
 			/* Three-valued logic leaking through: in SQL, `col <> x` is NULL — not true — when col
 			 * is NULL, so those rows silently vanish unless the query says `OR col IS NULL`. */
 			if (defects.has("NEQ_DROPS_NULLS")) {
-				return (row) =>
-					row[field] !== null && row[field] !== undefined && !looseEqual(row[field], value)
+				return (row) => row[field] !== null && row[field] !== undefined && !looseEqual(row[field], value)
 			}
 			return (row) => !looseEqual(row[field], value)
 		case "gt":
@@ -154,7 +137,9 @@ function buildComparator(
 			return (row) => compare(row[field], value) <= 0
 		case "in":
 		case "nin": {
-			const members = stripParens(rawValue).split(",").map((s) => coerce(s.trim()))
+			const members = stripParens(rawValue)
+				.split(",")
+				.map((s) => coerce(s.trim()))
 			return (row) => {
 				const hit = members.some((member) => looseEqual(row[field], member))
 				return op === "in" ? hit : !hit
@@ -236,11 +221,7 @@ function parseOrder(expression: string, options: QueryOptions): SortTerm[] {
 			descending,
 			field,
 			/* Postgres default: NULLs sort last ascending, first descending. */
-			nullsFirst: modifiers.includes("nullsfirst")
-				? true
-				: modifiers.includes("nullslast")
-					? false
-					: descending,
+			nullsFirst: modifiers.includes("nullsfirst") ? true : modifiers.includes("nullslast") ? false : descending,
 		}
 	})
 }
@@ -248,12 +229,7 @@ function parseOrder(expression: string, options: QueryOptions): SortTerm[] {
 /** Advances per query so tied rows land differently each time — see UNSTABLE_SORT below. */
 let unstableRotation = 0
 
-function applyOrder(
-	rows: Row[],
-	terms: SortTerm[],
-	options: QueryOptions,
-	defects: DefectSet,
-): Row[] {
+function applyOrder(rows: Row[], terms: SortTerm[], options: QueryOptions, defects: DefectSet): Row[] {
 	/* A sort without a total order is not a sort — equal keys may come back in any order, and
 	 * keyset pagination built on it silently loses rows. The tiebreak is what makes paging sound.
 	 *
@@ -331,13 +307,15 @@ export function runQuery(
 	if (params.q !== undefined && params.q !== "" && !defects.has("SEARCH_IGNORED")) {
 		const needle = params.q.toLowerCase()
 		rows = rows.filter((row) =>
-			options.searchable.some((field) => String(row[field] ?? "").toLowerCase().includes(needle)),
+			options.searchable.some((field) =>
+				String(row[field] ?? "")
+					.toLowerCase()
+					.includes(needle),
+			),
 		)
 	}
 
-	const terms = params.order === undefined || params.order === ""
-		? []
-		: parseOrder(params.order, options)
+	const terms = params.order === undefined || params.order === "" ? [] : parseOrder(params.order, options)
 	if (defects.has("SORT_DESC_DROPS_NULLS")) {
 		for (const term of terms) {
 			if (!term.descending) continue
@@ -346,9 +324,7 @@ export function runQuery(
 	}
 	rows = applyOrder(rows, defects.has("ORDER_IGNORED") ? [] : terms, options, defects)
 	const requestedLimit = params.limit ?? options.defaultLimit
-	const limit = defects.has("LIMIT_EXCEEDS_MAX")
-		? requestedLimit
-		: Math.min(requestedLimit, options.maxLimit)
+	const limit = defects.has("LIMIT_EXCEEDS_MAX") ? requestedLimit : Math.min(requestedLimit, options.maxLimit)
 	const total = defects.has("COUNT_ALWAYS_ZERO")
 		? 0
 		: defects.has("COUNT_IGNORES_FILTER")
@@ -372,13 +348,9 @@ export function runQuery(
 
 	/* LIMIT_IGNORED serves the whole set regardless of the requested page size — the caller's
 	 * paging loop then appears to complete in one request. */
-	const window = defects.has("LIMIT_IGNORED")
-		? rows.slice(offset)
-		: rows.slice(offset, offset + limit)
+	const window = defects.has("LIMIT_IGNORED") ? rows.slice(offset) : rows.slice(offset, offset + limit)
 	const last = window.at(-1)
-	const hasMore = defects.has("HASMORE_ALWAYS_FALSE")
-		? false
-		: offset + window.length < rows.length
+	const hasMore = defects.has("HASMORE_ALWAYS_FALSE") ? false : offset + window.length < rows.length
 
 	const projected = window
 		.map((row) => (transform === undefined ? row : transform(row)))
@@ -394,15 +366,13 @@ export function runQuery(
 	}
 }
 
-function project(
-	row: Row,
-	select: string | undefined,
-	defects: DefectSet,
-	excluded: readonly string[] = [],
-): Row {
+function project(row: Row, select: string | undefined, defects: DefectSet, excluded: readonly string[] = []): Row {
 	if (select === undefined || select === "" || select === "*") return { ...row }
 	if (defects.has("SELECT_IGNORED")) return { ...row }
-	const fields = select.split(",").map((s) => s.trim()).filter(Boolean)
+	const fields = select
+		.split(",")
+		.map((s) => s.trim())
+		.filter(Boolean)
 	const rejected = fields.find((f) => excluded.includes(f))
 	if (rejected !== undefined) {
 		throw new SqlError("invalid_select", `field "${rejected}" is not selectable`)

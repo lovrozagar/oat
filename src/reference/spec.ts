@@ -36,7 +36,12 @@ function bodySchema(entity: EntityDef, phase: "create" | "update"): Json {
 	return {
 		additionalProperties: false,
 		properties,
-		required: phase === "create" ? writableFields(entity, "create").filter((f) => f.required === true).map((f) => f.name) : [],
+		required:
+			phase === "create"
+				? writableFields(entity, "create")
+						.filter((f) => f.required === true)
+						.map((f) => f.name)
+				: [],
 		type: "object",
 	}
 }
@@ -256,11 +261,7 @@ function buildEntityPaths(entity: EntityDef, dialect: Dialect): Json {
 				},
 			],
 			responses: {
-				"200": jsonResponse(
-					`List ${entity.plural}`,
-					listSchema(entity, dialect),
-					listResponseHeaders(dialect),
-				),
+				"200": jsonResponse(`List ${entity.plural}`, listSchema(entity, dialect), listResponseHeaders(dialect)),
 				...errorResponses([400, 401, 403, 404]),
 			},
 			summary: `List ${entity.plural}`,
@@ -279,8 +280,8 @@ function buildEntityPaths(entity: EntityDef, dialect: Dialect): Json {
 				 * whose name reads as an idempotency key is enough to know replay is promised. */
 				{
 					description:
-						"Client-supplied key. Replaying a request with the same key must return the "
-						+ "original result rather than creating a second record.",
+						"Client-supplied key. Replaying a request with the same key must return the " +
+						"original result rather than creating a second record.",
 					in: "header",
 					name: "Idempotency-Key",
 					required: false,
@@ -410,9 +411,7 @@ export function buildSpec(dialect: Dialect = POSTGREST): Json {
 	paths["/v1/invites/{token}/accept"] = {
 		post: {
 			operationId: "invite.accept",
-			parameters: [
-				{ in: "path", name: "token", required: true, schema: { type: "string" } },
-			],
+			parameters: [{ in: "path", name: "token", required: true, schema: { type: "string" } }],
 			responses: {
 				"200": jsonResponse("Invite accepted", {
 					additionalProperties: false,

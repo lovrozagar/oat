@@ -240,8 +240,7 @@ export const DEFECTS = {
 	 * the owner still reads. Isolation and the write path stay intact; the failure is purely
 	 * that privilege is not monotonic.
 	 */
-	ROLE_MONOTONICITY_BROKEN:
-		"a lower-ranked role can read a record a higher-ranked same-tenant role cannot",
+	ROLE_MONOTONICITY_BROKEN: "a lower-ranked role can read a record a higher-ranked same-tenant role cannot",
 	/** Accept completes but the invitee still cannot read the shared record. */
 	INVITE_NEVER_GRANTS: "accepting an invite does not grant access to the record",
 	/** Revoke returns success and the invitee can still read. */
@@ -259,7 +258,12 @@ export class DefectSet {
 
 	static fromEnv(value: string | undefined): DefectSet {
 		if (value === undefined || value.trim() === "") return new DefectSet()
-		return new DefectSet(value.split(",").map((s) => s.trim()).filter(Boolean))
+		return new DefectSet(
+			value
+				.split(",")
+				.map((s) => s.trim())
+				.filter(Boolean),
+		)
 	}
 
 	has(name: DefectName): boolean {

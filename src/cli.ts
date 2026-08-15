@@ -87,7 +87,10 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	const config = interpolate(await loadConfig(configPath))
 	const baseUrl = str(flags, "base-url") ?? config.baseUrl
 	const seedFlag = str(flags, "seed")
-	const only = str(flags, "only")?.split(",").map((s) => s.trim()).filter(Boolean)
+	const only = str(flags, "only")
+		?.split(",")
+		.map((s) => s.trim())
+		.filter(Boolean)
 
 	/* No cast: the config's principal type *is* the runtime's, so a mistake here is a compile
 	 * error in the user's own config rather than a surprise mid-run. */
@@ -199,16 +202,11 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	process.stdout.write(`  report: ${resolve(outDir, "oat-report.md")}\n`)
 	process.stdout.write(`  matrix: ${resolve(outDir, "matrix.html")}\n`)
 	process.stdout.write(`  graph:  ${resolve(outDir, "matrix.json")}\n`)
-	process.stdout.write(
-		`  progress: ${resolve(outDir, "progress.log")} · ${resolve(outDir, "progress.jsonl")}\n\n`,
-	)
+	process.stdout.write(`  progress: ${resolve(outDir, "progress.log")} · ${resolve(outDir, "progress.jsonl")}\n\n`)
 
 	/* Exit code counts root causes, not raw findings: gaps and blocked entries are information,
 	 * not failures, and a CI gate should react to defects only. */
-	return result.findings.filter((f) => f.verdict !== "COVERAGE_GAP" && f.verdict !== "BLOCKED")
-		.length > 0
-		? 1
-		: 0
+	return result.findings.filter((f) => f.verdict !== "COVERAGE_GAP" && f.verdict !== "BLOCKED").length > 0 ? 1 : 0
 }
 
 async function main(): Promise<number> {
@@ -297,9 +295,7 @@ async function main(): Promise<number> {
 		 * quota. It runs when asked for by name. */
 		const d1Ready = d1Available()
 
-		const backends: BackendName[] = all.includes(requested as BackendName)
-			? [requested as BackendName]
-			: available
+		const backends: BackendName[] = all.includes(requested as BackendName) ? [requested as BackendName] : available
 
 		const skipped = all.filter((b) => b !== "d1" && !available.includes(b))
 
@@ -324,9 +320,7 @@ async function main(): Promise<number> {
 
 		let failures = parser.failures
 		for (const pass of passes) {
-			process.stdout.write(
-				`\n  ── ${pass.backend} · ${pass.dialect} ${"─".repeat(46)}\n`,
-			)
+			process.stdout.write(`\n  ── ${pass.backend} · ${pass.dialect} ${"─".repeat(46)}\n`)
 			const result = renderSuite(await runSuite(only, pass.backend, pass.dialect), pass.dialect)
 			process.stdout.write(result.text)
 			failures += result.failures
@@ -348,9 +342,7 @@ async function main(): Promise<number> {
 			 * probe writing into a constrained field — was invisible to the one-at-a-time matrix. */
 			const { renderFuzz, runFuzz } = await import("./conformance/fuzz.ts")
 			process.stdout.write(`\n  ── combinations ${"─".repeat(46)}\n`)
-			const smoke = renderFuzz(
-				await runFuzz({ backend: "memory", cases: 40, maxDefects: 6, seed: 1 }),
-			)
+			const smoke = renderFuzz(await runFuzz({ backend: "memory", cases: 40, maxDefects: 6, seed: 1 }))
 			process.stdout.write(smoke.text)
 			failures += smoke.failures
 		}
@@ -371,15 +363,9 @@ async function main(): Promise<number> {
 		 * self-test runs against. */
 		const backend = str(flags, "backend") ?? "memory"
 		const defects = str(flags, "defects")?.split(",").filter(Boolean) ?? []
-		const { createMemoryServer, createPostgresServer, createSqliteServer } = await import(
-			"./reference/http.ts"
-		)
+		const { createMemoryServer, createPostgresServer, createSqliteServer } = await import("./reference/http.ts")
 		const factory =
-			backend === "sqlite"
-				? createSqliteServer
-				: backend === "postgres"
-					? createPostgresServer
-					: createMemoryServer
+			backend === "sqlite" ? createSqliteServer : backend === "postgres" ? createPostgresServer : createMemoryServer
 		/* `--untagged` serves the same API behind a document stripped of every x-* tag, which is
 		 * what `oat doctor` should be pointed at to see what a plain OpenAPI document costs. */
 		const untagged = flags.untagged === true
@@ -417,8 +403,7 @@ async function main(): Promise<number> {
 
 	const specFlag = str(flags, "spec")
 	const configPath = str(flags, "config")
-	const specSource =
-		specFlag ?? (configPath === undefined ? undefined : (await loadConfig(configPath)).spec)
+	const specSource = specFlag ?? (configPath === undefined ? undefined : (await loadConfig(configPath)).spec)
 
 	if (specSource === undefined) {
 		process.stderr.write("oat: --spec (or --config) is required\n\n" + USAGE)

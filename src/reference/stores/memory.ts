@@ -11,13 +11,7 @@ import type { DefectSet } from "../defects.ts"
 import type { EntityDef } from "../model.ts"
 import { OVERCLAIMED_FIELD, fieldsWhere } from "../model.ts"
 import { runQuery, type Row as QueryRow } from "../query.ts"
-import type {
-	QueryOptions,
-	QueryParams,
-	QueryResult,
-	Row,
-	Store,
-} from "../store-api.ts"
+import type { QueryOptions, QueryParams, QueryResult, Row, Store } from "../store-api.ts"
 
 export class MemoryStore implements Store {
 	private readonly tables = new Map<string, Map<string, Row>>()
@@ -110,9 +104,7 @@ export class MemoryStore implements Store {
 				sortable: this.defects.has("SPEC_OVERCLAIMS_SORTABLE")
 					? fieldsWhere(entity, "sortable").filter((f) => f !== OVERCLAIMED_FIELD)
 					: fieldsWhere(entity, "sortable"),
-				...(options.softDeleteField === undefined
-					? {}
-					: { softDeleteField: options.softDeleteField }),
+				...(options.softDeleteField === undefined ? {} : { softDeleteField: options.softDeleteField }),
 			},
 			this.defects,
 			options.transform,

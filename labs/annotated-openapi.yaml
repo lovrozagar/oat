@@ -41,10 +41,10 @@ paths:
       # which says nothing about WHICH fields it accepts — so without this tag oat
       # assumes every scalar property is filterable and warns that it is guessing.
       x-query:
-        grammar: postgrest          # postgrest | colon | equality — how filter values are written
+        grammar: postgrest # postgrest | colon | equality — how filter values are written
         filterable: [id, workspace_id, name, status, priority, created_at]
         sortable: [name, priority, created_at]
-        searchable: [name, description]   # the fields `q` actually searches
+        searchable: [name, description] # the fields `q` actually searches
         selectable: [id, name, status, priority, created_at]
         maxLimit: 100
         defaultOrder: created_at.desc
@@ -245,8 +245,8 @@ paths:
       # the receipt and reports the missing data as a bug; with it, oat follows the
       # job to a terminal state and asserts on the outcome.
       x-async:
-        poll: export.read              # operationId that reports progress
-        idFrom: $.export_id            # where the receipt carries the job id
+        poll: export.read # operationId that reports progress
+        idFrom: $.export_id # where the receipt carries the job id
         until: $.status in [complete, failed]
         successWhen: $.status == complete
         timeoutMs: 30000
@@ -257,7 +257,7 @@ paths:
       # changes; `x-effects` says how, which is what makes it assertable.
       x-effects:
         - entity: widget
-          change: none                 # exporting must not mutate what it exports
+          change: none # exporting must not mutate what it exports
 
       x-tenant: workspace_id
       parameters:

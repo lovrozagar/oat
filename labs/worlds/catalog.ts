@@ -51,7 +51,15 @@ export const TINY: World = {
 					sortable: true,
 					type: "string",
 				},
-				{ filterable: true, maxLength: 64, name: "slug", nullable: true, searchable: true, sortable: true, type: "string" },
+				{
+					filterable: true,
+					maxLength: 64,
+					name: "slug",
+					nullable: true,
+					searchable: true,
+					sortable: true,
+					type: "string",
+				},
 				{ enum: ["draft", "published", "archived"], filterable: true, name: "status", sortable: true, type: "string" },
 				{ maxLength: 2000, name: "body", nullable: true, searchable: true, type: "string" },
 				POSITION,
@@ -77,14 +85,7 @@ export const SHOP: World = {
 		}),
 		resource("product", "products", {
 			derived: [{ from: "review", name: "review_count", op: "count" }],
-			fields: [
-				NAME,
-				STATUS,
-				{ filterable: true, name: "price", sortable: true, type: "number" },
-				POSITION,
-				NOTE,
-				KIND,
-			],
+			fields: [NAME, STATUS, { filterable: true, name: "price", sortable: true, type: "number" }, POSITION, NOTE, KIND],
 			parent: "store",
 		}),
 		resource("customer", "customers", {
@@ -107,12 +108,7 @@ export const SHOP: World = {
 			parent: "store",
 		}),
 		resource("review", "reviews", {
-			fields: [
-				NAME,
-				{ filterable: true, name: "rating", sortable: true, type: "integer" },
-				NOTE,
-				KIND,
-			],
+			fields: [NAME, { filterable: true, name: "rating", sortable: true, type: "integer" }, NOTE, KIND],
 			parent: "product",
 		}),
 	],
@@ -325,7 +321,9 @@ export const BUG_TOMBSTONE: World = withStore(
 	{ softDelete: true },
 )
 export const BUG_RANK: World = pair("bug-rank", "viewer can read a record member cannot", ["invert-rank"])
-export const BUG_FILTERLEAK: World = pair("bug-filterleak", "filter drops the tenant predicate", ["filter-bypass-tenant"])
+export const BUG_FILTERLEAK: World = pair("bug-filterleak", "filter drops the tenant predicate", [
+	"filter-bypass-tenant",
+])
 export const BUG_HASMORE: World = pair("bug-hasmore", "hasMore is always false", ["lie-has-more"])
 export const BUG_MAXLIMIT: World = pair("bug-maxlimit", "documented maxLimit is not enforced", ["ignore-max-limit"])
 export const BUG_SEARCH: World = pair("bug-search", "search term is ignored", ["drop-search"])
@@ -336,10 +334,9 @@ export const BUG_IMMUTABLE: World = pair("bug-immutable", "x-immutable fields ac
 export const BUG_ENUM: World = pair("bug-enum", "enum is not enforced", ["skip-enum"])
 export const BUG_MAXLEN: World = pair("bug-maxlen", "maxLength is not enforced", ["skip-max-length"])
 export const BUG_REQUIRED: World = pair("bug-required", "required fields are not enforced", ["skip-required"])
-export const BUG_REVOKE: World = withStore(
-	pair("bug-revoke", "revoke leaves the grant in place", ["revoke-noop"]),
-	{ invite: true },
-)
+export const BUG_REVOKE: World = withStore(pair("bug-revoke", "revoke leaves the grant in place", ["revoke-noop"]), {
+	invite: true,
+})
 export const BUG_OFFSET: World = pair("bug-offset", "page/offset is ignored", ["ignore-page"])
 export const BUG_ORACLE: World = pair("bug-oracle", "denial status reveals existence", ["oracle-status"])
 export const BUG_LIKE: World = pair("bug-like", "LIKE metacharacters are not escaped", ["unescape-like"])

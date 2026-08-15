@@ -21,17 +21,6 @@ export { run } from "./runtime/run.ts"
 export type { RunOptions, RunResult } from "./runtime/run.ts"
 export type { Actor } from "./runtime/checks.ts"
 export type { Finding, Verdict } from "./runtime/finding.ts"
-export {
-	buildMatrixGraph,
-	matrixViewFromReport,
-	renderMatrixGraph,
-	renderMatrixHtml,
-} from "./report/matrix.ts"
-export type {
-	EntityMatrix,
-	InvalidateLink,
-	MatrixGraph,
-	MatrixGraphEdge,
-	MatrixGraphNode,
-} from "./report/matrix.ts"
+export { buildMatrixGraph, matrixViewFromReport, renderMatrixGraph, renderMatrixHtml } from "./report/matrix.ts"
+export type { EntityMatrix, InvalidateLink, MatrixGraph, MatrixGraphEdge, MatrixGraphNode } from "./report/matrix.ts"
 export { coverageByCheck, renderConsole, renderJson, renderMarkdown, renderRepros } from "./report/render.ts"

@@ -106,7 +106,15 @@ export const ROW: EntityDef = {
 			type: "string",
 		},
 		{ filterable: true, name: "amount", sortable: true, type: "number" },
-		{ filterable: true, name: "note", nullable: true, searchable: true, sortable: true, maxLength: 256, type: "string" },
+		{
+			filterable: true,
+			name: "note",
+			nullable: true,
+			searchable: true,
+			sortable: true,
+			maxLength: 256,
+			type: "string",
+		},
 		{ filterable: true, name: "active", sortable: true, type: "boolean" },
 		...TIMESTAMPS,
 	],
@@ -131,11 +139,27 @@ export const JOB: EntityDef = {
 	fields: [
 		{ generated: true, immutable: true, name: "id", required: true, sortable: true, filterable: true, type: "string" },
 		{ generated: true, immutable: true, name: "project_id", required: true, filterable: true, type: "string" },
-		{ filterable: true, maxLength: 128, name: "name", required: true, searchable: true, sortable: true, type: "string" },
+		{
+			filterable: true,
+			maxLength: 128,
+			name: "name",
+			required: true,
+			searchable: true,
+			sortable: true,
+			type: "string",
+		},
 		/* A second freely-writable string, purely so the concurrency check has two independent
 		 * fields to race on. With only `name` writable it could never establish that two patches
 		 * to *different* fields both survive, and it stood down on every run. */
-		{ filterable: true, maxLength: 256, name: "note", nullable: true, searchable: true, sortable: true, type: "string" },
+		{
+			filterable: true,
+			maxLength: 256,
+			name: "note",
+			nullable: true,
+			searchable: true,
+			sortable: true,
+			type: "string",
+		},
 		/*
 		 * A low-cardinality field the *client* sets.
 		 *

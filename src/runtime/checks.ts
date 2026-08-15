@@ -410,9 +410,7 @@ function firstFilterable(ctx: CheckContext, predicate: (name: string) => boolean
  * Finds a record holding non-null values on two distinct, non-identity filterable fields — the
  * minimum needed to build a compound predicate that is guaranteed to match at least that record.
  */
-function twoFilterableFields(
-	ctx: CheckContext,
-): { fieldA: string; fieldB: string; target: Record_ } | null {
+function twoFilterableFields(ctx: CheckContext): { fieldA: string; fieldB: string; target: Record_ } | null {
 	const candidates = (ctx.query?.filterable ?? []).filter((f) => f !== ctx.identity)
 	for (const target of ctx.records) {
 		const present = candidates.filter((f) => target[f] !== null && target[f] !== undefined)
@@ -424,11 +422,7 @@ function twoFilterableFields(
 }
 
 /** The bare `field.op.value` / `field=op:value` fragment `filterTerm` wraps in its parameter. */
-function filterFragment(
-	conventions: ReturnType<typeof conv>,
-	field: string,
-	value: string,
-): string | null {
+function filterFragment(conventions: ReturnType<typeof conv>, field: string, value: string): string | null {
 	const term = filterTerm(conventions, field, "eq", value)
 	if (term === null) return null
 	const fragment = Object.values(term)[0]
@@ -536,10 +530,9 @@ const readAfterWrite: Check = {
 		const evidence: Exchange[] = located.last === null ? [] : [located.last.exchange]
 		let detail = `created ${ctx.entityName} ${id} is absent from the list projection`
 		if (ctx.readOp !== undefined) {
-			const item = await ctx.client.get(
-				fillPath(ctx.readOp.path, { ...ctx.scope, ...itemParamFor(ctx, id) }),
-				{ headers: ctx.auth() },
-			)
+			const item = await ctx.client.get(fillPath(ctx.readOp.path, { ...ctx.scope, ...itemParamFor(ctx, id) }), {
+				headers: ctx.auth(),
+			})
 			evidence.push(item)
 			if (item.status < 300) {
 				detail =
@@ -587,8 +580,7 @@ const unknownFilterRejected: Check = {
 				"error.malformed-filter-not-5xx",
 				ctx.entityName,
 				"unknown filter field produces a server error",
-				`filtering on an undeclared field returned ${result.exchange.status}; a rejected input ` +
-					"should be a 4xx",
+				`filtering on an undeclared field returned ${result.exchange.status}; a rejected input ` + "should be a 4xx",
 				[result.exchange],
 			)
 			return
@@ -612,9 +604,7 @@ const unknownFilterRejected: Check = {
 
 const equalityFilterSelectsOne: Check = {
 	applicable: (ctx) =>
-		filterable(ctx) &&
-		ctx.records.length > 0 &&
-		(ctx.query?.filterable.includes(ctx.identity) ?? false),
+		filterable(ctx) && ctx.records.length > 0 && (ctx.query?.filterable.includes(ctx.identity) ?? false),
 	dependsOn: ["list.read-after-write"],
 	id: "filter.equality-selects-exactly-one",
 	needs: "a `filter` parameter that accepts the identity field",
@@ -642,9 +632,7 @@ const equalityFilterSelectsOne: Check = {
 }
 
 const zeroMatchFilter: Check = {
-	applicable: (ctx) =>
-		filterable(ctx) &&
-		(ctx.query?.filterable.includes(ctx.identity) ?? false),
+	applicable: (ctx) => filterable(ctx) && (ctx.query?.filterable.includes(ctx.identity) ?? false),
 	dependsOn: ["list.read-after-write"],
 	id: "filter.zero-match-returns-none",
 	needs: "a `filter` parameter that accepts the identity field",
@@ -667,9 +655,7 @@ const zeroMatchFilter: Check = {
 
 const negationPartitions: Check = {
 	applicable: (ctx) =>
-		filterable(ctx) &&
-		ctx.records.length > 1 &&
-		(ctx.query?.filterable.includes(ctx.identity) ?? false),
+		filterable(ctx) && ctx.records.length > 1 && (ctx.query?.filterable.includes(ctx.identity) ?? false),
 	dependsOn: [
 		"list.read-after-write",
 		/* Partitioning is asserted over field *values*. A backend that drops submitted fields
@@ -719,15 +705,11 @@ const negationPartitions: Check = {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
-				"the collection is larger than the walk covers, so the union cannot be compared "
-					+ "against the whole set",
+				"the collection is larger than the walk covers, so the union cannot be compared " + "against the whole set",
 			)
 		}
 
-		const union = new Set([
-			...ids(matching.items, ctx.identity),
-			...ids(complement.items, ctx.identity),
-		])
+		const union = new Set([...ids(matching.items, ctx.identity), ...ids(complement.items, ctx.identity)])
 		const expected = new Set(ids(all.items, ctx.identity))
 		const overlap = ids(matching.items, ctx.identity).filter((value) =>
 			ids(complement.items, ctx.identity).includes(value),
@@ -961,11 +943,7 @@ const sortReverseSymmetry: Check = {
 			ctx.query?.sortable.find((f) => f !== ctx.identity) ??
 			ctx.query?.sortable[0]
 		if (field === undefined) {
-			return ctx.findings.unresolved(
-				this.id,
-				ctx.entityName,
-				"no sortable field is available to order by",
-			)
+			return ctx.findings.unresolved(this.id, ctx.entityName, "no sortable field is available to order by")
 		}
 		const limit = ctx.query?.maxLimit ?? 100
 		/* Gathered across pages: a collection larger than one page would otherwise leave this
@@ -988,8 +966,8 @@ const sortReverseSymmetry: Check = {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
-				"the collection is larger than the walk covers, so the two directions return "
-					+ "different windows of it rather than the same set reversed",
+				"the collection is larger than the walk covers, so the two directions return " +
+					"different windows of it rather than the same set reversed",
 			)
 		}
 
@@ -1292,9 +1270,7 @@ const patchMinimality: Check = {
 		 * settle. A field that moves on the control moved on its own. */
 		const control = ctx.records.find((r) => String(r[ctx.identity]) !== id)
 		const controlParams =
-			control === undefined
-				? undefined
-				: { ...ctx.scope, ...itemParamFor(ctx, String(control[ctx.identity])) }
+			control === undefined ? undefined : { ...ctx.scope, ...itemParamFor(ctx, String(control[ctx.identity])) }
 		const controlBefore =
 			controlParams === undefined
 				? undefined
@@ -1359,9 +1335,7 @@ const patchMinimality: Check = {
 			if (controlAfter.status < 300) {
 				const from = (controlBefore.responseBody ?? {}) as Record_
 				const to = (controlAfter.responseBody ?? {}) as Record_
-				collateral = collateral.filter(
-					(key) => JSON.stringify(from[key]) === JSON.stringify(to[key]),
-				)
+				collateral = collateral.filter((key) => JSON.stringify(from[key]) === JSON.stringify(to[key]))
 			}
 		}
 		if (collateral.length === 0) return
@@ -1393,7 +1367,10 @@ function pickWritableStringField(ctx: CheckContext, record: Record_): string | n
 
 const immutableRejected: Check = {
 	applicable: (ctx) =>
-		ctx.updateOp !== undefined && ctx.readOp !== undefined && (ctx.updateOp.immutable.length > 0) && ctx.records.length > 0,
+		ctx.updateOp !== undefined &&
+		ctx.readOp !== undefined &&
+		ctx.updateOp.immutable.length > 0 &&
+		ctx.records.length > 0,
 	mutates: true,
 	id: "patch.immutable-field-rejected",
 	needs: "fields declared immutable via x-immutable",
@@ -1608,8 +1585,7 @@ const softDeleteHidden: Check = {
  * status it picks is fine; picking two different ones is not.
  */
 const denialDoesNotRevealExistence: Check = {
-	applicable: (ctx) =>
-		ctx.altAuth !== undefined && ctx.readOp !== undefined && ctx.records.length > 0,
+	applicable: (ctx) => ctx.altAuth !== undefined && ctx.readOp !== undefined && ctx.records.length > 0,
 	dependsOn: [
 		/* If the record is readable across tenants at all, that is the finding — how the denial
 		 * would have been phrased is beside the point. */
@@ -1626,10 +1602,9 @@ const denialDoesNotRevealExistence: Check = {
 		const absentId = `${realId}-oat-absent`
 
 		const ask = async (id: string): Promise<Exchange> =>
-			ctx.client.get(
-				fillPath(ctx.readOp?.path ?? "", { ...(ctx.altScope ?? ctx.scope), ...itemParamFor(ctx, id) }),
-				{ headers: ctx.altAuth?.() ?? {} },
-			)
+			ctx.client.get(fillPath(ctx.readOp?.path ?? "", { ...(ctx.altScope ?? ctx.scope), ...itemParamFor(ctx, id) }), {
+				headers: ctx.altAuth?.() ?? {},
+			})
 
 		const existing = await ask(realId)
 		const absent = await ask(absentId)
@@ -1649,10 +1624,10 @@ const denialDoesNotRevealExistence: Check = {
 			this.id,
 			ctx.entityName,
 			"the denial status reveals whether a record exists",
-			`a record belonging to another tenant was refused with ${existing.status}, while an id `
-				+ `that does not exist was refused with ${absent.status}. The difference is an oracle: `
-				+ "anyone able to guess or enumerate identifiers can learn which ones are real without "
-				+ "ever reading one. Both cases must answer identically — conventionally 404.",
+			`a record belonging to another tenant was refused with ${existing.status}, while an id ` +
+				`that does not exist was refused with ${absent.status}. The difference is an oracle: ` +
+				"anyone able to guess or enumerate identifiers can learn which ones are real without " +
+				"ever reading one. Both cases must answer identically — conventionally 404.",
 			[existing, absent],
 		)
 	},
@@ -1720,9 +1695,9 @@ const idempotentReplay: Check = {
 			this.id,
 			ctx.entityName,
 			"replaying a request with the same idempotency key created a second record",
-			`two identical POSTs carrying ${header}: "${key}" produced ${ctx.entityName} ${firstId} `
-				+ `and ${secondId}. The header is declared, so clients will retry on timeouts assuming `
-				+ "it protects them; every such retry silently duplicates the record.",
+			`two identical POSTs carrying ${header}: "${key}" produced ${ctx.entityName} ${firstId} ` +
+				`and ${secondId}. The header is declared, so clients will retry on timeouts assuming ` +
+				"it protects them; every such retry silently duplicates the record.",
 			[first, second],
 		)
 	},
@@ -1743,8 +1718,8 @@ const idempotentReplay: Check = {
  */
 const declaredInvalidationHappens: Check = {
 	applicable: (ctx) =>
-		ctx.createOp !== undefined
-		&& ctx.createOp.invalidates.some((route) => ctx.model.byRoute.get(route)?.entity !== ctx.entityName),
+		ctx.createOp !== undefined &&
+		ctx.createOp.invalidates.some((route) => ctx.model.byRoute.get(route)?.entity !== ctx.entityName),
 	dependsOn: ["list.read-after-write", "create.persists-submitted-fields"],
 	id: "invalidation.declared-route-changes",
 	mutates: true,
@@ -1823,11 +1798,11 @@ const declaredInvalidationHappens: Check = {
 				this.id,
 				ctx.entityName,
 				"a route the document says is invalidated by this write did not change",
-				`creating a ${ctx.entityName} declares x-invalidate on "${probe.op.route}", but that `
-					+ "route returned a byte-identical body before and after the write. Either it serves "
-					+ "a value derived from this entity and that value is stale — a denormalised counter "
-					+ "or a cached projection nobody refreshed — or the declaration is wrong and every "
-					+ "client following it is invalidating the wrong cache key.",
+				`creating a ${ctx.entityName} declares x-invalidate on "${probe.op.route}", but that ` +
+					"route returned a byte-identical body before and after the write. Either it serves " +
+					"a value derived from this entity and that value is stale — a denormalised counter " +
+					"or a cached projection nobody refreshed — or the declaration is wrong and every " +
+					"client following it is invalidating the wrong cache key.",
 				[created, after],
 			)
 			return
@@ -1880,25 +1855,22 @@ const projectionsAgree: Check = {
 		 * mid-check for reasons no read path is responsible for. Comparing those across
 		 * projections measures timing, not consistency.
 		 */
-		const generated = new Set([
-			...(ctx.createOp?.generated ?? []),
-			...(ctx.updateOp?.generated ?? []),
-		])
+		const generated = new Set([...(ctx.createOp?.generated ?? []), ...(ctx.updateOp?.generated ?? [])])
 		const field = (ctx.query?.filterable ?? []).find(
 			(name) =>
-				name !== ctx.identity
-				&& !generated.has(name)
-				&& (ctx.query?.sortable ?? []).includes(name)
-				&& target[name] !== null
-				&& target[name] !== undefined
-				&& typeof target[name] !== "object",
+				name !== ctx.identity &&
+				!generated.has(name) &&
+				(ctx.query?.sortable ?? []).includes(name) &&
+				target[name] !== null &&
+				target[name] !== undefined &&
+				typeof target[name] !== "object",
 		)
 		if (field === undefined) {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
-				"no field is filterable, sortable and non-null on the sample record, so no single fact "
-					+ "can be traced through every projection",
+				"no field is filterable, sortable and non-null on the sample record, so no single fact " +
+					"can be traced through every projection",
 			)
 		}
 
@@ -1907,10 +1879,9 @@ const projectionsAgree: Check = {
 		const record = (result: ListResult): Record_ | undefined =>
 			result.items.find((item) => String(item[ctx.identity]) === id)
 
-		const detail = await ctx.client.get(
-			fillPath(ctx.readOp.path, { ...ctx.scope, ...itemParamFor(ctx, id) }),
-			{ headers: ctx.auth() },
-		)
+		const detail = await ctx.client.get(fillPath(ctx.readOp.path, { ...ctx.scope, ...itemParamFor(ctx, id) }), {
+			headers: ctx.auth(),
+		})
 		if (detail.status >= 300) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -1935,8 +1906,7 @@ const projectionsAgree: Check = {
 		const conventions = conv(ctx)
 		if (conventions.select !== undefined) {
 			const projection = selectTerm(conventions, [ctx.identity, field], ctx.entityName)
-			const projected =
-				projection === null ? null : await list(ctx, { ...q(ctx, { limit }), ...projection })
+			const projected = projection === null ? null : await list(ctx, { ...q(ctx, { limit }), ...projection })
 			const row = projected === null ? undefined : record(projected)
 			if (row !== undefined) seen.push({ projection: "sparse fieldset", value: row[field] })
 		}
@@ -1947,19 +1917,17 @@ const projectionsAgree: Check = {
 			if (row !== undefined) seen.push({ projection: "sorted page", value: row[field] })
 		}
 
-		const disagreeing = seen.filter(
-			(entry) => JSON.stringify(entry.value) !== JSON.stringify(value),
-		)
+		const disagreeing = seen.filter((entry) => JSON.stringify(entry.value) !== JSON.stringify(value))
 		if (disagreeing.length > 0) {
 			ctx.findings.backend(
 				this.id,
 				ctx.entityName,
 				"the same record carries different values depending on how it is read",
-				`${ctx.entityName} ${id} has "${field}" = ${JSON.stringify(value)} on the record oat `
-					+ `created, but ${disagreeing
+				`${ctx.entityName} ${id} has "${field}" = ${JSON.stringify(value)} on the record oat ` +
+					`created, but ${disagreeing
 						.map((entry) => `the ${entry.projection} returns ${JSON.stringify(entry.value)}`)
-						.join(", and ")}. At least one read path is serving something the others are not; `
-					+ "a client's view of a record then depends on which route it happened to use.",
+						.join(", and ")}. At least one read path is serving something the others are not; ` +
+					"a client's view of a record then depends on which route it happened to use.",
 				[detail, plain.exchange],
 			)
 			return
@@ -1977,9 +1945,9 @@ const projectionsAgree: Check = {
 			this.id,
 			ctx.entityName,
 			"a record is missing from a filter matching its own field value",
-			`${ctx.entityName} ${id} carries "${field}" = ${JSON.stringify(value)} on every read path, `
-				+ `yet filtering for exactly that value does not return it. The record and the predicate `
-				+ "agree; the index or query that answers the filter does not.",
+			`${ctx.entityName} ${id} carries "${field}" = ${JSON.stringify(value)} on every read path, ` +
+				`yet filtering for exactly that value does not return it. The record and the predicate ` +
+				"agree; the index or query that answers the filter does not.",
 			[detail, included.exchange],
 		)
 	},
@@ -2000,10 +1968,7 @@ const projectionsAgree: Check = {
  */
 const queryAxesCompose: Check = {
 	applicable: (ctx) =>
-		filterable(ctx)
-		&& conv(ctx).order !== undefined
-		&& ctx.records.length > 2
-		&& (ctx.query?.sortable.length ?? 0) > 0,
+		filterable(ctx) && conv(ctx).order !== undefined && ctx.records.length > 2 && (ctx.query?.sortable.length ?? 0) > 0,
 	dependsOn: [
 		"list.read-after-write",
 		/* Each axis has to work alone before "they disagree when combined" means anything. */
@@ -2046,14 +2011,13 @@ const queryAxesCompose: Check = {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
-				"no filterable field holds a value shared by several records but not all of them, so "
-					+ "no filter can select a proper subset to reorder",
+				"no filterable field holds a value shared by several records but not all of them, so " +
+					"no filter can select a proper subset to reorder",
 			)
 		}
 
 		const sortField =
-			(ctx.query?.sortable ?? []).find((name) => name !== field && name !== ctx.identity)
-			?? ctx.identity
+			(ctx.query?.sortable ?? []).find((name) => name !== field && name !== ctx.identity) ?? ctx.identity
 		const term = filterTerm(conventions, field, "eq", String(target[field]))
 		if (term === null) {
 			return ctx.findings.unresolved(
@@ -2069,13 +2033,7 @@ const queryAxesCompose: Check = {
 		 * the set is larger than one page, and the difference would be read as a dropped filter.
 		 */
 		const filtered = await collectSet(ctx, limit, term)
-		const both = await collectSet(
-			ctx,
-			limit,
-			term,
-			MAX_WALK_PAGES,
-			sortTerm(conventions, sortField, "desc"),
-		)
+		const both = await collectSet(ctx, limit, term, MAX_WALK_PAGES, sortTerm(conventions, sortField, "desc"))
 		if (filtered === null || both === null) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -2087,8 +2045,7 @@ const queryAxesCompose: Check = {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
-				"the filtered set is larger than the walk covers, so the two runs cannot be compared "
-					+ "as whole sets",
+				"the filtered set is larger than the walk covers, so the two runs cannot be compared " + "as whole sets",
 			)
 		}
 
@@ -2102,12 +2059,12 @@ const queryAxesCompose: Check = {
 			this.id,
 			ctx.entityName,
 			"adding a sort changes which records a filter returns",
-			`filter on "${field}" alone matched ${alone.size} record(s); the same filter with `
-				+ `order=${sortField} desc matched ${combined.size}. `
-				+ (missing.length > 0 ? `Dropped: ${missing.slice(0, 3).join(", ")}. ` : "")
-				+ (extra.length > 0 ? `Appeared: ${extra.slice(0, 3).join(", ")}. ` : "")
-				+ "Ordering must reorder a result, never change its membership — a filter that only "
-				+ "holds while unsorted is one an index or query plan is silently dropping.",
+			`filter on "${field}" alone matched ${alone.size} record(s); the same filter with ` +
+				`order=${sortField} desc matched ${combined.size}. ` +
+				(missing.length > 0 ? `Dropped: ${missing.slice(0, 3).join(", ")}. ` : "") +
+				(extra.length > 0 ? `Appeared: ${extra.slice(0, 3).join(", ")}. ` : "") +
+				"Ordering must reorder a result, never change its membership — a filter that only " +
+				"holds while unsorted is one an index or query plan is silently dropping.",
 			[filtered.last.exchange, both.last.exchange],
 		)
 	},
@@ -2187,8 +2144,7 @@ const filterAndPagingCompose: Check = {
 		 * it after the fact.
 		 */
 		const tiebreak = (ctx.query?.sortable ?? []).includes(ctx.identity) ? ctx.identity : undefined
-		const walkOrder =
-			tiebreak === undefined ? undefined : sortTerm(conventions, tiebreak, "asc")
+		const walkOrder = tiebreak === undefined ? undefined : sortTerm(conventions, tiebreak, "asc")
 		const probe = await list(ctx, q(ctx, { limit: 1, order: walkOrder }))
 		const reported = envelopeValue(ctx, probe, "total")
 		const pages = pagesToCover(typeof reported === "number" ? reported : undefined, pageSize)
@@ -2223,12 +2179,12 @@ const filterAndPagingCompose: Check = {
 			this.id,
 			ctx.entityName,
 			"paging a filtered query skips records that match the filter",
-			`walking the collection at ${pageSize} per page and filtering client-side on `
-				+ `"${field}" = ${JSON.stringify(value)} finds ${clientSide.size} record(s); asking the `
-				+ `backend for the same filter returns ${returned.size}. Never returned: `
-				+ `${skipped.slice(0, 3).join(", ")}. The page window is being computed before the `
-				+ "predicate is applied, so matching records fall outside it and are lost — page one "
-				+ "looks correct and later pages silently omit data.",
+			`walking the collection at ${pageSize} per page and filtering client-side on ` +
+				`"${field}" = ${JSON.stringify(value)} finds ${clientSide.size} record(s); asking the ` +
+				`backend for the same filter returns ${returned.size}. Never returned: ` +
+				`${skipped.slice(0, 3).join(", ")}. The page window is being computed before the ` +
+				"predicate is applied, so matching records fall outside it and are lost — page one " +
+				"looks correct and later pages silently omit data.",
 			[everything.last.exchange, serverSide.last.exchange],
 		)
 	},
@@ -2248,10 +2204,7 @@ const filterAndPagingCompose: Check = {
  * so the two sides remain comparable.
  */
 const filterAndSelectCompose: Check = {
-	applicable: (ctx) =>
-		filterable(ctx)
-		&& conv(ctx).select !== undefined
-		&& ctx.records.length > 2,
+	applicable: (ctx) => filterable(ctx) && conv(ctx).select !== undefined && ctx.records.length > 2,
 	dependsOn: [
 		"list.read-after-write",
 		"create.persists-submitted-fields",
@@ -2288,14 +2241,12 @@ const filterAndSelectCompose: Check = {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
-				"no filterable field holds a value shared by several records but not all of them, so "
-					+ "no filter can select a proper subset to project",
+				"no filterable field holds a value shared by several records but not all of them, so " +
+					"no filter can select a proper subset to project",
 			)
 		}
 
-		const extra =
-			(ctx.query?.selectable ?? []).find((name) => name !== ctx.identity)
-			?? ctx.identity
+		const extra = (ctx.query?.selectable ?? []).find((name) => name !== ctx.identity) ?? ctx.identity
 		const projection = selectTerm(conventions, [ctx.identity, extra], ctx.entityName)
 		if (projection === null) {
 			return ctx.findings.unresolved(
@@ -2327,8 +2278,7 @@ const filterAndSelectCompose: Check = {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
-				"the filtered set is larger than the walk covers, so the two runs cannot be compared "
-					+ "as whole sets",
+				"the filtered set is larger than the walk covers, so the two runs cannot be compared " + "as whole sets",
 			)
 		}
 
@@ -2351,13 +2301,13 @@ const filterAndSelectCompose: Check = {
 			this.id,
 			ctx.entityName,
 			"adding a select changes which records a filter returns",
-			`filter on "${field}" alone matched ${alone.size} record(s); the same filter with `
-				+ `select=${[ctx.identity, extra].join(",")} matched ${combined.size}. `
-				+ (missing.length > 0 ? `Dropped: ${missing.slice(0, 3).join(", ")}. ` : "")
-				+ (extraIds.length > 0 ? `Appeared: ${extraIds.slice(0, 3).join(", ")}. ` : "")
-				+ "A projection must change which columns come back, never which rows — a filter "
-				+ "that only holds while every column is selected is one a query plan is dropping "
-				+ "once it has to name the columns.",
+			`filter on "${field}" alone matched ${alone.size} record(s); the same filter with ` +
+				`select=${[ctx.identity, extra].join(",")} matched ${combined.size}. ` +
+				(missing.length > 0 ? `Dropped: ${missing.slice(0, 3).join(", ")}. ` : "") +
+				(extraIds.length > 0 ? `Appeared: ${extraIds.slice(0, 3).join(", ")}. ` : "") +
+				"A projection must change which columns come back, never which rows — a filter " +
+				"that only holds while every column is selected is one a query plan is dropping " +
+				"once it has to name the columns.",
 			[filtered.last.exchange, both.last.exchange],
 		)
 	},
@@ -2377,10 +2327,10 @@ const filterAndSelectCompose: Check = {
  */
 const searchAndFilterCompose: Check = {
 	applicable: (ctx) =>
-		filterable(ctx)
-		&& conv(ctx).search !== undefined
-		&& (ctx.query?.searchable.length ?? 0) > 0
-		&& ctx.records.length > 2,
+		filterable(ctx) &&
+		conv(ctx).search !== undefined &&
+		(ctx.query?.searchable.length ?? 0) > 0 &&
+		ctx.records.length > 2,
 	dependsOn: [
 		"list.read-after-write",
 		"create.persists-submitted-fields",
@@ -2431,8 +2381,7 @@ const searchAndFilterCompose: Check = {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
-				"no filterable field and search token overlap without nesting, so dropping either "
-					+ "axis would be invisible",
+				"no filterable field and search token overlap without nesting, so dropping either " + "axis would be invisible",
 			)
 		}
 
@@ -2454,11 +2403,7 @@ const searchAndFilterCompose: Check = {
 			)
 		}
 		if (!filtered.complete) {
-			return ctx.findings.unresolved(
-				this.id,
-				ctx.entityName,
-				"the filtered set is larger than the walk covers",
-			)
+			return ctx.findings.unresolved(this.id, ctx.entityName, "the filtered set is larger than the walk covers")
 		}
 
 		const filterIds = new Set(ids(filtered.items, ctx.identity))
@@ -2475,11 +2420,7 @@ const searchAndFilterCompose: Check = {
 			)
 		}
 		if (!searched.complete || !both.complete) {
-			return ctx.findings.unresolved(
-				this.id,
-				ctx.entityName,
-				"a side of the comparison is larger than the walk covers",
-			)
+			return ctx.findings.unresolved(this.id, ctx.entityName, "a side of the comparison is larger than the walk covers")
 		}
 
 		const searchIds = new Set(ids(searched.items, ctx.identity))
@@ -2493,13 +2434,13 @@ const searchAndFilterCompose: Check = {
 			this.id,
 			ctx.entityName,
 			"a filter and a search do not compose as their intersection",
-			`filter on "${field}" matched ${filterIds.size}; q=${JSON.stringify(token)} matched `
-				+ `${searchIds.size}; both together matched ${got.size} (intersection is `
-				+ `${expected.size}). `
-				+ (missing.length > 0 ? `Missing: ${missing.slice(0, 3).join(", ")}. ` : "")
-				+ (extraIds.length > 0 ? `Extra: ${extraIds.slice(0, 3).join(", ")}. ` : "")
-				+ "A structured predicate and a free-text search must narrow each other. When they "
-				+ "do not, one of them is being dropped the moment the other is present.",
+			`filter on "${field}" matched ${filterIds.size}; q=${JSON.stringify(token)} matched ` +
+				`${searchIds.size}; both together matched ${got.size} (intersection is ` +
+				`${expected.size}). ` +
+				(missing.length > 0 ? `Missing: ${missing.slice(0, 3).join(", ")}. ` : "") +
+				(extraIds.length > 0 ? `Extra: ${extraIds.slice(0, 3).join(", ")}. ` : "") +
+				"A structured predicate and a free-text search must narrow each other. When they " +
+				"do not, one of them is being dropped the moment the other is present.",
 			[filtered.last.exchange, searched.last.exchange, both.last.exchange],
 		)
 	},
@@ -2516,11 +2457,11 @@ const searchAndFilterCompose: Check = {
  */
 const filterSortSelectCompose: Check = {
 	applicable: (ctx) =>
-		filterable(ctx)
-		&& conv(ctx).order !== undefined
-		&& conv(ctx).select !== undefined
-		&& (ctx.query?.sortable.length ?? 0) > 0
-		&& ctx.records.length > 2,
+		filterable(ctx) &&
+		conv(ctx).order !== undefined &&
+		conv(ctx).select !== undefined &&
+		(ctx.query?.sortable.length ?? 0) > 0 &&
+		ctx.records.length > 2,
 	dependsOn: [
 		"list.read-after-write",
 		"create.persists-submitted-fields",
@@ -2549,12 +2490,10 @@ const filterSortSelectCompose: Check = {
 		}
 		const { field, target } = picked
 		const term = filterTerm(conventions, field, "eq", String(target[field]))
-		const extra =
-			(ctx.query?.selectable ?? []).find((name) => name !== ctx.identity) ?? ctx.identity
+		const extra = (ctx.query?.selectable ?? []).find((name) => name !== ctx.identity) ?? ctx.identity
 		const projection = selectTerm(conventions, [ctx.identity, extra], ctx.entityName)
 		const sortField =
-			(ctx.query?.sortable ?? []).find((name) => name !== field && name !== ctx.identity)
-			?? ctx.identity
+			(ctx.query?.sortable ?? []).find((name) => name !== field && name !== ctx.identity) ?? ctx.identity
 		if (term === null || projection === null) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -2579,11 +2518,7 @@ const filterSortSelectCompose: Check = {
 			)
 		}
 		if (!filtered.complete || !triple.complete) {
-			return ctx.findings.unresolved(
-				this.id,
-				ctx.entityName,
-				"a side of the comparison is larger than the walk covers",
-			)
+			return ctx.findings.unresolved(this.id, ctx.entityName, "a side of the comparison is larger than the walk covers")
 		}
 		if (triple.items.some((item) => item[ctx.identity] === undefined)) {
 			return ctx.findings.unresolved(
@@ -2603,13 +2538,13 @@ const filterSortSelectCompose: Check = {
 			this.id,
 			ctx.entityName,
 			"adding a sort and a select together changes which records a filter returns",
-			`filter on "${field}" alone matched ${alone.size}; the same filter with `
-				+ `order=${sortField} desc and select=${[ctx.identity, extra].join(",")} matched `
-				+ `${combined.size}. `
-				+ (missing.length > 0 ? `Dropped: ${missing.slice(0, 3).join(", ")}. ` : "")
-				+ (extraIds.length > 0 ? `Appeared: ${extraIds.slice(0, 3).join(", ")}. ` : "")
-				+ "Each pair composes; the triple must too. A filter that only holds until both a "
-				+ "sort and a projection are present is one a three-axis query plan is dropping.",
+			`filter on "${field}" alone matched ${alone.size}; the same filter with ` +
+				`order=${sortField} desc and select=${[ctx.identity, extra].join(",")} matched ` +
+				`${combined.size}. ` +
+				(missing.length > 0 ? `Dropped: ${missing.slice(0, 3).join(", ")}. ` : "") +
+				(extraIds.length > 0 ? `Appeared: ${extraIds.slice(0, 3).join(", ")}. ` : "") +
+				"Each pair composes; the triple must too. A filter that only holds until both a " +
+				"sort and a projection are present is one a three-axis query plan is dropping.",
 			[filtered.last.exchange, triple.last.exchange],
 		)
 	},
@@ -2624,12 +2559,12 @@ const filterSortSelectCompose: Check = {
  */
 const filterSearchSortCompose: Check = {
 	applicable: (ctx) =>
-		filterable(ctx)
-		&& conv(ctx).search !== undefined
-		&& conv(ctx).order !== undefined
-		&& (ctx.query?.searchable.length ?? 0) > 0
-		&& (ctx.query?.sortable.length ?? 0) > 0
-		&& ctx.records.length > 2,
+		filterable(ctx) &&
+		conv(ctx).search !== undefined &&
+		conv(ctx).order !== undefined &&
+		(ctx.query?.searchable.length ?? 0) > 0 &&
+		(ctx.query?.sortable.length ?? 0) > 0 &&
+		ctx.records.length > 2,
 	dependsOn: [
 		"list.read-after-write",
 		"create.persists-submitted-fields",
@@ -2664,8 +2599,7 @@ const filterSearchSortCompose: Check = {
 			)
 		}
 		const sortField =
-			(ctx.query?.sortable ?? []).find((name) => name !== field && name !== ctx.identity)
-			?? ctx.identity
+			(ctx.query?.sortable ?? []).find((name) => name !== field && name !== ctx.identity) ?? ctx.identity
 		const pair = await collectSet(ctx, limit, {
 			...term,
 			...q(ctx, { search: token }),
@@ -2678,18 +2612,10 @@ const filterSearchSortCompose: Check = {
 			sortTerm(conventions, sortField, "desc"),
 		)
 		if (pair === null || triple === null) {
-			return ctx.findings.unresolved(
-				this.id,
-				ctx.entityName,
-				"combining a filter, a search and a sort was rejected",
-			)
+			return ctx.findings.unresolved(this.id, ctx.entityName, "combining a filter, a search and a sort was rejected")
 		}
 		if (!pair.complete || !triple.complete) {
-			return ctx.findings.unresolved(
-				this.id,
-				ctx.entityName,
-				"a side of the comparison is larger than the walk covers",
-			)
+			return ctx.findings.unresolved(this.id, ctx.entityName, "a side of the comparison is larger than the walk covers")
 		}
 
 		const expected = new Set(ids(pair.items, ctx.identity))
@@ -2702,11 +2628,11 @@ const filterSearchSortCompose: Check = {
 			this.id,
 			ctx.entityName,
 			"adding a sort changes which records a filter and a search return",
-			`filter on "${field}" with q=${JSON.stringify(token)} matched ${expected.size}; `
-				+ `the same request with order=${sortField} desc matched ${got.size}. `
-				+ (missing.length > 0 ? `Dropped: ${missing.slice(0, 3).join(", ")}. ` : "")
-				+ (extraIds.length > 0 ? `Appeared: ${extraIds.slice(0, 3).join(", ")}. ` : "")
-				+ "A sort must reorder the intersection, never change it.",
+			`filter on "${field}" with q=${JSON.stringify(token)} matched ${expected.size}; ` +
+				`the same request with order=${sortField} desc matched ${got.size}. ` +
+				(missing.length > 0 ? `Dropped: ${missing.slice(0, 3).join(", ")}. ` : "") +
+				(extraIds.length > 0 ? `Appeared: ${extraIds.slice(0, 3).join(", ")}. ` : "") +
+				"A sort must reorder the intersection, never change it.",
 			[pair.last.exchange, triple.last.exchange],
 		)
 	},
@@ -2718,11 +2644,11 @@ const filterSearchSortCompose: Check = {
  */
 const filterSearchSelectCompose: Check = {
 	applicable: (ctx) =>
-		filterable(ctx)
-		&& conv(ctx).search !== undefined
-		&& conv(ctx).select !== undefined
-		&& (ctx.query?.searchable.length ?? 0) > 0
-		&& ctx.records.length > 2,
+		filterable(ctx) &&
+		conv(ctx).search !== undefined &&
+		conv(ctx).select !== undefined &&
+		(ctx.query?.searchable.length ?? 0) > 0 &&
+		ctx.records.length > 2,
 	dependsOn: [
 		"list.read-after-write",
 		"create.persists-submitted-fields",
@@ -2748,8 +2674,7 @@ const filterSearchSelectCompose: Check = {
 		}
 		const { field, target, token } = picked
 		const term = filterTerm(conventions, field, "eq", String(target[field]))
-		const extra =
-			(ctx.query?.selectable ?? []).find((name) => name !== ctx.identity) ?? ctx.identity
+		const extra = (ctx.query?.selectable ?? []).find((name) => name !== ctx.identity) ?? ctx.identity
 		const projection = selectTerm(conventions, [ctx.identity, extra], ctx.entityName)
 		if (term === null || projection === null) {
 			return ctx.findings.unresolved(
@@ -2768,18 +2693,10 @@ const filterSearchSelectCompose: Check = {
 			...projection,
 		} as Record<string, string>)
 		if (pair === null || triple === null) {
-			return ctx.findings.unresolved(
-				this.id,
-				ctx.entityName,
-				"combining a filter, a search and a select was rejected",
-			)
+			return ctx.findings.unresolved(this.id, ctx.entityName, "combining a filter, a search and a select was rejected")
 		}
 		if (!pair.complete || !triple.complete) {
-			return ctx.findings.unresolved(
-				this.id,
-				ctx.entityName,
-				"a side of the comparison is larger than the walk covers",
-			)
+			return ctx.findings.unresolved(this.id, ctx.entityName, "a side of the comparison is larger than the walk covers")
 		}
 		if (triple.items.some((item) => item[ctx.identity] === undefined)) {
 			return ctx.findings.unresolved(
@@ -2799,12 +2716,12 @@ const filterSearchSelectCompose: Check = {
 			this.id,
 			ctx.entityName,
 			"adding a select changes which records a filter and a search return",
-			`filter on "${field}" with q=${JSON.stringify(token)} matched ${expected.size}; `
-				+ `the same request with select=${[ctx.identity, extra].join(",")} matched ${got.size}. `
-				+ (missing.length > 0 ? `Dropped: ${missing.slice(0, 3).join(", ")}. ` : "")
-				+ (extraIds.length > 0 ? `Appeared: ${extraIds.slice(0, 3).join(", ")}. ` : "")
-				+ "A projection must change columns, never the intersection a filter and a search "
-				+ "already agreed on.",
+			`filter on "${field}" with q=${JSON.stringify(token)} matched ${expected.size}; ` +
+				`the same request with select=${[ctx.identity, extra].join(",")} matched ${got.size}. ` +
+				(missing.length > 0 ? `Dropped: ${missing.slice(0, 3).join(", ")}. ` : "") +
+				(extraIds.length > 0 ? `Appeared: ${extraIds.slice(0, 3).join(", ")}. ` : "") +
+				"A projection must change columns, never the intersection a filter and a search " +
+				"already agreed on.",
 			[pair.last.exchange, triple.last.exchange],
 		)
 	},
@@ -2829,9 +2746,7 @@ function properSubsetFilter(ctx: CheckContext): { field: string; target: Record_
  * A filter value and a search token that overlap without nesting, so dropping either axis
  * changes the intersection.
  */
-function overlappingFilterAndSearch(
-	ctx: CheckContext,
-): { field: string; target: Record_; token: string } | null {
+function overlappingFilterAndSearch(ctx: CheckContext): { field: string; target: Record_; token: string } | null {
 	for (const candidate of ctx.query?.filterable ?? []) {
 		if (candidate === ctx.identity) continue
 		const groups = new Map<string, Record_[]>()
@@ -2866,7 +2781,13 @@ function overlappingSearchToken(ctx: CheckContext, filterIds: Set<string>): stri
 		const needle = token.toLowerCase()
 		const hit = new Set<string>()
 		for (const record of ctx.records) {
-			if (fields.some((field) => String(record[field] ?? "").toLowerCase().includes(needle))) {
+			if (
+				fields.some((field) =>
+					String(record[field] ?? "")
+						.toLowerCase()
+						.includes(needle),
+				)
+			) {
 				hit.add(String(record[ctx.identity]))
 			}
 		}
@@ -2913,10 +2834,10 @@ function overlappingSearchToken(ctx: CheckContext, filterIds: Set<string>): stri
  */
 const declaredFilterableWorks: Check = {
 	applicable: (ctx) =>
-		conv(ctx).filter !== undefined
-		&& ctx.query?.source === "tag"
-		&& (ctx.query?.filterable.length ?? 0) > 0
-		&& ctx.records.length > 0,
+		conv(ctx).filter !== undefined &&
+		ctx.query?.source === "tag" &&
+		(ctx.query?.filterable.length ?? 0) > 0 &&
+		ctx.records.length > 0,
 	dependsOn: [
 		"list.read-after-write",
 		/* The evidence is a *rejection*. A backend that silently drops unknown filter fields never
@@ -2968,11 +2889,11 @@ const declaredFilterableWorks: Check = {
 			this.id,
 			ctx.entityName,
 			"the document declares a filter the backend does not accept",
-			`x-query lists ${rejected.length} field(s) as filterable that the backend rejects: `
-				+ `${rejected.map((r) => `${r.field} (${r.status})`).join(", ")}. `
-				+ "Every client generated from this document will offer a filter that fails at runtime. "
-				+ "Either the column needs an index or the declaration needs removing — but the "
-				+ "document and the backend currently disagree about what this API can do.",
+			`x-query lists ${rejected.length} field(s) as filterable that the backend rejects: ` +
+				`${rejected.map((r) => `${r.field} (${r.status})`).join(", ")}. ` +
+				"Every client generated from this document will offer a filter that fails at runtime. " +
+				"Either the column needs an index or the declaration needs removing — but the " +
+				"document and the backend currently disagree about what this API can do.",
 			[],
 		)
 	},
@@ -2985,10 +2906,10 @@ const declaredFilterableWorks: Check = {
  */
 const declaredSortableWorks: Check = {
 	applicable: (ctx) =>
-		conv(ctx).order !== undefined
-		&& ctx.query?.source === "tag"
-		&& (ctx.query?.sortable.length ?? 0) > 0
-		&& ctx.records.length > 0,
+		conv(ctx).order !== undefined &&
+		ctx.query?.source === "tag" &&
+		(ctx.query?.sortable.length ?? 0) > 0 &&
+		ctx.records.length > 0,
 	dependsOn: [
 		"list.read-after-write",
 		/* ERROR_500_ON_BAD_FILTER, despite its name, turns *any* SqlError the reference throws
@@ -3022,11 +2943,7 @@ const declaredSortableWorks: Check = {
 		}
 
 		if (probed === 0) {
-			return ctx.findings.unresolved(
-				this.id,
-				ctx.entityName,
-				"no declared sortable field could be probed",
-			)
+			return ctx.findings.unresolved(this.id, ctx.entityName, "no declared sortable field could be probed")
 		}
 		if (rejected.length === 0) return
 
@@ -3034,11 +2951,11 @@ const declaredSortableWorks: Check = {
 			this.id,
 			ctx.entityName,
 			"the document declares a sort field the backend does not accept",
-			`x-query lists ${rejected.length} field(s) as sortable that the backend rejects: `
-				+ `${rejected.map((r) => `${r.field} (${r.status})`).join(", ")}. `
-				+ "Every client generated from this document will offer an order value that fails at "
-				+ "runtime. Either the column needs an index or the declaration needs removing — but "
-				+ "the document and the backend currently disagree about what this API can do.",
+			`x-query lists ${rejected.length} field(s) as sortable that the backend rejects: ` +
+				`${rejected.map((r) => `${r.field} (${r.status})`).join(", ")}. ` +
+				"Every client generated from this document will offer an order value that fails at " +
+				"runtime. Either the column needs an index or the declaration needs removing — but " +
+				"the document and the backend currently disagree about what this API can do.",
 			[],
 		)
 	},
@@ -3051,10 +2968,10 @@ const declaredSortableWorks: Check = {
  */
 const declaredSelectableWorks: Check = {
 	applicable: (ctx) =>
-		conv(ctx).select !== undefined
-		&& ctx.query?.source === "tag"
-		&& (ctx.query?.selectable.length ?? 0) > 0
-		&& ctx.records.length > 0,
+		conv(ctx).select !== undefined &&
+		ctx.query?.source === "tag" &&
+		(ctx.query?.selectable.length ?? 0) > 0 &&
+		ctx.records.length > 0,
 	dependsOn: [
 		"list.read-after-write",
 		/* Same masking risk as the filter and sort overclaim checks: ERROR_500_ON_BAD_FILTER turns
@@ -3087,11 +3004,7 @@ const declaredSelectableWorks: Check = {
 		}
 
 		if (probed === 0) {
-			return ctx.findings.unresolved(
-				this.id,
-				ctx.entityName,
-				"no declared selectable field could be probed",
-			)
+			return ctx.findings.unresolved(this.id, ctx.entityName, "no declared selectable field could be probed")
 		}
 		if (rejected.length === 0) return
 
@@ -3099,12 +3012,12 @@ const declaredSelectableWorks: Check = {
 			this.id,
 			ctx.entityName,
 			"the document declares a select field the backend does not accept",
-			`x-query lists ${rejected.length} field(s) as selectable that the backend rejects: `
-				+ `${rejected.map((r) => `${r.field} (${r.status})`).join(", ")}. `
-				+ "Every client generated from this document will offer a sparse fieldset that fails at "
-				+ "runtime. Either the field needs to stay projectable or the declaration needs "
-				+ "removing — but the document and the backend currently disagree about what this API "
-				+ "can do.",
+			`x-query lists ${rejected.length} field(s) as selectable that the backend rejects: ` +
+				`${rejected.map((r) => `${r.field} (${r.status})`).join(", ")}. ` +
+				"Every client generated from this document will offer a sparse fieldset that fails at " +
+				"runtime. Either the field needs to stay projectable or the declaration needs " +
+				"removing — but the document and the backend currently disagree about what this API " +
+				"can do.",
 			[],
 		)
 	},
@@ -3162,10 +3075,7 @@ const crossTenantItemRead: Check = {
 
 const crossTenantFilterBypass: Check = {
 	applicable: (ctx) =>
-		ctx.altAuth !== undefined &&
-		ctx.altScope !== undefined &&
-		filterable(ctx) &&
-		ctx.records.length > 0,
+		ctx.altAuth !== undefined && ctx.altScope !== undefined && filterable(ctx) && ctx.records.length > 0,
 	/* The probe filters, so anything that stops a filter from selecting over the whole collection
 	 * hides the very record whose visibility is in question — a leak that cannot be observed is
 	 * not a leak that can be reported. */
@@ -3180,12 +3090,7 @@ const crossTenantFilterBypass: Check = {
 
 		const tenantTerm = filterTerm(conv(ctx), ctx.identity, "eq", id)
 		if (tenantTerm === null) return
-		const result = await list(
-			ctx,
-			{ ...q(ctx, { limit: 100 }), ...tenantTerm },
-			ctx.altAuth,
-			ctx.altScope,
-		)
+		const result = await list(ctx, { ...q(ctx, { limit: 100 }), ...tenantTerm }, ctx.altAuth, ctx.altScope)
 		if (result.exchange.status >= 400) return
 		if (!ids(result.items, ctx.identity).includes(id)) return
 		ctx.findings.security(
@@ -3273,7 +3178,10 @@ const rankIsMonotonic: Check = {
 }
 
 function pointerValue(body: unknown, pointer: string): string | undefined {
-	const path = pointer.replace(/^\$\.?/, "").split(".").filter(Boolean)
+	const path = pointer
+		.replace(/^\$\.?/, "")
+		.split(".")
+		.filter(Boolean)
 	let node: unknown = body
 	for (const segment of path) {
 		if (node === null || typeof node !== "object") return undefined
@@ -3290,14 +3198,14 @@ function pointerValue(body: unknown, pointer: string): string | undefined {
  */
 const inviteGrantsThenRevokes: Check = {
 	applicable: (ctx) =>
-		ctx.invite !== null
-		&& ctx.readOp !== undefined
-		&& ctx.records.length > 0
-		&& ctx.actors.some(
+		ctx.invite !== null &&
+		ctx.readOp !== undefined &&
+		ctx.records.length > 0 &&
+		ctx.actors.some(
 			(actor) =>
-				actor.inviteAs !== undefined
-				&& ctx.actors[0] !== undefined
-				&& !sameTenantScope(actor.roots, ctx.actors[0].roots),
+				actor.inviteAs !== undefined &&
+				ctx.actors[0] !== undefined &&
+				!sameTenantScope(actor.roots, ctx.actors[0].roots),
 		),
 	dependsOn: ["list.read-after-write", "tenant.item-not-readable-cross-tenant"],
 	id: "auth.invite-grants-then-revokes",
@@ -3323,11 +3231,7 @@ const inviteGrantsThenRevokes: Check = {
 		const acceptOp = ctx.model.byOperationId.get(spec.accept)
 		const revokeOp = ctx.model.byOperationId.get(spec.revoke)
 		if (inviteOp === undefined || acceptOp === undefined || revokeOp === undefined) {
-			return ctx.findings.unresolved(
-				this.id,
-				ctx.entityName,
-				"x-invite names an operation that is not in the document",
-			)
+			return ctx.findings.unresolved(this.id, ctx.entityName, "x-invite names an operation that is not in the document")
 		}
 
 		const id = String(target[ctx.identity])
@@ -3375,24 +3279,14 @@ const inviteGrantsThenRevokes: Check = {
 		const token = pointerValue(invited.responseBody, spec.tokenPointer)
 		const grantId = pointerValue(invited.responseBody, spec.grantPointer)
 		if (token === undefined) {
-			return ctx.findings.unresolved(
-				this.id,
-				ctx.entityName,
-				`invite response has no token at ${spec.tokenPointer}`,
-			)
+			return ctx.findings.unresolved(this.id, ctx.entityName, `invite response has no token at ${spec.tokenPointer}`)
 		}
 
-		const accepted = await ctx.client.request(
-			acceptOp.method,
-			fillPath(acceptOp.path, { token }),
-			{ headers: delegate.headers() },
-		)
+		const accepted = await ctx.client.request(acceptOp.method, fillPath(acceptOp.path, { token }), {
+			headers: delegate.headers(),
+		})
 		if (accepted.status >= 300) {
-			return ctx.findings.unresolved(
-				this.id,
-				ctx.entityName,
-				`accept returned ${accepted.status}`,
-			)
+			return ctx.findings.unresolved(this.id, ctx.entityName, `accept returned ${accepted.status}`)
 		}
 		if (!(await canRead())) {
 			ctx.findings.backend(
@@ -3419,11 +3313,7 @@ const inviteGrantsThenRevokes: Check = {
 			{ headers: owner.headers() },
 		)
 		if (revoked.status >= 300) {
-			return ctx.findings.unresolved(
-				this.id,
-				ctx.entityName,
-				`revoke returned ${revoked.status}`,
-			)
+			return ctx.findings.unresolved(this.id, ctx.entityName, `revoke returned ${revoked.status}`)
 		}
 		if (await canRead()) {
 			ctx.findings.backend(
@@ -3554,7 +3444,10 @@ const orderChangesResult: Check = {
 			ctx.entityName,
 			"order is accepted but the result is not sorted",
 			`order=${field}.asc returned records whose "${field}" values are not ascending: ` +
-				`${values.slice(0, 5).map((v) => JSON.stringify(v)).join(", ")}. A sort parameter the ` +
+				`${values
+					.slice(0, 5)
+					.map((v) => JSON.stringify(v))
+					.join(", ")}. A sort parameter the ` +
 				"backend ignores silently gives every caller arbitrary ordering.",
 			[ascending.exchange],
 		)
@@ -3572,9 +3465,7 @@ function compareValues(a: unknown, b: unknown): number {
 
 const searchNarrowsResult: Check = {
 	applicable: (ctx) =>
-		conv(ctx).search !== undefined &&
-		(ctx.query?.searchable.length ?? 0) > 0 &&
-		ctx.records.length > 2,
+		conv(ctx).search !== undefined && (ctx.query?.searchable.length ?? 0) > 0 && ctx.records.length > 2,
 	dependsOn: ["list.read-after-write"],
 	id: "search.q-narrows-result",
 	needs: "a free-text `q` parameter and declared searchable fields",
@@ -3679,10 +3570,7 @@ const maxLengthValidated: Check = {
 		if (createOp === undefined) return
 		const schema = requestSchemaOf(ctx, createOp)
 		if (schema === null) return
-		const target = findConstrained(
-			schema,
-			(s) => typeof s.maxLength === "number" && (s.maxLength as number) < 4096,
-		)
+		const target = findConstrained(schema, (s) => typeof s.maxLength === "number" && (s.maxLength as number) < 4096)
 		if (target === null) return
 		const max = target.schema.maxLength as number
 
@@ -3819,17 +3707,12 @@ const successSchemaHonoured: Check = {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
-				`create returned ${exchange.status}, which the document declares no schema for — `
-					+ "there is nothing to validate the body against",
+				`create returned ${exchange.status}, which the document declares no schema for — ` +
+					"there is nothing to validate the body against",
 			)
 		}
 
-		const result = validator.validate(
-			createOp.operationId,
-			raw,
-			exchange.status,
-			exchange.responseBody,
-		)
+		const result = validator.validate(createOp.operationId, raw, exchange.status, exchange.responseBody)
 		if (result.ok) return
 
 		ctx.findings.spec(
@@ -3850,10 +3733,7 @@ function validBody(ctx: CheckContext, schema: Record<string, unknown>): Record<s
 	return member?.body ?? {}
 }
 
-function requestSchemaOf(
-	ctx: CheckContext,
-	op: OperationModel,
-): Record<string, unknown> | null {
+function requestSchemaOf(ctx: CheckContext, op: OperationModel): Record<string, unknown> | null {
 	const raw = ctx.model.rawOperations.get(op.operationId)
 	const content = raw?.requestBody?.content
 	if (content === undefined) return null
@@ -3882,9 +3762,7 @@ function findConstrained(
 		if (Array.isArray(union)) {
 			const branch = union.find(
 				(candidate) =>
-					candidate !== null &&
-					typeof candidate === "object" &&
-					predicate(candidate as Record<string, unknown>),
+					candidate !== null && typeof candidate === "object" && predicate(candidate as Record<string, unknown>),
 			)
 			if (branch !== undefined) return { name, schema: branch as Record<string, unknown> }
 		}
@@ -3913,10 +3791,7 @@ function findConstrained(
  * subset rather than an error, which is why it survives in production.
  */
 const numericComparisonIsNumeric: Check = {
-	applicable: (ctx) =>
-		filterable(ctx) &&
-		numericFilterField(ctx) !== null &&
-		ctx.records.length > 2,
+	applicable: (ctx) => filterable(ctx) && numericFilterField(ctx) !== null && ctx.records.length > 2,
 	dependsOn: ["list.read-after-write", "filter.unknown-field-rejected"],
 	id: "filter.numeric-comparison-is-numeric",
 	needs: "a `filter` parameter and a numeric field",
@@ -3924,9 +3799,7 @@ const numericComparisonIsNumeric: Check = {
 		const field = numericFilterField(ctx)
 		if (field === null) return
 
-		const values = ctx.records
-			.map((r) => r[field])
-			.filter((v): v is number => typeof v === "number")
+		const values = ctx.records.map((r) => r[field]).filter((v): v is number => typeof v === "number")
 		if (values.length < 3) return
 
 		/* A threshold that partitions the cohort, chosen so the lexical and numeric answers
@@ -3994,8 +3867,7 @@ function numericFilterField(ctx: CheckContext): string | null {
  * returned to either caller, which is what makes it so hard to notice from the outside.
  */
 const noLostUpdate: Check = {
-	applicable: (ctx) =>
-		ctx.updateOp !== undefined && ctx.readOp !== undefined && ctx.records.length > 0,
+	applicable: (ctx) => ctx.updateOp !== undefined && ctx.readOp !== undefined && ctx.records.length > 0,
 	dependsOn: [
 		"list.read-after-write",
 		"patch.minimality",
@@ -4017,8 +3889,7 @@ const noLostUpdate: Check = {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
-				`reading the record back returned ${before.status}, so there was no baseline to race `
-					+ "against",
+				`reading the record back returned ${before.status}, so there was no baseline to race ` + "against",
 			)
 		}
 		const original = (before.responseBody ?? {}) as Record_
@@ -4031,8 +3902,8 @@ const noLostUpdate: Check = {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
-				`only ${fields.length} writable string field(s) are present on the record; two are `
-					+ "needed so the concurrent writes cannot legitimately clobber each other",
+				`only ${fields.length} writable string field(s) are present on the record; two are ` +
+					"needed so the concurrent writes cannot legitimately clobber each other",
 			)
 		}
 
@@ -4051,8 +3922,8 @@ const noLostUpdate: Check = {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
-				`a concurrent PATCH was rejected (${firstWrite.status}, ${secondWrite.status}), so no `
-					+ "race actually took place",
+				`a concurrent PATCH was rejected (${firstWrite.status}, ${secondWrite.status}), so no ` +
+					"race actually took place",
 			)
 		}
 
@@ -4178,11 +4049,7 @@ const declaredEffectsOccur: Check = {
 				const removed = before.ids.filter((id) => !after.ids.includes(id))
 
 				const wanted =
-					effect.op === "create" || effect.op === "append"
-						? expected
-						: effect.op === "delete"
-							? -expected
-							: 0
+					effect.op === "create" || effect.op === "append" ? expected : effect.op === "delete" ? -expected : 0
 
 				if (effect.op === "create" || effect.op === "append") {
 					if (delta === wanted && added.length === expected) continue
@@ -4258,9 +4125,7 @@ const asyncReachesTerminalState: Check = {
 			const spec = op.async
 			if (spec === null) continue
 
-			const body = op.hasRequestBody
-				? validBody(ctx, requestSchemaOf(ctx, op) ?? {})
-				: undefined
+			const body = op.hasRequestBody ? validBody(ctx, requestSchemaOf(ctx, op) ?? {}) : undefined
 			const start = await ctx.client.request(op.method, fillPath(op.path, ctx.scope), {
 				headers: ctx.auth(),
 				...(body === undefined ? {} : { body }),
@@ -4275,13 +4140,7 @@ const asyncReachesTerminalState: Check = {
 				continue
 			}
 
-			const outcome = await driveAsync(
-				ctx.client,
-				spec,
-				start.responseBody,
-				ctx.scope,
-				ctx.auth(),
-			)
+			const outcome = await driveAsync(ctx.client, spec, start.responseBody, ctx.scope, ctx.auth())
 
 			if (outcome.timedOut) {
 				ctx.findings.backend(
@@ -4344,7 +4203,10 @@ const asyncReceiptIsResolvable: Check = {
 			if (started === undefined) continue
 
 			const body = started.responseBody
-			const path = spec.idFrom.replace(/^\$\.?/, "").split(".").filter(Boolean)
+			const path = spec.idFrom
+				.replace(/^\$\.?/, "")
+				.split(".")
+				.filter(Boolean)
 			let node: unknown = body
 			for (const segment of path) {
 				if (node === null || typeof node !== "object") {

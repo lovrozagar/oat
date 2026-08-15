@@ -120,10 +120,7 @@ async function createOne(
 	return (exchange.responseBody ?? {}) as Record_
 }
 
-export function requestSchemaOf(
-	op: OperationModel,
-	model: SpecModel,
-): Record<string, unknown> | null {
+export function requestSchemaOf(op: OperationModel, model: SpecModel): Record<string, unknown> | null {
 	const raw = model.rawOperations.get(op.operationId)
 	const content = raw?.requestBody?.content
 	if (content === undefined) return null

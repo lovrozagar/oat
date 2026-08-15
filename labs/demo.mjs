@@ -43,11 +43,7 @@ const DEFAULT_DEFECTS = [
 ]
 
 const defects =
-	flag("clean") === true
-		? []
-		: typeof flag("defects") === "string"
-			? flag("defects").split(",")
-			: DEFAULT_DEFECTS
+	flag("clean") === true ? [] : typeof flag("defects") === "string" ? flag("defects").split(",") : DEFAULT_DEFECTS
 
 for (const name of defects) {
 	if (!Object.hasOwn(DEFECTS, name)) {
@@ -58,11 +54,7 @@ for (const name of defects) {
 
 const backend = flag("backend") ?? "memory"
 const createServer =
-	backend === "memory"
-		? createMemoryServer
-		: backend === "sqlite"
-			? createSqliteServer
-			: createPostgresServer
+	backend === "memory" ? createMemoryServer : backend === "sqlite" ? createSqliteServer : createPostgresServer
 
 const server = await createServer({ defects })
 

@@ -271,10 +271,7 @@ function isScalarSchema(schema: Record<string, unknown>): boolean {
 	const oneOf = schema.oneOf ?? schema.anyOf
 	if (Array.isArray(oneOf)) {
 		return oneOf.every(
-			(branch) =>
-				branch !== null &&
-				typeof branch === "object" &&
-				isScalarSchema(branch as Record<string, unknown>),
+			(branch) => branch !== null && typeof branch === "object" && isScalarSchema(branch as Record<string, unknown>),
 		)
 	}
 	return false
@@ -408,7 +405,5 @@ export function pathParameterNames(path: string): string[] {
 /** Path parameters declared as roots — resources oat cannot create and must be given. */
 export function readRootParams(op: OperationObject): string[] {
 	const params = (op.parameters ?? []) as ParameterObject[]
-	return params
-		.filter((p) => p.in === "path" && (p as Record<string, unknown>)["x-root"] === true)
-		.map((p) => p.name)
+	return params.filter((p) => p.in === "path" && (p as Record<string, unknown>)["x-root"] === true).map((p) => p.name)
 }

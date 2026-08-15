@@ -83,9 +83,7 @@ export class PgStore implements Store {
 		 * The scratch database inherits the cluster's locale, which here is C — so `COLLATE "C"`
 		 * would be a no-op and the collation defect would be invisible. Declaring an explicit ICU
 		 * collation makes the disagreement real regardless of how the cluster was initialised. */
-		await this.sql.unsafe(
-			`CREATE COLLATION oat_ci (provider = icu, locale = 'und-u-ks-level2', deterministic = false)`,
-		)
+		await this.sql.unsafe(`CREATE COLLATION oat_ci (provider = icu, locale = 'und-u-ks-level2', deterministic = false)`)
 		for (const entity of ENTITIES) {
 			const columns = entity.fields.map((field) => {
 				const notNull = field.required === true ? " NOT NULL" : ""
@@ -184,10 +182,9 @@ export class PgStore implements Store {
 	}
 
 	async remove(entity: EntityDef, id: string): Promise<void> {
-		await this.sql.unsafe(
-			`DELETE FROM ${ident(entity.plural)} WHERE ${ident(this.physical(entity.identity))} = $1`,
-			[id],
-		)
+		await this.sql.unsafe(`DELETE FROM ${ident(entity.plural)} WHERE ${ident(this.physical(entity.identity))} = $1`, [
+			id,
+		])
 	}
 
 	/**
@@ -270,9 +267,7 @@ export class PgStore implements Store {
 		const total = Number(countRows[0]?.n ?? 0)
 
 		const requested = params.limit ?? entity.defaultLimit
-		const limit = this.defects.has("LIMIT_EXCEEDS_MAX")
-			? requested
-			: Math.min(requested, entity.maxLimit)
+		const limit = this.defects.has("LIMIT_EXCEEDS_MAX") ? requested : Math.min(requested, entity.maxLimit)
 
 		let offset: number
 		let page: number | null
@@ -295,9 +290,7 @@ export class PgStore implements Store {
 			page = null
 		} else {
 			const requestedPage = Math.max(params.page ?? 1, 1)
-			offset =
-				(requestedPage - 1) * limit +
-				(this.defects.has("OFF_BY_ONE_PAGE") && requestedPage > 1 ? 1 : 0)
+			offset = (requestedPage - 1) * limit + (this.defects.has("OFF_BY_ONE_PAGE") && requestedPage > 1 ? 1 : 0)
 			page = requestedPage
 		}
 
@@ -316,8 +309,7 @@ export class PgStore implements Store {
 				: rows
 
 		const decoded = effective.map((row) => this.decode(entity, row))
-		const transformed =
-			options.transform === undefined ? decoded : decoded.map((r) => options.transform?.(r) ?? r)
+		const transformed = options.transform === undefined ? decoded : decoded.map((r) => options.transform?.(r) ?? r)
 		const last = transformed.at(-1)
 		const hasMore = this.defects.has("HASMORE_ALWAYS_FALSE") ? false : offset + decoded.length < total
 
@@ -333,8 +325,7 @@ export class PgStore implements Store {
 				),
 			),
 			limit,
-			nextCursor:
-				hasMore && last !== undefined ? encodeCursor(String(last[entity.identity])) : null,
+			nextCursor: hasMore && last !== undefined ? encodeCursor(String(last[entity.identity])) : null,
 			page,
 		}
 	}
@@ -351,7 +342,9 @@ export class PgStore implements Store {
 			const parts = splitTopLevel(group[2]).map((p) => this.compileFilter(p, entity, args))
 			if (parts.length === 0) throw new SqlError("invalid_filter", "empty filter group")
 			const effective = this.defects.has("FILTER_GROUP_COMBINATOR_SWAPPED")
-				? (group[1] === "and" ? "or" : "and")
+				? group[1] === "and"
+					? "or"
+					: "and"
 				: group[1]
 			return `(${parts.join(effective === "and" ? " AND " : " OR ")})`
 		}
@@ -428,11 +421,7 @@ export class PgStore implements Store {
 		}
 	}
 
-	private compileOrder(
-		expression: string | undefined,
-		entity: EntityDef,
-		dropNulls: string[],
-	): string {
+	private compileOrder(expression: string | undefined, entity: EntityDef, dropNulls: string[]): string {
 		if (this.defects.has("ORDER_IGNORED")) return ""
 		const terms: string[] = []
 
@@ -459,9 +448,7 @@ export class PgStore implements Store {
 					numeric && this.defects.has("NUMERIC_COMPARED_AS_TEXT")
 						? `${ident(this.physical(field))}::text`
 						: ident(this.physical(field))
-				terms.push(
-					`${ref} ${descending ? "DESC" : "ASC"} NULLS ${nullsFirst ? "FIRST" : "LAST"}`,
-				)
+				terms.push(`${ref} ${descending ? "DESC" : "ASC"} NULLS ${nullsFirst ? "FIRST" : "LAST"}`)
 				if (descending && this.defects.has("SORT_DESC_DROPS_NULLS")) dropNulls.push(field)
 			}
 		}

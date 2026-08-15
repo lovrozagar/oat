@@ -41,9 +41,7 @@ export async function loadSpec(source: string, baseUrl?: string): Promise<OpenAp
 		return parse(text) as OpenApiDocument
 	} catch (error) {
 		throw new Error(
-			`oat: could not parse ${source} as JSON or YAML: ${
-				error instanceof Error ? error.message : String(error)
-			}`,
+			`oat: could not parse ${source} as JSON or YAML: ${error instanceof Error ? error.message : String(error)}`,
 		)
 	}
 }
@@ -96,9 +94,7 @@ async function readSpecSource(source: string, baseUrl?: string): Promise<string>
 	throw new Error(
 		`oat: could not find a specification at "${source}". Tried:\n` +
 			attempted.map((a) => `  ${a}`).join("\n") +
-			(baseUrl === undefined
-				? "\nPass --base-url (or set baseUrl in the config) to resolve it as a route."
-				: ""),
+			(baseUrl === undefined ? "\nPass --base-url (or set baseUrl in the config) to resolve it as a route." : ""),
 	)
 }
 

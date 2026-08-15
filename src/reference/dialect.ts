@@ -213,7 +213,10 @@ export function toCanonicalFilter(expression: string, dialect: Dialect): string 
 
 	/* `status=eq:active`, joined by commas. No grouping: the point of a second dialect is
 	 * different spelling, not a second expression language to maintain. */
-	const terms = expression.split(",").map((term) => term.trim()).filter(Boolean)
+	const terms = expression
+		.split(",")
+		.map((term) => term.trim())
+		.filter(Boolean)
 	if (terms.length === 0) return null
 
 	const canonical: string[] = []

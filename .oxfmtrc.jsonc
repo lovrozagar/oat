@@ -1,0 +1,8 @@
+{
+	"$schema": "./node_modules/oxfmt/configuration_schema.json",
+	"printWidth": 120,
+	"useTabs": true,
+	"semi": false,
+	"singleQuote": false,
+	"ignorePatterns": ["dist/**", "coverage/**", "oat-out/**", "labs/node_modules/**", "labs/schema/**", "*.lock"],
+}

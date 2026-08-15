@@ -41,13 +41,8 @@ export function runParserSuite(): ParserResult[] {
 			const model = buildModel(doc)
 
 			const problems: string[] = []
-			if (
-				fixture.expectOperations !== undefined
-				&& model.operations.length !== fixture.expectOperations
-			) {
-				problems.push(
-					`expected ${fixture.expectOperations} operation(s), modelled ${model.operations.length}`,
-				)
+			if (fixture.expectOperations !== undefined && model.operations.length !== fixture.expectOperations) {
+				problems.push(`expected ${fixture.expectOperations} operation(s), modelled ${model.operations.length}`)
 			}
 			if (fixture.expectEntities !== undefined && model.entities.size !== fixture.expectEntities) {
 				problems.push(`expected ${fixture.expectEntities} entity/entities, modelled ${model.entities.size}`)
@@ -190,13 +185,21 @@ export function runCoverageReportSuite(): ParserResult[] {
 	const coverage = coverageByCheck(input)
 	const text = renderConsole(input)
 	const cases: Array<[string, string, boolean]> = [
-		["invalidate is partial, not never", "it ran on the child", coverage.partialSkip.some((r) => r.check === "invalidation.declared-route-changes")],
-		["async never applied", "neither entity had x-async", coverage.never.some((r) => r.check === "async.reaches-terminal-state")],
+		[
+			"invalidate is partial, not never",
+			"it ran on the child",
+			coverage.partialSkip.some((r) => r.check === "invalidation.declared-route-changes"),
+		],
+		[
+			"async never applied",
+			"neither entity had x-async",
+			coverage.never.some((r) => r.check === "async.reaches-terminal-state"),
+		],
 		[
 			"console does not put a ran check under DID NOT APPLY",
 			"the invalidate line lives in APPLIED ONLY ON SOME ENTITIES",
-			text.includes("APPLIED ONLY ON SOME ENTITIES")
-				&& (text.split("APPLIED ONLY ON SOME ENTITIES")[0] ?? "").includes("invalidation") === false,
+			text.includes("APPLIED ONLY ON SOME ENTITIES") &&
+				(text.split("APPLIED ONLY ON SOME ENTITIES")[0] ?? "").includes("invalidation") === false,
 		],
 	]
 	return cases.map(([name, why, ok]) => ({
@@ -574,15 +577,9 @@ export const EXPRESSION_ONLY: ReadonlySet<DefectName> = new Set<DefectName>([
 ])
 
 /** Defects that need a reported total to exist at all. */
-export const COUNT_ONLY: ReadonlySet<DefectName> = new Set<DefectName>([
-	"COUNT_ALWAYS_ZERO",
-	"COUNT_IGNORES_FILTER",
-])
+export const COUNT_ONLY: ReadonlySet<DefectName> = new Set<DefectName>(["COUNT_ALWAYS_ZERO", "COUNT_IGNORES_FILTER"])
 
-export const CURSOR_ONLY: ReadonlySet<DefectName> = new Set<DefectName>([
-	"CURSOR_DRIFT",
-	"COLLATION_INCONSISTENT",
-])
+export const CURSOR_ONLY: ReadonlySet<DefectName> = new Set<DefectName>(["CURSOR_DRIFT", "COLLATION_INCONSISTENT"])
 
 /** Whether this runtime can host the SQLite backend (`node:sqlite` needs a flag on Node 22). */
 export async function sqliteAvailable(): Promise<boolean> {
@@ -603,9 +600,9 @@ export async function sqliteAvailable(): Promise<boolean> {
  */
 export function d1Available(): boolean {
 	return (
-		process.env.CLOUDFLARE_ACCOUNT_ID !== undefined
-		&& process.env.CLOUDFLARE_D1_DATABASE_ID !== undefined
-		&& process.env.CLOUDFLARE_API_TOKEN !== undefined
+		process.env.CLOUDFLARE_ACCOUNT_ID !== undefined &&
+		process.env.CLOUDFLARE_D1_DATABASE_ID !== undefined &&
+		process.env.CLOUDFLARE_API_TOKEN !== undefined
 	)
 }
 
@@ -882,9 +879,7 @@ export async function runSuite(
 		/* Likewise a shape with no total cannot report a wrong one. */
 		.filter((name) => DIALECTS_WITH_TOTAL.has(dialect) || !COUNT_ONLY.has(name))
 		/* And a shape with no filter *expression* cannot malform one. */
-		.filter(
-			(name) => DIALECTS_WITH_FILTER_EXPRESSION.has(dialect) || !EXPRESSION_ONLY.has(name),
-		)
+		.filter((name) => DIALECTS_WITH_FILTER_EXPRESSION.has(dialect) || !EXPRESSION_ONLY.has(name))
 		/* D1 is a network round trip per statement. Restricting it to the engine-sensitive set
 		 * keeps a run to minutes rather than an hour, and drops nothing D1 could uniquely show. */
 		.filter((name) => backend !== "d1" || ENGINE_SENSITIVE.has(name))
@@ -941,10 +936,7 @@ export async function runSuite(
 	return results
 }
 
-export function renderSuite(
-	results: CaseResult[],
-	dialect = "postgrest",
-): { text: string; failures: number } {
+export function renderSuite(results: CaseResult[], dialect = "postgrest"): { text: string; failures: number } {
 	const lines: string[] = []
 	let failures = 0
 
@@ -964,18 +956,17 @@ export function renderSuite(
 		/* Only the *tagged* baseline is held to the floor. The untagged case deliberately strips
 		 * every x-* tag to prove oat degrades gracefully without them, so running fewer checks
 		 * there is the result being measured, not a regression. */
-		const vacuous =
-			result.label === "baseline (correct backend)" && result.checksRun.length < floor
+		const vacuous = result.label === "baseline (correct backend)" && result.checksRun.length < floor
 		const leaked = result.leaked ?? 0
 		const isDeterminism = result.label === "concurrency determinism"
 		const ok = isDeterminism
 			? result.detected
 			: isBaseline
-				? result.spurious.length === 0
-					&& !vacuous
-					&& leaked === 0
+				? result.spurious.length === 0 &&
+					!vacuous &&
+					leaked === 0 &&
 					/* An untagged run that finds nothing *and* runs almost nothing proves nothing. */
-					&& result.checksRun.length >= 10
+					result.checksRun.length >= 10
 				: result.detected && result.spurious.length === 0
 		if (!ok) failures++
 
@@ -1000,14 +991,13 @@ export function renderSuite(
 
 		if (leaked > 0) {
 			lines.push(
-				`      left ${leaked} record(s) behind after teardown — a run must not litter the ` +
-					"system under test",
+				`      left ${leaked} record(s) behind after teardown — a run must not litter the ` + "system under test",
 			)
 		}
 		if (vacuous) {
 			lines.push(
-				`      only ${result.checksRun.length} check(s) ran, below the ${floor} this shape `
-					+ "supports — a check that stopped applying reads exactly like a clean result",
+				`      only ${result.checksRun.length} check(s) ran, below the ${floor} this shape ` +
+					"supports — a check that stopped applying reads exactly like a clean result",
 			)
 			const missing = ALL_CHECK_IDS.filter((id) => !result.checksRun.includes(id))
 			if (missing.length > 0) lines.push(`      did not run: ${missing.join(", ")}`)
@@ -1018,9 +1008,7 @@ export function renderSuite(
 		}
 		if (!isBaseline && !result.detected && result.error === undefined) {
 			const others = result.findings.filter((f) => f.verdict !== "COVERAGE_GAP")
-			lines.push(
-				`      missed — reported instead: ${others.map((f) => f.check).join(", ") || "nothing"}`,
-			)
+			lines.push(`      missed — reported instead: ${others.map((f) => f.check).join(", ") || "nothing"}`)
 		}
 	}
 
@@ -1030,9 +1018,7 @@ export function renderSuite(
 	const baseline = results.find((r) => r.defect === null)
 
 	lines.push("")
-	lines.push(
-		`  recall     ${detected}/${detectionCases.length} injected defects detected`,
-	)
+	lines.push(`  recall     ${detected}/${detectionCases.length} injected defects detected`)
 	lines.push(
 		`  precision  ${baseline?.spurious.length === 0 ? "clean baseline — no findings against a correct backend" : `${baseline?.spurious.length ?? 0} false positive(s) on the correct backend`}`,
 	)
@@ -1042,9 +1028,7 @@ export function renderSuite(
 	/* Every check must be exercised by at least one defect. An unexercised check has never been
 	 * shown to detect anything, so its passing tells you nothing. */
 	const baselineChecks = results.find((r) => r.defect === null)?.checksRun ?? []
-	const proven = new Set(
-		results.filter((r) => r.detected).flatMap((r) => r.acceptable ?? [r.expected ?? ""]),
-	)
+	const proven = new Set(results.filter((r) => r.detected).flatMap((r) => r.acceptable ?? [r.expected ?? ""]))
 	const unproven = baselineChecks.filter((id) => !proven.has(id))
 	if (unproven.length > 0) {
 		lines.push(`  ${unproven.length} check(s) run but never proven by an injected defect:`)

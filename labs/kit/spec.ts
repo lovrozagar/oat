@@ -1,12 +1,4 @@
-import {
-	allColumns,
-	ancestors,
-	collectionPath,
-	entityByName,
-	itemPath,
-	type Entity,
-	type World,
-} from "./types.ts"
+import { allColumns, ancestors, collectionPath, entityByName, itemPath, type Entity, type World } from "./types.ts"
 
 type Json = Record<string, unknown>
 
@@ -92,10 +84,7 @@ export function buildSpec(world: World): Json {
 			},
 			post: {
 				operationId: `${entity.name}.create`,
-				parameters: [
-					...params,
-					{ in: "header", name: "Idempotency-Key", required: false, schema: { type: "string" } },
-				],
+				parameters: [...params, { in: "header", name: "Idempotency-Key", required: false, schema: { type: "string" } }],
 				requestBody: {
 					content: { "application/json": { schema: writeSchema(entity, "create") } },
 					required: true,
@@ -202,10 +191,7 @@ export function buildSpec(world: World): Json {
 			paths[`${item}/grants/{grant_id}`] = {
 				delete: {
 					operationId: `${entity.name}.revoke`,
-					parameters: [
-						...itemParams,
-						{ in: "path", name: "grant_id", required: true, schema: { type: "string" } },
-					],
+					parameters: [...itemParams, { in: "path", name: "grant_id", required: true, schema: { type: "string" } }],
 					responses: {
 						"200": {
 							content: {
@@ -348,7 +334,12 @@ function queryParams(world: World, entity: Entity): Json[] {
 		select: "select",
 	}
 	return [
-		{ description: "PostgREST-style filter: field.op.value", in: "query", name: names.filter, schema: { type: "string" } },
+		{
+			description: "PostgREST-style filter: field.op.value",
+			in: "query",
+			name: names.filter,
+			schema: { type: "string" },
+		},
 		{ description: "Sort: field[.asc|.desc]", in: "query", name: names.order, schema: { type: "string" } },
 		{ description: "Comma-separated sparse fieldset", in: "query", name: names.select, schema: { type: "string" } },
 		{ description: "Free-text search", in: "query", name: names.search, schema: { type: "string" } },
@@ -382,7 +373,13 @@ function itemSchema(entity: Entity): Json {
 	if (entity.softDelete === true) properties.deleted_at = { type: ["integer", "null"] }
 	return {
 		properties,
-		required: ["id", "org_id", ...entity.fields.filter((f) => f.required === true).map((f) => f.name), "created_at", "updated_at"],
+		required: [
+			"id",
+			"org_id",
+			...entity.fields.filter((f) => f.required === true).map((f) => f.name),
+			"created_at",
+			"updated_at",
+		],
 		type: "object",
 	}
 }

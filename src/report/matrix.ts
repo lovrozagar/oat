@@ -340,12 +340,7 @@ export function buildMatrixGraph(parts: MatrixParts): MatrixGraph {
 	return assembleGraph(parts.baseUrl, parts.generatedAt, [slice], [])
 }
 
-function entitySlice(
-	name: string,
-	parts: MatrixParts,
-	readSurface: string[],
-	identity: string | null,
-): EntityMatrix {
+function entitySlice(name: string, parts: MatrixParts, readSurface: string[], identity: string | null): EntityMatrix {
 	const nodes: MatrixGraphNode[] = ALL_CHECK_IDS.map((id) => {
 		const group = GROUP_OF.get(id) ?? "other"
 		const node: MatrixGraphNode = {
@@ -379,11 +374,7 @@ function entitySlice(
 
 function statusFor(entity: string, id: string, parts: MatrixParts): CellStatus {
 	const finding = parts.findings.find(
-		(f) =>
-			f.check === id
-			&& matchesEntity(f.entity, entity)
-			&& f.verdict !== "COVERAGE_GAP"
-			&& f.verdict !== "BLOCKED",
+		(f) => f.check === id && matchesEntity(f.entity, entity) && f.verdict !== "COVERAGE_GAP" && f.verdict !== "BLOCKED",
 	)
 	if (finding !== undefined) return "failed"
 	if (parts.checksSuppressed.some((s) => s.check === id && matchesEntity(s.entity, entity))) return "blocked"
@@ -443,13 +434,13 @@ function assembleGraph(
 	const inbound: Record<string, number> = {}
 	for (const link of cross) inbound[link.toEntity] = (inbound[link.toEntity] ?? 0) + 1
 	const summary =
-		`${who}: ${counts.failed} failed, ${counts.blocked} blocked, ${counts.held} held, ${counts.skipped} skipped.`
-		+ (cross.length > 8
+		`${who}: ${counts.failed} failed, ${counts.blocked} blocked, ${counts.held} held, ${counts.skipped} skipped.` +
+		(cross.length > 8
 			? ` ${unique(cross.map((l) => l.toEntity)).length} parents receive ${cross.length} cross-entity claims.`
 			: cross.length > 0
 				? ` Cross-entity invalidate: ${unique(cross.map((l) => `${l.fromEntity} → ${l.toEntity}`)).join(", ")}.`
-				: " No cross-entity invalidate.")
-		+ (rootList.length > 0 && rootList.length <= 8 ? ` Roots: ${rootList.join(", ")}.` : "")
+				: " No cross-entity invalidate.") +
+		(rootList.length > 0 && rootList.length <= 8 ? ` Roots: ${rootList.join(", ")}.` : "")
 
 	return {
 		kind: "oat.matrix",
@@ -457,13 +448,14 @@ function assembleGraph(
 		read: {
 			edges: {
 				dependsOn: "if `from` failed, `to` is blocked. Do not treat blocked as a second defect.",
-				invalidate: "a write on `fromEntity` is declared to change `toRoute` on `toEntity`. `cross` is the case the invalidation check probes.",
+				invalidate:
+					"a write on `fromEntity` is declared to change `toRoute` on `toEntity`. `cross` is the case the invalidation check probes.",
 				uses: "weft composition cell woven from this warp window",
 			},
 			purpose:
-				"How oat crossed the entities in this run. Each entity is an independent loom. "
-				+ "`invalidate` edges are x-invalidate claims. failed = two windows disagreed. "
-				+ "blocked = a dependsOn already failed — not a second defect.",
+				"How oat crossed the entities in this run. Each entity is an independent loom. " +
+				"`invalidate` edges are x-invalidate claims. failed = two windows disagreed. " +
+				"blocked = a dependsOn already failed — not a second defect.",
 			status: {
 				blocked: "not evaluated; a dependsOn check already failed",
 				failed: "two projections of the same fact disagreed — a finding",
@@ -558,8 +550,7 @@ function mermaidFromGraph(entities: EntityMatrix[], invalidate: InvalidateLink[]
 	for (const link of invalidate.filter((l) => l.cross)) {
 		lines.push(`  ${mid(link.fromEntity)} -->|invalidates| ${mid(link.toEntity)}`)
 	}
-	const focus =
-		entities.find((e) => invalidate.some((l) => l.cross && l.fromEntity === e.name)) ?? entities[0]
+	const focus = entities.find((e) => invalidate.some((l) => l.cross && l.fromEntity === e.name)) ?? entities[0]
 	if (focus !== undefined) {
 		const byId = new Map(focus.nodes.map((n) => [n.id, n]))
 		for (const spec of NODE_ORDER) {
@@ -567,7 +558,11 @@ function mermaidFromGraph(entities: EntityMatrix[], invalidate: InvalidateLink[]
 			if (node === undefined) continue
 			const sid = mid(`${focus.name}__${spec.id}`)
 			lines.push(`  ${sid}["${spec.label}"]`)
-			if (node.layer === "warp" || spec.id === "list.read-after-write" || spec.id === "tenant.item-not-readable-cross-tenant") {
+			if (
+				node.layer === "warp" ||
+				spec.id === "list.read-after-write" ||
+				spec.id === "tenant.item-not-readable-cross-tenant"
+			) {
 				lines.push(`  ${mid(focus.name)} --> ${sid}`)
 			}
 			lines.push(`  class ${sid} ${node.status}`)
@@ -589,8 +584,7 @@ function renderPoster(graph: MatrixGraph): string {
 	const multi = graph.entities.length > 1
 	const crowded = graph.entities.length > 24
 	const focus =
-		graph.entities.find((e) => graph.invalidate.some((l) => l.cross && l.fromEntity === e.name))
-		?? graph.entities[0]
+		graph.entities.find((e) => graph.invalidate.some((l) => l.cross && l.fromEntity === e.name)) ?? graph.entities[0]
 	const strips = focus === undefined || crowded ? "" : stripHtml(focus, multi)
 	const loom = focus === undefined ? "" : loomSvg(focus)
 	const surface = (focus?.readSurface ?? []).map((r) => `<code>${esc(r)}</code>`).join("<span> · </span>")
@@ -784,7 +778,7 @@ function entityBand(graph: MatrixGraph): string {
 		if (at === undefined) return ""
 		const slice = graph.entities.find((e) => e.name === name)
 		const fill = "#f0c14b"
-		const surfaces = (slice?.readSurface.length ?? 0)
+		const surfaces = slice?.readSurface.length ?? 0
 		return `<g>
       <circle cx="${at.x}" cy="${at.y}" r="16" fill="${fill}"/>
       <circle cx="${at.x}" cy="${at.y}" r="6" fill="#243044"/>
@@ -907,8 +901,7 @@ function entityCards(graph: MatrixGraph): string {
 }
 
 function stripHtml(focus: EntityMatrix, multi: boolean): string {
-	const interesting = (id: string, status: CellStatus): boolean =>
-		!multi || status === "failed" || status === "blocked"
+	const interesting = (id: string, status: CellStatus): boolean => !multi || status === "failed" || status === "blocked"
 	return STRIPS.map((strip) => {
 		const chips = strip.ids
 			.map((id) => {
@@ -943,13 +936,48 @@ function loomSvg(focus: EntityMatrix): string {
 		{ id: "pagination.page-walk-covers-set", x: 390, y: 450 },
 	]
 	const weft: Array<{ id: string; x: number; y: number; from: string[] }> = [
-		{ from: ["filter.equality-selects-exactly-one", "sort.order-is-applied"], id: "query.axes-compose", x: 700, y: 110 },
-		{ from: ["filter.equality-selects-exactly-one", "select.projection-honoured"], id: "query.filter-and-select-compose", x: 700, y: 220 },
-		{ from: ["filter.equality-selects-exactly-one", "search.q-narrows-result"], id: "query.search-and-filter-compose", x: 700, y: 330 },
-		{ from: ["filter.equality-selects-exactly-one", "pagination.page-walk-covers-set"], id: "query.filter-selects-from-whole-set", x: 700, y: 450 },
-		{ from: ["query.axes-compose", "query.filter-and-select-compose"], id: "query.filter-sort-select-compose", x: 980, y: 160 },
-		{ from: ["query.axes-compose", "query.search-and-filter-compose"], id: "query.filter-search-sort-compose", x: 980, y: 270 },
-		{ from: ["query.filter-and-select-compose", "query.search-and-filter-compose"], id: "query.filter-search-select-compose", x: 980, y: 380 },
+		{
+			from: ["filter.equality-selects-exactly-one", "sort.order-is-applied"],
+			id: "query.axes-compose",
+			x: 700,
+			y: 110,
+		},
+		{
+			from: ["filter.equality-selects-exactly-one", "select.projection-honoured"],
+			id: "query.filter-and-select-compose",
+			x: 700,
+			y: 220,
+		},
+		{
+			from: ["filter.equality-selects-exactly-one", "search.q-narrows-result"],
+			id: "query.search-and-filter-compose",
+			x: 700,
+			y: 330,
+		},
+		{
+			from: ["filter.equality-selects-exactly-one", "pagination.page-walk-covers-set"],
+			id: "query.filter-selects-from-whole-set",
+			x: 700,
+			y: 450,
+		},
+		{
+			from: ["query.axes-compose", "query.filter-and-select-compose"],
+			id: "query.filter-sort-select-compose",
+			x: 980,
+			y: 160,
+		},
+		{
+			from: ["query.axes-compose", "query.search-and-filter-compose"],
+			id: "query.filter-search-sort-compose",
+			x: 980,
+			y: 270,
+		},
+		{
+			from: ["query.filter-and-select-compose", "query.search-and-filter-compose"],
+			id: "query.filter-search-select-compose",
+			x: 980,
+			y: 380,
+		},
 	]
 
 	const loc = new Map<string, { x: number; y: number }>()
@@ -972,7 +1000,12 @@ function loomSvg(focus: EntityMatrix): string {
 	const stations = [...warp, ...weft].map((pt) => {
 		const spec = NODE_ORDER.find((s) => s.id === pt.id)
 		const status = st(pt.id)
-		return box(pt, spec?.label ?? pt.id, status === "failed" ? "disagreed" : status === "blocked" ? "" : spec?.hint ?? "", status)
+		return box(
+			pt,
+			spec?.label ?? pt.id,
+			status === "failed" ? "disagreed" : status === "blocked" ? "" : (spec?.hint ?? ""),
+			status,
+		)
 	})
 
 	return `<svg viewBox="0 0 1120 540" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Query loom for ${esc(focus.name)}">
@@ -989,11 +1022,7 @@ function loomSvg(focus: EntityMatrix): string {
   </svg>`
 }
 
-function link(
-	from: { x: number; y: number },
-	to: { x: number; y: number },
-	status: CellStatus,
-): string {
+function link(from: { x: number; y: number }, to: { x: number; y: number }, status: CellStatus): string {
 	const color =
 		status === "failed" ? "#ff6b3d" : status === "held" ? "#7dcea0" : status === "blocked" ? "#6d7686" : "#3d4758"
 	const dash = status === "blocked" || status === "skipped" ? 'stroke-dasharray="5 5"' : ""
@@ -1021,9 +1050,5 @@ function box(pt: { x: number; y: number }, label: string, caption: string, statu
 }
 
 function esc(value: string): string {
-	return value
-		.replaceAll("&", "&amp;")
-		.replaceAll("<", "&lt;")
-		.replaceAll(">", "&gt;")
-		.replaceAll('"', "&quot;")
+	return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;")
 }

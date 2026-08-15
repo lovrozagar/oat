@@ -109,12 +109,7 @@ if (!accountId || !token) {
 }
 
 const requested = process.argv.slice(2)
-const ids =
-	requested.length > 0
-		? requested
-		: process.env.LAB_SCALE === "1"
-			? [...DEFAULT, ...SCALE]
-			: DEFAULT
+const ids = requested.length > 0 ? requested : process.env.LAB_SCALE === "1" ? [...DEFAULT, ...SCALE] : DEFAULT
 
 for (const id of ids) {
 	if (WORLDS[id] === undefined) {

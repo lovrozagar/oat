@@ -6,13 +6,7 @@
 
 import type { Exchange } from "./client.ts"
 
-export type Verdict =
-	| "BACKEND_BUG"
-	| "SPEC_BUG"
-	| "SECURITY"
-	| "AMBIGUITY"
-	| "COVERAGE_GAP"
-	| "BLOCKED"
+export type Verdict = "BACKEND_BUG" | "SPEC_BUG" | "SECURITY" | "AMBIGUITY" | "COVERAGE_GAP" | "BLOCKED"
 
 export interface Finding {
 	/** Stable identifier for the check that produced this — the conformance suite asserts on it. */
@@ -58,23 +52,11 @@ export class FindingCollector {
 		this.findings.push(finding)
 	}
 
-	backend(
-		check: string,
-		entity: string,
-		summary: string,
-		detail: string,
-		evidence: Exchange[],
-	): void {
+	backend(check: string, entity: string, summary: string, detail: string, evidence: Exchange[]): void {
 		this.report({ check, detail, entity, evidence, summary, verdict: "BACKEND_BUG" })
 	}
 
-	security(
-		check: string,
-		entity: string,
-		summary: string,
-		detail: string,
-		evidence: Exchange[],
-	): void {
+	security(check: string, entity: string, summary: string, detail: string, evidence: Exchange[]): void {
 		this.report({ check, detail, entity, evidence, summary, verdict: "SECURITY" })
 	}
 

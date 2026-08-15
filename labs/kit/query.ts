@@ -35,12 +35,18 @@ function compileNode(
 	const and = /^and\((.*)\)$/s.exec(input)
 	if (and?.[1] !== undefined) {
 		const op = opts.andAsOr === true ? "OR" : "AND"
-		return join(splitTop(and[1]).map((p) => compileNode(p, filterable, columns, numeric, opts)), op)
+		return join(
+			splitTop(and[1]).map((p) => compileNode(p, filterable, columns, numeric, opts)),
+			op,
+		)
 	}
 	const or = /^or\((.*)\)$/s.exec(input)
 	if (or?.[1] !== undefined) {
 		const op = opts.orAsAnd === true ? "AND" : "OR"
-		return join(splitTop(or[1]).map((p) => compileNode(p, filterable, columns, numeric, opts)), op)
+		return join(
+			splitTop(or[1]).map((p) => compileNode(p, filterable, columns, numeric, opts)),
+			op,
+		)
 	}
 	const match = /^([a-z_]+)\.([a-z]+)\.(.*)$/s.exec(input)
 	if (match === null) throw new QueryError(`malformed filter: ${input}`)
@@ -83,11 +89,12 @@ function compare(
 			const sql = op === "ilike" ? `LOWER(${ident}) LIKE LOWER(?)` : `${ident} LIKE ?`
 			return { args: [pattern], sql }
 		}
-		const escaped = String(raw).replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")
+		const escaped = String(raw)
+			.replaceAll("\\", "\\\\")
+			.replaceAll("%", "\\%")
+			.replaceAll("_", "\\_")
 			.replaceAll("*", "%")
-		const sql = op === "ilike"
-			? `LOWER(${ident}) LIKE LOWER(?) ESCAPE '\\'`
-			: `${ident} LIKE ? ESCAPE '\\'`
+		const sql = op === "ilike" ? `LOWER(${ident}) LIKE LOWER(?) ESCAPE '\\'` : `${ident} LIKE ? ESCAPE '\\'`
 		return { args: [escaped], sql }
 	}
 	throw new QueryError(`unknown filter operator: ${op}`)
@@ -100,7 +107,10 @@ export function compileOrder(
 	tiebreak: string,
 ): Compiled {
 	const terms: string[] = []
-	for (const raw of expression.split(",").map((t) => t.trim()).filter(Boolean)) {
+	for (const raw of expression
+		.split(",")
+		.map((t) => t.trim())
+		.filter(Boolean)) {
 		const [field, dir] = raw.includes(".") ? raw.split(".", 2) : [raw, "asc"]
 		if (field === undefined || !columns.has(field) || !sortable.includes(field)) {
 			throw new QueryError(`unknown sort field: ${field ?? raw}`)
@@ -123,7 +133,10 @@ export function project(
 ): Record<string, unknown> {
 	if (select === undefined || select === "" || select === "*") return { ...row }
 	const out: Record<string, unknown> = {}
-	for (const field of select.split(",").map((s) => s.trim()).filter(Boolean)) {
+	for (const field of select
+		.split(",")
+		.map((s) => s.trim())
+		.filter(Boolean)) {
 		if (!selectable.includes(field) || !columns.has(field)) {
 			throw new QueryError(`field "${field}" is not selectable`)
 		}

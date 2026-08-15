@@ -28,14 +28,7 @@ export interface ReportInput {
 	durationMs: number
 }
 
-const VERDICT_ORDER: Verdict[] = [
-	"SECURITY",
-	"BACKEND_BUG",
-	"SPEC_BUG",
-	"AMBIGUITY",
-	"BLOCKED",
-	"COVERAGE_GAP",
-]
+const VERDICT_ORDER: Verdict[] = ["SECURITY", "BACKEND_BUG", "SPEC_BUG", "AMBIGUITY", "BLOCKED", "COVERAGE_GAP"]
 
 const VERDICT_LABEL: Record<Verdict, string> = {
 	AMBIGUITY: "Ambiguous contract",
@@ -56,7 +49,11 @@ const VERDICT_NOTE: Record<Verdict, string> = {
 }
 
 function slug(text: string): string {
-	return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60)
+	return text
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-|-$/g, "")
+		.slice(0, 60)
 }
 
 function truncate(value: unknown, max = 600): string {
@@ -68,7 +65,9 @@ function truncate(value: unknown, max = 600): string {
 function exchangeBlock(exchange: Exchange): string[] {
 	const lines: string[] = []
 	lines.push("")
-	lines.push(`\`${exchange.method} ${new URL(exchange.url).pathname}${new URL(exchange.url).search}\` → **${exchange.status}** (${exchange.durationMs}ms)`)
+	lines.push(
+		`\`${exchange.method} ${new URL(exchange.url).pathname}${new URL(exchange.url).search}\` → **${exchange.status}** (${exchange.durationMs}ms)`,
+	)
 	if (exchange.requestBody !== undefined) {
 		lines.push("")
 		lines.push("<details><summary>request body</summary>")
@@ -121,8 +120,8 @@ export function renderMarkdown(input: ReportInput): string {
 	const timing = latency(input.client.transcript)
 	if (timing !== null) {
 		lines.push(
-			`- **Latency**: p50 ${timing.p50}ms · p95 ${timing.p95}ms · max ${timing.max}ms `
-				+ `(${timing.slowest.method} ${timing.slowest.path})`,
+			`- **Latency**: p50 ${timing.p50}ms · p95 ${timing.p95}ms · max ${timing.max}ms ` +
+				`(${timing.slowest.method} ${timing.slowest.path})`,
 		)
 	}
 	lines.push("")
@@ -181,9 +180,7 @@ export function renderMarkdown(input: ReportInput): string {
 		lines.push("## Applied only on some entities")
 		lines.push("")
 		for (const row of coverage.partialSkip) {
-			lines.push(
-				`- \`${row.check}\` — ran on ${row.ran}, skipped on ${row.skipped} (${named(row.skippedEntities)})`,
-			)
+			lines.push(`- \`${row.check}\` — ran on ${row.ran}, skipped on ${row.skipped} (${named(row.skippedEntities)})`)
 		}
 		lines.push("")
 	}
@@ -320,9 +317,7 @@ export function renderConsole(input: ReportInput): string {
 	lines.push(
 		`  ${input.checksRun.length} checks · ${input.entitiesTested.length} entities · ` +
 			`${input.client.transcript.length} requests · ${(input.durationMs / 1000).toFixed(1)}s` +
-			(latency(input.client.transcript) === null
-				? ""
-				: ` · p95 ${latency(input.client.transcript)?.p95}ms`) +
+			(latency(input.client.transcript) === null ? "" : ` · p95 ${latency(input.client.transcript)?.p95}ms`) +
 			(coverage.never.length > 0 ? ` · ${coverage.never.length} checks did not apply` : "") +
 			(coverage.partialSkip.length > 0 ? ` · ${coverage.partialSkip.length} only on some entities` : ""),
 	)
@@ -371,8 +366,8 @@ export function renderConsole(input: ReportInput): string {
 			for (const row of blockedSome) {
 				const because = (input.checksSuppressed ?? []).find((s) => s.check === row.check)?.because
 				lines.push(
-					`    ${row.check.padEnd(40)} ran on ${row.ran} · blocked on ${row.blocked} (${named(row.blockedEntities)})`
-						+ (because === undefined ? "" : ` · waiting on ${because}`),
+					`    ${row.check.padEnd(40)} ran on ${row.ran} · blocked on ${row.blocked} (${named(row.blockedEntities)})` +
+						(because === undefined ? "" : ` · waiting on ${because}`),
 				)
 			}
 			lines.push("")
@@ -477,10 +472,9 @@ export function renderJson(input: ReportInput): string {
 			requests: input.client.transcript.length,
 			latency: latency(input.client.transcript),
 			summary: Object.fromEntries(
-				VERDICT_ORDER.map((verdict) => [
-					verdict,
-					input.findings.filter((f) => f.verdict === verdict).length,
-				]).filter(([, count]) => (count as number) > 0),
+				VERDICT_ORDER.map((verdict) => [verdict, input.findings.filter((f) => f.verdict === verdict).length]).filter(
+					([, count]) => (count as number) > 0,
+				),
 			),
 			coverage: {
 				neverApplied: coverage.never.map((row) => row.check),

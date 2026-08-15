@@ -56,7 +56,10 @@ export function matchesPredicate(record: Record<string, unknown>, expression: st
 
 function readPath(body: unknown, path: string): unknown {
 	let node: unknown = body
-	for (const segment of path.replace(/^\$\.?/, "").split(".").filter(Boolean)) {
+	for (const segment of path
+		.replace(/^\$\.?/, "")
+		.split(".")
+		.filter(Boolean)) {
 		if (node === null || typeof node !== "object") return undefined
 		node = (node as Record<string, unknown>)[segment]
 	}
@@ -123,8 +126,7 @@ export async function driveAsync(
 						elapsedMs: performance.now() - began,
 						exchanges,
 						polls,
-						succeeded:
-							spec.successWhen === undefined || matchesPredicate(record, spec.successWhen),
+						succeeded: spec.successWhen === undefined || matchesPredicate(record, spec.successWhen),
 						terminal: record,
 						timedOut: false,
 					}

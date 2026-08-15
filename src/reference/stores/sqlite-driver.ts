@@ -85,8 +85,7 @@ interface D1Response {
  */
 export function d1Driver(config: D1Config): SqliteDriver {
 	const endpoint =
-		`https://api.cloudflare.com/client/v4/accounts/${config.accountId}` +
-		`/d1/database/${config.databaseId}/query`
+		`https://api.cloudflare.com/client/v4/accounts/${config.accountId}` + `/d1/database/${config.databaseId}/query`
 
 	async function send(sql: string, params: SqlValue[]): Promise<SqlRow[]> {
 		const response = await fetch(endpoint, {
@@ -101,8 +100,7 @@ export function d1Driver(config: D1Config): SqliteDriver {
 		const body = (await response.json()) as D1Response
 		if (!response.ok || !body.success) {
 			const detail =
-				body.errors?.map((error) => `${error.code}: ${error.message}`).join("; ")
-				?? `HTTP ${response.status}`
+				body.errors?.map((error) => `${error.code}: ${error.message}`).join("; ") ?? `HTTP ${response.status}`
 			/* Deliberately a plain Error, not SqlError: a transport or quota failure is not the
 			 * backend rejecting the caller's input, and dressing it up as a 400 would let an
 			 * outage read as a well-behaved validation response. */

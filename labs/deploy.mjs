@@ -81,7 +81,7 @@ database_id = "${databaseId}"
 	await writeFile(join(dir, "wrangler.toml"), toml)
 	console.log(`── deploy ${name}`)
 	const out = await run(wrangler, ["deploy"], dir)
-	const match = out.match(/https:\/\/[^\s]+workers\.dev[^\s]*/ )
+	const match = out.match(/https:\/\/[^\s]+workers\.dev[^\s]*/)
 	if (match) urls[id] = match[0].replace(/\/$/, "")
 }
 
@@ -97,5 +97,7 @@ await writeFile(urlPath, `${JSON.stringify(merged, null, 2)}\n`)
 console.log("deployed")
 for (const [id, url] of Object.entries(urls)) {
 	console.log(`  ${id}  ${url}`)
-	console.log(`    LAB_URL=${url} node --experimental-sqlite dist/cli.js run --config labs/oat.config.ts --out oat-out/labs/https-${id}`)
+	console.log(
+		`    LAB_URL=${url} node --experimental-sqlite dist/cli.js run --config labs/oat.config.ts --out oat-out/labs/https-${id}`,
+	)
 }
