@@ -1320,6 +1320,10 @@ Types exported: `OatConfig`, `Principal`, `AuthFlow`, `AuthStep`, `Hooks`, `RunO
 
 ## CI
 
+This repository runs [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) on every push and pull request to `main`: format, lint, typecheck, then `npm test` (conformance on memory + sqlite + postgres, plus the built-in combination smoke). D1 and the live labs Workers are not in that job — they need Cloudflare credentials and a provisioned database.
+
+Against **your** API:
+
 ```yaml
 # GitHub Actions sketch
 - run: npm i -D @lovrozagar/oat
