@@ -17,7 +17,7 @@
 	"author": "lovrozagar",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/lovrozagar/oat.git"
+		"url": "https://github.com/lovrozagar/oat.git"
 	},
 	"bin": {
 		"oat": "./bin/oat.js"

@@ -13,20 +13,20 @@ permissions:
   contents: write
   id-token: write
 
-env:
-  NODE_VERSION: "22"
-
 jobs:
   publish:
     name: npm + GitHub Release
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    permissions:
+      contents: write
+      id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          node-version: "24"
+          package-manager-cache: false
       - run: npm ci
       - run: npm test
       - name: Check tag matches package.json
@@ -37,9 +37,12 @@ jobs:
             echo "tag v$tag does not match package.json version $pkg"
             exit 1
           fi
-      # setup-node's registry-url writes an empty _authToken into .npmrc, which
-      # makes npm send a bad Bearer token and skip OIDC trusted publishing (404).
       - run: npm install -g npm@latest
+      - name: Show OIDC and npm versions
+        run: |
+          npm --version
+          node --version
+          test -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" && echo "OIDC request URL is set" || echo "OIDC request URL is missing"
       - name: Publish to npm
         run: |
           tag="${GITHUB_REF_NAME#v}"
