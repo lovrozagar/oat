@@ -8,7 +8,7 @@
  *   oat run --config labs/minimal.config.ts
  *
  * Written as `from "../dist/index.js"` only because this file lives inside the repository —
- * in your own project it is `from "oat"`.
+ * in your own project it is `from "@lovrozagar/oat"`.
  */
 
 import { defineConfig } from "../dist/index.js"

@@ -4,7 +4,7 @@
  *   oat serve                                    # terminal 1 — prints a url
  *   oat run --config labs/local.config.ts --base-url <that url>
  *
- * Real configs import from "oat"; this one uses a relative path because it lives inside the
+ * Real configs import from "@lovrozagar/oat"; this one uses a relative path because it lives inside the
  * repository.
  */
 

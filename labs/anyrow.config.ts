@@ -9,7 +9,7 @@
  *   ANYROW_TESTER_KEY=... oat run --config labs/anyrow.config.ts
  *
  * Written as `from "../dist/index.js"` only because this file lives inside the repository —
- * in your own project it is `from "oat"`.
+ * in your own project it is `from "@lovrozagar/oat"`.
  */
 
 import { defineConfig, type AuthFlow, type OutOfBandRequest } from "../dist/index.js"

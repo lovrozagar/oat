@@ -1,6 +1,9 @@
 {
-  "name": "oat",
+  "name": "@lovrozagar/oat",
   "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "OpenAPI Tester — behavioural testing of a live backend against its OpenAPI specification",
   "license": "MIT",
   "repository": {

@@ -29,7 +29,7 @@ oat asserts the same fact through every projection the API offers, then compares
 ## Install
 
 ```bash
-npm i -D oat
+npm i -D @lovrozagar/oat
 ```
 
 Requires Node.js 20 or later.
@@ -108,7 +108,7 @@ A backend adopts oat by adding tags, not by adapting to oat.
 Smallest useful config — a long-lived API key and two tenants, so isolation checks can run:
 
 ```ts
-import { defineConfig } from "oat"
+import { defineConfig } from "@lovrozagar/oat"
 
 export default defineConfig({
   baseUrl: "https://api.example.com",
