@@ -158,19 +158,19 @@ Same object. `${NAME}` is interpolated after load. There is no `defineConfig` wr
 
 ```json
 {
-  "spec": "https://api.example.com/openapi.json",
-  "baseUrl": "https://api.example.com",
-  "principals": [
-    {
-      "id": "alpha",
-      "headers": { "authorization": "Bearer ${API_TOKEN}" },
-      "roots": { "project_id": "${PROJECT_A}" }
-    }
-  ],
-  "seed": 42,
-  "cohortSize": 7,
-  "concurrency": 1,
-  "outDir": "./oat-out"
+	"spec": "https://api.example.com/openapi.json",
+	"baseUrl": "https://api.example.com",
+	"principals": [
+		{
+			"id": "alpha",
+			"headers": { "authorization": "Bearer ${API_TOKEN}" },
+			"roots": { "project_id": "${PROJECT_A}" }
+		}
+	],
+	"seed": 42,
+	"cohortSize": 7,
+	"concurrency": 1,
+	"outDir": "./oat-out"
 }
 ```
 
@@ -235,17 +235,17 @@ oat help
 
 Requires `--config`. CLI flags override the same field in the config when both are set.
 
-| flag              | default                           | meaning                                                                                                                                      |
-| ----------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--config`        | required                          | module or JSON file, default export                                                                                                          |
-| `--base-url`      | `config.baseUrl`                  | backend origin                                                                                                                               |
-| `--only`          | `config.only` or all entities     | comma-separated entity names as `oat plan` prints them (singularised)                                                                        |
-| `--seed`          | `config.seed` or `1`              | fixture generation seed (reproducible)                                                                                                       |
-| `--out`           | `config.outDir` or `./oat-out`    | report directory                                                                                                                             |
-| `--concurrency`   | `config.concurrency` or `1`       | entities in parallel. Use `1` on nested graphs; higher values insert children while a parent page-walk is running and invent pagination bugs |
-| `--max-in-flight` | `config.maxInFlight` or `4`       | HTTP requests allowed at once                                                                                                                |
-| `--keep-fixtures` | `config.keepFixtures` or false    | do not DELETE what the run created                                                                                                           |
-| `--quiet`         | false                             | no stderr progress; files under `--out` still update                                                                                         |
+| flag              | default                        | meaning                                                                                                                                      |
+| ----------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--config`        | required                       | module or JSON file, default export                                                                                                          |
+| `--base-url`      | `config.baseUrl`               | backend origin                                                                                                                               |
+| `--only`          | `config.only` or all entities  | comma-separated entity names as `oat plan` prints them (singularised)                                                                        |
+| `--seed`          | `config.seed` or `1`           | fixture generation seed (reproducible)                                                                                                       |
+| `--out`           | `config.outDir` or `./oat-out` | report directory                                                                                                                             |
+| `--concurrency`   | `config.concurrency` or `1`    | entities in parallel. Use `1` on nested graphs; higher values insert children while a parent page-walk is running and invent pagination bugs |
+| `--max-in-flight` | `config.maxInFlight` or `4`    | HTTP requests allowed at once                                                                                                                |
+| `--keep-fixtures` | `config.keepFixtures` or false | do not DELETE what the run created                                                                                                           |
+| `--quiet`         | false                          | no stderr progress; files under `--out` still update                                                                                         |
 
 **Exit codes:** `0` no defects, `1` at least one root-cause finding (`BACKEND_BUG`, `SPEC_BUG`, `SECURITY`, `AMBIGUITY`), `2` usage error (missing `--config`, no principals). `COVERAGE_GAP` and `BLOCKED` do not fail the process.
 
@@ -282,14 +282,14 @@ Human output:
 
 ```json
 {
-  "blocking": 1,
-  "entities": 12,
-  "trackableEntities": 10,
-  "testableEntities": 10,
-  "listableEntities": 8,
-  "roots": ["organization_id"],
-  "externalRefs": ["https://example.com/shared.yaml"],
-  "gaps": [{ "operationId": "table.list", "tag": "x-query", "detail": "…" }]
+	"blocking": 1,
+	"entities": 12,
+	"trackableEntities": 10,
+	"testableEntities": 10,
+	"listableEntities": 8,
+	"roots": ["organization_id"],
+	"externalRefs": ["https://example.com/shared.yaml"],
+	"gaps": [{ "operationId": "table.list", "tag": "x-query", "detail": "…" }]
 }
 ```
 
@@ -341,13 +341,13 @@ Printed keys: `key_alpha` (tenant `proj_alpha`), `key_beta` (tenant `proj_beta`)
 
 Dialects are **reference-backend shapes**, not something you configure against your API. They exist so conformance proves checks read the document rather than one fixture's spelling:
 
-| dialect    | filter                          | sort        | select              | page model              | envelope                          |
-| ---------- | ------------------------------- | ----------- | ------------------- | ----------------------- | --------------------------------- |
-| `postgrest`| `filter=status.eq.active`       | `name.asc`  | `select=id,name`    | `page` + `cursor`       | entity-named + `count`/`hasMore`  |
-| `classic`  | `filter=status=eq:active`       | `sort=`     | `fields=`           | `page` + `per_page`     | `{ data, total_count, has_more }` |
-| `linked`   | postgrest                       | dotted      | `fields=`           | `offset` + `limit`      | raw array + `Link: rel=next`      |
-| `jsonapi`  | postgrest                       | `-name`     | `fields[table]=`    | `page` + `size`         | `{ data, total, has_more }`       |
-| `plain`    | `?status=active` (equality)     | `name:asc`  | `fields=`           | `page` + `limit`        | `{ items, total, has_more }`      |
+| dialect     | filter                      | sort       | select           | page model          | envelope                          |
+| ----------- | --------------------------- | ---------- | ---------------- | ------------------- | --------------------------------- |
+| `postgrest` | `filter=status.eq.active`   | `name.asc` | `select=id,name` | `page` + `cursor`   | entity-named + `count`/`hasMore`  |
+| `classic`   | `filter=status=eq:active`   | `sort=`    | `fields=`        | `page` + `per_page` | `{ data, total_count, has_more }` |
+| `linked`    | postgrest                   | dotted     | `fields=`        | `offset` + `limit`  | raw array + `Link: rel=next`      |
+| `jsonapi`   | postgrest                   | `-name`    | `fields[table]=` | `page` + `size`     | `{ data, total, has_more }`       |
+| `plain`     | `?status=active` (equality) | `name:asc` | `fields=`        | `page` + `limit`    | `{ items, total, has_more }`      |
 
 `postgres` needs a server on the default `postgres` database (local, default `postgres` driver connection). `sqlite` needs Node's `node:sqlite` (`--experimental-sqlite` on Node 22). Missing backends fail at serve time rather than falling back.
 
@@ -419,21 +419,21 @@ export default defineConfig({
 })
 ```
 
-| field           | required | default        | notes                                                                 |
-| --------------- | -------- | -------------- | --------------------------------------------------------------------- |
-| `spec`          | yes      |                | See [Spec loading](#spec-loading)                                     |
-| `baseUrl`       | yes      |                | Origin. OpenAPI `servers[]` is ignored                                |
-| `principals`    | yes      |                | Non-empty. First is the writer                                        |
-| `hooks`         | no       |                | `resolveOutOfBand`, `teardownPrincipal`                               |
-| `globalHeaders` | no       | `{}`           | Merged under per-request headers. Opaque to oat                       |
-| `roots`         | no       | `{}`           | Shared path params (merged with each principal's `roots`)             |
-| `seed`          | no       | `1`            | Integer. Same seed → same fixture bodies                              |
-| `cohortSize`    | no       | `7`            | Sliced from the 7 built-in variants. Larger repeats the pattern       |
-| `concurrency`   | no       | `1`            | Entity-level only. Checks inside one entity stay ordered              |
-| `maxInFlight`   | no       | `4`            | Across the whole run                                                  |
-| `only`          | no       | all            | Entity names from `oat plan`                                          |
-| `keepFixtures`  | no       | `false`        | Skip DELETE at the end                                                |
-| `outDir`        | no       | `./oat-out`    | Created if missing                                                    |
+| field           | required | default     | notes                                                           |
+| --------------- | -------- | ----------- | --------------------------------------------------------------- |
+| `spec`          | yes      |             | See [Spec loading](#spec-loading)                               |
+| `baseUrl`       | yes      |             | Origin. OpenAPI `servers[]` is ignored                          |
+| `principals`    | yes      |             | Non-empty. First is the writer                                  |
+| `hooks`         | no       |             | `resolveOutOfBand`, `teardownPrincipal`                         |
+| `globalHeaders` | no       | `{}`        | Merged under per-request headers. Opaque to oat                 |
+| `roots`         | no       | `{}`        | Shared path params (merged with each principal's `roots`)       |
+| `seed`          | no       | `1`         | Integer. Same seed → same fixture bodies                        |
+| `cohortSize`    | no       | `7`         | Sliced from the 7 built-in variants. Larger repeats the pattern |
+| `concurrency`   | no       | `1`         | Entity-level only. Checks inside one entity stay ordered        |
+| `maxInFlight`   | no       | `4`         | Across the whole run                                            |
+| `only`          | no       | all         | Entity names from `oat plan`                                    |
+| `keepFixtures`  | no       | `false`     | Skip DELETE at the end                                          |
+| `outDir`        | no       | `./oat-out` | Created if missing                                              |
 
 `spec` may be a path relative to `baseUrl` (`/v1/openapi/spec`) or an absolute URL or a file.
 
@@ -706,15 +706,15 @@ Per entity, oat POSTs the create body built from the request JSON schema.
 
 Default cohort is **7** records, one of each variant, sliced by `cohortSize`:
 
-| variant         | what it is for                                              |
-| --------------- | ----------------------------------------------------------- |
-| `baseline`      | `"Quarterly Report N"`                                      |
-| `lexical-first` | sorts first (`"aaa first alphabetically"`)                  |
-| `lexical-last`  | sorts last (`"zzz last alphabetically"`)                    |
-| `null-heavy`    | `null` on every nullable field                              |
-| `unicode`       | `"日本語 café ñandú"`                                       |
-| `metacharacter` | `"100% _off_ *everything*"` — LIKE / escape probes          |
-| `boundary`      | empty / maxLength / numeric `maximum`                       |
+| variant         | what it is for                                     |
+| --------------- | -------------------------------------------------- |
+| `baseline`      | `"Quarterly Report N"`                             |
+| `lexical-first` | sorts first (`"aaa first alphabetically"`)         |
+| `lexical-last`  | sorts last (`"zzz last alphabetically"`)           |
+| `null-heavy`    | `null` on every nullable field                     |
+| `unicode`       | `"日本語 café ñandú"`                              |
+| `metacharacter` | `"100% _off_ *everything*"` — LIKE / escape probes |
+| `boundary`      | empty / maxLength / numeric `maximum`              |
 
 Numbers use the ladder `1, 2, 5, 10, 20, 50, 100` so **lexical order ≠ numeric order** (otherwise a TEXT compare looks correct). Enums walk `index % enum.length`. `readOnly` / `x-generated` fields are omitted. Required fields that cannot be generated get a type fallback (`0`, `false`, `[]`, `{}`, `"value"`). Arrays honour `minItems` (never send `[]` when `minItems ≥ 1`). Nested objects stop at depth 4.
 
@@ -747,11 +747,11 @@ A bounded integer with a default that matches no alias is still taken as page si
 
 **Filter grammars** — how oat **writes** a term:
 
-| name        | `eq` / `neq` / `gt` / `like` example                                              | `and` / `or`                         |
-| ----------- | --------------------------------------------------------------------------------- | ------------------------------------ |
-| `postgrest` | `filter=status.eq.active`, `name.neq.x`, `price.gt.10`, `name.like.*foo*`         | `and(a.eq.1,b.eq.2)`, `or(...)`      |
-| `colon`     | `filter=status=eq:active` (comma-joined terms; no grouping)                       | not expressible; those checks skip   |
-| `equality`  | `?status=active` (one query param per field). Only `eq` is expressible            | not expressible                      |
+| name        | `eq` / `neq` / `gt` / `like` example                                      | `and` / `or`                       |
+| ----------- | ------------------------------------------------------------------------- | ---------------------------------- |
+| `postgrest` | `filter=status.eq.active`, `name.neq.x`, `price.gt.10`, `name.like.*foo*` | `and(a.eq.1,b.eq.2)`, `or(...)`    |
+| `colon`     | `filter=status=eq:active` (comma-joined terms; no grouping)               | not expressible; those checks skip |
+| `equality`  | `?status=active` (one query param per field). Only `eq` is expressible    | not expressible                    |
 
 Operators oat can emit: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `like`. Anything else a check needs that the grammar cannot write becomes **did not apply**, not a failed request.
 
@@ -789,13 +789,13 @@ Collection shape is derived from the success JSON schema, not from hardcoded wra
 - Otherwise the array property whose items are objects, skipping sidecar names `error(s)`, `warning(s)`, `message(s)`, `meta`, `links`. Resource-named envelopes (`{ tables: [...] }`) work.
 - Sibling keys become envelope fields:
 
-| role        | accepted property names                                      |
-| ----------- | ------------------------------------------------------------ |
-| total       | `count`, `total`, `totalCount`, `total_count`, `totalItems`  |
-| hasMore     | `hasMore`, `has_more`, `hasNextPage`, `more`                 |
-| nextCursor  | `nextCursor`, `next_cursor`, `cursor`, `next`, `endCursor`   |
-| page        | `page`, `pageNumber`, `page_number`, `offset`                |
-| limit       | `limit`, `perPage`, `per_page`, `pageSize`, `page_size`      |
+| role       | accepted property names                                     |
+| ---------- | ----------------------------------------------------------- |
+| total      | `count`, `total`, `totalCount`, `total_count`, `totalItems` |
+| hasMore    | `hasMore`, `has_more`, `hasNextPage`, `more`                |
+| nextCursor | `nextCursor`, `next_cursor`, `cursor`, `next`, `endCursor`  |
+| page       | `page`, `pageNumber`, `page_number`, `offset`               |
+| limit      | `limit`, `perPage`, `per_page`, `pageSize`, `page_size`     |
 
 Success schema is the first JSON media type on responses `200`, `201`, `202`, `2XX`, or `default`. Request schema is the first JSON media type on `requestBody`. Non-JSON media types are ignored.
 
@@ -812,22 +812,22 @@ oat doctor --spec node_modules/@lovrozagar/oat/labs/annotated-openapi.yaml
 
 What each tag **unlocks** (otherwise the check cannot run):
 
-| tag             | checks unlocked                                                                                          |
-| --------------- | -------------------------------------------------------------------------------------------------------- |
-| `x-async`       | `async.reaches-terminal-state`, `async.receipt-identifies-the-job`                                       |
-| `x-effects`     | `effects.declared-effect-occurs`                                                                         |
-| `x-immutable`   | `patch.immutable-field-rejected`                                                                         |
-| `x-invalidate`  | `invalidation.declared-route-changes` (when the list names another entity)                               |
+| tag             | checks unlocked                                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `x-async`       | `async.reaches-terminal-state`, `async.receipt-identifies-the-job`                                                       |
+| `x-effects`     | `effects.declared-effect-occurs`                                                                                         |
+| `x-immutable`   | `patch.immutable-field-rejected`                                                                                         |
+| `x-invalidate`  | `invalidation.declared-route-changes` (when the list names another entity)                                               |
 | `x-query`       | `spec.declared-filterable-is-filterable`, `spec.declared-sortable-is-sortable`, `spec.declared-selectable-is-selectable` |
-| `x-soft-delete` | `softdelete.absent-from-default-list`                                                                    |
-| `x-invite`      | `auth.invite-grants-then-revokes`                                                                        |
+| `x-soft-delete` | `softdelete.absent-from-default-list`                                                                                    |
+| `x-invite`      | `auth.invite-grants-then-revokes`                                                                                        |
 
 What each tag **sharpens** (the check already runs, but the verdict changes):
 
-| tag        | without it                                                                                          |
-| ---------- | --------------------------------------------------------------------------------------------------- |
-| `x-query`  | every scalar is probed, including columns you never indexed — expect findings you will dismiss      |
-| `x-tenant` | a cross-tenant read is `AMBIGUITY`, not `SECURITY`, because the boundary was only inferred          |
+| tag        | without it                                                                                     |
+| ---------- | ---------------------------------------------------------------------------------------------- |
+| `x-query`  | every scalar is probed, including columns you never indexed — expect findings you will dismiss |
+| `x-tenant` | a cross-tenant read is `AMBIGUITY`, not `SECURITY`, because the boundary was only inferred     |
 
 ### `x-invalidate`
 
@@ -887,7 +887,7 @@ x-query:
   maxLimit: 100
   defaultOrder: created_at.desc
   stableTiebreak: id
-  grammar: postgrest   # postgrest | colon | equality
+  grammar: postgrest # postgrest | colon | equality
 ```
 
 States what `filter` / `order` / `q` / `select` actually support. `stableTiebreak` is load-bearing for keyset pagination. `grammar` pins how oat writes values (see [Query roles and grammars](#query-roles-and-grammars)).
@@ -993,63 +993,63 @@ Order is fixed (foundations first) so cascade suppression has a cause to point a
 
 `depends` is the `dependsOn` list: if any of those already failed **for this entity**, this check is `BLOCKED` rather than reported as a second defect. Suppression is transitive.
 
-| id                                         | asserts                                                                                         | needs                                                     | depends |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ------- |
-| `list.read-after-write`                    | a just-created record appears on the list                                                       | create + a seeded record                                  | — |
-| `create.persists-submitted-fields`         | every writable field sent on create is echoed                                                   | create that echoes the record                             | `list.read-after-write` |
-| `create.status-matches-document`           | create status is one the document declared                                                      | create                                                    | — |
-| `schema.success-response-matches-document` | create body validates against the success schema                                                | success schema on create                                  | `create.status-matches-document` |
-| `schema.error-response-matches-document`   | an error body validates against the documented error schema                                     | error schema on the item route                            | — |
-| `pagination.limit-bounds-page-size`        | page size ≤ the requested limit                                                                 | page-size _role_ (aliases include `limit`, `per_page`, …) | `list.read-after-write` |
-| `pagination.limit-respects-documented-max` | requesting more than `maxLimit` does not return more                                            | declared `maxLimit` and a larger cohort                   | `pagination.limit-bounds-page-size` |
-| `pagination.has-more-is-accurate`          | `hasMore` / `Link rel=next` matches whether another page exists                                 | page-forward + `hasMore` or `Link rel=next`               | `pagination.limit-bounds-page-size` |
-| `pagination.page-walk-covers-set`          | walking pages covers the collection with no gaps or dupes                                       | page or offset + ≥3 records                               | `pagination.limit-bounds-page-size` |
-| `pagination.cursor-agrees-with-page`       | cursor walk and page walk yield the same set                                                    | both cursor and page                                      | `pagination.limit-bounds-page-size` |
-| `filter.unknown-field-rejected`            | a filter on a field that does not exist is not silently ignored                                 | a filter expression                                       | — |
-| `filter.equality-selects-exactly-one`      | `id.eq.<one>` returns that one record                                                           | equality on the identity                                  | `list.read-after-write` |
-| `filter.zero-match-returns-none`           | a filter that matches nothing returns an empty page, not the whole set                          | same                                                      | `list.read-after-write` |
-| `filter.negation-partitions-the-set`       | `eq` ∪ `neq` = whole set, intersection empty                                                    | eq and neq                                                | `list.read-after-write`, equality |
-| `filter.and-composes-as-intersection`      | `and(A,B)` = A ∩ B                                                                              | two filterable fields + AND                               | equality / list |
-| `filter.or-composes-as-union`              | `or(A,B)` = A ∪ B                                                                               | `or()` — **postgrest grammar only**                       | equality / list |
-| `filter.like-metacharacters-escaped`       | `%` `_` `*` in a value are literals, not wildcards                                              | like operator                                             | `list.read-after-write` |
-| `filter.numeric-comparison-is-numeric`     | `gt`/`lt` on a number uses numeric order, not TEXT (`1,10,2`)                                   | numeric field + a filter param                            | `list.read-after-write`, unknown-field |
-| `error.malformed-filter-not-5xx`           | garbage filter text is 4xx, never 5xx                                                           | a filter expression                                       | — |
-| `query.filter-selects-from-whole-set`      | a filter is applied to the collection, not to the current page                                  | filterable + ≥3 records                                   | list / walk |
-| `sort.order-is-applied`                    | requesting a sort actually rearranges the page                                                  | order + a sortable field                                  | `pagination.limit-bounds-page-size` |
-| `sort.reverse-symmetry`                    | desc is the reverse of asc (nulls included)                                                     | order + asc/desc                                          | order-is-applied |
-| `search.q-narrows-result`                  | a search term that matches one record does not return the whole set                             | search param + searchable fields                          | `list.read-after-write` |
-| `select.projection-honoured`               | `select=id,name` does not return undeclared fields                                              | select param                                              | — |
-| `count.consistent-with-returned-page`      | envelope total ≥ rows on this page, and is not zero when the page is not                        | envelope total                                            | `list.read-after-write` |
-| `count.matches-filtered-set`               | filtered total equals the size of the filtered walk                                             | total + a filter                                          | list, equality |
-| `query.axes-compose`                       | filter + sort together: filter still holds on the sorted page                                   | filterable + sortable                                     | filter + sort foundations |
-| `query.filter-and-select-compose`          | filter + select together                                                                        | filterable + select                                       | same |
-| `query.search-and-filter-compose`          | search + filter together                                                                        | filterable + search                                       | same |
-| `query.filter-sort-select-compose`         | filter + sort + select                                                                          | filter + sort + select                                    | same |
-| `query.filter-search-sort-compose`         | filter + search + sort                                                                          | filter + search + sort                                    | same |
-| `query.filter-search-select-compose`       | filter + search + select                                                                        | filter + search + select                                  | same |
-| `spec.declared-filterable-is-filterable`   | every `x-query.filterable` field actually accepts a filter                                      | `x-query` naming filterable fields                        | filter foundations |
-| `spec.declared-sortable-is-sortable`       | every `x-query.sortable` field actually accepts a sort                                          | `x-query` naming sortable fields                          | sort foundations |
-| `spec.declared-selectable-is-selectable`   | every `x-query.selectable` field actually accepts a select                                      | `x-query` naming selectable fields                        | select |
-| `tenant.item-not-readable-cross-tenant`    | principal B cannot GET principal A's item                                                       | second principal, different `roots`                       | — |
-| `tenant.denial-does-not-reveal-existence`  | 404 vs 403 (or equivalent) does not distinguish "exists other tenant" from "missing"            | second principal                                          | `tenant.item-not-readable-cross-tenant` |
-| `tenant.filter-does-not-bypass-scope`      | `filter=id.eq.<other tenant>` does not return that row                                          | second principal + a filter                               | `query.filter-selects-from-whole-set` |
-| `auth.rank-is-monotonic`                   | a lower rank cannot do what a higher rank is denied                                             | two same-tenant principals at different `rank`            | `list.read-after-write` |
-| `auth.invite-grants-then-revokes`          | invite → accept grants; revoke takes it back                                                    | `x-invite` + peer with `inviteAs`                         | list, cross-tenant |
-| `patch.immutable-field-rejected`           | PATCHing an `x-immutable` field is rejected or ignored                                          | `x-immutable`                                             | — |
-| `softdelete.absent-from-default-list`      | a soft-deleted row is gone from the default list                                                | `x-soft-delete`                                           | `list.read-after-write` |
-| `invalidation.declared-route-changes`      | after a write, the other entity's listed route actually changes                                 | `x-invalidate` naming another entity                      | list, persist |
-| `effects.declared-effect-occurs`           | `x-effects` cardinality delta is observed on the named list                                     | `x-effects`                                               | `list.read-after-write` |
-| `async.reaches-terminal-state`             | polling `x-async` reaches `until` before `timeoutMs`                                            | `x-async`                                                 | — |
-| `async.receipt-identifies-the-job`         | `idFrom` on the receipt resolves to a pollable job                                              | `x-async` + `idFrom`                                      | — |
-| `patch.minimality`                         | PATCH `{ name }` does not clear other writable fields                                           | update + item route                                       | — |
-| `idempotency.replay-does-not-duplicate`    | same Idempotency-Key + same body does not create a second row                                   | create + documented Idempotency-Key header                | list, persist |
-| `delete.absent-record-returns-404`         | DELETE of a missing id is 404, not 200                                                          | delete                                                    | — |
-| `concurrency.no-lost-update`               | two PATCHes to different fields do not clobber each other                                       | update + two writable strings                             | persist + patch |
-| `validation.enum-enforced`                 | a value outside the enum is rejected                                                            | enum in the request schema                                | — |
-| `validation.max-length-enforced`           | a string over `maxLength` is rejected                                                           | maxLength                                                 | — |
-| `validation.required-enforced`             | omitting a required field is rejected                                                           | required field                                            | — |
-| `validation.content-type-enforced`         | a wrong Content-Type is 415 when 415 is documented                                              | documented 415                                            | — |
-| `consistency.projections-agree`            | list, item, and filtered views of the same field agree                                          | item route + a comparable field                           | list + persist + filter |
+| id                                         | asserts                                                                              | needs                                                     | depends                                 |
+| ------------------------------------------ | ------------------------------------------------------------------------------------ | --------------------------------------------------------- | --------------------------------------- |
+| `list.read-after-write`                    | a just-created record appears on the list                                            | create + a seeded record                                  | —                                       |
+| `create.persists-submitted-fields`         | every writable field sent on create is echoed                                        | create that echoes the record                             | `list.read-after-write`                 |
+| `create.status-matches-document`           | create status is one the document declared                                           | create                                                    | —                                       |
+| `schema.success-response-matches-document` | create body validates against the success schema                                     | success schema on create                                  | `create.status-matches-document`        |
+| `schema.error-response-matches-document`   | an error body validates against the documented error schema                          | error schema on the item route                            | —                                       |
+| `pagination.limit-bounds-page-size`        | page size ≤ the requested limit                                                      | page-size _role_ (aliases include `limit`, `per_page`, …) | `list.read-after-write`                 |
+| `pagination.limit-respects-documented-max` | requesting more than `maxLimit` does not return more                                 | declared `maxLimit` and a larger cohort                   | `pagination.limit-bounds-page-size`     |
+| `pagination.has-more-is-accurate`          | `hasMore` / `Link rel=next` matches whether another page exists                      | page-forward + `hasMore` or `Link rel=next`               | `pagination.limit-bounds-page-size`     |
+| `pagination.page-walk-covers-set`          | walking pages covers the collection with no gaps or dupes                            | page or offset + ≥3 records                               | `pagination.limit-bounds-page-size`     |
+| `pagination.cursor-agrees-with-page`       | cursor walk and page walk yield the same set                                         | both cursor and page                                      | `pagination.limit-bounds-page-size`     |
+| `filter.unknown-field-rejected`            | a filter on a field that does not exist is not silently ignored                      | a filter expression                                       | —                                       |
+| `filter.equality-selects-exactly-one`      | `id.eq.<one>` returns that one record                                                | equality on the identity                                  | `list.read-after-write`                 |
+| `filter.zero-match-returns-none`           | a filter that matches nothing returns an empty page, not the whole set               | same                                                      | `list.read-after-write`                 |
+| `filter.negation-partitions-the-set`       | `eq` ∪ `neq` = whole set, intersection empty                                         | eq and neq                                                | `list.read-after-write`, equality       |
+| `filter.and-composes-as-intersection`      | `and(A,B)` = A ∩ B                                                                   | two filterable fields + AND                               | equality / list                         |
+| `filter.or-composes-as-union`              | `or(A,B)` = A ∪ B                                                                    | `or()` — **postgrest grammar only**                       | equality / list                         |
+| `filter.like-metacharacters-escaped`       | `%` `_` `*` in a value are literals, not wildcards                                   | like operator                                             | `list.read-after-write`                 |
+| `filter.numeric-comparison-is-numeric`     | `gt`/`lt` on a number uses numeric order, not TEXT (`1,10,2`)                        | numeric field + a filter param                            | `list.read-after-write`, unknown-field  |
+| `error.malformed-filter-not-5xx`           | garbage filter text is 4xx, never 5xx                                                | a filter expression                                       | —                                       |
+| `query.filter-selects-from-whole-set`      | a filter is applied to the collection, not to the current page                       | filterable + ≥3 records                                   | list / walk                             |
+| `sort.order-is-applied`                    | requesting a sort actually rearranges the page                                       | order + a sortable field                                  | `pagination.limit-bounds-page-size`     |
+| `sort.reverse-symmetry`                    | desc is the reverse of asc (nulls included)                                          | order + asc/desc                                          | order-is-applied                        |
+| `search.q-narrows-result`                  | a search term that matches one record does not return the whole set                  | search param + searchable fields                          | `list.read-after-write`                 |
+| `select.projection-honoured`               | `select=id,name` does not return undeclared fields                                   | select param                                              | —                                       |
+| `count.consistent-with-returned-page`      | envelope total ≥ rows on this page, and is not zero when the page is not             | envelope total                                            | `list.read-after-write`                 |
+| `count.matches-filtered-set`               | filtered total equals the size of the filtered walk                                  | total + a filter                                          | list, equality                          |
+| `query.axes-compose`                       | filter + sort together: filter still holds on the sorted page                        | filterable + sortable                                     | filter + sort foundations               |
+| `query.filter-and-select-compose`          | filter + select together                                                             | filterable + select                                       | same                                    |
+| `query.search-and-filter-compose`          | search + filter together                                                             | filterable + search                                       | same                                    |
+| `query.filter-sort-select-compose`         | filter + sort + select                                                               | filter + sort + select                                    | same                                    |
+| `query.filter-search-sort-compose`         | filter + search + sort                                                               | filter + search + sort                                    | same                                    |
+| `query.filter-search-select-compose`       | filter + search + select                                                             | filter + search + select                                  | same                                    |
+| `spec.declared-filterable-is-filterable`   | every `x-query.filterable` field actually accepts a filter                           | `x-query` naming filterable fields                        | filter foundations                      |
+| `spec.declared-sortable-is-sortable`       | every `x-query.sortable` field actually accepts a sort                               | `x-query` naming sortable fields                          | sort foundations                        |
+| `spec.declared-selectable-is-selectable`   | every `x-query.selectable` field actually accepts a select                           | `x-query` naming selectable fields                        | select                                  |
+| `tenant.item-not-readable-cross-tenant`    | principal B cannot GET principal A's item                                            | second principal, different `roots`                       | —                                       |
+| `tenant.denial-does-not-reveal-existence`  | 404 vs 403 (or equivalent) does not distinguish "exists other tenant" from "missing" | second principal                                          | `tenant.item-not-readable-cross-tenant` |
+| `tenant.filter-does-not-bypass-scope`      | `filter=id.eq.<other tenant>` does not return that row                               | second principal + a filter                               | `query.filter-selects-from-whole-set`   |
+| `auth.rank-is-monotonic`                   | a lower rank cannot do what a higher rank is denied                                  | two same-tenant principals at different `rank`            | `list.read-after-write`                 |
+| `auth.invite-grants-then-revokes`          | invite → accept grants; revoke takes it back                                         | `x-invite` + peer with `inviteAs`                         | list, cross-tenant                      |
+| `patch.immutable-field-rejected`           | PATCHing an `x-immutable` field is rejected or ignored                               | `x-immutable`                                             | —                                       |
+| `softdelete.absent-from-default-list`      | a soft-deleted row is gone from the default list                                     | `x-soft-delete`                                           | `list.read-after-write`                 |
+| `invalidation.declared-route-changes`      | after a write, the other entity's listed route actually changes                      | `x-invalidate` naming another entity                      | list, persist                           |
+| `effects.declared-effect-occurs`           | `x-effects` cardinality delta is observed on the named list                          | `x-effects`                                               | `list.read-after-write`                 |
+| `async.reaches-terminal-state`             | polling `x-async` reaches `until` before `timeoutMs`                                 | `x-async`                                                 | —                                       |
+| `async.receipt-identifies-the-job`         | `idFrom` on the receipt resolves to a pollable job                                   | `x-async` + `idFrom`                                      | —                                       |
+| `patch.minimality`                         | PATCH `{ name }` does not clear other writable fields                                | update + item route                                       | —                                       |
+| `idempotency.replay-does-not-duplicate`    | same Idempotency-Key + same body does not create a second row                        | create + documented Idempotency-Key header                | list, persist                           |
+| `delete.absent-record-returns-404`         | DELETE of a missing id is 404, not 200                                               | delete                                                    | —                                       |
+| `concurrency.no-lost-update`               | two PATCHes to different fields do not clobber each other                            | update + two writable strings                             | persist + patch                         |
+| `validation.enum-enforced`                 | a value outside the enum is rejected                                                 | enum in the request schema                                | —                                       |
+| `validation.max-length-enforced`           | a string over `maxLength` is rejected                                                | maxLength                                                 | —                                       |
+| `validation.required-enforced`             | omitting a required field is rejected                                                | required field                                            | —                                       |
+| `validation.content-type-enforced`         | a wrong Content-Type is 415 when 415 is documented                                   | documented 415                                            | —                                       |
+| `consistency.projections-agree`            | list, item, and filtered views of the same field agree                               | item route + a comparable field                           | list + persist + filter                 |
 
 On a typical untagged CRUD document (create, list, item, `page`/`limit`, maybe `sort`):
 
@@ -1119,17 +1119,17 @@ Console (stdout) after a run:
 
 Written under `--out` (default `./oat-out`):
 
-| file               |                                                                                                                                        |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `oat-report.md`    | human report: summary, findings with request/response excerpts, coverage, latency p50/p95/max                                          |
-| `oat-report.json`  | same data for CI                                                                                                                       |
-| `matrix.html`      | visual matrix of entities × checks                                                                                                     |
-| `matrix.json`      | the same graph (AI-friendly), including a mermaid string                                                                               |
+| file               |                                                                                                                                                          |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `oat-report.md`    | human report: summary, findings with request/response excerpts, coverage, latency p50/p95/max                                                            |
+| `oat-report.json`  | same data for CI                                                                                                                                         |
+| `matrix.html`      | visual matrix of entities × checks                                                                                                                       |
+| `matrix.json`      | the same graph (AI-friendly), including a mermaid string                                                                                                 |
 | `issue-repro/*.sh` | one executable `curl` script per finding that has evidence. Directory is omitted when the run is clean. Old `repro/` is deleted at the start of each run |
-| `progress.log`     | logfmt, one event per line, never truncated                                                                                            |
-| `progress.jsonl`   | same events as JSON                                                                                                                    |
-| `progress.tsv`     | same columns, tab-separated                                                                                                            |
-| `progress.json`    | latest snapshot only (overwritten ~1s)                                                                                                 |
+| `progress.log`     | logfmt, one event per line, never truncated                                                                                                              |
+| `progress.jsonl`   | same events as JSON                                                                                                                                      |
+| `progress.tsv`     | same columns, tab-separated                                                                                                                              |
+| `progress.json`    | latest snapshot only (overwritten ~1s)                                                                                                                   |
 
 There is no HAR file. The JSON report and issue-repro scripts carry the exchanges.
 
@@ -1137,44 +1137,44 @@ There is no HAR file. The JSON report and issue-repro scripts carry the exchange
 
 ```json
 {
-  "backend": "https://api.example.com",
-  "generatedAt": "2026-08-15T12:00:00.000Z",
-  "durationMs": 41200,
-  "requests": 842,
-  "entitiesTested": ["store", "product"],
-  "checksRun": ["list.read-after-write", "patch.minimality"],
-  "checksSkipped": [{ "check": "async.reaches-terminal-state", "entity": "store", "needs": "…" }],
-  "checksSuppressed": [{ "check": "query.axes-compose", "entity": "store", "because": "list.read-after-write" }],
-  "inconclusive": [{ "check": "filter.and-composes-as-intersection", "entity": "store", "reason": "…" }],
-  "summary": { "BACKEND_BUG": 1 },
-  "coverage": {
-    "neverApplied": ["async.reaches-terminal-state"],
-    "partial": [{ "check": "select.projection-honoured", "ran": 1, "skipped": 1 }]
-  },
-  "latency": {
-    "p50": 12,
-    "p95": 90,
-    "max": 400,
-    "slowest": { "method": "GET", "path": "/v1/products" }
-  },
-  "findings": [
-    {
-      "check": "patch.minimality",
-      "verdict": "BACKEND_BUG",
-      "entity": "product",
-      "summary": "PATCH { name } also cleared description",
-      "detail": "…",
-      "evidence": [
-        {
-          "method": "PATCH",
-          "url": "https://api.example.com/v1/products/p1",
-          "status": 200,
-          "requestBody": { "name": "x" },
-          "responseBody": { "name": "x", "description": null }
-        }
-      ]
-    }
-  ]
+	"backend": "https://api.example.com",
+	"generatedAt": "2026-08-15T12:00:00.000Z",
+	"durationMs": 41200,
+	"requests": 842,
+	"entitiesTested": ["store", "product"],
+	"checksRun": ["list.read-after-write", "patch.minimality"],
+	"checksSkipped": [{ "check": "async.reaches-terminal-state", "entity": "store", "needs": "…" }],
+	"checksSuppressed": [{ "check": "query.axes-compose", "entity": "store", "because": "list.read-after-write" }],
+	"inconclusive": [{ "check": "filter.and-composes-as-intersection", "entity": "store", "reason": "…" }],
+	"summary": { "BACKEND_BUG": 1 },
+	"coverage": {
+		"neverApplied": ["async.reaches-terminal-state"],
+		"partial": [{ "check": "select.projection-honoured", "ran": 1, "skipped": 1 }]
+	},
+	"latency": {
+		"p50": 12,
+		"p95": 90,
+		"max": 400,
+		"slowest": { "method": "GET", "path": "/v1/products" }
+	},
+	"findings": [
+		{
+			"check": "patch.minimality",
+			"verdict": "BACKEND_BUG",
+			"entity": "product",
+			"summary": "PATCH { name } also cleared description",
+			"detail": "…",
+			"evidence": [
+				{
+					"method": "PATCH",
+					"url": "https://api.example.com/v1/products/p1",
+					"status": 200,
+					"requestBody": { "name": "x" },
+					"responseBody": { "name": "x", "description": null }
+				}
+			]
+		}
+	]
 }
 ```
 
@@ -1186,38 +1186,44 @@ Gate in CI on process exit code, or on `findings` whose `verdict` is not `COVERA
 
 ```json
 {
-  "kind": "oat.matrix",
-  "version": 2,
-  "baseUrl": "…",
-  "generatedAt": "…",
-  "thesis": "…",
-  "summary": "…",
-  "index": { "entityCount": 5, "failed": ["product"], "parents": ["store"], "crossClaims": 1, "inbound": {} },
-  "counts": { "failed": 1, "blocked": 0, "held": 40, "skipped": 14 },
-  "entities": [
-    {
-      "name": "product",
-      "identity": "id",
-      "readSurface": ["GET /v1/products", "GET /v1/products/{id}"],
-      "counts": { "failed": 1, "blocked": 0, "held": 20, "skipped": 5 },
-      "roots": ["store_id"],
-      "nodes": [
-        {
-          "id": "product/patch.minimality",
-          "group": "product",
-          "layer": "weft",
-          "status": "failed",
-          "verdict": "BACKEND_BUG",
-          "summary": "…"
-        }
-      ]
-    }
-  ],
-  "invalidate": [
-    { "fromEntity": "product", "fromOp": "product.create", "toEntity": "store", "toRoute": "GET /v1/stores/{id}", "cross": true }
-  ],
-  "edges": [{ "from": "product/list.read-after-write", "to": "product/patch.minimality", "kind": "dependsOn" }],
-  "mermaid": "flowchart LR\n…"
+	"kind": "oat.matrix",
+	"version": 2,
+	"baseUrl": "…",
+	"generatedAt": "…",
+	"thesis": "…",
+	"summary": "…",
+	"index": { "entityCount": 5, "failed": ["product"], "parents": ["store"], "crossClaims": 1, "inbound": {} },
+	"counts": { "failed": 1, "blocked": 0, "held": 40, "skipped": 14 },
+	"entities": [
+		{
+			"name": "product",
+			"identity": "id",
+			"readSurface": ["GET /v1/products", "GET /v1/products/{id}"],
+			"counts": { "failed": 1, "blocked": 0, "held": 20, "skipped": 5 },
+			"roots": ["store_id"],
+			"nodes": [
+				{
+					"id": "product/patch.minimality",
+					"group": "product",
+					"layer": "weft",
+					"status": "failed",
+					"verdict": "BACKEND_BUG",
+					"summary": "…"
+				}
+			]
+		}
+	],
+	"invalidate": [
+		{
+			"fromEntity": "product",
+			"fromOp": "product.create",
+			"toEntity": "store",
+			"toRoute": "GET /v1/stores/{id}",
+			"cross": true
+		}
+	],
+	"edges": [{ "from": "product/list.read-after-write", "to": "product/patch.minimality", "kind": "dependsOn" }],
+	"mermaid": "flowchart LR\n…"
 }
 ```
 
@@ -1320,7 +1326,7 @@ Types exported: `OatConfig`, `Principal`, `AuthFlow`, `AuthStep`, `Hooks`, `RunO
 
 ## CI
 
-This repository runs [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) on every push and pull request to `main`: format, lint, typecheck, then `npm test` (conformance on memory + sqlite + postgres, plus the built-in combination smoke). D1 and the live labs Workers are not in that job — they need Cloudflare credentials and a provisioned database.
+This repository runs [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) on every push and pull request to `main`: format, lint, typecheck, then `npm test` (conformance on memory + sqlite, plus the built-in combination smoke). D1, live labs Workers, and postgres are not in that job — D1 needs Cloudflare credentials, and the postgres reference backend is not yet a green CI gate.
 
 The package is [`@lovrozagar/oat` on npm](https://www.npmjs.com/package/@lovrozagar/oat). That URL is the repository website. GitHub Releases match npm versions. Pushing a tag `vX.Y.Z` (same as `package.json` `version`) runs [`.github/workflows/release.yml`](./.github/workflows/release.yml): test, `npm publish` via trusted publishing, then a GitHub Release. Configure the trusted publisher once on npm (package Settings → Trusted Publisher → GitHub Actions, workflow `release.yml`, no environment). Do not publish to GitHub Packages — people install from the public npm registry.
 
@@ -1346,66 +1352,66 @@ Wipe leftover rows on a shared database between runs if a previous `--keep-fixtu
 
 Comma-separated. Each is one named lie the demo API can tell. Primary check is what conformance asserts; extras in parentheses are accepted additional symptoms of the same lie.
 
-| defect | primary check | the lie |
-| --- | --- | --- |
-| `STALE_LIST` | `list.read-after-write` | create succeeds, list does not show the row |
-| `CREATE_DROPS_FIELD` | `create.persists-submitted-fields` | a submitted field is dropped |
-| `CREATED_201_AS_200` | `create.status-matches-document` | create returns 200 when the spec says 201 |
-| `RESPONSE_SCHEMA_DRIFT` | `schema.success-response-matches-document` | success body does not match the schema |
-| `ERROR_SCHEMA_DRIFT` | `schema.error-response-matches-document` | error body does not match the schema |
-| `LIMIT_IGNORED` | `pagination.limit-bounds-page-size` | `limit` is accepted and ignored |
-| `LIMIT_EXCEEDS_MAX` | `pagination.limit-respects-documented-max` | documented max is not capped |
-| `HASMORE_ALWAYS_FALSE` | `pagination.has-more-is-accurate` | `hasMore` is always false |
-| `OFF_BY_ONE_PAGE` | `pagination.page-walk-covers-set` | page walk skips or repeats |
-| `UNSTABLE_SORT` | `pagination.page-walk-covers-set` | default order is not a total order |
-| `CURSOR_DRIFT` | `pagination.cursor-agrees-with-page` | cursor and page disagree |
-| `FILTER_IGNORED` | `filter.unknown-field-rejected` | unknown filter field is ignored |
-| `FILTER_EQ_NOT_APPLIED` | `filter.equality-selects-exactly-one` | equality filter is ignored |
-| `EMPTY_RESULT_RETURNS_ALL` | `filter.zero-match-returns-none` | empty match returns the whole set |
-| `NEQ_DROPS_NULLS` | `filter.negation-partitions-the-set` | `neq` drops nulls so the partition leaks |
-| `FILTER_GROUP_COMBINATOR_SWAPPED` | `filter.and-composes-as-intersection` | `and`/`or` are swapped |
-| `LIKE_UNESCAPED` | `filter.like-metacharacters-escaped` | `%`/`_` are wildcards in values |
-| `NUMERIC_COMPARED_AS_TEXT` | `filter.numeric-comparison-is-numeric` | numbers compared as strings |
-| `ERROR_500_ON_BAD_FILTER` | `error.malformed-filter-not-5xx` | bad filter is 500 |
-| `FILTER_AFTER_PAGINATION` | `query.filter-selects-from-whole-set` | filter applied after the page is cut |
-| `ORDER_IGNORED` | `sort.order-is-applied` | sort param is ignored |
-| `SORT_DESC_DROPS_NULLS` | `sort.reverse-symmetry` | desc drops nulls |
-| `SEARCH_IGNORED` | `search.q-narrows-result` | search param is ignored |
-| `SELECT_IGNORED` | `select.projection-honoured` | select param is ignored |
-| `COUNT_ALWAYS_ZERO` | `count.consistent-with-returned-page` | total is always 0 |
-| `COUNT_IGNORES_FILTER` | `count.matches-filtered-set` | total ignores the filter |
-| `FILTER_DROPPED_WHEN_SORTED` | `query.axes-compose` | sort drops the filter |
-| `FILTER_DROPPED_WHEN_SELECTED` | `query.filter-and-select-compose` | select drops the filter |
-| `FILTER_DROPPED_WHEN_SEARCHED` | `query.search-and-filter-compose` | search drops the filter |
-| `FILTER_DROPPED_WHEN_SORTED_AND_SELECTED` | `query.filter-sort-select-compose` | the triple drops the filter |
-| `FILTER_DROPPED_WHEN_SORTED_AND_SEARCHED` | `query.filter-search-sort-compose` | the triple drops the filter |
-| `FILTER_DROPPED_WHEN_SEARCHED_AND_SELECTED` | `query.filter-search-select-compose` | the triple drops the filter |
-| `SPEC_OVERCLAIMS_FILTERABLE` | `spec.declared-filterable-is-filterable` | `x-query` lists a field that 400s |
-| `SPEC_OVERCLAIMS_SORTABLE` | `spec.declared-sortable-is-sortable` | same for sort |
-| `SPEC_OVERCLAIMS_SELECTABLE` | `spec.declared-selectable-is-selectable` | same for select |
-| `CROSS_TENANT_READ` | `tenant.item-not-readable-cross-tenant` | item GET is global by id |
-| `EXISTENCE_LEAK_VIA_STATUS` | `tenant.denial-does-not-reveal-existence` | 403 vs 404 reveals the other tenant's row |
-| `TENANT_LEAK_VIA_FILTER` | `tenant.filter-does-not-bypass-scope` | filter drops the tenant predicate |
-| `ROLE_MONOTONICITY_BROKEN` | `auth.rank-is-monotonic` | a lower rank can do more |
-| `INVITE_NEVER_GRANTS` | `auth.invite-grants-then-revokes` | accept does not grant |
-| `REVOKE_IGNORED` | `auth.invite-grants-then-revokes` | revoke leaves the grant |
-| `IMMUTABLE_WRITABLE` | `patch.immutable-field-rejected` | immutable fields accept writes |
-| `SOFT_DELETE_LEAK` | `softdelete.absent-from-default-list` | tombstone stays on the default list |
-| `PARENT_PROJECTION_STALE` | `invalidation.declared-route-changes` | child write does not bump the parent |
-| `EFFECT_NOT_APPLIED` | `effects.declared-effect-occurs` | declared cardinality delta does not happen |
-| `ASYNC_NEVER_COMPLETES` | `async.reaches-terminal-state` | job stays pending |
-| `ASYNC_RECEIPT_MISSING_ID` | `async.receipt-identifies-the-job` | receipt has no id |
-| `PATCH_REPLACES` | `patch.minimality` | PATCH is implemented as replace |
-| `IDEMPOTENCY_IGNORED` | `idempotency.replay-does-not-duplicate` | Idempotency-Key is ignored |
-| `DELETE_MISSING_OK` | `delete.absent-record-returns-404` | DELETE missing returns 200 |
-| `CONCURRENT_WRITE_LOST` | `concurrency.no-lost-update` | full-row write clobbers a parallel PATCH |
-| `ENUM_NOT_VALIDATED` | `validation.enum-enforced` | enum is not enforced |
-| `MAXLENGTH_NOT_VALIDATED` | `validation.max-length-enforced` | maxLength is not enforced |
-| `REQUIRED_NOT_VALIDATED` | `validation.required-enforced` | required is not enforced |
-| `CONTENT_TYPE_NOT_ENFORCED` | `validation.content-type-enforced` | wrong Content-Type is accepted |
-| `LIST_DETAIL_DISAGREE` | `consistency.projections-agree` | list and item show different values |
-| `COLUMN_NAME_MISMATCH` | `create.persists-submitted-fields` | SQL identifier does not match the field (SQL backends) |
-| `COLLATION_INCONSISTENT` | `pagination.cursor-agrees-with-page` | cursor order ≠ page order (SQL) |
+| defect                                      | primary check                              | the lie                                                |
+| ------------------------------------------- | ------------------------------------------ | ------------------------------------------------------ |
+| `STALE_LIST`                                | `list.read-after-write`                    | create succeeds, list does not show the row            |
+| `CREATE_DROPS_FIELD`                        | `create.persists-submitted-fields`         | a submitted field is dropped                           |
+| `CREATED_201_AS_200`                        | `create.status-matches-document`           | create returns 200 when the spec says 201              |
+| `RESPONSE_SCHEMA_DRIFT`                     | `schema.success-response-matches-document` | success body does not match the schema                 |
+| `ERROR_SCHEMA_DRIFT`                        | `schema.error-response-matches-document`   | error body does not match the schema                   |
+| `LIMIT_IGNORED`                             | `pagination.limit-bounds-page-size`        | `limit` is accepted and ignored                        |
+| `LIMIT_EXCEEDS_MAX`                         | `pagination.limit-respects-documented-max` | documented max is not capped                           |
+| `HASMORE_ALWAYS_FALSE`                      | `pagination.has-more-is-accurate`          | `hasMore` is always false                              |
+| `OFF_BY_ONE_PAGE`                           | `pagination.page-walk-covers-set`          | page walk skips or repeats                             |
+| `UNSTABLE_SORT`                             | `pagination.page-walk-covers-set`          | default order is not a total order                     |
+| `CURSOR_DRIFT`                              | `pagination.cursor-agrees-with-page`       | cursor and page disagree                               |
+| `FILTER_IGNORED`                            | `filter.unknown-field-rejected`            | unknown filter field is ignored                        |
+| `FILTER_EQ_NOT_APPLIED`                     | `filter.equality-selects-exactly-one`      | equality filter is ignored                             |
+| `EMPTY_RESULT_RETURNS_ALL`                  | `filter.zero-match-returns-none`           | empty match returns the whole set                      |
+| `NEQ_DROPS_NULLS`                           | `filter.negation-partitions-the-set`       | `neq` drops nulls so the partition leaks               |
+| `FILTER_GROUP_COMBINATOR_SWAPPED`           | `filter.and-composes-as-intersection`      | `and`/`or` are swapped                                 |
+| `LIKE_UNESCAPED`                            | `filter.like-metacharacters-escaped`       | `%`/`_` are wildcards in values                        |
+| `NUMERIC_COMPARED_AS_TEXT`                  | `filter.numeric-comparison-is-numeric`     | numbers compared as strings                            |
+| `ERROR_500_ON_BAD_FILTER`                   | `error.malformed-filter-not-5xx`           | bad filter is 500                                      |
+| `FILTER_AFTER_PAGINATION`                   | `query.filter-selects-from-whole-set`      | filter applied after the page is cut                   |
+| `ORDER_IGNORED`                             | `sort.order-is-applied`                    | sort param is ignored                                  |
+| `SORT_DESC_DROPS_NULLS`                     | `sort.reverse-symmetry`                    | desc drops nulls                                       |
+| `SEARCH_IGNORED`                            | `search.q-narrows-result`                  | search param is ignored                                |
+| `SELECT_IGNORED`                            | `select.projection-honoured`               | select param is ignored                                |
+| `COUNT_ALWAYS_ZERO`                         | `count.consistent-with-returned-page`      | total is always 0                                      |
+| `COUNT_IGNORES_FILTER`                      | `count.matches-filtered-set`               | total ignores the filter                               |
+| `FILTER_DROPPED_WHEN_SORTED`                | `query.axes-compose`                       | sort drops the filter                                  |
+| `FILTER_DROPPED_WHEN_SELECTED`              | `query.filter-and-select-compose`          | select drops the filter                                |
+| `FILTER_DROPPED_WHEN_SEARCHED`              | `query.search-and-filter-compose`          | search drops the filter                                |
+| `FILTER_DROPPED_WHEN_SORTED_AND_SELECTED`   | `query.filter-sort-select-compose`         | the triple drops the filter                            |
+| `FILTER_DROPPED_WHEN_SORTED_AND_SEARCHED`   | `query.filter-search-sort-compose`         | the triple drops the filter                            |
+| `FILTER_DROPPED_WHEN_SEARCHED_AND_SELECTED` | `query.filter-search-select-compose`       | the triple drops the filter                            |
+| `SPEC_OVERCLAIMS_FILTERABLE`                | `spec.declared-filterable-is-filterable`   | `x-query` lists a field that 400s                      |
+| `SPEC_OVERCLAIMS_SORTABLE`                  | `spec.declared-sortable-is-sortable`       | same for sort                                          |
+| `SPEC_OVERCLAIMS_SELECTABLE`                | `spec.declared-selectable-is-selectable`   | same for select                                        |
+| `CROSS_TENANT_READ`                         | `tenant.item-not-readable-cross-tenant`    | item GET is global by id                               |
+| `EXISTENCE_LEAK_VIA_STATUS`                 | `tenant.denial-does-not-reveal-existence`  | 403 vs 404 reveals the other tenant's row              |
+| `TENANT_LEAK_VIA_FILTER`                    | `tenant.filter-does-not-bypass-scope`      | filter drops the tenant predicate                      |
+| `ROLE_MONOTONICITY_BROKEN`                  | `auth.rank-is-monotonic`                   | a lower rank can do more                               |
+| `INVITE_NEVER_GRANTS`                       | `auth.invite-grants-then-revokes`          | accept does not grant                                  |
+| `REVOKE_IGNORED`                            | `auth.invite-grants-then-revokes`          | revoke leaves the grant                                |
+| `IMMUTABLE_WRITABLE`                        | `patch.immutable-field-rejected`           | immutable fields accept writes                         |
+| `SOFT_DELETE_LEAK`                          | `softdelete.absent-from-default-list`      | tombstone stays on the default list                    |
+| `PARENT_PROJECTION_STALE`                   | `invalidation.declared-route-changes`      | child write does not bump the parent                   |
+| `EFFECT_NOT_APPLIED`                        | `effects.declared-effect-occurs`           | declared cardinality delta does not happen             |
+| `ASYNC_NEVER_COMPLETES`                     | `async.reaches-terminal-state`             | job stays pending                                      |
+| `ASYNC_RECEIPT_MISSING_ID`                  | `async.receipt-identifies-the-job`         | receipt has no id                                      |
+| `PATCH_REPLACES`                            | `patch.minimality`                         | PATCH is implemented as replace                        |
+| `IDEMPOTENCY_IGNORED`                       | `idempotency.replay-does-not-duplicate`    | Idempotency-Key is ignored                             |
+| `DELETE_MISSING_OK`                         | `delete.absent-record-returns-404`         | DELETE missing returns 200                             |
+| `CONCURRENT_WRITE_LOST`                     | `concurrency.no-lost-update`               | full-row write clobbers a parallel PATCH               |
+| `ENUM_NOT_VALIDATED`                        | `validation.enum-enforced`                 | enum is not enforced                                   |
+| `MAXLENGTH_NOT_VALIDATED`                   | `validation.max-length-enforced`           | maxLength is not enforced                              |
+| `REQUIRED_NOT_VALIDATED`                    | `validation.required-enforced`             | required is not enforced                               |
+| `CONTENT_TYPE_NOT_ENFORCED`                 | `validation.content-type-enforced`         | wrong Content-Type is accepted                         |
+| `LIST_DETAIL_DISAGREE`                      | `consistency.projections-agree`            | list and item show different values                    |
+| `COLUMN_NAME_MISMATCH`                      | `create.persists-submitted-fields`         | SQL identifier does not match the field (SQL backends) |
+| `COLLATION_INCONSISTENT`                    | `pagination.cursor-agrees-with-page`       | cursor order ≠ page order (SQL)                        |
 
 ```bash
 oat serve --defects STALE_LIST,PATCH_REPLACES
