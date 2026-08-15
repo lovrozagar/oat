@@ -62,6 +62,7 @@ jobs:
           fi
       - name: Publish to registry.npmjs.org
         run: |
+          set -euo pipefail
           ref="${{ inputs.tag || github.ref_name }}"
           tag="${ref#v}"
           if npm view "@lovrozagar/oat@$tag" version >/dev/null 2>&1; then
@@ -72,14 +73,29 @@ jobs:
             echo "OIDC request URL/token missing — id-token: write is not in effect"
             exit 1
           fi
-          # npm CLI on GitHub should do this itself; request the audience npm documents
-          # and feed it as NPM_ID_TOKEN so a silent GitHub-path miss still authenticates.
-          oidc_json="$(curl -fsSL \
+          curl -fsSL \
             -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=npm:registry.npmjs.org")"
-          NPM_ID_TOKEN="$(node -e "const j=JSON.parse(process.argv[1]); if(!j.value) process.exit(2); process.stdout.write(j.value)" "$oidc_json")"
-          export NPM_ID_TOKEN
-          npm --version
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=npm:registry.npmjs.org" \
+            -o /tmp/oidc.json
+          node -e 'const j=require("/tmp/oidc.json"); if(!j.value) process.exit(2)'
+          # Exchange GitHub's id_token for a short-lived npm publish token.
+          # 404 here means the Trusted Publisher on npmjs.com does not match this workflow.
+          code=$(curl -sS -o /tmp/npm-ex.json -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer $(node -p 'require(\"/tmp/oidc.json\").value')" \
+            -H "Content-Type: application/json" \
+            "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/@lovrozagar%2foat")
+          echo "oidc exchange HTTP $code"
+          node -e 'const j=require("/tmp/npm-ex.json"); console.log(JSON.stringify({error:j.error,message:j.message,token_type:j.token_type,expires:j.expires}))'
+          if [ "$code" != "201" ]; then
+            echo "npm rejected the GitHub OIDC token."
+            echo "On https://www.npmjs.com/package/@lovrozagar/oat → Settings → Trusted Publisher"
+            echo "the saved connection must be exactly:"
+            echo "  GitHub Actions / lovrozagar / oat / release.yml / environment empty / allow npm publish"
+            exit 1
+          fi
+          NODE_AUTH_TOKEN="$(node -p 'require("/tmp/npm-ex.json").token')"
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > "${HOME}/.npmrc"
           npm publish --access public --provenance
 
   gh-pkg:
