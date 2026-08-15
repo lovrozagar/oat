@@ -20,7 +20,7 @@
     "node": ">=20"
   },
   "bin": {
-    "oat": "./dist/cli.js"
+    "oat": "./bin/oat.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -31,6 +31,7 @@
     }
   },
   "files": [
+    "bin/oat.js",
     "dist/cli.js",
     "dist/index.js",
     "dist/index.d.ts",
