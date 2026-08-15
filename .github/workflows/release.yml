@@ -95,9 +95,10 @@ jobs:
           '
           # Exchange GitHub's id_token for a short-lived npm publish token.
           # 404 here means the Trusted Publisher on npmjs.com does not match this workflow.
+          oidc_jwt="$(node -e 'process.stdout.write(require("/tmp/oidc.json").value)')"
           code=$(curl -sS -o /tmp/npm-ex.json -w "%{http_code}" \
             -X POST \
-            -H "Authorization: Bearer $(node -p 'require(\"/tmp/oidc.json\").value')" \
+            -H "Authorization: Bearer ${oidc_jwt}" \
             -H "Content-Type: application/json" \
             "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/@lovrozagar%2foat")
           echo "oidc exchange HTTP $code"
@@ -109,7 +110,11 @@ jobs:
             echo "  GitHub Actions / lovrozagar / oat / release.yml / environment empty / allow npm publish"
             exit 1
           fi
-          NODE_AUTH_TOKEN="$(node -p 'require("/tmp/npm-ex.json").token')"
+          NODE_AUTH_TOKEN="$(node -e 'process.stdout.write(require("/tmp/npm-ex.json").token || "")')"
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "exchange succeeded but returned no token"
+            exit 1
+          fi
           echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > "${HOME}/.npmrc"
           npm publish --access public --provenance
 
