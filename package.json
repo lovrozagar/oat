@@ -1,8 +1,17 @@
 {
   "name": "oat",
-  "version": "0.0.0",
-  "description": "OpenAPI Tester \u2014 deep behavioural testing of any backend against its OpenAPI specification",
+  "version": "0.1.0",
+  "description": "OpenAPI Tester — behavioural testing of a live backend against its OpenAPI specification",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lovrozagar/oat.git"
+  },
+  "homepage": "https://github.com/lovrozagar/oat#readme",
+  "bugs": {
+    "url": "https://github.com/lovrozagar/oat/issues"
+  },
+  "author": "lovrozagar",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -21,14 +30,14 @@
   "files": [
     "dist/cli.js",
     "dist/index.js",
+    "dist/index.d.ts",
     "dist/config",
     "dist/reference",
     "dist/report",
     "dist/runtime",
     "dist/spec",
     "README.md",
-    "EXTENSIONS.md",
-    "DESIGN.md",
+    "LICENSE",
     "labs/annotated-openapi.yaml",
     "labs/local.config.ts",
     "labs/minimal.config.ts",
@@ -44,7 +53,8 @@
     "conformance": "node --experimental-sqlite dist/cli.js conformance",
     "demo": "npm run build && node labs/demo.mjs",
     "labs": "node --experimental-strip-types labs/serve.ts",
-    "labs:sweep": "bash labs/sweep.sh"
+    "labs:sweep": "bash labs/sweep.sh",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "openapi",

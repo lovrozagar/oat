@@ -1,6 +1,6 @@
 /**
  * Generates the reference backend's OpenAPI document from the entity model, fully annotated with
- * the meta tags in EXTENSIONS.md. This is the "ideal citizen" spec: everything oat wants to know
+ * the meta tags in the README. This is the "ideal citizen" spec: everything oat wants to know
  * is declared, so a run against the clean baseline exercises the tag path rather than the
  * heuristic fallbacks. The conformance suite also serves stripped variants to test the fallbacks.
  */

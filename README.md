@@ -1,25 +1,49 @@
 # oat
 
-OpenAPI Tester — deep behavioural testing of a running backend against its OpenAPI specification.
+OpenAPI Tester — behavioural testing of a live backend against its OpenAPI specification.
 
-Schema validators answer *"did this response match its declared shape?"* Most real API bugs don't violate a schema:
+Schema validators answer *did this response match its declared shape?* Most real API bugs do not violate a schema:
 
-- a resource exists in `GET /tables/{id}` but not in `GET /tables`
-- `?filter=status.eq.nope` returns every row, because the backend silently dropped the param
+- a resource exists on `GET /tables/{id}` but not on `GET /tables`
+- `?filter=status.eq.nope` returns every row, because the backend dropped the param
 - paging at `limit=2` yields 9 rows; `limit=100` yields 10 — the sort has no total order
-- `PATCH {name}` also cleared `instruction`
+- `PATCH { name }` also cleared `instruction`
 - `?filter=id.eq.<another tenant's id>` returns the row
 
-oat finds these by asserting the same fact through every projection the API offers, then comparing the projections against each other and against a shadow oracle of expected state.
+oat asserts the same fact through every projection the API offers, then compares those projections against each other.
 
-## See it work
+## Table of contents
 
-oat ships a demo API — the same reference backend its own self-test runs against — so it can be
-tried before being wired to anything real:
+- [Install](#install)
+- [Quick start](#quick-start)
+- [Commands](#commands)
+- [Configuration](#configuration)
+- [OpenAPI meta tags](#openapi-meta-tags)
+- [What gets tested](#what-gets-tested)
+- [Reports](#reports)
+- [Conformance](#conformance)
+- [What this is not](#what-this-is-not)
+- [Labs](#labs)
+- [License](#license)
+
+## Install
 
 ```bash
-oat serve --defects STALE_LIST,PATCH_REPLACES      # terminal 1, prints a url
-oat run --config labs/local.config.ts --base-url <that url>
+npm i -D oat
+```
+
+Requires Node.js 20 or later.
+
+## Quick start
+
+oat ships a demo API — the same reference backend its self-test uses — so you can try it before pointing it at anything real:
+
+```bash
+# terminal 1
+oat serve --defects STALE_LIST,PATCH_REPLACES
+
+# terminal 2
+oat run --config labs/local.config.ts --base-url <url printed above>
 ```
 
 ```
@@ -33,389 +57,345 @@ oat run --config labs/local.config.ts --base-url <that url>
   report: oat-out/oat-report.md
 ```
 
-`oat-out/` holds the markdown report, a JSON copy for CI, and one runnable `curl` script per
-finding. Drop `--defects` and it reports nothing across 55 checks.
+`oat-out/` holds a markdown report, a JSON copy for CI, and one runnable `curl` script per finding (`issue-repro/`). Drop `--defects` and a correct backend reports nothing across 55 checks.
 
-See [labs/](./labs) for backends, typed configs, and a run against a live API.
-
-## Install
+Against your own API:
 
 ```bash
-npm i -D oat
+oat doctor --spec https://api.example.com/openapi.json
+oat plan   --spec https://api.example.com/openapi.json
+oat run    --config oat.config.ts
 ```
 
-## Use
+`doctor` is the adoption command. It runs offline against the spec alone and reports every coverage gap, naming the meta tag that would close it.
 
-```bash
-oat doctor --spec https://api.example.com/openapi.json     # what oat can test, and what's missing
-oat plan   --spec https://api.example.com/openapi.json     # the derived model, offline
-oat run    --spec ... --base-url https://api.example.com   # execute
+## Commands
+
+```
+oat run     --config <file>     test a live backend and write a report
+oat plan    --spec <url|file>   derive and print the test model (offline)
+oat doctor  --spec <url|file>   report what oat can and cannot test, and why
+oat serve   [--defects A,B]     run the demo API
+oat conformance                 self-test: injected defects vs detection
 ```
 
-`oat doctor` is where adoption starts. It runs offline against the spec alone and reports every gap in coverage, naming the meta tag that would close it.
+Useful flags:
 
-## Two inputs, always
+| flag | |
+| --- | --- |
+| `--config` | config module (`.ts` / `.js` / `.mjs` / `.json`) with a default export |
+| `--spec` | OpenAPI document, URL or path |
+| `--base-url` | backend under test, overrides the config |
+| `--only` | comma-separated entity names |
+| `--out` | report directory (default `./oat-out`) |
+| `--concurrency` | entities tested in parallel (default 1) |
+| `--quiet` | no live progress on stderr (`progress.log` is still written) |
+| `--keep-fixtures` | leave created records in place |
+| `--backend` | conformance storage: `memory` \| `sqlite` \| `postgres` \| `d1` |
+| `--dialect` | API shape: `postgrest` \| `classic` \| `linked` \| `jsonapi` \| `plain` |
+| `--fuzz` | inject random defect combinations |
+| `--precision` | vary cohort data against a correct backend |
 
-The spec, and a config file. oat never reads your source, assumes your framework, or hardcodes a route. Backend-specific knowledge lives in one of two places:
+## Configuration
 
-- **`x-*` meta tags in your spec** — a complete worked document is
-  [`labs/annotated-openapi.yaml`](./labs/annotated-openapi.yaml); reference is
-  [EXTENSIONS.md](./EXTENSIONS.md). All optional; each degrades to a heuristic and reports the degradation rather than guessing silently.
-- **`oat.config.ts`** — auth flow, roots, and the one hook oat cannot infer: resolving values delivered outside HTTP (verification tokens, OTPs).
+Two inputs, always: the spec, and a config file. oat never reads your source, assumes your framework, or hardcodes a route. Backend-specific knowledge lives in one of two places:
+
+- **`x-*` tags in the spec** — optional; each degrades to a heuristic and reports the degradation rather than guessing silently. A complete worked document is [`labs/annotated-openapi.yaml`](./labs/annotated-openapi.yaml).
+- **`oat.config.ts`** — auth, roots, and the one hook oat cannot infer: values delivered outside HTTP (verification tokens, OTPs).
 
 A backend adopts oat by adding tags, not by adapting to oat.
 
-## How it is measured
+Smallest useful config — a long-lived API key and two tenants, so isolation checks can run:
 
-oat ships **four** reference backends — in memory, over SQLite, over a real Postgres server, and
-over a remote Cloudflare D1 — behind the same HTTP surface, the same generated OpenAPI document
-and the same defect names. Each is correct by construction and can be told to exhibit any of 56
-named defects, one at a time. `oat conformance` runs the tool against every defect on every
-available backend, asserts it reaches the right diagnosis, and — against a correct backend —
-reports nothing at all.
+```ts
+import { defineConfig } from "oat"
 
-They are served in **five dialects**:
-
-| | `postgrest` | `classic` | `linked` | `jsonapi` |
-| --- | --- | --- | --- | --- |
-| page size | `limit` | `per_page` | `limit` | `size` |
-| position | `cursor` + `page` | `page` | **`offset`** | `page` |
-| response | `{ tables: [] }` | `{ data: [] }` | **bare array** | `{ data: [] }` |
-| total | `count` | `total_count` | **none** | `total` |
-| more pages? | `hasMore` | `has_more` | **`Link: rel="next"`** | `has_more` |
-| filter | `field.op.value` | `field=op:value` | `field.op.value` | `field.op.value` |
-| sort | `field.asc` | `field.asc` | `field.asc` | **`-field`** |
-| project | `select=id,name` | `fields=id,name` | `fields=id,name` | **`fields[table]=id,name`** |
-
-…plus **`plain`**: no filter expression language at all, just `?status=active&page=2` — one query
-parameter per field, equality only. It is the most common shape in the world and the one where oat
-can say the least, which makes it the real test of whether *"I cannot express this"* is reported
-honestly or skipped silently.
-
-Each isolates a different axis. `classic` renames every parameter. `linked` changes the
-pagination *model* — bare array, row offsets, facts in a header. `jsonapi` renames almost nothing
-and instead writes its *values* differently. `plain` removes an entire capability.
-
-The checks are identical across all five. One that works on one and not another was reading a
-convention rather than the contract.
-
-```
-11/11 hostile specs handled
-── memory   · postgrest ──  recall 54/54 · precision clean
-── sqlite   · postgrest ──  recall 58/58 · precision clean
-── memory   · classic   ──  recall 53/53 · precision clean
-── memory   · linked    ──  recall 51/51 · precision clean
-── memory   · jsonapi   ──  recall 53/53 · precision clean
-── memory   · plain     ──  recall 46/46 · precision clean
-── combinations         ──  40/40 diagnosed correctly
+export default defineConfig({
+  baseUrl: "https://api.example.com",
+  spec: "https://api.example.com/openapi.json",
+  principals: [
+    {
+      id: "alpha",
+      headers: { authorization: `Bearer ${process.env.API_TOKEN}` },
+      roots: { project_id: process.env.PROJECT_A },
+    },
+    {
+      id: "beta",
+      headers: { authorization: `Bearer ${process.env.API_TOKEN_B}` },
+      roots: { project_id: process.env.PROJECT_B },
+    },
+  ],
+})
 ```
 
-Postgres is part of the same matrix when a server is reachable; a silent skip is a harness
-problem, not a clean result. D1 stays opt-in.
+Multi-step login is a chain of operations. Values flow forward through `saveAs`; the credential is taken from the last response:
 
-Every dialect added so far has immediately found a place where oat had generalised one layer and
-not the next:
-
-- **`linked`** — `q()` could not express a page as a row offset, so an offset-paged API received
-  no position parameter at all and returned page one every time; and the two central pagination
-  checks gated themselves on a `page` parameter existing, so they skipped silently, which reads
-  exactly like a clean result.
-- **`jsonapi`** — sort and select values were still hardcoded to one grammar each while every
-  parameter *name* was derived; and the alias matcher did not recognise `fields[table]` as the
-  `fields` role at all, because a bracketed suffix is a value carried in the parameter name rather
-  than part of the role's name.
-- **`plain`** — nine checks gated themselves on a `filter` *parameter* existing, so every one of
-  them skipped silently against an API that filters perfectly well, just per-field. They now ask
-  the question they actually mean: can an equality predicate be expressed here at all?
-
-The pattern is the same each time, and it is the one worth guarding against: a check that cannot
-express a request looks identical to a backend that ignores it.
-
-### The query matrix
-
-Testing each axis alone is not testing the query surface. Real backends break at the
-*combination*: adding a sort changes which index the planner picks and the filter stops being
-applied; a cursor is resolved before the filter, so page two leaks rows the predicate excluded; a
-count is computed on the unfiltered set the moment an order is present. Every one of those passes
-a suite that only ever varies one thing.
-
-| combination | |
-| --- | --- |
-| each axis alone — filter, sort, select, search, page | ✅ |
-| sort + paginate · filter + paginate | ✅ |
-| **filter + sort** | ✅ `query.axes-compose` |
-| **filter + select** | ✅ `query.filter-and-select-compose` |
-| **search + filter** | ✅ `query.search-and-filter-compose` |
-| **filter + sort + select** | ✅ `query.filter-sort-select-compose` |
-| **filter + search + sort** | ✅ `query.filter-search-sort-compose` |
-| **filter + search + select** | ✅ `query.filter-search-select-compose` |
-
-Each pair asserts a compositional property, so it needs no ground truth: a filter alone and the
-same filter with a sort or a select must return the same **set**; a filter and a search together
-must return the intersection of each axis alone. Ordering reorders a result; a projection changes
-columns; neither may change membership. Both sides are gathered across pages, because comparing
-two truncated windows of one set reports a difference that is only paging.
-
-The triples catch a planner that has a working two-axis path and a broken three-axis path —
-every pair check passes, and the filter vanishes only when both extra axes are present.
-
-The remaining cell is the four-axis request: filter + sort + select + search.
-
-### The bug this tool keeps having
-
-Five dialects in, the same defect has surfaced five times in five different places:
-
-> **A check that cannot express a request looks exactly like a backend that ignores one.**
-
-`q()` could not write a page as a row offset. Two pagination checks gated on a `page` parameter.
-Sort and select values were hardcoded to one grammar. The alias matcher did not recognise
-`fields[table]`. Nine filter checks gated on a `filter` parameter existing. Every instance was
-silent, and every one would have been reported as the user's bug rather than oat's.
-
-Each was found by adding a dialect and noticing the check count drop — which only works while
-someone is looking. So the count is now asserted. Each shape declares how many checks it is known
-to support, and a run that falls below it fails and **names the checks that stopped applying**:
-
-```
-✗ baseline (correct backend) VACUOUS  0  31 checks
-    only 31 check(s) ran, below the 38 this shape supports —
-    a check that stopped applying reads exactly like a clean result
-    did not run: filter.unknown-field-rejected, filter.equality-selects-exactly-one,
-                 filter.zero-match-returns-none, count.matches-filtered-set, …
+```ts
+{
+  id: "alpha",
+  auth: {
+    credentialFrom: "$.access_token",
+    steps: [{ operationId: "auth.token", body: { key: process.env.API_KEY } }],
+  },
+  roots: { org_id: "org_alpha" },
+}
 ```
 
-That output is from deliberately reintroducing the `plain` bug to confirm the guard catches it.
-The class is now detectable without waiting for a sixth dialect to expose it.
+`resolveOutOfBand` on the config is the hook for emailed tokens and OTPs. Credentials refresh from JWT `exp` before they expire. See [`labs/minimal.config.ts`](./labs/minimal.config.ts) and [`labs/anyrow.config.ts`](./labs/anyrow.config.ts).
 
-Where a shape genuinely cannot exhibit a defect — no cursor to drift, no total to miscount, no
-filter expression to malform — that defect is excluded by name rather than excused after the fact,
-so a check that merely failed to fire still counts as a miss.
+## OpenAPI meta tags
 
-The same reasoning cuts the other way, and `plain` is where it bites. Under one-parameter-per-field
-filtering an unrecognised query parameter being ignored is *conventional HTTP*, not a dropped
-predicate — so the check that asserts "a filter naming an unknown field must be rejected" does not
-apply there, and says so. Reporting it would fire against a large share of real APIs, which is how
-a tool earns a reputation for crying wolf.
+Vendor-neutral `x-*` extensions oat reads from your spec. Every one is **optional**. Precedence is always: **explicit tag → heuristic → skip with a coverage gap**.
 
-### Criss-cross: one fact, every projection
-
-A record's field value is not a thing sitting in a database. It is whatever each read path says
-it is — the item route, the collection, a sparse fieldset, a sorted page, a filter's membership
-decision. A system is consistent only if they all say the same thing.
-
-Every other check judges one projection against an expectation: does `filter` narrow, does
-`select` project, does the detail route serve what was written. All of them can pass while the
-projections contradict *each other* — the item route says `"active"`, the listing says
-`"pending"`, and each is individually defensible. A denormalised listing, a search index rebuilt
-on a lag, a cached projection: nobody notices until a client's view of a record depends on which
-route it happened to use.
-
-So oat traces a single field of a single record through every projection that can express it and
-requires them to agree, then checks that a filter matching that value actually returns the record.
-It cannot say which projection is wrong — only that at least one is, which is the honest claim.
-The report names each projection and what it returned, so the odd one out is visible at a glance.
-
-The reference value is the item route read *now*, not the value oat submitted: a backend is
-entitled to normalise what it stores, and holding every projection to the submitted value would
-report normalisation as inconsistency. Server-generated fields are excluded for the same reason —
-a progress counter or a derived count can legitimately move between two reads, and comparing those
-across projections measures timing rather than consistency.
-
-### Three properties a single request cannot reveal
-
-Most checks read one response and judge it. Two of the newest cannot work that way, and they are
-the ones that catch the quietest bugs.
-
-**Denials must not disclose existence.** Refusing a cross-tenant read is correct. Refusing it with
-a *different status* than an id that was never issued turns the item route into an oracle: walk
-the identifier space, read existence off the status code, and learn which of another tenant's ids
-are live without ever being served a body. The access decision looks right in every log. oat asks
-for a real record and an absent one and compares — whichever status the backend picks is fine,
-picking two different ones is not.
-
-**Idempotency keys must actually be honoured.** An API that publishes an `Idempotency-Key` header
-has promised replay safety, and clients rely on it to make retries safe. If the key is accepted
-and ignored, every timeout, proxy replay and double-click silently duplicates a charge or an
-order. Nothing in a single response reveals this — the request has to be replayed, and both halves
-checked: the replay must return the *original* record, and the collection must not have grown.
-
-**`x-invalidate` must be true.** This is the tag oat derives the whole entity graph from — it
-inverts every mutator's declared read routes into that entity's read surface — and until recently
-it was *believed* rather than tested. The interesting case is cross-entity: creating a child
-changes what the *parent* route serves, through a denormalised counter or a cached projection.
-Those go wrong quietly. The write succeeds, the child's own listing is correct, and only the other
-route the document named is stale. oat snapshots each declared foreign route, performs the write,
-and re-reads: a byte-identical body means either the derived value is stale or the declaration is
-wrong — and every client following it is invalidating the wrong cache key.
-
-None of the three needs a new meta tag. The idempotency header is read straight from the document,
-because an API that promises replay safety publishes the header, and the promise is what makes the
-property testable.
-
-### Combinations, not one bug at a time
-
-A backend with one defect is a fixture. Real ones carry several at once, and that is where a
-testing tool quietly stops being useful: a broken listing makes every downstream check report a
-consequence, and thirty findings with one root cause is nearly as useless as none.
-
-`oat conformance --fuzz` injects random *sets* of defects and asserts a stricter property than
-recall. Each injected defect must produce its own diagnosis — or be accounted for, either because
-a check it depends on was itself broken (cascade suppression working) or because the check ran and
-reported *why* it could not conclude. A check that simply goes quiet is a failure, because silence
-is indistinguishable from a pass.
-
-```
-oat conformance --fuzz 300 --max-defects 12 --backend sqlite
-300/300 combinations diagnosed correctly · 393 suppressed as cascades
-```
-
-Everything it found was invisible to the one-at-a-time matrix:
-
-| found | why it mattered |
-| --- | --- |
-| 136 silent early returns | a check that gave up mid-run reported nothing, reading exactly like a pass |
-| suppression was not transitive | if A was suppressed by B, a check depending on A ran anyway and re-reported B under its own name |
-| suppressed checks were dropped | a suppressed check has not *passed*, but the report implied it had |
-| `isComplete` trusted `hasMore` | a backend miscounting its total silently disabled every set-algebra check |
-| a probe wrote into an enum field | the backend rightly rejected it, and the rejection was read back as a lost update |
-| a check moved a record out of its tenant | it poisoned the shared cohort, 404-ing every check that ran after it |
-
-### Precision under varied data
-
-The fuzzer varies the *faults*. A second mode varies the *data*, against a backend with nothing
-wrong with it — so any finding at all is a false positive by construction:
-
-```
-oat conformance --precision 60
-60/60 cohorts produced no false positives
-```
-
-Every check builds its cohort from a seed: empty strings, LIKE metacharacters, unicode, nulls,
-lexical extremes. The suite had only ever used seed 42, and a property that holds at 42 but fails
-at 43 was never a property of the contract — it was a property of that one fixture.
-
-Findings that survive now carry three outcomes the report states separately — **blocked by an
-earlier failure**, **could not conclude**, and **did not apply** — because none of them is a pass,
-and a report showing only defects invites the reader to assume everything else was verified.
-
-oat's testing path never touches a database — it parses a specification and makes HTTP requests, and its
-runtime dependencies are `ajv`, `ajv-formats` and `yaml`. The reference backend ships because
-`oat serve` and `oat conformance` use it, but the SQL drivers are devDependencies and every store
-is loaded on demand — running against your own API pulls in none of them.
-
-Several of them, because the engines disagree in exactly the places an API contract is ambiguous —
-which makes them a differential oracle rather than copies of one test:
-
-| | SQLite | Postgres | D1 |
-| --- | --- | --- | --- |
-| `ORDER BY x ASC` nulls | first | **last** | first |
-| type discipline | loose — stores anything | **strict** — rejects it | loose |
-| collation | binary | **locale-aware** | binary |
-| `like` vs `ilike` | indistinguishable for ASCII | **genuinely different** | indistinguishable |
-| `SELECT "no_such_col"` | **error** | error | **returns `"no_such_col"` as data** |
-| latency per statement | none | none | **~290 ms, over the network** |
-
-That last pair is not a curiosity. SQLite's double-quoted-string fallback is compiled *off* in
-`node:sqlite` and *on* in D1, so a DDL/read naming mismatch that fails loudly in local development
-returns the column name as every row's value in production — verified against a live D1, not
-assumed:
-
-```
-node:sqlite   SELECT "no_such_col" →  ERROR: no such column
-D1            SELECT "no_such_col" →  [{ "v": "no_such_col" }]
-```
-
-It is worse than a wrong value. D1 returns the *unresolved identifier as the key*, quote
-characters and all, so a row selected with a mistyped column name comes back as:
-
-```json
-{ "id": "r1", "\"name\"": "name", "slug": "s1" }
-```
-
-The declared property is missing and an undeclared one has appeared — the response **shape** is
-corrupted, not just its contents. Every generated client breaks, and the schema check catches it
-as a second, independent symptom. None of this is reachable on an engine that compiles the
-fallback off, which is the entire argument for testing against a real remote engine rather than a
-local stand-in.
-
-A check that passes in memory but fails against SQL was relying on JavaScript semantics, not on
-the contract. Adding the SQL backend immediately exposed seven "passing" defects that had never
-actually reproduced the bug they named.
-
-Each backend is optional and skipped with a stated reason rather than silently passing: SQLite
-needs `node:sqlite` (`npm run conformance` passes the flag), Postgres needs a reachable server.
-Every Postgres run provisions its own scratch database and drops it on close.
-
-D1 is opt-in and never runs by default — it is remote, so every statement is a network round trip
-and a pass costs minutes. It runs the engine-sensitive defects only, since the rest are decided in
-the request handler where a remote engine re-derives an answer SQLite already gave for free:
+`oat conformance` loads [`labs/annotated-openapi.yaml`](./labs/annotated-openapi.yaml) and asserts the derived model matches what its comments claim, so the examples cannot drift from the implementation.
 
 ```bash
-export CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_D1_DATABASE_ID=... CLOUDFLARE_API_TOKEN=...
-oat conformance --backend d1
+oat plan   --spec openapi.yaml
+oat doctor --spec openapi.yaml
 ```
 
-Tables are prefixed per run and dropped on close, so concurrent runs can share one database.
+### `x-invalidate`
+
+```yaml
+x-invalidate:
+  - GET /v1/projects/{project_id}/tables
+  - GET /v1/projects/{project_id}/tables/{table_id}
+```
+
+`string[]` of `"METHOD /path"`. Names the read routes this mutation must change. Colon (`/tables/:id`) and brace (`/tables/{id}`) syntax both work; oat normalises to brace.
+
+This is the entity graph. Inverted, it gives every entity its *read surface* — the projections through which it is observable. Highest-value tag, and the one many specs already emit.
+
+**Fallback:** pair a mutator with the sibling collection and item routes on the same path prefix. Catches the obvious cases, misses cross-entity effects.
+
+### `x-entity`
+
+```yaml
+x-entity:
+  name: table
+  action: create        # create | list | read | update | delete | action
+  identity: id          # optional; property that identifies an instance
+```
+
+Overrides path-segment entity inference. Needed when the path does not follow `/<plural>/{id}`.
+
+`identity` matters when the item schema does not declare an `id` — for example free-form row objects.
+
+**Fallback:** deepest plural segment + HTTP verb. Irregular paths (`/rows/aggregate`) yield nothing and lose lifecycle tracking.
+
+### `x-invite`
+
+```yaml
+x-invite:
+  invite: table.invite       # operationId that creates the invite
+  accept: invite.accept      # operationId the invitee calls
+  revoke: table.revoke       # operationId that removes the grant
+  granteeField: key          # invite body field naming the invitee
+  tokenPointer: $.token      # where the accept token is
+  grantPointer: $.grant_id   # where the revoke handle is
+```
+
+Declares the delegated-access flow. oat asserts the timeline: the invitee cannot read before accept, can after, and cannot after revoke. Put the tag on the invite operation.
+
+The invitee's config must set `inviteAs` to the value the invite body expects.
+
+**Fallback:** the check does not run. There is no heuristic for a multi-step flow.
+
+### `x-query`
+
+```yaml
+x-query:
+  filterable: [id, name, slug, status, created_at]
+  sortable:   [name, created_at, updated_at]
+  searchable: [name, slug]
+  selectable: [id, name, slug, created_at]
+  maxLimit: 100
+  defaultOrder: created_at.desc
+  stableTiebreak: id
+```
+
+Declares what the list endpoint's `filter` / `order` / `q` / `select` params actually support.
+
+Without it, oat has to guess which fields are filterable from the item schema and will report false failures on fields the backend does not index.
+
+`stableTiebreak` is load-bearing: if a sort has no total order, keyset pagination is unsound and page walks silently drop or duplicate rows. Declaring it lets oat assert it; omitting it makes oat test for the instability instead.
+
+**Fallback:** if a filter / order / select / search *role* resolves (`sort`, `fields`, `q`, `where`, …), treat every scalar property as filterable/sortable and warn. Pagination-only lists stay uncovered.
+
+### `x-async`
+
+```yaml
+x-async:
+  poll: "GET /v1/projects/{project_id}/batches/{batch_id}"
+  idFrom: batch_id
+  until: "status.in.complete,partial,failed"
+  successWhen: "status.eq.complete"
+  timeoutMs: 120000
+  pollIntervalMs: 2000
+```
+
+Marks an operation whose HTTP response is a receipt, not an outcome. oat drives the poll to a terminal state, then treats that payload as the real result.
+
+Without this, every extract / export / batch endpoint is untestable beyond "did it return 200".
+
+**Fallback:** treated as synchronous; downstream assertions are marked `COVERAGE_GAP`.
+
+### `x-effects`
+
+```yaml
+x-effects:
+  - { entity: table, op: create, count: 1 }
+  - { entity: delivery, op: append, count: 1 }
+```
+
+`x-invalidate` says *this GET changes*; `x-effects` says *how*. That is what lets oat assert an exact delta (`count 4 → 5`, new id present) instead of a weak body inequality.
+
+Also tells oat to track and clean up resources created as side effects.
+
+`op`: `create` | `append` | `update` | `delete` | `replace`.
+
+**Fallback:** derived from `x-entity.action` for the operation's own entity only.
+
+### `x-soft-delete`
+
+```yaml
+x-soft-delete: deleted_at
+```
+
+On the entity's delete (or any operation on the entity). Tells oat that DELETE tombstones rather than removes.
+
+Changes the post-delete assertion from "absent everywhere" to "absent from the default list". Without this tag, correct soft-delete behaviour is reported as a bug.
+
+### `x-immutable` / `x-generated`
+
+```yaml
+x-immutable: [id, project_id, created_at]
+x-generated: [id, created_at, updated_at]
+```
+
+`x-generated` lets oat build valid create bodies without guessing, and assert the fields appear. `x-immutable` powers the update-safety case: PATCH each immutable field and require the stored value to be unchanged.
+
+**Fallback:** `readOnly: true` is honoured as generated; no immutability testing without the tag.
+
+### `x-tenant`
+
+```yaml
+x-tenant: project_id
+```
+
+Names the path parameter that scopes the operation to a tenant.
+
+Drives the isolation matrix: a second principal in another tenant must not see, read, or mutate the record — and `filter=id.eq.<other tenant's id>` must return empty rather than becoming an authz bypass.
+
+**Fallback:** regex over `{organization_id}`, `{project_id}`, `{tenant_id}`, `{workspace_id}`, `{app_slug}`. Without the tag, a cross-tenant read is an ambiguity, not a security finding.
+
+### `x-root`
+
+```yaml
+x-root: true
+```
+
+On a **path parameter**, not an operation. Declares that this resource has no create endpoint and must be supplied by config.
+
+**Fallback:** inferred when a path param has no discoverable create op; everything beneath it is reported `UNSEEDABLE`.
+
+### `x-cost` / `x-destructive` / `x-idempotent`
+
+```yaml
+x-cost: high            # low | medium | high
+x-destructive: true     # excluded outside --profile paranoid
+x-idempotent: true      # oat asserts repeat-equivalence
+```
+
+`x-cost: high` is why an extract runs once instead of inside a permutation loop.
+
+### `x-cleanup`
+
+```yaml
+x-cleanup: "DELETE /v1/projects/{project_id}/tables/{table_id}"
+```
+
+Explicit teardown when the delete op is not discoverable from the entity graph.
+
+**Fallback:** the entity's `delete` op; oat reports leaked resources at end of run if there is none.
+
+### `x-fresh-principal`
+
+```yaml
+x-fresh-principal: true
+```
+
+Operation mutates session or principal state and must run against a freshly provisioned principal (login, logout, token refresh, key rotation).
+
+## What gets tested
+
+55 property checks. None of them needs ground truth about what your data "should" be. A filter and its negation must partition the set; a page walk must cover the collection; a record read four ways must read the same.
+
+| group | examples |
+| --- | --- |
+| Foundations | create lands, schema matches, page size is honoured |
+| Query, single axis | filter, sort, search, select, cursor vs page, count |
+| Query, composition | filter+sort, filter+select, search+filter, and the triples |
+| Spec as adversary | declared filterable / sortable / selectable fields actually work |
+| Isolation | cross-tenant item, filter, and existence disclosure |
+| Authorization | rank is monotonic; invite grants then revokes |
+| Tagged behaviour | immutable, soft-delete, invalidate, effects, async |
+| Validation | enum, maxLength, required, content-type |
+| Writes | PATCH minimality, idempotency, delete 404, lost update |
+
+Every check reaches a stated outcome: a finding, *did not apply* (with what it needed), *blocked by an earlier failure* (with the cause), or *could not conclude* (with why). None of the last three is a pass.
+
+Findings are graded by how much the document states. A cross-tenant read is a security finding when `x-tenant` declares the boundary, and an ambiguity when oat only inferred it.
+
+## Reports
+
+A run writes:
+
+| file | |
+| --- | --- |
+| `oat-out/oat-report.md` | human report |
+| `oat-out/oat-report.json` | CI / machine copy |
+| `oat-out/issue-repro/*.sh` | one `curl` script per finding — omitted when the run is clean |
+| `oat-out/progress.log` | live logfmt progress (also `.jsonl` and `.tsv`) |
+
+Cascade suppression is transitive: one root cause produces one finding, not a page of consequences.
+
+## Conformance
+
+oat ships four reference backends — memory, SQLite, Postgres, and Cloudflare D1 — behind the same HTTP surface and the same 56 named defects. `oat conformance` injects each defect and asserts the matching diagnosis, then runs a correct backend and asserts nothing is reported.
+
+They are served in five dialects (`postgrest`, `classic`, `linked`, `jsonapi`, `plain`) so a check that only works on one spelling is visible.
+
+```bash
+npm test                         # memory + sqlite, every dialect
+oat conformance --fuzz 300       # random defect combinations
+oat conformance --precision 60   # varied data, correct backend — any finding is a false positive
+```
+
+The testing path never touches a database. Runtime dependencies are `ajv`, `ajv-formats`, and `yaml`. SQL drivers are optional and loaded on demand.
 
 ## What this is not
 
-oat is not a fuzzer. Tools like [Schemathesis](https://schemathesis.readthedocs.io/) generate
-inputs from your schema and check the responses validate against it — that finds crashes, 500s
-and schema drift, it is genuinely good at it, and oat does not replace it. Run both.
+oat is not a fuzzer. Tools like [Schemathesis](https://schemathesis.readthedocs.io/) generate inputs from your schema and check that responses validate — that finds crashes, 500s, and schema drift. Run both.
 
-The difference is *statefulness*. A fuzzer sends independent requests and has no model of what
-the API should now contain, so it cannot ask whether the record it just created appears in the
-listing, whether a filter and its negation partition the set, or whether the record another
-tenant can read is one they should see. Those need a shadow model, a real login, and more than
-one identity — which is where oat's design goes:
+The difference is *statefulness*. A fuzzer sends independent requests and has no model of what the API should now contain, so it cannot ask whether the record it just created appears in the listing, whether a filter and its negation partition the set, or whether another tenant can read a record they should not see.
 
 | | schema fuzzers | oat |
 | --- | --- | --- |
-| multi-step auth flow | header injection | declarative chain, JSON-path binding |
-| out-of-band token (email link, OTP) | — | `resolveOutOfBand` hook |
-| credential self-refresh mid-run | — | JWT `exp` decode, refreshes before expiry |
-| expected-state oracle | none by design | shadow model of everything it created |
-| N live principals | — | yes (peer tenants + optional rank lattice) |
+| multi-step auth | header injection | declarative chain, JSON-path binding |
+| out-of-band token | — | `resolveOutOfBand` hook |
+| credential refresh | — | JWT `exp`, refreshes before expiry |
+| expected-state oracle | none | shadow model of everything it created |
+| N live principals | — | peer tenants + optional rank lattice |
 | cross-tenant read / filter / disclosure | — | 3 checks |
-| stateful invariants across a flow | random walk, no oracle | 55 property checks |
-| API-shape portability | — | 5 dialects, roles resolved from the document |
-| **N-role permission matrix** | — | monotonicity over `rank` |
-| **invite / delegated access** | — | `x-invite` timeline |
+| stateful invariants | random walk | 55 property checks |
+| N-role permission matrix | — | monotonicity over `rank` |
+| invite / delegated access | — | `x-invite` timeline |
 
-The last two rows used to be the honest gaps. They are now in the suite — rank
-monotonicity and the invite/accept/revoke timeline — and `oat conformance` asserts them.
+## Labs
 
-## Status
+[`labs/`](./labs) is a family of real Hono backends on Cloudflare D1, used to iterate oat against correct APIs and planted bugs. Schema is generated from [`labs/worlds/catalog.ts`](./labs/worlds/catalog.ts). See [`labs/README.md`](./labs/README.md).
 
-Early but real. Working today:
+## License
 
-- spec load + dereference (internal `$ref`, cycle-safe; external refs reported, never fetched)
-- entity graph derived by inverting `x-invalidate` into per-entity read surfaces
-- collection shape and identity derived from response schemas
-- world seeding with a discriminating cohort, resolved topologically once per run
-- query conventions derived from the document rather than assumed — parameter *roles*
-  (`per_page`, `starting_after`, `page_size`) and envelope keys (`total_count`, `has_more`) are
-  resolved by alias and schema shape, so checks are not tied to one API's spelling
-- every check reaches a stated outcome — a finding, a *did not apply* with what it needed, a
-  *blocked by an earlier failure* naming the cause, or a *could not conclude* with the reason.
-  None of the last three is a pass, and a report that showed only findings let a reader assume
-  everything else had been verified
-- 41 checks: read-after-write, cross-projection agreement, filter/sort/search semantics,
-  pagination properties, write fidelity, idempotent replay, declared invalidation, input
-  validation, schema conformance, tenant isolation and existence disclosure, declared side
-  effects, async lifecycles
-- set-algebra checks gather their sets across pages, so they hold on collections larger than one
-  page rather than standing down on them
-- cascade suppression, transitively — one root cause produces one finding, not a page of
-  consequences, and a check blocked by a blocked check is blocked too
-- declarative multi-step auth with self-refreshing credentials, and an out-of-band hook for
-  values that never travel over HTTP
-- teardown of everything a run creates, including the principals it provisioned
-- markdown / JSON reports plus a runnable `curl` reproducer per finding
-- `oat run`, `oat plan`, `oat doctor`, `oat conformance` (`--fuzz`, `--precision`, `--backend`,
-  `--dialect`)
-
-Findings are graded by how much the document actually states: a cross-tenant read is a security
-finding when `x-tenant` declares the boundary, and an ambiguity when oat only inferred it.
-
-See [DESIGN.md](./DESIGN.md) for the full architecture.
+MIT

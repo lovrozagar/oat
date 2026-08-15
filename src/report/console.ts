@@ -256,7 +256,7 @@ function doctor(
 		lines.push("  gaps by tag")
 		const sorted = [...byTag.entries()].sort((a, b) => b[1].length - a[1].length)
 		for (const [tag, gapList] of sorted) {
-			const remedy = TAG_REMEDY[tag] ?? "see EXTENSIONS.md"
+			const remedy = TAG_REMEDY[tag] ?? "see the README"
 			lines.push(`    ${tag} (${gapList.length}) — ${remedy}`)
 			for (const gap of gapList.slice(0, 4)) {
 				lines.push(`      ${gap.operationId}: ${gap.detail}`)
