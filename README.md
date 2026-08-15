@@ -1322,6 +1322,8 @@ Types exported: `OatConfig`, `Principal`, `AuthFlow`, `AuthStep`, `Hooks`, `RunO
 
 This repository runs [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) on every push and pull request to `main`: format, lint, typecheck, then `npm test` (conformance on memory + sqlite + postgres, plus the built-in combination smoke). D1 and the live labs Workers are not in that job — they need Cloudflare credentials and a provisioned database.
 
+The package is [`@lovrozagar/oat` on npm](https://www.npmjs.com/package/@lovrozagar/oat). That URL is the repository website. GitHub Releases match npm versions. Pushing a tag `vX.Y.Z` (same as `package.json` `version`) runs [`.github/workflows/release.yml`](./.github/workflows/release.yml): test, `npm publish` via trusted publishing, then a GitHub Release. Configure the trusted publisher once on npm (package Settings → Trusted Publisher → GitHub Actions, workflow `release.yml`, no environment). Do not publish to GitHub Packages — people install from the public npm registry.
+
 Against **your** API:
 
 ```yaml
