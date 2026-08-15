@@ -54,19 +54,20 @@
 		"access": "public"
 	},
 	"scripts": {
+		"prepare": "git config --get core.hooksPath >/dev/null || git config core.hooksPath .githooks || true",
 		"build": "tsc -p tsconfig.json",
 		"dev": "tsc -p tsconfig.json --watch",
 		"check": "tsc -p tsconfig.json --noEmit",
-		"test": "npm run build && node --experimental-sqlite dist/cli.js conformance",
+		"test": "bun run build && node --experimental-sqlite dist/cli.js conformance",
 		"conformance": "node --experimental-sqlite dist/cli.js conformance",
-		"demo": "npm run build && node labs/demo.mjs",
+		"demo": "bun run build && node labs/demo.mjs",
 		"labs": "node --experimental-strip-types labs/serve.ts",
 		"labs:sweep": "bash labs/sweep.sh",
 		"lint": "oxlint",
 		"lint:fix": "oxlint --fix",
 		"fmt": "oxfmt",
 		"fmt:check": "oxfmt --check",
-		"prepublishOnly": "npm run build"
+		"prepublishOnly": "bun run build"
 	},
 	"dependencies": {
 		"ajv": "^8.17.1",
@@ -84,5 +85,6 @@
 	},
 	"engines": {
 		"node": ">=20"
-	}
+	},
+	"packageManager": "bun@1.3.11"
 }
