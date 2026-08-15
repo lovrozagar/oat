@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to publish (e.g. v0.1.1). Empty = this ref."
+        required: false
+        default: ""
 
 concurrency:
   group: release-${{ github.ref }}
@@ -12,14 +18,29 @@ concurrency:
 permissions:
   contents: write
   id-token: write
+  packages: write
 
 jobs:
-  publish:
-    name: npm + GitHub Release
+  test:
+    name: test
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  npmjs:
+    name: npmjs.com
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
-      contents: write
+      contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v6
@@ -28,38 +49,85 @@ jobs:
           node-version: "24"
           package-manager-cache: false
       - run: npm ci
-      - run: npm test
+      - run: npm run build
+      - run: npm install -g npm@latest
       - name: Check tag matches package.json
         run: |
-          tag="${GITHUB_REF_NAME#v}"
+          ref="${{ inputs.tag || github.ref_name }}"
+          tag="${ref#v}"
           pkg="$(node -p "require('./package.json').version")"
           if [ "$tag" != "$pkg" ]; then
             echo "tag v$tag does not match package.json version $pkg"
             exit 1
           fi
-      - run: npm install -g npm@latest
-      - name: Show OIDC and npm versions
+      - name: Publish to registry.npmjs.org
         run: |
-          npm --version
-          node --version
-          test -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" && echo "OIDC request URL is set" || echo "OIDC request URL is missing"
-      - name: Publish to npm
-        run: |
-          tag="${GITHUB_REF_NAME#v}"
+          ref="${{ inputs.tag || github.ref_name }}"
+          tag="${ref#v}"
           if npm view "@lovrozagar/oat@$tag" version >/dev/null 2>&1; then
-            echo "npm already has @lovrozagar/oat@$tag — skipping publish"
-          else
-            npm publish --access public
+            echo "npm already has @lovrozagar/oat@$tag — skipping"
+            exit 0
           fi
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "OIDC request URL/token missing — id-token: write is not in effect"
+            exit 1
+          fi
+          # npm CLI on GitHub should do this itself; request the audience npm documents
+          # and feed it as NPM_ID_TOKEN so a silent GitHub-path miss still authenticates.
+          oidc_json="$(curl -fsSL \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=npm:registry.npmjs.org")"
+          NPM_ID_TOKEN="$(node -e "const j=JSON.parse(process.argv[1]); if(!j.value) process.exit(2); process.stdout.write(j.value)" "$oidc_json")"
+          export NPM_ID_TOKEN
+          npm --version
+          npm publish --access public --provenance
+
+  gh-pkg:
+    name: GitHub Packages
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: https://npm.pkg.github.com
+          scope: "@lovrozagar"
+          package-manager-cache: false
+      - run: npm ci
+      - run: npm run build
+      - name: Publish to GitHub Packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ref="${{ inputs.tag || github.ref_name }}"
+          tag="${ref#v}"
+          if npm view "@lovrozagar/oat@$tag" --registry https://npm.pkg.github.com version >/dev/null 2>&1; then
+            echo "GitHub Packages already has @lovrozagar/oat@$tag — skipping"
+            exit 0
+          fi
+          npm publish --access public
+
+  github-release:
+    name: GitHub Release
+    needs: [npmjs, gh-pkg]
+    if: ${{ !cancelled() && needs.gh-pkg.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            echo "GitHub release $GITHUB_REF_NAME already exists"
+          tag="${{ inputs.tag || github.ref_name }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "GitHub release $tag already exists"
           else
-            gh release create "$GITHUB_REF_NAME" \
-              --verify-tag \
-              --generate-notes \
-              --title "${GITHUB_REF_NAME#v}"
+            gh release create "$tag" --generate-notes --title "${tag#v}"
           fi

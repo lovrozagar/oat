@@ -47,5 +47,13 @@ jobs:
       - name: CLI smoke
         run: |
           node dist/cli.js help
+          # annotated spec has roots and missing tags — doctor exit 1 is advisory/blocking, not a crash
+          set +e
           node dist/cli.js doctor --spec labs/annotated-openapi.yaml
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ] && [ "$code" -ne 1 ]; then
+            echo "doctor exited $code"
+            exit "$code"
+          fi
           node dist/cli.js plan --spec labs/annotated-openapi.yaml --json > /tmp/oat-plan.json

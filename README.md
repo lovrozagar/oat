@@ -1,18 +1,36 @@
 # oat
 
-OpenAPI Tester — behavioural testing of a live backend against its OpenAPI specification.
+[![npm](https://img.shields.io/npm/v/@lovrozagar/oat.svg)](https://www.npmjs.com/package/@lovrozagar/oat)
 
-Schema validators answer _did this response match its declared shape?_ Most real API bugs do not violate a schema:
+```bash
+npm i -D @lovrozagar/oat
+```
 
-- a resource exists on `GET /tables/{id}` but not on `GET /tables`
-- `?filter=status.eq.nope` returns every row, because the backend dropped the param
-- paging at `limit=2` yields 9 rows; `limit=100` yields 10 — the sort has no total order
+OpenAPI Tester — live **matrix testing** of a backend against its own OpenAPI document.
+
+It reads the spec, talks to the running API, and treats every way to see a record as a cell in a matrix. Then it checks that those cells agree. It does not read your source, assume your framework, or hardcode a route.
+
+A single-response check asks _did this JSON match its schema?_ oat asks that on every request it sends — generated bodies, 4xx probes, 500s, documented statuses. Most production bugs still pass that test:
+
+- the row is on `GET /tables/{id}` and missing from `GET /tables`
+- `?filter=status.eq.nope` returns every row (the backend dropped the param)
+- `limit=2` yields 9 rows; `limit=100` yields 10 (the sort has no total order)
 - `PATCH { name }` also cleared `instruction`
 - `?filter=id.eq.<another tenant's id>` returns the row
 
-oat asserts the same fact through every projection the API offers, then compares those projections against each other. It does not read your source, assume your framework, or hardcode a route.
+Those are disagreements between **projections of the same fact**. That is the matrix.
 
-This file is the whole operator manual. An agent that has read it can install oat, write every kind of config, run every command, tag a document, interpret every outcome, and know what each check needs and asserts. You do not need any other file to use oat against your own API.
+**How the matrix is built.** oat inverts `x-invalidate` (or path heuristics) into an entity graph. Each entity gets a _read surface_: collection, item, filter, sort, page, cursor, select, search, parent routes, other tenants. It seeds a discriminating cohort (values whose lexical and numeric order disagree, LIKE metacharacters, unicode, nulls). Then it walks:
+
+- **foundations** — create landed, the page walk covers the set, equality selects one, sort actually sorts
+- **composition** — filter+sort, filter+select, search+filter, the triples; a filter must apply to the _collection_, not to the current page
+- **writes** — PATCH is minimal, immutable fields stay put, two PATCHes do not clobber, replay does not duplicate
+- **isolation** — a second principal with different `roots`, a same-tenant rank lattice, an invite that grants and then revokes
+- **spec as adversary** — every field you _declared_ filterable / sortable / selectable actually is
+
+There is no ground-truth database. A filter and its negation must partition the set. A page walk must cover the collection without gaps or dupes. List, item, and `id.eq.` must show the same field. One root cause is one finding; checks that depend on a broken primitive are `BLOCKED`, not a page of copies.
+
+This file is the operator manual. An agent that has read it can install oat, write every kind of config, run every command, tag a document, interpret every outcome, and know what each check needs and asserts.
 
 ## Table of contents
 
@@ -46,7 +64,7 @@ This file is the whole operator manual. An agent that has read it can install oa
 - [CI](#ci)
 - [Reference defects (`oat serve --defects`)](#reference-defects-oat-serve---defects)
 - [Limits and non-features](#limits-and-non-features)
-- [What this is not](#what-this-is-not)
+- [Compared to schema fuzzers](#compared-to-schema-fuzzers)
 - [Labs](#labs)
 - [License](#license)
 
@@ -75,7 +93,7 @@ Unknown commands and missing required flags exit `2`.
 2. **Model** entities by inverting `x-invalidate` (or path heuristics) into a read surface per entity.
 3. **Authenticate** every configured principal (static headers and/or an auth flow). Credentials refresh themselves before they expire.
 4. **Seed** a cohort of records per entity, in parent-before-child order, using each entity's create operation.
-5. **Test** every applicable check, one entity at a time. Checks inside an entity stay ordered. Entities may run in parallel (`concurrency`).
+5. **Test** the matrix, one entity at a time: foundations first, then composition, writes, isolation, declared effects. Checks inside an entity stay ordered. Entities may run in parallel (`concurrency`).
 6. **Teardown** everything the run created, unless `--keep-fixtures` / `keepFixtures: true`.
 
 The first principal is the writer. Isolation needs a second principal with different `roots`. A rank lattice needs two or more principals that share `roots` and differ in `rank`. Invite checks need `x-invite` plus a peer with `inviteAs`.
@@ -1441,18 +1459,26 @@ These are deliberate. An agent should not invent a flag for them.
 - **Default cohort is 7.** `pagination.limit-respects-documented-max` needs `cohortSize > maxLimit`.
 - **First principal is the writer.** Extra principals are peers / lattice, not a pool of writers.
 
-## What this is not
+## Compared to schema fuzzers
 
-oat is not a fuzzer. Tools like [Schemathesis](https://schemathesis.readthedocs.io/) generate inputs from your schema and check that responses validate. Run both.
+Tools like [Schemathesis](https://schemathesis.readthedocs.io/) generate request bodies from the OpenAPI schema and check that each response validates, is not a 5xx, and matches a documented status.
 
-|                       | schema fuzzers   | oat                                   |
-| --------------------- | ---------------- | ------------------------------------- |
-| multi-step auth       | header injection | declarative chain, JSON-path binding  |
-| out-of-band token     | —                | `resolveOutOfBand`                    |
-| credential refresh    | —                | JWT `exp`                             |
-| expected-state oracle | none             | shadow model of everything it created |
-| N live principals     | —                | peer tenants + rank lattice           |
-| stateful invariants   | random walk      | 55 property checks                    |
+oat does that on the traffic it sends: create/update bodies come from the schema; `validation.*` and `schema.*` catch drift; `error.malformed-filter-not-5xx` fails a 500. You do not need a second tool for “send OpenAPI-shaped requests and watch for 500s.”
+
+What they cannot do — and what oat is for — is **state**. A fuzzer’s requests are independent. It has no model of the row it just created, so it cannot ask whether that row appears on the list, whether a filter and its negation partition the set, whether `GET` item and `GET` list agree, or whether another tenant can read it. oat keeps a shadow of everything it wrote and matrix-tests those projections against each other.
+
+|                               | schema fuzzer           | oat                                                               |
+| ----------------------------- | ----------------------- | ----------------------------------------------------------------- |
+| generate bodies from schema   | yes                     | yes                                                               |
+| catch 500 / schema drift      | yes                     | yes (`schema.*`, `validation.*`, malformed → 5xx)                 |
+| remember what it created      | no                      | shadow model of the cohort                                        |
+| same fact, every projection   | no                      | the matrix (list / item / filter / sort / page / tenant / parent) |
+| filter ∩ negation = universe  | no                      | `filter.negation-partitions-the-set`                              |
+| page walk covers the set      | no                      | `pagination.page-walk-covers-set`                                 |
+| N live principals             | header injection        | peer tenants + rank lattice + invite timeline                     |
+| multi-step / out-of-band auth | usually a static header | declarative chain, `resolveOutOfBand`, JWT refresh                |
+
+They are not a peer you should also run for coverage oat misses. The implication is one way.
 
 Runtime dependencies of a run against _your_ API: `ajv`, `ajv-formats`, `yaml`. SQL drivers are optional and only loaded for `oat serve` / `oat conformance`.
 

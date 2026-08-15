@@ -1,7 +1,7 @@
 {
 	"name": "@lovrozagar/oat",
 	"version": "0.1.1",
-	"description": "OpenAPI Tester — behavioural testing of a live backend against its OpenAPI specification",
+	"description": "OpenAPI Tester — matrix-test a live API against its OpenAPI spec",
 	"keywords": [
 		"api",
 		"contract-testing",
