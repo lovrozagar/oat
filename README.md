@@ -1271,7 +1271,7 @@ Gate in CI on process exit code, or on `findings` whose `verdict` is not `COVERA
 				{
 					"id": "product/patch.minimality",
 					"group": "product",
-					"layer": "weft",
+					"layer": "axis",
 					"status": "failed",
 					"verdict": "BACKEND_BUG",
 					"summary": "…"
@@ -1293,7 +1293,7 @@ Gate in CI on process exit code, or on `findings` whose `verdict` is not `COVERA
 }
 ```
 
-Cell `status`: `held` (passed), `failed`, `blocked`, `skipped`. Edge `kind`: `dependsOn` (cascade) or `uses` (a later check that builds on a warp primitive).
+Cell `status`: `held` (passed), `failed`, `blocked`, `skipped`. Edge `kind`: `dependsOn` (cascade) or `uses` (a composition check built from a single-axis check).
 
 ### `issue-repro/<entity>-<check>.sh`
 

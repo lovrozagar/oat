@@ -1,9 +1,10 @@
 /**
  * Poster + machine graph of how oat crossed the entities in a run.
  *
- * One entity is a loom: warp windows on one cohort, weft cells woven only if the warp holds.
- * Several entities add a second graph on top — `x-invalidate` edges from a writer to another
- * entity's read surface. That is the claim `invalidation.declared-route-changes` actually tests.
+ * One entity gets its own graph: single-axis checks (filter, sort, search, select, page/count)
+ * on one cohort, composition checks that only run once every axis they combine has held. Several
+ * entities add a second graph on top — `x-invalidate` edges from a writer to another entity's
+ * read surface. That is the claim `invalidation.declared-route-changes` actually tests.
  */
 
 import { CHECKS } from "../runtime/checks.ts"
@@ -11,7 +12,7 @@ import type { SpecModel } from "../spec/graph.ts"
 import type { ReportInput } from "./render.ts"
 
 export type CellStatus = "held" | "failed" | "blocked" | "skipped"
-export type MatrixLayer = "warp" | "weft" | "surface" | "auth" | "schema" | "spec"
+export type MatrixLayer = "axis" | "composition" | "surface" | "auth" | "schema" | "spec"
 
 export interface MatrixView {
 	entity: string
@@ -47,7 +48,7 @@ export interface MatrixGraphNode {
 export interface MatrixGraphEdge {
 	from: string
 	to: string
-	/** `dependsOn`: if `from` failed, `to` is blocked. `uses`: weft cell woven from this warp. */
+	/** `dependsOn`: if `from` failed, `to` is blocked. `uses`: a composition check built from `from`. */
 	kind: "dependsOn" | "uses"
 }
 
@@ -148,13 +149,13 @@ const USES: ReadonlyArray<{ from: string; to: string }> = [
 ]
 
 const GROUP_LAYER: Record<string, MatrixLayer> = {
-	composition: "weft",
-	filter: "warp",
-	"page / count": "warp",
+	composition: "composition",
+	filter: "axis",
+	"page / count": "axis",
 	schema: "schema",
-	search: "warp",
-	select: "warp",
-	sort: "warp",
+	search: "axis",
+	select: "axis",
+	sort: "axis",
 	"spec promise": "spec",
 	"who may see it": "auth",
 	"write / surface": "surface",
@@ -450,17 +451,17 @@ function assembleGraph(
 				dependsOn: "if `from` failed, `to` is blocked. Do not treat blocked as a second defect.",
 				invalidate:
 					"a write on `fromEntity` is declared to change `toRoute` on `toEntity`. `cross` is the case the invalidation check probes.",
-				uses: "weft composition cell woven from this warp window",
+				uses: "`to` is a composition check (e.g. query.axes-compose) built from the single-axis check `from`.",
 			},
 			purpose:
-				"How oat crossed the entities in this run. Each entity is an independent loom. " +
-				"`invalidate` edges are x-invalidate claims. failed = two windows disagreed. " +
-				"blocked = a dependsOn already failed — not a second defect.",
+				"How oat crossed the entities in this run. Each entity's checks are tracked independently. " +
+				"`invalidate` edges are x-invalidate claims. failed = two projections of the same fact " +
+				"disagreed. blocked = a dependsOn check already failed — not a second defect.",
 			status: {
 				blocked: "not evaluated; a dependsOn check already failed",
 				failed: "two projections of the same fact disagreed — a finding",
 				held: "tested, and the projections agreed",
-				skipped: "this document has no window for the check",
+				skipped: "the document does not support this check",
 			},
 		},
 		summary,
@@ -510,7 +511,7 @@ function thesisFor(entities: EntityMatrix[], cross: InvalidateLink[]): string {
 	if (failed.length > 0) {
 		const first = failed[0]
 		if (first === undefined) return ""
-		return `${first.name} had a window that disagreed. Weft cells that use it stood down — they are not extra defects.`
+		return `${first.name} had a check that disagreed. Composition checks that depend on it stood down — not extra defects.`
 	}
 	if (entities.length === 1 && cross.length === 0) {
 		return "One entity. Invalidate stays on its own read surface, so the cross-entity check did not apply."
@@ -523,7 +524,7 @@ function thesisFor(entities: EntityMatrix[], cross: InvalidateLink[]): string {
 		const pairs = unique(cross.map((l) => `${l.fromEntity} writes must change ${l.toEntity}`))
 		return `${entities.length} entities. ${pairs.join("; ")} — that claim was tested, not believed.`
 	}
-	return `${entities.length} entities. Every independent window agreed.`
+	return `${entities.length} entities. Every check that applied agreed.`
 }
 
 function unique(values: string[]): string[] {
@@ -559,7 +560,7 @@ function mermaidFromGraph(entities: EntityMatrix[], invalidate: InvalidateLink[]
 			const sid = mid(`${focus.name}__${spec.id}`)
 			lines.push(`  ${sid}["${spec.label}"]`)
 			if (
-				node.layer === "warp" ||
+				node.layer === "axis" ||
 				spec.id === "list.read-after-write" ||
 				spec.id === "tenant.item-not-readable-cross-tenant"
 			) {
@@ -697,15 +698,15 @@ function renderPoster(graph: MatrixGraph): string {
 <article class="poster">
   <header>
     <div>
-      <div class="kicker">${multi ? "many entities · invalidate is an edge" : "same fact · many windows"}</div>
+      <div class="kicker">${multi ? "many entities · invalidate is an edge" : "same fact · many checks"}</div>
       <h1>${headerTitle(graph)}</h1>
       <p class="thesis">${esc(graph.thesis)}</p>
     </div>
     <div class="counts">
       <div class="failed"><b>${graph.counts.failed}</b><span>disagreed</span></div>
-      <div class="blocked"><b>${graph.counts.blocked}</b><span>not woven</span></div>
+      <div class="blocked"><b>${graph.counts.blocked}</b><span>blocked</span></div>
       <div class="held"><b>${graph.counts.held}</b><span>agreed</span></div>
-      <div class="skipped"><b>${graph.counts.skipped}</b><span>no window</span></div>
+      <div class="skipped"><b>${graph.counts.skipped}</b><span>did not apply</span></div>
     </div>
   </header>
 
@@ -722,13 +723,13 @@ function renderPoster(graph: MatrixGraph): string {
   ${crowded ? forestSummary(graph) : ""}
 
   <div class="stage">
-    <div class="stage-label">${focus === undefined ? "loom" : `loom — ${focus.name}`}</div>
+    <div class="stage-label">${focus === undefined ? "checks" : `checks — ${focus.name}`}</div>
     ${loom}
     <div class="legend">
       <span><i class="swatch held"></i>agreed</span>
       <span><i class="swatch failed"></i>disagreed — a finding</span>
-      <span><i class="swatch blocked"></i>not woven — waiting on a snapped thread</span>
-      <span><i class="swatch skipped"></i>no window in this document</span>
+      <span><i class="swatch blocked"></i>blocked — an earlier check it depends on already failed</span>
+      <span><i class="swatch skipped"></i>did not apply — the document has no support for this check</span>
     </div>
   </div>
 
@@ -874,8 +875,8 @@ function forestSummary(graph: MatrixGraph): string {
     </div>`
 	})
 	return `<div class="crowd-note">
-    ${held.length} entities agreed on every window that applied.
-    ${failed.length === 0 ? "Showing the loom for one writer, not 200 pins." : `Showing ${failed.length} entities that disagreed.`}
+    ${held.length} entities agreed on every check that applied.
+    ${failed.length === 0 ? "Showing the detail view for one writer, not all 200 entities." : `Showing ${failed.length} entities that disagreed.`}
   </div>
   ${cards.length > 0 ? `<div class="cards">${cards.join("")}</div>` : ""}`
 }
@@ -1008,9 +1009,9 @@ function loomSvg(focus: EntityMatrix): string {
 		)
 	})
 
-	return `<svg viewBox="0 0 1120 540" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Query loom for ${esc(focus.name)}">
-    <text x="48" y="24" fill="#9aa3b2" font-size="11" letter-spacing="2" font-family="IBM Plex Mono, monospace">WINDOWS</text>
-    <text x="360" y="24" fill="#9aa3b2" font-size="11" letter-spacing="2" font-family="IBM Plex Mono, monospace">WARP</text>
+	return `<svg viewBox="0 0 1120 540" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Query checks for ${esc(focus.name)}">
+    <text x="48" y="24" fill="#9aa3b2" font-size="11" letter-spacing="2" font-family="IBM Plex Mono, monospace">READS</text>
+    <text x="360" y="24" fill="#9aa3b2" font-size="11" letter-spacing="2" font-family="IBM Plex Mono, monospace">AXES</text>
     <text x="650" y="24" fill="#9aa3b2" font-size="11" letter-spacing="2" font-family="IBM Plex Mono, monospace">PAIRS</text>
     <text x="930" y="24" fill="#9aa3b2" font-size="11" letter-spacing="2" font-family="IBM Plex Mono, monospace">TRIPLES</text>
     ${lines.join("\n")}
