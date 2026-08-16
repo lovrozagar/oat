@@ -60,6 +60,7 @@
 		"check": "tsc -p tsconfig.json --noEmit",
 		"test": "bun run build && node --experimental-sqlite dist/cli.js conformance",
 		"conformance": "node --experimental-sqlite dist/cli.js conformance",
+		"bisect": "node --experimental-sqlite labs/bisect.mjs",
 		"demo": "bun run build && node labs/demo.mjs",
 		"labs": "node --experimental-strip-types labs/serve.ts",
 		"labs:sweep": "bash labs/sweep.sh",
