@@ -1301,6 +1301,8 @@ const patchMinimality: Check = {
 		const drifting = new Set<string>([
 			"updated_at",
 			"modified_at",
+			/* A job's progress counter advances on GET without this PATCH having written it. */
+			"progress",
 			/*
 			 * From both operations, not just the one being probed. A document commonly declares
 			 * its server-owned fields on `create` — that is where they are conspicuous, being the

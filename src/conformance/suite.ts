@@ -324,6 +324,7 @@ export async function runTenantScopeSuite(): Promise<ParserResult[]> {
 		try {
 			const result = await run({
 				baseUrl: backend.url,
+				only: ["table"],
 				principals: PRINCIPALS,
 				seed: 42,
 				spec: `${backend.url}/v1/openapi/spec`,

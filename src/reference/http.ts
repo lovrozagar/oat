@@ -629,7 +629,8 @@ export async function createReferenceServer(
 				if (defects.has("CREATE_DROPS_FIELD")) delete input.description
 				const record = withDefaults(entity, input, { ...scope, project_id: principal.projectId })
 				const created = await store.insert(entity, record)
-				if (entity.name === "job") jobStartedAt.set(String(created.id), Date.now())
+				/* Progress starts on POST .../jobs/start, not on create. A seeded job that
+				 * ticks for 60ms looks like a PATCH side effect once x-generated is stripped. */
 				await refreshParentCount(entity, scope, principal)
 				if (replayKey !== null) idempotent.set(replayKey, created)
 				return send(res, defects.has("CREATED_201_AS_200") ? 200 : 201, decorate(created))
