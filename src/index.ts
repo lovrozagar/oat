@@ -11,6 +11,10 @@ export type {
 	ProfileSpec,
 	RateLimitSpec,
 	RequestStep,
+	UploadFile,
+	UploadRequest,
+	UploadResolution,
+	Uploads,
 } from "./config/define-config.ts"
 export { loadConfig } from "./config/load.ts"
 export { deriveCollectionShape, deriveIdentity } from "./spec/collection.ts"

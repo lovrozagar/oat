@@ -13,6 +13,7 @@ export interface ParameterObject {
 
 export interface MediaTypeObject {
 	schema?: SchemaObject
+	encoding?: Record<string, { contentType?: string }>
 }
 
 export interface ResponseObject {

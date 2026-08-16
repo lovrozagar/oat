@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createWriteStream, writeFileSync } from "node:fs"
 import { mkdir, rm, writeFile } from "node:fs/promises"
-import { resolve } from "node:path"
+import { dirname, resolve } from "node:path"
 import { interpolate, loadConfig } from "./config/load.ts"
 import { report } from "./report/console.ts"
 import { renderMatrixGraph, renderMatrixHtml } from "./report/matrix.ts"
@@ -148,8 +148,10 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 			baseUrl,
 			principals,
 			spec: config.spec,
+			configDir: dirname(resolve(configPath)),
 			...(config.globalHeaders === undefined ? {} : { globalHeaders: config.globalHeaders }),
 			...(config.hooks === undefined ? {} : { hooks: config.hooks }),
+			...(config.uploads === undefined ? {} : { uploads: config.uploads }),
 			...(config.roots === undefined ? {} : { roots: config.roots }),
 			...(config.cohortSize === undefined ? {} : { cohortSize: config.cohortSize }),
 			...(only === undefined || only.length === 0 ? {} : { only }),

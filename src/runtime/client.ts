@@ -12,6 +12,17 @@ export interface Exchange {
 	responseHeaders: Record<string, string>
 	responseBody: unknown
 	durationMs: number
+	/** Wall clock when the response finished, unix ms. */
+	at: number
+	/** Reconstructed HTTP/1.1 request size: start line, headers, body. */
+	requestBytes: number
+	/** Reconstructed HTTP/1.1 response size: start line, headers, body. */
+	responseBytes: number
+	/**
+	 * `x-request-id` / `request-id` / `x-correlation-id` / `correlation-id`.
+	 * Response header wins; otherwise what oat sent. Empty when neither side passed one.
+	 */
+	requestId: string
 	/** Rate-limit category this request was paced against, when one matched. */
 	rateLimitCategory?: string
 	/** Where that category came from — a `spec.*` finding only ever cites a `"tag"` rejection. */
@@ -23,8 +34,12 @@ export interface Exchange {
 export interface RequestOptions {
 	headers?: Record<string, string>
 	query?: Record<string, string | number | undefined>
+	/** Plain object (JSON), FormData, URLSearchParams, or any BodyInit. */
 	body?: unknown
-	/** Suppresses content-type on bodyless requests, and lets negative cases send a wrong one. */
+	/**
+	 * Explicit type, or `null` when headers are already final.
+	 * FormData never gets a Content-Type here — fetch must set the boundary.
+	 */
 	contentType?: string | null
 }
 
@@ -72,12 +87,11 @@ export class Client {
 		}
 
 		const headers: Record<string, string> = { ...this.globalHeaders, ...options.headers }
-		if (options.body !== undefined && options.contentType !== null) {
-			headers["content-type"] = options.contentType ?? "application/json"
-		}
+		const encoded = encodeBody(options.body, options.contentType)
+		if (encoded.contentType !== undefined) headers["content-type"] = encoded.contentType
 
 		const init: RequestInit = { headers, method }
-		if (options.body !== undefined) init.body = JSON.stringify(options.body)
+		if (encoded.init !== undefined) init.body = encoded.init
 
 		/* Two independent constraints, both held: maxInFlight bounds concurrency with no notion of
 		 * time, a rate-limit category bounds throughput over time. The in-flight slot is acquired
@@ -89,11 +103,13 @@ export class Client {
 		let started: number
 		let response: Response
 		let text: string
+		let at = 0
 		try {
 			if (rule !== undefined) rateLimitHadRoom = await this.rateLimiter?.acquire(rule)
 			started = performance.now()
 			response = await fetch(url, init)
 			text = await response.text()
+			at = Date.now()
 		} finally {
 			this.release()
 		}
@@ -105,13 +121,19 @@ export class Client {
 		}
 
 		this.seq += 1
+		const verb = method.toUpperCase()
+		const responseHeaders = Object.fromEntries(response.headers.entries())
 		const exchange: Exchange = {
+			at,
 			durationMs: Math.round(performance.now() - started),
-			method: method.toUpperCase(),
+			method: verb,
 			requestBody: options.body,
+			requestBytes: requestMessageBytes(verb, url, headers, encoded.bytes, encoded.text),
 			requestHeaders: headers,
+			requestId: requestIdOf(headers, responseHeaders),
 			responseBody: parsed,
-			responseHeaders: Object.fromEntries(response.headers.entries()),
+			responseBytes: responseMessageBytes(response.status, response.statusText, responseHeaders, text),
+			responseHeaders,
 			seq: this.seq,
 			status: response.status,
 			url: url.toString(),
@@ -162,9 +184,205 @@ export function toCurl(exchange: Exchange, options: CurlOptions = {}): string {
 		parts.push(`  -H '${key}: ${value}'`)
 	}
 	if (exchange.requestBody !== undefined) {
-		parts.push(`  -d '${JSON.stringify(exchange.requestBody).replace(/'/g, `'\\''`)}'`)
+		for (const flag of curlBodyFlags(exchange.requestBody)) parts.push(flag)
 	}
 	return parts.join(" \\\n")
+}
+
+function curlBodyFlags(body: unknown): string[] {
+	if (isFormData(body)) {
+		const flags: string[] = []
+		for (const [name, value] of body.entries()) {
+			if (typeof value === "string") {
+				flags.push(`  -F '${name}=${value.replace(/'/g, `'\\''`)}'`)
+			} else {
+				flags.push(`  -F '${name}=@${value.name};type=${value.type || "application/octet-stream"}'`)
+			}
+		}
+		return flags
+	}
+	if (isURLSearchParams(body)) {
+		return [`  --data-urlencode '${body.toString().replace(/'/g, `'\\''`)}'`]
+	}
+	if (typeof body === "string") {
+		return [`  -d '${body.replace(/'/g, `'\\''`)}'`]
+	}
+	if (isRawBytes(body)) {
+		return [`  --data-binary @-`]
+	}
+	return [`  -d '${JSON.stringify(body).replace(/'/g, `'\\''`)}'`]
+}
+
+type FetchBody = NonNullable<RequestInit["body"]>
+
+interface EncodedInit {
+	init?: FetchBody
+	/** Set this header. `undefined` means do not touch Content-Type. */
+	contentType?: string
+	text?: string
+	bytes: number
+}
+
+function encodeBody(body: unknown, contentType: string | null | undefined): EncodedInit {
+	if (body === undefined) return { bytes: 0 }
+	if (contentType === null) {
+		const raw = asBodyInit(body)
+		const encoded: EncodedInit = { bytes: bodyByteLength(body), init: raw ?? JSON.stringify(body) }
+		if (typeof body === "string") encoded.text = body
+		return encoded
+	}
+	if (isFormData(body)) {
+		/* fetch sets multipart/form-data; boundary=… — setting it ourselves drops the boundary. */
+		return { bytes: formDataBytes(body), init: body }
+	}
+	if (isURLSearchParams(body)) {
+		const text = body.toString()
+		return {
+			bytes: utf8Bytes(text),
+			contentType: contentType ?? "application/x-www-form-urlencoded",
+			init: body,
+			text,
+		}
+	}
+	if (isRawBytes(body) || typeof body === "string") {
+		const init = asBodyInit(body)
+		const encoded: EncodedInit = { bytes: bodyByteLength(body), init: init ?? String(body) }
+		if (contentType !== undefined) encoded.contentType = contentType
+		if (typeof body === "string") encoded.text = body
+		return encoded
+	}
+	const text = JSON.stringify(body)
+	return {
+		bytes: utf8Bytes(text),
+		contentType: contentType ?? "application/json",
+		init: text,
+		text,
+	}
+}
+
+function asBodyInit(body: unknown): FetchBody | undefined {
+	if (typeof body === "string") return body
+	if (isFormData(body) || isURLSearchParams(body) || isRawBytes(body)) return body as FetchBody
+	if (typeof Blob !== "undefined" && body instanceof Blob) return body
+	if (typeof ReadableStream !== "undefined" && body instanceof ReadableStream) return body as FetchBody
+	return undefined
+}
+
+function isFormData(body: unknown): body is FormData {
+	return typeof FormData !== "undefined" && body instanceof FormData
+}
+
+function isURLSearchParams(body: unknown): body is URLSearchParams {
+	return typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams
+}
+
+function isRawBytes(body: unknown): body is ArrayBuffer | ArrayBufferView | Blob {
+	if (typeof ArrayBuffer !== "undefined" && body instanceof ArrayBuffer) return true
+	if (ArrayBuffer.isView(body)) return true
+	if (typeof Blob !== "undefined" && body instanceof Blob) return true
+	return false
+}
+
+function bodyByteLength(body: unknown): number {
+	if (typeof body === "string") return utf8Bytes(body)
+	if (isFormData(body)) return formDataBytes(body)
+	if (isURLSearchParams(body)) return utf8Bytes(body.toString())
+	if (typeof Blob !== "undefined" && body instanceof Blob) return body.size
+	if (typeof ArrayBuffer !== "undefined" && body instanceof ArrayBuffer) return body.byteLength
+	if (ArrayBuffer.isView(body)) return body.byteLength
+	return 0
+}
+
+function formDataBytes(form: FormData): number {
+	let total = 0
+	for (const [name, value] of form.entries()) {
+		total += utf8Bytes(name) + 80
+		if (typeof value === "string") total += utf8Bytes(value)
+		else total += value.size + utf8Bytes(value.name)
+	}
+	return total
+}
+
+function utf8Bytes(text: string | undefined): number {
+	return text === undefined || text === "" ? 0 : new TextEncoder().encode(text).byteLength
+}
+
+function hasHeader(headers: Record<string, string>, name: string): boolean {
+	const want = name.toLowerCase()
+	return Object.keys(headers).some((key) => key.toLowerCase() === want)
+}
+
+/** Start line + headers + body. Host and Content-Length are filled when they would be on the wire. */
+function requestMessageBytes(
+	method: string,
+	url: URL,
+	headers: Record<string, string>,
+	bodyBytes: number,
+	body: string | undefined,
+): number {
+	const sent = { ...headers }
+	if (!hasHeader(sent, "host")) sent.host = url.host
+	if (bodyBytes > 0 && !hasHeader(sent, "content-length")) sent["content-length"] = String(bodyBytes)
+	const start = `${method} ${url.pathname}${url.search} HTTP/1.1`
+	if (body !== undefined) return httpMessageBytes(start, sent, body)
+	let headerBytes = utf8Bytes(`${start}\r\n`)
+	for (const [key, value] of Object.entries(sent)) headerBytes += utf8Bytes(`${key}: ${value}\r\n`)
+	headerBytes += utf8Bytes(`\r\n`)
+	return headerBytes + bodyBytes
+}
+
+function responseMessageBytes(
+	status: number,
+	statusText: string,
+	headers: Record<string, string>,
+	body: string,
+): number {
+	const sent = { ...headers }
+	if (body !== "" && !hasHeader(sent, "content-length")) sent["content-length"] = String(utf8Bytes(body))
+	const start = statusText === "" ? `HTTP/1.1 ${status}` : `HTTP/1.1 ${status} ${statusText}`
+	return httpMessageBytes(start, sent, body)
+}
+
+function httpMessageBytes(startLine: string, headers: Record<string, string>, body: string | undefined): number {
+	let text = `${startLine}\r\n`
+	for (const [key, value] of Object.entries(headers)) {
+		text += `${key}: ${value}\r\n`
+	}
+	text += `\r\n`
+	if (body !== undefined) text += body
+	return new TextEncoder().encode(text).byteLength
+}
+
+const REQUEST_ID_HEADERS = ["x-request-id", "request-id", "x-correlation-id", "correlation-id"] as const
+
+/** Response header first, then the request. Empty when neither side sent one of the known names. */
+/** Plain snapshot of a request body for reports — FormData is not JSON. */
+export function describeRequestBody(body: unknown): unknown {
+	if (body === undefined) return undefined
+	if (isFormData(body)) {
+		const parts: Record<string, unknown> = {}
+		for (const [name, value] of body.entries()) {
+			if (typeof value === "string") parts[name] = value
+			else parts[name] = { filename: value.name, mediaType: value.type, bytes: value.size }
+		}
+		return parts
+	}
+	if (isURLSearchParams(body)) return body.toString()
+	if (isRawBytes(body)) return { bytes: bodyByteLength(body) }
+	return body
+}
+
+export function requestIdOf(requestHeaders: Record<string, string>, responseHeaders: Record<string, string>): string {
+	return headerOf(responseHeaders, REQUEST_ID_HEADERS) ?? headerOf(requestHeaders, REQUEST_ID_HEADERS) ?? ""
+}
+
+function headerOf(headers: Record<string, string>, names: readonly string[]): string | undefined {
+	for (const name of names) {
+		for (const [key, value] of Object.entries(headers)) {
+			if (key.toLowerCase() === name && value.trim() !== "") return value.trim()
+		}
+	}
+	return undefined
 }
 
 /** Escapes the characters that stay special inside double quotes. */

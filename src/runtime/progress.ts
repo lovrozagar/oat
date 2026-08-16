@@ -15,6 +15,10 @@ export interface ProgressLast {
 	url: string
 	status: number
 	durationMs: number
+	requestBytes: number
+	responseBytes: number
+	/** Empty when the last call had no request-id / correlation-id header. */
+	requestId: string
 	at: number
 }
 
@@ -50,7 +54,11 @@ export const PROGRESS_TSV_HEADER = [
 	"method",
 	"path",
 	"http",
+	"req_id",
+	"last_at",
 	"last_ms",
+	"req_b",
+	"res_b",
 	"idle_ms",
 	"elapsed_ms",
 ].join("\t")
@@ -63,7 +71,10 @@ export const PROGRESS_GLOSSARY = [
 	"# phase            load|auth|seed|test|teardown|done",
 	"# check            check id (empty when not in a check)",
 	"# msg              phase note (seeding, spec URL, teardown count)",
+	"# req_id           x-request-id / request-id / x-correlation-id / correlation-id on that call (empty if none)",
+	"# last_at          wall clock of that call (ISO-8601 UTC)",
 	"# last_ms          duration of the last HTTP call",
+	"# req_b / res_b    reconstructed HTTP/1.1 size (start line + headers + body) of that call",
 	"# idle_ms          ms since that call returned — if this climbs, the run is stuck",
 	"# elapsed_ms       wall clock since oat started",
 ].join("\n")
@@ -84,7 +95,11 @@ export function formatProgressLine(snap: ProgressSnapshot, now = Date.now()): st
 		method: f.method,
 		path: f.path,
 		http: f.http,
+		req_id: f.req_id,
+		last_at: f.last_at,
 		last_ms: f.last_ms,
+		req_b: f.req_b,
+		res_b: f.res_b,
 		idle_ms: f.idle_ms,
 		elapsed_ms: f.elapsed_ms,
 	})
@@ -106,7 +121,11 @@ export function formatProgressTsv(snap: ProgressSnapshot, now = Date.now()): str
 		f.method,
 		f.path,
 		f.http,
+		f.req_id,
+		f.last_at,
 		f.last_ms,
+		f.req_b,
+		f.res_b,
 		f.idle_ms,
 		f.elapsed_ms,
 	].join("\t")
@@ -122,8 +141,12 @@ export function formatProgressJsonl(snap: ProgressSnapshot, now = Date.now()): s
 		find: snap.findings,
 		http: snap.last?.status ?? null,
 		idle_ms: f.idle_ms === "-" ? null : Number(f.idle_ms),
+		last_at: f.last_at === "-" ? null : f.last_at,
 		last_ms: f.last_ms === "-" ? null : Number(f.last_ms),
 		method: f.method === "-" ? null : f.method,
+		req_id: f.req_id === "" || f.req_id === "-" ? null : f.req_id,
+		req_b: f.req_b === "-" ? null : Number(f.req_b),
+		res_b: f.res_b === "-" ? null : Number(f.res_b),
 		msg: f.msg === "-" ? null : f.msg,
 		path: f.path === "-" ? null : f.path,
 		phase: snap.phase,
@@ -196,7 +219,11 @@ function fields(
 	method: string
 	path: string
 	http: string
+	req_id: string
+	last_at: string
 	last_ms: string
+	req_b: string
+	res_b: string
 	idle_ms: string
 	elapsed_ms: string
 } {
@@ -209,8 +236,12 @@ function fields(
 		find: String(snap.findings),
 		http: snap.last === undefined ? "-" : String(snap.last.status),
 		idle_ms: snap.last === undefined ? "-" : String(Math.max(0, now - snap.last.at)),
+		last_at: snap.last === undefined ? "-" : new Date(snap.last.at).toISOString(),
 		last_ms: snap.last === undefined ? "-" : String(snap.last.durationMs),
 		method: snap.last === undefined ? "-" : snap.last.method,
+		req_id: snap.last === undefined ? "-" : snap.last.requestId,
+		req_b: snap.last === undefined ? "-" : String(snap.last.requestBytes),
+		res_b: snap.last === undefined ? "-" : String(snap.last.responseBytes),
 		msg: snap.message ?? "-",
 		path: snap.last === undefined ? "-" : requestPath(snap.last.url),
 		phase: snap.phase,

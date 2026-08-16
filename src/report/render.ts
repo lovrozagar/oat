@@ -7,7 +7,7 @@
  * reproducers.
  */
 
-import { toCurl } from "../runtime/client.ts"
+import { describeRequestBody, toCurl } from "../runtime/client.ts"
 import type { Client, Exchange } from "../runtime/client.ts"
 import type { Finding, Verdict } from "../runtime/finding.ts"
 import type { SpecModel } from "../spec/graph.ts"
@@ -70,14 +70,14 @@ function exchangeBlock(exchange: Exchange): string[] {
 	const lines: string[] = []
 	lines.push("")
 	lines.push(
-		`\`${exchange.method} ${new URL(exchange.url).pathname}${new URL(exchange.url).search}\` → **${exchange.status}** (${exchange.durationMs}ms)`,
+		`\`${exchange.method} ${new URL(exchange.url).pathname}${new URL(exchange.url).search}\` → **${exchange.status}** (${new Date(exchange.at).toISOString()} · ${exchange.durationMs}ms · ${formatBytes(exchange.requestBytes)} → ${formatBytes(exchange.responseBytes)}${exchange.requestId === "" ? "" : ` · ${exchange.requestId}`})`,
 	)
 	if (exchange.requestBody !== undefined) {
 		lines.push("")
 		lines.push("<details><summary>request body</summary>")
 		lines.push("")
 		lines.push("```json")
-		lines.push(truncate(exchange.requestBody))
+		lines.push(truncate(describeRequestBody(exchange.requestBody)))
 		lines.push("```")
 		lines.push("")
 		lines.push("</details>")
@@ -121,7 +121,10 @@ export function renderMarkdown(input: ReportInput): string {
 	if (unresolvedCount > 0) lines.push(`- **Checks that could not conclude**: ${unresolvedCount}`)
 	const profileLine = profileExclusionSummary(input)
 	if (profileLine !== null) lines.push(`- **Profile**: ${profileLine}`)
-	lines.push(`- **Requests**: ${input.client.transcript.length}`)
+	lines.push(
+		`- **Requests**: ${input.client.transcript.length}` +
+			` (${formatBytes(utf8Total(input.client.transcript, "request"))} req · ${formatBytes(utf8Total(input.client.transcript, "response"))} res)`,
+	)
 	lines.push("- **Matrix**: [matrix.html](./matrix.html) · [matrix.json](./matrix.json)")
 	const timing = latency(input.client.transcript)
 	if (timing !== null) {
@@ -346,6 +349,7 @@ export function renderConsole(input: ReportInput): string {
 		`  ${input.checksRun.length} checks · ${input.entitiesTested.length} entities · ` +
 			`${input.client.transcript.length} requests · ${(input.durationMs / 1000).toFixed(1)}s` +
 			(latency(input.client.transcript) === null ? "" : ` · p95 ${latency(input.client.transcript)?.p95}ms`) +
+			` · ${formatBytes(utf8Total(input.client.transcript, "request"))} req · ${formatBytes(utf8Total(input.client.transcript, "response"))} res` +
 			(coverage.never.length > 0 ? ` · ${coverage.never.length} checks did not apply` : "") +
 			(coverage.partialSkip.length > 0 ? ` · ${coverage.partialSkip.length} only on some entities` : ""),
 	)
@@ -452,6 +456,20 @@ export function renderConsole(input: ReportInput): string {
  * missing index rather than a slow network. Reported, not asserted: oat has no baseline to judge
  * "too slow" against, and inventing a threshold would produce a finding nobody can act on.
  */
+function utf8Total(transcript: readonly Exchange[], side: "request" | "response"): number {
+	let total = 0
+	for (const exchange of transcript) {
+		total += side === "request" ? exchange.requestBytes : exchange.responseBytes
+	}
+	return total
+}
+
+function formatBytes(n: number): string {
+	if (n < 1024) return `${n} bytes`
+	if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+	return `${(n / (1024 * 1024)).toFixed(1)} MB`
+}
+
 function latency(
 	transcript: readonly Exchange[],
 ): { p50: number; p95: number; max: number; slowest: { method: string; path: string } } | null {
@@ -491,9 +509,14 @@ export function renderJson(input: ReportInput): string {
 				detail: finding.detail,
 				entity: finding.entity,
 				evidence: finding.evidence.map((exchange) => ({
+					at: new Date(exchange.at).toISOString(),
+					durationMs: exchange.durationMs,
 					method: exchange.method,
-					requestBody: exchange.requestBody,
+					requestBody: describeRequestBody(exchange.requestBody),
+					requestBytes: exchange.requestBytes,
+					requestId: exchange.requestId,
 					responseBody: exchange.responseBody,
+					responseBytes: exchange.responseBytes,
 					status: exchange.status,
 					url: exchange.url,
 				})),
@@ -502,6 +525,8 @@ export function renderJson(input: ReportInput): string {
 			})),
 			generatedAt: input.startedAt.toISOString(),
 			requests: input.client.transcript.length,
+			requestBytes: utf8Total(input.client.transcript, "request"),
+			responseBytes: utf8Total(input.client.transcript, "response"),
 			latency: latency(input.client.transcript),
 			summary: Object.fromEntries(
 				VERDICT_ORDER.map((verdict) => [verdict, input.findings.filter((f) => f.verdict === verdict).length]).filter(

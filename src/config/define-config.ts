@@ -115,6 +115,41 @@ export interface OutOfBandRequest {
 	attempt: number
 }
 
+export interface UploadRequest {
+	operationId: string
+	/** The request's multipart / json / urlencoded media type. */
+	mediaType: string
+	/** Form part name. */
+	field: string
+	/** Part's declared type, e.g. `application/pdf`. */
+	contentMediaType?: string
+	filename?: string
+	/** Cohort variant. */
+	variant: string
+	index: number
+}
+
+export interface UploadFile {
+	bytes: Uint8Array
+	filename: string
+	mediaType: string
+}
+
+/**
+ * Exact body or part. `null` falls through to the pool, then a dummy.
+ * `UploadFile` replaces that field. `{ fields }` replaces the whole request.
+ */
+export type UploadResolution = UploadFile | { fields: Record<string, string | UploadFile> } | null
+
+export interface Uploads {
+	/**
+	 * Files oat may pick from. Globs and directories, relative to the config file.
+	 * Matched by extension / sniffed type against the part's contentMediaType.
+	 * Same seed → same pick. Empty match → dummy (do not fail the run).
+	 */
+	pool?: string[]
+}
+
 export interface Hooks {
 	/** Return `null` to ask oat to retry — the value may simply not have arrived yet. */
 	resolveOutOfBand?: (request: OutOfBandRequest) => Promise<string | null>
@@ -124,6 +159,11 @@ export interface Hooks {
 	 * credential dies with the run.
 	 */
 	teardownPrincipal?: (address: string) => Promise<void>
+	/**
+	 * Exact file or whole request. Return `null` to fall through to `uploads.pool`, then a dummy.
+	 * Returning `UploadFile` replaces that field. `{ fields }` replaces the whole request.
+	 */
+	resolveUpload?: (request: UploadRequest) => Promise<UploadResolution>
 }
 
 /* -------------------------------------------------------------------- profiles */
@@ -182,7 +222,9 @@ export interface OatConfig {
 	 */
 	principals: [Principal, ...Principal[]]
 	hooks?: Hooks
-	/** Sent on every request. Opaque to oat — bypass headers, API versioning, tracing. */
+	/** File pool for multipart / binary parts. `resolveUpload` lives on `hooks`. */
+	uploads?: Uploads
+	/** Sent on every request. Request-id / correlation-id headers are recorded on each exchange; the rest is opaque. */
 	globalHeaders?: Record<string, string>
 	/** Path parameters oat cannot create. Also declarable in-spec via `x-root`. */
 	roots?: Record<string, string>

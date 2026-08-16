@@ -8,7 +8,7 @@
 
 import { buildModel, type EntityModel, type OperationModel, type SpecModel } from "../spec/graph.ts"
 import { dereference, loadSpec } from "../spec/load.ts"
-import type { Hooks, Principal, ProfileSpec, RateLimitSpec } from "../config/define-config.ts"
+import type { Hooks, Principal, ProfileSpec, RateLimitSpec, Uploads } from "../config/define-config.ts"
 import { type AcquireSpec, createPrincipal, type PrincipalRuntime } from "./auth.ts"
 import { CHECKS, type Actor, type CheckContext } from "./checks.ts"
 import { Client, type Exchange } from "./client.ts"
@@ -20,6 +20,7 @@ import { buildRateLimitRules, RateLimiter } from "./rate-limit.ts"
 import { Ledger, type TeardownReport } from "./teardown.ts"
 import { SchemaValidator } from "./validate.ts"
 import { isOverflowError, overflowFrom } from "./fixture.ts"
+import type { UploadContext } from "./upload.ts"
 import {
 	type Record_,
 	type Scope,
@@ -38,6 +39,9 @@ export interface RunOptions {
 	baseUrl: string
 	principals: PrincipalSpec[]
 	hooks?: Hooks
+	uploads?: Uploads
+	/** Directory of the config file — pool globs are resolved from here. */
+	configDir?: string
 	roots?: Record<string, string>
 	seed?: number
 	cohortSize?: number
@@ -373,9 +377,12 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		options.maxInFlight ?? 4,
 		(exchange: Exchange) => {
 			last = {
-				at: Date.now(),
+				at: exchange.at,
 				durationMs: exchange.durationMs,
 				method: exchange.method,
+				requestBytes: exchange.requestBytes,
+				requestId: exchange.requestId,
+				responseBytes: exchange.responseBytes,
 				status: exchange.status,
 				url: exchange.url,
 			}
@@ -401,6 +408,14 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	if (options.principals[0] === undefined) throw new Error("oat: at least one principal is required")
 
 	const hooks = options.hooks ?? {}
+	const uploads: UploadContext = {
+		seed,
+		...(options.uploads === undefined ? {} : { uploads: options.uploads }),
+		...(options.configDir === undefined ? {} : { configDir: options.configDir }),
+		...(hooks.resolveUpload === undefined ? {} : { resolveUpload: hooks.resolveUpload }),
+	}
+	const worldUploads = (seedOffset = 0): UploadContext =>
+		seedOffset === 0 ? uploads : { ...uploads, seed: seed + seedOffset }
 	const resolved: ResolvedPrincipal[] = []
 	for (const principal of options.principals) {
 		resolved.push(await resolvePrincipal(principal, model, client, hooks))
@@ -504,6 +519,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					authHeaders: alpha.headers,
 					roots: rootValues,
 					seed,
+					uploads,
 				})
 				/* Carry every known root, not only what the create route happened to need. Sibling
 				 * routes for one entity are frequently scoped differently — a global create beside
@@ -519,6 +535,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 						...(options.cohortSize === undefined ? {} : { cohortSize: options.cohortSize }),
 						roots: rootValues,
 						seed,
+						uploads,
 					},
 					scope,
 				)
@@ -635,6 +652,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					authHeaders: principal.headers,
 					roots,
 					seed: seed + seedOffset,
+					uploads: worldUploads(seedOffset),
 				})
 				return {
 					headers: principal.headers,
@@ -756,6 +774,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				listOp.softDelete,
 			seed,
 			updateOp: degraded || updateExcluded ? undefined : updateOpModel,
+			uploads,
 			validator,
 		}
 

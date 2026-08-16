@@ -49,6 +49,7 @@ This file is the operator manual. An agent that has read it can install oat, wri
   - [Principals](#principals)
   - [Auth flows](#auth-flows)
   - [Hooks](#hooks)
+  - [Uploads](#uploads)
   - [Environment interpolation](#environment-interpolation)
   - [Loading TypeScript configs](#loading-typescript-configs)
 - [How the model is derived](#how-the-model-is-derived)
@@ -100,7 +101,7 @@ The first principal is the writer. Isolation needs a second principal with diffe
 
 oat never needs ground truth about your data. A filter and its negation must partition the set; a page walk must cover the collection; a record read four ways must read the same.
 
-oat does **not** use OpenAPI `security` / `securitySchemes`, `servers[]`, cookies, webhooks, callbacks, or `links`. Auth is the config. The origin is `baseUrl`. Request bodies it sends are JSON.
+oat does **not** use OpenAPI `security` / `securitySchemes`, `servers[]`, cookies, webhooks, callbacks, or `links`. Auth is the config. The origin is `baseUrl`. Request bodies follow the document: JSON, `multipart/form-data` (scalars + dummy / pool / `resolveUpload` files), or `application/x-www-form-urlencoded`.
 
 ## Quick start
 
@@ -425,6 +426,7 @@ export default defineConfig({
 	baseUrl: "https://api.example.com",
 	principals: [/* at least one; see below */],
 	hooks: {/* optional */},
+	uploads: { pool: ["./fixtures/**/*"] },
 	globalHeaders: { "x-request-id": "oat" }, // sent on every request; oat does not inspect them
 	roots: { org_id: "org_shared" }, // path params oat cannot create; also declarable via x-root
 	seed: 42, // fixture generation; a failing run with the same seed is identical
@@ -437,21 +439,22 @@ export default defineConfig({
 })
 ```
 
-| field           | required | default     | notes                                                           |
-| --------------- | -------- | ----------- | --------------------------------------------------------------- |
-| `spec`          | yes      |             | See [Spec loading](#spec-loading)                               |
-| `baseUrl`       | yes      |             | Origin. OpenAPI `servers[]` is ignored                          |
-| `principals`    | yes      |             | Non-empty. First is the writer                                  |
-| `hooks`         | no       |             | `resolveOutOfBand`, `teardownPrincipal`                         |
-| `globalHeaders` | no       | `{}`        | Merged under per-request headers. Opaque to oat                 |
-| `roots`         | no       | `{}`        | Shared path params (merged with each principal's `roots`)       |
-| `seed`          | no       | `1`         | Integer. Same seed → same fixture bodies                        |
-| `cohortSize`    | no       | `7`         | Sliced from the 7 built-in variants. Larger repeats the pattern |
-| `concurrency`   | no       | `1`         | Entity-level only. Checks inside one entity stay ordered        |
-| `maxInFlight`   | no       | `4`         | Across the whole run                                            |
-| `only`          | no       | all         | Entity names from `oat plan`                                    |
-| `keepFixtures`  | no       | `false`     | Skip DELETE at the end                                          |
-| `outDir`        | no       | `./oat-out` | Created if missing                                              |
+| field           | required | default     | notes                                                              |
+| --------------- | -------- | ----------- | ------------------------------------------------------------------ |
+| `spec`          | yes      |             | See [Spec loading](#spec-loading)                                  |
+| `baseUrl`       | yes      |             | Origin. OpenAPI `servers[]` is ignored                             |
+| `principals`    | yes      |             | Non-empty. First is the writer                                     |
+| `hooks`         | no       |             | `resolveOutOfBand`, `teardownPrincipal`, `resolveUpload`           |
+| `uploads`       | no       |             | `pool` globs, relative to the config file. JSON configs: pool only |
+| `globalHeaders` | no       | `{}`        | Merged under per-request headers. Opaque to oat                    |
+| `roots`         | no       | `{}`        | Shared path params (merged with each principal's `roots`)          |
+| `seed`          | no       | `1`         | Integer. Same seed → same fixture bodies                           |
+| `cohortSize`    | no       | `7`         | Sliced from the 7 built-in variants. Larger repeats the pattern    |
+| `concurrency`   | no       | `1`         | Entity-level only. Checks inside one entity stay ordered           |
+| `maxInFlight`   | no       | `4`         | Across the whole run                                               |
+| `only`          | no       | all         | Entity names from `oat plan`                                       |
+| `keepFixtures`  | no       | `false`     | Skip DELETE at the end                                             |
+| `outDir`        | no       | `./oat-out` | Created if missing                                                 |
 
 `spec` may be a path relative to `baseUrl` (`/v1/openapi/spec`) or an absolute URL or a file.
 
@@ -640,12 +643,54 @@ hooks: {
   teardownPrincipal: async (address) => {
     await fetch(`https://api.example.com/test/cleanup?email=${address}`, { method: "DELETE" })
   },
+  // Return a file to send, `{ fields }` to replace the whole request, or null to fall through.
+  resolveUpload: async ({ operationId, field, contentMediaType }) => {
+    if (operationId === "extract.once" && field === "file") {
+      const bytes = await Deno.readFile("./invoices/known.pdf")
+      return { bytes, filename: "known.pdf", mediaType: "application/pdf" }
+    }
+    return null
+  },
 }
 ```
 
 Without `resolveOutOfBand`, an `outOfBand` step cannot complete. oat polls the hook up to **6** times: 200 ms, then doubling, capped at 3000 ms. Returning `""` is treated like `null`.
 
 Without `teardownPrincipal`, provisioned accounts are reported as leftover rather than cascade-deleted. Per-record DELETE still runs for seeded rows when a delete (or `x-cleanup`) exists.
+
+### Uploads
+
+Multipart and binary parts are filled in this order:
+
+1. `hooks.resolveUpload` — a non-null return wins (`UploadFile` replaces that field; `{ fields }` replaces the whole request).
+2. `uploads.pool` — first file whose extension / sniffed type matches the part's `contentMediaType`. Same `seed` + field + index → same pick.
+3. A tiny dummy with sniffable magic (`%PDF-1.1`, 1×1 PNG, empty zip, …). Unknown types become 16 octet-stream bytes, not a skip.
+
+```ts
+export default defineConfig({
+	spec: "openapi.json",
+	baseUrl: "https://api.example.com",
+	principals: [/* … */],
+	uploads: {
+		pool: ["./fixtures/docs/**/*", "./fixtures/images/*.png"],
+	},
+	hooks: {
+		resolveUpload: async ({ operationId, field }) => {
+			if (operationId === "extract.once" && field === "file") {
+				const bytes = await Deno.readFile("./invoices/known.pdf")
+				return { bytes, filename: "known.pdf", mediaType: "application/pdf" }
+			}
+			return null
+		},
+	},
+})
+```
+
+A missing pool path warns once and falls through. An empty match uses a dummy. The run does not fail. JSON configs may set `uploads.pool` only — `resolveUpload` is TypeScript.
+
+oat does not OCR. It sends bytes and checks HTTP / JSON. A 4xx because the dummy is “not a real invoice” is not automatically a backend defect if the dummy matched the declared `contentMediaType`.
+
+Prefer `multipart/form-data` when the operation documents it, even if JSON is also listed. Text form fields still use the string generator (`format` / `pattern` / `maxLength`). A part that is either text or file is sent as a file when the schema is binary.
 
 ### Environment interpolation
 
@@ -720,7 +765,7 @@ No meta tag. If create declares a header matching `Idempotency-Key` / `Idempoten
 
 ## Seeding
 
-Per entity, oat POSTs the create body built from the request JSON schema.
+Per entity, oat POSTs the create body built from the request schema (JSON, multipart, or urlencoded).
 
 Default cohort is **7** records, one of each variant, sliced by `cohortSize`:
 
@@ -825,7 +870,7 @@ Collection shape is derived from the success JSON schema, not from hardcoded wra
 | page       | `page`, `pageNumber`, `page_number`, `offset`               |
 | limit      | `limit`, `perPage`, `per_page`, `pageSize`, `page_size`     |
 
-Success schema is the first JSON media type on responses `200`, `201`, `202`, `2XX`, or `default`. Request schema is the first JSON media type on `requestBody`. Non-JSON media types are ignored.
+Success schema is the first JSON media type on responses `200`, `201`, `202`, `2XX`, or `default`. Request schema is taken from `requestBody` preferring `multipart/form-data`, then `application/x-www-form-urlencoded`, then JSON. A raw `text/event-stream` body is not treated as a JSON schema defect.
 
 ## OpenAPI meta tags
 
@@ -1447,7 +1492,7 @@ const { doc: resolved, externalRefs } = dereference(doc)
 const model = buildModel(resolved)
 ```
 
-Types exported: `OatConfig`, `Principal`, `AuthFlow`, `AuthStep`, `Hooks`, `RunOptions`, `RunResult`, `Finding`, `Verdict`, `Actor`, `SpecModel`, `EntityModel`, `OperationModel`, `OpenApiDocument`, matrix types.
+Types exported: `OatConfig`, `Principal`, `AuthFlow`, `AuthStep`, `Hooks`, `Uploads`, `UploadRequest`, `UploadFile`, `RunOptions`, `RunResult`, `Finding`, `Verdict`, `Actor`, `SpecModel`, `EntityModel`, `OperationModel`, `OpenApiDocument`, matrix types.
 
 ## CI
 
@@ -1553,7 +1598,7 @@ These are deliberate. An agent should not invent a flag for them.
 - **No retry on 5xx / 429 / 401.** A 401 mid-run is evidence, not a refresh trigger. Refresh is expiry-based only.
 - **No OpenAPI `security`.** Put credentials in `principals`. Cookie auth is a `headers: { cookie: "…" }` (or a flow that sets that header).
 - **No `servers[]`.** Always set `baseUrl`.
-- **JSON request bodies only.** Multipart, form, file upload, and XML are not sent. Those operations will fail to seed or will not apply.
+- **No OCR.** Multipart and file parts are sent as dummy / pool / `resolveUpload` bytes. oat checks HTTP status and JSON responses, not whether a PDF is a real invoice.
 - **No webhook / callback / link-object following.**
 - **External `$ref`s are not fetched.** In-document `$ref`s are.
 - **`x-idempotent` is not the idempotency check.** The check keys off a documented `Idempotency-Key` header.

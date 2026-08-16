@@ -8,10 +8,13 @@
  */
 
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
+import { requestContent } from "../spec/collection.ts"
 import { owningEntityName } from "../spec/graph.ts"
+import { encodeForOperation } from "./body.ts"
 import type { Client, Exchange } from "./client.ts"
 import { type CohortMember, buildCohort, isOverflowError, overflowFrom } from "./fixture.ts"
 import { describeFeatureGate, isDocumentedFeatureGateDenial } from "./feature-gate.ts"
+import type { UploadContext } from "./upload.ts"
 
 export type Record_ = Record<string, unknown>
 
@@ -45,6 +48,7 @@ export interface WorldOptions {
 	seed: number
 	cohortSize?: number
 	authHeaders: () => Record<string, string>
+	uploads?: UploadContext
 }
 
 /**
@@ -113,8 +117,17 @@ async function createOne(
 		if (isOverflowError(error)) throw overflowFrom(error, createOp.operationId)
 		throw error
 	}
+	const encoded = await encodeForOperation(
+		createOp,
+		model,
+		member?.body ?? {},
+		uploadContext(options),
+		member?.variant ?? "baseline",
+		0,
+	)
 	const exchange = await client.request("POST", fillPath(createOp.path, scope.values), {
-		body: member?.body ?? {},
+		body: encoded.body,
+		...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),
 		headers: options.authHeaders(),
 	})
 	if (exchange.status >= 300) {
@@ -129,12 +142,8 @@ async function createOne(
 
 export function requestSchemaOf(op: OperationModel, model: SpecModel): Record<string, unknown> | null {
 	const raw = model.rawOperations.get(op.operationId)
-	const content = raw?.requestBody?.content
-	if (content === undefined) return null
-	for (const [mediaType, media] of Object.entries(content)) {
-		if (mediaType.includes("json") && media.schema !== undefined) return media.schema
-	}
-	return null
+	const picked = raw === undefined ? null : requestContent(raw)
+	return picked === null ? null : picked.schema
 }
 
 export interface SeededCohort {
@@ -159,7 +168,7 @@ export async function seedCohort(
 ): Promise<SeededCohort> {
 	const schema = requestSchemaOf(createOp, model)
 	if (schema === null) {
-		throw new SeedError(createOp.operationId, `${createOp.operationId} declares no JSON request body`)
+		throw new SeedError(createOp.operationId, `${createOp.operationId} declares no request body`)
 	}
 	let members: CohortMember[]
 	try {
@@ -172,8 +181,17 @@ export async function seedCohort(
 	const path = fillPath(createOp.path, scope.values)
 
 	for (const member of members) {
+		const encoded = await encodeForOperation(
+			createOp,
+			model,
+			member.body,
+			uploadContext(options),
+			member.variant,
+			records.length,
+		)
 		const exchange = await client.request("POST", path, {
-			body: member.body,
+			body: encoded.body,
+			...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),
 			headers: options.authHeaders(),
 		})
 		if (exchange.status >= 300) {
@@ -222,4 +240,12 @@ export function probeCreateFixtures(model: SpecModel): void {
 			}
 		}
 	}
+}
+
+function uploadContext(options: WorldOptions): UploadContext {
+	return (
+		options.uploads ?? {
+			seed: options.seed,
+		}
+	)
 }

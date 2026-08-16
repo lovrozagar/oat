@@ -42,13 +42,48 @@ export function successSchema(op: OperationObject): SchemaObject | null {
 	return null
 }
 
-export function requestSchema(op: OperationObject): SchemaObject | null {
+export interface RequestContent {
+	mediaType: string
+	schema: SchemaObject
+	encoding?: Record<string, { contentType?: string }>
+}
+
+/**
+ * Prefers multipart, then urlencoded, then JSON, then the first listed type.
+ * File ops often document both JSON and a form; the form is the real contract.
+ */
+export function requestContent(op: OperationObject): RequestContent | null {
 	const content = op.requestBody?.content
 	if (content === undefined) return null
-	for (const [mediaType, media] of Object.entries(content)) {
-		if (mediaType.includes("json") && media.schema !== undefined) return media.schema
+	const keys = Object.keys(content)
+	if (keys.length === 0) return null
+
+	const mediaType = [...keys].sort((a, b) => mediaRank(a) - mediaRank(b) || keys.indexOf(a) - keys.indexOf(b))[0]
+	if (mediaType === undefined) return null
+	const media = content[mediaType]
+	const picked: RequestContent = {
+		mediaType,
+		schema: media?.schema ?? {},
 	}
-	return null
+	if (media?.encoding !== undefined) picked.encoding = media.encoding
+	return picked
+}
+
+function mediaRank(mediaType: string): number {
+	if (mediaType.startsWith("multipart/")) return 0
+	if (mediaType.includes("x-www-form-urlencoded")) return 1
+	if (mediaType.includes("json")) return 2
+	return 3
+}
+
+export function hasRequestBody(op: OperationObject): boolean {
+	const content = op.requestBody?.content
+	return content !== undefined && Object.keys(content).length > 0
+}
+
+export function requestSchema(op: OperationObject): SchemaObject | null {
+	const picked = requestContent(op)
+	return picked === null ? null : picked.schema
 }
 
 export function deriveCollectionShape(schema: SchemaObject | null): CollectionShape | null {

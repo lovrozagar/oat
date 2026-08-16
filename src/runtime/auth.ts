@@ -8,7 +8,9 @@
  */
 
 import type { AuthFlow, AuthStep, Hooks, OperationStep, RequestStep } from "../config/define-config.ts"
+import { requestContent } from "../spec/collection.ts"
 import type { SpecModel } from "../spec/graph.ts"
+import { encodeRequest } from "./body.ts"
 import type { Client, Exchange } from "./client.ts"
 
 /* The flow shape is defined once, in the public config — the runtime consumes it rather than
@@ -108,9 +110,10 @@ export async function runAcquireChain(
 			continue
 		}
 
-		const request = resolveRequest(step, context, scope, index)
+		const request = await resolveRequest(step, context, scope, index)
 		last = await context.client.request(request.method, request.path, {
 			...(request.body === undefined ? {} : { body: request.body }),
+			...(request.contentType === undefined ? {} : { contentType: request.contentType }),
 			...(request.headers === undefined ? {} : { headers: request.headers }),
 			...(request.query === undefined ? {} : { query: request.query }),
 		})
@@ -194,18 +197,19 @@ function isRequestStep(step: AuthStep): step is RequestStep {
 	return "method" in step && "path" in step
 }
 
-function resolveRequest(
+async function resolveRequest(
 	step: AuthStep,
 	context: AcquireContext,
 	scope: Record<string, string>,
 	index: number,
-): {
+): Promise<{
 	method: string
 	path: string
 	body?: unknown
+	contentType?: string | null
 	headers?: Record<string, string>
 	query?: Record<string, string>
-} {
+}> {
 	/* Two shapes, distinguished structurally: name an operation from the document, or give a raw
 	 * method and path for an endpoint the document does not describe. */
 	if (isOperationStep(step)) {
@@ -215,10 +219,13 @@ function resolveRequest(
 				`oat: auth step ${index + 1} names operation "${step.operationId}", which is not in the ` + "document",
 			)
 		}
+		const raw = context.model.rawOperations.get(step.operationId)
+		const interpolated = step.body === undefined ? undefined : interpolate(step.body, scope)
+		const encoded = await encodeAuthBody(step.operationId, raw, interpolated)
 		return {
 			method: op.method,
 			path: String(interpolate(op.path, scope)),
-			...(step.body === undefined ? {} : { body: interpolate(step.body, scope) }),
+			...encoded,
 			...(step.headers === undefined ? {} : { headers: interpolate(step.headers, scope) as Record<string, string> }),
 			...(step.query === undefined ? {} : { query: interpolate(step.query, scope) as Record<string, string> }),
 		}
@@ -234,6 +241,31 @@ function resolveRequest(
 		...(step.headers === undefined ? {} : { headers: interpolate(step.headers, scope) as Record<string, string> }),
 		...(step.query === undefined ? {} : { query: interpolate(step.query, scope) as Record<string, string> }),
 	}
+}
+
+async function encodeAuthBody(
+	operationId: string,
+	raw: ReturnType<SpecModel["rawOperations"]["get"]>,
+	body: unknown,
+): Promise<{ body?: unknown; contentType?: string | null }> {
+	if (body === undefined) return {}
+	const content = raw === undefined ? null : requestContent(raw)
+	if (content === null || body === null || typeof body !== "object" || Array.isArray(body)) {
+		return { body }
+	}
+	const encoded = await encodeRequest({
+		fields: body as Record<string, unknown>,
+		index: 0,
+		mediaType: content.mediaType,
+		operationId,
+		schema: content.schema,
+		uploads: { seed: 1 },
+		variant: "baseline",
+		...(content.encoding === undefined ? {} : { encoding: content.encoding }),
+	})
+	return encoded.contentType === undefined
+		? { body: encoded.body }
+		: { body: encoded.body, contentType: encoded.contentType }
 }
 
 /**

@@ -6,7 +6,7 @@
  * observable. That set is the criss-cross matrix.
  */
 
-import { deriveCollectionShape, deriveIdentity, requestSchema, successSchema } from "./collection.ts"
+import { deriveCollectionShape, deriveIdentity, hasRequestBody, requestSchema, successSchema } from "./collection.ts"
 import type { CollectionShape } from "./collection.ts"
 import {
 	type AsyncSpec,
@@ -194,7 +194,7 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 		entitySource: entity?.source ?? null,
 		freshPrincipal: readFlag(op, "x-fresh-principal"),
 		generated: readGenerated(op, bodySchema),
-		hasRequestBody: bodySchema !== null,
+		hasRequestBody: hasRequestBody(op),
 		identity,
 		idempotent: readFlag(op, "x-idempotent"),
 		immutable: readImmutable(op),

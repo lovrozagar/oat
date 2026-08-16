@@ -9,12 +9,15 @@
 import { filterTerm, selectTerm, sortTerm } from "../spec/conventions.ts"
 import type { InviteSpec } from "../spec/extensions.ts"
 import type { QueryCapability } from "../spec/extensions.ts"
+import { requestContent } from "../spec/collection.ts"
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
-import type { Client, Exchange } from "./client.ts"
+import { encodeForOperation } from "./body.ts"
+import type { Client, Exchange, RequestOptions } from "./client.ts"
 import { describeFeatureGate, isDocumentedFeatureGateDenial, reportFeatureGateSchemaDrift } from "./feature-gate.ts"
 import type { FindingCollector } from "./finding.ts"
 import { driveAsync } from "./async.ts"
 import { buildCohort } from "./fixture.ts"
+import type { UploadContext } from "./upload.ts"
 import type { SchemaValidator } from "./validate.ts"
 import { type Record_, fillPath } from "./world.ts"
 
@@ -60,6 +63,8 @@ export interface CheckContext {
 	altScope: Record<string, string> | undefined
 	validator: SchemaValidator | undefined
 	seed: number
+	/** File pool / dummy resolution for multipart parts. */
+	uploads: UploadContext
 	/** Operations on this entity declared async via `x-async`. */
 	asyncOps: OperationModel[]
 	/** Operations on this entity that declare `x-effects`. */
@@ -1710,11 +1715,7 @@ const idempotentReplay: Check = {
 
 		const schema = requestSchemaOf(ctx, createOp)
 		if (schema === null) {
-			return ctx.findings.unresolved(
-				this.id,
-				ctx.entityName,
-				"the create operation declares no JSON request body to replay",
-			)
+			return ctx.findings.unresolved(this.id, ctx.entityName, "the create operation declares no request body to replay")
 		}
 
 		const body = validBody(ctx, schema)
@@ -1722,7 +1723,8 @@ const idempotentReplay: Check = {
 		const path = fillPath(createOp.path, ctx.scope)
 		const headers = { ...ctx.auth(), [header]: key }
 
-		const first = await ctx.client.request("POST", path, { body, headers })
+		const encoded = await encodeOpBody(ctx, createOp, body)
+		const first = await ctx.client.request("POST", path, { ...encoded, headers })
 		if (standDownForFeatureGate(ctx, createOp, first, this.id)) return
 		if (first.status >= 300) {
 			return ctx.findings.unresolved(
@@ -1731,7 +1733,7 @@ const idempotentReplay: Check = {
 				`the first create returned ${first.status}, so there was nothing to replay`,
 			)
 		}
-		const second = await ctx.client.request("POST", path, { body, headers })
+		const second = await ctx.client.request("POST", path, { ...encoded, headers })
 		if (standDownForFeatureGate(ctx, createOp, second, this.id)) return
 		if (second.status >= 300) {
 			return ctx.findings.unresolved(
@@ -1795,7 +1797,7 @@ const declaredInvalidationHappens: Check = {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
-				"the create operation declares no JSON request body, so no write can be made",
+				"the create operation declares no request body, so no write can be made",
 			)
 		}
 
@@ -1830,7 +1832,7 @@ const declaredInvalidationHappens: Check = {
 		}
 
 		const created = await ctx.client.request("POST", fillPath(createOp.path, ctx.scope), {
-			body: validBody(ctx, schema),
+			...(await encodeOpBody(ctx, createOp, validBody(ctx, schema))),
 			headers: ctx.auth(),
 		})
 		if (standDownForFeatureGate(ctx, createOp, created, this.id)) return
@@ -3560,7 +3562,8 @@ const createPersistsFields: Check = {
 		if (createOp === undefined) return
 		const sent = createExchange(ctx)
 		if (sent === undefined || sent.requestBody === undefined) return
-		const request = sent.requestBody as Record_
+		const request = submittedFields(sent.requestBody)
+		if (Object.keys(request).length === 0) return
 		const response = (sent.responseBody ?? {}) as Record_
 
 		const dropped = Object.entries(request).filter(([key, value]) => {
@@ -3600,7 +3603,7 @@ const enumValidated: Check = {
 
 		const body = { ...validBody(ctx, schema), [target.name]: "oat-not-a-member" }
 		const exchange = await ctx.client.request("POST", fillPath(createOp.path, ctx.scope), {
-			body,
+			...(await encodeOpBody(ctx, createOp, body)),
 			headers: ctx.auth(),
 		})
 		if (standDownForFeatureGate(ctx, createOp, exchange, this.id)) return
@@ -3635,7 +3638,7 @@ const maxLengthValidated: Check = {
 
 		const body = { ...validBody(ctx, schema), [target.name]: "x".repeat(max + 25) }
 		const exchange = await ctx.client.request("POST", fillPath(createOp.path, ctx.scope), {
-			body,
+			...(await encodeOpBody(ctx, createOp, body)),
 			headers: ctx.auth(),
 		})
 		if (standDownForFeatureGate(ctx, createOp, exchange, this.id)) return
@@ -3668,7 +3671,7 @@ const requiredValidated: Check = {
 
 		const { [field]: _omitted, ...body } = validBody(ctx, schema)
 		const exchange = await ctx.client.request("POST", fillPath(createOp.path, ctx.scope), {
-			body,
+			...(await encodeOpBody(ctx, createOp, body)),
 			headers: ctx.auth(),
 		})
 		if (standDownForFeatureGate(ctx, createOp, exchange, this.id)) return
@@ -3780,6 +3783,7 @@ const successSchemaHonoured: Check = {
 
 		const exchange = createExchange(ctx)
 		if (exchange === undefined) return
+		if (isEventStream(exchange)) return
 		if (!validator.documents(raw, exchange.status)) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -3830,12 +3834,41 @@ function bodyForOp(ctx: CheckContext, op: OperationModel): Record<string, unknow
 
 function requestSchemaOf(ctx: CheckContext, op: OperationModel): Record<string, unknown> | null {
 	const raw = ctx.model.rawOperations.get(op.operationId)
-	const content = raw?.requestBody?.content
-	if (content === undefined) return null
-	for (const [mediaType, media] of Object.entries(content)) {
-		if (mediaType.includes("json") && media.schema !== undefined) return media.schema
+	const picked = raw === undefined ? null : requestContent(raw)
+	return picked === null ? null : picked.schema
+}
+
+async function encodeOpBody(
+	ctx: CheckContext,
+	op: OperationModel,
+	fields: Record<string, unknown>,
+	variant = "baseline",
+	index = 0,
+): Promise<Pick<RequestOptions, "body" | "contentType">> {
+	const encoded = await encodeForOperation(op, ctx.model, fields, ctx.uploads, variant, index)
+	return encoded.contentType === undefined
+		? { body: encoded.body }
+		: { body: encoded.body, contentType: encoded.contentType }
+}
+
+function submittedFields(body: unknown): Record_ {
+	if (typeof FormData !== "undefined" && body instanceof FormData) {
+		const out: Record_ = {}
+		for (const [name, value] of body.entries()) {
+			if (typeof value === "string") out[name] = value
+		}
+		return out
 	}
-	return null
+	if (typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams) {
+		return Object.fromEntries(body.entries())
+	}
+	if (body !== null && typeof body === "object" && !Array.isArray(body)) return body as Record_
+	return {}
+}
+
+function isEventStream(exchange: Exchange): boolean {
+	const type = exchange.responseHeaders["content-type"] ?? ""
+	return type.includes("text/event-stream")
 }
 
 interface ConstrainedField {
@@ -4125,7 +4158,7 @@ const declaredEffectsOccur: Check = {
 				const body = op.hasRequestBody ? bodyForOp(ctx, op) : undefined
 				const invoked = await ctx.client.request(op.method, fillPath(op.path, ctx.scope), {
 					headers: ctx.auth(),
-					...(body === undefined ? {} : { body }),
+					...(body === undefined ? {} : await encodeOpBody(ctx, op, body)),
 				})
 				if (standDownForFeatureGate(ctx, op, invoked, this.id)) continue
 				if (invoked.status >= 400) {
@@ -4226,7 +4259,7 @@ const asyncReachesTerminalState: Check = {
 			const body = op.hasRequestBody ? bodyForOp(ctx, op) : undefined
 			const start = await ctx.client.request(op.method, fillPath(op.path, ctx.scope), {
 				headers: ctx.auth(),
-				...(body === undefined ? {} : { body }),
+				...(body === undefined ? {} : await encodeOpBody(ctx, op, body)),
 			})
 			if (standDownForFeatureGate(ctx, op, start, this.id)) continue
 			if (start.status >= 400) {
