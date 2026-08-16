@@ -118,8 +118,10 @@ export function dereference(doc: OpenApiDocument): {
 } {
 	const externalRefs = new Set<string>()
 	const resolving = new Map<string, unknown>()
+	const seen = new WeakSet<object>()
 
 	function resolvePointer(ref: string): unknown {
+		if (ref === "#" || ref === "#/") return doc
 		const path = ref.slice(2).split("/").map(decodeSegment)
 		let node: unknown = doc
 		for (const seg of path) {
@@ -130,13 +132,20 @@ export function dereference(doc: OpenApiDocument): {
 	}
 
 	function walk(node: unknown): unknown {
-		if (Array.isArray(node)) return node.map(walk)
+		if (Array.isArray(node)) {
+			if (seen.has(node)) return node
+			seen.add(node)
+			return node.map(walk)
+		}
 		if (node === null || typeof node !== "object") return node
+		if (seen.has(node)) return node
+		seen.add(node)
 
 		const obj = node as Record<string, unknown>
 		const ref = obj.$ref
 		if (typeof ref === "string") {
-			if (!ref.startsWith("#/")) {
+			const internal = ref === "#" || ref === "#/" || ref.startsWith("#/")
+			if (!internal) {
 				externalRefs.add(ref)
 				return node
 			}
@@ -147,11 +156,15 @@ export function dereference(doc: OpenApiDocument): {
 				throw new Error(`oat: unresolvable $ref ${ref}`)
 			}
 			/* Placeholder registered before recursing so a cycle lands on this same object
-			 * instead of recursing forever. */
+			 * instead of recursing forever. Seen identity is the other half: after inlining,
+			 * the same node can be reached without a $ref. */
 			const placeholder: Record<string, unknown> = {}
 			resolving.set(ref, placeholder)
+			seen.add(placeholder)
 			const resolved = walk(target)
-			Object.assign(placeholder, resolved as Record<string, unknown>)
+			if (resolved !== null && typeof resolved === "object" && !Array.isArray(resolved)) {
+				Object.assign(placeholder, resolved as Record<string, unknown>)
+			}
 			/* Sibling keys alongside $ref (OpenAPI 3.1 allows this) override the target. */
 			for (const [k, v] of Object.entries(obj)) {
 				if (k !== "$ref") placeholder[k] = walk(v)

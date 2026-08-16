@@ -3253,34 +3253,27 @@ function pointerValue(body: unknown, pointer: string): string | undefined {
  * at the same check — the timeline is the property.
  */
 const inviteGrantsThenRevokes: Check = {
-	applicable: (ctx) =>
-		ctx.invite !== null &&
-		ctx.readOp !== undefined &&
-		ctx.records.length > 0 &&
-		ctx.actors.some(
-			(actor) =>
-				actor.inviteAs !== undefined &&
-				ctx.actors[0] !== undefined &&
-				!sameTenantScope(actor.roots, ctx.actors[0].roots),
-		),
+	applicable: (ctx) => ctx.invite !== null && (ctx.readOp !== undefined || ctx.listOp !== undefined),
 	dependsOn: ["list.read-after-write", "tenant.item-not-readable-cross-tenant"],
 	id: "auth.invite-grants-then-revokes",
-	needs: "x-invite naming invite/accept/revoke, a peer principal with inviteAs, and an item route",
+	needs: "x-invite naming invite/accept/revoke, a peer principal with inviteAs, and an item or list route",
 	async run(ctx) {
 		const spec = ctx.invite
 		const owner = ctx.actors[0]
-		const target = ctx.records[0]
-		if (spec === null || owner === undefined || target === undefined || ctx.readOp === undefined) {
+		if (spec === null || owner === undefined) {
 			return
 		}
-		const delegate = ctx.actors.find(
-			(actor) => actor.inviteAs !== undefined && !sameTenantScope(actor.roots, owner.roots),
-		)
+		const delegate =
+			ctx.actors.find(
+				(actor) => actor !== owner && actor.inviteAs !== undefined && !sameTenantScope(actor.roots, owner.roots),
+			) ?? ctx.actors.find((actor) => actor !== owner && actor.inviteAs !== undefined)
 		if (delegate === undefined || delegate.inviteAs === undefined) {
-			return ctx.findings.unresolved(
+			return ctx.findings.gap(
 				this.id,
 				ctx.entityName,
-				"no peer principal declares inviteAs, so there is no one to invite",
+				"x-invite requires a peer principal with inviteAs",
+				"x-invite names the grant flow, but no peer principal declares inviteAs, so oat " +
+					"cannot fill the grantee field without inventing an email",
 			)
 		}
 		const inviteOp = ctx.model.byOperationId.get(spec.invite)
@@ -3290,18 +3283,24 @@ const inviteGrantsThenRevokes: Check = {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "x-invite names an operation that is not in the document")
 		}
 
-		const id = String(target[ctx.identity])
-		const resource = { ...ctx.scope, ...itemParamFor(ctx, id) }
+		const target = ctx.records[0]
+		const id = target === undefined ? undefined : String(target[ctx.identity])
+		const resource = {
+			...ctx.scope,
+			...(id === undefined ? {} : itemParamFor(ctx, id)),
+		}
 
-		const itemPath = ctx.readOp.path
-		const canRead = async (): Promise<boolean> => {
+		const itemPath = ctx.readOp?.path
+		const canRead = async (): Promise<boolean | null> => {
+			if (itemPath === undefined || id === undefined) return null
 			const exchange = await ctx.client.get(fillPath(itemPath, { ...delegate.roots, ...resource }), {
 				headers: delegate.headers(),
 			})
 			return exchange.status < 300
 		}
 
-		if (await canRead()) {
+		const alreadyReadable = await canRead()
+		if (alreadyReadable === true) {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
@@ -3321,7 +3320,7 @@ const inviteGrantsThenRevokes: Check = {
 				`invite returned ${invited.status}, so accept/revoke were never exercised`,
 			)
 		}
-		if (await canRead()) {
+		if ((await canRead()) === true) {
 			ctx.findings.backend(
 				this.id,
 				ctx.entityName,
@@ -3346,7 +3345,7 @@ const inviteGrantsThenRevokes: Check = {
 		if (accepted.status >= 300) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, `accept returned ${accepted.status}`)
 		}
-		if (!(await canRead())) {
+		if ((await canRead()) === false) {
 			ctx.findings.backend(
 				this.id,
 				ctx.entityName,
@@ -3374,7 +3373,7 @@ const inviteGrantsThenRevokes: Check = {
 		if (revoked.status >= 300) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, `revoke returned ${revoked.status}`)
 		}
-		if (await canRead()) {
+		if ((await canRead()) === true) {
 			ctx.findings.backend(
 				this.id,
 				ctx.entityName,
@@ -3807,8 +3806,26 @@ const successSchemaHonoured: Check = {
 
 /** Builds a body that should be accepted, for use as the base of a negative probe. */
 function validBody(ctx: CheckContext, schema: Record<string, unknown>): Record<string, unknown> {
-	const [member] = buildCohort(schema, ctx.seed, ["baseline"])
+	const [member] = buildCohort(schema, ctx.seed, ["baseline"], ctx.createOp?.operationId ?? ctx.entityName)
 	return member?.body ?? {}
+}
+
+/** Invite bodies must carry the peer's `inviteAs`, never a generated email. */
+function bodyForOp(ctx: CheckContext, op: OperationModel): Record<string, unknown> {
+	const body = validBody(ctx, requestSchemaOf(ctx, op) ?? {})
+	const spec = op.invite ?? ctx.invite
+	if (spec === null || spec === undefined) return body
+	const owner = ctx.actors[0]
+	const delegate =
+		ctx.actors.find(
+			(actor) =>
+				actor !== owner &&
+				actor.inviteAs !== undefined &&
+				owner !== undefined &&
+				!sameTenantScope(actor.roots, owner.roots),
+		) ?? ctx.actors.find((actor) => actor !== owner && actor.inviteAs !== undefined)
+	if (delegate?.inviteAs !== undefined) body[spec.granteeField] = delegate.inviteAs
+	return body
 }
 
 function requestSchemaOf(ctx: CheckContext, op: OperationModel): Record<string, unknown> | null {
@@ -4105,7 +4122,7 @@ const declaredEffectsOccur: Check = {
 				const before = await observe(ctx, listOp)
 				if (before === null) continue
 
-				const body = op.hasRequestBody ? validBody(ctx, requestSchemaOf(ctx, op) ?? {}) : undefined
+				const body = op.hasRequestBody ? bodyForOp(ctx, op) : undefined
 				const invoked = await ctx.client.request(op.method, fillPath(op.path, ctx.scope), {
 					headers: ctx.auth(),
 					...(body === undefined ? {} : { body }),
@@ -4206,7 +4223,7 @@ const asyncReachesTerminalState: Check = {
 			const spec = op.async
 			if (spec === null) continue
 
-			const body = op.hasRequestBody ? validBody(ctx, requestSchemaOf(ctx, op) ?? {}) : undefined
+			const body = op.hasRequestBody ? bodyForOp(ctx, op) : undefined
 			const start = await ctx.client.request(op.method, fillPath(op.path, ctx.scope), {
 				headers: ctx.auth(),
 				...(body === undefined ? {} : { body }),

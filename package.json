@@ -1,6 +1,6 @@
 {
 	"name": "@lovrozagar/oat",
-	"version": "0.2.2",
+	"version": "0.3.0",
 	"description": "OpenAPI Tester — matrix-test a live API against its OpenAPI spec",
 	"keywords": [
 		"api",
@@ -82,7 +82,8 @@
 		"oxfmt": "^0.63.0",
 		"oxlint": "^1.78.0",
 		"postgres": "^3.4.9",
-		"typescript": "^5.7.2"
+		"typescript": "^5.7.2",
+		"vitest": "4.1.10"
 	},
 	"engines": {
 		"node": ">=20"

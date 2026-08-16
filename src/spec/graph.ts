@@ -345,6 +345,9 @@ function buildEntities(
 		if (entity.invite === null && op.invite !== null) entity.invite = op.invite
 		switch (op.action) {
 			case "create":
+				/* An invite POST looks like a collection create. Seeding it invents a grantee
+				 * (usually a junk email) and the real invite check never runs. */
+				if (op.invite !== null) break
 				entity.create = op.operationId
 				break
 			case "list":
@@ -433,7 +436,7 @@ function collectRoots(operations: OperationModel[], entities: Map<string, Entity
 			const implied = owningEntityName(op.path, param) ?? impliedEntityName(param)
 			if (implied === null) continue
 			const entity = entities.get(implied)
-			if (entity === undefined || entity.create === undefined) roots.add(param)
+			if (entity === undefined || (entity.create === undefined && entity.invite === null)) roots.add(param)
 		}
 	}
 	return [...roots].sort()

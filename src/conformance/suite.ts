@@ -36,6 +36,8 @@ export interface ParserResult {
  * Parser robustness. These fixtures are shapes real published documents contain; the bar is that
  * oat never throws and never hangs on them, not that it models them well.
  */
+export { runSeedContractSuite } from "./seed-contract.ts"
+
 export function runParserSuite(): ParserResult[] {
 	return SPEC_FIXTURES.map((fixture) => {
 		try {

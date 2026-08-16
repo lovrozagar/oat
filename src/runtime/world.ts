@@ -10,7 +10,7 @@
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
 import { owningEntityName } from "../spec/graph.ts"
 import type { Client, Exchange } from "./client.ts"
-import { type CohortMember, buildCohort } from "./fixture.ts"
+import { type CohortMember, buildCohort, isOverflowError, overflowFrom } from "./fixture.ts"
 import { describeFeatureGate, isDocumentedFeatureGateDenial } from "./feature-gate.ts"
 
 export type Record_ = Record<string, unknown>
@@ -106,7 +106,13 @@ async function createOne(
 	scope: Scope,
 ): Promise<Record_> {
 	const schema = requestSchemaOf(createOp, model)
-	const [member] = buildCohort(schema ?? {}, options.seed, ["baseline"])
+	let member: CohortMember | undefined
+	try {
+		;[member] = buildCohort(schema ?? {}, options.seed, ["baseline"], createOp.operationId)
+	} catch (error) {
+		if (isOverflowError(error)) throw overflowFrom(error, createOp.operationId)
+		throw error
+	}
 	const exchange = await client.request("POST", fillPath(createOp.path, scope.values), {
 		body: member?.body ?? {},
 		headers: options.authHeaders(),
@@ -155,7 +161,13 @@ export async function seedCohort(
 	if (schema === null) {
 		throw new SeedError(createOp.operationId, `${createOp.operationId} declares no JSON request body`)
 	}
-	const members = buildCohort(schema, options.seed).slice(0, options.cohortSize ?? 7)
+	let members: CohortMember[]
+	try {
+		members = buildCohort(schema, options.seed, undefined, createOp.operationId).slice(0, options.cohortSize ?? 7)
+	} catch (error) {
+		if (isOverflowError(error)) throw overflowFrom(error, createOp.operationId)
+		throw error
+	}
 	const records: Record_[] = []
 	const path = fillPath(createOp.path, scope.values)
 
@@ -189,4 +201,25 @@ export async function seedCohort(
 		records.push((exchange.responseBody ?? {}) as Record_)
 	}
 	return { featureGate: null, members, records }
+}
+
+/**
+ * Walk each create schema the way seed will. A cycle that still overflows is a named gap on
+ * that operation — plan and doctor must not throw `RangeError` either.
+ */
+export function probeCreateFixtures(model: SpecModel): void {
+	for (const entity of model.entities.values()) {
+		if (entity.create === undefined) continue
+		const op = model.byOperationId.get(entity.create)
+		if (op === undefined) continue
+		const schema = requestSchemaOf(op, model) ?? {}
+		try {
+			buildCohort(schema, 1, ["baseline"], op.operationId)
+		} catch (error) {
+			if (isOverflowError(error)) {
+				const overflow = overflowFrom(error, op.operationId)
+				model.gaps.record(op.operationId, "fixture", overflow.message)
+			}
+		}
+	}
 }

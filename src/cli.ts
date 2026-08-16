@@ -234,6 +234,7 @@ async function main(): Promise<number> {
 			runTagUnlockSuite,
 			runParserSuite,
 			runCoverageReportSuite,
+			runSeedContractSuite,
 			runTenantScopeSuite,
 			runSuite,
 			sqliteAvailable,
@@ -260,6 +261,9 @@ async function main(): Promise<number> {
 		const featureGate = renderParserSuite(await runFeatureGateSuite())
 		process.stdout.write(featureGate.text)
 		parser.failures += featureGate.failures
+		const seedContract = renderParserSuite(await runSeedContractSuite())
+		process.stdout.write(seedContract.text)
+		parser.failures += seedContract.failures
 		if (flags.parser === true) return parser.failures > 0 ? 1 : 0
 
 		if (flags.precision !== undefined) {
@@ -429,6 +433,13 @@ async function main(): Promise<number> {
 	const raw = await loadSpec(specSource, str(flags, "base-url"))
 	const { doc, externalRefs } = dereference(raw)
 	const model = buildModel(doc)
+	try {
+		const { probeCreateFixtures } = await import("./runtime/world.ts")
+		probeCreateFixtures(model)
+	} catch (error) {
+		const { isOverflowError } = await import("./runtime/fixture.ts")
+		if (!isOverflowError(error)) throw error
+	}
 
 	switch (command) {
 		case "plan":

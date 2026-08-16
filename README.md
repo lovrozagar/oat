@@ -736,6 +736,14 @@ Default cohort is **7** records, one of each variant, sliced by `cohortSize`:
 
 Numbers use the ladder `1, 2, 5, 10, 20, 50, 100` so **lexical order ≠ numeric order** (otherwise a TEXT compare looks correct). Enums walk `index % enum.length`. `readOnly` / `x-generated` fields are omitted. Required fields that cannot be generated get a type fallback (`0`, `false`, `[]`, `{}`, `"value"`). Arrays honour `minItems` (never send `[]` when `minItems ≥ 1`). Nested objects stop at depth 4.
 
+Empty schemas (`{}`, `true`, `additionalProperties: {}`) and cyclic `$ref`s after inlining stop the walk — they become a scalar or `{}`, never another object descent. A `RangeError` during generation is a `COVERAGE_GAP` on that entity naming the operationId and JSON pointer (`fixture generation overflow on table.create (/)`), not `blocked by unknown`.
+
+String fields honour `format` and `pattern`: `email` → `oat-{variant}-{index}@example.test`, `uri` / `url` → `https://example.test/...`, `uuid` → a fixed-shape UUID, `pattern` → a string that matches (or the field is omitted / the entity is a gap). `"Quarterly Report N"` is only used when the document does not constrain the string.
+
+An operation with `x-invite` is not `entity.create`. oat does not POST a generated invitee. The invite check sends `granteeField` = the peer's `inviteAs`. Missing `inviteAs` is a coverage gap naming the tag.
+
+A create whose `operationId` appears in any principal `auth.steps`, or that declares `x-fresh-principal`, is not seeded. Those rows were provisioned by the auth flow.
+
 Parent path parameters are created first (depth-first through the owning entity's create). Config / principal `roots` fill parameters oat cannot create.
 
 A create that returns `>= 300` on the first variant fails the entity (downstream checks `BLOCKED`). Later variants that fail just shorten the cohort — a partial cohort is still used.
@@ -891,6 +899,8 @@ x-invite:
 ```
 
 Put this on the invite operation. Config must give the invitee `inviteAs`. Defaults if omitted: `granteeField: key`, `tokenPointer: $.token`, `grantPointer: $.grant_id`. All three of `invite` / `accept` / `revoke` (operationIds) are required or the tag is ignored.
+
+An invite operation is **not** the entity's fixture create, even when it is `POST` on the collection. oat will not seed it with a generated email. The invite check (and only that check) creates the grant, using `inviteAs` as `granteeField`. The check still runs when there is no non-invite create, as long as an item or list route exists.
 
 Timeline asserted: cannot read → invite → still cannot → accept → can → revoke → cannot.
 
@@ -1071,7 +1081,11 @@ export default defineConfig({
 })
 ```
 
-An excluded operation never silently narrows what gets reported. Excluding an entity's `create` degrades that entity the same way a real seeding failure does — a `COVERAGE_GAP` naming the reason, then read-only checks run against whatever the list route already returns; `BLOCKED` if nothing exists to fall back on. Excluding `read`/`update`/`delete` individually stands down just the checks that need that one operation. The run summary states what a profile skipped: `skipped 12 operation(s) under --profile cheap (12 high-cost)` — the same principle as `did not apply` for a coverage gap: a report that only shows what ran invites the reader to assume the rest was verified.
+An excluded operation never silently narrows what gets reported. Excluding an entity's `create` degrades that entity the same way a real seeding failure does — a `COVERAGE_GAP` naming the reason, then read-only checks run against whatever the list route already returns; `BLOCKED` if nothing exists to fall back on. Excluding `read`/`update`/`delete` individually stands down just the checks that need that one operation.
+
+Exclusion applies to every invocation, not only create/read/update/delete. `effects.declared-effect-occurs` and `async.reaches-terminal-state` drop ops the profile forbids and record `profile.skip` — they do not POST `extract.once` under `--profile cheap`. A check whose only targets were excluded did not apply / names the profile; it never looks like the backend returned 500.
+
+The run summary states what a profile skipped: `skipped 12 operation(s) under --profile cheap (12 high-cost)` — the same principle as `did not apply` for a coverage gap: a report that only shows what ran invites the reader to assume the rest was verified.
 
 ### `x-rate-limit` — pacing oat's own traffic
 

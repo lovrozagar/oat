@@ -19,7 +19,16 @@ import { excludedByProfile, resolveProfile } from "./profile.ts"
 import { buildRateLimitRules, RateLimiter } from "./rate-limit.ts"
 import { Ledger, type TeardownReport } from "./teardown.ts"
 import { SchemaValidator } from "./validate.ts"
-import { type Record_, type Scope, SeedError, fillPath, resolveScope, seedCohort } from "./world.ts"
+import { isOverflowError, overflowFrom } from "./fixture.ts"
+import {
+	type Record_,
+	type Scope,
+	SeedError,
+	fillPath,
+	probeCreateFixtures,
+	resolveScope,
+	seedCohort,
+} from "./world.ts"
 
 /* The principal shape is the public config's — one definition, checked in both places. */
 export type PrincipalSpec = Principal
@@ -273,10 +282,36 @@ async function readExisting(
 	}
 }
 
-function testableEntities(model: SpecModel, only?: string[]): EntityModel[] {
+/** operationIds named in any principal `auth.steps` — those creates already ran during login. */
+function authStepOperationIds(principals: readonly PrincipalSpec[]): Set<string> {
+	const ids = new Set<string>()
+	for (const principal of principals) {
+		for (const step of principal.auth?.steps ?? []) {
+			if ("operationId" in step) ids.add(step.operationId)
+		}
+	}
+	return ids
+}
+
+function createIsAuthProvisioned(createOp: OperationModel, authCreates: ReadonlySet<string>): boolean {
+	return createOp.freshPrincipal || authCreates.has(createOp.operationId)
+}
+
+function testableEntities(
+	model: SpecModel,
+	only: string[] | undefined,
+	authCreates: ReadonlySet<string>,
+): EntityModel[] {
 	return [...model.entities.values()]
-		.filter((entity) => entity.list !== undefined && entity.create !== undefined && entity.trackable)
-		.filter((entity) => only === undefined || only.length === 0 || only.includes(entity.name))
+		.filter((entity) => {
+			if (only !== undefined && only.length > 0 && !only.includes(entity.name)) return false
+			const createOp = entity.create === undefined ? undefined : model.byOperationId.get(entity.create)
+			const authProvisioned = createOp !== undefined && createIsAuthProvisioned(createOp, authCreates)
+			/* Register-as-create with no item route is the auth flow, not a fixture. */
+			if (authProvisioned && entity.read === undefined) return false
+			if (entity.invite !== null && entity.list !== undefined) return true
+			return entity.list !== undefined && entity.create !== undefined && entity.trackable
+		})
 		.sort((a, b) => a.name.localeCompare(b.name))
 }
 
@@ -325,6 +360,12 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	const raw = await loadSpec(options.spec, options.baseUrl)
 	const { doc } = dereference(raw)
 	const model = buildModel(doc)
+	try {
+		probeCreateFixtures(model)
+	} catch (error) {
+		if (!isOverflowError(error)) throw error
+	}
+	const authCreates = authStepOperationIds(options.principals)
 	const rateLimiter = new RateLimiter(buildRateLimitRules(model, options.rateLimits))
 	const client = new Client(
 		options.baseUrl,
@@ -379,10 +420,13 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	const checksSkipped: Array<{ check: string; entity: string; needs: string }> = []
 	const checksSuppressed: Array<{ check: string; entity: string; because: string }> = []
 
+	const excludedIds = new Set<string>()
 	const excludeOp = (entity: EntityModel, op: OperationModel | undefined): boolean => {
 		if (op === undefined) return false
 		const reason = excludedByProfile(op, profile.spec)
 		if (reason === null) return false
+		if (excludedIds.has(op.operationId)) return true
+		excludedIds.add(op.operationId)
 		profileExclusions.push({ entity: entity.name, operationId: op.operationId, reason })
 		findings.gap(
 			"profile.skip",
@@ -397,7 +441,10 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	const testEntity = async (entity: EntityModel): Promise<void> => {
 		const listOp = model.byOperationId.get(entity.list ?? "")
 		const createOp = model.byOperationId.get(entity.create ?? "")
-		if (listOp === undefined || createOp === undefined) return
+		if (listOp === undefined) return
+		const inviteOnly = entity.invite !== null && createOp === undefined
+		const authProvisioned = createOp !== undefined && createIsAuthProvisioned(createOp, authCreates)
+		if (createOp === undefined && !inviteOnly) return
 		if (excludeOp(entity, listOp)) {
 			/* No fallback for a list route itself: every other check on this entity is reached
 			 * through it, so its exclusion is the whole entity's, not one operation's. */
@@ -420,7 +467,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		let scope: Scope
 		let records: Record_[]
 		let degraded = false
-		if (excludeOp(entity, createOp)) {
+		if (createOp !== undefined && excludeOp(entity, createOp)) {
 			/* Same fallback a failed create takes below: read-only coverage against whatever
 			 * already exists beats no coverage, and it is exactly the state most likely to hide a
 			 * read-path bug. The gap finding excludeOp already reported names the reason. */
@@ -439,6 +486,16 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				return
 			}
 			scope = { created: [], values: existing.scope }
+			records = existing.records
+			degraded = true
+		} else if (createOp === undefined || authProvisioned) {
+			/* Invite is not a fixture create; register / x-fresh-principal already ran in auth.
+			 * The invite check is the only thing that POSTs a grant, and it uses inviteAs. */
+			const existing = await readExisting(listOp, client, alpha.headers(), {
+				...options.roots,
+				...alpha.roots,
+			})
+			scope = { created: [], values: { ...rootValues, ...existing.scope } }
 			records = existing.records
 			degraded = true
 		} else {
@@ -512,46 +569,62 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					}
 				}
 			} catch (error) {
-				const cause = error instanceof SeedError ? error.cause_ : "unknown"
-				const status = error instanceof SeedError ? error.status : undefined
-				const message = error instanceof Error ? error.message : String(error)
+				if (isOverflowError(error)) {
+					const overflow = overflowFrom(error, createOp.operationId)
+					findings.gap("world.seed", entity.name, overflow.message, overflow.message)
+					const existing = await readExisting(listOp, client, alpha.headers(), {
+						...options.roots,
+						...alpha.roots,
+					})
+					if (existing.records.length === 0) {
+						findings.blocked("world.seed", entity.name, `could not seed "${entity.name}"`, overflow.message)
+						return
+					}
+					scope = { created: [], values: existing.scope }
+					records = existing.records
+					degraded = true
+				} else {
+					const cause = error instanceof SeedError ? error.cause_ : "unknown"
+					const status = error instanceof SeedError ? error.status : undefined
+					const message = error instanceof Error ? error.message : String(error)
 
-				/* A create that fails with 5xx is not a fixture problem — it is the defect.
-				 * Reporting it as merely "blocked" buries the most serious thing oat found. */
-				if (status !== undefined && status >= 500) {
-					findings.backend(
-						"create.does-not-error",
+					/* A create that fails with 5xx is not a fixture problem — it is the defect.
+					 * Reporting it as merely "blocked" buries the most serious thing oat found. */
+					if (status !== undefined && status >= 500) {
+						findings.backend(
+							"create.does-not-error",
+							entity.name,
+							`creating a "${entity.name}" fails with a server error`,
+							`${message}. The request body was generated from the documented schema, so ` +
+								"either the handler rejects input the document permits, or it is failing " +
+								"outright. Everything downstream of this entity is untestable until it is " +
+								"fixed.",
+							client.transcript.filter((e) => e.status >= 500).slice(-1),
+						)
+					}
+
+					/* Fall back to whatever already exists. A backend whose create is broken can still
+					 * have a working list, and read-only coverage beats no coverage — this is exactly
+					 * the state in which a read-path bug is most likely to be sitting undiscovered. */
+					const existing = await readExisting(listOp, client, alpha.headers(), {
+						...options.roots,
+						...alpha.roots,
+					})
+					if (existing.records.length === 0) {
+						findings.blocked("world.seed", entity.name, `could not seed "${entity.name}"`, `${cause}: ${message}`)
+						return
+					}
+
+					findings.gap(
+						"world.seed",
 						entity.name,
-						`creating a "${entity.name}" fails with a server error`,
-						`${message}. The request body was generated from the documented schema, so ` +
-							"either the handler rejects input the document permits, or it is failing " +
-							"outright. Everything downstream of this entity is untestable until it is " +
-							"fixed.",
-						client.transcript.filter((e) => e.status >= 500).slice(-1),
+						`seeding "${entity.name}" failed; running read-only checks against existing records`,
+						`${cause}: ${message}. Write-path and lifecycle checks are skipped for this entity.`,
 					)
+					scope = { created: [], values: existing.scope }
+					records = existing.records
+					degraded = true
 				}
-
-				/* Fall back to whatever already exists. A backend whose create is broken can still
-				 * have a working list, and read-only coverage beats no coverage — this is exactly
-				 * the state in which a read-path bug is most likely to be sitting undiscovered. */
-				const existing = await readExisting(listOp, client, alpha.headers(), {
-					...options.roots,
-					...alpha.roots,
-				})
-				if (existing.records.length === 0) {
-					findings.blocked("world.seed", entity.name, `could not seed "${entity.name}"`, `${cause}: ${message}`)
-					return
-				}
-
-				findings.gap(
-					"world.seed",
-					entity.name,
-					`seeding "${entity.name}" failed; running read-only checks against existing records`,
-					`${cause}: ${message}. Write-path and lifecycle checks are skipped for this entity.`,
-				)
-				scope = { created: [], values: existing.scope }
-				records = existing.records
-				degraded = true
 			}
 		}
 
@@ -647,13 +720,16 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		const readExcluded = excludeOp(entity, readOpModel)
 		const updateExcluded = excludeOp(entity, updateOpModel)
 		const deleteExcluded = excludeOp(entity, deleteOpModel)
+		const inviteOp = entity.invite === null ? undefined : model.byOperationId.get(entity.invite.invite)
+		const inviteExcluded = excludeOp(entity, inviteOp)
+		const invocable = (op: OperationModel): boolean => !excludeOp(entity, op)
 
 		const ctx: CheckContext = {
 			actors,
 			altAuth,
 			altScope,
-			asyncOps: model.operations.filter((op) => op.entity === entity.name && op.async !== null),
-			effectOps: model.operations.filter((op) => op.entity === entity.name && op.effects.length > 0),
+			asyncOps: model.operations.filter((op) => op.entity === entity.name && op.async !== null && invocable(op)),
+			effectOps: model.operations.filter((op) => op.entity === entity.name && op.effects.length > 0 && invocable(op)),
 			auth: alpha.headers,
 			client: trackingClient,
 			collectionKey: listOp.collection?.key ?? null,
@@ -665,7 +741,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			entityName: entity.name,
 			findings,
 			identity: entity.identity ?? "id",
-			invite: entity.invite,
+			invite: inviteExcluded ? null : entity.invite,
 			listOp,
 			model,
 			query: listOp.query,
@@ -788,7 +864,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	 * consequences race and both be reported. Across entities there is no such coupling, and the
 	 * run is almost entirely network wait.
 	 */
-	const queue = testableEntities(model, options.only)
+	const queue = testableEntities(model, options.only, authCreates)
 	entityTotal = queue.length
 	const lanes = Math.max(1, Math.min(options.concurrency ?? 1, queue.length))
 	let cursor = 0
