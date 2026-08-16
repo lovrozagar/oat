@@ -37,7 +37,7 @@
 		"labs/annotated-openapi.yaml",
 		"labs/local.config.ts",
 		"labs/minimal.config.ts",
-		"labs/anyrow.config.ts",
+		"labs/oob-auth.config.ts",
 		"labs/demo.mjs",
 		"labs/README.md"
 	],

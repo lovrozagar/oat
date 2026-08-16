@@ -119,7 +119,7 @@ These also live here — there is no top-level `examples/`.
 | `oat.config.ts`          | principals for a labs world (D1)          |
 | `local.config.ts`        | point oat at `oat serve` (the fixture)    |
 | `minimal.config.ts`      | smallest useful config, static API key    |
-| `anyrow.config.ts`       | multi-step login against a stranger API   |
+| `oob-auth.config.ts`     | multi-step login against a stranger API   |
 | `annotated-openapi.yaml` | every `x-*` tag in one document           |
 | `demo.mjs`               | one-process fixture demo (`npm run demo`) |
 
