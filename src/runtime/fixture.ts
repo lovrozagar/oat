@@ -11,6 +11,8 @@
  * keys a WeakSet on every node and treats those open shapes as a scalar or `{}`.
  */
 
+import { UNICODE_COHORT_STRING, codePointCount, sliceCodePoints } from "./payloads.ts"
+
 export type Variant =
 	| "baseline"
 	| "lexical-first"
@@ -50,7 +52,7 @@ const STRINGS: Record<Variant, string> = {
 	"lexical-last": "zzz last alphabetically",
 	metacharacter: "100% _off_ *everything*",
 	"null-heavy": "null heavy record",
-	unicode: "日本語 café ñandú",
+	unicode: UNICODE_COHORT_STRING,
 }
 
 const EMAIL_RE = /^[^@]+@[^@]+\.[^@]+$/
@@ -311,12 +313,12 @@ function generateString(name: string, schema: Schema, variant: Variant, index: n
 	}
 
 	if (text === undefined) return undefined
-	if (text.length > max) {
+	if (codePointCount(text) > max) {
 		if (format === "email" || format === "uri" || format === "url" || format === "uuid" || pattern !== undefined) {
 			const trimmed = fitMax(text, max, format, pattern, variant, index)
 			return trimmed
 		}
-		return text.slice(0, max)
+		return sliceCodePoints(text, max)
 	}
 	if (pattern !== undefined && !safeTest(pattern, text)) {
 		return stringMatching(pattern, max, variant, index)

@@ -180,6 +180,20 @@ export const DEFECTS = {
 	SEARCH_IGNORED: "q is accepted but does not filter the result",
 	/** A field is accepted at create and silently discarded. */
 	CREATE_DROPS_FIELD: "create accepts a field and does not persist it",
+	/**
+	 * Non-ASCII and surrounding whitespace are stripped on write.
+	 *
+	 * The realistic shape: a column that is not Unicode, a `.trim()`, a "sanitiser" that drops
+	 * anything outside ASCII printable. Create of ordinary English still looks right.
+	 */
+	STRING_PAYLOAD_MANGLED: "non-ASCII and surrounding whitespace are stripped on write",
+	/**
+	 * An operation returns a success status the document does not name.
+	 *
+	 * Not REST (create must be 201). The document said 200 and the handler returned 201, so
+	 * generated clients will not treat the response as success.
+	 */
+	RESPONSE_STATUS_UNDECLARED: "an operation returns a status its document does not declare",
 	/** An enum field accepts values outside the declared set. */
 	ENUM_NOT_VALIDATED: "enum field accepts a value outside the declared set",
 	/** A string longer than maxLength is stored. */

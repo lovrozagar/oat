@@ -195,3 +195,15 @@ export function parseRouteRef(ref: string): { method: string; path: string } | n
 	if (!match?.[1] || !match[2]) return null
 	return { method: match[1].toUpperCase(), path: normalisePath(match[2]) }
 }
+
+/** `{param}` and `:param` segments match one path component. */
+export function pathTemplateMatches(template: string, pathname: string): boolean {
+	const compiled = normalisePath(template)
+		.split("/")
+		.map((segment) => {
+			if (segment.startsWith("{") && segment.endsWith("}")) return "[^/]+"
+			return segment.replace(/[.+^${}()|[\]\\]/g, "\\$&")
+		})
+		.join("/")
+	return new RegExp(`^${compiled}$`).test(pathname)
+}

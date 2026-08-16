@@ -225,7 +225,9 @@ const STRIPS: Array<{ title: string; ids: string[] }> = [
 		ids: [
 			"list.read-after-write",
 			"create.persists-submitted-fields",
+			"payload.string-survives",
 			"create.status-matches-document",
+			"response.status-is-documented",
 			"consistency.projections-agree",
 			"softdelete.absent-from-default-list",
 			"invalidation.declared-route-changes",

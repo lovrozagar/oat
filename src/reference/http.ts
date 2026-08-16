@@ -122,6 +122,9 @@ function coerceField(field: FieldDef, value: unknown, defects: DefectSet): unkno
 	if (field.enum !== undefined && !field.enum.includes(value) && !defects.has("ENUM_NOT_VALIDATED")) {
 		throw new HttpError(400, "invalid_input", `field "${field.name}" must be one of ${field.enum.join(", ")}`)
 	}
+	if (defects.has("STRING_PAYLOAD_MANGLED")) {
+		return value.replace(/[^\x20-\x7E]/g, "").trim()
+	}
 	return value
 }
 
@@ -674,7 +677,11 @@ export async function createReferenceServer(
 				for (const parent of entity.parents) delete changes[parent]
 			}
 			const updated = await store.update(entity, itemId, changes)
-			return send(res, 200, decorate(updated ?? { ...existing, ...changes }))
+			return send(
+				res,
+				defects.has("RESPONSE_STATUS_UNDECLARED") ? 201 : 200,
+				decorate(updated ?? { ...existing, ...changes }),
+			)
 		}
 
 		if (method === "DELETE") {

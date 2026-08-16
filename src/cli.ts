@@ -235,6 +235,7 @@ async function main(): Promise<number> {
 			runExampleSpecSuite,
 			runTagUnlockSuite,
 			runParserSuite,
+			runPayloadCatalogSuite,
 			runCoverageReportSuite,
 			runSeedContractSuite,
 			runTenantScopeSuite,
@@ -266,6 +267,9 @@ async function main(): Promise<number> {
 		const seedContract = renderParserSuite(await runSeedContractSuite())
 		process.stdout.write(seedContract.text)
 		parser.failures += seedContract.failures
+		const payloads = renderParserSuite(runPayloadCatalogSuite())
+		process.stdout.write(payloads.text)
+		parser.failures += payloads.failures
 		if (flags.parser === true) return parser.failures > 0 ? 1 : 0
 
 		if (flags.precision !== undefined) {

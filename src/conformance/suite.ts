@@ -16,6 +16,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
 import { DEFECTS, type DefectName } from "../reference/defects.ts"
+import { STRING_PAYLOADS, catalogProblems } from "../runtime/payloads.ts"
 import { coverageByCheck, renderConsole, renderRepros, type ReportInput } from "../report/render.ts"
 import { CHECKS } from "../runtime/checks.ts"
 import type { Finding } from "../runtime/finding.ts"
@@ -549,6 +550,18 @@ async function servePublicCatalogue(): Promise<{ close: () => Promise<void>; url
 	}
 }
 
+export function runPayloadCatalogSuite(): ParserResult[] {
+	const problems = catalogProblems()
+	return [
+		{
+			detail: problems.join("; ") || `${STRING_PAYLOADS.length} cases, JSON-stable, no NUL`,
+			name: "string-payload-catalog",
+			ok: problems.length === 0,
+			why: "the payload catalog must be unique, JSON-round-trippable, and cover every promised family",
+		},
+	]
+}
+
 export function renderParserSuite(results: ParserResult[]): { text: string; failures: number } {
 	const lines: string[] = []
 	let failures = 0
@@ -667,7 +680,12 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	COUNT_IGNORES_FILTER: "count.matches-filtered-set",
 	CURSOR_DRIFT: "pagination.cursor-agrees-with-page",
 	DELETE_MISSING_OK: "delete.absent-record-returns-404",
-	ERROR_500_ON_BAD_FILTER: "error.malformed-filter-not-5xx",
+	ERROR_500_ON_BAD_FILTER: [
+		"error.malformed-filter-not-5xx",
+		/* 500 is not in the document. The status-vs-document check is a real second symptom,
+		 * not a misdiagnosis: the handler crashed and invented a code the spec never named. */
+		"response.status-is-documented",
+	],
 	FILTER_IGNORED: "filter.unknown-field-rejected",
 	IMMUTABLE_WRITABLE: "patch.immutable-field-rejected",
 	LIKE_UNESCAPED: "filter.like-metacharacters-escaped",
@@ -689,6 +707,8 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	ORDER_IGNORED: "sort.order-is-applied",
 	SEARCH_IGNORED: "search.q-narrows-result",
 	CREATE_DROPS_FIELD: "create.persists-submitted-fields",
+	STRING_PAYLOAD_MANGLED: "payload.string-survives",
+	RESPONSE_STATUS_UNDECLARED: "response.status-is-documented",
 	ENUM_NOT_VALIDATED: "validation.enum-enforced",
 	MAXLENGTH_NOT_VALIDATED: "validation.max-length-enforced",
 	REQUIRED_NOT_VALIDATED: "validation.required-enforced",
@@ -726,6 +746,7 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 		"search.q-narrows-result",
 		"filter.equality-selects-exactly-one",
 		"sort.order-is-applied",
+		"response.status-is-documented",
 		/*
 		 * On an engine with double-quoted-string fallback the response *shape* is corrupted, not
 		 * just its values: D1 returns the unresolved identifier as the key, quotes included, so a
@@ -848,11 +869,11 @@ export const DIALECTS_WITH_FILTER_EXPRESSION: ReadonlySet<string> = new Set([
 const ALL_CHECK_IDS = CHECKS.map((check) => check.id)
 
 export const COVERAGE_FLOOR: Record<string, number> = {
-	classic: 53,
-	jsonapi: 54,
-	linked: 54,
-	plain: 51,
-	postgrest: 55,
+	classic: 55,
+	jsonapi: 56,
+	linked: 56,
+	plain: 53,
+	postgrest: 57,
 }
 
 /** Defects that need a filter expression language to exist at all. */

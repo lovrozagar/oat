@@ -775,7 +775,7 @@ Default cohort is **7** records, one of each variant, sliced by `cohortSize`:
 | `lexical-first` | sorts first (`"aaa first alphabetically"`)         |
 | `lexical-last`  | sorts last (`"zzz last alphabetically"`)           |
 | `null-heavy`    | `null` on every nullable field                     |
-| `unicode`       | `"日本語 café ñandú"`                              |
+| `unicode`       | `"äöüß čćžšđ 日本語 中文 한글 привет مرحبا 🙂"`    |
 | `metacharacter` | `"100% _off_ *everything*"` — LIKE / escape probes |
 | `boundary`      | empty / maxLength / numeric `maximum`              |
 
@@ -1157,7 +1157,7 @@ export default defineConfig({
 
 ## Checks
 
-55 checks. A check that cannot run says so (`did not apply` + `needs`). A check that depends on a broken primitive is `BLOCKED`. A check that ran and stopped is inconclusive, not a pass.
+57 checks. A check that cannot run says so (`did not apply` + `needs`). A check that depends on a broken primitive is `BLOCKED`. A check that ran and stopped is inconclusive, not a pass.
 
 Order is fixed (foundations first) so cascade suppression has a cause to point at. Mutating checks run alone; read-only checks may share in-flight requests under `maxInFlight`.
 
@@ -1167,7 +1167,9 @@ Order is fixed (foundations first) so cascade suppression has a cause to point a
 | ------------------------------------------ | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------- | --------------------------------------- |
 | `list.read-after-write`                    | a just-created record appears on the list                                            | create + a seeded record                                             | —                                       |
 | `create.persists-submitted-fields`         | every writable field sent on create is echoed                                        | create that echoes the record                                        | `list.read-after-write`                 |
+| `payload.string-survives`                  | a documented-valid string is stored exactly; 4xx after an ASCII control is a fail    | update or create+delete, item GET, unconstrained string              | `list.read-after-write`                 |
 | `create.status-matches-document`           | create status is one the document declared                                           | create                                                               | —                                       |
+| `response.status-is-documented`            | every non-create exchange returns a status that operation names (`default` ≠ 201)    | a modeled non-create operation oat invoked                           | —                                       |
 | `schema.success-response-matches-document` | create body validates against the success schema                                     | success schema on create                                             | `create.status-matches-document`        |
 | `schema.error-response-matches-document`   | an error body validates against the documented error schema                          | error schema on the item route                                       | —                                       |
 | `pagination.limit-bounds-page-size`        | page size ≤ the requested limit                                                      | page-size _role_ (aliases include `limit`, `per_page`, …)            | `list.read-after-write`                 |
@@ -1526,6 +1528,8 @@ Comma-separated. Each is one named lie the demo API can tell. Primary check is w
 | ------------------------------------------- | ------------------------------------------ | ------------------------------------------------------ |
 | `STALE_LIST`                                | `list.read-after-write`                    | create succeeds, list does not show the row            |
 | `CREATE_DROPS_FIELD`                        | `create.persists-submitted-fields`         | a submitted field is dropped                           |
+| `STRING_PAYLOAD_MANGLED`                    | `payload.string-survives`                  | non-ASCII / surrounding whitespace stripped on write   |
+| `RESPONSE_STATUS_UNDECLARED`                | `response.status-is-documented`            | PATCH returns 201 when the document names 200          |
 | `CREATED_201_AS_200`                        | `create.status-matches-document`           | create returns 200 when the spec says 201              |
 | `RESPONSE_SCHEMA_DRIFT`                     | `schema.success-response-matches-document` | success body does not match the schema                 |
 | `ERROR_SCHEMA_DRIFT`                        | `schema.error-response-matches-document`   | error body does not match the schema                   |

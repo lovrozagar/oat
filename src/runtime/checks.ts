@@ -11,8 +11,11 @@ import type { InviteSpec } from "../spec/extensions.ts"
 import type { QueryCapability } from "../spec/extensions.ts"
 import { requestContent } from "../spec/collection.ts"
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
+import { pathTemplateMatches } from "../spec/load.ts"
+import type { OperationObject } from "../spec/types.ts"
 import { encodeForOperation } from "./body.ts"
 import type { Client, Exchange, RequestOptions } from "./client.ts"
+import { STRING_PAYLOADS, payloadFits } from "./payloads.ts"
 import { describeFeatureGate, isDocumentedFeatureGateDenial, reportFeatureGateSchemaDrift } from "./feature-gate.ts"
 import type { FindingCollector } from "./finding.ts"
 import { driveAsync } from "./async.ts"
@@ -4361,6 +4364,336 @@ const asyncReceiptIsResolvable: Check = {
 	},
 }
 
+const ASCII_PAYLOAD_PROBE = "oat-payload-probe"
+
+interface PayloadField {
+	name: string
+	maxLength: number | undefined
+	minLength: number | undefined
+}
+
+function pickPayloadField(ctx: CheckContext, op: OperationModel): PayloadField | null {
+	const schema = requestSchemaOf(ctx, op)
+	const properties = (schema?.properties ?? {}) as Record<string, Record<string, unknown>>
+	const immutable = new Set([
+		...(ctx.updateOp?.immutable ?? []),
+		...(ctx.updateOp?.generated ?? []),
+		...(ctx.createOp?.generated ?? []),
+		ctx.identity,
+	])
+	let best: (PayloadField & { score: number }) | null = null
+	for (const [name, declared] of Object.entries(properties)) {
+		if (immutable.has(name) || /_at$|_id$/.test(name)) continue
+		if (declared === null || typeof declared !== "object") continue
+		if (declared.readOnly === true) continue
+		const union = declared.oneOf ?? declared.anyOf
+		const branch = Array.isArray(union)
+			? (union.find(
+					(candidate) =>
+						candidate !== null && typeof candidate === "object" && (candidate as { type?: unknown }).type === "string",
+				) as Record<string, unknown> | undefined)
+			: undefined
+		const stringSchema = branch ?? declared
+		const type = stringSchema.type
+		const isString = type === "string" || (Array.isArray(type) && type.includes("string"))
+		if (!isString && type !== undefined) continue
+		if (Array.isArray(stringSchema.enum)) continue
+		if (typeof stringSchema.pattern === "string") continue
+		if (typeof stringSchema.format === "string") continue
+		const maxLength = typeof stringSchema.maxLength === "number" ? stringSchema.maxLength : undefined
+		const minLength = typeof stringSchema.minLength === "number" ? stringSchema.minLength : undefined
+		if (maxLength !== undefined && maxLength < 8) continue
+		const nullable =
+			declared.nullable === true ||
+			(Array.isArray(declared.type) && declared.type.includes("null")) ||
+			(Array.isArray(union) &&
+				union.some(
+					(candidate) =>
+						candidate !== null && typeof candidate === "object" && (candidate as { type?: unknown }).type === "null",
+				))
+		const score = (nullable ? 1000 : 0) + (maxLength ?? 1024)
+		if (best === null || score > best.score) best = { maxLength, minLength, name, score }
+	}
+	return best
+}
+
+const stringPayloadSurvives: Check = {
+	applicable: (ctx) =>
+		ctx.readOp !== undefined &&
+		ctx.records.length > 0 &&
+		(ctx.updateOp !== undefined || (ctx.createOp !== undefined && ctx.deleteOp !== undefined)),
+	dependsOn: ["list.read-after-write"],
+	id: "payload.string-survives",
+	mutates: true,
+	needs: "an update or create+delete, an item route, and a writable unconstrained string",
+	async run(ctx) {
+		const writeOp = ctx.updateOp ?? ctx.createOp
+		const readOp = ctx.readOp
+		if (writeOp === undefined || readOp === undefined) return
+		const field = pickPayloadField(ctx, writeOp)
+		if (field === null) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"no writable unconstrained string field is available to probe payloads against",
+			)
+		}
+
+		const viaPatch = ctx.updateOp !== undefined
+		const target = ctx.records.at(-1) ?? ctx.records[0]
+		if (target === undefined) return
+		const id = String(target[ctx.identity])
+		const params = { ...ctx.scope, ...itemParamFor(ctx, id) }
+		const original = target[field.name]
+
+		const writeField = async (value: unknown, recordId: string): Promise<Exchange> => {
+			if (viaPatch && ctx.updateOp !== undefined) {
+				return ctx.client.request(
+					"PATCH",
+					fillPath(ctx.updateOp.path, { ...ctx.scope, ...itemParamFor(ctx, recordId) }),
+					{
+						body: { [field.name]: value },
+						headers: ctx.auth(),
+					},
+				)
+			}
+			const createOp = ctx.createOp
+			if (createOp === undefined) throw new Error("payload probe has no write operation")
+			const body = { ...validBody(ctx, requestSchemaOf(ctx, createOp) ?? {}), [field.name]: value }
+			return ctx.client.request("POST", fillPath(createOp.path, ctx.scope), { body, headers: ctx.auth() })
+		}
+
+		const readField = async (recordId: string): Promise<{ exchange: Exchange; value: unknown }> => {
+			const exchange = await ctx.client.get(fillPath(readOp.path, { ...ctx.scope, ...itemParamFor(ctx, recordId) }), {
+				headers: ctx.auth(),
+			})
+			const body = (exchange.responseBody ?? {}) as Record_
+			return { exchange, value: body[field.name] }
+		}
+
+		const remove = async (recordId: string): Promise<void> => {
+			if (viaPatch || ctx.deleteOp === undefined) return
+			await ctx.client.request(
+				"DELETE",
+				fillPath(ctx.deleteOp.path, { ...ctx.scope, ...itemParamFor(ctx, recordId) }),
+				{
+					headers: ctx.auth(),
+				},
+			)
+		}
+
+		const identityOf = (exchange: Exchange): string | undefined => {
+			const body = exchange.responseBody
+			if (body === null || typeof body !== "object") return undefined
+			const value = (body as Record_)[ctx.identity]
+			return value === undefined || value === null ? undefined : String(value)
+		}
+
+		try {
+			const control = await writeField(ASCII_PAYLOAD_PROBE, id)
+			if (standDownForFeatureGate(ctx, writeOp, control, this.id)) return
+			if (control.status === 401 || control.status === 403) {
+				return ctx.findings.unresolved(
+					this.id,
+					ctx.entityName,
+					`the ASCII control write returned ${control.status}, so later refusals cannot be attributed to the payload`,
+				)
+			}
+			if (control.status >= 400 && control.status < 500) {
+				return ctx.findings.unresolved(
+					this.id,
+					ctx.entityName,
+					`the ASCII control write was rejected with ${control.status}, so the field refuses ordinary strings`,
+				)
+			}
+			if (control.status >= 500) {
+				ctx.findings.backend(
+					this.id,
+					ctx.entityName,
+					"an ordinary ASCII write returned 5xx",
+					`PATCH/POST of "${ASCII_PAYLOAD_PROBE}" on "${field.name}" returned ${control.status}.`,
+					[control],
+				)
+				return
+			}
+			const controlId = viaPatch ? id : identityOf(control)
+			if (controlId === undefined) {
+				return ctx.findings.unresolved(
+					this.id,
+					ctx.entityName,
+					"the ASCII control write did not return an identity, so the value could not be read back",
+				)
+			}
+			const controlRead = await readField(controlId)
+			if (!viaPatch) await remove(controlId)
+			if (controlRead.value !== ASCII_PAYLOAD_PROBE) {
+				ctx.findings.backend(
+					this.id,
+					ctx.entityName,
+					"an ordinary ASCII write did not persist exactly",
+					`"${field.name}" was sent ${JSON.stringify(ASCII_PAYLOAD_PROBE)} and read back ` +
+						`${JSON.stringify(controlRead.value)}.`,
+					[control, controlRead.exchange],
+				)
+				return
+			}
+
+			const failed: string[] = []
+			const evidence: Exchange[] = []
+			let lostAuth = false
+			for (const payload of STRING_PAYLOADS) {
+				if (!payloadFits(payload.value, field.maxLength, field.minLength)) continue
+				const written = await writeField(payload.value, id)
+				if (standDownForFeatureGate(ctx, writeOp, written, this.id)) return
+				if (written.status === 401) {
+					const retry = await writeField(ASCII_PAYLOAD_PROBE, id)
+					if (retry.status >= 400) {
+						lostAuth = true
+						break
+					}
+					failed.push(`${payload.id} (${payload.why}): sent ${JSON.stringify(payload.value)}, got HTTP 401`)
+					if (evidence.length < 4) evidence.push(written)
+					continue
+				}
+				if (written.status === 404 || written.status === 409 || written.status === 415 || written.status === 429) {
+					continue
+				}
+				if (written.status >= 400 && written.status < 500) {
+					failed.push(
+						`${payload.id} (${payload.why}): sent ${JSON.stringify(payload.value)}, got HTTP ${written.status}`,
+					)
+					if (evidence.length < 4) evidence.push(written)
+					if (!viaPatch) {
+						const extra = identityOf(written)
+						if (extra !== undefined) await remove(extra)
+					}
+					continue
+				}
+				if (written.status >= 500) {
+					failed.push(
+						`${payload.id} (${payload.why}): sent ${JSON.stringify(payload.value)}, got HTTP ${written.status}`,
+					)
+					if (evidence.length < 4) evidence.push(written)
+					continue
+				}
+				const writtenId = viaPatch ? id : identityOf(written)
+				if (writtenId === undefined) {
+					failed.push(`${payload.id} (${payload.why}): write succeeded but returned no identity`)
+					continue
+				}
+				const got = await readField(writtenId)
+				if (!viaPatch) await remove(writtenId)
+				if (got.value !== payload.value) {
+					failed.push(
+						`${payload.id} (${payload.why}): sent ${JSON.stringify(payload.value)}, got ${JSON.stringify(got.value)}`,
+					)
+					if (evidence.length < 4) evidence.push(written, got.exchange)
+				}
+			}
+
+			if (lostAuth && failed.length === 0) {
+				return ctx.findings.unresolved(
+					this.id,
+					ctx.entityName,
+					"authentication failed in the middle of the payload catalog, so remaining cases were not run",
+				)
+			}
+			if (failed.length === 0) return
+			ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"a documented-valid string did not survive a write",
+				`"${field.name}" failed ${failed.length} payload case(s): ${failed.slice(0, 6).join("; ")}` +
+					(failed.length > 6 ? `; and ${failed.length - 6} more` : "") +
+					". The document accepts these as strings; refusing or mutating them is silent corruption " +
+					"or an undocumented constraint.",
+				evidence,
+			)
+		} finally {
+			if (viaPatch && ctx.updateOp !== undefined) {
+				await ctx.client.request("PATCH", fillPath(ctx.updateOp.path, params), {
+					body: { [field.name]: original ?? null },
+					headers: ctx.auth(),
+				})
+			}
+		}
+	},
+}
+
+function resolveEntityOperation(ctx: CheckContext, method: string, pathname: string): OperationModel | null {
+	let best: OperationModel | null = null
+	for (const op of ctx.model.operations) {
+		if (op.method !== method) continue
+		if (op.entity !== ctx.entityName) continue
+		if (!pathTemplateMatches(op.path, pathname)) continue
+		if (best === null || op.path.length > best.path.length) best = op
+	}
+	return best
+}
+
+function statusIsDeclared(raw: OperationObject | undefined, status: number): boolean {
+	const keys = Object.keys(raw?.responses ?? {})
+	if (keys.includes(String(status))) return true
+	return keys.includes(`${Math.floor(status / 100)}XX`)
+}
+
+function declaresConcreteStatuses(raw: OperationObject | undefined): boolean {
+	return Object.keys(raw?.responses ?? {}).some((key) => /^\d{3}$/.test(key) || /^[1-5]XX$/i.test(key))
+}
+
+const documentedStatusHonoured: Check = {
+	applicable: (ctx) => ctx.model.operations.some((op) => op.entity === ctx.entityName && op.action !== "create"),
+	id: "response.status-is-documented",
+	needs: "a modeled non-create operation on this entity",
+	async run(ctx) {
+		const createId = ctx.createOp?.operationId
+		const byOp = new Map<string, Exchange[]>()
+		for (const exchange of ctx.client.transcript) {
+			let pathname: string
+			try {
+				pathname = new URL(exchange.url).pathname
+			} catch {
+				continue
+			}
+			const op = resolveEntityOperation(ctx, exchange.method, pathname)
+			if (op === null) continue
+			if (op.operationId === createId || op.action === "create") continue
+			if (isDocumentedFeatureGateDenial(op, exchange.status, exchange.responseBody)) continue
+			const raw = ctx.model.rawOperations.get(op.operationId)
+			if (!declaresConcreteStatuses(raw)) continue
+			if (statusIsDeclared(raw, exchange.status)) continue
+			const seen = byOp.get(op.operationId) ?? []
+			seen.push(exchange)
+			byOp.set(op.operationId, seen)
+		}
+		if (byOp.size === 0) return
+
+		const lines: string[] = []
+		const evidence: Exchange[] = []
+		for (const [operationId, exchanges] of byOp) {
+			const raw = ctx.model.rawOperations.get(operationId)
+			const declared = Object.keys(raw?.responses ?? {})
+				.filter((key) => key !== "default")
+				.sort()
+				.join(", ")
+			const seen = [...new Set(exchanges.map((item) => item.status))].sort((a, b) => a - b)
+			lines.push(
+				`${operationId} returned ${seen.join(", ")}; the document declares ${declared || "no concrete status"}`,
+			)
+			const first = exchanges[0]
+			if (first !== undefined && evidence.length < 6) evidence.push(first)
+		}
+
+		ctx.findings.spec(
+			this.id,
+			ctx.entityName,
+			"an operation returned a status the document does not declare",
+			`${lines.join(". ")}. Clients generated from this document will not recognise the response.`,
+			evidence,
+		)
+	},
+}
+
 export const CHECKS: readonly Check[] = [
 	/* foundations — did the write land, is it visible, and do the paging primitives work at all.
 	 * Everything below assumes these hold, so they must be evaluated first for cascade
@@ -4400,6 +4733,7 @@ export const CHECKS: readonly Check[] = [
 	/* write semantics */
 	patchMinimality,
 	immutableRejected,
+	stringPayloadSurvives,
 	idempotentReplay,
 	declaredInvalidationHappens,
 	projectionsAgree,
@@ -4435,4 +4769,7 @@ export const CHECKS: readonly Check[] = [
 	declaredEffectsOccur,
 	asyncReachesTerminalState,
 	asyncReceiptIsResolvable,
+	/* After every other check has written to the transcript — create is owned by
+	 * create.status-matches-document. */
+	documentedStatusHonoured,
 ]

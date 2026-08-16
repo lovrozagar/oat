@@ -98,6 +98,14 @@ function webhookSpec(tag: string | null): OpenApiDocument {
 							content: { "application/json": { schema: WEBHOOK_ITEM } },
 							description: "ok",
 						},
+						"404": {
+							content: {
+								"application/json": {
+									schema: { properties: { error_key: { type: "string" } }, type: "object" },
+								},
+							},
+							description: "not found",
+						},
 					},
 					"x-entity": { action: "read", identity: "id", name: "webhook" },
 				},
@@ -122,6 +130,14 @@ function webhookSpec(tag: string | null): OpenApiDocument {
 						"403": {
 							content: { "application/json": { schema: FORBIDDEN_SCHEMA } },
 							description: "forbidden",
+						},
+						"404": {
+							content: {
+								"application/json": {
+									schema: { properties: { error_key: { type: "string" } }, type: "object" },
+								},
+							},
+							description: "not found",
 						},
 					},
 					"x-entity": { action: "update", identity: "id", name: "webhook" },

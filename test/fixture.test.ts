@@ -55,6 +55,25 @@ describe("fixture walk", () => {
 		expect(() => buildCohort(schema ?? {}, 1, ["baseline"], "table.create")).not.toThrow()
 	})
 
+	it("puts several scripts on the unicode cohort member", () => {
+		const [member] = buildCohort(
+			{
+				properties: { name: { type: "string" } },
+				required: ["name"],
+				type: "object",
+			},
+			1,
+			["unicode"],
+			"table.create",
+		)
+		const name = String(member?.body.name ?? "")
+		expect(name).toContain("äöüß")
+		expect(name).toContain("čćžšđ")
+		expect(name).toContain("привет")
+		expect(name).toContain("日本語")
+		expect(name).toContain("🙂")
+	})
+
 	it("generates format: email that passes a conservative regex", () => {
 		const [member] = buildCohort(
 			{
