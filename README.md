@@ -1026,17 +1026,17 @@ A 403 is a **documented feature-gate denial** only when all of:
 
 ```json
 {
-  "success": false,
-  "status": 403,
-  "status_key": "forbidden",
-  "error_key": "forbidden",
-  "vars": {
-    "type": "feature_gate",
-    "feature": "webhooks",
-    "feature_name": "Webhooks",
-    "current_plan": "free",
-    "required_plan": "pro"
-  }
+	"success": false,
+	"status": 403,
+	"status_key": "forbidden",
+	"error_key": "forbidden",
+	"vars": {
+		"type": "feature_gate",
+		"feature": "webhooks",
+		"feature_name": "Webhooks",
+		"current_plan": "free",
+		"required_plan": "pro"
+	}
 }
 ```
 
