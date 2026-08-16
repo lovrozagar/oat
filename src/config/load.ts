@@ -38,7 +38,7 @@ export async function loadConfig(path: string): Promise<OatConfig> {
 }
 
 /** Env-var interpolation so configs can carry `${API_TOKEN}` without embedding secrets. */
-export function interpolate<T>(value: T, env: NodeJS.ProcessEnv = process.env): T {
+export function interpolate<T>(value: T, env: Record<string, string | undefined> = process.env): T {
 	if (typeof value === "string") {
 		return value.replace(/\$\{([A-Z0-9_]+)\}/gi, (match, name: string) => {
 			const resolved = env[name]
