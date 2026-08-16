@@ -159,6 +159,7 @@ export async function runExampleSpecSuite(): Promise<ParserResult[]> {
 		["idempotency header is modelled", "a promise oat replays", create?.idempotencyHeader, "Idempotency-Key"],
 		["x-immutable is read", "probed for rejection", update?.immutable.includes("workspace_id"), true],
 		["x-async is read", "oat follows the job", start?.async?.poll, "export.read"],
+		["x-feature-gate is read", "a matching 403 is coverage, not a seed defect", create?.featureGate, "widgets"],
 	]
 
 	for (const [name, why, actual, expected] of expectations) {

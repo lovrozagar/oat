@@ -239,6 +239,7 @@ async function main(): Promise<number> {
 			sqliteAvailable,
 			d1Available,
 		} = await import("./conformance/suite.ts")
+		const { runFeatureGateSuite } = await import("./conformance/feature-gate.ts")
 		const parser = renderParserSuite(runParserSuite())
 		process.stdout.write(parser.text)
 		/* The documented example is checked in the same breath: it is the only place a reader
@@ -256,6 +257,9 @@ async function main(): Promise<number> {
 		const tenant = renderParserSuite(await runTenantScopeSuite())
 		process.stdout.write(tenant.text)
 		parser.failures += tenant.failures
+		const featureGate = renderParserSuite(await runFeatureGateSuite())
+		process.stdout.write(featureGate.text)
+		parser.failures += featureGate.failures
 		if (flags.parser === true) return parser.failures > 0 ? 1 : 0
 
 		if (flags.precision !== undefined) {

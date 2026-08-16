@@ -740,6 +740,8 @@ Parent path parameters are created first (depth-first through the owning entity'
 
 A create that returns `>= 300` on the first variant fails the entity (downstream checks `BLOCKED`). Later variants that fail just shorten the cohort — a partial cohort is still used.
 
+A documented feature-gate 403 is the exception: if create declares `x-feature-gate` and the body is `vars.type: feature_gate` (and `vars.feature` matches the tag when present), oat records a `COVERAGE_GAP` naming the tag rather than a seed defect. See [`x-feature-gate`](#x-feature-gate).
+
 `--seed` / `seed` makes the bodies identical across runs. It does not make server-assigned ids identical.
 
 Teardown DELETEs created rows (or the `x-cleanup` route) newest-first. Failures and missing delete routes are printed as leftovers, not as check findings. `keepFixtures: true` skips this.
@@ -1002,6 +1004,49 @@ x-fresh-principal: true
 ```
 
 `x-cost` and `x-destructive` are consulted by `--profile` (below). `x-idempotent` and `x-fresh-principal` are parsed onto the operation model for the `plan`/`doctor` output but not yet consulted anywhere else. Replay safety is tested from a documented `Idempotency-Key` header (`idempotency.replay-does-not-duplicate`), not from `x-idempotent`.
+
+### `x-feature-gate`
+
+```yaml
+x-feature-gate: webhooks # or custom_domain, audit_log, …
+```
+
+Plan key this operation is sold behind. Honey/apps emit it as route meta → OpenAPI. `doctor` / `plan` show it. A non-string or missing tag is ignored (`null`).
+
+This is not cost. `--profile cheap` skips expensive operations; a free principal hitting `webhook.create` is the real product. Skipping the op in a profile would hide the gate.
+
+A 403 is a **documented feature-gate denial** only when all of:
+
+1. The operation has `x-feature-gate: <string>`.
+2. HTTP status is 403.
+3. JSON body `vars.type === "feature_gate"`.
+4. `vars.feature` equals the tag **when `vars.feature` is a string**. Absent `vars.feature` is enough together with (3). A string that disagrees with the tag is backend/tag drift — still a seed failure.
+
+`error_key` / `feature_name` / `required_plan` are i18n/product and are not required. A typical body:
+
+```json
+{
+  "success": false,
+  "status": 403,
+  "status_key": "forbidden",
+  "error_key": "forbidden",
+  "vars": {
+    "type": "feature_gate",
+    "feature": "webhooks",
+    "feature_name": "Webhooks",
+    "current_plan": "free",
+    "required_plan": "pro"
+  }
+}
+```
+
+A gated create is a **coverage gap, not a fail**. oat degrades the entity the same way `--profile` excluding `create` does: `COVERAGE_GAP` on `world.seed` naming `x-feature-gate: <key>` (and the plan vars if present); remaining checks that needed a seeded row `did not apply` / `BLOCKED` because of that gap, not a page of "returned 403" copies. If the list route already has rows, read-only checks still run.
+
+A later write (`create` after seed, `update`, action) that returns a documented gate 403 is the same: the check that needed a 2xx is `COVERAGE_GAP` / did not apply, citing the tag — not `SECURITY`, not a schema defect. `validation.*` and `schema.error-response-matches-document` still apply: the 403 body must match the documented 403 schema. A gate 403 with an undeclared shape is still drift.
+
+Every 403 is not a feature gate. No tag, or a tag that disagrees with `vars.feature`, stays a `SeedError`.
+
+**Fallback:** none. Without the tag, a 403 is a failed create.
 
 ### `--profile` — cost gating
 

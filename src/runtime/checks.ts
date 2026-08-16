@@ -11,6 +11,7 @@ import type { InviteSpec } from "../spec/extensions.ts"
 import type { QueryCapability } from "../spec/extensions.ts"
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
 import type { Client, Exchange } from "./client.ts"
+import { describeFeatureGate, isDocumentedFeatureGateDenial, reportFeatureGateSchemaDrift } from "./feature-gate.ts"
 import type { FindingCollector } from "./finding.ts"
 import { driveAsync } from "./async.ts"
 import { buildCohort } from "./fixture.ts"
@@ -94,6 +95,40 @@ export interface Check {
 }
 
 /* ------------------------------------------------------------------- helpers */
+
+/**
+ * A documented feature-gate 403 is not a 2xx-check failure and not SECURITY.
+ *
+ * The check that needed a success stands down with a named gap. The 403 body is still
+ * validated against the documented error schema — coverage is not a free pass for drift.
+ */
+function standDownForFeatureGate(
+	ctx: CheckContext,
+	op: OperationModel | undefined,
+	exchange: Exchange,
+	check: string,
+): boolean {
+	if (op === undefined) return false
+	if (!isDocumentedFeatureGateDenial(op, exchange.status, exchange.responseBody)) return false
+	if (ctx.validator !== undefined) {
+		reportFeatureGateSchemaDrift(
+			ctx.findings,
+			ctx.validator,
+			op,
+			ctx.model.rawOperations.get(op.operationId),
+			exchange,
+			ctx.entityName,
+		)
+	}
+	ctx.findings.gap(
+		check,
+		ctx.entityName,
+		`${op.operationId} did not apply`,
+		`${describeFeatureGate(op, exchange.responseBody)}. The check that needed a 2xx stands ` +
+			"down rather than treat the documented 403 as a defect.",
+	)
+	return true
+}
 
 /** The list endpoint's derived conventions — parameter roles and envelope spellings. */
 function conv(ctx: CheckContext) {
@@ -1327,6 +1362,7 @@ const patchMinimality: Check = {
 			body: { [field]: "oat patched value" },
 			headers: ctx.auth(),
 		})
+		if (standDownForFeatureGate(ctx, ctx.updateOp, patched, this.id)) return
 		if (patched.status >= 300) return
 
 		const after = await ctx.client.get(fillPath(ctx.readOp.path, params), { headers: ctx.auth() })
@@ -1408,6 +1444,7 @@ const immutableRejected: Check = {
 			body: { [field]: probe },
 			headers: ctx.auth(),
 		})
+		if (standDownForFeatureGate(ctx, ctx.updateOp, patched, this.id)) return
 		if (patched.status >= 400) return
 
 		/* Read the echoed record first. Re-reading can itself fail once the write lands — writing
@@ -1535,6 +1572,7 @@ const deleteMissingIs404: Check = {
 		const exchange = await ctx.client.request("DELETE", fillPath(ctx.deleteOp.path, params), {
 			headers: ctx.auth(),
 		})
+		if (standDownForFeatureGate(ctx, ctx.deleteOp, exchange, this.id)) return
 		if (exchange.status === 404 || exchange.status === 410 || exchange.status === 400) return
 		if (exchange.status >= 300) return
 		ctx.findings.backend(
@@ -1564,6 +1602,7 @@ const softDeleteHidden: Check = {
 		const deleted = await ctx.client.request("DELETE", fillPath(ctx.deleteOp.path, params), {
 			headers: ctx.auth(),
 		})
+		if (standDownForFeatureGate(ctx, ctx.deleteOp, deleted, this.id)) return
 		if (deleted.status >= 300) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -1684,6 +1723,7 @@ const idempotentReplay: Check = {
 		const headers = { ...ctx.auth(), [header]: key }
 
 		const first = await ctx.client.request("POST", path, { body, headers })
+		if (standDownForFeatureGate(ctx, createOp, first, this.id)) return
 		if (first.status >= 300) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -1692,6 +1732,7 @@ const idempotentReplay: Check = {
 			)
 		}
 		const second = await ctx.client.request("POST", path, { body, headers })
+		if (standDownForFeatureGate(ctx, createOp, second, this.id)) return
 		if (second.status >= 300) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -1792,6 +1833,7 @@ const declaredInvalidationHappens: Check = {
 			body: validBody(ctx, schema),
 			headers: ctx.auth(),
 		})
+		if (standDownForFeatureGate(ctx, createOp, created, this.id)) return
 		if (created.status >= 300) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -3271,6 +3313,7 @@ const inviteGrantsThenRevokes: Check = {
 			body: { [spec.granteeField]: delegate.inviteAs },
 			headers: { ...owner.headers(), "content-type": "application/json" },
 		})
+		if (standDownForFeatureGate(ctx, inviteOp, invited, this.id)) return
 		if (invited.status >= 300) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -3299,6 +3342,7 @@ const inviteGrantsThenRevokes: Check = {
 		const accepted = await ctx.client.request(acceptOp.method, fillPath(acceptOp.path, { token }), {
 			headers: delegate.headers(),
 		})
+		if (standDownForFeatureGate(ctx, acceptOp, accepted, this.id)) return
 		if (accepted.status >= 300) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, `accept returned ${accepted.status}`)
 		}
@@ -3326,6 +3370,7 @@ const inviteGrantsThenRevokes: Check = {
 			fillPath(revokeOp.path, { ...resource, grant_id: grantId }),
 			{ headers: owner.headers() },
 		)
+		if (standDownForFeatureGate(ctx, revokeOp, revoked, this.id)) return
 		if (revoked.status >= 300) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, `revoke returned ${revoked.status}`)
 		}
@@ -3559,6 +3604,7 @@ const enumValidated: Check = {
 			body,
 			headers: ctx.auth(),
 		})
+		if (standDownForFeatureGate(ctx, createOp, exchange, this.id)) return
 		if (exchange.status >= 400) return
 
 		const declared = (target.schema.enum as unknown[]).map((v) => JSON.stringify(v)).join(", ")
@@ -3593,6 +3639,7 @@ const maxLengthValidated: Check = {
 			body,
 			headers: ctx.auth(),
 		})
+		if (standDownForFeatureGate(ctx, createOp, exchange, this.id)) return
 		if (exchange.status >= 400) return
 
 		ctx.findings.backend(
@@ -3625,6 +3672,7 @@ const requiredValidated: Check = {
 			body,
 			headers: ctx.auth(),
 		})
+		if (standDownForFeatureGate(ctx, createOp, exchange, this.id)) return
 		if (exchange.status >= 400) return
 
 		ctx.findings.backend(
@@ -3655,6 +3703,7 @@ const contentTypeEnforced: Check = {
 			contentType: "text/plain",
 			headers: ctx.auth(),
 		})
+		if (standDownForFeatureGate(ctx, createOp, exchange, this.id)) return
 		if (exchange.status === 415 || exchange.status >= 400) return
 
 		ctx.findings.backend(
@@ -3682,21 +3731,36 @@ const errorSchemaHonoured: Check = {
 
 		const params = { ...ctx.scope, ...itemParamFor(ctx, "oat-definitely-missing-id") }
 		const exchange = await ctx.client.get(fillPath(readOp.path, params), { headers: ctx.auth() })
-		if (exchange.status < 400) return
-		if (!validator.documents(raw, exchange.status)) return
+		if (exchange.status >= 400 && validator.documents(raw, exchange.status)) {
+			const result = validator.validate(readOp.operationId, raw, exchange.status, exchange.responseBody)
+			if (!result.ok) {
+				ctx.findings.spec(
+					this.id,
+					ctx.entityName,
+					`${exchange.status} error body does not match its documented schema`,
+					`${readOp.operationId} returned ${exchange.status} with a body that fails the schema the ` +
+						`document declares for it: ${result.errors.join("; ")}. Clients that parse errors ` +
+						"from the spec will not understand this response.",
+					[exchange],
+				)
+			}
+		}
 
-		const result = validator.validate(readOp.operationId, raw, exchange.status, exchange.responseBody)
-		if (result.ok) return
-
-		ctx.findings.spec(
-			this.id,
-			ctx.entityName,
-			`${exchange.status} error body does not match its documented schema`,
-			`${readOp.operationId} returned ${exchange.status} with a body that fails the schema the ` +
-				`document declares for it: ${result.errors.join("; ")}. Clients that parse errors ` +
-				"from the spec will not understand this response.",
-			[exchange],
-		)
+		/* A documented feature-gate 403 is coverage for the 2xx check, not for the error schema.
+		 * Walk this entity's already-observed gate denials so an undeclared body is still drift. */
+		const seen = new Set<string>()
+		for (const op of ctx.model.operations) {
+			if (op.entity !== ctx.entityName || op.featureGate === null) continue
+			const opRaw = ctx.model.rawOperations.get(op.operationId)
+			if (opRaw === undefined) continue
+			for (const prior of ctx.client.transcript) {
+				if (!isDocumentedFeatureGateDenial(op, prior.status, prior.responseBody)) continue
+				const key = `${op.operationId}:${prior.seq}`
+				if (seen.has(key)) continue
+				seen.add(key)
+				reportFeatureGateSchemaDrift(ctx.findings, validator, op, opRaw, prior, ctx.entityName)
+			}
+		}
 	},
 }
 
@@ -3932,6 +3996,8 @@ const noLostUpdate: Check = {
 				headers: ctx.auth(),
 			}),
 		])
+		if (standDownForFeatureGate(ctx, ctx.updateOp, firstWrite, this.id)) return
+		if (standDownForFeatureGate(ctx, ctx.updateOp, secondWrite, this.id)) return
 		if (firstWrite.status >= 300 || secondWrite.status >= 300) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -4044,6 +4110,7 @@ const declaredEffectsOccur: Check = {
 					headers: ctx.auth(),
 					...(body === undefined ? {} : { body }),
 				})
+				if (standDownForFeatureGate(ctx, op, invoked, this.id)) continue
 				if (invoked.status >= 400) {
 					ctx.findings.gap(
 						this.id,
@@ -4144,6 +4211,7 @@ const asyncReachesTerminalState: Check = {
 				headers: ctx.auth(),
 				...(body === undefined ? {} : { body }),
 			})
+			if (standDownForFeatureGate(ctx, op, start, this.id)) continue
 			if (start.status >= 400) {
 				ctx.findings.gap(
 					this.id,

@@ -14,6 +14,7 @@ import { CHECKS, type Actor, type CheckContext } from "./checks.ts"
 import { Client, type Exchange } from "./client.ts"
 import type { ProgressHandler, ProgressLast, ProgressSnapshot } from "./progress.ts"
 import { type Finding, FindingCollector, type Inconclusive } from "./finding.ts"
+import { reportFeatureGateSchemaDrift } from "./feature-gate.ts"
 import { excludedByProfile, resolveProfile } from "./profile.ts"
 import { buildRateLimitRules, RateLimiter } from "./rate-limit.ts"
 import { Ledger, type TeardownReport } from "./teardown.ts"
@@ -464,14 +465,52 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					},
 					scope,
 				)
-				records = cohort.records
-				/* Ancestors first, then the cohort — the unwind reverses this, so children are
-				 * always removed before the parents they hang from. */
-				for (const ancestor of scope.created) {
-					ledger.record(ancestor.entity, ancestor.id, scope.values)
-				}
-				for (const record of records) {
-					ledger.record(entity.name, String(record[entity.identity ?? "id"]), scope.values)
+				if (cohort.featureGate !== null) {
+					/* Same degradation a profile-excluded create takes: the tag said this
+					 * principal cannot create the row, so a correct 403 is coverage, not a
+					 * seed defect. The 403 body still has to match the documented schema. */
+					reportFeatureGateSchemaDrift(
+						findings,
+						validator,
+						createOp,
+						model.rawOperations.get(createOp.operationId),
+						cohort.featureGate.exchange,
+						entity.name,
+					)
+					findings.gap(
+						"world.seed",
+						entity.name,
+						`seeding "${entity.name}" is gated by ${cohort.featureGate.detail}`,
+						`${cohort.featureGate.detail}. Checks that need a row oat created stand down ` +
+							"rather than treat the documented 403 as a defect.",
+					)
+					const existing = await readExisting(listOp, client, alpha.headers(), {
+						...options.roots,
+						...alpha.roots,
+					})
+					if (existing.records.length === 0) {
+						findings.blocked(
+							"world.seed",
+							entity.name,
+							`could not test "${entity.name}"`,
+							`${cohort.featureGate.detail} and the list route returned no existing ` +
+								"records to fall back on.",
+						)
+						return
+					}
+					scope = { created: [], values: existing.scope }
+					records = existing.records
+					degraded = true
+				} else {
+					records = cohort.records
+					/* Ancestors first, then the cohort — the unwind reverses this, so children are
+					 * always removed before the parents they hang from. */
+					for (const ancestor of scope.created) {
+						ledger.record(ancestor.entity, ancestor.id, scope.values)
+					}
+					for (const record of records) {
+						ledger.record(entity.name, String(record[entity.identity ?? "id"]), scope.values)
+					}
 				}
 			} catch (error) {
 				const cause = error instanceof SeedError ? error.cause_ : "unknown"

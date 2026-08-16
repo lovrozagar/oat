@@ -9,8 +9,9 @@
 
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
 import { owningEntityName } from "../spec/graph.ts"
-import type { Client } from "./client.ts"
+import type { Client, Exchange } from "./client.ts"
 import { type CohortMember, buildCohort } from "./fixture.ts"
+import { describeFeatureGate, isDocumentedFeatureGateDenial } from "./feature-gate.ts"
 
 export type Record_ = Record<string, unknown>
 
@@ -133,6 +134,13 @@ export function requestSchemaOf(op: OperationModel, model: SpecModel): Record<st
 export interface SeededCohort {
 	members: CohortMember[]
 	records: Record_[]
+	/**
+	 * Set when the first (or only) create was a documented feature-gate 403.
+	 *
+	 * Not an error: the document said this principal cannot create the row. The run degrades
+	 * the same way a profile-excluded create does.
+	 */
+	featureGate: { key: string; detail: string; exchange: Exchange } | null
 }
 
 /** Creates the cohort and returns the server's view of each instance. */
@@ -160,6 +168,17 @@ export async function seedCohort(
 			/* Partial cohorts are still useful — a single rejected variant should not cost the
 			 * entity all of its coverage. Only a completely empty cohort is fatal. */
 			if (records.length > 0) break
+			if (isDocumentedFeatureGateDenial(createOp, exchange.status, exchange.responseBody)) {
+				return {
+					featureGate: {
+						detail: describeFeatureGate(createOp, exchange.responseBody),
+						exchange,
+						key: createOp.featureGate as string,
+					},
+					members,
+					records,
+				}
+			}
 			throw new SeedError(
 				createOp.operationId,
 				`seeding "${member.variant}" returned ${exchange.status}: ` +
@@ -169,5 +188,5 @@ export async function seedCohort(
 		}
 		records.push((exchange.responseBody ?? {}) as Record_)
 	}
-	return { members, records }
+	return { featureGate: null, members, records }
 }

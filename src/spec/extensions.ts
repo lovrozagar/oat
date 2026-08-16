@@ -364,6 +364,17 @@ export function readCost(op: OperationObject): "low" | "medium" | "high" {
 	return value === "high" || value === "medium" ? value : "low"
 }
 
+/**
+ * `x-feature-gate: <string>` — the plan key this operation is sold behind.
+ *
+ * A matching 403 is the document talking, not a fixture failure. Anything other than a string
+ * (or a missing tag) is `null`, same defensive read as `readCost` / `readRateLimit`.
+ */
+export function readFeatureGate(op: OperationObject): string | null {
+	const value = ext<unknown>(op, "x-feature-gate")
+	return typeof value === "string" && value !== "" ? value : null
+}
+
 export function readFlag(op: OperationObject, key: string): boolean {
 	return ext<unknown>(op, key) === true
 }

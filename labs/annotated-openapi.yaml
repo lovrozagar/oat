@@ -99,6 +99,12 @@ paths:
       x-entity: { name: widget, action: create, identity: id }
       x-tenant: workspace_id
 
+      # ── x-feature-gate ───────────────────────────────────────────────────────
+      # Plan key this operation is sold behind. A 403 whose body is
+      # vars.type: feature_gate (and vars.feature matching this key, when present)
+      # is a coverage gap, not a seed defect — the backend matched the document.
+      x-feature-gate: widgets
+
       # ── x-invalidate ─────────────────────────────────────────────────────────
       # Which read routes this write changes. oat inverts these into the entity's
       # read surface — it is how the entity graph is built — AND verifies them: a

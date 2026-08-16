@@ -113,6 +113,13 @@ function plan(model: SpecModel, asJson: boolean): string {
 		for (const root of model.roots) lines.push(`    ${root}`)
 	}
 
+	const gated = model.operations.filter((op) => op.featureGate !== null)
+	if (gated.length > 0) {
+		lines.push("")
+		lines.push("  feature gates — a matching 403 is coverage, not a defect:")
+		for (const op of gated) lines.push(`    ${op.operationId.padEnd(28)} x-feature-gate: ${op.featureGate}`)
+	}
+
 	lines.push("")
 	return lines.join("\n")
 }
@@ -130,6 +137,10 @@ function doctor(model: SpecModel, externalRefs: string[], asJson: boolean): { te
 
 	const blocking = entities.length - trackable.length + (model.roots.length > 0 ? 1 : 0)
 
+	const featureGates = model.operations
+		.filter((op) => op.featureGate !== null)
+		.map((op) => ({ operationId: op.operationId, featureGate: op.featureGate }))
+
 	if (asJson) {
 		return {
 			blocking,
@@ -138,6 +149,7 @@ function doctor(model: SpecModel, externalRefs: string[], asJson: boolean): { te
 					blocking,
 					entities: entities.length,
 					externalRefs,
+					featureGates,
 					gaps: model.gaps.gaps,
 					listableEntities: listable.length,
 					roots: model.roots,
@@ -232,6 +244,14 @@ function doctor(model: SpecModel, externalRefs: string[], asJson: boolean): { te
 	if (model.roots.length > 0) {
 		lines.push("  roots required in config (no create operation in this document)")
 		for (const root of model.roots) lines.push(`    ${root}`)
+		lines.push("")
+	}
+
+	if (featureGates.length > 0) {
+		lines.push("  feature gates — a matching 403 is a coverage gap, not a fail")
+		for (const gate of featureGates) {
+			lines.push(`    ${gate.operationId.padEnd(28)} x-feature-gate: ${gate.featureGate}`)
+		}
 		lines.push("")
 	}
 

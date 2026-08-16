@@ -21,6 +21,7 @@ import {
 	readCost,
 	readEffects,
 	readEntity,
+	readFeatureGate,
 	readFlag,
 	readGenerated,
 	readImmutable,
@@ -75,6 +76,8 @@ export interface OperationModel {
 	softDelete: string | null
 	invite: InviteSpec | null
 	cost: "low" | "medium" | "high"
+	/** Declared so a matching 403 is coverage, not a seed defect. */
+	featureGate: string | null
 	destructive: boolean
 	idempotent: boolean
 	freshPrincipal: boolean
@@ -183,6 +186,7 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 		cleanup: readCleanup(op),
 		collection,
 		cost: readCost(op),
+		featureGate: readFeatureGate(op),
 		destructive: readFlag(op, "x-destructive"),
 		documentedStatuses,
 		effects: readEffects(op),
