@@ -712,7 +712,7 @@ See [OpenAPI meta tags](#openapi-meta-tags). Fallbacks:
 
 - `readOnly: true` counts as generated (omitted from create bodies).
 - No immutability testing without `x-immutable`.
-- Tenant param: `x-tenant` or a path param matching `org|organization|tenant|workspace|account|project|app` + optional `_id`/`_slug`. Inferred tenants make a cross-tenant read `AMBIGUITY`, not `SECURITY`.
+- Tenant param: `x-tenant` or a path param matching `org|organization|tenant|workspace|account|project|app` + optional `_id`/`_slug`. Inferred tenants make a cross-tenant read `AMBIGUITY`, not `SECURITY`. With neither a tag nor an inferred name, the check does not apply.
 
 ### Idempotency
 
@@ -845,7 +845,7 @@ What each tag **sharpens** (the check already runs, but the verdict changes):
 | tag        | without it                                                                                     |
 | ---------- | ---------------------------------------------------------------------------------------------- |
 | `x-query`  | every scalar is probed, including columns you never indexed — expect findings you will dismiss |
-| `x-tenant` | a cross-tenant read is `AMBIGUITY`, not `SECURITY`, because the boundary was only inferred     |
+| `x-tenant` | inferred tenant: a cross-tenant read is `AMBIGUITY`, not `SECURITY`. No tenant tagged or inferred: the check does not apply |
 
 ### `x-invalidate`
 
@@ -971,7 +971,7 @@ x-tenant: project_id
 
 Path parameter that scopes the operation.
 
-**Fallback:** regex over `{organization_id}`, `{project_id}`, `{tenant_id}`, `{workspace_id}`, `{app_slug}`, `{org_id}`, `{account_id}`, … (`org|organization|tenant|workspace|account|project|app` + optional `_id`/`_slug`). Without the tag, a cross-tenant read is `AMBIGUITY`, not `SECURITY`.
+**Fallback:** regex over `{organization_id}`, `{project_id}`, `{tenant_id}`, `{workspace_id}`, `{app_slug}`, `{org_id}`, `{account_id}`, … (`org|organization|tenant|workspace|account|project|app` + optional `_id`/`_slug`). Without the tag, a matching path parameter still infers a tenant and a cross-tenant read is `AMBIGUITY`, not `SECURITY`. Omitting `x-tenant` and not naming a tenant path parameter means the check does not apply.
 
 ### `x-root`
 
@@ -1096,8 +1096,8 @@ Order is fixed (foundations first) so cascade suppression has a cause to point a
 | `spec.declared-filterable-is-filterable`   | every `x-query.filterable` field actually accepts a filter                           | `x-query` naming filterable fields                        | filter foundations                      |
 | `spec.declared-sortable-is-sortable`       | every `x-query.sortable` field actually accepts a sort                               | `x-query` naming sortable fields                          | sort foundations                        |
 | `spec.declared-selectable-is-selectable`   | every `x-query.selectable` field actually accepts a select                           | `x-query` naming selectable fields                        | select                                  |
-| `tenant.item-not-readable-cross-tenant`    | principal B cannot GET principal A's item                                            | second principal, different `roots`                       | —                                       |
-| `tenant.denial-does-not-reveal-existence`  | 404 vs 403 (or equivalent) does not distinguish "exists other tenant" from "missing" | second principal                                          | `tenant.item-not-readable-cross-tenant` |
+| `tenant.item-not-readable-cross-tenant`    | principal B cannot GET principal A's item                                            | second principal, different `roots`, and a tagged or inferred tenant | —                                       |
+| `tenant.denial-does-not-reveal-existence`  | 404 vs 403 (or equivalent) does not distinguish "exists other tenant" from "missing" | second principal, and a tagged or inferred tenant                    | `tenant.item-not-readable-cross-tenant` |
 | `tenant.filter-does-not-bypass-scope`      | `filter=id.eq.<other tenant>` does not return that row                               | second principal + a filter                               | `query.filter-selects-from-whole-set`   |
 | `auth.rank-is-monotonic`                   | a lower rank cannot do what a higher rank is denied                                  | two same-tenant principals at different `rank`            | `list.read-after-write`                 |
 | `auth.invite-grants-then-revokes`          | invite → accept grants; revoke takes it back                                         | `x-invite` + peer with `inviteAs`                         | list, cross-tenant                      |

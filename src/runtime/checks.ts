@@ -556,6 +556,16 @@ function itemParamFor(ctx: CheckContext, id: string): Record<string, string> {
 	return param === undefined ? {} : { [param]: id }
 }
 
+/**
+ * Isolation checks need a tenant boundary to have meaning. A public catalogue has neither
+ * `x-tenant` nor a path parameter that looks like one; a 200 from another principal is the
+ * contract, not a leak.
+ */
+function tenantBoundary(op: OperationModel | undefined): boolean {
+	if (op === undefined) return false
+	return !(op.tenantSource === null && (op.tenantParam === null || op.tenantParam === undefined))
+}
+
 const unknownFilterRejected: Check = {
 	/*
 	 * Deliberately narrower than `filterable`: this asserts that a *filter expression* naming a
@@ -1585,14 +1595,15 @@ const softDeleteHidden: Check = {
  * status it picks is fine; picking two different ones is not.
  */
 const denialDoesNotRevealExistence: Check = {
-	applicable: (ctx) => ctx.altAuth !== undefined && ctx.readOp !== undefined && ctx.records.length > 0,
+	applicable: (ctx) =>
+		ctx.altAuth !== undefined && ctx.readOp !== undefined && ctx.records.length > 0 && tenantBoundary(ctx.readOp),
 	dependsOn: [
 		/* If the record is readable across tenants at all, that is the finding — how the denial
 		 * would have been phrased is beside the point. */
 		"tenant.item-not-readable-cross-tenant",
 	],
 	id: "tenant.denial-does-not-reveal-existence",
-	needs: "a second principal in a different tenant",
+	needs: "a second principal in a different tenant, and a tenant tagged or inferred from the path",
 	async run(ctx) {
 		const target = ctx.records[0]
 		if (target === undefined || ctx.readOp === undefined || ctx.altAuth === undefined) return
@@ -3024,9 +3035,10 @@ const declaredSelectableWorks: Check = {
 }
 
 const crossTenantItemRead: Check = {
-	applicable: (ctx) => ctx.altAuth !== undefined && ctx.readOp !== undefined && ctx.records.length > 0,
+	applicable: (ctx) =>
+		ctx.altAuth !== undefined && ctx.readOp !== undefined && ctx.records.length > 0 && tenantBoundary(ctx.readOp),
 	id: "tenant.item-not-readable-cross-tenant",
-	needs: "a second principal in a different tenant",
+	needs: "a second principal in a different tenant, and a tenant tagged or inferred from the path",
 	async run(ctx) {
 		const target = ctx.records[0]
 		if (target === undefined || ctx.readOp === undefined || ctx.altAuth === undefined) return
@@ -3062,9 +3074,9 @@ const crossTenantItemRead: Check = {
 			check: this.id,
 			detail:
 				`${detail} oat inferred tenant scoping from the "${ctx.readOp.tenantParam}" path ` +
-				"parameter; the document does not state it. If this resource is deliberately shared — " +
-				"a public catalogue or gallery — this is correct behaviour and declaring x-tenant, or " +
-				"omitting it, will settle it. If it is not shared, it is a cross-tenant read.",
+				"parameter; the document does not state it. A public catalogue has no tenant at all — " +
+				"no x-tenant and no tenant-named path parameter — and this check then does not apply. " +
+				"If the resource is not shared, declare x-tenant so the same 200 is SECURITY.",
 			entity: ctx.entityName,
 			evidence: [exchange],
 			summary: "a record crosses an inferred tenant boundary; the document does not say whether that is intended",

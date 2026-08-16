@@ -294,6 +294,60 @@ paths:
                   status: { type: string, enum: [pending, running, complete, failed] }
                 required: [export_id, status]
 
+  # ── public catalogue ──────────────────────────────────────────────────────
+  # No x-tenant, and `{template_id}` is not a tenant name. A second principal
+  # GETting a row created by the first is correct: the resource is shared.
+  # tenant.item-not-readable-cross-tenant does not apply here. The workspace
+  # widget above still does — tag → SECURITY, inferred → AMBIGUITY.
+  /v1/templates:
+    get:
+      operationId: template.list
+      summary: List public templates
+      x-entity: { name: template, action: list, identity: id }
+      responses:
+        "200":
+          description: A page of templates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  templates: { type: array, items: { $ref: "#/components/schemas/Template" } }
+                required: [templates]
+    post:
+      operationId: template.create
+      summary: Publish a template
+      x-entity: { name: template, action: create, identity: id }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name: { type: string, maxLength: 128 }
+              required: [name]
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Template" }
+
+  /v1/templates/{template_id}:
+    get:
+      operationId: template.read
+      x-entity: { name: template, action: read, identity: id }
+      parameters:
+        - { name: template_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: A public template
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Template" }
+
 components:
   schemas:
     Widget:
@@ -309,3 +363,9 @@ components:
         updated_at: { type: string, format: date-time }
         deleted_at: { type: [string, "null"] }
       required: [id, workspace_id, name, status, priority, created_at, updated_at]
+    Template:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+      required: [id, name]

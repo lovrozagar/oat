@@ -234,6 +234,7 @@ async function main(): Promise<number> {
 			runTagUnlockSuite,
 			runParserSuite,
 			runCoverageReportSuite,
+			runTenantScopeSuite,
 			runSuite,
 			sqliteAvailable,
 			d1Available,
@@ -252,6 +253,9 @@ async function main(): Promise<number> {
 		const coverage = renderParserSuite(runCoverageReportSuite())
 		process.stdout.write(coverage.text)
 		parser.failures += coverage.failures
+		const tenant = renderParserSuite(await runTenantScopeSuite())
+		process.stdout.write(tenant.text)
+		parser.failures += tenant.failures
 		if (flags.parser === true) return parser.failures > 0 ? 1 : 0
 
 		if (flags.precision !== undefined) {

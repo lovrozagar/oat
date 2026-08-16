@@ -18,8 +18,9 @@ import type { EntityModel, SpecModel } from "../spec/graph.ts"
  * impossible: nothing in a document reveals that a 202 is a receipt, or that a column is a
  * tombstone. Others do not change how much runs at all — they change whether what runs is
  * trustworthy. Without `x-query`, oat assumes every scalar property is filterable and probes
- * fields the backend may never have indexed; without `x-tenant`, a cross-tenant read is reported
- * as an ambiguity because oat only inferred the boundary it thinks was crossed.
+ * fields the backend may never have indexed; without `x-tenant`, a matching path parameter still
+ * infers a tenant and a cross-tenant read is an ambiguity; with no tenant at all the check does
+ * not apply.
  */
 export const TAG_UNLOCKS: Record<string, readonly string[]> = {
 	"x-async": ["async.reaches-terminal-state", "async.receipt-identifies-the-job"],
@@ -43,8 +44,8 @@ const TAG_SHARPENS: Record<string, string> = {
 		"the remaining query checks run against every scalar property, including fields the " +
 		"backend never indexed — expect findings you will have to dismiss",
 	"x-tenant":
-		"a cross-tenant read is reported as an ambiguity, not a security finding, because " +
-		"oat inferred the boundary rather than reading it",
+		"an inferred tenant makes a cross-tenant read an ambiguity, not a security finding; " +
+		"with no tenant tagged or inferred the check does not apply",
 }
 
 const TAG_REMEDY: Record<string, string> = {
