@@ -54,6 +54,7 @@ Flags
   --spec       OpenAPI document, http(s) URL or filesystem path
   --base-url   backend under test, overriding the config
   --only       comma-separated entity names to restrict the run to
+  --profile    named profile gating which operations run (built-in: full, cheap)
   --seed       integer seed for fixture generation (default 1)
   --out        output directory for the report (default ./oat-out)
   --keep-fixtures  leave created records in place instead of tearing them down
@@ -92,6 +93,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		.map((s) => s.trim())
 		.filter(Boolean)
 	const only = onlyFromFlag ?? config.only?.filter((name) => name.trim() !== "")
+	const profile = str(flags, "profile") ?? config.profile
 
 	/* No cast: the config's principal type *is* the runtime's, so a mistake here is a compile
 	 * error in the user's own config rather than a surprise mid-run. */
@@ -151,6 +153,9 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 			...(config.roots === undefined ? {} : { roots: config.roots }),
 			...(config.cohortSize === undefined ? {} : { cohortSize: config.cohortSize }),
 			...(only === undefined || only.length === 0 ? {} : { only }),
+			...(profile === undefined ? {} : { profile }),
+			...(config.profiles === undefined ? {} : { profiles: config.profiles }),
+			...(config.rateLimits === undefined ? {} : { rateLimits: config.rateLimits }),
 			keepFixtures: flags["keep-fixtures"] === true || config.keepFixtures === true,
 			concurrency: Number.parseInt(str(flags, "concurrency") ?? "", 10) || config.concurrency || 1,
 			maxInFlight: Number.parseInt(str(flags, "max-in-flight") ?? "", 10) || config.maxInFlight || 4,
@@ -176,6 +181,8 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		entitiesTested: result.entitiesTested,
 		findings: result.findings,
 		model: result.model,
+		profile: result.profile,
+		profileExclusions: result.profileExclusions,
 		startedAt,
 	}
 

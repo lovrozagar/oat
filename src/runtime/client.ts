@@ -1,5 +1,7 @@
 /** HTTP client with a full transcript, so every finding can cite the exchange that produced it. */
 
+import type { RateLimiter } from "./rate-limit.ts"
+
 export interface Exchange {
 	seq: number
 	method: string
@@ -10,6 +12,12 @@ export interface Exchange {
 	responseHeaders: Record<string, string>
 	responseBody: unknown
 	durationMs: number
+	/** Rate-limit category this request was paced against, when one matched. */
+	rateLimitCategory?: string
+	/** Where that category came from — a `spec.*` finding only ever cites a `"tag"` rejection. */
+	rateLimitSource?: "tag" | "config"
+	/** Whether the bucket had a token without waiting — oat believes it was under its own pace. */
+	rateLimitHadRoom?: boolean
 }
 
 export interface RequestOptions {
@@ -38,6 +46,8 @@ export class Client {
 		 */
 		private readonly maxInFlight = 4,
 		private readonly onExchange?: (exchange: Exchange) => void,
+		/** Paces requests per declared category. `undefined` when nothing is configured. */
+		private readonly rateLimiter?: RateLimiter,
 	) {}
 
 	/** Admission control. Held for the duration of one request, released in a finally. */
@@ -69,11 +79,19 @@ export class Client {
 		const init: RequestInit = { headers, method }
 		if (options.body !== undefined) init.body = JSON.stringify(options.body)
 
+		/* Two independent constraints, both held: maxInFlight bounds concurrency with no notion of
+		 * time, a rate-limit category bounds throughput over time. The in-flight slot is acquired
+		 * first and released in the same finally as before — pacing sits entirely inside that
+		 * window and never changes what maxInFlight itself guarantees. */
+		const rule = this.rateLimiter?.resolve(method.toUpperCase(), url.pathname)
 		await this.acquire()
-		const started = performance.now()
+		let rateLimitHadRoom: boolean | undefined
+		let started: number
 		let response: Response
 		let text: string
 		try {
+			if (rule !== undefined) rateLimitHadRoom = await this.rateLimiter?.acquire(rule)
+			started = performance.now()
 			response = await fetch(url, init)
 			text = await response.text()
 		} finally {
@@ -97,6 +115,8 @@ export class Client {
 			seq: this.seq,
 			status: response.status,
 			url: url.toString(),
+			...(rule === undefined ? {} : { rateLimitCategory: rule.category, rateLimitSource: rule.source }),
+			...(rateLimitHadRoom === undefined ? {} : { rateLimitHadRoom }),
 		}
 		this.transcript.push(exchange)
 		this.onExchange?.(exchange)

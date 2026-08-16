@@ -126,6 +126,49 @@ export interface Hooks {
 	teardownPrincipal?: (address: string) => Promise<void>
 }
 
+/* -------------------------------------------------------------------- profiles */
+
+/**
+ * Which operations a run is allowed to touch, filtering on what `x-cost` / `x-destructive`
+ * already declare (parsed onto every `OperationModel`, unconsulted until a profile selects one).
+ *
+ * Two profiles always exist without being declared here: `"full"` (no gating — today's default
+ * behaviour) and `"cheap"` (`{ maxCost: "low" }`). Anything more specific than a cost band —
+ * "skip the extraction endpoints that call a paid inference API" — is a named entry here.
+ */
+export interface ProfileSpec {
+	/** Inclusive ceiling. An operation costing more than this is excluded. */
+	maxCost?: "low" | "medium" | "high"
+	/** Excludes every operation declaring `x-destructive: true`. */
+	excludeDestructive?: boolean
+	/** Exact `operationId`s to exclude regardless of cost or destructiveness — the escape hatch. */
+	exclude?: string[]
+}
+
+/* ----------------------------------------------------------------- rate limits */
+
+/**
+ * A path/operation matcher paired with a rate, independent of any `x-rate-limit` tag — this is
+ * what keeps oat able to pace itself against a backend that has not adopted the tag yet, or
+ * against an environment (staging, usually) whose real limit differs from what the document
+ * claims for production.
+ */
+export interface RateLimitSpec {
+	/**
+	 * One of: an exact `operationId`; a path pattern such as `/v1/auth/*` (optionally prefixed
+	 * with a method, `POST /v1/auth/login`), `*` matching one path segment; or `category:<name>`
+	 * to target every operation whose `x-rate-limit` tag declares that category, without
+	 * enumerating its routes.
+	 */
+	match: string
+	rps: number
+	/**
+	 * Bucket name to share with a tag-declared category — lets one rule override the rate for an
+	 * entire category. Defaults to `match`, so a route-scoped rule still works standalone.
+	 */
+	category?: string
+}
+
 /* --------------------------------------------------------------------- config */
 
 export interface OatConfig {
@@ -153,6 +196,19 @@ export interface OatConfig {
 	maxInFlight?: number
 	/** Restrict the run to these entity names. */
 	only?: string[]
+	/**
+	 * Named profiles this run can select between, keyed by name. `"full"` and `"cheap"` exist
+	 * implicitly and need no entry here; add one only for a profile a cost band can't express.
+	 */
+	profiles?: Record<string, ProfileSpec>
+	/** Active profile by name. `--profile` on the CLI overrides this. Defaults to `"full"`. */
+	profile?: string
+	/**
+	 * Paces requests per category so oat's own traffic never trips a documented rate limit and
+	 * reports the trip as a backend defect. Checked before `x-rate-limit` tags for the same
+	 * request — the environment-specific belief wins over the document's general claim.
+	 */
+	rateLimits?: RateLimitSpec[]
 	/** Leave created records in place instead of tearing them down. */
 	keepFixtures?: boolean
 	/** Report destination. Defaults to `./oat-out`. */

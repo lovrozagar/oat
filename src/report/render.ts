@@ -24,6 +24,10 @@ export interface ReportInput {
 	checksSuppressed?: Array<{ check: string; entity: string; because: string }>
 	/** Checks that ran but could not reach a verdict, with the reason they stopped. */
 	inconclusive?: Array<{ check: string; entity: string; reason: string }>
+	/** Active profile's name — `"full"` unless `--profile` / `config.profile` said otherwise. */
+	profile?: string
+	/** Operations a profile excluded, and why. Silently narrowing coverage is the failure to avoid. */
+	profileExclusions?: Array<{ entity: string; operationId: string; reason: string }>
 	startedAt: Date
 	durationMs: number
 }
@@ -115,6 +119,8 @@ export function renderMarkdown(input: ReportInput): string {
 	}
 	const unresolvedCount = new Set((input.inconclusive ?? []).map((s) => s.check)).size
 	if (unresolvedCount > 0) lines.push(`- **Checks that could not conclude**: ${unresolvedCount}`)
+	const profileLine = profileExclusionSummary(input)
+	if (profileLine !== null) lines.push(`- **Profile**: ${profileLine}`)
 	lines.push(`- **Requests**: ${input.client.transcript.length}`)
 	lines.push("- **Matrix**: [matrix.html](./matrix.html) · [matrix.json](./matrix.json)")
 	const timing = latency(input.client.transcript)
@@ -306,6 +312,28 @@ function named(names: readonly string[], keep = 6): string {
 	return `${names.slice(0, keep).join(", ")} +${names.length - keep} more`
 }
 
+/**
+ * One line naming what `--profile` narrowed and why — silently shrinking coverage is the failure
+ * mode to avoid, so a gated run says exactly what it skipped, the same way a coverage gap does.
+ * `null` on the default `"full"` profile with nothing excluded: nothing to say.
+ */
+function profileExclusionSummary(input: ReportInput): string | null {
+	const exclusions = input.profileExclusions ?? []
+	if (exclusions.length === 0) return null
+	const highCost = exclusions.filter((e) => e.reason.startsWith("x-cost")).length
+	const destructive = exclusions.filter((e) => e.reason === "x-destructive").length
+	const byName = exclusions.length - highCost - destructive
+	const parts = [
+		highCost > 0 ? `${highCost} high-cost` : null,
+		destructive > 0 ? `${destructive} destructive` : null,
+		byName > 0 ? `${byName} excluded by name` : null,
+	].filter((part): part is string => part !== null)
+	return (
+		`skipped ${exclusions.length} operation(s) under --profile ${input.profile ?? "?"}` +
+		(parts.length > 0 ? ` (${parts.join(", ")})` : "")
+	)
+}
+
 /** Console summary — what shows up in CI logs. */
 export function renderConsole(input: ReportInput): string {
 	const { findings } = input
@@ -321,6 +349,8 @@ export function renderConsole(input: ReportInput): string {
 			(coverage.never.length > 0 ? ` · ${coverage.never.length} checks did not apply` : "") +
 			(coverage.partialSkip.length > 0 ? ` · ${coverage.partialSkip.length} only on some entities` : ""),
 	)
+	const profileLine = profileExclusionSummary(input)
+	if (profileLine !== null) lines.push(`  ${profileLine}`)
 	lines.push("")
 
 	const renderSkipped = (): void => {
@@ -452,6 +482,8 @@ export function renderJson(input: ReportInput): string {
 			checksSkipped: input.checksSkipped ?? [],
 			checksSuppressed: input.checksSuppressed ?? [],
 			inconclusive: input.inconclusive ?? [],
+			profile: input.profile ?? "full",
+			profileExclusions: input.profileExclusions ?? [],
 			durationMs: input.durationMs,
 			entitiesTested: input.entitiesTested,
 			findings: input.findings.map((finding) => ({

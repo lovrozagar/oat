@@ -8,6 +8,8 @@ export type {
 	OutOfBandRequest,
 	OutOfBandStep,
 	Principal,
+	ProfileSpec,
+	RateLimitSpec,
 	RequestStep,
 } from "./config/define-config.ts"
 export { loadConfig } from "./config/load.ts"

@@ -27,6 +27,8 @@ import {
 	readInvalidate,
 	readInvite,
 	readQueryCapability,
+	type RateLimitTag,
+	readRateLimit,
 	readRootParams,
 	readSoftDelete,
 	readTenantParam,
@@ -77,6 +79,7 @@ export interface OperationModel {
 	idempotent: boolean
 	freshPrincipal: boolean
 	cleanup: string | null
+	rateLimit: RateLimitTag | null
 	hasRequestBody: boolean
 	isMutation: boolean
 }
@@ -192,6 +195,7 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 		idempotent: readFlag(op, "x-idempotent"),
 		immutable: readImmutable(op),
 		invalidates: readInvalidate(op),
+		rateLimit: readRateLimit(op),
 		isMutation: MUTATING_METHODS.has(method.toUpperCase()),
 		method: method.toUpperCase(),
 		operationId,

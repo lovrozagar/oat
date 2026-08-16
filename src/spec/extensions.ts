@@ -373,6 +373,26 @@ export function readCleanup(op: OperationObject): string | null {
 	return typeof value === "string" ? normaliseRouteRef(value) : null
 }
 
+export interface RateLimitTag {
+	category: string
+	/** `null` when the tag names a category without a rate — still useful for grouping. */
+	rps: number | null
+}
+
+/**
+ * `x-rate-limit: { category: string, rps?: number }` — read defensively, like every other tag,
+ * because the shape is the emitting app's policy to own, not oat's to assume. A category alone
+ * (no `rps`) still groups operations sharing one budget; a config-level rate can complete it.
+ */
+export function readRateLimit(op: OperationObject): RateLimitTag | null {
+	const value = ext<unknown>(op, "x-rate-limit")
+	if (value === null || typeof value !== "object") return null
+	const category = (value as Record<string, unknown>).category
+	if (typeof category !== "string" || category === "") return null
+	const rps = (value as Record<string, unknown>).rps
+	return { category, rps: typeof rps === "number" && rps > 0 ? rps : null }
+}
+
 /* -------------------------------------------------------------------- x-tenant */
 
 const TENANT_PARAM = /^(org(anization)?|tenant|workspace|account|project|app)_?(id|slug)?$/i

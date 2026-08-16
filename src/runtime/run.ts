@@ -8,12 +8,14 @@
 
 import { buildModel, type EntityModel, type OperationModel, type SpecModel } from "../spec/graph.ts"
 import { dereference, loadSpec } from "../spec/load.ts"
-import type { Hooks, Principal } from "../config/define-config.ts"
+import type { Hooks, Principal, ProfileSpec, RateLimitSpec } from "../config/define-config.ts"
 import { type AcquireSpec, createPrincipal, type PrincipalRuntime } from "./auth.ts"
 import { CHECKS, type Actor, type CheckContext } from "./checks.ts"
 import { Client, type Exchange } from "./client.ts"
 import type { ProgressHandler, ProgressLast, ProgressSnapshot } from "./progress.ts"
 import { type Finding, FindingCollector, type Inconclusive } from "./finding.ts"
+import { excludedByProfile, resolveProfile } from "./profile.ts"
+import { buildRateLimitRules, RateLimiter } from "./rate-limit.ts"
 import { Ledger, type TeardownReport } from "./teardown.ts"
 import { SchemaValidator } from "./validate.ts"
 import { type Record_, type Scope, SeedError, fillPath, resolveScope, seedCohort } from "./world.ts"
@@ -31,6 +33,10 @@ export interface RunOptions {
 	cohortSize?: number
 	globalHeaders?: Record<string, string>
 	only?: string[]
+	/** Named profiles this run can select between. `"full"` and `"cheap"` exist without an entry. */
+	profiles?: Record<string, ProfileSpec>
+	/** Active profile by name. Defaults to `"full"` — every operation runs, today's behaviour. */
+	profile?: string
 	/** Leaves created records in place. Useful when inspecting a failure by hand. */
 	keepFixtures?: boolean
 	/**
@@ -41,6 +47,8 @@ export interface RunOptions {
 	concurrency?: number
 	/** Requests allowed in flight at once, across the whole run. */
 	maxInFlight?: number
+	/** Paces requests per category. Checked before `x-rate-limit` tags for the same request. */
+	rateLimits?: RateLimitSpec[]
 	/** Live status. Called on phase/entity/check/request; the CLI prints a heartbeat from this. */
 	onProgress?: ProgressHandler
 }
@@ -64,6 +72,10 @@ export interface RunResult {
 	checksSuppressed: Array<{ check: string; entity: string; because: string }>
 	/** Checks that ran but could not reach a verdict — see `Inconclusive`. */
 	inconclusive: Inconclusive[]
+	/** Name of the profile that ran — `"full"` unless `--profile` / `config.profile` said otherwise. */
+	profile: string
+	/** Operations a profile excluded, and why. Each also has a matching `profile.skip` gap finding. */
+	profileExclusions: Array<{ entity: string; operationId: string; reason: string }>
 	created: number
 	teardown: TeardownReport | null
 }
@@ -137,6 +149,42 @@ async function teardownPrincipals(
 				error instanceof Error ? error.message : String(error),
 			)
 		}
+	}
+}
+
+/**
+ * A 429 is a finding only when the request that drew it was demonstrably under a rate the
+ * *document* declared — `rateLimitSource === "tag"` and the bucket had a free token, meaning oat
+ * did not have to wait for one. A 429 against a config-supplied rate is the operator's own guess
+ * about the environment, not a claim the API made, so it is paced around and never reported; a
+ * 429 that only arrived after oat's own bucket made the request wait means oat's rate model was
+ * too generous, which is oat's fault, not the backend's.
+ *
+ * Grouped by category rather than reported per request: the point is "the declared rate for X is
+ * wrong", once, not a flood of identical findings for every request that category serves.
+ */
+function reportRateLimitViolations(client: Client, findings: FindingCollector): void {
+	const byCategory = new Map<string, Exchange[]>()
+	for (const exchange of client.transcript) {
+		if (exchange.status !== 429) continue
+		if (exchange.rateLimitSource !== "tag" || exchange.rateLimitHadRoom !== true) continue
+		const category = exchange.rateLimitCategory ?? "unknown"
+		const list = byCategory.get(category) ?? []
+		list.push(exchange)
+		byCategory.set(category, list)
+	}
+	for (const [category, exchanges] of byCategory) {
+		findings.spec(
+			"spec.declared-rate-limit-is-honoured",
+			category,
+			`the declared "${category}" rate limit is not honoured`,
+			`${exchanges.length} request(s) to the "${category}" category returned 429 despite oat ` +
+				"pacing them within the rate x-rate-limit declares — each had a free token in its own " +
+				"bucket at the moment it was sent, so this is not oat outrunning its own model. Either " +
+				`the declared rate is wrong, or the backend enforces a stricter one than "${category}" ` +
+				"documents.",
+			exchanges.slice(0, 3),
+		)
 	}
 }
 
@@ -234,6 +282,8 @@ function testableEntities(model: SpecModel, only?: string[]): EntityModel[] {
 export async function run(options: RunOptions): Promise<RunResult> {
 	const startedAt = Date.now()
 	const findings = new FindingCollector()
+	const profile = resolveProfile(options.profile, options.profiles)
+	const profileExclusions: Array<{ entity: string; operationId: string; reason: string }> = []
 	let last: ProgressLast | undefined
 	let currentPhase: ProgressSnapshot["phase"] = "load"
 	let currentEntity: string | undefined
@@ -274,6 +324,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	const raw = await loadSpec(options.spec, options.baseUrl)
 	const { doc } = dereference(raw)
 	const model = buildModel(doc)
+	const rateLimiter = new RateLimiter(buildRateLimitRules(model, options.rateLimits))
 	const client = new Client(
 		options.baseUrl,
 		options.globalHeaders ?? {},
@@ -299,6 +350,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			if (entityTotal !== undefined) snap.entityTotal = entityTotal
 			publish(snap)
 		},
+		rateLimiter,
 	)
 	const validator = new SchemaValidator()
 	const ledger = new Ledger()
@@ -326,10 +378,30 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	const checksSkipped: Array<{ check: string; entity: string; needs: string }> = []
 	const checksSuppressed: Array<{ check: string; entity: string; because: string }> = []
 
+	const excludeOp = (entity: EntityModel, op: OperationModel | undefined): boolean => {
+		if (op === undefined) return false
+		const reason = excludedByProfile(op, profile.spec)
+		if (reason === null) return false
+		profileExclusions.push({ entity: entity.name, operationId: op.operationId, reason })
+		findings.gap(
+			"profile.skip",
+			entity.name,
+			`${op.operationId} excluded by profile "${profile.name}"`,
+			`${reason}, under --profile ${profile.name}. Checks that depend on this operation stand ` +
+				"down rather than run against data oat did not create through it.",
+		)
+		return true
+	}
+
 	const testEntity = async (entity: EntityModel): Promise<void> => {
 		const listOp = model.byOperationId.get(entity.list ?? "")
 		const createOp = model.byOperationId.get(entity.create ?? "")
 		if (listOp === undefined || createOp === undefined) return
+		if (excludeOp(entity, listOp)) {
+			/* No fallback for a list route itself: every other check on this entity is reached
+			 * through it, so its exclusion is the whole entity's, not one operation's. */
+			return
+		}
 		currentEntity = entity.name
 		currentCheck = undefined
 		currentPhase = "seed"
@@ -347,78 +419,102 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		let scope: Scope
 		let records: Record_[]
 		let degraded = false
-		try {
-			scope = await resolveScope(createOp, model, client, {
-				authHeaders: alpha.headers,
-				roots: rootValues,
-				seed,
-			})
-			/* Carry every known root, not only what the create route happened to need. Sibling
-			 * routes for one entity are frequently scoped differently — a global create beside a
-			 * tenant-scoped item route — and a scope built from create alone leaves those
-			 * unresolvable, which shows up as a wall of "could not complete" gaps. */
-			scope.values = { ...rootValues, ...scope.values }
-			const cohort = await seedCohort(
-				createOp,
-				model,
-				client,
-				{
-					authHeaders: alpha.headers,
-					...(options.cohortSize === undefined ? {} : { cohortSize: options.cohortSize }),
-					roots: rootValues,
-					seed,
-				},
-				scope,
-			)
-			records = cohort.records
-			/* Ancestors first, then the cohort — the unwind reverses this, so children are always
-			 * removed before the parents they hang from. */
-			for (const ancestor of scope.created) {
-				ledger.record(ancestor.entity, ancestor.id, scope.values)
-			}
-			for (const record of records) {
-				ledger.record(entity.name, String(record[entity.identity ?? "id"]), scope.values)
-			}
-		} catch (error) {
-			const cause = error instanceof SeedError ? error.cause_ : "unknown"
-			const status = error instanceof SeedError ? error.status : undefined
-			const message = error instanceof Error ? error.message : String(error)
-
-			/* A create that fails with 5xx is not a fixture problem — it is the defect. Reporting
-			 * it as merely "blocked" buries the most serious thing oat found. */
-			if (status !== undefined && status >= 500) {
-				findings.backend(
-					"create.does-not-error",
-					entity.name,
-					`creating a "${entity.name}" fails with a server error`,
-					`${message}. The request body was generated from the documented schema, so either ` +
-						"the handler rejects input the document permits, or it is failing outright. " +
-						"Everything downstream of this entity is untestable until it is fixed.",
-					client.transcript.filter((e) => e.status >= 500).slice(-1),
-				)
-			}
-
-			/* Fall back to whatever already exists. A backend whose create is broken can still have
-			 * a working list, and read-only coverage beats no coverage — this is exactly the state
-			 * in which a read-path bug is most likely to be sitting undiscovered. */
+		if (excludeOp(entity, createOp)) {
+			/* Same fallback a failed create takes below: read-only coverage against whatever
+			 * already exists beats no coverage, and it is exactly the state most likely to hide a
+			 * read-path bug. The gap finding excludeOp already reported names the reason. */
 			const existing = await readExisting(listOp, client, alpha.headers(), {
 				...options.roots,
 				...alpha.roots,
 			})
 			if (existing.records.length === 0) {
-				findings.blocked("world.seed", entity.name, `could not seed "${entity.name}"`, `${cause}: ${message}`)
+				findings.blocked(
+					"profile.skip",
+					entity.name,
+					`could not test "${entity.name}"`,
+					`create is excluded by profile "${profile.name}" and the list route returned no ` +
+						"existing records to fall back on.",
+				)
 				return
 			}
-
-			findings.gap(
-				"world.seed",
-				entity.name,
-				`seeding "${entity.name}" failed; running read-only checks against existing records`,
-				`${cause}: ${message}. Write-path and lifecycle checks are skipped for this entity.`,
-			)
 			scope = { created: [], values: existing.scope }
 			records = existing.records
 			degraded = true
+		} else {
+			try {
+				scope = await resolveScope(createOp, model, client, {
+					authHeaders: alpha.headers,
+					roots: rootValues,
+					seed,
+				})
+				/* Carry every known root, not only what the create route happened to need. Sibling
+				 * routes for one entity are frequently scoped differently — a global create beside
+				 * a tenant-scoped item route — and a scope built from create alone leaves those
+				 * unresolvable, which shows up as a wall of "could not complete" gaps. */
+				scope.values = { ...rootValues, ...scope.values }
+				const cohort = await seedCohort(
+					createOp,
+					model,
+					client,
+					{
+						authHeaders: alpha.headers,
+						...(options.cohortSize === undefined ? {} : { cohortSize: options.cohortSize }),
+						roots: rootValues,
+						seed,
+					},
+					scope,
+				)
+				records = cohort.records
+				/* Ancestors first, then the cohort — the unwind reverses this, so children are
+				 * always removed before the parents they hang from. */
+				for (const ancestor of scope.created) {
+					ledger.record(ancestor.entity, ancestor.id, scope.values)
+				}
+				for (const record of records) {
+					ledger.record(entity.name, String(record[entity.identity ?? "id"]), scope.values)
+				}
+			} catch (error) {
+				const cause = error instanceof SeedError ? error.cause_ : "unknown"
+				const status = error instanceof SeedError ? error.status : undefined
+				const message = error instanceof Error ? error.message : String(error)
+
+				/* A create that fails with 5xx is not a fixture problem — it is the defect.
+				 * Reporting it as merely "blocked" buries the most serious thing oat found. */
+				if (status !== undefined && status >= 500) {
+					findings.backend(
+						"create.does-not-error",
+						entity.name,
+						`creating a "${entity.name}" fails with a server error`,
+						`${message}. The request body was generated from the documented schema, so ` +
+							"either the handler rejects input the document permits, or it is failing " +
+							"outright. Everything downstream of this entity is untestable until it is " +
+							"fixed.",
+						client.transcript.filter((e) => e.status >= 500).slice(-1),
+					)
+				}
+
+				/* Fall back to whatever already exists. A backend whose create is broken can still
+				 * have a working list, and read-only coverage beats no coverage — this is exactly
+				 * the state in which a read-path bug is most likely to be sitting undiscovered. */
+				const existing = await readExisting(listOp, client, alpha.headers(), {
+					...options.roots,
+					...alpha.roots,
+				})
+				if (existing.records.length === 0) {
+					findings.blocked("world.seed", entity.name, `could not seed "${entity.name}"`, `${cause}: ${message}`)
+					return
+				}
+
+				findings.gap(
+					"world.seed",
+					entity.name,
+					`seeding "${entity.name}" failed; running read-only checks against existing records`,
+					`${cause}: ${message}. Write-path and lifecycle checks are skipped for this entity.`,
+				)
+				scope = { created: [], values: existing.scope }
+				records = existing.records
+				degraded = true
+			}
 		}
 
 		const actorOf = async (principal: ResolvedPrincipal, seedOffset: number): Promise<Actor> => {
@@ -505,6 +601,15 @@ export async function run(options: RunOptions): Promise<RunResult> {
 						},
 					})
 
+		const readOpModel = model.byOperationId.get(entity.read ?? "")
+		const updateOpModel = model.byOperationId.get(entity.update ?? "")
+		const deleteOpModel = model.byOperationId.get(entity.delete ?? "")
+		/* Checked independently of `degraded`: a profile can exclude one write route on an entity
+		 * whose create still ran cleanly, and that must not disable every other operation too. */
+		const readExcluded = excludeOp(entity, readOpModel)
+		const updateExcluded = excludeOp(entity, updateOpModel)
+		const deleteExcluded = excludeOp(entity, deleteOpModel)
+
 		const ctx: CheckContext = {
 			actors,
 			altAuth,
@@ -516,9 +621,9 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			collectionKey: listOp.collection?.key ?? null,
 			/* In degraded mode oat did not write these records, so it has no oracle for them —
 			 * every write-path check must sit out rather than assert against data it did not
-			 * create. */
+			 * create. A profile-excluded write route stands down the same way, independently. */
 			createOp: degraded ? undefined : createOp,
-			deleteOp: degraded ? undefined : model.byOperationId.get(entity.delete ?? ""),
+			deleteOp: degraded || deleteExcluded ? undefined : deleteOpModel,
 			entityName: entity.name,
 			findings,
 			identity: entity.identity ?? "id",
@@ -526,7 +631,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			listOp,
 			model,
 			query: listOp.query,
-			readOp: model.byOperationId.get(entity.read ?? ""),
+			readOp: readExcluded ? undefined : readOpModel,
 			records,
 			scope: scope.values,
 			/* Taken from any operation on the entity, not just the list: authors naturally put
@@ -536,7 +641,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				model.operations.find((op) => op.entity === entity.name && op.softDelete !== null)?.softDelete ??
 				listOp.softDelete,
 			seed,
-			updateOp: degraded ? undefined : model.byOperationId.get(entity.update ?? ""),
+			updateOp: degraded || updateExcluded ? undefined : updateOpModel,
 			validator,
 		}
 
@@ -694,6 +799,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	}
 
 	await teardownPrincipals(resolved, hooks, findings)
+	reportRateLimitViolations(client, findings)
 
 	tick({
 		message: "done",
@@ -711,6 +817,8 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		entitiesTested,
 		findings: findings.findings,
 		model,
+		profile: profile.name,
+		profileExclusions,
 		teardown,
 	}
 }

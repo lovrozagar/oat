@@ -1001,7 +1001,55 @@ x-idempotent: true
 x-fresh-principal: true
 ```
 
-These are **parsed onto the operation model**. They are **not yet consulted by `oat run`** — there is no `--profile`. Document them for the model/`plan` output. Replay safety is tested from a documented `Idempotency-Key` header (`idempotency.replay-does-not-duplicate`), not from `x-idempotent`.
+`x-cost` and `x-destructive` are consulted by `--profile` (below). `x-idempotent` and `x-fresh-principal` are parsed onto the operation model for the `plan`/`doctor` output but not yet consulted anywhere else. Replay safety is tested from a documented `Idempotency-Key` header (`idempotency.replay-does-not-duplicate`), not from `x-idempotent`.
+
+### `--profile` — cost gating
+
+```bash
+oat run --config oat.config.ts --profile cheap
+```
+
+A profile restricts which operations a run is allowed to touch, filtering on `x-cost` and `x-destructive`. Two exist without being declared anywhere: `full` (no gating — the default, today's behaviour if you never mention a profile) and `cheap` (`{ maxCost: "low" }`). Reach for a profile when some operations are expensive to call every run — an extraction endpoint billed per request, a bulk job, anything you don't want fired on every `oat run`.
+
+Anything more specific than a cost band is a named entry in config:
+
+```ts
+export default defineConfig({
+	// ...
+	profiles: {
+		// skip everything above "low" cost, same as the built-in "cheap"
+		cheap: { maxCost: "low" },
+		// skip destructive operations and two specific extraction endpoints
+		safe: { excludeDestructive: true, exclude: ["report.extract", "report.summarize"] },
+	},
+	profile: "safe", // --profile on the CLI overrides this
+})
+```
+
+An excluded operation never silently narrows what gets reported. Excluding an entity's `create` degrades that entity the same way a real seeding failure does — a `COVERAGE_GAP` naming the reason, then read-only checks run against whatever the list route already returns; `BLOCKED` if nothing exists to fall back on. Excluding `read`/`update`/`delete` individually stands down just the checks that need that one operation. The run summary states what a profile skipped: `skipped 12 operation(s) under --profile cheap (12 high-cost)` — the same principle as `did not apply` for a coverage gap: a report that only shows what ran invites the reader to assume the rest was verified.
+
+### `x-rate-limit` — pacing oat's own traffic
+
+```yaml
+x-rate-limit: { category: ai, rps: 3 }
+```
+
+Groups operations sharing one throughput budget (`category`) and optionally the rate itself (`rps`). Without this, oat's matrix can hammer a `login` or paid-inference route past its real limit, collect 429s, and report them as backend defects — exactly the false-positive class that erodes trust fastest. With it, requests to that category are paced through a token bucket before they fire.
+
+A 429 is only ever reported when the request that drew it was demonstrably under the _declared_ rate — oat's own bucket had a free token, so it did not have to wait for one. A 429 that arrived only after oat's bucket made the request wait means oat's own rate model was too generous, which is paced around, never reported.
+
+`config.rateLimits` is checked first and needs no tag at all — it is what keeps oat usable against a backend that has not adopted `x-rate-limit` yet, or against an environment (staging, usually) whose real limit differs from what the document claims for production. A 429 against a config-supplied rate is never a finding: it is the operator's own belief about the environment, not a claim the API made.
+
+```ts
+export default defineConfig({
+	// ...
+	rateLimits: [
+		{ match: "POST /v1/auth/login", rps: 2 },
+		{ match: "auth.login", rps: 2 }, // operationId works too
+		{ match: "category:ai", rps: 1 }, // overrides every x-rate-limit-tagged "ai" operation at once
+	],
+})
+```
 
 ## Checks
 
@@ -1449,8 +1497,8 @@ These are deliberate. An agent should not invent a flag for them.
 - **JSON request bodies only.** Multipart, form, file upload, and XML are not sent. Those operations will fail to seed or will not apply.
 - **No webhook / callback / link-object following.**
 - **External `$ref`s are not fetched.** In-document `$ref`s are.
-- **No `--profile` / `x-cost` gating.** High-cost operations still run if they are create/list/read/update/delete.
 - **`x-idempotent` is not the idempotency check.** The check keys off a documented `Idempotency-Key` header.
+- **Rate-limit pacing only covers requests oat itself sends.** It cannot see traffic from anything else hitting the backend at the same time, so a shared budget can still trip even when oat's own share was within the declared rate.
 - **Equality filter grammar** cannot express `neq` / `gt` / `like` / `and` / `or`. Those checks did-not-apply, they do not fail.
 - **`or()` is postgrest-only.**
 - **Concurrency > 1 on nested graphs invents pagination bugs.** Use `1`.
@@ -1486,7 +1534,7 @@ Runtime dependencies of a run against _your_ API: `ajv`, `ajv-formats`, `yaml`. 
 
 [`labs/`](./labs) is a family of real Hono + Cloudflare D1 backends this repo uses to iterate oat (correct worlds and planted bugs). Schema is generated from [`labs/worlds/catalog.ts`](./labs/worlds/catalog.ts). See [`labs/README.md`](./labs/README.md). You do not need labs to test your own API.
 
-Shipped in the npm package for copy-paste: `labs/local.config.ts`, `labs/minimal.config.ts`, `labs/anyrow.config.ts`, `labs/annotated-openapi.yaml`.
+Shipped in the npm package for copy-paste: `labs/local.config.ts`, `labs/minimal.config.ts`, `labs/oob-auth.config.ts`, `labs/annotated-openapi.yaml`.
 
 ## License
 
