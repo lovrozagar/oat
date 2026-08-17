@@ -817,6 +817,10 @@ Parent path parameters are created first (depth-first through the owning entity'
 
 A create that returns `>= 300` on the first variant fails the entity (downstream checks `BLOCKED`). Later variants that fail just shorten the cohort — a partial cohort is still used.
 
+HTTP 429 is retried first — `Retry-After` or exponential backoff, up to five times — on seed, checks, and teardown, whether or not the operation declared `x-rate-limit`. The first 429 is never a seed failure. A leftover 429 after those retries is a gap, not a backend defect.
+
+A 402 / plan-limit (`payment_required`, `*_plan_limit`) on create is not a backend defect when the same-tenant list already has a row — typically an earlier `x-effects` create that filled a free-plan quota. oat reuses that id so children (a `row` after extract created a `table`) can still seed. It does not invent records. Write-path checks on the adopted entity stand down.
+
 A documented feature-gate 403 is the exception: if create declares `x-feature-gate` and the body is `vars.type: feature_gate` (and `vars.feature` matches the tag when present), oat records a `COVERAGE_GAP` naming the tag rather than a seed defect. See [`x-feature-gate`](#x-feature-gate).
 
 `--seed` / `seed` makes the bodies identical across runs. It does not make server-assigned ids identical.
@@ -1172,7 +1176,9 @@ x-rate-limit: { category: ai, rps: 3 }
 
 Groups operations sharing one throughput budget (`category`) and optionally the rate itself (`rps`). Without this, oat's matrix can hammer a `login` or paid-inference route past its real limit, collect 429s, and report them as backend defects — exactly the false-positive class that erodes trust fastest. With it, requests to that category are paced through a token bucket before they fire.
 
-A 429 is only ever reported when the request that drew it was demonstrably under the _declared_ rate — oat's own bucket had a free token, so it did not have to wait for one. A 429 that arrived only after oat's bucket made the request wait means oat's own rate model was too generous, which is paced around, never reported.
+Tags are the **proactive** path. HTTP 429 is the **reactive** path and is honoured even when the operation has no `x-rate-limit` at all (untagged JWT writes, teardown DELETEs). oat reads `Retry-After` (delta-seconds or HTTP-date), otherwise backs off 1s, 2s, 4s… capped at 30s, and retries the same request up to five times. The wait is fed into the matching bucket, or into an implicit `untagged-write` bucket so the next call does not immediately re-trip.
+
+A 429 is only ever reported when the request that drew it was demonstrably under the _declared_ rate — oat's own bucket had a free token, so it did not have to wait for one. A 429 that arrived only after oat's bucket made the request wait means oat's own rate model was too generous, which is paced around, never reported. A 429 against a config-supplied or implicit rate is never a finding.
 
 `config.rateLimits` is checked first and needs no tag at all — it is what keeps oat usable against a backend that has not adopted `x-rate-limit` yet, or against an environment (staging, usually) whose real limit differs from what the document claims for production. A 429 against a config-supplied rate is never a finding: it is the operator's own belief about the environment, not a claim the API made.
 

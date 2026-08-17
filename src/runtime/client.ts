@@ -1,6 +1,6 @@
 /** HTTP client with a full transcript, so every finding can cite the exchange that produced it. */
 
-import type { RateLimiter } from "./rate-limit.ts"
+import { headerValue, MAX_429_RETRIES, retryWaitMs, type RateLimiter } from "./rate-limit.ts"
 
 export interface Exchange {
 	seq: number
@@ -26,7 +26,7 @@ export interface Exchange {
 	/** Rate-limit category this request was paced against, when one matched. */
 	rateLimitCategory?: string
 	/** Where that category came from — a `spec.*` finding only ever cites a `"tag"` rejection. */
-	rateLimitSource?: "tag" | "config"
+	rateLimitSource?: "tag" | "config" | "implicit"
 	/** Whether the bucket had a token without waiting — oat believes it was under its own pace. */
 	rateLimitHadRoom?: boolean
 }
@@ -132,7 +132,10 @@ export class Client {
 			 * notion of time, a rate-limit category bounds throughput over time. The in-flight
 			 * slot is acquired first and released in the same finally as before — pacing sits
 			 * entirely inside that window and never changes what maxInFlight itself guarantees. */
-			const rule = this.rateLimiter?.resolve(method.toUpperCase(), url.pathname)
+			const verb = method.toUpperCase()
+			const tagged = this.rateLimiter?.resolve(verb, url.pathname)
+			const implicit = tagged === undefined ? this.rateLimiter?.implicitRule(verb) : undefined
+			const rule = tagged ?? implicit
 			await this.acquire()
 			let rateLimitHadRoom: boolean | undefined
 			let started: number
@@ -140,7 +143,8 @@ export class Client {
 			let text: string
 			let at = 0
 			try {
-				if (rule !== undefined) rateLimitHadRoom = await this.rateLimiter?.acquire(rule)
+				if (tagged !== undefined) rateLimitHadRoom = await this.rateLimiter?.acquire(tagged)
+				else if (implicit !== undefined) rateLimitHadRoom = await this.rateLimiter?.waitImplicit(verb)
 				started = performance.now()
 				response = await fetch(url, init)
 				text = await response.text()
@@ -159,7 +163,6 @@ export class Client {
 			}
 
 			this.seq += 1
-			const verb = method.toUpperCase()
 			const responseHeaders = Object.fromEntries(response.headers.entries())
 			const exchange: Exchange = {
 				at,
@@ -184,10 +187,24 @@ export class Client {
 		}
 
 		if (refresh !== undefined) await refresh(false)
-		const first = await dispatch()
-		if (first.status !== 401 || refresh === undefined) return first
-		await refresh(true)
-		return dispatch()
+		let exchange = await dispatch()
+		if (exchange.status === 401 && refresh !== undefined) {
+			await refresh(true)
+			exchange = await dispatch()
+		}
+		/* 429 is reactive: the first one is never a seed/check failure. Tags pace proactively;
+		 * this path honours the server even when the op has no x-rate-limit at all. */
+		for (let attempt = 0; exchange.status === 429 && attempt < MAX_429_RETRIES; attempt++) {
+			const waitMs = retryWaitMs(headerValue(exchange.responseHeaders, "retry-after"), attempt)
+			this.rateLimiter?.noteBackoff(method.toUpperCase(), url.pathname, waitMs)
+			if (waitMs > 0) await new Promise<void>((resolve) => setTimeout(resolve, waitMs))
+			exchange = await dispatch()
+			if (exchange.status === 401 && refresh !== undefined) {
+				await refresh(true)
+				exchange = await dispatch()
+			}
+		}
+		return exchange
 	}
 
 	get(path: string, options: RequestOptions = {}): Promise<Exchange> {

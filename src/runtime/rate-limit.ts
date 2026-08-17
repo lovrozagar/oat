@@ -17,8 +17,10 @@ export interface CompiledRateLimitRule {
 	category: string
 	rps: number
 	/** A 429 against a tag-sourced rule is a claim the document made; against config, it is the
-	 * operator's own guess about the environment — only the former is ever a finding. */
-	source: "tag" | "config"
+	 * operator's own guess about the environment — only the former is ever a finding.
+	 * `"implicit"` is the reactive untagged-write bucket: it exists only after a 429, never as a
+	 * documented claim. */
+	source: "tag" | "config" | "implicit"
 }
 
 /**
@@ -130,6 +132,52 @@ export function buildRateLimitRules(
 	return rules
 }
 
+/** Writes that never declared `x-rate-limit` still share a real backend budget (JWT writes, etc.). */
+export const UNTAGGED_WRITE_CATEGORY = "untagged-write"
+export const UNTAGGED_CATEGORY = "untagged"
+
+/** Extra attempts after the first 429. The first 429 is never a seed/check failure by itself. */
+export const MAX_429_RETRIES = 5
+export const RETRY_BACKOFF_INITIAL_MS = 1_000
+export const RETRY_BACKOFF_CAP_MS = 30_000
+const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"])
+
+/**
+ * `Retry-After` as a wait in ms. Delta-seconds or HTTP-date; anything unparseable is `null`
+ * so the caller can fall back to exponential backoff. Capped so a tester cannot hang for an hour.
+ */
+export function parseRetryAfter(value: string | undefined, now = Date.now()): number | null {
+	if (value === undefined) return null
+	const trimmed = value.trim()
+	if (trimmed === "") return null
+	if (/^\d+(?:\.\d+)?$/.test(trimmed)) {
+		return Math.min(RETRY_BACKOFF_CAP_MS, Math.max(0, Number(trimmed) * 1000))
+	}
+	const date = Date.parse(trimmed)
+	if (Number.isNaN(date)) return null
+	return Math.min(RETRY_BACKOFF_CAP_MS, Math.max(0, date - now))
+}
+
+/** Wait before retry `attempt` (0-based) of a 429. Header wins; otherwise 1s, 2s, 4s… capped. */
+export function retryWaitMs(retryAfterHeader: string | undefined, attempt: number, now = Date.now()): number {
+	const parsed = parseRetryAfter(retryAfterHeader, now)
+	if (parsed !== null) return parsed
+	const exp = RETRY_BACKOFF_INITIAL_MS * 2 ** Math.max(0, attempt)
+	return Math.min(RETRY_BACKOFF_CAP_MS, exp)
+}
+
+export function headerValue(headers: Record<string, string>, name: string): string | undefined {
+	const want = name.toLowerCase()
+	for (const [key, value] of Object.entries(headers)) {
+		if (key.toLowerCase() === want) return value
+	}
+	return undefined
+}
+
+function implicitCategory(method: string): string {
+	return WRITE_METHODS.has(method.toUpperCase()) ? UNTAGGED_WRITE_CATEGORY : UNTAGGED_CATEGORY
+}
+
 /**
  * A token bucket with a queue: concurrent requests against the same category are admitted one at
  * a time, each computing its wait from the bucket's current state rather than racing on it.
@@ -138,10 +186,22 @@ export function buildRateLimitRules(
 export class RateBucket {
 	private tokens: number
 	private last = performance.now()
+	private cooldownUntil = 0
 	private queue: Promise<void> = Promise.resolve()
 
 	constructor(private readonly rps: number) {
 		this.tokens = rps
+	}
+
+	/**
+	 * A 429 said this budget is exhausted. Hold the next acquire for `waitMs`, then admit exactly
+	 * one request — a full burst refill would immediately re-trip the limit we just hit.
+	 */
+	penalize(waitMs: number): void {
+		const until = performance.now() + Math.max(0, waitMs)
+		this.cooldownUntil = Math.max(this.cooldownUntil, until)
+		this.tokens = 1
+		this.last = this.cooldownUntil
 	}
 
 	/** Resolves once a token is consumed. Returns `false` when the caller had to wait for it. */
@@ -150,10 +210,15 @@ export class RateBucket {
 		const previous = this.queue
 		this.queue = previous.then(async () => {
 			const now = performance.now()
-			this.tokens = Math.min(this.rps, this.tokens + ((now - this.last) / 1000) * this.rps)
-			this.last = now
+			if (now < this.cooldownUntil) {
+				await new Promise<void>((resolve) => setTimeout(resolve, this.cooldownUntil - now))
+			}
+			const after = performance.now()
+			this.tokens = Math.min(this.rps, this.tokens + ((after - this.last) / 1000) * this.rps)
+			this.last = after
 			if (this.tokens >= 1) {
-				hadRoom = true
+				/* A cooldown wait is not room — oat did not believe it was under its own pace. */
+				hadRoom = now >= this.cooldownUntil
 				this.tokens -= 1
 				return
 			}
@@ -161,6 +226,7 @@ export class RateBucket {
 			await new Promise<void>((resolve) => setTimeout(resolve, waitMs))
 			this.tokens = 0
 			this.last = performance.now()
+			hadRoom = false
 		})
 		await this.queue
 		return hadRoom
@@ -170,6 +236,8 @@ export class RateBucket {
 /** Resolves a request's category from the compiled rulebook and paces it through a shared bucket. */
 export class RateLimiter {
 	private readonly buckets = new Map<string, RateBucket>()
+	/** Cooldown-only: after an untagged 429, later untagged writes wait this out, then run free. */
+	private readonly implicitUntil = new Map<string, number>()
 
 	constructor(private readonly rules: readonly CompiledRateLimitRule[]) {}
 
@@ -177,12 +245,61 @@ export class RateLimiter {
 		return this.rules.find((rule) => rule.test(method, pathname))
 	}
 
+	/**
+	 * After a 429 on an untagged route, later untagged writes share this cooldown so they do not
+	 * immediately re-trip. No ongoing rps — we do not know the undocumented rate.
+	 */
+	implicitRule(method: string): CompiledRateLimitRule | undefined {
+		const category = implicitCategory(method)
+		if (!this.implicitUntil.has(category)) return undefined
+		return {
+			category,
+			rps: 0,
+			source: "implicit",
+			test: (m) => implicitCategory(m) === category,
+		}
+	}
+
+	/**
+	 * Feed a 429 wait into the matching bucket, or open the implicit untagged cooldown when the
+	 * operation never declared a rate. Tags stay the proactive path; this is the reactive one.
+	 */
+	noteBackoff(method: string, pathname: string, waitMs: number): CompiledRateLimitRule {
+		const tagged = this.resolve(method, pathname)
+		if (tagged !== undefined) {
+			this.bucketFor(tagged).penalize(waitMs)
+			return tagged
+		}
+		const category = implicitCategory(method)
+		const until = performance.now() + Math.max(0, waitMs)
+		this.implicitUntil.set(category, Math.max(this.implicitUntil.get(category) ?? 0, until))
+		return {
+			category,
+			rps: 0,
+			source: "implicit",
+			test: (m) => implicitCategory(m) === category,
+		}
+	}
+
+	/** Wait out an implicit 429 cooldown. Returns `false` when the caller had to wait. */
+	async waitImplicit(method: string): Promise<boolean> {
+		const until = this.implicitUntil.get(implicitCategory(method)) ?? 0
+		const now = performance.now()
+		if (now >= until) return true
+		await new Promise<void>((resolve) => setTimeout(resolve, until - now))
+		return false
+	}
+
 	async acquire(rule: CompiledRateLimitRule): Promise<boolean> {
+		return this.bucketFor(rule).acquire()
+	}
+
+	private bucketFor(rule: CompiledRateLimitRule): RateBucket {
 		let bucket = this.buckets.get(rule.category)
 		if (bucket === undefined) {
 			bucket = new RateBucket(rule.rps)
 			this.buckets.set(rule.category, bucket)
 		}
-		return bucket.acquire()
+		return bucket
 	}
 }

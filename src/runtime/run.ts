@@ -26,6 +26,7 @@ import {
 	type Scope,
 	SeedError,
 	fillPath,
+	listExisting,
 	probeCreateFixtures,
 	resolveScope,
 	seedCohort,
@@ -271,20 +272,8 @@ async function readExisting(
 	for (const param of listOp.pathParams) {
 		if (scope[param] === undefined) return { records: [], scope }
 	}
-	try {
-		const exchange = await client.get(fillPath(listOp.path, scope), { headers, query: { limit: 50 } })
-		if (exchange.status >= 300) return { records: [], scope }
-		const body = exchange.responseBody
-		const key = listOp.collection?.key ?? null
-		const items = Array.isArray(body)
-			? body
-			: body !== null && typeof body === "object" && key !== null
-				? ((body as Record<string, unknown>)[key] ?? [])
-				: []
-		return { records: Array.isArray(items) ? (items as Record_[]) : [], scope }
-	} catch {
-		return { records: [], scope }
-	}
+	const records = await listExisting(listOp, client, headers, scope)
+	return { records, scope }
 }
 
 /** operationIds named in any principal `auth.steps` — those creates already ran during login. */
@@ -540,7 +529,30 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					},
 					scope,
 				)
-				if (cohort.featureGate !== null) {
+				if (cohort.adopted === true) {
+					/* Plan limit after an effect already created the row: keep the id so children
+					 * (row after extract→table) can seed, but do not assert write-path oracles
+					 * against a body oat never submitted. */
+					findings.gap(
+						"world.seed",
+						entity.name,
+						`seeding "${entity.name}" hit a plan limit; using an existing same-tenant record`,
+						`${createOp.operationId} returned a plan-limit refusal and the list already ` +
+							"had a record — likely an earlier x-effects create. Write-path checks stand " +
+							"down rather than treat payment_required as a backend defect.",
+					)
+					records = cohort.records
+					degraded = true
+					for (const ancestor of scope.created) {
+						ledger.record(ancestor.entity, ancestor.id, scope.values)
+					}
+					for (const record of records) {
+						const id = record[entity.identity ?? "id"]
+						if (typeof id === "string" || typeof id === "number") {
+							ledger.record(entity.name, String(id), scope.values)
+						}
+					}
+				} else if (cohort.featureGate !== null) {
 					/* Same degradation a profile-excluded create takes: the tag said this
 					 * principal cannot create the row, so a correct 403 is coverage, not a
 					 * seed defect. The 403 body still has to match the documented schema. */

@@ -43,6 +43,66 @@ export function fillPath(template: string, values: Record<string, string>): stri
 	})
 }
 
+/**
+ * A plan-limit refusal — 402, or a 4xx whose body names payment_required / *_plan_limit.
+ *
+ * Not a fixture defect: the tenant already has the thing (extract created a table, the free
+ * plan is full). Callers reuse an existing same-tenant row instead of inventing one.
+ */
+export function isPlanLimitResponse(status: number, body: unknown): boolean {
+	if (status === 402) return true
+	if (status < 400 || status >= 500 || status === 429) return false
+	return planLimitSignal(body) !== null
+}
+
+function planLimitSignal(body: unknown): string | null {
+	if (body === null || typeof body !== "object") return null
+	const rec = body as Record<string, unknown>
+	const candidates: unknown[] = [rec.error, rec.error_key, rec.code, rec.type, rec.reason, rec.status_key]
+	const vars = rec.vars
+	if (vars !== null && typeof vars === "object") {
+		const inner = vars as Record<string, unknown>
+		candidates.push(inner.type, inner.code, inner.error, inner.error_key)
+	}
+	for (const candidate of candidates) {
+		if (typeof candidate !== "string") continue
+		const normalised = candidate.toLowerCase()
+		if (normalised === "payment_required" || normalised === "plan_limit" || normalised.includes("plan_limit")) {
+			return normalised
+		}
+	}
+	return null
+}
+
+/** Pulls the collection out of a list body the same way seed fallback and effect checks do. */
+export function recordsFromList(body: unknown, collectionKey: string | null): Record_[] {
+	if (Array.isArray(body)) return body as Record_[]
+	if (body !== null && typeof body === "object" && collectionKey !== null) {
+		const items = (body as Record<string, unknown>)[collectionKey]
+		return Array.isArray(items) ? (items as Record_[]) : []
+	}
+	return []
+}
+
+/** Same-tenant records the list route already returns. Empty when the route cannot be resolved. */
+export async function listExisting(
+	listOp: OperationModel,
+	client: Client,
+	headers: Record<string, string> | (() => Record<string, string>),
+	values: Record<string, string>,
+): Promise<Record_[]> {
+	for (const param of listOp.pathParams) {
+		if (values[param] === undefined) return []
+	}
+	try {
+		const exchange = await client.get(fillPath(listOp.path, values), { headers, query: { limit: 50 } })
+		if (exchange.status >= 300) return []
+		return recordsFromList(exchange.responseBody, listOp.collection?.key ?? null)
+	} catch {
+		return []
+	}
+}
+
 export interface WorldOptions {
 	roots: Record<string, string>
 	seed: number
@@ -131,6 +191,12 @@ async function createOne(
 		headers: options.authHeaders,
 	})
 	if (exchange.status >= 300) {
+		/* Plan limit after an effect (or a sibling create) already filled the quota: reuse a
+		 * same-tenant row from the list. Do not invent an id. */
+		if (isPlanLimitResponse(exchange.status, exchange.responseBody)) {
+			const reused = await adoptExisting(createOp, model, client, options, scope)
+			if (reused !== null) return reused
+		}
 		throw new SeedError(
 			createOp.operationId,
 			`${createOp.operationId} returned ${exchange.status}: ${JSON.stringify(exchange.responseBody).slice(0, 300)}`,
@@ -138,6 +204,30 @@ async function createOne(
 		)
 	}
 	return (exchange.responseBody ?? {}) as Record_
+}
+
+/** First listed record with a usable identity, or null — never synthesises a row. */
+async function adoptExisting(
+	createOp: OperationModel,
+	model: SpecModel,
+	client: Client,
+	options: WorldOptions,
+	scope: Scope,
+): Promise<Record_ | null> {
+	const name = createOp.entity
+	if (name === null) return null
+	const entity = model.entities.get(name)
+	if (entity?.list === undefined) return null
+	const listOp = model.byOperationId.get(entity.list)
+	if (listOp === undefined) return null
+	const records = await listExisting(listOp, client, options.authHeaders, { ...options.roots, ...scope.values })
+	const identity = entity.identity ?? "id"
+	return (
+		records.find((record) => {
+			const id = record[identity]
+			return typeof id === "string" || typeof id === "number"
+		}) ?? null
+	)
 }
 
 export function requestSchemaOf(op: OperationModel, model: SpecModel): Record<string, unknown> | null {
@@ -156,6 +246,11 @@ export interface SeededCohort {
 	 * the same way a profile-excluded create does.
 	 */
 	featureGate: { key: string; detail: string; exchange: Exchange } | null
+	/**
+	 * Create hit a documented plan limit and these records were adopted from the list / an
+	 * earlier effect. Write-path checks must stand down — oat did not submit these bodies.
+	 */
+	adopted?: boolean
 }
 
 /** Creates the cohort and returns the server's view of each instance. */
@@ -208,6 +303,10 @@ export async function seedCohort(
 					members,
 					records,
 				}
+			}
+			if (isPlanLimitResponse(exchange.status, exchange.responseBody)) {
+				const adopted = await adoptExisting(createOp, model, client, options, scope)
+				if (adopted !== null) return { adopted: true, featureGate: null, members, records: [adopted] }
 			}
 			throw new SeedError(
 				createOp.operationId,

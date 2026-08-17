@@ -140,6 +140,20 @@ function standDownForFeatureGate(
 	return true
 }
 
+/**
+ * A 429 that survived Client retries is the bucket, not the backend. The check that needed a
+ * 2xx stands down; it is not a defect and it is not a concurrency conclusion.
+ */
+function standDownForRateLimit(ctx: CheckContext, exchange: Exchange, check: string): boolean {
+	if (exchange.status !== 429) return false
+	ctx.findings.unresolved(
+		check,
+		ctx.entityName,
+		"the request was rate-limited (429) after retries, so this check could not complete",
+	)
+	return true
+}
+
 /** The list endpoint's derived conventions — parameter roles and envelope spellings. */
 function conv(ctx: CheckContext) {
 	return ctx.listOp.conventions
@@ -4094,6 +4108,8 @@ const noLostUpdate: Check = {
 		])
 		if (standDownForFeatureGate(ctx, ctx.updateOp, firstWrite, this.id)) return
 		if (standDownForFeatureGate(ctx, ctx.updateOp, secondWrite, this.id)) return
+		if (standDownForRateLimit(ctx, firstWrite, this.id)) return
+		if (standDownForRateLimit(ctx, secondWrite, this.id)) return
 		if (firstWrite.status >= 300 || secondWrite.status >= 300) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -4207,6 +4223,7 @@ const declaredEffectsOccur: Check = {
 					...(body === undefined ? {} : await encodeOpBody(ctx, op, body)),
 				})
 				if (standDownForFeatureGate(ctx, op, invoked, this.id)) continue
+				if (standDownForRateLimit(ctx, invoked, this.id)) continue
 				if (invoked.status >= 400) {
 					ctx.findings.gap(
 						this.id,
@@ -4551,6 +4568,7 @@ const stringPayloadSurvives: Check = {
 		try {
 			const control = await writeField(ASCII_PAYLOAD_PROBE, id)
 			if (standDownForFeatureGate(ctx, writeOp, control, this.id)) return
+			if (standDownForRateLimit(ctx, control, this.id)) return
 			if (control.status === 401 || control.status === 403) {
 				return ctx.findings.unresolved(
 					this.id,
@@ -4614,7 +4632,8 @@ const stringPayloadSurvives: Check = {
 					if (evidence.length < 4) evidence.push(written)
 					continue
 				}
-				if (written.status === 404 || written.status === 409 || written.status === 415 || written.status === 429) {
+				if (standDownForRateLimit(ctx, written, this.id)) return
+				if (written.status === 404 || written.status === 409 || written.status === 415) {
 					continue
 				}
 				if (written.status >= 400 && written.status < 500) {
@@ -4718,6 +4737,7 @@ const documentedStatusHonoured: Check = {
 			if (op === null) continue
 			if (op.operationId === createId || op.action === "create") continue
 			if (isDocumentedFeatureGateDenial(op, exchange.status, exchange.responseBody)) continue
+			if (exchange.status === 429) continue
 			const raw = ctx.model.rawOperations.get(op.operationId)
 			if (!declaresConcreteStatuses(raw)) continue
 			if (statusIsDeclared(raw, exchange.status)) continue

@@ -278,6 +278,7 @@ export async function main(): Promise<number> {
 			d1Available,
 		} = await import("./conformance/suite.ts")
 		const { runFeatureGateSuite } = await import("./conformance/feature-gate.ts")
+		const { runRateLimitSuite } = await import("./conformance/rate-limit.ts")
 		const parser = renderParserSuite(runParserSuite())
 		process.stdout.write(parser.text)
 		/* The documented example is checked in the same breath: it is the only place a reader
@@ -298,6 +299,9 @@ export async function main(): Promise<number> {
 		const featureGate = renderParserSuite(await runFeatureGateSuite())
 		process.stdout.write(featureGate.text)
 		parser.failures += featureGate.failures
+		const rateLimit = renderParserSuite(await runRateLimitSuite())
+		process.stdout.write(rateLimit.text)
+		parser.failures += rateLimit.failures
 		const seedContract = renderParserSuite(await runSeedContractSuite())
 		process.stdout.write(seedContract.text)
 		parser.failures += seedContract.failures
