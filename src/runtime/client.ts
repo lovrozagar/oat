@@ -148,11 +148,14 @@ export class Client {
 			} finally {
 				this.release()
 			}
+			const contentType = response.headers.get("content-type") ?? ""
 			let parsed: unknown = text
-			try {
-				parsed = text === "" ? null : JSON.parse(text)
-			} catch {
-				/* keep the raw text — a non-JSON body is itself evidence */
+			if (!contentType.includes("text/event-stream")) {
+				try {
+					parsed = text === "" ? null : JSON.parse(text)
+				} catch {
+					/* keep the raw text — a non-JSON body is itself evidence */
+				}
 			}
 
 			this.seq += 1

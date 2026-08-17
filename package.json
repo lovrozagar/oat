@@ -1,6 +1,6 @@
 {
 	"name": "@lovrozagar/oat",
-	"version": "0.6.0",
+	"version": "0.6.1",
 	"description": "OpenAPI Tester — matrix-test a live API against its OpenAPI spec",
 	"keywords": [
 		"api",

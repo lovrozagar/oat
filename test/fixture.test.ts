@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest"
-import { buildCohort, FixtureOverflow, isOverflowError, overflowFrom } from "../src/runtime/fixture.ts"
+import {
+	COHORT,
+	buildCohort,
+	FixtureOverflow,
+	generateBody,
+	isOverflowError,
+	mulberry32,
+	overflowFrom,
+} from "../src/runtime/fixture.ts"
+import { codePointCount } from "../src/runtime/payloads.ts"
 import { dereference } from "../src/spec/load.ts"
 import type { OpenApiDocument } from "../src/spec/types.ts"
 
@@ -86,6 +95,116 @@ describe("fixture walk", () => {
 			"user.create",
 		)
 		expect(member?.body.email).toMatch(/^[^@]+@[^@]+\.[^@]+$/)
+	})
+
+	it("honours minLength and maxLength on every cohort string", () => {
+		const members = buildCohort(
+			{
+				properties: { name: { maxLength: 32, minLength: 3, type: "string" } },
+				required: ["name"],
+				type: "object",
+			},
+			1,
+			COHORT,
+			"thing.create",
+		)
+		expect(members).toHaveLength(COHORT.length)
+		for (const member of members) {
+			const value = String(member.body.name ?? "")
+			const n = codePointCount(value)
+			expect(n, member.variant).toBeGreaterThanOrEqual(3)
+			expect(n, member.variant).toBeLessThanOrEqual(32)
+		}
+	})
+
+	it("pads a handle pattern to minLength instead of emitting a", () => {
+		const pattern = "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+		const members = buildCohort(
+			{
+				properties: { handle: { maxLength: 32, minLength: 3, pattern, type: "string" } },
+				required: ["handle"],
+				type: "object",
+			},
+			1,
+			COHORT,
+			"user.create",
+		)
+		const re = new RegExp(pattern)
+		for (const member of members) {
+			const value = member.body.handle
+			expect(value, member.variant).not.toBe("a")
+			expect(typeof value).toBe("string")
+			expect(String(value), member.variant).toMatch(re)
+			expect(codePointCount(String(value)), member.variant).toBeGreaterThanOrEqual(3)
+		}
+	})
+
+	it("omits optional and records missingRequired when minLength exceeds maxLength", () => {
+		const { body, missingRequired } = generateBody(
+			{
+				properties: {
+					opt: { maxLength: 3, minLength: 10, type: "string" },
+					req: { maxLength: 3, minLength: 10, type: "string" },
+				},
+				required: ["req"],
+				type: "object",
+			},
+			"baseline",
+			mulberry32(1),
+			0,
+			"thing.create",
+		)
+		expect(body.opt).toBeUndefined()
+		expect(body.req).toBeUndefined()
+		expect(missingRequired).toContain("/req")
+	})
+
+	it("pads format: email to minLength without breaking the address", () => {
+		const [member] = buildCohort(
+			{
+				properties: { email: { format: "email", minLength: 40, type: "string" } },
+				required: ["email"],
+				type: "object",
+			},
+			1,
+			["baseline"],
+			"user.create",
+		)
+		const email = String(member?.body.email ?? "")
+		expect(codePointCount(email)).toBeGreaterThanOrEqual(40)
+		expect(email).toMatch(/^[^@]+@[^@]+\.[^@]+$/)
+	})
+
+	it("honours minLength when maxLength is unset", () => {
+		const members = buildCohort(
+			{
+				properties: { name: { minLength: 5, type: "string" } },
+				required: ["name"],
+				type: "object",
+			},
+			1,
+			COHORT,
+			"thing.create",
+		)
+		for (const member of members) {
+			expect(codePointCount(String(member.body.name ?? "")), member.variant).toBeGreaterThanOrEqual(5)
+		}
+	})
+
+	it("does not invent a slug when padding a pattern would break it", () => {
+		const { body, missingRequired } = generateBody(
+			{
+				properties: { code: { maxLength: 32, minLength: 3, pattern: "^a$", type: "string" } },
+				required: ["code"],
+				type: "object",
+			},
+			"baseline",
+			mulberry32(1),
+			0,
+			"thing.create",
+		)
+		expect(body.code).toBeUndefined()
+		expect(missingRequired).toContain("/code")
 	})
 
 	it("names table.create when generation still overflows", () => {

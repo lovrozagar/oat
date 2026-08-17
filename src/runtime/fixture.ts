@@ -297,7 +297,11 @@ function generateValue(
 }
 
 function generateString(name: string, schema: Schema, variant: Variant, index: number): string | undefined {
-	const max = typeof schema.maxLength === "number" ? schema.maxLength : 64
+	const maxLength = typeof schema.maxLength === "number" ? schema.maxLength : undefined
+	const minLength = typeof schema.minLength === "number" ? schema.minLength : undefined
+	if (minLength !== undefined && maxLength !== undefined && minLength > maxLength) return undefined
+
+	const max = maxLength ?? Math.max(64, minLength ?? 0)
 	const format = typeof schema.format === "string" ? schema.format.toLowerCase() : ""
 	const pattern = typeof schema.pattern === "string" ? schema.pattern : undefined
 
@@ -305,7 +309,7 @@ function generateString(name: string, schema: Schema, variant: Variant, index: n
 	if (format === "email") text = emailOf(variant, index)
 	else if (format === "uri" || format === "url") text = uriOf(variant, index)
 	else if (format === "uuid") text = uuidOf(variant, index)
-	else if (pattern !== undefined) text = stringMatching(pattern, max, variant, index)
+	else if (pattern !== undefined) text = stringMatching(pattern, max, variant, index, minLength)
 	else if (variant === "boundary") text = "B".repeat(Math.max(1, Math.min(max, 512)))
 	else {
 		const base = STRINGS[variant]
@@ -315,17 +319,38 @@ function generateString(name: string, schema: Schema, variant: Variant, index: n
 	if (text === undefined) return undefined
 	if (codePointCount(text) > max) {
 		if (format === "email" || format === "uri" || format === "url" || format === "uuid" || pattern !== undefined) {
-			const trimmed = fitMax(text, max, format, pattern, variant, index)
-			return trimmed
+			const trimmed = fitMax(text, max, format, pattern, variant, index, minLength)
+			if (trimmed === undefined) return undefined
+			text = trimmed
+		} else {
+			text = sliceCodePoints(text, max)
 		}
-		return sliceCodePoints(text, max)
+	}
+	if (minLength !== undefined && codePointCount(text) < minLength) {
+		const padded = padToMin(text, minLength, max, pattern)
+		if (padded !== undefined) text = padded
+		else if (pattern !== undefined) text = stringMatching(pattern, max, variant, index, minLength)
+		else return undefined
+		if (text === undefined) return undefined
 	}
 	if (pattern !== undefined && !safeTest(pattern, text)) {
-		return stringMatching(pattern, max, variant, index)
+		return stringMatching(pattern, max, variant, index, minLength)
 	}
 	if (format === "email" && !EMAIL_RE.test(text)) return undefined
 	void name
 	return text
+}
+
+function padToMin(text: string, min: number, max: number, pattern: string | undefined): string | undefined {
+	const n = codePointCount(text)
+	if (n >= min) return text
+	if (min > max) return undefined
+	const last = n === 0 ? "a" : ([...text].at(-1) ?? "a")
+	const need = min - n
+	if (n + need > max) return undefined
+	const padded = text + last.repeat(need)
+	if (pattern !== undefined && !safeTest(pattern, padded)) return undefined
+	return padded
 }
 
 function requiredFallback(raw: unknown, variant: Variant, index: number): unknown {
@@ -347,8 +372,14 @@ function requiredFallback(raw: unknown, variant: Variant, index: number): unknow
 			return []
 		case "object":
 			return {}
-		default:
-			return generateString("field", schema, variant, index) ?? "value"
+		default: {
+			const generated = generateString("field", schema, variant, index)
+			if (generated !== undefined) return generated
+			const min = typeof schema.minLength === "number" ? schema.minLength : undefined
+			const max = typeof schema.maxLength === "number" ? schema.maxLength : undefined
+			if (min !== undefined && max !== undefined && min > max) return undefined
+			return "value"
+		}
 	}
 }
 
@@ -389,6 +420,7 @@ function fitMax(
 	pattern: string | undefined,
 	variant: Variant,
 	index: number,
+	minLength: number | undefined,
 ): string | undefined {
 	if (format === "email") {
 		const short = `o${index}@e.t`
@@ -401,14 +433,21 @@ function fitMax(
 		return undefined
 	}
 	if (format === "uuid") return undefined
-	if (pattern !== undefined) return stringMatching(pattern, max, variant, index)
+	if (pattern !== undefined) return stringMatching(pattern, max, variant, index, minLength)
 	return text.slice(0, max)
 }
 
 /** Bounded attempt at a string the documented regex will accept. */
-function stringMatching(pattern: string, max: number, variant: Variant, index: number): string | undefined {
+function stringMatching(
+	pattern: string,
+	max: number,
+	variant: Variant,
+	index: number,
+	minLength: number | undefined,
+): string | undefined {
+	const min = minLength ?? 0
 	const candidates = [
-		expandPattern(pattern, max, variant, index),
+		expandPattern(pattern, max, variant, index, min),
 		emailOf(variant, index),
 		uriOf(variant, index),
 		uuidOf(variant, index),
@@ -425,14 +464,29 @@ function stringMatching(pattern: string, max: number, variant: Variant, index: n
 	]
 	for (const candidate of candidates) {
 		if (candidate === undefined) continue
-		const text = candidate.length > max ? candidate.slice(0, max) : candidate
-		if (text.length <= max && safeTest(pattern, text)) return text
+		const text = honourBounds(candidate, min, max, pattern)
+		if (text !== undefined) return text
 	}
 	for (let attempt = 0; attempt < PATTERN_ATTEMPTS; attempt++) {
-		const text = brutePattern(pattern, max, variant, index + attempt)
-		if (text !== undefined && safeTest(pattern, text)) return text
+		const text = brutePattern(pattern, max, variant, index + attempt, min)
+		if (text !== undefined) {
+			const honoured = honourBounds(text, min, max, pattern)
+			if (honoured !== undefined) return honoured
+		}
 	}
 	return undefined
+}
+
+function honourBounds(candidate: string, min: number, max: number, pattern: string): string | undefined {
+	let text = candidate.length > max ? candidate.slice(0, max) : candidate
+	if (min > 0 && text.length < min) {
+		const padded = padToMin(text, min, max, pattern)
+		if (padded === undefined) return undefined
+		text = padded
+	}
+	if (text.length < min || text.length > max) return undefined
+	if (!safeTest(pattern, text)) return undefined
+	return text
 }
 
 function safeTest(pattern: string, text: string): boolean {
@@ -447,12 +501,16 @@ function safeTest(pattern: string, text: string): boolean {
  * Expand a small, common subset of regexes (`[a-z0-9_]+`, `^handle$`, optional groups). Anything
  * we cannot expand is left for the candidate list — better to omit than to send a junk string.
  */
-function expandPattern(pattern: string, max: number, variant: Variant, index: number): string | undefined {
+function expandPattern(pattern: string, max: number, variant: Variant, index: number, min: number): string | undefined {
 	let source = pattern
 	if (source.startsWith("^")) source = source.slice(1)
 	if (source.endsWith("$")) source = source.slice(0, -1)
 	try {
-		const built = expandAtoms(source, max, variant, index)
+		let built = expandAtoms(source, max, variant, index)
+		if (min > 0 && built.length < min) {
+			const padded = padToMin(built, min, max, undefined)
+			if (padded !== undefined) built = padded
+		}
 		if (built.length > max) return built.slice(0, max)
 		return built
 	} catch {
@@ -574,9 +632,9 @@ function firstClassChar(body: string): string {
 	return "a"
 }
 
-function brutePattern(pattern: string, max: number, variant: Variant, salt: number): string | undefined {
+function brutePattern(pattern: string, max: number, variant: Variant, salt: number, min = 0): string | undefined {
 	const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789_-"
-	const len = Math.min(Math.max(3, (salt % 8) + 3), max)
+	const len = Math.min(Math.max(Math.max(3, min), (salt % 8) + 3), max)
 	let text = ""
 	let x = (salt * 1664525 + slugVariant(variant).length) >>> 0
 	for (let i = 0; i < len; i++) {

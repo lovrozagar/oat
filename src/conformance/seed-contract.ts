@@ -8,7 +8,15 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
-import { buildCohort, FixtureOverflow, isOverflowError, overflowFrom } from "../runtime/fixture.ts"
+import {
+	buildCohort,
+	FixtureOverflow,
+	generateBody,
+	isOverflowError,
+	mulberry32,
+	overflowFrom,
+} from "../runtime/fixture.ts"
+import { codePointCount } from "../runtime/payloads.ts"
 import { run } from "../runtime/run.ts"
 import { buildModel } from "../spec/graph.ts"
 import { dereference } from "../spec/load.ts"
@@ -130,6 +138,85 @@ export function runFixtureWalkCases(): ParserResult[] {
 			results,
 			"format: email matches a conservative regex",
 			"required email must not be Quarterly Report N",
+			false,
+			error instanceof Error ? error.message : String(error),
+		)
+	}
+
+	try {
+		const HANDLE = "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+		const members = buildCohort(
+			{
+				properties: {
+					handle: { maxLength: 32, minLength: 3, pattern: HANDLE, type: "string" },
+					name: { maxLength: 32, minLength: 3, type: "string" },
+				},
+				required: ["handle", "name"],
+				type: "object",
+			},
+			1,
+			undefined,
+			"user.create",
+		)
+		const re = new RegExp(HANDLE)
+		const ok = members.every((member) => {
+			const handle = member.body.handle
+			const name = String(member.body.name ?? "")
+			const n = codePointCount(name)
+			return (
+				typeof handle === "string" &&
+				handle !== "a" &&
+				re.test(handle) &&
+				codePointCount(handle) >= 3 &&
+				n >= 3 &&
+				n <= 32
+			)
+		})
+		push(
+			results,
+			"fixture strings honour minLength with pattern",
+			"handle must not be a; every cohort name is in [3, 32]",
+			ok,
+			ok ? `${members.length} variants` : JSON.stringify(members.map((m) => m.body)),
+		)
+	} catch (error) {
+		push(
+			results,
+			"fixture strings honour minLength with pattern",
+			"handle must not be a; every cohort name is in [3, 32]",
+			false,
+			error instanceof Error ? error.message : String(error),
+		)
+	}
+
+	try {
+		const { body, missingRequired } = generateBody(
+			{
+				properties: {
+					opt: { maxLength: 3, minLength: 10, type: "string" },
+					req: { maxLength: 3, minLength: 10, type: "string" },
+				},
+				required: ["req"],
+				type: "object",
+			},
+			"baseline",
+			mulberry32(1),
+			0,
+			"thing.create",
+		)
+		const ok = body.opt === undefined && body.req === undefined && missingRequired.includes("/req")
+		push(
+			results,
+			"minLength > maxLength is a generation gap",
+			"omit optional; missingRequired on required; do not loop",
+			ok,
+			`body=${JSON.stringify(body)} missing=${missingRequired.join(",")}`,
+		)
+	} catch (error) {
+		push(
+			results,
+			"minLength > maxLength is a generation gap",
+			"omit optional; missingRequired on required; do not loop",
 			false,
 			error instanceof Error ? error.message : String(error),
 		)

@@ -18,7 +18,7 @@ import type { Client, Exchange, RequestOptions } from "./client.ts"
 import { STRING_PAYLOADS, payloadFits } from "./payloads.ts"
 import { describeFeatureGate, isDocumentedFeatureGateDenial, reportFeatureGateSchemaDrift } from "./feature-gate.ts"
 import type { FindingCollector } from "./finding.ts"
-import { driveAsync } from "./async.ts"
+import { driveAsync, inspectStreamAsync, matchesPredicate, resolveAsyncId } from "./async.ts"
 import { buildCohort } from "./fixture.ts"
 import type { UploadContext } from "./upload.ts"
 import type { SchemaValidator } from "./validate.ts"
@@ -3345,8 +3345,14 @@ const inviteGrantsThenRevokes: Check = {
 			return ctx.findings.unresolved(this.id, ctx.entityName, `invite response has no token at ${spec.tokenPointer}`)
 		}
 
-		const accepted = await ctx.client.request(acceptOp.method, fillPath(acceptOp.path, { token }), {
-			headers: delegate.headers(),
+		const acceptScope = { ...resource, token }
+		const acceptBody = documentedJsonBody(ctx, acceptOp, acceptScope)
+		const accepted = await ctx.client.request(acceptOp.method, fillPath(acceptOp.path, acceptScope), {
+			...(acceptBody === undefined ? {} : { body: acceptBody }),
+			headers: {
+				...delegate.headers(),
+				...(acceptBody === undefined ? {} : { "content-type": "application/json" }),
+			},
 		})
 		if (standDownForFeatureGate(ctx, acceptOp, accepted, this.id)) return
 		if (accepted.status >= 300) {
@@ -3371,11 +3377,15 @@ const inviteGrantsThenRevokes: Check = {
 				`invite response has no grant id at ${spec.grantPointer}, so revoke cannot be expressed`,
 			)
 		}
-		const revoked = await ctx.client.request(
-			revokeOp.method,
-			fillPath(revokeOp.path, { ...resource, grant_id: grantId }),
-			{ headers: owner.headers() },
-		)
+		const revokeScope = { ...resource, grant_id: grantId, token }
+		const revokeBody = documentedJsonBody(ctx, revokeOp, revokeScope)
+		const revoked = await ctx.client.request(revokeOp.method, fillPath(revokeOp.path, revokeScope), {
+			...(revokeBody === undefined ? {} : { body: revokeBody }),
+			headers: {
+				...owner.headers(),
+				...(revokeBody === undefined ? {} : { "content-type": "application/json" }),
+			},
+		})
 		if (standDownForFeatureGate(ctx, revokeOp, revoked, this.id)) return
 		if (revoked.status >= 300) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, `revoke returned ${revoked.status}`)
@@ -3788,7 +3798,7 @@ const successSchemaHonoured: Check = {
 
 		const exchange = createExchange(ctx)
 		if (exchange === undefined) return
-		if (isEventStream(exchange)) return
+		if (isEventStream(exchange, createOp)) return
 		if (!validator.documents(raw, exchange.status)) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -3871,9 +3881,40 @@ function submittedFields(body: unknown): Record_ {
 	return {}
 }
 
-function isEventStream(exchange: Exchange): boolean {
+/** Document first, then the live `Content-Type`. Media type is the stream tag — not `x-async`. */
+function isEventStream(exchange: Exchange, op?: OperationModel): boolean {
+	if (op?.eventStream === true) return true
 	const type = exchange.responseHeaders["content-type"] ?? ""
 	return type.includes("text/event-stream")
+}
+
+/**
+ * JSON request body declared on the operation, filled from known flow values.
+ *
+ * Path-only accept/revoke (`POST /invites/{token}` with no body) stay path-only.
+ */
+function documentedJsonBody(
+	ctx: CheckContext,
+	op: OperationModel,
+	fields: Record<string, string>,
+): Record<string, unknown> | undefined {
+	const raw = ctx.model.rawOperations.get(op.operationId)
+	const picked = raw === undefined ? null : requestContent(raw)
+	if (picked === null || !picked.mediaType.includes("json")) return undefined
+	const properties = picked.schema.properties
+	if (properties !== null && typeof properties === "object") {
+		const names = Object.keys(properties as object)
+		if (names.length > 0) {
+			const body: Record<string, unknown> = {}
+			for (const name of names) {
+				if (fields[name] !== undefined) body[name] = fields[name]
+			}
+			return body
+		}
+	}
+	if (fields.token !== undefined) return { token: fields.token }
+	if (fields.grant_id !== undefined) return { grant_id: fields.grant_id }
+	return { ...fields }
 }
 
 interface ConstrainedField {
@@ -4277,7 +4318,35 @@ const asyncReachesTerminalState: Check = {
 				continue
 			}
 
-			const outcome = await driveAsync(ctx.client, spec, start.responseBody, ctx.scope, ctx.auth, ctx.refreshIfStale)
+			const streamed = isEventStream(start, op)
+			const fromStream = streamed ? inspectStreamAsync(start.responseBody, spec) : null
+			if (fromStream?.terminal !== null && fromStream?.terminal !== undefined) {
+				if (spec.successWhen !== undefined && !matchesPredicate(fromStream.terminal, spec.successWhen)) {
+					ctx.findings.gap(
+						this.id,
+						ctx.entityName,
+						`${op.operationId} reached a non-success terminal state`,
+						`terminal state did not satisfy "${spec.successWhen}"; downstream effects of ` +
+							"this operation are untested",
+					)
+				}
+				continue
+			}
+
+			const receipt =
+				fromStream?.idRecord !== null && fromStream?.idRecord !== undefined ? fromStream.idRecord : start.responseBody
+			if (streamed && fromStream !== null && (fromStream.id === undefined || fromStream.id === null)) {
+				ctx.findings.backend(
+					this.id,
+					ctx.entityName,
+					`${op.operationId} job disappeared before completing`,
+					"the stream ended without a terminal frame and without a job id, so the poll route cannot be named.",
+					[start],
+				)
+				continue
+			}
+
+			const outcome = await driveAsync(ctx.client, spec, receipt, ctx.scope, ctx.auth, ctx.refreshIfStale)
 
 			if (outcome.timedOut) {
 				ctx.findings.backend(
@@ -4339,19 +4408,7 @@ const asyncReceiptIsResolvable: Check = {
 			)
 			if (started === undefined) continue
 
-			const body = started.responseBody
-			const path = spec.idFrom
-				.replace(/^\$\.?/, "")
-				.split(".")
-				.filter(Boolean)
-			let node: unknown = body
-			for (const segment of path) {
-				if (node === null || typeof node !== "object") {
-					node = undefined
-					break
-				}
-				node = (node as Record<string, unknown>)[segment]
-			}
+			const node = resolveAsyncId(started.responseBody, spec.idFrom)
 			if (node !== undefined && node !== null) continue
 
 			ctx.findings.spec(

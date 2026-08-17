@@ -1,14 +1,14 @@
 /**
  * Async operation support.
  *
- * For an operation declared with `x-async`, the HTTP response is a receipt, not an outcome. oat
- * drives the poll route to a terminal state and treats that payload as the real result — without
- * this, an extraction or batch API is testable only as "returned 202", which for such an API is
- * most of the surface.
+ * `x-async` means the HTTP response is a receipt, then oat polls. A `text/event-stream` body is
+ * the result itself — parse events, do not `JSON.parse` the raw string. Poll only when the
+ * stream ends without a terminal frame and `idFrom` resolved.
  */
 
 import type { AsyncSpec } from "../spec/extensions.ts"
 import type { Client, Exchange } from "./client.ts"
+import { type SseEvent, sseEvents } from "./sse.ts"
 import { fillPath } from "./world.ts"
 
 export interface AsyncOutcome {
@@ -54,7 +54,7 @@ export function matchesPredicate(record: Record<string, unknown>, expression: st
 	}
 }
 
-function readPath(body: unknown, path: string): unknown {
+export function readPath(body: unknown, path: string): unknown {
 	let node: unknown = body
 	for (const segment of path
 		.replace(/^\$\.?/, "")
@@ -64,6 +64,62 @@ function readPath(body: unknown, path: string): unknown {
 		node = (node as Record<string, unknown>)[segment]
 	}
 	return node
+}
+
+function recordOf(data: unknown): Record<string, unknown> | null {
+	if (data === null || typeof data !== "object" || Array.isArray(data)) return null
+	return data as Record<string, unknown>
+}
+
+/**
+ * Resolve `idFrom` against a JSON receipt, or against each SSE event's JSON `data` (first hit).
+ */
+export function resolveAsyncId(receipt: unknown, idFrom: string): unknown {
+	const events = sseEvents(receipt)
+	if (events !== null) {
+		for (const ev of events) {
+			const record = recordOf(ev.data)
+			if (record === null) continue
+			const found = readPath(record, idFrom)
+			if (found !== undefined && found !== null) return found
+		}
+		return undefined
+	}
+	return readPath(receipt, idFrom)
+}
+
+export interface StreamAsyncView {
+	id: unknown
+	/** Event data that carried `idFrom`, for binding the poll path. */
+	idRecord: Record<string, unknown> | null
+	/** `complete` / `error` frame, or a frame whose `data` matches `until`. */
+	terminal: Record<string, unknown> | null
+	events: SseEvent[]
+}
+
+/** Read job id and terminal state from SSE frames. `null` when the body is not a stream. */
+export function inspectStreamAsync(receipt: unknown, spec: AsyncSpec): StreamAsyncView | null {
+	const events = sseEvents(receipt)
+	if (events === null) return null
+
+	let id: unknown
+	let idRecord: Record<string, unknown> | null = null
+	let terminal: Record<string, unknown> | null = null
+	for (const ev of events) {
+		const record = recordOf(ev.data)
+		if (record === null) continue
+		if (id === undefined && spec.idFrom !== undefined) {
+			const found = readPath(record, spec.idFrom)
+			if (found !== undefined && found !== null) {
+				id = found
+				idRecord = record
+			}
+		}
+		const named = ev.event === "complete" || ev.event === "error"
+		const untilHit = spec.until !== undefined && matchesPredicate(record, spec.until)
+		if (named || untilHit) terminal = record
+	}
+	return { events, id, idRecord, terminal }
 }
 
 /**
@@ -86,7 +142,7 @@ export async function driveAsync(
 
 	const pollScope = { ...scope }
 	if (spec.idFrom !== undefined) {
-		const id = readPath(receipt, spec.idFrom)
+		const id = resolveAsyncId(receipt, spec.idFrom)
 		if (id !== undefined && id !== null) {
 			/* The receipt names the job; bind it to whichever poll-path parameter is unresolved. */
 			const parameters = [...spec.poll.matchAll(/\{([^}]+)\}/g)].map((m) => m[1] ?? "")

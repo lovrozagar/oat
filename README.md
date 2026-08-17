@@ -807,7 +807,7 @@ Numbers use the ladder `1, 2, 5, 10, 20, 50, 100` so **lexical order ≠ numeric
 
 Empty schemas (`{}`, `true`, `additionalProperties: {}`) and cyclic `$ref`s after inlining stop the walk — they become a scalar or `{}`, never another object descent. A `RangeError` during generation is a `COVERAGE_GAP` on that entity naming the operationId and JSON pointer (`fixture generation overflow on table.create (/)`), not `blocked by unknown`.
 
-String fields honour `format` and `pattern`: `email` → `oat-{variant}-{index}@example.test`, `uri` / `url` → `https://example.test/...`, `uuid` → a fixed-shape UUID, `pattern` → a string that matches (or the field is omitted / the entity is a gap). `"Quarterly Report N"` is only used when the document does not constrain the string.
+String fields honour `format`, `pattern`, and `minLength` together: `email` → `oat-{variant}-{index}@example.test`, `uri` / `url` → `https://example.test/...`, `uuid` → a fixed-shape UUID, `pattern` → a string that matches (or the field is omitted / the entity is a gap). A generated string is padded to `minLength` (repeat the last character) without breaking `pattern`. `"Quarterly Report N"` is only used when the document does not constrain the string. `minLength` greater than `maxLength` omits an optional field and records `missingRequired` on a required one.
 
 An operation with `x-invite` is not `entity.create`. oat does not POST a generated invitee. The invite check sends `granteeField` = the peer's `inviteAs`. Missing `inviteAs` is a coverage gap naming the tag.
 
@@ -894,7 +894,7 @@ Collection shape is derived from the success JSON schema, not from hardcoded wra
 | page       | `page`, `pageNumber`, `page_number`, `offset`               |
 | limit      | `limit`, `perPage`, `per_page`, `pageSize`, `page_size`     |
 
-Success schema is the first JSON media type on responses `200`, `201`, `202`, `2XX`, or `default`. Request schema is taken from `requestBody` preferring `multipart/form-data`, then `application/x-www-form-urlencoded`, then JSON. A raw `text/event-stream` body is not treated as a JSON schema defect.
+Success schema is the first JSON media type on responses `200`, `201`, `202`, `2XX`, or `default`. Request schema is taken from `requestBody` preferring `multipart/form-data`, then `application/x-www-form-urlencoded`, then JSON. A success response that lists `text/event-stream` is a stream: oat consumes it to the end and does not treat the raw body as a JSON schema defect. Media type is the stream tag — there is no `x-stream`.
 
 ## OpenAPI meta tags
 
@@ -973,6 +973,8 @@ An invite operation is **not** the entity's fixture create, even when it is `POS
 
 Timeline asserted: cannot read → invite → still cannot → accept → can → revoke → cannot.
 
+Accept and revoke send the documented JSON request body when the operation declares one, filled from the invite token / grant id (and other known scope values). A path-only accept (`POST /invites/{token}` with no body) stays path-only — oat does not invent a body.
+
 **Fallback:** the check does not run.
 
 ### `x-query`
@@ -1007,11 +1009,17 @@ x-async:
   pollIntervalMs: 2000
 ```
 
-The HTTP response is a receipt. oat polls until `until` matches, then treats that payload as the result. `poll` may be an operationId or `"GET /path/{id}"`. Defaults: `timeoutMs: 120000`, `pollIntervalMs: 2000`.
+`x-async` means **POST is a receipt, then poll**. It is not how you mark a stream. A stream is a success response that lists `text/event-stream`.
+
+When the start response is JSON, oat polls `poll` until `until` matches, then treats that payload as the result. `poll` may be an operationId or `"GET /path/{id}"`. Defaults: `timeoutMs: 120000`, `pollIntervalMs: 2000`.
+
+When the start response is `text/event-stream`, oat parses `event:` / `data:` frames. `data` is JSON when it starts with `{` / `[`. `idFrom` is resolved against **each event's JSON `data`**, first hit wins — `$.batch_id` on `event: batch` data `{ "batch_id": "…" }` works. A frame named `complete` / `error`, or one whose `data` matches `until`, is the terminal record; `successWhen` is applied to it and oat does **not** GET the poll route. Poll only if the stream ended without a terminal frame **and** `idFrom` resolved.
+
+A spec may leave both `x-async` and `text/event-stream` on the same operation. The stream is still the result; `x-async` only supplies `idFrom` / `until` / the poll fallback.
 
 `until` / `successWhen` use the same `field.op.value` predicates as filters (`eq`, `in`, …).
 
-**Fallback:** treated as synchronous; async checks are `COVERAGE_GAP`.
+**Fallback:** treated as synchronous; async checks are `COVERAGE_GAP`. A 2xx stream without `x-async` is consumed and recorded; async checks do not run.
 
 ### `x-effects`
 
@@ -1235,8 +1243,8 @@ Order is fixed (foundations first) so cascade suppression has a cause to point a
 | `softdelete.absent-from-default-list`      | a soft-deleted row is gone from the default list                                     | `x-soft-delete`                                                      | `list.read-after-write`                 |
 | `invalidation.declared-route-changes`      | after a write, the other entity's listed route actually changes                      | `x-invalidate` naming another entity                                 | list, persist                           |
 | `effects.declared-effect-occurs`           | `x-effects` cardinality delta is observed on the named list                          | `x-effects`                                                          | `list.read-after-write`                 |
-| `async.reaches-terminal-state`             | polling `x-async` reaches `until` before `timeoutMs`                                 | `x-async`                                                            | —                                       |
-| `async.receipt-identifies-the-job`         | `idFrom` on the receipt resolves to a pollable job                                   | `x-async` + `idFrom`                                                 | —                                       |
+| `async.reaches-terminal-state`             | `x-async` reaches `until` (poll, or a terminal SSE frame) before `timeoutMs`         | `x-async`                                                            | —                                       |
+| `async.receipt-identifies-the-job`         | `idFrom` on the receipt (JSON object or SSE event JSON) resolves to a pollable job   | `x-async` + `idFrom`                                                 | —                                       |
 | `patch.minimality`                         | PATCH `{ name }` does not clear other writable fields                                | update + item route                                                  | —                                       |
 | `idempotency.replay-does-not-duplicate`    | same Idempotency-Key + same body does not create a second row                        | create + documented Idempotency-Key header                           | list, persist                           |
 | `delete.absent-record-returns-404`         | DELETE of a missing id is 404, not 200                                               | delete                                                               | —                                       |

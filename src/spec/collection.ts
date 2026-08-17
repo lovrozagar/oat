@@ -42,6 +42,20 @@ export function successSchema(op: OperationObject): SchemaObject | null {
 	return null
 }
 
+/** True when a success response lists `text/event-stream`. That media type is the stream tag. */
+export function documentsEventStream(op: OperationObject): boolean {
+	const responses = op.responses ?? {}
+	for (const [code, response] of Object.entries(responses)) {
+		if (code !== "2XX" && code !== "default" && !/^2\d\d$/.test(code)) continue
+		const content = response?.content
+		if (content === undefined) continue
+		for (const mediaType of Object.keys(content)) {
+			if (mediaType.includes("text/event-stream")) return true
+		}
+	}
+	return false
+}
+
 export interface RequestContent {
 	mediaType: string
 	schema: SchemaObject

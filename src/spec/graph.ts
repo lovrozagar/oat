@@ -6,7 +6,14 @@
  * observable. That set is the criss-cross matrix.
  */
 
-import { deriveCollectionShape, deriveIdentity, hasRequestBody, requestSchema, successSchema } from "./collection.ts"
+import {
+	deriveCollectionShape,
+	deriveIdentity,
+	documentsEventStream,
+	hasRequestBody,
+	requestSchema,
+	successSchema,
+} from "./collection.ts"
 import type { CollectionShape } from "./collection.ts"
 import {
 	type AsyncSpec,
@@ -51,6 +58,8 @@ export interface OperationModel {
 	invalidates: string[]
 	effects: EffectSpec[]
 	async: AsyncSpec | null
+	/** Documented success response lists `text/event-stream`. Media type is the stream signal. */
+	eventStream: boolean
 	tenantParam: string | null
 	/** Whether tenancy was declared via `x-tenant` or merely guessed from the path. */
 	tenantSource: "tag" | "heuristic" | null
@@ -183,6 +192,7 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 	return {
 		action: entity?.action ?? null,
 		async: readAsync(op),
+		eventStream: documentsEventStream(op),
 		cleanup: readCleanup(op),
 		collection,
 		cost: readCost(op),
