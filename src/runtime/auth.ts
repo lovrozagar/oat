@@ -7,11 +7,22 @@
  * writes. That hook is the entire backend-coupling surface.
  */
 
-import type { AuthFlow, AuthStep, Hooks, OperationStep, RequestStep } from "../config/define-config.ts"
+import type {
+	AuthFlow,
+	AuthStep,
+	HookAuth,
+	Hooks,
+	OperationStep,
+	PrincipalAuth,
+	PrincipalAuthResult,
+	RequestStep,
+} from "../config/define-config.ts"
+import { isHookAuth } from "../config/define-config.ts"
 import { requestContent } from "../spec/collection.ts"
 import type { SpecModel } from "../spec/graph.ts"
 import { encodeRequest } from "./body.ts"
 import type { Client, Exchange } from "./client.ts"
+import { type BackoffConfig, isAbsentValue, pollWithBackoff, resolveBackoff, worstCaseWaitMs } from "./poll.ts"
 
 /* The flow shape is defined once, in the public config — the runtime consumes it rather than
  * declaring a parallel copy that can drift out of agreement with what users actually write. */
@@ -103,11 +114,18 @@ export function jwtExpiryMs(credential: string): number | null {
 	return typeof claims?.exp === "number" ? claims.exp * 1000 : null
 }
 
+export interface OriginClient {
+	client: Client
+	model: SpecModel
+}
+
 export interface AcquireContext {
 	client: Client
 	model: SpecModel
 	hooks: Hooks
 	principalId: string
+	outOfBand?: Partial<BackoffConfig>
+	originClients?: ReadonlyMap<string, OriginClient>
 }
 
 /** Runs an auth step list against an existing scope, returning the credential and bindings. */
@@ -128,19 +146,23 @@ export async function runAuthSteps(
 
 		if ("outOfBand" in step) {
 			const address = String(interpolate(step.outOfBand.address, scope))
-			const value = await resolveOutOfBand(context, address, step.outOfBand.kind)
+			const value = await resolveOutOfBandValue(context.hooks.resolveOutOfBand, address, step.outOfBand.kind, {
+				label: `principal "${context.principalId}"`,
+				...(context.outOfBand === undefined ? {} : { outOfBand: context.outOfBand }),
+			})
 			scope[step.outOfBand.as] = value
 			continue
 		}
 
 		const request = await resolveRequest(step, context, scope, index)
-		last = await context.client.request(request.method, request.path, {
+		last = await request.client.request(request.method, request.path, {
 			...(request.body === undefined ? {} : { body: request.body }),
 			...(request.contentType === undefined ? {} : { contentType: request.contentType }),
 			...(request.headers === undefined ? {} : { headers: request.headers }),
 			...(request.query === undefined ? {} : { query: request.query }),
 			/* Auth hops must not trigger refresh / 401-retry — that is how a refresh deadlocks. */
 			skipAuthRefresh: true,
+			...("operationId" in step ? { operationId: step.operationId } : {}),
 		})
 
 		const acceptable = ("expect" in step ? step.expect : undefined) ?? []
@@ -270,20 +292,23 @@ async function resolveRequest(
 	contentType?: string | null
 	headers?: Record<string, string>
 	query?: Record<string, string>
+	client: Client
 }> {
+	const target = targetOf(step, context, index)
 	/* Two shapes, distinguished structurally: name an operation from the document, or give a raw
 	 * method and path for an endpoint the document does not describe. */
 	if (isOperationStep(step)) {
-		const op = context.model.byOperationId.get(step.operationId)
+		const op = target.model.byOperationId.get(step.operationId)
 		if (op === undefined) {
 			throw new Error(
 				`oat: auth step ${index + 1} names operation "${step.operationId}", which is not in the ` + "document",
 			)
 		}
-		const raw = context.model.rawOperations.get(step.operationId)
+		const raw = target.model.rawOperations.get(step.operationId)
 		const interpolated = step.body === undefined ? undefined : interpolate(step.body, scope)
 		const encoded = await encodeAuthBody(step.operationId, raw, interpolated)
 		return {
+			client: target.client,
 			method: op.method,
 			path: String(interpolate(op.path, scope)),
 			...encoded,
@@ -296,12 +321,33 @@ async function resolveRequest(
 		throw new Error(`oat: auth step ${index + 1} declares neither an operationId nor a method and path`)
 	}
 	return {
+		client: target.client,
 		method: step.method,
 		path: String(interpolate(step.path, scope)),
 		...(step.body === undefined ? {} : { body: interpolate(step.body, scope) }),
 		...(step.headers === undefined ? {} : { headers: interpolate(step.headers, scope) as Record<string, string> }),
 		...(step.query === undefined ? {} : { query: interpolate(step.query, scope) as Record<string, string> }),
 	}
+}
+
+function stepOrigin(step: AuthStep): string | undefined {
+	if ("outOfBand" in step) return undefined
+	if ("origin" in step && typeof step.origin === "string" && step.origin !== "") return step.origin
+	return undefined
+}
+
+function targetOf(step: AuthStep, context: AcquireContext, index: number): OriginClient {
+	const origin = stepOrigin(step)
+	if (origin === undefined) return { client: context.client, model: context.model }
+	const named = context.originClients?.get(origin)
+	if (named === undefined) {
+		const known = [...(context.originClients?.keys() ?? [])].join(", ")
+		throw new Error(
+			`oat: auth step ${index + 1} names origin "${origin}", which is not in config.origins` +
+				(known === "" ? "" : ` (known: ${known})`),
+		)
+	}
+	return named
 }
 
 async function encodeAuthBody(
@@ -334,34 +380,140 @@ async function encodeAuthBody(
  * backoff rather than called once. A single read that happens to race the write looks exactly
  * like a broken delivery mechanism.
  */
-async function resolveOutOfBand(context: AcquireContext, address: string, kind: string): Promise<string> {
-	const hook = context.hooks.resolveOutOfBand
+export async function resolveOutOfBandValue(
+	hook: Hooks["resolveOutOfBand"],
+	address: string,
+	kind: string,
+	options: { label: string; outOfBand?: Partial<BackoffConfig> },
+): Promise<string> {
 	if (hook === undefined) {
 		throw new Error(
-			`oat: principal "${context.principalId}" needs a "${kind}" value delivered outside HTTP, ` +
+			`oat: ${options.label} needs a "${kind}" value delivered outside HTTP, ` +
 				"but the config declares no resolveOutOfBand hook. oat cannot read your mail catcher, " +
 				"KV store or webhook sink — supply a function that can.",
 		)
 	}
-	let delay = 200
-	for (let attempt = 1; attempt <= 6; attempt++) {
-		const value = await hook({ address, attempt, kind })
-		if (value !== null && value !== "") return value
-		await new Promise((done) => setTimeout(done, delay))
-		delay = Math.min(delay * 2, 3000)
-	}
+	const backoff = resolveBackoff(options.outOfBand)
+	const value = await pollWithBackoff((attempt) => hook({ address, attempt, kind }), backoff, isAbsentValue)
+	if (typeof value === "string" && value !== "") return value
 	throw new Error(
-		`oat: no "${kind}" value arrived for ${address} after 6 attempts. The delivery mechanism is ` +
+		`oat: no "${kind}" value arrived for ${address} after ${backoff.attempts} attempts ` +
+			`(~${worstCaseWaitMs(backoff)}ms worst-case wait). The delivery mechanism is ` +
 			"either slow beyond the backoff window or not firing at all.",
 	)
+}
+
+export async function resolvePrincipalAuthValue(
+	hook: Hooks["resolvePrincipalAuth"],
+	fromHook: string,
+	options: { label: string; outOfBand?: Partial<BackoffConfig> },
+): Promise<PrincipalAuthResult> {
+	if (hook === undefined) {
+		throw new Error(
+			`oat: ${options.label} declares auth.fromHook "${fromHook}", but the config has no ` +
+				"resolvePrincipalAuth hook. Harvest the credential yourself and return it from that hook.",
+		)
+	}
+	const backoff = resolveBackoff(options.outOfBand)
+	const value = await pollWithBackoff(
+		(_) => hook(fromHook),
+		backoff,
+		(result) => {
+			if (result === null) return true
+			return result.credential === ""
+		},
+	)
+	if (value === undefined || value === null || value.credential === "") {
+		throw new Error(
+			`oat: resolvePrincipalAuth("${fromHook}") returned no credential for ${options.label} ` +
+				`after ${backoff.attempts} attempts (~${worstCaseWaitMs(backoff)}ms worst-case wait).`,
+		)
+	}
+	return value
 }
 
 /** Wraps a chain in a credential that refreshes itself before it expires. */
 export async function createPrincipal(
 	id: string,
-	spec: AcquireSpec,
+	spec: PrincipalAuth,
 	context: AcquireContext,
 ): Promise<PrincipalRuntime> {
+	if (isHookAuth(spec)) return createHookPrincipal(id, spec, context)
+	return createFlowPrincipal(id, spec, context)
+}
+
+async function createHookPrincipal(id: string, spec: HookAuth, context: AcquireContext): Promise<PrincipalRuntime> {
+	let credential = ""
+	let scope: Record<string, string> = {}
+	const issued = new Set<string>()
+	const header = spec.header ?? "authorization"
+	const template = spec.template ?? "Bearer {credential}"
+	const bufferMs = spec.refreshBufferMs ?? DEFAULT_REFRESH_BUFFER_MS
+	const ctx: AcquireContext = { ...context, principalId: id }
+	const authValue = (token: string): string => template.replace("{credential}", token)
+
+	const runtime: PrincipalRuntime = {
+		address: null,
+		expiresAt: null,
+		headers: () => ({ [header]: authValue(credential) }),
+		id,
+		matches: (headers) => {
+			const sent = headerOf(headers, header)
+			return sent !== undefined && issued.has(sent)
+		},
+		reacquire: async () => undefined,
+		refreshIfStale: async () => undefined,
+		scope,
+	}
+
+	const apply = (result: PrincipalAuthResult): void => {
+		credential = result.credential
+		if (result.refreshToken !== undefined) scope = { ...scope, refreshToken: result.refreshToken }
+		runtime.scope = scope
+		runtime.expiresAt =
+			typeof result.expiresIn === "number"
+				? Date.now() + result.expiresIn * 1000
+				: spec.assumeTtlMs !== undefined
+					? Date.now() + spec.assumeTtlMs
+					: jwtExpiryMs(credential)
+		issued.add(authValue(credential))
+	}
+
+	const harvest = async (): Promise<void> => {
+		apply(
+			await resolvePrincipalAuthValue(ctx.hooks.resolvePrincipalAuth, spec.fromHook, {
+				label: `principal "${id}"`,
+				...(ctx.outOfBand === undefined ? {} : { outOfBand: ctx.outOfBand }),
+			}),
+		)
+	}
+
+	await harvest()
+
+	let inflight: Promise<void> | null = null
+	let refreshing = false
+
+	runtime.refreshIfStale = async (force = false): Promise<void> => {
+		if (refreshing) return
+		if (!force) {
+			if (runtime.expiresAt === null) return
+			if (runtime.expiresAt - Date.now() > bufferMs) return
+		}
+		if (inflight !== null) return inflight
+		refreshing = true
+		const pending = harvest().finally(() => {
+			refreshing = false
+			if (inflight === pending) inflight = null
+		})
+		inflight = pending
+		return pending
+	}
+
+	runtime.reacquire = harvest
+	return runtime
+}
+
+async function createFlowPrincipal(id: string, spec: AuthFlow, context: AcquireContext): Promise<PrincipalRuntime> {
 	let credential = ""
 	let scope: Record<string, string> = {}
 	const issued = new Set<string>()

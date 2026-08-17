@@ -189,6 +189,7 @@ async function createOne(
 		body: encoded.body,
 		...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),
 		headers: options.authHeaders,
+		operationId: createOp.operationId,
 	})
 	if (exchange.status >= 300) {
 		/* Plan limit after an effect (or a sibling create) already filled the quota: reuse a
@@ -288,6 +289,7 @@ export async function seedCohort(
 			body: encoded.body,
 			...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),
 			headers: options.authHeaders,
+			operationId: createOp.operationId,
 		})
 		if (exchange.status >= 300) {
 			/* Partial cohorts are still useful — a single rejected variant should not cost the

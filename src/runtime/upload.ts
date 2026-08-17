@@ -14,6 +14,7 @@ export interface UploadContext {
 	uploads?: Uploads
 	configDir?: string
 	resolveUpload?: Hooks["resolveUpload"]
+	resolveInput?: Hooks["resolveInput"]
 	warn?: (message: string) => void
 }
 

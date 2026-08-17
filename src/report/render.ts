@@ -161,7 +161,9 @@ export function renderMarkdown(input: ReportInput): string {
 		lines.push("")
 
 		for (const finding of group) {
-			lines.push(`### ${finding.entity} — ${finding.summary}`)
+			const entityLabel =
+				finding.origin === undefined || finding.origin === "" ? finding.entity : `${finding.origin}/${finding.entity}`
+			lines.push(`### ${entityLabel} — ${finding.summary}`)
 			lines.push("")
 			lines.push(`\`${finding.check}\``)
 			lines.push("")
@@ -435,7 +437,9 @@ export function renderConsole(input: ReportInput): string {
 		if (group.length === 0) continue
 		lines.push(`  ${VERDICT_LABEL[verdict].toUpperCase()} (${group.length})`)
 		for (const finding of group) {
-			lines.push(`    ${finding.entity.padEnd(16)} ${finding.summary}`)
+			const entityLabel =
+				finding.origin === undefined || finding.origin === "" ? finding.entity : `${finding.origin}/${finding.entity}`
+			lines.push(`    ${entityLabel.padEnd(16)} ${finding.summary}`)
 			lines.push(`    ${"".padEnd(16)} ${finding.check}`)
 		}
 		lines.push("")

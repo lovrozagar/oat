@@ -48,6 +48,8 @@ This file is the operator manual. An agent that has read it can install oat, wri
   - [Top-level fields](#top-level-fields)
   - [Principals](#principals)
   - [Auth flows](#auth-flows)
+  - [Harvested principal](#harvested-principal)
+  - [Secondary origins](#secondary-origins)
   - [Hooks](#hooks)
   - [Uploads](#uploads)
   - [Environment interpolation](#environment-interpolation)
@@ -101,7 +103,7 @@ The first principal is the writer. Isolation needs a second principal with diffe
 
 oat never needs ground truth about your data. A filter and its negation must partition the set; a page walk must cover the collection; a record read four ways must read the same.
 
-oat does **not** use OpenAPI `security` / `securitySchemes`, `servers[]`, cookies, webhooks, callbacks, or `links`. Auth is the config. The origin is `baseUrl`. Request bodies follow the document: JSON, `multipart/form-data` (scalars + dummy / pool / `resolveUpload` files), or `application/x-www-form-urlencoded`.
+oat does **not** use OpenAPI `security` / `securitySchemes`, `servers[]`, cookies, webhooks, callbacks, or `links`. Auth is the config. The primary origin is `baseUrl`. Extra hosts go in `origins[]`, each with its own spec — do not merge them into the primary document. Request bodies follow the document: JSON, `multipart/form-data` (scalars + dummy / pool / `resolveUpload` files), or `application/x-www-form-urlencoded`. `hooks.resolveInput` can replace a generated JSON field (a Stripe test `pm_…`); `hooks.resolveHeaders` can attach a one-shot header (Turnstile) per request.
 
 ## Quick start
 
@@ -433,24 +435,28 @@ export default defineConfig({
 	only: ["store", "product"], // restrict entities
 	keepFixtures: false,
 	outDir: "./oat-out",
+	outOfBand: { attempts: 20, initialMs: 1000, maxMs: 8000 },
+	origins: [{ id: "cdn", baseUrl: "https://cdn.example.com", spec: "https://cdn.example.com/openapi.json" }],
 })
 ```
 
-| field           | required | default     | notes                                                              |
-| --------------- | -------- | ----------- | ------------------------------------------------------------------ |
-| `spec`          | yes      |             | See [Spec loading](#spec-loading)                                  |
-| `baseUrl`       | yes      |             | Origin. OpenAPI `servers[]` is ignored                             |
-| `principals`    | yes      |             | Non-empty. First is the writer                                     |
-| `hooks`         | no       |             | `resolveOutOfBand`, `teardownPrincipal`, `resolveUpload`           |
-| `uploads`       | no       |             | `pool` globs, relative to the config file. JSON configs: pool only |
-| `globalHeaders` | no       | `{}`        | Merged under per-request headers. Opaque to oat                    |
-| `roots`         | no       | `{}`        | Shared path params (merged with each principal's `roots`)          |
-| `seed`          | no       | `1`         | Integer. Same seed → same fixture bodies                           |
-| `cohortSize`    | no       | `7`         | Sliced from the 7 built-in variants. Larger repeats the pattern    |
-| `maxInFlight`   | no       | `4`         | Across the whole run                                               |
-| `only`          | no       | all         | Entity names from `oat plan`                                       |
-| `keepFixtures`  | no       | `false`     | Skip DELETE at the end                                             |
-| `outDir`        | no       | `./oat-out` | Created if missing                                                 |
+| field           | required | default                                        | notes                                                                                          |
+| --------------- | -------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `spec`          | yes      |                                                | See [Spec loading](#spec-loading)                                                              |
+| `baseUrl`       | yes      |                                                | Primary origin. OpenAPI `servers[]` is ignored                                                 |
+| `principals`    | yes      |                                                | Non-empty. First is the writer                                                                 |
+| `hooks`         | no       |                                                | See [Hooks](#hooks)                                                                            |
+| `uploads`       | no       |                                                | `pool` globs, relative to the config file. JSON configs: pool only                             |
+| `globalHeaders` | no       | `{}`                                           | Merged first. `resolveHeaders` then caller headers then auth                                   |
+| `origins`       | no       | `[]`                                           | Extra `{ id, baseUrl, spec }` hosts. Auth JWT is reused. Do not merge those routes into `spec` |
+| `outOfBand`     | no       | `{ attempts: 6, initialMs: 200, maxMs: 3000 }` | Backoff for `resolveOutOfBand` and `resolvePrincipalAuth`. See [Hooks](#hooks)                 |
+| `roots`         | no       | `{}`                                           | Shared path params (merged with each principal's `roots`)                                      |
+| `seed`          | no       | `1`                                            | Integer. Same seed → same fixture bodies                                                       |
+| `cohortSize`    | no       | `7`                                            | Sliced from the 7 built-in variants. Larger repeats the pattern                                |
+| `maxInFlight`   | no       | `4`                                            | Across the whole run                                                                           |
+| `only`          | no       | all                                            | Entity names from `oat plan`                                                                   |
+| `keepFixtures`  | no       | `false`                                        | Skip DELETE at the end                                                                         |
+| `outDir`        | no       | `./oat-out`                                    | Created if missing. Also writes `principals.json` after acquire                                |
 
 `spec` may be a path relative to `baseUrl` (`/v1/openapi/spec`) or an absolute URL or a file.
 
@@ -493,6 +499,7 @@ Rules that matter:
 - Extra principals are not ignored. Isolation picks the first different-`roots` peer. Rank uses the same-tenant pair.
 - `headers` and `auth` compose: static headers are sent, then the flow's credential header is merged on top.
 - A principal with only `headers` (no `auth`) never hits a login route.
+- `auth` may be a harvested credential instead of a step chain: `{ fromHook: "oauth-google" }`. See [Harvested principal](#harvested-principal).
 
 Example — two tenants plus a same-tenant lattice:
 
@@ -654,6 +661,50 @@ principals: [
 
 The address used for `teardownPrincipal` is `scope.address` or `scope.email` (set via `bind: { address }` or `bind: { email }`).
 
+### Harvested principal
+
+When the credential is produced outside oat (a human finishes Google OAuth on a harvest page, a pair lands in KV), do not make oat drive `authorize` / `callback`:
+
+```ts
+{
+  id: "google-user",
+  auth: { fromHook: "oauth-google" },
+}
+```
+
+oat polls `hooks.resolvePrincipalAuth("oauth-google")` with the same `outOfBand` backoff as mail. Return `{ credential, refreshToken?, expiresIn? }` or `null` to retry. Refresh re-calls the hook (401 and countdown). oat does not speak OAuth.
+
+### Secondary origins
+
+One run, one primary `baseUrl`. A CDN (or any second host) keeps its own OpenAPI.
+
+```ts
+export default defineConfig({
+	spec: "https://api.example.com/openapi.json",
+	baseUrl: "https://api.example.com",
+	principals: [/* acquire JWT on the API */],
+	origins: [{ id: "cdn", baseUrl: "https://cdn.example.com", spec: "https://cdn.example.com/openapi.json" }],
+})
+```
+
+After primary auth, oat snapshots the principals, binds those credentials to the other host, and runs the matrix against that document. Auth steps may set `origin: "cdn"` to send one hop to a named origin during acquire.
+
+Do not merge CDN routes into the API gateway document.
+
+A second `defineConfig` can reuse the first run's snapshot instead:
+
+```ts
+import { defineConfig, loadPersistedPrincipals } from "@lovrozagar/oat"
+
+export default defineConfig({
+	spec: "https://cdn.example.com/openapi.json",
+	baseUrl: "https://cdn.example.com",
+	principals: loadPersistedPrincipals("./oat-out/principals.json"),
+})
+```
+
+The CLI writes `oat-out/principals.json` after every run.
+
 ### Hooks
 
 ```ts
@@ -675,12 +726,58 @@ hooks: {
     }
     return null
   },
+  // After globalHeaders, before auth. Return null to add nothing.
+  resolveHeaders: async ({ operationId, method, url }) => {
+    if (operationId === "auth.register" || operationId === "auth.login") {
+      return { "cf-turnstile-response": await harvestTurnstile() }
+    }
+    return null
+  },
+  // Replace a generated JSON field. Null keeps the generator.
+  resolveInput: async ({ operationId, field }) => {
+    if (operationId === "billing.subscribe" && field === "payment_method_id") {
+      return process.env.STRIPE_TEST_PM
+    }
+    return null
+  },
+  // Harvested OAuth pair. Null retries with the outOfBand backoff.
+  resolvePrincipalAuth: async (fromHook) => {
+    if (fromHook !== "oauth-google") return null
+    const pair = await readHarvestedGoogle()
+    return pair === null ? null : { credential: pair.access_token, refreshToken: pair.refresh_token, expiresIn: pair.expires_in }
+  },
+  // Optional extra stop condition while x-wait polls.
+  awaitSideEffect: async ({ operationId, record }) => {
+    if (operationId !== "webhook.deliver") return null
+    return Array.isArray((record as { items?: unknown }).items) && (record as { items: unknown[] }).items.length > 0
+      ? true
+      : null
+  },
 }
 ```
 
-Without `resolveOutOfBand`, an `outOfBand` step cannot complete. oat polls the hook up to **6** times: 200 ms, then doubling, capped at 3000 ms. Returning `""` is treated like `null`.
+Without `resolveOutOfBand`, an `outOfBand` step cannot complete. oat polls the hook; the hook must not sleep. Returning `""` is treated like `null`.
+
+Default schedule (0.6.2, unchanged unless `outOfBand` is set): **6** attempts, first sleep **200** ms, doubling, cap **3000** ms. oat sleeps after every miss, including the last, so the worst-case wait is
+
+`200 + 400 + 800 + 1600 + 3000 + 3000 = 9000` ms.
+
+That is too short for real mail (often 10–60 s) and for a human finishing Google OAuth or a Turnstile harvest. Configure it:
+
+```ts
+outOfBand: { attempts: 20, initialMs: 1000, maxMs: 8000 }
+// worst case: 1000 + 2000 + 4000 + 8000×17 = 143000 ms
+```
+
+Worst-case wait is `sum_{i=0}^{attempts-1} min(initialMs × 2^i, maxMs)`. `worstCaseWaitMs()` from the package computes it. Existing configs that omit `outOfBand` do not slow down.
 
 Without `teardownPrincipal`, provisioned accounts are reported as leftover rather than cascade-deleted. Per-record DELETE still runs for seeded rows when a delete (or `x-cleanup`) exists.
+
+`resolveHeaders` is called on every dispatch (including the 401 retry). Merge order: `globalHeaders` → hook → per-request headers → principal credential. Use `ctx.operationId` / `ctx.method` / `ctx.url` to attach a one-shot captcha only on captcha ops. oat does not speak Turnstile.
+
+`resolveInput` is the JSON twin of `resolveUpload`. Return a value to replace that field (`payment_method_id` on `billing.subscribe`); `null` keeps the generator.
+
+`resolvePrincipalAuth` and `awaitSideEffect` are documented below.
 
 ### Uploads
 
@@ -922,6 +1019,7 @@ What each tag **unlocks** (otherwise the check cannot run):
 | `x-query`       | `spec.declared-filterable-is-filterable`, `spec.declared-sortable-is-sortable`, `spec.declared-selectable-is-selectable` |
 | `x-soft-delete` | `softdelete.absent-from-default-list`                                                                                    |
 | `x-invite`      | `auth.invite-grants-then-revokes`                                                                                        |
+| `x-wait`        | `effects.side-effect-arrives`                                                                                            |
 
 What each tag **sharpens** (the check already runs, but the verdict changes):
 
@@ -969,9 +1067,15 @@ x-invite:
   granteeField: key
   tokenPointer: $.token
   grantPointer: $.grant_id
+  tokenFrom: response # or outOfBand
+  tokenKind: org-invite # only when tokenFrom is outOfBand; default `${entity}-invite`
 ```
 
-Put this on the invite operation. Config must give the invitee `inviteAs`. Defaults if omitted: `granteeField: key`, `tokenPointer: $.token`, `grantPointer: $.grant_id`. All three of `invite` / `accept` / `revoke` (operationIds) are required or the tag is ignored.
+Put this on the invite operation. Config must give the invitee `inviteAs`. Defaults if omitted: `granteeField: key`, `tokenPointer: $.token`, `grantPointer: $.grant_id`, `tokenFrom: response`. All three of `invite` / `accept` / `revoke` (operationIds) are required or the tag is ignored.
+
+`tokenFrom: response` (default) reads the accept token from the invite HTTP body at `tokenPointer`. Keep this for backends that still put the token in JSON.
+
+`tokenFrom: outOfBand` ignores the response token and calls `resolveOutOfBand({ address: inviteAs, kind })` after the invite POST. `kind` is `tokenKind` or `${entity}-invite` (`org` → `org-invite`, `project` → `project-invite`). Use this when the live profile must accept only the mailed token.
 
 An invite operation is **not** the entity's fixture create, even when it is `POST` on the collection. oat will not seed it with a generated email. The invite check (and only that check) creates the grant, using `inviteAs` as `granteeField`. The check still runs when there is no non-invite create, as long as an item or list route exists.
 
@@ -1036,6 +1140,22 @@ x-effects:
 `op`: `create` | `append` | `update` | `delete` | `replace`. oat asserts an exact cardinality delta on the named entity's list. `count` defaults to `1` when omitted.
 
 **Fallback:** derived from `x-entity.action` for this entity only.
+
+### `x-wait`
+
+```yaml
+x-wait:
+  operationId: inbox.list
+  until: $.items.0
+  timeoutMs: 30000
+  pollIntervalMs: 1000
+```
+
+Put this on the **write**. After that write succeeds, oat polls `operationId` until `until` (JSON path `$.items.0` or JSON pointer `/items/0`) is non-empty, or `hooks.awaitSideEffect` returns `true`. Default `timeoutMs` is **30s**. Timeout is a **finding** (`effects.side-effect-arrives`), not a coverage gap.
+
+Use this for queue consumers and webhook inboxes (1–30 s), not for the same request. `x-effects` still asserts cardinality; `x-wait` asserts “this other GET eventually has a body”.
+
+**Fallback:** the check does not run.
 
 ### `x-soft-delete`
 
@@ -1249,6 +1369,7 @@ Order is fixed (foundations first) so cascade suppression has a cause to point a
 | `softdelete.absent-from-default-list`      | a soft-deleted row is gone from the default list                                     | `x-soft-delete`                                                      | `list.read-after-write`                 |
 | `invalidation.declared-route-changes`      | after a write, the other entity's listed route actually changes                      | `x-invalidate` naming another entity                                 | list, persist                           |
 | `effects.declared-effect-occurs`           | `x-effects` cardinality delta is observed on the named list                          | `x-effects`                                                          | `list.read-after-write`                 |
+| `effects.side-effect-arrives`              | after the write, the named GET’s JSON path is occupied before `timeoutMs`            | `x-wait`                                                             | `list.read-after-write`                 |
 | `async.reaches-terminal-state`             | `x-async` reaches `until` (poll, or a terminal SSE frame) before `timeoutMs`         | `x-async`                                                            | —                                       |
 | `async.receipt-identifies-the-job`         | `idFrom` on the receipt (JSON object or SSE event JSON) resolves to a pollable job   | `x-async` + `idFrom`                                                 | —                                       |
 | `patch.minimality`                         | PATCH `{ name }` does not clear other writable fields                                | update + item route                                                  | —                                       |
@@ -1531,7 +1652,7 @@ const { doc: resolved, externalRefs } = dereference(doc)
 const model = buildModel(resolved)
 ```
 
-Types exported: `OatConfig`, `Principal`, `AuthFlow`, `AuthRefresh`, `AuthStep`, `Hooks`, `Uploads`, `UploadRequest`, `UploadFile`, `RunOptions`, `RunResult`, `Finding`, `Verdict`, `Actor`, `SpecModel`, `EntityModel`, `OperationModel`, `OpenApiDocument`, `AuthRefreshRequiredError`, matrix types.
+Types exported: `OatConfig`, `Principal`, `AuthFlow`, `AuthRefresh`, `AuthStep`, `HookAuth`, `Hooks`, `Uploads`, `UploadRequest`, `UploadFile`, `HeaderRequest`, `InputRequest`, `OriginSpec`, `OutOfBandConfig`, `RunOptions`, `RunResult`, `Finding`, `Verdict`, `Actor`, `SpecModel`, `EntityModel`, `OperationModel`, `OpenApiDocument`, `AuthRefreshRequiredError`, `loadPersistedPrincipals`, `worstCaseWaitMs`, matrix types.
 
 ## CI
 
@@ -1636,7 +1757,7 @@ These are deliberate. An agent should not invent a flag for them.
 - **No request timeout.** `fetch` waits until the server answers. Watch `idle_ms`.
 - **No retry on 5xx / 429.** One 401 → force refresh + single retry. A second 401 is evidence.
 - **No OpenAPI `security`.** Put credentials in `principals`. Cookie auth is a `headers: { cookie: "…" }` (or a flow that sets that header).
-- **No `servers[]`.** Always set `baseUrl`.
+- **No `servers[]`.** Always set `baseUrl`. Extra hosts are `origins[]`, each with its own `spec`.
 - **No OCR.** Multipart and file parts are sent as dummy / pool / `resolveUpload` bytes. oat checks HTTP status and JSON responses, not whether a PDF is a real invoice.
 - **No webhook / callback / link-object following.**
 - **External `$ref`s are not fetched.** In-document `$ref`s are.

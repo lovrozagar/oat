@@ -365,4 +365,59 @@ describe("invite accept request", () => {
 		expect(revoke?.requestBody).toEqual({ grant_id: "g1" })
 		expect(new URL(revoke?.url ?? "http://x").pathname).toBe("/v1/invites/revoke")
 	})
+
+	it("accepts with the mailed token when tokenFrom is outOfBand", async () => {
+		const spec = inviteSpec("body")
+		const invite = spec.paths["/v1/orgs/{org_id}/members"]?.post as Record<string, unknown>
+		invite["x-invite"] = {
+			...(invite["x-invite"] as Record<string, unknown>),
+			tokenFrom: "outOfBand",
+			tokenKind: "org-invite",
+		}
+		const kinds: string[] = []
+		const server = await listen((req, res) => {
+			void (async () => {
+				const url = new URL(req.url ?? "/", "http://127.0.0.1")
+				const method = (req.method ?? "GET").toUpperCase()
+				if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, spec)
+				if (url.pathname === "/v1/orgs/org_1/members" && method === "GET") return send(res, 200, { members: [] })
+				if (url.pathname === "/v1/orgs/org_1/members" && method === "POST") {
+					return send(res, 201, { grant_id: "g1", token: "tok-from-json-ignored" })
+				}
+				if (url.pathname === "/v1/invites/accept" && method === "POST") {
+					const body = await readJson(req)
+					if ((body as { token?: unknown })?.token !== "tok-from-mail") return send(res, 400, { error: "wrong" })
+					return send(res, 200, { ok: true })
+				}
+				if (url.pathname === "/v1/orgs/org_1/grants/g1" && method === "DELETE") return send(res, 200, { ok: true })
+				if (/^\/v1\/orgs\/org_1\/members\/[^/]+$/.test(url.pathname) && method === "GET") return send(res, 404)
+				return send(res, 404)
+			})().catch(() => {
+				if (!res.headersSent) send(res, 500)
+			})
+		})
+		closers.push(server.close)
+
+		const result = await run({
+			baseUrl: server.url,
+			hooks: {
+				resolveOutOfBand: async ({ address, kind }) => {
+					kinds.push(kind)
+					expect(address).toBe("beta@x.test")
+					return "tok-from-mail"
+				},
+			},
+			only: ["member"],
+			outOfBand: { attempts: 2, initialMs: 1, maxMs: 1 },
+			principals,
+			seed: 1,
+			spec: `${server.url}/v1/openapi/spec`,
+		})
+		const accept = result.client.transcript.find(
+			(e) => e.method === "POST" && new URL(e.url).pathname === "/v1/invites/accept",
+		)
+		expect(accept?.requestBody).toEqual({ token: "tok-from-mail" })
+		expect(kinds).toContain("org-invite")
+		expect(result.checksRun).toContain("auth.invite-grants-then-revokes")
+	})
 })

@@ -6,6 +6,7 @@
  * the oracle of what oat just wrote. Check ids are stable: the conformance suite asserts on them.
  */
 
+import type { Hooks } from "../config/define-config.ts"
 import { filterTerm, selectTerm, sortTerm } from "../spec/conventions.ts"
 import type { InviteSpec } from "../spec/extensions.ts"
 import type { QueryCapability } from "../spec/extensions.ts"
@@ -19,9 +20,12 @@ import { STRING_PAYLOADS, payloadFits } from "./payloads.ts"
 import { describeFeatureGate, isDocumentedFeatureGateDenial, reportFeatureGateSchemaDrift } from "./feature-gate.ts"
 import type { FindingCollector } from "./finding.ts"
 import { driveAsync, inspectStreamAsync, matchesPredicate, resolveAsyncId } from "./async.ts"
+import { resolveOutOfBandValue } from "./auth.ts"
 import { buildCohort } from "./fixture.ts"
+import type { BackoffConfig } from "./poll.ts"
 import type { UploadContext } from "./upload.ts"
 import type { SchemaValidator } from "./validate.ts"
+import { driveWait } from "./wait.ts"
 import { type Record_, fillPath } from "./world.ts"
 
 /** A resolved principal as checks see it — identity, lattice position, and how to speak as it. */
@@ -74,6 +78,10 @@ export interface CheckContext {
 	asyncOps: OperationModel[]
 	/** Operations on this entity that declare `x-effects`. */
 	effectOps: OperationModel[]
+	/** Operations on this entity that declare `x-wait`. */
+	waitOps: OperationModel[]
+	hooks: Hooks
+	outOfBand: BackoffConfig
 }
 
 export interface Check {
@@ -287,6 +295,7 @@ async function list(
 ): Promise<ListResult> {
 	const exchange = await ctx.client.get(fillPath(ctx.listOp.path, scope), {
 		headers: auth(),
+		operationId: ctx.listOp.operationId,
 		query,
 	})
 	const body = exchange.responseBody
@@ -3332,6 +3341,7 @@ const inviteGrantsThenRevokes: Check = {
 		const invited = await ctx.client.request(inviteOp.method, fillPath(inviteOp.path, resource), {
 			body: { [spec.granteeField]: delegate.inviteAs },
 			headers: { ...owner.headers(), "content-type": "application/json" },
+			operationId: inviteOp.operationId,
 		})
 		if (standDownForFeatureGate(ctx, inviteOp, invited, this.id)) return
 		if (invited.status >= 300) {
@@ -3353,10 +3363,23 @@ const inviteGrantsThenRevokes: Check = {
 			return
 		}
 
-		const token = pointerValue(invited.responseBody, spec.tokenPointer)
 		const grantId = pointerValue(invited.responseBody, spec.grantPointer)
-		if (token === undefined) {
-			return ctx.findings.unresolved(this.id, ctx.entityName, `invite response has no token at ${spec.tokenPointer}`)
+		let token: string | undefined
+		if (spec.tokenFrom === "outOfBand") {
+			const kind = spec.tokenKind ?? `${ctx.entityName}-invite`
+			try {
+				token = await resolveOutOfBandValue(ctx.hooks.resolveOutOfBand, delegate.inviteAs, kind, {
+					label: `invite to ${ctx.entityName}`,
+					outOfBand: ctx.outOfBand,
+				})
+			} catch (error) {
+				return ctx.findings.unresolved(this.id, ctx.entityName, error instanceof Error ? error.message : String(error))
+			}
+		} else {
+			token = pointerValue(invited.responseBody, spec.tokenPointer)
+			if (token === undefined) {
+				return ctx.findings.unresolved(this.id, ctx.entityName, `invite response has no token at ${spec.tokenPointer}`)
+			}
 		}
 
 		const acceptScope = { ...resource, token }
@@ -3367,6 +3390,7 @@ const inviteGrantsThenRevokes: Check = {
 				...delegate.headers(),
 				...(acceptBody === undefined ? {} : { "content-type": "application/json" }),
 			},
+			operationId: acceptOp.operationId,
 		})
 		if (standDownForFeatureGate(ctx, acceptOp, accepted, this.id)) return
 		if (accepted.status >= 300) {
@@ -3399,6 +3423,7 @@ const inviteGrantsThenRevokes: Check = {
 				...owner.headers(),
 				...(revokeBody === undefined ? {} : { "content-type": "application/json" }),
 			},
+			operationId: revokeOp.operationId,
 		})
 		if (standDownForFeatureGate(ctx, revokeOp, revoked, this.id)) return
 		if (revoked.status >= 300) {
@@ -4289,6 +4314,76 @@ const declaredEffectsOccur: Check = {
 	},
 }
 
+/**
+ * After a write that declares `x-wait`, poll the named GET until a JSON path is occupied
+ * (or `awaitSideEffect` returns true). Timeout is a backend finding, not a coverage gap.
+ */
+const sideEffectArrives: Check = {
+	applicable: (ctx) => ctx.waitOps.length > 0,
+	dependsOn: ["list.read-after-write"],
+	mutates: true,
+	id: "effects.side-effect-arrives",
+	needs: "an operation declaring x-wait",
+	async run(ctx) {
+		for (const op of ctx.waitOps) {
+			const spec = op.wait
+			if (spec === null) continue
+			const pollOp = ctx.model.byOperationId.get(spec.operationId)
+			if (pollOp === undefined) {
+				ctx.findings.gap(
+					this.id,
+					ctx.entityName,
+					`${op.operationId} x-wait names "${spec.operationId}", which is not in the document`,
+					"the side effect cannot be observed, so it is not verified",
+				)
+				continue
+			}
+
+			const body = op.hasRequestBody ? bodyForOp(ctx, op) : undefined
+			const invoked = await ctx.client.request(op.method, fillPath(op.path, ctx.scope), {
+				headers: ctx.auth(),
+				operationId: op.operationId,
+				...(body === undefined ? {} : await encodeOpBody(ctx, op, body)),
+			})
+			if (standDownForFeatureGate(ctx, op, invoked, this.id)) continue
+			if (standDownForRateLimit(ctx, invoked, this.id)) continue
+			if (invoked.status >= 400) {
+				ctx.findings.gap(
+					this.id,
+					ctx.entityName,
+					`${op.operationId} could not be invoked`,
+					`returned ${invoked.status}; its declared x-wait is unverified`,
+				)
+				continue
+			}
+
+			const outcome = await driveWait({
+				awaitSideEffect: ctx.hooks.awaitSideEffect,
+				client: ctx.client,
+				headers: ctx.auth,
+				pollOp,
+				record: invoked.responseBody,
+				scope: ctx.scope,
+				spec,
+				writeOpId: op.operationId,
+				...(ctx.refreshIfStale === undefined ? {} : { refreshIfStale: ctx.refreshIfStale }),
+			})
+			if (!outcome.timedOut) continue
+			ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				`${op.operationId} side effect did not appear within ${spec.timeoutMs}ms`,
+				`x-wait polls ${spec.operationId}` +
+					(spec.until === undefined ? "" : ` until ${spec.until} is non-empty`) +
+					` and the path was still empty after ${outcome.polls} poll(s) / ${Math.round(outcome.elapsedMs)}ms. ` +
+					"Queue consumers and webhook inboxes are not the same request; a timeout here is a " +
+					"missed delivery, not a coverage gap.",
+				[invoked, ...outcome.exchanges.slice(-2)],
+			)
+		}
+	},
+}
+
 async function observe(
 	ctx: CheckContext,
 	listOp: OperationModel,
@@ -4846,6 +4941,7 @@ export const CHECKS: readonly Check[] = [
 	/* declared side effects and async lifecycles, last: both invoke operations that change the
 	 * world, and both are meaningless if the read surface above is already known broken */
 	declaredEffectsOccur,
+	sideEffectArrives,
 	asyncReachesTerminalState,
 	asyncReceiptIsResolvable,
 	/* After every other check has written to the transcript — create is owned by

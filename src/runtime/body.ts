@@ -8,6 +8,7 @@
 import type { UploadFile, UploadRequest } from "../config/define-config.ts"
 import { requestContent } from "../spec/collection.ts"
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
+import { applyResolveInput } from "./input.ts"
 import {
 	type UploadContext,
 	isFieldOverride,
@@ -62,14 +63,21 @@ export async function encodeForOperation(
 }
 
 export async function encodeRequest(options: EncodeOptions): Promise<EncodedBody> {
+	const fields = await applyResolveInput(
+		options.fields,
+		options.operationId,
+		options.schema,
+		options.uploads.resolveInput,
+	)
+	const next = { ...options, fields }
 	const media = options.mediaType.toLowerCase()
 	if (media.startsWith("multipart/")) {
-		return { body: await encodeMultipart(options), contentType: null }
+		return { body: await encodeMultipart(next), contentType: null }
 	}
 	if (media.includes("x-www-form-urlencoded")) {
-		return { body: encodeUrlencoded(options.fields), contentType: "application/x-www-form-urlencoded" }
+		return { body: encodeUrlencoded(next.fields), contentType: "application/x-www-form-urlencoded" }
 	}
-	return { body: options.fields, contentType: undefined }
+	return { body: next.fields, contentType: undefined }
 }
 
 async function encodeMultipart(options: EncodeOptions): Promise<FormData> {

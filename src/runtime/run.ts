@@ -8,8 +8,19 @@
 
 import { buildModel, type EntityModel, type OperationModel, type SpecModel } from "../spec/graph.ts"
 import { dereference, loadSpec } from "../spec/load.ts"
-import type { Hooks, Principal, ProfileSpec, RateLimitSpec, Uploads } from "../config/define-config.ts"
-import { type AcquireSpec, createPrincipal, type PrincipalRuntime } from "./auth.ts"
+import type {
+	Hooks,
+	OriginSpec,
+	OutOfBandConfig,
+	Principal,
+	ProfileSpec,
+	RateLimitSpec,
+	Uploads,
+} from "../config/define-config.ts"
+import { isAuthFlow } from "../config/define-config.ts"
+import { type OriginClient, createPrincipal, type PrincipalRuntime } from "./auth.ts"
+import { type BackoffConfig, resolveBackoff } from "./poll.ts"
+import { type PersistedPrincipal, persistedToPrincipal, snapshotPrincipal } from "./principals.ts"
 import { CHECKS, type Actor, type CheckContext } from "./checks.ts"
 import { Client, type Exchange } from "./client.ts"
 import type { ProgressHandler, ProgressLast, ProgressSnapshot } from "./progress.ts"
@@ -60,6 +71,12 @@ export interface RunOptions {
 	rateLimits?: RateLimitSpec[]
 	/** Live status. Called on phase/entity/check/request; the CLI prints a heartbeat from this. */
 	onProgress?: ProgressHandler
+	/** Extra hosts with their own OpenAPI. Auth stays on the primary. */
+	origins?: OriginSpec[]
+	/** Backoff for `resolveOutOfBand` / `resolvePrincipalAuth`. */
+	outOfBand?: OutOfBandConfig
+	/** Skip `teardownPrincipal` — used when this run is a secondary origin sharing accounts. */
+	skipPrincipalTeardown?: boolean
 }
 
 export interface RunResult {
@@ -87,6 +104,8 @@ export interface RunResult {
 	profileExclusions: Array<{ entity: string; operationId: string; reason: string }>
 	created: number
 	teardown: TeardownReport | null
+	/** Credentials as they stood after acquire — written to `oat-out/principals.json` by the CLI. */
+	principals: PersistedPrincipal[]
 }
 
 function readPointer(body: unknown, pointer: string): unknown {
@@ -209,6 +228,8 @@ async function resolvePrincipal(
 	model: SpecModel,
 	client: Client,
 	hooks: Hooks,
+	outOfBand: BackoffConfig,
+	originClients?: ReadonlyMap<string, OriginClient>,
 ): Promise<ResolvedPrincipal> {
 	const configured = principal.roots ?? {}
 
@@ -229,7 +250,9 @@ async function resolvePrincipal(
 		client,
 		hooks,
 		model,
+		outOfBand,
 		principalId: principal.id,
+		...(originClients === undefined ? {} : { originClients }),
 	})
 
 	/* A flow that provisions a tenant produces its own roots — the run then needs no fixture
@@ -280,7 +303,9 @@ async function readExisting(
 function authStepOperationIds(principals: readonly PrincipalSpec[]): Set<string> {
 	const ids = new Set<string>()
 	for (const principal of principals) {
-		for (const step of principal.auth?.steps ?? []) {
+		const auth = principal.auth
+		if (auth === undefined || !isAuthFlow(auth)) continue
+		for (const step of auth.steps) {
 			if ("operationId" in step) ids.add(step.operationId)
 		}
 	}
@@ -359,6 +384,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	} catch (error) {
 		if (!isOverflowError(error)) throw error
 	}
+	const hooks = options.hooks ?? {}
 	const authCreates = authStepOperationIds(options.principals)
 	const rateLimiter = new RateLimiter(buildRateLimitRules(model, options.rateLimits))
 	const client = new Client(
@@ -391,24 +417,41 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		},
 		rateLimiter,
 	)
+	if (hooks.resolveHeaders !== undefined) client.setResolveHeaders(hooks.resolveHeaders)
 	const validator = new SchemaValidator()
 	const ledger = new Ledger()
 	const seed = options.seed ?? 1
+	const outOfBand = resolveBackoff(options.outOfBand)
 
 	if (options.principals[0] === undefined) throw new Error("oat: at least one principal is required")
 
-	const hooks = options.hooks ?? {}
+	const originClients = await loadOriginClients(
+		options.origins ?? [],
+		hooks,
+		options.maxInFlight ?? 4,
+		options.globalHeaders ?? {},
+	)
 	const uploads: UploadContext = {
 		seed,
 		...(options.uploads === undefined ? {} : { uploads: options.uploads }),
 		...(options.configDir === undefined ? {} : { configDir: options.configDir }),
 		...(hooks.resolveUpload === undefined ? {} : { resolveUpload: hooks.resolveUpload }),
+		...(hooks.resolveInput === undefined ? {} : { resolveInput: hooks.resolveInput }),
 	}
 	const worldUploads = (seedOffset = 0): UploadContext =>
 		seedOffset === 0 ? uploads : { ...uploads, seed: seed + seedOffset }
 	const resolved: ResolvedPrincipal[] = []
 	for (const principal of options.principals) {
-		resolved.push(await resolvePrincipal(principal, model, client, hooks))
+		resolved.push(
+			await resolvePrincipal(
+				principal,
+				model,
+				client,
+				hooks,
+				outOfBand,
+				originClients.size === 0 ? undefined : originClients,
+			),
+		)
 	}
 	tick({
 		message: `${resolved.length} principal(s)`,
@@ -761,6 +804,9 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			altScope,
 			asyncOps: model.operations.filter((op) => op.entity === entity.name && op.async !== null && invocable(op)),
 			effectOps: model.operations.filter((op) => op.entity === entity.name && op.effects.length > 0 && invocable(op)),
+			waitOps: model.operations.filter((op) => op.entity === entity.name && op.wait !== null && invocable(op)),
+			hooks,
+			outOfBand,
 			auth: alpha.headers,
 			...(alpha.runtime === undefined ? {} : { refreshIfStale: alpha.runtime.refreshIfStale }),
 			client: trackingClient,
@@ -935,8 +981,27 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		)
 	}
 
-	await teardownPrincipals(resolved, hooks, findings)
 	reportRateLimitViolations(client, findings)
+
+	for (const principal of resolved) await principal.runtime?.refreshIfStale()
+	const persisted = resolved.map((principal) =>
+		snapshotPrincipal({
+			headers: principal.headers,
+			id: principal.id,
+			roots: principal.roots,
+			...(principal.role === undefined ? {} : { role: principal.role }),
+			rank: principal.rank,
+			...(principal.inviteAs === undefined ? {} : { inviteAs: principal.inviteAs }),
+		}),
+	)
+
+	if ((options.origins ?? []).length > 0 && options.skipPrincipalTeardown !== true) {
+		await runSecondaryOrigins(options, persisted, findings, checksRun, checksSkipped, checksSuppressed, entitiesTested)
+	}
+
+	if (options.skipPrincipalTeardown !== true) {
+		await teardownPrincipals(resolved, hooks, findings)
+	}
 
 	tick({
 		message: "done",
@@ -954,8 +1019,80 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		entitiesTested,
 		findings: findings.findings,
 		model,
+		principals: persisted,
 		profile: profile.name,
 		profileExclusions,
 		teardown,
+	}
+}
+
+async function loadOriginClients(
+	origins: OriginSpec[],
+	hooks: Hooks,
+	maxInFlight: number,
+	globalHeaders: Record<string, string>,
+): Promise<Map<string, OriginClient>> {
+	const map = new Map<string, OriginClient>()
+	for (const origin of origins) {
+		const raw = await loadSpec(origin.spec, origin.baseUrl)
+		const { doc } = dereference(raw)
+		const originModel = buildModel(doc)
+		const originClient = new Client(origin.baseUrl, globalHeaders, maxInFlight)
+		if (hooks.resolveHeaders !== undefined) originClient.setResolveHeaders(hooks.resolveHeaders)
+		map.set(origin.id, { client: originClient, model: originModel })
+	}
+	return map
+}
+
+async function runSecondaryOrigins(
+	options: RunOptions,
+	persisted: PersistedPrincipal[],
+	findings: FindingCollector,
+	checksRun: Set<string>,
+	checksSkipped: Array<{ check: string; entity: string; needs: string }>,
+	checksSuppressed: Array<{ check: string; entity: string; because: string }>,
+	entitiesTested: string[],
+): Promise<void> {
+	for (const origin of options.origins ?? []) {
+		const originHooks =
+			options.hooks === undefined
+				? undefined
+				: (() => {
+						const { teardownPrincipal: _removed, ...rest } = options.hooks
+						return rest
+					})()
+		const result = await run({
+			baseUrl: origin.baseUrl,
+			principals: persisted.map(persistedToPrincipal) as [Principal, ...Principal[]],
+			spec: origin.spec,
+			skipPrincipalTeardown: true,
+			...(originHooks === undefined ? {} : { hooks: originHooks }),
+			...(options.uploads === undefined ? {} : { uploads: options.uploads }),
+			...(options.configDir === undefined ? {} : { configDir: options.configDir }),
+			...(options.globalHeaders === undefined ? {} : { globalHeaders: options.globalHeaders }),
+			...(options.roots === undefined ? {} : { roots: options.roots }),
+			...(options.seed === undefined ? {} : { seed: options.seed }),
+			...(options.cohortSize === undefined ? {} : { cohortSize: options.cohortSize }),
+			...(options.only === undefined ? {} : { only: options.only }),
+			...(options.profiles === undefined ? {} : { profiles: options.profiles }),
+			...(options.profile === undefined ? {} : { profile: options.profile }),
+			...(options.rateLimits === undefined ? {} : { rateLimits: options.rateLimits }),
+			...(options.keepFixtures === undefined ? {} : { keepFixtures: options.keepFixtures }),
+			...(options.maxInFlight === undefined ? {} : { maxInFlight: options.maxInFlight }),
+			...(options.outOfBand === undefined ? {} : { outOfBand: options.outOfBand }),
+			...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
+		})
+		for (const finding of result.findings) {
+			findings.report({ ...finding, origin: origin.id })
+		}
+		for (const check of result.checksRun) checksRun.add(check)
+		for (const skip of result.checksSkipped) checksSkipped.push({ ...skip, entity: `${origin.id}:${skip.entity}` })
+		for (const suppressed of result.checksSuppressed) {
+			checksSuppressed.push({ ...suppressed, entity: `${origin.id}:${suppressed.entity}` })
+		}
+		for (const entity of result.entitiesTested) entitiesTested.push(`${origin.id}:${entity}`)
+		for (const item of result.inconclusive) {
+			findings.unresolved(item.check, `${origin.id}:${item.entity}`, item.reason)
+		}
 	}
 }

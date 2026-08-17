@@ -319,6 +319,10 @@ export interface InviteSpec {
 	granteeField: string
 	tokenPointer: string
 	grantPointer: string
+	/** Where the accept token comes from. Default `response` keeps `tokenPointer`. */
+	tokenFrom: "response" | "outOfBand"
+	/** `resolveOutOfBand` kind when `tokenFrom` is `outOfBand`. Default `${entity}-invite`. */
+	tokenKind?: string
 }
 
 export function readInvite(op: OperationObject): InviteSpec | null {
@@ -328,14 +332,42 @@ export function readInvite(op: OperationObject): InviteSpec | null {
 	const accept = typeof tag.accept === "string" ? tag.accept : undefined
 	const revoke = typeof tag.revoke === "string" ? tag.revoke : undefined
 	if (invite === undefined || accept === undefined || revoke === undefined) return null
-	return {
+	const tokenFrom = tag.tokenFrom === "outOfBand" ? "outOfBand" : "response"
+	const spec: InviteSpec = {
 		accept,
 		grantPointer: typeof tag.grantPointer === "string" ? tag.grantPointer : "$.grant_id",
 		granteeField: typeof tag.granteeField === "string" ? tag.granteeField : "key",
 		invite,
 		revoke,
+		tokenFrom,
 		tokenPointer: typeof tag.tokenPointer === "string" ? tag.tokenPointer : "$.token",
 	}
+	if (typeof tag.tokenKind === "string" && tag.tokenKind !== "") spec.tokenKind = tag.tokenKind
+	return spec
+}
+
+export interface WaitSpec {
+	operationId: string
+	until?: string
+	timeoutMs: number
+	pollIntervalMs: number
+}
+
+/**
+ * `x-wait: { operationId, until?, timeoutMs? }` — after this write, poll `operationId` until
+ * `until` (JSON path / pointer) is non-empty, or `hooks.awaitSideEffect` returns true.
+ * Default timeout 30s. Timeout is a finding, not a coverage gap.
+ */
+export function readWait(op: OperationObject): WaitSpec | null {
+	const tag = ext<Record<string, unknown>>(op, "x-wait")
+	if (tag === undefined || typeof tag.operationId !== "string" || tag.operationId === "") return null
+	const spec: WaitSpec = {
+		operationId: tag.operationId,
+		pollIntervalMs: typeof tag.pollIntervalMs === "number" && tag.pollIntervalMs > 0 ? tag.pollIntervalMs : 1000,
+		timeoutMs: typeof tag.timeoutMs === "number" && tag.timeoutMs > 0 ? tag.timeoutMs : 30_000,
+	}
+	if (typeof tag.until === "string" && tag.until !== "") spec.until = tag.until
+	return spec
 }
 
 export function readSoftDelete(op: OperationObject): string | null {

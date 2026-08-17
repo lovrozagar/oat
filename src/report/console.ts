@@ -56,6 +56,7 @@ const TAG_REMEDY: Record<string, string> = {
 	"x-query": "declare which fields support the filter / order / search / select roles",
 	"x-tenant": "name the path parameter that scopes this operation to a tenant",
 	"x-invite": "name the invite, accept and revoke operations for delegated access",
+	"x-wait": "name the GET to poll after this write until a JSON path is occupied",
 }
 
 function bar(value: number, total: number, width = 24): string {
@@ -188,6 +189,7 @@ function doctor(model: SpecModel, externalRefs: string[], asJson: boolean): { te
 			...(op.immutable.length > 0 ? ["x-immutable"] : []),
 			...(op.invalidates.length > 0 ? ["x-invalidate"] : []),
 			...(op.softDelete === null ? [] : ["x-soft-delete"]),
+			...(op.wait === null ? [] : ["x-wait"]),
 			...(op.tenantSource === "tag" ? ["x-tenant"] : []),
 			...(op.query?.source === "tag" ? ["x-query"] : []),
 		]),

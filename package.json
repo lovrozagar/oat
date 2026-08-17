@@ -1,6 +1,6 @@
 {
 	"name": "@lovrozagar/oat",
-	"version": "0.6.2",
+	"version": "0.7.0",
 	"description": "OpenAPI Tester — matrix-test a live API against its OpenAPI spec",
 	"keywords": [
 		"api",
@@ -58,7 +58,8 @@
 		"build": "tsc -p tsconfig.json",
 		"dev": "tsc -p tsconfig.json --watch",
 		"check": "tsc -p tsconfig.json --noEmit",
-		"test": "bun run build && node --experimental-sqlite dist/cli.js conformance",
+		"test": "bun run build && bun run test:unit && node --experimental-sqlite dist/cli.js conformance",
+		"test:unit": "vitest run --coverage",
 		"conformance": "node --experimental-sqlite dist/cli.js conformance",
 		"bisect": "node --experimental-sqlite labs/bisect.mjs",
 		"demo": "bun run build && node labs/demo.mjs",
@@ -79,6 +80,7 @@
 		"@commitlint/cli": "^21.2.1",
 		"@commitlint/config-conventional": "^21.2.0",
 		"@types/node": "^22.10.0",
+		"@vitest/coverage-v8": "4.1.10",
 		"oxfmt": "^0.63.0",
 		"oxlint": "^1.78.0",
 		"postgres": "^3.4.9",

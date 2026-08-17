@@ -16,6 +16,8 @@ export interface Finding {
 	summary: string
 	detail: string
 	evidence: Exchange[]
+	/** Set when the finding came from a non-primary `origins[]` host. */
+	origin?: string
 }
 
 /**

@@ -33,6 +33,8 @@ export interface OperationStep extends StepBase {
 	body?: unknown
 	headers?: Record<string, string>
 	query?: Record<string, string>
+	/** Named `origins[]` entry. Omit to hit the primary `baseUrl`. */
+	origin?: string
 }
 
 /** Calls a raw path, for endpoints the document does not describe. */
@@ -42,6 +44,8 @@ export interface RequestStep extends StepBase {
 	body?: unknown
 	headers?: Record<string, string>
 	query?: Record<string, string>
+	/** Named `origins[]` entry. Omit to hit the primary `baseUrl`. */
+	origin?: string
 }
 
 /**
@@ -91,12 +95,40 @@ export interface AuthFlow {
 	refresh?: AuthRefresh
 }
 
+/**
+ * Credential harvested outside oat (Google OAuth on a harvest page, a KV pair).
+ * oat polls `hooks.resolvePrincipalAuth` with the same backoff as `resolveOutOfBand`.
+ */
+export interface HookAuth {
+	fromHook: string
+	header?: string
+	template?: string
+	assumeTtlMs?: number
+	refreshBufferMs?: number
+}
+
+export type PrincipalAuth = AuthFlow | HookAuth
+
+export function isHookAuth(auth: PrincipalAuth): auth is HookAuth {
+	return "fromHook" in auth && typeof auth.fromHook === "string" && !("steps" in auth)
+}
+
+export function isAuthFlow(auth: PrincipalAuth): auth is AuthFlow {
+	return "steps" in auth
+}
+
+export interface PrincipalAuthResult {
+	credential: string
+	refreshToken?: string
+	expiresIn?: number
+}
+
 export interface Principal {
 	id: string
 	/** Sent on every request this principal makes — for a long-lived key, this is all you need. */
 	headers?: Record<string, string>
 	/** How to obtain a credential. Omit for a principal that authenticates by static header. */
-	auth?: AuthFlow
+	auth?: PrincipalAuth
 	/** Path parameters this principal owns — its tenant. */
 	roots?: Record<string, string>
 	/**
@@ -129,6 +161,43 @@ export interface OutOfBandRequest {
 	address: string
 	kind: string
 	/** 1-based; oat retries with backoff until a value arrives or the attempts run out. */
+	attempt: number
+}
+
+/**
+ * Poll schedule for `resolveOutOfBand` and `resolvePrincipalAuth`.
+ *
+ * Defaults match 0.6.2: 6 attempts, 200 ms first sleep, doubling, cap 3000 ms.
+ * Worst-case wait is the sum of every sleep, including after the last miss:
+ * `200+400+800+1600+3000+3000 = 9000` ms. `{ attempts: 20, initialMs: 1000, maxMs: 8000 }`
+ * is `1000+2000+4000+8000×17 = 143000` ms. The hook must not sleep; oat owns the backoff.
+ */
+export interface OutOfBandConfig {
+	attempts?: number
+	initialMs?: number
+	maxMs?: number
+}
+
+export interface HeaderRequest {
+	method: string
+	url: string
+	operationId?: string
+}
+
+export interface InputRequest {
+	operationId: string
+	/** Property name at this depth. */
+	field: string
+	/** JSON-path style pointer, e.g. `$.payment_method_id`. */
+	pointer: string
+	schema: unknown
+}
+
+export interface SideEffectRequest {
+	/** The write that should have produced the side effect. */
+	operationId: string
+	/** Latest poll body, or the write response when no poll has landed yet. */
+	record: unknown
 	attempt: number
 }
 
@@ -181,6 +250,34 @@ export interface Hooks {
 	 * Returning `UploadFile` replaces that field. `{ fields }` replaces the whole request.
 	 */
 	resolveUpload?: (request: UploadRequest) => Promise<UploadResolution>
+	/**
+	 * Per-request headers, merged after `globalHeaders` and before the principal's credential.
+	 * Called on every dispatch (including 401 retries) so a one-shot captcha token can be fresh.
+	 * Return `null` or `{}` to add nothing. oat does not speak Turnstile.
+	 */
+	resolveHeaders?: (request: HeaderRequest) => Promise<Record<string, string> | null>
+	/**
+	 * Replace a generated JSON field. Return `null` to keep the generator.
+	 * Same idea as `resolveUpload`, for JSON (Stripe `pm_…`, vendor tokens).
+	 */
+	resolveInput?: (request: InputRequest) => Promise<unknown | null>
+	/**
+	 * Harvested principal: `auth: { fromHook: "oauth-google" }`.
+	 * Return `null` to retry with the `outOfBand` backoff so a human can finish the click.
+	 */
+	resolvePrincipalAuth?: (fromHook: string) => Promise<PrincipalAuthResult | null>
+	/**
+	 * After a write that declares `x-wait`, return `true` when the side effect is visible.
+	 * `null` retries until `x-wait.timeoutMs` (default 30s).
+	 */
+	awaitSideEffect?: (request: SideEffectRequest) => Promise<true | null>
+}
+
+/** A second host with its own OpenAPI. Auth stays on the primary; the JWT is reused. */
+export interface OriginSpec {
+	id: string
+	baseUrl: string
+	spec: string
 }
 
 /* -------------------------------------------------------------------- profiles */
@@ -243,6 +340,17 @@ export interface OatConfig {
 	uploads?: Uploads
 	/** Sent on every request. Request-id / correlation-id headers are recorded on each exchange; the rest is opaque. */
 	globalHeaders?: Record<string, string>
+	/**
+	 * Extra hosts, each with its own document. Do not merge those routes into the primary spec.
+	 * After primary auth, oat binds the same principals and runs the matrix against each origin.
+	 * A second `defineConfig` can also reuse `oat-out/principals.json` via `loadPersistedPrincipals`.
+	 */
+	origins?: OriginSpec[]
+	/**
+	 * Backoff for `resolveOutOfBand` and `resolvePrincipalAuth`.
+	 * Defaults: `{ attempts: 6, initialMs: 200, maxMs: 3000 }` (~9s worst case).
+	 */
+	outOfBand?: OutOfBandConfig
 	/** Path parameters oat cannot create. Also declarable in-spec via `x-root`. */
 	roots?: Record<string, string>
 	/** Fixture generation derives from this, so a failing run is exactly reproducible. */

@@ -405,10 +405,12 @@ describe("stream from text/event-stream", () => {
 			effectOps: [],
 			entityName: "batch",
 			findings,
+			hooks: {},
 			identity: "id",
 			invite: null,
 			listOp: listOp!,
 			model,
+			outOfBand: { attempts: 6, initialMs: 200, maxMs: 3000 },
 			query: null,
 			readOp: undefined,
 			records: [],
@@ -418,6 +420,7 @@ describe("stream from text/event-stream", () => {
 			updateOp: undefined,
 			uploads: { seed: 1 },
 			validator: new SchemaValidator(),
+			waitOps: [],
 		})
 		expect(findings.findings.filter((f) => f.check === "schema.success-response-matches-document")).toEqual([])
 	})
@@ -481,10 +484,12 @@ describe("stream from text/event-stream", () => {
 			effectOps: [],
 			entityName: "batch",
 			findings,
+			hooks: {},
 			identity: "id",
 			invite: null,
 			listOp: listOp!,
 			model,
+			outOfBand: { attempts: 6, initialMs: 200, maxMs: 3000 },
 			query: null,
 			readOp: undefined,
 			records: [],
@@ -494,6 +499,7 @@ describe("stream from text/event-stream", () => {
 			updateOp: undefined,
 			uploads: { seed: 1 },
 			validator: new SchemaValidator(),
+			waitOps: [],
 		})
 		expect(findings.findings.filter((f) => f.check === "schema.success-response-matches-document")).toEqual([])
 	})

@@ -1,23 +1,34 @@
-export { defineConfig } from "./config/define-config.ts"
+export { defineConfig, isAuthFlow, isHookAuth } from "./config/define-config.ts"
 export type {
 	AuthFlow,
 	AuthRefresh,
 	AuthStep,
+	HeaderRequest,
+	HookAuth,
 	Hooks,
+	InputRequest,
 	OatConfig,
 	OperationStep,
+	OriginSpec,
+	OutOfBandConfig,
 	OutOfBandRequest,
 	OutOfBandStep,
 	Principal,
+	PrincipalAuth,
+	PrincipalAuthResult,
 	ProfileSpec,
 	RateLimitSpec,
 	RequestStep,
+	SideEffectRequest,
 	UploadFile,
 	UploadRequest,
 	UploadResolution,
 	Uploads,
 } from "./config/define-config.ts"
 export { loadConfig } from "./config/load.ts"
+export { loadPersistedPrincipals, parsePersistedPrincipals } from "./runtime/principals.ts"
+export type { PersistedPrincipal } from "./runtime/principals.ts"
+export { worstCaseWaitMs, resolveBackoff, DEFAULT_OUT_OF_BAND } from "./runtime/poll.ts"
 export { deriveCollectionShape, deriveIdentity } from "./spec/collection.ts"
 export type { CollectionShape } from "./spec/collection.ts"
 export { buildModel } from "./spec/graph.ts"

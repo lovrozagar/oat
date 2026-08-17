@@ -187,6 +187,8 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 			...(profile === undefined ? {} : { profile }),
 			...(config.profiles === undefined ? {} : { profiles: config.profiles }),
 			...(config.rateLimits === undefined ? {} : { rateLimits: config.rateLimits }),
+			...(config.origins === undefined ? {} : { origins: config.origins }),
+			...(config.outOfBand === undefined ? {} : { outOfBand: config.outOfBand }),
 			keepFixtures: flags["keep-fixtures"] === true || config.keepFixtures === true,
 			maxInFlight: Number.parseInt(str(flags, "max-in-flight") ?? "", 10) || config.maxInFlight || 4,
 			seed: seedFlag === undefined ? (config.seed ?? 1) : Number.parseInt(seedFlag, 10),
@@ -220,6 +222,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	 * finding reads as a current defect. The folder is only created when there is an issue. */
 	await rm(resolve(outDir, "repro"), { force: true, recursive: true })
 	await rm(resolve(outDir, ISSUE_REPRO_DIR), { force: true, recursive: true })
+	await writeFile(resolve(outDir, "principals.json"), `${JSON.stringify({ principals: result.principals }, null, 2)}\n`)
 	await writeFile(resolve(outDir, "oat-report.md"), renderMarkdown(input))
 	await writeFile(resolve(outDir, "oat-report.json"), renderJson(input))
 	await writeFile(resolve(outDir, "matrix.html"), renderMatrixHtml(input))

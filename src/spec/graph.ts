@@ -20,6 +20,7 @@ import {
 	type EffectSpec,
 	type EntityAction,
 	type InviteSpec,
+	type WaitSpec,
 	GapCollector,
 	type QueryCapability,
 	pathParameterNames,
@@ -41,6 +42,7 @@ import {
 	readSoftDelete,
 	readTenantParam,
 	readTenantSource,
+	readWait,
 	singularise,
 } from "./extensions.ts"
 import { deriveQueryConventions, type QueryConventions } from "./conventions.ts"
@@ -84,6 +86,7 @@ export interface OperationModel {
 	generated: string[]
 	softDelete: string | null
 	invite: InviteSpec | null
+	wait: WaitSpec | null
 	cost: "low" | "medium" | "high"
 	/** Declared so a matching 403 is coverage, not a seed defect. */
 	featureGate: string | null
@@ -233,6 +236,7 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 		securitySchemes,
 		softDelete: readSoftDelete(op),
 		invite: readInvite(op),
+		wait: readWait(op),
 		tenantParam: readTenantParam(endpoint, gaps),
 		tenantSource: readTenantSource(endpoint),
 	}

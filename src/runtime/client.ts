@@ -1,5 +1,6 @@
 /** HTTP client with a full transcript, so every finding can cite the exchange that produced it. */
 
+import type { HeaderRequest } from "../config/define-config.ts"
 import { headerValue, MAX_429_RETRIES, retryWaitMs, type RateLimiter } from "./rate-limit.ts"
 
 export interface Exchange {
@@ -55,6 +56,8 @@ export interface RequestOptions {
 	refreshIfStale?: (force?: boolean) => Promise<void>
 	/** Auth acquire / refresh hops must set this so they cannot recurse into refresh. */
 	skipAuthRefresh?: boolean
+	/** Named operation, when the caller knows it — `resolveHeaders` uses this to attach captcha. */
+	operationId?: string
 }
 
 export class Client {
@@ -79,6 +82,13 @@ export class Client {
 		/** Paces requests per declared category. `undefined` when nothing is configured. */
 		private readonly rateLimiter?: RateLimiter,
 	) {}
+
+	private resolveHeaders: ((request: HeaderRequest) => Promise<Record<string, string> | null>) | undefined
+
+	/** Per-request headers, merged after `globalHeaders` and before the principal's credential. */
+	setResolveHeaders(fn: (request: HeaderRequest) => Promise<Record<string, string> | null>): void {
+		this.resolveHeaders = fn
+	}
 
 	/** Register a principal so every request that carries its credential refreshes and 401-retries. */
 	bindAuth(auth: BoundAuth): void {
@@ -119,9 +129,17 @@ export class Client {
 
 		const dispatch = async (): Promise<Exchange> => {
 			let userHeaders = resolveUserHeaders()
+			const hookCtx: HeaderRequest = {
+				method: method.toUpperCase(),
+				url: url.toString(),
+				...(options.operationId === undefined ? {} : { operationId: options.operationId }),
+			}
+			const hooked = this.resolveHeaders === undefined ? null : await this.resolveHeaders(hookCtx)
+			const hookHeaders = hooked ?? {}
 			const bound = matchAuth(userHeaders)
+			/* globalHeaders → resolveHeaders → caller headers → auth credential. */
 			if (bound !== undefined) userHeaders = { ...userHeaders, ...bound.headers() }
-			const headers: Record<string, string> = { ...this.globalHeaders, ...userHeaders }
+			const headers: Record<string, string> = { ...this.globalHeaders, ...hookHeaders, ...userHeaders }
 			const encoded = encodeBody(options.body, options.contentType)
 			if (encoded.contentType !== undefined) headers["content-type"] = encoded.contentType
 
