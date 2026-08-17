@@ -53,12 +53,6 @@ export interface RunOptions {
 	profile?: string
 	/** Leaves created records in place. Useful when inspecting a failure by hand. */
 	keepFixtures?: boolean
-	/**
-	 * Entities tested in parallel. Checks within one entity stay sequential — cascade suppression
-	 * reads findings already reported for that entity, and ordering is what keeps one root cause
-	 * from being reported as several.
-	 */
-	concurrency?: number
 	/** Requests allowed in flight at once, across the whole run. */
 	maxInFlight?: number
 	/** Paces requests per category. Checked before `x-rate-limit` tags for the same request. */
@@ -245,8 +239,15 @@ async function resolvePrincipal(
 		if (value !== undefined) discovered[param] = value
 	}
 
+	const headers = (): Record<string, string> => ({ ...principal.headers, ...runtime.headers() })
+	client.bindAuth({
+		headers,
+		matches: (sent) => runtime.matches(sent),
+		refreshIfStale: runtime.refreshIfStale,
+	})
+
 	return {
-		headers: () => ({ ...principal.headers, ...runtime.headers() }),
+		headers,
 		id: principal.id,
 		inviteAs: principal.inviteAs,
 		rank: principal.rank ?? 0,
@@ -749,6 +750,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			asyncOps: model.operations.filter((op) => op.entity === entity.name && op.async !== null && invocable(op)),
 			effectOps: model.operations.filter((op) => op.entity === entity.name && op.effects.length > 0 && invocable(op)),
 			auth: alpha.headers,
+			...(alpha.runtime === undefined ? {} : { refreshIfStale: alpha.runtime.refreshIfStale }),
 			client: trackingClient,
 			collectionKey: listOp.collection?.key ?? null,
 			/* In degraded mode oat did not write these records, so it has no oracle for them —
@@ -876,28 +878,18 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	}
 
 	/*
-	 * Entities run in parallel; checks within an entity stay strictly sequential.
-	 *
-	 * The ordering inside an entity is load-bearing — cascade suppression consults findings
-	 * already reported for it, so running those concurrently would let a root cause and its
-	 * consequences race and both be reported. Across entities there is no such coupling, and the
-	 * run is almost entirely network wait.
+	 * Entities run in series. Checks inside an entity stay sequential because cascade
+	 * suppression consults findings already reported for it — concurrent checks would let a
+	 * root cause and its consequences race and both be reported. Nested graphs also couple
+	 * entities: a child create in flight while a parent page-walk runs invents pagination
+	 * findings, so there are no entity lanes.
 	 */
 	const queue = testableEntities(model, options.only, authCreates)
 	entityTotal = queue.length
-	const lanes = Math.max(1, Math.min(options.concurrency ?? 1, queue.length))
-	let cursor = 0
-	await Promise.all(
-		Array.from({ length: lanes }, async () => {
-			while (cursor < queue.length) {
-				const index = cursor
-				const entity = queue[cursor++]
-				if (entity === undefined) break
-				currentEntityIndex = index + 1
-				await testEntity(entity)
-			}
-		}),
-	)
+	for (const [index, entity] of queue.entries()) {
+		currentEntityIndex = index + 1
+		await testEntity(entity)
+	}
 
 	/* Unwind after every check has run, never per case: a check may legitimately depend on records
 	 * another one created, and tearing down early turns that into a phantom defect. */

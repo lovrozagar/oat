@@ -78,7 +78,8 @@ export async function driveAsync(
 	spec: AsyncSpec,
 	receipt: unknown,
 	scope: Record<string, string>,
-	headers: Record<string, string>,
+	headers: () => Record<string, string>,
+	refreshIfStale?: (force?: boolean) => Promise<void>,
 ): Promise<AsyncOutcome> {
 	const exchanges: Exchange[] = []
 	const began = performance.now()
@@ -99,7 +100,7 @@ export async function driveAsync(
 	let path: string
 	try {
 		path = fillPath(template, pollScope)
-	} catch (error) {
+	} catch {
 		return {
 			elapsedMs: performance.now() - began,
 			exchanges,
@@ -112,7 +113,13 @@ export async function driveAsync(
 
 	let polls = 0
 	while (performance.now() - began < spec.timeoutMs) {
-		const exchange = await client.request(method, path, { headers })
+		/* Live headers + countdown refresh per poll: a long POST can outlive remaining TTL,
+		 * and a snapshot taken before the loop would keep sending the dead Bearer. */
+		if (refreshIfStale !== undefined) await refreshIfStale()
+		const exchange = await client.request(method, path, {
+			headers,
+			...(refreshIfStale === undefined ? {} : { refreshIfStale }),
+		})
 		exchanges.push(exchange)
 		polls += 1
 

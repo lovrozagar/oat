@@ -84,7 +84,7 @@ export class Ledger {
 			}
 
 			try {
-				const exchange = await client.request("DELETE", path, { headers: headers() })
+				const exchange = await client.request("DELETE", path, { headers })
 				/* 404 means it is already gone — the goal is absence, not a successful call. */
 				if (exchange.status < 300 || exchange.status === 404 || exchange.status === 410) {
 					report.removed += 1

@@ -1,6 +1,7 @@
 export { defineConfig } from "./config/define-config.ts"
 export type {
 	AuthFlow,
+	AuthRefresh,
 	AuthStep,
 	Hooks,
 	OatConfig,
@@ -23,6 +24,7 @@ export { buildModel } from "./spec/graph.ts"
 export type { EntityModel, OperationModel, SpecModel } from "./spec/graph.ts"
 export { dereference, loadSpec, normalisePath, parseRouteRef } from "./spec/load.ts"
 export type { OpenApiDocument } from "./spec/types.ts"
+export { AuthRefreshRequiredError } from "./runtime/auth.ts"
 export { run } from "./runtime/run.ts"
 export type { RunOptions, RunResult } from "./runtime/run.ts"
 export type { Actor } from "./runtime/checks.ts"

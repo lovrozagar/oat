@@ -2,6 +2,7 @@
 import { createWriteStream, writeFileSync } from "node:fs"
 import { mkdir, rm, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
+import { pathToFileURL } from "node:url"
 import { interpolate, loadConfig } from "./config/load.ts"
 import { report } from "./report/console.ts"
 import { renderMatrixGraph, renderMatrixHtml } from "./report/matrix.ts"
@@ -23,7 +24,29 @@ interface Args {
 	flags: Record<string, string | true>
 }
 
-function parseArgs(argv: string[]): Args {
+export const KNOWN_FLAGS = new Set([
+	"help",
+	"config",
+	"spec",
+	"base-url",
+	"only",
+	"profile",
+	"seed",
+	"out",
+	"keep-fixtures",
+	"max-in-flight",
+	"quiet",
+	"untagged",
+	"backend",
+	"dialect",
+	"fuzz",
+	"precision",
+	"max-defects",
+	"json",
+	"parser",
+])
+
+export function parseArgs(argv: string[]): Args {
 	const [command = "help", ...rest] = argv
 	const flags: Record<string, string | true> = {}
 	for (let i = 0; i < rest.length; i++) {
@@ -41,7 +64,14 @@ function parseArgs(argv: string[]): Args {
 	return { command, flags }
 }
 
-const USAGE = `oat — OpenAPI Tester
+export function unknownFlag(flags: Record<string, string | true>): string | undefined {
+	for (const key of Object.keys(flags)) {
+		if (!KNOWN_FLAGS.has(key)) return key
+	}
+	return undefined
+}
+
+export const USAGE = `oat — OpenAPI Tester
 
   oat run     --config <file>              test a live backend and write a report
   oat plan    --spec <url|file>            derive and print the test model (offline)
@@ -58,7 +88,6 @@ Flags
   --seed       integer seed for fixture generation (default 1)
   --out        output directory for the report (default ./oat-out)
   --keep-fixtures  leave created records in place instead of tearing them down
-  --concurrency    entities tested in parallel (default 1)
   --max-in-flight  requests allowed in flight at once (default 4)
   --quiet          no live progress on stderr (progress.log still written)
   --untagged       serve (or test) a document with every x-* tag stripped
@@ -159,7 +188,6 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 			...(config.profiles === undefined ? {} : { profiles: config.profiles }),
 			...(config.rateLimits === undefined ? {} : { rateLimits: config.rateLimits }),
 			keepFixtures: flags["keep-fixtures"] === true || config.keepFixtures === true,
-			concurrency: Number.parseInt(str(flags, "concurrency") ?? "", 10) || config.concurrency || 1,
 			maxInFlight: Number.parseInt(str(flags, "max-in-flight") ?? "", 10) || config.maxInFlight || 4,
 			seed: seedFlag === undefined ? (config.seed ?? 1) : Number.parseInt(seedFlag, 10),
 			onProgress,
@@ -219,8 +247,14 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	return result.findings.filter((f) => f.verdict !== "COVERAGE_GAP" && f.verdict !== "BLOCKED").length > 0 ? 1 : 0
 }
 
-async function main(): Promise<number> {
+export async function main(): Promise<number> {
 	const { command, flags } = parseArgs(process.argv.slice(2))
+
+	const unknown = unknownFlag(flags)
+	if (unknown !== undefined) {
+		process.stderr.write(`oat: unknown flag "--${unknown}"\n\n${USAGE}`)
+		return 2
+	}
 
 	if (command === "help" || flags.help === true) {
 		process.stdout.write(USAGE)
@@ -462,12 +496,20 @@ async function main(): Promise<number> {
 	}
 }
 
-main().then(
-	(code) => {
-		process.exitCode = code
-	},
-	(error: unknown) => {
-		process.stderr.write(`oat: ${error instanceof Error ? error.message : String(error)}\n`)
-		process.exitCode = 1
-	},
-)
+export function start(): void {
+	main().then(
+		(code) => {
+			process.exitCode = code
+		},
+		(error: unknown) => {
+			process.stderr.write(`oat: ${error instanceof Error ? error.message : String(error)}\n`)
+			process.exitCode = 1
+		},
+	)
+}
+
+/* `node dist/cli.js …` is the test/CI entry. `bin/oat.js` calls start() itself because
+ * argv[1] is the bin wrapper, not this module. */
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+	start()
+}

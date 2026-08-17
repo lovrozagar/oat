@@ -31,8 +31,15 @@ export interface Exchange {
 	rateLimitHadRoom?: boolean
 }
 
+/** A principal bound so every dispatch can refresh and retry a 401 without call-site ceremony. */
+export interface BoundAuth {
+	matches: (headers: Record<string, string>) => boolean
+	headers: () => Record<string, string>
+	refreshIfStale: (force?: boolean) => Promise<void>
+}
+
 export interface RequestOptions {
-	headers?: Record<string, string>
+	headers?: Record<string, string> | (() => Record<string, string>)
 	query?: Record<string, string | number | undefined>
 	/** Plain object (JSON), FormData, URLSearchParams, or any BodyInit. */
 	body?: unknown
@@ -41,6 +48,13 @@ export interface RequestOptions {
 	 * FormData never gets a Content-Type here — fetch must set the boundary.
 	 */
 	contentType?: string | null
+	/**
+	 * Countdown refresh before dispatch; a 401 forces one refresh + one retry.
+	 * Prefer a getter for `headers` so the retry sends the live credential.
+	 */
+	refreshIfStale?: (force?: boolean) => Promise<void>
+	/** Auth acquire / refresh hops must set this so they cannot recurse into refresh. */
+	skipAuthRefresh?: boolean
 }
 
 export class Client {
@@ -48,6 +62,7 @@ export class Client {
 	private seq = 0
 	private inFlight = 0
 	private readonly waiting: Array<() => void> = []
+	private readonly boundAuth: BoundAuth[] = []
 
 	constructor(
 		private readonly baseUrl: string,
@@ -64,6 +79,11 @@ export class Client {
 		/** Paces requests per declared category. `undefined` when nothing is configured. */
 		private readonly rateLimiter?: RateLimiter,
 	) {}
+
+	/** Register a principal so every request that carries its credential refreshes and 401-retries. */
+	bindAuth(auth: BoundAuth): void {
+		this.boundAuth.push(auth)
+	}
 
 	/** Admission control. Held for the duration of one request, released in a finally. */
 	private async acquire(): Promise<void> {
@@ -86,63 +106,85 @@ export class Client {
 			if (value !== undefined) url.searchParams.set(key, String(value))
 		}
 
-		const headers: Record<string, string> = { ...this.globalHeaders, ...options.headers }
-		const encoded = encodeBody(options.body, options.contentType)
-		if (encoded.contentType !== undefined) headers["content-type"] = encoded.contentType
-
-		const init: RequestInit = { headers, method }
-		if (encoded.init !== undefined) init.body = encoded.init
-
-		/* Two independent constraints, both held: maxInFlight bounds concurrency with no notion of
-		 * time, a rate-limit category bounds throughput over time. The in-flight slot is acquired
-		 * first and released in the same finally as before — pacing sits entirely inside that
-		 * window and never changes what maxInFlight itself guarantees. */
-		const rule = this.rateLimiter?.resolve(method.toUpperCase(), url.pathname)
-		await this.acquire()
-		let rateLimitHadRoom: boolean | undefined
-		let started: number
-		let response: Response
-		let text: string
-		let at = 0
-		try {
-			if (rule !== undefined) rateLimitHadRoom = await this.rateLimiter?.acquire(rule)
-			started = performance.now()
-			response = await fetch(url, init)
-			text = await response.text()
-			at = Date.now()
-		} finally {
-			this.release()
-		}
-		let parsed: unknown = text
-		try {
-			parsed = text === "" ? null : JSON.parse(text)
-		} catch {
-			/* keep the raw text — a non-JSON body is itself evidence */
+		const resolveUserHeaders = (): Record<string, string> => {
+			const raw = options.headers
+			return { ...(typeof raw === "function" ? raw() : raw) }
 		}
 
-		this.seq += 1
-		const verb = method.toUpperCase()
-		const responseHeaders = Object.fromEntries(response.headers.entries())
-		const exchange: Exchange = {
-			at,
-			durationMs: Math.round(performance.now() - started),
-			method: verb,
-			requestBody: options.body,
-			requestBytes: requestMessageBytes(verb, url, headers, encoded.bytes, encoded.text),
-			requestHeaders: headers,
-			requestId: requestIdOf(headers, responseHeaders),
-			responseBody: parsed,
-			responseBytes: responseMessageBytes(response.status, response.statusText, responseHeaders, text),
-			responseHeaders,
-			seq: this.seq,
-			status: response.status,
-			url: url.toString(),
-			...(rule === undefined ? {} : { rateLimitCategory: rule.category, rateLimitSource: rule.source }),
-			...(rateLimitHadRoom === undefined ? {} : { rateLimitHadRoom }),
+		const skip = options.skipAuthRefresh === true
+		const matchAuth = (headers: Record<string, string>): BoundAuth | undefined =>
+			skip ? undefined : this.boundAuth.find((auth) => auth.matches(headers))
+
+		const refresh = skip ? undefined : (options.refreshIfStale ?? matchAuth(resolveUserHeaders())?.refreshIfStale)
+
+		const dispatch = async (): Promise<Exchange> => {
+			let userHeaders = resolveUserHeaders()
+			const bound = matchAuth(userHeaders)
+			if (bound !== undefined) userHeaders = { ...userHeaders, ...bound.headers() }
+			const headers: Record<string, string> = { ...this.globalHeaders, ...userHeaders }
+			const encoded = encodeBody(options.body, options.contentType)
+			if (encoded.contentType !== undefined) headers["content-type"] = encoded.contentType
+
+			const init: RequestInit = { headers, method }
+			if (encoded.init !== undefined) init.body = encoded.init
+
+			/* Two independent constraints, both held: maxInFlight bounds in-flight HTTP with no
+			 * notion of time, a rate-limit category bounds throughput over time. The in-flight
+			 * slot is acquired first and released in the same finally as before — pacing sits
+			 * entirely inside that window and never changes what maxInFlight itself guarantees. */
+			const rule = this.rateLimiter?.resolve(method.toUpperCase(), url.pathname)
+			await this.acquire()
+			let rateLimitHadRoom: boolean | undefined
+			let started: number
+			let response: Response
+			let text: string
+			let at = 0
+			try {
+				if (rule !== undefined) rateLimitHadRoom = await this.rateLimiter?.acquire(rule)
+				started = performance.now()
+				response = await fetch(url, init)
+				text = await response.text()
+				at = Date.now()
+			} finally {
+				this.release()
+			}
+			let parsed: unknown = text
+			try {
+				parsed = text === "" ? null : JSON.parse(text)
+			} catch {
+				/* keep the raw text — a non-JSON body is itself evidence */
+			}
+
+			this.seq += 1
+			const verb = method.toUpperCase()
+			const responseHeaders = Object.fromEntries(response.headers.entries())
+			const exchange: Exchange = {
+				at,
+				durationMs: Math.round(performance.now() - started),
+				method: verb,
+				requestBody: options.body,
+				requestBytes: requestMessageBytes(verb, url, headers, encoded.bytes, encoded.text),
+				requestHeaders: headers,
+				requestId: requestIdOf(headers, responseHeaders),
+				responseBody: parsed,
+				responseBytes: responseMessageBytes(response.status, response.statusText, responseHeaders, text),
+				responseHeaders,
+				seq: this.seq,
+				status: response.status,
+				url: url.toString(),
+				...(rule === undefined ? {} : { rateLimitCategory: rule.category, rateLimitSource: rule.source }),
+				...(rateLimitHadRoom === undefined ? {} : { rateLimitHadRoom }),
+			}
+			this.transcript.push(exchange)
+			this.onExchange?.(exchange)
+			return exchange
 		}
-		this.transcript.push(exchange)
-		this.onExchange?.(exchange)
-		return exchange
+
+		if (refresh !== undefined) await refresh(false)
+		const first = await dispatch()
+		if (first.status !== 401 || refresh === undefined) return first
+		await refresh(true)
+		return dispatch()
 	}
 
 	get(path: string, options: RequestOptions = {}): Promise<Exchange> {

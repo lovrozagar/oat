@@ -54,7 +54,6 @@ export default defineConfig({
 		},
 	],
 	cohortSize: Number(process.env.COHORT ?? 12) || 12,
-	concurrency: Number(process.env.CONCURRENCY ?? 1) || 1,
 	seed: 42,
 	spec: `${API}/v1/openapi/spec`,
 })

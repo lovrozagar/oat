@@ -56,6 +56,8 @@ export interface CheckContext {
 	softDelete: string | null
 	invite: InviteSpec | null
 	auth: () => Record<string, string>
+	/** Countdown / 401 refresh for the writer principal. Bound onto the client as well. */
+	refreshIfStale?: (force?: boolean) => Promise<void>
 	/**
 	 * Every configured principal, primary first. Isolation checks still use `altAuth` (the first
 	 * actor whose scope is a different tenant). Lattice checks walk this list by `rank`.
@@ -4275,7 +4277,7 @@ const asyncReachesTerminalState: Check = {
 				continue
 			}
 
-			const outcome = await driveAsync(ctx.client, spec, start.responseBody, ctx.scope, ctx.auth())
+			const outcome = await driveAsync(ctx.client, spec, start.responseBody, ctx.scope, ctx.auth, ctx.refreshIfStale)
 
 			if (outcome.timedOut) {
 				ctx.findings.backend(

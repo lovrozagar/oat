@@ -1048,69 +1048,6 @@ async function runAgainst(
 	}
 }
 
-/**
- * Concurrency must not change the verdict.
- *
- * Entities run in parallel while checks within an entity stay ordered, because cascade
- * suppression reads findings already reported for that entity. If that invariant ever breaks, a
- * root cause and its consequences race and the report becomes non-deterministic — which is worse
- * than being slow.
- */
-async function concurrencyIsDeterministic(): Promise<CaseResult> {
-	const fingerprint = async (concurrency: number): Promise<string> => {
-		const { createMemoryServer } = await import("../reference/http.ts")
-		const backend = await createMemoryServer({ defects: ["STALE_LIST", "SELECT_IGNORED"] })
-		try {
-			const result = await run({
-				baseUrl: backend.url,
-				concurrency,
-				principals: PRINCIPALS,
-				seed: 42,
-				spec: `${backend.url}/v1/openapi/spec`,
-			})
-			return result.findings
-				.map((f) => `${f.verdict}:${f.check}:${f.entity}`)
-				.sort()
-				.join("|")
-		} finally {
-			await backend.close()
-		}
-	}
-
-	try {
-		const sequential = await fingerprint(1)
-		const parallel = await fingerprint(4)
-		const same = sequential === parallel
-		return {
-			acceptable: [],
-			checksRun: same ? ["concurrency"] : [],
-			defect: null,
-			detected: same,
-			entitiesTested: [],
-			expected: null,
-			findings: [],
-			label: "concurrency determinism",
-			leaked: 0,
-			spurious: [],
-			...(same ? {} : { error: `sequential and parallel runs disagree:\n  seq: ${sequential}\n  par: ${parallel}` }),
-		}
-	} catch (error) {
-		return {
-			acceptable: [],
-			checksRun: [],
-			defect: null,
-			detected: false,
-			entitiesTested: [],
-			error: error instanceof Error ? error.message : String(error),
-			expected: null,
-			findings: [],
-			label: "concurrency determinism",
-			leaked: 0,
-			spurious: [],
-		}
-	}
-}
-
 export async function runSuite(
 	filter?: string[],
 	backend: Backend = "memory",
@@ -1178,8 +1115,6 @@ export async function runSuite(
 			spurious: [],
 		})
 	}
-
-	results.push(await concurrencyIsDeterministic())
 
 	const names = (Object.keys(DEFECTS) as DefectName[])
 		.filter((name) => filter === undefined || filter.length === 0 || filter.includes(name))
@@ -1270,16 +1205,13 @@ export function renderSuite(results: CaseResult[], dialect = "postgrest"): { tex
 		 * there is the result being measured, not a regression. */
 		const vacuous = result.label === "baseline (correct backend)" && result.checksRun.length < floor
 		const leaked = result.leaked ?? 0
-		const isDeterminism = result.label === "concurrency determinism"
-		const ok = isDeterminism
-			? result.detected
-			: isBaseline
-				? result.spurious.length === 0 &&
-					!vacuous &&
-					leaked === 0 &&
-					/* An untagged run that finds nothing *and* runs almost nothing proves nothing. */
-					result.checksRun.length >= 10
-				: result.detected && result.spurious.length === 0
+		const ok = isBaseline
+			? result.spurious.length === 0 &&
+				!vacuous &&
+				leaked === 0 &&
+				/* An untagged run that finds nothing *and* runs almost nothing proves nothing. */
+				result.checksRun.length >= 10
+			: result.detected && result.spurious.length === 0
 		if (!ok) failures++
 
 		const mark = ok ? "✓" : "✗"
@@ -1292,11 +1224,7 @@ export function renderSuite(results: CaseResult[], dialect = "postgrest"): { tex
 			: result.detected
 				? "yes"
 				: "NO"
-		const coverage = isDeterminism
-			? "sequential == parallel"
-			: isBaseline
-				? `${result.checksRun.length} checks`
-				: (result.expected ?? "—")
+		const coverage = isBaseline ? `${result.checksRun.length} checks` : (result.expected ?? "—")
 		lines.push(
 			`  ${mark} ${result.label.padEnd(26)} ${detected.padEnd(8)} ${String(result.spurious.length).padEnd(9)} ${coverage}`,
 		)

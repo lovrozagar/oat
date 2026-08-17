@@ -59,8 +59,14 @@ export type AuthStep = OperationStep | RequestStep | OutOfBandStep
 
 /* ----------------------------------------------------------------- auth flows */
 
+/** How to renew a credential without re-running the acquire chain. */
+export interface AuthRefresh {
+	/** Run against the existing scope so `{refreshToken}` interpolates. */
+	steps: [AuthStep, ...AuthStep[]]
+}
+
 export interface AuthFlow {
-	/** Run in order; values flow forward through the scope. */
+	/** Run in order; values flow forward through the scope. First acquire only. */
 	steps: [AuthStep, ...AuthStep[]]
 	/** Where the credential is in the final response, e.g. `$.access_token`. */
 	credentialFrom: string
@@ -72,6 +78,17 @@ export interface AuthFlow {
 	template?: string
 	/** Used only when neither the response nor the credential reveals an expiry. */
 	assumeTtlMs?: number
+	/**
+	 * Proactive refresh fires when `expiresAt - now <= refreshBufferMs`.
+	 * Defaults to 30_000. Ignored when `expiresAt` is null (static-header principal).
+	 */
+	refreshBufferMs?: number
+	/**
+	 * Renew via these steps (typically `auth.refreshToken` + `{refreshToken}`).
+	 * Signup flows must set this — re-running `steps` would register again.
+	 * Omitted: re-run `steps` (API-key / token-exchange). Register-like first hops fail closed.
+	 */
+	refresh?: AuthRefresh
 }
 
 export interface Principal {
@@ -232,8 +249,6 @@ export interface OatConfig {
 	seed?: number
 	/** Instances seeded per entity. Larger cohorts discriminate more, and cost more. */
 	cohortSize?: number
-	/** Entities tested in parallel. Checks within one entity always stay ordered. */
-	concurrency?: number
 	/** Requests allowed in flight at once. Past a server's comfort this makes runs slower. */
 	maxInFlight?: number
 	/** Restrict the run to these entity names. */

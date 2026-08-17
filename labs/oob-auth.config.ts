@@ -35,6 +35,16 @@ function signUp(label: string): AuthFlow {
 	return {
 		credentialFrom: "$.access_token",
 		expiresInFrom: "$.access_token_expires_in",
+		refresh: {
+			steps: [
+				{
+					body: { refresh_token: "{refreshToken}" },
+					method: "POST",
+					path: "/v1/auth/refresh",
+					saveAs: { credential: "$.access_token", refreshToken: "$.refresh_token" },
+				},
+			],
+		},
 		steps: [
 			/* Raw paths rather than operationIds: an API document like this commonly contains no
 			 * auth operations at all, so there is nothing in the spec to reference. `oat doctor`
@@ -52,7 +62,7 @@ function signUp(label: string): AuthFlow {
 				body: { token: "{verifyToken}" },
 				method: "POST",
 				path: "/v1/auth/email/verify",
-				saveAs: { credential: "$.access_token" },
+				saveAs: { credential: "$.access_token", refreshToken: "$.refresh_token" },
 				/* The credential names the org and project registration just provisioned. */
 				saveClaimsFrom: {
 					bind: { orgId: "orgs.0.oid", projectId: "orgs.0.pids.0" },

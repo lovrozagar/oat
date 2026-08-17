@@ -86,15 +86,15 @@ oat help          # same as oat --help
 oat --help
 ```
 
-Unknown commands and missing required flags exit `2`.
+Unknown commands, unknown flags, and missing required flags exit `2`.
 
 ## How a run works
 
 1. **Load** the OpenAPI document (URL or path). Internal `$ref`s are inlined. External `$ref`s are reported, never fetched.
 2. **Model** entities by inverting `x-invalidate` (or path heuristics) into a read surface per entity.
-3. **Authenticate** every configured principal (static headers and/or an auth flow). Credentials refresh themselves before they expire.
+3. **Authenticate** every configured principal (static headers and/or an auth flow). Credentials refresh on a countdown from `exp` (default 30s buffer) before every dispatch and each async poll.
 4. **Seed** a cohort of records per entity, in parent-before-child order, using each entity's create operation.
-5. **Test** the matrix, one entity at a time: foundations first, then composition, writes, isolation, declared effects. Checks inside an entity stay ordered. Entities may run in parallel (`concurrency`).
+5. **Test** the matrix, one entity at a time: foundations first, then composition, writes, isolation, declared effects. Entities run in series. Checks inside an entity stay ordered.
 6. **Teardown** everything the run created, unless `--keep-fixtures` / `keepFixtures: true`.
 
 The first principal is the writer. Isolation needs a second principal with different `roots`. A rank lattice needs two or more principals that share `roots` and differ in `rank`. Invite checks need `x-invite` plus a peer with `inviteAs`.
@@ -188,7 +188,6 @@ Same object. `${NAME}` is interpolated after load. There is no `defineConfig` wr
 	],
 	"seed": 42,
 	"cohortSize": 7,
-	"concurrency": 1,
 	"outDir": "./oat-out"
 }
 ```
@@ -254,24 +253,23 @@ oat help
 
 Requires `--config`. CLI flags override the same field in the config when both are set.
 
-| flag              | default                        | meaning                                                                                                                                      |
-| ----------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--config`        | required                       | module or JSON file, default export                                                                                                          |
-| `--base-url`      | `config.baseUrl`               | backend origin                                                                                                                               |
-| `--only`          | `config.only` or all entities  | comma-separated entity names as `oat plan` prints them (singularised)                                                                        |
-| `--seed`          | `config.seed` or `1`           | fixture generation seed (reproducible)                                                                                                       |
-| `--out`           | `config.outDir` or `./oat-out` | report directory                                                                                                                             |
-| `--concurrency`   | `config.concurrency` or `1`    | entities in parallel. Use `1` on nested graphs; higher values insert children while a parent page-walk is running and invent pagination bugs |
-| `--max-in-flight` | `config.maxInFlight` or `4`    | HTTP requests allowed at once                                                                                                                |
-| `--keep-fixtures` | `config.keepFixtures` or false | do not DELETE what the run created                                                                                                           |
-| `--quiet`         | false                          | no stderr progress; files under `--out` still update                                                                                         |
+| flag              | default                        | meaning                                                               |
+| ----------------- | ------------------------------ | --------------------------------------------------------------------- |
+| `--config`        | required                       | module or JSON file, default export                                   |
+| `--base-url`      | `config.baseUrl`               | backend origin                                                        |
+| `--only`          | `config.only` or all entities  | comma-separated entity names as `oat plan` prints them (singularised) |
+| `--seed`          | `config.seed` or `1`           | fixture generation seed (reproducible)                                |
+| `--out`           | `config.outDir` or `./oat-out` | report directory                                                      |
+| `--max-in-flight` | `config.maxInFlight` or `4`    | HTTP requests allowed at once                                         |
+| `--keep-fixtures` | `config.keepFixtures` or false | do not DELETE what the run created                                    |
+| `--quiet`         | false                          | no stderr progress; files under `--out` still update                  |
 
-**Exit codes:** `0` no defects, `1` at least one root-cause finding (`BACKEND_BUG`, `SPEC_BUG`, `SECURITY`, `AMBIGUITY`), `2` usage error (missing `--config`, no principals). `COVERAGE_GAP` and `BLOCKED` do not fail the process.
+**Exit codes:** `0` no defects, `1` at least one root-cause finding (`BACKEND_BUG`, `SPEC_BUG`, `SECURITY`, `AMBIGUITY`), `2` usage error (missing `--config`, no principals, unknown flag). `COVERAGE_GAP` and `BLOCKED` do not fail the process.
 
 Example:
 
 ```bash
-oat run --config oat.config.ts --only store,product --concurrency 1 --out oat-out/prod
+oat run --config oat.config.ts --only store,product --out oat-out/prod
 ```
 
 `--only store,product` matches the **entity names** from `oat plan`, not path segments. `/v1/stores` is usually the entity `store`. If a name is unknown, that entity is simply not tested (the others still run).
@@ -431,7 +429,6 @@ export default defineConfig({
 	roots: { org_id: "org_shared" }, // path params oat cannot create; also declarable via x-root
 	seed: 42, // fixture generation; a failing run with the same seed is identical
 	cohortSize: 12, // records created per entity (default 7)
-	concurrency: 1, // entities in parallel
 	maxInFlight: 4, // HTTP in flight
 	only: ["store", "product"], // restrict entities
 	keepFixtures: false,
@@ -450,7 +447,6 @@ export default defineConfig({
 | `roots`         | no       | `{}`        | Shared path params (merged with each principal's `roots`)          |
 | `seed`          | no       | `1`         | Integer. Same seed → same fixture bodies                           |
 | `cohortSize`    | no       | `7`         | Sliced from the 7 built-in variants. Larger repeats the pattern    |
-| `concurrency`   | no       | `1`         | Entity-level only. Checks inside one entity stay ordered           |
 | `maxInFlight`   | no       | `4`         | Across the whole run                                               |
 | `only`          | no       | all         | Entity names from `oat plan`                                       |
 | `keepFixtures`  | no       | `false`     | Skip DELETE at the end                                             |
@@ -458,7 +454,7 @@ export default defineConfig({
 
 `spec` may be a path relative to `baseUrl` (`/v1/openapi/spec`) or an absolute URL or a file.
 
-CLI `--base-url`, `--only`, `--seed`, `--out`, `--concurrency`, `--max-in-flight`, `--keep-fixtures` override these when passed.
+CLI `--base-url`, `--only`, `--seed`, `--out`, `--max-in-flight`, `--keep-fixtures` override these when passed.
 
 ### Spec loading
 
@@ -540,16 +536,33 @@ principals: [
 
 ```ts
 auth: {
-  steps: [ /* at least one */ ],
+  steps: [ /* register / verify — first acquire only */ ],
   credentialFrom: "$.access_token", // JSON path in the last (or saved) response
   expiresInFrom: "$.expires_in",    // lifetime in seconds
   header: "authorization",          // default
   template: "Bearer {credential}",  // default
   assumeTtlMs: 3600000,             // used only if neither expiresInFrom nor JWT exp is present
+  refreshBufferMs: 30_000,          // optional; default 30s. Proactive when expiresAt - now <= this
+  refresh: {                        // signup flows must set this — re-running steps is not a refresh
+    steps: [
+      {
+        operationId: "auth.refreshToken",
+        body: { refresh_token: "{refreshToken}" },
+        saveAs: {
+          credential: "$.access_token",
+          refreshToken: "$.refresh_token",
+        },
+      },
+    ],
+  },
 }
 ```
 
-Expiry is `expiresInFrom` (seconds) → JWT `exp` claim → `assumeTtlMs`. Refresh happens before dispatch, at roughly three quarters of the assumed window (`assumeTtlMs` default 300000 ms when used as the window), never by retrying a 401.
+Expiry is `expiresInFrom` (seconds) → JWT `exp` claim → `assumeTtlMs`. `assumeTtlMs` is only the fallback lifetime when nothing else revealed expiry — it is not used for the refresh threshold when `expiresAt` is known.
+
+Refresh is countdown-based (`expiresAt - refreshBufferMs`, default 30s) before every dispatch and before each async poll. Signup flows declare `auth.refresh` (refresh-token operation). Re-running `steps` is only the fallback when `refresh` is omitted (API-key / token-exchange principals). A register-like first hop without `refresh` fails closed (`AUTH_REFRESH_REQUIRED`) rather than signing up again.
+
+One 401 → force refresh + single retry with live headers. A second 401 is evidence. 5xx / 429 are never a refresh trigger. `expiresAt === null` (static-header principal) never proactive-refreshes.
 
 Each step is one of:
 
@@ -561,7 +574,7 @@ Each step is one of:
   body: { key: "${API_KEY}" },
   headers: { "x-extra": "1" },
   query: { realm: "test" },
-  saveAs: { token: "$.access_token" },
+  saveAs: { credential: "$.access_token", refreshToken: "$.refresh_token" },
   saveClaimsFrom: { token: "$.access_token", bind: { orgId: "orgs.0.oid" } },
   bind: { address: "user@example.test" }, // literals, with {name} interpolation
   expect: [200],                            // default: any 2xx
@@ -585,7 +598,7 @@ Each step is one of:
 { outOfBand: { address: "{address}", kind: "email-verify", as: "verifyToken" } }
 ```
 
-Later steps interpolate `{name}` from the flow scope. `saveAs` paths are `$.foo.bar` / `$.orgs.0.id` (dot + numeric index only; no JSON Pointer, no filters). `saveClaimsFrom` reads a JWT's _claims_ (signature is not verified — oat is reading its own credential). `rootsFromFlow` maps path parameter names to those bound keys.
+Later steps interpolate `{name}` from the flow scope. `saveAs` paths are `$.foo.bar` / `$.orgs.0.id` (dot + numeric index only; no JSON Pointer, no filters). Bind `saveAs.refreshToken` from `$.refresh_token` so `{refreshToken}` interpolates in `auth.refresh`. `saveClaimsFrom` reads a JWT's _claims_ (signature is not verified — oat is reading its own credential). `rootsFromFlow` maps path parameter names to those bound keys.
 
 `bind` on a step runs **before** the request. `saveAs` / `saveClaimsFrom` run **after**. `credentialFrom` is read from the last HTTP response unless a step already saved `credential`.
 
@@ -598,6 +611,16 @@ function signUp(email: string): AuthFlow {
 	return {
 		credentialFrom: "$.access_token",
 		expiresInFrom: "$.access_token_expires_in",
+		refresh: {
+			steps: [
+				{
+					body: { refresh_token: "{refreshToken}" },
+					method: "POST",
+					path: "/v1/auth/refresh",
+					saveAs: { credential: "$.access_token", refreshToken: "$.refresh_token" },
+				},
+			],
+		},
 		steps: [
 			{
 				bind: { address: email },
@@ -610,6 +633,7 @@ function signUp(email: string): AuthFlow {
 				body: { token: "{verifyToken}" },
 				method: "POST",
 				path: "/v1/auth/email/verify",
+				saveAs: { credential: "$.access_token", refreshToken: "$.refresh_token" },
 				saveClaimsFrom: {
 					token: "$.access_token",
 					bind: { orgId: "orgs.0.oid", projectId: "orgs.0.pids.0" },
@@ -1471,7 +1495,6 @@ const result = await run({
 	baseUrl: config.baseUrl,
 	principals: config.principals,
 	seed: 1,
-	concurrency: 1,
 	maxInFlight: 4,
 	onProgress: (snap) => {
 		// snap.phase, snap.entity, snap.check, snap.message, …
@@ -1494,7 +1517,7 @@ const { doc: resolved, externalRefs } = dereference(doc)
 const model = buildModel(resolved)
 ```
 
-Types exported: `OatConfig`, `Principal`, `AuthFlow`, `AuthStep`, `Hooks`, `Uploads`, `UploadRequest`, `UploadFile`, `RunOptions`, `RunResult`, `Finding`, `Verdict`, `Actor`, `SpecModel`, `EntityModel`, `OperationModel`, `OpenApiDocument`, matrix types.
+Types exported: `OatConfig`, `Principal`, `AuthFlow`, `AuthRefresh`, `AuthStep`, `Hooks`, `Uploads`, `UploadRequest`, `UploadFile`, `RunOptions`, `RunResult`, `Finding`, `Verdict`, `Actor`, `SpecModel`, `EntityModel`, `OperationModel`, `OpenApiDocument`, `AuthRefreshRequiredError`, matrix types.
 
 ## CI
 
@@ -1508,15 +1531,13 @@ Against **your** API:
 # GitHub Actions sketch
 - run: npm i -D @lovrozagar/oat
 - run: oat doctor --spec "$SPEC_URL"
-- run: oat run --config oat.config.ts --concurrency 1
+- run: oat run --config oat.config.ts
   env:
     API_TOKEN: ${{ secrets.API_TOKEN }}
     API_TOKEN_B: ${{ secrets.API_TOKEN_B }}
 ```
 
 Gate on exit code 1 (defects). Read `oat-out/oat-report.json` if you need to classify verdicts.
-
-Nested APIs: keep `--concurrency 1`. Higher values create children while a parent page-walk is in flight and produce false `pagination.page-walk-covers-set` findings.
 
 Wipe leftover rows on a shared database between runs if a previous `--keep-fixtures` or a crashed teardown left data. Leftover rows make numeric/filter checks look like type bugs (`1, 10, 2` from old TEXT-sorted leftovers mixed with a fresh numeric cohort).
 
@@ -1599,7 +1620,7 @@ oat run --config labs/local.config.ts --base-url <url>
 These are deliberate. An agent should not invent a flag for them.
 
 - **No request timeout.** `fetch` waits until the server answers. Watch `idle_ms`.
-- **No retry on 5xx / 429 / 401.** A 401 mid-run is evidence, not a refresh trigger. Refresh is expiry-based only.
+- **No retry on 5xx / 429.** One 401 → force refresh + single retry. A second 401 is evidence.
 - **No OpenAPI `security`.** Put credentials in `principals`. Cookie auth is a `headers: { cookie: "…" }` (or a flow that sets that header).
 - **No `servers[]`.** Always set `baseUrl`.
 - **No OCR.** Multipart and file parts are sent as dummy / pool / `resolveUpload` bytes. oat checks HTTP status and JSON responses, not whether a PDF is a real invoice.
@@ -1609,7 +1630,6 @@ These are deliberate. An agent should not invent a flag for them.
 - **Rate-limit pacing only covers requests oat itself sends.** It cannot see traffic from anything else hitting the backend at the same time, so a shared budget can still trip even when oat's own share was within the declared rate.
 - **Equality filter grammar** cannot express `neq` / `gt` / `like` / `and` / `or`. Those checks did-not-apply, they do not fail.
 - **`or()` is postgrest-only.**
-- **Concurrency > 1 on nested graphs invents pagination bugs.** Use `1`.
 - **Leftover rows on a shared DB** poison numeric and filter checks. Wipe between runs.
 - **`--only` uses plan names** (`store`, not `stores` or `/v1/stores`).
 - **Default cohort is 7.** `pagination.limit-respects-documented-max` needs `cohortSize > maxLimit`.

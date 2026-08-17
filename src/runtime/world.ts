@@ -128,7 +128,7 @@ async function createOne(
 	const exchange = await client.request("POST", fillPath(createOp.path, scope.values), {
 		body: encoded.body,
 		...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),
-		headers: options.authHeaders(),
+		headers: options.authHeaders,
 	})
 	if (exchange.status >= 300) {
 		throw new SeedError(
@@ -192,7 +192,7 @@ export async function seedCohort(
 		const exchange = await client.request("POST", path, {
 			body: encoded.body,
 			...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),
-			headers: options.authHeaders(),
+			headers: options.authHeaders,
 		})
 		if (exchange.status >= 300) {
 			/* Partial cohorts are still useful — a single rejected variant should not cost the

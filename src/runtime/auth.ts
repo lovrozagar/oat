@@ -17,6 +17,21 @@ import type { Client, Exchange } from "./client.ts"
  * declaring a parallel copy that can drift out of agreement with what users actually write. */
 export type AcquireSpec = AuthFlow
 
+export const DEFAULT_REFRESH_BUFFER_MS = 30_000
+
+/** Signup acquire without `auth.refresh` — re-running `steps` would register again. */
+export class AuthRefreshRequiredError extends Error {
+	readonly code = "AUTH_REFRESH_REQUIRED" as const
+
+	constructor(principalId: string) {
+		super(
+			`oat: principal "${principalId}" cannot refresh — its acquire steps register a new account, ` +
+				"and re-running them is not a refresh. Declare auth.refresh with the refresh-token operation.",
+		)
+		this.name = "AuthRefreshRequiredError"
+	}
+}
+
 export interface PrincipalRuntime {
 	id: string
 	headers: () => Record<string, string>
@@ -24,10 +39,16 @@ export interface PrincipalRuntime {
 	address: string | null
 	/** Values bound during acquisition — roots discovered from the credential live here too. */
 	scope: Record<string, string>
-	refreshIfStale: () => Promise<void>
+	/**
+	 * Renew when `expiresAt - now <= refreshBufferMs`, or immediately when `force` is set (401).
+	 * `expiresAt === null` never proactive-refreshes. Single-flight per principal.
+	 */
+	refreshIfStale: (force?: boolean) => Promise<void>
 	/** Forces reacquisition, used when a control probe proves the credential died early. */
 	reacquire: () => Promise<void>
 	expiresAt: number | null
+	/** True when `headers` carry a credential this principal issued (current or previous). */
+	matches: (headers: Record<string, string>) => boolean
 }
 
 export function readPath(body: unknown, path: string): unknown {
@@ -89,15 +110,17 @@ export interface AcquireContext {
 	principalId: string
 }
 
-/** Runs the chain once, returning the credential and everything bound along the way. */
-export async function runAcquireChain(
+/** Runs an auth step list against an existing scope, returning the credential and bindings. */
+export async function runAuthSteps(
+	steps: readonly AuthStep[],
 	spec: AcquireSpec,
 	context: AcquireContext,
+	initialScope: Record<string, string> = {},
 ): Promise<{ credential: string; scope: Record<string, string>; expiresAt: number | null }> {
-	const scope: Record<string, string> = {}
+	const scope: Record<string, string> = { ...initialScope }
 	let last: Exchange | undefined
 
-	for (const [index, step] of spec.steps.entries()) {
+	for (const [index, step] of steps.entries()) {
 		const stepBind = "bind" in step ? step.bind : undefined
 		for (const [name, literal] of Object.entries(stepBind ?? {})) {
 			scope[name] = String(interpolate(literal, scope))
@@ -116,6 +139,8 @@ export async function runAcquireChain(
 			...(request.contentType === undefined ? {} : { contentType: request.contentType }),
 			...(request.headers === undefined ? {} : { headers: request.headers }),
 			...(request.query === undefined ? {} : { query: request.query }),
+			/* Auth hops must not trigger refresh / 401-retry — that is how a refresh deadlocks. */
+			skipAuthRefresh: true,
 		})
 
 		const acceptable = ("expect" in step ? step.expect : undefined) ?? []
@@ -173,6 +198,42 @@ export async function runAcquireChain(
 	}
 
 	return { credential, expiresAt: computeExpiry(spec, last, credential), scope }
+}
+
+/** Runs the acquire chain once, returning the credential and everything bound along the way. */
+export async function runAcquireChain(
+	spec: AcquireSpec,
+	context: AcquireContext,
+): Promise<{ credential: string; scope: Record<string, string>; expiresAt: number | null }> {
+	return runAuthSteps(spec.steps, spec, context)
+}
+
+const REGISTER_LIKE = /register|sign[-_]?up/i
+
+function stepLooksLikeRegister(step: AuthStep, model: SpecModel): boolean {
+	if ("outOfBand" in step) return false
+	if (isOperationStep(step)) {
+		if (REGISTER_LIKE.test(step.operationId)) return true
+		const op = model.byOperationId.get(step.operationId)
+		if (op === undefined) return false
+		return op.freshPrincipal || REGISTER_LIKE.test(op.path)
+	}
+	if (isRequestStep(step)) return REGISTER_LIKE.test(step.path)
+	return false
+}
+
+/** First HTTP hop looks like signup — re-running `steps` would 409, not refresh. */
+export function acquireLooksLikeRegister(spec: AcquireSpec, model: SpecModel): boolean {
+	const firstHttp = spec.steps.find((step) => !("outOfBand" in step))
+	return firstHttp !== undefined && stepLooksLikeRegister(firstHttp, model)
+}
+
+function headerOf(headers: Record<string, string>, name: string): string | undefined {
+	const want = name.toLowerCase()
+	for (const [key, value] of Object.entries(headers)) {
+		if (key.toLowerCase() === want) return value
+	}
+	return undefined
 }
 
 function computeExpiry(spec: AcquireSpec, last: Exchange | undefined, credential: string): number | null {
@@ -302,37 +363,78 @@ export async function createPrincipal(
 	context: AcquireContext,
 ): Promise<PrincipalRuntime> {
 	let credential = ""
-	let expiresAt: number | null = null
 	let scope: Record<string, string> = {}
-
-	const acquire = async (): Promise<void> => {
-		const result = await runAcquireChain(spec, { ...context, principalId: id })
-		credential = result.credential
-		expiresAt = result.expiresAt
-		scope = result.scope
-	}
-
-	await acquire()
-
+	const issued = new Set<string>()
 	const header = spec.header ?? "authorization"
 	const template = spec.template ?? "Bearer {credential}"
+	const bufferMs = spec.refreshBufferMs ?? DEFAULT_REFRESH_BUFFER_MS
+	const ctx: AcquireContext = { ...context, principalId: id }
+
+	const authValue = (token: string): string => template.replace("{credential}", token)
 
 	const runtime: PrincipalRuntime = {
-		/* Whatever the flow bound as an address is what teardown will cascade on. */
-		address: scope.address ?? scope.email ?? null,
-		expiresAt,
-		headers: () => ({ [header]: template.replace("{credential}", credential) }),
+		address: null,
+		expiresAt: null,
+		headers: () => ({ [header]: authValue(credential) }),
 		id,
-		reacquire: acquire,
-		/* Refresh at three quarters of the lifetime, before dispatch rather than mid-flight, so a
-		 * run stays reproducible and no request is ever retried for timing reasons alone. */
-		refreshIfStale: async () => {
-			if (expiresAt === null) return
-			const issuedWindow = expiresAt - Date.now()
-			if (issuedWindow > 0 && issuedWindow < 0.25 * (spec.assumeTtlMs ?? 300_000)) await acquire()
-			else if (issuedWindow <= 0) await acquire()
+		matches: (headers) => {
+			const sent = headerOf(headers, header)
+			return sent !== undefined && issued.has(sent)
 		},
+		reacquire: async () => undefined,
+		refreshIfStale: async () => undefined,
 		scope,
 	}
+
+	const apply = (result: { credential: string; scope: Record<string, string>; expiresAt: number | null }): void => {
+		credential = result.credential
+		scope = result.scope
+		runtime.expiresAt = result.expiresAt
+		runtime.scope = result.scope
+		runtime.address = result.scope.address ?? result.scope.email ?? runtime.address
+		issued.add(authValue(credential))
+	}
+
+	apply(await runAuthSteps(spec.steps, spec, ctx))
+
+	let inflight: Promise<void> | null = null
+	let refreshing = false
+
+	const doRefresh = async (): Promise<void> => {
+		refreshing = true
+		try {
+			if (spec.refresh !== undefined) {
+				apply(await runAuthSteps(spec.refresh.steps, spec, ctx, scope))
+				return
+			}
+			if (acquireLooksLikeRegister(spec, ctx.model)) {
+				throw new AuthRefreshRequiredError(id)
+			}
+			apply(await runAuthSteps(spec.steps, spec, ctx))
+		} finally {
+			refreshing = false
+		}
+	}
+
+	runtime.refreshIfStale = async (force = false): Promise<void> => {
+		/* Re-entrant from an in-flight refresh hop: do not start a second refresh. */
+		if (refreshing) return
+		if (!force) {
+			/* Static-header / unknown expiry: never proactive. 401 still passes force=true. */
+			if (runtime.expiresAt === null) return
+			if (runtime.expiresAt - Date.now() > bufferMs) return
+		}
+		if (inflight !== null) return inflight
+		const pending = doRefresh().finally(() => {
+			if (inflight === pending) inflight = null
+		})
+		inflight = pending
+		return pending
+	}
+
+	runtime.reacquire = async () => {
+		apply(await runAuthSteps(spec.steps, spec, ctx))
+	}
+
 	return runtime
 }

@@ -1,2 +1,4 @@
 #!/usr/bin/env node
-import "../dist/cli.js"
+import { start } from "../dist/cli.js"
+
+start()
