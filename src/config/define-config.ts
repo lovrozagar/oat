@@ -343,7 +343,7 @@ export interface OatConfig {
 	/**
 	 * Extra hosts, each with its own document. Do not merge those routes into the primary spec.
 	 * After primary auth, oat binds the same principals and runs the matrix against each origin.
-	 * A second `defineConfig` can also reuse `oat-out/principals.json` via `loadPersistedPrincipals`.
+	 * A second `defineConfig` can also reuse `.oat/runs/latest/principals.json` via `loadPersistedPrincipals`.
 	 */
 	origins?: OriginSpec[]
 	/**
@@ -376,7 +376,10 @@ export interface OatConfig {
 	rateLimits?: RateLimitSpec[]
 	/** Leave created records in place instead of tearing them down. */
 	keepFixtures?: boolean
-	/** Report destination. Defaults to `./oat-out`. */
+	/**
+	 * History root. Each run writes `<outDir>/<datetime>/` and updates `<outDir>/latest`.
+	 * Defaults to `./.oat/runs`.
+	 */
 	outDir?: string
 }
 

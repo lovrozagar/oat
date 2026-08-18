@@ -109,7 +109,7 @@ for world in "${worlds[@]}"; do
 		fail=1
 		continue
 	fi
-	out="oat-out/labs/${world}"
+	out=".oat/runs/labs/${world}"
 	mkdir -p "$out" .oatlogs
 	LAB_URL="http://127.0.0.1:${port}" node --experimental-sqlite dist/cli.js run \
 		--config labs/oat.config.ts --out "$out" | tee ".oatlogs/labs-oat-${world}.log" || true
@@ -121,7 +121,7 @@ for world in "${worlds[@]}"; do
 import json, sys
 world, expect, out = sys.argv[1], sys.argv[2], sys.argv[3]
 want = set(s for s in expect.split(",") if s)
-report = json.load(open(f"{out}/oat-report.json"))
+report = json.load(open(f"{out}/latest/oat-report.json"))
 got = {f["check"] for f in report["findings"] if f["verdict"] not in ("COVERAGE_GAP", "BLOCKED")}
 missing = sorted(want - got)
 extra = sorted(got - want)
@@ -133,7 +133,7 @@ if missing:
     print(f"    missing {missing}")
 if extra:
     print(f"    also    {extra}")
-open(f"{out}/verdict.txt","w").write(status + "\n")
+open(f"{out}/latest/verdict.txt","w").write(status + "\n")
 if missing:
     sys.exit(2)
 PY

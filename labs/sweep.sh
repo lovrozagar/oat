@@ -3,4 +3,4 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 bash labs/iterate.sh tiny shop campus platform
-echo "done — oat-out/labs/{tiny,shop,campus,platform}"
+echo "done — .oat/runs/labs/{tiny,shop,campus,platform}"

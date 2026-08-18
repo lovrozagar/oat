@@ -190,7 +190,7 @@ Same object. `${NAME}` is interpolated after load. There is no `defineConfig` wr
 	],
 	"seed": 42,
 	"cohortSize": 7,
-	"outDir": "./oat-out"
+	"outDir": "./.oat/runs"
 }
 ```
 
@@ -255,23 +255,23 @@ oat help
 
 Requires `--config`. CLI flags override the same field in the config when both are set.
 
-| flag              | default                        | meaning                                                               |
-| ----------------- | ------------------------------ | --------------------------------------------------------------------- |
-| `--config`        | required                       | module or JSON file, default export                                   |
-| `--base-url`      | `config.baseUrl`               | backend origin                                                        |
-| `--only`          | `config.only` or all entities  | comma-separated entity names as `oat plan` prints them (singularised) |
-| `--seed`          | `config.seed` or `1`           | fixture generation seed (reproducible)                                |
-| `--out`           | `config.outDir` or `./oat-out` | report directory                                                      |
-| `--max-in-flight` | `config.maxInFlight` or `4`    | HTTP requests allowed at once                                         |
-| `--keep-fixtures` | `config.keepFixtures` or false | do not DELETE what the run created                                    |
-| `--quiet`         | false                          | no stderr progress; files under `--out` still update                  |
+| flag              | default                          | meaning                                                                |
+| ----------------- | -------------------------------- | ---------------------------------------------------------------------- |
+| `--config`        | required                         | module or JSON file, default export                                    |
+| `--base-url`      | `config.baseUrl`                 | backend origin                                                         |
+| `--only`          | `config.only` or all entities    | comma-separated entity names as `oat plan` prints them (singularised)  |
+| `--seed`          | `config.seed` or `1`             | fixture generation seed (reproducible)                                 |
+| `--out`           | `config.outDir` or `./.oat/runs` | history root; each run writes `<out>/<datetime>/` and updates `latest` |
+| `--max-in-flight` | `config.maxInFlight` or `4`      | HTTP requests allowed at once                                          |
+| `--keep-fixtures` | `config.keepFixtures` or false   | do not DELETE what the run created                                     |
+| `--quiet`         | false                            | no stderr progress; files under `--out` still update                   |
 
 **Exit codes:** `0` no defects, `1` at least one root-cause finding (`BACKEND_BUG`, `SPEC_BUG`, `SECURITY`, `AMBIGUITY`), `2` usage error (missing `--config`, no principals, unknown flag). `COVERAGE_GAP` and `BLOCKED` do not fail the process.
 
 Example:
 
 ```bash
-oat run --config oat.config.ts --only store,product --out oat-out/prod
+oat run --config oat.config.ts --only store,product --out .oat/runs/prod
 ```
 
 `--only store,product` matches the **entity names** from `oat plan`, not path segments. `/v1/stores` is usually the entity `store`. If a name is unknown, that entity is simply not tested (the others still run).
@@ -434,29 +434,29 @@ export default defineConfig({
 	maxInFlight: 4, // HTTP in flight
 	only: ["store", "product"], // restrict entities
 	keepFixtures: false,
-	outDir: "./oat-out",
+	outDir: "./.oat/runs",
 	outOfBand: { attempts: 20, initialMs: 1000, maxMs: 8000 },
 	origins: [{ id: "cdn", baseUrl: "https://cdn.example.com", spec: "https://cdn.example.com/openapi.json" }],
 })
 ```
 
-| field           | required | default                                        | notes                                                                                          |
-| --------------- | -------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `spec`          | yes      |                                                | See [Spec loading](#spec-loading)                                                              |
-| `baseUrl`       | yes      |                                                | Primary origin. OpenAPI `servers[]` is ignored                                                 |
-| `principals`    | yes      |                                                | Non-empty. First is the writer                                                                 |
-| `hooks`         | no       |                                                | See [Hooks](#hooks)                                                                            |
-| `uploads`       | no       |                                                | `pool` globs, relative to the config file. JSON configs: pool only                             |
-| `globalHeaders` | no       | `{}`                                           | Merged first. `resolveHeaders` then caller headers then auth                                   |
-| `origins`       | no       | `[]`                                           | Extra `{ id, baseUrl, spec }` hosts. Auth JWT is reused. Do not merge those routes into `spec` |
-| `outOfBand`     | no       | `{ attempts: 6, initialMs: 200, maxMs: 3000 }` | Backoff for `resolveOutOfBand` and `resolvePrincipalAuth`. See [Hooks](#hooks)                 |
-| `roots`         | no       | `{}`                                           | Shared path params (merged with each principal's `roots`)                                      |
-| `seed`          | no       | `1`                                            | Integer. Same seed → same fixture bodies                                                       |
-| `cohortSize`    | no       | `7`                                            | Sliced from the 7 built-in variants. Larger repeats the pattern                                |
-| `maxInFlight`   | no       | `4`                                            | Across the whole run                                                                           |
-| `only`          | no       | all                                            | Entity names from `oat plan`                                                                   |
-| `keepFixtures`  | no       | `false`                                        | Skip DELETE at the end                                                                         |
-| `outDir`        | no       | `./oat-out`                                    | Created if missing. Also writes `principals.json` after acquire                                |
+| field           | required | default                                        | notes                                                                                                                  |
+| --------------- | -------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `spec`          | yes      |                                                | See [Spec loading](#spec-loading)                                                                                      |
+| `baseUrl`       | yes      |                                                | Primary origin. OpenAPI `servers[]` is ignored                                                                         |
+| `principals`    | yes      |                                                | Non-empty. First is the writer                                                                                         |
+| `hooks`         | no       |                                                | See [Hooks](#hooks)                                                                                                    |
+| `uploads`       | no       |                                                | `pool` globs, relative to the config file. JSON configs: pool only                                                     |
+| `globalHeaders` | no       | `{}`                                           | Merged first. `resolveHeaders` then caller headers then auth                                                           |
+| `origins`       | no       | `[]`                                           | Extra `{ id, baseUrl, spec }` hosts. Auth JWT is reused. Do not merge those routes into `spec`                         |
+| `outOfBand`     | no       | `{ attempts: 6, initialMs: 200, maxMs: 3000 }` | Backoff for `resolveOutOfBand` and `resolvePrincipalAuth`. See [Hooks](#hooks)                                         |
+| `roots`         | no       | `{}`                                           | Shared path params (merged with each principal's `roots`)                                                              |
+| `seed`          | no       | `1`                                            | Integer. Same seed → same fixture bodies                                                                               |
+| `cohortSize`    | no       | `7`                                            | Sliced from the 7 built-in variants. Larger repeats the pattern                                                        |
+| `maxInFlight`   | no       | `4`                                            | Across the whole run                                                                                                   |
+| `only`          | no       | all                                            | Entity names from `oat plan`                                                                                           |
+| `keepFixtures`  | no       | `false`                                        | Skip DELETE at the end                                                                                                 |
+| `outDir`        | no       | `./.oat/runs`                                  | History root. Each run writes `<outDir>/<datetime>/` and updates `latest`. Also writes `principals.json` after acquire |
 
 `spec` may be a path relative to `baseUrl` (`/v1/openapi/spec`) or an absolute URL or a file.
 
@@ -699,11 +699,11 @@ import { defineConfig, loadPersistedPrincipals } from "@lovrozagar/oat"
 export default defineConfig({
 	spec: "https://cdn.example.com/openapi.json",
 	baseUrl: "https://cdn.example.com",
-	principals: loadPersistedPrincipals("./oat-out/principals.json"),
+	principals: loadPersistedPrincipals("./.oat/runs/latest/principals.json"),
 })
 ```
 
-The CLI writes `oat-out/principals.json` after every run.
+The CLI writes `principals.json` into each run folder (and `.oat/runs/latest/principals.json` via the `latest` symlink).
 
 ### Hooks
 
@@ -1448,19 +1448,26 @@ Console (stdout) after a run:
 
 ## Reports
 
-Written under `--out` (default `./oat-out`):
+Written under `--out` (default `./.oat/runs`). Each invocation creates a UTC timestamp folder and points `latest` at it:
 
-| file               |                                                                                                                                                          |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `oat-report.md`    | human report: summary, findings with request/response excerpts, coverage, latency p50/p95/max                                                            |
-| `oat-report.json`  | same data for CI                                                                                                                                         |
-| `matrix.html`      | visual matrix of entities × checks                                                                                                                       |
-| `matrix.json`      | the same graph (AI-friendly), including a mermaid string                                                                                                 |
-| `issue-repro/*.sh` | one executable `curl` script per finding that has evidence. Directory is omitted when the run is clean. Old `repro/` is deleted at the start of each run |
-| `progress.log`     | logfmt, one event per line, never truncated                                                                                                              |
-| `progress.jsonl`   | same events as JSON                                                                                                                                      |
-| `progress.tsv`     | same columns, tab-separated                                                                                                                              |
-| `progress.json`    | latest snapshot only (overwritten ~1s)                                                                                                                   |
+```
+.oat/runs/2026-08-18T12-00-00Z/
+.oat/runs/latest -> 2026-08-18T12-00-00Z
+```
+
+`--out` / `outDir` replace the root, not the leaf — `--out .oat/runs/prod` writes `.oat/runs/prod/<datetime>/`.
+
+| file               |                                                                                                        |
+| ------------------ | ------------------------------------------------------------------------------------------------------ |
+| `oat-report.md`    | human report: summary, findings with request/response excerpts, coverage, latency p50/p95/max          |
+| `oat-report.json`  | same data for CI                                                                                       |
+| `matrix.html`      | visual matrix of entities × checks                                                                     |
+| `matrix.json`      | the same graph (AI-friendly), including a mermaid string                                               |
+| `issue-repro/*.sh` | one executable `curl` script per finding that has evidence. Directory is omitted when the run is clean |
+| `progress.log`     | logfmt, one event per line, never truncated                                                            |
+| `progress.jsonl`   | same events as JSON                                                                                    |
+| `progress.tsv`     | same columns, tab-separated                                                                            |
+| `progress.json`    | latest snapshot only (overwritten ~1s)                                                                 |
 
 There is no HAR file. The JSON report and issue-repro scripts carry the exchanges.
 
@@ -1652,7 +1659,7 @@ const { doc: resolved, externalRefs } = dereference(doc)
 const model = buildModel(resolved)
 ```
 
-Types exported: `OatConfig`, `Principal`, `AuthFlow`, `AuthRefresh`, `AuthStep`, `HookAuth`, `Hooks`, `Uploads`, `UploadRequest`, `UploadFile`, `HeaderRequest`, `InputRequest`, `OriginSpec`, `OutOfBandConfig`, `RunOptions`, `RunResult`, `Finding`, `Verdict`, `Actor`, `SpecModel`, `EntityModel`, `OperationModel`, `OpenApiDocument`, `AuthRefreshRequiredError`, `loadPersistedPrincipals`, `worstCaseWaitMs`, matrix types.
+Types exported: `OatConfig`, `Principal`, `AuthFlow`, `AuthRefresh`, `AuthStep`, `HookAuth`, `Hooks`, `Uploads`, `UploadRequest`, `UploadFile`, `HeaderRequest`, `InputRequest`, `OriginSpec`, `OutOfBandConfig`, `RunOptions`, `RunResult`, `Finding`, `Verdict`, `Actor`, `SpecModel`, `EntityModel`, `OperationModel`, `OpenApiDocument`, `AuthRefreshRequiredError`, `loadPersistedPrincipals`, `worstCaseWaitMs`, `allocateRunDir`, `DEFAULT_RUNS_ROOT`, matrix types.
 
 ## CI
 
@@ -1672,7 +1679,7 @@ Against **your** API:
     API_TOKEN_B: ${{ secrets.API_TOKEN_B }}
 ```
 
-Gate on exit code 1 (defects). Read `oat-out/oat-report.json` if you need to classify verdicts.
+Gate on exit code 1 (defects). Read `.oat/runs/latest/oat-report.json` if you need to classify verdicts.
 
 Wipe leftover rows on a shared database between runs if a previous `--keep-fixtures` or a crashed teardown left data. Leftover rows make numeric/filter checks look like type bugs (`1, 10, 2` from old TEXT-sorted leftovers mixed with a fresh numeric cohort).
 

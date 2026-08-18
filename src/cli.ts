@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createWriteStream, writeFileSync } from "node:fs"
-import { mkdir, rm, writeFile } from "node:fs/promises"
+import { mkdir, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { interpolate, loadConfig } from "./config/load.ts"
@@ -15,6 +15,7 @@ import {
 	PROGRESS_GLOSSARY,
 	PROGRESS_TSV_HEADER,
 } from "./runtime/progress.ts"
+import { allocateRunDir, DEFAULT_RUNS_ROOT } from "./runtime/runs.ts"
 import { renderTeardown } from "./runtime/teardown.ts"
 import { buildModel } from "./spec/graph.ts"
 import { dereference, loadSpec } from "./spec/load.ts"
@@ -86,7 +87,7 @@ Flags
   --only       comma-separated entity names to restrict the run to
   --profile    named profile gating which operations run (built-in: full, cheap)
   --seed       integer seed for fixture generation (default 1)
-  --out        output directory for the report (default ./oat-out)
+  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
   --keep-fixtures  leave created records in place instead of tearing them down
   --max-in-flight  requests allowed in flight at once (default 4)
   --quiet          no live progress on stderr (progress.log still written)
@@ -137,8 +138,8 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 
 	const startedAt = new Date()
 	const began = performance.now()
-	const outDir = resolve(str(flags, "out") ?? config.outDir ?? "oat-out")
-	await mkdir(outDir, { recursive: true })
+	const allocated = await allocateRunDir(str(flags, "out") ?? config.outDir ?? DEFAULT_RUNS_ROOT, startedAt)
+	const outDir = allocated.runDir
 	const stderrProgress = flags.quiet === true ? undefined : createStderrProgress(startedAt.getTime())
 	const progressLog = createWriteStream(resolve(outDir, "progress.log"))
 	const progressTsv = createWriteStream(resolve(outDir, "progress.tsv"))
@@ -218,10 +219,6 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		startedAt,
 	}
 
-	/* Wipe both the old name and the current one. A leftover script from a previous
-	 * finding reads as a current defect. The folder is only created when there is an issue. */
-	await rm(resolve(outDir, "repro"), { force: true, recursive: true })
-	await rm(resolve(outDir, ISSUE_REPRO_DIR), { force: true, recursive: true })
 	await writeFile(resolve(outDir, "principals.json"), `${JSON.stringify({ principals: result.principals }, null, 2)}\n`)
 	await writeFile(resolve(outDir, "oat-report.md"), renderMarkdown(input))
 	await writeFile(resolve(outDir, "oat-report.json"), renderJson(input))
@@ -243,7 +240,8 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	process.stdout.write(`  report: ${resolve(outDir, "oat-report.md")}\n`)
 	process.stdout.write(`  matrix: ${resolve(outDir, "matrix.html")}\n`)
 	process.stdout.write(`  graph:  ${resolve(outDir, "matrix.json")}\n`)
-	process.stdout.write(`  progress: ${resolve(outDir, "progress.log")} · ${resolve(outDir, "progress.jsonl")}\n\n`)
+	process.stdout.write(`  progress: ${resolve(outDir, "progress.log")} · ${resolve(outDir, "progress.jsonl")}\n`)
+	process.stdout.write(`  latest: ${allocated.latest}\n\n`)
 
 	/* Exit code counts root causes, not raw findings: gaps and blocked entries are information,
 	 * not failures, and a CI gate should react to defects only. */

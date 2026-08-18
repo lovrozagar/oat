@@ -21,9 +21,9 @@ import { DEFECTS } from "../dist/reference/defects.js"
 import { createMemoryServer, createPostgresServer, createSqliteServer } from "../dist/reference/http.js"
 import { renderConsole, renderJson, renderMarkdown, renderRepros } from "../dist/report/render.js"
 import { run } from "../dist/runtime/run.js"
+import { allocateRunDir } from "../dist/runtime/runs.js"
 
 const here = dirname(fileURLToPath(import.meta.url))
-const outDir = resolve(here, "../oat-out")
 
 function flag(name) {
 	const index = process.argv.indexOf(`--${name}`)
@@ -83,6 +83,7 @@ console.log(`  defects  ${defects.length > 0 ? defects.join(", ") : "none — co
 
 const startedAt = new Date()
 const began = performance.now()
+const { latest, runDir: outDir } = await allocateRunDir(resolve(here, "../.oat/runs"), startedAt)
 const result = await run({
 	baseUrl: server.url,
 	principals,
@@ -111,6 +112,7 @@ for (const script of renderRepros(result.findings, server.url)) {
 
 process.stdout.write(renderConsole(input))
 console.log(`  report   ${resolve(outDir, "oat-report.md")}`)
-console.log(`  repro    ${resolve(outDir, "repro")}/\n`)
+console.log(`  repro    ${resolve(outDir, "repro")}/`)
+console.log(`  latest   ${latest}\n`)
 
 await server.close()

@@ -4,7 +4,7 @@
 	"env": {
 		"node": true
 	},
-	"ignorePatterns": ["dist/**", "coverage/**", "oat-out/**", "labs/node_modules/**", "labs/schema/**"],
+	"ignorePatterns": ["dist/**", "coverage/**", "oat-out/**", ".oat/**", "labs/node_modules/**", "labs/schema/**"],
 	"categories": {
 		"correctness": "error",
 		"suspicious": "warn"

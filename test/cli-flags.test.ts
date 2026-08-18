@@ -5,6 +5,7 @@ describe("CLI flags", () => {
 	it("does not advertise --concurrency in help", () => {
 		expect(USAGE).not.toContain("--concurrency")
 		expect(USAGE).toContain("--max-in-flight")
+		expect(USAGE).toContain("./.oat/runs")
 	})
 
 	it("treats --concurrency as unknown (exit 2)", async () => {

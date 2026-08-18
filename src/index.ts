@@ -28,6 +28,8 @@ export type {
 export { loadConfig } from "./config/load.ts"
 export { loadPersistedPrincipals, parsePersistedPrincipals } from "./runtime/principals.ts"
 export type { PersistedPrincipal } from "./runtime/principals.ts"
+export { allocateRunDir, DEFAULT_RUNS_ROOT, formatRunStamp } from "./runtime/runs.ts"
+export type { AllocatedRunDir } from "./runtime/runs.ts"
 export { worstCaseWaitMs, resolveBackoff, DEFAULT_OUT_OF_BAND } from "./runtime/poll.ts"
 export { deriveCollectionShape, deriveIdentity } from "./spec/collection.ts"
 export type { CollectionShape } from "./spec/collection.ts"

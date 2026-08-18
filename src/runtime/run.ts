@@ -104,7 +104,7 @@ export interface RunResult {
 	profileExclusions: Array<{ entity: string; operationId: string; reason: string }>
 	created: number
 	teardown: TeardownReport | null
-	/** Credentials as they stood after acquire — written to `oat-out/principals.json` by the CLI. */
+	/** Credentials as they stood after acquire — written to `<outDir>/<datetime>/principals.json` by the CLI. */
 	principals: PersistedPrincipal[]
 }
 
