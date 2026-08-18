@@ -460,11 +460,11 @@ function coalesceSearchable(
 	global: string[] | null | undefined,
 ): string[] | null | undefined {
 	if (entity !== undefined) {
-		if (entity === null) return []
+		if (entity === null) return null
 		if (global === null || global === undefined) return entity
 		return unionStrings(global, entity)
 	}
-	if (global === null) return []
+	if (global === null) return null
 	return global
 }
 
@@ -615,8 +615,15 @@ export function opsAreClosed(field: EffectiveFilterField, caps: EffectiveQueryCa
 export function fieldAllows(field: EffectiveFilterField, op: FilterOp, caps: EffectiveQueryCapabilities): boolean {
 	const ops = opsForField(field, caps)
 	if (ops.includes(op)) return true
-	for (const [alias, target] of Object.entries(caps.aliases)) {
-		if (target === op && isFilterOp(alias) && ops.includes(alias)) return true
+	const names = Object.keys(caps.aliases)
+	let i = 0
+	while (i < names.length) {
+		const alias = names[i] as string
+		i += 1
+		const target = caps.aliases[alias as FilterOp]
+		if (target !== op) continue
+		if (!isFilterOp(alias)) continue
+		if (ops.includes(alias)) return true
 	}
 	return false
 }
@@ -676,7 +683,6 @@ export function applyHarvest(
 			extra.map((field) => {
 				const row: EffectiveFilterField = { field: field.field }
 				if (field.type !== undefined) row.type = field.type
-				if (field.ops !== undefined) row.ops = field.ops
 				return row
 			}),
 		),
@@ -759,10 +765,9 @@ export function readJsonPathList(body: unknown, path: string): unknown[] {
 
 function applyJsonPathFilter(node: unknown, token: string): unknown[] | undefined {
 	const match = /^\?\(@\.([A-Za-z_][\w]*)==(true|false|null|"[^"]*"|'[^']*'|[^\s)]+)\)$/.exec(token)
-	if (match === null || !Array.isArray(node)) return undefined
+	if (match === null || match[1] === undefined || match[2] === undefined || !Array.isArray(node)) return undefined
 	const key = match[1]
-	const expected = parseJsonPathLiteral(match[2] ?? "")
-	if (key === undefined) return undefined
+	const expected = parseJsonPathLiteral(match[2])
 	return node.filter((item) => {
 		if (item === null || typeof item !== "object") return false
 		return (item as Record<string, unknown>)[key] === expected
@@ -782,14 +787,28 @@ function parseJsonPathLiteral(raw: string): unknown {
 
 function tokenizeJsonPath(path: string): string[] {
 	const out: string[] = []
-	for (const part of path.split(".")) {
-		const match = /^([^[]*)(?:\[(\*|\d+|\?\([^)]+\))\])?$/.exec(part)
-		if (match === null) {
-			out.push(part)
+	let buf = ""
+	for (let i = 0; i < path.length; i++) {
+		const ch = path[i]
+		if (ch === ".") {
+			if (buf !== "") out.push(buf)
+			buf = ""
 			continue
 		}
-		if (match[1] !== undefined && match[1] !== "") out.push(match[1])
-		if (match[2] !== undefined) out.push(match[2])
+		if (ch === "[") {
+			if (buf !== "") out.push(buf)
+			buf = ""
+			const end = path.indexOf("]", i)
+			if (end === -1) {
+				out.push(path.slice(i))
+				return out
+			}
+			out.push(path.slice(i + 1, end))
+			i = end
+			continue
+		}
+		buf += ch
 	}
+	if (buf !== "") out.push(buf)
 	return out
 }
