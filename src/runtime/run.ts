@@ -22,8 +22,8 @@ import { type OriginClient, createPrincipal, type PrincipalRuntime } from "./aut
 import { type BackoffConfig, resolveBackoff } from "./poll.ts"
 import { type PersistedPrincipal, persistedToPrincipal, snapshotPrincipal } from "./principals.ts"
 import { CHECKS, type Actor, type CheckContext } from "./checks.ts"
-import { Client, type Exchange } from "./client.ts"
-import type { ProgressHandler, ProgressLast, ProgressSnapshot } from "./progress.ts"
+import { Client, type Exchange, type HttpHooks, type RequestStart } from "./client.ts"
+import type { ProgressHandler, ProgressInflight, ProgressLast, ProgressSnapshot } from "./progress.ts"
 import { type Finding, FindingCollector, type Inconclusive } from "./finding.ts"
 import { reportFeatureGateSchemaDrift } from "./feature-gate.ts"
 import { excludedByProfile, resolveProfile } from "./profile.ts"
@@ -340,6 +340,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	const profile = resolveProfile(options.profile, options.profiles)
 	const profileExclusions: Array<{ entity: string; operationId: string; reason: string }> = []
 	let last: ProgressLast | undefined
+	const inflight = new Set<RequestStart>()
 	let currentPhase: ProgressSnapshot["phase"] = "load"
 	let currentEntity: string | undefined
 	let currentCheck: string | undefined
@@ -347,6 +348,43 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	let entityTotal: number | undefined
 	const defectCount = (): number =>
 		findings.findings.filter((f) => f.verdict !== "BLOCKED" && f.verdict !== "COVERAGE_GAP").length
+	const oldestInflight = (): ProgressInflight | undefined => {
+		let oldest: RequestStart | undefined
+		for (const probe of inflight) {
+			if (oldest === undefined || probe.at < oldest.at) oldest = probe
+		}
+		if (oldest === undefined) return undefined
+		const displayed: ProgressInflight = { at: oldest.at, method: oldest.method, url: oldest.url }
+		if (oldest.requestId !== "") displayed.requestId = oldest.requestId
+		displayed.requestBytes = oldest.requestBytes
+		return displayed
+	}
+	let client!: Client
+	const requestCount = (): number => client.transcript.length
+	const snapshot = (extra?: {
+		message?: string
+		requests?: number
+		inflight?: ProgressInflight
+		omitInflight?: boolean
+	}): ProgressSnapshot => {
+		const snap: ProgressSnapshot = {
+			elapsedMs: Date.now() - startedAt,
+			findings: defectCount(),
+			phase: currentPhase,
+			requests: extra?.requests ?? requestCount(),
+		}
+		if (currentCheck !== undefined) snap.check = currentCheck
+		if (currentEntity !== undefined) snap.entity = currentEntity
+		if (currentEntityIndex !== undefined) snap.entityIndex = currentEntityIndex
+		if (entityTotal !== undefined) snap.entityTotal = entityTotal
+		if (extra?.message !== undefined) snap.message = extra.message
+		if (last !== undefined) snap.last = last
+		if (extra?.omitInflight !== true) {
+			const live = extra?.inflight ?? oldestInflight()
+			if (live !== undefined) snap.inflight = live
+		}
+		return snap
+	}
 	const publish = (snap: ProgressSnapshot): void => {
 		options.onProgress?.(snap)
 	}
@@ -360,19 +398,16 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		requests?: number | undefined
 	}): void => {
 		currentPhase = partial.phase
-		const snap: ProgressSnapshot = {
-			elapsedMs: Date.now() - startedAt,
-			findings: defectCount(),
-			phase: partial.phase,
-			requests: partial.requests ?? 0,
-		}
-		if (partial.entity !== undefined) snap.entity = partial.entity
-		if (partial.entityIndex !== undefined) snap.entityIndex = partial.entityIndex
-		if (partial.entityTotal !== undefined) snap.entityTotal = partial.entityTotal
-		if (partial.check !== undefined) snap.check = partial.check
-		if (partial.message !== undefined) snap.message = partial.message
-		if (last !== undefined) snap.last = last
-		publish(snap)
+		if (partial.entity !== undefined) currentEntity = partial.entity
+		if (partial.entityIndex !== undefined) currentEntityIndex = partial.entityIndex
+		if (partial.entityTotal !== undefined) entityTotal = partial.entityTotal
+		if (partial.check !== undefined) currentCheck = partial.check
+		publish(
+			snapshot({
+				...(partial.message === undefined ? {} : { message: partial.message }),
+				...(partial.requests === undefined ? {} : { requests: partial.requests }),
+			}),
+		)
 	}
 
 	tick({ message: options.spec, phase: "load", requests: 0 })
@@ -387,35 +422,43 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	const hooks = options.hooks ?? {}
 	const authCreates = authStepOperationIds(options.principals)
 	const rateLimiter = new RateLimiter(buildRateLimitRules(model, options.rateLimits))
-	const client = new Client(
+	const remember = (exchange: Exchange): void => {
+		last = {
+			at: exchange.at,
+			durationMs: exchange.durationMs,
+			method: exchange.method,
+			requestBytes: exchange.requestBytes,
+			requestId: exchange.requestId,
+			responseBytes: exchange.responseBytes,
+			status: exchange.status,
+			url: exchange.url,
+		}
+	}
+	const onExchange = (exchange: Exchange): void => {
+		remember(exchange)
+		publish(snapshot({ omitInflight: true }))
+		const remaining = oldestInflight()
+		if (remaining !== undefined) publish(snapshot({ inflight: remaining }))
+	}
+	const httpHooks: HttpHooks = {
+		end(probe) {
+			inflight.delete(probe)
+		},
+		start(probe) {
+			inflight.add(probe)
+			const displayed: ProgressInflight = { at: probe.at, method: probe.method, url: probe.url }
+			if (probe.requestId !== "") displayed.requestId = probe.requestId
+			displayed.requestBytes = probe.requestBytes
+			publish(snapshot({ inflight: displayed }))
+		},
+	}
+	client = new Client(
 		options.baseUrl,
 		options.globalHeaders ?? {},
 		options.maxInFlight ?? 4,
-		(exchange: Exchange) => {
-			last = {
-				at: exchange.at,
-				durationMs: exchange.durationMs,
-				method: exchange.method,
-				requestBytes: exchange.requestBytes,
-				requestId: exchange.requestId,
-				responseBytes: exchange.responseBytes,
-				status: exchange.status,
-				url: exchange.url,
-			}
-			const snap: ProgressSnapshot = {
-				elapsedMs: Date.now() - startedAt,
-				findings: defectCount(),
-				last,
-				phase: currentPhase,
-				requests: client.transcript.length,
-			}
-			if (currentCheck !== undefined) snap.check = currentCheck
-			if (currentEntity !== undefined) snap.entity = currentEntity
-			if (currentEntityIndex !== undefined) snap.entityIndex = currentEntityIndex
-			if (entityTotal !== undefined) snap.entityTotal = entityTotal
-			publish(snap)
-		},
+		onExchange,
 		rateLimiter,
+		httpHooks,
 	)
 	if (hooks.resolveHeaders !== undefined) client.setResolveHeaders(hooks.resolveHeaders)
 	const validator = new SchemaValidator()
@@ -430,6 +473,8 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		hooks,
 		options.maxInFlight ?? 4,
 		options.globalHeaders ?? {},
+		onExchange,
+		httpHooks,
 	)
 	const uploads: UploadContext = {
 		seed,
@@ -1031,13 +1076,15 @@ async function loadOriginClients(
 	hooks: Hooks,
 	maxInFlight: number,
 	globalHeaders: Record<string, string>,
+	onExchange?: (exchange: Exchange) => void,
+	httpHooks?: HttpHooks,
 ): Promise<Map<string, OriginClient>> {
 	const map = new Map<string, OriginClient>()
 	for (const origin of origins) {
 		const raw = await loadSpec(origin.spec, origin.baseUrl)
 		const { doc } = dereference(raw)
 		const originModel = buildModel(doc)
-		const originClient = new Client(origin.baseUrl, globalHeaders, maxInFlight)
+		const originClient = new Client(origin.baseUrl, globalHeaders, maxInFlight, onExchange, undefined, httpHooks)
 		if (hooks.resolveHeaders !== undefined) originClient.setResolveHeaders(hooks.resolveHeaders)
 		map.set(origin.id, { client: originClient, model: originModel })
 	}

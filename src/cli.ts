@@ -8,6 +8,7 @@ import { report } from "./report/console.ts"
 import { renderMatrixGraph, renderMatrixHtml } from "./report/matrix.ts"
 import { ISSUE_REPRO_DIR, renderConsole, renderJson, renderMarkdown, renderRepros } from "./report/render.ts"
 import {
+	createProgressPump,
 	createStderrProgress,
 	formatProgressJsonl,
 	formatProgressLine,
@@ -146,30 +147,26 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	const progressJsonl = createWriteStream(resolve(outDir, "progress.jsonl"))
 	progressLog.write(`${PROGRESS_GLOSSARY}\n`)
 	progressTsv.write(`${PROGRESS_TSV_HEADER}\n`)
-	let lastLogKey = ""
-	let lastLogAt = 0
 	let lastJsonAt = 0
-	const onProgress = (snap: Parameters<typeof formatProgressLine>[0]): void => {
-		stderrProgress?.emit(snap)
-		const key = `${snap.phase}|${snap.entity ?? ""}|${snap.check ?? ""}|${snap.message ?? ""}`
-		const due = Date.now() - lastLogAt >= 2_000
-		if (key !== lastLogKey || due || snap.phase === "done" || snap.phase === "load") {
-			lastLogKey = key
-			lastLogAt = Date.now()
-			const now = Date.now()
-			progressLog.write(`${formatProgressLine(snap, now)}\n`)
-			progressTsv.write(`${formatProgressTsv(snap, now)}\n`)
-			progressJsonl.write(`${formatProgressJsonl(snap, now)}\n`)
-		}
-		if (Date.now() - lastJsonAt >= 1_000 || snap.phase === "done") {
-			lastJsonAt = Date.now()
+	const fileProgress = createProgressPump(startedAt.getTime(), (snap, now) => {
+		progressLog.write(`${formatProgressLine(snap, now)}\n`)
+		progressTsv.write(`${formatProgressTsv(snap, now)}\n`)
+		progressJsonl.write(`${formatProgressJsonl(snap, now)}\n`)
+		if (now - lastJsonAt >= 1_000 || snap.phase === "done") {
+			lastJsonAt = now
+			const ageFrom =
+				snap.inflight !== undefined ? snap.inflight.at : snap.last !== undefined ? snap.last.at : undefined
 			const payload = {
 				...snap,
-				lastAgoMs: snap.last === undefined ? null : Date.now() - snap.last.at,
-				updatedAt: new Date().toISOString(),
+				lastAgoMs: ageFrom === undefined ? null : now - ageFrom,
+				updatedAt: new Date(now).toISOString(),
 			}
 			writeFileSync(resolve(outDir, "progress.json"), `${JSON.stringify(payload, null, 2)}\n`)
 		}
+	})
+	const onProgress = (snap: Parameters<typeof formatProgressLine>[0]): void => {
+		stderrProgress?.emit(snap)
+		fileProgress.emit(snap)
 	}
 
 	let result: Awaited<ReturnType<typeof run>>
@@ -197,6 +194,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		})
 	} finally {
 		stderrProgress?.stop()
+		fileProgress.stop()
 		progressLog.end()
 		progressTsv.end()
 		progressJsonl.end()

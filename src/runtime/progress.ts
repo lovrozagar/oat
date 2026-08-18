@@ -22,6 +22,16 @@ export interface ProgressLast {
 	at: number
 }
 
+/** A request that has been dispatched and has not yet returned. */
+export interface ProgressInflight {
+	method: string
+	url: string
+	/** Wall clock when `fetch` was called, unix ms. */
+	at: number
+	requestId?: string
+	requestBytes?: number
+}
+
 export interface ProgressSnapshot {
 	phase: "load" | "auth" | "seed" | "test" | "teardown" | "done"
 	entity?: string
@@ -31,13 +41,15 @@ export interface ProgressSnapshot {
 	requests: number
 	findings: number
 	last?: ProgressLast
+	/** When set, formatters prefer this over `last` — the call is still on the wire. */
+	inflight?: ProgressInflight
 	message?: string
 	elapsedMs: number
 }
 
 export type ProgressHandler = (snap: ProgressSnapshot) => void
 
-const HEARTBEAT_MS = 5_000
+export const HEARTBEAT_MS = 5_000
 const STALL_MS = 15_000
 
 export const PROGRESS_TSV_HEADER = [
@@ -66,16 +78,16 @@ export const PROGRESS_TSV_HEADER = [
 export const PROGRESS_GLOSSARY = [
 	"# logfmt — one event per line, full values, no truncation",
 	"# ts               when this line was written (ISO-8601 UTC). ts_ms is the same instant as unix ms",
-	"# status=ok|stall  stall means idle_ms >= 15000 (last call finished, nothing since)",
+	"# status=ok|stall|in_flight  in_flight = a request is on the wire; stall = idle_ms >= 15000 after the last call returned",
 	"# done/total       entity index / how many entities",
 	"# phase            load|auth|seed|test|teardown|done",
 	"# check            check id (empty when not in a check)",
-	"# msg              phase note (seeding, spec URL, teardown count)",
+	"# msg              phase note (seeding, spec URL, teardown count). Not set to in-flight — that is status",
 	"# req_id           x-request-id / request-id / x-correlation-id / correlation-id on that call (empty if none)",
-	"# last_at          wall clock of that call (ISO-8601 UTC)",
-	"# last_ms          duration of the last HTTP call",
-	"# req_b / res_b    reconstructed HTTP/1.1 size (start line + headers + body) of that call",
-	"# idle_ms          ms since that call returned — if this climbs, the run is stuck",
+	"# last_at          wall clock of that call (ISO-8601 UTC). While in_flight, when fetch started",
+	"# last_ms          duration of the last completed HTTP call. Empty (-) while in_flight",
+	"# req_b / res_b    reconstructed HTTP/1.1 size (start line + headers + body) of that call. res_b is empty while in_flight",
+	"# idle_ms          while in_flight: ms since this request started. otherwise ms since the last call returned",
 	"# elapsed_ms       wall clock since oat started",
 ].join("\n")
 
@@ -133,13 +145,14 @@ export function formatProgressTsv(snap: ProgressSnapshot, now = Date.now()): str
 
 export function formatProgressJsonl(snap: ProgressSnapshot, now = Date.now()): string {
 	const f = fields(snap, now)
+	const inflight = snap.inflight !== undefined
 	return JSON.stringify({
 		check: f.check === "-" ? null : f.check,
 		done: snap.entityIndex ?? null,
 		elapsed_ms: Number(f.elapsed_ms),
 		entity: snap.entity ?? null,
 		find: snap.findings,
-		http: snap.last?.status ?? null,
+		http: inflight ? null : (snap.last?.status ?? null),
 		idle_ms: f.idle_ms === "-" ? null : Number(f.idle_ms),
 		last_at: f.last_at === "-" ? null : f.last_at,
 		last_ms: f.last_ms === "-" ? null : Number(f.last_ms),
@@ -158,49 +171,73 @@ export function formatProgressJsonl(snap: ProgressSnapshot, now = Date.now()): s
 	})
 }
 
-export function createStderrProgress(startedAt = Date.now()): {
+export function progressEventKey(snap: ProgressSnapshot): string {
+	const inflight = snap.inflight === undefined ? "" : `${snap.inflight.method} ${snap.inflight.url} ${snap.inflight.at}`
+	const finished = snap.last === undefined ? "" : String(snap.last.at)
+	return `${snap.phase}|${snap.entity ?? ""}|${snap.check ?? ""}|${snap.message ?? ""}|${inflight}|${finished}`
+}
+
+/**
+ * Deduped writer plus a 5s heartbeat. The heartbeat re-formats `latest` at `now` so
+ * `idle_ms` climbs on the in-flight request (or on the last completed call after return).
+ */
+export function createProgressPump(
+	startedAt: number,
+	write: (snap: ProgressSnapshot, now: number) => void,
+): {
 	emit: ProgressHandler
 	stop: () => void
 } {
 	let latest: ProgressSnapshot | undefined
 	let lastKey = ""
 	let lastWrite = 0
-	let headed = false
 
-	const write = (snap: ProgressSnapshot): void => {
-		if (!headed) {
-			headed = true
-			process.stderr.write(`${PROGRESS_GLOSSARY}\n`)
-		}
-		process.stderr.write(`${formatProgressLine(snap)}\n`)
-		lastWrite = Date.now()
+	const flush = (snap: ProgressSnapshot): void => {
+		const now = Date.now()
+		write(snap, now)
+		lastWrite = now
 	}
 
 	const timer = setInterval(() => {
 		if (latest === undefined) return
-		write({ ...latest, elapsedMs: Date.now() - startedAt })
+		flush({ ...latest, elapsedMs: Date.now() - startedAt })
 	}, HEARTBEAT_MS)
 	timer.unref()
 
 	return {
 		emit(snap) {
 			latest = snap
-			const key = `${snap.phase}|${snap.entity ?? ""}|${snap.check ?? ""}|${snap.message ?? ""}`
+			const key = progressEventKey(snap)
 			const keyChanged = key !== lastKey
 			lastKey = key
-			const stalled = snap.last !== undefined && Date.now() - snap.last.at >= STALL_MS
+			const stalled = snap.inflight === undefined && snap.last !== undefined && Date.now() - snap.last.at >= STALL_MS
 			const force =
 				snap.phase === "done" ||
 				snap.phase === "load" ||
 				snap.phase === "auth" ||
+				snap.inflight !== undefined ||
 				(snap.phase === "seed" && snap.check === undefined)
 			const due = Date.now() - lastWrite >= 2_000
-			if (force || keyChanged || stalled || due) write(snap)
+			if (force || keyChanged || stalled || due) flush(snap)
 		},
 		stop() {
 			clearInterval(timer)
 		},
 	}
+}
+
+export function createStderrProgress(startedAt = Date.now()): {
+	emit: ProgressHandler
+	stop: () => void
+} {
+	let headed = false
+	return createProgressPump(startedAt, (snap, now) => {
+		if (!headed) {
+			headed = true
+			process.stderr.write(`${PROGRESS_GLOSSARY}\n`)
+		}
+		process.stderr.write(`${formatProgressLine(snap, now)}\n`)
+	})
 }
 
 function fields(
@@ -227,6 +264,31 @@ function fields(
 	idle_ms: string
 	elapsed_ms: string
 } {
+	const inflight = snap.inflight
+	if (inflight !== undefined) {
+		const requestId = inflight.requestId
+		return {
+			check: snap.check ?? "-",
+			done: snap.entityIndex === undefined ? "-" : String(snap.entityIndex),
+			elapsed_ms: String(Math.max(0, Math.round(snap.elapsedMs))),
+			entity: snap.entity ?? "-",
+			find: String(snap.findings),
+			http: "-",
+			idle_ms: String(Math.max(0, now - inflight.at)),
+			last_at: new Date(inflight.at).toISOString(),
+			last_ms: "-",
+			method: inflight.method,
+			req_id: requestId === undefined || requestId === "" ? "-" : requestId,
+			req_b: inflight.requestBytes === undefined ? "-" : String(inflight.requestBytes),
+			res_b: "-",
+			msg: snap.message ?? "-",
+			path: requestPath(inflight.url),
+			phase: snap.phase,
+			req: String(snap.requests),
+			status: "in_flight",
+			total: snap.entityTotal === undefined ? "-" : String(snap.entityTotal),
+		}
+	}
 	const stalled = snap.last !== undefined && now - snap.last.at >= STALL_MS
 	return {
 		check: snap.check ?? "-",

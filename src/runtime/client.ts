@@ -39,6 +39,20 @@ export interface BoundAuth {
 	refreshIfStale: (force?: boolean) => Promise<void>
 }
 
+/** Fired around `fetch` — start is on the wire, end is return or throw. */
+export interface RequestStart {
+	method: string
+	url: string
+	at: number
+	requestId: string
+	requestBytes: number
+}
+
+export interface HttpHooks {
+	start?: (probe: RequestStart) => void
+	end?: (probe: RequestStart) => void
+}
+
 export interface RequestOptions {
 	headers?: Record<string, string> | (() => Record<string, string>)
 	query?: Record<string, string | number | undefined>
@@ -81,6 +95,8 @@ export class Client {
 		private readonly onExchange?: (exchange: Exchange) => void,
 		/** Paces requests per declared category. `undefined` when nothing is configured. */
 		private readonly rateLimiter?: RateLimiter,
+		/** Observes each dispatch. `start` runs just before `fetch`; `end` always follows. */
+		private readonly httpHooks?: HttpHooks,
 	) {}
 
 	private resolveHeaders: ((request: HeaderRequest) => Promise<Record<string, string> | null>) | undefined
@@ -163,10 +179,22 @@ export class Client {
 			try {
 				if (tagged !== undefined) rateLimitHadRoom = await this.rateLimiter?.acquire(tagged)
 				else if (implicit !== undefined) rateLimitHadRoom = await this.rateLimiter?.waitImplicit(verb)
+				const probe: RequestStart = {
+					at: Date.now(),
+					method: verb,
+					requestBytes: requestMessageBytes(verb, url, headers, encoded.bytes, encoded.text),
+					requestId: requestIdOf(headers, {}),
+					url: url.toString(),
+				}
+				this.httpHooks?.start?.(probe)
 				started = performance.now()
-				response = await fetch(url, init)
-				text = await response.text()
-				at = Date.now()
+				try {
+					response = await fetch(url, init)
+					text = await response.text()
+					at = Date.now()
+				} finally {
+					this.httpHooks?.end?.(probe)
+				}
 			} finally {
 				this.release()
 			}

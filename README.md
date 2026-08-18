@@ -1592,25 +1592,27 @@ curl -sS -X PATCH "$BASE/v1/products/p1" \
 
 `progress.log` starts with a glossary. Fields:
 
-| key                        |                                                              |
-| -------------------------- | ------------------------------------------------------------ |
-| `ts`                       | ISO-8601 UTC when the line was written                       |
-| `status`                   | `ok` or `stall` (`idle_ms` ≥ 15000)                          |
-| `done` / `total`           | entity index / how many entities                             |
-| `phase`                    | `load` \| `auth` \| `seed` \| `test` \| `teardown` \| `done` |
-| `entity` / `check`         | current entity and check id                                  |
-| `msg`                      | phase note                                                   |
-| `req` / `find`             | request count, finding count                                 |
-| `method` / `path` / `http` | last HTTP call                                               |
-| `last_ms`                  | duration of that call                                        |
-| `idle_ms`                  | ms since it returned — if this climbs, the run is stuck      |
-| `elapsed_ms`               | wall clock since start                                       |
+| key                        |                                                                                  |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| `ts`                       | ISO-8601 UTC when the line was written                                           |
+| `status`                   | `ok`, `stall` (`idle_ms` ≥ 15000 after the last call returned), or `in_flight`   |
+| `done` / `total`           | entity index / how many entities                                                 |
+| `phase`                    | `load` \| `auth` \| `seed` \| `test` \| `teardown` \| `done`                     |
+| `entity` / `check`         | current entity and check id                                                      |
+| `msg`                      | phase note. In-flight is `status`, not `msg`                                     |
+| `req` / `find`             | request count, finding count                                                     |
+| `method` / `path` / `http` | last completed call, or the in-flight call when `status=in_flight` (`http=-`)    |
+| `last_ms`                  | duration of the last completed call. `-` while `in_flight`                       |
+| `idle_ms`                  | while `in_flight`: ms since this request started. otherwise ms since it returned |
+| `elapsed_ms`               | wall clock since start                                                           |
 
 `--quiet` keeps the files and drops stderr.
 
-Lines are written when the phase/entity/check/message changes, or every 2 s, or on `load`/`done`. `progress.json` is rewritten about once a second.
+Every HTTP call emits a **start** line (`status=in_flight`, `http=-`, `last_ms=-`) when `fetch` is issued, then a **completed** line when it returns (`http=200`, `last_ms` ≈ wall time, `idle_ms=0`). The 5 s heartbeat keeps the in-flight path and climbs `idle_ms` until the call returns; after return it climbs on the completed call (and becomes `stall` at 15 s). A 300 s `POST /extract` therefore stays `/extract` in the log, not the previous refresh or GET.
 
-If `idle_ms` climbs through a long poll (`x-async`) that is expected. If it climbs on a simple GET, the process or the network is stuck. oat's own `fetch` has **no timeout**.
+Lines are also written when the phase/entity/check/message changes, or every 2 s, or on `load`/`done`. `progress.json` is rewritten about once a second.
+
+If `idle_ms` climbs through a long poll (`x-async`) that is expected. If it climbs on a simple GET while `status` is not `in_flight`, the process or the network is stuck. oat's own `fetch` has **no timeout**.
 
 ## Programmatic API
 
@@ -1639,7 +1641,7 @@ const result = await run({
 	seed: 1,
 	maxInFlight: 4,
 	onProgress: (snap) => {
-		// snap.phase, snap.entity, snap.check, snap.message, …
+		// snap.phase, snap.entity, snap.check, snap.inflight, snap.last, snap.message, …
 	},
 })
 
@@ -1761,7 +1763,7 @@ oat run --config labs/local.config.ts --base-url <url>
 
 These are deliberate. An agent should not invent a flag for them.
 
-- **No request timeout.** `fetch` waits until the server answers. Watch `idle_ms`.
+- **No request timeout.** `fetch` waits until the server answers. Watch `status=in_flight` and `idle_ms` on that request.
 - **No retry on 5xx / 429.** One 401 → force refresh + single retry. A second 401 is evidence.
 - **No OpenAPI `security`.** Put credentials in `principals`. Cookie auth is a `headers: { cookie: "…" }` (or a flow that sets that header).
 - **No `servers[]`.** Always set `baseUrl`. Extra hosts are `origins[]`, each with its own `spec`.
