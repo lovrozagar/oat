@@ -163,7 +163,11 @@ export function renderMarkdown(input: ReportInput): string {
 		for (const finding of group) {
 			const entityLabel =
 				finding.origin === undefined || finding.origin === "" ? finding.entity : `${finding.origin}/${finding.entity}`
-			lines.push(`### ${entityLabel} — ${finding.summary}`)
+			const subject =
+				finding.fixture !== undefined && finding.fixture !== "" && !entityLabel.includes(" · ")
+					? `${entityLabel} · ${finding.fixture}`
+					: entityLabel
+			lines.push(`### ${subject} — ${finding.summary}`)
 			lines.push("")
 			lines.push(`\`${finding.check}\``)
 			lines.push("")
@@ -439,7 +443,11 @@ export function renderConsole(input: ReportInput): string {
 		for (const finding of group) {
 			const entityLabel =
 				finding.origin === undefined || finding.origin === "" ? finding.entity : `${finding.origin}/${finding.entity}`
-			lines.push(`    ${entityLabel.padEnd(16)} ${finding.summary}`)
+			const subject =
+				finding.fixture !== undefined && finding.fixture !== "" && !entityLabel.includes(" · ")
+					? `${entityLabel} · ${finding.fixture}`
+					: entityLabel
+			lines.push(`    ${subject.padEnd(16)} ${finding.summary}`)
 			lines.push(`    ${"".padEnd(16)} ${finding.check}`)
 		}
 		lines.push("")
@@ -512,6 +520,7 @@ export function renderJson(input: ReportInput): string {
 				check: finding.check,
 				detail: finding.detail,
 				entity: finding.entity,
+				...(finding.fixture === undefined ? {} : { fixture: finding.fixture }),
 				evidence: finding.evidence.map((exchange) => ({
 					at: new Date(exchange.at).toISOString(),
 					durationMs: exchange.durationMs,

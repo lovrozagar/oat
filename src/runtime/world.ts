@@ -11,6 +11,7 @@ import type { OperationModel, SpecModel } from "../spec/graph.ts"
 import { requestContent } from "../spec/collection.ts"
 import { owningEntityName } from "../spec/graph.ts"
 import { encodeForOperation } from "./body.ts"
+import { forEachInvocation } from "./upload-each.ts"
 import type { Client, Exchange } from "./client.ts"
 import { type CohortMember, buildCohort, isOverflowError, overflowFrom } from "./fixture.ts"
 import { describeFeatureGate, isDocumentedFeatureGateDenial } from "./feature-gate.ts"
@@ -275,51 +276,72 @@ export async function seedCohort(
 	}
 	const records: Record_[] = []
 	const path = fillPath(createOp.path, scope.values)
+	const uploads = uploadContext(options)
+	const seededMembers: CohortMember[] = []
 
-	for (const member of members) {
-		const encoded = await encodeForOperation(
-			createOp,
-			model,
-			member.body,
-			uploadContext(options),
-			member.variant,
-			records.length,
-		)
-		const exchange = await client.request("POST", path, {
+	const postMember = async (member: CohortMember, nextUploads: typeof uploads): Promise<Exchange> => {
+		const encoded = await encodeForOperation(createOp, model, member.body, nextUploads, member.variant, records.length)
+		return client.request("POST", path, {
 			body: encoded.body,
 			...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),
 			headers: options.authHeaders,
 			operationId: createOp.operationId,
 		})
-		if (exchange.status >= 300) {
-			/* Partial cohorts are still useful — a single rejected variant should not cost the
-			 * entity all of its coverage. Only a completely empty cohort is fatal. */
-			if (records.length > 0) break
-			if (isDocumentedFeatureGateDenial(createOp, exchange.status, exchange.responseBody)) {
-				return {
-					featureGate: {
-						detail: describeFeatureGate(createOp, exchange.responseBody),
-						exchange,
-						key: createOp.featureGate as string,
-					},
-					members,
-					records,
-				}
-			}
-			if (isPlanLimitResponse(exchange.status, exchange.responseBody)) {
-				const adopted = await adoptExisting(createOp, model, client, options, scope)
-				if (adopted !== null) return { adopted: true, featureGate: null, members, records: [adopted] }
-			}
-			throw new SeedError(
-				createOp.operationId,
-				`seeding "${member.variant}" returned ${exchange.status}: ` +
-					JSON.stringify(exchange.responseBody).slice(0, 300),
-				exchange.status,
-			)
-		}
-		records.push((exchange.responseBody ?? {}) as Record_)
 	}
-	return { featureGate: null, members, records }
+
+	const failOrAdopt = async (member: CohortMember, exchange: Exchange): Promise<SeededCohort | null> => {
+		if (records.length > 0) return { featureGate: null, members: seededMembers, records }
+		if (isDocumentedFeatureGateDenial(createOp, exchange.status, exchange.responseBody)) {
+			return {
+				featureGate: {
+					detail: describeFeatureGate(createOp, exchange.responseBody),
+					exchange,
+					key: createOp.featureGate as string,
+				},
+				members: seededMembers,
+				records,
+			}
+		}
+		if (isPlanLimitResponse(exchange.status, exchange.responseBody)) {
+			const adopted = await adoptExisting(createOp, model, client, options, scope)
+			if (adopted !== null) return { adopted: true, featureGate: null, members: seededMembers, records: [adopted] }
+		}
+		throw new SeedError(
+			createOp.operationId,
+			`seeding "${member.variant}" returned ${exchange.status}: ` + JSON.stringify(exchange.responseBody).slice(0, 300),
+			exchange.status,
+		)
+	}
+
+	let lastFail: { member: CohortMember; exchange: Exchange } | undefined
+	const outcomes = await forEachInvocation(createOp.operationId, uploads, async (nextUploads, slot) => {
+		if (slot !== undefined) {
+			const [baseline] = members
+			const member = baseline ?? { body: {}, variant: "baseline" as const }
+			const exchange = await postMember(member, nextUploads)
+			if (exchange.status >= 300) {
+				lastFail = { exchange, member }
+				return null
+			}
+			seededMembers.push(member)
+			records.push((exchange.responseBody ?? {}) as Record_)
+			return null
+		}
+		for (const member of members) {
+			const exchange = await postMember(member, nextUploads)
+			if (exchange.status >= 300) return failOrAdopt(member, exchange)
+			seededMembers.push(member)
+			records.push((exchange.responseBody ?? {}) as Record_)
+		}
+		return null
+	})
+	const early = outcomes.find((outcome) => outcome !== null)
+	if (early !== undefined) return early
+	if (records.length === 0 && lastFail !== undefined) {
+		const failed = await failOrAdopt(lastFail.member, lastFail.exchange)
+		if (failed !== null) return failed
+	}
+	return { featureGate: null, members: seededMembers.length > 0 ? seededMembers : members, records }
 }
 
 /**

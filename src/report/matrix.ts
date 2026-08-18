@@ -387,7 +387,9 @@ function statusFor(entity: string, id: string, parts: MatrixParts): CellStatus {
 }
 
 function matchesEntity(value: string | undefined, entity: string): boolean {
-	return value === undefined || value === entity
+	if (value === undefined || value === entity) return true
+	const head = value.split(" · ")[0] ?? ""
+	return head === entity || head.startsWith(`${entity}.`)
 }
 
 function invalidateLinks(model: SpecModel): InvalidateLink[] {

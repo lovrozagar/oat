@@ -16,6 +16,13 @@ export interface UploadContext {
 	resolveUpload?: Hooks["resolveUpload"]
 	resolveInput?: Hooks["resolveInput"]
 	warn?: (message: string) => void
+	/** Active `uploads.each` slot for this invocation. */
+	fixture?: {
+		path: string
+		filename: string
+		index: number
+		total: number
+	}
 }
 
 const warned = new Set<string>()
@@ -27,6 +34,9 @@ export async function resolveUploadFile(request: UploadRequest, context: UploadC
 		if (isUploadFile(resolved)) return resolved
 		/* `{ fields }` is handled by the body encoder, which calls the hook first. */
 	}
+
+	const fromEach = await fileFromFixtureSlot(request, context)
+	if (fromEach !== undefined) return fromEach
 
 	const fromPool = await pickFromPool(request, context)
 	if (fromPool !== undefined) return fromPool
@@ -40,6 +50,24 @@ export async function resolveUploadFile(request: UploadRequest, context: UploadC
 	if (request.contentMediaType !== undefined) dummy.contentMediaType = request.contentMediaType
 	if (request.filename !== undefined) dummy.filename = request.filename
 	return dummyFile(dummy)
+}
+
+async function fileFromFixtureSlot(request: UploadRequest, context: UploadContext): Promise<UploadFile | undefined> {
+	const slot = request.fixture ?? context.fixture
+	if (slot === undefined) return undefined
+	try {
+		const bytes = new Uint8Array(await readFile(slot.path))
+		const sniffed = sniffMediaType(bytes, slot.filename)
+		const byExt = mediaTypeOfExtension(extOf(slot.filename))
+		return {
+			bytes,
+			filename: slot.filename,
+			mediaType: sniffed ?? byExt ?? "application/octet-stream",
+		}
+	} catch {
+		warnOnce(`uploads.each could not read ${slot.path}`, context.warn)
+		return undefined
+	}
 }
 
 export async function resolveUploadOverride(request: UploadRequest, context: UploadContext): Promise<UploadResolution> {
@@ -154,7 +182,12 @@ export function resetUploadPool(): void {
 	warned.clear()
 }
 
-async function expandPattern(pattern: string, root: string, warn?: (message: string) => void): Promise<string[]> {
+export async function expandPattern(
+	pattern: string,
+	root: string,
+	warn?: (message: string) => void,
+	label = "uploads.pool",
+): Promise<string[]> {
 	const absolute = resolve(root, pattern)
 	try {
 		const info = await stat(absolute)
@@ -165,7 +198,7 @@ async function expandPattern(pattern: string, root: string, warn?: (message: str
 	}
 
 	if (!/[?*]/.test(pattern)) {
-		warnOnce(`uploads.pool path not found: ${pattern}`, warn)
+		warnOnce(`${label} path not found: ${pattern}`, warn)
 		return []
 	}
 
@@ -174,11 +207,11 @@ async function expandPattern(pattern: string, root: string, warn?: (message: str
 	try {
 		const info = await stat(base)
 		if (!info.isDirectory()) {
-			warnOnce(`uploads.pool path not found: ${pattern}`, warn)
+			warnOnce(`${label} path not found: ${pattern}`, warn)
 			return []
 		}
 	} catch {
-		warnOnce(`uploads.pool path not found: ${pattern}`, warn)
+		warnOnce(`${label} path not found: ${pattern}`, warn)
 		return []
 	}
 

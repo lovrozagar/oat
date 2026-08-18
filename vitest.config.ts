@@ -13,6 +13,7 @@ export default defineConfig({
 				"src/runtime/wait.ts",
 				"src/spec/query-capabilities.ts",
 				"src/runtime/query-capabilities.ts",
+				"src/runtime/upload-each.ts",
 			],
 			thresholds: {
 				lines: 100,

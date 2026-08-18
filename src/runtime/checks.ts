@@ -36,6 +36,7 @@ import { resolveOutOfBandValue } from "./auth.ts"
 import { buildCohort } from "./fixture.ts"
 import type { BackoffConfig } from "./poll.ts"
 import type { UploadContext } from "./upload.ts"
+import { forEachInvocation } from "./upload-each.ts"
 import type { SchemaValidator } from "./validate.ts"
 import { driveWait } from "./wait.ts"
 import { type Record_, fillPath } from "./world.ts"
@@ -4020,6 +4021,11 @@ function bodyForOp(ctx: CheckContext, op: OperationModel): Record<string, unknow
 	return body
 }
 
+function subject(entity: string, operationId: string, fixture?: string): string {
+	if (fixture === undefined) return entity
+	return `${operationId} · ${fixture}`
+}
+
 function requestSchemaOf(ctx: CheckContext, op: OperationModel): Record<string, unknown> | null {
 	const raw = ctx.model.rawOperations.get(op.operationId)
 	const picked = raw === undefined ? null : requestContent(raw)
@@ -4032,8 +4038,9 @@ async function encodeOpBody(
 	fields: Record<string, unknown>,
 	variant = "baseline",
 	index = 0,
+	uploads: UploadContext = ctx.uploads,
 ): Promise<Pick<RequestOptions, "body" | "contentType">> {
-	const encoded = await encodeForOperation(op, ctx.model, fields, ctx.uploads, variant, index)
+	const encoded = await encodeForOperation(op, ctx.model, fields, uploads, variant, index)
 	return encoded.contentType === undefined
 		? { body: encoded.body }
 		: { body: encoded.body, contentType: encoded.contentType }
@@ -4373,76 +4380,82 @@ const declaredEffectsOccur: Check = {
 				const listOp = ctx.model.byOperationId.get(listId)
 				if (listOp === undefined) continue
 
-				const before = await observe(ctx, listOp)
-				if (before === null) continue
+				await forEachInvocation(op.operationId, ctx.uploads, async (uploads, slot) => {
+					const before = await observe(ctx, listOp)
+					if (before === null) return
+					const fixture = slot?.filename
 
-				const body = op.hasRequestBody ? bodyForOp(ctx, op) : undefined
-				const invoked = await ctx.client.request(op.method, fillPath(op.path, ctx.scope), {
-					headers: ctx.auth(),
-					...(body === undefined ? {} : await encodeOpBody(ctx, op, body)),
+					const body = op.hasRequestBody ? bodyForOp(ctx, op) : undefined
+					const invoked = await ctx.client.request(op.method, fillPath(op.path, ctx.scope), {
+						headers: ctx.auth(),
+						...(body === undefined ? {} : await encodeOpBody(ctx, op, body, "baseline", 0, uploads)),
+					})
+					if (standDownForFeatureGate(ctx, op, invoked, this.id)) return
+					if (standDownForRateLimit(ctx, invoked, this.id)) return
+					if (invoked.status >= 400) {
+						ctx.findings.gap(
+							this.id,
+							subject(ctx.entityName, op.operationId, fixture),
+							`${op.operationId} could not be invoked`,
+							`returned ${invoked.status}; its declared effects are unverified`,
+							fixture,
+						)
+						return
+					}
+
+					const after = await observe(ctx, listOp)
+					if (after === null) return
+
+					const expected = effect.count ?? 1
+					const delta = after.ids.length - before.ids.length
+					const added = after.ids.filter((id) => !before.ids.includes(id))
+					const removed = before.ids.filter((id) => !after.ids.includes(id))
+
+					const wanted =
+						effect.op === "create" || effect.op === "append" ? expected : effect.op === "delete" ? -expected : 0
+
+					if (effect.op === "create" || effect.op === "append") {
+						if (delta === wanted && added.length === expected) return
+						ctx.findings.backend(
+							this.id,
+							subject(ctx.entityName, op.operationId, fixture),
+							`${op.operationId} did not produce the "${effect.entity}" records it declares`,
+							`x-effects declares ${effect.op} × ${expected} on "${effect.entity}", but the ` +
+								`collection went from ${before.ids.length} to ${after.ids.length} ` +
+								`(${added.length} added, ${removed.length} removed). A declared effect that does ` +
+								"not occur means callers cannot rely on the operation having done anything.",
+							[invoked, after.exchange],
+							fixture,
+						)
+						return
+					}
+
+					if (effect.op === "delete") {
+						if (delta === wanted && removed.length === expected) return
+						ctx.findings.backend(
+							this.id,
+							subject(ctx.entityName, op.operationId, fixture),
+							`${op.operationId} did not remove the "${effect.entity}" records it declares`,
+							`x-effects declares delete × ${expected} on "${effect.entity}", but the collection ` +
+								`went from ${before.ids.length} to ${after.ids.length}`,
+							[invoked, after.exchange],
+							fixture,
+						)
+						return
+					}
+
+					if (delta !== 0) {
+						ctx.findings.backend(
+							this.id,
+							subject(ctx.entityName, op.operationId, fixture),
+							`${op.operationId} changed the size of "${effect.entity}" while declaring ${effect.op}`,
+							`x-effects declares ${effect.op}, which must not add or remove records, but the ` +
+								`collection went from ${before.ids.length} to ${after.ids.length}`,
+							[invoked, after.exchange],
+							fixture,
+						)
+					}
 				})
-				if (standDownForFeatureGate(ctx, op, invoked, this.id)) continue
-				if (standDownForRateLimit(ctx, invoked, this.id)) continue
-				if (invoked.status >= 400) {
-					ctx.findings.gap(
-						this.id,
-						ctx.entityName,
-						`${op.operationId} could not be invoked`,
-						`returned ${invoked.status}; its declared effects are unverified`,
-					)
-					continue
-				}
-
-				const after = await observe(ctx, listOp)
-				if (after === null) continue
-
-				const expected = effect.count ?? 1
-				const delta = after.ids.length - before.ids.length
-				const added = after.ids.filter((id) => !before.ids.includes(id))
-				const removed = before.ids.filter((id) => !after.ids.includes(id))
-
-				const wanted =
-					effect.op === "create" || effect.op === "append" ? expected : effect.op === "delete" ? -expected : 0
-
-				if (effect.op === "create" || effect.op === "append") {
-					if (delta === wanted && added.length === expected) continue
-					ctx.findings.backend(
-						this.id,
-						ctx.entityName,
-						`${op.operationId} did not produce the "${effect.entity}" records it declares`,
-						`x-effects declares ${effect.op} × ${expected} on "${effect.entity}", but the ` +
-							`collection went from ${before.ids.length} to ${after.ids.length} ` +
-							`(${added.length} added, ${removed.length} removed). A declared effect that does ` +
-							"not occur means callers cannot rely on the operation having done anything.",
-						[invoked, after.exchange],
-					)
-					continue
-				}
-
-				if (effect.op === "delete") {
-					if (delta === wanted && removed.length === expected) continue
-					ctx.findings.backend(
-						this.id,
-						ctx.entityName,
-						`${op.operationId} did not remove the "${effect.entity}" records it declares`,
-						`x-effects declares delete × ${expected} on "${effect.entity}", but the collection ` +
-							`went from ${before.ids.length} to ${after.ids.length}`,
-						[invoked, after.exchange],
-					)
-					continue
-				}
-
-				/* update and replace change content, not cardinality. */
-				if (delta !== 0) {
-					ctx.findings.backend(
-						this.id,
-						ctx.entityName,
-						`${op.operationId} changed the size of "${effect.entity}" while declaring ${effect.op}`,
-						`x-effects declares ${effect.op}, which must not add or remove records, but the ` +
-							`collection went from ${before.ids.length} to ${after.ids.length}`,
-						[invoked, after.exchange],
-					)
-				}
 			}
 		}
 	},
@@ -4473,47 +4486,52 @@ const sideEffectArrives: Check = {
 				continue
 			}
 
-			const body = op.hasRequestBody ? bodyForOp(ctx, op) : undefined
-			const invoked = await ctx.client.request(op.method, fillPath(op.path, ctx.scope), {
-				headers: ctx.auth(),
-				operationId: op.operationId,
-				...(body === undefined ? {} : await encodeOpBody(ctx, op, body)),
-			})
-			if (standDownForFeatureGate(ctx, op, invoked, this.id)) continue
-			if (standDownForRateLimit(ctx, invoked, this.id)) continue
-			if (invoked.status >= 400) {
-				ctx.findings.gap(
-					this.id,
-					ctx.entityName,
-					`${op.operationId} could not be invoked`,
-					`returned ${invoked.status}; its declared x-wait is unverified`,
-				)
-				continue
-			}
+			await forEachInvocation(op.operationId, ctx.uploads, async (uploads, slot) => {
+				const fixture = slot?.filename
+				const body = op.hasRequestBody ? bodyForOp(ctx, op) : undefined
+				const invoked = await ctx.client.request(op.method, fillPath(op.path, ctx.scope), {
+					headers: ctx.auth(),
+					operationId: op.operationId,
+					...(body === undefined ? {} : await encodeOpBody(ctx, op, body, "baseline", 0, uploads)),
+				})
+				if (standDownForFeatureGate(ctx, op, invoked, this.id)) return
+				if (standDownForRateLimit(ctx, invoked, this.id)) return
+				if (invoked.status >= 400) {
+					ctx.findings.gap(
+						this.id,
+						subject(ctx.entityName, op.operationId, fixture),
+						`${op.operationId} could not be invoked`,
+						`returned ${invoked.status}; its declared x-wait is unverified`,
+						fixture,
+					)
+					return
+				}
 
-			const outcome = await driveWait({
-				awaitSideEffect: ctx.hooks.awaitSideEffect,
-				client: ctx.client,
-				headers: ctx.auth,
-				pollOp,
-				record: invoked.responseBody,
-				scope: ctx.scope,
-				spec,
-				writeOpId: op.operationId,
-				...(ctx.refreshIfStale === undefined ? {} : { refreshIfStale: ctx.refreshIfStale }),
+				const outcome = await driveWait({
+					awaitSideEffect: ctx.hooks.awaitSideEffect,
+					client: ctx.client,
+					headers: ctx.auth,
+					pollOp,
+					record: invoked.responseBody,
+					scope: ctx.scope,
+					spec,
+					writeOpId: op.operationId,
+					...(ctx.refreshIfStale === undefined ? {} : { refreshIfStale: ctx.refreshIfStale }),
+				})
+				if (!outcome.timedOut) return
+				ctx.findings.backend(
+					this.id,
+					subject(ctx.entityName, op.operationId, fixture),
+					`${op.operationId} side effect did not appear within ${spec.timeoutMs}ms`,
+					`x-wait polls ${spec.operationId}` +
+						(spec.until === undefined ? "" : ` until ${spec.until} is non-empty`) +
+						` and the path was still empty after ${outcome.polls} poll(s) / ${Math.round(outcome.elapsedMs)}ms. ` +
+						"Queue consumers and webhook inboxes are not the same request; a timeout here is a " +
+						"missed delivery, not a coverage gap.",
+					[invoked, ...outcome.exchanges.slice(-2)],
+					fixture,
+				)
 			})
-			if (!outcome.timedOut) continue
-			ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				`${op.operationId} side effect did not appear within ${spec.timeoutMs}ms`,
-				`x-wait polls ${spec.operationId}` +
-					(spec.until === undefined ? "" : ` until ${spec.until} is non-empty`) +
-					` and the path was still empty after ${outcome.polls} poll(s) / ${Math.round(outcome.elapsedMs)}ms. ` +
-					"Queue consumers and webhook inboxes are not the same request; a timeout here is a " +
-					"missed delivery, not a coverage gap.",
-				[invoked, ...outcome.exchanges.slice(-2)],
-			)
 		}
 	},
 }
@@ -4548,86 +4566,95 @@ const asyncReachesTerminalState: Check = {
 			const spec = op.async
 			if (spec === null) continue
 
-			const body = op.hasRequestBody ? bodyForOp(ctx, op) : undefined
-			const start = await ctx.client.request(op.method, fillPath(op.path, ctx.scope), {
-				headers: ctx.auth(),
-				...(body === undefined ? {} : await encodeOpBody(ctx, op, body)),
-			})
-			if (standDownForFeatureGate(ctx, op, start, this.id)) continue
-			if (start.status >= 400) {
-				ctx.findings.gap(
-					this.id,
-					ctx.entityName,
-					`${op.operationId} could not be started`,
-					`returned ${start.status}; the async lifecycle after it is untested`,
-				)
-				continue
-			}
-
-			const streamed = isEventStream(start, op)
-			const fromStream = streamed ? inspectStreamAsync(start.responseBody, spec) : null
-			if (fromStream?.terminal !== null && fromStream?.terminal !== undefined) {
-				if (spec.successWhen !== undefined && !matchesPredicate(fromStream.terminal, spec.successWhen)) {
+			await forEachInvocation(op.operationId, ctx.uploads, async (uploads, slot) => {
+				const fixture = slot?.filename
+				const body = op.hasRequestBody ? bodyForOp(ctx, op) : undefined
+				const start = await ctx.client.request(op.method, fillPath(op.path, ctx.scope), {
+					headers: ctx.auth(),
+					...(body === undefined ? {} : await encodeOpBody(ctx, op, body, "baseline", 0, uploads)),
+				})
+				if (standDownForFeatureGate(ctx, op, start, this.id)) return
+				if (start.status >= 400) {
 					ctx.findings.gap(
 						this.id,
-						ctx.entityName,
+						subject(ctx.entityName, op.operationId, fixture),
+						`${op.operationId} could not be started`,
+						`returned ${start.status}; the async lifecycle after it is untested`,
+						fixture,
+					)
+					return
+				}
+
+				const streamed = isEventStream(start, op)
+				const fromStream = streamed ? inspectStreamAsync(start.responseBody, spec) : null
+				if (fromStream?.terminal !== null && fromStream?.terminal !== undefined) {
+					if (spec.successWhen !== undefined && !matchesPredicate(fromStream.terminal, spec.successWhen)) {
+						ctx.findings.gap(
+							this.id,
+							subject(ctx.entityName, op.operationId, fixture),
+							`${op.operationId} reached a non-success terminal state`,
+							`terminal state did not satisfy "${spec.successWhen}"; downstream effects of ` +
+								"this operation are untested",
+							fixture,
+						)
+					}
+					return
+				}
+
+				const receipt =
+					fromStream?.idRecord !== null && fromStream?.idRecord !== undefined ? fromStream.idRecord : start.responseBody
+				if (streamed && fromStream !== null && (fromStream.id === undefined || fromStream.id === null)) {
+					ctx.findings.backend(
+						this.id,
+						subject(ctx.entityName, op.operationId, fixture),
+						`${op.operationId} job disappeared before completing`,
+						"the stream ended without a terminal frame and without a job id, so the poll route cannot be named.",
+						[start],
+						fixture,
+					)
+					return
+				}
+
+				const outcome = await driveAsync(ctx.client, spec, receipt, ctx.scope, ctx.auth, ctx.refreshIfStale)
+
+				if (outcome.timedOut) {
+					ctx.findings.backend(
+						this.id,
+						subject(ctx.entityName, op.operationId, fixture),
+						`${op.operationId} never reached a terminal state`,
+						`polled ${spec.poll} ${outcome.polls} time(s) over ${Math.round(outcome.elapsedMs)}ms ` +
+							`without satisfying "${spec.until ?? "any terminal state"}". A job that neither ` +
+							"completes nor fails leaves callers polling forever.",
+						[start, ...outcome.exchanges.slice(-2)],
+						fixture,
+					)
+					return
+				}
+
+				if (outcome.terminal === null) {
+					ctx.findings.backend(
+						this.id,
+						subject(ctx.entityName, op.operationId, fixture),
+						`${op.operationId} job disappeared before completing`,
+						`the poll route stopped serving the job after ${outcome.polls} poll(s). A job that ` +
+							"vanishes is indistinguishable from one that never existed.",
+						[start, ...outcome.exchanges.slice(-2)],
+						fixture,
+					)
+					return
+				}
+
+				if (!outcome.succeeded) {
+					ctx.findings.gap(
+						this.id,
+						subject(ctx.entityName, op.operationId, fixture),
 						`${op.operationId} reached a non-success terminal state`,
-						`terminal state did not satisfy "${spec.successWhen}"; downstream effects of ` +
+						`terminal state did not satisfy "${spec.successWhen ?? ""}"; downstream effects of ` +
 							"this operation are untested",
+						fixture,
 					)
 				}
-				continue
-			}
-
-			const receipt =
-				fromStream?.idRecord !== null && fromStream?.idRecord !== undefined ? fromStream.idRecord : start.responseBody
-			if (streamed && fromStream !== null && (fromStream.id === undefined || fromStream.id === null)) {
-				ctx.findings.backend(
-					this.id,
-					ctx.entityName,
-					`${op.operationId} job disappeared before completing`,
-					"the stream ended without a terminal frame and without a job id, so the poll route cannot be named.",
-					[start],
-				)
-				continue
-			}
-
-			const outcome = await driveAsync(ctx.client, spec, receipt, ctx.scope, ctx.auth, ctx.refreshIfStale)
-
-			if (outcome.timedOut) {
-				ctx.findings.backend(
-					this.id,
-					ctx.entityName,
-					`${op.operationId} never reached a terminal state`,
-					`polled ${spec.poll} ${outcome.polls} time(s) over ${Math.round(outcome.elapsedMs)}ms ` +
-						`without satisfying "${spec.until ?? "any terminal state"}". A job that neither ` +
-						"completes nor fails leaves callers polling forever.",
-					[start, ...outcome.exchanges.slice(-2)],
-				)
-				continue
-			}
-
-			if (outcome.terminal === null) {
-				ctx.findings.backend(
-					this.id,
-					ctx.entityName,
-					`${op.operationId} job disappeared before completing`,
-					`the poll route stopped serving the job after ${outcome.polls} poll(s). A job that ` +
-						"vanishes is indistinguishable from one that never existed.",
-					[start, ...outcome.exchanges.slice(-2)],
-				)
-				continue
-			}
-
-			if (!outcome.succeeded) {
-				ctx.findings.gap(
-					this.id,
-					ctx.entityName,
-					`${op.operationId} reached a non-success terminal state`,
-					`terminal state did not satisfy "${spec.successWhen ?? ""}"; downstream effects of ` +
-						"this operation are untested",
-				)
-			}
+			})
 		}
 	},
 }

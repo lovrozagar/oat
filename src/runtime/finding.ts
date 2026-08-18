@@ -18,6 +18,8 @@ export interface Finding {
 	evidence: Exchange[]
 	/** Set when the finding came from a non-primary `origins[]` host. */
 	origin?: string
+	/** Fixture filename when `uploads.each` drove the invocation. */
+	fixture?: string
 }
 
 /**
@@ -34,6 +36,11 @@ export interface Inconclusive {
 	entity: string
 	/** Why no verdict was reachable, in the reader's terms. */
 	reason: string
+}
+
+function withFixture(finding: Finding, fixture?: string): Finding {
+	if (fixture === undefined || fixture === "") return finding
+	return { ...finding, fixture }
 }
 
 export class FindingCollector {
@@ -54,20 +61,34 @@ export class FindingCollector {
 		this.findings.push(finding)
 	}
 
-	backend(check: string, entity: string, summary: string, detail: string, evidence: Exchange[]): void {
-		this.report({ check, detail, entity, evidence, summary, verdict: "BACKEND_BUG" })
+	backend(
+		check: string,
+		entity: string,
+		summary: string,
+		detail: string,
+		evidence: Exchange[],
+		fixture?: string,
+	): void {
+		this.report(withFixture({ check, detail, entity, evidence, summary, verdict: "BACKEND_BUG" }, fixture))
 	}
 
-	security(check: string, entity: string, summary: string, detail: string, evidence: Exchange[]): void {
-		this.report({ check, detail, entity, evidence, summary, verdict: "SECURITY" })
+	security(
+		check: string,
+		entity: string,
+		summary: string,
+		detail: string,
+		evidence: Exchange[],
+		fixture?: string,
+	): void {
+		this.report(withFixture({ check, detail, entity, evidence, summary, verdict: "SECURITY" }, fixture))
 	}
 
-	spec(check: string, entity: string, summary: string, detail: string, evidence: Exchange[]): void {
-		this.report({ check, detail, entity, evidence, summary, verdict: "SPEC_BUG" })
+	spec(check: string, entity: string, summary: string, detail: string, evidence: Exchange[], fixture?: string): void {
+		this.report(withFixture({ check, detail, entity, evidence, summary, verdict: "SPEC_BUG" }, fixture))
 	}
 
-	gap(check: string, entity: string, summary: string, detail: string): void {
-		this.report({ check, detail, entity, evidence: [], summary, verdict: "COVERAGE_GAP" })
+	gap(check: string, entity: string, summary: string, detail: string, fixture?: string): void {
+		this.report(withFixture({ check, detail, entity, evidence: [], summary, verdict: "COVERAGE_GAP" }, fixture))
 	}
 
 	blocked(check: string, entity: string, summary: string, cause: string): void {

@@ -103,7 +103,7 @@ The first principal is the writer. Isolation needs a second principal with diffe
 
 oat never needs ground truth about your data. A filter and its negation must partition the set; a page walk must cover the collection; a record read four ways must read the same.
 
-oat does **not** use OpenAPI `security` / `securitySchemes`, `servers[]`, cookies, webhooks, callbacks, or `links`. Auth is the config. The primary origin is `baseUrl`. Extra hosts go in `origins[]`, each with its own spec — do not merge them into the primary document. Request bodies follow the document: JSON, `multipart/form-data` (scalars + dummy / pool / `resolveUpload` files), or `application/x-www-form-urlencoded`. `hooks.resolveInput` can replace a generated JSON field (a Stripe test `pm_…`); `hooks.resolveHeaders` can attach a one-shot header (Turnstile) per request.
+oat does **not** use OpenAPI `security` / `securitySchemes`, `servers[]`, cookies, webhooks, callbacks, or `links`. Auth is the config. The primary origin is `baseUrl`. Extra hosts go in `origins[]`, each with its own spec — do not merge them into the primary document. Request bodies follow the document: JSON, `multipart/form-data` (scalars + dummy / pool / `each` / `resolveUpload` files), or `application/x-www-form-urlencoded`. `hooks.resolveInput` can replace a generated JSON field (a Stripe test `pm_…`); `hooks.resolveHeaders` can attach a one-shot header (Turnstile) per request.
 
 ## Quick start
 
@@ -426,7 +426,7 @@ export default defineConfig({
 	baseUrl: "https://api.example.com",
 	principals: [/* at least one; see below */],
 	hooks: {/* optional */},
-	uploads: { pool: ["./fixtures/**/*"] },
+	uploads: { pool: ["./fixtures/**/*"], eachMax: 24 },
 	globalHeaders: { "x-request-id": "oat" }, // sent on every request; oat does not inspect them
 	roots: { org_id: "org_shared" }, // path params oat cannot create; also declarable via x-root
 	seed: 42, // fixture generation; a failing run with the same seed is identical
@@ -462,7 +462,7 @@ export default defineConfig({
 | `baseUrl`       | yes      |                                                | Primary origin. OpenAPI `servers[]` is ignored                                                                         |
 | `principals`    | yes      |                                                | Non-empty. First is the writer                                                                                         |
 | `hooks`         | no       |                                                | See [Hooks](#hooks)                                                                                                    |
-| `uploads`       | no       |                                                | `pool` globs, relative to the config file. JSON configs: pool only                                                     |
+| `uploads`       | no       |                                                | `pool` globs; optional `each` (operationId → globs) and `eachMax`. JSON configs may set all three                      |
 | `globalHeaders` | no       | `{}`                                           | Merged first. `resolveHeaders` then caller headers then auth                                                           |
 | `origins`       | no       | `[]`                                           | Extra `{ id, baseUrl, spec }` hosts. Auth JWT is reused. Do not merge those routes into `spec`                         |
 | `outOfBand`     | no       | `{ attempts: 6, initialMs: 200, maxMs: 3000 }` | Backoff for `resolveOutOfBand` and `resolvePrincipalAuth`. See [Hooks](#hooks)                                         |
@@ -837,9 +837,12 @@ New surface still has to be listed. oat will not silently enable `in` / `ilike` 
 
 Multipart and binary parts are filled in this order:
 
-1. `hooks.resolveUpload` — a non-null return wins (`UploadFile` replaces that field; `{ fields }` replaces the whole request).
-2. `uploads.pool` — first file whose extension / sniffed type matches the part's `contentMediaType`. Same `seed` + field + index → same pick.
-3. A tiny dummy with sniffable magic (`%PDF-1.1`, 1×1 PNG, empty zip, …). Unknown types become 16 octet-stream bytes, not a skip.
+1. `hooks.resolveUpload` — a non-null `UploadFile` wins. `{ fields }` that includes a file part replaces the whole request. `{ fields }` that omits the file part overlays scalars and keeps the each / pool / dummy bytes.
+2. `uploads.each` fixture for this invocation, when that operation is listed.
+3. `uploads.pool` — first file whose extension / sniffed type matches the part's `contentMediaType`. Same `seed` + field + index → same pick. Ops not in `each` stay pick-one.
+4. A tiny dummy with sniffable magic (`%PDF-1.1`, 1×1 PNG, empty zip, …). Unknown types become 16 octet-stream bytes, not a skip.
+
+`uploads.each` is a matrix, not a source. `operationId → globs` means that operation is invoked once per matched file (after `eachMax`). Same seed does **not** collapse `each`. A hook that ignores `request.fixture` and always returns the same file will send that file N times.
 
 ```ts
 export default defineConfig({
@@ -847,13 +850,17 @@ export default defineConfig({
 	baseUrl: "https://api.example.com",
 	principals: [/* … */],
 	uploads: {
-		pool: ["./fixtures/docs/**/*", "./fixtures/images/*.png"],
+		pool: ["./fixtures/**/*"],
+		each: {
+			"extract.once": ["./fixtures/**/*"],
+			"extract.stream": ["./fixtures/**/*"],
+		},
+		eachMax: 24,
 	},
 	hooks: {
-		resolveUpload: async ({ operationId, field }) => {
+		resolveUpload: async ({ operationId, field, fixture }) => {
 			if (operationId === "extract.once" && field === "file") {
-				const bytes = await Deno.readFile("./invoices/known.pdf")
-				return { bytes, filename: "known.pdf", mediaType: "application/pdf" }
+				return { fields: { columns: "vendor,date,amount" } }
 			}
 			return null
 		},
@@ -861,9 +868,21 @@ export default defineConfig({
 })
 ```
 
-A missing pool path warns once and falls through. An empty match uses a dummy. The run does not fail. JSON configs may set `uploads.pool` only — `resolveUpload` is TypeScript.
+| case                            | outcome                                                     |
+| ------------------------------- | ----------------------------------------------------------- |
+| `each` omitted                  | pick-one (today)                                            |
+| glob matches 0 files            | warn once, no extra invocations, fall through to pool/dummy |
+| one path in the list is missing | drop that slot, warn once, never `BACKEND_BUG`              |
+| `eachMax` < match count         | first `eachMax` after sort, warn that it capped             |
+| fixture unreadable              | drop that slot, warn once, not `BACKEND_BUG`                |
 
-oat does not OCR. It sends bytes and checks HTTP / JSON. A 4xx because the dummy is “not a real invoice” is not automatically a backend defect if the dummy matched the declared `contentMediaType`.
+A missing pool path warns once and falls through. An empty pool match uses a dummy. The run does not fail. JSON configs may set `pool`, `each`, and `eachMax`. `resolveUpload` is TypeScript.
+
+`--profile cheap` (or any profile that excludes the op) still drops the whole family. `each` does not punch through a profile.
+
+Findings from an `each` invocation carry `fixture: "invoice.pdf"` and render as `extract.once · invoice.pdf`. One 5xx is one finding on that file.
+
+oat does not OCR. It sends bytes and checks HTTP / JSON. A 200 with empty extract rows is not automatically a backend defect. A 4xx because the dummy is “not a real invoice” is not automatically a backend defect if the dummy matched the declared `contentMediaType`.
 
 Prefer `multipart/form-data` when the operation documents it, even if JSON is also listed. Text form fields still use the string generator (`format` / `pattern` / `maxLength`). A part that is either text or file is sent as a file when the schema is binary.
 
@@ -1934,7 +1953,7 @@ These are deliberate. An agent should not invent a flag for them.
 - **No retry on 5xx / 429.** One 401 → force refresh + single retry. A second 401 is evidence.
 - **No OpenAPI `security`.** Put credentials in `principals`. Cookie auth is a `headers: { cookie: "…" }` (or a flow that sets that header).
 - **No `servers[]`.** Always set `baseUrl`. Extra hosts are `origins[]`, each with its own `spec`.
-- **No OCR.** Multipart and file parts are sent as dummy / pool / `resolveUpload` bytes. oat checks HTTP status and JSON responses, not whether a PDF is a real invoice.
+- **No OCR.** Multipart and file parts are sent as dummy / pool / `each` / `resolveUpload` bytes. oat checks HTTP status and JSON responses, not whether a PDF is a real invoice.
 - **No webhook / callback / link-object following.**
 - **External `$ref`s are not fetched.** In-document `$ref`s are.
 - **`x-idempotent` is not the idempotency check.** The check keys off a documented `Idempotency-Key` header.

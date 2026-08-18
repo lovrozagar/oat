@@ -86,13 +86,17 @@ async function encodeMultipart(options: EncodeOptions): Promise<FormData> {
 	const required = requiredOf(options.schema)
 	const names = filePartNames(properties, required, options)
 	const hookHits = new Map<string, Awaited<ReturnType<typeof resolveUploadOverride>>>()
+	const overlays: Array<Record<string, string | UploadFile>> = []
 	for (const name of names) {
 		const schema = properties[name] ?? additionalSchema(options.schema) ?? {}
 		const resolved = await resolveUploadOverride(uploadRequest(name, schema, options), options.uploads)
 		hookHits.set(name, resolved)
 		if (isFieldOverride(resolved)) {
-			appendFields(form, resolved.fields)
-			return form
+			if (overrideIncludesFile(resolved.fields, names)) {
+				appendFields(form, resolved.fields)
+				return form
+			}
+			overlays.push(resolved.fields)
 		}
 	}
 
@@ -113,7 +117,15 @@ async function encodeMultipart(options: EncodeOptions): Promise<FormData> {
 	}
 
 	await appendAdditionalFile(form, options, sent, required)
+	for (const overlay of overlays) appendFields(form, overlay)
 	return form
+}
+
+function overrideIncludesFile(fields: Record<string, string | UploadFile>, fileNames: string[]): boolean {
+	for (const [name, value] of Object.entries(fields)) {
+		if (isUploadFile(value) && (fileNames.includes(name) || fileNames.length === 0)) return true
+	}
+	return false
 }
 
 function encodeUrlencoded(fields: Record<string, unknown>): URLSearchParams {
@@ -180,6 +192,8 @@ function uploadRequest(name: string, schema: Record<string, unknown>, options: E
 	if (contentMediaType !== undefined) request.contentMediaType = contentMediaType
 	const filename = typeof schema.filename === "string" ? schema.filename : undefined
 	if (filename !== undefined) request.filename = filename
+	const fixture = options.uploads.fixture
+	if (fixture !== undefined) request.fixture = fixture
 	return request
 }
 

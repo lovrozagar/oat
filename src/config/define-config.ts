@@ -224,6 +224,13 @@ export interface UploadRequest {
 	/** Cohort variant. */
 	variant: string
 	index: number
+	/** Set when `uploads.each` is driving this invocation. */
+	fixture?: {
+		path: string
+		filename: string
+		index: number
+		total: number
+	}
 }
 
 export interface UploadFile {
@@ -233,8 +240,10 @@ export interface UploadFile {
 }
 
 /**
- * Exact body or part. `null` falls through to the pool, then a dummy.
- * `UploadFile` replaces that field. `{ fields }` replaces the whole request.
+ * Exact body or part. `null` falls through to each / pool / dummy.
+ * `UploadFile` replaces that field.
+ * `{ fields }` that includes a file part replaces the whole request.
+ * `{ fields }` that omits the file part overlays scalars and keeps each / pool / dummy bytes.
  */
 export type UploadResolution = UploadFile | { fields: Record<string, string | UploadFile> } | null
 
@@ -245,6 +254,14 @@ export interface Uploads {
 	 * Same seed → same pick. Empty match → dummy (do not fail the run).
 	 */
 	pool?: string[]
+	/**
+	 * operationId → globs / paths, relative to the config file.
+	 * Present → that operation is invoked once per matched file (after eachMax).
+	 * Absent → pick-one (resolveUpload → pool → dummy).
+	 */
+	each?: Record<string, string[]>
+	/** Per-operation cap on `each` matches. Default: no cap. */
+	eachMax?: number
 }
 
 export interface Hooks {
@@ -257,8 +274,10 @@ export interface Hooks {
 	 */
 	teardownPrincipal?: (address: string) => Promise<void>
 	/**
-	 * Exact file or whole request. Return `null` to fall through to `uploads.pool`, then a dummy.
-	 * Returning `UploadFile` replaces that field. `{ fields }` replaces the whole request.
+	 * Exact file or whole request. Return `null` to fall through to `uploads.each`, then pool, then a dummy.
+	 * `UploadFile` replaces that field. `{ fields }` with a file replaces the whole request.
+	 * `{ fields }` without the file part overlays scalars and keeps the each / pool / dummy bytes.
+	 * A hook that ignores `request.fixture` and always returns the same file will send that file N times.
 	 */
 	resolveUpload?: (request: UploadRequest) => Promise<UploadResolution>
 	/**
