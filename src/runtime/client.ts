@@ -2,6 +2,18 @@
 
 import type { HeaderRequest } from "../config/define-config.ts"
 import { headerValue, MAX_429_RETRIES, retryWaitMs, type RateLimiter } from "./rate-limit.ts"
+import {
+	DEFAULT_NETWORK_RETRIES,
+	NetworkError,
+	classifyNetworkError,
+	describeNetworkKind,
+	hasUsableInterface,
+	isNetworkError,
+	networkRetryWaitMs,
+	refineNetworkKind,
+	type NetworkKind,
+} from "./network.ts"
+import { sleep } from "./poll.ts"
 
 export interface Exchange {
 	seq: number
@@ -34,6 +46,8 @@ export interface Exchange {
 	operationId?: string
 	/** `uploads.each` filename, when this request is one cell of that matrix. */
 	fixture?: string
+	/** Set when `fetch` threw — there was no HTTP status. */
+	network?: { kind: NetworkKind; attempt: number; message: string }
 }
 
 /** A principal bound so every dispatch can refresh and retry a 401 without call-site ceremony. */
@@ -80,6 +94,13 @@ export interface RequestOptions {
 	fixture?: string
 }
 
+/** Optional retry / wait-for-link policy. Unset keeps today's "throw and hope". */
+export interface NetworkClientOptions {
+	retries?: number
+	requestTimeoutMs?: number
+	awaitRecovery?: (error: NetworkError) => Promise<boolean>
+}
+
 export class Client {
 	readonly transcript: Exchange[] = []
 	private seq = 0
@@ -103,6 +124,7 @@ export class Client {
 		private readonly rateLimiter?: RateLimiter,
 		/** Observes each dispatch. `start` runs just before `fetch`; `end` always follows. */
 		private readonly httpHooks?: HttpHooks,
+		private readonly network?: NetworkClientOptions,
 	) {}
 
 	private resolveHeaders: ((request: HeaderRequest) => Promise<Record<string, string> | null>) | undefined
@@ -149,7 +171,7 @@ export class Client {
 
 		const refresh = skip ? undefined : (options.refreshIfStale ?? matchAuth(resolveUserHeaders())?.refreshIfStale)
 
-		const dispatch = async (): Promise<Exchange> => {
+		const dispatch = async (attempt = 0): Promise<Exchange> => {
 			let userHeaders = resolveUserHeaders()
 			const hookCtx: HeaderRequest = {
 				method: method.toUpperCase(),
@@ -195,9 +217,45 @@ export class Client {
 				this.httpHooks?.start?.(probe)
 				started = performance.now()
 				try {
-					response = await fetch(url, init)
+					const timeoutMs = this.network?.requestTimeoutMs
+					const signal = timeoutMs === undefined ? undefined : AbortSignal.timeout(timeoutMs)
+					response = await fetch(url, signal === undefined ? init : { ...init, signal })
 					text = await response.text()
 					at = Date.now()
+				} catch (error) {
+					const raw = classifyNetworkError(error)
+					const kind = raw === null ? (hasUsableInterface() ? null : "offline") : refineNetworkKind(raw)
+					if (kind === null) throw error
+					const message = `${verb} ${url.toString()} failed (${kind}: ${describeNetworkKind(kind)})`
+					this.seq += 1
+					const failed: Exchange = {
+						at: Date.now(),
+						durationMs: Math.round(performance.now() - started),
+						method: verb,
+						network: { attempt, kind, message },
+						requestBody: options.body,
+						requestBytes: probe.requestBytes,
+						requestHeaders: headers,
+						requestId: probe.requestId,
+						responseBody: { error: "network", kind, message },
+						responseBytes: 0,
+						responseHeaders: {},
+						seq: this.seq,
+						status: 0,
+						url: url.toString(),
+						...(options.operationId === undefined ? {} : { operationId: options.operationId }),
+						...(options.fixture === undefined ? {} : { fixture: options.fixture }),
+					}
+					this.transcript.push(failed)
+					await this.onExchange?.(failed)
+					throw new NetworkError({
+						attempts: attempt + 1,
+						cause: error,
+						kind,
+						message,
+						method: verb,
+						url: url.toString(),
+					})
 				} finally {
 					this.httpHooks?.end?.(probe)
 				}
@@ -240,11 +298,29 @@ export class Client {
 			return exchange
 		}
 
+		const resilient = async (): Promise<Exchange> => {
+			const retries = this.network === undefined ? 0 : Math.max(0, this.network.retries ?? DEFAULT_NETWORK_RETRIES)
+			let last: NetworkError | undefined
+			for (let attempt = 0; attempt <= retries; attempt++) {
+				try {
+					return await dispatch(attempt)
+				} catch (error) {
+					if (!isNetworkError(error)) throw error
+					last = error
+					if (attempt < retries) await sleep(networkRetryWaitMs(attempt))
+				}
+			}
+			if (last !== undefined && this.network?.awaitRecovery !== undefined && (await this.network.awaitRecovery(last))) {
+				return dispatch(retries + 1)
+			}
+			throw last as NetworkError
+		}
+
 		if (refresh !== undefined) await refresh(false)
-		let exchange = await dispatch()
+		let exchange = await resilient()
 		if (exchange.status === 401 && refresh !== undefined) {
 			await refresh(true)
-			exchange = await dispatch()
+			exchange = await resilient()
 		}
 		/* 429 is reactive: the first one is never a seed/check failure. Tags pace proactively;
 		 * this path honours the server even when the op has no x-rate-limit at all. */
@@ -252,10 +328,10 @@ export class Client {
 			const waitMs = retryWaitMs(headerValue(exchange.responseHeaders, "retry-after"), attempt)
 			this.rateLimiter?.noteBackoff(method.toUpperCase(), url.pathname, waitMs)
 			if (waitMs > 0) await new Promise<void>((resolve) => setTimeout(resolve, waitMs))
-			exchange = await dispatch()
+			exchange = await resilient()
 			if (exchange.status === 401 && refresh !== undefined) {
 				await refresh(true)
-				exchange = await dispatch()
+				exchange = await resilient()
 			}
 		}
 		return exchange

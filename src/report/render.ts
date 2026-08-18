@@ -32,6 +32,13 @@ export interface ReportInput {
 	durationMs: number
 	/** Journal size when exchanges were persisted next to this report. */
 	exchanges?: { count: number }
+	network?: {
+		kind: string
+		attempts: number
+		waitedMs: number
+		incomplete: boolean
+		url: string
+	}
 }
 
 const VERDICT_ORDER: Verdict[] = ["SECURITY", "BACKEND_BUG", "SPEC_BUG", "AMBIGUITY", "BLOCKED", "COVERAGE_GAP"]
@@ -129,6 +136,13 @@ export function renderMarkdown(input: ReportInput): string {
 	)
 	if (input.exchanges !== undefined) {
 		lines.push(`- **Exchanges**: ${input.exchanges.count} → [exchanges/](./exchanges/)`)
+	}
+	if (input.network !== undefined) {
+		const wait = input.network.waitedMs > 0 ? ` · waited ${Math.round(input.network.waitedMs / 1000)}s` : ""
+		lines.push(
+			`- **Network**: ${input.network.kind} after ${input.network.attempts} attempt(s)${wait}` +
+				(input.network.incomplete ? " — run incomplete, not a backend defect" : ""),
+		)
 	}
 	lines.push("- **Matrix**: [matrix.html](./matrix.html) · [matrix.json](./matrix.json)")
 	const timing = latency(input.client.transcript)
@@ -543,6 +557,7 @@ export function renderJson(input: ReportInput): string {
 			})),
 			generatedAt: input.startedAt.toISOString(),
 			requests: input.client.transcript.length,
+			...(input.network === undefined ? {} : { network: input.network }),
 			requestBytes: utf8Total(input.client.transcript, "request"),
 			responseBytes: utf8Total(input.client.transcript, "response"),
 			latency: latency(input.client.transcript),

@@ -20,6 +20,8 @@ export interface ProgressLast {
 	/** Empty when the last call had no request-id / correlation-id header. */
 	requestId: string
 	at: number
+	/** Set when the last completed call never got an HTTP status. */
+	network?: string
 }
 
 /** A request that has been dispatched and has not yet returned. */
@@ -78,7 +80,7 @@ export const PROGRESS_TSV_HEADER = [
 export const PROGRESS_GLOSSARY = [
 	"# logfmt — one event per line, full values, no truncation",
 	"# ts               when this line was written (ISO-8601 UTC). ts_ms is the same instant as unix ms",
-	"# status=ok|stall|in_flight  in_flight = a request is on the wire; stall = idle_ms >= 15000 after the last call returned",
+	"# status=ok|stall|in_flight|network  in_flight = on the wire; stall = idle after a completed call; network = fetch threw (offline/dns/reset/…)",
 	"# done/total       entity index / how many entities",
 	"# phase            load|auth|seed|test|teardown|done",
 	"# check            check id (empty when not in a check)",
@@ -308,7 +310,7 @@ function fields(
 		path: snap.last === undefined ? "-" : requestPath(snap.last.url),
 		phase: snap.phase,
 		req: String(snap.requests),
-		status: stalled ? "stall" : "ok",
+		status: snap.last?.network !== undefined ? "network" : stalled ? "stall" : "ok",
 		total: snap.entityTotal === undefined ? "-" : String(snap.entityTotal),
 	}
 }

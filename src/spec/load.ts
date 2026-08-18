@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises"
 import { resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { DEFAULT_NETWORK_RETRIES, type NetworkFetchOptions, fetchWithNetworkRetry } from "../runtime/network.ts"
 import type { OpenApiDocument } from "./types.ts"
 
 /**
@@ -17,8 +18,12 @@ import type { OpenApiDocument } from "./types.ts"
  * When none apply the error names every location that was tried, rather than reporting the last
  * failure as though it were the only attempt.
  */
-export async function loadSpec(source: string, baseUrl?: string): Promise<OpenApiDocument> {
-	const text = await readSpecSource(source, baseUrl)
+export async function loadSpec(
+	source: string,
+	baseUrl?: string,
+	network?: NetworkFetchOptions,
+): Promise<OpenApiDocument> {
+	const text = await readSpecSource(source, baseUrl, network)
 
 	if (text.trim() === "") {
 		throw new Error(`oat: ${source} is empty`)
@@ -69,8 +74,8 @@ function diagnoseJson(text: string): string {
 	return "The document appears complete, so this is a syntax error rather than truncation."
 }
 
-async function readSpecSource(source: string, baseUrl?: string): Promise<string> {
-	if (/^https?:\/\//.test(source)) return fetchText(source)
+async function readSpecSource(source: string, baseUrl?: string, network?: NetworkFetchOptions): Promise<string> {
+	if (/^https?:\/\//.test(source)) return fetchText(source, network)
 	if (source.startsWith("file://")) return readFile(fileURLToPath(source), "utf8")
 
 	const attempted: string[] = []
@@ -88,7 +93,7 @@ async function readSpecSource(source: string, baseUrl?: string): Promise<string>
 	if (baseUrl !== undefined && baseUrl !== "") {
 		const resolved = new URL(source, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`).toString()
 		attempted.push(resolved)
-		return fetchText(resolved)
+		return fetchText(resolved, network)
 	}
 
 	throw new Error(
@@ -98,8 +103,12 @@ async function readSpecSource(source: string, baseUrl?: string): Promise<string>
 	)
 }
 
-async function fetchText(url: string): Promise<string> {
-	const res = await fetch(url, { headers: { accept: "application/json" } })
+async function fetchText(url: string, network?: NetworkFetchOptions): Promise<string> {
+	const res = await fetchWithNetworkRetry(
+		url,
+		{ headers: { accept: "application/json" } },
+		{ retries: DEFAULT_NETWORK_RETRIES, waitMs: 0, ...network },
+	)
 	if (!res.ok) throw new Error(`oat: fetching ${url} returned ${res.status} ${res.statusText}`)
 	return res.text()
 }

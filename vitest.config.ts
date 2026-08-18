@@ -16,6 +16,7 @@ export default defineConfig({
 				"src/runtime/upload-each.ts",
 				"src/runtime/effects.ts",
 				"src/runtime/exchanges.ts",
+				"src/runtime/network.ts",
 			],
 			thresholds: {
 				lines: 100,

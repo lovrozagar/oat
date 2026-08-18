@@ -22,6 +22,16 @@ import type {
 import { isAuthFlow } from "../config/define-config.ts"
 import { type OriginClient, createPrincipal, type PrincipalRuntime } from "./auth.ts"
 import { createExchangeJournal } from "./exchanges.ts"
+import {
+	DEFAULT_NETWORK_RETRIES,
+	DEFAULT_NETWORK_WAIT_MS,
+	NetworkError,
+	type NetworkKind,
+	createNetworkGate,
+	describeNetworkFailure,
+	isNetworkError,
+	probeOrigin,
+} from "./network.ts"
 import { type BackoffConfig, resolveBackoff } from "./poll.ts"
 import { type PersistedPrincipal, persistedToPrincipal, snapshotPrincipal } from "./principals.ts"
 import { CHECKS, type Actor, type CheckContext } from "./checks.ts"
@@ -90,6 +100,11 @@ export interface RunOptions {
 	 * Omit to leave the journal off. The CLI decides the default from the profile.
 	 */
 	exchangeDir?: string
+	network?: {
+		retries?: number
+		waitMs?: number
+		requestTimeoutMs?: number
+	}
 }
 
 export interface RunResult {
@@ -121,6 +136,14 @@ export interface RunResult {
 	principals: PersistedPrincipal[]
 	/** Journal size when `exchangeDir` was set. */
 	exchanges?: { count: number }
+	/** Set when `fetch` never got an HTTP status — the run names the kind instead of crashing. */
+	network?: {
+		kind: NetworkKind
+		attempts: number
+		waitedMs: number
+		incomplete: boolean
+		url: string
+	}
 }
 
 function readPointer(body: unknown, pointer: string): unknown {
@@ -426,7 +449,18 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	}
 
 	tick({ message: options.spec, phase: "load", requests: 0 })
-	const raw = await loadSpec(options.spec, options.baseUrl)
+	const raw = await loadSpec(options.spec, options.baseUrl, {
+		onWait: (info) => {
+			tick({
+				message: `waiting for network (${info.kind}, ${Math.ceil(info.remainingMs / 1000)}s left)`,
+				phase: "load",
+				requests: 0,
+			})
+		},
+		...(options.network?.retries === undefined ? {} : { retries: options.network.retries }),
+		...(options.network?.waitMs === undefined ? {} : { waitMs: options.network.waitMs }),
+		...(options.network?.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: options.network.requestTimeoutMs }),
+	})
 	const { doc } = dereference(raw)
 	const model = buildModel(doc)
 	try {
@@ -447,6 +481,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			responseBytes: exchange.responseBytes,
 			status: exchange.status,
 			url: exchange.url,
+			...(exchange.network === undefined ? {} : { network: exchange.network.kind }),
 		}
 	}
 	const journal = options.exchangeDir === undefined ? null : createExchangeJournal(options.exchangeDir)
@@ -479,6 +514,39 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			publish(snapshot({ inflight: displayed }))
 		},
 	}
+	const networkGate = createNetworkGate({
+		onWait: (info) => {
+			tick({
+				message: `waiting for network (${info.kind}, ${Math.ceil(info.remainingMs / 1000)}s left)`,
+				phase: currentPhase,
+				requests: requestCount(),
+			})
+		},
+		probe: () => probeOrigin(options.baseUrl),
+		waitBudgetMs: options.network?.waitMs ?? DEFAULT_NETWORK_WAIT_MS,
+	})
+	let networkOutcome: RunResult["network"]
+	const noteNetwork = (error: NetworkError, where: string): void => {
+		if (networkOutcome !== undefined) return
+		networkOutcome = {
+			attempts: error.attempts,
+			incomplete: true,
+			kind: error.kind,
+			url: error.url,
+			waitedMs: networkGate.waitedMs,
+		}
+		findings.gap(
+			"net.unreachable",
+			where,
+			`network down (${error.kind})`,
+			describeNetworkFailure(error, networkGate.waitedMs),
+		)
+	}
+	const networkClient = {
+		awaitRecovery: (error: NetworkError) => networkGate.awaitRecovery(error),
+		retries: options.network?.retries ?? DEFAULT_NETWORK_RETRIES,
+		...(options.network?.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: options.network.requestTimeoutMs }),
+	}
 	client = new Client(
 		options.baseUrl,
 		options.globalHeaders ?? {},
@@ -486,6 +554,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		onExchange,
 		rateLimiter,
 		httpHooks,
+		networkClient,
 	)
 	if (hooks.resolveHeaders !== undefined) client.setResolveHeaders(hooks.resolveHeaders)
 	const validator = new SchemaValidator()
@@ -502,6 +571,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		options.globalHeaders ?? {},
 		onExchange,
 		httpHooks,
+		networkClient,
 	)
 	const uploads: UploadContext = {
 		seed,
@@ -513,17 +583,39 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	const worldUploads = (seedOffset = 0): UploadContext =>
 		seedOffset === 0 ? uploads : { ...uploads, seed: seed + seedOffset }
 	const resolved: ResolvedPrincipal[] = []
-	for (const principal of options.principals) {
-		resolved.push(
-			await resolvePrincipal(
-				principal,
-				model,
-				client,
-				hooks,
-				outOfBand,
-				originClients.size === 0 ? undefined : originClients,
-			),
-		)
+	try {
+		for (const principal of options.principals) {
+			resolved.push(
+				await resolvePrincipal(
+					principal,
+					model,
+					client,
+					hooks,
+					outOfBand,
+					originClients.size === 0 ? undefined : originClients,
+				),
+			)
+		}
+	} catch (error) {
+		if (!isNetworkError(error)) throw error
+		noteNetwork(error, "auth")
+		return {
+			checksRun: [],
+			checksSkipped: [],
+			checksSuppressed: [],
+			client,
+			created: 0,
+			entitiesTested: [],
+			findings: findings.findings,
+			inconclusive: findings.inconclusive,
+			model,
+			principals: [],
+			profile: profile.name,
+			profileExclusions,
+			teardown: null,
+			...(journal === null ? {} : { exchanges: { count: journal.count } }),
+			...(networkOutcome === undefined ? {} : { network: networkOutcome }),
+		}
 	}
 	tick({
 		message: `${resolved.length} principal(s)`,
@@ -562,6 +654,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		const listOp = model.byOperationId.get(entity.list ?? "")
 		const createOp = model.byOperationId.get(entity.create ?? "")
 		if (listOp === undefined) return
+		if (networkGate.exhausted) return
 		const inviteOnly = entity.invite !== null && createOp === undefined
 		const authProvisioned = createOp !== undefined && createIsAuthProvisioned(createOp, authCreates)
 		if (createOp === undefined && !inviteOnly) return
@@ -714,6 +807,10 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					}
 				}
 			} catch (error) {
+				if (isNetworkError(error)) {
+					noteNetwork(error, entity.name)
+					return
+				}
 				if (isOverflowError(error)) {
 					const overflow = overflowFrom(error, createOp.operationId)
 					findings.gap("world.seed", entity.name, overflow.message, overflow.message)
@@ -953,6 +1050,10 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			try {
 				await check.run(ctx)
 			} catch (error) {
+				if (isNetworkError(error)) {
+					noteNetwork(error, entity.name)
+					return
+				}
 				findings.gap(
 					check.id,
 					entity.name,
@@ -1043,6 +1144,16 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	const queue = testableEntities(model, options.only, authCreates)
 	entityTotal = queue.length
 	for (const [index, entity] of queue.entries()) {
+		if (networkGate.exhausted) {
+			const left = queue.length - index
+			findings.blocked(
+				"net.unreachable",
+				"run",
+				`skipped ${left} remaining entit${left === 1 ? "y" : "ies"}`,
+				"network down",
+			)
+			break
+		}
 		currentEntityIndex = index + 1
 		await testEntity(entity)
 	}
@@ -1122,6 +1233,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		profileExclusions,
 		teardown,
 		...(journal === null ? {} : { exchanges: { count: journal.count } }),
+		...(networkOutcome === undefined ? {} : { network: networkOutcome }),
 	}
 }
 
@@ -1132,13 +1244,22 @@ async function loadOriginClients(
 	globalHeaders: Record<string, string>,
 	onExchange?: (exchange: Exchange) => void,
 	httpHooks?: HttpHooks,
+	network?: ConstructorParameters<typeof Client>[6],
 ): Promise<Map<string, OriginClient>> {
 	const map = new Map<string, OriginClient>()
 	for (const origin of origins) {
 		const raw = await loadSpec(origin.spec, origin.baseUrl)
 		const { doc } = dereference(raw)
 		const originModel = buildModel(doc)
-		const originClient = new Client(origin.baseUrl, globalHeaders, maxInFlight, onExchange, undefined, httpHooks)
+		const originClient = new Client(
+			origin.baseUrl,
+			globalHeaders,
+			maxInFlight,
+			onExchange,
+			undefined,
+			httpHooks,
+			network,
+		)
 		if (hooks.resolveHeaders !== undefined) originClient.setResolveHeaders(hooks.resolveHeaders)
 		map.set(origin.id, { client: originClient, model: originModel })
 	}
@@ -1185,6 +1306,7 @@ async function runSecondaryOrigins(
 			...(options.query === undefined ? {} : { query: options.query }),
 			...(options.entities === undefined ? {} : { entities: options.entities }),
 			...(options.exchangeDir === undefined ? {} : { exchangeDir: options.exchangeDir }),
+			...(options.network === undefined ? {} : { network: options.network }),
 		})
 		for (const finding of result.findings) {
 			findings.report({ ...finding, origin: origin.id })

@@ -204,6 +204,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 			seed: seedFlag === undefined ? (config.seed ?? 1) : Number.parseInt(seedFlag, 10),
 			onProgress,
 			...(saveExchanges ? { exchangeDir: outDir } : {}),
+			...(config.network === undefined ? {} : { network: config.network }),
 		})
 	} finally {
 		stderrProgress?.stop()
@@ -229,6 +230,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		profileExclusions: result.profileExclusions,
 		startedAt,
 		...(result.exchanges === undefined ? {} : { exchanges: result.exchanges }),
+		...(result.network === undefined ? {} : { network: result.network }),
 	}
 
 	await writeFile(resolve(outDir, "principals.json"), `${JSON.stringify({ principals: result.principals }, null, 2)}\n`)
@@ -256,10 +258,14 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	if (result.exchanges !== undefined) {
 		process.stdout.write(`  exchanges: ${result.exchanges.count} → ${resolve(outDir, "exchanges")}\n`)
 	}
+	if (result.network?.incomplete === true) {
+		process.stdout.write(`  network: ${result.network.kind} — run incomplete\n`)
+	}
 	process.stdout.write(`  latest: ${allocated.latest}\n\n`)
 
 	/* Exit code counts root causes, not raw findings: gaps and blocked entries are information,
 	 * not failures, and a CI gate should react to defects only. */
+	if (result.network?.incomplete === true) return 1
 	return result.findings.filter((f) => f.verdict !== "COVERAGE_GAP" && f.verdict !== "BLOCKED").length > 0 ? 1 : 0
 }
 

@@ -445,6 +445,17 @@ export interface OatConfig {
 	 * `--no-save-exchanges` override this. `--quiet` does not.
 	 */
 	saveExchanges?: boolean
+	/**
+	 * What to do when `fetch` throws (offline, DNS, reset, timeout) instead of returning HTTP.
+	 * Not a 5xx policy. Default: 4 retries (~8s), then wait up to 60s for the link, then stop.
+	 */
+	network?: {
+		retries?: number
+		/** Pause-and-probe budget after per-request retries, in ms. `0` skips the wait. */
+		waitMs?: number
+		/** Optional `AbortSignal` timeout per attempt. Unset = wait for the socket (today's behaviour). */
+		requestTimeoutMs?: number
+	}
 }
 
 /**
