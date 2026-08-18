@@ -16,6 +16,7 @@ import {
 	PROGRESS_GLOSSARY,
 	PROGRESS_TSV_HEADER,
 } from "./runtime/progress.ts"
+import { resolveSaveExchanges } from "./runtime/exchanges.ts"
 import { allocateRunDir, DEFAULT_RUNS_ROOT } from "./runtime/runs.ts"
 import { renderTeardown } from "./runtime/teardown.ts"
 import { buildModel } from "./spec/graph.ts"
@@ -46,6 +47,8 @@ export const KNOWN_FLAGS = new Set([
 	"max-defects",
 	"json",
 	"parser",
+	"save-exchanges",
+	"no-save-exchanges",
 ])
 
 export function parseArgs(argv: string[]): Args {
@@ -92,6 +95,8 @@ Flags
   --keep-fixtures  leave created records in place instead of tearing them down
   --max-in-flight  requests allowed in flight at once (default 4)
   --quiet          no live progress on stderr (progress.log still written)
+  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges  skip the exchange journal (cheap CI)
   --untagged       serve (or test) a document with every x-* tag stripped
   --backend        conformance storage: memory | sqlite | postgres | d1
                    (default: all local; d1 is remote and opt-in)
@@ -125,6 +130,11 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		.filter(Boolean)
 	const only = onlyFromFlag ?? config.only?.filter((name) => name.trim() !== "")
 	const profile = str(flags, "profile") ?? config.profile
+	const saveExchanges = resolveSaveExchanges({
+		...(flags["no-save-exchanges"] === true ? { flag: false } : flags["save-exchanges"] === true ? { flag: true } : {}),
+		...(config.saveExchanges === undefined ? {} : { config: config.saveExchanges }),
+		...(profile === undefined ? {} : { profile }),
+	})
 
 	/* No cast: the config's principal type *is* the runtime's, so a mistake here is a compile
 	 * error in the user's own config rather than a surprise mid-run. */
@@ -193,6 +203,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 			maxInFlight: Number.parseInt(str(flags, "max-in-flight") ?? "", 10) || config.maxInFlight || 4,
 			seed: seedFlag === undefined ? (config.seed ?? 1) : Number.parseInt(seedFlag, 10),
 			onProgress,
+			...(saveExchanges ? { exchangeDir: outDir } : {}),
 		})
 	} finally {
 		stderrProgress?.stop()
@@ -217,6 +228,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		profile: result.profile,
 		profileExclusions: result.profileExclusions,
 		startedAt,
+		...(result.exchanges === undefined ? {} : { exchanges: result.exchanges }),
 	}
 
 	await writeFile(resolve(outDir, "principals.json"), `${JSON.stringify({ principals: result.principals }, null, 2)}\n`)
@@ -241,6 +253,9 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	process.stdout.write(`  matrix: ${resolve(outDir, "matrix.html")}\n`)
 	process.stdout.write(`  graph:  ${resolve(outDir, "matrix.json")}\n`)
 	process.stdout.write(`  progress: ${resolve(outDir, "progress.log")} · ${resolve(outDir, "progress.jsonl")}\n`)
+	if (result.exchanges !== undefined) {
+		process.stdout.write(`  exchanges: ${result.exchanges.count} → ${resolve(outDir, "exchanges")}\n`)
+	}
 	process.stdout.write(`  latest: ${allocated.latest}\n\n`)
 
 	/* Exit code counts root causes, not raw findings: gaps and blocked entries are information,
@@ -273,6 +288,7 @@ export async function main(): Promise<number> {
 			runPayloadCatalogSuite,
 			runCoverageReportSuite,
 			runSeedContractSuite,
+			runEffectsSuite,
 			runTenantScopeSuite,
 			runSuite,
 			sqliteAvailable,
@@ -306,6 +322,9 @@ export async function main(): Promise<number> {
 		const seedContract = renderParserSuite(await runSeedContractSuite())
 		process.stdout.write(seedContract.text)
 		parser.failures += seedContract.failures
+		const effects = renderParserSuite(await runEffectsSuite())
+		process.stdout.write(effects.text)
+		parser.failures += effects.failures
 		const payloads = renderParserSuite(runPayloadCatalogSuite())
 		process.stdout.write(payloads.text)
 		parser.failures += payloads.failures

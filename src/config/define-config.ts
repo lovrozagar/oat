@@ -439,6 +439,12 @@ export interface OatConfig {
 	 * Defaults to `./.oat/runs`.
 	 */
 	outDir?: string
+	/**
+	 * Persist every HTTP exchange under the run dir (`exchanges.jsonl`, `exchanges/`, `blobs/`).
+	 * Default on unless the active profile is `cheap`. CLI `--save-exchanges` /
+	 * `--no-save-exchanges` override this. `--quiet` does not.
+	 */
+	saveExchanges?: boolean
 }
 
 /**

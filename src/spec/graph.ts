@@ -202,7 +202,7 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 		featureGate: readFeatureGate(op),
 		destructive: readFlag(op, "x-destructive"),
 		documentedStatuses,
-		effects: readEffects(op),
+		effects: readEffects(op, operationId, gaps),
 		entity: entity?.name ?? null,
 		entitySource: entity?.source ?? null,
 		freshPrincipal: readFlag(op, "x-fresh-principal"),

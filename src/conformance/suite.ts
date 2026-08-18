@@ -38,6 +38,7 @@ export interface ParserResult {
  * oat never throws and never hangs on them, not that it models them well.
  */
 export { runSeedContractSuite } from "./seed-contract.ts"
+export { runEffectsSuite } from "./effects.ts"
 
 export function runParserSuite(): ParserResult[] {
 	return SPEC_FIXTURES.map((fixture) => {

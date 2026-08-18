@@ -21,6 +21,7 @@ import type {
 } from "../config/define-config.ts"
 import { isAuthFlow } from "../config/define-config.ts"
 import { type OriginClient, createPrincipal, type PrincipalRuntime } from "./auth.ts"
+import { createExchangeJournal } from "./exchanges.ts"
 import { type BackoffConfig, resolveBackoff } from "./poll.ts"
 import { type PersistedPrincipal, persistedToPrincipal, snapshotPrincipal } from "./principals.ts"
 import { CHECKS, type Actor, type CheckContext } from "./checks.ts"
@@ -84,6 +85,11 @@ export interface RunOptions {
 	query?: QueryCapabilities
 	/** Per-entity overlays. */
 	entities?: Record<string, EntityConfig>
+	/**
+	 * Persist every exchange under this run dir (`exchanges.jsonl`, `exchanges/`, `blobs/`).
+	 * Omit to leave the journal off. The CLI decides the default from the profile.
+	 */
+	exchangeDir?: string
 }
 
 export interface RunResult {
@@ -113,6 +119,8 @@ export interface RunResult {
 	teardown: TeardownReport | null
 	/** Credentials as they stood after acquire — written to `<outDir>/<datetime>/principals.json` by the CLI. */
 	principals: PersistedPrincipal[]
+	/** Journal size when `exchangeDir` was set. */
+	exchanges?: { count: number }
 }
 
 function readPointer(body: unknown, pointer: string): unknown {
@@ -441,8 +449,20 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			url: exchange.url,
 		}
 	}
-	const onExchange = (exchange: Exchange): void => {
+	const journal = options.exchangeDir === undefined ? null : createExchangeJournal(options.exchangeDir)
+	const onExchange = async (exchange: Exchange): Promise<void> => {
 		remember(exchange)
+		if (journal !== null) {
+			try {
+				await journal.record(exchange, {
+					...(currentCheck === undefined ? {} : { check: currentCheck }),
+					...(currentEntity === undefined ? {} : { entity: currentEntity }),
+					phase: currentPhase,
+				})
+			} catch {
+				/* journal is observability — a write error must not fail the request */
+			}
+		}
 		publish(snapshot({ omitInflight: true }))
 		const remaining = oldestInflight()
 		if (remaining !== undefined) publish(snapshot({ inflight: remaining }))
@@ -1101,6 +1121,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		profile: profile.name,
 		profileExclusions,
 		teardown,
+		...(journal === null ? {} : { exchanges: { count: journal.count } }),
 	}
 }
 
@@ -1163,6 +1184,7 @@ async function runSecondaryOrigins(
 			...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
 			...(options.query === undefined ? {} : { query: options.query }),
 			...(options.entities === undefined ? {} : { entities: options.entities }),
+			...(options.exchangeDir === undefined ? {} : { exchangeDir: options.exchangeDir }),
 		})
 		for (const finding of result.findings) {
 			findings.report({ ...finding, origin: origin.id })

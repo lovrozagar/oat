@@ -88,6 +88,7 @@ const TAG_REMEDY: Record<string, string> = {
 	"x-tenant": "name the path parameter that scopes this operation to a tenant",
 	"x-invite": "name the invite, accept and revoke operations for delegated access",
 	"x-wait": "name the GET to poll after this write until a JSON path is occupied",
+	"x-effects": "declare create/append/delete with count or min, not both",
 }
 
 function bar(value: number, total: number, width = 24): string {

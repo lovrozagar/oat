@@ -26,4 +26,15 @@ describe("CLI flags", () => {
 		expect(unknownFlag(flags)).toBeUndefined()
 		expect(flags["max-in-flight"]).toBe("8")
 	})
+
+	it("accepts --save-exchanges and --no-save-exchanges", () => {
+		expect(USAGE).toContain("--save-exchanges")
+		expect(USAGE).toContain("--no-save-exchanges")
+		const on = parseArgs(["run", "--config", "oat.config.ts", "--save-exchanges"])
+		expect(unknownFlag(on.flags)).toBeUndefined()
+		expect(on.flags["save-exchanges"]).toBe(true)
+		const off = parseArgs(["run", "--config", "oat.config.ts", "--no-save-exchanges"])
+		expect(unknownFlag(off.flags)).toBeUndefined()
+		expect(off.flags["no-save-exchanges"]).toBe(true)
+	})
 })

@@ -30,6 +30,8 @@ export interface ReportInput {
 	profileExclusions?: Array<{ entity: string; operationId: string; reason: string }>
 	startedAt: Date
 	durationMs: number
+	/** Journal size when exchanges were persisted next to this report. */
+	exchanges?: { count: number }
 }
 
 const VERDICT_ORDER: Verdict[] = ["SECURITY", "BACKEND_BUG", "SPEC_BUG", "AMBIGUITY", "BLOCKED", "COVERAGE_GAP"]
@@ -125,6 +127,9 @@ export function renderMarkdown(input: ReportInput): string {
 		`- **Requests**: ${input.client.transcript.length}` +
 			` (${formatBytes(utf8Total(input.client.transcript, "request"))} req · ${formatBytes(utf8Total(input.client.transcript, "response"))} res)`,
 	)
+	if (input.exchanges !== undefined) {
+		lines.push(`- **Exchanges**: ${input.exchanges.count} → [exchanges/](./exchanges/)`)
+	}
 	lines.push("- **Matrix**: [matrix.html](./matrix.html) · [matrix.json](./matrix.json)")
 	const timing = latency(input.client.transcript)
 	if (timing !== null) {

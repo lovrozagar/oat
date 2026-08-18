@@ -30,6 +30,10 @@ export interface Exchange {
 	rateLimitSource?: "tag" | "config" | "implicit"
 	/** Whether the bucket had a token without waiting — oat believes it was under its own pace. */
 	rateLimitHadRoom?: boolean
+	/** Named operation, when the caller passed one. */
+	operationId?: string
+	/** `uploads.each` filename, when this request is one cell of that matrix. */
+	fixture?: string
 }
 
 /** A principal bound so every dispatch can refresh and retry a 401 without call-site ceremony. */
@@ -72,6 +76,8 @@ export interface RequestOptions {
 	skipAuthRefresh?: boolean
 	/** Named operation, when the caller knows it — `resolveHeaders` uses this to attach captcha. */
 	operationId?: string
+	/** `uploads.each` filename, recorded on the exchange for the journal. */
+	fixture?: string
 }
 
 export class Client {
@@ -92,7 +98,7 @@ export class Client {
 		 * nothing and risks tripping rate limits that then look like backend defects.
 		 */
 		private readonly maxInFlight = 4,
-		private readonly onExchange?: (exchange: Exchange) => void,
+		private readonly onExchange?: (exchange: Exchange) => void | Promise<void>,
 		/** Paces requests per declared category. `undefined` when nothing is configured. */
 		private readonly rateLimiter?: RateLimiter,
 		/** Observes each dispatch. `start` runs just before `fetch`; `end` always follows. */
@@ -226,9 +232,11 @@ export class Client {
 				url: url.toString(),
 				...(rule === undefined ? {} : { rateLimitCategory: rule.category, rateLimitSource: rule.source }),
 				...(rateLimitHadRoom === undefined ? {} : { rateLimitHadRoom }),
+				...(options.operationId === undefined ? {} : { operationId: options.operationId }),
+				...(options.fixture === undefined ? {} : { fixture: options.fixture }),
 			}
 			this.transcript.push(exchange)
-			this.onExchange?.(exchange)
+			await this.onExchange?.(exchange)
 			return exchange
 		}
 

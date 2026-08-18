@@ -14,6 +14,8 @@ export default defineConfig({
 				"src/spec/query-capabilities.ts",
 				"src/runtime/query-capabilities.ts",
 				"src/runtime/upload-each.ts",
+				"src/runtime/effects.ts",
+				"src/runtime/exchanges.ts",
 			],
 			thresholds: {
 				lines: 100,

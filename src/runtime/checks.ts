@@ -40,6 +40,15 @@ import { forEachInvocation } from "./upload-each.ts"
 import type { SchemaValidator } from "./validate.ts"
 import { driveWait } from "./wait.ts"
 import { type Record_, fillPath } from "./world.ts"
+import {
+	bindAfterCreateEffects,
+	bindCreatedScope,
+	bindMissingPathParams,
+	canFillPath,
+	describeEffectHold,
+	effectHolds,
+	identityPathParam,
+} from "./effects.ts"
 
 /** A resolved principal as checks see it — identity, lattice position, and how to speak as it. */
 export interface Actor {
@@ -4131,11 +4140,15 @@ function findConstrained(
  * downstream consequence.
  */
 /**
- * An operation declaring `x-effects` must produce exactly the stated change.
+ * An operation declaring `x-effects` must produce the stated change.
+ *
+ * `count` is an exact cardinality delta (default 1). `min` is at-least. After a `create` on A,
+ * later items in the same array fill a child list under A with the new id — from the write
+ * response (`table_id` or the entity identity) or from A's list delta.
  *
  * `x-invalidate` says a read route changes; `x-effects` says *how*. That difference is what
  * separates "something differed" — which is satisfied by a stray timestamp and missed by a
- * cache-stale read — from an exact assertion on cardinality and membership.
+ * cache-stale read — from an assertion on cardinality and membership.
  */
 /**
  * A numeric field must compare numerically, not lexically.
@@ -4365,98 +4378,169 @@ const declaredEffectsOccur: Check = {
 	needs: "an operation declaring x-effects",
 	async run(ctx) {
 		for (const op of ctx.effectOps) {
-			for (const effect of op.effects) {
-				const target = ctx.model.entities.get(effect.entity)
-				const listId = target?.list
-				if (listId === undefined) {
+			await forEachInvocation(op.operationId, ctx.uploads, async (uploads, slot) => {
+				const fixture = slot?.filename
+				const effects = op.effects
+				if (effects.length === 0) return
+
+				const scope = { ...ctx.scope }
+				const befores = new Map<string, Observation>()
+
+				for (const effect of effects) {
+					const listOp = listOpFor(ctx, effect.entity)
+					if (listOp === undefined) continue
+					if (befores.has(effect.entity)) continue
+					befores.set(effect.entity, await observe(ctx, listOp, scope))
+				}
+
+				const body = op.hasRequestBody ? bodyForOp(ctx, op) : undefined
+				const invoked = await ctx.client.request(op.method, fillPath(op.path, ctx.scope), {
+					headers: ctx.auth(),
+					operationId: op.operationId,
+					...(fixture === undefined ? {} : { fixture }),
+					...(body === undefined ? {} : await encodeOpBody(ctx, op, body, "baseline", 0, uploads)),
+				})
+				if (standDownForFeatureGate(ctx, op, invoked, this.id)) return
+				if (standDownForRateLimit(ctx, invoked, this.id)) return
+				if (invoked.status >= 400) {
 					ctx.findings.gap(
 						this.id,
-						ctx.entityName,
-						`${op.operationId} declares an effect on "${effect.entity}", which has no list route`,
-						"the effect cannot be observed, so it is not verified",
+						subject(ctx.entityName, op.operationId, fixture),
+						`${op.operationId} could not be invoked`,
+						`returned ${invoked.status}; its declared effects are unverified`,
+						fixture,
 					)
-					continue
+					return
 				}
-				const listOp = ctx.model.byOperationId.get(listId)
-				if (listOp === undefined) continue
 
-				await forEachInvocation(op.operationId, ctx.uploads, async (uploads, slot) => {
-					const before = await observe(ctx, listOp)
-					if (before === null) return
-					const fixture = slot?.filename
+				const deltas = new Map<string, string[]>()
+				Object.assign(scope, bindAfterCreateEffects(ctx.model, effects, invoked.responseBody, deltas))
 
-					const body = op.hasRequestBody ? bodyForOp(ctx, op) : undefined
-					const invoked = await ctx.client.request(op.method, fillPath(op.path, ctx.scope), {
-						headers: ctx.auth(),
-						...(body === undefined ? {} : await encodeOpBody(ctx, op, body, "baseline", 0, uploads)),
-					})
-					if (standDownForFeatureGate(ctx, op, invoked, this.id)) return
-					if (standDownForRateLimit(ctx, invoked, this.id)) return
-					if (invoked.status >= 400) {
+				for (const effect of effects) {
+					if (effect.op !== "create") continue
+					const param = identityPathParam(ctx.model, effect.entity)
+					if (scope[param] !== undefined) continue
+					const listOp = listOpFor(ctx, effect.entity)
+					if (listOp === undefined) continue
+					const afterParent = await observe(ctx, listOp, scope)
+					if (afterParent.status !== "ok") continue
+					const before = befores.get(effect.entity)
+					const prior = before?.status === "ok" ? before.ids : []
+					const added = afterParent.ids.filter((id) => !prior.includes(id))
+					deltas.set(effect.entity, added)
+					Object.assign(scope, bindCreatedScope(ctx.model, effect.entity, invoked.responseBody, added))
+				}
+
+				for (const effect of effects) {
+					const listOp = listOpFor(ctx, effect.entity)
+					if (listOp === undefined) {
 						ctx.findings.gap(
 							this.id,
 							subject(ctx.entityName, op.operationId, fixture),
-							`${op.operationId} could not be invoked`,
-							`returned ${invoked.status}; its declared effects are unverified`,
+							`${op.operationId} declares an effect on "${effect.entity}", which has no list route`,
+							"the effect cannot be observed, so it is not verified",
 							fixture,
 						)
-						return
+						continue
 					}
 
-					const after = await observe(ctx, listOp)
-					if (after === null) return
+					if (!canFillPath(listOp.path, scope)) {
+						const missing = listOp.pathParams.filter((name) => scope[name] === undefined)
+						ctx.findings.gap(
+							this.id,
+							subject(ctx.entityName, op.operationId, fixture),
+							`${op.operationId} declares an effect on "${effect.entity}", but the list path cannot be filled`,
+							`missing ${missing.map((name) => `{${name}}`).join(", ")} after the write; the effect is unverified`,
+							fixture,
+						)
+						continue
+					}
 
-					const expected = effect.count ?? 1
-					const delta = after.ids.length - before.ids.length
-					const added = after.ids.filter((id) => !before.ids.includes(id))
-					const removed = before.ids.filter((id) => !after.ids.includes(id))
+					const after = await observe(ctx, listOp, scope)
+					if (after.status === "error") {
+						ctx.findings.gap(
+							this.id,
+							subject(ctx.entityName, op.operationId, fixture),
+							`${op.operationId} could not observe "${effect.entity}" after the write`,
+							`list returned ${after.exchange.status}; the declared effect is unverified`,
+							fixture,
+						)
+						continue
+					}
+					if (after.status === "unfillable") {
+						ctx.findings.gap(
+							this.id,
+							subject(ctx.entityName, op.operationId, fixture),
+							`${op.operationId} declares an effect on "${effect.entity}", but the list path cannot be filled`,
+							"the child list still lacks a parent id after the write; the effect is unverified",
+							fixture,
+						)
+						continue
+					}
 
-					const wanted =
-						effect.op === "create" || effect.op === "append" ? expected : effect.op === "delete" ? -expected : 0
+					const before = befores.get(effect.entity)
+					if (before?.status === "error") {
+						ctx.findings.gap(
+							this.id,
+							subject(ctx.entityName, op.operationId, fixture),
+							`${op.operationId} could not observe "${effect.entity}" before the write`,
+							`list returned ${before.exchange.status}; no baseline, so the effect is unverified`,
+							fixture,
+						)
+						continue
+					}
+					const prior = before?.status === "ok" ? before.ids : []
+					const delta = after.ids.length - prior.length
+					const added = after.ids.filter((id) => !prior.includes(id))
+					const removed = prior.filter((id) => !after.ids.includes(id))
 
+					if (effectHolds(effect, delta, added.length, removed.length)) {
+						if (effect.op === "create") {
+							Object.assign(scope, bindCreatedScope(ctx.model, effect.entity, invoked.responseBody, added))
+						}
+						continue
+					}
+
+					const hold = describeEffectHold(effect)
 					if (effect.op === "create" || effect.op === "append") {
-						if (delta === wanted && added.length === expected) return
 						ctx.findings.backend(
 							this.id,
 							subject(ctx.entityName, op.operationId, fixture),
 							`${op.operationId} did not produce the "${effect.entity}" records it declares`,
-							`x-effects declares ${effect.op} × ${expected} on "${effect.entity}", but the ` +
-								`collection went from ${before.ids.length} to ${after.ids.length} ` +
+							`x-effects declares ${hold} on "${effect.entity}", but the ` +
+								`collection went from ${prior.length} to ${after.ids.length} ` +
 								`(${added.length} added, ${removed.length} removed). A declared effect that does ` +
 								"not occur means callers cannot rely on the operation having done anything.",
 							[invoked, after.exchange],
 							fixture,
 						)
-						return
+						continue
 					}
 
 					if (effect.op === "delete") {
-						if (delta === wanted && removed.length === expected) return
 						ctx.findings.backend(
 							this.id,
 							subject(ctx.entityName, op.operationId, fixture),
 							`${op.operationId} did not remove the "${effect.entity}" records it declares`,
-							`x-effects declares delete × ${expected} on "${effect.entity}", but the collection ` +
-								`went from ${before.ids.length} to ${after.ids.length}`,
+							`x-effects declares ${hold} on "${effect.entity}", but the collection ` +
+								`went from ${prior.length} to ${after.ids.length}`,
 							[invoked, after.exchange],
 							fixture,
 						)
-						return
+						continue
 					}
 
-					if (delta !== 0) {
-						ctx.findings.backend(
-							this.id,
-							subject(ctx.entityName, op.operationId, fixture),
-							`${op.operationId} changed the size of "${effect.entity}" while declaring ${effect.op}`,
-							`x-effects declares ${effect.op}, which must not add or remove records, but the ` +
-								`collection went from ${before.ids.length} to ${after.ids.length}`,
-							[invoked, after.exchange],
-							fixture,
-						)
-					}
-				})
-			}
+					ctx.findings.backend(
+						this.id,
+						subject(ctx.entityName, op.operationId, fixture),
+						`${op.operationId} changed the size of "${effect.entity}" while declaring ${effect.op}`,
+						`x-effects declares ${effect.op}, which must not add or remove records, but the ` +
+							`collection went from ${prior.length} to ${after.ids.length}`,
+						[invoked, after.exchange],
+						fixture,
+					)
+				}
+			})
 		}
 	},
 }
@@ -4492,6 +4576,7 @@ const sideEffectArrives: Check = {
 				const invoked = await ctx.client.request(op.method, fillPath(op.path, ctx.scope), {
 					headers: ctx.auth(),
 					operationId: op.operationId,
+					...(fixture === undefined ? {} : { fixture }),
 					...(body === undefined ? {} : await encodeOpBody(ctx, op, body, "baseline", 0, uploads)),
 				})
 				if (standDownForFeatureGate(ctx, op, invoked, this.id)) return
@@ -4507,13 +4592,14 @@ const sideEffectArrives: Check = {
 					return
 				}
 
+				const scope = bindWaitScope(ctx, op, pollOp, invoked.responseBody)
 				const outcome = await driveWait({
 					awaitSideEffect: ctx.hooks.awaitSideEffect,
 					client: ctx.client,
 					headers: ctx.auth,
 					pollOp,
 					record: invoked.responseBody,
-					scope: ctx.scope,
+					scope,
 					spec,
 					writeOpId: op.operationId,
 					...(ctx.refreshIfStale === undefined ? {} : { refreshIfStale: ctx.refreshIfStale }),
@@ -4536,24 +4622,48 @@ const sideEffectArrives: Check = {
 	},
 }
 
+type Observation =
+	| { status: "unfillable" }
+	| { status: "error"; exchange: Exchange }
+	| { status: "ok"; ids: string[]; exchange: Exchange }
+
+function listOpFor(ctx: CheckContext, entityName: string): OperationModel | undefined {
+	const listId = ctx.model.entities.get(entityName)?.list
+	return listId === undefined ? undefined : ctx.model.byOperationId.get(listId)
+}
+
+function bindWaitScope(
+	ctx: CheckContext,
+	writeOp: OperationModel,
+	pollOp: OperationModel,
+	writeBody: unknown,
+): Record<string, string> {
+	const scope = { ...ctx.scope }
+	Object.assign(scope, bindAfterCreateEffects(ctx.model, writeOp.effects, writeBody))
+	Object.assign(scope, bindMissingPathParams(pollOp.pathParams, scope, writeBody))
+	return scope
+}
+
 async function observe(
 	ctx: CheckContext,
 	listOp: OperationModel,
-): Promise<{ ids: string[]; exchange: Exchange } | null> {
+	scope: Record<string, string> = ctx.scope,
+): Promise<Observation> {
 	let path: string
 	try {
-		path = fillPath(listOp.path, ctx.scope)
+		path = fillPath(listOp.path, scope)
 	} catch {
-		return null
+		return { status: "unfillable" }
 	}
 	const exchange = await ctx.client.get(path, {
 		headers: ctx.auth(),
+		operationId: listOp.operationId,
 		query: { limit: listOp.query?.maxLimit ?? 100 },
 	})
-	if (exchange.status >= 400) return null
+	if (exchange.status >= 400) return { exchange, status: "error" }
 	const identity = ctx.model.entities.get(listOp.entity ?? "")?.identity ?? "id"
 	const items = extractItems(exchange.responseBody, listOp.collection?.key ?? null)
-	return { exchange, ids: items.map((item) => String(item[identity])) }
+	return { exchange, ids: items.map((item) => String(item[identity])), status: "ok" }
 }
 
 const asyncReachesTerminalState: Check = {

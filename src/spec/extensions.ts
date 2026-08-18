@@ -58,7 +58,10 @@ export interface AsyncSpec {
 export interface EffectSpec {
 	entity: string
 	op: "create" | "append" | "update" | "delete" | "replace"
+	/** Exact cardinality delta. Default `1` when both `count` and `min` are omitted. */
 	count?: number
+	/** At-least cardinality (`delta >= min` and `added.length >= min`). Mutually exclusive with `count`. */
+	min?: number
 }
 
 export interface Gap {
@@ -324,7 +327,7 @@ export function readAsync(op: OperationObject): AsyncSpec | null {
 	return spec
 }
 
-export function readEffects(op: OperationObject): EffectSpec[] {
+export function readEffects(op: OperationObject, operationId?: string, gaps?: GapCollector): EffectSpec[] {
 	const raw = ext<unknown>(op, "x-effects")
 	if (!Array.isArray(raw)) return []
 	const out: EffectSpec[] = []
@@ -333,7 +336,16 @@ export function readEffects(op: OperationObject): EffectSpec[] {
 		const rec = item as Record<string, unknown>
 		if (typeof rec.entity !== "string" || typeof rec.op !== "string") continue
 		const effect: EffectSpec = { entity: rec.entity, op: rec.op as EffectSpec["op"] }
-		if (typeof rec.count === "number") effect.count = rec.count
+		if (typeof rec.count === "number" && Number.isFinite(rec.count)) effect.count = rec.count
+		if (typeof rec.min === "number" && Number.isFinite(rec.min)) effect.min = rec.min
+		if (effect.count !== undefined && effect.min !== undefined) {
+			gaps?.record(
+				operationId ?? "",
+				"x-effects",
+				`item for "${effect.entity}" sets both count and min; use exactly one`,
+			)
+			continue
+		}
 		out.push(effect)
 	}
 	return out
