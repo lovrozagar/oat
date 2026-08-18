@@ -3258,13 +3258,17 @@ const crossTenantItemRead: Check = {
 
 const crossTenantFilterBypass: Check = {
 	applicable: (ctx) =>
-		ctx.altAuth !== undefined && ctx.altScope !== undefined && filterable(ctx) && ctx.records.length > 0,
+		ctx.altAuth !== undefined &&
+		ctx.altScope !== undefined &&
+		filterable(ctx) &&
+		ctx.records.length > 0 &&
+		tenantBoundary(ctx.listOp),
 	/* The probe filters, so anything that stops a filter from selecting over the whole collection
 	 * hides the very record whose visibility is in question — a leak that cannot be observed is
 	 * not a leak that can be reported. */
 	dependsOn: ["query.filter-selects-from-whole-set"],
 	id: "tenant.filter-does-not-bypass-scope",
-	needs: "a second principal and a `filter` parameter",
+	needs: "a second principal, a filter, and a tenant tagged or inferred from the path",
 	async run(ctx) {
 		const target = ctx.records[0]
 		if (target === undefined || ctx.altAuth === undefined || ctx.altScope === undefined) return
@@ -3276,15 +3280,39 @@ const crossTenantFilterBypass: Check = {
 		const result = await list(ctx, { ...q(ctx, { limit: 100 }), ...tenantTerm }, ctx.altAuth, ctx.altScope)
 		if (result.exchange.status >= 400) return
 		if (!ids(result.items, ctx.identity).includes(id)) return
-		ctx.findings.security(
-			this.id,
-			ctx.entityName,
-			"a filter reaches records outside the caller's tenant",
+
+		/* Same split as the item check. A public catalogue has no tenant at all — a 200 for
+		 * `id.eq.<someone else's public row>` is the contract, not a leak. */
+		const declared = ctx.listOp.tenantSource === "tag"
+		const detail =
 			`a principal in another tenant filtered on ${ctx.identity}.eq.${id} and received the ` +
-				"record. The tenant predicate is applied to the base listing but not re-applied to " +
-				"filter matches, so any caller who can guess an id can read it.",
-			[result.exchange],
-		)
+			"record. The tenant predicate is applied to the base listing but not re-applied to " +
+			"filter matches, so any caller who can guess an id can read it."
+
+		if (declared) {
+			ctx.findings.security(
+				this.id,
+				ctx.entityName,
+				"a filter reaches records outside the caller's tenant",
+				`${detail} The list declares x-tenant: "${ctx.listOp.tenantParam}", so this crosses ` +
+					"a boundary the document states exists.",
+				[result.exchange],
+			)
+			return
+		}
+
+		ctx.findings.report({
+			check: this.id,
+			detail:
+				`${detail} oat inferred tenant scoping from the "${ctx.listOp.tenantParam}" path ` +
+				"parameter; the document does not state it. A public catalogue has no tenant at all — " +
+				"no x-tenant and no tenant-named path parameter — and this check then does not apply. " +
+				"If the resource is not shared, declare x-tenant so the same 200 is SECURITY.",
+			entity: ctx.entityName,
+			evidence: [result.exchange],
+			summary: "a filter crosses an inferred tenant boundary; the document does not say whether that is intended",
+			verdict: "AMBIGUITY",
+		})
 	},
 }
 

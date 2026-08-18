@@ -75,8 +75,8 @@ const TAG_SHARPENS: Record<string, string> = {
 		"the remaining query checks run against every scalar property, including fields the " +
 		"backend never indexed — expect findings you will have to dismiss",
 	"x-tenant":
-		"an inferred tenant makes a cross-tenant read an ambiguity, not a security finding; " +
-		"with no tenant tagged or inferred the check does not apply",
+		"an inferred tenant makes a cross-tenant item or filter read an ambiguity, not a " +
+		"security finding; with no tenant tagged or inferred those checks do not apply",
 }
 
 const TAG_REMEDY: Record<string, string> = {

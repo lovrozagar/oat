@@ -281,9 +281,10 @@ export async function runTagUnlockSuite(): Promise<ParserResult[]> {
 }
 
 /**
- * A public catalogue is unscoped. Two principals, create as A, GET as B → 200 is correct,
- * and the isolation checks must not apply. The workspace-scoped widget fixture is unchanged:
- * tag → SECURITY, heuristic → AMBIGUITY.
+ * A public catalogue is unscoped. Two principals, create as A, GET or filter as B → 200 is
+ * the contract, and the isolation checks must not apply. The workspace-scoped widget fixture
+ * is unchanged: tag → SECURITY, heuristic → AMBIGUITY. Same split for item GET and for
+ * `filter=id.eq.<other tenant>`.
  */
 export async function runTenantScopeSuite(): Promise<ParserResult[]> {
 	const results: ParserResult[] = []
@@ -382,6 +383,97 @@ export async function runTenantScopeSuite(): Promise<ParserResult[]> {
 		})
 	}
 
+	try {
+		const server = await servePublicCatalogue()
+		try {
+			const result = await run({
+				baseUrl: server.url,
+				principals: [
+					{ headers: { authorization: "Bearer tok_alpha" }, id: "alpha", roots: { workspace_id: "ws_a" } },
+					{ headers: { authorization: "Bearer tok_beta" }, id: "beta", roots: { workspace_id: "ws_b" } },
+				],
+				seed: 42,
+				spec: `${server.url}/v1/openapi/spec`,
+			})
+			const hits = result.findings.filter((f) => f.check === "tenant.filter-does-not-bypass-scope")
+			const skipped = result.checksSkipped.some((s) => s.check === "tenant.filter-does-not-bypass-scope")
+			const ran = result.checksRun.includes("tenant.filter-does-not-bypass-scope")
+			const ok = hits.length === 0 && skipped && !ran
+			results.push({
+				detail: ok
+					? "check did not apply; no finding"
+					: `findings=${hits.map((f) => `${f.verdict}:${f.check}`).join(",") || "none"}; ` +
+						`ran=${String(ran)}; skipped=${String(skipped)}`,
+				name: "public catalogue filter 200 is not a finding",
+				ok,
+				why: "no x-tenant and no tenant-named path param, so a 200 on id.eq.<other row> is the contract",
+			})
+		} finally {
+			await server.close()
+		}
+	} catch (error) {
+		results.push({
+			detail: error instanceof Error ? error.message : String(error),
+			name: "public catalogue filter 200 is not a finding",
+			ok: false,
+			why: "no x-tenant and no tenant-named path param, so a 200 on id.eq.<other row> is the contract",
+		})
+	}
+
+	const leakFilter = async (untagged: boolean): Promise<{ verdict: string | null; check: string | null }> => {
+		const { createMemoryServer } = await import("../reference/http.ts")
+		const backend = await createMemoryServer({ defects: ["TENANT_LEAK_VIA_FILTER"], untagged })
+		try {
+			const result = await run({
+				baseUrl: backend.url,
+				only: ["table"],
+				principals: PRINCIPALS,
+				seed: 42,
+				spec: `${backend.url}/v1/openapi/spec`,
+			})
+			const hit = result.findings.find((f) => f.check === "tenant.filter-does-not-bypass-scope")
+			return { check: hit?.check ?? null, verdict: hit?.verdict ?? null }
+		} finally {
+			await backend.close()
+		}
+	}
+
+	try {
+		const tagged = await leakFilter(false)
+		const ok = tagged.verdict === "SECURITY"
+		results.push({
+			detail: ok ? "SECURITY" : `expected SECURITY, got ${tagged.verdict ?? "no finding"}`,
+			name: "tagged tenant filter leak is SECURITY",
+			ok,
+			why: "x-tenant + filter 200 of the other tenant's row is a stated-boundary breach",
+		})
+	} catch (error) {
+		results.push({
+			detail: error instanceof Error ? error.message : String(error),
+			name: "tagged tenant filter leak is SECURITY",
+			ok: false,
+			why: "x-tenant + filter 200 of the other tenant's row is a stated-boundary breach",
+		})
+	}
+
+	try {
+		const inferred = await leakFilter(true)
+		const ok = inferred.verdict === "AMBIGUITY"
+		results.push({
+			detail: ok ? "AMBIGUITY" : `expected AMBIGUITY, got ${inferred.verdict ?? "no finding"}`,
+			name: "inferred tenant filter leak is AMBIGUITY",
+			ok,
+			why: "workspace_id / project_id still infers a tenant when x-tenant is stripped",
+		})
+	} catch (error) {
+		results.push({
+			detail: error instanceof Error ? error.message : String(error),
+			name: "inferred tenant filter leak is AMBIGUITY",
+			ok: false,
+			why: "workspace_id / project_id still infers a tenant when x-tenant is stripped",
+		})
+	}
+
 	return results
 }
 
@@ -392,6 +484,15 @@ const PUBLIC_CATALOGUE_SPEC = {
 		"/v1/templates": {
 			get: {
 				operationId: "template.list",
+				parameters: [
+					{
+						description: "PostgREST filter expression, e.g. id.eq.value",
+						in: "query",
+						name: "filter",
+						required: false,
+						schema: { type: "string" },
+					},
+				],
 				responses: {
 					"200": {
 						content: {
@@ -516,6 +617,12 @@ async function servePublicCatalogue(): Promise<{ close: () => Promise<void>; url
 				return send(res, 401, { error: "unauthorized" })
 			}
 			if (url.pathname === "/v1/templates" && method === "GET") {
+				const raw = url.searchParams.get("filter")
+				const match = raw === null ? null : /^id\.eq\.(.+)$/.exec(raw)
+				if (match !== null) {
+					const row = rows.get(match[1] ?? "")
+					return send(res, 200, { templates: row === undefined ? [] : [row] })
+				}
 				return send(res, 200, { templates: [...rows.values()] })
 			}
 			if (url.pathname === "/v1/templates" && method === "POST") {
