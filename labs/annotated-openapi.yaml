@@ -42,8 +42,19 @@ paths:
       # assumes every scalar property is filterable and warns that it is guessing.
       x-query:
         grammar: postgrest # postgrest | colon | equality — how filter values are written
-        filterable: [id, workspace_id, name, status, priority, created_at]
-        sortable: [name, priority, created_at]
+        # String arrays still work. Structured rows (field / type / ops / nulls) unlock
+        # the declared-or-skip catalog: oat will not infer `in` / `ilike` / `is` / nulls.
+        filterable:
+          - { field: id, type: string, ops: [eq, neq, in, nin] }
+          - { field: workspace_id, type: string, ops: [eq, neq] }
+          - { field: name, type: string, ops: [eq, neq, like, ilike, in] }
+          - { field: status, type: enum, ops: [eq, neq, in, nin] }
+          - { field: priority, type: number, ops: [eq, neq, gt, gte, lt, lte] }
+          - { field: created_at, type: date, ops: [eq, gt, gte, lt, lte, is] }
+        sortable:
+          - { field: name, type: string }
+          - { field: priority, type: number }
+          - { field: created_at, type: date, nulls: [first, last] }
         searchable: [name, description] # the fields `q` actually searches
         selectable: [id, name, status, priority, created_at]
         maxLimit: 100
@@ -52,6 +63,14 @@ paths:
         # walks silently drop or duplicate rows. Declaring it lets oat assert it;
         # omitting it makes oat probe for the instability instead.
         stableTiebreak: id
+        aliases: { ne: neq }
+        emptyIn: match-none
+        maxInValues: 100
+        maxFilterConditions: 20
+        searchEmpty: match-all
+        sortNulls: [first, last]
+        maxSortKeys: 3
+        selectUnknown: reject
 
       parameters:
         - { name: workspace_id, in: path, required: true, schema: { type: string } }

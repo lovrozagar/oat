@@ -125,6 +125,22 @@ export const DEFECTS = {
 	 * is the only thing that reads the claim and then tries it.
 	 */
 	SPEC_OVERCLAIMS_FILTERABLE: "x-query declares a field filterable that the backend rejects",
+	/** `in.(a,b)` only honours the first member. */
+	FILTER_IN_FIRST_ONLY: "in() matches only the first listed value",
+	/** `gte` is compiled as `gt`. */
+	FILTER_GTE_IS_GT: "gte is implemented as gt",
+	/** `ilike` is compiled as case-sensitive `like`. */
+	FILTER_ILIKE_IS_LIKE: "ilike is implemented as like",
+	/** `is.null` matches every row. */
+	FILTER_IS_NULL_MATCHES_ALL: "is.null matches every row",
+	/** An operator outside the field's allowlist is ignored (200 + full set). */
+	FILTER_ILLEGAL_OP_IGNORED: "an illegal filter operator is accepted and ignored",
+	/** Numeric sort compares as text. */
+	SORT_NUMERIC_AS_TEXT: "a numeric sortable field is ordered lexicographically",
+	/** Only the first order key is honoured. */
+	SORT_MULTI_KEY_IGNORED: "the second sort key is ignored",
+	/** A requested select field is omitted from the projection. */
+	SELECT_FIELD_MISSING: "a requested select field is dropped from the projection",
 	/**
 	 * The document declares a field sortable that the backend rejects.
 	 *

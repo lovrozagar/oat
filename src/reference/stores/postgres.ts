@@ -46,6 +46,14 @@ function ident(name: string): string {
 	return `"${name.replace(/"/g, '""')}"`
 }
 
+function countPgTerms(expression: string): number {
+	const group = /^(and|or)\((.*)\)$/s.exec(expression.trim())
+	if (group?.[2] !== undefined) {
+		return splitTopLevel(group[2]).reduce((sum, part) => sum + countPgTerms(part), 0)
+	}
+	return 1
+}
+
 export class PgStore implements Store {
 	private sequence = 0
 
@@ -243,12 +251,18 @@ export class PgStore implements Store {
 
 		if (params.q !== undefined && params.q !== "" && !this.defects.has("SEARCH_IGNORED")) {
 			const searchable = fieldsWhere(entity, "searchable")
+			const tokens = params.q
+				.split(/\s+/)
+				.map((token) => token.trim())
+				.filter((token) => token.length > 0)
 			if (searchable.length > 0) {
-				const clauses = searchable.map((f) => {
-					args.push(`%${escapeLike(params.q ?? "")}%`)
-					return `${ident(this.physical(f))}::text ILIKE $${args.length} ESCAPE '\\'`
-				})
-				where.push(`(${clauses.join(" OR ")})`)
+				for (const token of tokens) {
+					const clauses = searchable.map((f) => {
+						args.push(`%${escapeLike(token)}%`)
+						return `${ident(this.physical(f))}::text ILIKE $${args.length} ESCAPE '\\'`
+					})
+					where.push(`(${clauses.join(" OR ")})`)
+				}
 			}
 		}
 
@@ -322,6 +336,13 @@ export class PgStore implements Store {
 					params.select,
 					this.defects.has("SELECT_IGNORED"),
 					this.defects.has("SPEC_OVERCLAIMS_SELECTABLE") ? [OVERCLAIMED_FIELD] : [],
+					{
+						dropRequested: this.defects.has("SELECT_FIELD_MISSING"),
+						identity: entity.identity,
+						...(entity.filterCatalog?.selectUnknown === undefined
+							? {}
+							: { selectUnknown: entity.filterCatalog.selectUnknown }),
+					},
 				),
 			),
 			limit,
@@ -330,7 +351,13 @@ export class PgStore implements Store {
 		}
 	}
 
-	private compileFilter(expression: string, entity: EntityDef, args: PgParam[]): string {
+	private compileFilter(expression: string, entity: EntityDef, args: PgParam[], top = true): string {
+		if (top && entity.filterCatalog?.maxFilterConditions !== undefined) {
+			const count = countPgTerms(expression)
+			if (count > entity.filterCatalog.maxFilterConditions) {
+				throw new SqlError("invalid_filter", `more than ${entity.filterCatalog.maxFilterConditions} filter conditions`)
+			}
+		}
 		const trimmed = expression.trim()
 		const hole = (value: PgParam): string => {
 			args.push(value)
@@ -339,7 +366,7 @@ export class PgStore implements Store {
 
 		const group = /^(and|or)\((.*)\)$/s.exec(trimmed)
 		if (group?.[1] && group[2] !== undefined) {
-			const parts = splitTopLevel(group[2]).map((p) => this.compileFilter(p, entity, args))
+			const parts = splitTopLevel(group[2]).map((p) => this.compileFilter(p, entity, args, false))
 			if (parts.length === 0) throw new SqlError("invalid_filter", "empty filter group")
 			const effective = this.defects.has("FILTER_GROUP_COMBINATOR_SWAPPED")
 				? group[1] === "and"
@@ -353,8 +380,14 @@ export class PgStore implements Store {
 		if (segments.length < 3) {
 			throw new SqlError("invalid_filter", `malformed filter term "${trimmed}"`)
 		}
-		const [field, op] = segments as [string, string, ...string[]]
+		const [field, rawOp] = segments as [string, string, ...string[]]
+		const op = rawOp === "ne" ? "neq" : rawOp
 		const raw = segments.slice(2).join(".")
+		const allowed = entity.filterCatalog?.opsByField?.[field]
+		if (allowed !== undefined && rawOp !== undefined && !allowed.includes(rawOp) && !allowed.includes(op)) {
+			if (this.defects.has("FILTER_ILLEGAL_OP_IGNORED")) return "TRUE"
+			throw new SqlError("invalid_filter", `unknown operator "${rawOp}"`)
+		}
 
 		/* Under the overclaim defect the backend refuses a field the document still declares
 		 * filterable — the backend is not wrong to refuse, the document is wrong to promise. */
@@ -388,6 +421,9 @@ export class PgStore implements Store {
 			case "gt":
 				return `${ref}${cast} > ${hole(coerce(raw, asText ? undefined : declared))}`
 			case "gte":
+				if (this.defects.has("FILTER_GTE_IS_GT")) {
+					return `${ref}${cast} > ${hole(coerce(raw, asText ? undefined : declared))}`
+				}
 				return `${ref}${cast} >= ${hole(coerce(raw, asText ? undefined : declared))}`
 			case "lt":
 				return `${ref}${cast} < ${hole(coerce(raw, asText ? undefined : declared))}`
@@ -397,15 +433,32 @@ export class PgStore implements Store {
 			case "nin": {
 				const members = stripParens(raw)
 					.split(",")
-					.map((s) => coerce(s.trim(), asText ? undefined : declared))
-				const holes = members.map((m) => hole(m)).join(", ")
+					.map((s) => s.trim())
+					.filter((s) => s.length > 0)
+					.map((s) => coerce(s, asText ? undefined : declared))
+				if (members.length === 0) {
+					if (entity.filterCatalog?.emptyIn === "reject") throw new SqlError("invalid_filter", "empty in()")
+					return op === "in" ? "FALSE" : "TRUE"
+				}
+				if (entity.filterCatalog?.maxInValues !== undefined && members.length > entity.filterCatalog.maxInValues) {
+					throw new SqlError("invalid_filter", "in() exceeds maxInValues")
+				}
+				const effective =
+					this.defects.has("FILTER_IN_FIRST_ONLY") && op === "in" && members[0] !== undefined ? [members[0]] : members
+				const holes = effective.map((m) => hole(m)).join(", ")
 				return op === "in" ? `${ref}${cast} IN (${holes})` : `${ref}${cast} NOT IN (${holes})`
 			}
 			case "is":
-				if (raw === "null") return `${ref} IS NULL`
+				if (raw === "null") {
+					if (this.defects.has("FILTER_IS_NULL_MATCHES_ALL")) return "TRUE"
+					return `${ref} IS NULL`
+				}
+				if (raw === "notnull" || raw === "not.null") return `${ref} IS NOT NULL`
 				if (raw === "true") return `${ref} IS TRUE`
 				if (raw === "false") return `${ref} IS FALSE`
 				throw new SqlError("invalid_filter", `is.${raw} is not a recognised predicate`)
+			case "contains":
+				return `${ref}::text LIKE ${hole("%" + String(coerce(raw, undefined)) + "%")} ESCAPE '\\'`
 			case "like":
 			case "ilike": {
 				const pattern = this.defects.has("LIKE_UNESCAPED")
@@ -413,7 +466,7 @@ export class PgStore implements Store {
 					: escapeLike(raw).replace(/\*/g, "%")
 				/* Postgres distinguishes these; SQLite cannot for ASCII. Honouring the distinction
 				 * is only meaningful on an engine that has it. */
-				const operator = op === "ilike" ? "ILIKE" : "LIKE"
+				const operator = op === "ilike" && !this.defects.has("FILTER_ILIKE_IS_LIKE") ? "ILIKE" : "LIKE"
 				return `${ref}${cast} ${operator} ${hole(pattern)} ESCAPE '\\'`
 			}
 			default:
@@ -422,11 +475,12 @@ export class PgStore implements Store {
 	}
 
 	private compileOrder(expression: string | undefined, entity: EntityDef, dropNulls: string[]): string {
-		if (this.defects.has("ORDER_IGNORED")) return ""
 		const terms: string[] = []
 
 		if (expression !== undefined && expression !== "") {
-			for (const raw of splitTopLevel(expression)) {
+			const rawTerms = splitTopLevel(expression)
+			const used = this.defects.has("SORT_MULTI_KEY_IGNORED") ? rawTerms.slice(0, 1) : rawTerms
+			for (const raw of used) {
 				const [field, ...modifiers] = raw.split(".")
 				/* Under the overclaim defect the backend refuses a field the document still declares
 				 * sortable — the backend is not wrong to refuse, the document is wrong to promise. */
@@ -444,13 +498,17 @@ export class PgStore implements Store {
 						: descending
 				const declared = entity.fields.find((f) => f.name === field)
 				const numeric = declared?.type === "integer" || declared?.type === "number"
-				const ref =
-					numeric && this.defects.has("NUMERIC_COMPARED_AS_TEXT")
-						? `${ident(this.physical(field))}::text`
-						: ident(this.physical(field))
+				const asText =
+					numeric && (this.defects.has("NUMERIC_COMPARED_AS_TEXT") || this.defects.has("SORT_NUMERIC_AS_TEXT"))
+				const ref = asText ? `${ident(this.physical(field))}::text` : ident(this.physical(field))
 				terms.push(`${ref} ${descending ? "DESC" : "ASC"} NULLS ${nullsFirst ? "FIRST" : "LAST"}`)
 				if (descending && this.defects.has("SORT_DESC_DROPS_NULLS")) dropNulls.push(field)
 			}
+		}
+
+		if (this.defects.has("ORDER_IGNORED")) {
+			dropNulls.length = 0
+			return ""
 		}
 
 		if (this.defects.has("UNSTABLE_SORT")) {

@@ -27,9 +27,11 @@ import {
 	CURSOR_ONLY,
 	DIALECTS_WITH_CURSOR,
 	DIALECTS_WITH_FILTER_EXPRESSION,
+	DIALECTS_WITH_POSTGREST_FILTER,
 	DIALECTS_WITH_TOTAL,
 	EXPRESSION_ONLY,
 	EXPECTED,
+	POSTGREST_OP_ONLY,
 	PRINCIPALS,
 	SQL_ONLY,
 } from "./suite.ts"
@@ -119,7 +121,8 @@ export async function runFuzz(options: FuzzOptions = {}): Promise<FuzzCase[]> {
 			 * against it produces a case that cannot fail — and then fails, because nothing
 			 * detects a defect with nowhere to happen. */
 			(DIALECTS_WITH_TOTAL.has(dialect) || !COUNT_ONLY.has(name)) &&
-			(DIALECTS_WITH_FILTER_EXPRESSION.has(dialect) || !EXPRESSION_ONLY.has(name)),
+			(DIALECTS_WITH_FILTER_EXPRESSION.has(dialect) || !EXPRESSION_ONLY.has(name)) &&
+			(DIALECTS_WITH_POSTGREST_FILTER.has(dialect) || !POSTGREST_OP_ONLY.has(name)),
 	)
 
 	const results: FuzzCase[] = []

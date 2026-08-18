@@ -8,6 +8,12 @@
 
 import { deriveQueryConventions } from "./conventions.ts"
 import { normalisePath } from "./load.ts"
+import {
+	type FilterableField,
+	type QueryCapabilities,
+	type SortableField,
+	parseQueryCatalog,
+} from "./query-capabilities.ts"
 import type { Endpoint, OperationObject, ParameterObject } from "./types.ts"
 
 export type EntityAction = "create" | "list" | "read" | "update" | "delete" | "action"
@@ -28,6 +34,16 @@ export interface QueryCapability {
 	defaultOrder?: string
 	stableTiebreak?: string
 	source: "tag" | "heuristic"
+	/** Structured `x-query` extras. Absent on a heuristic guess. */
+	catalog?: QueryCapabilities
+	/** True when the tag included a `filterable` key, even if the list is empty. */
+	filterableDeclared?: boolean
+	sortableDeclared?: boolean
+	searchableDeclared?: boolean
+	selectableDeclared?: boolean
+	/** Structured rows when the tag used objects; otherwise one `{ field }` per name. */
+	filterFields?: FilterableField[]
+	sortableFields?: SortableField[]
 }
 
 export interface AsyncSpec {
@@ -205,11 +221,22 @@ export function readQueryCapability(
 ): QueryCapability | null {
 	const tag = ext<Record<string, unknown>>(endpoint.op, "x-query")
 	if (tag !== undefined) {
+		const catalog = parseQueryCatalog(tag)
+		const fields = catalog.filterable ?? []
+		const sortFields = catalog.sortable ?? []
+		const searchable = catalog.searchable === null ? [] : (catalog.searchable ?? strArray(tag.searchable))
 		const cap: QueryCapability = {
-			filterable: strArray(tag.filterable),
-			searchable: strArray(tag.searchable),
-			selectable: strArray(tag.selectable),
-			sortable: strArray(tag.sortable),
+			catalog,
+			filterFields: fields,
+			filterable: fields.map((field) => field.field),
+			filterableDeclared: tag.filterable !== undefined,
+			searchable,
+			searchableDeclared: tag.searchable !== undefined,
+			selectable: catalog.selectable ?? strArray(tag.selectable),
+			selectableDeclared: tag.selectable !== undefined,
+			sortable: sortFields.map((field) => field.field),
+			sortableDeclared: tag.sortable !== undefined,
+			sortableFields: sortFields,
 			source: "tag",
 		}
 		if (typeof tag.maxLimit === "number") cap.maxLimit = tag.maxLimit

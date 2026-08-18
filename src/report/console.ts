@@ -6,7 +6,22 @@
  * and work the list down.
  */
 
+import type { EntityConfig, OatConfig, QueryCapabilities } from "../config/define-config.ts"
 import type { EntityModel, SpecModel } from "../spec/graph.ts"
+import { canWriteFilterOp } from "../spec/conventions.ts"
+import {
+	anyFieldAllows,
+	fieldAllowsNulls,
+	mergeQueryCapabilities,
+	opsAreClosed,
+	type EffectiveQueryCapabilities,
+} from "../spec/query-capabilities.ts"
+
+export interface DoctorConfig {
+	query?: QueryCapabilities
+	entities?: Record<string, EntityConfig>
+	hooks?: Pick<NonNullable<OatConfig["hooks"]>, "resolveQueryCapabilities">
+}
 
 /**
  * Which checks each tag makes possible, measured rather than estimated.
@@ -33,6 +48,22 @@ export const TAG_UNLOCKS: Record<string, readonly string[]> = {
 		"spec.declared-filterable-is-filterable",
 		"spec.declared-sortable-is-sortable",
 		"spec.declared-selectable-is-selectable",
+		"spec.declared-filterable-ops-accepted",
+		"spec.declared-filterable-illegal-op-rejected",
+		"spec.declared-sortable-nulls-accepted",
+		"filter.in-is-union-of-eq",
+		"filter.nin-complements-in",
+		"filter.ilike-is-case-insensitive",
+		"filter.is-null-selects-nulls",
+		"filter.alias-matches-canonical",
+		"filter.illegal-op-rejected",
+		"filter.empty-in",
+		"filter.in-over-limit-rejected",
+		"filter.condition-cap-rejected",
+		"sort.nulls-first-last",
+		"sort.stable-tiebreak",
+		"search.empty-q",
+		"select.unknown-field-rejected",
 	],
 	"x-soft-delete": ["softdelete.absent-from-default-list"],
 	"x-invite": ["auth.invite-grants-then-revokes"],
@@ -125,7 +156,179 @@ function plan(model: SpecModel, asJson: boolean): string {
 	return lines.join("\n")
 }
 
-function doctor(model: SpecModel, externalRefs: string[], asJson: boolean): { text: string; blocking: number } {
+function catalogCheckPreview(
+	caps: EffectiveQueryCapabilities,
+	list: { conventions: { grammar: string; order?: string; select?: string; search?: string; searchMode?: string } },
+	source: "tag" | "heuristic" | "config" | "mixed",
+): string[] {
+	const ids: string[] = []
+	const grammar = { grammar: list.conventions.grammar } as Parameters<typeof canWriteFilterOp>[0]
+	const write = (op: Parameters<typeof canWriteFilterOp>[1]): boolean => canWriteFilterOp(grammar, op)
+	if (anyFieldAllows(caps, "in") && write("in")) ids.push("filter.in-is-union-of-eq")
+	if (anyFieldAllows(caps, "in") && anyFieldAllows(caps, "nin") && write("in") && write("nin")) {
+		ids.push("filter.nin-complements-in")
+	}
+	if (anyFieldAllows(caps, "gte") && anyFieldAllows(caps, "gt") && write("gte")) ids.push("filter.gte-is-gt-or-eq")
+	if (anyFieldAllows(caps, "lte") && anyFieldAllows(caps, "lt") && write("lte")) ids.push("filter.lte-is-lt-or-eq")
+	if (anyFieldAllows(caps, "lt") && anyFieldAllows(caps, "gt") && write("lt"))
+		ids.push("filter.ordered-triple-partitions")
+	if (anyFieldAllows(caps, "ilike") && anyFieldAllows(caps, "like") && write("ilike")) {
+		ids.push("filter.ilike-is-case-insensitive")
+	}
+	if (anyFieldAllows(caps, "is") && write("is")) ids.push("filter.is-null-selects-nulls")
+	if (anyFieldAllows(caps, "contains") && write("contains")) ids.push("filter.contains-membership")
+	if (list.conventions.grammar === "postgrest" && caps.filterable.length > 1) {
+		ids.push("filter.nested-and-or-distributes")
+	}
+	if (Object.keys(caps.aliases).length > 0) ids.push("filter.alias-matches-canonical")
+	if (caps.filterable.some((field) => opsAreClosed(field, caps))) {
+		ids.push("filter.illegal-op-rejected")
+		if (source === "tag" || source === "mixed") {
+			ids.push("spec.declared-filterable-ops-accepted", "spec.declared-filterable-illegal-op-rejected")
+		}
+	}
+	if (caps.emptyIn !== undefined && anyFieldAllows(caps, "in") && write("in")) ids.push("filter.empty-in")
+	if (caps.maxInValues !== undefined && anyFieldAllows(caps, "in") && write("in"))
+		ids.push("filter.in-over-limit-rejected")
+	if (caps.maxFilterConditions !== undefined && list.conventions.grammar === "postgrest") {
+		ids.push("filter.condition-cap-rejected")
+	}
+	if (list.conventions.order !== undefined) {
+		ids.push("sort.unknown-field-rejected")
+		if (caps.sortable.some((field) => field.type === "number")) ids.push("sort.numeric-order-is-numeric")
+		if (
+			caps.sortable.some((field) => fieldAllowsNulls(field, caps, "first") || fieldAllowsNulls(field, caps, "last"))
+		) {
+			ids.push("sort.nulls-first-last", "spec.declared-sortable-nulls-accepted")
+		}
+		if (caps.sortable.length >= 2 && (caps.sort?.maxKeys === undefined || caps.sort.maxKeys >= 2)) {
+			ids.push("sort.multi-key-tiebreak")
+		}
+		if (caps.sort?.defaultOrder !== undefined) ids.push("sort.default-order-applied")
+		if (caps.sort?.stableTiebreak !== undefined) ids.push("sort.stable-tiebreak")
+	}
+	if (list.conventions.search !== undefined && caps.searchable.length > 0) {
+		ids.push("search.tokens-and", "search.case-insensitive", "search.undeclared-field-not-required")
+		if (caps.searchEmpty !== undefined) ids.push("search.empty-q")
+		if (caps.searchModes !== undefined && list.conventions.searchMode !== undefined) {
+			ids.push("search.mode-accepted")
+			if (caps.searchModes.length >= 2) ids.push("search.modes-differ")
+		}
+	}
+	if (list.conventions.select !== undefined && caps.selectable.length > 0) {
+		ids.push("select.requested-fields-present")
+		if (caps.select?.unknown !== undefined) ids.push("select.unknown-field-rejected")
+		if (caps.select?.nested === true && (caps.select.relations?.length ?? 0) > 0) ids.push("select.nested-honoured")
+	}
+	if (
+		list.conventions.order !== undefined &&
+		list.conventions.select !== undefined &&
+		caps.sortable.length > 0 &&
+		caps.selectable.length > 0
+	) {
+		ids.push("query.sort-and-select-compose")
+	}
+	if (
+		list.conventions.search !== undefined &&
+		list.conventions.select !== undefined &&
+		caps.searchable.length > 0 &&
+		caps.selectable.length > 0
+	) {
+		ids.push("query.search-and-select-compose")
+	}
+	if (
+		list.conventions.search !== undefined &&
+		list.conventions.order !== undefined &&
+		caps.searchable.length > 0 &&
+		caps.sortable.length > 0
+	) {
+		ids.push("query.search-and-sort-compose")
+	}
+	if (
+		caps.filterable.length > 0 &&
+		caps.searchable.length > 0 &&
+		caps.sortable.length > 0 &&
+		caps.selectable.length > 0
+	) {
+		ids.push("query.filter-search-sort-select-compose")
+	}
+	return ids
+}
+
+function entityQueryCatalogs(model: SpecModel, config?: DoctorConfig) {
+	const unknownEntities = Object.keys(config?.entities ?? {}).filter((name) => !model.entities.has(name))
+	const hook = config?.hooks?.resolveQueryCapabilities !== undefined
+	const catalogs: Array<{
+		entity: string
+		source: EffectiveQueryCapabilities["source"]
+		filterable: EffectiveQueryCapabilities["filterable"]
+		sortable: EffectiveQueryCapabilities["sortable"]
+		searchable: string[]
+		selectable: string[]
+		operators?: EffectiveQueryCapabilities["operators"]
+		operatorsByType?: EffectiveQueryCapabilities["operatorsByType"]
+		aliases: EffectiveQueryCapabilities["aliases"]
+		identityFilter?: string
+		emptyIn?: EffectiveQueryCapabilities["emptyIn"]
+		maxInValues?: number
+		maxFilterConditions?: number
+		searchModes?: string[]
+		searchEmpty?: EffectiveQueryCapabilities["searchEmpty"]
+		sort?: EffectiveQueryCapabilities["sort"]
+		select?: EffectiveQueryCapabilities["select"]
+		harvest: string[]
+		hook: boolean
+		checks: string[]
+	}> = []
+	for (const entity of [...model.entities.values()].sort((a, b) => a.name.localeCompare(b.name))) {
+		if (entity.list === undefined) continue
+		const listOp = model.byOperationId.get(entity.list)
+		if (listOp === undefined) continue
+		const entityQuery = config?.entities?.[entity.name]?.query
+		const caps = mergeQueryCapabilities({
+			itemSchema: listOp.collection?.itemSchema ?? null,
+			tag: listOp.query,
+			...(config?.query === undefined ? {} : { global: config.query }),
+			...(entityQuery === undefined ? {} : { entity: entityQuery }),
+		})
+		const harvest = [
+			caps.filterableFrom === undefined ? "" : "filterableFrom",
+			caps.sortableFrom === undefined ? "" : "sortableFrom",
+			caps.searchableFrom === undefined ? "" : "searchableFrom",
+			caps.selectableFrom === undefined ? "" : "selectableFrom",
+		].filter(Boolean)
+		catalogs.push({
+			aliases: caps.aliases,
+			checks: catalogCheckPreview(caps, listOp, caps.source),
+			entity: entity.name,
+			filterable: caps.filterable,
+			harvest,
+			hook,
+			searchable: caps.searchable,
+			selectable: caps.selectable,
+			sortable: caps.sortable,
+			source: caps.source,
+			...(caps.operators === undefined ? {} : { operators: caps.operators }),
+			...(caps.operatorsByType === undefined ? {} : { operatorsByType: caps.operatorsByType }),
+			...(caps.identityFilter === undefined ? {} : { identityFilter: caps.identityFilter }),
+			...(caps.emptyIn === undefined ? {} : { emptyIn: caps.emptyIn }),
+			...(caps.maxInValues === undefined ? {} : { maxInValues: caps.maxInValues }),
+			...(caps.maxFilterConditions === undefined ? {} : { maxFilterConditions: caps.maxFilterConditions }),
+			...(caps.searchModes === undefined ? {} : { searchModes: caps.searchModes }),
+			...(caps.searchEmpty === undefined ? {} : { searchEmpty: caps.searchEmpty }),
+			...(caps.sort === undefined ? {} : { sort: caps.sort }),
+			...(caps.select === undefined ? {} : { select: caps.select }),
+		})
+	}
+	return { catalogs, unknownEntities }
+}
+
+function doctor(
+	model: SpecModel,
+	externalRefs: string[],
+	asJson: boolean,
+	config?: DoctorConfig,
+): { text: string; blocking: number } {
 	const entities = [...model.entities.values()].sort((a, b) => a.name.localeCompare(b.name))
 	const trackable = entities.filter((e) => e.trackable && e.readSurface.length > 0)
 	const listable = trackable.filter((e) => e.list !== undefined)
@@ -141,6 +344,7 @@ function doctor(model: SpecModel, externalRefs: string[], asJson: boolean): { te
 	const featureGates = model.operations
 		.filter((op) => op.featureGate !== null)
 		.map((op) => ({ operationId: op.operationId, featureGate: op.featureGate }))
+	const { catalogs, unknownEntities } = entityQueryCatalogs(model, config)
 
 	if (asJson) {
 		return {
@@ -153,9 +357,11 @@ function doctor(model: SpecModel, externalRefs: string[], asJson: boolean): { te
 					featureGates,
 					gaps: model.gaps.gaps,
 					listableEntities: listable.length,
+					queryCatalog: catalogs,
 					roots: model.roots,
 					testableEntities: trackable.length,
 					trackableEntities: trackable.length,
+					unknownEntities,
 				},
 				null,
 				2,
@@ -253,6 +459,47 @@ function doctor(model: SpecModel, externalRefs: string[], asJson: boolean): { te
 		lines.push("  feature gates — a matching 403 is a coverage gap, not a fail")
 		for (const gate of featureGates) {
 			lines.push(`    ${gate.operationId.padEnd(28)} x-feature-gate: ${gate.featureGate}`)
+		}
+		lines.push("")
+	}
+
+	if (unknownEntities.length > 0) {
+		lines.push("  config.entities names that do not match the document (ignored)")
+		for (const name of unknownEntities) lines.push(`    ${name}`)
+		lines.push("")
+	}
+
+	if (catalogs.length > 0) {
+		lines.push("  query catalog (declared or skip — missing capability does not apply)")
+		for (const row of catalogs) {
+			const ops = row.operators === undefined ? "implicit eq/neq/gt/gte/lt/lte/like" : row.operators.join(",")
+			lines.push(
+				`    ${row.entity}  source=${row.source}${row.hook ? " +hook" : ""}${row.harvest.length > 0 ? ` harvest=${row.harvest.join(",")}` : ""}`,
+			)
+			lines.push(`      filterable  ${row.filterable.map((field) => field.field).join(", ") || "—"}  ops ${ops}`)
+			lines.push(`      sortable    ${row.sortable.map((field) => field.field).join(", ") || "—"}`)
+			lines.push(`      searchable  ${row.searchable.join(", ") || "—"}`)
+			lines.push(`      selectable  ${row.selectable.join(", ") || "—"}`)
+			const extras = [
+				row.identityFilter === undefined ? "" : `identityFilter=${row.identityFilter}`,
+				row.emptyIn === undefined ? "" : `emptyIn=${row.emptyIn}`,
+				row.maxInValues === undefined ? "" : `maxInValues=${row.maxInValues}`,
+				row.maxFilterConditions === undefined ? "" : `maxFilterConditions=${row.maxFilterConditions}`,
+				row.searchEmpty === undefined ? "" : `searchEmpty=${row.searchEmpty}`,
+				row.searchModes === undefined ? "" : `searchModes=${row.searchModes.join(",")}`,
+				row.sort?.nulls === undefined ? "" : `sort.nulls=${row.sort.nulls.join(",")}`,
+				row.sort?.maxKeys === undefined ? "" : `sort.maxKeys=${row.sort.maxKeys}`,
+				row.sort?.defaultOrder === undefined ? "" : `defaultOrder=${row.sort.defaultOrder}`,
+				row.sort?.stableTiebreak === undefined ? "" : `stableTiebreak=${row.sort.stableTiebreak}`,
+				row.select?.unknown === undefined ? "" : `select.unknown=${row.select.unknown}`,
+				row.select?.nested === undefined ? "" : `select.nested=${String(row.select.nested)}`,
+			].filter(Boolean)
+			if (extras.length > 0) lines.push(`      ${extras.join("  ")}`)
+			if (row.checks.length > 0) {
+				lines.push(`      will apply  ${row.checks.join(", ")}`)
+			} else {
+				lines.push("      will apply  (none of the declared-or-skip catalog checks)")
+			}
 		}
 		lines.push("")
 	}

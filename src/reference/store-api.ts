@@ -111,6 +111,11 @@ export function project(
 	 * SPEC_OVERCLAIMS_SELECTABLE. Everything else stays as permissive as before: an unrecognised
 	 * field is silently dropped, never rejected. */
 	excluded: readonly string[] = [],
+	options: {
+		identity?: string
+		selectUnknown?: "reject" | "ignore"
+		dropRequested?: boolean
+	} = {},
 ): Row {
 	if (select === undefined || select === "" || select === "*") return { ...row }
 	if (ignore) return { ...row }
@@ -122,8 +127,14 @@ export function project(
 	if (rejected !== undefined) {
 		throw new SqlError("invalid_select", `field "${rejected}" is not selectable`)
 	}
+	if (options.selectUnknown === "reject") {
+		const bogus = fields.find((field) => !Object.hasOwn(row, field) && !field.includes("("))
+		if (bogus !== undefined) throw new SqlError("invalid_select", `field "${bogus}" is not selectable`)
+	}
+	const identity = options.identity ?? "id"
 	const out: Row = {}
 	for (const field of fields) {
+		if (options.dropRequested === true && field !== identity && Object.hasOwn(row, field)) continue
 		if (Object.hasOwn(row, field)) out[field] = row[field]
 	}
 	return out

@@ -7,9 +7,21 @@
  */
 
 import type { Hooks } from "../config/define-config.ts"
-import { filterTerm, selectTerm, sortTerm } from "../spec/conventions.ts"
+import { canWriteFilterOp, filterTerm, selectTerm, sortTerm, sortTermWithNulls } from "../spec/conventions.ts"
 import type { InviteSpec } from "../spec/extensions.ts"
 import type { QueryCapability } from "../spec/extensions.ts"
+import {
+	type EffectiveFilterField,
+	type EffectiveQueryCapabilities,
+	FILTER_OPS,
+	ORDERED_TYPES,
+	fieldAllows,
+	fieldAllowsNulls,
+	isFilterOp,
+	mergeQueryCapabilities,
+	opsAreClosed,
+	opsForField,
+} from "../spec/query-capabilities.ts"
 import { requestContent } from "../spec/collection.ts"
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
 import { pathTemplateMatches } from "../spec/load.ts"
@@ -57,6 +69,8 @@ export interface CheckContext {
 	collectionKey: string | null
 	records: Record_[]
 	query: QueryCapability | null
+	/** Merged filter catalog. Optional so a hand-built context still works. */
+	capabilities?: EffectiveQueryCapabilities
 	softDelete: string | null
 	invite: InviteSpec | null
 	auth: () => Record<string, string>
@@ -182,6 +196,7 @@ function q(
 		cursor?: string | undefined
 		order?: string | undefined
 		search?: string | undefined
+		searchMode?: string | undefined
 		filter?: string | undefined
 	},
 ): Record<string, string | number | undefined> {
@@ -209,6 +224,7 @@ function q(
 	if (roles.cursor !== undefined && c.cursor !== undefined) out[c.cursor] = roles.cursor
 	if (roles.order !== undefined && c.order !== undefined) out[c.order] = roles.order
 	if (roles.search !== undefined && c.search !== undefined) out[c.search] = roles.search
+	if (roles.searchMode !== undefined && c.searchMode !== undefined) out[c.searchMode] = roles.searchMode
 	if (roles.filter !== undefined && c.filter !== undefined) out[c.filter] = roles.filter
 	return out
 }
@@ -231,6 +247,54 @@ function filterable(ctx: CheckContext): boolean {
 	/* Equality-per-field needs a field to attach the predicate to, and the document has to say
 	 * which fields are filterable — otherwise oat would be guessing at parameter names. */
 	return c.grammar === "equality" && (ctx.query?.filterable.length ?? 0) > 0
+}
+
+function resolvedCaps(ctx: CheckContext): EffectiveQueryCapabilities {
+	if (ctx.capabilities !== undefined) return ctx.capabilities
+	return mergeQueryCapabilities({
+		itemSchema: ctx.listOp.collection?.itemSchema ?? null,
+		tag:
+			ctx.query === null
+				? null
+				: {
+						filterable: ctx.query.filterable,
+						searchable: ctx.query.searchable,
+						selectable: ctx.query.selectable,
+						sortable: ctx.query.sortable,
+						source: ctx.query.source,
+						...(ctx.query.filterableDeclared === undefined ? {} : { filterableDeclared: ctx.query.filterableDeclared }),
+						...(ctx.query.sortableDeclared === undefined ? {} : { sortableDeclared: ctx.query.sortableDeclared }),
+						...(ctx.query.searchableDeclared === undefined ? {} : { searchableDeclared: ctx.query.searchableDeclared }),
+						...(ctx.query.selectableDeclared === undefined ? {} : { selectableDeclared: ctx.query.selectableDeclared }),
+						...(ctx.query.filterFields === undefined ? {} : { filterFields: ctx.query.filterFields }),
+						...(ctx.query.sortableFields === undefined ? {} : { sortableFields: ctx.query.sortableFields }),
+						...(ctx.query.catalog === undefined ? {} : { catalog: ctx.query.catalog }),
+						...(ctx.query.defaultOrder === undefined ? {} : { defaultOrder: ctx.query.defaultOrder }),
+						...(ctx.query.stableTiebreak === undefined ? {} : { stableTiebreak: ctx.query.stableTiebreak }),
+					},
+	})
+}
+
+function filterableNames(ctx: CheckContext): string[] {
+	return resolvedCaps(ctx).filterable.map((field) => field.field)
+}
+
+/** Filter field for identity predicates when it differs from the JSON identity. */
+function filterIdentity(ctx: CheckContext): string {
+	return resolvedCaps(ctx).identityFilter ?? ctx.identity
+}
+
+function identityIsFilterable(ctx: CheckContext): boolean {
+	const names = filterableNames(ctx)
+	return names.includes(filterIdentity(ctx)) || names.includes(ctx.identity)
+}
+
+function fieldByName(ctx: CheckContext, name: string): EffectiveFilterField | undefined {
+	return resolvedCaps(ctx).filterable.find((field) => field.field === name)
+}
+
+function canUseOp(ctx: CheckContext, field: EffectiveFilterField, op: (typeof FILTER_OPS)[number]): boolean {
+	return canWriteFilterOp(conv(ctx), op) && fieldAllows(field, op, resolvedCaps(ctx))
 }
 
 /**
@@ -470,8 +534,40 @@ function nullableField(ctx: CheckContext, candidates: readonly string[]): string
 }
 
 function firstFilterable(ctx: CheckContext, predicate: (name: string) => boolean): string | null {
-	const candidates = ctx.query?.filterable ?? []
-	return candidates.find(predicate) ?? null
+	return filterableNames(ctx).find(predicate) ?? null
+}
+
+function fieldsAllowing(ctx: CheckContext, op: (typeof FILTER_OPS)[number]): EffectiveFilterField[] {
+	if (!canWriteFilterOp(conv(ctx), op)) return []
+	return resolvedCaps(ctx).filterable.filter((field) => fieldAllows(field, op, resolvedCaps(ctx)))
+}
+
+function distinctValues(records: Record_[], field: string): unknown[] {
+	const seen = new Set<string>()
+	const out: unknown[] = []
+	for (const record of records) {
+		const value = record[field]
+		if (value === null || value === undefined) continue
+		const key = String(value)
+		if (seen.has(key)) continue
+		seen.add(key)
+		out.push(value)
+	}
+	return out
+}
+
+function asTermValue(value: unknown): string | number {
+	return typeof value === "number" ? value : String(value)
+}
+
+function setOf(records: Record_[], identity: string): Set<string> {
+	return new Set(ids(records, identity))
+}
+
+function sameSet(a: Set<string>, b: Set<string>): boolean {
+	if (a.size !== b.size) return false
+	for (const item of a) if (!b.has(item)) return false
+	return true
 }
 
 /**
@@ -479,7 +575,8 @@ function firstFilterable(ctx: CheckContext, predicate: (name: string) => boolean
  * minimum needed to build a compound predicate that is guaranteed to match at least that record.
  */
 function twoFilterableFields(ctx: CheckContext): { fieldA: string; fieldB: string; target: Record_ } | null {
-	const candidates = (ctx.query?.filterable ?? []).filter((f) => f !== ctx.identity)
+	const skip = new Set([ctx.identity, filterIdentity(ctx)])
+	const candidates = filterableNames(ctx).filter((f) => !skip.has(f))
 	for (const target of ctx.records) {
 		const present = candidates.filter((f) => target[f] !== null && target[f] !== undefined)
 		if (present[0] !== undefined && present[1] !== undefined) {
@@ -681,8 +778,7 @@ const unknownFilterRejected: Check = {
 }
 
 const equalityFilterSelectsOne: Check = {
-	applicable: (ctx) =>
-		filterable(ctx) && ctx.records.length > 0 && (ctx.query?.filterable.includes(ctx.identity) ?? false),
+	applicable: (ctx) => filterable(ctx) && ctx.records.length > 0 && identityIsFilterable(ctx),
 	dependsOn: ["list.read-after-write"],
 	id: "filter.equality-selects-exactly-one",
 	needs: "a `filter` parameter that accepts the identity field",
@@ -690,7 +786,8 @@ const equalityFilterSelectsOne: Check = {
 		const target = ctx.records[0]
 		if (target === undefined) return
 		const id = String(target[ctx.identity])
-		const term = filterTerm(conv(ctx), ctx.identity, "eq", id)
+		const field = filterIdentity(ctx)
+		const term = filterTerm(conv(ctx), field, "eq", id)
 		if (term === null) return
 		const result = await list(ctx, { ...q(ctx, { limit: 100 }), ...term })
 		/* A rejected filter is not a wrong answer. If the backend says this field is not
@@ -703,19 +800,19 @@ const equalityFilterSelectsOne: Check = {
 			this.id,
 			ctx.entityName,
 			"equality filter on the identity does not select exactly one record",
-			`filter=${ctx.identity}.eq.${id} returned ${got.length} records (${got.slice(0, 5).join(", ")})`,
+			`filter=${field}.eq.${id} returned ${got.length} records (${got.slice(0, 5).join(", ")})`,
 			[result.exchange],
 		)
 	},
 }
 
 const zeroMatchFilter: Check = {
-	applicable: (ctx) => filterable(ctx) && (ctx.query?.filterable.includes(ctx.identity) ?? false),
+	applicable: (ctx) => filterable(ctx) && identityIsFilterable(ctx),
 	dependsOn: ["list.read-after-write"],
 	id: "filter.zero-match-returns-none",
 	needs: "a `filter` parameter that accepts the identity field",
 	async run(ctx) {
-		const term = filterTerm(conv(ctx), ctx.identity, "eq", "oat-nonexistent-value-000")
+		const term = filterTerm(conv(ctx), filterIdentity(ctx), "eq", "oat-nonexistent-value-000")
 		if (term === null) return
 		const result = await list(ctx, { ...q(ctx, { limit: 100 }), ...term })
 		if (result.exchange.status >= 400) return
@@ -732,8 +829,7 @@ const zeroMatchFilter: Check = {
 }
 
 const negationPartitions: Check = {
-	applicable: (ctx) =>
-		filterable(ctx) && ctx.records.length > 1 && (ctx.query?.filterable.includes(ctx.identity) ?? false),
+	applicable: (ctx) => filterable(ctx) && ctx.records.length > 1 && identityIsFilterable(ctx),
 	dependsOn: [
 		"list.read-after-write",
 		/* Partitioning is asserted over field *values*. A backend that drops submitted fields
@@ -750,7 +846,7 @@ const negationPartitions: Check = {
 		if (target === undefined) return
 		/* Prefer a field with nulls in the cohort: partitioning on the identity can never expose
 		 * three-valued-logic bugs, because an identity is never null. */
-		const field = nullableField(ctx, ctx.query?.filterable ?? []) ?? ctx.identity
+		const field = nullableField(ctx, filterableNames(ctx)) ?? filterIdentity(ctx)
 		const probe = ctx.records.map((r) => r[field]).find((v) => v !== null && v !== undefined)
 		if (probe === undefined) {
 			return ctx.findings.unresolved(
@@ -1267,11 +1363,11 @@ const countMatchesWalk: Check = {
 	id: "count.matches-filtered-set",
 	needs: "a total-count field and a `filter` parameter",
 	async run(ctx) {
-		if (!(ctx.query?.filterable.includes(ctx.identity) ?? false)) return
+		if (!identityIsFilterable(ctx)) return
 		const target = ctx.records[0]
 		if (target === undefined) return
 		const id = String(target[ctx.identity])
-		const countTerm = filterTerm(conv(ctx), ctx.identity, "eq", id)
+		const countTerm = filterTerm(conv(ctx), filterIdentity(ctx), "eq", id)
 		if (countTerm === null) return
 		const filtered = await list(ctx, { ...q(ctx, { limit: 100 }), ...countTerm })
 		if (filtered.exchange.status >= 400) return
@@ -1922,6 +2018,7 @@ const projectionsAgree: Check = {
 		 * disagreement here is that same defect seen a second time. */
 		"filter.equality-selects-exactly-one",
 		"select.projection-honoured",
+		"select.requested-fields-present",
 		"sort.order-is-applied",
 	],
 	id: "consistency.projections-agree",
@@ -3171,10 +3268,10 @@ const crossTenantFilterBypass: Check = {
 	async run(ctx) {
 		const target = ctx.records[0]
 		if (target === undefined || ctx.altAuth === undefined || ctx.altScope === undefined) return
-		if (!(ctx.query?.filterable.includes(ctx.identity) ?? false)) return
+		if (!identityIsFilterable(ctx)) return
 		const id = String(target[ctx.identity])
 
-		const tenantTerm = filterTerm(conv(ctx), ctx.identity, "eq", id)
+		const tenantTerm = filterTerm(conv(ctx), filterIdentity(ctx), "eq", id)
 		if (tenantTerm === null) return
 		const result = await list(ctx, { ...q(ctx, { limit: 100 }), ...tenantTerm }, ctx.altAuth, ctx.altScope)
 		if (result.exchange.status >= 400) return
@@ -3566,6 +3663,15 @@ const orderChangesResult: Check = {
 			[ascending.exchange],
 		)
 	},
+}
+
+function numericLexicalDisagrees(ctx: CheckContext, field: string): boolean {
+	const values = ctx.records.map((row) => row[field]).filter((v): v is number => typeof v === "number")
+	if (values.length < 3) return false
+	const unique = [...new Set(values)]
+	const asNumbers = [...unique].sort((a, b) => a - b)
+	const asText = [...unique].sort((a, b) => String(a).localeCompare(String(b)))
+	return asNumbers.join(",") !== asText.join(",")
 }
 
 function compareValues(a: unknown, b: unknown): number {
@@ -4868,6 +4974,1481 @@ const documentedStatusHonoured: Check = {
 	},
 }
 
+function pickFieldForOp(
+	ctx: CheckContext,
+	op: (typeof FILTER_OPS)[number],
+	minDistinct = 2,
+): { field: EffectiveFilterField; values: unknown[] } | null {
+	for (const field of fieldsAllowing(ctx, op)) {
+		const values = distinctValues(ctx.records, field.field)
+		if (values.length >= minDistinct) return { field, values }
+	}
+	return null
+}
+
+function pickOrderedField(ctx: CheckContext): { field: EffectiveFilterField; values: number[] } | null {
+	const caps = resolvedCaps(ctx)
+	for (const field of caps.filterable) {
+		if (field.type !== undefined && !ORDERED_TYPES.has(field.type)) continue
+		if (!canUseOp(ctx, field, "gt") || !canUseOp(ctx, field, "lt") || !canUseOp(ctx, field, "eq")) continue
+		const values = ctx.records.map((r) => r[field.field]).filter((v): v is number => typeof v === "number")
+		if (values.length < 3) continue
+		return { field, values }
+	}
+	return null
+}
+
+const FOUNDATIONS = [
+	"list.read-after-write",
+	"create.persists-submitted-fields",
+	"pagination.page-walk-covers-set",
+] as const
+
+const filterInIsUnionOfEq: Check = {
+	applicable: (ctx) => filterable(ctx) && pickFieldForOp(ctx, "in", 2) !== null,
+	dependsOn: [...FOUNDATIONS, "filter.equality-selects-exactly-one"],
+	id: "filter.in-is-union-of-eq",
+	needs: "a field that allows `in` and at least two distinct values",
+	async run(ctx) {
+		const picked = pickFieldForOp(ctx, "in", 2)
+		if (picked === null) return
+		const [a, b] = picked.values
+		if (a === undefined || b === undefined) return
+		const conventions = conv(ctx)
+		const inTerm = filterTerm(conventions, picked.field.field, "in", [asTermValue(a), asTermValue(b)])
+		const eqA = filterTerm(conventions, picked.field.field, "eq", asTermValue(a))
+		const eqB = filterTerm(conventions, picked.field.field, "eq", asTermValue(b))
+		if (inTerm === null || eqA === null || eqB === null) return
+		const limit = ctx.query?.maxLimit ?? 100
+		const together = await collectSet(ctx, limit, inTerm)
+		const onlyA = await collectSet(ctx, limit, eqA)
+		const onlyB = await collectSet(ctx, limit, eqB)
+		if (together === null || onlyA === null || onlyB === null) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "one of the listings needed for in() was rejected")
+		}
+		if (!together.complete || !onlyA.complete || !onlyB.complete) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "the collection is larger than the walk covers")
+		}
+		const expected = new Set([...ids(onlyA.items, ctx.identity), ...ids(onlyB.items, ctx.identity)])
+		const got = setOf(together.items, ctx.identity)
+		if (sameSet(expected, got)) return
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"in() is not the union of the equalities it lists",
+			`${picked.field.field}.in.(${String(a)},${String(b)}) returned ${got.size} record(s); ` +
+				`eq on each value together match ${expected.size}.`,
+			[together.last.exchange, onlyA.last.exchange, onlyB.last.exchange],
+		)
+	},
+}
+
+const filterNinComplementsIn: Check = {
+	applicable: (ctx) =>
+		filterable(ctx) && pickFieldForOp(ctx, "in", 1) !== null && pickFieldForOp(ctx, "nin", 1) !== null,
+	dependsOn: [...FOUNDATIONS, "filter.in-is-union-of-eq"],
+	id: "filter.nin-complements-in",
+	needs: "a field that allows both `in` and `nin`",
+	async run(ctx) {
+		const picked = pickFieldForOp(ctx, "in", 1)
+		if (picked === null || !canUseOp(ctx, picked.field, "nin")) return
+		const value = picked.values[0]
+		if (value === undefined) return
+		const conventions = conv(ctx)
+		const inTerm = filterTerm(conventions, picked.field.field, "in", [asTermValue(value)])
+		const ninTerm = filterTerm(conventions, picked.field.field, "nin", [asTermValue(value)])
+		if (inTerm === null || ninTerm === null) return
+		const limit = ctx.query?.maxLimit ?? 100
+		const all = await collectSet(ctx, limit)
+		const inside = await collectSet(ctx, limit, inTerm)
+		const outside = await collectSet(ctx, limit, ninTerm)
+		if (all === null || inside === null || outside === null) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "one of the listings needed for nin() was rejected")
+		}
+		if (!all.complete || !inside.complete || !outside.complete) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "the collection is larger than the walk covers")
+		}
+		const inIds = setOf(inside.items, ctx.identity)
+		const ninIds = setOf(outside.items, ctx.identity)
+		const overlap = [...inIds].filter((id) => ninIds.has(id))
+		if (overlap.length > 0) {
+			ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"in() and nin() both match the same record",
+				`${overlap.length} record(s) appear in both ${picked.field.field}.in and .nin.`,
+				[inside.last.exchange, outside.last.exchange],
+			)
+			return
+		}
+		const expected = ids(all.items, ctx.identity).filter((id) => {
+			const record = ctx.records.find((row) => String(row[ctx.identity]) === id)
+			return record !== undefined && record[picked.field.field] !== null && record[picked.field.field] !== undefined
+		})
+		const union = new Set([...inIds, ...ninIds])
+		const missing = expected.filter((id) => !union.has(id))
+		if (missing.length === 0) return
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"in() and nin() do not cover the non-null set",
+			`${missing.length} non-null record(s) match neither side.`,
+			[all.last.exchange, inside.last.exchange, outside.last.exchange],
+		)
+	},
+}
+
+const filterGteIsGtOrEq: Check = {
+	applicable: (ctx) => pickOrderedField(ctx) !== null && fieldsAllowing(ctx, "gte").length > 0,
+	dependsOn: [...FOUNDATIONS, "filter.equality-selects-exactly-one", "filter.numeric-comparison-is-numeric"],
+	id: "filter.gte-is-gt-or-eq",
+	needs: "an ordered field that allows `gte` and `gt`",
+	async run(ctx) {
+		const picked = pickOrderedField(ctx)
+		if (picked === null || !canUseOp(ctx, picked.field, "gte")) return
+		const threshold = [...new Set(picked.values)].sort((a, b) => a - b)[Math.floor(picked.values.length / 3)]
+		if (threshold === undefined) return
+		await assertRangeUnion(ctx, this.id, picked.field.field, "gte", "gt", threshold)
+	},
+}
+
+const filterLteIsLtOrEq: Check = {
+	applicable: (ctx) => pickOrderedField(ctx) !== null && fieldsAllowing(ctx, "lte").length > 0,
+	dependsOn: [...FOUNDATIONS, "filter.equality-selects-exactly-one", "filter.numeric-comparison-is-numeric"],
+	id: "filter.lte-is-lt-or-eq",
+	needs: "an ordered field that allows `lte` and `lt`",
+	async run(ctx) {
+		const picked = pickOrderedField(ctx)
+		if (picked === null || !canUseOp(ctx, picked.field, "lte")) return
+		const threshold = [...new Set(picked.values)].sort((a, b) => a - b)[Math.floor(picked.values.length / 3)]
+		if (threshold === undefined) return
+		await assertRangeUnion(ctx, this.id, picked.field.field, "lte", "lt", threshold)
+	},
+}
+
+async function assertRangeUnion(
+	ctx: CheckContext,
+	check: string,
+	field: string,
+	closed: "gte" | "lte",
+	open: "gt" | "lt",
+	threshold: number,
+): Promise<void> {
+	const conventions = conv(ctx)
+	const closedTerm = filterTerm(conventions, field, closed, threshold)
+	const openTerm = filterTerm(conventions, field, open, threshold)
+	const eqTerm = filterTerm(conventions, field, "eq", threshold)
+	if (closedTerm === null || openTerm === null || eqTerm === null) return
+	const limit = ctx.query?.maxLimit ?? 100
+	const closedSet = await collectSet(ctx, limit, closedTerm)
+	const openSet = await collectSet(ctx, limit, openTerm)
+	const eqSet = await collectSet(ctx, limit, eqTerm)
+	if (closedSet === null || openSet === null || eqSet === null) {
+		return ctx.findings.unresolved(check, ctx.entityName, "one of the range listings was rejected")
+	}
+	if (!closedSet.complete || !openSet.complete || !eqSet.complete) {
+		return ctx.findings.unresolved(check, ctx.entityName, "the collection is larger than the walk covers")
+	}
+	const expected = new Set([...ids(openSet.items, ctx.identity), ...ids(eqSet.items, ctx.identity)])
+	const got = setOf(closedSet.items, ctx.identity)
+	if (sameSet(expected, got)) return
+	ctx.findings.backend(
+		check,
+		ctx.entityName,
+		`${closed} is not ${open} ∪ eq`,
+		`${field}.${closed}.${threshold} returned ${got.size}; ${open} ∪ eq is ${expected.size}.`,
+		[closedSet.last.exchange, openSet.last.exchange, eqSet.last.exchange],
+	)
+}
+
+const filterOrderedTriplePartitions: Check = {
+	applicable: (ctx) => pickOrderedField(ctx) !== null,
+	dependsOn: [...FOUNDATIONS, "filter.equality-selects-exactly-one", "filter.numeric-comparison-is-numeric"],
+	id: "filter.ordered-triple-partitions",
+	needs: "an ordered field that allows `lt`, `eq`, and `gt`",
+	async run(ctx) {
+		const picked = pickOrderedField(ctx)
+		if (picked === null) return
+		const threshold = [...new Set(picked.values)].sort((a, b) => a - b)[Math.floor(picked.values.length / 2)]
+		if (threshold === undefined) return
+		const conventions = conv(ctx)
+		const lt = filterTerm(conventions, picked.field.field, "lt", threshold)
+		const eq = filterTerm(conventions, picked.field.field, "eq", threshold)
+		const gt = filterTerm(conventions, picked.field.field, "gt", threshold)
+		if (lt === null || eq === null || gt === null) return
+		const limit = ctx.query?.maxLimit ?? 100
+		const all = await collectSet(ctx, limit)
+		const lower = await collectSet(ctx, limit, lt)
+		const equal = await collectSet(ctx, limit, eq)
+		const higher = await collectSet(ctx, limit, gt)
+		if (all === null || lower === null || equal === null || higher === null) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "one of the triple listings was rejected")
+		}
+		if (!all.complete || !lower.complete || !equal.complete || !higher.complete) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "the collection is larger than the walk covers")
+		}
+		const sets = [setOf(lower.items, ctx.identity), setOf(equal.items, ctx.identity), setOf(higher.items, ctx.identity)]
+		for (let i = 0; i < sets.length; i++) {
+			for (let j = i + 1; j < sets.length; j++) {
+				const left = sets[i]
+				const right = sets[j]
+				if (left === undefined || right === undefined) continue
+				const overlap = [...left].filter((id) => right.has(id))
+				if (overlap.length > 0) {
+					ctx.findings.backend(
+						this.id,
+						ctx.entityName,
+						"lt / eq / gt are not pairwise disjoint",
+						`${overlap.length} record(s) appear in more than one of ${picked.field.field} lt/eq/gt.`,
+						[lower.last.exchange, equal.last.exchange, higher.last.exchange],
+					)
+					return
+				}
+			}
+		}
+		const union = new Set([...(sets[0] ?? []), ...(sets[1] ?? []), ...(sets[2] ?? [])])
+		const expected = ids(all.items, ctx.identity).filter((id) => {
+			const record = ctx.records.find((row) => String(row[ctx.identity]) === id)
+			return record !== undefined && typeof record[picked.field.field] === "number"
+		})
+		const missing = expected.filter((id) => !union.has(id))
+		if (missing.length === 0) return
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"lt ∪ eq ∪ gt does not cover the numeric set",
+			`${missing.length} numeric record(s) match none of the three predicates.`,
+			[all.last.exchange, lower.last.exchange, equal.last.exchange, higher.last.exchange],
+		)
+	},
+}
+
+const filterIlikeIsCaseInsensitive: Check = {
+	applicable: (ctx) => fieldsAllowing(ctx, "ilike").some((field) => canUseOp(ctx, field, "like")),
+	dependsOn: [...FOUNDATIONS, "filter.like-metacharacters-escaped"],
+	id: "filter.ilike-is-case-insensitive",
+	needs: "a field that allows both `ilike` and `like`, and a string with a letter",
+	async run(ctx) {
+		const field = fieldsAllowing(ctx, "ilike").find((item) => canUseOp(ctx, item, "like"))
+		if (field === undefined) return
+		const sample = ctx.records
+			.map((row) => row[field.field])
+			.find((value): value is string => typeof value === "string" && /[A-Za-z]/.test(value))
+		if (sample === undefined) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "no searchable string on the field has a letter")
+		}
+		const flipped = sample.replace(/[A-Za-z]/, (ch) => (ch === ch.toLowerCase() ? ch.toUpperCase() : ch.toLowerCase()))
+		if (flipped === sample) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "could not case-flip a letter in the sample")
+		}
+		const conventions = conv(ctx)
+		const likeTerm = filterTerm(conventions, field.field, "like", flipped)
+		const ilikeTerm = filterTerm(conventions, field.field, "ilike", flipped)
+		if (likeTerm === null || ilikeTerm === null) return
+		const limit = ctx.query?.maxLimit ?? 100
+		const like = await list(ctx, { ...q(ctx, { limit }), ...likeTerm })
+		const ilike = await list(ctx, { ...q(ctx, { limit }), ...ilikeTerm })
+		if (like.exchange.status >= 400 || ilike.exchange.status >= 400) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "like/ilike probe was rejected")
+		}
+		const likeHits = ids(like.items, ctx.identity)
+		const ilikeHits = ids(ilike.items, ctx.identity)
+		const original = ctx.records.filter((row) => row[field.field] === sample).map((row) => String(row[ctx.identity]))
+		if (original.some((id) => ilikeHits.includes(id)) && !original.some((id) => likeHits.includes(id))) return
+		if (original.some((id) => ilikeHits.includes(id)) && original.some((id) => likeHits.includes(id))) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"like also matched the case-flipped value — the store may already be case-insensitive",
+			)
+		}
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"ilike is not case-insensitive relative to like",
+			`ilike on ${JSON.stringify(flipped)} did not select the record whose ${field.field} is ${JSON.stringify(sample)}.`,
+			[like.exchange, ilike.exchange],
+		)
+	},
+}
+
+function mixedNullField(ctx: CheckContext, field: string): boolean {
+	if (ctx.softDelete !== null && field === ctx.softDelete) return false
+	const values = ctx.records.map((row) => row[field])
+	const nulls = values.filter((value) => value === null || value === undefined).length
+	return nulls > 0 && nulls < values.length
+}
+
+const filterIsNullSelectsNulls: Check = {
+	applicable: (ctx) => fieldsAllowing(ctx, "is").some((field) => mixedNullField(ctx, field.field)),
+	dependsOn: [...FOUNDATIONS],
+	id: "filter.is-null-selects-nulls",
+	needs: "a field that allows `is` and a cohort that contains a null",
+	async run(ctx) {
+		const field = fieldsAllowing(ctx, "is").find((item) => mixedNullField(ctx, item.field))
+		if (field === undefined) return
+		const conventions = conv(ctx)
+		const nullTerm = filterTerm(conventions, field.field, "is", "null")
+		const notNullTerm = filterTerm(conventions, field.field, "is", "notnull")
+		if (nullTerm === null || notNullTerm === null) return
+		const limit = ctx.query?.maxLimit ?? 100
+		const all = await collectSet(ctx, limit)
+		const nulls = await collectSet(ctx, limit, nullTerm)
+		const present = await collectSet(ctx, limit, notNullTerm)
+		if (all === null || nulls === null || present === null) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "an is.null / is.notnull listing was rejected")
+		}
+		if (!all.complete || !nulls.complete || !present.complete) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "the collection is larger than the walk covers")
+		}
+		const expectedNulls = new Set(
+			ctx.records
+				.filter((row) => row[field.field] === null || row[field.field] === undefined)
+				.map((row) => String(row[ctx.identity])),
+		)
+		const gotNulls = setOf(nulls.items, ctx.identity)
+		const overlap = [...gotNulls].filter((id) => setOf(present.items, ctx.identity).has(id))
+		if (!sameSet(expectedNulls, gotNulls) || overlap.length > 0) {
+			ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"is.null / is.notnull do not partition on nulls",
+				`is.null returned ${gotNulls.size} record(s); ${expectedNulls.size} cohort rows are null. ` +
+					(overlap.length > 0 ? `${overlap.length} appear on both sides.` : ""),
+				[nulls.last.exchange, present.last.exchange],
+			)
+		}
+	},
+}
+
+const filterContainsMembership: Check = {
+	applicable: (ctx) =>
+		resolvedCaps(ctx).filterable.some(
+			(field) =>
+				(field.type === "array" || fieldAllows(field, "contains", resolvedCaps(ctx))) &&
+				canWriteFilterOp(conv(ctx), "contains") &&
+				ctx.records.some((row) => Array.isArray(row[field.field]) && (row[field.field] as unknown[]).length > 0),
+		),
+	dependsOn: [...FOUNDATIONS],
+	id: "filter.contains-membership",
+	needs: "an array field that allows `contains` and a known element",
+	async run(ctx) {
+		const field = resolvedCaps(ctx).filterable.find(
+			(item) =>
+				canUseOp(ctx, item, "contains") &&
+				ctx.records.some((row) => Array.isArray(row[item.field]) && (row[item.field] as unknown[]).length > 0),
+		)
+		if (field === undefined) return
+		const sample = ctx.records.find(
+			(row) => Array.isArray(row[field.field]) && (row[field.field] as unknown[]).length > 0,
+		)
+		const element = Array.isArray(sample?.[field.field]) ? (sample[field.field] as unknown[])[0] : undefined
+		if (element === undefined) return
+		const term = filterTerm(conv(ctx), field.field, "contains", asTermValue(element))
+		if (term === null) return
+		const result = await collectSet(ctx, ctx.query?.maxLimit ?? 100, term)
+		if (result === null) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "contains probe was rejected")
+		}
+		if (!result.complete) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "the collection is larger than the walk covers")
+		}
+		const expected = new Set(
+			ctx.records
+				.filter(
+					(row) =>
+						Array.isArray(row[field.field]) &&
+						(row[field.field] as unknown[]).some((item) => String(item) === String(element)),
+				)
+				.map((row) => String(row[ctx.identity])),
+		)
+		const got = setOf(result.items, ctx.identity)
+		if (sameSet(expected, got)) return
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"contains does not select membership of the given element",
+			`${field.field}.contains.${String(element)} returned ${got.size}; ${expected.size} records hold that element.`,
+			[result.last.exchange],
+		)
+	},
+}
+
+const filterNestedAndOrDistributes: Check = {
+	applicable: (ctx) => conv(ctx).grammar === "postgrest" && filterableNames(ctx).length > 1,
+	dependsOn: [...FOUNDATIONS, "filter.and-composes-as-intersection", "filter.or-composes-as-union"],
+	id: "filter.nested-and-or-distributes",
+	needs: "a postgrest-shaped grammar and two filterable fields",
+	async run(ctx) {
+		const picked = twoFilterableFields(ctx)
+		if (picked === null) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "no record holds two non-null filterable fields")
+		}
+		const idField = filterIdentity(ctx)
+		if (idField === picked.fieldA || idField === picked.fieldB || !identityIsFilterable(ctx)) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "need a third identity filter term to nest and/or")
+		}
+		const conventions = conv(ctx)
+		const fragA = filterFragment(conventions, picked.fieldA, String(picked.target[picked.fieldA]))
+		const fragB = filterFragment(conventions, picked.fieldB, String(picked.target[picked.fieldB]))
+		const fragC = filterFragment(conventions, idField, String(picked.target[ctx.identity]))
+		if (fragA === null || fragB === null || fragC === null || conventions.filter === undefined) return
+		const nested = { [conventions.filter]: `and(${fragA},or(${fragB},${fragC}))` }
+		const termA = filterTerm(conventions, picked.fieldA, "eq", String(picked.target[picked.fieldA]))
+		const termB = filterTerm(conventions, picked.fieldB, "eq", String(picked.target[picked.fieldB]))
+		const termC = filterTerm(conventions, idField, "eq", String(picked.target[ctx.identity]))
+		if (termA === null || termB === null || termC === null) return
+		const limit = ctx.query?.maxLimit ?? 100
+		const onlyA = await collectSet(ctx, limit, termA)
+		const onlyB = await collectSet(ctx, limit, termB)
+		const onlyC = await collectSet(ctx, limit, termC)
+		const combined = await collectSet(ctx, limit, nested)
+		if (onlyA === null || onlyB === null || onlyC === null || combined === null) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "a nested and/or listing was rejected")
+		}
+		if (!onlyA.complete || !onlyB.complete || !onlyC.complete || !combined.complete) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "the collection is larger than the walk covers")
+		}
+		const setA = setOf(onlyA.items, ctx.identity)
+		const setB = setOf(onlyB.items, ctx.identity)
+		const setC = setOf(onlyC.items, ctx.identity)
+		const expected = new Set([...setA].filter((id) => setB.has(id) || setC.has(id)))
+		const got = setOf(combined.items, ctx.identity)
+		if (sameSet(expected, got)) return
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"and(A,or(B,C)) is not (A∩B) ∪ (A∩C)",
+			`nested combinator returned ${got.size}; the distributed form is ${expected.size}.`,
+			[combined.last.exchange, onlyA.last.exchange, onlyB.last.exchange, onlyC.last.exchange],
+		)
+	},
+}
+
+const filterAliasMatchesCanonical: Check = {
+	applicable: (ctx) => Object.keys(resolvedCaps(ctx).aliases).length > 0 && filterable(ctx),
+	dependsOn: [...FOUNDATIONS, "filter.equality-selects-exactly-one"],
+	id: "filter.alias-matches-canonical",
+	needs: "a declared filter operator alias",
+	async run(ctx) {
+		const caps = resolvedCaps(ctx)
+		const conventions = conv(ctx)
+		const limit = ctx.query?.maxLimit ?? 100
+		for (const [alias, target] of Object.entries(caps.aliases)) {
+			if (!isFilterOp(alias) || target === undefined) continue
+			const field = resolvedCaps(ctx).filterable.find((item) => fieldAllows(item, target, caps))
+			if (field === undefined || !canWriteFilterOp(conventions, alias)) continue
+			const sample = ctx.records.find((row) => row[field.field] != null)
+			if (sample === undefined) continue
+			const value = asTermValue(sample[field.field])
+			const aliasTerm = filterTerm(conventions, field.field, alias, value)
+			const targetTerm = filterTerm(conventions, field.field, target, value)
+			if (aliasTerm === null || targetTerm === null) continue
+			const left = await collectSet(ctx, limit, aliasTerm)
+			const right = await collectSet(ctx, limit, targetTerm)
+			if (left === null || right === null) {
+				return ctx.findings.unresolved(this.id, ctx.entityName, `alias ${alias} or ${target} was rejected`)
+			}
+			if (!sameSet(setOf(left.items, ctx.identity), setOf(right.items, ctx.identity))) {
+				ctx.findings.backend(
+					this.id,
+					ctx.entityName,
+					`alias ${alias} does not select the same set as ${target}`,
+					`${field.field}.${alias} and ${field.field}.${target} disagreed on membership.`,
+					[left.last.exchange, right.last.exchange],
+				)
+				return
+			}
+		}
+	},
+}
+
+function firstIllegalOp(ctx: CheckContext, field: EffectiveFilterField): (typeof FILTER_OPS)[number] | undefined {
+	const caps = resolvedCaps(ctx)
+	if (!opsAreClosed(field, caps)) return undefined
+	const allowed = new Set(opsForField(field, caps))
+	return FILTER_OPS.find((op) => !allowed.has(op) && canWriteFilterOp(conv(ctx), op))
+}
+
+const filterIllegalOpRejected: Check = {
+	applicable: (ctx) => resolvedCaps(ctx).filterable.some((field) => firstIllegalOp(ctx, field) !== undefined),
+	dependsOn: ["list.read-after-write", "filter.unknown-field-rejected", "error.malformed-filter-not-5xx"],
+	id: "filter.illegal-op-rejected",
+	needs: "a field with a closed operator list",
+	async run(ctx) {
+		const field = resolvedCaps(ctx).filterable.find((item) => firstIllegalOp(ctx, item) !== undefined)
+		const op = field === undefined ? undefined : firstIllegalOp(ctx, field)
+		if (field === undefined || op === undefined) return
+		const sample = ctx.records.find((row) => row[field.field] != null)
+		const term = filterTerm(
+			conv(ctx),
+			field.field,
+			op,
+			sample === undefined ? "oat-probe" : asTermValue(sample[field.field]),
+		)
+		if (term === null) return
+		const baseline = await list(ctx, q(ctx, { limit: 100 }))
+		const result = await list(ctx, { ...q(ctx, { limit: 100 }), ...term })
+		if (result.exchange.status >= 500) {
+			ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"an illegal filter operator produces a server error",
+				`${field.field}.${op} returned ${result.exchange.status}; a rejected operator should be 4xx.`,
+				[result.exchange],
+			)
+			return
+		}
+		if (result.exchange.status >= 400) return
+		const same = ids(result.items, ctx.identity).join(",") === ids(baseline.items, ctx.identity).join(",")
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"an illegal filter operator is accepted",
+			`${field.field}.${op} returned ${result.exchange.status}` +
+				(same ? " with the unfiltered set, so the operator was ignored" : "") +
+				". A closed operator list is a contract: anything outside it must be rejected.",
+			[baseline.exchange, result.exchange],
+		)
+	},
+}
+
+const filterEmptyIn: Check = {
+	applicable: (ctx) => resolvedCaps(ctx).emptyIn !== undefined && pickFieldForOp(ctx, "in", 1) !== null,
+	dependsOn: [...FOUNDATIONS, "filter.in-is-union-of-eq"],
+	id: "filter.empty-in",
+	needs: "`emptyIn` declared and a field that allows `in`",
+	async run(ctx) {
+		const picked = pickFieldForOp(ctx, "in", 1)
+		const policy = resolvedCaps(ctx).emptyIn
+		if (picked === null || policy === undefined) return
+		const term = filterTerm(conv(ctx), picked.field.field, "in", [])
+		if (term === null) return
+		const baseline = await list(ctx, q(ctx, { limit: 100 }))
+		const result = await list(ctx, { ...q(ctx, { limit: 100 }), ...term })
+		if (policy === "reject") {
+			if (result.exchange.status >= 400 && result.exchange.status < 500) return
+			ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"empty in() was not rejected",
+				`emptyIn=reject but ${picked.field.field}.in.() returned ${result.exchange.status}.`,
+				[result.exchange],
+			)
+			return
+		}
+		if (result.exchange.status >= 400) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "empty in() was rejected under match-none")
+		}
+		if (result.items.length === 0) return
+		const same = ids(result.items, ctx.identity).join(",") === ids(baseline.items, ctx.identity).join(",")
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"empty in() did not match none",
+			`emptyIn=match-none but ${picked.field.field}.in.() returned ${result.items.length} record(s)` +
+				(same ? " — the unfiltered set, so the filter was ignored" : "") +
+				".",
+			[baseline.exchange, result.exchange],
+		)
+	},
+}
+
+const filterInOverLimitRejected: Check = {
+	applicable: (ctx) => resolvedCaps(ctx).maxInValues !== undefined && pickFieldForOp(ctx, "in", 1) !== null,
+	dependsOn: [...FOUNDATIONS, "error.malformed-filter-not-5xx"],
+	id: "filter.in-over-limit-rejected",
+	needs: "`maxInValues` declared and a field that allows `in`",
+	async run(ctx) {
+		const max = resolvedCaps(ctx).maxInValues
+		const picked = pickFieldForOp(ctx, "in", 1)
+		if (max === undefined || picked === null) return
+		const members = Array.from({ length: max + 1 }, (_, i) => `oat-over-limit-${i}`)
+		const term = filterTerm(conv(ctx), picked.field.field, "in", members)
+		if (term === null) return
+		const result = await list(ctx, { ...q(ctx, { limit: 5 }), ...term })
+		if (result.exchange.status >= 400 && result.exchange.status < 500) return
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"an over-limit in() list was accepted",
+			`maxInValues=${max} but ${picked.field.field}.in with ${max + 1} members returned ${result.exchange.status}.`,
+			[result.exchange],
+		)
+	},
+}
+
+const filterConditionCapRejected: Check = {
+	applicable: (ctx) =>
+		resolvedCaps(ctx).maxFilterConditions !== undefined &&
+		conv(ctx).grammar === "postgrest" &&
+		identityIsFilterable(ctx),
+	dependsOn: [...FOUNDATIONS, "error.malformed-filter-not-5xx"],
+	id: "filter.condition-cap-rejected",
+	needs: "`maxFilterConditions` declared and a grammar that can group eq terms",
+	async run(ctx) {
+		const max = resolvedCaps(ctx).maxFilterConditions
+		const parameter = conv(ctx).filter
+		if (max === undefined || parameter === undefined) return
+		const field = filterIdentity(ctx)
+		const terms = Array.from({ length: max + 1 }, () => `${field}.eq.oat-cap`)
+		const result = await list(ctx, { ...q(ctx, { limit: 5 }), [parameter]: `and(${terms.join(",")})` })
+		if (result.exchange.status >= 400 && result.exchange.status < 500) return
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"an over-limit filter expression was accepted",
+			`maxFilterConditions=${max} but ${max + 1} eq terms returned ${result.exchange.status}.`,
+			[result.exchange],
+		)
+	},
+}
+
+function probeValueForOp(
+	ctx: CheckContext,
+	field: EffectiveFilterField,
+	op: (typeof FILTER_OPS)[number],
+): string | number | readonly (string | number)[] | null {
+	const sample = ctx.records.find((row) => row[field.field] != null)
+	if (op === "is") return "null"
+	if (op === "in" || op === "nin") return [sample === undefined ? "oat-probe" : asTermValue(sample[field.field])]
+	if (op === "contains") {
+		const arr = sample?.[field.field]
+		if (Array.isArray(arr) && arr[0] !== undefined) return asTermValue(arr[0])
+		return "oat-probe"
+	}
+	if (sample === undefined) return "oat-probe"
+	return asTermValue(sample[field.field])
+}
+
+const declaredFilterableOpsAccepted: Check = {
+	applicable: (ctx) =>
+		ctx.query?.source === "tag" && resolvedCaps(ctx).filterable.some((field) => opsAreClosed(field, resolvedCaps(ctx))),
+	dependsOn: ["list.read-after-write", "spec.declared-filterable-is-filterable", "error.malformed-filter-not-5xx"],
+	id: "spec.declared-filterable-ops-accepted",
+	needs: "a closed operator list on at least one declared field",
+	async run(ctx) {
+		const caps = resolvedCaps(ctx)
+		const rejected: string[] = []
+		for (const field of caps.filterable) {
+			if (!opsAreClosed(field, caps)) continue
+			for (const op of opsForField(field, caps)) {
+				if (!canWriteFilterOp(conv(ctx), op)) continue
+				const term = filterTerm(conv(ctx), field.field, op, probeValueForOp(ctx, field, op))
+				if (term === null) continue
+				const result = await list(ctx, { ...q(ctx, { limit: 5 }), ...term })
+				if (result.exchange.status >= 400 && result.exchange.status < 500) {
+					rejected.push(`${field.field}.${op} (${result.exchange.status})`)
+				}
+			}
+		}
+		if (rejected.length === 0) return
+		ctx.findings.spec(
+			this.id,
+			ctx.entityName,
+			"the document declares a filter operator the backend rejects",
+			`declared ops that 4xx: ${rejected.slice(0, 8).join(", ")}.`,
+			[],
+		)
+	},
+}
+
+const declaredFilterableIllegalOpRejected: Check = {
+	applicable: (ctx) =>
+		ctx.query?.source === "tag" &&
+		resolvedCaps(ctx).filterable.some((field) => firstIllegalOp(ctx, field) !== undefined),
+	dependsOn: ["filter.illegal-op-rejected", "spec.declared-filterable-is-filterable"],
+	id: "spec.declared-filterable-illegal-op-rejected",
+	needs: "a closed operator list on a declared field",
+	async run(ctx) {
+		await filterIllegalOpRejected.run(ctx)
+	},
+}
+
+const sortUnknownFieldRejected: Check = {
+	applicable: (ctx) => conv(ctx).order !== undefined,
+	dependsOn: ["error.malformed-filter-not-5xx"],
+	id: "sort.unknown-field-rejected",
+	needs: "an order parameter",
+	async run(ctx) {
+		const result = await list(ctx, q(ctx, { limit: 5, order: sortTerm(conv(ctx), "oat_no_such_sort_xyz", "asc") }))
+		if (result.exchange.status >= 500) {
+			ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"unknown sort field produces a server error",
+				`ordering on an undeclared field returned ${result.exchange.status}; a rejected input should be 4xx.`,
+				[result.exchange],
+			)
+			return
+		}
+		if (result.exchange.status >= 400) return
+		const baseline = await list(ctx, q(ctx, { limit: 5 }))
+		const same = ids(result.items, ctx.identity).join(",") === ids(baseline.items, ctx.identity).join(",")
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"unknown sort field is silently ignored",
+			`order on an undeclared field returned ${result.exchange.status}` +
+				(same ? " with the default order, so the field was dropped" : "") +
+				".",
+			[baseline.exchange, result.exchange],
+		)
+	},
+}
+
+const sortNumericOrderIsNumeric: Check = {
+	applicable: (ctx) =>
+		conv(ctx).order !== undefined &&
+		resolvedCaps(ctx).sortable.some((field) => numericLexicalDisagrees(ctx, field.field)),
+	dependsOn: ["sort.order-is-applied"],
+	id: "sort.numeric-order-is-numeric",
+	needs: "a numeric sortable field whose lexical order disagrees with numeric order",
+	async run(ctx) {
+		const field = resolvedCaps(ctx).sortable.find((item) => numericLexicalDisagrees(ctx, item.field))
+		if (field === undefined) return
+		const result = await list(
+			ctx,
+			q(ctx, { limit: ctx.query?.maxLimit ?? 100, order: sortTerm(conv(ctx), field.field, "asc") }),
+		)
+		if (result.exchange.status >= 400) return
+		const numbers = result.items.map((item) => item[field.field]).filter((v): v is number => typeof v === "number")
+		const sorted = [...numbers].sort((a, b) => a - b)
+		if (numbers.join(",") === sorted.join(",")) return
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			`"${field.field}" is sorted as text rather than as a number`,
+			`order=${field.field}.asc returned ${numbers.slice(0, 8).join(", ")}.`,
+			[result.exchange],
+		)
+	},
+}
+
+const sortNullsFirstLast: Check = {
+	applicable: (ctx) =>
+		conv(ctx).order !== undefined &&
+		sortTermWithNulls(conv(ctx), "x", "asc", "first") !== null &&
+		resolvedCaps(ctx).sortable.some(
+			(field) =>
+				(fieldAllowsNulls(field, resolvedCaps(ctx), "first") || fieldAllowsNulls(field, resolvedCaps(ctx), "last")) &&
+				ctx.records.some((row) => row[field.field] === null || row[field.field] === undefined),
+		),
+	dependsOn: ["sort.order-is-applied", "sort.reverse-symmetry"],
+	id: "sort.nulls-first-last",
+	needs: "a declared nulls token, a dotted sort grammar, and a null in the cohort",
+	async run(ctx) {
+		const field = resolvedCaps(ctx).sortable.find(
+			(item) =>
+				(fieldAllowsNulls(item, resolvedCaps(ctx), "first") || fieldAllowsNulls(item, resolvedCaps(ctx), "last")) &&
+				ctx.records.some((row) => row[item.field] === null || row[item.field] === undefined),
+		)
+		if (field === undefined) return
+		const limit = ctx.query?.maxLimit ?? 100
+		if (fieldAllowsNulls(field, resolvedCaps(ctx), "first")) {
+			const clause = sortTermWithNulls(conv(ctx), field.field, "asc", "first")
+			if (clause === null) return
+			const result = await collectSet(ctx, limit, {}, MAX_WALK_PAGES, clause)
+			if (result === null) return ctx.findings.unresolved(this.id, ctx.entityName, "nullsfirst listing was rejected")
+			const first = result.items[0]
+			if (first !== undefined && first[field.field] !== null && first[field.field] !== undefined) {
+				ctx.findings.backend(
+					this.id,
+					ctx.entityName,
+					"nullsfirst did not put nulls first",
+					`order=${clause} started with ${JSON.stringify(first[field.field])}.`,
+					[result.last.exchange],
+				)
+				return
+			}
+		}
+		if (fieldAllowsNulls(field, resolvedCaps(ctx), "last")) {
+			const clause = sortTermWithNulls(conv(ctx), field.field, "asc", "last")
+			if (clause === null) return
+			const result = await collectSet(ctx, limit, {}, MAX_WALK_PAGES, clause)
+			if (result === null) return ctx.findings.unresolved(this.id, ctx.entityName, "nullslast listing was rejected")
+			const last = result.items.at(-1)
+			if (last !== undefined && last[field.field] !== null && last[field.field] !== undefined) {
+				ctx.findings.backend(
+					this.id,
+					ctx.entityName,
+					"nullslast did not put nulls last",
+					`order=${clause} ended with ${JSON.stringify(last[field.field])}.`,
+					[result.last.exchange],
+				)
+			}
+		}
+	},
+}
+
+function pickMultiKeyPair(ctx: CheckContext): { primary: string; secondary: string; tied: Record_[] } | null {
+	const fields = ctx.query?.sortable ?? []
+	for (const primary of fields) {
+		for (const secondary of fields) {
+			if (secondary === primary || secondary === ctx.identity) continue
+			const groups = new Map<string, Record_[]>()
+			for (const row of ctx.records) {
+				const key = JSON.stringify(row[primary])
+				const group = groups.get(key) ?? []
+				group.push(row)
+				groups.set(key, group)
+			}
+			const tied = [...groups.values()].find(
+				(group) => group.length >= 2 && new Set(group.map((row) => JSON.stringify(row[secondary]))).size > 1,
+			)
+			if (tied !== undefined) return { primary, secondary, tied }
+		}
+	}
+	return null
+}
+
+const sortMultiKeyTiebreak: Check = {
+	applicable: (ctx) => {
+		const max = resolvedCaps(ctx).sort?.maxKeys
+		return conv(ctx).order !== undefined && (max === undefined || max >= 2) && pickMultiKeyPair(ctx) !== null
+	},
+	dependsOn: ["sort.order-is-applied", "sort.reverse-symmetry"],
+	id: "sort.multi-key-tiebreak",
+	needs: "two sortable fields and rows that tie on the first and differ on the second",
+	async run(ctx) {
+		const pair = pickMultiKeyPair(ctx)
+		if (pair === null) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "no cohort tie on the first key differs on the second")
+		}
+		const { primary, secondary, tied } = pair
+		const conventions = conv(ctx)
+		const order = `${sortTerm(conventions, primary, "asc")},${sortTerm(conventions, secondary, "asc")}`
+		const result = await collectSet(ctx, ctx.query?.maxLimit ?? 100, {}, MAX_WALK_PAGES, order)
+		if (result === null) return ctx.findings.unresolved(this.id, ctx.entityName, "multi-key order was rejected")
+		const slice = result.items.filter((item) => JSON.stringify(item[primary]) === JSON.stringify(tied[0]?.[primary]))
+		const seconds = slice.map((item) => item[secondary])
+		const sorted = [...seconds].sort(compareValues)
+		if (JSON.stringify(seconds) === JSON.stringify(sorted)) return
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"the second sort key is not applied on ties",
+			`order=${order} left ties on "${primary}" unordered by "${secondary}".`,
+			[result.last.exchange],
+		)
+	},
+}
+
+const sortDefaultOrderApplied: Check = {
+	applicable: (ctx) =>
+		(resolvedCaps(ctx).sort?.defaultOrder ?? ctx.query?.defaultOrder) !== undefined && ctx.records.length > 1,
+	dependsOn: ["sort.order-is-applied", "pagination.page-walk-covers-set"],
+	id: "sort.default-order-applied",
+	needs: "a declared defaultOrder and a complete walk",
+	async run(ctx) {
+		const declared = resolvedCaps(ctx).sort?.defaultOrder ?? ctx.query?.defaultOrder
+		if (declared === undefined) return
+		const limit = ctx.query?.maxLimit ?? 100
+		const implicit = await collectSet(ctx, limit)
+		const explicit = await collectSet(ctx, limit, {}, MAX_WALK_PAGES, declared)
+		if (implicit === null || explicit === null) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "default-order walk was rejected")
+		}
+		if (!implicit.complete || !explicit.complete) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"the walk is incomplete, so default order cannot be compared",
+			)
+		}
+		if (ids(implicit.items, ctx.identity).join(",") === ids(explicit.items, ctx.identity).join(",")) return
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"omitting order does not match defaultOrder",
+			`defaultOrder=${declared} produced a different sequence than the implicit listing.`,
+			[implicit.last.exchange, explicit.last.exchange],
+		)
+	},
+}
+
+const sortStableTiebreak: Check = {
+	applicable: (ctx) => (resolvedCaps(ctx).sort?.stableTiebreak ?? ctx.query?.stableTiebreak) !== undefined,
+	dependsOn: ["sort.order-is-applied"],
+	id: "sort.stable-tiebreak",
+	needs: "a declared stableTiebreak and a tie on the primary key",
+	async run(ctx) {
+		const tiebreak = resolvedCaps(ctx).sort?.stableTiebreak ?? ctx.query?.stableTiebreak
+		const primary = ctx.query?.sortable.find((name) => name !== tiebreak) ?? ctx.query?.sortable[0]
+		if (tiebreak === undefined || primary === undefined) return
+		const order = sortTerm(conv(ctx), primary, "asc")
+		const first = await collectSet(ctx, ctx.query?.maxLimit ?? 100, {}, MAX_WALK_PAGES, order)
+		const second = await collectSet(ctx, ctx.query?.maxLimit ?? 100, {}, MAX_WALK_PAGES, order)
+		if (first === null || second === null)
+			return ctx.findings.unresolved(this.id, ctx.entityName, "repeat sort was rejected")
+		if (ids(first.items, ctx.identity).join(",") === ids(second.items, ctx.identity).join(",")) return
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"the same order is not deterministic across two walks",
+			`order=${order} (stableTiebreak=${tiebreak}) returned two different sequences.`,
+			[first.last.exchange, second.last.exchange],
+		)
+	},
+}
+
+const declaredSortableNullsAccepted: Check = {
+	applicable: (ctx) =>
+		conv(ctx).order !== undefined &&
+		sortTermWithNulls(conv(ctx), "x", "asc", "first") !== null &&
+		resolvedCaps(ctx).sortable.some(
+			(field) =>
+				fieldAllowsNulls(field, resolvedCaps(ctx), "first") || fieldAllowsNulls(field, resolvedCaps(ctx), "last"),
+		),
+	dependsOn: ["sort.order-is-applied"],
+	id: "spec.declared-sortable-nulls-accepted",
+	needs: "a declared nulls token on a sortable field",
+	async run(ctx) {
+		const rejected: string[] = []
+		for (const field of resolvedCaps(ctx).sortable) {
+			for (const token of ["first", "last"] as const) {
+				if (!fieldAllowsNulls(field, resolvedCaps(ctx), token)) continue
+				const clause = sortTermWithNulls(conv(ctx), field.field, "asc", token)
+				if (clause === null) continue
+				const result = await list(ctx, q(ctx, { limit: 5, order: clause }))
+				if (result.exchange.status >= 400 && result.exchange.status < 500) {
+					rejected.push(`${clause} (${result.exchange.status})`)
+				}
+			}
+		}
+		if (rejected.length === 0) return
+		ctx.findings.spec(
+			this.id,
+			ctx.entityName,
+			"the document declares a nulls sort token the backend rejects",
+			`rejected: ${rejected.join(", ")}.`,
+			[],
+		)
+	},
+}
+
+const searchTokensAnd: Check = {
+	applicable: (ctx) =>
+		conv(ctx).search !== undefined && (ctx.query?.searchable.length ?? 0) > 0 && ctx.records.length > 2,
+	dependsOn: ["search.q-narrows-result"],
+	id: "search.tokens-and",
+	needs: "searchable fields and two tokens that split the cohort",
+	async run(ctx) {
+		const field = ctx.query?.searchable[0]
+		if (field === undefined) return
+		const tokens: string[] = []
+		for (const row of ctx.records) {
+			const value = row[field]
+			if (typeof value !== "string") continue
+			const word = value.split(/\s+/).find((part) => part.length >= 3)
+			if (word !== undefined) tokens.push(word.toLowerCase())
+		}
+		const unique = [...new Set(tokens)]
+		if (unique.length < 2) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "could not find two discriminating search tokens")
+		}
+		const [a, b] = unique
+		if (a === undefined || b === undefined) return
+		const limit = ctx.query?.maxLimit ?? 100
+		const onlyA = await list(ctx, q(ctx, { limit, search: a }))
+		const onlyB = await list(ctx, q(ctx, { limit, search: b }))
+		const both = await list(ctx, q(ctx, { limit, search: `${a} ${b}` }))
+		if (onlyA.exchange.status >= 400 || onlyB.exchange.status >= 400 || both.exchange.status >= 400) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "a token search was rejected")
+		}
+		const setA = setOf(onlyA.items, ctx.identity)
+		const setB = setOf(onlyB.items, ctx.identity)
+		const expected = new Set([...setA].filter((id) => setB.has(id)))
+		const got = setOf(both.items, ctx.identity)
+		if (sameSet(expected, got) || sameSet(got, new Set([...setA, ...setB]))) return
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"two search tokens are not applied as AND",
+			`q="${a} ${b}" returned ${got.size}; the intersection of each token is ${expected.size}.`,
+			[onlyA.exchange, onlyB.exchange, both.exchange],
+		)
+	},
+}
+
+const searchCaseInsensitive: Check = {
+	applicable: (ctx) =>
+		conv(ctx).search !== undefined &&
+		(ctx.query?.searchable.length ?? 0) > 0 &&
+		ctx.records.some((row) =>
+			ctx.query?.searchable.some((field) => typeof row[field] === "string" && /[A-Za-z]/.test(row[field] as string)),
+		),
+	dependsOn: ["search.q-narrows-result"],
+	id: "search.case-insensitive",
+	needs: "a searchable string with a letter",
+	async run(ctx) {
+		let sample: string | undefined
+		for (const field of ctx.query?.searchable ?? []) {
+			const value = ctx.records
+				.map((row) => row[field])
+				.find((item): item is string => typeof item === "string" && /[A-Za-z]/.test(item))
+			if (value !== undefined) {
+				sample = value
+				break
+			}
+		}
+		if (sample === undefined) return
+		const token = sample.split(/\s+/).find((part) => /[A-Za-z]/.test(part)) ?? sample
+		const flipped = token.replace(/[A-Za-z]/, (ch) => (ch === ch.toLowerCase() ? ch.toUpperCase() : ch.toLowerCase()))
+		const limit = ctx.query?.maxLimit ?? 100
+		const original = await list(ctx, q(ctx, { limit, search: token }))
+		const other = await list(ctx, q(ctx, { limit, search: flipped }))
+		if (original.exchange.status >= 400 || other.exchange.status >= 400) return
+		const a = setOf(original.items, ctx.identity)
+		const b = setOf(other.items, ctx.identity)
+		if (sameSet(a, b)) return
+		if (resolvedCaps(ctx).searchCase === "insensitive") {
+			ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"search is not case-insensitive",
+				`q=${JSON.stringify(token)} and q=${JSON.stringify(flipped)} selected different sets.`,
+				[original.exchange, other.exchange],
+			)
+			return
+		}
+		ctx.findings.unresolved(
+			this.id,
+			ctx.entityName,
+			"case-flipped search selected a different set; declare searchCase: insensitive to treat that as a defect",
+		)
+	},
+}
+
+const searchEmptyQ: Check = {
+	applicable: (ctx) => conv(ctx).search !== undefined && resolvedCaps(ctx).searchEmpty !== undefined,
+	dependsOn: ["search.q-narrows-result"],
+	id: "search.empty-q",
+	needs: "`searchEmpty` declared",
+	async run(ctx) {
+		const policy = resolvedCaps(ctx).searchEmpty
+		if (policy === undefined) return
+		const limit = ctx.query?.maxLimit ?? 100
+		const baseline = await list(ctx, q(ctx, { limit }))
+		const empty = await list(ctx, q(ctx, { limit, search: "" }))
+		if (policy === "reject") {
+			if (empty.exchange.status >= 400 && empty.exchange.status < 500) return
+			ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"empty q was not rejected",
+				`searchEmpty=reject but q= returned ${empty.exchange.status}.`,
+				[empty.exchange],
+			)
+			return
+		}
+		if (empty.exchange.status >= 400) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "empty q was rejected")
+		}
+		if (sameSet(setOf(empty.items, ctx.identity), setOf(baseline.items, ctx.identity))) return
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"empty q did not match the unfiltered set",
+			`searchEmpty=${policy} but q= returned ${empty.items.length} of ${baseline.items.length} records.`,
+			[baseline.exchange, empty.exchange],
+		)
+	},
+}
+
+const searchUndeclaredFieldNotRequired: Check = {
+	applicable: (ctx) => {
+		if (conv(ctx).search === undefined || (ctx.query?.searchable.length ?? 0) === 0) return false
+		const searchable = new Set(ctx.query?.searchable ?? [])
+		return ctx.records.some((row) =>
+			Object.entries(row).some(
+				([key, value]) =>
+					!searchable.has(key) && typeof value === "string" && value.length >= 4 && !searchableHasToken(ctx, value),
+			),
+		)
+	},
+	dependsOn: ["search.q-narrows-result"],
+	id: "search.undeclared-field-not-required",
+	needs: "a searchable field and a non-searchable string",
+	async run() {
+		/* Extra recall is not a defect. This check exists so undeclared-field hits are not
+		 * reported as SEARCH_IGNORED by other checks. */
+	},
+}
+
+function searchableHasToken(ctx: CheckContext, token: string): boolean {
+	const needle = token.toLowerCase()
+	return ctx.records.some((row) =>
+		(ctx.query?.searchable ?? []).some((field) =>
+			String(row[field] ?? "")
+				.toLowerCase()
+				.includes(needle),
+		),
+	)
+}
+
+const searchModeAccepted: Check = {
+	applicable: (ctx) =>
+		conv(ctx).searchMode !== undefined &&
+		(resolvedCaps(ctx).searchModes?.length ?? 0) > 0 &&
+		conv(ctx).search !== undefined,
+	id: "search.mode-accepted",
+	needs: "declared searchModes and a search-mode parameter",
+	async run(ctx) {
+		const rejected: string[] = []
+		for (const mode of resolvedCaps(ctx).searchModes ?? []) {
+			const result = await list(ctx, q(ctx, { limit: 5, search: "oat", searchMode: mode }))
+			if (result.exchange.status >= 400 && result.exchange.status < 500)
+				rejected.push(`${mode} (${result.exchange.status})`)
+		}
+		if (rejected.length === 0) return
+		ctx.findings.spec(
+			this.id,
+			ctx.entityName,
+			"a declared search mode is rejected",
+			`rejected: ${rejected.join(", ")}.`,
+			[],
+		)
+	},
+}
+
+const searchModesDiffer: Check = {
+	applicable: (ctx) =>
+		conv(ctx).searchMode !== undefined &&
+		(resolvedCaps(ctx).searchModes?.length ?? 0) >= 2 &&
+		conv(ctx).search !== undefined,
+	dependsOn: ["search.mode-accepted"],
+	id: "search.modes-differ",
+	needs: "at least two declared searchModes and a mode parameter",
+	async run(ctx) {
+		const modes = resolvedCaps(ctx).searchModes ?? []
+		const a = modes[0]
+		const b = modes[1]
+		if (a === undefined || b === undefined) return
+		const field = ctx.query?.searchable[0]
+		const token =
+			field === undefined
+				? "oat"
+				: ctx.records
+						.map((row) => row[field])
+						.find((value): value is string => typeof value === "string" && value.length > 2)
+		if (token === undefined) return
+		const left = await list(ctx, q(ctx, { limit: 100, search: token, searchMode: a }))
+		const right = await list(ctx, q(ctx, { limit: 100, search: token, searchMode: b }))
+		if (left.exchange.status >= 400 || right.exchange.status >= 400) return
+		if (ids(left.items, ctx.identity).join(",") !== ids(right.items, ctx.identity).join(",")) return
+		ctx.findings.unresolved(
+			this.id,
+			ctx.entityName,
+			`modes ${a} and ${b} returned the same set; cannot prove they are distinct implementations`,
+		)
+	},
+}
+
+const selectRequestedFieldsPresent: Check = {
+	applicable: (ctx) => conv(ctx).select !== undefined && (ctx.query?.selectable.length ?? 0) > 0,
+	dependsOn: ["select.projection-honoured"],
+	id: "select.requested-fields-present",
+	needs: "a select parameter and at least one selectable field",
+	async run(ctx) {
+		const requested = [
+			ctx.identity,
+			...(ctx.query?.selectable.filter((name) => name !== ctx.identity).slice(0, 2) ?? []),
+		]
+		const projection = selectTerm(conv(ctx), requested, ctx.entityName)
+		if (projection === null) return
+		const result = await list(ctx, { ...q(ctx, { limit: 5 }), ...projection })
+		if (result.exchange.status >= 400 || result.items[0] === undefined) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "select probe was rejected or empty")
+		}
+		const missing = requested.filter((name) => !Object.hasOwn(result.items[0] as object, name))
+		if (missing.length === 0) return
+		if (
+			missing.length === 1 &&
+			missing[0] === ctx.identity &&
+			!(ctx.query?.selectable.includes(ctx.identity) ?? false)
+		) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "identity was omitted from select and missing from items")
+		}
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"a requested select field is missing from the projection",
+			`select=${requested.join(",")} omitted ${missing.join(", ")}.`,
+			[result.exchange],
+		)
+	},
+}
+
+const selectUnknownFieldRejected: Check = {
+	applicable: (ctx) => conv(ctx).select !== undefined && resolvedCaps(ctx).select?.unknown !== undefined,
+	dependsOn: ["select.projection-honoured", "error.malformed-filter-not-5xx"],
+	id: "select.unknown-field-rejected",
+	needs: "`select.unknown` declared",
+	async run(ctx) {
+		const policy = resolvedCaps(ctx).select?.unknown
+		if (policy === undefined) return
+		const requested = [ctx.identity, "oat_no_such_select_xyz"]
+		const projection = selectTerm(conv(ctx), requested, ctx.entityName)
+		if (projection === null) return
+		const result = await list(ctx, { ...q(ctx, { limit: 5 }), ...projection })
+		if (policy === "reject") {
+			if (result.exchange.status >= 400 && result.exchange.status < 500) return
+			ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"unknown select field was not rejected",
+				`select.unknown=reject but the probe returned ${result.exchange.status}.`,
+				[result.exchange],
+			)
+			return
+		}
+		if (result.exchange.status >= 400) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "unknown select field was rejected under ignore")
+		}
+		const extras = Object.keys(result.items[0] ?? {}).filter((key) => key === "oat_no_such_select_xyz")
+		if (extras.length === 0) return
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"unknown select field was honoured under ignore",
+			"select.unknown=ignore should drop the undeclared name, not return it.",
+			[result.exchange],
+		)
+	},
+}
+
+const selectNestedHonoured: Check = {
+	applicable: (ctx) =>
+		conv(ctx).select !== undefined &&
+		resolvedCaps(ctx).select?.nested === true &&
+		(resolvedCaps(ctx).select?.relations?.length ?? 0) > 0,
+	dependsOn: ["select.projection-honoured"],
+	id: "select.nested-honoured",
+	needs: "select.nested and a named relation",
+	async run(ctx) {
+		const relation = resolvedCaps(ctx).select?.relations?.[0]
+		if (relation === undefined || relation.fields[0] === undefined) return
+		const clause = `${relation.name}(${relation.fields[0]})`
+		const projection = selectTerm(conv(ctx), [ctx.identity, clause], ctx.entityName)
+		if (projection === null) return
+		const result = await list(ctx, { ...q(ctx, { limit: 5 }), ...projection })
+		if (result.exchange.status >= 400 || result.items[0] === undefined) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "nested select was rejected or empty")
+		}
+		const nested = result.items[0][relation.name]
+		if (nested === null || typeof nested !== "object") {
+			ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"nested select did not return the relation as an object",
+				`select=${clause} left "${relation.name}" as ${typeof nested}.`,
+				[result.exchange],
+			)
+			return
+		}
+		const keys = Object.keys(nested as object)
+		if (keys.every((key) => key === relation.fields[0])) return
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"nested select did not restrict the relation to the requested field",
+			`select=${clause} returned ${keys.join(", ") || "(empty)"}.`,
+			[result.exchange],
+		)
+	},
+}
+
+const querySortAndSelectCompose: Check = {
+	applicable: (ctx) =>
+		conv(ctx).order !== undefined &&
+		conv(ctx).select !== undefined &&
+		(ctx.query?.sortable.length ?? 0) > 0 &&
+		(ctx.query?.selectable.length ?? 0) > 0 &&
+		ctx.records.length > 1,
+	dependsOn: ["sort.order-is-applied", "select.projection-honoured", "select.requested-fields-present"],
+	id: "query.sort-and-select-compose",
+	needs: "sortable and selectable fields",
+	async run(ctx) {
+		const field = ctx.query?.sortable.find((name) => name !== ctx.identity) ?? ctx.query?.sortable[0]
+		const extra = ctx.query?.selectable.find((name) => name !== ctx.identity)
+		if (field === undefined) return
+		const requested = extra === undefined ? [ctx.identity] : [ctx.identity, extra]
+		const projection = selectTerm(conv(ctx), requested, ctx.entityName)
+		if (projection === null) return
+		const result = await list(ctx, {
+			...q(ctx, { limit: 20, order: sortTerm(conv(ctx), field, "asc") }),
+			...projection,
+		})
+		if (result.exchange.status >= 400 || result.items.length < 2) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "sort+select probe was rejected")
+		}
+		const extras = Object.keys(result.items[0] ?? {}).filter((key) => !requested.includes(key))
+		const values = result.items.map((item) => item[field])
+		const sorted = [...values].sort(compareValues)
+		if (extras.length === 0 && JSON.stringify(values) === JSON.stringify(sorted)) return
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"sort and select do not compose",
+			extras.length > 0
+				? `select leaked ${extras.slice(0, 5).join(", ")}.`
+				: `order=${field}.asc did not hold under the projection.`,
+			[result.exchange],
+		)
+	},
+}
+
+const querySearchAndSelectCompose: Check = {
+	applicable: (ctx) =>
+		conv(ctx).search !== undefined &&
+		conv(ctx).select !== undefined &&
+		(ctx.query?.searchable.length ?? 0) > 0 &&
+		(ctx.query?.selectable.length ?? 0) > 0,
+	dependsOn: ["search.q-narrows-result", "select.projection-honoured"],
+	id: "query.search-and-select-compose",
+	needs: "searchable and selectable fields",
+	async run(ctx) {
+		const field = ctx.query?.searchable[0]
+		if (field === undefined) return
+		const token = ctx.records
+			.map((row) => row[field])
+			.find((value): value is string => typeof value === "string" && value.length > 2)
+		if (token === undefined) return
+		const requested = [ctx.identity, field]
+		const projection = selectTerm(conv(ctx), requested, ctx.entityName)
+		if (projection === null) return
+		const searched = await list(ctx, q(ctx, { limit: 100, search: token }))
+		const combined = await list(ctx, { ...q(ctx, { limit: 100, search: token }), ...projection })
+		if (searched.exchange.status >= 400 || combined.exchange.status >= 400) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "search+select probe was rejected")
+		}
+		if (combined.items.some((item) => item[ctx.identity] === undefined)) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "projection omitted the identity")
+		}
+		if (sameSet(setOf(searched.items, ctx.identity), setOf(combined.items, ctx.identity))) return
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"adding a select changes which records a search returns",
+			`q=${JSON.stringify(token)} alone matched ${searched.items.length}; with select it matched ${combined.items.length}.`,
+			[searched.exchange, combined.exchange],
+		)
+	},
+}
+
+const querySearchAndSortCompose: Check = {
+	applicable: (ctx) =>
+		conv(ctx).search !== undefined &&
+		conv(ctx).order !== undefined &&
+		(ctx.query?.searchable.length ?? 0) > 0 &&
+		(ctx.query?.sortable.length ?? 0) > 0,
+	dependsOn: ["search.q-narrows-result", "sort.order-is-applied"],
+	id: "query.search-and-sort-compose",
+	needs: "searchable and sortable fields",
+	async run(ctx) {
+		const searchField = ctx.query?.searchable[0]
+		const sortField = ctx.query?.sortable.find((name) => name !== ctx.identity) ?? ctx.query?.sortable[0]
+		if (searchField === undefined || sortField === undefined) return
+		const token = ctx.records
+			.map((row) => row[searchField])
+			.find((value): value is string => typeof value === "string" && value.length > 2)
+		if (token === undefined) return
+		const searched = await list(ctx, q(ctx, { limit: 100, search: token }))
+		const combined = await list(
+			ctx,
+			q(ctx, { limit: 100, search: token, order: sortTerm(conv(ctx), sortField, "asc") }),
+		)
+		if (searched.exchange.status >= 400 || combined.exchange.status >= 400) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "search+sort probe was rejected")
+		}
+		if (!sameSet(setOf(searched.items, ctx.identity), setOf(combined.items, ctx.identity))) {
+			ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"adding a sort changes which records a search returns",
+				`q=${JSON.stringify(token)} membership changed when order=${sortField} was added.`,
+				[searched.exchange, combined.exchange],
+			)
+			return
+		}
+		const values = combined.items.map((item) => item[sortField])
+		const sorted = [...values].sort(compareValues)
+		if (JSON.stringify(values) === JSON.stringify(sorted)) return
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"search results are not ordered",
+			`q + order=${sortField}.asc did not keep ${sortField} ascending.`,
+			[combined.exchange],
+		)
+	},
+}
+
+const queryFilterSearchSortSelectCompose: Check = {
+	applicable: (ctx) =>
+		filterable(ctx) &&
+		conv(ctx).search !== undefined &&
+		conv(ctx).order !== undefined &&
+		conv(ctx).select !== undefined &&
+		(ctx.query?.searchable.length ?? 0) > 0 &&
+		(ctx.query?.sortable.length ?? 0) > 0 &&
+		(ctx.query?.selectable.length ?? 0) > 0 &&
+		ctx.records.length > 2,
+	dependsOn: [
+		"query.search-and-filter-compose",
+		"query.axes-compose",
+		"query.filter-and-select-compose",
+		"query.sort-and-select-compose",
+		"query.filter-sort-select-compose",
+		"query.filter-search-sort-compose",
+		"query.filter-search-select-compose",
+		"pagination.page-walk-covers-set",
+	],
+	id: "query.filter-search-sort-select-compose",
+	needs: "all four list axes declared and at least three records",
+	async run(ctx) {
+		const picked = overlappingFilterAndSearch(ctx)
+		if (picked === null) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "no overlapping filter/search token")
+		}
+		const sortField = ctx.query?.sortable.find((name) => name !== ctx.identity) ?? ctx.query?.sortable[0]
+		const extra = ctx.query?.selectable.find((name) => name !== ctx.identity)
+		if (sortField === undefined) return
+		const conventions = conv(ctx)
+		const term = filterTerm(conventions, picked.field, "eq", String(picked.target[picked.field]))
+		if (term === null) return
+		const requested = extra === undefined ? [ctx.identity] : [ctx.identity, extra]
+		const projection = selectTerm(conventions, requested, ctx.entityName)
+		if (projection === null) return
+		const base = await collectSet(ctx, ctx.query?.maxLimit ?? 100, {
+			...term,
+			...(conventions.search === undefined ? {} : { [conventions.search]: picked.token }),
+		})
+		const combined = await collectSet(
+			ctx,
+			ctx.query?.maxLimit ?? 100,
+			{ ...term, ...projection, ...(conventions.search === undefined ? {} : { [conventions.search]: picked.token }) },
+			MAX_WALK_PAGES,
+			sortTerm(conventions, sortField, "asc"),
+		)
+		if (base === null || combined === null) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "four-axis probe was rejected")
+		}
+		if (combined.items.some((item) => item[ctx.identity] === undefined)) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "projection omitted the identity")
+		}
+		if (sameSet(setOf(base.items, ctx.identity), setOf(combined.items, ctx.identity))) return
+		ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"filter ∩ search membership changes when sort and select join",
+			`the four-axis listing returned ${combined.items.length}; filter+search alone returned ${base.items.length}.`,
+			[base.last.exchange, combined.last.exchange],
+		)
+	},
+}
+
 export const CHECKS: readonly Check[] = [
 	/* foundations — did the write land, is it visible, and do the paging primitives work at all.
 	 * Everything below assumes these hold, so they must be evaluated first for cascade
@@ -4885,24 +6466,48 @@ export const CHECKS: readonly Check[] = [
 	 * compare. Establishing paging first is what lets those failures be suppressed as cascades
 	 * rather than re-reported once per predicate. */
 	orderChangesResult,
+	sortNumericOrderIsNumeric,
+	sortNullsFirstLast,
+	sortMultiKeyTiebreak,
+	sortDefaultOrderApplied,
+	sortStableTiebreak,
 	pageWalkCoversSet,
 	cursorAgreesWithPage,
 
 	/* query semantics */
 	unknownFilterRejected,
 	malformedFilterNot5xx,
+	sortUnknownFieldRejected,
 	equalityFilterSelectsOne,
 	zeroMatchFilter,
 	negationPartitions,
 	filterAndComposesAsIntersection,
 	filterOrComposesAsUnion,
+	filterInIsUnionOfEq,
+	filterNinComplementsIn,
+	filterNestedAndOrDistributes,
 	likeEscaping,
+	filterIlikeIsCaseInsensitive,
+	filterIsNullSelectsNulls,
+	filterContainsMembership,
 	sortReverseSymmetry,
 	searchNarrowsResult,
+	searchTokensAnd,
+	searchCaseInsensitive,
+	searchEmptyQ,
+	searchUndeclaredFieldNotRequired,
+	searchModeAccepted,
+	searchModesDiffer,
 	selectProjection,
+	selectRequestedFieldsPresent,
+	selectUnknownFieldRejected,
+	selectNestedHonoured,
 	countIsConsistentWithPage,
 	countMatchesWalk,
 	numericComparisonIsNumeric,
+	filterGteIsGtOrEq,
+	filterLteIsLtOrEq,
+	filterOrderedTriplePartitions,
 
 	/* write semantics */
 	patchMinimality,
@@ -4918,9 +6523,21 @@ export const CHECKS: readonly Check[] = [
 	filterSortSelectCompose,
 	filterSearchSortCompose,
 	filterSearchSelectCompose,
+	querySortAndSelectCompose,
+	querySearchAndSelectCompose,
+	querySearchAndSortCompose,
+	queryFilterSearchSortSelectCompose,
 	declaredFilterableWorks,
+	declaredFilterableOpsAccepted,
+	declaredFilterableIllegalOpRejected,
 	declaredSortableWorks,
+	declaredSortableNullsAccepted,
 	declaredSelectableWorks,
+	filterAliasMatchesCanonical,
+	filterIllegalOpRejected,
+	filterEmptyIn,
+	filterInOverLimitRejected,
+	filterConditionCapRejected,
 	noLostUpdate,
 	deleteMissingIs404,
 	softDeleteHidden,

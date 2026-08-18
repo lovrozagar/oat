@@ -13,7 +13,12 @@
  */
 
 import type { CollectionShape } from "./collection.ts"
+import type { FilterOp } from "./query-capabilities.ts"
 import type { ParameterObject, SchemaObject } from "./types.ts"
+
+export type FilterTermValue = string | number | boolean | null | readonly (string | number | boolean | null)[]
+
+const COLON_OPS = new Set<FilterOp>(["eq", "neq", "gt", "gte", "lt", "lte", "like"])
 
 /** How filter values are spelled. Determines what oat can express, not merely what it sends. */
 export type FilterGrammar =
@@ -58,6 +63,8 @@ export interface QueryConventions {
 	select?: string
 	/** Free-text search parameter. */
 	search?: string
+	/** Optional search-mode parameter (`keyword` / `semantic` / …). */
+	searchMode?: string
 	/** Page-size parameter. */
 	limit?: string
 	/** 1-based page number. */
@@ -95,12 +102,16 @@ export interface QueryConventions {
  * case-insensitively and with separators normalised, so `perPage`, `per_page` and `PerPage` are
  * one entry.
  */
-const ALIASES: Record<"filter" | "order" | "select" | "search" | "limit" | "page" | "offset" | "cursor", string[]> = {
+const ALIASES: Record<
+	"filter" | "order" | "select" | "search" | "searchMode" | "limit" | "page" | "offset" | "cursor",
+	string[]
+> = {
 	cursor: ["cursor", "after", "starting_after", "next", "page_token", "continuation"],
 	filter: ["filter", "where", "query", "conditions"],
 	limit: ["limit", "per_page", "page_size", "pagesize", "count", "max_results", "top", "size"],
 	offset: ["offset", "skip", "start", "from"],
 	order: ["order", "order_by", "sort", "sort_by", "ordering"],
+	searchMode: ["search_mode", "searchmode", "search_type", "mode"],
 	page: ["page", "page_number", "pagenum", "p"],
 	search: ["q", "search", "query_text", "term", "keyword", "text"],
 	select: ["select", "fields", "field", "include_fields", "projection", "only"],
@@ -288,6 +299,9 @@ export function deriveQueryConventions(
 	if (select !== undefined) conventions.select = select
 	const search = byRole("search")
 	if (search !== undefined) conventions.search = search
+	/* A bare `mode` is too common to steal unless a search role is already present. */
+	const searchMode = search === undefined ? undefined : byRole("searchMode")
+	if (searchMode !== undefined) conventions.searchMode = searchMode
 	const cursor = byRole("cursor")
 	if (cursor !== undefined) conventions.cursor = cursor
 	if (paging.limit !== undefined) conventions.limit = paging.limit
@@ -306,33 +320,79 @@ export function deriveQueryConventions(
 	return conventions
 }
 
+/** Whether this grammar can emit `op`. Colon and equality stay on today's writers. */
+export function canWriteFilterOp(conventions: QueryConventions, op: FilterOp): boolean {
+	switch (conventions.grammar) {
+		case "postgrest":
+			return true
+		case "colon":
+			return COLON_OPS.has(op)
+		case "equality":
+			return op === "eq"
+	}
+}
+
+function formatFilterValue(value: FilterTermValue): string {
+	if (value === null) return "null"
+	if (typeof value === "object") {
+		return `(${value.map((item) => (item === null ? "null" : String(item))).join(",")})`
+	}
+	return String(value)
+}
+
+function isToken(value: FilterTermValue): value is string | number | boolean | null {
+	return value === null || typeof value !== "object"
+}
+
 /** Renders one filter term in whichever grammar the endpoint speaks. */
 export function filterTerm(
 	conventions: QueryConventions,
 	field: string,
-	op: "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "like",
-	value: string | number,
+	op: FilterOp,
+	value: FilterTermValue,
 ): Record<string, string> | null {
+	if (!canWriteFilterOp(conventions, op)) return null
 	const parameter = conventions.filter
 	switch (conventions.grammar) {
-		case "postgrest":
+		case "postgrest": {
 			if (parameter === undefined) return null
-			return { [parameter]: `${field}.${op}.${value}` }
+			if (op === "is") {
+				const token =
+					value === null || value === "null" ? "null" : value === "notnull" || value === "not.null" ? "notnull" : null
+				if (token === null) return null
+				return { [parameter]: `${field}.is.${token}` }
+			}
+			if (op === "in" || op === "nin") {
+				const members = typeof value === "object" && value !== null ? value : [value]
+				return {
+					[parameter]: `${field}.${op}.(${members.map((item) => (item === null ? "null" : String(item))).join(",")})`,
+				}
+			}
+			if (!isToken(value)) return null
+			return { [parameter]: `${field}.${op}.${formatFilterValue(value)}` }
+		}
 		case "colon":
-			if (parameter === undefined) return null
-			return { [parameter]: `${field}=${op}:${value}` }
+			if (parameter === undefined || !isToken(value)) return null
+			return { [parameter]: `${field}=${op}:${formatFilterValue(value)}` }
 		case "equality":
 			/* Only equality is expressible, so anything else has no representation and the check
 			 * that wanted it must stand down rather than send something meaningless. */
-			return op === "eq" ? { [field]: String(value) } : null
+			if (op !== "eq" || !isToken(value)) return null
+			return { [field]: formatFilterValue(value) }
 	}
 }
 
 /** Renders a sort term in whichever grammar the endpoint speaks. */
-export function sortTerm(conventions: QueryConventions, field: string, direction: "asc" | "desc"): string {
+export function sortTerm(
+	conventions: QueryConventions,
+	field: string,
+	direction: "asc" | "desc",
+	nulls?: "first" | "last",
+): string {
+	const suffix = nulls === undefined ? "" : conventions.sortGrammar === "dotted" ? `.nulls${nulls}` : ""
 	switch (conventions.sortGrammar) {
 		case "dotted":
-			return `${field}.${direction}`
+			return `${field}.${direction}${suffix}`
 		case "colon":
 			return `${field}:${direction}`
 		case "spaced":
@@ -342,6 +402,17 @@ export function sortTerm(conventions: QueryConventions, field: string, direction
 			 * one would be a token the API has never seen. */
 			return direction === "desc" ? `-${field}` : field
 	}
+}
+
+/** `null` when the grammar cannot write a nulls token. Dotted (PostgREST-shaped) can. */
+export function sortTermWithNulls(
+	conventions: QueryConventions,
+	field: string,
+	direction: "asc" | "desc",
+	nulls: "first" | "last",
+): string | null {
+	if (conventions.sortGrammar !== "dotted") return null
+	return sortTerm(conventions, field, direction, nulls)
 }
 
 /**

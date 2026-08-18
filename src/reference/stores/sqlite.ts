@@ -33,6 +33,14 @@ import type { SqliteDriver, SqlValue } from "./sqlite-driver.ts"
 export { SqlError }
 export type { QueryParams, QueryResult, Row }
 
+function countTerms(expression: string): number {
+	const group = /^(and|or)\((.*)\)$/s.exec(expression.trim())
+	if (group?.[2] !== undefined) {
+		return splitTopLevel(group[2]).reduce((sum, part) => sum + countTerms(part), 0)
+	}
+	return 1
+}
+
 /** SQLite storage class per declared field type. */
 const AFFINITY: Record<FieldDef["type"], string> = {
 	boolean: "INTEGER",
@@ -275,10 +283,16 @@ export class SqlStore implements Store {
 
 		if (params.q !== undefined && params.q !== "" && !this.defects.has("SEARCH_IGNORED")) {
 			const searchable = fieldsWhere(entity, "searchable")
+			const tokens = params.q
+				.split(/\s+/)
+				.map((token) => token.trim())
+				.filter((token) => token.length > 0)
 			if (searchable.length > 0) {
-				const clauses = searchable.map((f) => `${col(f)} LIKE ? ESCAPE '\\'`)
-				where.push(`(${clauses.join(" OR ")})`)
-				for (const _ of searchable) args.push(`%${escapeLike(params.q)}%`)
+				for (const token of tokens) {
+					const clauses = searchable.map((f) => `${col(f)} LIKE ? ESCAPE '\\'`)
+					where.push(`(${clauses.join(" OR ")})`)
+					for (const _ of searchable) args.push(`%${escapeLike(token)}%`)
+				}
 			}
 		}
 
@@ -353,6 +367,13 @@ export class SqlStore implements Store {
 						params.select,
 						this.defects.has("SELECT_IGNORED"),
 						this.defects.has("SPEC_OVERCLAIMS_SELECTABLE") ? [OVERCLAIMED_FIELD] : [],
+						{
+							dropRequested: this.defects.has("SELECT_FIELD_MISSING"),
+							identity: entity.identity,
+							...(entity.filterCatalog?.selectUnknown === undefined
+								? {}
+								: { selectUnknown: entity.filterCatalog.selectUnknown }),
+						},
 					),
 				),
 			limit,
@@ -363,12 +384,18 @@ export class SqlStore implements Store {
 
 	/* ------------------------------------------------------------- filter → SQL */
 
-	private compileFilter(expression: string, entity: EntityDef): { sql: string; args: SqlValue[] } {
+	private compileFilter(expression: string, entity: EntityDef, top = true): { sql: string; args: SqlValue[] } {
+		if (top && entity.filterCatalog?.maxFilterConditions !== undefined) {
+			const count = countTerms(expression)
+			if (count > entity.filterCatalog.maxFilterConditions) {
+				throw new SqlError("invalid_filter", `more than ${entity.filterCatalog.maxFilterConditions} filter conditions`)
+			}
+		}
 		const trimmed = expression.trim()
 
 		const group = /^(and|or)\((.*)\)$/s.exec(trimmed)
 		if (group?.[1] && group[2] !== undefined) {
-			const parts = splitTopLevel(group[2]).map((part) => this.compileFilter(part, entity))
+			const parts = splitTopLevel(group[2]).map((part) => this.compileFilter(part, entity, false))
 			if (parts.length === 0) throw new SqlError("invalid_filter", "empty filter group")
 			const effective = this.defects.has("FILTER_GROUP_COMBINATOR_SWAPPED")
 				? group[1] === "and"
@@ -385,8 +412,14 @@ export class SqlStore implements Store {
 		if (segments.length < 3) {
 			throw new SqlError("invalid_filter", `malformed filter term "${trimmed}"`)
 		}
-		const [field, op] = segments as [string, string, ...string[]]
+		const [field, rawOp] = segments as [string, string, ...string[]]
+		const op = rawOp === "ne" ? "neq" : rawOp
 		const raw = segments.slice(2).join(".")
+		const allowed = entity.filterCatalog?.opsByField?.[field]
+		if (allowed !== undefined && rawOp !== undefined && !allowed.includes(rawOp) && !allowed.includes(op)) {
+			if (this.defects.has("FILTER_ILLEGAL_OP_IGNORED")) return { args: [], sql: "1 = 1" }
+			throw new SqlError("invalid_filter", `unknown operator "${rawOp}"`)
+		}
 
 		/* Under the overclaim defect the backend refuses a field the document still declares
 		 * filterable — the backend is not wrong to refuse, the document is wrong to promise. */
@@ -418,6 +451,7 @@ export class SqlStore implements Store {
 			case "gt":
 				return { args: [coerce(raw, asText)], sql: `${ref} > ?` }
 			case "gte":
+				if (this.defects.has("FILTER_GTE_IS_GT")) return { args: [coerce(raw, asText)], sql: `${ref} > ?` }
 				return { args: [coerce(raw, asText)], sql: `${ref} >= ?` }
 			case "lt":
 				return { args: [coerce(raw, asText)], sql: `${ref} < ?` }
@@ -427,18 +461,35 @@ export class SqlStore implements Store {
 			case "nin": {
 				const members: SqlValue[] = stripParens(raw)
 					.split(",")
-					.map((s) => coerce(s.trim()))
-				const holes = members.map(() => "?").join(", ")
+					.map((s) => s.trim())
+					.filter((s) => s.length > 0)
+					.map((s) => coerce(s))
+				if (members.length === 0) {
+					if (entity.filterCatalog?.emptyIn === "reject") throw new SqlError("invalid_filter", "empty in()")
+					return { args: [], sql: op === "in" ? "1 = 0" : "1 = 1" }
+				}
+				if (entity.filterCatalog?.maxInValues !== undefined && members.length > entity.filterCatalog.maxInValues) {
+					throw new SqlError("invalid_filter", "in() exceeds maxInValues")
+				}
+				const effective =
+					this.defects.has("FILTER_IN_FIRST_ONLY") && op === "in" && members[0] !== undefined ? [members[0]] : members
+				const holes = effective.map(() => "?").join(", ")
 				return {
-					args: members,
+					args: effective,
 					sql: op === "in" ? `${ref} IN (${holes})` : `${ref} NOT IN (${holes})`,
 				}
 			}
 			case "is":
-				if (raw === "null") return { args: [], sql: `${ref} IS NULL` }
+				if (raw === "null") {
+					if (this.defects.has("FILTER_IS_NULL_MATCHES_ALL")) return { args: [], sql: "1 = 1" }
+					return { args: [], sql: `${ref} IS NULL` }
+				}
+				if (raw === "notnull" || raw === "not.null") return { args: [], sql: `${ref} IS NOT NULL` }
 				if (raw === "true") return { args: [1], sql: `${ref} = ?` }
 				if (raw === "false") return { args: [0], sql: `${ref} = ?` }
 				throw new SqlError("invalid_filter", `is.${raw} is not a recognised predicate`)
+			case "contains":
+				return { args: [coerce(raw)], sql: `${ref} LIKE '%' || ? || '%' ESCAPE '\\'` }
 			case "like":
 			case "ilike": {
 				/* `*` is the grammar's wildcard; % and _ are literals and must be escaped, or a
@@ -446,7 +497,11 @@ export class SqlStore implements Store {
 				const pattern = this.defects.has("LIKE_UNESCAPED")
 					? raw.replace(/\*/g, "%")
 					: escapeLike(raw).replace(/\*/g, "%")
-				return { args: [pattern], sql: `${ref} LIKE ? ESCAPE '\\'` }
+				const insensitive = op === "ilike" && !this.defects.has("FILTER_ILIKE_IS_LIKE")
+				return {
+					args: [insensitive ? pattern.toLowerCase() : pattern],
+					sql: insensitive ? `LOWER(${ref}) LIKE ? ESCAPE '\\'` : `${ref} LIKE ? ESCAPE '\\'`,
+				}
 			}
 			default:
 				throw new SqlError("invalid_filter", `unknown operator "${op}"`)
@@ -458,11 +513,12 @@ export class SqlStore implements Store {
 
 	private compileOrder(expression: string | undefined, entity: EntityDef): string {
 		this.dropNullsFor = null
-		if (this.defects.has("ORDER_IGNORED")) return ""
 		const terms: string[] = []
 
 		if (expression !== undefined && expression !== "") {
-			for (const raw of splitTopLevel(expression)) {
+			const rawTerms = splitTopLevel(expression)
+			const used = this.defects.has("SORT_MULTI_KEY_IGNORED") ? rawTerms.slice(0, 1) : rawTerms
+			for (const raw of used) {
 				const [field, ...modifiers] = raw.split(".")
 				/* Under the overclaim defect the backend refuses a field the document still declares
 				 * sortable — the backend is not wrong to refuse, the document is wrong to promise. */
@@ -480,13 +536,20 @@ export class SqlStore implements Store {
 						: descending
 				const declared = entity.fields.find((f) => f.name === field)
 				const numeric = declared?.type === "integer" || declared?.type === "number"
-				const ref = numeric && this.defects.has("NUMERIC_COMPARED_AS_TEXT") ? `CAST(${col(field)} AS TEXT)` : col(field)
+				const asText =
+					numeric && (this.defects.has("NUMERIC_COMPARED_AS_TEXT") || this.defects.has("SORT_NUMERIC_AS_TEXT"))
+				const ref = asText ? `CAST(${col(field)} AS TEXT)` : col(field)
 				terms.push(`${col(field)} IS NULL ${nullsFirst ? "DESC" : "ASC"}`)
 				terms.push(`${ref} ${descending ? "DESC" : "ASC"}`)
 				if (descending && this.defects.has("SORT_DESC_DROPS_NULLS")) {
 					this.dropNullsFor = field
 				}
 			}
+		}
+
+		if (this.defects.has("ORDER_IGNORED")) {
+			this.dropNullsFor = null
+			return ""
 		}
 
 		/* The tiebreak is what makes pagination sound: without a total order, equal keys may come

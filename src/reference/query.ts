@@ -36,6 +36,11 @@ export interface QueryOptions {
 	maxLimit: number
 	/** Fields the document still declares selectable that the backend has stopped honouring. */
 	excludedSelect?: readonly string[]
+	emptyIn?: "reject" | "match-none"
+	maxInValues?: number
+	maxFilterConditions?: number
+	allowedOpsByField?: Record<string, readonly string[]>
+	selectUnknown?: "reject" | "ignore"
 }
 
 export interface QueryResult {
@@ -51,7 +56,29 @@ export interface QueryResult {
 
 type Predicate = (row: Row) => boolean
 
-const COMPARATORS = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "in", "nin", "like", "ilike", "is", "contains"])
+const COMPARATORS = new Set([
+	"eq",
+	"ne",
+	"neq",
+	"gt",
+	"gte",
+	"lt",
+	"lte",
+	"in",
+	"nin",
+	"like",
+	"ilike",
+	"is",
+	"contains",
+])
+
+function countFilterTerms(expression: string): number {
+	const group = /^(and|or)\((.*)\)$/s.exec(expression.trim())
+	if (group?.[2] !== undefined) {
+		return splitTopLevel(group[2]).reduce((sum, part) => sum + countFilterTerms(part), 0)
+	}
+	return 1
+}
 
 /** Splits on commas that sit at paren depth zero. */
 function splitTopLevel(input: string): string[] {
@@ -72,12 +99,19 @@ function splitTopLevel(input: string): string[] {
 }
 
 function parseFilter(expression: string, options: QueryOptions, defects: DefectSet): Predicate {
+	if (options.maxFilterConditions !== undefined && countFilterTerms(expression) > options.maxFilterConditions) {
+		throw new SqlError("invalid_filter", `more than ${options.maxFilterConditions} filter conditions`)
+	}
+	return parseFilterInner(expression, options, defects)
+}
+
+function parseFilterInner(expression: string, options: QueryOptions, defects: DefectSet): Predicate {
 	const trimmed = expression.trim()
 
 	const group = /^(and|or)\((.*)\)$/s.exec(trimmed)
 	if (group?.[1] && group[2] !== undefined) {
 		const combinator = group[1]
-		const children = splitTopLevel(group[2]).map((part) => parseFilter(part, options, defects))
+		const children = splitTopLevel(group[2]).map((part) => parseFilterInner(part, options, defects))
 		if (children.length === 0) {
 			throw new SqlError("invalid_filter", `empty ${combinator}() group`)
 		}
@@ -100,7 +134,10 @@ function parseFilter(expression: string, options: QueryOptions, defects: DefectS
 	const [field, op] = segments as [string, string, ...string[]]
 	const rawValue = segments.slice(2).join(".")
 
-	if (!COMPARATORS.has(op)) {
+	const canonical = op === "ne" ? "neq" : op
+	const allowed = options.allowedOpsByField?.[field]
+	if (!COMPARATORS.has(op) || (allowed !== undefined && !allowed.includes(op) && !allowed.includes(canonical))) {
+		if (defects.has("FILTER_ILLEGAL_OP_IGNORED")) return () => true
 		throw new SqlError("invalid_filter", `unknown operator "${op}"`)
 	}
 	if (!options.filterable.includes(field)) {
@@ -110,16 +147,23 @@ function parseFilter(expression: string, options: QueryOptions, defects: DefectS
 		throw new SqlError("invalid_filter", `field "${field}" is not filterable`)
 	}
 
-	return buildComparator(field, op, rawValue, defects)
+	return buildComparator(field, canonical, rawValue, defects, options)
 }
 
-function buildComparator(field: string, op: string, rawValue: string, defects: DefectSet): Predicate {
+function buildComparator(
+	field: string,
+	op: string,
+	rawValue: string,
+	defects: DefectSet,
+	options: QueryOptions,
+): Predicate {
 	const value = coerce(rawValue)
 
 	switch (op) {
 		case "eq":
 			if (defects.has("FILTER_EQ_NOT_APPLIED")) return () => true
 			return (row) => looseEqual(row[field], value)
+		case "ne":
 		case "neq":
 			/* Three-valued logic leaking through: in SQL, `col <> x` is NULL — not true — when col
 			 * is NULL, so those rows silently vanish unless the query says `OR col IS NULL`. */
@@ -130,6 +174,7 @@ function buildComparator(field: string, op: string, rawValue: string, defects: D
 		case "gt":
 			return (row) => compare(row[field], value) > 0
 		case "gte":
+			if (defects.has("FILTER_GTE_IS_GT")) return (row) => compare(row[field], value) > 0
 			return (row) => compare(row[field], value) >= 0
 		case "lt":
 			return (row) => compare(row[field], value) < 0
@@ -139,14 +184,31 @@ function buildComparator(field: string, op: string, rawValue: string, defects: D
 		case "nin": {
 			const members = stripParens(rawValue)
 				.split(",")
-				.map((s) => coerce(s.trim()))
+				.map((s) => s.trim())
+				.filter((s) => s.length > 0)
+				.map((s) => coerce(s))
+			if (members.length === 0) {
+				if (options.emptyIn === "reject") throw new SqlError("invalid_filter", "empty in() is not allowed")
+				return op === "in" ? () => false : () => true
+			}
+			if (options.maxInValues !== undefined && members.length > options.maxInValues) {
+				throw new SqlError("invalid_filter", `in() exceeds maxInValues=${options.maxInValues}`)
+			}
+			const effective =
+				defects.has("FILTER_IN_FIRST_ONLY") && op === "in" && members[0] !== undefined ? [members[0]] : members
 			return (row) => {
-				const hit = members.some((member) => looseEqual(row[field], member))
+				const hit = effective.some((member) => looseEqual(row[field], member))
 				return op === "in" ? hit : !hit
 			}
 		}
 		case "is": {
-			if (rawValue === "null") return (row) => row[field] === null || row[field] === undefined
+			if (rawValue === "null") {
+				if (defects.has("FILTER_IS_NULL_MATCHES_ALL")) return () => true
+				return (row) => row[field] === null || row[field] === undefined
+			}
+			if (rawValue === "notnull" || rawValue === "not.null") {
+				return (row) => row[field] !== null && row[field] !== undefined
+			}
 			if (rawValue === "true") return (row) => row[field] === true
 			if (rawValue === "false") return (row) => row[field] === false
 			throw new SqlError("invalid_filter", `is.${rawValue} is not a recognised predicate`)
@@ -155,7 +217,8 @@ function buildComparator(field: string, op: string, rawValue: string, defects: D
 			return (row) => Array.isArray(row[field]) && row[field].some((v) => looseEqual(v, value))
 		case "like":
 		case "ilike": {
-			const pattern = likeToRegExp(rawValue, op === "ilike", defects)
+			const insensitive = op === "ilike" && !defects.has("FILTER_ILIKE_IS_LIKE")
+			const pattern = likeToRegExp(rawValue, insensitive, defects)
 			return (row) => typeof row[field] === "string" && pattern.test(row[field])
 		}
 		default:
@@ -193,10 +256,10 @@ function looseEqual(a: unknown, b: unknown): boolean {
 	return String(a) === String(b)
 }
 
-function compare(a: unknown, b: unknown): number {
+function compare(a: unknown, b: unknown, asText = false): number {
 	if (a === null || a === undefined) return -1
 	if (b === null || b === undefined) return 1
-	if (typeof a === "number" && typeof b === "number") return a - b
+	if (!asText && typeof a === "number" && typeof b === "number") return a - b
 	const as = String(a)
 	const bs = String(b)
 	return as < bs ? -1 : as > bs ? 1 : 0
@@ -210,8 +273,8 @@ interface SortTerm {
 	nullsFirst: boolean
 }
 
-function parseOrder(expression: string, options: QueryOptions): SortTerm[] {
-	return splitTopLevel(expression).map((term) => {
+function parseOrder(expression: string, options: QueryOptions, defects: DefectSet): SortTerm[] {
+	const terms = splitTopLevel(expression).map((term) => {
 		const [field, ...modifiers] = term.split(".")
 		if (field === undefined || !options.sortable.includes(field)) {
 			throw new SqlError("invalid_order", `field "${field ?? ""}" is not sortable`)
@@ -224,6 +287,7 @@ function parseOrder(expression: string, options: QueryOptions): SortTerm[] {
 			nullsFirst: modifiers.includes("nullsfirst") ? true : modifiers.includes("nullslast") ? false : descending,
 		}
 	})
+	return defects.has("SORT_MULTI_KEY_IGNORED") ? terms.slice(0, 1) : terms
 }
 
 /** Advances per query so tied rows land differently each time — see UNSTABLE_SORT below. */
@@ -258,7 +322,7 @@ function applyOrder(rows: Row[], terms: SortTerm[], options: QueryOptions, defec
 				const nullRank = aNull ? -1 : 1
 				return term.nullsFirst ? nullRank : -nullRank
 			}
-			const delta = compare(a, b)
+			const delta = compare(a, b, defects.has("SORT_NUMERIC_AS_TEXT"))
 			if (delta !== 0) return term.descending ? -delta : delta
 		}
 		return 0
@@ -304,18 +368,25 @@ export function runQuery(
 		rows = defects.has("EMPTY_RESULT_RETURNS_ALL") && filtered.length === 0 ? rows : filtered
 	}
 
-	if (params.q !== undefined && params.q !== "" && !defects.has("SEARCH_IGNORED")) {
-		const needle = params.q.toLowerCase()
+	if (params.q !== undefined && params.q.trim() === "") {
+		/* empty q is a no-op here; reject is the store's job when the catalog says so. */
+	} else if (params.q !== undefined && params.q !== "" && !defects.has("SEARCH_IGNORED")) {
+		const tokens = params.q
+			.toLowerCase()
+			.split(/\s+/)
+			.filter((token) => token.length > 0)
 		rows = rows.filter((row) =>
-			options.searchable.some((field) =>
-				String(row[field] ?? "")
-					.toLowerCase()
-					.includes(needle),
+			tokens.every((needle) =>
+				options.searchable.some((field) =>
+					String(row[field] ?? "")
+						.toLowerCase()
+						.includes(needle),
+				),
 			),
 		)
 	}
 
-	const terms = params.order === undefined || params.order === "" ? [] : parseOrder(params.order, options)
+	const terms = params.order === undefined || params.order === "" ? [] : parseOrder(params.order, options, defects)
 	if (defects.has("SORT_DESC_DROPS_NULLS")) {
 		for (const term of terms) {
 			if (!term.descending) continue
@@ -354,7 +425,9 @@ export function runQuery(
 
 	const projected = window
 		.map((row) => (transform === undefined ? row : transform(row)))
-		.map((row) => project(row, params.select, defects, options.excludedSelect ?? []))
+		.map((row) =>
+			project(row, params.select, defects, options.excludedSelect ?? [], options.identity, options.selectUnknown),
+		)
 
 	return {
 		count: total,
@@ -366,7 +439,14 @@ export function runQuery(
 	}
 }
 
-function project(row: Row, select: string | undefined, defects: DefectSet, excluded: readonly string[] = []): Row {
+function project(
+	row: Row,
+	select: string | undefined,
+	defects: DefectSet,
+	excluded: readonly string[] = [],
+	identity = "id",
+	selectUnknown?: "reject" | "ignore",
+): Row {
 	if (select === undefined || select === "" || select === "*") return { ...row }
 	if (defects.has("SELECT_IGNORED")) return { ...row }
 	const fields = select
@@ -377,8 +457,13 @@ function project(row: Row, select: string | undefined, defects: DefectSet, exclu
 	if (rejected !== undefined) {
 		throw new SqlError("invalid_select", `field "${rejected}" is not selectable`)
 	}
+	if (selectUnknown === "reject") {
+		const bogus = fields.find((field) => !Object.hasOwn(row, field) && !field.includes("("))
+		if (bogus !== undefined) throw new SqlError("invalid_select", `field "${bogus}" is not selectable`)
+	}
 	const out: Row = {}
 	for (const field of fields) {
+		if (defects.has("SELECT_FIELD_MISSING") && field !== identity && Object.hasOwn(row, field)) continue
 		if (Object.hasOwn(row, field)) out[field] = row[field]
 	}
 	return out

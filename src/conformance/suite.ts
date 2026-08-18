@@ -146,6 +146,12 @@ export async function runExampleSpecSuite(): Promise<ParserResult[]> {
 	const expectations: Array<[string, string, unknown, unknown]> = [
 		["x-query resolves the filter grammar", "the comment claims postgrest", list?.conventions.grammar, "postgrest"],
 		["x-query declares filterable fields", "not guessed from the schema", list?.query?.source, "tag"],
+		[
+			"x-query accepts structured filterable rows",
+			"declared-or-skip catalog",
+			list?.query?.filterFields?.[0]?.field,
+			"id",
+		],
 		["x-query sets maxLimit", "used to bound page-size probes", list?.query?.maxLimit, 100],
 		["limit resolves as page size", "distinguished by maximum + default", list?.conventions.limit, "limit"],
 		["cursor role resolves", "declared alongside page", list?.conventions.cursor, "cursor"],
@@ -628,7 +634,7 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	IDEMPOTENCY_IGNORED: "idempotency.replay-does-not-duplicate",
 	PARENT_PROJECTION_STALE: "invalidation.declared-route-changes",
 	SPEC_OVERCLAIMS_FILTERABLE: "spec.declared-filterable-is-filterable",
-	SPEC_OVERCLAIMS_SORTABLE: "spec.declared-sortable-is-sortable",
+	SPEC_OVERCLAIMS_SORTABLE: ["spec.declared-sortable-is-sortable", "spec.declared-sortable-nulls-accepted"],
 	FILTER_GROUP_COMBINATOR_SWAPPED: [
 		"filter.and-composes-as-intersection",
 		/* Only fires where an or() combinator exists to swap at all — the postgrest-shaped
@@ -690,7 +696,7 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	IMMUTABLE_WRITABLE: "patch.immutable-field-rejected",
 	LIKE_UNESCAPED: "filter.like-metacharacters-escaped",
 	OFF_BY_ONE_PAGE: "pagination.page-walk-covers-set",
-	PATCH_REPLACES: "patch.minimality",
+	PATCH_REPLACES: ["patch.minimality", "consistency.projections-agree"],
 	SELECT_IGNORED: "select.projection-honoured",
 	SOFT_DELETE_LEAK: "softdelete.absent-from-default-list",
 	STALE_LIST: "list.read-after-write",
@@ -700,6 +706,7 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 		/* An unstable default order can hide a just-created record behind a page boundary,
 		 * which the write-visibility check observes as a lost write. Same root cause. */
 		"list.read-after-write",
+		"sort.stable-tiebreak",
 	],
 	LIMIT_IGNORED: "pagination.limit-bounds-page-size",
 	LIMIT_EXCEEDS_MAX: "pagination.limit-respects-documented-max",
@@ -735,6 +742,7 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 		 * backend that answers "nothing" with "everything" makes records reappear mid-walk. */
 		"pagination.page-walk-covers-set",
 		"count.matches-filtered-set",
+		"filter.empty-in",
 	],
 	COUNT_ALWAYS_ZERO: ["count.consistent-with-returned-page", "count.matches-filtered-set"],
 	NEQ_DROPS_NULLS: "filter.negation-partitions-the-set",
@@ -746,6 +754,7 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 		"search.q-narrows-result",
 		"filter.equality-selects-exactly-one",
 		"sort.order-is-applied",
+		"sort.multi-key-tiebreak",
 		"response.status-is-documented",
 		/*
 		 * On an engine with double-quoted-string fallback the response *shape* is corrupted, not
@@ -761,6 +770,7 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 		"filter.numeric-comparison-is-numeric",
 		"sort.order-is-applied",
 		"sort.reverse-symmetry",
+		"sort.numeric-order-is-numeric",
 		"pagination.page-walk-covers-set",
 		"pagination.cursor-agrees-with-page",
 	],
@@ -778,6 +788,14 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 		 * positive. */
 		"patch.minimality",
 	],
+	FILTER_IN_FIRST_ONLY: "filter.in-is-union-of-eq",
+	FILTER_GTE_IS_GT: "filter.gte-is-gt-or-eq",
+	FILTER_ILIKE_IS_LIKE: "filter.ilike-is-case-insensitive",
+	FILTER_IS_NULL_MATCHES_ALL: "filter.is-null-selects-nulls",
+	FILTER_ILLEGAL_OP_IGNORED: "filter.illegal-op-rejected",
+	SORT_NUMERIC_AS_TEXT: "sort.numeric-order-is-numeric",
+	SORT_MULTI_KEY_IGNORED: "sort.multi-key-tiebreak",
+	SELECT_FIELD_MISSING: "select.requested-fields-present",
 	ASYNC_NEVER_COMPLETES: "async.reaches-terminal-state",
 	ASYNC_RECEIPT_MISSING_ID: [
 		"async.receipt-identifies-the-job",
@@ -869,11 +887,11 @@ export const DIALECTS_WITH_FILTER_EXPRESSION: ReadonlySet<string> = new Set([
 const ALL_CHECK_IDS = CHECKS.map((check) => check.id)
 
 export const COVERAGE_FLOOR: Record<string, number> = {
-	classic: 55,
-	jsonapi: 56,
-	linked: 56,
-	plain: 53,
-	postgrest: 57,
+	classic: 78,
+	jsonapi: 85,
+	linked: 87,
+	plain: 69,
+	postgrest: 88,
 }
 
 /** Defects that need a filter expression language to exist at all. */
@@ -886,7 +904,22 @@ export const EXPRESSION_ONLY: ReadonlySet<DefectName> = new Set<DefectName>([
 	"LIKE_UNESCAPED",
 	"NEQ_DROPS_NULLS",
 	"NUMERIC_COMPARED_AS_TEXT",
+	"FILTER_ILLEGAL_OP_IGNORED",
+	"FILTER_GTE_IS_GT",
 ])
+
+/**
+ * Defects that need a postgrest-shaped filter writer (`in` / `ilike` / `is`). Colon and
+ * equality cannot emit those operators, so injecting the lie there is a miss that names the
+ * grammar rather than oat.
+ */
+export const POSTGREST_OP_ONLY: ReadonlySet<DefectName> = new Set<DefectName>([
+	"FILTER_IN_FIRST_ONLY",
+	"FILTER_ILIKE_IS_LIKE",
+	"FILTER_IS_NULL_MATCHES_ALL",
+])
+
+export const DIALECTS_WITH_POSTGREST_FILTER: ReadonlySet<string> = new Set(["postgrest", "linked", "jsonapi"])
 
 /** Defects that need a reported total to exist at all. */
 export const COUNT_ONLY: ReadonlySet<DefectName> = new Set<DefectName>(["COUNT_ALWAYS_ZERO", "COUNT_IGNORES_FILTER"])
@@ -1127,6 +1160,7 @@ export async function runSuite(
 		.filter((name) => DIALECTS_WITH_TOTAL.has(dialect) || !COUNT_ONLY.has(name))
 		/* And a shape with no filter *expression* cannot malform one. */
 		.filter((name) => DIALECTS_WITH_FILTER_EXPRESSION.has(dialect) || !EXPRESSION_ONLY.has(name))
+		.filter((name) => DIALECTS_WITH_POSTGREST_FILTER.has(dialect) || !POSTGREST_OP_ONLY.has(name))
 		/* D1 is a network round trip per statement. Restricting it to the engine-sensitive set
 		 * keeps a run to minutes rather than an hour, and drops nothing D1 could uniquely show. */
 		.filter((name) => backend !== "d1" || ENGINE_SENSITIVE.has(name))

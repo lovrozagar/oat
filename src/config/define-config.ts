@@ -6,6 +6,17 @@
  * here or in `x-*` spec tags; oat itself knows nothing about any particular API.
  */
 
+import type { FilterableField, QueryCapabilities } from "../spec/query-capabilities.ts"
+
+export type {
+	FieldType,
+	FilterOp,
+	FilterableField,
+	FilterableFrom,
+	QueryCapabilities,
+	SortableField,
+} from "../spec/query-capabilities.ts"
+
 /* ------------------------------------------------------------------ auth steps */
 
 interface StepBase {
@@ -271,6 +282,27 @@ export interface Hooks {
 	 * `null` retries until `x-wait.timeoutMs` (default 30s).
 	 */
 	awaitSideEffect?: (request: SideEffectRequest) => Promise<true | null>
+	/**
+	 * After seed, add or replace any axis of the query catalog for one entity. Return `null`
+	 * to keep the merged tag+config catalog. A provided `filterable` / `sortable` /
+	 * `searchable` / `selectable` list replaces that axis; omitted axes stay. `get` runs a
+	 * named operation (or `"GET /path"`) with the seeded scope so a follow-up read can
+	 * harvest dynamic columns.
+	 */
+	resolveQueryCapabilities?: (
+		request: QueryCapabilitiesRequest,
+	) => Promise<FilterableField[] | Partial<QueryCapabilities> | null>
+}
+
+export interface QueryCapabilitiesRequest {
+	entity: string
+	scope: Record<string, string>
+	get: (operationId: string, scope?: Record<string, string>) => Promise<unknown>
+}
+
+/** Per-entity overlays. Only `query` is in scope this release. Unknown names are ignored. */
+export interface EntityConfig {
+	query?: QueryCapabilities
 }
 
 /** A second host with its own OpenAPI. Auth stays on the primary; the JWT is reused. */
@@ -374,6 +406,13 @@ export interface OatConfig {
 	 * request — the environment-specific belief wins over the document's general claim.
 	 */
 	rateLimits?: RateLimitSpec[]
+	/**
+	 * Global filter catalog defaults. Overlay on every entity after the list operation's `x-query`.
+	 * Does not invent operators — new ops still have to be listed here or on the tag.
+	 */
+	query?: QueryCapabilities
+	/** Per-entity overlays. Unknown names are ignored (`oat doctor` warns). */
+	entities?: Record<string, EntityConfig>
 	/** Leave created records in place instead of tearing them down. */
 	keepFixtures?: boolean
 	/**

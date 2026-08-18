@@ -9,11 +9,13 @@
 import { buildModel, type EntityModel, type OperationModel, type SpecModel } from "../spec/graph.ts"
 import { dereference, loadSpec } from "../spec/load.ts"
 import type {
+	EntityConfig,
 	Hooks,
 	OriginSpec,
 	OutOfBandConfig,
 	Principal,
 	ProfileSpec,
+	QueryCapabilities,
 	RateLimitSpec,
 	Uploads,
 } from "../config/define-config.ts"
@@ -28,6 +30,7 @@ import { type Finding, FindingCollector, type Inconclusive } from "./finding.ts"
 import { reportFeatureGateSchemaDrift } from "./feature-gate.ts"
 import { excludedByProfile, resolveProfile } from "./profile.ts"
 import { buildRateLimitRules, RateLimiter } from "./rate-limit.ts"
+import { resolveEntityCapabilities } from "./query-capabilities.ts"
 import { Ledger, type TeardownReport } from "./teardown.ts"
 import { SchemaValidator } from "./validate.ts"
 import { isOverflowError, overflowFrom } from "./fixture.ts"
@@ -77,6 +80,10 @@ export interface RunOptions {
 	outOfBand?: OutOfBandConfig
 	/** Skip `teardownPrincipal` — used when this run is a secondary origin sharing accounts. */
 	skipPrincipalTeardown?: boolean
+	/** Global filter catalog defaults. */
+	query?: QueryCapabilities
+	/** Per-entity overlays. */
+	entities?: Record<string, EntityConfig>
 }
 
 export interface RunResult {
@@ -843,6 +850,31 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		const inviteExcluded = excludeOp(entity, inviteOp)
 		const invocable = (op: OperationModel): boolean => !excludeOp(entity, op)
 
+		const entityQuery = options.entities?.[entity.name]?.query
+		const capabilities = await resolveEntityCapabilities({
+			tag: listOp.query,
+			itemSchema: listOp.collection?.itemSchema ?? null,
+			entityName: entity.name,
+			scope: scope.values,
+			model,
+			client,
+			auth: alpha.headers,
+			...(options.query === undefined ? {} : { global: options.query }),
+			...(entityQuery === undefined ? {} : { entity: entityQuery }),
+			...(hooks.resolveQueryCapabilities === undefined ? {} : { hook: hooks.resolveQueryCapabilities }),
+		})
+		const query = listOp.query
+		const queryForChecks =
+			query === null
+				? null
+				: {
+						...query,
+						filterable: capabilities.filterable.map((field) => field.field),
+						searchable: capabilities.searchable,
+						selectable: capabilities.selectable,
+						sortable: capabilities.sortable.map((field) => field.field),
+					}
+
 		const ctx: CheckContext = {
 			actors,
 			altAuth,
@@ -865,9 +897,10 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			findings,
 			identity: entity.identity ?? "id",
 			invite: inviteExcluded ? null : entity.invite,
+			capabilities,
 			listOp,
 			model,
-			query: listOp.query,
+			query: queryForChecks,
 			readOp: readExcluded ? undefined : readOpModel,
 			records,
 			scope: scope.values,
@@ -1128,6 +1161,8 @@ async function runSecondaryOrigins(
 			...(options.maxInFlight === undefined ? {} : { maxInFlight: options.maxInFlight }),
 			...(options.outOfBand === undefined ? {} : { outOfBand: options.outOfBand }),
 			...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
+			...(options.query === undefined ? {} : { query: options.query }),
+			...(options.entities === undefined ? {} : { entities: options.entities }),
 		})
 		for (const finding of result.findings) {
 			findings.report({ ...finding, origin: origin.id })

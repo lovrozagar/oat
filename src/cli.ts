@@ -187,6 +187,8 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 			...(config.rateLimits === undefined ? {} : { rateLimits: config.rateLimits }),
 			...(config.origins === undefined ? {} : { origins: config.origins }),
 			...(config.outOfBand === undefined ? {} : { outOfBand: config.outOfBand }),
+			...(config.query === undefined ? {} : { query: config.query }),
+			...(config.entities === undefined ? {} : { entities: config.entities }),
 			keepFixtures: flags["keep-fixtures"] === true || config.keepFixtures === true,
 			maxInFlight: Number.parseInt(str(flags, "max-in-flight") ?? "", 10) || config.maxInFlight || 4,
 			seed: seedFlag === undefined ? (config.seed ?? 1) : Number.parseInt(seedFlag, 10),
@@ -489,7 +491,19 @@ export async function main(): Promise<number> {
 			process.stdout.write(report.plan(model, flags.json === true))
 			return 0
 		case "doctor": {
-			const output = report.doctor(model, externalRefs, flags.json === true)
+			const config = configPath === undefined ? undefined : interpolate(await loadConfig(configPath))
+			const output = report.doctor(
+				model,
+				externalRefs,
+				flags.json === true,
+				config === undefined
+					? undefined
+					: {
+							...(config.query === undefined ? {} : { query: config.query }),
+							...(config.entities === undefined ? {} : { entities: config.entities }),
+							...(config.hooks === undefined ? {} : { hooks: config.hooks }),
+						},
+			)
 			process.stdout.write(output.text)
 			return output.blocking > 0 ? 1 : 0
 		}

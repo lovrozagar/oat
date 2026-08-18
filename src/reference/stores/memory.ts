@@ -105,6 +105,17 @@ export class MemoryStore implements Store {
 					? fieldsWhere(entity, "sortable").filter((f) => f !== OVERCLAIMED_FIELD)
 					: fieldsWhere(entity, "sortable"),
 				...(options.softDeleteField === undefined ? {} : { softDeleteField: options.softDeleteField }),
+				...(entity.filterCatalog?.emptyIn === undefined ? {} : { emptyIn: entity.filterCatalog.emptyIn }),
+				...(entity.filterCatalog?.maxInValues === undefined ? {} : { maxInValues: entity.filterCatalog.maxInValues }),
+				...(entity.filterCatalog?.maxFilterConditions === undefined
+					? {}
+					: { maxFilterConditions: entity.filterCatalog.maxFilterConditions }),
+				...(entity.filterCatalog?.opsByField === undefined
+					? {}
+					: { allowedOpsByField: entity.filterCatalog.opsByField }),
+				...(entity.filterCatalog?.selectUnknown === undefined
+					? {}
+					: { selectUnknown: entity.filterCatalog.selectUnknown }),
 			},
 			this.defects,
 			options.transform,

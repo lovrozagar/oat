@@ -437,6 +437,22 @@ export default defineConfig({
 	outDir: "./.oat/runs",
 	outOfBand: { attempts: 20, initialMs: 1000, maxMs: 8000 },
 	origins: [{ id: "cdn", baseUrl: "https://cdn.example.com", spec: "https://cdn.example.com/openapi.json" }],
+	query: {
+		operators: ["eq", "neq", "gt", "gte", "lt", "lte", "in", "nin", "like", "ilike", "is"],
+		emptyIn: "match-none",
+		maxInValues: 100,
+		searchEmpty: "match-all",
+		sort: { nulls: ["first", "last"], maxKeys: 3 },
+		select: { unknown: "reject" },
+	},
+	entities: {
+		row: {
+			query: {
+				identityFilter: "_id",
+				filterable: [{ field: "_id", type: "string", ops: ["eq", "neq", "in"] }],
+			},
+		},
+	},
 })
 ```
 
@@ -457,6 +473,8 @@ export default defineConfig({
 | `only`          | no       | all                                            | Entity names from `oat plan`                                                                                           |
 | `keepFixtures`  | no       | `false`                                        | Skip DELETE at the end                                                                                                 |
 | `outDir`        | no       | `./.oat/runs`                                  | History root. Each run writes `<outDir>/<datetime>/` and updates `latest`. Also writes `principals.json` after acquire |
+| `query`         | no       |                                                | Global query-catalog defaults. Overlay after `x-query`. Does not invent operators                                      |
+| `entities`      | no       |                                                | Per-entity overlays. This release only reads `query`. Unknown names are ignored; `doctor` warns                        |
 
 `spec` may be a path relative to `baseUrl` (`/v1/openapi/spec`) or an absolute URL or a file.
 
@@ -746,6 +764,12 @@ hooks: {
     const pair = await readHarvestedGoogle()
     return pair === null ? null : { credential: pair.access_token, refreshToken: pair.refresh_token, expiresIn: pair.expires_in }
   },
+  // After seed: add or replace any axis of the query catalog. Null keeps the merge.
+  resolveQueryCapabilities: async ({ entity, get }) => {
+    if (entity !== "row") return null
+    const body = await get("table.get")
+    return { filterable: /* harvest from body */ [] }
+  },
   // Optional extra stop condition while x-wait polls.
   awaitSideEffect: async ({ operationId, record }) => {
     if (operationId !== "webhook.deliver") return null
@@ -777,7 +801,37 @@ Without `teardownPrincipal`, provisioned accounts are reported as leftover rathe
 
 `resolveInput` is the JSON twin of `resolveUpload`. Return a value to replace that field (`payment_method_id` on `billing.subscribe`); `null` keeps the generator.
 
+`resolveQueryCapabilities` runs once per entity after seed. `get(operationId)` (or `"GET /path"`) uses the seeded parent scope so a follow-up read can harvest dynamic columns. A provided `filterable` / `sortable` / `searchable` / `selectable` list **replaces** that axis; omitted axes stay. JSON configs have no hook.
+
 `resolvePrincipalAuth` and `awaitSideEffect` are documented below.
+
+Worked `query` overlay for a generic PostgREST-shaped API (not a named product):
+
+```ts
+export default defineConfig({
+	spec: "https://api.example.com/openapi.json",
+	baseUrl: "https://api.example.com",
+	principals: [{ id: "alpha", headers: { authorization: `Bearer ${process.env.TOKEN}` } }],
+	query: {
+		operators: ["eq", "neq", "gt", "gte", "lt", "lte", "in", "nin", "like", "ilike", "is"],
+		operatorsByType: {
+			string: ["eq", "neq", "like", "ilike", "in", "nin", "is"],
+			number: ["eq", "neq", "gt", "gte", "lt", "lte", "in", "nin", "is"],
+			date: ["eq", "neq", "gt", "gte", "lt", "lte", "is"],
+			boolean: ["eq", "neq", "is"],
+		},
+		aliases: { ne: "neq" },
+		emptyIn: "match-none",
+		maxInValues: 100,
+		maxFilterConditions: 20,
+		searchEmpty: "match-all",
+		sort: { nulls: ["first", "last"], maxKeys: 3 },
+		select: { nested: false, unknown: "reject" },
+	},
+})
+```
+
+New surface still has to be listed. oat will not silently enable `in` / `ilike` / `is` / `contains` / search modes / `nullsfirst` on every PostgREST-shaped document.
 
 ### Uploads
 
@@ -934,6 +988,7 @@ Checks do not look for a parameter _named_ `filter`. They resolve **roles** from
 | order             | `order`, `order_by`, `sort`, `sort_by`, `ordering`                                  |
 | select            | `select`, `fields`, `field`, `include_fields`, `projection`, `only`                 |
 | search            | `q`, `search`, `query_text`, `term`, `keyword`, `text`                              |
+| search mode       | `search_mode`, `searchmode`, `search_type`, `mode` (only if a search role exists)   |
 | limit (page size) | `limit`, `per_page`, `page_size`, `pagesize`, `count`, `max_results`, `top`, `size` |
 | page              | `page`, `page_number`, `pagenum`, `p`                                               |
 | offset            | `offset`, `skip`, `start`, `from`                                                   |
@@ -945,15 +1000,17 @@ A bounded integer with a default that matches no alias is still taken as page si
 
 **Filter grammars** — how oat **writes** a term:
 
-| name        | `eq` / `neq` / `gt` / `like` example                                      | `and` / `or`                       |
-| ----------- | ------------------------------------------------------------------------- | ---------------------------------- |
-| `postgrest` | `filter=status.eq.active`, `name.neq.x`, `price.gt.10`, `name.like.*foo*` | `and(a.eq.1,b.eq.2)`, `or(...)`    |
-| `colon`     | `filter=status=eq:active` (comma-joined terms; no grouping)               | not expressible; those checks skip |
-| `equality`  | `?status=active` (one query param per field). Only `eq` is expressible    | not expressible                    |
+| name        | example                                                                                              | `and` / `or`                       |
+| ----------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `postgrest` | `status.eq.active`, `name.neq.x`, `id.in.(a,b)`, `name.ilike.FOO`, `note.is.null`, `tags.contains.x` | `and(a.eq.1,b.eq.2)`, `or(...)`    |
+| `colon`     | `filter=status=eq:active` (comma-joined terms; no grouping)                                          | not expressible; those checks skip |
+| `equality`  | `?status=active` (one query param per field). Only `eq` is expressible                               | not expressible                    |
 
-Operators oat can emit: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `like`. Anything else a check needs that the grammar cannot write becomes **did not apply**, not a failed request.
+Operators the **postgrest** writer can emit: `eq`, `ne`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `nin`, `like`, `ilike`, `is`, `contains`. Colon stays on `eq` / `neq` / `gt` / `gte` / `lt` / `lte` / `like`. Equality is `eq` only. Anything a grammar cannot write becomes **did not apply**, not a failed request.
 
-**Sort grammars:** `name.asc` (dotted), `-name` (prefixed / JSON:API; ascending is the bare name), `name:asc` (colon), `name asc` (spaced).
+A check that needs `in`, `ilike`, `is`, `contains`, a search mode, or `nullsfirst` / `nullslast` also needs that capability **declared**. oat does not infer new operators, modes, or nulls tokens onto an API that never listed them.
+
+**Sort grammars:** `name.asc` (dotted), `-name` (prefixed / JSON:API; ascending is the bare name), `name:asc` (colon), `name asc` (spaced). Dotted (PostgREST-shaped) can also emit `name.asc.nullsfirst` / `name.desc.nullslast` when the capability map allows that token. Colon / prefixed / spaced stay as they are.
 
 **Select grammars:** `id,name` (csv) or `fields[table]=id,name` (bracketed). If the parameter is already named `fields[articles]`, that name is used verbatim.
 
@@ -969,7 +1026,25 @@ Otherwise oat concatenates the filter/order/select parameter's `example`, `examp
 
 Without `x-query`, if a filter/order/select/search role resolves, oat assumes **every scalar** is filterable/sortable/selectable (`string` / `number` / `integer` / `boolean`, including nullable unions). Searchable-without-tag is further narrowed to names matching `name|title|slug|label|description|email`. `doctor` warns. Pagination-only lists stay uncovered.
 
+That heuristic runs **only** for an axis that was not tagged and not set in config. An explicit empty claim — `filterable: []`, `searchable: null`, `selectable: []`, `sortable: []` — is a claim of none. oat will not infer scalars over it.
+
 Searchable / filterable / sortable / selectable from the tag are used as given. `maxLimit` is also taken from a page-size parameter's `schema.maximum` when the tag omits it.
+
+### Declared or skip
+
+Every list check consults one **effective capability map** per entity. Precedence, unchanged in spirit:
+
+| order | source                          | what it contributes                                                                                  |
+| ----- | ------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 1     | `x-query` on the list operation | fields, structured rows, operators, modes, caps, harvest                                             |
+| 2     | `config.entities[name].query`   | union of fields; overlay of ops / modes / caps                                                       |
+| 3     | `config.query`                  | global defaults for the same keys                                                                    |
+| 4     | heuristic                       | today's scalars / name-regex searchable — **only if that axis was not tagged and not set in config** |
+| 5     | skip                            | the check does not apply                                                                             |
+
+`hooks.resolveQueryCapabilities` runs after 1–3 (and after any `*From` harvest) and may add or replace any axis. Return `null` to keep the merge. Called once per entity after seed, with the seeded parent scope so a follow-up GET can run.
+
+Missing capability → the check does not apply / unresolved. Never `BACKEND_BUG` for an undeclared op, mode, or nulls option.
 
 ## Pagination and envelopes
 
@@ -1010,16 +1085,16 @@ oat doctor --spec node_modules/@lovrozagar/oat/labs/annotated-openapi.yaml
 
 What each tag **unlocks** (otherwise the check cannot run):
 
-| tag             | checks unlocked                                                                                                          |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `x-async`       | `async.reaches-terminal-state`, `async.receipt-identifies-the-job`                                                       |
-| `x-effects`     | `effects.declared-effect-occurs`                                                                                         |
-| `x-immutable`   | `patch.immutable-field-rejected`                                                                                         |
-| `x-invalidate`  | `invalidation.declared-route-changes` (when the list names another entity)                                               |
-| `x-query`       | `spec.declared-filterable-is-filterable`, `spec.declared-sortable-is-sortable`, `spec.declared-selectable-is-selectable` |
-| `x-soft-delete` | `softdelete.absent-from-default-list`                                                                                    |
-| `x-invite`      | `auth.invite-grants-then-revokes`                                                                                        |
-| `x-wait`        | `effects.side-effect-arrives`                                                                                            |
+| tag             | checks unlocked                                                                                                                                                                                               |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `x-async`       | `async.reaches-terminal-state`, `async.receipt-identifies-the-job`                                                                                                                                            |
+| `x-effects`     | `effects.declared-effect-occurs`                                                                                                                                                                              |
+| `x-immutable`   | `patch.immutable-field-rejected`                                                                                                                                                                              |
+| `x-invalidate`  | `invalidation.declared-route-changes` (when the list names another entity)                                                                                                                                    |
+| `x-query`       | `spec.declared-filterable-is-filterable`, `spec.declared-sortable-is-sortable`, `spec.declared-selectable-is-selectable`, plus the declared-or-skip catalog checks (`in` / `ilike` / `is` / nulls / caps / …) |
+| `x-soft-delete` | `softdelete.absent-from-default-list`                                                                                                                                                                         |
+| `x-invite`      | `auth.invite-grants-then-revokes`                                                                                                                                                                             |
+| `x-wait`        | `effects.side-effect-arrives`                                                                                                                                                                                 |
 
 What each tag **sharpens** (the check already runs, but the verdict changes):
 
@@ -1087,23 +1162,65 @@ Accept and revoke send the documented JSON request body when the operation decla
 
 ### `x-query`
 
+String arrays still work. Structured rows are optional. Either, not both required.
+
 ```yaml
 x-query:
-  filterable: [id, name, slug, status, created_at]
-  sortable: [name, created_at, updated_at]
+  grammar: postgrest # postgrest | colon | equality
+  filterable: [id, name, created_at]
+  sortable: [name, created_at]
   searchable: [name, slug]
-  selectable: [id, name, slug, created_at]
+  selectable: [id, name, created_at]
   maxLimit: 100
   defaultOrder: created_at.desc
   stableTiebreak: id
-  grammar: postgrest # postgrest | colon | equality
+
+  # structured (optional) — unlocks per-field ops / types / nulls
+  filterable:
+    - { field: id, type: string, ops: [eq, neq, in, nin] }
+    - { field: name, type: string, ops: [eq, neq, like, ilike, in] }
+    - { field: created_at, type: date, ops: [eq, gt, gte, lt, lte, is] }
+    - { field: tags, type: array, ops: [contains, eq, is] }
+  sortable:
+    - { field: name, type: string }
+    - { field: created_at, type: date, nulls: [first, last] }
+
+  operators: [eq, ne, neq, gt, gte, lt, lte, in, nin, like, ilike, is, contains]
+  operatorsByType:
+    string:  [eq, ne, neq, like, ilike, in, nin, is]
+    number:  [eq, ne, neq, gt, gte, lt, lte, in, nin, is]
+    date:    [eq, ne, neq, gt, gte, lt, lte, is]
+    enum:    [eq, ne, neq, in, nin, is]
+    boolean: [eq, ne, neq, is]
+    array:   [contains, eq, is]
+  aliases: { ne: neq }
+  identityFilter: _id          # filter field when it differs from the JSON identity
+  emptyIn: match-none          # reject | match-none; undeclared → empty-in check skips
+  maxInValues: 100
+  maxFilterConditions: 20
+  searchModes: [keyword]       # free-form; undeclared → mode checks skip
+  searchEmpty: match-all       # ignore | match-all | reject
+  sortNulls: [first, last]
+  maxSortKeys: 3
+  selectNested: true           # `rel(col)` grammar; undeclared → nested check skips
+  selectUnknown: reject        # reject | ignore; undeclared → unknown-select check skips
+
+  # harvest any axis from another GET — no baked path
+  filterableFrom: { operationId: table.get, path: $.columns[*].name, typePath: $.columns[*].type, typeMap: { text: string, int: number } }
+  sortableFrom:   { operationId: table.get, path: $.columns[*].name }
+  searchableFrom: { operationId: table.get, path: $.columns[?(@.searchable==true)].name }
+  selectableFrom: { operationId: table.get, path: $.columns[*].name }
 ```
 
-States what `filter` / `order` / `q` / `select` actually support. `stableTiebreak` is load-bearing for keyset pagination. `grammar` pins how oat writes values (see [Query roles and grammars](#query-roles-and-grammars)).
+`defaultOrder` / `stableTiebreak` / `maxLimit` stay. Harvest keys are generic JSON paths (`$`, dots, `[n]`, `[*]`, `[?(@.key==value)]`). Absent → no harvest.
 
-**Fallback:** if those roles resolve, treat every scalar as capable and warn.
+String arrays + `operatorsByType` is enough for most APIs. Per-field `ops` / `nulls` close the list that field actually accepts.
 
-**Unlocks:** `spec.declared-filterable-is-filterable`, `spec.declared-sortable-is-sortable`, `spec.declared-selectable-is-selectable`. Sharpens every other query check (without the tag they probe columns you may not have indexed).
+**Fallback:** if those roles resolve and the axis was not tagged and not set in config, treat every scalar as capable and warn. Empty tagged `filterable: []` / `searchable: null` / `selectable: []` is an explicit claim of none.
+
+**Unlocks:** `spec.declared-filterable-is-filterable`, `spec.declared-sortable-is-sortable`, `spec.declared-selectable-is-selectable`. Structured extras unlock the matching catalog checks (`in` = union of `eq`, `ilike` vs `like`, `is.null`, illegal op, empty `in`, caps, nulls, search empty/modes, unknown select, nested `rel(col)`). Sharpens every other query check (without the tag they probe columns you may not have indexed).
+
+`oat doctor` prints, per entity, the effective map (all four axes, ops, modes, caps, harvest/hook) and which new checks will apply. Unknown `config.entities` names are ignored and warned.
 
 ### `x-async`
 
@@ -1315,72 +1432,108 @@ export default defineConfig({
 
 ## Checks
 
-57 checks. A check that cannot run says so (`did not apply` + `needs`). A check that depends on a broken primitive is `BLOCKED`. A check that ran and stopped is inconclusive, not a pass.
+94 checks. A check that cannot run says so (`did not apply` + `needs`). A check that depends on a broken primitive is `BLOCKED`. A check that ran and stopped is inconclusive, not a pass.
 
 Order is fixed (foundations first) so cascade suppression has a cause to point at. Mutating checks run alone; read-only checks may share in-flight requests under `maxInFlight`.
 
 `depends` is the `dependsOn` list: if any of those already failed **for this entity**, this check is `BLOCKED` rather than reported as a second defect. Suppression is transitive.
 
-| id                                         | asserts                                                                              | needs                                                                | depends                                 |
-| ------------------------------------------ | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------- | --------------------------------------- |
-| `list.read-after-write`                    | a just-created record appears on the list                                            | create + a seeded record                                             | —                                       |
-| `create.persists-submitted-fields`         | every writable field sent on create is echoed                                        | create that echoes the record                                        | `list.read-after-write`                 |
-| `payload.string-survives`                  | a documented-valid string is stored exactly; 4xx after an ASCII control is a fail    | update or create+delete, item GET, unconstrained string              | `list.read-after-write`                 |
-| `create.status-matches-document`           | create status is one the document declared                                           | create                                                               | —                                       |
-| `response.status-is-documented`            | every non-create exchange returns a status that operation names (`default` ≠ 201)    | a modeled non-create operation oat invoked                           | —                                       |
-| `schema.success-response-matches-document` | create body validates against the success schema                                     | success schema on create                                             | `create.status-matches-document`        |
-| `schema.error-response-matches-document`   | an error body validates against the documented error schema                          | error schema on the item route                                       | —                                       |
-| `pagination.limit-bounds-page-size`        | page size ≤ the requested limit                                                      | page-size _role_ (aliases include `limit`, `per_page`, …)            | `list.read-after-write`                 |
-| `pagination.limit-respects-documented-max` | requesting more than `maxLimit` does not return more                                 | declared `maxLimit` and a larger cohort                              | `pagination.limit-bounds-page-size`     |
-| `pagination.has-more-is-accurate`          | `hasMore` / `Link rel=next` matches whether another page exists                      | page-forward + `hasMore` or `Link rel=next`                          | `pagination.limit-bounds-page-size`     |
-| `pagination.page-walk-covers-set`          | walking pages covers the collection with no gaps or dupes                            | page or offset + ≥3 records                                          | `pagination.limit-bounds-page-size`     |
-| `pagination.cursor-agrees-with-page`       | cursor walk and page walk yield the same set                                         | both cursor and page                                                 | `pagination.limit-bounds-page-size`     |
-| `filter.unknown-field-rejected`            | a filter on a field that does not exist is not silently ignored                      | a filter expression                                                  | —                                       |
-| `filter.equality-selects-exactly-one`      | `id.eq.<one>` returns that one record                                                | equality on the identity                                             | `list.read-after-write`                 |
-| `filter.zero-match-returns-none`           | a filter that matches nothing returns an empty page, not the whole set               | same                                                                 | `list.read-after-write`                 |
-| `filter.negation-partitions-the-set`       | `eq` ∪ `neq` = whole set, intersection empty                                         | eq and neq                                                           | `list.read-after-write`, equality       |
-| `filter.and-composes-as-intersection`      | `and(A,B)` = A ∩ B                                                                   | two filterable fields + AND                                          | equality / list                         |
-| `filter.or-composes-as-union`              | `or(A,B)` = A ∪ B                                                                    | `or()` — **postgrest grammar only**                                  | equality / list                         |
-| `filter.like-metacharacters-escaped`       | `%` `_` `*` in a value are literals, not wildcards                                   | like operator                                                        | `list.read-after-write`                 |
-| `filter.numeric-comparison-is-numeric`     | `gt`/`lt` on a number uses numeric order, not TEXT (`1,10,2`)                        | numeric field + a filter param                                       | `list.read-after-write`, unknown-field  |
-| `error.malformed-filter-not-5xx`           | garbage filter text is 4xx, never 5xx                                                | a filter expression                                                  | —                                       |
-| `query.filter-selects-from-whole-set`      | a filter is applied to the collection, not to the current page                       | filterable + ≥3 records                                              | list / walk                             |
-| `sort.order-is-applied`                    | requesting a sort actually rearranges the page                                       | order + a sortable field                                             | `pagination.limit-bounds-page-size`     |
-| `sort.reverse-symmetry`                    | desc is the reverse of asc (nulls included)                                          | order + asc/desc                                                     | order-is-applied                        |
-| `search.q-narrows-result`                  | a search term that matches one record does not return the whole set                  | search param + searchable fields                                     | `list.read-after-write`                 |
-| `select.projection-honoured`               | `select=id,name` does not return undeclared fields                                   | select param                                                         | —                                       |
-| `count.consistent-with-returned-page`      | envelope total ≥ rows on this page, and is not zero when the page is not             | envelope total                                                       | `list.read-after-write`                 |
-| `count.matches-filtered-set`               | filtered total equals the size of the filtered walk                                  | total + a filter                                                     | list, equality                          |
-| `query.axes-compose`                       | filter + sort together: filter still holds on the sorted page                        | filterable + sortable                                                | filter + sort foundations               |
-| `query.filter-and-select-compose`          | filter + select together                                                             | filterable + select                                                  | same                                    |
-| `query.search-and-filter-compose`          | search + filter together                                                             | filterable + search                                                  | same                                    |
-| `query.filter-sort-select-compose`         | filter + sort + select                                                               | filter + sort + select                                               | same                                    |
-| `query.filter-search-sort-compose`         | filter + search + sort                                                               | filter + search + sort                                               | same                                    |
-| `query.filter-search-select-compose`       | filter + search + select                                                             | filter + search + select                                             | same                                    |
-| `spec.declared-filterable-is-filterable`   | every `x-query.filterable` field actually accepts a filter                           | `x-query` naming filterable fields                                   | filter foundations                      |
-| `spec.declared-sortable-is-sortable`       | every `x-query.sortable` field actually accepts a sort                               | `x-query` naming sortable fields                                     | sort foundations                        |
-| `spec.declared-selectable-is-selectable`   | every `x-query.selectable` field actually accepts a select                           | `x-query` naming selectable fields                                   | select                                  |
-| `tenant.item-not-readable-cross-tenant`    | principal B cannot GET principal A's item                                            | second principal, different `roots`, and a tagged or inferred tenant | —                                       |
-| `tenant.denial-does-not-reveal-existence`  | 404 vs 403 (or equivalent) does not distinguish "exists other tenant" from "missing" | second principal, and a tagged or inferred tenant                    | `tenant.item-not-readable-cross-tenant` |
-| `tenant.filter-does-not-bypass-scope`      | `filter=id.eq.<other tenant>` does not return that row                               | second principal + a filter                                          | `query.filter-selects-from-whole-set`   |
-| `auth.rank-is-monotonic`                   | a lower rank cannot do what a higher rank is denied                                  | two same-tenant principals at different `rank`                       | `list.read-after-write`                 |
-| `auth.invite-grants-then-revokes`          | invite → accept grants; revoke takes it back                                         | `x-invite` + peer with `inviteAs`                                    | list, cross-tenant                      |
-| `patch.immutable-field-rejected`           | PATCHing an `x-immutable` field is rejected or ignored                               | `x-immutable`                                                        | —                                       |
-| `softdelete.absent-from-default-list`      | a soft-deleted row is gone from the default list                                     | `x-soft-delete`                                                      | `list.read-after-write`                 |
-| `invalidation.declared-route-changes`      | after a write, the other entity's listed route actually changes                      | `x-invalidate` naming another entity                                 | list, persist                           |
-| `effects.declared-effect-occurs`           | `x-effects` cardinality delta is observed on the named list                          | `x-effects`                                                          | `list.read-after-write`                 |
-| `effects.side-effect-arrives`              | after the write, the named GET’s JSON path is occupied before `timeoutMs`            | `x-wait`                                                             | `list.read-after-write`                 |
-| `async.reaches-terminal-state`             | `x-async` reaches `until` (poll, or a terminal SSE frame) before `timeoutMs`         | `x-async`                                                            | —                                       |
-| `async.receipt-identifies-the-job`         | `idFrom` on the receipt (JSON object or SSE event JSON) resolves to a pollable job   | `x-async` + `idFrom`                                                 | —                                       |
-| `patch.minimality`                         | PATCH `{ name }` does not clear other writable fields                                | update + item route                                                  | —                                       |
-| `idempotency.replay-does-not-duplicate`    | same Idempotency-Key + same body does not create a second row                        | create + documented Idempotency-Key header                           | list, persist                           |
-| `delete.absent-record-returns-404`         | DELETE of a missing id is 404, not 200                                               | delete                                                               | —                                       |
-| `concurrency.no-lost-update`               | two PATCHes to different fields do not clobber each other                            | update + two writable strings                                        | persist + patch                         |
-| `validation.enum-enforced`                 | a value outside the enum is rejected                                                 | enum in the request schema                                           | —                                       |
-| `validation.max-length-enforced`           | a string over `maxLength` is rejected                                                | maxLength                                                            | —                                       |
-| `validation.required-enforced`             | omitting a required field is rejected                                                | required field                                                       | —                                       |
-| `validation.content-type-enforced`         | a wrong Content-Type is 415 when 415 is documented                                   | documented 415                                                       | —                                       |
-| `consistency.projections-agree`            | list, item, and filtered views of the same field agree                               | item route + a comparable field                                      | list + persist + filter                 |
+| id                                             | asserts                                                                               | needs                                                                | depends                                 |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------- |
+| `list.read-after-write`                        | a just-created record appears on the list                                             | create + a seeded record                                             | —                                       |
+| `create.persists-submitted-fields`             | every writable field sent on create is echoed                                         | create that echoes the record                                        | `list.read-after-write`                 |
+| `payload.string-survives`                      | a documented-valid string is stored exactly; 4xx after an ASCII control is a fail     | update or create+delete, item GET, unconstrained string              | `list.read-after-write`                 |
+| `create.status-matches-document`               | create status is one the document declared                                            | create                                                               | —                                       |
+| `response.status-is-documented`                | every non-create exchange returns a status that operation names (`default` ≠ 201)     | a modeled non-create operation oat invoked                           | —                                       |
+| `schema.success-response-matches-document`     | create body validates against the success schema                                      | success schema on create                                             | `create.status-matches-document`        |
+| `schema.error-response-matches-document`       | an error body validates against the documented error schema                           | error schema on the item route                                       | —                                       |
+| `pagination.limit-bounds-page-size`            | page size ≤ the requested limit                                                       | page-size _role_ (aliases include `limit`, `per_page`, …)            | `list.read-after-write`                 |
+| `pagination.limit-respects-documented-max`     | requesting more than `maxLimit` does not return more                                  | declared `maxLimit` and a larger cohort                              | `pagination.limit-bounds-page-size`     |
+| `pagination.has-more-is-accurate`              | `hasMore` / `Link rel=next` matches whether another page exists                       | page-forward + `hasMore` or `Link rel=next`                          | `pagination.limit-bounds-page-size`     |
+| `pagination.page-walk-covers-set`              | walking pages covers the collection with no gaps or dupes                             | page or offset + ≥3 records                                          | `pagination.limit-bounds-page-size`     |
+| `pagination.cursor-agrees-with-page`           | cursor walk and page walk yield the same set                                          | both cursor and page                                                 | `pagination.limit-bounds-page-size`     |
+| `filter.unknown-field-rejected`                | a filter on a field that does not exist is not silently ignored                       | a filter expression                                                  | —                                       |
+| `filter.equality-selects-exactly-one`          | `id.eq.<one>` returns that one record                                                 | equality on the identity                                             | `list.read-after-write`                 |
+| `filter.zero-match-returns-none`               | a filter that matches nothing returns an empty page, not the whole set                | same                                                                 | `list.read-after-write`                 |
+| `filter.negation-partitions-the-set`           | `eq` ∪ `neq` = whole set, intersection empty                                          | eq and neq                                                           | `list.read-after-write`, equality       |
+| `filter.and-composes-as-intersection`          | `and(A,B)` = A ∩ B                                                                    | two filterable fields + AND                                          | equality / list                         |
+| `filter.or-composes-as-union`                  | `or(A,B)` = A ∪ B                                                                     | `or()` — **postgrest grammar only**                                  | equality / list                         |
+| `filter.like-metacharacters-escaped`           | `%` `_` `*` in a value are literals, not wildcards                                    | like operator                                                        | `list.read-after-write`                 |
+| `filter.numeric-comparison-is-numeric`         | `gt`/`lt` on a number uses numeric order, not TEXT (`1,10,2`)                         | numeric field + a filter param                                       | `list.read-after-write`, unknown-field  |
+| `filter.in-is-union-of-eq`                     | `in.(a,b)` = `eq.a` ∪ `eq.b`                                                          | field allows `in`; ≥2 distinct values                                | equality                                |
+| `filter.nin-complements-in`                    | `in` ∩ `nin` empty; union = set minus nulls                                           | field allows `in` and `nin`                                          | `in`                                    |
+| `filter.gte-is-gt-or-eq`                       | `gte.x` = `gt.x` ∪ `eq.x`                                                             | field allows `gte` and `gt`; ordered type                            | numeric comparison                      |
+| `filter.lte-is-lt-or-eq`                       | `lte.x` = `lt.x` ∪ `eq.x`                                                             | field allows `lte` and `lt`                                          | numeric comparison                      |
+| `filter.ordered-triple-partitions`             | `lt` ∪ `eq` ∪ `gt` = set minus nulls; pairwise disjoint                               | field allows all three                                               | numeric comparison                      |
+| `filter.ilike-is-case-insensitive`             | case-flipped value: `ilike` matches; `like` does not (unresolved if both match)       | field allows both                                                    | like                                    |
+| `filter.is-null-selects-nulls`                 | `is.null` = nulls; `is.notnull` = complement                                          | field allows `is`; cohort has a null                                 | foundations                             |
+| `filter.contains-membership`                   | `contains.<el>` = records whose array value includes `el`                             | array field or ops include `contains`                                | foundations                             |
+| `filter.nested-and-or-distributes`             | `and(A,or(B,C))` = (A∩B) ∪ (A∩C)                                                      | postgrest grammar; ≥2 filterable fields                              | `and` / `or`                            |
+| `filter.alias-matches-canonical`               | each declared alias token selects the same id-set as its target                       | `aliases` non-empty                                                  | equality                                |
+| `filter.illegal-op-rejected`                   | one op **not** in that field's `ops` is 4xx                                           | closed `ops` list                                                    | unknown-field                           |
+| `filter.empty-in`                              | `in.()` is 4xx (`reject`) or zero rows (`match-none`)                                 | `emptyIn` set; field allows `in`                                     | `in`                                    |
+| `filter.in-over-limit-rejected`                | `in` list of `maxInValues+1` is 4xx                                                   | `maxInValues` set                                                    | foundations                             |
+| `filter.condition-cap-rejected`                | `maxFilterConditions+1` `eq` terms is 4xx                                             | `maxFilterConditions` set                                            | foundations                             |
+| `spec.declared-filterable-ops-accepted`        | every declared field × every op in that field's `ops` returns <400                    | closed `ops`                                                         | declared-filterable                     |
+| `spec.declared-filterable-illegal-op-rejected` | one illegal op per declared field is 4xx                                              | closed `ops`                                                         | illegal-op                              |
+| `error.malformed-filter-not-5xx`               | garbage filter text is 4xx, never 5xx                                                 | a filter expression                                                  | —                                       |
+| `query.filter-selects-from-whole-set`          | a filter is applied to the collection, not to the current page                        | filterable + ≥3 records                                              | list / walk                             |
+| `sort.order-is-applied`                        | requesting a sort actually rearranges the page                                        | order + a sortable field                                             | `pagination.limit-bounds-page-size`     |
+| `sort.reverse-symmetry`                        | desc is the reverse of asc (nulls included)                                           | order + asc/desc                                                     | order-is-applied                        |
+| `sort.unknown-field-rejected`                  | `order` on an undeclared field is 4xx, not silent ignore                              | order param                                                          | —                                       |
+| `sort.numeric-order-is-numeric`                | `1,10,2` sorts as numbers, not text                                                   | numeric sortable field whose lexical order disagrees                 | order-is-applied                        |
+| `sort.nulls-first-last`                        | `nullsfirst` / `nullslast` put nulls at the start / end of asc                        | declared nulls token; dotted grammar; cohort has a null              | order + reverse                         |
+| `sort.multi-key-tiebreak`                      | ties on the first key are ordered by the second                                       | ≥2 sortable fields; `maxKeys` absent or ≥2                           | order + reverse                         |
+| `sort.default-order-applied`                   | omitting `order` matches `defaultOrder`                                               | `defaultOrder` set; walk complete                                    | order + walk                            |
+| `sort.stable-tiebreak`                         | the same `order` twice yields the same sequence                                       | `stableTiebreak` set                                                 | order-is-applied                        |
+| `spec.declared-sortable-nulls-accepted`        | each declared nulls token returns <400                                                | some field/global declares `nulls`                                   | order-is-applied                        |
+| `search.q-narrows-result`                      | a search term that matches one record does not return the whole set                   | search param + searchable fields                                     | `list.read-after-write`                 |
+| `search.tokens-and`                            | `q=a b` = intersection (AND). Sameness of AND and OR passes                           | searchable fields; two tokens that split the cohort                  | `q-narrows`                             |
+| `search.case-insensitive`                      | case-flipped token matches the same set (unresolved if the backend is case-sensitive) | searchable field with a letter                                       | `q-narrows`                             |
+| `search.empty-q`                               | `q=` is ignore / match-all / reject as declared                                       | `searchEmpty` set                                                    | `q-narrows`                             |
+| `search.undeclared-field-not-required`         | extra recall on a non-searchable field is not `SEARCH_IGNORED`                        | ≥1 searchable and ≥1 non-searchable string                           | `q-narrows`                             |
+| `search.mode-accepted`                         | each declared `searchModes` value is <400 on the mode param                           | `searchModes` set and a mode role                                    | —                                       |
+| `search.modes-differ`                          | two modes may differ; exact sameness is unresolved, not a fail                        | ≥2 `searchModes`; a mode param                                       | `mode-accepted`                         |
+| `select.projection-honoured`                   | `select=id,name` does not return undeclared fields                                    | select param                                                         | —                                       |
+| `select.requested-fields-present`              | every name in `select=` appears on each returned item                                 | select param; ≥1 selectable field                                    | projection                              |
+| `select.unknown-field-rejected`                | unknown select name is 4xx (`reject`) or dropped (`ignore`)                           | `select.unknown` set                                                 | projection                              |
+| `select.nested-honoured`                       | `rel(col)` returns `rel` as an object/array carrying only `col`                       | `select.nested` and a named relation                                 | projection                              |
+| `count.consistent-with-returned-page`          | envelope total ≥ rows on this page, and is not zero when the page is not              | envelope total                                                       | `list.read-after-write`                 |
+| `count.matches-filtered-set`                   | filtered total equals the size of the filtered walk                                   | total + a filter                                                     | list, equality                          |
+| `query.axes-compose`                           | filter + sort together: filter still holds on the sorted page                         | filterable + sortable                                                | filter + sort foundations               |
+| `query.filter-and-select-compose`              | filter + select together                                                              | filterable + select                                                  | same                                    |
+| `query.search-and-filter-compose`              | search + filter together                                                              | filterable + search                                                  | same                                    |
+| `query.filter-sort-select-compose`             | filter + sort + select                                                                | filter + sort + select                                               | same                                    |
+| `query.filter-search-sort-compose`             | filter + search + sort                                                                | filter + search + sort                                               | same                                    |
+| `query.filter-search-select-compose`           | filter + search + select                                                              | filter + search + select                                             | same                                    |
+| `query.sort-and-select-compose`                | sort + select: order holds; extras dropped; requested fields present                  | sortable + selectable                                                | sort + select                           |
+| `query.search-and-select-compose`              | search + select: search membership holds; extras dropped                              | searchable + selectable                                              | search + select                         |
+| `query.search-and-sort-compose`                | search + sort: search membership holds; remaining rows ordered                        | searchable + sortable                                                | search + sort                           |
+| `query.filter-search-sort-select-compose`      | all four: filter ∩ search; order holds; extras dropped                                | all four axes declared                                               | the triples                             |
+| `spec.declared-filterable-is-filterable`       | every `x-query.filterable` field actually accepts a filter                            | `x-query` naming filterable fields                                   | filter foundations                      |
+| `spec.declared-sortable-is-sortable`           | every `x-query.sortable` field actually accepts a sort                                | `x-query` naming sortable fields                                     | sort foundations                        |
+| `spec.declared-selectable-is-selectable`       | every `x-query.selectable` field actually accepts a select                            | `x-query` naming selectable fields                                   | select                                  |
+| `tenant.item-not-readable-cross-tenant`        | principal B cannot GET principal A's item                                             | second principal, different `roots`, and a tagged or inferred tenant | —                                       |
+| `tenant.denial-does-not-reveal-existence`      | 404 vs 403 (or equivalent) does not distinguish "exists other tenant" from "missing"  | second principal, and a tagged or inferred tenant                    | `tenant.item-not-readable-cross-tenant` |
+| `tenant.filter-does-not-bypass-scope`          | `filter=id.eq.<other tenant>` does not return that row                                | second principal + a filter                                          | `query.filter-selects-from-whole-set`   |
+| `auth.rank-is-monotonic`                       | a lower rank cannot do what a higher rank is denied                                   | two same-tenant principals at different `rank`                       | `list.read-after-write`                 |
+| `auth.invite-grants-then-revokes`              | invite → accept grants; revoke takes it back                                          | `x-invite` + peer with `inviteAs`                                    | list, cross-tenant                      |
+| `patch.immutable-field-rejected`               | PATCHing an `x-immutable` field is rejected or ignored                                | `x-immutable`                                                        | —                                       |
+| `softdelete.absent-from-default-list`          | a soft-deleted row is gone from the default list                                      | `x-soft-delete`                                                      | `list.read-after-write`                 |
+| `invalidation.declared-route-changes`          | after a write, the other entity's listed route actually changes                       | `x-invalidate` naming another entity                                 | list, persist                           |
+| `effects.declared-effect-occurs`               | `x-effects` cardinality delta is observed on the named list                           | `x-effects`                                                          | `list.read-after-write`                 |
+| `effects.side-effect-arrives`                  | after the write, the named GET’s JSON path is occupied before `timeoutMs`             | `x-wait`                                                             | `list.read-after-write`                 |
+| `async.reaches-terminal-state`                 | `x-async` reaches `until` (poll, or a terminal SSE frame) before `timeoutMs`          | `x-async`                                                            | —                                       |
+| `async.receipt-identifies-the-job`             | `idFrom` on the receipt (JSON object or SSE event JSON) resolves to a pollable job    | `x-async` + `idFrom`                                                 | —                                       |
+| `patch.minimality`                             | PATCH `{ name }` does not clear other writable fields                                 | update + item route                                                  | —                                       |
+| `idempotency.replay-does-not-duplicate`        | same Idempotency-Key + same body does not create a second row                         | create + documented Idempotency-Key header                           | list, persist                           |
+| `delete.absent-record-returns-404`             | DELETE of a missing id is 404, not 200                                                | delete                                                               | —                                       |
+| `concurrency.no-lost-update`                   | two PATCHes to different fields do not clobber each other                             | update + two writable strings                                        | persist + patch                         |
+| `validation.enum-enforced`                     | a value outside the enum is rejected                                                  | enum in the request schema                                           | —                                       |
+| `validation.max-length-enforced`               | a string over `maxLength` is rejected                                                 | maxLength                                                            | —                                       |
+| `validation.required-enforced`                 | omitting a required field is rejected                                                 | required field                                                       | —                                       |
+| `validation.content-type-enforced`             | a wrong Content-Type is 415 when 415 is documented                                    | documented 415                                                       | —                                       |
+| `consistency.projections-agree`                | list, item, and filtered views of the same field agree                                | item route + a comparable field                                      | list + persist + filter                 |
 
 On a typical untagged CRUD document (create, list, item, `page`/`limit`, maybe `sort`):
 
@@ -1403,6 +1556,12 @@ SECURITY      table    GET /tables/{id} readable with the other tenant's key
 
 SPEC_BUG      table    x-query.filterable lists "ghost"; filter=ghost.eq.x is 400
               spec.declared-filterable-is-filterable
+
+BACKEND_BUG   table    in() is not the union of the equalities it lists
+              filter.in-is-union-of-eq
+
+BACKEND_BUG   table    an illegal filter operator is accepted
+              filter.illegal-op-rejected
 
 COVERAGE_GAP  batch    no x-async; receipt treated as the result
               async.reaches-terminal-state
@@ -1728,6 +1887,14 @@ Comma-separated. Each is one named lie the demo API can tell. Primary check is w
 | `SPEC_OVERCLAIMS_FILTERABLE`                | `spec.declared-filterable-is-filterable`   | `x-query` lists a field that 400s                      |
 | `SPEC_OVERCLAIMS_SORTABLE`                  | `spec.declared-sortable-is-sortable`       | same for sort                                          |
 | `SPEC_OVERCLAIMS_SELECTABLE`                | `spec.declared-selectable-is-selectable`   | same for select                                        |
+| `FILTER_IN_FIRST_ONLY`                      | `filter.in-is-union-of-eq`                 | `in.(a,b)` matches only the first value                |
+| `FILTER_GTE_IS_GT`                          | `filter.gte-is-gt-or-eq`                   | `gte` is compiled as `gt`                              |
+| `FILTER_ILIKE_IS_LIKE`                      | `filter.ilike-is-case-insensitive`         | `ilike` is compiled as `like`                          |
+| `FILTER_IS_NULL_MATCHES_ALL`                | `filter.is-null-selects-nulls`             | `is.null` matches every row                            |
+| `FILTER_ILLEGAL_OP_IGNORED`                 | `filter.illegal-op-rejected`               | an operator outside the allowlist is ignored           |
+| `SORT_NUMERIC_AS_TEXT`                      | `sort.numeric-order-is-numeric`            | a numeric field is ordered lexicographically           |
+| `SORT_MULTI_KEY_IGNORED`                    | `sort.multi-key-tiebreak`                  | the second sort key is ignored                         |
+| `SELECT_FIELD_MISSING`                      | `select.requested-fields-present`          | a requested select field is dropped                    |
 | `CROSS_TENANT_READ`                         | `tenant.item-not-readable-cross-tenant`    | item GET is global by id                               |
 | `EXISTENCE_LEAK_VIA_STATUS`                 | `tenant.denial-does-not-reveal-existence`  | 403 vs 404 reveals the other tenant's row              |
 | `TENANT_LEAK_VIA_FILTER`                    | `tenant.filter-does-not-bypass-scope`      | filter drops the tenant predicate                      |

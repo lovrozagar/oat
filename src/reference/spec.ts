@@ -210,6 +210,15 @@ function tenantParam(entity: EntityDef): string {
 	return entity.parents[0] ?? "project_id"
 }
 
+function queryFieldType(field: FieldDef | undefined): "string" | "number" | "boolean" | "enum" | undefined {
+	if (field === undefined) return undefined
+	if (field.enum !== undefined) return "enum"
+	if (field.type === "integer" || field.type === "number") return "number"
+	if (field.type === "boolean") return "boolean"
+	if (field.type === "string") return "string"
+	return undefined
+}
+
 /**
  * Read routes belonging to an entity's parent, when a write here changes what they serve.
  *
@@ -230,15 +239,47 @@ function buildEntityPaths(entity: EntityDef, dialect: Dialect): Json {
 	const surface = [listRoute, itemRoute]
 	const title = entity.name[0]?.toUpperCase() + entity.name.slice(1)
 
+	const catalog = entity.filterCatalog
 	const query: Json = {
 		/* Declared rather than inferred: the grammar decides what oat can even express. */
 		grammar: dialect.grammar,
-		filterable: fieldsWhere(entity, "filterable"),
+		filterable:
+			catalog?.opsByField === undefined
+				? fieldsWhere(entity, "filterable")
+				: Object.entries(catalog.opsByField).map(([field, ops]) => {
+						const def = entity.fields.find((item) => item.name === field)
+						const row: Json = { field, ops: [...ops] }
+						const type = queryFieldType(def)
+						if (type !== undefined) row.type = type
+						return row
+					}),
 		maxLimit: entity.maxLimit,
 		searchable: fieldsWhere(entity, "searchable"),
 		selectable: entity.fields.map((f) => f.name),
-		sortable: fieldsWhere(entity, "sortable"),
+		sortable:
+			catalog === undefined
+				? fieldsWhere(entity, "sortable")
+				: fieldsWhere(entity, "sortable").map((field) => {
+						const def = entity.fields.find((item) => item.name === field)
+						const row: Json = { field }
+						const type = queryFieldType(def)
+						if (type !== undefined) row.type = type
+						row.nulls = ["first", "last"]
+						return row
+					}),
 		stableTiebreak: entity.identity,
+		...(catalog === undefined
+			? {}
+			: {
+					aliases: catalog.aliases ?? {},
+					emptyIn: catalog.emptyIn,
+					maxFilterConditions: catalog.maxFilterConditions,
+					maxInValues: catalog.maxInValues,
+					searchEmpty: "match-all",
+					selectUnknown: catalog.selectUnknown,
+					sortNulls: ["first", "last"],
+					maxSortKeys: 3,
+				}),
 	}
 
 	const collection: Json = {

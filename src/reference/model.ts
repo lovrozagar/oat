@@ -37,6 +37,15 @@ export interface EntityDef {
 	fields: FieldDef[]
 	defaultLimit: number
 	maxLimit: number
+	/** Optional closed filter/select catalog for conformance of declared-or-skip checks. */
+	filterCatalog?: {
+		emptyIn?: "reject" | "match-none"
+		maxInValues?: number
+		maxFilterConditions?: number
+		opsByField?: Record<string, readonly string[]>
+		selectUnknown?: "reject" | "ignore"
+		aliases?: Record<string, string>
+	}
 }
 
 const TIMESTAMPS: FieldDef[] = [
@@ -88,6 +97,26 @@ export const TABLE: EntityDef = {
 	parents: ["project_id"],
 	plural: "tables",
 	softDeleteField: "deleted_at",
+	filterCatalog: {
+		aliases: { ne: "neq" },
+		emptyIn: "match-none",
+		maxFilterConditions: 20,
+		maxInValues: 100,
+		opsByField: {
+			created_at: ["eq", "gt", "gte", "lt", "lte", "is"],
+			deleted_at: ["eq", "is"],
+			description: ["eq", "neq", "like", "ilike", "is"],
+			id: ["eq", "neq", "ne", "in", "nin"],
+			name: ["eq", "neq", "like", "ilike", "in"],
+			position: ["eq", "neq", "gt", "gte", "lt", "lte", "in"],
+			project_id: ["eq", "neq", "in"],
+			row_count: ["eq", "gt", "gte", "lt", "lte"],
+			slug: ["eq", "neq", "like", "ilike", "in"],
+			status: ["eq", "neq", "in", "nin"],
+			updated_at: ["eq", "gt", "gte", "lt", "lte", "is"],
+		},
+		selectUnknown: "reject",
+	},
 }
 
 export const ROW: EntityDef = {
