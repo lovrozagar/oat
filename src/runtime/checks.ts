@@ -574,6 +574,12 @@ function setOf(records: Record_[], identity: string): Set<string> {
 	return new Set(ids(records, identity))
 }
 
+/** List identities that oat seeded. Extra rows outside this set are not scored as defects. */
+function knownHits(items: Record_[], ctx: CheckContext): Set<string> {
+	const known = setOf(ctx.records, ctx.identity)
+	return new Set(ids(items, ctx.identity).filter((id) => known.has(id)))
+}
+
 function sameSet(a: Set<string>, b: Set<string>): boolean {
 	if (a.size !== b.size) return false
 	for (const item of a) if (!b.has(item)) return false
@@ -4181,29 +4187,34 @@ const numericComparisonIsNumeric: Check = {
 			.map((r) => String(r[ctx.identity]))
 			.sort()
 		if (expected.length === 0) return
+		/* Extra matching rows outside the seeded cohort are not a defect. Score got ∩ known. */
 
 		const gtTerm = filterTerm(conv(ctx), field, "gt", threshold)
 		if (gtTerm === null) return
 		const result = await list(ctx, { ...q(ctx, { limit: ctx.query?.maxLimit ?? 100 }), ...gtTerm })
 		if (result.exchange.status >= 400) return
-		const got = ids(result.items, ctx.identity).sort()
-		if (got.join(",") === expected.join(",")) return
+		const got = ids(result.items, ctx.identity)
+		const gotKnown = [...knownHits(result.items, ctx)].sort()
+		if (gotKnown.join(",") === expected.join(",")) return
 
-		const missing = expected.filter((id) => !got.includes(id))
-		const extra = got.filter((id) => !expected.includes(id))
+		const missing = expected.filter((id) => !gotKnown.includes(id))
+		const extra = gotKnown.filter((id) => !expected.includes(id))
 		const lexical = expected.filter((id) => {
 			const record = ctx.records.find((r) => String(r[ctx.identity]) === id)
 			return record !== undefined && String(record[field]) < String(threshold)
 		})
+		const comparedAsText = missing.length > 0 && missing.every((id) => lexical.includes(id))
 
 		ctx.findings.backend(
 			this.id,
 			ctx.entityName,
-			`"${field}" is compared as text rather than as a number`,
-			`filter=${field}.gt.${threshold} returned ${got.length} record(s); ${expected.length} hold a ` +
-				`greater numeric value. Missing: ${missing.slice(0, 4).join(", ") || "none"}. ` +
+			comparedAsText
+				? `"${field}" is compared as text rather than as a number`
+				: `"${field}" comparison does not agree with numeric ordering`,
+			`filter=${field}.gt.${threshold} returned ${got.length} record(s); ${expected.length} known ` +
+				`records hold a greater numeric value. Missing: ${missing.slice(0, 4).join(", ") || "none"}. ` +
 				`Unexpected: ${extra.slice(0, 4).join(", ") || "none"}. ` +
-				(missing.length > 0 && missing.every((id) => lexical.includes(id))
+				(comparedAsText
 					? "Every missing record is one whose value sorts below the threshold as a string, " +
 						"so the comparison is lexical: the query value was never coerced from text."
 					: "The comparison does not agree with numeric ordering."),
@@ -5471,8 +5482,8 @@ const filterIsNullSelectsNulls: Check = {
 				.filter((row) => row[field.field] === null || row[field.field] === undefined)
 				.map((row) => String(row[ctx.identity])),
 		)
-		const gotNulls = setOf(nulls.items, ctx.identity)
-		const overlap = [...gotNulls].filter((id) => setOf(present.items, ctx.identity).has(id))
+		const gotNulls = knownHits(nulls.items, ctx)
+		const overlap = [...gotNulls].filter((id) => knownHits(present.items, ctx).has(id))
 		if (!sameSet(expectedNulls, gotNulls) || overlap.length > 0) {
 			ctx.findings.backend(
 				this.id,
@@ -5527,7 +5538,7 @@ const filterContainsMembership: Check = {
 				)
 				.map((row) => String(row[ctx.identity])),
 		)
-		const got = setOf(result.items, ctx.identity)
+		const got = knownHits(result.items, ctx)
 		if (sameSet(expected, got)) return
 		ctx.findings.backend(
 			this.id,
