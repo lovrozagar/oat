@@ -7,6 +7,7 @@
  */
 
 import type { EntityConfig, OatConfig, QueryCapabilities } from "../config/define-config.ts"
+import { formatUniqueSets } from "../spec/extensions.ts"
 import type { EntityModel, SpecModel } from "../spec/graph.ts"
 import { canWriteFilterOp } from "../spec/conventions.ts"
 import {
@@ -67,6 +68,7 @@ export const TAG_UNLOCKS: Record<string, readonly string[]> = {
 	],
 	"x-soft-delete": ["softdelete.absent-from-default-list"],
 	"x-invite": ["auth.invite-grants-then-revokes"],
+	"x-unique": ["create.unique-conflict-rejected", "update.unique-conflict-rejected"],
 }
 
 /** Tags that change the *confidence* of checks that already run, not the count. */
@@ -89,6 +91,7 @@ const TAG_REMEDY: Record<string, string> = {
 	"x-invite": "name the invite, accept and revoke operations for delegated access",
 	"x-wait": "name the GET to poll after this write until a JSON path is occupied",
 	"x-effects": "declare create/append/delete with count or min, not both",
+	"x-unique": "declare the column sets that must stay unique so a 409 duplicate can be scored",
 }
 
 function bar(value: number, total: number, width = 24): string {
@@ -115,6 +118,9 @@ function plan(model: SpecModel, asJson: boolean): string {
 				entities: [...model.entities.values()],
 				operations: model.operations,
 				roots: model.roots,
+				unique: [...model.entities.values()]
+					.filter((entity) => entity.unique !== null)
+					.map((entity) => ({ entity: entity.name, unique: entity.unique })),
 			},
 			null,
 			2,
@@ -151,6 +157,15 @@ function plan(model: SpecModel, asJson: boolean): string {
 		lines.push("")
 		lines.push("  feature gates — a matching 403 is coverage, not a defect:")
 		for (const op of gated) lines.push(`    ${op.operationId.padEnd(28)} x-feature-gate: ${op.featureGate}`)
+	}
+
+	const uniqued = entities.filter((entity) => entity.unique !== null)
+	if (uniqued.length > 0) {
+		lines.push("")
+		lines.push("  unique constraints — a 409 on a duplicate of these columns is a pass:")
+		for (const entity of uniqued) {
+			lines.push(`    ${entity.name.padEnd(28)} x-unique: ${formatUniqueSets(entity.unique)}`)
+		}
 	}
 
 	lines.push("")
@@ -345,6 +360,9 @@ function doctor(
 	const featureGates = model.operations
 		.filter((op) => op.featureGate !== null)
 		.map((op) => ({ operationId: op.operationId, featureGate: op.featureGate }))
+	const uniqueConstraints = entities
+		.filter((entity) => entity.unique !== null)
+		.map((entity) => ({ entity: entity.name, unique: entity.unique }))
 	const { catalogs, unknownEntities } = entityQueryCatalogs(model, config)
 
 	if (asJson) {
@@ -356,6 +374,7 @@ function doctor(
 					entities: entities.length,
 					externalRefs,
 					featureGates,
+					uniqueConstraints,
 					gaps: model.gaps.gaps,
 					listableEntities: listable.length,
 					queryCatalog: catalogs,
@@ -399,6 +418,7 @@ function doctor(
 			...(op.wait === null ? [] : ["x-wait"]),
 			...(op.tenantSource === "tag" ? ["x-tenant"] : []),
 			...(op.query?.source === "tag" ? ["x-query"] : []),
+			...(op.unique !== null ? ["x-unique"] : []),
 		]),
 	)
 	for (const entity of entities) {
@@ -460,6 +480,14 @@ function doctor(
 		lines.push("  feature gates — a matching 403 is a coverage gap, not a fail")
 		for (const gate of featureGates) {
 			lines.push(`    ${gate.operationId.padEnd(28)} x-feature-gate: ${gate.featureGate}`)
+		}
+		lines.push("")
+	}
+
+	if (uniqueConstraints.length > 0) {
+		lines.push("  unique constraints — a 409 on a duplicate of these columns is a pass")
+		for (const row of uniqueConstraints) {
+			lines.push(`    ${row.entity.padEnd(28)} x-unique: ${formatUniqueSets(row.unique)}`)
 		}
 		lines.push("")
 	}

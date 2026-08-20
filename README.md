@@ -998,6 +998,8 @@ A 402 / plan-limit (`payment_required`, `*_plan_limit`) on create is not a backe
 
 A documented feature-gate 403 is the exception: if create declares `x-feature-gate` and the body is `vars.type: feature_gate` (and `vars.feature` matches the tag when present), oat records a `COVERAGE_GAP` naming the tag rather than a seed defect. See [`x-feature-gate`](#x-feature-gate).
 
+When create is tagged `x-unique`, a first-variant seed **409** with a nonempty same-tenant list **adopts** that row (`world.seed` `COVERAGE_GAP` naming `x-unique` — the create could not insert). Unique-conflict checks still run against that row. Write-path oracles that need a body oat submitted stay skipped. 409 with an empty list stays `BLOCKED` (`could not seed`). A 409 without the tag is still today's seed failure. The seed 409 itself is not `create.unique-conflict-rejected` passing — that check is the explicit second POST. See [`x-unique`](#x-unique). Later variants that 409 only shorten the cohort. Generated values for unique body columns differ across variants (a suffix) without weakening `maxLength` / `pattern`; if the document cannot express two distinct values, oat records a gap and skips extra variants.
+
 `--seed` / `seed` makes the bodies identical across runs. It does not make server-assigned ids identical.
 
 Teardown DELETEs created rows (or the `x-cleanup` route) newest-first. Failures and missing delete routes are printed as leftovers, not as check findings. `keepFixtures: true` skips this.
@@ -1119,6 +1121,7 @@ What each tag **unlocks** (otherwise the check cannot run):
 | `x-soft-delete` | `softdelete.absent-from-default-list`                                                                                                                                                                         |
 | `x-invite`      | `auth.invite-grants-then-revokes`                                                                                                                                                                             |
 | `x-wait`        | `effects.side-effect-arrives`                                                                                                                                                                                 |
+| `x-unique`      | `create.unique-conflict-rejected`, `update.unique-conflict-rejected`                                                                                                                                          |
 
 What each tag **sharpens** (the check already runs, but the verdict changes):
 
@@ -1409,6 +1412,28 @@ Every 403 is not a feature gate. No tag, or a tag that disagrees with `vars.feat
 
 **Fallback:** none. Without the tag, a 403 is a failed create.
 
+### `x-unique`
+
+```yaml
+x-unique:
+  - [email]
+  - [workspace_id, slug]
+# or: { columns: [email] }
+# or a single string[] meaning one set: [email]
+```
+
+Column sets that must stay unique. Honey/apps emit this as route meta → OpenAPI. `doctor` / `plan` show the effective sets per entity the way they show `x-feature-gate`.
+
+Accepted shapes: a list of column sets, `{ columns: [...] }` objects, and a single `string[]` meaning one set. Each set is a non-empty list of column names; empty sets are dropped. Malformed / non-array → treat as absent (`null`), unique checks do not run, `doctor` records an `x-unique` gap. `[]` after filtering → explicit none, checks do not run. No tag → unique checks do not run, `doctor` says so.
+
+Do not infer uniqueness from 409s, unique-looking names, or JSON Schema `uniqueItems`. Index names and product `error_key` / `vars.type` are not required; HTTP **409** is the unique-conflict class.
+
+`create.unique-conflict-rejected` — after a known row (seeded or adopted), a second create with the same unique-set values is 409, list cardinality does not grow, and a documented 409 body still matches the 409 schema. **2xx is `BACKEND_BUG`** (evidence: both exchanges, unique columns, list before/after when list resolved; tear down a returned id). Probe each probeable set separately (one 2xx fails the check; do not collide every set in one request). Probeable = at least one column on the create JSON or form body; path/tenant/`x-generated` columns may fill set identity from scope, but a set with no body columns is skipped, not failed. Do not reuse `Idempotency-Key` / `Idempotence-Key` / `X-Idempotency-Key` (omit, or send a fresh key if the document requires it). 402 / documented feature-gate 403 on the probe is `COVERAGE_GAP`, not a unique pass. Other 4xx / 5xx is not a unique pass. Verdict is never `SECURITY`. Leftover/extra rows do not skip the check.
+
+`update.unique-conflict-rejected` — PATCH a **different** row onto another row's unique-set values is 409 (same scoring). PATCH of a row's own unique values unchanged is not this check. Skip update sets whose columns are all `x-immutable`.
+
+**Fallback:** none. Without the tag, unique checks do not run, and a seed 409 is a failed create.
+
 ### `--profile` — cost gating
 
 ```bash
@@ -1467,7 +1492,7 @@ export default defineConfig({
 
 ## Checks
 
-94 checks. A check that cannot run says so (`did not apply` + `needs`). A check that depends on a broken primitive is `BLOCKED`. A check that ran and stopped is inconclusive, not a pass.
+96 checks. A check that cannot run says so (`did not apply` + `needs`). A check that depends on a broken primitive is `BLOCKED`. A check that ran and stopped is inconclusive, not a pass.
 
 Order is fixed (foundations first) so cascade suppression has a cause to point at. Mutating checks run alone; read-only checks may share in-flight requests under `maxInFlight`.
 
@@ -1553,6 +1578,8 @@ Order is fixed (foundations first) so cascade suppression has a cause to point a
 | `tenant.filter-does-not-bypass-scope`          | `filter=id.eq.<other tenant>` does not return that row                                                                                     | second principal, a filter, and a tagged or inferred tenant          | `query.filter-selects-from-whole-set`   |
 | `auth.rank-is-monotonic`                       | a lower rank cannot do what a higher rank is denied                                                                                        | two same-tenant principals at different `rank`                       | `list.read-after-write`                 |
 | `auth.invite-grants-then-revokes`              | invite → accept grants; revoke takes it back                                                                                               | `x-invite` + peer with `inviteAs`                                    | list, cross-tenant                      |
+| `create.unique-conflict-rejected`              | a second create colliding a documented unique set is 409, not 2xx; the list does not grow                                                  | `x-unique` with a probeable create body column and a known row       | —                                       |
+| `update.unique-conflict-rejected`              | PATCHing a **different** row onto another row's unique-set values is 409, not 2xx                                                          | `x-unique`, update, two known rows; skip all-`x-immutable` sets      | —                                       |
 | `patch.immutable-field-rejected`               | PATCHing an `x-immutable` field is rejected or ignored                                                                                     | `x-immutable`                                                        | —                                       |
 | `softdelete.absent-from-default-list`          | a soft-deleted row is gone from the default list                                                                                           | `x-soft-delete`                                                      | `list.read-after-write`                 |
 | `invalidation.declared-route-changes`          | after a write, the other entity's listed route actually changes                                                                            | `x-invalidate` naming another entity                                 | list, persist                           |
@@ -1956,6 +1983,7 @@ Comma-separated. Each is one named lie the demo API can tell. Primary check is w
 | `ASYNC_RECEIPT_MISSING_ID`                  | `async.receipt-identifies-the-job`         | receipt has no id                                      |
 | `PATCH_REPLACES`                            | `patch.minimality`                         | PATCH is implemented as replace                        |
 | `IDEMPOTENCY_IGNORED`                       | `idempotency.replay-does-not-duplicate`    | Idempotency-Key is ignored                             |
+| `UNIQUE_NOT_ENFORCED`                       | `create.unique-conflict-rejected`          | a duplicate unique-set write is 2xx instead of 409     |
 | `DELETE_MISSING_OK`                         | `delete.absent-record-returns-404`         | DELETE missing returns 200                             |
 | `CONCURRENT_WRITE_LOST`                     | `concurrency.no-lost-update`               | full-row write clobbers a parallel PATCH               |
 | `ENUM_NOT_VALIDATED`                        | `validation.enum-enforced`                 | enum is not enforced                                   |

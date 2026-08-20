@@ -91,6 +91,7 @@ const ERRORS: Array<[number, string]> = [
 	[401, "unauthorized"],
 	[403, "forbidden"],
 	[404, "not_found"],
+	[409, "conflict"],
 	[415, "unsupported_media_type"],
 ]
 
@@ -335,12 +336,13 @@ function buildEntityPaths(entity: EntityDef, dialect: Dialect): Json {
 			},
 			responses: {
 				"201": jsonResponse(`Created ${entity.name}`, itemSchema(entity)),
-				...errorResponses([400, 401, 403, 404, 415]),
+				...errorResponses([400, 401, 403, 404, 409, 415]),
 			},
 			summary: `Create ${entity.name}`,
 			tags: [title],
 			"x-entity": { action: "create", identity: entity.identity, name: entity.name },
 			"x-generated": fieldsWhere(entity, "generated"),
+			...(entity.unique === undefined || entity.unique.length === 0 ? {} : { "x-unique": entity.unique }),
 			/*
 			 * A create invalidates its own listing, and — where the entity has a parent that
 			 * carries a derived value — the parent's routes as well. Declaring it is what makes
@@ -387,7 +389,7 @@ function buildEntityPaths(entity: EntityDef, dialect: Dialect): Json {
 			},
 			responses: {
 				"200": jsonResponse(`Updated ${entity.name}`, itemSchema(entity)),
-				...errorResponses([400, 401, 403, 404, 415]),
+				...errorResponses([400, 401, 403, 404, 409, 415]),
 			},
 			summary: `Update ${entity.name}`,
 			tags: [title],

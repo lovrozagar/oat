@@ -42,6 +42,7 @@ import {
 	readSoftDelete,
 	readTenantParam,
 	readTenantSource,
+	readUnique,
 	readWait,
 	singularise,
 } from "./extensions.ts"
@@ -90,6 +91,12 @@ export interface OperationModel {
 	cost: "low" | "medium" | "high"
 	/** Declared so a matching 403 is coverage, not a seed defect. */
 	featureGate: string | null
+	/**
+	 * Declared unique column sets. `null` means the tag is absent or malformed (checks do not
+	 * run). `[]` is explicit none. Non-empty lists are the sets `create.unique-conflict-rejected`
+	 * and `update.unique-conflict-rejected` probe.
+	 */
+	unique: string[][] | null
 	destructive: boolean
 	idempotent: boolean
 	freshPrincipal: boolean
@@ -115,6 +122,8 @@ export interface EntityModel {
 	declaredSurface: string[]
 	tenantParams: string[]
 	trackable: boolean
+	/** Effective unique sets for this entity (from create, else any tagged operation). */
+	unique: string[][] | null
 }
 
 export interface SpecModel {
@@ -200,6 +209,7 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 		collection,
 		cost: readCost(op),
 		featureGate: readFeatureGate(op),
+		unique: readUnique(op, operationId, gaps),
 		destructive: readFlag(op, "x-destructive"),
 		documentedStatuses,
 		effects: readEffects(op, operationId, gaps),
@@ -344,6 +354,7 @@ function buildEntities(
 			readSurface: [],
 			tenantParams: [],
 			trackable: false,
+			unique: null,
 		}
 		entities.set(name, created)
 		return created
@@ -357,6 +368,9 @@ function buildEntities(
 			entity.tenantParams.push(op.tenantParam)
 		}
 		if (entity.invite === null && op.invite !== null) entity.invite = op.invite
+		if (op.unique !== null) {
+			if (op.action === "create" || entity.unique === null) entity.unique = op.unique
+		}
 		switch (op.action) {
 			case "create":
 				/* An invite POST looks like a collection create. Seeding it invents a grantee

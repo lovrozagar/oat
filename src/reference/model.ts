@@ -46,6 +46,8 @@ export interface EntityDef {
 		selectUnknown?: "reject" | "ignore"
 		aliases?: Record<string, string>
 	}
+	/** Column sets that must stay unique. Emitted as `x-unique` and enforced as HTTP 409. */
+	unique?: string[][]
 }
 
 const TIMESTAMPS: FieldDef[] = [
@@ -97,6 +99,7 @@ export const TABLE: EntityDef = {
 	parents: ["project_id"],
 	plural: "tables",
 	softDeleteField: "deleted_at",
+	unique: [["name"]],
 	filterCatalog: {
 		aliases: { ne: "neq" },
 		emptyIn: "match-none",

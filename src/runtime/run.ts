@@ -39,6 +39,7 @@ import { Client, type Exchange, type HttpHooks, type RequestStart } from "./clie
 import type { ProgressHandler, ProgressInflight, ProgressLast, ProgressSnapshot } from "./progress.ts"
 import { type Finding, FindingCollector, type Inconclusive } from "./finding.ts"
 import { reportFeatureGateSchemaDrift } from "./feature-gate.ts"
+import { formatUniqueSets } from "../spec/extensions.ts"
 import { excludedByProfile, resolveProfile } from "./profile.ts"
 import { buildRateLimitRules, RateLimiter } from "./rate-limit.ts"
 import { resolveEntityCapabilities } from "./query-capabilities.ts"
@@ -680,6 +681,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		let scope: Scope
 		let records: Record_[]
 		let degraded = false
+		let uniqueAdopted = false
 		if (createOp !== undefined && excludeOp(entity, createOp)) {
 			/* Same fallback a failed create takes below: read-only coverage against whatever
 			 * already exists beats no coverage, and it is exactly the state most likely to hide a
@@ -737,6 +739,9 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					},
 					scope,
 				)
+				if (cohort.uniqueGap !== undefined) {
+					findings.gap("world.seed", entity.name, cohort.uniqueGap, cohort.uniqueGap)
+				}
 				if (cohort.adopted === true) {
 					/* Plan limit after an effect already created the row: keep the id so children
 					 * (row after extract→table) can seed, but do not assert write-path oracles
@@ -751,6 +756,32 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					)
 					records = cohort.records
 					degraded = true
+					for (const ancestor of scope.created) {
+						ledger.record(ancestor.entity, ancestor.id, scope.values)
+					}
+					for (const record of records) {
+						const id = record[entity.identity ?? "id"]
+						if (typeof id === "string" || typeof id === "number") {
+							ledger.record(entity.name, String(id), scope.values)
+						}
+					}
+				} else if (cohort.uniqueAdopted === true) {
+					/* Unique 409 on the first variant with a same-tenant list: adopt like 402,
+					 * but unique-conflict checks still run against that row. Write-path oracles
+					 * that need a body oat submitted stay skipped. The seed 409 is not the
+					 * unique check passing — that check is the explicit second POST. */
+					findings.gap(
+						"world.seed",
+						entity.name,
+						`seeding "${entity.name}" could not insert because of x-unique`,
+						`${createOp.operationId} returned 409 and the list already had a record. ` +
+							`x-unique: ${formatUniqueSets(createOp.unique)}. The create could not insert; ` +
+							"unique-conflict checks still run against that row. Write-path oracles that " +
+							"need a body oat submitted stand down.",
+					)
+					records = cohort.records
+					degraded = true
+					uniqueAdopted = true
 					for (const ancestor of scope.created) {
 						ledger.record(ancestor.entity, ancestor.id, scope.values)
 					}
@@ -1031,6 +1062,19 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			updateOp: degraded || updateExcluded ? undefined : updateOpModel,
 			uploads,
 			validator,
+			uniqueAdopted,
+			uniqueSets: entity.unique ?? [],
+			uniqueCreateOp:
+				(entity.unique?.length ?? 0) > 0 && (!degraded || uniqueAdopted) && createOp !== undefined
+					? createOp
+					: undefined,
+			uniqueUpdateOp:
+				(entity.unique?.length ?? 0) > 0 &&
+				updateOpModel !== undefined &&
+				!updateExcluded &&
+				(!degraded || uniqueAdopted)
+					? updateOpModel
+					: undefined,
 		}
 
 		entitiesTested.push(entity.name)

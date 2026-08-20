@@ -33,6 +33,13 @@ export const DEFECTS = {
 	 */
 	EXISTENCE_LEAK_VIA_STATUS: "cross-tenant denial uses 403, revealing that the record exists",
 	/**
+	 * Accepts a second create (or a colliding PATCH) of a documented unique column set.
+	 *
+	 * The document said these columns are unique. Returning 2xx instead of 409 is the backend
+	 * ignoring that constraint — the unique-conflict checks exist to name that lie.
+	 */
+	UNIQUE_NOT_ENFORCED: "a duplicate unique-set write is accepted instead of 409",
+	/**
 	 * Accepts an Idempotency-Key and creates a second record anyway.
 	 *
 	 * The failure mode is a retry — a timeout, a proxy replay, a double-click — silently

@@ -267,6 +267,45 @@ export async function createReferenceServer(
 		return { ...record, _internal_revision: 7, _shard: "shard-a" }
 	}
 
+	async function assertUnique(
+		entity: EntityDef,
+		record: Row,
+		exceptId: string | undefined,
+		defects: DefectSet,
+	): Promise<void> {
+		if (defects.has("UNIQUE_NOT_ENFORCED")) return
+		const sets = entity.unique ?? []
+		if (sets.length === 0) return
+		const scope: Record<string, string> = {}
+		for (const parent of entity.parents) {
+			const value = record[parent]
+			if (typeof value === "string") scope[parent] = value
+		}
+		const tenant = record[TENANT_FIELD]
+		if (typeof tenant === "string") scope[TENANT_FIELD] = tenant
+		const pageSize = Math.max(entity.maxLimit, 100)
+		const items: Row[] = []
+		for (let page = 1; page <= 200; page++) {
+			const chunk = await store.query(
+				entity,
+				scope,
+				{ limit: pageSize, page },
+				{
+					softDeleteField: entity.softDeleteField,
+				},
+			)
+			items.push(...chunk.items)
+			if (chunk.items.length < pageSize) break
+		}
+		for (const set of sets) {
+			const collides = items.some((row) => {
+				if (exceptId !== undefined && String(row[entity.identity]) === exceptId) return false
+				return set.every((col) => JSON.stringify(row[col]) === JSON.stringify(record[col]))
+			})
+			if (collides) throw new HttpError(409, "conflict", `unique constraint violated (${set.join(", ")})`)
+		}
+	}
+
 	function withDefaults(entity: EntityDef, input: Row, scope: Record<string, string>): Row {
 		const record: Row = { ...input }
 		record[entity.identity] = store.nextId(entity.name)
@@ -631,6 +670,7 @@ export async function createReferenceServer(
 				}
 				if (defects.has("CREATE_DROPS_FIELD")) delete input.description
 				const record = withDefaults(entity, input, { ...scope, project_id: principal.projectId })
+				await assertUnique(entity, record, undefined, defects)
 				const created = await store.insert(entity, record)
 				/* Progress starts on POST .../jobs/start, not on create. A seeded job that
 				 * ticks for 60ms looks like a PATCH side effect once x-generated is stripped. */
@@ -676,6 +716,7 @@ export async function createReferenceServer(
 			if (!defects.has("IMMUTABLE_WRITABLE")) {
 				for (const parent of entity.parents) delete changes[parent]
 			}
+			await assertUnique(entity, { ...existing, ...changes }, itemId, defects)
 			const updated = await store.update(entity, itemId, changes)
 			return send(
 				res,

@@ -124,6 +124,15 @@ paths:
       # is a coverage gap, not a seed defect — the backend matched the document.
       x-feature-gate: widgets
 
+      # ── x-unique ─────────────────────────────────────────────────────────────
+      # Column sets that must stay unique. A second create (or a PATCH of a
+      # different row) with the same values must be 409; a 2xx is BACKEND_BUG.
+      # Accepted shapes: a list of column sets, { columns: [...] } objects, or
+      # a single string[] meaning one set. Empty sets are dropped. oat never
+      # infers uniqueness from 409s, unique-looking names, or uniqueItems.
+      x-unique:
+        - [name]
+
       # ── x-invalidate ─────────────────────────────────────────────────────────
       # Which read routes this write changes. oat inverts these into the entity's
       # read surface — it is how the entity graph is built — AND verifies them: a
@@ -162,6 +171,14 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Widget" }
+        "409":
+          description: Unique constraint conflict
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error_key: { type: string }
 
   /v1/workspaces/{workspace_id}/widgets/{widget_id}:
     get:
@@ -212,6 +229,14 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Widget" }
+        "409":
+          description: Unique constraint conflict
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error_key: { type: string }
 
     delete:
       operationId: widget.delete

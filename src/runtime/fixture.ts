@@ -87,6 +87,111 @@ export function isOverflowError(error: unknown): boolean {
 	return error instanceof RangeError
 }
 
+/**
+ * Makes unique-set tuples differ across cohort members without relaxing `maxLength` / `pattern`.
+ *
+ * When the document cannot express two distinct values, extra variants are dropped and the
+ * caller records a gap.
+ */
+export function ensureDistinctUniqueValues(
+	members: CohortMember[],
+	sets: string[][],
+	schema: Schema | boolean,
+): { members: CohortMember[]; gap: string | null } {
+	if (sets.length === 0 || members.length <= 1) return { gap: null, members }
+	const schemaObj = schema !== null && typeof schema === "object" ? schema : null
+	const kept: CohortMember[] = []
+	for (const member of members) {
+		const body = { ...member.body }
+		let ok = true
+		for (const set of sets) {
+			let attempts = 0
+			while (kept.some((prior) => sameUniqueTuple(prior.body, body, set)) && attempts < 16) {
+				if (!nudgeUniqueSet(body, set, schemaObj, kept.length + attempts + 1)) {
+					ok = false
+					break
+				}
+				attempts++
+			}
+			if (kept.some((prior) => sameUniqueTuple(prior.body, body, set))) ok = false
+			if (!ok) break
+		}
+		if (ok) kept.push({ body, variant: member.variant })
+	}
+	if (kept.length === members.length) return { gap: null, members: kept }
+	if (kept.length === 0) return { gap: uniqueDistinctGap(sets), members: members.slice(0, 1) }
+	return { gap: uniqueDistinctGap(sets), members: kept }
+}
+
+function uniqueDistinctGap(sets: string[][]): string {
+	const shown = sets.map((set) => `[${set.join(", ")}]`).join("; ")
+	return (
+		`x-unique cannot express two distinct values for ${shown} without weakening ` +
+		"maxLength/pattern; extra variants skipped"
+	)
+}
+
+function sameUniqueTuple(a: Record<string, unknown>, b: Record<string, unknown>, set: string[]): boolean {
+	const cols = set.filter((col) => Object.hasOwn(a, col) || Object.hasOwn(b, col))
+	if (cols.length === 0) return false
+	return cols.every((col) => JSON.stringify(a[col]) === JSON.stringify(b[col]))
+}
+
+function nudgeUniqueSet(body: Record<string, unknown>, set: string[], schema: Schema | null, token: number): boolean {
+	for (const col of set) {
+		if (!Object.hasOwn(body, col)) continue
+		const current = body[col]
+		const field = propertySchema(schema, col)
+		if (typeof current === "number" && Number.isFinite(current)) {
+			body[col] = current + token
+			return true
+		}
+		if (Array.isArray(field?.enum) && field.enum.length > 1) {
+			const next = field.enum[token % field.enum.length]
+			if (next !== current) {
+				body[col] = next
+				return true
+			}
+			continue
+		}
+		if (typeof current !== "string") continue
+		const nudged = suffixWithinConstraints(current, String(token), field)
+		if (nudged !== current) {
+			body[col] = nudged
+			return true
+		}
+	}
+	return false
+}
+
+function propertySchema(schema: Schema | null, name: string): Schema | undefined {
+	if (schema === null) return undefined
+	const props = schema.properties
+	if (props === null || typeof props !== "object") return undefined
+	const value = (props as Record<string, unknown>)[name]
+	return value !== null && typeof value === "object" ? (value as Schema) : undefined
+}
+
+function suffixWithinConstraints(value: string, token: string, schema: Schema | undefined): string {
+	const max = typeof schema?.maxLength === "number" ? schema.maxLength : undefined
+	const pattern = typeof schema?.pattern === "string" ? schema.pattern : undefined
+	const suffix = `-${token}`
+	let next = `${value}${suffix}`
+	if (max !== undefined && next.length > max) {
+		const keep = Math.max(0, max - suffix.length)
+		next = `${value.slice(0, keep)}${suffix}`
+		if (next.length > max) return value
+	}
+	if (pattern !== undefined) {
+		try {
+			if (!new RegExp(pattern, "u").test(next)) return value
+		} catch {
+			return value
+		}
+	}
+	return next
+}
+
 export function buildCohort(
 	bodySchema: Schema | boolean,
 	seed: number,

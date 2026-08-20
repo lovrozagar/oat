@@ -446,6 +446,74 @@ export function readFeatureGate(op: OperationObject): string | null {
 	return typeof value === "string" && value !== "" ? value : null
 }
 
+/**
+ * `x-unique` — column sets that must stay unique.
+ *
+ * Accepted shapes:
+ * - a list of column sets (`[["email"], ["workspace_id", "slug"]]`)
+ * - `{ columns: [...] }` objects
+ * - a single `string[]` meaning one set
+ *
+ * Each set is a non-empty list of column names; empty sets are dropped. Malformed / non-array
+ * → `null` and a recorded gap (the check does not run). `[]` after filtering is explicit none
+ * (check does not run). Missing tag → `null`, no gap — unique checks do not run.
+ *
+ * Uniqueness is never inferred from 409s, unique-looking names, or JSON Schema `uniqueItems`.
+ */
+export function readUnique(op: OperationObject, operationId?: string, gaps?: GapCollector): string[][] | null {
+	const raw = ext<unknown>(op, "x-unique")
+	if (raw === undefined) return null
+	if (!Array.isArray(raw)) {
+		gaps?.record(
+			operationId ?? "",
+			"x-unique",
+			"x-unique is not a list of column sets; unique-conflict checks will not run",
+		)
+		return null
+	}
+	if (raw.length === 0) return []
+
+	if (raw.every((item) => typeof item === "string")) {
+		const cols = raw.filter((item): item is string => typeof item === "string" && item !== "")
+		return cols.length === 0 ? [] : [cols]
+	}
+
+	const sets: string[][] = []
+	for (const item of raw) {
+		const parsed = parseUniqueSet(item)
+		if (parsed === null) {
+			gaps?.record(
+				operationId ?? "",
+				"x-unique",
+				"x-unique is not a list of column sets; unique-conflict checks will not run",
+			)
+			return null
+		}
+		if (parsed.length > 0) sets.push(parsed)
+	}
+	return sets
+}
+
+/** `null` means the item is malformed, not an empty set. */
+function parseUniqueSet(item: unknown): string[] | null {
+	if (Array.isArray(item)) {
+		if (!item.every((col) => typeof col === "string")) return null
+		return item.filter((col): col is string => typeof col === "string" && col !== "")
+	}
+	if (item !== null && typeof item === "object" && Array.isArray((item as { columns?: unknown }).columns)) {
+		const cols = (item as { columns: unknown[] }).columns
+		if (!cols.every((col) => typeof col === "string")) return null
+		return cols.filter((col): col is string => typeof col === "string" && col !== "")
+	}
+	return null
+}
+
+export function formatUniqueSets(sets: string[][] | null): string {
+	if (sets === null) return "—"
+	if (sets.length === 0) return "(none)"
+	return sets.map((set) => `[${set.join(", ")}]`).join("; ")
+}
+
 export function readFlag(op: OperationObject, key: string): boolean {
 	return ext<unknown>(op, key) === true
 }

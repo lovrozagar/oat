@@ -13,7 +13,8 @@ import { owningEntityName } from "../spec/graph.ts"
 import { encodeForOperation } from "./body.ts"
 import { forEachInvocation } from "./upload-each.ts"
 import type { Client, Exchange } from "./client.ts"
-import { type CohortMember, buildCohort, isOverflowError, overflowFrom } from "./fixture.ts"
+import { type CohortMember, buildCohort, ensureDistinctUniqueValues, isOverflowError, overflowFrom } from "./fixture.ts"
+import { isUniqueConflictResponse, uniqueTupleCollides, uniquifyProbeBody } from "./unique.ts"
 import { describeFeatureGate, isDocumentedFeatureGateDenial } from "./feature-gate.ts"
 import type { UploadContext } from "./upload.ts"
 
@@ -178,10 +179,16 @@ async function createOne(
 		if (isOverflowError(error)) throw overflowFrom(error, createOp.operationId)
 		throw error
 	}
+	let body = member?.body ?? {}
+	if ((createOp.unique?.length ?? 0) > 0) {
+		/* Ancestor creates share the entity seed with the entity's own cohort; unique columns
+		 * must not collide with a later seed of the same collection. */
+		body = uniquifyProbeBody(body, createOp.unique ?? [], schema, `anc${options.seed}`)
+	}
 	const encoded = await encodeForOperation(
 		createOp,
 		model,
-		member?.body ?? {},
+		body,
 		uploadContext(options),
 		member?.variant ?? "baseline",
 		0,
@@ -196,6 +203,10 @@ async function createOne(
 		/* Plan limit after an effect (or a sibling create) already filled the quota: reuse a
 		 * same-tenant row from the list. Do not invent an id. */
 		if (isPlanLimitResponse(exchange.status, exchange.responseBody)) {
+			const reused = await adoptExisting(createOp, model, client, options, scope)
+			if (reused !== null) return reused
+		}
+		if (isUniqueConflictResponse(createOp, exchange.status)) {
 			const reused = await adoptExisting(createOp, model, client, options, scope)
 			if (reused !== null) return reused
 		}
@@ -253,6 +264,14 @@ export interface SeededCohort {
 	 * earlier effect. Write-path checks must stand down — oat did not submit these bodies.
 	 */
 	adopted?: boolean
+	/**
+	 * First-variant create returned 409 on an `x-unique` operation and a same-tenant row was
+	 * adopted. Unique-conflict checks still run; write-path oracles that need oat's submitted
+	 * seed body stay skipped.
+	 */
+	uniqueAdopted?: boolean
+	/** Set when extra cohort variants were dropped because unique values could not differ. */
+	uniqueGap?: string
 }
 
 /** Creates the cohort and returns the server's view of each instance. */
@@ -268,8 +287,30 @@ export async function seedCohort(
 		throw new SeedError(createOp.operationId, `${createOp.operationId} declares no request body`)
 	}
 	let members: CohortMember[]
+	let uniqueGap: string | undefined
 	try {
-		members = buildCohort(schema, options.seed, undefined, createOp.operationId).slice(0, options.cohortSize ?? 7)
+		const generated = buildCohort(schema, options.seed, undefined, createOp.operationId).slice(
+			0,
+			options.cohortSize ?? 7,
+		)
+		const distinct = ensureDistinctUniqueValues(generated, createOp.unique ?? [], schema)
+		members = distinct.members
+		if (distinct.gap !== null) uniqueGap = distinct.gap
+		const entity = createOp.entity === null ? undefined : model.entities.get(createOp.entity)
+		const listOp = entity?.list === undefined ? undefined : model.byOperationId.get(entity.list)
+		const existing =
+			listOp === undefined
+				? []
+				: await listExisting(listOp, client, options.authHeaders, { ...options.roots, ...scope.values })
+		if (existing.length > 0 && (createOp.unique?.length ?? 0) > 0) {
+			members = members.map((member, index) => {
+				let body = member.body
+				for (let token = 0; token < 8 && uniqueTupleCollides(body, createOp.unique ?? [], existing); token++) {
+					body = uniquifyProbeBody(body, createOp.unique ?? [], schema, `ex${index}${token}`)
+				}
+				return { ...member, body }
+			})
+		}
 	} catch (error) {
 		if (isOverflowError(error)) throw overflowFrom(error, createOp.operationId)
 		throw error
@@ -289,10 +330,12 @@ export async function seedCohort(
 		})
 	}
 
+	const withGap = (cohort: SeededCohort): SeededCohort => (uniqueGap === undefined ? cohort : { ...cohort, uniqueGap })
+
 	const failOrAdopt = async (member: CohortMember, exchange: Exchange): Promise<SeededCohort | null> => {
-		if (records.length > 0) return { featureGate: null, members: seededMembers, records }
+		if (records.length > 0) return withGap({ featureGate: null, members: seededMembers, records })
 		if (isDocumentedFeatureGateDenial(createOp, exchange.status, exchange.responseBody)) {
-			return {
+			return withGap({
 				featureGate: {
 					detail: describeFeatureGate(createOp, exchange.responseBody),
 					exchange,
@@ -300,11 +343,29 @@ export async function seedCohort(
 				},
 				members: seededMembers,
 				records,
+			})
+		}
+		if (isUniqueConflictResponse(createOp, exchange.status)) {
+			const adopted = await adoptExisting(createOp, model, client, options, scope)
+			if (adopted !== null) {
+				return withGap({
+					featureGate: null,
+					members: seededMembers,
+					records: [adopted],
+					uniqueAdopted: true,
+				})
 			}
+			throw new SeedError(
+				createOp.operationId,
+				`seeding "${member.variant}" returned ${exchange.status}: ` +
+					JSON.stringify(exchange.responseBody).slice(0, 300),
+				exchange.status,
+			)
 		}
 		if (isPlanLimitResponse(exchange.status, exchange.responseBody)) {
 			const adopted = await adoptExisting(createOp, model, client, options, scope)
-			if (adopted !== null) return { adopted: true, featureGate: null, members: seededMembers, records: [adopted] }
+			if (adopted !== null)
+				return withGap({ adopted: true, featureGate: null, members: seededMembers, records: [adopted] })
 		}
 		throw new SeedError(
 			createOp.operationId,
@@ -341,7 +402,7 @@ export async function seedCohort(
 		const failed = await failOrAdopt(lastFail.member, lastFail.exchange)
 		if (failed !== null) return failed
 	}
-	return { featureGate: null, members: seededMembers.length > 0 ? seededMembers : members, records }
+	return withGap({ featureGate: null, members: seededMembers.length > 0 ? seededMembers : members, records })
 }
 
 /**

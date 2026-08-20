@@ -39,7 +39,17 @@ import type { UploadContext } from "./upload.ts"
 import { forEachInvocation } from "./upload-each.ts"
 import type { SchemaValidator } from "./validate.ts"
 import { driveWait } from "./wait.ts"
-import { type Record_, fillPath } from "./world.ts"
+import { type Record_, fillPath, isPlanLimitResponse } from "./world.ts"
+import {
+	bodyPropertyNames,
+	collisionCreateBody,
+	collisionUpdatePatch,
+	idempotencyHeaderRequired,
+	probeableUniqueSets,
+	reportUniqueSchemaDrift,
+	uniquifyProbeBody,
+	uniqueProbeHeaders,
+} from "./unique.ts"
 import {
 	bindAfterCreateEffects,
 	bindCreatedScope,
@@ -96,6 +106,14 @@ export interface CheckContext {
 	altScope: Record<string, string> | undefined
 	validator: SchemaValidator | undefined
 	seed: number
+	/** Effective unique column sets for this entity (`[]` when the tag is absent or empty). */
+	uniqueSets: string[][]
+	/** First-variant create 409 adopted a same-tenant row; unique probes still run. */
+	uniqueAdopted: boolean
+	/** Create operation for unique probes — still set after unique-409 adopt. */
+	uniqueCreateOp: OperationModel | undefined
+	/** Update operation for unique probes — still set after unique-409 adopt. */
+	uniqueUpdateOp: OperationModel | undefined
 	/** File pool / dummy resolution for multipart parts. */
 	uploads: UploadContext
 	/** Operations on this entity declared async via `x-async`. */
@@ -4015,7 +4033,10 @@ const successSchemaHonoured: Check = {
 /** Builds a body that should be accepted, for use as the base of a negative probe. */
 function validBody(ctx: CheckContext, schema: Record<string, unknown>): Record<string, unknown> {
 	const [member] = buildCohort(schema, ctx.seed, ["baseline"], ctx.createOp?.operationId ?? ctx.entityName)
-	return member?.body ?? {}
+	const body = member?.body ?? {}
+	const sets = ctx.uniqueSets ?? []
+	if (sets.length === 0) return body
+	return uniquifyProbeBody(body, sets, schema, `p${ctx.seed}x${ctx.client.transcript.length}`)
 }
 
 /** Invite bodies must carry the peer's `inviteAs`, never a generated email. */
@@ -6625,6 +6646,257 @@ const queryFilterSearchSortSelectCompose: Check = {
 	},
 }
 
+/** Item GET when available — list projections can disagree with stored unique values. */
+async function liveRecord(ctx: CheckContext, id: string | undefined): Promise<Record_ | undefined> {
+	if (id === undefined || ctx.readOp === undefined) return undefined
+	try {
+		const exchange = await ctx.client.get(fillPath(ctx.readOp.path, { ...ctx.scope, ...itemParamFor(ctx, id) }), {
+			headers: ctx.auth(),
+		})
+		if (exchange.status >= 300 || exchange.responseBody === null || typeof exchange.responseBody !== "object") {
+			return undefined
+		}
+		return exchange.responseBody as Record_
+	} catch {
+		return undefined
+	}
+}
+
+async function teardownCreatedId(ctx: CheckContext, id: string): Promise<void> {
+	const deleteOp = ctx.deleteOp ?? ctx.model.byOperationId.get(ctx.model.entities.get(ctx.entityName)?.delete ?? "")
+	if (deleteOp === undefined) return
+	try {
+		await ctx.client.request("DELETE", fillPath(deleteOp.path, { ...ctx.scope, ...itemParamFor(ctx, id) }), {
+			headers: ctx.auth(),
+		})
+	} catch {
+		/* A leftover row is worse than a teardown 404. */
+	}
+}
+
+const uniqueConflictCreate: Check = {
+	applicable: (ctx) =>
+		ctx.uniqueCreateOp !== undefined &&
+		(ctx.uniqueSets?.length ?? 0) > 0 &&
+		ctx.records.length > 0 &&
+		probeableUniqueSets(ctx.uniqueCreateOp, ctx.model, "create", ctx.uniqueSets).length > 0,
+	id: "create.unique-conflict-rejected",
+	mutates: true,
+	needs: "x-unique on create with at least one probeable column set, and a known row",
+	async run(ctx) {
+		const createOp = ctx.uniqueCreateOp
+		if (createOp === undefined) return
+		const sets = probeableUniqueSets(createOp, ctx.model, "create", ctx.uniqueSets)
+		const schema = requestSchemaOf(ctx, createOp)
+		const bodyCols = bodyPropertyNames(createOp, ctx.model)
+		const path = fillPath(createOp.path, ctx.scope)
+		const required = idempotencyHeaderRequired(createOp, ctx.model)
+		const listLimit = ctx.query?.maxLimit ?? 100
+		const before = await list(ctx, q(ctx, { limit: listLimit }))
+		const listResolved = before.exchange.status < 400
+		const evidence: Exchange[] = listResolved ? [before.exchange] : []
+		const seedId = ctx.records[0] === undefined ? undefined : String(ctx.records[0][ctx.identity])
+		const known = (await liveRecord(ctx, seedId)) ?? ctx.records[0]
+		if (known === undefined) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "no known row to collide unique values against")
+		}
+
+		for (const [index, set] of sets.entries()) {
+			const base = uniquifyProbeBody(
+				validBody(ctx, schema ?? {}),
+				ctx.uniqueSets,
+				schema,
+				`u${ctx.seed}${index}${ctx.client.transcript.length}`,
+			)
+			const body = collisionCreateBody(base, known, set, ctx.scope, bodyCols, createOp.generated)
+			if (body === null) continue
+			const headers = uniqueProbeHeaders(
+				ctx.auth(),
+				createOp.idempotencyHeader,
+				required,
+				`oat-unique-${ctx.entityName}-${ctx.seed}-${index}`,
+			)
+			const encoded = await encodeOpBody(ctx, createOp, body)
+			const probe = await ctx.client.request("POST", path, { ...encoded, headers, operationId: createOp.operationId })
+			evidence.push(probe)
+			if (standDownForFeatureGate(ctx, createOp, probe, this.id)) continue
+			if (isPlanLimitResponse(probe.status, probe.responseBody)) {
+				ctx.findings.gap(
+					this.id,
+					ctx.entityName,
+					`${createOp.operationId} did not apply`,
+					`${createOp.operationId} returned ${probe.status} (plan limit) on a unique-conflict ` +
+						"probe, so uniqueness was not observed.",
+				)
+				continue
+			}
+			const after = await list(ctx, q(ctx, { limit: listLimit }))
+			if (after.exchange.status < 400) evidence.push(after.exchange)
+			if (probe.status === 409) {
+				if (ctx.validator !== undefined) {
+					reportUniqueSchemaDrift(
+						ctx.findings,
+						ctx.validator,
+						createOp,
+						ctx.model.rawOperations.get(createOp.operationId),
+						probe,
+						ctx.entityName,
+					)
+				}
+				if (listResolved && after.exchange.status < 400 && after.items.length > before.items.length) {
+					ctx.findings.backend(
+						this.id,
+						ctx.entityName,
+						"a unique-conflict 409 still grew the collection",
+						`POST colliding ${set.join(", ")} returned 409 but the list grew from ` +
+							`${before.items.length} to ${after.items.length}.`,
+						[before.exchange, probe, after.exchange],
+					)
+				}
+				continue
+			}
+			if (probe.status >= 200 && probe.status < 300) {
+				const returned = (probe.responseBody ?? {}) as Record_
+				const id = returned[ctx.identity]
+				if (typeof id === "string" || typeof id === "number") await teardownCreatedId(ctx, String(id))
+				ctx.findings.backend(
+					this.id,
+					ctx.entityName,
+					"a duplicate unique-set create was accepted",
+					`${createOp.operationId} returned ${probe.status} for a second create colliding ` +
+						`${set.join(", ")}. A documented unique constraint must be 409, not 2xx.`,
+					evidence.slice(-3),
+				)
+				continue
+			}
+			ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				`unique probe for ${set.join(", ")} returned ${probe.status}, which is not a 409 unique conflict`,
+			)
+		}
+	},
+}
+
+const uniqueConflictUpdate: Check = {
+	applicable: (ctx) =>
+		ctx.uniqueUpdateOp !== undefined &&
+		(ctx.uniqueSets?.length ?? 0) > 0 &&
+		ctx.records.length >= 2 &&
+		probeableUniqueSets(ctx.uniqueUpdateOp, ctx.model, "update", ctx.uniqueSets).length > 0,
+	id: "update.unique-conflict-rejected",
+	mutates: true,
+	needs: "x-unique, an update operation with a probeable set, and two known rows",
+	async run(ctx) {
+		const updateOp = ctx.uniqueUpdateOp
+		if (updateOp === undefined) return
+		const sets = probeableUniqueSets(updateOp, ctx.model, "update", ctx.uniqueSets)
+		const bodyCols = bodyPropertyNames(updateOp, ctx.model)
+		const required = idempotencyHeaderRequired(updateOp, ctx.model)
+		const listLimit = ctx.query?.maxLimit ?? 100
+		const before = await list(ctx, q(ctx, { limit: listLimit }))
+		const listResolved = before.exchange.status < 400
+		const live: Record_[] = []
+		for (const row of ctx.records) {
+			const id = String(row[ctx.identity])
+			live.push((await liveRecord(ctx, id)) ?? row)
+		}
+		if (live.length < 2) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"need two live rows to PATCH one onto the other's unique values",
+			)
+		}
+
+		for (const [index, set] of sets.entries()) {
+			const source = live[0]
+			if (source === undefined) return
+			const target = live.find((row) => {
+				if (String(row[ctx.identity]) === String(source[ctx.identity])) return false
+				return set.some((col) => JSON.stringify(row[col]) !== JSON.stringify(source[col]))
+			})
+			if (target === undefined) continue
+			const patch = collisionUpdatePatch(source, set, ctx.scope, bodyCols, updateOp.immutable, updateOp.generated)
+			if (patch === null) continue
+			const id = String(target[ctx.identity])
+			const params = { ...ctx.scope, ...itemParamFor(ctx, id) }
+			const headers = uniqueProbeHeaders(
+				ctx.auth(),
+				updateOp.idempotencyHeader,
+				required,
+				`oat-unique-patch-${ctx.entityName}-${ctx.seed}-${index}`,
+			)
+			const encoded = await encodeOpBody(ctx, updateOp, patch)
+			const probe = await ctx.client.request("PATCH", fillPath(updateOp.path, params), {
+				...encoded,
+				headers,
+				operationId: updateOp.operationId,
+			})
+			if (standDownForFeatureGate(ctx, updateOp, probe, this.id)) continue
+			if (isPlanLimitResponse(probe.status, probe.responseBody)) {
+				ctx.findings.gap(
+					this.id,
+					ctx.entityName,
+					`${updateOp.operationId} did not apply`,
+					`${updateOp.operationId} returned ${probe.status} (plan limit) on a unique-conflict ` +
+						"probe, so uniqueness was not observed.",
+				)
+				continue
+			}
+			const after = await list(ctx, q(ctx, { limit: listLimit }))
+			if (probe.status === 409) {
+				if (ctx.validator !== undefined) {
+					reportUniqueSchemaDrift(
+						ctx.findings,
+						ctx.validator,
+						updateOp,
+						ctx.model.rawOperations.get(updateOp.operationId),
+						probe,
+						ctx.entityName,
+					)
+				}
+				if (listResolved && after.exchange.status < 400 && after.items.length > before.items.length) {
+					ctx.findings.backend(
+						this.id,
+						ctx.entityName,
+						"a unique-conflict 409 still grew the collection",
+						`PATCH colliding ${set.join(", ")} returned 409 but the list grew from ` +
+							`${before.items.length} to ${after.items.length}.`,
+						[before.exchange, probe, after.exchange],
+					)
+				}
+				continue
+			}
+			if (probe.status >= 200 && probe.status < 300) {
+				const revert: Record<string, unknown> = {}
+				for (const col of Object.keys(patch)) revert[col] = target[col]
+				if (Object.keys(revert).length > 0) {
+					await ctx.client.request("PATCH", fillPath(updateOp.path, params), {
+						...(await encodeOpBody(ctx, updateOp, revert)),
+						headers: ctx.auth(),
+					})
+				}
+				ctx.findings.backend(
+					this.id,
+					ctx.entityName,
+					"a duplicate unique-set update was accepted",
+					`${updateOp.operationId} returned ${probe.status} when PATCHing a different row ` +
+						`onto ${set.join(", ")} values already held by another row. A documented unique ` +
+						"constraint must be 409, not 2xx.",
+					[probe],
+				)
+				continue
+			}
+			ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				`unique PATCH for ${set.join(", ")} returned ${probe.status}, which is not a 409 unique conflict`,
+			)
+		}
+	},
+}
+
 export const CHECKS: readonly Check[] = [
 	/* foundations — did the write land, is it visible, and do the paging primitives work at all.
 	 * Everything below assumes these hold, so they must be evaluated first for cascade
@@ -6686,6 +6958,8 @@ export const CHECKS: readonly Check[] = [
 	filterOrderedTriplePartitions,
 
 	/* write semantics */
+	uniqueConflictCreate,
+	uniqueConflictUpdate,
 	patchMinimality,
 	immutableRejected,
 	stringPayloadSurvives,

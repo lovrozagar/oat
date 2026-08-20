@@ -170,6 +170,7 @@ export async function runExampleSpecSuite(): Promise<ParserResult[]> {
 		["x-immutable is read", "probed for rejection", update?.immutable.includes("workspace_id"), true],
 		["x-async is read", "oat follows the job", start?.async?.poll, "export.read"],
 		["x-feature-gate is read", "a matching 403 is coverage, not a seed defect", create?.featureGate, "widgets"],
+		["x-unique is read", "a 409 duplicate is a pass, 2xx is BACKEND_BUG", create?.unique, [["name"]]],
 	]
 
 	for (const [name, why, actual, expected] of expectations) {
@@ -740,6 +741,7 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	CROSS_TENANT_READ: "tenant.item-not-readable-cross-tenant",
 	EXISTENCE_LEAK_VIA_STATUS: "tenant.denial-does-not-reveal-existence",
 	IDEMPOTENCY_IGNORED: "idempotency.replay-does-not-duplicate",
+	UNIQUE_NOT_ENFORCED: ["create.unique-conflict-rejected", "update.unique-conflict-rejected"],
 	PARENT_PROJECTION_STALE: "invalidation.declared-route-changes",
 	SPEC_OVERCLAIMS_FILTERABLE: "spec.declared-filterable-is-filterable",
 	SPEC_OVERCLAIMS_SORTABLE: ["spec.declared-sortable-is-sortable", "spec.declared-sortable-nulls-accepted"],
@@ -995,11 +997,11 @@ export const DIALECTS_WITH_FILTER_EXPRESSION: ReadonlySet<string> = new Set([
 const ALL_CHECK_IDS = CHECKS.map((check) => check.id)
 
 export const COVERAGE_FLOOR: Record<string, number> = {
-	classic: 78,
-	jsonapi: 85,
-	linked: 87,
-	plain: 69,
-	postgrest: 88,
+	classic: 80,
+	jsonapi: 87,
+	linked: 89,
+	plain: 71,
+	postgrest: 90,
 }
 
 /** Defects that need a filter expression language to exist at all. */
