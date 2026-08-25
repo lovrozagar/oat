@@ -22,6 +22,7 @@ import { requestContent } from "../spec/collection.ts"
 import type { SpecModel } from "../spec/graph.ts"
 import { encodeRequest } from "./body.ts"
 import type { Client, Exchange } from "./client.ts"
+import { cookiesFromRecordedHeaders, readSaveAs } from "./cookies.ts"
 import { type BackoffConfig, isAbsentValue, pollWithBackoff, resolveBackoff, worstCaseWaitMs } from "./poll.ts"
 
 /* The flow shape is defined once, in the public config — the runtime consumes it rather than
@@ -46,6 +47,8 @@ export class AuthRefreshRequiredError extends Error {
 export interface PrincipalRuntime {
 	id: string
 	headers: () => Record<string, string>
+	/** Live credential string — last issued, not a cleared snapshot. */
+	credential: () => string
 	/** Address this principal was provisioned under, for cascade teardown. */
 	address: string | null
 	/** Values bound during acquisition — roots discovered from the credential live here too. */
@@ -147,7 +150,9 @@ export async function runAuthSteps(
 		if ("outOfBand" in step) {
 			const address = String(interpolate(step.outOfBand.address, scope))
 			const value = await resolveOutOfBandValue(context.hooks.resolveOutOfBand, address, step.outOfBand.kind, {
+				headers: flowCredentialHeaders(spec, scope),
 				label: `principal "${context.principalId}"`,
+				scope: { ...scope },
 				...(context.outOfBand === undefined ? {} : { outOfBand: context.outOfBand }),
 			})
 			scope[step.outOfBand.as] = value
@@ -155,14 +160,16 @@ export async function runAuthSteps(
 		}
 
 		const request = await resolveRequest(step, context, scope, index)
+		const liveHeaders = request.redirect === undefined ? {} : flowCredentialHeaders(spec, scope)
 		last = await request.client.request(request.method, request.path, {
 			...(request.body === undefined ? {} : { body: request.body }),
 			...(request.contentType === undefined ? {} : { contentType: request.contentType }),
-			...(request.headers === undefined ? {} : { headers: request.headers }),
+			headers: { ...liveHeaders, ...request.headers },
 			...(request.query === undefined ? {} : { query: request.query }),
 			/* Auth hops must not trigger refresh / 401-retry — that is how a refresh deadlocks. */
 			skipAuthRefresh: true,
 			...("operationId" in step ? { operationId: step.operationId } : {}),
+			...(request.redirect === undefined ? {} : { redirect: request.redirect }),
 		})
 
 		const acceptable = ("expect" in step ? step.expect : undefined) ?? []
@@ -176,9 +183,27 @@ export async function runAuthSteps(
 			)
 		}
 
+		const saveAs = "saveAs" in step ? step.saveAs : undefined
+		const cookies = last.cookies ?? cookiesFromRecordedHeaders(last.responseHeaders)
+		for (const [name, path] of Object.entries(saveAs ?? {})) {
+			const value = readSaveAs(path, {
+				body: last.responseBody,
+				cookies,
+				headers: last.responseHeaders,
+				readJson: readPath,
+			})
+			if (value === undefined || value === null) {
+				throw new Error(
+					`oat: auth step ${index + 1} for "${context.principalId}" declares saveAs.${name} = ` +
+						`"${path}", which is not present in the response`,
+				)
+			}
+			scope[name] = String(value)
+		}
+
 		const saveClaimsFrom = "saveClaimsFrom" in step ? step.saveClaimsFrom : undefined
 		if (saveClaimsFrom !== undefined) {
-			const token = readPath(last.responseBody, saveClaimsFrom.token)
+			const token = claimsToken(saveClaimsFrom.token, last.responseBody, scope)
 			const claims = typeof token === "string" ? jwtClaims(token) : null
 			if (claims === null) {
 				throw new Error(
@@ -196,18 +221,6 @@ export async function runAuthSteps(
 				}
 				scope[name] = String(value)
 			}
-		}
-
-		const saveAs = "saveAs" in step ? step.saveAs : undefined
-		for (const [name, path] of Object.entries(saveAs ?? {})) {
-			const value = readPath(last.responseBody, path)
-			if (value === undefined || value === null) {
-				throw new Error(
-					`oat: auth step ${index + 1} for "${context.principalId}" declares saveAs.${name} = ` +
-						`"${path}", which is not present in the response`,
-				)
-			}
-			scope[name] = String(value)
 		}
 	}
 
@@ -258,6 +271,22 @@ function headerOf(headers: Record<string, string>, name: string): string | undef
 	return undefined
 }
 
+function flowCredentialHeaders(spec: AcquireSpec, scope: Record<string, string>): Record<string, string> {
+	const credential = scope.credential
+	if (credential === undefined || credential === "") return {}
+	const header = spec.header ?? "authorization"
+	const template = spec.template ?? "Bearer {credential}"
+	return { [header]: template.replace("{credential}", credential) }
+}
+
+/** JWT from a JSON body path, or a scope key bound by a prior / same-step `saveAs`. */
+function claimsToken(address: string, body: unknown, scope: Record<string, string>): unknown {
+	if (!address.startsWith("$") && !address.includes(".") && scope[address] !== undefined) {
+		return scope[address]
+	}
+	return readPath(body, address)
+}
+
 function computeExpiry(spec: AcquireSpec, last: Exchange | undefined, credential: string): number | null {
 	/* Prefer what the API states, then what the credential itself carries, then the configured
 	 * fallback. Guessing an expiry that is too long means requests start failing mid-run for
@@ -293,6 +322,7 @@ async function resolveRequest(
 	headers?: Record<string, string>
 	query?: Record<string, string>
 	client: Client
+	redirect?: "follow" | "manual"
 }> {
 	const target = targetOf(step, context, index)
 	/* Two shapes, distinguished structurally: name an operation from the document, or give a raw
@@ -324,6 +354,7 @@ async function resolveRequest(
 		client: target.client,
 		method: step.method,
 		path: String(interpolate(step.path, scope)),
+		redirect: step.redirect ?? "follow",
 		...(step.body === undefined ? {} : { body: interpolate(step.body, scope) }),
 		...(step.headers === undefined ? {} : { headers: interpolate(step.headers, scope) as Record<string, string> }),
 		...(step.query === undefined ? {} : { query: interpolate(step.query, scope) as Record<string, string> }),
@@ -384,7 +415,12 @@ export async function resolveOutOfBandValue(
 	hook: Hooks["resolveOutOfBand"],
 	address: string,
 	kind: string,
-	options: { label: string; outOfBand?: Partial<BackoffConfig> },
+	options: {
+		label: string
+		outOfBand?: Partial<BackoffConfig>
+		scope?: Record<string, string>
+		headers?: Record<string, string>
+	},
 ): Promise<string> {
 	if (hook === undefined) {
 		throw new Error(
@@ -394,7 +430,13 @@ export async function resolveOutOfBandValue(
 		)
 	}
 	const backoff = resolveBackoff(options.outOfBand)
-	const value = await pollWithBackoff((attempt) => hook({ address, attempt, kind }), backoff, isAbsentValue)
+	const scope = options.scope ?? {}
+	const headers = options.headers ?? {}
+	const value = await pollWithBackoff(
+		(attempt) => hook({ address, attempt, headers, kind, scope }),
+		backoff,
+		isAbsentValue,
+	)
 	if (typeof value === "string" && value !== "") return value
 	throw new Error(
 		`oat: no "${kind}" value arrived for ${address} after ${backoff.attempts} attempts ` +
@@ -454,6 +496,7 @@ async function createHookPrincipal(id: string, spec: HookAuth, context: AcquireC
 
 	const runtime: PrincipalRuntime = {
 		address: null,
+		credential: () => credential,
 		expiresAt: null,
 		headers: () => ({ [header]: authValue(credential) }),
 		id,
@@ -526,6 +569,7 @@ async function createFlowPrincipal(id: string, spec: AuthFlow, context: AcquireC
 
 	const runtime: PrincipalRuntime = {
 		address: null,
+		credential: () => credential,
 		expiresAt: null,
 		headers: () => ({ [header]: authValue(credential) }),
 		id,

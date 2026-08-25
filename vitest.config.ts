@@ -17,6 +17,7 @@ export default defineConfig({
 				"src/runtime/effects.ts",
 				"src/runtime/exchanges.ts",
 				"src/runtime/network.ts",
+				"src/runtime/cookies.ts",
 			],
 			thresholds: {
 				lines: 100,

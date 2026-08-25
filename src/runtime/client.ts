@@ -1,6 +1,18 @@
 /** HTTP client with a full transcript, so every finding can cite the exchange that produced it. */
 
 import type { HeaderRequest } from "../config/define-config.ts"
+import {
+	CookieJar,
+	MAX_REDIRECTS,
+	applyJarToHeaders,
+	isAbsoluteHttpUrl,
+	isRedirectStatus,
+	omitHeader,
+	recordResponseHeaders,
+	redirectTarget,
+	setCookieHeadersFrom,
+	type RedirectHop,
+} from "./cookies.ts"
 import { headerValue, MAX_429_RETRIES, retryWaitMs, type RateLimiter } from "./rate-limit.ts"
 import {
 	DEFAULT_NETWORK_RETRIES,
@@ -48,6 +60,15 @@ export interface Exchange {
 	fixture?: string
 	/** Set when `fetch` threw — there was no HTTP status. */
 	network?: { kind: NetworkKind; attempt: number; message: string }
+	/**
+	 * Intermediate 3xx hops when this request followed redirects with a cookie jar.
+	 * The exchange itself is the original URL + the final status/headers/body.
+	 */
+	redirects?: RedirectHop[]
+	/** Landing URL when a followed redirect chain ended somewhere other than `url`. */
+	finalUrl?: string
+	/** Cookie jar after this hop (this response + followed hops). */
+	cookies?: Record<string, string>
 }
 
 /** A principal bound so every dispatch can refresh and retry a 401 without call-site ceremony. */
@@ -92,6 +113,11 @@ export interface RequestOptions {
 	operationId?: string
 	/** `uploads.each` filename, recorded on the exchange for the journal. */
 	fixture?: string
+	/**
+	 * `follow` (jar) keeps intermediate `Set-Cookie` visible to `saveAs`.
+	 * `manual` returns the first 3xx. Unset: native fetch follow, no jar.
+	 */
+	redirect?: "follow" | "manual"
 }
 
 /** Optional retry / wait-for-link policy. Unset keeps today's "throw and hope". */
@@ -155,7 +181,7 @@ export class Client {
 	}
 
 	async request(method: string, path: string, options: RequestOptions = {}): Promise<Exchange> {
-		const url = new URL(path.startsWith("http") ? path : `${this.baseUrl}${path}`)
+		const url = new URL(isAbsoluteHttpUrl(path) ? path : `${this.baseUrl}${path}`)
 		for (const [key, value] of Object.entries(options.query ?? {})) {
 			if (value !== undefined) url.searchParams.set(key, String(value))
 		}
@@ -187,8 +213,15 @@ export class Client {
 			const encoded = encodeBody(options.body, options.contentType)
 			if (encoded.contentType !== undefined) headers["content-type"] = encoded.contentType
 
-			const init: RequestInit = { headers, method }
-			if (encoded.init !== undefined) init.body = encoded.init
+			const jar = new CookieJar()
+			const hops: RedirectHop[] = []
+			let hopUrl = url
+			let hopMethod = method
+			let hopBody: RequestInit["body"] = encoded.init
+			const hopHeaders: Record<string, string> = { ...headers }
+			const init: RequestInit = { headers: hopHeaders, method: hopMethod }
+			if (hopBody !== undefined) init.body = hopBody
+			if (options.redirect !== undefined) init.redirect = "manual"
 
 			/* Two independent constraints, both held: maxInFlight bounds in-flight HTTP with no
 			 * notion of time, a rate-limit category bounds throughput over time. The in-flight
@@ -219,8 +252,41 @@ export class Client {
 				try {
 					const timeoutMs = this.network?.requestTimeoutMs
 					const signal = timeoutMs === undefined ? undefined : AbortSignal.timeout(timeoutMs)
-					response = await fetch(url, signal === undefined ? init : { ...init, signal })
+					const once = async (target: URL, hopInit: RequestInit): Promise<Response> =>
+						fetch(target, signal === undefined ? hopInit : { ...hopInit, signal })
+					applyJarToHeaders(hopHeaders, jar, hopUrl)
+					response = await once(hopUrl, { ...init, headers: hopHeaders, method: hopMethod })
 					text = await response.text()
+					jar.absorb(hopUrl, setCookieHeadersFrom(response.headers))
+					if (options.redirect === "follow") {
+						while (isRedirectStatus(response.status) && hops.length < MAX_REDIRECTS) {
+							const next = redirectTarget(response.status, hopMethod, response.headers.get("location"), hopUrl)
+							if (next === null) break
+							hops.push({
+								responseHeaders: recordResponseHeaders(response.headers),
+								status: response.status,
+								url: hopUrl.toString(),
+							})
+							if (next.url.hostname !== hopUrl.hostname) omitHeader(hopHeaders, "authorization")
+							hopUrl = next.url
+							hopMethod = next.method
+							if (next.dropBody) {
+								hopBody = undefined
+								omitHeader(hopHeaders, "content-type")
+								omitHeader(hopHeaders, "content-length")
+							}
+							applyJarToHeaders(hopHeaders, jar, hopUrl)
+							const nextInit: RequestInit = {
+								headers: hopHeaders,
+								method: hopMethod,
+								redirect: "manual",
+							}
+							if (hopBody !== undefined) nextInit.body = hopBody
+							response = await once(hopUrl, nextInit)
+							text = await response.text()
+							jar.absorb(hopUrl, setCookieHeadersFrom(response.headers))
+						}
+					}
 					at = Date.now()
 				} catch (error) {
 					const raw = classifyNetworkError(error)
@@ -273,7 +339,9 @@ export class Client {
 			}
 
 			this.seq += 1
-			const responseHeaders = Object.fromEntries(response.headers.entries())
+			const responseHeaders = recordResponseHeaders(response.headers)
+			const cookies = jar.snapshot()
+			const landing = hopUrl.toString()
 			const exchange: Exchange = {
 				at,
 				durationMs: Math.round(performance.now() - started),
@@ -292,6 +360,9 @@ export class Client {
 				...(rateLimitHadRoom === undefined ? {} : { rateLimitHadRoom }),
 				...(options.operationId === undefined ? {} : { operationId: options.operationId }),
 				...(options.fixture === undefined ? {} : { fixture: options.fixture }),
+				...(hops.length === 0 ? {} : { redirects: hops }),
+				...(landing === url.toString() ? {} : { finalUrl: landing }),
+				...(Object.keys(cookies).length === 0 ? {} : { cookies }),
 			}
 			this.transcript.push(exchange)
 			await this.onExchange?.(exchange)

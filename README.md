@@ -103,7 +103,7 @@ The first principal is the writer. Isolation needs a second principal with diffe
 
 oat never needs ground truth about your data. A filter and its negation must partition the set; a page walk must cover the collection; a record read four ways must read the same.
 
-oat does **not** use OpenAPI `security` / `securitySchemes`, `servers[]`, cookies, webhooks, callbacks, or `links`. Auth is the config. The primary origin is `baseUrl`. Extra hosts go in `origins[]`, each with its own spec — do not merge them into the primary document. Request bodies follow the document: JSON, `multipart/form-data` (scalars + dummy / pool / `each` / `resolveUpload` files), or `application/x-www-form-urlencoded`. `hooks.resolveInput` can replace a generated JSON field (a Stripe test `pm_…`); `hooks.resolveHeaders` can attach a one-shot header (Turnstile) per request.
+oat does **not** use OpenAPI `security` / `securitySchemes`, `servers[]`, webhooks, callbacks, or `links`. Auth is the config. The primary origin is `baseUrl`. Extra hosts go in `origins[]`, each with its own spec — do not merge them into the primary document. A RequestStep whose `path` is an absolute `http(s)` URL is a recorded hop on that URL (a mailed consume page) — that is not an `origins[]` entry and does not need a spec. Request bodies follow the document: JSON, `multipart/form-data` (scalars + dummy / pool / `each` / `resolveUpload` files), or `application/x-www-form-urlencoded`. `hooks.resolveInput` can replace a generated JSON field (a Stripe test `pm_…`); `hooks.resolveHeaders` can attach a one-shot header (Turnstile) per request.
 
 ## Quick start
 
@@ -611,7 +611,7 @@ Each step is one of:
 }
 ```
 
-**Request step** (when the document has no auth operations):
+**Request step** (when the document has no auth operations, or the hop is not in the spec):
 
 ```ts
 {
@@ -622,25 +622,37 @@ Each step is one of:
 }
 ```
 
+`path` is joined to this origin's `baseUrl`, unless it is an absolute `http://` or `https://` URL — then oat dispatches to that URL as a recorded exchange (method, URL, status, redirects, response headers). That is how a consume page on the app origin is an auth step when `baseUrl` is the API. Unknown host is allowed. `redirect` defaults to `"follow"` with a per-request cookie jar, so a 303 that sets `Set-Cookie` still leaves that cookie visible to `saveAs`. `redirect: "manual"` stops at the first 3xx (`expect: [303]` then bind from that response).
+
 **Out-of-band step** (email link, OTP — oat cannot collect this itself):
 
 ```ts
-{ outOfBand: { address: "{address}", kind: "email-verify", as: "verifyToken" } }
+{ outOfBand: { address: "{address}", kind: "email-verify", as: "verifyLink" } }
 ```
 
-Later steps interpolate `{name}` from the flow scope. `saveAs` paths are `$.foo.bar` / `$.orgs.0.id` (dot + numeric index only; no JSON Pointer, no filters). Bind `saveAs.refreshToken` from `$.refresh_token` so `{refreshToken}` interpolates in `auth.refresh`. `saveClaimsFrom` reads a JWT's _claims_ (signature is not verified — oat is reading its own credential). `rootsFromFlow` maps path parameter names to those bound keys.
+The hook returns a string. If that string is a URL, a later RequestStep must GET it — a hook-side `fetch` is not a recorded exchange.
 
-`bind` on a step runs **before** the request. `saveAs` / `saveClaimsFrom` run **after**. `credentialFrom` is read from the last HTTP response unless a step already saved `credential`.
+Later steps interpolate `{name}` from the flow scope. `saveAs` addresses:
+
+- `$.foo.bar` / `$.orgs.0.id` — JSON body (dot + numeric index only; no JSON Pointer, no filters)
+- `cookie:<name>` — that cookie on `Set-Cookie` for this hop, including followed hops
+- `header:<name>` — a non-set-cookie response header, case-insensitive
+
+Missing cookie / header / JSON path fails the auth step closed. Bind `saveAs.refreshToken` from `$.refresh_token` or `cookie:refresh` so `{refreshToken}` interpolates in `auth.refresh`. `saveClaimsFrom.token` is a JSON path into the response body (`$.access_token`) or a scope key already bound by `saveAs` (`credential`). Signature is not verified — oat is reading its own credential. `rootsFromFlow` maps path parameter names to those bound keys.
+
+`bind` on a step runs **before** the request. `saveAs` then `saveClaimsFrom` run **after**. `credentialFrom` is read from the last HTTP response unless a step already saved `credential`. `outOfBand.as = "credential"` still wins over `credentialFrom`.
 
 If a step's status is not acceptable, auth fails the run (not a finding): `oat: principal "alpha" failed at auth step 2 (POST /v1/…)`.
 
-A complete register → verify → use-claims example:
+A complete register → mailed GET → cookie session example:
 
 ```ts
 function signUp(email: string): AuthFlow {
 	return {
 		credentialFrom: "$.access_token",
 		expiresInFrom: "$.access_token_expires_in",
+		header: "cookie",
+		template: "session={credential}",
 		refresh: {
 			steps: [
 				{
@@ -657,22 +669,41 @@ function signUp(email: string): AuthFlow {
 				body: { email, password: "…" },
 				method: "POST",
 				path: "/v1/auth/register/email",
-			},
-			{ outOfBand: { address: email, as: "verifyToken", kind: "email-verify" } },
-			{
-				body: { token: "{verifyToken}" },
-				method: "POST",
-				path: "/v1/auth/email/verify",
 				saveAs: { credential: "$.access_token", refreshToken: "$.refresh_token" },
+			},
+			{ outOfBand: { address: email, as: "verifyLink", kind: "email-verify" } },
+			{
+				method: "GET",
+				path: "{verifyLink}", // absolute URL; not joined to baseUrl
+				expect: [200, 303],
+				saveAs: {
+					credential: "cookie:session",
+					refreshToken: "cookie:refresh",
+				},
 				saveClaimsFrom: {
-					token: "$.access_token",
+					token: "credential",
 					bind: { orgId: "orgs.0.oid", projectId: "orgs.0.pids.0" },
 				},
 			},
 		],
 	}
 }
+```
 
+When the user path **is** POST-token, keep that chain — it is still valid:
+
+```ts
+{ outOfBand: { address: email, as: "verifyToken", kind: "email-verify" } },
+{
+  body: { token: "{verifyToken}" },
+  method: "POST",
+  path: "/v1/auth/email/verify",
+  saveAs: { credential: "$.access_token", refreshToken: "$.refresh_token" },
+  saveClaimsFrom: { token: "$.access_token", bind: { orgId: "orgs.0.oid" } },
+}
+```
+
+```ts
 principals: [
 	{
 		id: "alpha",
@@ -733,13 +764,14 @@ The CLI writes `principals.json` into each run folder (and `.oat/runs/latest/pri
 ```ts
 hooks: {
   // Return null to retry (attempt is 1-based). oat backs off until a value arrives.
-  resolveOutOfBand: async ({ address, kind, attempt }) => {
-    const token = await readMailCatcher(address, kind)
-    return token // or null
+  // `scope` is the flow at this step; `headers` are the live principal credential headers.
+  resolveOutOfBand: async ({ address, kind, attempt, scope, headers }) => {
+    const link = await readMailCatcher(address, kind)
+    return link // URL or token string, or null
   },
-  // Remove a principal this run provisioned (and everything it created).
-  teardownPrincipal: async (address) => {
-    await fetch(`https://api.example.com/test/cleanup?email=${address}`, { method: "DELETE" })
+  // Remove a principal this run provisioned. `ctx` is the last live credential.
+  teardownPrincipal: async (address, { credential, headers }) => {
+    await fetch(`https://api.example.com/v1/auth/account`, { method: "DELETE", headers })
   },
   // Return a file to send, `{ fields }` to replace the whole request, or null to fall through.
   resolveUpload: async ({ operationId, field, contentMediaType }) => {
@@ -785,7 +817,7 @@ hooks: {
 }
 ```
 
-Without `resolveOutOfBand`, an `outOfBand` step cannot complete. oat polls the hook; the hook must not sleep. Returning `""` is treated like `null`.
+Without `resolveOutOfBand`, an `outOfBand` step cannot complete. oat polls the hook; the hook must not sleep. Returning `""` is treated like `null`. The hook is not a recorded hop: if the human GETs a mailed URL, a later RequestStep must GET that URL so it appears in `exchanges.jsonl` and can `expect` / `saveAs`.
 
 Default schedule (0.6.2, unchanged unless `outOfBand` is set): **6** attempts, first sleep **200** ms, doubling, cap **3000** ms. oat sleeps after every miss, including the last, so the worst-case wait is
 
@@ -800,7 +832,7 @@ outOfBand: { attempts: 20, initialMs: 1000, maxMs: 8000 }
 
 Worst-case wait is `sum_{i=0}^{attempts-1} min(initialMs × 2^i, maxMs)`. `worstCaseWaitMs()` from the package computes it. Existing configs that omit `outOfBand` do not slow down.
 
-Without `teardownPrincipal`, provisioned accounts are reported as leftover rather than cascade-deleted. Per-record DELETE still runs for seeded rows when a delete (or `x-cleanup`) exists.
+Without `teardownPrincipal`, provisioned accounts are reported as leftover rather than cascade-deleted. Per-record DELETE still runs for seeded rows when a delete (or `x-cleanup`) exists. The hook is called with the last live credential (`ctx.credential` / `ctx.headers`), not an already-cleared one, so authenticated delete-account is expressible without a tester-key god route. One-argument JavaScript callbacks still run.
 
 `resolveHeaders` is called on every dispatch (including the 401 retry). Merge order: `globalHeaders` → hook → per-request headers → principal credential. Use `ctx.operationId` / `ctx.method` / `ctx.url` to attach a one-shot captcha only on captcha ops. oat does not speak Turnstile.
 
@@ -1171,13 +1203,16 @@ x-invite:
   grantPointer: $.grant_id
   tokenFrom: response # or outOfBand
   tokenKind: org-invite # only when tokenFrom is outOfBand; default `${entity}-invite`
+  acceptFrom: token # default. `link` = GET the OOB URL instead of POSTing accept JSON
 ```
 
-Put this on the invite operation. Config must give the invitee `inviteAs`. Defaults if omitted: `granteeField: key`, `tokenPointer: $.token`, `grantPointer: $.grant_id`, `tokenFrom: response`. All three of `invite` / `accept` / `revoke` (operationIds) are required or the tag is ignored.
+Put this on the invite operation. Config must give the invitee `inviteAs`. Defaults if omitted: `granteeField: key`, `tokenPointer: $.token`, `grantPointer: $.grant_id`, `tokenFrom: response`, `acceptFrom: token`. All three of `invite` / `accept` / `revoke` (operationIds) are required or the tag is ignored. `oat doctor` / `oat plan` print the accept mode.
 
 `tokenFrom: response` (default) reads the accept token from the invite HTTP body at `tokenPointer`. Keep this for backends that still put the token in JSON.
 
-`tokenFrom: outOfBand` ignores the response token and calls `resolveOutOfBand({ address: inviteAs, kind })` after the invite POST. `kind` is `tokenKind` or `${entity}-invite` (`org` → `org-invite`, `project` → `project-invite`). Use this when the live profile must accept only the mailed token.
+`tokenFrom: outOfBand` ignores the response token and calls `resolveOutOfBand({ address: inviteAs, kind, scope, headers })` after the invite POST. `kind` is `tokenKind` or `${entity}-invite` (`org` → `org-invite`, `project` → `project-invite`). Use this when the live profile must accept only the mailed token.
+
+`acceptFrom: token` (default) stuffs that string into the documented accept JSON / path as today. `acceptFrom: link` requires the string to be an absolute `http(s)` URL: oat GETs it (recorded, cookie-jar follow). The `accept` operationId is unused for that hop; `revoke` still uses the documented revoke operation. 2xx/3xx that leaves the grant readable continues the timeline; 4xx, 404, or an unreadable grant is a finding. A config that still POSTs `{ token }` with `tokenFrom: outOfBand` and no `acceptFrom` does not change meaning.
 
 An invite operation is **not** the entity's fixture create, even when it is `POST` on the collection. oat will not seed it with a generated email. The invite check (and only that check) creates the grant, using `inviteAs` as `granteeField`. The check still runs when there is no non-invite create, as long as an item or list route exists.
 
@@ -1894,7 +1929,7 @@ const { doc: resolved, externalRefs } = dereference(doc)
 const model = buildModel(resolved)
 ```
 
-Types exported: `OatConfig`, `Principal`, `AuthFlow`, `AuthRefresh`, `AuthStep`, `HookAuth`, `Hooks`, `Uploads`, `UploadRequest`, `UploadFile`, `HeaderRequest`, `InputRequest`, `OriginSpec`, `OutOfBandConfig`, `RunOptions`, `RunResult`, `Finding`, `Verdict`, `Actor`, `SpecModel`, `EntityModel`, `OperationModel`, `OpenApiDocument`, `AuthRefreshRequiredError`, `loadPersistedPrincipals`, `worstCaseWaitMs`, `allocateRunDir`, `DEFAULT_RUNS_ROOT`, matrix types.
+Types exported: `OatConfig`, `Principal`, `AuthFlow`, `AuthRefresh`, `AuthStep`, `HookAuth`, `Hooks`, `Uploads`, `UploadRequest`, `UploadFile`, `HeaderRequest`, `InputRequest`, `OriginSpec`, `OutOfBandConfig`, `OutOfBandRequest`, `TeardownPrincipalContext`, `RunOptions`, `RunResult`, `Finding`, `Verdict`, `Actor`, `SpecModel`, `EntityModel`, `OperationModel`, `OpenApiDocument`, `AuthRefreshRequiredError`, `loadPersistedPrincipals`, `worstCaseWaitMs`, `allocateRunDir`, `DEFAULT_RUNS_ROOT`, matrix types.
 
 ## CI
 
@@ -2008,10 +2043,10 @@ These are deliberate. An agent should not invent a flag for them.
 - **No request timeout by default.** `fetch` waits until the server answers unless `network.requestTimeoutMs` is set. Watch `status=in_flight` and `idle_ms` on that request.
 - **No retry on 5xx.** 429 is retried (up to 5, honouring `Retry-After`). One 401 → force refresh + single retry. A second 401 is evidence.
 - **Network throws are not HTTP.** Offline / DNS / reset / timeout: 4 retries, then one wait (default 60s) for the link. If it does not come back, `net.unreachable` is recorded, remaining work stands down, the report is still written, exit `1`. Progress `status=network`. Failed attempts are journaled as `status: 0` with `{ error: "network", kind }`.
-- **No OpenAPI `security`.** Put credentials in `principals`. Cookie auth is a `headers: { cookie: "…" }` (or a flow that sets that header).
-- **No `servers[]`.** Always set `baseUrl`. Extra hosts are `origins[]`, each with its own `spec`.
+- **No OpenAPI `security`.** Put credentials in `principals`. Cookie auth is a `headers: { cookie: "…" }` (or a flow that sets that header / `saveAs: { credential: "cookie:session" }`). oat does not grow OpenAPI cookie `securitySchemes`.
+- **No `servers[]`.** Always set `baseUrl`. Extra hosts are `origins[]`, each with its own `spec`. An app origin that is HTML + `Set-Cookie` is a RequestStep with an absolute URL, not a dummy spec in `origins[]`.
 - **No OCR.** Multipart and file parts are sent as dummy / pool / `each` / `resolveUpload` bytes. oat checks HTTP status and JSON responses, not whether a PDF is a real invoice.
-- **No webhook / callback / link-object following.**
+- **No webhook / callback / link-object following**, except the explicit auth / invite GET of a URL `resolveOutOfBand` returned. A hook-side `fetch` of that URL is not a recorded exchange.
 - **External `$ref`s are not fetched.** In-document `$ref`s are.
 - **`x-idempotent` is not the idempotency check.** The check keys off a documented `Idempotency-Key` header.
 - **Rate-limit pacing only covers requests oat itself sends.** It cannot see traffic from anything else hitting the backend at the same time, so a shared budget can still trip even when oat's own share was within the declared rate.

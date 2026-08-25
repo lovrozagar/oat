@@ -22,14 +22,22 @@ export type {
 interface StepBase {
 	/**
 	 * Binds parts of the response into the flow's scope. Later steps interpolate them as
-	 * `{name}`, and `rootsFromFlow` can promote them to path parameters. Values are addressed by
-	 * path: `$.access_token`, `$.orgs.0.id`.
+	 * `{name}`, and `rootsFromFlow` can promote them to path parameters.
+	 *
+	 * Address forms:
+	 * - `$.access_token` / `$.orgs.0.id` — JSON body (dot + numeric index only)
+	 * - `cookie:<name>` — that cookie on `Set-Cookie` for this hop (and followed hops)
+	 * - `header:<name>` — a non-set-cookie response header, case-insensitive
+	 *
+	 * Missing cookie / header / JSON path fails the auth step closed.
 	 */
 	saveAs?: Record<string, string>
 	/**
 	 * Binds values out of a JWT's claims. Tenancy commonly rides in the token rather than the
 	 * response body, and a principal that can name its own tenant needs no roots configured. The
 	 * signature is not verified — oat is reading its own credential, not trusting a third party.
+	 * `token` is a JSON path into the response body (`$.access_token`) or a scope key already
+	 * bound by `saveAs` (`credential`).
 	 */
 	saveClaimsFrom?: { token: string; bind: Record<string, string> }
 	/** Literal values bound before the step runs, with `{name}` interpolation. */
@@ -51,12 +59,23 @@ export interface OperationStep extends StepBase {
 /** Calls a raw path, for endpoints the document does not describe. */
 export interface RequestStep extends StepBase {
 	method: string
+	/**
+	 * Path relative to this origin's `baseUrl`, or an absolute `http://` / `https://` URL.
+	 * Absolute URLs are not joined to `baseUrl` — that is how a consume page on the app origin
+	 * is a recorded hop when the spec origin is the API.
+	 */
 	path: string
 	body?: unknown
 	headers?: Record<string, string>
 	query?: Record<string, string>
-	/** Named `origins[]` entry. Omit to hit the primary `baseUrl`. */
+	/** Named `origins[]` entry. Omit to hit the primary `baseUrl`. Ignored for absolute URLs. */
 	origin?: string
+	/**
+	 * Redirect policy for this hop. Default `follow` uses a per-request cookie jar so a 303
+	 * that sets `Set-Cookie` still leaves that cookie visible to `saveAs`. `manual` stops at
+	 * the first 3xx (`expect: [303]` then reads cookies from that response).
+	 */
+	redirect?: "follow" | "manual"
 }
 
 /**
@@ -64,7 +83,8 @@ export interface RequestStep extends StepBase {
  *
  * oat declares the need and calls `hooks.resolveOutOfBand` to satisfy it, polling with backoff
  * because such stores are usually eventually consistent. That hook is the entire coupling
- * surface between oat and one specific backend.
+ * surface between oat and one specific backend. The hook returns a string (a token, or the
+ * mailed URL); oat records the consume hop only when a later RequestStep GETs that URL.
  */
 export interface OutOfBandStep {
 	outOfBand: { address: string; kind: string; as: string }
@@ -173,6 +193,17 @@ export interface OutOfBandRequest {
 	kind: string
 	/** 1-based; oat retries with backoff until a value arrives or the attempts run out. */
 	attempt: number
+	/** Flow scope at this step (interpolated binds + prior `saveAs`). */
+	scope: Record<string, string>
+	/** Principal credential headers as they would be sent now (Authorization or Cookie). */
+	headers: Record<string, string>
+}
+
+export interface TeardownPrincipalContext {
+	/** Live credential string — the last issued one, not a cleared snapshot. */
+	credential: string
+	/** Live principal header map (Authorization or Cookie, whatever the flow uses). */
+	headers: Record<string, string>
 }
 
 /**
@@ -269,10 +300,12 @@ export interface Hooks {
 	resolveOutOfBand?: (request: OutOfBandRequest) => Promise<string | null>
 	/**
 	 * Removes a principal the run provisioned, and everything that principal created with it.
-	 * Usually the only handle that works: per-record deletes are typically owner-scoped, and the
-	 * credential dies with the run.
+	 * `ctx.headers` is the live principal header map so authenticated delete-account is
+	 * expressible without a tester-key god route. Address stays — some backends still key
+	 * teardown on it. One-argument JavaScript callbacks still run (the second argument is
+	 * extra); TypeScript configs should take `ctx`.
 	 */
-	teardownPrincipal?: (address: string) => Promise<void>
+	teardownPrincipal?: (address: string, ctx: TeardownPrincipalContext) => Promise<void>
 	/**
 	 * Exact file or whole request. Return `null` to fall through to `uploads.each`, then pool, then a dummy.
 	 * `UploadFile` replaces that field. `{ fields }` with a file replaces the whole request.

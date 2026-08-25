@@ -205,9 +205,16 @@ async function teardownPrincipals(
 		return
 	}
 
-	for (const address of addresses) {
+	for (const principal of principals) {
+		if (principal === undefined) continue
+		const runtime = principal.runtime
+		const address = runtime?.address
+		if (runtime === undefined || typeof address !== "string" || address === "") continue
 		try {
-			await teardown(address)
+			await teardown(address, {
+				credential: runtime.credential(),
+				headers: principal.headers(),
+			})
 		} catch (error) {
 			findings.gap(
 				"world.teardown",

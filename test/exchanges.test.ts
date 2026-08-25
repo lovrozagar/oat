@@ -134,6 +134,42 @@ describe("isBinaryMediaType", () => {
 })
 
 describe("exchange journal", () => {
+	it("persists a followed redirect chain with redacted Set-Cookie", async () => {
+		const dir = await scratch()
+		const journal = createExchangeJournal(dir)
+		await journal.record(
+			exchange({
+				finalUrl: "http://app.test/app",
+				method: "GET",
+				redirects: [
+					{
+						responseHeaders: { location: "/app", "set-cookie": "session=secret; Path=/" },
+						status: 303,
+						url: "http://app.test/verify?t=1",
+					},
+				],
+				requestId: "consume-1",
+				seq: 7,
+				status: 200,
+				url: "http://app.test/verify?t=1",
+			}),
+		)
+		const file = JSON.parse(await readFile(join(dir, "exchanges/consume-1.json"), "utf8")) as {
+			finalUrl: string
+			redirects: Array<{ responseHeaders: Record<string, string>; status: number }>
+		}
+		expect(file.finalUrl).toBe("http://app.test/app")
+		expect(file.redirects).toHaveLength(1)
+		expect(file.redirects[0]?.status).toBe(303)
+		expect(file.redirects[0]?.responseHeaders["set-cookie"]).toBe("<redacted>")
+		const line = JSON.parse((await readFile(join(dir, "exchanges.jsonl"), "utf8")).trim()) as {
+			finalUrl: string
+			redirects: number
+		}
+		expect(line.finalUrl).toBe("http://app.test/app")
+		expect(line.redirects).toBe(1)
+	})
+
 	it("writes a JSON POST/GET that jsonl can join by requestId", async () => {
 		const dir = await scratch()
 		const journal = createExchangeJournal(dir)

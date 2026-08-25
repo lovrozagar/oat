@@ -27,6 +27,7 @@ export type {
 	RateLimitSpec,
 	RequestStep,
 	SideEffectRequest,
+	TeardownPrincipalContext,
 	UploadFile,
 	UploadRequest,
 	UploadResolution,

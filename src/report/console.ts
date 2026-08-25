@@ -168,8 +168,23 @@ function plan(model: SpecModel, asJson: boolean): string {
 		}
 	}
 
+	const invited = entities.filter((entity) => entity.invite !== null)
+	if (invited.length > 0) {
+		lines.push("")
+		lines.push("  invite — accept mode:")
+		for (const entity of invited) {
+			lines.push(`    ${entity.name.padEnd(28)} ${inviteAcceptMode(entity.invite)}`)
+		}
+	}
+
 	lines.push("")
 	return lines.join("\n")
+}
+
+function inviteAcceptMode(spec: EntityModel["invite"]): string {
+	if (spec === null) return "—"
+	if (spec.acceptFrom === "link") return "GET-link (x-invite.acceptFrom: link)"
+	return `JSON token → ${spec.accept}`
 }
 
 function catalogCheckPreview(
@@ -363,6 +378,14 @@ function doctor(
 	const uniqueConstraints = entities
 		.filter((entity) => entity.unique !== null)
 		.map((entity) => ({ entity: entity.name, unique: entity.unique }))
+	const invites = entities
+		.filter((entity) => entity.invite !== null)
+		.map((entity) => ({
+			accept: entity.invite?.accept,
+			acceptFrom: entity.invite?.acceptFrom === "link" ? "link" : "token",
+			entity: entity.name,
+			tokenFrom: entity.invite?.tokenFrom,
+		}))
 	const { catalogs, unknownEntities } = entityQueryCatalogs(model, config)
 
 	if (asJson) {
@@ -374,6 +397,7 @@ function doctor(
 					entities: entities.length,
 					externalRefs,
 					featureGates,
+					invites,
 					uniqueConstraints,
 					gaps: model.gaps.gaps,
 					listableEntities: listable.length,
@@ -488,6 +512,15 @@ function doctor(
 		lines.push("  unique constraints — a 409 on a duplicate of these columns is a pass")
 		for (const row of uniqueConstraints) {
 			lines.push(`    ${row.entity.padEnd(28)} x-unique: ${formatUniqueSets(row.unique)}`)
+		}
+		lines.push("")
+	}
+
+	if (invites.length > 0) {
+		lines.push("  invite — accept mode")
+		for (const row of invites) {
+			const spec = model.entities.get(row.entity)?.invite ?? null
+			lines.push(`    ${row.entity.padEnd(28)} ${inviteAcceptMode(spec)}`)
 		}
 		lines.push("")
 	}

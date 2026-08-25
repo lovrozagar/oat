@@ -33,6 +33,7 @@ import { describeFeatureGate, isDocumentedFeatureGateDenial, reportFeatureGateSc
 import type { FindingCollector } from "./finding.ts"
 import { driveAsync, inspectStreamAsync, matchesPredicate, resolveAsyncId } from "./async.ts"
 import { resolveOutOfBandValue } from "./auth.ts"
+import { isAbsoluteHttpUrl } from "./cookies.ts"
 import { buildCohort } from "./fixture.ts"
 import type { BackoffConfig } from "./poll.ts"
 import type { UploadContext } from "./upload.ts"
@@ -3528,8 +3529,10 @@ const inviteGrantsThenRevokes: Check = {
 			const kind = spec.tokenKind ?? `${ctx.entityName}-invite`
 			try {
 				token = await resolveOutOfBandValue(ctx.hooks.resolveOutOfBand, delegate.inviteAs, kind, {
+					headers: delegate.headers(),
 					label: `invite to ${ctx.entityName}`,
 					outOfBand: ctx.outOfBand,
+					scope: { ...resource, inviteAs: delegate.inviteAs },
 				})
 			} catch (error) {
 				return ctx.findings.unresolved(this.id, ctx.entityName, error instanceof Error ? error.message : String(error))
@@ -3542,17 +3545,33 @@ const inviteGrantsThenRevokes: Check = {
 		}
 
 		const acceptScope = { ...resource, token }
-		const acceptBody = documentedJsonBody(ctx, acceptOp, acceptScope)
-		const accepted = await ctx.client.request(acceptOp.method, fillPath(acceptOp.path, acceptScope), {
-			...(acceptBody === undefined ? {} : { body: acceptBody }),
-			headers: {
-				...delegate.headers(),
-				...(acceptBody === undefined ? {} : { "content-type": "application/json" }),
-			},
-			operationId: acceptOp.operationId,
-		})
-		if (standDownForFeatureGate(ctx, acceptOp, accepted, this.id)) return
-		if (accepted.status >= 300) {
+		let accepted: Exchange
+		if (spec.acceptFrom === "link") {
+			if (!isAbsoluteHttpUrl(token)) {
+				return ctx.findings.unresolved(
+					this.id,
+					ctx.entityName,
+					`x-invite.acceptFrom: link needs an absolute http(s) URL, got ${JSON.stringify(token)}`,
+				)
+			}
+			accepted = await ctx.client.request("GET", token, {
+				headers: delegate.headers(),
+				redirect: "follow",
+			})
+		} else {
+			const acceptBody = documentedJsonBody(ctx, acceptOp, acceptScope)
+			accepted = await ctx.client.request(acceptOp.method, fillPath(acceptOp.path, acceptScope), {
+				...(acceptBody === undefined ? {} : { body: acceptBody }),
+				headers: {
+					...delegate.headers(),
+					...(acceptBody === undefined ? {} : { "content-type": "application/json" }),
+				},
+				operationId: acceptOp.operationId,
+			})
+		}
+		if (spec.acceptFrom !== "link" && standDownForFeatureGate(ctx, acceptOp, accepted, this.id)) return
+		const acceptFailed = spec.acceptFrom === "link" ? accepted.status >= 400 : accepted.status >= 300
+		if (acceptFailed) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, `accept returned ${accepted.status}`)
 		}
 		if ((await canRead()) === false) {

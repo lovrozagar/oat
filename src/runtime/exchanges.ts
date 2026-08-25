@@ -279,6 +279,7 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 				at: exchange.at,
 				durationMs: exchange.durationMs,
 				...(exchange.fixture === undefined ? {} : { fixture: exchange.fixture }),
+				...(exchange.finalUrl === undefined ? {} : { finalUrl: exchange.finalUrl }),
 				method: exchange.method,
 				...(exchange.operationId === undefined ? {} : { operationId: exchange.operationId }),
 				requestBody,
@@ -286,6 +287,15 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 				requestId: exchange.requestId,
 				responseBody,
 				responseHeaders: redactHeaders(exchange.responseHeaders),
+				...(exchange.redirects === undefined
+					? {}
+					: {
+							redirects: exchange.redirects.map((hop) => ({
+								responseHeaders: redactHeaders(hop.responseHeaders),
+								status: hop.status,
+								url: hop.url,
+							})),
+						}),
 				seq: exchange.seq,
 				status: exchange.status,
 				url: exchange.url,
@@ -305,6 +315,8 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 			}
 			if (exchange.operationId !== undefined) line.operationId = exchange.operationId
 			if (exchange.fixture !== undefined) line.fixture = exchange.fixture
+			if (exchange.finalUrl !== undefined) line.finalUrl = exchange.finalUrl
+			if (exchange.redirects !== undefined) line.redirects = exchange.redirects.length
 			if (meta.check !== undefined) line.check = meta.check
 			if (meta.entity !== undefined) line.entity = meta.entity
 			if (meta.phase !== undefined) line.phase = meta.phase

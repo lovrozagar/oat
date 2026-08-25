@@ -362,6 +362,11 @@ export interface InviteSpec {
 	tokenFrom: "response" | "outOfBand"
 	/** `resolveOutOfBand` kind when `tokenFrom` is `outOfBand`. Default `${entity}-invite`. */
 	tokenKind?: string
+	/**
+	 * How the invitee consumes the token. Default `token` stuffs it into the documented accept
+	 * JSON / path. `link` GETs the out-of-band value as an absolute URL (the mailed consume hop).
+	 */
+	acceptFrom?: "token" | "link"
 }
 
 export function readInvite(op: OperationObject): InviteSpec | null {
@@ -382,6 +387,7 @@ export function readInvite(op: OperationObject): InviteSpec | null {
 		tokenPointer: typeof tag.tokenPointer === "string" ? tag.tokenPointer : "$.token",
 	}
 	if (typeof tag.tokenKind === "string" && tag.tokenKind !== "") spec.tokenKind = tag.tokenKind
+	if (tag.acceptFrom === "link") spec.acceptFrom = "link"
 	return spec
 }
 
