@@ -18,7 +18,7 @@ import { sseEvents } from "./sse.ts"
 
 export const INLINE_BODY_LIMIT = 256 * 1024
 
-const REDACTED = "<redacted>"
+export const REDACTED = "<redacted>"
 
 const REDACT_HEADER_NAMES = new Set(["authorization", "cookie", "set-cookie", "proxy-authorization", "x-ia-tester-key"])
 
@@ -69,12 +69,16 @@ export function redactHeaders(headers: Record<string, string>): Record<string, s
 	return out
 }
 
+export function isSecretJsonKey(name: string): boolean {
+	return REDACT_JSON_KEYS.has(name.toLowerCase())
+}
+
 export function redactJson(value: unknown): unknown {
 	if (Array.isArray(value)) return value.map((item) => redactJson(item))
 	if (value === null || typeof value !== "object") return value
 	const out: Record<string, unknown> = {}
 	for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-		out[key] = REDACT_JSON_KEYS.has(key.toLowerCase()) ? REDACTED : redactJson(child)
+		out[key] = isSecretJsonKey(key) ? REDACTED : redactJson(child)
 	}
 	return out
 }
@@ -193,13 +197,14 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 
 	const persistRequestBody = async (body: unknown): Promise<unknown> => {
 		if (body === undefined) return undefined
+		if (isPersistedBodyRef(body) || isPersistedFormSnapshot(body)) return body
 		if (isFormData(body)) {
 			const parts: Array<Record<string, unknown>> = []
 			for (const [field, value] of body.entries()) {
 				if (typeof value === "string") {
 					parts.push({
 						field,
-						value: REDACT_JSON_KEYS.has(field.toLowerCase()) ? REDACTED : value,
+						value: isSecretJsonKey(field) ? REDACTED : value,
 					})
 					continue
 				}
@@ -229,12 +234,13 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 	const persistResponseBody = async (exchange: Exchange): Promise<unknown> => {
 		const mediaType = headerOf(exchange.responseHeaders, "content-type") ?? ""
 		const body = exchange.responseBody
-		if (mediaType.toLowerCase().includes("text/event-stream") && typeof body === "string") {
+		if (isPersistedBodyRef(body) || isPersistedFormSnapshot(body)) return body
+		if (mediaType.toLowerCase().includes("text/event-stream")) {
 			const frames = sseEvents(body)
 			if (frames !== null) {
 				return frames.map((frame) => ({ data: redactJson(frame.data), event: frame.event }))
 			}
-			return spillText(body, primaryMediaType(mediaType, "text/event-stream"))
+			if (typeof body === "string") return spillText(body, primaryMediaType(mediaType, "text/event-stream"))
 		}
 		if (isBinaryMediaType(mediaType)) {
 			const bytes =
@@ -324,4 +330,21 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 			count += 1
 		},
 	}
+}
+
+function isPersistedBodyRef(value: unknown): boolean {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) return false
+	const rec = value as Record<string, unknown>
+	return (
+		typeof rec.sha256 === "string" &&
+		typeof rec.bytes === "number" &&
+		typeof rec.mediaType === "string" &&
+		Object.keys(rec).every((key) => key === "sha256" || key === "bytes" || key === "mediaType")
+	)
+}
+
+function isPersistedFormSnapshot(value: unknown): boolean {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) return false
+	const rec = value as { parts?: unknown }
+	return Array.isArray(rec.parts) && Object.keys(rec).every((key) => key === "parts")
 }

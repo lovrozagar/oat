@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { Client } from "../src/runtime/client.ts"
 import {
+	DEFAULT_REQUEST_TIMEOUT_MS,
 	NetworkError,
 	classifyNetworkError,
 	createNetworkGate,
@@ -15,6 +16,7 @@ import {
 	networkRetryWaitMs,
 	probeOrigin,
 	refineNetworkKind,
+	resolveRequestTimeoutMs,
 } from "../src/runtime/network.ts"
 import { formatProgressLine, type ProgressSnapshot } from "../src/runtime/progress.ts"
 import { renderMarkdown, type ReportInput } from "../src/report/render.ts"
@@ -104,6 +106,15 @@ describe("interfaces and kind copy", () => {
 		expect(describeNetworkFailure(err)).toMatch(/5 attempt/)
 		expect(describeNetworkFailure(err)).not.toMatch(/waiting/)
 		expect(describeNetworkFailure(err, 60_000)).toMatch(/60s waiting/)
+	})
+
+	it("defaults a finite per-request timeout and treats 0 as disable", () => {
+		expect(resolveRequestTimeoutMs(undefined)).toBe(DEFAULT_REQUEST_TIMEOUT_MS)
+		expect(resolveRequestTimeoutMs(12_000)).toBe(12_000)
+		expect(resolveRequestTimeoutMs(0)).toBeUndefined()
+		expect(resolveRequestTimeoutMs(-1)).toBeUndefined()
+		expect(resolveRequestTimeoutMs(Number.NaN)).toBeUndefined()
+		expect(resolveRequestTimeoutMs(Number.POSITIVE_INFINITY)).toBeUndefined()
 	})
 })
 

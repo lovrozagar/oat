@@ -4112,6 +4112,18 @@ function submittedFields(body: unknown): Record_ {
 	if (typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams) {
 		return Object.fromEntries(body.entries())
 	}
+	if (
+		body !== null &&
+		typeof body === "object" &&
+		!Array.isArray(body) &&
+		Array.isArray((body as { parts?: unknown }).parts)
+	) {
+		const out: Record_ = {}
+		for (const part of (body as { parts: Array<Record<string, unknown>> }).parts) {
+			if (typeof part.field === "string" && typeof part.value === "string") out[part.field] = part.value
+		}
+		return out
+	}
 	if (body !== null && typeof body === "object" && !Array.isArray(body)) return body as Record_
 	return {}
 }

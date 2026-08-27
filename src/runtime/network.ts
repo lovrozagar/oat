@@ -15,6 +15,15 @@ export type NetworkKind = "offline" | "dns" | "refused" | "reset" | "timeout" | 
 export const DEFAULT_NETWORK_RETRIES = 4
 export const DEFAULT_NETWORK_WAIT_MS = 60_000
 export const DEFAULT_NETWORK_PROBE_MS = 2_000
+/** Per-attempt `AbortSignal` timeout for live `run`. `0` in config disables it. */
+export const DEFAULT_REQUEST_TIMEOUT_MS = 180_000
+
+/** `undefined` (caller omitted) → default. `0` / non-finite / negative → no timeout. */
+export function resolveRequestTimeoutMs(value: number | undefined): number | undefined {
+	if (value === undefined) return DEFAULT_REQUEST_TIMEOUT_MS
+	if (!Number.isFinite(value) || value <= 0) return undefined
+	return value
+}
 
 export class NetworkError extends Error {
 	readonly code = "NETWORK" as const

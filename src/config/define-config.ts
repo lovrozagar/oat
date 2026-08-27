@@ -486,7 +486,10 @@ export interface OatConfig {
 		retries?: number
 		/** Pause-and-probe budget after per-request retries, in ms. `0` skips the wait. */
 		waitMs?: number
-		/** Optional `AbortSignal` timeout per attempt. Unset = wait for the socket (today's behaviour). */
+		/**
+		 * `AbortSignal` timeout per attempt, in ms. Live `run` defaults to 180_000.
+		 * `0` disables it (the request waits for the socket — not recommended for streams).
+		 */
 		requestTimeoutMs?: number
 	}
 }

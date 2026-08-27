@@ -6,7 +6,7 @@ import { CHECKS } from "../src/runtime/checks.ts"
 import { Client } from "../src/runtime/client.ts"
 import { FindingCollector } from "../src/runtime/finding.ts"
 import { run } from "../src/runtime/run.ts"
-import { parseSse, sseEvents } from "../src/runtime/sse.ts"
+import { isSseFrameList, parseSse, SseParser, sseEvents, sseFramesOf } from "../src/runtime/sse.ts"
 import { SchemaValidator } from "../src/runtime/validate.ts"
 import { documentsEventStream } from "../src/spec/collection.ts"
 import { buildModel } from "../src/spec/graph.ts"
@@ -232,6 +232,38 @@ describe("SSE frames", () => {
 		expect(sseEvents({ batch_id: "x" })).toBeNull()
 		expect(sseEvents("not a stream")).toBeNull()
 		expect(sseEvents("data: x\n\n")).toEqual([{ data: "x", event: "message", raw: "x" }])
+		expect(sseEvents([])).toBeNull()
+		expect(sseEvents([{ id: "1" }])).toBeNull()
+		expect(sseEvents(null)).toBeNull()
+		expect(sseEvents([null])).toBeNull()
+		expect(sseEvents([1])).toBeNull()
+		expect(sseEvents([{ data: "x", event: 1 }])).toBeNull()
+		expect(sseEvents([{ event: "x" }])).toBeNull()
+		expect(isSseFrameList("no")).toBe(false)
+		expect(isSseFrameList([{ event: "batch", data: { n: 1 } }])).toBe(true)
+		expect(sseEvents([{ event: "batch", data: { batch_id: "b_1" } }])).toEqual([
+			{ data: { batch_id: "b_1" }, event: "batch", raw: '{"batch_id":"b_1"}' },
+		])
+		expect(sseEvents([{ data: "hello", event: "message" }])?.[0]?.raw).toBe("hello")
+		expect(sseFramesOf([{ data: { n: 1 }, event: "batch", raw: '{"n":1}' }])).toEqual([
+			{ data: { n: 1 }, event: "batch" },
+		])
+	})
+
+	it("parses incrementally across chunk boundaries and leftover lines", () => {
+		const parser = new SseParser()
+		parser.push("id: 1\n")
+		parser.push("data: hel")
+		parser.push("lo\n\n")
+		parser.push("event: note\ndata: last")
+		expect(parser.finish()).toEqual([
+			{ data: "hello", event: "message", raw: "hello" },
+			{ data: "last", event: "note", raw: "last" },
+		])
+		expect(parseSse("data: x")).toEqual([{ data: "x", event: "message", raw: "x" }])
+		expect(parseSse("event: ping\n\n")).toEqual([])
+		expect(parseSse("data\n\n")).toEqual([{ data: "", event: "message", raw: "" }])
+		expect(parseSse("retry: 1000\n\n")).toEqual([])
 	})
 
 	it("resolves idFrom against event JSON, not the raw string", () => {
@@ -318,7 +350,10 @@ describe("stream from text/event-stream", () => {
 		expect(server.polls).not.toContain("b_1")
 		const stream = result.client.transcript.find((e) => new URL(e.url).pathname === "/v1/extract/stream")
 		expect(stream?.status).toBe(200)
-		expect(typeof stream?.responseBody).toBe("string")
+		expect(stream?.responseBody).toEqual([
+			{ data: { batch_id: "b_1" }, event: "batch" },
+			{ data: { status: "complete" }, event: "complete" },
+		])
 	})
 
 	it("polls with the stream batch_id when the stream never emits complete", async () => {

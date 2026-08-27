@@ -4,6 +4,7 @@ export default defineConfig({
 	test: {
 		include: ["test/**/*.test.ts"],
 		testTimeout: 20_000,
+		execArgv: ["--expose-gc"],
 		coverage: {
 			provider: "v8",
 			include: [
@@ -18,6 +19,8 @@ export default defineConfig({
 				"src/runtime/exchanges.ts",
 				"src/runtime/network.ts",
 				"src/runtime/cookies.ts",
+				"src/runtime/sse.ts",
+				"src/runtime/transcript.ts",
 			],
 			thresholds: {
 				lines: 100,

@@ -31,6 +31,7 @@ import {
 	describeNetworkFailure,
 	isNetworkError,
 	probeOrigin,
+	resolveRequestTimeoutMs,
 } from "./network.ts"
 import { type BackoffConfig, resolveBackoff } from "./poll.ts"
 import { type PersistedPrincipal, persistedToPrincipal, snapshotPrincipal } from "./principals.ts"
@@ -104,6 +105,7 @@ export interface RunOptions {
 	network?: {
 		retries?: number
 		waitMs?: number
+		/** Per-attempt abort. Default 180_000. `0` waits for the socket. */
 		requestTimeoutMs?: number
 	}
 }
@@ -467,7 +469,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		},
 		...(options.network?.retries === undefined ? {} : { retries: options.network.retries }),
 		...(options.network?.waitMs === undefined ? {} : { waitMs: options.network.waitMs }),
-		...(options.network?.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: options.network.requestTimeoutMs }),
+		...requestTimeoutOpt(options.network?.requestTimeoutMs),
 	})
 	const { doc } = dereference(raw)
 	const model = buildModel(doc)
@@ -553,7 +555,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	const networkClient = {
 		awaitRecovery: (error: NetworkError) => networkGate.awaitRecovery(error),
 		retries: options.network?.retries ?? DEFAULT_NETWORK_RETRIES,
-		...(options.network?.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: options.network.requestTimeoutMs }),
+		...requestTimeoutOpt(options.network?.requestTimeoutMs),
 	}
 	client = new Client(
 		options.baseUrl,
@@ -1286,6 +1288,11 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		...(journal === null ? {} : { exchanges: { count: journal.count } }),
 		...(networkOutcome === undefined ? {} : { network: networkOutcome }),
 	}
+}
+
+function requestTimeoutOpt(value: number | undefined): { requestTimeoutMs: number } | Record<string, never> {
+	const timeoutMs = resolveRequestTimeoutMs(value)
+	return timeoutMs === undefined ? {} : { requestTimeoutMs: timeoutMs }
 }
 
 async function loadOriginClients(

@@ -26,6 +26,7 @@ import {
 	type NetworkKind,
 } from "./network.ts"
 import { sleep } from "./poll.ts"
+import { isBodyRef, isFormSnapshot, readResponsePayload, releaseTranscriptBodies } from "./transcript.ts"
 
 export interface Exchange {
 	seq: number
@@ -235,7 +236,8 @@ export class Client {
 			let rateLimitHadRoom: boolean | undefined
 			let started: number
 			let response: Response
-			let text: string
+			let parsed: unknown = null
+			let bodyBytes = 0
 			let at = 0
 			try {
 				if (tagged !== undefined) rateLimitHadRoom = await this.rateLimiter?.acquire(tagged)
@@ -256,7 +258,7 @@ export class Client {
 						fetch(target, signal === undefined ? hopInit : { ...hopInit, signal })
 					applyJarToHeaders(hopHeaders, jar, hopUrl)
 					response = await once(hopUrl, { ...init, headers: hopHeaders, method: hopMethod })
-					text = await response.text()
+					;({ parsed, bodyBytes } = await readResponsePayload(response))
 					jar.absorb(hopUrl, setCookieHeadersFrom(response.headers))
 					if (options.redirect === "follow") {
 						while (isRedirectStatus(response.status) && hops.length < MAX_REDIRECTS) {
@@ -283,7 +285,7 @@ export class Client {
 							}
 							if (hopBody !== undefined) nextInit.body = hopBody
 							response = await once(hopUrl, nextInit)
-							text = await response.text()
+							;({ parsed, bodyBytes } = await readResponsePayload(response))
 							jar.absorb(hopUrl, setCookieHeadersFrom(response.headers))
 						}
 					}
@@ -314,6 +316,7 @@ export class Client {
 					}
 					this.transcript.push(failed)
 					await this.onExchange?.(failed)
+					await releaseTranscriptBodies(failed)
 					throw new NetworkError({
 						attempts: attempt + 1,
 						cause: error,
@@ -328,16 +331,6 @@ export class Client {
 			} finally {
 				this.release()
 			}
-			const contentType = response.headers.get("content-type") ?? ""
-			let parsed: unknown = text
-			if (!contentType.includes("text/event-stream")) {
-				try {
-					parsed = text === "" ? null : JSON.parse(text)
-				} catch {
-					/* keep the raw text — a non-JSON body is itself evidence */
-				}
-			}
-
 			this.seq += 1
 			const responseHeaders = recordResponseHeaders(response.headers)
 			const cookies = jar.snapshot()
@@ -351,7 +344,7 @@ export class Client {
 				requestHeaders: headers,
 				requestId: requestIdOf(headers, responseHeaders),
 				responseBody: parsed,
-				responseBytes: responseMessageBytes(response.status, response.statusText, responseHeaders, text),
+				responseBytes: responseMessageBytes(response.status, response.statusText, responseHeaders, bodyBytes),
 				responseHeaders,
 				seq: this.seq,
 				status: response.status,
@@ -366,6 +359,7 @@ export class Client {
 			}
 			this.transcript.push(exchange)
 			await this.onExchange?.(exchange)
+			await releaseTranscriptBodies(exchange)
 			return exchange
 		}
 
@@ -453,13 +447,23 @@ export function toCurl(exchange: Exchange, options: CurlOptions = {}): string {
 }
 
 function curlBodyFlags(body: unknown): string[] {
-	if (isFormData(body)) {
+	if (isFormData(body) || isFormSnapshot(body)) {
 		const flags: string[] = []
-		for (const [name, value] of body.entries()) {
-			if (typeof value === "string") {
-				flags.push(`  -F '${name}=${value.replace(/'/g, `'\\''`)}'`)
+		if (isFormData(body)) {
+			for (const [name, value] of body.entries()) {
+				if (typeof value === "string") {
+					flags.push(`  -F '${name}=${value.replace(/'/g, `'\\''`)}'`)
+				} else {
+					flags.push(`  -F '${name}=@${value.name};type=${value.type || "application/octet-stream"}'`)
+				}
+			}
+			return flags
+		}
+		for (const part of body.parts) {
+			if ("value" in part) {
+				flags.push(`  -F '${part.field}=${part.value.replace(/'/g, `'\\''`)}'`)
 			} else {
-				flags.push(`  -F '${name}=@${value.name};type=${value.type || "application/octet-stream"}'`)
+				flags.push(`  -F '${part.field}=@${part.filename};type=${part.mediaType}'`)
 			}
 		}
 		return flags
@@ -470,7 +474,7 @@ function curlBodyFlags(body: unknown): string[] {
 	if (typeof body === "string") {
 		return [`  -d '${body.replace(/'/g, `'\\''`)}'`]
 	}
-	if (isRawBytes(body)) {
+	if (isRawBytes(body) || isBodyRef(body)) {
 		return [`  --data-binary @-`]
 	}
 	return [`  -d '${JSON.stringify(body).replace(/'/g, `'\\''`)}'`]
@@ -598,22 +602,28 @@ function responseMessageBytes(
 	status: number,
 	statusText: string,
 	headers: Record<string, string>,
-	body: string,
+	bodyBytes: number,
 ): number {
 	const sent = { ...headers }
-	if (body !== "" && !hasHeader(sent, "content-length")) sent["content-length"] = String(utf8Bytes(body))
+	if (bodyBytes > 0 && !hasHeader(sent, "content-length")) sent["content-length"] = String(bodyBytes)
 	const start = statusText === "" ? `HTTP/1.1 ${status}` : `HTTP/1.1 ${status} ${statusText}`
-	return httpMessageBytes(start, sent, body)
+	return httpMessageBytes(start, sent, undefined, bodyBytes)
 }
 
-function httpMessageBytes(startLine: string, headers: Record<string, string>, body: string | undefined): number {
+function httpMessageBytes(
+	startLine: string,
+	headers: Record<string, string>,
+	body: string | undefined,
+	bodyBytes = 0,
+): number {
 	let text = `${startLine}\r\n`
 	for (const [key, value] of Object.entries(headers)) {
 		text += `${key}: ${value}\r\n`
 	}
 	text += `\r\n`
 	if (body !== undefined) text += body
-	return new TextEncoder().encode(text).byteLength
+	const headerBytes = new TextEncoder().encode(text).byteLength
+	return body === undefined ? headerBytes + bodyBytes : headerBytes
 }
 
 const REQUEST_ID_HEADERS = ["x-request-id", "request-id", "x-correlation-id", "correlation-id"] as const
@@ -630,8 +640,17 @@ export function describeRequestBody(body: unknown): unknown {
 		}
 		return parts
 	}
+	if (isFormSnapshot(body)) {
+		const parts: Record<string, unknown> = {}
+		for (const part of body.parts) {
+			if ("value" in part) parts[part.field] = part.value
+			else parts[part.field] = { bytes: part.bytes, filename: part.filename, mediaType: part.mediaType }
+		}
+		return parts
+	}
 	if (isURLSearchParams(body)) return body.toString()
 	if (isRawBytes(body)) return { bytes: bodyByteLength(body) }
+	if (isBodyRef(body)) return { bytes: body.bytes, mediaType: body.mediaType, sha256: body.sha256 }
 	return body
 }
 

@@ -129,13 +129,18 @@ describe("encode + client", () => {
 				contentType: encoded.contentType,
 			})
 
-			expect(exchange.requestBody).toBeInstanceOf(FormData)
+			expect(exchange.requestBody).toMatchObject({
+				parts: expect.arrayContaining([
+					expect.objectContaining({ field: "text", value: "invoice text" }),
+					expect.objectContaining({ field: "file", mediaType: "application/pdf" }),
+				]),
+			})
 			expect(exchange.requestHeaders["content-type"]).toBeUndefined()
-			const file = (exchange.requestBody as FormData).get("file")
-			expect(file).toBeInstanceOf(File)
-			expect((file as File).size).toBeGreaterThan(0)
-			const bytes = new Uint8Array(await (file as File).arrayBuffer())
-			expect(Buffer.from(bytes.subarray(0, 5)).toString("ascii")).toBe("%PDF-")
+			const filePart = (exchange.requestBody as { parts: Array<Record<string, unknown>> }).parts.find(
+				(part) => part.field === "file",
+			)
+			expect(filePart).toMatchObject({ field: "file", mediaType: "application/pdf" })
+			expect(Number(filePart?.bytes)).toBeGreaterThan(0)
 
 			expect(last().contentType).toMatch(/^multipart\/form-data;/)
 			expect(last().contentType).not.toContain("application/json")
@@ -268,7 +273,7 @@ describe("encode + client", () => {
 				body: encoded.body,
 				contentType: encoded.contentType,
 			})
-			expect(exchange.requestBody).toBeInstanceOf(URLSearchParams)
+			expect(exchange.requestBody).toEqual({ password: "<redacted>", username: "oat" })
 			expect(exchange.requestHeaders["content-type"]).toBe("application/x-www-form-urlencoded")
 			expect(last().contentType).toContain("application/x-www-form-urlencoded")
 			expect(last().raw).toContain("username=oat")

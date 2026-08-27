@@ -255,17 +255,17 @@ oat help
 
 Requires `--config`. CLI flags override the same field in the config when both are set.
 
-| flag                                       | default                          | meaning                                                                                   |
-| ------------------------------------------ | -------------------------------- | ----------------------------------------------------------------------------------------- |
-| `--config`                                 | required                         | module or JSON file, default export                                                       |
-| `--base-url`                               | `config.baseUrl`                 | backend origin                                                                            |
-| `--only`                                   | `config.only` or all entities    | comma-separated entity names as `oat plan` prints them (singularised)                     |
-| `--seed`                                   | `config.seed` or `1`             | fixture generation seed (reproducible)                                                    |
-| `--out`                                    | `config.outDir` or `./.oat/runs` | history root; each run writes `<out>/<datetime>/` and updates `latest`                    |
-| `--max-in-flight`                          | `config.maxInFlight` or `4`      | HTTP requests allowed at once                                                             |
-| `--keep-fixtures`                          | `config.keepFixtures` or false   | do not DELETE what the run created                                                        |
-| `--quiet`                                  | false                            | no stderr progress; files under `--out` still update                                      |
-| `--save-exchanges` / `--no-save-exchanges` | on unless `--profile cheap`      | persist every HTTP exchange under the run dir (`exchanges.jsonl`, `exchanges/`, `blobs/`) |
+| flag                                       | default                          | meaning                                                                                                                                 |
+| ------------------------------------------ | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `--config`                                 | required                         | module or JSON file, default export                                                                                                     |
+| `--base-url`                               | `config.baseUrl`                 | backend origin                                                                                                                          |
+| `--only`                                   | `config.only` or all entities    | comma-separated entity names as `oat plan` prints them (singularised)                                                                   |
+| `--seed`                                   | `config.seed` or `1`             | fixture generation seed (reproducible)                                                                                                  |
+| `--out`                                    | `config.outDir` or `./.oat/runs` | history root; each run writes `<out>/<datetime>/` and updates `latest`                                                                  |
+| `--max-in-flight`                          | `config.maxInFlight` or `4`      | HTTP requests allowed at once                                                                                                           |
+| `--keep-fixtures`                          | `config.keepFixtures` or false   | do not DELETE what the run created                                                                                                      |
+| `--quiet`                                  | false                            | no stderr progress; files under `--out` still update                                                                                    |
+| `--save-exchanges` / `--no-save-exchanges` | on unless `--profile cheap`      | persist every HTTP exchange under the run dir (`exchanges.jsonl`, `exchanges/`, `blobs/`). Does **not** change in-memory transcript RAM |
 
 **Exit codes:** `0` no defects, `1` at least one root-cause finding (`BACKEND_BUG`, `SPEC_BUG`, `SECURITY`, `AMBIGUITY`) **or** the run stopped because the network never came back, `2` usage error (missing `--config`, no principals, unknown flag). `COVERAGE_GAP` and `BLOCKED` do not fail the process.
 
@@ -459,27 +459,27 @@ export default defineConfig({
 })
 ```
 
-| field           | required | default                                        | notes                                                                                                                                       |
-| --------------- | -------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `spec`          | yes      |                                                | See [Spec loading](#spec-loading)                                                                                                           |
-| `baseUrl`       | yes      |                                                | Primary origin. OpenAPI `servers[]` is ignored                                                                                              |
-| `principals`    | yes      |                                                | Non-empty. First is the writer                                                                                                              |
-| `hooks`         | no       |                                                | See [Hooks](#hooks)                                                                                                                         |
-| `uploads`       | no       |                                                | `pool` globs; optional `each` (operationId → globs) and `eachMax`. JSON configs may set all three                                           |
-| `globalHeaders` | no       | `{}`                                           | Merged first. `resolveHeaders` then caller headers then auth                                                                                |
-| `origins`       | no       | `[]`                                           | Extra `{ id, baseUrl, spec }` hosts. Auth JWT is reused. Do not merge those routes into `spec`                                              |
-| `outOfBand`     | no       | `{ attempts: 6, initialMs: 200, maxMs: 3000 }` | Backoff for `resolveOutOfBand` and `resolvePrincipalAuth`. See [Hooks](#hooks)                                                              |
-| `roots`         | no       | `{}`                                           | Shared path params (merged with each principal's `roots`)                                                                                   |
-| `seed`          | no       | `1`                                            | Integer. Same seed → same fixture bodies                                                                                                    |
-| `cohortSize`    | no       | `7`                                            | Sliced from the 7 built-in variants. Larger repeats the pattern                                                                             |
-| `maxInFlight`   | no       | `4`                                            | Across the whole run                                                                                                                        |
-| `only`          | no       | all                                            | Entity names from `oat plan`                                                                                                                |
-| `keepFixtures`  | no       | `false`                                        | Skip DELETE at the end                                                                                                                      |
-| `outDir`        | no       | `./.oat/runs`                                  | History root. Each run writes `<outDir>/<datetime>/` and updates `latest`. Also writes `principals.json` after acquire                      |
-| `saveExchanges` | no       | on unless `profile` is `cheap`                 | Persist every HTTP exchange under the run dir. `--save-exchanges` / `--no-save-exchanges` override. `--quiet` does not                      |
-| `network`       | no       | `{ retries: 4, waitMs: 60000 }`                | When `fetch` throws (offline / DNS / reset / timeout): retry, then wait once for the link. Not a 5xx policy. `requestTimeoutMs` is optional |
-| `query`         | no       |                                                | Global query-catalog defaults. Overlay after `x-query`. Does not invent operators                                                           |
-| `entities`      | no       |                                                | Per-entity overlays. This release only reads `query`. Unknown names are ignored; `doctor` warns                                             |
+| field           | required | default                                                   | notes                                                                                                                                                           |
+| --------------- | -------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `spec`          | yes      |                                                           | See [Spec loading](#spec-loading)                                                                                                                               |
+| `baseUrl`       | yes      |                                                           | Primary origin. OpenAPI `servers[]` is ignored                                                                                                                  |
+| `principals`    | yes      |                                                           | Non-empty. First is the writer                                                                                                                                  |
+| `hooks`         | no       |                                                           | See [Hooks](#hooks)                                                                                                                                             |
+| `uploads`       | no       |                                                           | `pool` globs; optional `each` (operationId → globs) and `eachMax`. JSON configs may set all three                                                               |
+| `globalHeaders` | no       | `{}`                                                      | Merged first. `resolveHeaders` then caller headers then auth                                                                                                    |
+| `origins`       | no       | `[]`                                                      | Extra `{ id, baseUrl, spec }` hosts. Auth JWT is reused. Do not merge those routes into `spec`                                                                  |
+| `outOfBand`     | no       | `{ attempts: 6, initialMs: 200, maxMs: 3000 }`            | Backoff for `resolveOutOfBand` and `resolvePrincipalAuth`. See [Hooks](#hooks)                                                                                  |
+| `roots`         | no       | `{}`                                                      | Shared path params (merged with each principal's `roots`)                                                                                                       |
+| `seed`          | no       | `1`                                                       | Integer. Same seed → same fixture bodies                                                                                                                        |
+| `cohortSize`    | no       | `7`                                                       | Sliced from the 7 built-in variants. Larger repeats the pattern                                                                                                 |
+| `maxInFlight`   | no       | `4`                                                       | Across the whole run                                                                                                                                            |
+| `only`          | no       | all                                                       | Entity names from `oat plan`                                                                                                                                    |
+| `keepFixtures`  | no       | `false`                                                   | Skip DELETE at the end                                                                                                                                          |
+| `outDir`        | no       | `./.oat/runs`                                             | History root. Each run writes `<outDir>/<datetime>/` and updates `latest`. Also writes `principals.json` after acquire                                          |
+| `saveExchanges` | no       | on unless `profile` is `cheap`                            | Persist every HTTP exchange under the run dir. `--save-exchanges` / `--no-save-exchanges` override. `--quiet` does not                                          |
+| `network`       | no       | `{ retries: 4, waitMs: 60000, requestTimeoutMs: 180000 }` | When `fetch` throws (offline / DNS / reset / timeout): retry, then wait once for the link. Not a 5xx policy. `requestTimeoutMs: 0` disables the per-attempt cap |
+| `query`         | no       |                                                           | Global query-catalog defaults. Overlay after `x-query`. Does not invent operators                                                                               |
+| `entities`      | no       |                                                           | Per-entity overlays. This release only reads `query`. Unknown names are ignored; `doctor` warns                                                                 |
 
 `spec` may be a path relative to `baseUrl` (`/v1/openapi/spec`) or an absolute URL or a file.
 
@@ -880,6 +880,8 @@ Multipart and binary parts are filled in this order:
 4. A tiny dummy with sniffable magic (`%PDF-1.1`, 1×1 PNG, empty zip, …). Unknown types become 16 octet-stream bytes, not a skip.
 
 `uploads.each` is a matrix, not a source. `operationId → globs` means that operation is invoked once per matched file (after `eachMax`). Same seed does **not** collapse `each`. A hook that ignores `request.fixture` and always returns the same file will send that file N times.
+
+Each invocation is still a citeable hop (method, URL, status, fixture name, content-addressed body). Live `FormData` / `Blob` payloads are **not** kept on `Client.transcript` for the rest of the run — they are replaced with `{ sha256, bytes, mediaType }` (and multipart `{ parts }`) after the hop is journaled, or immediately when the journal is off. Fan-out therefore multiplies requests, not retained fixture bytes.
 
 ```ts
 export default defineConfig({
@@ -1728,9 +1730,9 @@ Written under `--out` (default `./.oat/runs`). Each invocation creates a UTC tim
 | `exchanges/<requestId>.json` | full exchange: status, headers, described bodies. Missing id → `seq-<n>.json`. Duplicate id → `-<seq>` |
 | `blobs/<sha256>`             | content-addressed file parts and oversized / binary bodies                                             |
 
-The journal is oat `Exchange` JSON, not HAR (HAR export is out of scope). Default **on** unless `--profile cheap`. `--no-save-exchanges` skips `exchanges/` entirely. `--quiet` does not.
+The journal is oat `Exchange` JSON, not HAR (HAR export is out of scope). Default **on** unless `--profile cheap`. `--no-save-exchanges` skips `exchanges/` entirely. `--quiet` does not. **`--no-save-exchanges` does not reduce transcript RAM** — it only skips the disk journal. The in-memory transcript always drops live `FormData` / `Blob` / `ArrayBuffer` / multi-MiB strings after each hop, keeping citeable metadata and content-addressed body descriptors. Reconstruct bytes from `blobs/<sha256>` when a check genuinely needs them.
 
-Bodies are described, never base64 multipart. JSON / text inline up to 256 KiB, then `blobs/<sha256>`. `FormData` file parts and binary downloads (`application/pdf`, spreadsheet, image, `octet-stream`) are always blobs; the same fixture bytes POSTed N times share one file. SSE is stored as parsed `{ event, data }[]` frames.
+Bodies are described, never base64 multipart. JSON / text inline up to 256 KiB, then `blobs/<sha256>`. `FormData` file parts and binary downloads (`application/pdf`, spreadsheet, image, `octet-stream`) are always blobs; the same fixture bytes POSTed N times share one file. SSE is parsed incrementally into `{ event, data }[]` frames — the raw `text/event-stream` concatenation is not retained on the transcript.
 
 Redaction is on by default (not opt-in), applied on write:
 
@@ -1880,7 +1882,9 @@ Every HTTP call emits a **start** line (`status=in_flight`, `http=-`, `last_ms=-
 
 Lines are also written when the phase/entity/check/message changes, or every 2 s, or on `load`/`done`. `progress.json` is rewritten about once a second.
 
-If `idle_ms` climbs through a long poll (`x-async`) that is expected. If it climbs on a simple GET while `status` is not `in_flight`, the process or the network is stuck. oat's own `fetch` has **no timeout**.
+If `idle_ms` climbs through a long poll (`x-async`) that is expected. If it climbs on a simple GET while `status` is not `in_flight`, the process or the network is stuck. Live `run` aborts a single `fetch` after `network.requestTimeoutMs` (default **180s**). A hung `text/event-stream` becomes `net.unreachable` (`kind=timeout`), not an unbounded buffer on the transcript. Set `requestTimeoutMs: 0` only if you intend to wait for the socket.
+
+Bun and Node both honour that timeout. If oat still runs away with RAM (a bug, or a caller holding the process open), treat the process like any other prefer-kill target for `earlyoom` / systemd — Bun is often **not** in a default `--prefer` list.
 
 ## Programmatic API
 
@@ -2040,7 +2044,7 @@ oat run --config labs/local.config.ts --base-url <url>
 
 These are deliberate. An agent should not invent a flag for them.
 
-- **No request timeout by default.** `fetch` waits until the server answers unless `network.requestTimeoutMs` is set. Watch `status=in_flight` and `idle_ms` on that request.
+- **Default request timeout is 180s.** `network.requestTimeoutMs` (per attempt) aborts a stuck `fetch`, including a hung stream. `0` disables it. Watch `status=in_flight` and `idle_ms` as that budget is consumed.
 - **No retry on 5xx.** 429 is retried (up to 5, honouring `Retry-After`). One 401 → force refresh + single retry. A second 401 is evidence.
 - **Network throws are not HTTP.** Offline / DNS / reset / timeout: 4 retries, then one wait (default 60s) for the link. If it does not come back, `net.unreachable` is recorded, remaining work stands down, the report is still written, exit `1`. Progress `status=network`. Failed attempts are journaled as `status: 0` with `{ error: "network", kind }`.
 - **No OpenAPI `security`.** Put credentials in `principals`. Cookie auth is a `headers: { cookie: "…" }` (or a flow that sets that header / `saveAs: { credential: "cookie:session" }`). oat does not grow OpenAPI cookie `securitySchemes`.

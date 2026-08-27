@@ -300,6 +300,51 @@ describe("exchange journal", () => {
 		expect(existsSync(join(dir, "exchanges/dup-3-2.json"))).toBe(true)
 	})
 
+	it("passes through already-compacted body refs and form snapshots", async () => {
+		const dir = await scratch()
+		const journal = createExchangeJournal(dir)
+		const ref = { bytes: 3, mediaType: "text/plain", sha256: "abc" }
+		await journal.record(
+			exchange({
+				method: "POST",
+				requestBody: ref,
+				requestId: "ref-1",
+				responseBody: ref,
+				responseHeaders: { "content-type": "text/plain" },
+				seq: 1,
+			}),
+		)
+		const snap = { parts: [{ field: "title", value: "scan" }] }
+		await journal.record(exchange({ method: "POST", requestBody: snap, requestId: "snap-1", seq: 2 }))
+		const file = JSON.parse(await readFile(join(dir, "exchanges/ref-1.json"), "utf8")) as {
+			requestBody: unknown
+			responseBody: unknown
+		}
+		expect(file.requestBody).toEqual(ref)
+		expect(file.responseBody).toEqual(ref)
+		const snapFile = JSON.parse(await readFile(join(dir, "exchanges/snap-1.json"), "utf8")) as {
+			requestBody: unknown
+		}
+		expect(snapFile.requestBody).toEqual(snap)
+	})
+
+	it("stores already-parsed SSE frames with redaction", async () => {
+		const dir = await scratch()
+		const journal = createExchangeJournal(dir)
+		await journal.record(
+			exchange({
+				requestId: "sse-frames",
+				responseBody: [{ data: { access_token: "nope", n: 1 }, event: "batch" }],
+				responseHeaders: { "content-type": "text/event-stream" },
+				seq: 1,
+			}),
+		)
+		const file = JSON.parse(await readFile(join(dir, "exchanges/sse-frames.json"), "utf8")) as {
+			responseBody: unknown
+		}
+		expect(file.responseBody).toEqual([{ data: { access_token: "<redacted>", n: 1 }, event: "batch" }])
+	})
+
 	it("stores SSE as parsed frames, not a raw dump", async () => {
 		const dir = await scratch()
 		const journal = createExchangeJournal(dir)

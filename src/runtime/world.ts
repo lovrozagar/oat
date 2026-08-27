@@ -327,6 +327,7 @@ export async function seedCohort(
 			...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),
 			headers: options.authHeaders,
 			operationId: createOp.operationId,
+			...(nextUploads.fixture === undefined ? {} : { fixture: nextUploads.fixture.filename }),
 		})
 	}
 
