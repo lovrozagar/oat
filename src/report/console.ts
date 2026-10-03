@@ -9,6 +9,7 @@
 import type { EntityConfig, OatConfig, QueryCapabilities } from "../config/define-config.ts"
 import { formatUniqueSets } from "../spec/extensions.ts"
 import type { EntityModel, SpecModel } from "../spec/graph.ts"
+import { describeRequested, type ScopePlan } from "../runtime/scope.ts"
 import { canWriteFilterOp } from "../spec/conventions.ts"
 import {
 	anyFieldAllows,
@@ -111,13 +112,14 @@ function lifecycleGlyphs(entity: EntityModel): string {
 	return slots.map(([letter, opId]) => (opId === undefined ? "·" : letter)).join("")
 }
 
-function plan(model: SpecModel, asJson: boolean): string {
+function plan(model: SpecModel, asJson: boolean, scope?: ScopePlan): string {
 	if (asJson) {
 		return `${JSON.stringify(
 			{
 				entities: [...model.entities.values()],
 				operations: model.operations,
 				roots: model.roots,
+				...(scope === undefined ? {} : { scope }),
 				unique: [...model.entities.values()]
 					.filter((entity) => entity.unique !== null)
 					.map((entity) => ({ entity: entity.name, unique: entity.unique })),
@@ -126,6 +128,8 @@ function plan(model: SpecModel, asJson: boolean): string {
 			2,
 		)}\n`
 	}
+
+	if (scope !== undefined) return planScopeText(scope)
 
 	const lines: string[] = []
 	const entities = [...model.entities.values()].sort((a, b) => a.name.localeCompare(b.name))
@@ -177,6 +181,34 @@ function plan(model: SpecModel, asJson: boolean): string {
 		}
 	}
 
+	lines.push("")
+	return lines.join("\n")
+}
+
+/** What a targeted run would grade, queue and call — the dry run behind `oat plan --ops`. */
+function planScopeText(scope: ScopePlan): string {
+	const lines: string[] = ["", `  scope: targeted (${describeRequested(scope.requested)})`, ""]
+	const width = Math.max(12, ...[...scope.targets, ...scope.untestable].map((t) => t.operationId.length)) + 2
+	lines.push("  targets")
+	if (scope.targets.length === 0) lines.push("    — none gradable")
+	for (const target of scope.targets) {
+		lines.push(
+			`    ${target.operationId.padEnd(width)}entity ${(target.entity ?? "—").padEnd(14)}${target.checks.length} check(s)`,
+		)
+	}
+	if (scope.untestable.length > 0) {
+		lines.push("  untestable — a run reports these untested and exits 1")
+		for (const item of scope.untestable) lines.push(`    ${item.operationId.padEnd(width)}${item.reason}`)
+	}
+	if (scope.excluded.length > 0) {
+		lines.push("  excluded by the profile")
+		for (const item of scope.excluded) lines.push(`    ${item.operationId.padEnd(width)}${item.reason}`)
+	}
+	for (const [origin, ops] of Object.entries(scope.origins)) {
+		lines.push(`  origin ${origin}: ${ops.join(", ")}`)
+	}
+	lines.push(`  entities queued: ${scope.entities.length === 0 ? "none" : scope.entities.join(", ")}`)
+	lines.push(`  support (called, never graded): ${scope.support.length === 0 ? "none" : scope.support.join(", ")}`)
 	lines.push("")
 	return lines.join("\n")
 }

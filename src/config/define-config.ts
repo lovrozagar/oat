@@ -443,8 +443,14 @@ export interface OatConfig {
 	cohortSize?: number
 	/** Requests allowed in flight at once. Past a server's comfort this makes runs slower. */
 	maxInFlight?: number
-	/** Restrict the run to these entity names. */
+	/** Grade every operation these entities own, and nothing else. Joins `ops` as a union. */
 	only?: string[]
+	/**
+	 * Grade only these operationIds; every other operation is support — called to reach or observe
+	 * a target, never graded. `*` globs within an id (`row.*`); `<originId>:<operationId>` targets a
+	 * secondary origin. `--ops` on the CLI replaces this list.
+	 */
+	ops?: string[]
 	/**
 	 * Named profiles this run can select between, keyed by name. `"full"` and `"cheap"` exist
 	 * implicitly and need no entry here; add one only for a profile a cost band can't express.

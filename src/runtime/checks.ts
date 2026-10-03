@@ -23,7 +23,7 @@ import {
 	opsForField,
 } from "../spec/query-capabilities.ts"
 import { requestContent } from "../spec/collection.ts"
-import type { OperationModel, SpecModel } from "../spec/graph.ts"
+import type { EntityModel, OperationModel, SpecModel } from "../spec/graph.ts"
 import { pathTemplateMatches } from "../spec/load.ts"
 import type { OperationObject } from "../spec/types.ts"
 import { encodeForOperation } from "./body.ts"
@@ -125,6 +125,25 @@ export interface CheckContext {
 	waitOps: OperationModel[]
 	hooks: Hooks
 	outOfBand: BackoffConfig
+	/**
+	 * Whether an operation is graded by this run. Always true on a full run. Checks that judge
+	 * several operations consult it before invoking or judging one. Optional so a hand-built
+	 * context still works.
+	 */
+	inScope?: (op: OperationModel) => boolean
+	/**
+	 * Narrows what this check graded to the operations it actually judged. A check that judges
+	 * after the fact — from whatever the transcript happens to hold — calls it, so an operation
+	 * nothing ever exercised is not reported as held. Checks that invoke their subjects need not.
+	 */
+	judged?: (operationIds: readonly string[]) => void
+}
+
+const graded = (ctx: CheckContext, op: OperationModel): boolean => ctx.inScope?.(op) ?? true
+
+/** The context a multi-operation check uses for one subject: its findings land on that operation. */
+function forOperation(ctx: CheckContext, op: OperationModel): CheckContext {
+	return { ...ctx, findings: ctx.findings.attributed([op.operationId]) }
 }
 
 export interface Check {
@@ -152,7 +171,58 @@ export interface Check {
 	 * the backend.
 	 */
 	mutates?: boolean
+	/**
+	 * Operations whose contract this check judges, decided from the entity graph alone.
+	 *
+	 * Static so `oat plan --ops` can show a scope without a network, and so a targeted run can
+	 * queue only the entities whose checks grade a target. Every other operation a check calls is
+	 * support: needed to reach or observe a subject, never graded itself. Required, so a new check
+	 * cannot run invisibly under `--ops`.
+	 */
+	subjects: (entity: EntityModel, model: SpecModel) => string[]
 	run: (ctx: CheckContext) => Promise<void>
+}
+
+const declared = (...operationIds: Array<string | undefined>): string[] =>
+	operationIds.filter((id): id is string => id !== undefined && id !== "")
+
+const ownOps = (entity: EntityModel, model: SpecModel, keep: (op: OperationModel) => boolean): string[] =>
+	model.operations.filter((op) => op.entity === entity.name && keep(op)).map((op) => op.operationId)
+
+/** Subject sets shared by the registry. Each reads the same fields the check's context is built from. */
+export const subjectsOf = {
+	async: (entity: EntityModel, model: SpecModel): string[] => ownOps(entity, model, (op) => op.async !== null),
+	asyncReceipt: (entity: EntityModel, model: SpecModel): string[] =>
+		ownOps(entity, model, (op) => op.async?.idFrom !== undefined),
+	create: (entity: EntityModel): string[] => declared(entity.create),
+	createAndForeignReads: (entity: EntityModel, model: SpecModel): string[] => {
+		const create = model.byOperationId.get(entity.create ?? "")
+		if (create === undefined) return []
+		const foreign = create.invalidates
+			.map((route) => model.byRoute.get(route))
+			.filter(
+				(op): op is OperationModel =>
+					op !== undefined && op.entity !== entity.name && op.method.toUpperCase() === "GET",
+			)
+			.map((op) => op.operationId)
+		return [create.operationId, ...foreign]
+	},
+	createAndList: (entity: EntityModel): string[] => declared(entity.create, entity.list),
+	delete: (entity: EntityModel): string[] => declared(entity.delete),
+	deleteAndList: (entity: EntityModel): string[] => declared(entity.delete, entity.list),
+	effects: (entity: EntityModel, model: SpecModel): string[] => ownOps(entity, model, (op) => op.effects.length > 0),
+	invite: (entity: EntityModel): string[] =>
+		entity.invite === null ? [] : declared(entity.invite.invite, entity.invite.accept, entity.invite.revoke),
+	list: (entity: EntityModel): string[] => declared(entity.list),
+	nonCreate: (entity: EntityModel, model: SpecModel): string[] => ownOps(entity, model, (op) => op.action !== "create"),
+	read: (entity: EntityModel): string[] => declared(entity.read),
+	readAndGated: (entity: EntityModel, model: SpecModel): string[] => [
+		...new Set([...declared(entity.read), ...ownOps(entity, model, (op) => op.featureGate !== null)]),
+	],
+	readAndList: (entity: EntityModel): string[] => declared(entity.read, entity.list),
+	update: (entity: EntityModel): string[] => declared(entity.update),
+	waits: (entity: EntityModel, model: SpecModel): string[] => ownOps(entity, model, (op) => op.wait !== null),
+	writeAndRead: (entity: EntityModel): string[] => declared(entity.update ?? entity.create, entity.read),
 }
 
 /* ------------------------------------------------------------------- helpers */
@@ -684,6 +754,7 @@ const readAfterWrite: Check = {
 	mutates: true,
 	id: "list.read-after-write",
 	needs: "a create operation and at least one seeded record",
+	subjects: subjectsOf.createAndList,
 	async run(ctx) {
 		const target = ctx.records[0]
 		if (target === undefined) return
@@ -779,6 +850,7 @@ const unknownFilterRejected: Check = {
 	applicable: (ctx) => conv(ctx).filter !== undefined,
 	id: "filter.unknown-field-rejected",
 	needs: "a way to express a filter — a filter expression parameter, or filterable fields",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const baseline = await list(ctx, q(ctx, { limit: 100 }))
 		const unknownField = filterTerm(conv(ctx), "oat_no_such_field_xyz", "eq", 1)
@@ -817,6 +889,7 @@ const equalityFilterSelectsOne: Check = {
 	dependsOn: ["list.read-after-write"],
 	id: "filter.equality-selects-exactly-one",
 	needs: "a `filter` parameter that accepts the identity field",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const target = ctx.records[0]
 		if (target === undefined) return
@@ -846,6 +919,7 @@ const zeroMatchFilter: Check = {
 	dependsOn: ["list.read-after-write"],
 	id: "filter.zero-match-returns-none",
 	needs: "a `filter` parameter that accepts the identity field",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const term = filterTerm(conv(ctx), filterIdentity(ctx), "eq", "oat-nonexistent-value-000")
 		if (term === null) return
@@ -876,6 +950,7 @@ const negationPartitions: Check = {
 	],
 	id: "filter.negation-partitions-the-set",
 	needs: "a `filter` parameter supporting eq and neq",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const target = ctx.records[0]
 		if (target === undefined) return
@@ -976,6 +1051,7 @@ const filterAndComposesAsIntersection: Check = {
 	],
 	id: "filter.and-composes-as-intersection",
 	needs: "two filterable fields and a filter parameter or grammar supporting eq",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const conventions = conv(ctx)
 		const picked = twoFilterableFields(ctx)
@@ -1063,6 +1139,7 @@ const filterOrComposesAsUnion: Check = {
 	],
 	id: "filter.or-composes-as-union",
 	needs: "two filterable fields and an or() combinator (postgrest-shaped filter grammar)",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const conventions = conv(ctx)
 		const picked = twoFilterableFields(ctx)
@@ -1145,6 +1222,7 @@ const sortReverseSymmetry: Check = {
 	],
 	id: "sort.reverse-symmetry",
 	needs: "an `order` parameter supporting asc and desc",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		/* A nullable sort key exercises null ordering, where the interesting bugs live. */
 		const field =
@@ -1227,6 +1305,7 @@ const pageWalkCoversSet: Check = {
 	],
 	id: "pagination.page-walk-covers-set",
 	needs: "a way to page forward — a page number or a row offset — and at least three records",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const limit = ctx.query?.maxLimit ?? 100
 		/* Walk under a low-cardinality sort. Distinct keys admit exactly one valid order, so an
@@ -1300,6 +1379,7 @@ const cursorAgreesWithPage: Check = {
 	],
 	id: "pagination.cursor-agrees-with-page",
 	needs: "both `cursor` and `page` parameters",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		/* Walk under an explicit text sort. Cursor pagination is almost always used with one, and
 		 * a boundary resolved under a different collation than the listing can only diverge when
@@ -1367,6 +1447,7 @@ const countIsConsistentWithPage: Check = {
 	dependsOn: ["list.read-after-write"],
 	id: "count.consistent-with-returned-page",
 	needs: "a total-count field in the list envelope",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const result = await list(ctx, q(ctx, { limit: ctx.query?.maxLimit ?? 100 }))
 		if (result.exchange.status >= 400) return
@@ -1397,6 +1478,7 @@ const countMatchesWalk: Check = {
 	dependsOn: ["list.read-after-write", "filter.equality-selects-exactly-one"],
 	id: "count.matches-filtered-set",
 	needs: "a total-count field and a `filter` parameter",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		if (!identityIsFilterable(ctx)) return
 		const target = ctx.records[0]
@@ -1424,6 +1506,7 @@ const selectProjection: Check = {
 	applicable: (ctx) => conv(ctx).select !== undefined && ctx.records.length > 0,
 	id: "select.projection-honoured",
 	needs: "a `select` sparse-fieldset parameter",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const requested = [ctx.identity]
 		const extra = ctx.query?.selectable.find((f) => f !== ctx.identity)
@@ -1457,6 +1540,7 @@ const patchMinimality: Check = {
 	mutates: true,
 	id: "patch.minimality",
 	needs: "an update operation and an item route",
+	subjects: subjectsOf.update,
 	async run(ctx) {
 		const target = ctx.records.find((r) => Object.values(r).some((v) => typeof v === "string"))
 		if (target === undefined || ctx.updateOp === undefined || ctx.readOp === undefined) return
@@ -1586,6 +1670,7 @@ const immutableRejected: Check = {
 	mutates: true,
 	id: "patch.immutable-field-rejected",
 	needs: "fields declared immutable via x-immutable",
+	subjects: subjectsOf.update,
 	async run(ctx) {
 		/*
 		 * Deliberately not `records[0]`.
@@ -1638,6 +1723,7 @@ const likeEscaping: Check = {
 	dependsOn: ["list.read-after-write"],
 	id: "filter.like-metacharacters-escaped",
 	needs: "a `filter` parameter supporting a like operator",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const field = firstFilterable(ctx, (name) => (ctx.query?.searchable ?? []).includes(name))
 		if (field === null) {
@@ -1684,6 +1770,7 @@ const createStatusMatchesSpec: Check = {
 	applicable: (ctx) => ctx.createOp !== undefined,
 	id: "create.status-matches-document",
 	needs: "a create operation",
+	subjects: subjectsOf.create,
 	async run(ctx) {
 		const createOp = ctx.createOp
 		if (createOp === undefined) return
@@ -1730,6 +1817,7 @@ const deleteMissingIs404: Check = {
 	mutates: true,
 	id: "delete.absent-record-returns-404",
 	needs: "a delete operation",
+	subjects: subjectsOf.delete,
 	async run(ctx) {
 		if (ctx.deleteOp === undefined) return
 		const params = { ...ctx.scope, ...itemParamFor(ctx, "oat-nonexistent-id-000") }
@@ -1758,6 +1846,7 @@ const softDeleteHidden: Check = {
 	dependsOn: ["list.read-after-write"],
 	id: "softdelete.absent-from-default-list",
 	needs: "a delete operation and x-soft-delete",
+	subjects: subjectsOf.deleteAndList,
 	async run(ctx) {
 		const target = ctx.records.at(-1)
 		if (target === undefined || ctx.deleteOp === undefined) return
@@ -1809,6 +1898,7 @@ const denialDoesNotRevealExistence: Check = {
 	],
 	id: "tenant.denial-does-not-reveal-existence",
 	needs: "a second principal in a different tenant, and a tenant tagged or inferred from the path",
+	subjects: subjectsOf.read,
 	async run(ctx) {
 		const target = ctx.records[0]
 		if (target === undefined || ctx.readOp === undefined || ctx.altAuth === undefined) return
@@ -1867,6 +1957,7 @@ const idempotentReplay: Check = {
 	id: "idempotency.replay-does-not-duplicate",
 	mutates: true,
 	needs: "a create operation declaring an idempotency-key header",
+	subjects: subjectsOf.create,
 	async run(ctx) {
 		const createOp = ctx.createOp
 		const header = createOp?.idempotencyHeader
@@ -1939,15 +2030,22 @@ const declaredInvalidationHappens: Check = {
 	id: "invalidation.declared-route-changes",
 	mutates: true,
 	needs: "a create operation whose x-invalidate names another entity's read route",
+	subjects: subjectsOf.createAndForeignReads,
 	async run(ctx) {
 		const createOp = ctx.createOp
 		if (createOp === undefined) return
 
+		/* A graded create is judged through every route it declares; a graded route alone is
+		 * judged only itself, with the create as support. */
+		const createGraded = graded(ctx, createOp)
 		const foreign = createOp.invalidates
 			.map((route) => ctx.model.byRoute.get(route))
 			.filter(
 				(op): op is OperationModel =>
-					op !== undefined && op.entity !== ctx.entityName && op.method.toUpperCase() === "GET",
+					op !== undefined &&
+					op.entity !== ctx.entityName &&
+					op.method.toUpperCase() === "GET" &&
+					(createGraded || graded(ctx, op)),
 			)
 		if (foreign.length === 0) return
 
@@ -2010,17 +2108,22 @@ const declaredInvalidationHappens: Check = {
 			if (after.status >= 400) continue
 			if (JSON.stringify(after.responseBody) !== snapshot) continue
 
-			ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"a route the document says is invalidated by this write did not change",
-				`creating a ${ctx.entityName} declares x-invalidate on "${probe.op.route}", but that ` +
-					"route returned a byte-identical body before and after the write. Either it serves " +
-					"a value derived from this entity and that value is stale — a denormalised counter " +
-					"or a cached projection nobody refreshed — or the declaration is wrong and every " +
-					"client following it is invalidating the wrong cache key.",
-				[created, after],
-			)
+			ctx.findings
+				.attributed([
+					...(createGraded ? [createOp.operationId] : []),
+					...(graded(ctx, probe.op) ? [probe.op.operationId] : []),
+				])
+				.backend(
+					this.id,
+					ctx.entityName,
+					"a route the document says is invalidated by this write did not change",
+					`creating a ${ctx.entityName} declares x-invalidate on "${probe.op.route}", but that ` +
+						"route returned a byte-identical body before and after the write. Either it serves " +
+						"a value derived from this entity and that value is stale — a denormalised counter " +
+						"or a cached projection nobody refreshed — or the declaration is wrong and every " +
+						"client following it is invalidating the wrong cache key.",
+					[created, after],
+				)
 			return
 		}
 	},
@@ -2058,6 +2161,7 @@ const projectionsAgree: Check = {
 	],
 	id: "consistency.projections-agree",
 	needs: "an item route and a record with a comparable field",
+	subjects: subjectsOf.readAndList,
 	async run(ctx) {
 		const target = ctx.records[0]
 		if (target === undefined || ctx.readOp === undefined) return
@@ -2198,6 +2302,7 @@ const queryAxesCompose: Check = {
 	],
 	id: "query.axes-compose",
 	needs: "a filterable field, a sortable field, and more than two records",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const conventions = conv(ctx)
 		const limit = ctx.query?.maxLimit ?? 100
@@ -2316,6 +2421,7 @@ const filterAndPagingCompose: Check = {
 	],
 	id: "query.filter-selects-from-whole-set",
 	needs: "a filterable field and more than two records",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const conventions = conv(ctx)
 		/* A small page deliberately: the bug only shows once the window excludes matching rows,
@@ -2434,6 +2540,7 @@ const filterAndSelectCompose: Check = {
 	],
 	id: "query.filter-and-select-compose",
 	needs: "a filterable field, a select parameter, and more than two records",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const conventions = conv(ctx)
 		const limit = ctx.query?.maxLimit ?? 100
@@ -2557,6 +2664,7 @@ const searchAndFilterCompose: Check = {
 	],
 	id: "query.search-and-filter-compose",
 	needs: "a filterable field, a free-text search parameter, and more than two records",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const conventions = conv(ctx)
 		const limit = ctx.query?.maxLimit ?? 100
@@ -2694,6 +2802,7 @@ const filterSortSelectCompose: Check = {
 	],
 	id: "query.filter-sort-select-compose",
 	needs: "a filterable field, a sortable field, a select parameter, and more than two records",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const conventions = conv(ctx)
 		const limit = ctx.query?.maxLimit ?? 100
@@ -2795,6 +2904,7 @@ const filterSearchSortCompose: Check = {
 	],
 	id: "query.filter-search-sort-compose",
 	needs: "a filterable field, a search parameter, a sortable field, and more than two records",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const conventions = conv(ctx)
 		const limit = ctx.query?.maxLimit ?? 100
@@ -2878,6 +2988,7 @@ const filterSearchSelectCompose: Check = {
 	],
 	id: "query.filter-search-select-compose",
 	needs: "a filterable field, a search parameter, a select parameter, and more than two records",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const conventions = conv(ctx)
 		const limit = ctx.query?.maxLimit ?? 100
@@ -3068,6 +3179,7 @@ const declaredFilterableWorks: Check = {
 	],
 	id: "spec.declared-filterable-is-filterable",
 	needs: "x-query naming filterable fields",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const conventions = conv(ctx)
 		const rejected: Array<{ field: string; status: number }> = []
@@ -3144,6 +3256,7 @@ const declaredSortableWorks: Check = {
 	],
 	id: "spec.declared-sortable-is-sortable",
 	needs: "x-query naming sortable fields",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const conventions = conv(ctx)
 		const rejected: Array<{ field: string; status: number }> = []
@@ -3203,6 +3316,7 @@ const declaredSelectableWorks: Check = {
 	],
 	id: "spec.declared-selectable-is-selectable",
 	needs: "x-query naming selectable fields",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const conventions = conv(ctx)
 		const rejected: Array<{ field: string; status: number }> = []
@@ -3245,6 +3359,7 @@ const crossTenantItemRead: Check = {
 		ctx.altAuth !== undefined && ctx.readOp !== undefined && ctx.records.length > 0 && tenantBoundary(ctx.readOp),
 	id: "tenant.item-not-readable-cross-tenant",
 	needs: "a second principal in a different tenant, and a tenant tagged or inferred from the path",
+	subjects: subjectsOf.read,
 	async run(ctx) {
 		const target = ctx.records[0]
 		if (target === undefined || ctx.readOp === undefined || ctx.altAuth === undefined) return
@@ -3304,6 +3419,7 @@ const crossTenantFilterBypass: Check = {
 	dependsOn: ["query.filter-selects-from-whole-set"],
 	id: "tenant.filter-does-not-bypass-scope",
 	needs: "a second principal, a filter, and a tenant tagged or inferred from the path",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const target = ctx.records[0]
 		if (target === undefined || ctx.altAuth === undefined || ctx.altScope === undefined) return
@@ -3377,6 +3493,7 @@ const rankIsMonotonic: Check = {
 	dependsOn: ["list.read-after-write"],
 	id: "auth.rank-is-monotonic",
 	needs: "two same-tenant principals at different ranks, and an item route",
+	subjects: subjectsOf.read,
 	async run(ctx) {
 		const target = ctx.records[0]
 		const primary = ctx.actors[0]
@@ -3447,6 +3564,7 @@ const inviteGrantsThenRevokes: Check = {
 	dependsOn: ["list.read-after-write", "tenant.item-not-readable-cross-tenant"],
 	id: "auth.invite-grants-then-revokes",
 	needs: "x-invite naming invite/accept/revoke, a peer principal with inviteAs, and an item or list route",
+	subjects: subjectsOf.invite,
 	async run(ctx) {
 		const spec = ctx.invite
 		const owner = ctx.actors[0]
@@ -3624,6 +3742,7 @@ const malformedFilterNot5xx: Check = {
 	applicable: (ctx) => filterable(ctx),
 	id: "error.malformed-filter-not-5xx",
 	needs: "a way to express a filter — a filter expression parameter, or filterable fields",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const result = await list(ctx, q(ctx, { filter: "((((", limit: 10 }))
 		if (result.exchange.status < 500) return
@@ -3643,6 +3762,7 @@ const limitBoundsPageSize: Check = {
 	dependsOn: ["list.read-after-write"],
 	id: "pagination.limit-bounds-page-size",
 	needs: "a page-size query parameter named `limit`",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const result = await list(ctx, q(ctx, { limit: 2 }))
 		if (result.exchange.status >= 400) return
@@ -3668,6 +3788,7 @@ const limitRespectsMax: Check = {
 	dependsOn: ["pagination.limit-bounds-page-size"],
 	id: "pagination.limit-respects-documented-max",
 	needs: "a declared maxLimit, and more records than it",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const max = ctx.query?.maxLimit
 		if (max === undefined) return
@@ -3690,6 +3811,7 @@ const hasMoreIsAccurate: Check = {
 	dependsOn: ["pagination.limit-bounds-page-size"],
 	id: "pagination.has-more-is-accurate",
 	needs: "a way to page forward, and a more-pages signal in the body or a Link header",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const first = await list(ctx, q(ctx, { limit: 1, page: 1 }))
 		if (first.exchange.status >= 400 || first.items.length === 0) return
@@ -3719,6 +3841,7 @@ const orderChangesResult: Check = {
 	dependsOn: ["pagination.limit-bounds-page-size"],
 	id: "sort.order-is-applied",
 	needs: "an `order` parameter and a sortable field",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const field = ctx.query?.sortable.find((f) => f !== ctx.identity) ?? ctx.query?.sortable[0]
 		if (field === undefined) return
@@ -3770,6 +3893,7 @@ const searchNarrowsResult: Check = {
 	dependsOn: ["list.read-after-write"],
 	id: "search.q-narrows-result",
 	needs: "a free-text `q` parameter and declared searchable fields",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const field = ctx.query?.searchable[0]
 		if (field === undefined) return
@@ -3798,6 +3922,7 @@ const createPersistsFields: Check = {
 	dependsOn: ["list.read-after-write"],
 	id: "create.persists-submitted-fields",
 	needs: "a create operation that echoes the record back",
+	subjects: subjectsOf.create,
 	async run(ctx) {
 		const createOp = ctx.createOp
 		if (createOp === undefined) return
@@ -3834,6 +3959,7 @@ const enumValidated: Check = {
 	mutates: true,
 	id: "validation.enum-enforced",
 	needs: "a request schema with an enum field",
+	subjects: subjectsOf.create,
 	async run(ctx) {
 		const createOp = ctx.createOp
 		if (createOp === undefined) return
@@ -3868,6 +3994,7 @@ const maxLengthValidated: Check = {
 	mutates: true,
 	id: "validation.max-length-enforced",
 	needs: "a request schema with a maxLength constraint",
+	subjects: subjectsOf.create,
 	async run(ctx) {
 		const createOp = ctx.createOp
 		if (createOp === undefined) return
@@ -3901,6 +4028,7 @@ const requiredValidated: Check = {
 	mutates: true,
 	id: "validation.required-enforced",
 	needs: "a request schema with a required field",
+	subjects: subjectsOf.create,
 	async run(ctx) {
 		const createOp = ctx.createOp
 		if (createOp === undefined) return
@@ -3935,6 +4063,7 @@ const contentTypeEnforced: Check = {
 	mutates: true,
 	id: "validation.content-type-enforced",
 	needs: "a documented 415 response",
+	subjects: subjectsOf.create,
 	async run(ctx) {
 		const createOp = ctx.createOp
 		if (createOp === undefined) return
@@ -3965,35 +4094,24 @@ const errorSchemaHonoured: Check = {
 	applicable: (ctx) => ctx.validator !== undefined && ctx.readOp !== undefined,
 	id: "schema.error-response-matches-document",
 	needs: "a documented error schema on the item route",
+	subjects: subjectsOf.readAndGated,
 	async run(ctx) {
 		const readOp = ctx.readOp
 		const validator = ctx.validator
 		if (readOp === undefined || validator === undefined) return
 		const raw = ctx.model.rawOperations.get(readOp.operationId)
 		if (raw === undefined) return
-
-		const params = { ...ctx.scope, ...itemParamFor(ctx, "oat-definitely-missing-id") }
-		const exchange = await ctx.client.get(fillPath(readOp.path, params), { headers: ctx.auth() })
-		if (exchange.status >= 400 && validator.documents(raw, exchange.status)) {
-			const result = validator.validate(readOp.operationId, raw, exchange.status, exchange.responseBody)
-			if (!result.ok) {
-				ctx.findings.spec(
-					this.id,
-					ctx.entityName,
-					`${exchange.status} error body does not match its documented schema`,
-					`${readOp.operationId} returned ${exchange.status} with a body that fails the schema the ` +
-						`document declares for it: ${result.errors.join("; ")}. Clients that parse errors ` +
-						"from the spec will not understand this response.",
-					[exchange],
-				)
-			}
+		const judged: string[] = []
+		if (graded(ctx, readOp)) {
+			await probeMissingItemError(ctx, readOp, raw, validator, this.id)
+			judged.push(readOp.operationId)
 		}
 
 		/* A documented feature-gate 403 is coverage for the 2xx check, not for the error schema.
 		 * Walk this entity's already-observed gate denials so an undeclared body is still drift. */
 		const seen = new Set<string>()
 		for (const op of ctx.model.operations) {
-			if (op.entity !== ctx.entityName || op.featureGate === null) continue
+			if (op.entity !== ctx.entityName || op.featureGate === null || !graded(ctx, op)) continue
 			const opRaw = ctx.model.rawOperations.get(op.operationId)
 			if (opRaw === undefined) continue
 			for (const prior of ctx.client.transcript) {
@@ -4001,10 +4119,43 @@ const errorSchemaHonoured: Check = {
 				const key = `${op.operationId}:${prior.seq}`
 				if (seen.has(key)) continue
 				seen.add(key)
-				reportFeatureGateSchemaDrift(ctx.findings, validator, op, opRaw, prior, ctx.entityName)
+				judged.push(op.operationId)
+				reportFeatureGateSchemaDrift(
+					ctx.findings.attributed([op.operationId]),
+					validator,
+					op,
+					opRaw,
+					prior,
+					ctx.entityName,
+				)
 			}
 		}
 	},
+}
+
+async function probeMissingItemError(
+	ctx: CheckContext,
+	readOp: OperationModel,
+	raw: OperationObject,
+	validator: SchemaValidator,
+	check: string,
+): Promise<void> {
+	const params = { ...ctx.scope, ...itemParamFor(ctx, "oat-definitely-missing-id") }
+	const exchange = await ctx.client.get(fillPath(readOp.path, params), { headers: ctx.auth() })
+	if (exchange.status < 400 || !validator.documents(raw, exchange.status)) return
+	const result = validator.validate(readOp.operationId, raw, exchange.status, exchange.responseBody)
+	if (result.ok) return
+	ctx.findings
+		.attributed([readOp.operationId])
+		.spec(
+			check,
+			ctx.entityName,
+			`${exchange.status} error body does not match its documented schema`,
+			`${readOp.operationId} returned ${exchange.status} with a body that fails the schema the ` +
+				`document declares for it: ${result.errors.join("; ")}. Clients that parse errors ` +
+				"from the spec will not understand this response.",
+			[exchange],
+		)
 }
 
 const successSchemaHonoured: Check = {
@@ -4015,6 +4166,7 @@ const successSchemaHonoured: Check = {
 	dependsOn: ["create.status-matches-document"],
 	id: "schema.success-response-matches-document",
 	needs: "a documented success schema on create",
+	subjects: subjectsOf.create,
 	async run(ctx) {
 		const createOp = ctx.createOp
 		const validator = ctx.validator
@@ -4220,6 +4372,7 @@ const numericComparisonIsNumeric: Check = {
 	dependsOn: ["list.read-after-write", "filter.unknown-field-rejected"],
 	id: "filter.numeric-comparison-is-numeric",
 	needs: "a `filter` parameter and a numeric field",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const field = numericFilterField(ctx)
 		if (field === null) return
@@ -4308,6 +4461,7 @@ const noLostUpdate: Check = {
 	id: "concurrency.no-lost-update",
 	needs: "an update operation and two writable string fields",
 	mutates: true,
+	subjects: subjectsOf.update,
 	async run(ctx) {
 		const target = ctx.records[0]
 		if (target === undefined || ctx.updateOp === undefined || ctx.readOp === undefined) return
@@ -4439,8 +4593,10 @@ const declaredEffectsOccur: Check = {
 	mutates: true,
 	id: "effects.declared-effect-occurs",
 	needs: "an operation declaring x-effects",
-	async run(ctx) {
-		for (const op of ctx.effectOps) {
+	subjects: subjectsOf.effects,
+	async run(all) {
+		for (const op of all.effectOps) {
+			const ctx = forOperation(all, op)
 			await forEachInvocation(op.operationId, ctx.uploads, async (uploads, slot) => {
 				const fixture = slot?.filename
 				const effects = op.effects
@@ -4618,8 +4774,10 @@ const sideEffectArrives: Check = {
 	mutates: true,
 	id: "effects.side-effect-arrives",
 	needs: "an operation declaring x-wait",
-	async run(ctx) {
-		for (const op of ctx.waitOps) {
+	subjects: subjectsOf.waits,
+	async run(all) {
+		for (const op of all.waitOps) {
+			const ctx = forOperation(all, op)
 			const spec = op.wait
 			if (spec === null) continue
 			const pollOp = ctx.model.byOperationId.get(spec.operationId)
@@ -4734,8 +4892,10 @@ const asyncReachesTerminalState: Check = {
 	mutates: true,
 	id: "async.reaches-terminal-state",
 	needs: "an operation declaring x-async",
-	async run(ctx) {
-		for (const op of ctx.asyncOps) {
+	subjects: subjectsOf.async,
+	async run(all) {
+		for (const op of all.asyncOps) {
+			const ctx = forOperation(all, op)
 			const spec = op.async
 			if (spec === null) continue
 
@@ -4836,8 +4996,10 @@ const asyncReceiptIsResolvable: Check = {
 	applicable: (ctx) => ctx.asyncOps.some((op) => op.async?.idFrom !== undefined),
 	id: "async.receipt-identifies-the-job",
 	needs: "x-async with an idFrom pointer",
-	async run(ctx) {
-		for (const op of ctx.asyncOps) {
+	subjects: subjectsOf.asyncReceipt,
+	async run(all) {
+		for (const op of all.asyncOps) {
+			const ctx = forOperation(all, op)
 			const spec = op.async
 			if (spec?.idFrom === undefined) continue
 
@@ -4931,6 +5093,7 @@ const stringPayloadSurvives: Check = {
 	id: "payload.string-survives",
 	mutates: true,
 	needs: "an update or create+delete, an item route, and a writable unconstrained string",
+	subjects: subjectsOf.writeAndRead,
 	async run(ctx) {
 		const writeOp = ctx.updateOp ?? ctx.createOp
 		const readOp = ctx.readOp
@@ -5152,9 +5315,11 @@ const documentedStatusHonoured: Check = {
 	applicable: (ctx) => ctx.model.operations.some((op) => op.entity === ctx.entityName && op.action !== "create"),
 	id: "response.status-is-documented",
 	needs: "a modeled non-create operation on this entity",
+	subjects: subjectsOf.nonCreate,
 	async run(ctx) {
 		const createId = ctx.createOp?.operationId
 		const byOp = new Map<string, Exchange[]>()
+		const observed = new Set<string>()
 		for (const exchange of ctx.client.transcript) {
 			let pathname: string
 			try {
@@ -5164,16 +5329,19 @@ const documentedStatusHonoured: Check = {
 			}
 			const op = resolveEntityOperation(ctx, exchange.method, pathname)
 			if (op === null) continue
+			if (!graded(ctx, op)) continue
 			if (op.operationId === createId || op.action === "create") continue
-			if (isDocumentedFeatureGateDenial(op, exchange.status, exchange.responseBody)) continue
 			if (exchange.status === 429) continue
 			const raw = ctx.model.rawOperations.get(op.operationId)
 			if (!declaresConcreteStatuses(raw)) continue
+			observed.add(op.operationId)
+			if (isDocumentedFeatureGateDenial(op, exchange.status, exchange.responseBody)) continue
 			if (statusIsDeclared(raw, exchange.status)) continue
 			const seen = byOp.get(op.operationId) ?? []
 			seen.push(exchange)
 			byOp.set(op.operationId, seen)
 		}
+		ctx.judged?.([...observed])
 		if (byOp.size === 0) return
 
 		const lines: string[] = []
@@ -5192,13 +5360,15 @@ const documentedStatusHonoured: Check = {
 			if (first !== undefined && evidence.length < 6) evidence.push(first)
 		}
 
-		ctx.findings.spec(
-			this.id,
-			ctx.entityName,
-			"an operation returned a status the document does not declare",
-			`${lines.join(". ")}. Clients generated from this document will not recognise the response.`,
-			evidence,
-		)
+		ctx.findings
+			.attributed([...byOp.keys()])
+			.spec(
+				this.id,
+				ctx.entityName,
+				"an operation returned a status the document does not declare",
+				`${lines.join(". ")}. Clients generated from this document will not recognise the response.`,
+				evidence,
+			)
 	},
 }
 
@@ -5237,6 +5407,7 @@ const filterInIsUnionOfEq: Check = {
 	dependsOn: [...FOUNDATIONS, "filter.equality-selects-exactly-one"],
 	id: "filter.in-is-union-of-eq",
 	needs: "a field that allows `in` and at least two distinct values",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const picked = pickFieldForOp(ctx, "in", 2)
 		if (picked === null) return
@@ -5277,6 +5448,7 @@ const filterNinComplementsIn: Check = {
 	dependsOn: [...FOUNDATIONS, "filter.in-is-union-of-eq"],
 	id: "filter.nin-complements-in",
 	needs: "a field that allows both `in` and `nin`",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const picked = pickFieldForOp(ctx, "in", 1)
 		if (picked === null || !canUseOp(ctx, picked.field, "nin")) return
@@ -5331,6 +5503,7 @@ const filterGteIsGtOrEq: Check = {
 	dependsOn: [...FOUNDATIONS, "filter.equality-selects-exactly-one", "filter.numeric-comparison-is-numeric"],
 	id: "filter.gte-is-gt-or-eq",
 	needs: "an ordered field that allows `gte` and `gt`",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const picked = pickOrderedField(ctx)
 		if (picked === null || !canUseOp(ctx, picked.field, "gte")) return
@@ -5345,6 +5518,7 @@ const filterLteIsLtOrEq: Check = {
 	dependsOn: [...FOUNDATIONS, "filter.equality-selects-exactly-one", "filter.numeric-comparison-is-numeric"],
 	id: "filter.lte-is-lt-or-eq",
 	needs: "an ordered field that allows `lte` and `lt`",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const picked = pickOrderedField(ctx)
 		if (picked === null || !canUseOp(ctx, picked.field, "lte")) return
@@ -5394,6 +5568,7 @@ const filterOrderedTriplePartitions: Check = {
 	dependsOn: [...FOUNDATIONS, "filter.equality-selects-exactly-one", "filter.numeric-comparison-is-numeric"],
 	id: "filter.ordered-triple-partitions",
 	needs: "an ordered field that allows `lt`, `eq`, and `gt`",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const picked = pickOrderedField(ctx)
 		if (picked === null) return
@@ -5456,6 +5631,7 @@ const filterIlikeIsCaseInsensitive: Check = {
 	dependsOn: [...FOUNDATIONS, "filter.like-metacharacters-escaped"],
 	id: "filter.ilike-is-case-insensitive",
 	needs: "a field that allows both `ilike` and `like`, and a string with a letter",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const field = fieldsAllowing(ctx, "ilike").find((item) => canUseOp(ctx, item, "like"))
 		if (field === undefined) return
@@ -5512,6 +5688,7 @@ const filterIsNullSelectsNulls: Check = {
 	dependsOn: [...FOUNDATIONS],
 	id: "filter.is-null-selects-nulls",
 	needs: "a field that allows `is` and a cohort that contains a null",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const field = fieldsAllowing(ctx, "is").find((item) => mixedNullField(ctx, item.field))
 		if (field === undefined) return
@@ -5560,6 +5737,7 @@ const filterContainsMembership: Check = {
 	dependsOn: [...FOUNDATIONS],
 	id: "filter.contains-membership",
 	needs: "an array field that allows `contains` and a known element",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const field = resolvedCaps(ctx).filterable.find(
 			(item) =>
@@ -5607,6 +5785,7 @@ const filterNestedAndOrDistributes: Check = {
 	dependsOn: [...FOUNDATIONS, "filter.and-composes-as-intersection", "filter.or-composes-as-union"],
 	id: "filter.nested-and-or-distributes",
 	needs: "a postgrest-shaped grammar and two filterable fields",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const picked = twoFilterableFields(ctx)
 		if (picked === null) {
@@ -5658,6 +5837,7 @@ const filterAliasMatchesCanonical: Check = {
 	dependsOn: [...FOUNDATIONS, "filter.equality-selects-exactly-one"],
 	id: "filter.alias-matches-canonical",
 	needs: "a declared filter operator alias",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const caps = resolvedCaps(ctx)
 		const conventions = conv(ctx)
@@ -5703,6 +5883,7 @@ const filterIllegalOpRejected: Check = {
 	dependsOn: ["list.read-after-write", "filter.unknown-field-rejected", "error.malformed-filter-not-5xx"],
 	id: "filter.illegal-op-rejected",
 	needs: "a field with a closed operator list",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const field = resolvedCaps(ctx).filterable.find((item) => firstIllegalOp(ctx, item) !== undefined)
 		const op = field === undefined ? undefined : firstIllegalOp(ctx, field)
@@ -5746,6 +5927,7 @@ const filterEmptyIn: Check = {
 	dependsOn: [...FOUNDATIONS, "filter.in-is-union-of-eq"],
 	id: "filter.empty-in",
 	needs: "`emptyIn` declared and a field that allows `in`",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const picked = pickFieldForOp(ctx, "in", 1)
 		const policy = resolvedCaps(ctx).emptyIn
@@ -5787,6 +5969,7 @@ const filterInOverLimitRejected: Check = {
 	dependsOn: [...FOUNDATIONS, "error.malformed-filter-not-5xx"],
 	id: "filter.in-over-limit-rejected",
 	needs: "`maxInValues` declared and a field that allows `in`",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const max = resolvedCaps(ctx).maxInValues
 		const picked = pickFieldForOp(ctx, "in", 1)
@@ -5814,6 +5997,7 @@ const filterConditionCapRejected: Check = {
 	dependsOn: [...FOUNDATIONS, "error.malformed-filter-not-5xx"],
 	id: "filter.condition-cap-rejected",
 	needs: "`maxFilterConditions` declared and a grammar that can group eq terms",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const max = resolvedCaps(ctx).maxFilterConditions
 		const parameter = conv(ctx).filter
@@ -5855,6 +6039,7 @@ const declaredFilterableOpsAccepted: Check = {
 	dependsOn: ["list.read-after-write", "spec.declared-filterable-is-filterable", "error.malformed-filter-not-5xx"],
 	id: "spec.declared-filterable-ops-accepted",
 	needs: "a closed operator list on at least one declared field",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const caps = resolvedCaps(ctx)
 		const rejected: string[] = []
@@ -5888,6 +6073,7 @@ const declaredFilterableIllegalOpRejected: Check = {
 	dependsOn: ["filter.illegal-op-rejected", "spec.declared-filterable-is-filterable"],
 	id: "spec.declared-filterable-illegal-op-rejected",
 	needs: "a closed operator list on a declared field",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		await filterIllegalOpRejected.run(ctx)
 	},
@@ -5898,6 +6084,7 @@ const sortUnknownFieldRejected: Check = {
 	dependsOn: ["error.malformed-filter-not-5xx"],
 	id: "sort.unknown-field-rejected",
 	needs: "an order parameter",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const result = await list(ctx, q(ctx, { limit: 5, order: sortTerm(conv(ctx), "oat_no_such_sort_xyz", "asc") }))
 		if (result.exchange.status >= 500) {
@@ -5932,6 +6119,7 @@ const sortNumericOrderIsNumeric: Check = {
 	dependsOn: ["sort.order-is-applied"],
 	id: "sort.numeric-order-is-numeric",
 	needs: "a numeric sortable field whose lexical order disagrees with numeric order",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const field = resolvedCaps(ctx).sortable.find((item) => numericLexicalDisagrees(ctx, item.field))
 		if (field === undefined) return
@@ -5965,6 +6153,7 @@ const sortNullsFirstLast: Check = {
 	dependsOn: ["sort.order-is-applied", "sort.reverse-symmetry"],
 	id: "sort.nulls-first-last",
 	needs: "a declared nulls token, a dotted sort grammar, and a null in the cohort",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const field = resolvedCaps(ctx).sortable.find(
 			(item) =>
@@ -6038,6 +6227,7 @@ const sortMultiKeyTiebreak: Check = {
 	dependsOn: ["sort.order-is-applied", "sort.reverse-symmetry"],
 	id: "sort.multi-key-tiebreak",
 	needs: "two sortable fields and rows that tie on the first and differ on the second",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const pair = pickMultiKeyPair(ctx)
 		if (pair === null) {
@@ -6068,6 +6258,7 @@ const sortDefaultOrderApplied: Check = {
 	dependsOn: ["sort.order-is-applied", "pagination.page-walk-covers-set"],
 	id: "sort.default-order-applied",
 	needs: "a declared defaultOrder and a complete walk",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const declared = resolvedCaps(ctx).sort?.defaultOrder ?? ctx.query?.defaultOrder
 		if (declared === undefined) return
@@ -6100,6 +6291,7 @@ const sortStableTiebreak: Check = {
 	dependsOn: ["sort.order-is-applied"],
 	id: "sort.stable-tiebreak",
 	needs: "a declared stableTiebreak and a tie on the primary key",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const tiebreak = resolvedCaps(ctx).sort?.stableTiebreak ?? ctx.query?.stableTiebreak
 		const primary = ctx.query?.sortable.find((name) => name !== tiebreak) ?? ctx.query?.sortable[0]
@@ -6131,6 +6323,7 @@ const declaredSortableNullsAccepted: Check = {
 	dependsOn: ["sort.order-is-applied"],
 	id: "spec.declared-sortable-nulls-accepted",
 	needs: "a declared nulls token on a sortable field",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const rejected: string[] = []
 		for (const field of resolvedCaps(ctx).sortable) {
@@ -6161,6 +6354,7 @@ const searchTokensAnd: Check = {
 	dependsOn: ["search.q-narrows-result"],
 	id: "search.tokens-and",
 	needs: "searchable fields and two tokens that split the cohort",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const field = ctx.query?.searchable[0]
 		if (field === undefined) return
@@ -6209,6 +6403,7 @@ const searchCaseInsensitive: Check = {
 	dependsOn: ["search.q-narrows-result"],
 	id: "search.case-insensitive",
 	needs: "a searchable string with a letter",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		let sample: string | undefined
 		for (const field of ctx.query?.searchable ?? []) {
@@ -6253,6 +6448,7 @@ const searchEmptyQ: Check = {
 	dependsOn: ["search.q-narrows-result"],
 	id: "search.empty-q",
 	needs: "`searchEmpty` declared",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const policy = resolvedCaps(ctx).searchEmpty
 		if (policy === undefined) return
@@ -6298,6 +6494,7 @@ const searchUndeclaredFieldNotRequired: Check = {
 	dependsOn: ["search.q-narrows-result"],
 	id: "search.undeclared-field-not-required",
 	needs: "a searchable field and a non-searchable string",
+	subjects: subjectsOf.list,
 	async run() {
 		/* Extra recall is not a defect. This check exists so undeclared-field hits are not
 		 * reported as SEARCH_IGNORED by other checks. */
@@ -6322,6 +6519,7 @@ const searchModeAccepted: Check = {
 		conv(ctx).search !== undefined,
 	id: "search.mode-accepted",
 	needs: "declared searchModes and a search-mode parameter",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const rejected: string[] = []
 		for (const mode of resolvedCaps(ctx).searchModes ?? []) {
@@ -6348,6 +6546,7 @@ const searchModesDiffer: Check = {
 	dependsOn: ["search.mode-accepted"],
 	id: "search.modes-differ",
 	needs: "at least two declared searchModes and a mode parameter",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const modes = resolvedCaps(ctx).searchModes ?? []
 		const a = modes[0]
@@ -6378,6 +6577,7 @@ const selectRequestedFieldsPresent: Check = {
 	dependsOn: ["select.projection-honoured"],
 	id: "select.requested-fields-present",
 	needs: "a select parameter and at least one selectable field",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const requested = [
 			ctx.identity,
@@ -6413,6 +6613,7 @@ const selectUnknownFieldRejected: Check = {
 	dependsOn: ["select.projection-honoured", "error.malformed-filter-not-5xx"],
 	id: "select.unknown-field-rejected",
 	needs: "`select.unknown` declared",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const policy = resolvedCaps(ctx).select?.unknown
 		if (policy === undefined) return
@@ -6454,6 +6655,7 @@ const selectNestedHonoured: Check = {
 	dependsOn: ["select.projection-honoured"],
 	id: "select.nested-honoured",
 	needs: "select.nested and a named relation",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const relation = resolvedCaps(ctx).select?.relations?.[0]
 		if (relation === undefined || relation.fields[0] === undefined) return
@@ -6497,6 +6699,7 @@ const querySortAndSelectCompose: Check = {
 	dependsOn: ["sort.order-is-applied", "select.projection-honoured", "select.requested-fields-present"],
 	id: "query.sort-and-select-compose",
 	needs: "sortable and selectable fields",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const field = ctx.query?.sortable.find((name) => name !== ctx.identity) ?? ctx.query?.sortable[0]
 		const extra = ctx.query?.selectable.find((name) => name !== ctx.identity)
@@ -6536,6 +6739,7 @@ const querySearchAndSelectCompose: Check = {
 	dependsOn: ["search.q-narrows-result", "select.projection-honoured"],
 	id: "query.search-and-select-compose",
 	needs: "searchable and selectable fields",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const field = ctx.query?.searchable[0]
 		if (field === undefined) return
@@ -6574,6 +6778,7 @@ const querySearchAndSortCompose: Check = {
 	dependsOn: ["search.q-narrows-result", "sort.order-is-applied"],
 	id: "query.search-and-sort-compose",
 	needs: "searchable and sortable fields",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const searchField = ctx.query?.searchable[0]
 		const sortField = ctx.query?.sortable.find((name) => name !== ctx.identity) ?? ctx.query?.sortable[0]
@@ -6635,6 +6840,7 @@ const queryFilterSearchSortSelectCompose: Check = {
 	],
 	id: "query.filter-search-sort-select-compose",
 	needs: "all four list axes declared and at least three records",
+	subjects: subjectsOf.list,
 	async run(ctx) {
 		const picked = overlappingFilterAndSearch(ctx)
 		if (picked === null) {
@@ -6714,6 +6920,7 @@ const uniqueConflictCreate: Check = {
 	id: "create.unique-conflict-rejected",
 	mutates: true,
 	needs: "x-unique on create with at least one probeable column set, and a known row",
+	subjects: subjectsOf.create,
 	async run(ctx) {
 		const createOp = ctx.uniqueCreateOp
 		if (createOp === undefined) return
@@ -6818,6 +7025,7 @@ const uniqueConflictUpdate: Check = {
 	id: "update.unique-conflict-rejected",
 	mutates: true,
 	needs: "x-unique, an update operation with a probeable set, and two known rows",
+	subjects: subjectsOf.update,
 	async run(ctx) {
 		const updateOp = ctx.uniqueUpdateOp
 		if (updateOp === undefined) return

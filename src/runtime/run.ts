@@ -19,7 +19,6 @@ import type {
 	RateLimitSpec,
 	Uploads,
 } from "../config/define-config.ts"
-import { isAuthFlow } from "../config/define-config.ts"
 import { type OriginClient, createPrincipal, type PrincipalRuntime } from "./auth.ts"
 import { createExchangeJournal } from "./exchanges.ts"
 import {
@@ -42,6 +41,16 @@ import { type Finding, FindingCollector, type Inconclusive } from "./finding.ts"
 import { reportFeatureGateSchemaDrift } from "./feature-gate.ts"
 import { formatUniqueSets } from "../spec/extensions.ts"
 import { excludedByProfile, resolveProfile } from "./profile.ts"
+import {
+	authStepOperationIds,
+	buildScopeReport,
+	createIsAuthProvisioned,
+	GradeLedger,
+	resolveTargetScope,
+	type ScopeReport,
+	staticSubjects,
+	type TargetScope,
+} from "./scope.ts"
 import { buildRateLimitRules, RateLimiter } from "./rate-limit.ts"
 import { resolveEntityCapabilities } from "./query-capabilities.ts"
 import { Ledger, type TeardownReport } from "./teardown.ts"
@@ -55,7 +64,7 @@ import {
 	fillPath,
 	listExisting,
 	probeCreateFixtures,
-	resolveScope,
+	resolvePathScope,
 	seedCohort,
 } from "./world.ts"
 
@@ -74,7 +83,13 @@ export interface RunOptions {
 	seed?: number
 	cohortSize?: number
 	globalHeaders?: Record<string, string>
+	/** Entity names; each expands into the target set. */
 	only?: string[]
+	/**
+	 * Target operationIds (`*` globs, `<originId>:` prefixes). With `only`, the union is graded and
+	 * every other operation is support — called, never graded. Omit both for a full run.
+	 */
+	ops?: string[]
 	/** Named profiles this run can select between. `"full"` and `"cheap"` exist without an entry. */
 	profiles?: Record<string, ProfileSpec>
 	/** Active profile by name. Defaults to `"full"` — every operation runs, today's behaviour. */
@@ -127,12 +142,19 @@ export interface RunResult {
 	 * was verified. It was not, and it must be re-run once the cause is fixed.
 	 */
 	checksSuppressed: Array<{ check: string; entity: string; because: string }>
+	/**
+	 * Checks a targeted run did not run on an entity because none of their subjects is a target.
+	 * Neither run nor skipped: the check could apply, this run was not asked to grade it.
+	 */
+	checksOutOfScope: Array<{ check: string; entity: string }>
 	/** Checks that ran but could not reach a verdict — see `Inconclusive`. */
 	inconclusive: Inconclusive[]
 	/** Name of the profile that ran — `"full"` unless `--profile` / `config.profile` said otherwise. */
 	profile: string
 	/** Operations a profile excluded, and why. Each also has a matching `profile.skip` gap finding. */
 	profileExclusions: Array<{ entity: string; operationId: string; reason: string }>
+	/** What this run graded, per operation — targets only when targeted, every operation when full. */
+	scope: ScopeReport
 	created: number
 	teardown: TeardownReport | null
 	/** Credentials as they stood after acquire — written to `<outDir>/<datetime>/principals.json` by the CLI. */
@@ -347,41 +369,6 @@ async function readExisting(
 	return { records, scope }
 }
 
-/** operationIds named in any principal `auth.steps` — those creates already ran during login. */
-function authStepOperationIds(principals: readonly PrincipalSpec[]): Set<string> {
-	const ids = new Set<string>()
-	for (const principal of principals) {
-		const auth = principal.auth
-		if (auth === undefined || !isAuthFlow(auth)) continue
-		for (const step of auth.steps) {
-			if ("operationId" in step) ids.add(step.operationId)
-		}
-	}
-	return ids
-}
-
-function createIsAuthProvisioned(createOp: OperationModel, authCreates: ReadonlySet<string>): boolean {
-	return createOp.freshPrincipal || authCreates.has(createOp.operationId)
-}
-
-function testableEntities(
-	model: SpecModel,
-	only: string[] | undefined,
-	authCreates: ReadonlySet<string>,
-): EntityModel[] {
-	return [...model.entities.values()]
-		.filter((entity) => {
-			if (only !== undefined && only.length > 0 && !only.includes(entity.name)) return false
-			const createOp = entity.create === undefined ? undefined : model.byOperationId.get(entity.create)
-			const authProvisioned = createOp !== undefined && createIsAuthProvisioned(createOp, authCreates)
-			/* Register-as-create with no item route is the auth flow, not a fixture. */
-			if (authProvisioned && entity.read === undefined) return false
-			if (entity.invite !== null && entity.list !== undefined) return true
-			return entity.list !== undefined && entity.create !== undefined && entity.trackable
-		})
-		.sort((a, b) => a.name.localeCompare(b.name))
-}
-
 export async function run(options: RunOptions): Promise<RunResult> {
 	const startedAt = Date.now()
 	const findings = new FindingCollector()
@@ -583,6 +570,34 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		httpHooks,
 		networkClient,
 	)
+	/* Resolved before any principal signs up: a typo in --ops must cost nothing. */
+	const runScope: TargetScope = resolveTargetScope(model, {
+		...(options.ops === undefined ? {} : { ops: options.ops }),
+		...(options.only === undefined ? {} : { only: options.only }),
+		authCreates,
+		exclusion: { profile: profile.name, reason: (op) => excludedByProfile(op, profile.spec) },
+		origins: new Map([...originClients].map(([id, origin]) => [id, origin.model])),
+	})
+	const grades = new GradeLedger()
+	tick({
+		message:
+			runScope.mode === "full"
+				? "scope: full"
+				: `scope: targeted · ${runScope.targets.size} operation(s) · ${runScope.entities.length} entit${runScope.entities.length === 1 ? "y" : "ies"}`,
+		phase: "load",
+		requests: client.transcript.length,
+	})
+	const scopeReport = (): ScopeReport =>
+		buildScopeReport({
+			authCreates,
+			baseUrl: options.baseUrl,
+			findings: findings.findings,
+			inconclusive: findings.inconclusive,
+			ledger: grades,
+			model,
+			scope: runScope,
+			transcript: client.transcript,
+		})
 	const uploads: UploadContext = {
 		seed,
 		...(options.uploads === undefined ? {} : { uploads: options.uploads }),
@@ -610,6 +625,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		if (!isNetworkError(error)) throw error
 		noteNetwork(error, "auth")
 		return {
+			checksOutOfScope: [],
 			checksRun: [],
 			checksSkipped: [],
 			checksSuppressed: [],
@@ -622,6 +638,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			principals: [],
 			profile: profile.name,
 			profileExclusions,
+			scope: scopeReport(),
 			teardown: null,
 			...(journal === null ? {} : { exchanges: { count: journal.count } }),
 			...(networkOutcome === undefined ? {} : { network: networkOutcome }),
@@ -641,7 +658,12 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	const checksRun = new Set<string>()
 	const checksSkipped: Array<{ check: string; entity: string; needs: string }> = []
 	const checksSuppressed: Array<{ check: string; entity: string; because: string }> = []
+	const checksOutOfScope: Array<{ check: string; entity: string }> = []
 
+	const profileExcludes = (operationId: string): boolean => {
+		const op = model.byOperationId.get(operationId)
+		return op !== undefined && excludedByProfile(op, profile.spec) !== null
+	}
 	const excludedIds = new Set<string>()
 	const excludeOp = (entity: EntityModel, op: OperationModel | undefined): boolean => {
 		if (op === undefined) return false
@@ -650,13 +672,15 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		if (excludedIds.has(op.operationId)) return true
 		excludedIds.add(op.operationId)
 		profileExclusions.push({ entity: entity.name, operationId: op.operationId, reason })
-		findings.gap(
-			"profile.skip",
-			entity.name,
-			`${op.operationId} excluded by profile "${profile.name}"`,
-			`${reason}, under --profile ${profile.name}. Checks that depend on this operation stand ` +
-				"down rather than run against data oat did not create through it.",
-		)
+		findings
+			.attributed([op.operationId])
+			.gap(
+				"profile.skip",
+				entity.name,
+				`${op.operationId} excluded by profile "${profile.name}"`,
+				`${reason}, under --profile ${profile.name}. Checks that depend on this operation stand ` +
+					"down rather than run against data oat did not create through it.",
+			)
 		return true
 	}
 
@@ -665,6 +689,15 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		const createOp = model.byOperationId.get(entity.create ?? "")
 		if (listOp === undefined) return
 		if (networkGate.exhausted) return
+		/* Targets this entity's checks can grade. Seeding findings land on them: under --ops a seed
+		 * that fails leaves exactly these ungraded, and the report has to say which. */
+		const entityTargets =
+			runScope.mode === "full"
+				? createOp === undefined
+					? []
+					: [createOp.operationId]
+				: [...staticSubjects(entity, model)].filter((id) => runScope.inScope(id))
+		const entityFindings = entityTargets.length === 0 ? findings : findings.attributed(entityTargets)
 		const inviteOnly = entity.invite !== null && createOp === undefined
 		const authProvisioned = createOp !== undefined && createIsAuthProvisioned(createOp, authCreates)
 		if (createOp === undefined && !inviteOnly) return
@@ -700,7 +733,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				...alpha.roots,
 			})
 			if (existing.records.length === 0) {
-				findings.blocked(
+				entityFindings.blocked(
 					"profile.skip",
 					entity.name,
 					`could not test "${entity.name}"`,
@@ -724,7 +757,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			degraded = true
 		} else {
 			try {
-				scope = await resolveScope(createOp, model, client, {
+				scope = await resolvePathScope(createOp, model, client, {
 					authHeaders: alpha.headers,
 					roots: rootValues,
 					seed,
@@ -749,13 +782,13 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					scope,
 				)
 				if (cohort.uniqueGap !== undefined) {
-					findings.gap("world.seed", entity.name, cohort.uniqueGap, cohort.uniqueGap)
+					entityFindings.gap("world.seed", entity.name, cohort.uniqueGap, cohort.uniqueGap)
 				}
 				if (cohort.adopted === true) {
 					/* Plan limit after an effect already created the row: keep the id so children
 					 * (row after extract→table) can seed, but do not assert write-path oracles
 					 * against a body oat never submitted. */
-					findings.gap(
+					entityFindings.gap(
 						"world.seed",
 						entity.name,
 						`seeding "${entity.name}" hit a plan limit; using an existing same-tenant record`,
@@ -779,7 +812,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					 * but unique-conflict checks still run against that row. Write-path oracles
 					 * that need a body oat submitted stay skipped. The seed 409 is not the
 					 * unique check passing — that check is the explicit second POST. */
-					findings.gap(
+					entityFindings.gap(
 						"world.seed",
 						entity.name,
 						`seeding "${entity.name}" could not insert because of x-unique`,
@@ -805,14 +838,14 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					 * principal cannot create the row, so a correct 403 is coverage, not a
 					 * seed defect. The 403 body still has to match the documented schema. */
 					reportFeatureGateSchemaDrift(
-						findings,
+						entityFindings,
 						validator,
 						createOp,
 						model.rawOperations.get(createOp.operationId),
 						cohort.featureGate.exchange,
 						entity.name,
 					)
-					findings.gap(
+					entityFindings.gap(
 						"world.seed",
 						entity.name,
 						`seeding "${entity.name}" is gated by ${cohort.featureGate.detail}`,
@@ -824,7 +857,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 						...alpha.roots,
 					})
 					if (existing.records.length === 0) {
-						findings.blocked(
+						entityFindings.blocked(
 							"world.seed",
 							entity.name,
 							`could not test "${entity.name}"`,
@@ -853,13 +886,13 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				}
 				if (isOverflowError(error)) {
 					const overflow = overflowFrom(error, createOp.operationId)
-					findings.gap("world.seed", entity.name, overflow.message, overflow.message)
+					entityFindings.gap("world.seed", entity.name, overflow.message, overflow.message)
 					const existing = await readExisting(listOp, client, alpha.headers(), {
 						...options.roots,
 						...alpha.roots,
 					})
 					if (existing.records.length === 0) {
-						findings.blocked("world.seed", entity.name, `could not seed "${entity.name}"`, overflow.message)
+						entityFindings.blocked("world.seed", entity.name, `could not seed "${entity.name}"`, overflow.message)
 						return
 					}
 					scope = { created: [], values: existing.scope }
@@ -869,20 +902,31 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					const cause = error instanceof SeedError ? error.cause_ : "unknown"
 					const status = error instanceof SeedError ? error.status : undefined
 					const message = error instanceof Error ? error.message : String(error)
+					const failedOp = (error instanceof SeedError ? error.operationId : undefined) ?? createOp.operationId
+					const evidence =
+						error instanceof SeedError && error.exchange !== undefined
+							? [error.exchange]
+							: client.transcript.filter((e) => e.status >= 500).slice(-1)
+					/* Under --ops a create nobody targeted is support. Its failure leaves the targets
+					 * ungraded — blocked, with the evidence — but it is not what this run was asked to
+					 * judge, so it is not reported as a defect of its own. */
+					const supportFailed = runScope.mode === "targeted" && !runScope.inScope(failedOp)
 
 					/* A create that fails with 5xx is not a fixture problem — it is the defect.
 					 * Reporting it as merely "blocked" buries the most serious thing oat found. */
-					if (status !== undefined && status >= 500) {
-						findings.backend(
-							"create.does-not-error",
-							entity.name,
-							`creating a "${entity.name}" fails with a server error`,
-							`${message}. The request body was generated from the documented schema, so ` +
-								"either the handler rejects input the document permits, or it is failing " +
-								"outright. Everything downstream of this entity is untestable until it is " +
-								"fixed.",
-							client.transcript.filter((e) => e.status >= 500).slice(-1),
-						)
+					if (status !== undefined && status >= 500 && !supportFailed) {
+						findings
+							.attributed([failedOp])
+							.backend(
+								"create.does-not-error",
+								entity.name,
+								`creating a "${entity.name}" fails with a server error`,
+								`${message}. The request body was generated from the documented schema, so ` +
+									"either the handler rejects input the document permits, or it is failing " +
+									"outright. Everything downstream of this entity is untestable until it is " +
+									"fixed.",
+								evidence,
+							)
 					}
 
 					/* Fall back to whatever already exists. A backend whose create is broken can still
@@ -893,11 +937,17 @@ export async function run(options: RunOptions): Promise<RunResult> {
 						...alpha.roots,
 					})
 					if (existing.records.length === 0) {
-						findings.blocked("world.seed", entity.name, `could not seed "${entity.name}"`, `${cause}: ${message}`)
+						entityFindings.blocked(
+							"world.seed",
+							entity.name,
+							`could not seed "${entity.name}"`,
+							supportFailed ? `support operation ${failedOp} failing: ${message}` : `${cause}: ${message}`,
+							evidence,
+						)
 						return
 					}
 
-					findings.gap(
+					entityFindings.gap(
 						"world.seed",
 						entity.name,
 						`seeding "${entity.name}" failed; running read-only checks against existing records`,
@@ -913,7 +963,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		const actorOf = async (principal: ResolvedPrincipal, seedOffset: number): Promise<Actor> => {
 			const roots = { ...options.roots, ...principal.roots }
 			try {
-				const next = await resolveScope(listOp, model, client, {
+				const next = await resolvePathScope(listOp, model, client, {
 					authHeaders: principal.headers,
 					roots,
 					seed: seed + seedOffset,
@@ -1036,9 +1086,18 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			actors,
 			altAuth,
 			altScope,
-			asyncOps: model.operations.filter((op) => op.entity === entity.name && op.async !== null && invocable(op)),
-			effectOps: model.operations.filter((op) => op.entity === entity.name && op.effects.length > 0 && invocable(op)),
-			waitOps: model.operations.filter((op) => op.entity === entity.name && op.wait !== null && invocable(op)),
+			/* Narrowed to targets: these are the subjects their checks invoke, and invoking an
+			 * untargeted one is exactly the cost --ops exists to skip. */
+			asyncOps: model.operations.filter(
+				(op) => op.entity === entity.name && op.async !== null && invocable(op) && runScope.inScope(op.operationId),
+			),
+			effectOps: model.operations.filter(
+				(op) => op.entity === entity.name && op.effects.length > 0 && invocable(op) && runScope.inScope(op.operationId),
+			),
+			waitOps: model.operations.filter(
+				(op) => op.entity === entity.name && op.wait !== null && invocable(op) && runScope.inScope(op.operationId),
+			),
+			inScope: (op) => runScope.inScope(op.operationId),
 			hooks,
 			outOfBand,
 			auth: alpha.headers,
@@ -1088,7 +1147,19 @@ export async function run(options: RunOptions): Promise<RunResult> {
 
 		entitiesTested.push(entity.name)
 
+		/* Subjects each check grades on this entity: in scope, and not excluded by the profile. */
+		const gradedBy = new Map<string, string[]>()
 		const runOne = async (check: (typeof CHECKS)[number]): Promise<void> => {
+			const graded = gradedBy.get(check.id) ?? []
+			let judged: Set<string> | undefined
+			const view: CheckContext = {
+				...ctx,
+				...(graded.length === 0 ? {} : { findings: findings.attributed(graded) }),
+				judged: (operationIds) => {
+					judged ??= new Set()
+					for (const id of operationIds) judged.add(id)
+				},
+			}
 			checksRun.add(check.id)
 			currentCheck = check.id
 			currentPhase = "test"
@@ -1101,19 +1172,20 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				requests: client.transcript.length,
 			})
 			try {
-				await check.run(ctx)
+				await check.run(view)
 			} catch (error) {
 				if (isNetworkError(error)) {
 					noteNetwork(error, entity.name)
 					return
 				}
-				findings.gap(
+				view.findings.gap(
 					check.id,
 					entity.name,
 					`check "${check.id}" could not complete`,
 					error instanceof Error ? error.message : String(error),
 				)
 			}
+			grades.graded(judged === undefined ? graded : graded.filter((id) => judged?.has(id) === true), check.id)
 		}
 
 		/* Cascade suppression: a check whose premise is already known broken would report a
@@ -1140,6 +1212,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				const because = failed ? dependency : (inherited as string)
 				suppressedBy.set(check.id, because)
 				checksSuppressed.push({ because, check: check.id, entity: entity.name })
+				grades.suppress(gradedBy.get(check.id) ?? [], check.id)
 				return true
 			}
 			return false
@@ -1162,14 +1235,19 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		}
 
 		for (const check of CHECKS) {
+			const graded = check.subjects(entity, model).filter((id) => runScope.inScope(id) && !profileExcludes(id))
+			/* Out of scope is not a skip: the check could have run, this run was not asked to. */
+			if (runScope.mode === "targeted" && graded.length === 0) {
+				checksOutOfScope.push({ check: check.id, entity: entity.name })
+				continue
+			}
+			gradedBy.set(check.id, graded)
 			if (!check.applicable(ctx)) {
 				/* Recorded, not dropped: on an API shaped unlike the fixture this is most of the
 				 * suite, and a silent skip reads exactly like a clean result. */
-				checksSkipped.push({
-					check: check.id,
-					entity: entity.name,
-					needs: check.needs ?? "an unstated precondition",
-				})
+				const needs = check.needs ?? "an unstated precondition"
+				checksSkipped.push({ check: check.id, entity: entity.name, needs })
+				grades.skipped(graded, needs)
 				continue
 			}
 			if (check.mutates === true) {
@@ -1194,7 +1272,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	 * entities: a child create in flight while a parent page-walk runs invents pagination
 	 * findings, so there are no entity lanes.
 	 */
-	const queue = testableEntities(model, options.only, authCreates)
+	const queue = runScope.entities
 	entityTotal = queue.length
 	for (const [index, entity] of queue.entries()) {
 		if (networkGate.exhausted) {
@@ -1257,8 +1335,20 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		}),
 	)
 
+	const coverage = scopeReport()
 	if ((options.origins ?? []).length > 0 && options.skipPrincipalTeardown !== true) {
-		await runSecondaryOrigins(options, persisted, findings, checksRun, checksSkipped, checksSuppressed, entitiesTested)
+		await runSecondaryOrigins(
+			options,
+			persisted,
+			findings,
+			checksRun,
+			checksSkipped,
+			checksSuppressed,
+			checksOutOfScope,
+			entitiesTested,
+			runScope,
+			coverage,
+		)
 	}
 
 	if (options.skipPrincipalTeardown !== true) {
@@ -1272,6 +1362,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	})
 
 	return {
+		checksOutOfScope,
 		checksRun: [...checksRun].sort(),
 		checksSkipped,
 		checksSuppressed,
@@ -1284,6 +1375,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		principals: persisted,
 		profile: profile.name,
 		profileExclusions,
+		scope: coverage,
 		teardown,
 		...(journal === null ? {} : { exchanges: { count: journal.count } }),
 		...(networkOutcome === undefined ? {} : { network: networkOutcome }),
@@ -1331,9 +1423,19 @@ async function runSecondaryOrigins(
 	checksRun: Set<string>,
 	checksSkipped: Array<{ check: string; entity: string; needs: string }>,
 	checksSuppressed: Array<{ check: string; entity: string; because: string }>,
+	checksOutOfScope: Array<{ check: string; entity: string }>,
 	entitiesTested: string[],
+	runScope: TargetScope,
+	coverage: ScopeReport,
 ): Promise<void> {
 	for (const origin of options.origins ?? []) {
+		/* Targets were resolved against every origin up front; an origin none of them name has
+		 * nothing to grade, and running it anyway is the cost --ops exists to skip. */
+		const originOps = runScope.origins.get(origin.id)
+		if (runScope.mode === "targeted" && originOps === undefined) {
+			coverage.originsSkipped.push(origin.id)
+			continue
+		}
 		const originHooks =
 			options.hooks === undefined
 				? undefined
@@ -1353,7 +1455,7 @@ async function runSecondaryOrigins(
 			...(options.roots === undefined ? {} : { roots: options.roots }),
 			...(options.seed === undefined ? {} : { seed: options.seed }),
 			...(options.cohortSize === undefined ? {} : { cohortSize: options.cohortSize }),
-			...(options.only === undefined ? {} : { only: options.only }),
+			...(originOps === undefined ? {} : { ops: originOps }),
 			...(options.profiles === undefined ? {} : { profiles: options.profiles }),
 			...(options.profile === undefined ? {} : { profile: options.profile }),
 			...(options.rateLimits === undefined ? {} : { rateLimits: options.rateLimits }),
@@ -1375,6 +1477,11 @@ async function runSecondaryOrigins(
 			checksSuppressed.push({ ...suppressed, entity: `${origin.id}:${suppressed.entity}` })
 		}
 		for (const entity of result.entitiesTested) entitiesTested.push(`${origin.id}:${entity}`)
+		for (const item of result.checksOutOfScope) {
+			checksOutOfScope.push({ ...item, entity: `${origin.id}:${item.entity}` })
+		}
+		for (const op of result.scope.operations) coverage.operations.push({ ...op, origin: origin.id })
+		for (const use of result.scope.support) coverage.support.push({ ...use, origin: origin.id })
 		for (const item of result.inconclusive) {
 			findings.unresolved(item.check, `${origin.id}:${item.entity}`, item.reason)
 		}

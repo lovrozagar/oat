@@ -50,6 +50,15 @@ export { NetworkError, classifyNetworkError, isNetworkError } from "./runtime/ne
 export type { NetworkKind } from "./runtime/network.ts"
 export { run } from "./runtime/run.ts"
 export type { RunOptions, RunResult } from "./runtime/run.ts"
+export { planScope, resolveTargetScope, ScopeError } from "./runtime/scope.ts"
+export type {
+	OperationCoverage,
+	OperationStatus,
+	ScopePlan,
+	ScopeReport,
+	SupportUse,
+	TargetScope,
+} from "./runtime/scope.ts"
 export type { Actor } from "./runtime/checks.ts"
 export type { Finding, Verdict } from "./runtime/finding.ts"
 export { buildMatrixGraph, matrixViewFromReport, renderMatrixGraph, renderMatrixHtml } from "./report/matrix.ts"

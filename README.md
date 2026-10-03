@@ -40,6 +40,7 @@ This file is the operator manual. An agent that has read it can install oat, wri
 - [Complete configs](#complete-configs)
 - [Commands](#commands)
   - [oat run](#oat-run)
+  - [Targeted runs (`--ops`)](#targeted-runs---ops)
   - [oat doctor](#oat-doctor)
   - [oat plan](#oat-plan)
   - [oat serve](#oat-serve)
@@ -255,19 +256,20 @@ oat help
 
 Requires `--config`. CLI flags override the same field in the config when both are set.
 
-| flag                                       | default                          | meaning                                                                                                                                 |
-| ------------------------------------------ | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `--config`                                 | required                         | module or JSON file, default export                                                                                                     |
-| `--base-url`                               | `config.baseUrl`                 | backend origin                                                                                                                          |
-| `--only`                                   | `config.only` or all entities    | comma-separated entity names as `oat plan` prints them (singularised)                                                                   |
-| `--seed`                                   | `config.seed` or `1`             | fixture generation seed (reproducible)                                                                                                  |
-| `--out`                                    | `config.outDir` or `./.oat/runs` | history root; each run writes `<out>/<datetime>/` and updates `latest`                                                                  |
-| `--max-in-flight`                          | `config.maxInFlight` or `4`      | HTTP requests allowed at once                                                                                                           |
-| `--keep-fixtures`                          | `config.keepFixtures` or false   | do not DELETE what the run created                                                                                                      |
-| `--quiet`                                  | false                            | no stderr progress; files under `--out` still update                                                                                    |
-| `--save-exchanges` / `--no-save-exchanges` | on unless `--profile cheap`      | persist every HTTP exchange under the run dir (`exchanges.jsonl`, `exchanges/`, `blobs/`). Does **not** change in-memory transcript RAM |
+| flag                                       | default                          | meaning                                                                                                                                         |
+| ------------------------------------------ | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--config`                                 | required                         | module or JSON file, default export                                                                                                             |
+| `--base-url`                               | `config.baseUrl`                 | backend origin                                                                                                                                  |
+| `--ops`                                    | `config.ops` or every operation  | comma-separated operationIds to grade; everything else is support. `*` globs, `<originId>:` prefixes. See [Targeted runs](#targeted-runs---ops) |
+| `--only`                                   | `config.only` or all entities    | comma-separated entity names as `oat plan` prints them (singularised); each grades every operation it owns. Joins `--ops` as a union            |
+| `--seed`                                   | `config.seed` or `1`             | fixture generation seed (reproducible)                                                                                                          |
+| `--out`                                    | `config.outDir` or `./.oat/runs` | history root; each run writes `<out>/<datetime>/` and updates `latest`                                                                          |
+| `--max-in-flight`                          | `config.maxInFlight` or `4`      | HTTP requests allowed at once                                                                                                                   |
+| `--keep-fixtures`                          | `config.keepFixtures` or false   | do not DELETE what the run created                                                                                                              |
+| `--quiet`                                  | false                            | no stderr progress; files under `--out` still update                                                                                            |
+| `--save-exchanges` / `--no-save-exchanges` | on unless `--profile cheap`      | persist every HTTP exchange under the run dir (`exchanges.jsonl`, `exchanges/`, `blobs/`). Does **not** change in-memory transcript RAM         |
 
-**Exit codes:** `0` no defects, `1` at least one root-cause finding (`BACKEND_BUG`, `SPEC_BUG`, `SECURITY`, `AMBIGUITY`) **or** the run stopped because the network never came back, `2` usage error (missing `--config`, no principals, unknown flag). `COVERAGE_GAP` and `BLOCKED` do not fail the process.
+**Exit codes:** `0` no defects, `1` at least one root-cause finding (`BACKEND_BUG`, `SPEC_BUG`, `SECURITY`, `AMBIGUITY`) **or** the run stopped because the network never came back **or**, on a targeted run, a target that did not end `held`, `2` usage error (missing `--config`, no principals, unknown flag, an `--ops` / `--only` name that matches nothing, a target the profile excludes). `COVERAGE_GAP` and `BLOCKED` do not fail a full run.
 
 Example:
 
@@ -275,9 +277,46 @@ Example:
 oat run --config oat.config.ts --only store,product --out .oat/runs/prod
 ```
 
-`--only store,product` matches the **entity names** from `oat plan`, not path segments. `/v1/stores` is usually the entity `store`. If a name is unknown, that entity is simply not tested (the others still run).
+`--only store,product` matches the **entity names** from `oat plan`, not path segments. `/v1/stores` is usually the entity `store`. An unknown name exits `2` with the nearest names.
 
 A run with no principals exits `2`. Isolation checks then need a second principal; they are skipped, not failed, when only one is present.
+
+### Targeted runs (`--ops`)
+
+A full run grades every operation. After changing two endpoints you usually want those two, not the whole API:
+
+```bash
+oat run --config oat.config.ts --ops table.create,row.list
+oat run --config oat.config.ts --ops 'row.*'            # glob within an operationId
+oat run --config oat.config.ts --ops cdn:asset.get      # an operation on the origin with id "cdn"
+oat plan --config oat.config.ts --ops table.create      # dry run: what would be graded, queued, called
+```
+
+**Targets** are graded: every check whose subjects include a target runs the full matrix against it. **Support** operations are called and never graded: principal sign-up, parent creates, the cohort create behind a list, reads used as an oracle, teardown deletes. A list route cannot be tested without rows in it, so its create still runs, but a defect in that create is out of this run's scope.
+
+How the scope is decided:
+
+- Every check declares its **subjects**, the operations whose contract it judges (`filter.*` judges the list route, `patch.minimality` the update, `effects.declared-effect-occurs` each `x-effects` operation). A check runs when one of its subjects is a target. Others are **out of scope**: not run, not skipped.
+- An entity is seeded only when one of its checks grades a target. Declared edges pull in the other direction too: targeting a read route that another entity's create names in `x-invalidate` queues that entity, so its invalidation check grades the route.
+- Checks that judge several operations (`effects.*`, `async.*`, `response.status-is-documented`, `schema.error-response-matches-document`, `invalidation.declared-route-changes`) invoke and judge only the targeted ones. An untargeted `x-effects` upload is never POSTed.
+- Every finding names the operations it judges (`operations` in `oat-report.json`).
+- An operation counts as graded only when a check exercised it. A check that judges after the fact (`response.status-is-documented` reads the transcript) grades only the operations it saw. A check that reports a coverage gap for an operation did not grade it. `--only <entity>` therefore surfaces every action no check can reach as `untested`.
+
+Each target ends with one status:
+
+| status         | meaning                                                                                                                                                 |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `held`         | at least one check graded it and none failed                                                                                                            |
+| `failed`       | a defect finding is attributed to it                                                                                                                    |
+| `inconclusive` | checks ran and none could decide                                                                                                                        |
+| `blocked`      | every check was suppressed, or a support operation it needed failed (named, with evidence)                                                              |
+| `untested`     | nothing exercised it. The reason says why (`unmodeled`, `entity-not-testable`, `coverage gap: …`, `no check applied: needs …`, `no check exercised it`) |
+
+A targeted run exits `0` only when every target is `held`. A target nothing could grade must not read as a pass.
+
+Validation happens before any principal signs up: a name that matches nothing exits `2` with the nearest operationIds; an exact target the active `--profile` excludes exits `2`; a glob or `--only` match the profile excludes is dropped and listed. An origin no target names is not run.
+
+A targeted run is for iterating. It grades what you named and what those operations observably affect through declared edges. It does not catch a regression in an untargeted operation caused by shared code, so run the full suite before a release.
 
 ### `oat doctor`
 
@@ -336,6 +375,8 @@ store               CLRU·  id         2 route(s) (inferred)
 `CLRUD` is Create / List / Read / Update / Delete. `·` means that slot is missing. `ident` is the identity property. Read surface is declared (`x-invalidate`) or inferred (sibling collection/item routes).
 
 `--json` is `{ entities, operations, roots }` — the full `SpecModel` maps, including conventions, query capability, async, invite, and path params. Use this when you need to know what oat will call something.
+
+With `--ops` / `--only` (flag or config), `plan` prints the targeted scope instead: each target with its entity and the checks that would grade it, untestable targets with the reason, the entities that would be queued, and the support operations predicted from the graph. `--json` adds a `scope` object with the same fields. An unknown name exits `2`.
 
 ### `oat serve`
 
@@ -433,7 +474,8 @@ export default defineConfig({
 	seed: 42, // fixture generation; a failing run with the same seed is identical
 	cohortSize: 12, // records created per entity (default 7)
 	maxInFlight: 4, // HTTP in flight
-	only: ["store", "product"], // restrict entities
+	ops: ["store.create", "product.*"], // grade only these operationIds; the rest is support
+	only: ["store", "product"], // grade every operation these entities own (union with ops)
 	keepFixtures: false,
 	outDir: "./.oat/runs",
 	saveExchanges: true, // default on unless --profile cheap; --quiet does not turn this off
@@ -483,7 +525,7 @@ export default defineConfig({
 
 `spec` may be a path relative to `baseUrl` (`/v1/openapi/spec`) or an absolute URL or a file.
 
-CLI `--base-url`, `--only`, `--seed`, `--out`, `--max-in-flight`, `--keep-fixtures`, `--save-exchanges` / `--no-save-exchanges` override these when passed.
+CLI `--base-url`, `--ops`, `--only`, `--seed`, `--out`, `--max-in-flight`, `--keep-fixtures`, `--save-exchanges` / `--no-save-exchanges` override these when passed.
 
 ### Spec loading
 
@@ -1686,7 +1728,7 @@ Coverage is split **never** (zero entities could run it) vs **partial** (ran on 
 
 Cascade suppression is transitive: one root cause is one finding, not a page of consequences. A blocked check has **not** been verified; re-run after the cause is fixed.
 
-`oat run` exit `1` if any finding has a failing verdict. Gaps and blocked entries do not fail CI.
+`oat run` exit `1` if any finding has a failing verdict. Gaps and blocked entries do not fail a full run. A targeted run (`--ops`) also exits `1` when any target did not end `held`.
 
 Console (stdout) after a run:
 
@@ -1715,20 +1757,20 @@ Written under `--out` (default `./.oat/runs`). Each invocation creates a UTC tim
 
 `--out` / `outDir` replace the root, not the leaf — `--out .oat/runs/prod` writes `.oat/runs/prod/<datetime>/`.
 
-| file                         |                                                                                                        |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `oat-report.md`              | human report: summary, findings with request/response excerpts, coverage, latency p50/p95/max          |
-| `oat-report.json`            | same data for CI. Summary only — full exchanges are not inlined here                                   |
-| `matrix.html`                | visual matrix of entities × checks                                                                     |
-| `matrix.json`                | the same graph (AI-friendly), including a mermaid string                                               |
-| `issue-repro/*.sh`           | one executable `curl` script per finding that has evidence. Directory is omitted when the run is clean |
-| `progress.log`               | logfmt, one event per line, never truncated                                                            |
-| `progress.jsonl`             | same events as JSON                                                                                    |
-| `progress.tsv`               | same columns, tab-separated. `req_id` is the join key to the exchange journal                          |
-| `progress.json`              | latest snapshot only (overwritten ~1s)                                                                 |
-| `exchanges.jsonl`            | one line per request (`seq`, `requestId`, method, url, status, bytes, …). Greppable                    |
-| `exchanges/<requestId>.json` | full exchange: status, headers, described bodies. Missing id → `seq-<n>.json`. Duplicate id → `-<seq>` |
-| `blobs/<sha256>`             | content-addressed file parts and oversized / binary bodies                                             |
+| file                         |                                                                                                                            |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `oat-report.md`              | human report: scope, per-operation status, summary, findings with request/response excerpts, coverage, latency p50/p95/max |
+| `oat-report.json`            | same data for CI. Summary only — full exchanges are not inlined here                                                       |
+| `matrix.html`                | visual matrix of entities × checks                                                                                         |
+| `matrix.json`                | the same graph (AI-friendly), including a mermaid string                                                                   |
+| `issue-repro/*.sh`           | one executable `curl` script per finding that has evidence. Directory is omitted when the run is clean                     |
+| `progress.log`               | logfmt, one event per line, never truncated                                                                                |
+| `progress.jsonl`             | same events as JSON                                                                                                        |
+| `progress.tsv`               | same columns, tab-separated. `req_id` is the join key to the exchange journal                                              |
+| `progress.json`              | latest snapshot only (overwritten ~1s)                                                                                     |
+| `exchanges.jsonl`            | one line per request (`seq`, `requestId`, method, url, status, bytes, …). Greppable                                        |
+| `exchanges/<requestId>.json` | full exchange: status, headers, described bodies. Missing id → `seq-<n>.json`. Duplicate id → `-<seq>`                     |
+| `blobs/<sha256>`             | content-addressed file parts and oversized / binary bodies                                                                 |
 
 The journal is oat `Exchange` JSON, not HAR (HAR export is out of scope). Default **on** unless `--profile cheap`. `--no-save-exchanges` skips `exchanges/` entirely. `--quiet` does not. **`--no-save-exchanges` does not reduce transcript RAM** — it only skips the disk journal. The in-memory transcript always drops live `FormData` / `Blob` / `ArrayBuffer` / multi-MiB strings after each hop, keeping citeable metadata and content-addressed body descriptors. Reconstruct bytes from `blobs/<sha256>` when a check genuinely needs them.
 
@@ -1738,6 +1780,8 @@ Redaction is on by default (not opt-in), applied on write:
 
 - Headers: `authorization`, `cookie`, `set-cookie`, `proxy-authorization`, and any `x-*-key` / `x-*-secret` / `x-ia-tester-key` (case-insensitive).
 - JSON bodies, any depth: `access_token`, `refresh_token`, `id_token`, `password`, `token`, `secret`, `api_key` → `"<redacted>"`.
+
+Every report names its scope. The console prints `scope: full · 141 of 212 operations graded` or `scope: targeted · 2 operations (--ops …)` followed by one line per target. `oat-report.md` has a **Scope** line and an **Operations** table: on a full run, every operation in the document with its status (so operations no check ever grades are visible); on a targeted run, the targets only, followed by **Support operations** with call and non-2xx counts. In `matrix.html` / `matrix.json` a check a targeted run did not ask for is `out-of-scope`, distinct from `skipped` (not applicable).
 
 Join `progress.tsv` `req_id` to `exchanges.jsonl` `requestId` (response `x-request-id` / `request-id` / `x-correlation-id` / `correlation-id` wins; else what oat sent). `oat-report.md` includes one line such as `1841 exchanges → exchanges/`.
 
@@ -1750,6 +1794,30 @@ Join `progress.tsv` `req_id` to `exchanges.jsonl` `requestId` (response `x-reque
 	"durationMs": 41200,
 	"requests": 842,
 	"entitiesTested": ["store", "product"],
+	"scope": {
+		"mode": "targeted",
+		"requested": { "ops": ["product.update"], "only": [] },
+		"operations": [
+			{
+				"operationId": "product.update",
+				"entity": "product",
+				"status": "failed",
+				"checks": {
+					"held": ["concurrency.no-lost-update"],
+					"failed": ["patch.minimality"],
+					"suppressed": [],
+					"inconclusive": [],
+					"gaps": []
+				},
+				"findings": 1,
+				"reason": null
+			}
+		],
+		"support": [{ "operationId": "product.create", "calls": 9, "non2xx": 0 }],
+		"excluded": [],
+		"originsSkipped": []
+	},
+	"checksOutOfScope": [{ "check": "filter.in-is-union-of-eq", "entity": "product" }],
 	"checksRun": ["list.read-after-write", "patch.minimality"],
 	"checksSkipped": [{ "check": "async.reaches-terminal-state", "entity": "store", "needs": "…" }],
 	"checksSuppressed": [{ "check": "query.axes-compose", "entity": "store", "because": "list.read-after-write" }],
@@ -1918,7 +1986,9 @@ const result = await run({
 })
 
 // result.findings, result.checksSkipped, result.checksSuppressed,
-// result.inconclusive, result.entitiesTested, result.teardown, result.created
+// result.inconclusive, result.entitiesTested, result.teardown, result.created,
+// result.scope (per-operation status), result.checksOutOfScope
+// pass `ops: ["product.update"]` to run() for a targeted run; ScopeError on an unknown name
 ```
 
 `loadConfig(path)` loads `.ts` / `.js` / `.mjs` / `.json` the same way the CLI does. The CLI then expands `${NAME}` in every string. `defineConfig` is an identity function for typing; it does not interpolate. If you call `run()` with an in-process object, resolve secrets yourself (template literals, `process.env`) before passing it.
@@ -2058,6 +2128,7 @@ These are deliberate. An agent should not invent a flag for them.
 - **`or()` is postgrest-only.**
 - **Leftover rows on a shared DB** poison numeric and filter checks. Wipe between runs.
 - **`--only` uses plan names** (`store`, not `stores` or `/v1/stores`).
+- **`--ops` trusts support operations.** A targeted green means the targets held, given that what they needed worked. A defect in an untargeted operation is out of scope, even when a target called it.
 - **Default cohort is 7.** `pagination.limit-respects-documented-max` needs `cohortSize > maxLimit`.
 - **First principal is the writer.** Extra principals are peers / lattice, not a pool of writers.
 

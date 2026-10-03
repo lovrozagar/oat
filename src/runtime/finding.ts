@@ -20,6 +20,8 @@ export interface Finding {
 	origin?: string
 	/** Fixture filename when `uploads.each` drove the invocation. */
 	fixture?: string
+	/** Operations this finding judges. Absent on run-level findings (teardown, network, pacing). */
+	operations?: string[]
 }
 
 /**
@@ -36,6 +38,7 @@ export interface Inconclusive {
 	entity: string
 	/** Why no verdict was reachable, in the reader's terms. */
 	reason: string
+	operations?: string[]
 }
 
 function withFixture(finding: Finding, fixture?: string): Finding {
@@ -44,8 +47,30 @@ function withFixture(finding: Finding, fixture?: string): Finding {
 }
 
 export class FindingCollector {
-	readonly findings: Finding[] = []
-	readonly inconclusive: Inconclusive[] = []
+	readonly findings: Finding[]
+	readonly inconclusive: Inconclusive[]
+	readonly #operations: readonly string[] | undefined
+
+	constructor(findings: Finding[] = [], inconclusive: Inconclusive[] = [], operations?: readonly string[]) {
+		this.findings = findings
+		this.inconclusive = inconclusive
+		this.#operations = operations
+	}
+
+	/**
+	 * A view over the same findings that attributes everything it records to `operations`.
+	 *
+	 * Each check runs against its own view, so a finding lands on the operations the check judges
+	 * without threading an id through every call site. Read-only checks run concurrently, so a
+	 * shared "current check" would attribute one check's finding to another.
+	 */
+	attributed(operations: readonly string[]): FindingCollector {
+		return new FindingCollector(this.findings, this.inconclusive, operations)
+	}
+
+	#stamp(): { operations: string[] } | Record<string, never> {
+		return this.#operations === undefined ? {} : { operations: [...this.#operations] }
+	}
 
 	/**
 	 * Records that a check ran without reaching a verdict. Returns `undefined` so a check can
@@ -53,12 +78,12 @@ export class FindingCollector {
 	 * beside the condition that caused it rather than in a comment.
 	 */
 	unresolved(check: string, entity: string, reason: string): undefined {
-		this.inconclusive.push({ check, entity, reason })
+		this.inconclusive.push({ check, entity, reason, ...this.#stamp() })
 		return undefined
 	}
 
 	report(finding: Finding): void {
-		this.findings.push(finding)
+		this.findings.push(finding.operations === undefined ? { ...finding, ...this.#stamp() } : finding)
 	}
 
 	backend(
@@ -91,12 +116,12 @@ export class FindingCollector {
 		this.report(withFixture({ check, detail, entity, evidence: [], summary, verdict: "COVERAGE_GAP" }, fixture))
 	}
 
-	blocked(check: string, entity: string, summary: string, cause: string): void {
+	blocked(check: string, entity: string, summary: string, cause: string, evidence: Exchange[] = []): void {
 		this.report({
 			check,
 			detail: `blocked by ${cause}`,
 			entity,
-			evidence: [],
+			evidence,
 			summary,
 			verdict: "BLOCKED",
 		})

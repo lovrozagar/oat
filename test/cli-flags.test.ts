@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 import { KNOWN_FLAGS, main, parseArgs, unknownFlag, USAGE } from "../src/cli.ts"
+import { PRINCIPALS } from "../src/conformance/suite.ts"
+import { createMemoryServer, type ReferenceServer } from "../src/reference/http.ts"
 
 describe("CLI flags", () => {
 	it("does not advertise --concurrency in help", () => {
@@ -36,5 +41,119 @@ describe("CLI flags", () => {
 		const off = parseArgs(["run", "--config", "oat.config.ts", "--no-save-exchanges"])
 		expect(unknownFlag(off.flags)).toBeUndefined()
 		expect(off.flags["no-save-exchanges"]).toBe(true)
+	})
+})
+
+async function cli(argv: string[]): Promise<{ code: number; out: string }> {
+	const saved = process.argv
+	const chunks: string[] = []
+	const write = vi.spyOn(process.stdout, "write").mockImplementation((chunk: string | Uint8Array) => {
+		chunks.push(String(chunk))
+		return true
+	})
+	const err = vi.spyOn(process.stderr, "write").mockImplementation((chunk: string | Uint8Array) => {
+		chunks.push(String(chunk))
+		return true
+	})
+	process.argv = ["node", "oat", ...argv]
+	try {
+		return { code: await main(), out: chunks.join("") }
+	} finally {
+		process.argv = saved
+		write.mockRestore()
+		err.mockRestore()
+	}
+}
+
+describe("--ops on the CLI", () => {
+	let server: ReferenceServer
+	let dir: string
+
+	beforeAll(async () => {
+		server = await createMemoryServer()
+		dir = await mkdtemp(join(tmpdir(), "oat-ops-"))
+	})
+	afterAll(async () => {
+		await server.close()
+		await rm(dir, { force: true, recursive: true })
+	})
+
+	async function config(extra: Record<string, unknown> = {}): Promise<string> {
+		const path = join(dir, `config-${Math.random().toString(36).slice(2)}.json`)
+		const body = {
+			baseUrl: server.url,
+			principals: PRINCIPALS,
+			seed: 42,
+			spec: `${server.url}/v1/openapi/spec`,
+			...extra,
+		}
+		await writeFile(path, JSON.stringify(body))
+		return path
+	}
+
+	it("advertises --ops", () => {
+		expect(KNOWN_FLAGS.has("ops")).toBe(true)
+		expect(USAGE).toContain("--ops")
+	})
+
+	it("exits 2 on a target that matches no operation", async () => {
+		const { code, out } = await cli([
+			"run",
+			"--config",
+			await config(),
+			"--ops",
+			"table.craete",
+			"--out",
+			dir,
+			"--quiet",
+		])
+		expect(code).toBe(2)
+		expect(out).toContain("Did you mean: table.create")
+	})
+
+	it("exits 0 when every target held", async () => {
+		const { code, out } = await cli(["run", "--config", await config(), "--ops", "table.get", "--out", dir, "--quiet"])
+		expect(code).toBe(0)
+		expect(out).toContain("scope: targeted")
+		expect(out).toMatch(/table\.get\s+held/)
+	})
+
+	it("exits 1 when a target was not graded, and reads targets from config", async () => {
+		const { code, out } = await cli(["run", "--config", await config({ ops: ["auth.token"] }), "--out", dir, "--quiet"])
+		expect(code).toBe(1)
+		expect(out).toMatch(/auth\.token\s+untested/)
+	})
+
+	it("plan --ops prints the scope without a run", async () => {
+		const { code, out } = await cli(["plan", "--spec", `${server.url}/v1/openapi/spec`, "--ops", "table.get", "--json"])
+		expect(code).toBe(0)
+		const scope = (
+			JSON.parse(out) as {
+				scope: {
+					mode: string
+					targets: Array<{ operationId: string; entity: string; checks: string[] }>
+					entities: string[]
+					support: string[]
+				}
+			}
+		).scope
+		expect(scope.mode).toBe("targeted")
+		expect(scope.entities).toEqual(["row", "table"])
+		expect(scope.targets[0]?.operationId).toBe("table.get")
+		expect(scope.targets[0]?.checks).toContain("tenant.item-not-readable-cross-tenant")
+		expect(scope.support).toContain("table.create")
+	})
+
+	it("plan --ops renders text", async () => {
+		const { code, out } = await cli([
+			"plan",
+			"--spec",
+			`${server.url}/v1/openapi/spec`,
+			"--ops",
+			"table.get,auth.token",
+		])
+		expect(code).toBe(0)
+		expect(out).toContain("scope: targeted (--ops table.get,auth.token)")
+		expect(out).toMatch(/auth\.token\s+unmodeled/)
 	})
 })

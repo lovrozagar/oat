@@ -32,6 +32,9 @@ export class SeedError extends Error {
 		message: string,
 		/** Status the failing request returned, when the failure was an HTTP response. */
 		readonly status?: number,
+		/** The create that failed, when the failure was one — a parent's, not always the entity's own. */
+		readonly operationId?: string,
+		readonly exchange?: Exchange,
 	) {
 		super(message)
 	}
@@ -117,7 +120,7 @@ export interface WorldOptions {
  * Resolves every path parameter an operation needs. Roots come from config; everything else is
  * created through the owning entity's create operation, depth-first.
  */
-export async function resolveScope(
+export async function resolvePathScope(
 	op: OperationModel,
 	model: SpecModel,
 	client: Client,
@@ -147,7 +150,7 @@ export async function resolveScope(
 		const createOp = model.byOperationId.get(entity.create)
 		if (createOp === undefined) throw new SeedError(param, `missing operation ${entity.create}`)
 
-		await resolveScope(createOp, model, client, options, scope)
+		await resolvePathScope(createOp, model, client, options, scope)
 		const created = await createOne(createOp, model, client, options, scope)
 		const identity = entity.identity ?? "id"
 		const id = created[identity]
@@ -214,6 +217,8 @@ async function createOne(
 			createOp.operationId,
 			`${createOp.operationId} returned ${exchange.status}: ${JSON.stringify(exchange.responseBody).slice(0, 300)}`,
 			exchange.status,
+			createOp.operationId,
+			exchange,
 		)
 	}
 	return (exchange.responseBody ?? {}) as Record_
@@ -361,6 +366,8 @@ export async function seedCohort(
 				`seeding "${member.variant}" returned ${exchange.status}: ` +
 					JSON.stringify(exchange.responseBody).slice(0, 300),
 				exchange.status,
+				createOp.operationId,
+				exchange,
 			)
 		}
 		if (isPlanLimitResponse(exchange.status, exchange.responseBody)) {
@@ -372,6 +379,8 @@ export async function seedCohort(
 			createOp.operationId,
 			`seeding "${member.variant}" returned ${exchange.status}: ` + JSON.stringify(exchange.responseBody).slice(0, 300),
 			exchange.status,
+			createOp.operationId,
+			exchange,
 		)
 	}
 

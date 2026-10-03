@@ -11,7 +11,8 @@ import { CHECKS } from "../runtime/checks.ts"
 import type { SpecModel } from "../spec/graph.ts"
 import type { ReportInput } from "./render.ts"
 
-export type CellStatus = "held" | "failed" | "blocked" | "skipped"
+/** `out-of-scope`: a targeted run (`--ops`) did not ask for it — it could apply, it was not graded. */
+export type CellStatus = "held" | "failed" | "blocked" | "skipped" | "out-of-scope"
 export type MatrixLayer = "axis" | "composition" | "surface" | "auth" | "schema" | "spec"
 
 export interface MatrixView {
@@ -65,7 +66,7 @@ export interface EntityMatrix {
 	name: string
 	identity: string | null
 	readSurface: string[]
-	counts: { failed: number; blocked: number; held: number; skipped: number }
+	counts: Record<CellStatus, number>
 	roots: string[]
 	nodes: MatrixGraphNode[]
 }
@@ -89,7 +90,7 @@ export interface MatrixGraph {
 		crossClaims: number
 		inbound: Record<string, number>
 	}
-	counts: { failed: number; blocked: number; held: number; skipped: number }
+	counts: Record<CellStatus, number>
 	entities: EntityMatrix[]
 	invalidate: InvalidateLink[]
 	edges: MatrixGraphEdge[]
@@ -104,6 +105,7 @@ type MatrixParts = {
 	checksRun: readonly string[]
 	checksSkipped: ReadonlyArray<{ check: string; entity?: string; needs: string }>
 	checksSuppressed: ReadonlyArray<{ check: string; entity?: string; because: string }>
+	checksOutOfScope?: ReadonlyArray<{ check: string; entity?: string }>
 	findings: ReadonlyArray<{
 		check: string
 		entity?: string
@@ -273,6 +275,7 @@ export function matrixViewFromReport(input: ReportInput): MatrixView {
 		checksRun: input.checksRun,
 		checksSkipped: input.checksSkipped ?? [],
 		checksSuppressed: input.checksSuppressed ?? [],
+		checksOutOfScope: input.checksOutOfScope ?? [],
 		entity,
 		findings: input.findings,
 		generatedAt: input.startedAt.toISOString(),
@@ -326,6 +329,7 @@ export function buildMatrixGraphFromReport(input: ReportInput): MatrixGraph {
 		checksRun: input.checksRun,
 		checksSkipped: input.checksSkipped ?? [],
 		checksSuppressed: input.checksSuppressed ?? [],
+		checksOutOfScope: input.checksOutOfScope ?? [],
 		entity: name,
 		findings: input.findings,
 		generatedAt: input.startedAt.toISOString(),
@@ -364,7 +368,7 @@ function entitySlice(name: string, parts: MatrixParts, readSurface: string[], id
 		return node
 	})
 
-	const counts = { blocked: 0, failed: 0, held: 0, skipped: 0 }
+	const counts: Record<CellStatus, number> = { blocked: 0, failed: 0, held: 0, "out-of-scope": 0, skipped: 0 }
 	for (const node of nodes) counts[node.status] += 1
 
 	const failedSet = new Set(nodes.filter((n) => n.status === "failed").map((n) => n.id))
@@ -382,6 +386,9 @@ function statusFor(entity: string, id: string, parts: MatrixParts): CellStatus {
 	if (finding !== undefined) return "failed"
 	if (parts.checksSuppressed.some((s) => s.check === id && matchesEntity(s.entity, entity))) return "blocked"
 	if (parts.checksSkipped.some((s) => s.check === id && matchesEntity(s.entity, entity))) return "skipped"
+	if (parts.checksOutOfScope?.some((s) => s.check === id && matchesEntity(s.entity, entity)) === true) {
+		return "out-of-scope"
+	}
 	if (parts.checksRun.includes(id)) return "held"
 	return "skipped"
 }
@@ -424,12 +431,9 @@ function assembleGraph(
 	entities: EntityMatrix[],
 	invalidate: InvalidateLink[],
 ): MatrixGraph {
-	const counts = { blocked: 0, failed: 0, held: 0, skipped: 0 }
+	const counts: Record<CellStatus, number> = { blocked: 0, failed: 0, held: 0, "out-of-scope": 0, skipped: 0 }
 	for (const entity of entities) {
-		counts.failed += entity.counts.failed
-		counts.blocked += entity.counts.blocked
-		counts.held += entity.counts.held
-		counts.skipped += entity.counts.skipped
+		for (const status of Object.keys(counts) as CellStatus[]) counts[status] += entity.counts[status]
 	}
 	const cross = invalidate.filter((link) => link.cross)
 	const names = entities.map((e) => e.name)
@@ -439,7 +443,8 @@ function assembleGraph(
 	const inbound: Record<string, number> = {}
 	for (const link of cross) inbound[link.toEntity] = (inbound[link.toEntity] ?? 0) + 1
 	const summary =
-		`${who}: ${counts.failed} failed, ${counts.blocked} blocked, ${counts.held} held, ${counts.skipped} skipped.` +
+		`${who}: ${counts.failed} failed, ${counts.blocked} blocked, ${counts.held} held, ${counts.skipped} skipped` +
+		(counts["out-of-scope"] > 0 ? `, ${counts["out-of-scope"]} out of scope.` : ".") +
 		(cross.length > 8
 			? ` ${unique(cross.map((l) => l.toEntity)).length} parents receive ${cross.length} cross-entity claims.`
 			: cross.length > 0
@@ -465,6 +470,7 @@ function assembleGraph(
 				blocked: "not evaluated; a dependsOn check already failed",
 				failed: "two projections of the same fact disagreed — a finding",
 				held: "tested, and the projections agreed",
+				"out-of-scope": "a targeted run (--ops) did not grade it; it could apply",
 				skipped: "the document does not support this check",
 			},
 		},
@@ -574,7 +580,8 @@ function mermaidFromGraph(entities: EntityMatrix[], invalidate: InvalidateLink[]
 		}
 		for (const edge of USES) {
 			const dest = byId.get(edge.to)
-			const arrow = dest?.status === "blocked" || dest?.status === "skipped" ? "-.->" : "-->"
+			const arrow =
+				dest?.status === "blocked" || dest?.status === "skipped" || dest?.status === "out-of-scope" ? "-.->" : "-->"
 			lines.push(`  ${mid(`${focus.name}__${edge.from}`)} ${arrow} ${mid(`${focus.name}__${edge.to}`)}`)
 		}
 	}
@@ -582,6 +589,7 @@ function mermaidFromGraph(entities: EntityMatrix[], invalidate: InvalidateLink[]
 	lines.push("  classDef failed stroke:#ff6b3d,color:#ff6b3d")
 	lines.push("  classDef blocked stroke:#6d7686,stroke-dasharray: 4 4")
 	lines.push("  classDef skipped stroke:#3d4758")
+	lines.push("  classDef out-of-scope stroke:#3d4758,stroke-dasharray: 2 4")
 	return lines.join("\n")
 }
 
@@ -662,6 +670,7 @@ function renderPoster(graph: MatrixGraph): string {
   .swatch.failed { background: var(--fail); }
   .swatch.blocked { background: var(--block); box-shadow: inset 0 0 0 1px #9aa3b2; }
   .swatch.skipped { background: var(--skip); }
+  .swatch.out-of-scope { background: transparent; box-shadow: inset 0 0 0 1px var(--skip); }
   .forest { padding: 16px 20px 20px; }
   .forest-lead { color: var(--mute); margin: 0 0 14px; }
   .bar-row { display: grid; grid-template-columns: 80px 1fr 90px; gap: 12px; align-items: center; margin: 6px 0; }
@@ -681,6 +690,7 @@ function renderPoster(graph: MatrixGraph): string {
   .dot.failed { background: var(--fail); border-color: var(--fail); }
   .dot.blocked { background: transparent; border-style: dashed; border-color: var(--block); }
   .dot.skipped { background: var(--skip); }
+  .dot.out-of-scope { background: transparent; opacity: 0.4; }
   .strips { margin-top: 18px; display: grid; gap: 10px; }
   .strip { display: grid; grid-template-columns: 140px 1fr; gap: 12px; align-items: start; }
   .strip-title { color: var(--mute); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; padding-top: 6px; }
@@ -690,6 +700,7 @@ function renderPoster(graph: MatrixGraph): string {
   .chip.failed { color: var(--fail); border-color: var(--fail); background: #3a221c; }
   .chip.blocked { color: var(--block); border-style: dashed; }
   .chip.skipped { opacity: 0.45; }
+  .chip.out-of-scope { opacity: 0.25; border-style: dotted; }
   footer {
     margin-top: 18px; color: var(--mute); font-size: 11px;
     display: flex; justify-content: space-between; gap: 16px;
@@ -711,6 +722,7 @@ function renderPoster(graph: MatrixGraph): string {
       <div class="blocked"><b>${graph.counts.blocked}</b><span>blocked</span></div>
       <div class="held"><b>${graph.counts.held}</b><span>agreed</span></div>
       <div class="skipped"><b>${graph.counts.skipped}</b><span>did not apply</span></div>
+      ${graph.counts["out-of-scope"] > 0 ? `<div class="skipped"><b>${graph.counts["out-of-scope"]}</b><span>out of scope</span></div>` : ""}
     </div>
   </header>
 
@@ -734,6 +746,7 @@ function renderPoster(graph: MatrixGraph): string {
       <span><i class="swatch failed"></i>disagreed — a finding</span>
       <span><i class="swatch blocked"></i>blocked — an earlier check it depends on already failed</span>
       <span><i class="swatch skipped"></i>did not apply — the document has no support for this check</span>
+      ${graph.counts["out-of-scope"] > 0 ? '<span><i class="swatch out-of-scope"></i>out of scope — --ops did not target it</span>' : ""}
     </div>
   </div>
 
@@ -1030,7 +1043,7 @@ function loomSvg(focus: EntityMatrix): string {
 function link(from: { x: number; y: number }, to: { x: number; y: number }, status: CellStatus): string {
 	const color =
 		status === "failed" ? "#ff6b3d" : status === "held" ? "#7dcea0" : status === "blocked" ? "#6d7686" : "#3d4758"
-	const dash = status === "blocked" || status === "skipped" ? 'stroke-dasharray="5 5"' : ""
+	const dash = status === "blocked" || status === "skipped" || status === "out-of-scope" ? 'stroke-dasharray="5 5"' : ""
 	return `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" stroke="${color}" stroke-width="1.6" ${dash}/>`
 }
 
@@ -1039,7 +1052,7 @@ function box(pt: { x: number; y: number }, label: string, caption: string, statu
 		status === "failed" ? "#ff6b3d" : status === "held" ? "#7dcea0" : status === "blocked" ? "#6d7686" : "#3d4758"
 	const fill = status === "failed" ? "#ff6b3d" : "#1b2332"
 	const ink = status === "failed" ? "#243044" : status === "held" ? "#7dcea0" : "#9aa3b2"
-	const dash = status === "blocked" || status === "skipped" ? 'stroke-dasharray="3 3"' : ""
+	const dash = status === "blocked" || status === "skipped" || status === "out-of-scope" ? 'stroke-dasharray="3 3"' : ""
 	const w = Math.max(92, label.length * 7.4 + 22)
 	const x = pt.x - w / 2
 	const y = pt.y - 15

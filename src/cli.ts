@@ -18,6 +18,7 @@ import {
 } from "./runtime/progress.ts"
 import { resolveSaveExchanges } from "./runtime/exchanges.ts"
 import { allocateRunDir, DEFAULT_RUNS_ROOT } from "./runtime/runs.ts"
+import { authStepOperationIds, planScope, resolveTargetScope, ScopeError } from "./runtime/scope.ts"
 import { renderTeardown } from "./runtime/teardown.ts"
 import { buildModel } from "./spec/graph.ts"
 import { dereference, loadSpec } from "./spec/load.ts"
@@ -33,6 +34,7 @@ export const KNOWN_FLAGS = new Set([
 	"spec",
 	"base-url",
 	"only",
+	"ops",
 	"profile",
 	"seed",
 	"out",
@@ -88,7 +90,8 @@ Flags
   --config     oat config module (.ts/.js/.mjs/.json) with a default export
   --spec       OpenAPI document, http(s) URL or filesystem path
   --base-url   backend under test, overriding the config
-  --only       comma-separated entity names to restrict the run to
+  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only       comma-separated entity names; each grades every operation it owns
   --profile    named profile gating which operations run (built-in: full, cheap)
   --seed       integer seed for fixture generation (default 1)
   --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
@@ -113,6 +116,29 @@ function str(flags: Args["flags"], key: string): string | undefined {
 	return typeof value === "string" ? value : undefined
 }
 
+function list(flags: Args["flags"], key: string): string[] | undefined {
+	return str(flags, key)
+		?.split(",")
+		.map((s) => s.trim())
+		.filter(Boolean)
+}
+
+/**
+ * Exit code for a finished run. Root causes fail it, not raw findings: gaps and blocked entries
+ * are information. A targeted run also fails unless every target held — under `--ops` a target
+ * nothing graded must not read as a pass.
+ */
+export function exitCode(result: {
+	findings: ReadonlyArray<{ verdict: string }>
+	network?: { incomplete: boolean }
+	scope: { mode: string; operations: ReadonlyArray<{ status: string }> }
+}): number {
+	if (result.network?.incomplete === true) return 1
+	if (result.findings.some((f) => f.verdict !== "COVERAGE_GAP" && f.verdict !== "BLOCKED")) return 1
+	if (result.scope.mode === "targeted" && result.scope.operations.some((op) => op.status !== "held")) return 1
+	return 0
+}
+
 async function commandRun(flags: Args["flags"]): Promise<number> {
 	const configPath = str(flags, "config")
 	if (configPath === undefined) {
@@ -124,11 +150,8 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	const config = interpolate(await loadConfig(configPath))
 	const baseUrl = str(flags, "base-url") ?? config.baseUrl
 	const seedFlag = str(flags, "seed")
-	const onlyFromFlag = str(flags, "only")
-		?.split(",")
-		.map((s) => s.trim())
-		.filter(Boolean)
-	const only = onlyFromFlag ?? config.only?.filter((name) => name.trim() !== "")
+	const only = list(flags, "only") ?? config.only?.filter((name) => name.trim() !== "")
+	const ops = list(flags, "ops") ?? config.ops?.filter((name) => name.trim() !== "")
 	const profile = str(flags, "profile") ?? config.profile
 	const saveExchanges = resolveSaveExchanges({
 		...(flags["no-save-exchanges"] === true ? { flag: false } : flags["save-exchanges"] === true ? { flag: true } : {}),
@@ -192,6 +215,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 			...(config.roots === undefined ? {} : { roots: config.roots }),
 			...(config.cohortSize === undefined ? {} : { cohortSize: config.cohortSize }),
 			...(only === undefined || only.length === 0 ? {} : { only }),
+			...(ops === undefined || ops.length === 0 ? {} : { ops }),
 			...(profile === undefined ? {} : { profile }),
 			...(config.profiles === undefined ? {} : { profiles: config.profiles }),
 			...(config.rateLimits === undefined ? {} : { rateLimits: config.rateLimits }),
@@ -206,6 +230,10 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 			...(saveExchanges ? { exchangeDir: outDir } : {}),
 			...(config.network === undefined ? {} : { network: config.network }),
 		})
+	} catch (error) {
+		if (!(error instanceof ScopeError)) throw error
+		process.stderr.write(`${error.message}\n`)
+		return 2
 	} finally {
 		stderrProgress?.stop()
 		fileProgress.stop()
@@ -228,6 +256,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		model: result.model,
 		profile: result.profile,
 		profileExclusions: result.profileExclusions,
+		scope: result.scope,
 		startedAt,
 		...(result.exchanges === undefined ? {} : { exchanges: result.exchanges }),
 		...(result.network === undefined ? {} : { network: result.network }),
@@ -263,10 +292,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	}
 	process.stdout.write(`  latest: ${allocated.latest}\n\n`)
 
-	/* Exit code counts root causes, not raw findings: gaps and blocked entries are information,
-	 * not failures, and a CI gate should react to defects only. */
-	if (result.network?.incomplete === true) return 1
-	return result.findings.filter((f) => f.verdict !== "COVERAGE_GAP" && f.verdict !== "BLOCKED").length > 0 ? 1 : 0
+	return exitCode(result)
 }
 
 export async function main(): Promise<number> {
@@ -497,7 +523,8 @@ export async function main(): Promise<number> {
 
 	const specFlag = str(flags, "spec")
 	const configPath = str(flags, "config")
-	const specSource = specFlag ?? (configPath === undefined ? undefined : (await loadConfig(configPath)).spec)
+	const loaded = configPath === undefined ? undefined : await loadConfig(configPath)
+	const specSource = specFlag ?? loaded?.spec
 
 	if (specSource === undefined) {
 		process.stderr.write("oat: --spec (or --config) is required\n\n" + USAGE)
@@ -516,9 +543,27 @@ export async function main(): Promise<number> {
 	}
 
 	switch (command) {
-		case "plan":
-			process.stdout.write(report.plan(model, flags.json === true))
+		case "plan": {
+			const ops = list(flags, "ops") ?? loaded?.ops
+			const only = list(flags, "only") ?? loaded?.only
+			let scope: ReturnType<typeof planScope> | undefined
+			try {
+				scope = planScope(
+					model,
+					resolveTargetScope(model, {
+						...(ops === undefined ? {} : { ops }),
+						...(only === undefined ? {} : { only }),
+						authCreates: authStepOperationIds(loaded?.principals ?? []),
+					}),
+				)
+			} catch (error) {
+				if (!(error instanceof ScopeError)) throw error
+				process.stderr.write(`${error.message}\n`)
+				return 2
+			}
+			process.stdout.write(report.plan(model, flags.json === true, scope.mode === "targeted" ? scope : undefined))
 			return 0
+		}
 		case "doctor": {
 			const config = configPath === undefined ? undefined : interpolate(await loadConfig(configPath))
 			const output = report.doctor(

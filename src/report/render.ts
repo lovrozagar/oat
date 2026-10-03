@@ -9,6 +9,7 @@
 
 import { describeRequestBody, toCurl } from "../runtime/client.ts"
 import type { Client, Exchange } from "../runtime/client.ts"
+import { describeRequested, type OperationCoverage, type OperationStatus, type ScopeReport } from "../runtime/scope.ts"
 import type { Finding, Verdict } from "../runtime/finding.ts"
 import type { SpecModel } from "../spec/graph.ts"
 
@@ -22,6 +23,10 @@ export interface ReportInput {
 	checksSkipped?: Array<{ check: string; entity: string; needs: string }>
 	/** Checks not run because a check they depend on was already reported broken. */
 	checksSuppressed?: Array<{ check: string; entity: string; because: string }>
+	/** Checks a targeted run did not run on an entity because none of their subjects is a target. */
+	checksOutOfScope?: Array<{ check: string; entity: string }>
+	/** What the run graded, per operation. */
+	scope?: ScopeReport
 	/** Checks that ran but could not reach a verdict, with the reason they stopped. */
 	inconclusive?: Array<{ check: string; entity: string; reason: string }>
 	/** Active profile's name — `"full"` unless `--profile` / `config.profile` said otherwise. */
@@ -114,6 +119,7 @@ export function renderMarkdown(input: ReportInput): string {
 	lines.push("")
 	lines.push(`- **Backend**: ${input.baseUrl}`)
 	lines.push(`- **Generated**: ${input.startedAt.toISOString()} (${(input.durationMs / 1000).toFixed(1)}s)`)
+	if (input.scope !== undefined) lines.push(`- **Scope**: ${scopeLine(input.scope, " — ")}`)
 	lines.push(`- **Entities tested**: ${entityList(input.entitiesTested)}`)
 	lines.push(`- **Checks run**: ${input.checksRun.length}`)
 	if (coverage.never.length > 0) {
@@ -169,6 +175,8 @@ export function renderMarkdown(input: ReportInput): string {
 		}
 		lines.push("")
 	}
+
+	if (input.scope !== undefined) lines.push(...scopeSections(input.scope))
 
 	for (const verdict of VERDICT_ORDER) {
 		const group = findings.filter((f) => f.verdict === verdict)
@@ -318,8 +326,10 @@ export function coverageByCheck(input: ReportInput): {
 		current.blocked += 1
 		current.blockedEntities.push(entry.entity)
 	}
+	const outOfScope = new Map<string, number>()
+	for (const entry of input.checksOutOfScope ?? []) outOfScope.set(entry.check, (outOfScope.get(entry.check) ?? 0) + 1)
 	for (const current of rows.values()) {
-		current.ran = Math.max(0, tested - current.skipped - current.blocked)
+		current.ran = Math.max(0, tested - current.skipped - current.blocked - (outOfScope.get(current.check) ?? 0))
 	}
 	const all = [...rows.values()].sort((a, b) => a.check.localeCompare(b.check))
 	return {
@@ -362,6 +372,95 @@ function profileExclusionSummary(input: ReportInput): string | null {
 	)
 }
 
+const STATUS_MARK: Record<OperationStatus, string> = {
+	blocked: "○",
+	failed: "✗",
+	held: "✓",
+	inconclusive: "?",
+	untested: "○",
+}
+
+function operationLabel(op: OperationCoverage): string {
+	return op.origin === undefined ? op.operationId : `${op.origin}:${op.operationId}`
+}
+
+/** One line naming the scope: what was asked for, or that the run was full. */
+function scopeLine(scope: ScopeReport, dash: string): string {
+	if (scope.mode === "full") {
+		const graded = scope.operations.filter((op) => op.status !== "untested").length
+		return `full${dash}${graded} of ${scope.operations.length} operations graded`
+	}
+	const n = scope.operations.length
+	return `targeted${dash}${n} operation${n === 1 ? "" : "s"} (${describeRequested(scope.requested)})`
+}
+
+function scopeSections(scope: ScopeReport): string[] {
+	const lines = ["## Operations", ""]
+	lines.push(
+		scope.mode === "full"
+			? "> Every operation in the document and whether any check graded it. `untested` names why not."
+			: "> The targets of this run. Everything else oat called is listed under support: called, never graded.",
+	)
+	lines.push("")
+	lines.push("| operation | entity | status | held | failed | suppressed | inconclusive | reason |")
+	lines.push("| --- | --- | --- | --- | --- | --- | --- | --- |")
+	for (const op of scope.operations) {
+		const failed = op.checks.failed.length === 0 ? "0" : `${op.checks.failed.length} (${op.checks.failed.join(", ")})`
+		lines.push(
+			`| ${operationLabel(op)} | ${op.entity ?? "—"} | ${op.status} | ${op.checks.held.length} | ${failed} | ` +
+				`${op.checks.suppressed.length} | ${op.checks.inconclusive.length} | ${(op.reason ?? "").replace(/\|/g, "\\|")} |`,
+		)
+	}
+	lines.push("")
+	if (scope.originsSkipped.length > 0) {
+		lines.push(`Origins not run — no target named them: ${scope.originsSkipped.join(", ")}.`)
+		lines.push("")
+	}
+	if (scope.excluded.length > 0) {
+		lines.push(`Excluded by the profile: ${scope.excluded.map((e) => `${e.operationId} (${e.reason})`).join(", ")}.`)
+		lines.push("")
+	}
+	if (scope.mode === "targeted") {
+		lines.push("## Support operations")
+		lines.push("")
+		lines.push("> Called to reach or observe a target. Not graded: a defect here is out of this run's scope.")
+		lines.push("")
+		if (scope.support.length === 0) {
+			lines.push("None.")
+		} else {
+			lines.push("| operation | calls | non-2xx | first failure |")
+			lines.push("| --- | --- | --- | --- |")
+			for (const use of scope.support) {
+				const label = use.origin === undefined ? use.operationId : `${use.origin}:${use.operationId}`
+				const first =
+					use.firstFailure === undefined
+						? ""
+						: `${use.firstFailure.status}${use.firstFailure.requestId === "" ? "" : ` (${use.firstFailure.requestId})`}`
+				lines.push(`| ${label} | ${use.calls} | ${use.non2xx} | ${first} |`)
+			}
+		}
+		lines.push("")
+	}
+	return lines
+}
+
+function scopeConsole(scope: ScopeReport): string[] {
+	if (scope.mode === "full") return [`  scope: ${scopeLine(scope, " · ")}`]
+	const lines = [`  scope: ${scopeLine(scope, " · ")} · ${scope.support.length} support op(s)`]
+	const width = Math.max(16, ...scope.operations.map((op) => operationLabel(op).length)) + 2
+	for (const op of scope.operations) {
+		const graded = op.checks.held.length + op.checks.failed.length + op.checks.inconclusive.length
+		const detail =
+			op.status === "failed"
+				? `${graded} checks · ${op.findings} finding(s) (${op.checks.failed.join(", ")})`
+				: op.status === "held" || op.status === "inconclusive"
+					? `${graded} checks`
+					: (op.reason ?? "")
+		lines.push(`    ${STATUS_MARK[op.status]} ${operationLabel(op).padEnd(width)}${op.status.padEnd(14)}${detail}`)
+	}
+	return lines
+}
+
 /** Console summary — what shows up in CI logs. */
 export function renderConsole(input: ReportInput): string {
 	const { findings } = input
@@ -380,6 +479,7 @@ export function renderConsole(input: ReportInput): string {
 	)
 	const profileLine = profileExclusionSummary(input)
 	if (profileLine !== null) lines.push(`  ${profileLine}`)
+	if (input.scope !== undefined) lines.push(...scopeConsole(input.scope))
 	lines.push("")
 
 	const renderSkipped = (): void => {
@@ -533,6 +633,8 @@ export function renderJson(input: ReportInput): string {
 			inconclusive: input.inconclusive ?? [],
 			profile: input.profile ?? "full",
 			profileExclusions: input.profileExclusions ?? [],
+			...(input.scope === undefined ? {} : { scope: input.scope }),
+			checksOutOfScope: input.checksOutOfScope ?? [],
 			durationMs: input.durationMs,
 			entitiesTested: input.entitiesTested,
 			findings: input.findings.map((finding) => ({
@@ -540,6 +642,7 @@ export function renderJson(input: ReportInput): string {
 				detail: finding.detail,
 				entity: finding.entity,
 				...(finding.fixture === undefined ? {} : { fixture: finding.fixture }),
+				...(finding.operations === undefined ? {} : { operations: finding.operations }),
 				evidence: finding.evidence.map((exchange) => ({
 					at: new Date(exchange.at).toISOString(),
 					durationMs: exchange.durationMs,
