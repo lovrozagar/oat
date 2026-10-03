@@ -221,6 +221,45 @@ describe("absolute URL RequestStep + cookie saveAs", () => {
 		expect(consume?.cookies?.session).toBe(session)
 	})
 
+	it("interpolates scope into a saveAs address (per-user cookie names)", async () => {
+		const app = await listen((_req, res) => {
+			res.writeHead(200, { "set-cookie": ["rt.u42=rt-u42; Path=/", "rt.u7=rt-u7; Path=/"] })
+			res.end()
+		})
+		closers.push(app.close)
+		const api = await listen((req, res) => {
+			if ((req.url ?? "").startsWith("/v1/auth/register")) {
+				return send(res, 200, { access_token: unsignedJwt({ sub: "u42" }) })
+			}
+			return send(res, 404)
+		})
+		closers.push(api.close)
+
+		const runtime = await createPrincipal(
+			"alpha",
+			{
+				credentialFrom: "$.access_token",
+				steps: [
+					{
+						method: "POST",
+						path: "/v1/auth/register",
+						saveAs: { credential: "$.access_token" },
+						saveClaimsFrom: { bind: { userId: "sub" }, token: "credential" },
+					},
+					{ outOfBand: { address: "a@x.test", as: "link", kind: "email-verify" } },
+					{ method: "GET", path: "{link}", saveAs: { refreshToken: "cookie:rt.{userId}" } },
+				],
+			},
+			{
+				client: new Client(api.url),
+				hooks: { resolveOutOfBand: async () => `${app.url}/verify` },
+				model,
+				principalId: "alpha",
+			},
+		)
+		expect(runtime.scope.refreshToken).toBe("rt-u42")
+	})
+
 	it("fails closed when the named cookie is missing", async () => {
 		const app = await listen((_req, res) => send(res, 200, { ok: true }))
 		closers.push(app.close)

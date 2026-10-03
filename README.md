@@ -632,7 +632,7 @@ Each step is one of:
 
 The hook returns a string. If that string is a URL, a later RequestStep must GET it — a hook-side `fetch` is not a recorded exchange.
 
-Later steps interpolate `{name}` from the flow scope. `saveAs` addresses:
+Later steps interpolate `{name}` from the flow scope, `saveAs` addresses included (`cookie:rt.{userId}` reads a per-user cookie). `saveAs` addresses:
 
 - `$.foo.bar` / `$.orgs.0.id` — JSON body (dot + numeric index only; no JSON Pointer, no filters)
 - `cookie:<name>` — that cookie on `Set-Cookie` for this hop, including followed hops

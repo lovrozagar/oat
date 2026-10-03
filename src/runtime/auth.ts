@@ -185,7 +185,8 @@ export async function runAuthSteps(
 
 		const saveAs = "saveAs" in step ? step.saveAs : undefined
 		const cookies = last.cookies ?? cookiesFromRecordedHeaders(last.responseHeaders)
-		for (const [name, path] of Object.entries(saveAs ?? {})) {
+		for (const [name, template] of Object.entries(saveAs ?? {})) {
+			const path = String(interpolate(template, scope))
 			const value = readSaveAs(path, {
 				body: last.responseBody,
 				cookies,
