@@ -6,7 +6,11 @@
  * method, URL, status, headers, sizes, and content-addressed body refs.
  */
 
+import { presentHeader } from "./headers.ts"
 import { createHash } from "node:crypto"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import type { Exchange } from "./client.ts"
 import {
 	INLINE_BODY_LIMIT,
@@ -70,7 +74,7 @@ export function bodyRef(bytes: Uint8Array, mediaType: string): BodyRef {
 	return { bytes: bytes.byteLength, mediaType, sha256: sha256Hex(bytes) }
 }
 
-export async function compactRequestBody(body: unknown): Promise<unknown> {
+export async function compactRequestBody(body: unknown, knownBytes?: number): Promise<unknown> {
 	if (body === undefined) return undefined
 	if (isFormSnapshot(body) || isBodyRef(body)) return body
 	if (isFormData(body)) {
@@ -91,7 +95,15 @@ export async function compactRequestBody(body: unknown): Promise<unknown> {
 		}
 		return { parts }
 	}
-	if (isURLSearchParams(body)) return redactJson(Object.fromEntries(body.entries()))
+	if (isURLSearchParams(body)) {
+		/* A key sent more than once is how a form sends an array; keep every value. */
+		const fields: Record<string, string | string[]> = {}
+		for (const [key, value] of body.entries()) {
+			const prior = fields[key]
+			fields[key] = prior === undefined ? value : [...[prior].flat(), value]
+		}
+		return redactJson(fields)
+	}
 	const raw = await bytesOf(body)
 	if (raw !== undefined) return bodyRef(raw, "application/octet-stream")
 	if (typeof body === "string") {
@@ -99,18 +111,26 @@ export async function compactRequestBody(body: unknown): Promise<unknown> {
 		return bytes.byteLength <= INLINE_BODY_LIMIT ? body : bodyRef(bytes, "text/plain")
 	}
 	if (body !== null && typeof body === "object") {
+		/* The size it went out at is already known; serializing again only to measure is waste. */
+		if (knownBytes !== undefined && knownBytes <= INLINE_BODY_LIMIT) return body
 		const bytes = utf8Bytes(JSON.stringify(body))
 		return bytes.byteLength <= INLINE_BODY_LIMIT ? body : bodyRef(bytes, "application/json")
 	}
 	return body
 }
 
-export async function compactResponseBody(body: unknown, responseHeaders: Record<string, string>): Promise<unknown> {
+export async function compactResponseBody(
+	body: unknown,
+	responseHeaders: Record<string, string>,
+	knownBytes?: number,
+): Promise<unknown> {
 	if (body === undefined) return undefined
 	if (isBodyRef(body) || isFormSnapshot(body)) return body
-	const mediaType = headerOf(responseHeaders, "content-type") ?? ""
+	const mediaType = presentHeader(responseHeaders, "content-type") ?? ""
 	const sse = mediaType.toLowerCase().includes("text/event-stream")
-	if (Array.isArray(body)) {
+	/* Frames only under text/event-stream: a JSON array of strings, or a string that happens to
+	 * start with "data:", is just that. */
+	if (sse && Array.isArray(body)) {
 		const frames = sseEvents(body)
 		if (frames !== null) {
 			const compact = sseFramesOf(frames)
@@ -121,7 +141,7 @@ export async function compactResponseBody(body: unknown, responseHeaders: Record
 		}
 	}
 	if (typeof body === "string") {
-		const frames = sseEvents(body)
+		const frames = sse ? sseEvents(body) : null
 		if (frames !== null) {
 			const compact = sseFramesOf(frames)
 			const bytes = utf8Bytes(JSON.stringify(compact))
@@ -139,6 +159,7 @@ export async function compactResponseBody(body: unknown, responseHeaders: Record
 		return bodyRef(raw, primaryMediaType(mediaType, "application/octet-stream"))
 	}
 	if (body !== null && typeof body === "object") {
+		if (knownBytes !== undefined && knownBytes <= INLINE_BODY_LIMIT) return body
 		const bytes = utf8Bytes(JSON.stringify(body))
 		return bytes.byteLength <= INLINE_BODY_LIMIT
 			? body
@@ -149,8 +170,12 @@ export async function compactResponseBody(body: unknown, responseHeaders: Record
 
 /** Drop live request/response payloads on an exchange already pushed to the transcript. */
 export async function releaseTranscriptBodies(exchange: Exchange): Promise<void> {
-	exchange.requestBody = await compactRequestBody(exchange.requestBody)
-	exchange.responseBody = await compactResponseBody(exchange.responseBody, exchange.responseHeaders)
+	exchange.requestBody = await compactRequestBody(exchange.requestBody, exchange.requestBytes)
+	exchange.responseBody = await compactResponseBody(
+		exchange.responseBody,
+		exchange.responseHeaders,
+		exchange.responseBytes,
+	)
 }
 
 export interface ResponsePayload {
@@ -168,13 +193,27 @@ export async function readResponsePayload(response: Response): Promise<ResponseP
 	if (contentType.toLowerCase().includes("text/event-stream")) {
 		return readSsePayload(response)
 	}
-	const text = await response.text()
-	const bodyBytes = utf8ByteLength(text)
-	if (text === "") return { bodyBytes: 0, parsed: null }
+	/* Bytes once: their count is the size on the wire, whatever the encoding. Only text is
+	 * decoded, and by the charset it declares — a Latin-1 page read as UTF-8 is a different page. */
+	const bytes = new Uint8Array(await response.arrayBuffer())
+	const bodyBytes = bytes.byteLength
+	if (bodyBytes === 0) return { bodyBytes: 0, parsed: null }
+	if (isBinaryMediaType(contentType)) return { bodyBytes, parsed: bytes }
+	const text = decodeText(bytes, contentType)
 	try {
 		return { bodyBytes, parsed: JSON.parse(text) as unknown }
 	} catch {
 		return { bodyBytes, parsed: text }
+	}
+}
+
+function decodeText(bytes: Uint8Array, contentType: string): string {
+	const charset = /charset\s*=\s*"?([^";\s]+)/i.exec(contentType)?.[1]
+	try {
+		return new TextDecoder(charset ?? "utf-8").decode(bytes)
+	} catch {
+		/* An unknown label is the server's mistake; UTF-8 is the only sensible reading left. */
+		return new TextDecoder("utf-8").decode(bytes)
 	}
 }
 
@@ -256,12 +295,70 @@ function utf8ByteLength(text: string): number {
 	return text === "" ? 0 : utf8Bytes(text).byteLength
 }
 
-function headerOf(headers: Record<string, string>, name: string): string | undefined {
-	const want = name.toLowerCase()
-	for (const [key, value] of Object.entries(headers)) {
-		if (key.toLowerCase() === want && value.trim() !== "") return value
-	}
-	return undefined
+export type { SseFrame }
+
+/** Bytes of transcript bodies kept in memory before the oldest move to disk. */
+export const TRANSCRIPT_BODY_BUDGET = 32 * 1024 * 1024
+
+/** Where a body went when it moved out of memory. */
+export interface SpooledBody {
+	spooled: number
 }
 
-export type { SseFrame }
+export function isSpooledBody(value: unknown): value is SpooledBody {
+	return value !== null && typeof value === "object" && typeof (value as SpooledBody).spooled === "number"
+}
+
+/**
+ * Transcript bodies past a memory budget, on disk.
+ *
+ * The transcript keeps every exchange — checks judge it after the fact — but not every body in
+ * memory: a run that read a few hundred large pages would otherwise hold them all. Bodies are
+ * kept newest first up to the budget; older ones are written to a private directory, exactly as
+ * they were (this is not the journal, which redacts), and read back on request.
+ */
+export class BodySpool {
+	private readonly kept: Array<{ exchange: Exchange; bytes: number }> = []
+	private held = 0
+	private dir: string | undefined
+
+	constructor(private readonly budget = TRANSCRIPT_BODY_BUDGET) {}
+
+	async keep(exchange: Exchange): Promise<void> {
+		const bytes = exchange.requestBytes + exchange.responseBytes
+		this.kept.push({ bytes, exchange })
+		this.held += bytes
+		while (this.held > this.budget && this.kept.length > 1) {
+			/* More than one is kept, so there is an oldest. */
+			const oldest = this.kept.shift() as { exchange: Exchange; bytes: number }
+			this.held -= oldest.bytes
+			await this.write(oldest.exchange)
+		}
+	}
+
+	async hydrate(exchange: Exchange): Promise<Exchange> {
+		if (!isSpooledBody(exchange.responseBody) && !isSpooledBody(exchange.requestBody)) return exchange
+		const seq = (isSpooledBody(exchange.responseBody) ? exchange.responseBody : exchange.requestBody) as SpooledBody
+		/* A marker exists only once a write has made the directory. */
+		const saved = JSON.parse(await readFile(join(this.dir as string, `${seq.spooled}.json`), "utf8")) as {
+			requestBody?: unknown
+			responseBody?: unknown
+		}
+		return { ...exchange, requestBody: saved.requestBody, responseBody: saved.responseBody }
+	}
+
+	async dispose(): Promise<void> {
+		if (this.dir === undefined) return
+		await rm(this.dir, { force: true, recursive: true })
+		this.dir = undefined
+	}
+
+	private async write(exchange: Exchange): Promise<void> {
+		this.dir ??= await mkdtemp(join(tmpdir(), "oat-transcript-"))
+		const body = { requestBody: exchange.requestBody, responseBody: exchange.responseBody }
+		await writeFile(join(this.dir, `${exchange.seq}.json`), JSON.stringify(body))
+		const marker: SpooledBody = { spooled: exchange.seq }
+		exchange.requestBody = exchange.requestBody === undefined ? undefined : marker
+		exchange.responseBody = exchange.responseBody === undefined ? undefined : marker
+	}
+}

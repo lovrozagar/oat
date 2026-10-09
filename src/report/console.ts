@@ -6,6 +6,7 @@
  * and work the list down.
  */
 
+import { estimateRequests } from "../runtime/check-costs.ts"
 import type { EntityConfig, OatConfig, QueryCapabilities } from "../config/define-config.ts"
 import { formatUniqueSets } from "../spec/extensions.ts"
 import type { EntityModel, SpecModel } from "../spec/graph.ts"
@@ -71,6 +72,8 @@ export const TAG_UNLOCKS: Record<string, readonly string[]> = {
 		/* Membership needs an array the document marks filterable; untagged, no array is guessed. */
 		"filter.contains-membership",
 	],
+	/* A declared rate is a claim the backend can break; an undeclared one is only oat's guess. */
+	"x-rate-limit": ["spec.declared-rate-limit-is-honoured"],
 	"x-soft-delete": ["softdelete.absent-from-default-list"],
 	"x-wait": ["effects.side-effect-arrives"],
 	"x-invite": ["auth.invite-grants-then-revokes"],
@@ -97,6 +100,7 @@ const TAG_REMEDY: Record<string, string> = {
 	"x-invite": "name the invite, accept and revoke operations for delegated access",
 	"x-wait": "name the GET to poll after this write until a JSON path is occupied",
 	"x-effects": "declare create/append/delete with count or min, not both",
+	"x-rate-limit": "declare the rate each category is held to, so a stricter real limit is reported",
 	"x-unique": "declare the column sets that must stay unique so a 409 duplicate can be scored",
 }
 
@@ -121,7 +125,10 @@ function plan(model: SpecModel, asJson: boolean, scope?: ScopePlan): string {
 	if (asJson) {
 		return `${JSON.stringify(
 			{
-				entities: [...model.entities.values()],
+				entities: [...model.entities.values()].map((entity) => ({
+					...entity,
+					estimatedRequests: estimateRequests(entity, model),
+				})),
 				operations: model.operations,
 				roots: model.roots,
 				...(scope === undefined ? {} : { scope }),
@@ -142,7 +149,7 @@ function plan(model: SpecModel, asJson: boolean, scope?: ScopePlan): string {
 	lines.push("")
 	lines.push(`  ${model.operations.length} operations · ${entities.length} entities`)
 	lines.push("")
-	lines.push("  entity              CLRUD  ident      read surface")
+	lines.push("  entity              CLRUD  ident        ~req  read surface")
 	lines.push("  ─────────────────────────────────────────────────────────────────────")
 	for (const entity of entities) {
 		const surface =
@@ -150,10 +157,15 @@ function plan(model: SpecModel, asJson: boolean, scope?: ScopePlan): string {
 				? "— none"
 				: `${entity.readSurface.length} route(s)${entity.declaredSurface.length > 0 ? " (declared)" : " (inferred)"}`
 		lines.push(
-			`  ${entity.name.padEnd(18)}  ${lifecycleGlyphs(entity)}  ${(entity.identity ?? "—").padEnd(9)}  ${surface}`,
+			`  ${entity.name.padEnd(18)}  ${lifecycleGlyphs(entity)}  ${(entity.identity ?? "—").padEnd(9)}  ` +
+				`${String(estimateRequests(entity, model)).padStart(5)}  ${surface}`,
 		)
-		for (const route of entity.readSurface) lines.push(`  ${"".padEnd(38)}${route}`)
+		for (const route of entity.readSurface) lines.push(`  ${"".padEnd(45)}${route}`)
 	}
+
+	const total = entities.reduce((sum, entity) => sum + estimateRequests(entity, model), 0)
+	lines.push("")
+	lines.push(`  ~${total} requests estimated for a full run, from typical per-check costs`)
 
 	if (model.roots.length > 0) {
 		lines.push("")

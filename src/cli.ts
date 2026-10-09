@@ -1,9 +1,12 @@
 #!/usr/bin/env node
+import { EXIT, exitCode } from "./runtime/exit.ts"
 import { createWriteStream, writeFileSync } from "node:fs"
 import { mkdir, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
+import type { OatConfig } from "./config/define-config.ts"
 import { interpolate, loadConfig } from "./config/load.ts"
+import { configProblems } from "./config/validate.ts"
 import { report } from "./report/console.ts"
 import { renderMatrixGraph, renderMatrixHtml } from "./report/matrix.ts"
 import { ISSUE_REPRO_DIR, renderConsole, renderJson, renderMarkdown, renderRepros } from "./report/render.ts"
@@ -17,7 +20,7 @@ import {
 	PROGRESS_TSV_HEADER,
 } from "./runtime/progress.ts"
 import { resolveSaveExchanges } from "./runtime/exchanges.ts"
-import { allocateRunDir, DEFAULT_RUNS_ROOT } from "./runtime/runs.ts"
+import { allocateRunDir, DEFAULT_RUNS_ROOT, publishLatest } from "./runtime/runs.ts"
 import { authStepOperationIds, planScope, resolveTargetScope, ScopeError } from "./runtime/scope.ts"
 import { renderTeardown } from "./runtime/teardown.ts"
 import { buildModel } from "./spec/graph.ts"
@@ -28,49 +31,95 @@ interface Args {
 	flags: Record<string, string | true>
 }
 
-export const KNOWN_FLAGS = new Set([
-	"help",
-	"config",
-	"spec",
-	"base-url",
-	"only",
-	"ops",
-	"profile",
-	"seed",
-	"out",
-	"keep-fixtures",
-	"max-in-flight",
-	"quiet",
-	"untagged",
-	"backend",
-	"dialect",
-	"fuzz",
-	"precision",
-	"max-defects",
-	"json",
-	"parser",
-	"save-exchanges",
-	"no-save-exchanges",
-	"skip-backend",
-	"fuzz-seed",
-])
+type FlagKind = "boolean" | "value" | "optional-value"
 
-export function parseArgs(argv: string[]): Args {
-	const [command = "help", ...rest] = argv
+interface FlagSpec {
+	kind: FlagKind
+	/** A value that must parse as a number of this kind. */
+	number?: "integer" | "positive"
+}
+
+/** Every flag, once: whether it takes a value, and what kind. Parsing and help both read this. */
+export const FLAGS: Readonly<Record<string, FlagSpec>> = {
+	backend: { kind: "value" },
+	"base-url": { kind: "value" },
+	config: { kind: "value" },
+	defects: { kind: "value" },
+	dialect: { kind: "value" },
+	fuzz: { kind: "optional-value", number: "positive" },
+	"fuzz-seed": { kind: "value", number: "positive" },
+	help: { kind: "boolean" },
+	jobs: { kind: "value", number: "positive" },
+	json: { kind: "boolean" },
+	"keep-fixtures": { kind: "boolean" },
+	"max-defects": { kind: "value", number: "positive" },
+	"max-in-flight": { kind: "value", number: "positive" },
+	"no-save-exchanges": { kind: "boolean" },
+	only: { kind: "value" },
+	ops: { kind: "value" },
+	out: { kind: "value" },
+	parser: { kind: "boolean" },
+	precision: { kind: "optional-value", number: "positive" },
+	profile: { kind: "value" },
+	quiet: { kind: "boolean" },
+	"save-exchanges": { kind: "boolean" },
+	seed: { kind: "value", number: "integer" },
+	"skip-backend": { kind: "value" },
+	spec: { kind: "value" },
+	untagged: { kind: "boolean" },
+}
+
+export const KNOWN_FLAGS: ReadonlySet<string> = new Set(Object.keys(FLAGS))
+
+/**
+ * `oat <command> [--flag value | --flag=value | --switch] …`. A value flag must have its value;
+ * a switch takes none; a numeric value must be one. The first problem is returned as `error`
+ * rather than guessed around: `--max-in-flight -1` once hung a run, `--seed abc` seeded strings
+ * with `NaN`, and a flag followed by another flag silently became `true`.
+ */
+export function parseArgs(argv: string[]): Args & { error?: string } {
+	const leadingFlag = argv[0]?.startsWith("--") === true
+	const command = leadingFlag ? "help" : (argv[0] ?? "help")
+	const rest = leadingFlag ? argv : argv.slice(1)
 	const flags: Record<string, string | true> = {}
+	let error: string | undefined
+	const fail = (message: string): void => {
+		error ??= message
+	}
 	for (let i = 0; i < rest.length; i++) {
 		const token = rest[i]
 		if (token === undefined || !token.startsWith("--")) continue
-		const key = token.slice(2)
+		const equals = token.indexOf("=")
+		const key = equals === -1 ? token.slice(2) : token.slice(2, equals)
+		const inline = equals === -1 ? undefined : token.slice(equals + 1)
+		const spec = FLAGS[key]
 		const next = rest[i + 1]
-		if (next !== undefined && !next.startsWith("--")) {
-			flags[key] = next
+		const nextIsValue = next !== undefined && !next.startsWith("--")
+		let value: string | true
+		if (spec === undefined || spec.kind === "boolean") {
+			if (inline !== undefined && spec !== undefined) fail(`--${key} takes no value`)
+			value = inline ?? true
+		} else if (inline !== undefined) {
+			value = inline
+		} else if (nextIsValue) {
+			value = next
 			i++
+		} else if (spec.kind === "optional-value") {
+			value = true
 		} else {
-			flags[key] = true
+			fail(`--${key} needs a value`)
+			value = true
 		}
+		if (spec?.number !== undefined && typeof value === "string") {
+			const parsed = Number(value)
+			const integer = value.trim() !== "" && Number.isSafeInteger(parsed)
+			if (!integer || (spec.number === "positive" && parsed < 1)) {
+				fail(`--${key} must be ${spec.number === "positive" ? "a positive" : "an"} integer, got "${value}"`)
+			}
+		}
+		flags[key] = value
 	}
-	return { command, flags }
+	return error === undefined ? { command, flags } : { command, error, flags }
 }
 
 export function unknownFlag(flags: Record<string, string | true>): string | undefined {
@@ -111,6 +160,7 @@ Flags
   --max-defects    most defects per combination (default: 4)
   --seed           fuzz seed, so a failing combination replays exactly
   --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
+  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
   --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
   --json       machine-readable output, for plan and doctor
 `
@@ -128,20 +178,26 @@ function list(flags: Args["flags"], key: string): string[] | undefined {
 }
 
 /**
- * Exit code for a finished run. Root causes fail it, not raw findings: gaps and blocked entries
- * are information. A targeted run also fails unless every target held — under `--ops` a target
- * nothing graded must not read as a pass.
+ * A config file, loaded, checked and interpolated — or the first reason it cannot be used. Every
+ * one of these is the caller's to fix, so the command exits 2 with nothing sent.
  */
-export function exitCode(result: {
-	findings: ReadonlyArray<{ verdict: string }>
-	network?: { incomplete: boolean }
-	scope: { mode: string; operations: ReadonlyArray<{ status: string }> }
-}): number {
-	if (result.network?.incomplete === true) return 1
-	if (result.findings.some((f) => f.verdict !== "COVERAGE_GAP" && f.verdict !== "BLOCKED")) return 1
-	if (result.scope.mode === "targeted" && result.scope.operations.some((op) => op.status !== "held")) return 1
-	return 0
+async function readConfig(path: string, forRun: boolean): Promise<{ config: OatConfig } | { problem: string }> {
+	let loaded: OatConfig
+	try {
+		loaded = await loadConfig(path)
+	} catch (error) {
+		return { problem: (error instanceof Error ? error.message : String(error)).replace(/^oat: /, "") }
+	}
+	const problems = configProblems(loaded, { forRun })
+	if (problems.length > 0) return { problem: `${path} is not a valid config:\n  ${problems.join("\n  ")}` }
+	try {
+		return { config: interpolate(loaded) }
+	} catch (error) {
+		return { problem: (error instanceof Error ? error.message : String(error)).replace(/^oat: /, "") }
+	}
 }
+
+export { EXIT, exitCode } from "./runtime/exit.ts"
 
 async function commandRun(flags: Args["flags"]): Promise<number> {
 	const configPath = str(flags, "config")
@@ -151,7 +207,12 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	}
 
 	const { run } = await import("./runtime/run.ts")
-	const config = interpolate(await loadConfig(configPath))
+	const read = await readConfig(configPath, true)
+	if ("problem" in read) {
+		process.stderr.write(`oat: ${read.problem}\n`)
+		return EXIT.usage
+	}
+	const config = read.config
 	const baseUrl = str(flags, "base-url") ?? config.baseUrl
 	const seedFlag = str(flags, "seed")
 	const only = list(flags, "only") ?? config.only?.filter((name) => name.trim() !== "")
@@ -206,9 +267,24 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		fileProgress.emit(snap)
 	}
 
+	/* Ctrl-C stops testing, not the run: what oat created is still removed and the partial report
+	 * is still written. A second signal means "now", and exits without either. */
+	const stop = new AbortController()
+	const onSignal = (signal: NodeJS.Signals): void => {
+		if (stop.signal.aborted) {
+			process.stderr.write(`\noat: ${signal} again — exiting without teardown\n`)
+			process.exit(130)
+		}
+		process.stderr.write(`\noat: ${signal} — stopping, removing what this run created (again to exit now)\n`)
+		stop.abort()
+	}
+	process.on("SIGINT", onSignal)
+	process.on("SIGTERM", onSignal)
+
 	let result: Awaited<ReturnType<typeof run>>
 	try {
 		result = await run({
+			signal: stop.signal,
 			baseUrl,
 			principals,
 			spec: config.spec,
@@ -225,6 +301,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 			...(config.rateLimits === undefined ? {} : { rateLimits: config.rateLimits }),
 			...(config.origins === undefined ? {} : { origins: config.origins }),
 			...(config.outOfBand === undefined ? {} : { outOfBand: config.outOfBand }),
+			...(config.payloads === undefined ? {} : { payloads: config.payloads }),
 			...(config.query === undefined ? {} : { query: config.query }),
 			...(config.entities === undefined ? {} : { entities: config.entities }),
 			keepFixtures: flags["keep-fixtures"] === true || config.keepFixtures === true,
@@ -239,6 +316,8 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		process.stderr.write(`${error.message}\n`)
 		return 2
 	} finally {
+		process.off("SIGINT", onSignal)
+		process.off("SIGTERM", onSignal)
 		stderrProgress?.stop()
 		fileProgress.stop()
 		progressLog.end()
@@ -249,6 +328,9 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 
 	const input = {
 		baseUrl,
+		checkNotes: result.checkNotes,
+		checkTimings: result.checkTimings,
+		checksOutOfScope: result.checksOutOfScope,
 		checksRun: result.checksRun,
 		checksSkipped: result.checksSkipped,
 		checksSuppressed: result.checksSuppressed,
@@ -294,18 +376,23 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	if (result.network?.incomplete === true) {
 		process.stdout.write(`  network: ${result.network.kind} — run incomplete\n`)
 	}
+	await publishLatest(allocated)
 	process.stdout.write(`  latest: ${allocated.latest}\n\n`)
 
 	return exitCode(result)
 }
 
 export async function main(): Promise<number> {
-	const { command, flags } = parseArgs(process.argv.slice(2))
+	const { command, error: flagError, flags } = parseArgs(process.argv.slice(2))
 
 	const unknown = unknownFlag(flags)
 	if (unknown !== undefined) {
 		process.stderr.write(`oat: unknown flag "--${unknown}"\n\n${USAGE}`)
 		return 2
+	}
+	if (flagError !== undefined) {
+		process.stderr.write(`oat: ${flagError}\n\n${USAGE}`)
+		return EXIT.usage
 	}
 
 	if (command === "help" || flags.help === true) {
@@ -317,7 +404,6 @@ export async function main(): Promise<number> {
 		const {
 			postgresAvailable,
 			renderParserSuite,
-			renderSuite,
 			renderUnproven,
 			runExampleSpecSuite,
 			runTagUnlockSuite,
@@ -327,7 +413,6 @@ export async function main(): Promise<number> {
 			runSeedContractSuite,
 			runEffectsSuite,
 			runTenantScopeSuite,
-			runSuite,
 			sqliteAvailable,
 			d1Available,
 		} = await import("./conformance/suite.ts")
@@ -356,6 +441,7 @@ export async function main(): Promise<number> {
 			process.stderr.write(`oat: --only names no defect: ${unknownDefects.join(", ")}\n`)
 			return 2
 		}
+		const { createPool, defaultJobs } = await import("./conformance/pool.ts")
 		const { runFeatureGateSuite } = await import("./conformance/feature-gate.ts")
 		const { runRateLimitSuite } = await import("./conformance/rate-limit.ts")
 		const { runUniqueSuite } = await import("./conformance/unique.ts")
@@ -367,9 +453,14 @@ export async function main(): Promise<number> {
 		const example = renderParserSuite(await runExampleSpecSuite())
 		process.stdout.write(example.text)
 		parser.failures += example.failures
-		const unlocks = renderParserSuite(await runTagUnlockSuite())
-		process.stdout.write(unlocks.text)
-		parser.failures += unlocks.failures
+		/* The defect matrix makes the two runs the tag-unlock claims are judged from; only a run
+		 * that stops before the matrix makes them here. */
+		const beforeMatrix = flags.parser === true || flags.precision !== undefined || flags.fuzz !== undefined
+		if (beforeMatrix) {
+			const unlocks = renderParserSuite(await runTagUnlockSuite())
+			process.stdout.write(unlocks.text)
+			parser.failures += unlocks.failures
+		}
 		const coverage = renderParserSuite(runCoverageReportSuite())
 		process.stdout.write(coverage.text)
 		parser.failures += coverage.failures
@@ -470,35 +561,92 @@ export async function main(): Promise<number> {
 
 		let failures = parser.failures
 		const proven = new Set<string>()
-		for (const pass of passes) {
-			process.stdout.write(`\n  ── ${pass.backend} · ${pass.dialect} ${"─".repeat(46)}\n`)
-			const result = renderSuite(await runSuite(only, pass.backend, pass.dialect), pass.dialect, pass.backend)
-			process.stdout.write(result.text)
-			failures += result.failures
-			for (const id of result.proven) proven.add(id)
+		const jobsFlag = str(flags, "jobs")
+		const jobs = jobsFlag === undefined ? defaultJobs() : Number.parseInt(jobsFlag, 10)
+		if (!Number.isSafeInteger(jobs) || jobs < 1) {
+			process.stderr.write("oat: --jobs must be a positive integer\n")
+			return 2
 		}
-		/* Only a complete run can say a check was never proven; a filtered one never tried. */
-		if (only === undefined && requested === undefined && dialect === undefined) {
-			const unproven = renderUnproven(proven)
-			process.stdout.write(unproven.text)
-			failures += unproven.failures
-		}
-		/* The opposite question to the defect matrix: whether oat stays quiet on a correct backend
-		 * shaped unlike the one it was written against. One engine is enough — a shape varies the
-		 * API, not the storage. */
-		if (requested === undefined || requested === "memory") {
-			const { renderShapeSuite, runShapeRecall, runShapeSuite } = await import("./conformance/shapes.ts")
-			process.stdout.write(`\n  ── shapes · memory ${"─".repeat(46)}\n`)
-			const shapeCases = await runShapeSuite("memory")
-			const shapes = renderShapeSuite(shapeCases)
-			process.stdout.write(shapes.text)
-			failures += shapes.failures
-			if (only === undefined) {
-				process.stdout.write(`\n  ── recall behind shapes · memory ${"─".repeat(32)}\n`)
-				const recall = renderShapeSuite(await runShapeRecall("memory", shapeCases), true)
-				process.stdout.write(recall.text)
-				failures += recall.failures
+		/* Every leg is queued at once and printed in order as its turn comes. */
+		const pool = createPool(jobs)
+		const withShapes = requested === undefined || requested === "memory"
+		const passAnswers = passes.map((pass) =>
+			pool.run({ backend: pass.backend, dialect: pass.dialect, kind: "pass", ...(only === undefined ? {} : { only }) }),
+		)
+		const shapeAnswer = withShapes ? pool.run({ kind: "shapes" }) : undefined
+		/* `--ops` recall needs each defect's full run, which the default pass has just made; only
+		 * the targeted half is sent, spread across the pool. */
+		const fullRun = only === undefined && requested === undefined && dialect === undefined
+		const defaultPass = passes.findIndex((pass) => pass.backend === "memory" && pass.dialect === "postgrest")
+		const scopeAnswers =
+			!fullRun || defaultPass === -1
+				? undefined
+				: passAnswers[defaultPass]?.then(async (answer) => {
+						const { DEFECTS } = await import("./reference/defects.ts")
+						const names = Object.keys(DEFECTS)
+						const known = answer.kind === "pass" ? answer.primaryOps : {}
+						const chunks = Array.from({ length: jobs }, (_, lane) =>
+							names.filter((_name, index) => index % jobs === lane),
+						).filter((chunk) => chunk.length > 0)
+						return Promise.all(chunks.map((defects) => pool.run({ defects, kind: "scope", known })))
+					})
+		const recallAnswers =
+			shapeAnswer === undefined || only !== undefined
+				? undefined
+				: shapeAnswer.then((answer) =>
+						Promise.all(
+							(answer.kind === "cases" ? answer.cases : []).map((shape) =>
+								pool.run({ kind: "recall", shapes: [shape] }),
+							),
+						),
+					)
+		try {
+			for (const [index, pass] of passes.entries()) {
+				process.stdout.write(`\n  ── ${pass.backend} · ${pass.dialect} ${"─".repeat(46)}\n`)
+				const result = await passAnswers[index]
+				if (result?.kind !== "pass") continue
+				process.stdout.write(result.text)
+				failures += result.failures
+				for (const id of result.proven) proven.add(id)
 			}
+			/* Only a complete run can say a check was never proven; a filtered one never tried. */
+			if (fullRun) {
+				const unproven = renderUnproven(proven)
+				process.stdout.write(unproven.text)
+				failures += unproven.failures
+			}
+			const defaultAnswer = defaultPass === -1 ? undefined : await passAnswers[defaultPass]
+			const unlocks = renderParserSuite(
+				await runTagUnlockSuite(defaultAnswer?.kind === "pass" ? defaultAnswer.baselines : undefined),
+			)
+			process.stdout.write(unlocks.text)
+			failures += unlocks.failures
+			if (scopeAnswers !== undefined) {
+				const scopeResults = (await scopeAnswers).flatMap((answer) => (answer.kind === "results" ? answer.results : []))
+				const scope = renderParserSuite(scopeResults)
+				process.stdout.write(scope.text)
+				failures += scope.failures
+			}
+			/* The opposite question to the defect matrix: whether oat stays quiet on a correct backend
+			 * shaped unlike the one it was written against. One engine is enough — a shape varies the
+			 * API, not the storage. */
+			if (shapeAnswer !== undefined) {
+				const { renderShapeSuite } = await import("./conformance/shapes.ts")
+				process.stdout.write(`\n  ── shapes · memory ${"─".repeat(46)}\n`)
+				const shapeCases = await shapeAnswer
+				const shapes = renderShapeSuite(shapeCases.kind === "cases" ? shapeCases.cases : [])
+				process.stdout.write(shapes.text)
+				failures += shapes.failures
+				if (recallAnswers !== undefined) {
+					process.stdout.write(`\n  ── recall behind shapes · memory ${"─".repeat(32)}\n`)
+					const recallCases = (await recallAnswers).flatMap((answer) => (answer.kind === "cases" ? answer.cases : []))
+					const recall = renderShapeSuite(recallCases, true)
+					process.stdout.write(recall.text)
+					failures += recall.failures
+				}
+			}
+		} finally {
+			await pool.close()
 		}
 		if (requested === undefined && skipped.length > 0) {
 			/* An engine that is not there is not a pass: the SQL-only defects and every engine
@@ -596,7 +744,12 @@ export async function main(): Promise<number> {
 
 	const specFlag = str(flags, "spec")
 	const configPath = str(flags, "config")
-	const loaded = configPath === undefined ? undefined : await loadConfig(configPath)
+	const read = configPath === undefined ? undefined : await readConfig(configPath, false)
+	if (read !== undefined && "problem" in read) {
+		process.stderr.write(`oat: ${read.problem}\n`)
+		return EXIT.usage
+	}
+	const loaded = read?.config
 	const specSource = specFlag ?? loaded?.spec
 
 	if (specSource === undefined) {
@@ -604,7 +757,8 @@ export async function main(): Promise<number> {
 		return 2
 	}
 
-	const raw = await loadSpec(specSource, str(flags, "base-url"))
+	/* A relative spec resolves against the config's base URL, as it does for `run`. */
+	const raw = await loadSpec(specSource, str(flags, "base-url") ?? loaded?.baseUrl)
 	const { doc, externalRefs } = dereference(raw)
 	const model = buildModel(doc)
 	try {
@@ -638,7 +792,7 @@ export async function main(): Promise<number> {
 			return 0
 		}
 		case "doctor": {
-			const config = configPath === undefined ? undefined : interpolate(await loadConfig(configPath))
+			const config = loaded
 			const output = report.doctor(
 				model,
 				externalRefs,
@@ -667,7 +821,7 @@ export function start(): void {
 		},
 		(error: unknown) => {
 			process.stderr.write(`oat: ${error instanceof Error ? error.message : String(error)}\n`)
-			process.exitCode = 1
+			process.exitCode = EXIT.failed
 		},
 	)
 }

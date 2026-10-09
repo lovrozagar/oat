@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readlink, realpath, rm, writeFile } from "node:fs/promi
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import { allocateRunDir, DEFAULT_RUNS_ROOT, formatRunStamp, LATEST_LINK } from "../src/runtime/runs.ts"
+import { allocateRunDir, DEFAULT_RUNS_ROOT, formatRunStamp, LATEST_LINK, publishLatest } from "../src/runtime/runs.ts"
 
 const temps: string[] = []
 
@@ -40,8 +40,9 @@ describe("allocateRunDir", () => {
 		expect(allocated.stamp).toBe("2026-08-18T12-00-00Z")
 		expect(allocated.runDir).toBe(join(allocated.root, allocated.stamp))
 		expect(allocated.latest).toBe(join(allocated.root, "latest"))
-		expect(await readlink(allocated.latest)).toBe(allocated.stamp)
 		await writeFile(join(allocated.runDir, "oat-report.json"), "{}\n")
+		await publishLatest(allocated)
+		expect(await readlink(allocated.latest)).toBe(allocated.stamp)
 		expect(await realpath(join(allocated.latest, "oat-report.json"))).toBe(
 			await realpath(join(allocated.runDir, "oat-report.json")),
 		)
@@ -57,6 +58,7 @@ describe("allocateRunDir", () => {
 		expect(second.stamp).toBe("2026-08-18T12-00-00Z-2")
 		expect(third.stamp).toBe("2026-08-18T12-00-00Z-3")
 		expect(first.runDir).not.toBe(second.runDir)
+		await publishLatest(third)
 		expect(await readlink(third.latest)).toBe(third.stamp)
 	})
 
@@ -71,6 +73,8 @@ describe("allocateRunDir", () => {
 		const root = await scratch()
 		const older = await allocateRunDir(root, new Date("2026-08-18T12:00:00.000Z"))
 		const newer = await allocateRunDir(root, new Date("2026-08-18T12:00:01.000Z"))
+		await publishLatest(older)
+		await publishLatest(newer)
 		expect(await readlink(newer.latest)).toBe(newer.stamp)
 		expect(older.latest).toBe(newer.latest)
 	})
@@ -80,7 +84,16 @@ describe("allocateRunDir", () => {
 		await mkdir(join(root, "latest"), { recursive: true })
 		await writeFile(join(root, "latest", "stale.txt"), "old\n")
 		const allocated = await allocateRunDir(root, new Date("2026-08-18T12:00:00.000Z"))
+		await publishLatest(allocated)
 		expect(await readlink(allocated.latest)).toBe(allocated.stamp)
+	})
+
+	it("leaves latest alone until the run's reports are written", async () => {
+		const root = await scratch()
+		const done = await allocateRunDir(root, new Date("2026-08-18T12:00:00.000Z"))
+		await publishLatest(done)
+		const crashed = await allocateRunDir(root, new Date("2026-08-18T12:00:01.000Z"))
+		expect(await readlink(crashed.latest)).toBe(done.stamp)
 	})
 
 	it("creates a missing root", async () => {

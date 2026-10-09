@@ -78,6 +78,10 @@ export interface QueryCapabilities {
 		stableTiebreak?: string
 		nulls?: Nulls[]
 		maxKeys?: number
+		/** How text compares in an order. Undeclared, oat accepts any consistent one. */
+		collation?: "binary" | "case-insensitive" | "locale"
+		/** Where nulls go in an ascending order with no modifier. Undeclared, either end, consistently. */
+		defaultNulls?: Nulls
 	}
 	select?: {
 		nested?: boolean
@@ -300,6 +304,10 @@ function parseSortBlock(tag: Record<string, unknown>): QueryCapabilities["sort"]
 				: undefined
 	const nullsRaw = rec.nulls ?? tag.sortNulls
 	const maxKeysRaw = rec.maxKeys ?? tag.maxSortKeys
+	const collation = rec.collation ?? tag.sortCollation
+	const defaultNulls = rec.defaultNulls ?? tag.sortDefaultNulls
+	if (collation === "binary" || collation === "case-insensitive" || collation === "locale") sort.collation = collation
+	if (typeof defaultNulls === "string" && isNulls(defaultNulls)) sort.defaultNulls = defaultNulls
 	if (defaultOrder !== undefined && defaultOrder !== "") sort.defaultOrder = defaultOrder
 	if (stableTiebreak !== undefined && stableTiebreak !== "") sort.stableTiebreak = stableTiebreak
 	if (Array.isArray(nullsRaw)) {

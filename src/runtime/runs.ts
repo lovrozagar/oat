@@ -36,7 +36,6 @@ export async function allocateRunDir(root = DEFAULT_RUNS_ROOT, at = new Date()):
 	await mkdir(resolvedRoot, { recursive: true })
 	const { dir: runDir, stamp } = await mkdirUnique(resolvedRoot, formatRunStamp(at))
 	const latest = join(resolvedRoot, LATEST_LINK)
-	await pointLatest(resolvedRoot, stamp)
 	return { latest, root: resolvedRoot, runDir, stamp }
 }
 
@@ -54,6 +53,14 @@ async function mkdirUnique(root: string, base: string): Promise<{ dir: string; s
 			n += 1
 		}
 	}
+}
+
+/**
+ * Moves `latest` to this run. Called once its reports are written: a run that crashed half-way
+ * must not become what `latest` shows.
+ */
+export async function publishLatest(run: Pick<AllocatedRunDir, "root" | "stamp">): Promise<void> {
+	await pointLatest(run.root, run.stamp)
 }
 
 async function pointLatest(root: string, stamp: string): Promise<void> {

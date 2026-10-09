@@ -408,6 +408,8 @@ function buildEntityPaths(ctx: SpecContext, entity: EntityDef, dialect: Dialect)
 			tags: [title],
 			"x-entity": { action: "list", identity: entity.identity, name: entity.name },
 			"x-query": query,
+			/* Generous enough never to slow a run; declared so a stricter real limit is testable. */
+			"x-rate-limit": { category: `${entity.name}.list`, rps: 500 },
 			"x-tenant": tenantParam(entity),
 			...(entity.softDeleteField === undefined ? {} : { "x-soft-delete": entity.softDeleteField }),
 		},

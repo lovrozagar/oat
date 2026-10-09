@@ -210,7 +210,8 @@ export const STRING_PAYLOADS: readonly StringPayload[] = [
 	{ id: "superscript", value: "² ³", why: "superscript digits" },
 ]
 
-const REQUIRED_IDS = [
+/** One payload from each family the catalog must cover: the representative subset. */
+export const REQUIRED_IDS = [
 	"empty",
 	"space",
 	"german",

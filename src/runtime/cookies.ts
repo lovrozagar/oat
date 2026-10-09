@@ -6,6 +6,7 @@
  * cookie if saveAs is going to bind it.
  */
 
+import { headerValue } from "./headers.ts"
 export const MAX_REDIRECTS = 20
 
 export function isAbsoluteHttpUrl(value: string): boolean {
@@ -45,14 +46,6 @@ export function recordResponseHeaders(headers: Headers): Record<string, string> 
 	const setCookies = setCookieHeadersFrom(headers)
 	if (setCookies.length > 0) out["set-cookie"] = setCookies.join("\n")
 	return out
-}
-
-export function headerValue(headers: Record<string, string>, name: string): string | undefined {
-	const want = name.toLowerCase()
-	for (const [key, value] of Object.entries(headers)) {
-		if (key.toLowerCase() === want) return value
-	}
-	return undefined
 }
 
 export function omitHeader(headers: Record<string, string>, name: string): void {
@@ -132,24 +125,96 @@ export function redirectTarget(
 	return { dropBody: false, method: verb, url: next }
 }
 
+interface StoredCookie {
+	name: string
+	value: string
+	/** The host it was set by, or the `Domain` it was widened to. */
+	domain: string
+	/** Set without `Domain`: sent back to exactly that host, never its subdomains. */
+	hostOnly: boolean
+	path: string
+	secure: boolean
+}
+
+/** The directory of a request path — RFC 6265's default cookie path. */
+function defaultPath(url: URL): string {
+	const path = url.pathname
+	if (!path.startsWith("/") || path.lastIndexOf("/") === 0) return "/"
+	return path.slice(0, path.lastIndexOf("/"))
+}
+
+function pathMatches(requestPath: string, cookiePath: string): boolean {
+	if (requestPath === cookiePath) return true
+	if (!requestPath.startsWith(cookiePath)) return false
+	return cookiePath.endsWith("/") || requestPath[cookiePath.length] === "/"
+}
+
+function domainMatches(host: string, domain: string): boolean {
+	return host === domain || host.endsWith(`.${domain}`)
+}
+
+/**
+ * A cookie jar that behaves like a browser's, as far as oat's flows can tell: a cookie goes back
+ * only to the host (or `Domain`) and `Path` that set it, only over https when `Secure`, and is
+ * forgotten when the server deletes it — an empty value, `Max-Age=0`, or an `Expires` in the past.
+ */
 export class CookieJar {
-	private readonly cookies = new Map<string, { host: string; name: string; value: string }>()
+	private readonly cookies = new Map<string, StoredCookie>()
 
 	absorb(url: URL, setCookieHeaders: readonly string[]): void {
-		const host = url.hostname
+		const host = url.hostname.toLowerCase()
 		for (const header of setCookieHeaders) {
 			const parsed = parseSetCookie(header)
-			if (parsed === null || parsed.value === "") continue
-			this.cookies.set(`${host}\t${parsed.name}`, { host, name: parsed.name, value: parsed.value })
+			if (parsed === null) continue
+			const attributes = new Map<string, string>()
+			for (const raw of header.split(";").slice(1)) {
+				const eq = raw.indexOf("=")
+				const key = (eq === -1 ? raw : raw.slice(0, eq)).trim().toLowerCase()
+				attributes.set(key, eq === -1 ? "" : raw.slice(eq + 1).trim())
+			}
+			const declared = attributes.get("domain")?.replace(/^\./, "").toLowerCase()
+			/* A Domain the setting host does not belong to is refused, as a browser would. */
+			if (declared !== undefined && declared !== "" && !domainMatches(host, declared)) continue
+			const domain = declared === undefined || declared === "" ? host : declared
+			const path =
+				attributes.get("path")?.startsWith("/") === true ? (attributes.get("path") as string) : defaultPath(url)
+			const key = `${domain}\t${path}\t${parsed.name}`
+			const maxAge = attributes.get("max-age")
+			const expires = attributes.get("expires")
+			const expired =
+				parsed.value === "" ||
+				(maxAge !== undefined && Number(maxAge) <= 0) ||
+				(maxAge === undefined && expires !== undefined && Date.parse(expires) <= Date.now())
+			if (expired) {
+				this.cookies.delete(key)
+				continue
+			}
+			this.cookies.set(key, {
+				domain,
+				hostOnly: declared === undefined || declared === "",
+				name: parsed.name,
+				path,
+				secure: attributes.has("secure"),
+				value: parsed.value,
+			})
 		}
 	}
 
+	/** The cookies this jar would send to `url`, longest path first. */
+	private matching(url: URL): StoredCookie[] {
+		const host = url.hostname.toLowerCase()
+		return [...this.cookies.values()]
+			.filter(
+				(cookie) =>
+					(cookie.hostOnly ? cookie.domain === host : domainMatches(host, cookie.domain)) &&
+					pathMatches(url.pathname || "/", cookie.path) &&
+					(!cookie.secure || url.protocol === "https:"),
+			)
+			.sort((a, b) => b.path.length - a.path.length)
+	}
+
 	cookieHeader(url: URL): string | undefined {
-		const parts: string[] = []
-		for (const cookie of this.cookies.values()) {
-			if (cookie.host !== url.hostname) continue
-			parts.push(`${cookie.name}=${cookie.value}`)
-		}
+		const parts = this.matching(url).map((cookie) => `${cookie.name}=${cookie.value}`)
 		return parts.length === 0 ? undefined : parts.join("; ")
 	}
 
@@ -208,10 +273,30 @@ export interface RedirectHop {
 	responseHeaders: Record<string, string>
 }
 
-export function applyJarToHeaders(headers: Record<string, string>, jar: CookieJar, url: URL): void {
+/**
+ * Rebuilds the Cookie header for one hop: the caller's own cookie, then whatever the jar holds
+ * for this URL. Rebuilt rather than appended to, or every hop would repeat the last one's.
+ */
+export function applyJarToHeaders(
+	headers: Record<string, string>,
+	jar: CookieJar,
+	url: URL,
+	callerCookie?: string,
+): void {
 	const fromJar = jar.cookieHeader(url)
-	if (fromJar === undefined) return
-	const existing = headerValue(headers, "cookie")
 	omitHeader(headers, "cookie")
-	headers.cookie = existing === undefined || existing === "" ? fromJar : `${existing}; ${fromJar}`
+	const merged = mergeCookieHeader(callerCookie, fromJar)
+	if (merged !== undefined && merged !== "") headers.cookie = merged
 }
+
+/** Headers that carry a credential, by name. A redirect to another origin must not receive them. */
+export const CREDENTIAL_HEADERS: ReadonlySet<string> = new Set([
+	"authorization",
+	"proxy-authorization",
+	"cookie",
+	"x-api-key",
+	"api-key",
+	"x-auth-token",
+])
+
+export { headerValue }

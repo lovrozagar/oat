@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
-import { CHECKS } from "../src/runtime/checks.ts"
+import { CHECKS, runCheck as planAndRun } from "../src/runtime/checks.ts"
 import { Client } from "../src/runtime/client.ts"
 import { FindingCollector } from "../src/runtime/finding.ts"
 import type { Record_ } from "../src/runtime/world.ts"
@@ -193,7 +193,10 @@ async function runCheck(
 		const url = new URL(req.url ?? "/", "http://127.0.0.1")
 		requests.push(`${req.method ?? "GET"} ${url.pathname}${url.search}`)
 		if (req.method === "GET" && url.pathname === "/v1/widgets") {
-			send(res, 200, { widgets: filterStore(opts, url.searchParams.get("filter")) })
+			const rows = filterStore(opts, url.searchParams.get("filter"))
+			const limit = Number(url.searchParams.get("limit") ?? 20)
+			const page = Number(url.searchParams.get("page") ?? 1)
+			send(res, 200, { widgets: rows.slice((page - 1) * limit, page * limit) })
 			return
 		}
 		send(res, 404)
@@ -231,8 +234,8 @@ async function runCheck(
 		validator: new SchemaValidator(),
 		waitOps: [],
 	}
-	expect(check?.applicable(ctx)).toBe(true)
-	await check?.run(ctx)
+	expect(check?.plan(ctx).ok).toBe(true)
+	if (check !== undefined) await planAndRun(check, ctx)
 	return { findings, requests }
 }
 

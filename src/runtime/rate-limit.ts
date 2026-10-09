@@ -9,6 +9,7 @@
  * this list, never by knowing about operationIds or path templates itself.
  */
 
+import { headerValue } from "./headers.ts"
 import type { RateLimitSpec } from "../config/define-config.ts"
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
 
@@ -166,14 +167,6 @@ export function retryWaitMs(retryAfterHeader: string | undefined, attempt: numbe
 	return Math.min(RETRY_BACKOFF_CAP_MS, exp)
 }
 
-export function headerValue(headers: Record<string, string>, name: string): string | undefined {
-	const want = name.toLowerCase()
-	for (const [key, value] of Object.entries(headers)) {
-		if (key.toLowerCase() === want) return value
-	}
-	return undefined
-}
-
 function implicitCategory(method: string): string {
 	return WRITE_METHODS.has(method.toUpperCase()) ? UNTAGGED_WRITE_CATEGORY : UNTAGGED_CATEGORY
 }
@@ -303,3 +296,5 @@ export class RateLimiter {
 		return bucket
 	}
 }
+
+export { headerValue }

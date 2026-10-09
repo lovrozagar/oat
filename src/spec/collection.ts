@@ -100,13 +100,45 @@ export function requestSchema(op: OperationObject): SchemaObject | null {
 	return picked === null ? null : picked.schema
 }
 
-export function deriveCollectionShape(schema: SchemaObject | null): CollectionShape | null {
+/**
+ * A schema as the instance sees it: `allOf` members merged into one object, and a nullable union
+ * — `type: ["array", "null"]`, or `anyOf` / `oneOf` with a `null` branch — read as its one
+ * non-null branch. A collection or an identity declared through either is still one.
+ */
+export function effective(schema: SchemaObject | null): SchemaObject | null {
+	if (schema === null) return null
+	const nonNull = (["anyOf", "oneOf"] as const)
+		.map((key) => (Array.isArray(schema[key]) ? (schema[key] as SchemaObject[]) : null))
+		.find((branches) => branches !== null)
+		?.filter((branch) => branch?.type !== "null")
+	if (nonNull !== undefined && nonNull.length === 1) return effective(nonNull[0] ?? null)
+	const types = Array.isArray(schema.type) ? (schema.type as string[]).filter((type) => type !== "null") : null
+	const typed = types !== null && types.length === 1 ? { ...schema, type: types[0] } : schema
+	if (!Array.isArray(typed.allOf)) return typed
+	const merged: SchemaObject = { ...typed, allOf: undefined }
+	for (const part of typed.allOf as SchemaObject[]) {
+		const member = effective(asSchema(part))
+		if (member === null) continue
+		merged.type ??= member.type
+		merged.properties = {
+			...(member.properties as Record<string, unknown> | undefined),
+			...(merged.properties as Record<string, unknown> | undefined),
+		}
+		merged.required = [...new Set([...((merged.required as string[]) ?? []), ...((member.required as string[]) ?? [])])]
+		if (merged.items === undefined && member.items !== undefined) merged.items = member.items
+	}
+	delete merged.allOf
+	return merged
+}
+
+export function deriveCollectionShape(raw: SchemaObject | null): CollectionShape | null {
+	const schema = effective(raw)
 	if (schema === null) return null
 
 	if (schema.type === "array") {
 		return {
 			envelopeKeys: [],
-			itemSchema: asSchema(schema.items),
+			itemSchema: effective(asSchema(schema.items)),
 			key: null,
 			pagination: {},
 		}
@@ -114,7 +146,9 @@ export function deriveCollectionShape(schema: SchemaObject | null): CollectionSh
 
 	const props = schema.properties
 	if (props === null || typeof props !== "object") return null
-	const entries = Object.entries(props as Record<string, SchemaObject>)
+	const entries = Object.entries(props as Record<string, SchemaObject>).map(
+		([name, value]) => [name, effective(value) ?? value] as [string, SchemaObject],
+	)
 
 	const arrayProps = entries.filter(([, value]) => value?.type === "array")
 	if (arrayProps.length === 0) return null
@@ -124,7 +158,7 @@ export function deriveCollectionShape(schema: SchemaObject | null): CollectionSh
 	 * the property with the richest item schema — the real payload. */
 	const candidates = arrayProps
 		.filter(([name]) => !/^(errors?|warnings?|messages?|meta|links)$/i.test(name))
-		.map(([name, value]) => ({ item: asSchema(value.items), name }))
+		.map(([name, value]) => ({ item: effective(asSchema(value.items)), name }))
 		.filter((c) => c.item !== null)
 
 	const chosen = candidates.find((c) => c.item?.type === "object" || c.item?.properties !== undefined) ?? candidates[0]
@@ -157,7 +191,8 @@ const IDENTITY_CANDIDATES = ["id", "uuid", "slug", "key", "name"]
  * Finds the property that identifies an instance. Prefers a required identity-like property,
  * then any identity-like property, then the trailing path parameter's implied name.
  */
-export function deriveIdentity(itemSchema: SchemaObject | null, pathParamHint?: string): string | null {
+export function deriveIdentity(raw: SchemaObject | null, pathParamHint?: string): string | null {
+	const itemSchema = effective(raw)
 	if (itemSchema !== null) {
 		const props = itemSchema.properties
 		if (props !== null && typeof props === "object") {
@@ -172,8 +207,11 @@ export function deriveIdentity(itemSchema: SchemaObject | null, pathParamHint?: 
 		}
 	}
 	if (pathParamHint !== undefined) {
-		/* `{table_id}` on `/tables/{table_id}` implies the item's own key is `id`. */
-		const stripped = pathParamHint.replace(/^.*[_.]/, "")
+		/* `{table_id}` or `{tableId}` on `/tables/…` implies the item's own key is `id`. */
+		const stripped = pathParamHint
+			.replace(/^.*[_.-]/, "")
+			.replace(/^[a-z0-9]+(?=[A-Z])/, "")
+			.toLowerCase()
 		if (IDENTITY_CANDIDATES.includes(stripped)) return stripped
 	}
 	return null

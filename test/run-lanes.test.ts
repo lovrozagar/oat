@@ -2,7 +2,10 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { CHECKS } from "../src/runtime/checks.ts"
-import { run } from "../src/runtime/run.ts"
+import { createMemoryServer } from "../src/reference/http.ts"
+import { entityLanes, run } from "../src/runtime/run.ts"
+import { buildModel } from "../src/spec/graph.ts"
+import { dereference } from "../src/spec/load.ts"
 import type { OpenApiDocument } from "../src/spec/types.ts"
 
 function send(res: ServerResponse, status: number, body?: unknown): void {
@@ -210,8 +213,8 @@ afterEach(async () => {
 	await Promise.all(worlds.splice(0).map((w) => w.close()))
 })
 
-describe("serial entities", () => {
-	it("starts entity B only after entity A’s last request (plan order)", async () => {
+describe("entity lanes", () => {
+	it("runs entities that share nothing side by side", async () => {
 		const world = await startWorld()
 		worlds.push(world)
 
@@ -231,8 +234,21 @@ describe("serial entities", () => {
 		expect(banana.length).toBeGreaterThan(0)
 		const lastApple = Math.max(...apple.map((h) => h.at))
 		const firstBanana = Math.min(...banana.map((h) => h.at))
-		expect(firstBanana).toBeGreaterThanOrEqual(lastApple)
-		expect(world.overlap).toBe(false)
+		expect(firstBanana).toBeLessThan(lastApple)
+	})
+
+	it("keeps a parent and its child in one lane, and puts the rest in their own", async () => {
+		const server = await createMemoryServer()
+		try {
+			const spec = (await (await fetch(`${server.url}/v1/openapi/spec`)).json()) as OpenApiDocument
+			const model = buildModel(dereference(spec).doc)
+			const lanes = entityLanes(model, [...model.entities.values()]).map((lane) => lane.map((entity) => entity.name))
+			const laneOf = (name: string): number => lanes.findIndex((lane) => lane.includes(name))
+			expect(laneOf("table")).toBe(laneOf("row"))
+			expect(laneOf("job")).not.toBe(laneOf("table"))
+		} finally {
+			await server.close()
+		}
 	})
 
 	it("still registers concurrency.no-lost-update", () => {

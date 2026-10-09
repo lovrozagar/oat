@@ -211,7 +211,10 @@ function formFields(entity: EntityDef, text: string): Row {
 			out[key] = raw
 			continue
 		}
-		if (field.type === "integer" || field.type === "number") {
+		if (field.type === "array") {
+			/* A form repeats the key once per element. */
+			out[key] = [...((out[key] as unknown[] | undefined) ?? []), raw]
+		} else if (field.type === "integer" || field.type === "number") {
 			out[key] = raw.trim() === "" ? raw : Number(raw)
 		} else if (field.type === "boolean") {
 			out[key] = raw === "true" ? true : raw === "false" ? false : raw
@@ -314,6 +317,8 @@ export async function createReferenceServer(
 	const jobStartedAt = new Map<string, number>()
 	/* Snapshot of a collection taken before a write, replayed while STALE_LIST is on. */
 	const staleSnapshot = new Map<string, Row[]>()
+	/* Entities whose first listing has already been refused, for RATE_LIMIT_STRICTER_THAN_DECLARED. */
+	const throttled = new Set<string>()
 	/* Idempotency-Key → the record the first request created, so a replay returns it. */
 	const idempotent = new Map<string, Row>()
 	/* Delivered notifications, per project. */
@@ -381,6 +386,11 @@ export async function createReferenceServer(
 
 	function assertWrite(principal: Principal, kind: "create" | "update" | "delete"): void {
 		/* Viewer cannot write; member cannot delete; owner can do everything. */
+		if (kind === "update" && defects.has("ROLE_WRITE_INVERTED")) {
+			/* The lattice turned over for updates: the viewer may, the member may not. */
+			if (principal.rank === 1) throw new HttpError(403, "forbidden", "role cannot write")
+			if (principal.rank === 0) return
+		}
 		if (kind === "delete" && principal.rank < 2) {
 			throw new HttpError(403, "forbidden", "role cannot delete")
 		}
@@ -432,11 +442,15 @@ export async function createReferenceServer(
 				parentEntity.parents.every(
 					(ancestor) => !parentEntity.fields.some((f) => f.name === ancestor) || parent[ancestor] === scope[ancestor],
 				)
+			/* Under the defect a parent only has to exist: whose it is, and whose path names it, go
+			 * unchecked — another tenant's parent id under the caller's own root is let through. */
+			const foreignAllowed = defects.has("FOREIGN_PARENT_ACCEPTED") && parent !== null
 			if (
-				parent === null ||
-				!linked ||
-				tombstoned(parentEntity, parent) ||
-				!(await ownedByTenant(parentEntity, parent, principal))
+				!foreignAllowed &&
+				(parent === null ||
+					!linked ||
+					tombstoned(parentEntity, parent) ||
+					!(await ownedByTenant(parentEntity, parent, principal)))
 			) {
 				throw new HttpError(404, "not_found", `${parentEntity.name} ${id} does not exist`)
 			}
@@ -654,9 +668,17 @@ export async function createReferenceServer(
 		return false
 	}
 
-	async function findItem(entity: EntityDef, principal: Principal, id: string | number, scope: Scope): Promise<Row> {
+	async function findItem(
+		entity: EntityDef,
+		principal: Principal,
+		id: string | number,
+		scope: Scope,
+		purpose: "read" | "write" = "read",
+	): Promise<Row> {
 		const record = await store.byId(entity, id)
 		if (record === null) throw new HttpError(404, "not_found", `${entity.name} ${id} does not exist`)
+		/* Writes looked up by id alone: reads stay scoped, so only a write probe can tell. */
+		if (purpose === "write" && defects.has("CROSS_TENANT_WRITE")) return record
 		/* A record named under somebody else's parents is not this caller's to read, whoever owns it. */
 		const inPath = await underPath(entity, record, scope)
 		const owned = inPath && (await ownedByTenant(entity, record, principal))
@@ -848,6 +870,10 @@ export async function createReferenceServer(
 
 		if (itemId === null) {
 			if (method === "GET") {
+				if (defects.has("RATE_LIMIT_STRICTER_THAN_DECLARED") && !throttled.has(entity.name)) {
+					throttled.add(entity.name)
+					return send(res, 429, { error: "rate limited" }, { "retry-after": "0" })
+				}
 				const key = snapshotKey(entity, scope)
 				/* Only the default listing is served stale. Freezing filtered queries too would
 				 * also swallow filter validation, so the defect would masquerade as several
@@ -914,7 +940,18 @@ export async function createReferenceServer(
 					},
 					defects,
 				)
-				const listing = paginated(dialect, entity, url, result)
+				/* An unknown parameter read as a filter nothing matches. */
+				const known = new Set<string>([
+					...Object.values(dialect.params).filter((value): value is string => typeof value === "string"),
+					dialect.selectGrammar === "bracketed" ? `${dialect.params.select}[${entity.name}]` : "",
+					...(dialect.grammar === "equality" ? fieldsWhere(entity, "filterable") : []),
+				])
+				const unknownGiven = [...url.searchParams.keys()].some((key) => !known.has(key))
+				const served =
+					defects.has("UNKNOWN_PARAM_EMPTIES_LIST") && unknownGiven
+						? { ...result, count: 0, hasMore: false, items: [], nextCursor: null }
+						: result
+				const listing = paginated(dialect, entity, url, served)
 				return send(res, 200, listing.body, listing.headers)
 			}
 
@@ -933,15 +970,28 @@ export async function createReferenceServer(
 				if (replayKey !== null && !defects.has("IDEMPOTENCY_IGNORED")) {
 					const previous = idempotent.get(replayKey)
 					if (previous !== undefined) {
+						if (defects.has("IDEMPOTENT_REPLAY_INSERTS")) {
+							const copy: Row = { ...previous }
+							delete copy[entity.identity]
+							for (const column of (entity.unique ?? []).flat()) {
+								if (typeof copy[column] === "string") copy[column] = `${copy[column] as string}-replay`
+							}
+							await store.insert(entity, withDefaults(entity, copy, { ...scope, project_id: principal.projectId }))
+						}
 						return send(res, defects.has("CREATED_201_AS_200") ? 200 : 201, present(entity, previous))
 					}
 				}
-				const input = validateBody(
-					entity,
-					form ? formFields(entity, await readText(req)) : await readJson(req),
-					"create",
-					defects,
-				)
+				const received = form ? formFields(entity, await readText(req)) : await readJson(req)
+				/* The crash happens on the bytes as received, before anything sanitizes them. */
+				if (
+					defects.has("CREATE_500_ON_NON_ASCII") &&
+					Object.values(received as Row).some(
+						(value) => typeof value === "string" && [...value].some((ch) => (ch.codePointAt(0) ?? 0) > 0x7f),
+					)
+				) {
+					throw new Error("encoding error: could not write row")
+				}
+				const input = validateBody(entity, received, "create", defects)
 				if (defects.has("STALE_LIST")) {
 					const key = snapshotKey(entity, scope)
 					if (!staleSnapshot.has(key)) {
@@ -949,6 +999,7 @@ export async function createReferenceServer(
 					}
 				}
 				if (defects.has("CREATE_DROPS_FIELD")) delete input.description
+
 				const record = withDefaults(entity, input, { ...scope, project_id: principal.projectId })
 				await assertUnique(entity, record, undefined)
 				const created = await store.insert(entity, record)
@@ -972,7 +1023,7 @@ export async function createReferenceServer(
 		if (method === updateMethod) {
 			assertWrite(principal, "update")
 			requireJson(req, defects)
-			const existing = await findItem(entity, principal, itemId, scope)
+			const existing = await findItem(entity, principal, itemId, scope, "write")
 			const replace = method === "PUT"
 			const patch = validateBody(entity, await readJson(req), replace ? "replace" : "update", defects)
 			/*
@@ -1016,7 +1067,7 @@ export async function createReferenceServer(
 				if (defects.has("DELETE_MISSING_OK")) return send(res, 200, { [entity.identity]: itemId })
 				throw new HttpError(404, "not_found", `${entity.name} ${itemId} does not exist`)
 			}
-			const record = await findItem(entity, principal, itemId, scope)
+			const record = await findItem(entity, principal, itemId, scope, "write")
 			if (entity.softDeleteField !== undefined) {
 				const updated = await store.update(entity, itemId, {
 					[entity.softDeleteField]: now(),

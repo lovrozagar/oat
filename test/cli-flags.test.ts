@@ -118,9 +118,9 @@ describe("--ops on the CLI", () => {
 		expect(out).toMatch(/table\.get\s+held/)
 	})
 
-	it("exits 1 when a target was not graded, and reads targets from config", async () => {
+	it("exits 3 when a target was not graded, and reads targets from config", async () => {
 		const { code, out } = await cli(["run", "--config", await config({ ops: ["auth.token"] }), "--out", dir, "--quiet"])
-		expect(code).toBe(1)
+		expect(code).toBe(3)
 		expect(out).toMatch(/auth\.token\s+untested/)
 	})
 
@@ -155,5 +155,33 @@ describe("--ops on the CLI", () => {
 		expect(code).toBe(0)
 		expect(out).toContain("scope: targeted (--ops table.get,auth.token)")
 		expect(out).toMatch(/auth\.token\s+unmodeled/)
+	})
+})
+
+describe("one flag table", () => {
+	it("takes --flag=value as well as --flag value", () => {
+		expect(parseArgs(["run", "--config=oat.config.ts", "--seed=7"]).flags).toEqual({
+			config: "oat.config.ts",
+			seed: "7",
+		})
+	})
+
+	it("refuses a value flag left without its value, or followed by another flag", () => {
+		expect(parseArgs(["run", "--config"]).error).toBe("--config needs a value")
+		expect(parseArgs(["run", "--config", "--quiet"]).error).toBe("--config needs a value")
+	})
+
+	it("refuses numbers that are not numbers of the right kind", () => {
+		expect(parseArgs(["run", "--max-in-flight", "-1"]).error).toMatch(/positive integer/)
+		expect(parseArgs(["run", "--max-in-flight", "0"]).error).toMatch(/positive integer/)
+		expect(parseArgs(["run", "--seed", "abc"]).error).toMatch(/integer, got "abc"/)
+		expect(parseArgs(["run", "--seed", "-3"]).error).toBeUndefined()
+	})
+
+	it("lets a switch stand alone, and reads `oat --help` as help", () => {
+		expect(parseArgs(["conformance", "--fuzz"]).flags.fuzz).toBe(true)
+		expect(parseArgs(["run", "--quiet=yes"]).error).toBe("--quiet takes no value")
+		expect(parseArgs(["--help"])).toEqual({ command: "help", flags: { help: true } })
+		expect(KNOWN_FLAGS.has("defects")).toBe(true)
 	})
 })

@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { inspectStreamAsync, resolveAsyncId } from "../src/runtime/async.ts"
-import { CHECKS } from "../src/runtime/checks.ts"
+import { CHECKS, runCheck } from "../src/runtime/checks.ts"
 import { Client } from "../src/runtime/client.ts"
 import { FindingCollector } from "../src/runtime/finding.ts"
 import { run } from "../src/runtime/run.ts"
@@ -427,36 +427,37 @@ describe("stream from text/event-stream", () => {
 		const findings = new FindingCollector()
 		const check = CHECKS.find((c) => c.id === "schema.success-response-matches-document")
 		expect(check).toBeDefined()
-		await check?.run({
-			actors: [],
-			altAuth: undefined,
-			altScope: undefined,
-			asyncOps: [],
-			auth: () => ({}),
-			client,
-			collectionKey: null,
-			createOp,
-			deleteOp: undefined,
-			effectOps: [],
-			entityName: "batch",
-			findings,
-			hooks: {},
-			identity: "id",
-			invite: null,
-			listOp: listOp!,
-			model,
-			outOfBand: { attempts: 6, initialMs: 200, maxMs: 3000 },
-			query: null,
-			readOp: undefined,
-			records: [],
-			scope: {},
-			seed: 1,
-			softDelete: null,
-			updateOp: undefined,
-			uploads: { seed: 1 },
-			validator: new SchemaValidator(),
-			waitOps: [],
-		})
+		if (check !== undefined)
+			await runCheck(check, {
+				actors: [],
+				altAuth: undefined,
+				altScope: undefined,
+				asyncOps: [],
+				auth: () => ({}),
+				client,
+				collectionKey: null,
+				createOp,
+				deleteOp: undefined,
+				effectOps: [],
+				entityName: "batch",
+				findings,
+				hooks: {},
+				identity: "id",
+				invite: null,
+				listOp: listOp!,
+				model,
+				outOfBand: { attempts: 6, initialMs: 200, maxMs: 3000 },
+				query: null,
+				readOp: undefined,
+				records: [],
+				scope: {},
+				seed: 1,
+				softDelete: null,
+				updateOp: undefined,
+				uploads: { seed: 1 },
+				validator: new SchemaValidator(),
+				waitOps: [],
+			})
 		expect(findings.findings.filter((f) => f.check === "schema.success-response-matches-document")).toEqual([])
 	})
 
@@ -506,36 +507,37 @@ describe("stream from text/event-stream", () => {
 		})
 		const findings = new FindingCollector()
 		const check = CHECKS.find((c) => c.id === "schema.success-response-matches-document")
-		await check?.run({
-			actors: [],
-			altAuth: undefined,
-			altScope: undefined,
-			asyncOps: [],
-			auth: () => ({}),
-			client,
-			collectionKey: null,
-			createOp,
-			deleteOp: undefined,
-			effectOps: [],
-			entityName: "batch",
-			findings,
-			hooks: {},
-			identity: "id",
-			invite: null,
-			listOp: listOp!,
-			model,
-			outOfBand: { attempts: 6, initialMs: 200, maxMs: 3000 },
-			query: null,
-			readOp: undefined,
-			records: [],
-			scope: {},
-			seed: 1,
-			softDelete: null,
-			updateOp: undefined,
-			uploads: { seed: 1 },
-			validator: new SchemaValidator(),
-			waitOps: [],
-		})
+		if (check !== undefined)
+			await runCheck(check, {
+				actors: [],
+				altAuth: undefined,
+				altScope: undefined,
+				asyncOps: [],
+				auth: () => ({}),
+				client,
+				collectionKey: null,
+				createOp,
+				deleteOp: undefined,
+				effectOps: [],
+				entityName: "batch",
+				findings,
+				hooks: {},
+				identity: "id",
+				invite: null,
+				listOp: listOp!,
+				model,
+				outOfBand: { attempts: 6, initialMs: 200, maxMs: 3000 },
+				query: null,
+				readOp: undefined,
+				records: [],
+				scope: {},
+				seed: 1,
+				softDelete: null,
+				updateOp: undefined,
+				uploads: { seed: 1 },
+				validator: new SchemaValidator(),
+				waitOps: [],
+			})
 		expect(findings.findings.filter((f) => f.check === "schema.success-response-matches-document")).toEqual([])
 	})
 

@@ -330,8 +330,30 @@ export const DEFECTS = {
 	NESTED_SELECT_IGNORED: "a nested select returns every field of the relation",
 	/** Without an explicit order the listing does not use the documented default order. */
 	DEFAULT_ORDER_IGNORED: "the listing ignores the documented default order",
+	/**
+	 * Create crashes on input outside ASCII. Only some records carry such input, so most of a
+	 * cohort is created fine and one variant fails with a 500.
+	 */
+	CREATE_500_ON_NON_ASCII: "create fails with a server error when a string holds non-ASCII text",
 	/** A write whose side effect is declared with x-wait never produces it. */
 	SIDE_EFFECT_NEVER_ARRIVES: "a side effect declared with x-wait never arrives",
+	/** The first listing of each entity is refused with 429, far inside the rate x-rate-limit declares. */
+	RATE_LIMIT_STRICTER_THAN_DECLARED: "a listing answers 429 well inside the rate x-rate-limit declares",
+	/** Update and delete find the record by id alone, so another tenant can change or remove it. */
+	CROSS_TENANT_WRITE: "update and delete reach records belonging to another tenant",
+	/** A child route accepts another tenant's parent id under the caller's own root. */
+	FOREIGN_PARENT_ACCEPTED:
+		"a child collection is reachable through another tenant's parent placed under one's own root",
+	/** A page number past the end returns the last page again instead of an empty page. */
+	PAGE_PAST_END_REPEATS: "a page past the end of the collection repeats the last page",
+	/** A query parameter the listing does not know empties the result instead of being ignored. */
+	UNKNOWN_PARAM_EMPTIES_LIST: "an unknown query parameter makes the listing return nothing",
+	/** The viewer may update records the member may not. */
+	ROLE_WRITE_INVERTED: "a lower-ranked role can update a record a higher-ranked same-tenant role cannot",
+	/** Ties are broken by another field than the declared `stableTiebreak`. */
+	TIEBREAK_NOT_APPLIED: "ties are ordered by another field than the documented tiebreak",
+	/** A replayed idempotency key is answered with the original record, but a second row is written too. */
+	IDEMPOTENT_REPLAY_INSERTS: "a replayed create returns the original record and still inserts another",
 } as const
 
 export type DefectName = keyof typeof DEFECTS

@@ -2,6 +2,7 @@
 
 import type { HeaderRequest } from "../config/define-config.ts"
 import {
+	CREDENTIAL_HEADERS,
 	CookieJar,
 	MAX_REDIRECTS,
 	applyJarToHeaders,
@@ -26,7 +27,8 @@ import {
 	type NetworkKind,
 } from "./network.ts"
 import { sleep } from "./poll.ts"
-import { isBodyRef, isFormSnapshot, readResponsePayload, releaseTranscriptBodies } from "./transcript.ts"
+import { REDACTED, isSecretHeaderName, isSecretJsonKey, redactJson, redactText, redactUrl } from "./redact.ts"
+import { BodySpool, isBodyRef, isFormSnapshot, readResponsePayload, releaseTranscriptBodies } from "./transcript.ts"
 
 export interface Exchange {
 	seq: number
@@ -95,6 +97,17 @@ export interface Exchange {
 export type Purpose = "seed" | "assertion" | "probe" | "auth" | "teardown"
 
 /** Who is asking, and why: carried onto every exchange a view sends. */
+/** Methods that cannot change server state. */
+export type SafeMethod = "GET" | "HEAD" | "OPTIONS"
+
+const SAFE_METHODS = new Set<string>(["GET", "HEAD", "OPTIONS"])
+
+/** A client that can only read: what a check that does not mutate receives. */
+export interface ReadClient extends Omit<Client, "request" | "view"> {
+	request(method: SafeMethod, path: string, options?: RequestOptions): Promise<Exchange>
+	view(context: ExchangeContext): ReadClient
+}
+
 export interface ExchangeContext {
 	check?: string
 	subject?: string
@@ -105,7 +118,7 @@ export interface ExchangeContext {
 export type OperationResolver = (
 	method: string,
 	relativePath: string,
-) => { operationId: string; template: string } | null
+) => { operationId: string; template: string; entity?: string | null } | null
 
 /** A principal bound so every dispatch can refresh and retry a 401 without call-site ceremony. */
 export interface BoundAuth {
@@ -158,10 +171,32 @@ export interface RequestOptions {
 	redirect?: "follow" | "manual"
 }
 
+/** Refreshing a principal's credential failed; `principal` names it when known. */
+export class AuthRefreshError extends Error {
+	constructor(
+		readonly principal: string | undefined,
+		readonly reason: unknown,
+	) {
+		super(
+			`refreshing the credential${principal === undefined ? "" : ` of "${principal}"`} failed: ` +
+				(reason instanceof Error ? reason.message : String(reason)),
+		)
+		this.name = "AuthRefreshError"
+	}
+}
+
+/** Failures that prove the request never reached the server. */
+const NEVER_SENT: ReadonlySet<NetworkKind> = new Set(["offline", "dns", "refused", "unreachable"])
+const IDEMPOTENT: ReadonlySet<string> = new Set(["GET", "HEAD", "OPTIONS", "PUT", "DELETE"])
+/** How long one request may take across every attempt and wait, unless configured. */
+export const DEFAULT_DEADLINE_MS = 10 * 60_000
+
 /** Optional retry / wait-for-link policy. Unset keeps today's "throw and hope". */
 export interface NetworkClientOptions {
 	retries?: number
 	requestTimeoutMs?: number
+	/** Total time one request may take across every attempt and wait. */
+	deadlineMs?: number
 	awaitRecovery?: (error: NetworkError) => Promise<boolean>
 }
 
@@ -172,6 +207,8 @@ export class Client {
 	 */
 	readonly transcript: Exchange[] = []
 	private readonly byOperationId = new Map<string, Exchange[]>()
+	private readonly byEntity = new Map<string, Exchange[]>()
+	private readonly entityOf = new Map<number, string>()
 	private operationResolver: OperationResolver | undefined
 	private principalResolver: ((headers: Record<string, string>) => string | undefined) | undefined
 	private seq = 0
@@ -222,6 +259,11 @@ export class Client {
 		return base !== "" && pathname.startsWith(base) ? pathname.slice(base.length) || "/" : pathname
 	}
 
+	/** Exchanges that resolved to an operation of `entity`, in order. */
+	exchangesForEntity(entity: string): readonly Exchange[] {
+		return this.byEntity.get(entity) ?? []
+	}
+
 	/** Exchanges that resolved to `operationId`, in order. */
 	exchangesFor(operationId: string): readonly Exchange[] {
 		return this.byOperationId.get(operationId) ?? []
@@ -231,24 +273,33 @@ export class Client {
 	 * A client that stamps every request it sends with `context`. Checks each get their own, so
 	 * an exchange names the check that issued it even while checks run concurrently.
 	 */
-	view(context: ExchangeContext): Client {
-		const base = this
+	view(context: ExchangeContext, readOnly = false): Client {
+		const request = (method: string, path: string, options: RequestOptions = {}): Promise<Exchange> => {
+			/* The type already forbids it; this catches a cast or an untyped caller. */
+			if (readOnly && !SAFE_METHODS.has(method.toUpperCase())) {
+				return Promise.reject(
+					new Error(`check "${context.check ?? "?"}" does not mutate, but sent ${method.toUpperCase()} ${path}`),
+				)
+			}
+			return this.request(method, path, { ...options, context: { ...context, ...options.context } })
+		}
+		const view = (more: ExchangeContext): Client => this.view({ ...context, ...more }, readOnly)
 		return new Proxy(this, {
 			get(target, property, receiver) {
-				if (property === "request") {
-					return (method: string, path: string, options: RequestOptions = {}) =>
-						base.request(method, path, { ...options, context: { ...context, ...options.context } })
-				}
+				if (property === "request") return request
 				/* Through the receiver, so a proxy wrapped around this view still sees the request. */
 				if (property === "get") {
 					return (path: string, options: RequestOptions = {}) => (receiver as Client).request("GET", path, options)
 				}
-				if (property === "view") {
-					return (more: ExchangeContext) => base.view({ ...context, ...more })
-				}
+				if (property === "view") return view
 				return Reflect.get(target, property, receiver)
 			},
 		})
+	}
+
+	/** A view that refuses any request that could change server state. */
+	readOnlyView(context: ExchangeContext): ReadClient {
+		return this.view(context, true)
 	}
 
 	/** Register a principal so every request that carries its credential refreshes and 401-retries. */
@@ -272,14 +323,17 @@ export class Client {
 	}
 
 	async request(method: string, path: string, options: RequestOptions = {}): Promise<Exchange> {
+		if (method.toUpperCase() !== "GET" && method.toUpperCase() !== "HEAD") this.writes += 1
 		const url = new URL(isAbsoluteHttpUrl(path) ? path : `${this.baseUrl}${path}`)
 		for (const [key, value] of Object.entries(options.query ?? {})) {
 			if (value !== undefined) url.searchParams.set(key, String(value))
 		}
+		let pendingEntity: string | undefined
 		const resolved = isAbsoluteHttpUrl(path)
 			? null
 			: (this.operationResolver?.(method.toUpperCase(), this.relativePath(url)) ?? null)
 		const stamp = (headers: Record<string, string>): Partial<Exchange> => {
+			if (resolved?.entity !== undefined && resolved.entity !== null) pendingEntity = resolved.entity
 			const operationId = options.operationId ?? resolved?.operationId
 			const principal = this.principalResolver?.(headers)
 			const context = options.context ?? {}
@@ -321,6 +375,13 @@ export class Client {
 			if (encoded.contentType !== undefined) headers["content-type"] = encoded.contentType
 
 			const jar = new CookieJar()
+			const callerCookie = headerValue(headers, "cookie")
+			/* Every header that carries a credential: the known names, and whatever the bound
+			 * principal injects — an API key under a custom name is still a key. */
+			const credentialNames = new Set([
+				...CREDENTIAL_HEADERS,
+				...Object.keys(bound?.headers() ?? {}).map((name) => name.toLowerCase()),
+			])
 			const hops: RedirectHop[] = []
 			let hopUrl = url
 			let hopMethod = method
@@ -363,7 +424,7 @@ export class Client {
 					const signal = timeoutMs === undefined ? undefined : AbortSignal.timeout(timeoutMs)
 					const once = async (target: URL, hopInit: RequestInit): Promise<Response> =>
 						fetch(target, signal === undefined ? hopInit : { ...hopInit, signal })
-					applyJarToHeaders(hopHeaders, jar, hopUrl)
+					applyJarToHeaders(hopHeaders, jar, hopUrl, callerCookie)
 					response = await once(hopUrl, { ...init, headers: hopHeaders, method: hopMethod })
 					;({ parsed, bodyBytes } = await readResponsePayload(response))
 					jar.absorb(hopUrl, setCookieHeadersFrom(response.headers))
@@ -376,7 +437,13 @@ export class Client {
 								status: response.status,
 								url: hopUrl.toString(),
 							})
-							if (next.url.hostname !== hopUrl.hostname) omitHeader(hopHeaders, "authorization")
+							/* Another origin — scheme, host or port — gets no credential of ours. */
+							const crossOrigin = next.url.origin !== url.origin
+							if (crossOrigin) {
+								for (const name of Object.keys(hopHeaders)) {
+									if (credentialNames.has(name.toLowerCase())) delete hopHeaders[name]
+								}
+							}
 							hopUrl = next.url
 							hopMethod = next.method
 							if (next.dropBody) {
@@ -384,7 +451,7 @@ export class Client {
 								omitHeader(hopHeaders, "content-type")
 								omitHeader(hopHeaders, "content-length")
 							}
-							applyJarToHeaders(hopHeaders, jar, hopUrl)
+							applyJarToHeaders(hopHeaders, jar, hopUrl, crossOrigin ? undefined : callerCookie)
 							const nextInit: RequestInit = {
 								headers: hopHeaders,
 								method: hopMethod,
@@ -422,7 +489,7 @@ export class Client {
 						...(options.fixture === undefined ? {} : { fixture: options.fixture }),
 					}
 					await this.onExchange?.(failed)
-					await this.record(failed)
+					await this.record(failed, pendingEntity)
 					throw new NetworkError({
 						attempts: attempt + 1,
 						cause: error,
@@ -464,10 +531,31 @@ export class Client {
 				...(Object.keys(cookies).length === 0 ? {} : { cookies }),
 			}
 			await this.onExchange?.(exchange)
-			await this.record(exchange)
-			return exchange
+			await this.record(exchange, pendingEntity)
+			/* What the backend said is evidence: no check may rewrite it after the fact. */
+			return Object.freeze(exchange)
 		}
 
+		/*
+		 * A failed request may be sent again only when doing so cannot do something twice: it never
+		 * left this machine, or the method is idempotent, or it carries an idempotency key. A POST
+		 * that timed out may well have created its record — resending it creates a second one, and
+		 * oat would then report the duplicate as the backend's.
+		 */
+		const repeatable = (error: NetworkError): boolean =>
+			NEVER_SENT.has(error.kind) ||
+			IDEMPOTENT.has(method.toUpperCase()) ||
+			Object.keys(resolveUserHeaders()).some((name) => /idempotency[-_]?key/i.test(name))
+		const deadline = performance.now() + (this.network?.deadlineMs ?? DEFAULT_DEADLINE_MS)
+		/* A refresh that fails is the backend's failure to keep a session alive, not this request's.
+		 * It is raised as its own error so the run reports it rather than losing it in a check. */
+		const refreshing = async (force: boolean): Promise<void> => {
+			try {
+				await refresh?.(force)
+			} catch (error) {
+				throw new AuthRefreshError(this.principalResolver?.(resolveUserHeaders()), error)
+			}
+		}
 		const resilient = async (): Promise<Exchange> => {
 			const retries = this.network === undefined ? 0 : Math.max(0, this.network.retries ?? DEFAULT_NETWORK_RETRIES)
 			let last: NetworkError | undefined
@@ -477,20 +565,29 @@ export class Client {
 				} catch (error) {
 					if (!isNetworkError(error)) throw error
 					last = error
-					if (attempt < retries) await sleep(networkRetryWaitMs(attempt))
+					if (!repeatable(error)) throw error
+					const wait = networkRetryWaitMs(attempt)
+					if (performance.now() + wait > deadline) throw error
+					if (attempt < retries) await sleep(wait)
 				}
 			}
-			if (last !== undefined && this.network?.awaitRecovery !== undefined && (await this.network.awaitRecovery(last))) {
+			if (
+				last !== undefined &&
+				repeatable(last) &&
+				performance.now() < deadline &&
+				this.network?.awaitRecovery !== undefined &&
+				(await this.network.awaitRecovery(last))
+			) {
 				return dispatch(retries + 1)
 			}
 			throw last as NetworkError
 		}
 
-		if (refresh !== undefined) await refresh(false)
+		if (refresh !== undefined) await refreshing(false)
 		let exchange = await resilient()
 		if (exchange.status === 401 && refresh !== undefined) {
 			this.supersede(exchange)
-			await refresh(true)
+			await refreshing(true)
 			exchange = await resilient()
 		}
 		/* 429 is reactive: the first one is never a seed/check failure. Tags pace proactively;
@@ -503,7 +600,7 @@ export class Client {
 			exchange = await resilient()
 			if (exchange.status === 401 && refresh !== undefined) {
 				this.supersede(exchange)
-				await refresh(true)
+				await refreshing(true)
 				exchange = await resilient()
 			}
 		}
@@ -518,19 +615,43 @@ export class Client {
 	 * Keeps a compacted copy in the transcript. The caller's exchange is left whole: a check
 	 * reading a 300 KiB page must see the page, not a hash of it.
 	 */
-	private async record(exchange: Exchange): Promise<void> {
+	private async record(exchange: Exchange, entity?: string): Promise<void> {
 		const stored: Exchange = { ...exchange }
 		await releaseTranscriptBodies(stored)
 		this.transcript.push(stored)
 		this.stored.set(exchange.seq, stored)
+		await this.spool.keep(stored)
 		if (stored.operationId !== undefined) {
 			const list = this.byOperationId.get(stored.operationId) ?? []
 			list.push(stored)
 			this.byOperationId.set(stored.operationId, list)
 		}
+		if (entity !== undefined) {
+			const list = this.byEntity.get(entity) ?? []
+			list.push(stored)
+			this.byEntity.set(entity, list)
+		}
 	}
 
 	private readonly stored = new Map<number, Exchange>()
+	private readonly spool = new BodySpool()
+
+	/**
+	 * The exchange with its bodies, wherever they are kept. The transcript holds the most recent
+	 * bodies in memory and moves older ones to disk once they pass a budget; a reader that judges
+	 * bodies from the transcript — rather than from the exchange a request returned — asks here.
+	 */
+	hydrate(exchange: Exchange): Promise<Exchange> {
+		return this.spool.hydrate(exchange)
+	}
+
+	/** Removes the bodies moved to disk. The client is not used after this. */
+	async dispose(): Promise<void> {
+		await this.spool.dispose()
+	}
+
+	/** Writes sent so far. A cached read taken before the latest write is stale. */
+	writes = 0
 
 	/** Marks an answer that was asked again: only the final answer is the backend's verdict. */
 	private supersede(exchange: Exchange): void {
@@ -553,29 +674,49 @@ export interface CurlOptions {
  * silently runs against a literal `$BASE` with a literal `$TOKEN`. Everything else is
  * single-quoted so JSON bodies and query strings survive untouched.
  */
+/** One shell word, whatever it holds: single-quoted, with each `'` closed, escaped and reopened. */
+function shellQuote(text: string): string {
+	return `'${text.replace(/'/g, `'\\''`)}'`
+}
+
 export function toCurl(exchange: Exchange, options: CurlOptions = {}): string {
-	const redact = options.redact ?? ["authorization", "cookie", "x-api-key"]
+	const redact = options.redact
+	const target = redactUrl(exchange.url)
 	const url =
-		options.origin !== undefined && exchange.url.startsWith(options.origin)
-			? `"$BASE${shellEscapeDouble(exchange.url.slice(options.origin.length))}"`
-			: `'${exchange.url}'`
+		options.origin !== undefined && target.startsWith(options.origin)
+			? `"$BASE${shellEscapeDouble(target.slice(options.origin.length))}"`
+			: shellQuote(target)
 
 	const parts = [`curl -i -X ${exchange.method} ${url}`]
 	for (const [key, value] of Object.entries(exchange.requestHeaders)) {
-		if (redact.includes(key.toLowerCase())) {
+		if (redact === undefined ? isSecretHeaderName(key) : redact.includes(key.toLowerCase())) {
 			/* Preserve the scheme prefix ("Bearer ", "ApiKey ") so the variable holds only the
 			 * secret and the script stays copy-pasteable. */
 			const scheme = /^(\w+)\s+/.exec(value)?.[1]
 			const rendered = scheme === undefined ? "$TOKEN" : `${scheme} $TOKEN`
-			parts.push(`  -H "${key}: ${rendered}"`)
+			parts.push(`  -H "${shellEscapeDouble(key)}: ${rendered}"`)
 			continue
 		}
-		parts.push(`  -H '${key}: ${value}'`)
+		parts.push(`  -H ${shellQuote(`${key}: ${redactText(value)}`)}`)
 	}
 	if (exchange.requestBody !== undefined) {
-		for (const flag of curlBodyFlags(exchange.requestBody)) parts.push(flag)
+		for (const flag of curlBodyFlags(redactBody(exchange.requestBody))) parts.push(flag)
 	}
 	return parts.join(" \\\n")
+}
+
+/** A request body with secrets removed, keeping the shape `curlBodyFlags` understands. */
+function redactBody(body: unknown): unknown {
+	if (typeof body === "string") return redactText(body)
+	if (isURLSearchParams(body)) {
+		const out = new URLSearchParams()
+		for (const [key, value] of body) out.append(key, isSecretJsonKey(key) ? REDACTED : redactText(value))
+		return out
+	}
+	if (isFormData(body) || isFormSnapshot(body) || isRawBytes(body) || isBodyRef(body)) {
+		return body
+	}
+	return redactJson(body)
 }
 
 function curlBodyFlags(body: unknown): string[] {
@@ -584,32 +725,34 @@ function curlBodyFlags(body: unknown): string[] {
 		if (isFormData(body)) {
 			for (const [name, value] of body.entries()) {
 				if (typeof value === "string") {
-					flags.push(`  -F '${name}=${value.replace(/'/g, `'\\''`)}'`)
+					flags.push(`  -F ${shellQuote(`${name}=${value}`)}`)
 				} else {
-					flags.push(`  -F '${name}=@${value.name};type=${value.type || "application/octet-stream"}'`)
+					flags.push(`  -F ${shellQuote(`${name}=@${value.name};type=${value.type || "application/octet-stream"}`)}`)
 				}
 			}
 			return flags
 		}
 		for (const part of body.parts) {
 			if ("value" in part) {
-				flags.push(`  -F '${part.field}=${part.value.replace(/'/g, `'\\''`)}'`)
+				flags.push(`  -F ${shellQuote(`${part.field}=${part.value}`)}`)
 			} else {
-				flags.push(`  -F '${part.field}=@${part.filename};type=${part.mediaType}'`)
+				flags.push(`  -F ${shellQuote(`${part.field}=@${part.filename};type=${part.mediaType}`)}`)
 			}
 		}
 		return flags
 	}
 	if (isURLSearchParams(body)) {
-		return [`  --data-urlencode '${body.toString().replace(/'/g, `'\\''`)}'`]
+		/* Field by field: curl encodes each value itself. Handing it the joined string encoded the
+		 * separators too, so the server received one field holding the whole form. */
+		return [...body].map(([key, value]) => `  --data-urlencode ${shellQuote(`${key}=${value}`)}`)
 	}
 	if (typeof body === "string") {
-		return [`  -d '${body.replace(/'/g, `'\\''`)}'`]
+		return [`  -d ${shellQuote(body)}`]
 	}
 	if (isRawBytes(body) || isBodyRef(body)) {
 		return [`  --data-binary @-`]
 	}
-	return [`  -d '${JSON.stringify(body).replace(/'/g, `'\\''`)}'`]
+	return [`  -d ${shellQuote(JSON.stringify(body))}`]
 }
 
 type FetchBody = NonNullable<RequestInit["body"]>
@@ -703,7 +846,8 @@ function formDataBytes(form: FormData): number {
 }
 
 function utf8Bytes(text: string | undefined): number {
-	return text === undefined || text === "" ? 0 : new TextEncoder().encode(text).byteLength
+	/* Counted, not encoded: a copy of every body just to measure it is the cost to avoid. */
+	return text === undefined || text === "" ? 0 : Buffer.byteLength(text, "utf8")
 }
 
 function hasHeader(headers: Record<string, string>, name: string): boolean {
@@ -754,7 +898,7 @@ function httpMessageBytes(
 	}
 	text += `\r\n`
 	if (body !== undefined) text += body
-	const headerBytes = new TextEncoder().encode(text).byteLength
+	const headerBytes = Buffer.byteLength(text, "utf8")
 	return body === undefined ? headerBytes + bodyBytes : headerBytes
 }
 

@@ -34,8 +34,11 @@ export default defineConfig({
 			thresholds: {
 				"src/{runtime/poll,runtime/input,runtime/principals,runtime/wait,spec/query-capabilities,runtime/query-capabilities,runtime/upload-each,runtime/effects,runtime/exchanges,runtime/network,runtime/cookies,runtime/sse,runtime/transcript}.ts":
 					{ branches: 100, functions: 100, lines: 100, statements: 100 },
-				"src/runtime/checks.ts": { branches: 73, functions: 97, lines: 89, statements: 82 },
-				"src/runtime/run.ts": { branches: 78, functions: 92, lines: 87, statements: 85 },
+				/* Lowered when `--ops` recall moved into the conformance suite, which reuses the defect
+				 * matrix's runs: unit tests no longer make a full run per defect. Every check is proven
+				 * there instead — the suite fails if any registered check never fires on its defect. */
+				"src/runtime/checks.ts": { branches: 68, functions: 93, lines: 83, statements: 80 },
+				"src/runtime/run.ts": { branches: 78, functions: 90, lines: 87, statements: 85 },
 				"src/runtime/world.ts": { branches: 65, functions: 100, lines: 86, statements: 81 },
 				"src/runtime/client.ts": { branches: 71, functions: 97, lines: 88, statements: 83 },
 				"src/runtime/auth.ts": { branches: 80, functions: 84, lines: 91, statements: 87 },

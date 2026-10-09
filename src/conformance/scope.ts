@@ -41,7 +41,14 @@ async function runOnce(
 	}
 }
 
-export async function runScopeSuite(filter?: string[]): Promise<ParserResult[]> {
+/**
+ * `known` carries, per defect, the operations its finding judged in a full run the caller already
+ * made — the defect matrix makes exactly that run — so only the targeted run is sent here.
+ */
+export async function runScopeSuite(
+	filter?: string[],
+	known?: Readonly<Record<string, readonly string[]>>,
+): Promise<ParserResult[]> {
 	const results: ParserResult[] = []
 	const names = (Object.keys(DEFECTS) as DefectName[])
 		.filter((name) => filter === undefined || filter.length === 0 || filter.includes(name))
@@ -52,18 +59,18 @@ export async function runScopeSuite(filter?: string[]): Promise<ParserResult[]> 
 		const name = `--ops recall: ${defect}`
 		const why = `a run targeted at the operation ${check} judges must still report it`
 		try {
-			const full = await runOnce([defect])
-			const finding = full.findings.find((f) => f.check === check)
-			if (finding === undefined) {
+			const reported = known?.[defect]
+			const ops: readonly string[] | undefined =
+				reported ?? (await runOnce([defect])).findings.find((f) => f.check === check)?.operations
+			if (ops === undefined) {
 				results.push({ detail: "the full run did not report it either", name, ok: false, why })
 				continue
 			}
-			const ops = finding.operations ?? []
 			if (ops.length === 0) {
 				results.push({ detail: `${check} finding carries no operation`, name, ok: false, why })
 				continue
 			}
-			const targeted = await runOnce([defect], ops)
+			const targeted = await runOnce([defect], [...ops])
 			const detected = targeted.findings.some((f) => f.check === check)
 			const failed = ops.some((op) => targeted.statuses.get(op) === "failed")
 			results.push({

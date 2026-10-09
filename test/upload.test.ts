@@ -137,9 +137,10 @@ describe("encode + client", () => {
 				]),
 			})
 			expect(exchange.requestHeaders["content-type"]).toBeUndefined()
-			const filePart = (client.transcript.at(-1)?.requestBody as { parts: Array<Record<string, unknown>> }).parts.find(
-				(part) => part.field === "file",
-			)
+			const stored = (client.transcript.at(-1)?.requestBody ?? { parts: [] }) as {
+				parts: Array<Record<string, unknown>>
+			}
+			const filePart = stored.parts.find((part) => part.field === "file")
 			expect(filePart).toMatchObject({ field: "file", mediaType: "application/pdf" })
 			expect(Number(filePart?.bytes)).toBeGreaterThan(0)
 

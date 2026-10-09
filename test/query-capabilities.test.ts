@@ -23,7 +23,6 @@ import {
 	parseSortable,
 	readJsonPathList,
 	type EffectiveQueryCapabilities,
-	type QueryCapabilities,
 } from "../src/spec/query-capabilities.ts"
 import {
 	canWriteFilterOp,
@@ -228,6 +227,11 @@ describe("query capability parse", () => {
 		expect(parseQueryCatalog({ filterableFrom: { path: "" } }).filterableFrom).toBeUndefined()
 		expect(parseQueryCatalog({ searchEmpty: "match-all" }).searchEmpty).toBe("match-all")
 		expect(parseQueryCatalog({ sortNulls: ["nope"] }).sort).toBeUndefined()
+		expect(parseQueryCatalog({ sortCollation: "case-insensitive", sortDefaultNulls: "last" }).sort).toEqual({
+			collation: "case-insensitive",
+			defaultNulls: "last",
+		})
+		expect(parseQueryCatalog({ sort: { collation: "nope", defaultNulls: "middle" } }).sort).toBeUndefined()
 		expect(parseQueryCatalog({ select: { nested: true, relations: [null, { name: 1 }] } }).select).toEqual({
 			nested: true,
 		})

@@ -154,9 +154,12 @@ describe("CookieJar", () => {
 		expect(jar.snapshot().session).toBe("new")
 
 		const headers: Record<string, string> = { cookie: "pre=1", authorization: "Bearer x" }
-		applyJarToHeaders(headers, jar, new URL("https://app.example.com/"))
+		applyJarToHeaders(headers, jar, new URL("https://app.example.com/"), "pre=1")
 		expect(headers.cookie).toContain("pre=1")
 		expect(headers.cookie).toContain("session=new")
+		/* Rebuilt per hop, never appended to: a second hop does not repeat the first. */
+		applyJarToHeaders(headers, jar, new URL("https://app.example.com/"), "pre=1")
+		expect(headers.cookie?.match(/session=/g)).toHaveLength(1)
 		const empty: Record<string, string> = {}
 		applyJarToHeaders(empty, jar, new URL("https://other.example.com/"))
 		expect(empty.cookie).toBeUndefined()
@@ -229,5 +232,39 @@ describe("describeSaveAs / readSaveAs", () => {
 		expect(readSaveAs("header:missing", source)).toBeUndefined()
 		expect(readSaveAs("header:empty", { ...source, headers: { empty: "" } })).toBeUndefined()
 		expect(readSaveAs("$.access_token", source)).toBe("from-json")
+	})
+})
+
+describe("cookie jar rules", () => {
+	it("forgets a cookie the server deletes", () => {
+		const jar = new CookieJar()
+		const at = new URL("https://app.example.com/")
+		jar.absorb(at, ["a=1", "b=2", "c=3"])
+		jar.absorb(at, ["a=; Path=/", "b=x; Max-Age=0", "c=y; Expires=Thu, 01 Jan 1970 00:00:00 GMT"])
+		expect(jar.cookieHeader(at)).toBeUndefined()
+	})
+
+	it("sends a cookie only under its Path, only over https when Secure", () => {
+		const jar = new CookieJar()
+		jar.absorb(new URL("https://app.example.com/login"), ["scoped=1; Path=/api", "safe=2; Secure; Path=/"])
+		expect(jar.cookieHeader(new URL("https://app.example.com/api/x"))).toBe("scoped=1; safe=2")
+		expect(jar.cookieHeader(new URL("https://app.example.com/apix"))).toBe("safe=2")
+		expect(jar.cookieHeader(new URL("http://app.example.com/api/x"))).toBe("scoped=1")
+	})
+
+	it("widens to subdomains only through Domain, and only to a domain the host belongs to", () => {
+		const jar = new CookieJar()
+		jar.absorb(new URL("https://app.example.com/"), ["wide=1; Domain=example.com", "foreign=2; Domain=evil.test"])
+		expect(jar.cookieHeader(new URL("https://api.example.com/"))).toBe("wide=1")
+		expect(jar.size).toBe(1)
+	})
+})
+
+describe("cookie default path", () => {
+	it("scopes a cookie set without Path to the directory of the request", () => {
+		const jar = new CookieJar()
+		jar.absorb(new URL("https://app.example.com/account/settings/save"), ["pref=dark"])
+		expect(jar.cookieHeader(new URL("https://app.example.com/account/settings/view"))).toBe("pref=dark")
+		expect(jar.cookieHeader(new URL("https://app.example.com/account/other"))).toBeUndefined()
 	})
 })

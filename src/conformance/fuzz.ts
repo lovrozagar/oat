@@ -18,7 +18,7 @@
  * rather than assumed.
  */
 
-import { DEFECTS, type DefectName } from "../reference/defects.ts"
+import type { DefectName } from "../reference/defects.ts"
 import { CHECKS } from "../runtime/checks.ts"
 import { type PrincipalSpec, run } from "../runtime/run.ts"
 import { type Backend, EXPECTED, PRINCIPALS, defectsFor } from "./suite.ts"

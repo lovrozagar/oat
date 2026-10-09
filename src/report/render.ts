@@ -8,10 +8,12 @@
  */
 
 import { describeRequestBody, toCurl } from "../runtime/client.ts"
+import { redactJson, redactUrl } from "../runtime/redact.ts"
 import type { Client, Exchange } from "../runtime/client.ts"
 import { describeRequested, type OperationCoverage, type OperationStatus, type ScopeReport } from "../runtime/scope.ts"
-import type { Finding, Verdict } from "../runtime/finding.ts"
+import { type Finding, isRootCause, type Verdict } from "../runtime/finding.ts"
 import type { SpecModel } from "../spec/graph.ts"
+import type { CheckTiming } from "../runtime/run.ts"
 
 export interface ReportInput {
 	findings: Finding[]
@@ -37,6 +39,10 @@ export interface ReportInput {
 	durationMs: number
 	/** Journal size when exchanges were persisted next to this report. */
 	exchanges?: { count: number }
+	/** How long each check took on each entity. */
+	checkTimings?: CheckTiming[]
+	/** What passing checks observed about policies the document leaves open. */
+	checkNotes?: Array<{ check: string; entity: string; note: string }>
 	network?: {
 		kind: string
 		attempts: number
@@ -84,14 +90,14 @@ function exchangeBlock(exchange: Exchange): string[] {
 	const lines: string[] = []
 	lines.push("")
 	lines.push(
-		`\`${exchange.method} ${new URL(exchange.url).pathname}${new URL(exchange.url).search}\` → **${exchange.status}** (${new Date(exchange.at).toISOString()} · ${exchange.durationMs}ms · ${formatBytes(exchange.requestBytes)} → ${formatBytes(exchange.responseBytes)}${exchange.requestId === "" ? "" : ` · ${exchange.requestId}`})`,
+		`\`${exchange.method} ${new URL(redactUrl(exchange.url)).pathname}${new URL(redactUrl(exchange.url)).search}\` → **${exchange.status}** (${new Date(exchange.at).toISOString()} · ${exchange.durationMs}ms · ${formatBytes(exchange.requestBytes)} → ${formatBytes(exchange.responseBytes)}${exchange.requestId === "" ? "" : ` · ${exchange.requestId}`})`,
 	)
 	if (exchange.requestBody !== undefined) {
 		lines.push("")
 		lines.push("<details><summary>request body</summary>")
 		lines.push("")
 		lines.push("```json")
-		lines.push(truncate(describeRequestBody(exchange.requestBody)))
+		lines.push(truncate(redactJson(describeRequestBody(exchange.requestBody))))
 		lines.push("```")
 		lines.push("")
 		lines.push("</details>")
@@ -101,7 +107,7 @@ function exchangeBlock(exchange: Exchange): string[] {
 		lines.push("<details><summary>response body</summary>")
 		lines.push("")
 		lines.push("```json")
-		lines.push(truncate(exchange.responseBody))
+		lines.push(truncate(redactJson(exchange.responseBody)))
 		lines.push("```")
 		lines.push("")
 		lines.push("</details>")
@@ -111,7 +117,7 @@ function exchangeBlock(exchange: Exchange): string[] {
 
 export function renderMarkdown(input: ReportInput): string {
 	const { findings } = input
-	const real = findings.filter((f) => f.verdict !== "COVERAGE_GAP" && f.verdict !== "BLOCKED")
+	const real = findings.filter(isRootCause)
 	const lines: string[] = []
 	const coverage = coverageByCheck(input)
 
@@ -158,7 +164,26 @@ export function renderMarkdown(input: ReportInput): string {
 				`(${timing.slowest.method} ${timing.slowest.path})`,
 		)
 	}
+	const cost = costByCheck(input).slice(0, COST_ROWS)
+	if (cost.length > 0) {
+		lines.push(
+			`- **Costliest checks**: ${cost.map((row) => `${row.check} ${row.requests} req · ${(row.ms / 1000).toFixed(1)}s`).join(", ")}`,
+		)
+	}
 	lines.push("")
+
+	/* Policies the document leaves open, as the backend showed them. One line per policy: the
+	 * same observation on every entity is said once. */
+	const observed = new Map<string, string[]>()
+	for (const note of input.checkNotes ?? []) {
+		observed.set(note.note, [...(observed.get(note.note) ?? []), note.entity])
+	}
+	if (observed.size > 0) {
+		lines.push("## Observed behaviour")
+		lines.push("")
+		for (const [note, entities] of observed) lines.push(`- ${note} (${entities.join(", ")})`)
+		lines.push("")
+	}
 
 	if (real.length === 0) {
 		lines.push(`No defects found across ${input.checksRun.length} checks.`)
@@ -240,6 +265,9 @@ export const ISSUE_REPRO_DIR = "issue-repro"
 
 /** One runnable script per finding — the artifact a backend developer actually opens. */
 export function renderRepros(findings: Finding[], baseUrl: string): ReproScript[] {
+	/* `BASE` stands for the whole base URL, path prefix and all, so it replaces exactly that. */
+	const base = baseUrl.replace(/\/+$/, "")
+	const taken = new Set<string>()
 	return findings
 		.filter((finding) => finding.evidence.length > 0)
 		.map((finding) => {
@@ -251,19 +279,24 @@ export function renderRepros(findings: Finding[], baseUrl: string): ReproScript[
 			for (const chunk of wrap(finding.detail, 88)) lines.push(`# ${chunk}`)
 			lines.push("")
 			lines.push("set -u")
-			lines.push(`BASE="\${BASE:-${baseUrl}}"`)
+			lines.push(`BASE="\${BASE:-${base}}"`)
 			lines.push('TOKEN="${TOKEN:?set TOKEN to a valid credential}"')
 			lines.push("")
 
 			finding.evidence.forEach((exchange, index) => {
 				lines.push(`# step ${index + 1} — observed ${exchange.status}`)
-				lines.push(toCurl(exchange, { origin: new URL(exchange.url).origin }))
+				lines.push(toCurl(exchange, { origin: base }))
 				lines.push("")
 			})
 
+			/* One check can report more than once on an entity; each finding keeps its own file. */
+			const stem = slug(`${finding.entity}-${finding.check}`)
+			let filename = `${stem}.sh`
+			for (let n = 2; taken.has(filename); n++) filename = `${stem}-${n}.sh`
+			taken.add(filename)
 			return {
 				content: `${lines.join("\n")}\n`,
-				filename: `${slug(`${finding.entity}-${finding.check}`)}.sh`,
+				filename,
 			}
 		})
 }
@@ -465,7 +498,7 @@ function scopeConsole(scope: ScopeReport): string[] {
 export function renderConsole(input: ReportInput): string {
 	const { findings } = input
 	const lines: string[] = []
-	const real = findings.filter((f) => f.verdict !== "COVERAGE_GAP" && f.verdict !== "BLOCKED")
+	const real = findings.filter(isRootCause)
 	const coverage = coverageByCheck(input)
 
 	lines.push("")
@@ -647,13 +680,13 @@ export function renderJson(input: ReportInput): string {
 					at: new Date(exchange.at).toISOString(),
 					durationMs: exchange.durationMs,
 					method: exchange.method,
-					requestBody: describeRequestBody(exchange.requestBody),
+					requestBody: redactJson(describeRequestBody(exchange.requestBody)),
 					requestBytes: exchange.requestBytes,
 					requestId: exchange.requestId,
-					responseBody: exchange.responseBody,
+					responseBody: redactJson(exchange.responseBody),
 					responseBytes: exchange.responseBytes,
 					status: exchange.status,
-					url: exchange.url,
+					url: redactUrl(exchange.url),
 				})),
 				summary: finding.summary,
 				verdict: finding.verdict,
@@ -664,6 +697,8 @@ export function renderJson(input: ReportInput): string {
 			requestBytes: utf8Total(input.client.transcript, "request"),
 			responseBytes: utf8Total(input.client.transcript, "response"),
 			latency: latency(input.client.transcript),
+			costByCheck: costByCheck(input),
+			observed: input.checkNotes ?? [],
 			summary: Object.fromEntries(
 				VERDICT_ORDER.map((verdict) => [verdict, input.findings.filter((f) => f.verdict === verdict).length]).filter(
 					([, count]) => (count as number) > 0,
@@ -681,4 +716,25 @@ export function renderJson(input: ReportInput): string {
 		null,
 		2,
 	)}\n`
+}
+
+/** Checks named in the summary's cost line. */
+const COST_ROWS = 5
+
+/**
+ * What each check cost: the requests it sent, counted from the transcript, and its wall time
+ * summed over entities. Costliest first, by requests.
+ */
+function costByCheck(input: ReportInput): Array<{ check: string; requests: number; ms: number }> {
+	const rows = new Map<string, { check: string; requests: number; ms: number }>()
+	const row = (check: string): { check: string; requests: number; ms: number } => {
+		const existing = rows.get(check)
+		if (existing !== undefined) return existing
+		const created = { check, ms: 0, requests: 0 }
+		rows.set(check, created)
+		return created
+	}
+	for (const exchange of input.client.transcript) if (exchange.check !== undefined) row(exchange.check).requests += 1
+	for (const timing of input.checkTimings ?? []) row(timing.check).ms += timing.ms
+	return [...rows.values()].sort((a, b) => b.requests - a.requests || b.ms - a.ms || a.check.localeCompare(b.check))
 }

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
+import { createServer } from "node:http"
 import { existsSync } from "node:fs"
 import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -134,6 +134,13 @@ describe("isBinaryMediaType", () => {
 })
 
 describe("exchange journal", () => {
+	it("writes nothing on a flush with nothing buffered", async () => {
+		const dir = await scratch()
+		const journal = createExchangeJournal(dir)
+		await journal.flush()
+		expect(journal.count).toBe(0)
+	})
+
 	it("persists a followed redirect chain with redacted Set-Cookie", async () => {
 		const dir = await scratch()
 		const journal = createExchangeJournal(dir)
@@ -162,6 +169,7 @@ describe("exchange journal", () => {
 		expect(file.redirects).toHaveLength(1)
 		expect(file.redirects[0]?.status).toBe(303)
 		expect(file.redirects[0]?.responseHeaders["set-cookie"]).toBe("<redacted>")
+		await journal.flush()
 		const line = JSON.parse((await readFile(join(dir, "exchanges.jsonl"), "utf8")).trim()) as {
 			finalUrl: string
 			redirects: number
@@ -202,6 +210,7 @@ describe("exchange journal", () => {
 			}),
 		)
 		expect(journal.count).toBe(2)
+		await journal.flush()
 		const jsonl = (await readFile(join(dir, "exchanges.jsonl"), "utf8")).trim().split("\n")
 		const first = JSON.parse(jsonl[0] ?? "{}") as Record<string, unknown>
 		expect(first.requestId).toBe("req-json")
@@ -282,6 +291,7 @@ describe("exchange journal", () => {
 		const second = JSON.parse(await readFile(join(dir, "exchanges/same-6.json"), "utf8")) as { url: string }
 		expect(first.url).toBe("http://x.test/b")
 		expect(second.url).toBe("http://x.test/c")
+		await journal.flush()
 		const lines = (await readFile(join(dir, "exchanges.jsonl"), "utf8")).trim().split("\n")
 		expect(JSON.parse(lines[2] ?? "{}")).toMatchObject({ file: "exchanges/same-6.json", requestId: "same" })
 	})

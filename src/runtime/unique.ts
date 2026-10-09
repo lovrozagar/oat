@@ -8,10 +8,6 @@
 import { generate } from "./generate.ts"
 import { requestContent } from "../spec/collection.ts"
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
-import type { OperationObject } from "../spec/types.ts"
-import type { Exchange } from "./client.ts"
-import type { FindingCollector } from "./finding.ts"
-import type { SchemaValidator } from "./validate.ts"
 
 export const UNIQUE_CONFLICT_STATUS = 409
 
@@ -169,9 +165,10 @@ export function collisionCreateBody(
 	return wrote ? out : null
 }
 
-/** PATCH body that copies one unique set from `source` onto a different row. */
+/** The update that makes `target` hold `source`'s values on a whole unique set, or `null` when it cannot. */
 export function collisionUpdatePatch(
 	source: Record<string, unknown>,
+	target: Record<string, unknown>,
 	set: string[],
 	scope: Record<string, string>,
 	bodyColumns: ReadonlySet<string>,
@@ -181,56 +178,15 @@ export function collisionUpdatePatch(
 	const skip = new Set([...immutable, ...generated])
 	const patch: Record<string, unknown> = {}
 	for (const col of set) {
-		if (!bodyColumns.has(col) || skip.has(col)) continue
 		const value = source[col] ?? scope[col]
 		if (value === undefined) return null
+		if (!bodyColumns.has(col) || skip.has(col)) {
+			/* A column the update cannot write must already agree, or the two rows would still
+			 * differ on the set after the write — and accepting it would be correct. */
+			if (JSON.stringify(target[col] ?? scope[col]) !== JSON.stringify(value)) return null
+			continue
+		}
 		patch[col] = value
 	}
 	return Object.keys(patch).length > 0 ? patch : null
-}
-
-/**
- * A 409 still has to match the documented error schema. Coverage is "this 409 is expected";
- * it is not a free pass for an undeclared body.
- */
-export function reportUniqueSchemaDrift(
-	findings: FindingCollector,
-	validator: SchemaValidator,
-	op: OperationModel,
-	raw: OperationObject | undefined,
-	exchange: Exchange,
-	entity: string,
-): void {
-	if (raw === undefined) return
-	if (!validator.documents(raw, exchange.status)) return
-	const result = validator.validate(op.operationId, raw, exchange.status, exchange.responseBody)
-	if (result.unchecked !== undefined) {
-		findings.gap(
-			"schema.error-response-matches-document",
-			entity,
-			`${op.operationId} ${exchange.status} has a schema that cannot be compiled`,
-			`AJV refused the documented schema, so the body was not validated: ${result.unchecked}`,
-		)
-		return
-	}
-	if (result.ok) return
-	if (
-		findings.findings.some(
-			(finding) =>
-				finding.check === "schema.error-response-matches-document" &&
-				finding.entity === entity &&
-				finding.evidence.some((prior) => prior.seq === exchange.seq),
-		)
-	) {
-		return
-	}
-	findings.spec(
-		"schema.error-response-matches-document",
-		entity,
-		`${exchange.status} error body does not match its documented schema`,
-		`${op.operationId} returned ${exchange.status} with a body that fails the schema the ` +
-			`document declares for it: ${result.errors.join("; ")}. Clients that parse errors ` +
-			"from the spec will not understand this response.",
-		[exchange],
-	)
 }

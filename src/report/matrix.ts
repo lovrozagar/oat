@@ -7,6 +7,7 @@
  * read surface. That is the claim `invalidation.declared-route-changes` actually tests.
  */
 
+import { isRootCause } from "../runtime/finding.ts"
 import { CHECKS } from "../runtime/checks.ts"
 import type { SpecModel } from "../spec/graph.ts"
 import type { ReportInput } from "./render.ts"
@@ -112,6 +113,8 @@ type MatrixParts = {
 		verdict: string
 		summary: string
 		detail?: string
+		/** Set on a finding from a secondary origin. */
+		origin?: string
 	}>
 }
 
@@ -259,7 +262,7 @@ const STRIPS: Array<{ title: string; ids: string[] }> = [
 
 const ALL_CHECK_IDS = [...new Set(STRIPS.flatMap((s) => s.ids))]
 const GROUP_OF = new Map(STRIPS.flatMap((s) => s.ids.map((id) => [id, s.title] as const)))
-const NEEDS = new Map(CHECKS.map((check) => [check.id, check.needs]))
+const NEEDS = new Map<string, string | undefined>(CHECKS.map((check) => [check.id, check.needs]))
 
 const CHECK_EDGES: MatrixGraphEdge[] = [
 	...CHECKS.flatMap((check) =>
@@ -358,9 +361,9 @@ function entitySlice(name: string, parts: MatrixParts, readSurface: string[], id
 		}
 		const need = NEEDS.get(id)
 		if (need !== undefined) node.needs = need
-		const suppressed = parts.checksSuppressed.find((s) => s.check === id && matchesEntity(s.entity, name))
+		const suppressed = byCheck(parts.checksSuppressed, id).find((s) => matchesEntity(s.entity, name))
 		if (suppressed !== undefined) node.because = suppressed.because
-		const finding = parts.findings.find((f) => f.check === id && matchesEntity(f.entity, name))
+		const finding = byCheck(parts.findings, id).find((f) => onPrimary(f) && matchesEntity(f.entity, name))
 		if (finding !== undefined) {
 			node.summary = finding.summary
 			node.verdict = finding.verdict
@@ -380,17 +383,51 @@ function entitySlice(name: string, parts: MatrixParts, readSurface: string[], id
 }
 
 function statusFor(entity: string, id: string, parts: MatrixParts): CellStatus {
-	const finding = parts.findings.find(
-		(f) => f.check === id && matchesEntity(f.entity, entity) && f.verdict !== "COVERAGE_GAP" && f.verdict !== "BLOCKED",
+	const finding = byCheck(parts.findings, id).find(
+		(f) => onPrimary(f) && matchesEntity(f.entity, entity) && isRootCause(f),
 	)
 	if (finding !== undefined) return "failed"
-	if (parts.checksSuppressed.some((s) => s.check === id && matchesEntity(s.entity, entity))) return "blocked"
-	if (parts.checksSkipped.some((s) => s.check === id && matchesEntity(s.entity, entity))) return "skipped"
-	if (parts.checksOutOfScope?.some((s) => s.check === id && matchesEntity(s.entity, entity)) === true) {
-		return "out-of-scope"
-	}
-	if (parts.checksRun.includes(id)) return "held"
+	if (byCheck(parts.checksSuppressed, id).some((s) => matchesEntity(s.entity, entity))) return "blocked"
+	if (byCheck(parts.checksSkipped, id).some((s) => matchesEntity(s.entity, entity))) return "skipped"
+	if (byCheck(parts.checksOutOfScope ?? [], id).some((s) => matchesEntity(s.entity, entity))) return "out-of-scope"
+	if (ranSet(parts.checksRun).has(id)) return "held"
 	return "skipped"
+}
+
+const ranSets = new WeakMap<readonly string[], Set<string>>()
+
+function ranSet(ids: readonly string[]): Set<string> {
+	let set = ranSets.get(ids)
+	if (set === undefined) {
+		set = new Set(ids)
+		ranSets.set(ids, set)
+	}
+	return set
+}
+
+/** Rows of a report list indexed by check id, built once per list rather than scanned per cell. */
+const checkIndexes = new WeakMap<readonly object[], Map<string, unknown[]>>()
+
+function byCheck<T extends { check: string }>(rows: readonly T[], check: string): readonly T[] {
+	let index = checkIndexes.get(rows) as Map<string, T[]> | undefined
+	if (index === undefined) {
+		index = new Map<string, T[]>()
+		for (const row of rows) {
+			const list = index.get(row.check)
+			if (list === undefined) index.set(row.check, [row])
+			else list.push(row)
+		}
+		checkIndexes.set(rows, index as Map<string, unknown[]>)
+	}
+	return index.get(check) ?? []
+}
+
+/**
+ * The matrix draws the primary document's entities. A secondary origin may have an entity of the
+ * same name, and its findings belong to it, not to the primary one.
+ */
+function onPrimary(finding: { origin?: string }): boolean {
+	return finding.origin === undefined || finding.origin === ""
 }
 
 function matchesEntity(value: string | undefined, entity: string): boolean {
@@ -556,7 +593,7 @@ function mermaidFromGraph(entities: EntityMatrix[], invalidate: InvalidateLink[]
 		return lines.join("\n")
 	}
 	for (const entity of entities) {
-		lines.push(`  ${mid(entity.name)}((${entity.name}))`)
+		lines.push(`  ${mid(entity.name)}((${esc(entity.name)}))`)
 	}
 	for (const link of invalidate.filter((l) => l.cross)) {
 		lines.push(`  ${mid(link.fromEntity)} -->|invalidates| ${mid(link.toEntity)}`)
@@ -739,7 +776,7 @@ function renderPoster(graph: MatrixGraph): string {
   ${crowded ? forestSummary(graph) : ""}
 
   <div class="stage">
-    <div class="stage-label">${focus === undefined ? "checks" : `checks — ${focus.name}`}</div>
+    <div class="stage-label">${focus === undefined ? "checks" : `checks — ${esc(focus.name)}`}</div>
     ${loom}
     <div class="legend">
       <span><i class="swatch held"></i>agreed</span>

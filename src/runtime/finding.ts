@@ -25,6 +25,42 @@ export interface Finding {
 }
 
 /**
+ * Whether a finding is a root cause — what fails a run. Coverage gaps and blocks are what oat
+ * could not look at, not what it found. The console, the reports, the matrix and the exit code
+ * all ask this one question.
+ */
+export function isRootCause(finding: { verdict: Verdict | string }): boolean {
+	return finding.verdict !== "COVERAGE_GAP" && finding.verdict !== "BLOCKED"
+}
+
+/**
+ * How one run of a check ended. `run` returns one on every path, so a check cannot fall silent:
+ * it either asserted the property, reported a finding, could not reach a verdict, or stood down
+ * because what it tests is not there — and the last two say why.
+ */
+export type Outcome =
+	| { kind: "asserted"; note?: string }
+	| { kind: "finding"; verdict: Verdict }
+	| { kind: "unresolved"; reason: string }
+	| { kind: "stood-down"; reason: string }
+
+/** The property was tested and held — or, if the check reported along the way, did not. */
+export const ASSERTED: Outcome = Object.freeze({ kind: "asserted" })
+
+/**
+ * The property held, and how the backend behaved is worth saying — a policy the document leaves
+ * open, such as whether unknown query parameters are rejected or ignored.
+ */
+export function asserted(note: string): Outcome {
+	return { kind: "asserted", note }
+}
+
+/** The check does not apply here after all: what it tests is absent, for `reason`. */
+export function standDown(reason: string): Outcome {
+	return { kind: "stood-down", reason }
+}
+
+/**
  * A check that ran, could not reach a verdict, and stopped.
  *
  * Distinct from a skip (the entity never had what the check needs) and from a pass (the property
@@ -50,11 +86,33 @@ export class FindingCollector {
 	readonly findings: Finding[]
 	readonly inconclusive: Inconclusive[]
 	readonly #operations: readonly string[] | undefined
+	readonly #owner: string | undefined
 
-	constructor(findings: Finding[] = [], inconclusive: Inconclusive[] = [], operations?: readonly string[]) {
+	constructor(
+		findings: Finding[] = [],
+		inconclusive: Inconclusive[] = [],
+		operations?: readonly string[],
+		owner?: string,
+	) {
 		this.findings = findings
 		this.inconclusive = inconclusive
 		this.#operations = operations
+		this.#owner = owner
+	}
+
+	/**
+	 * A view that accepts findings only under `check`. Each check runs against one, so a check
+	 * cannot report under another's id: a finding filed under the wrong id is proven by the wrong
+	 * defect, and suppresses the wrong dependents.
+	 */
+	ownedBy(check: string): FindingCollector {
+		return new FindingCollector(this.findings, this.inconclusive, this.#operations, check)
+	}
+
+	#own(check: string): void {
+		if (this.#owner !== undefined && check !== this.#owner) {
+			throw new Error(`check "${this.#owner}" tried to report under "${check}"`)
+		}
 	}
 
 	/**
@@ -65,7 +123,7 @@ export class FindingCollector {
 	 * shared "current check" would attribute one check's finding to another.
 	 */
 	attributed(operations: readonly string[]): FindingCollector {
-		return new FindingCollector(this.findings, this.inconclusive, operations)
+		return new FindingCollector(this.findings, this.inconclusive, operations, this.#owner)
 	}
 
 	#stamp(): { operations: string[] } | Record<string, never> {
@@ -77,13 +135,18 @@ export class FindingCollector {
 	 * `return ctx.findings.unresolved(...)` at the point it gives up, which keeps the reason
 	 * beside the condition that caused it rather than in a comment.
 	 */
-	unresolved(check: string, entity: string, reason: string): undefined {
+	unresolved(check: string, entity: string, reason: string): Outcome {
+		this.#own(check)
 		this.inconclusive.push({ check, entity, reason, ...this.#stamp() })
-		return undefined
+		return { kind: "unresolved", reason }
 	}
 
-	report(finding: Finding): void {
+	report(finding: Finding): Outcome {
+		this.#own(finding.check)
 		this.findings.push(finding.operations === undefined ? { ...finding, ...this.#stamp() } : finding)
+		if (finding.verdict === "COVERAGE_GAP") return standDown(finding.summary)
+		if (finding.verdict === "BLOCKED") return { kind: "unresolved", reason: finding.summary }
+		return { kind: "finding", verdict: finding.verdict }
 	}
 
 	backend(
@@ -93,8 +156,8 @@ export class FindingCollector {
 		detail: string,
 		evidence: Exchange[],
 		fixture?: string,
-	): void {
-		this.report(withFixture({ check, detail, entity, evidence, summary, verdict: "BACKEND_BUG" }, fixture))
+	): Outcome {
+		return this.report(withFixture({ check, detail, entity, evidence, summary, verdict: "BACKEND_BUG" }, fixture))
 	}
 
 	security(
@@ -104,20 +167,27 @@ export class FindingCollector {
 		detail: string,
 		evidence: Exchange[],
 		fixture?: string,
-	): void {
-		this.report(withFixture({ check, detail, entity, evidence, summary, verdict: "SECURITY" }, fixture))
+	): Outcome {
+		return this.report(withFixture({ check, detail, entity, evidence, summary, verdict: "SECURITY" }, fixture))
 	}
 
-	spec(check: string, entity: string, summary: string, detail: string, evidence: Exchange[], fixture?: string): void {
-		this.report(withFixture({ check, detail, entity, evidence, summary, verdict: "SPEC_BUG" }, fixture))
+	spec(
+		check: string,
+		entity: string,
+		summary: string,
+		detail: string,
+		evidence: Exchange[],
+		fixture?: string,
+	): Outcome {
+		return this.report(withFixture({ check, detail, entity, evidence, summary, verdict: "SPEC_BUG" }, fixture))
 	}
 
-	gap(check: string, entity: string, summary: string, detail: string, fixture?: string): void {
-		this.report(withFixture({ check, detail, entity, evidence: [], summary, verdict: "COVERAGE_GAP" }, fixture))
+	gap(check: string, entity: string, summary: string, detail: string, fixture?: string): Outcome {
+		return this.report(withFixture({ check, detail, entity, evidence: [], summary, verdict: "COVERAGE_GAP" }, fixture))
 	}
 
-	blocked(check: string, entity: string, summary: string, cause: string, evidence: Exchange[] = []): void {
-		this.report({
+	blocked(check: string, entity: string, summary: string, cause: string, evidence: Exchange[] = []): Outcome {
+		return this.report({
 			check,
 			detail: `blocked by ${cause}`,
 			entity,

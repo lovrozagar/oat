@@ -7,6 +7,10 @@
  * writes. That hook is the entire backend-coupling surface.
  */
 
+import { readPath } from "./path.ts"
+import { headerValue } from "./headers.ts"
+import { AsyncLocalStorage } from "node:async_hooks"
+import { registerSecret, registerSecretHeader } from "./redact.ts"
 import type {
 	AuthFlow,
 	AuthStep,
@@ -58,28 +62,9 @@ export interface PrincipalRuntime {
 	 * `expiresAt === null` never proactive-refreshes. Single-flight per principal.
 	 */
 	refreshIfStale: (force?: boolean) => Promise<void>
-	/** Forces reacquisition, used when a control probe proves the credential died early. */
-	reacquire: () => Promise<void>
 	expiresAt: number | null
 	/** True when `headers` carry a credential this principal issued (current or previous). */
 	matches: (headers: Record<string, string>) => boolean
-}
-
-export function readPath(body: unknown, path: string): unknown {
-	let node: unknown = body
-	for (const segment of path
-		.replace(/^\$\.?/, "")
-		.split(".")
-		.filter(Boolean)) {
-		if (node === null || typeof node !== "object") return undefined
-		const index = Number.parseInt(segment, 10)
-		node = Array.isArray(node)
-			? Number.isNaN(index)
-				? undefined
-				: node[index]
-			: (node as Record<string, unknown>)[segment]
-	}
-	return node
 }
 
 /** `{name}` placeholders resolved from the accumulated scope. */
@@ -236,13 +221,8 @@ export async function runAuthSteps(
 	return { credential, expiresAt: computeExpiry(spec, last, credential), scope }
 }
 
-/** Runs the acquire chain once, returning the credential and everything bound along the way. */
-export async function runAcquireChain(
-	spec: AcquireSpec,
-	context: AcquireContext,
-): Promise<{ credential: string; scope: Record<string, string>; expiresAt: number | null }> {
-	return runAuthSteps(spec.steps, spec, context)
-}
+/** The principal whose refresh the current async context belongs to, if any. */
+const REFRESHING = new AsyncLocalStorage<string>()
 
 const REGISTER_LIKE = /register|sign[-_]?up/i
 
@@ -262,14 +242,6 @@ function stepLooksLikeRegister(step: AuthStep, model: SpecModel): boolean {
 export function acquireLooksLikeRegister(spec: AcquireSpec, model: SpecModel): boolean {
 	const firstHttp = spec.steps.find((step) => !("outOfBand" in step))
 	return firstHttp !== undefined && stepLooksLikeRegister(firstHttp, model)
-}
-
-function headerOf(headers: Record<string, string>, name: string): string | undefined {
-	const want = name.toLowerCase()
-	for (const [key, value] of Object.entries(headers)) {
-		if (key.toLowerCase() === want) return value
-	}
-	return undefined
 }
 
 function flowCredentialHeaders(spec: AcquireSpec, scope: Record<string, string>): Record<string, string> {
@@ -502,10 +474,9 @@ async function createHookPrincipal(id: string, spec: HookAuth, context: AcquireC
 		headers: () => ({ [header]: authValue(credential) }),
 		id,
 		matches: (headers) => {
-			const sent = headerOf(headers, header)
+			const sent = headerValue(headers, header)
 			return sent !== undefined && issued.has(sent)
 		},
-		reacquire: async () => undefined,
 		refreshIfStale: async () => undefined,
 		scope,
 	}
@@ -521,6 +492,10 @@ async function createHookPrincipal(id: string, spec: HookAuth, context: AcquireC
 					? Date.now() + spec.assumeTtlMs
 					: jwtExpiryMs(credential)
 		issued.add(authValue(credential))
+		/* Known to the redactor the moment it exists, under every name it travels by. */
+		registerSecretHeader(header)
+		registerSecret(credential)
+		registerSecret(authValue(credential))
 	}
 
 	const harvest = async (): Promise<void> => {
@@ -535,25 +510,22 @@ async function createHookPrincipal(id: string, spec: HookAuth, context: AcquireC
 	await harvest()
 
 	let inflight: Promise<void> | null = null
-	let refreshing = false
 
 	runtime.refreshIfStale = async (force = false): Promise<void> => {
-		if (refreshing) return
+		/* Only the refresh's own requests skip it; everyone else waits for the new credential. */
+		if (REFRESHING.getStore() === id) return
+		if (inflight !== null) return inflight
 		if (!force) {
 			if (runtime.expiresAt === null) return
 			if (runtime.expiresAt - Date.now() > bufferMs) return
 		}
-		if (inflight !== null) return inflight
-		refreshing = true
-		const pending = harvest().finally(() => {
-			refreshing = false
+		const pending = REFRESHING.run(id, harvest).finally(() => {
 			if (inflight === pending) inflight = null
 		})
 		inflight = pending
 		return pending
 	}
 
-	runtime.reacquire = harvest
 	return runtime
 }
 
@@ -575,10 +547,9 @@ async function createFlowPrincipal(id: string, spec: AuthFlow, context: AcquireC
 		headers: () => ({ [header]: authValue(credential) }),
 		id,
 		matches: (headers) => {
-			const sent = headerOf(headers, header)
+			const sent = headerValue(headers, header)
 			return sent !== undefined && issued.has(sent)
 		},
-		reacquire: async () => undefined,
 		refreshIfStale: async () => undefined,
 		scope,
 	}
@@ -590,48 +561,49 @@ async function createFlowPrincipal(id: string, spec: AuthFlow, context: AcquireC
 		runtime.scope = result.scope
 		runtime.address = result.scope.address ?? result.scope.email ?? runtime.address
 		issued.add(authValue(credential))
+		/* Known to the redactor the moment it exists, under every name it travels by. */
+		registerSecretHeader(header)
+		registerSecret(credential)
+		registerSecret(authValue(credential))
 	}
 
 	apply(await runAuthSteps(spec.steps, spec, ctx))
 
 	let inflight: Promise<void> | null = null
-	let refreshing = false
 
 	const doRefresh = async (): Promise<void> => {
-		refreshing = true
-		try {
-			if (spec.refresh !== undefined) {
-				apply(await runAuthSteps(spec.refresh.steps, spec, ctx, scope))
-				return
-			}
-			if (acquireLooksLikeRegister(spec, ctx.model)) {
-				throw new AuthRefreshRequiredError(id)
-			}
-			apply(await runAuthSteps(spec.steps, spec, ctx))
-		} finally {
-			refreshing = false
+		if (spec.refresh !== undefined) {
+			/* The refresh response decides the new credential. The acquire's own saveAs binding
+			 * is the old one, and carrying it in would keep the stale token forever. */
+			const { credential: _stale, ...carried } = scope
+			apply(await runAuthSteps(spec.refresh.steps, spec, ctx, carried))
+			return
 		}
+		if (acquireLooksLikeRegister(spec, ctx.model)) {
+			throw new AuthRefreshRequiredError(id)
+		}
+		apply(await runAuthSteps(spec.steps, spec, ctx))
 	}
 
 	runtime.refreshIfStale = async (force = false): Promise<void> => {
-		/* Re-entrant from an in-flight refresh hop: do not start a second refresh. */
-		if (refreshing) return
+		/* Only the refresh's own requests skip it. Every other caller — including one that
+		 * arrives while a refresh is running — waits for the new credential rather than going
+		 * ahead with the old one. */
+		if (REFRESHING.getStore() === id) return
+		if (inflight !== null) return inflight
 		if (!force) {
 			/* Static-header / unknown expiry: never proactive. 401 still passes force=true. */
 			if (runtime.expiresAt === null) return
 			if (runtime.expiresAt - Date.now() > bufferMs) return
 		}
-		if (inflight !== null) return inflight
-		const pending = doRefresh().finally(() => {
+		const pending = REFRESHING.run(id, doRefresh).finally(() => {
 			if (inflight === pending) inflight = null
 		})
 		inflight = pending
 		return pending
 	}
 
-	runtime.reacquire = async () => {
-		apply(await runAuthSteps(spec.steps, spec, ctx))
-	}
-
 	return runtime
 }
+
+export { readPath }

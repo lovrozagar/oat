@@ -7,13 +7,15 @@
  */
 
 import { randomBytes } from "node:crypto"
+import { isSecretHeaderName, registerSecret, registerSecretHeader } from "./redact.ts"
 import { buildModel, type EntityModel, type OperationModel, type SpecModel, operationResolver } from "../spec/graph.ts"
-import { dereference, documentDefs, loadSpec } from "../spec/load.ts"
+import { dereference, loadSpec } from "../spec/load.ts"
 import type {
 	EntityConfig,
 	Hooks,
 	OriginSpec,
 	OutOfBandConfig,
+	PayloadPolicy,
 	Principal,
 	ProfileSpec,
 	QueryCapabilities,
@@ -35,11 +37,17 @@ import {
 } from "./network.ts"
 import { type BackoffConfig, resolveBackoff } from "./poll.ts"
 import { type PersistedPrincipal, persistedToPrincipal, snapshotPrincipal } from "./principals.ts"
-import { CHECKS, type Actor, type CheckContext } from "./checks.ts"
-import { Client, type Exchange, type HttpHooks, type RequestOptions, type RequestStart } from "./client.ts"
+import { CHECKS, type Actor, type WriteContext } from "./checks.ts"
+import {
+	AuthRefreshError,
+	Client,
+	type Exchange,
+	type HttpHooks,
+	type RequestOptions,
+	type RequestStart,
+} from "./client.ts"
 import type { ProgressHandler, ProgressInflight, ProgressLast, ProgressSnapshot } from "./progress.ts"
-import { type Finding, FindingCollector, type Inconclusive } from "./finding.ts"
-import { reportFeatureGateSchemaDrift } from "./feature-gate.ts"
+import { type Finding, FindingCollector, type Inconclusive, isRootCause, type Outcome } from "./finding.ts"
 import { formatUniqueSets } from "../spec/extensions.ts"
 import { excludedByProfile, resolveProfile } from "./profile.ts"
 import {
@@ -95,6 +103,8 @@ export interface RunOptions {
 	profiles?: Record<string, ProfileSpec>
 	/** Active profile by name. Defaults to `"full"` — every operation runs, today's behaviour. */
 	profile?: string
+	/** Stops the run between checks; teardown and the result still follow. */
+	signal?: AbortSignal
 	/** Per-run token for values that must not collide across runs. Random when omitted. */
 	nonce?: string
 	/** Leaves created records in place. Useful when inspecting a failure by hand. */
@@ -109,6 +119,8 @@ export interface RunOptions {
 	origins?: OriginSpec[]
 	/** Backoff for `resolveOutOfBand` / `resolvePrincipalAuth`. */
 	outOfBand?: OutOfBandConfig
+	/** How much of the payload catalog to send; see `OatConfig.payloads`. */
+	payloads?: PayloadPolicy
 	/** Skip `teardownPrincipal` — used when this run is a secondary origin sharing accounts. */
 	skipPrincipalTeardown?: boolean
 	/** Global filter catalog defaults. */
@@ -126,6 +138,13 @@ export interface RunOptions {
 		/** Per-attempt abort. Default 180_000. `0` waits for the socket. */
 		requestTimeoutMs?: number
 	}
+}
+
+/** One check's wall time on one entity. Its requests are counted from the transcript. */
+export interface CheckTiming {
+	check: string
+	entity: string
+	ms: number
 }
 
 export interface RunResult {
@@ -152,6 +171,10 @@ export interface RunResult {
 	checksOutOfScope: Array<{ check: string; entity: string }>
 	/** Checks that ran but could not reach a verdict — see `Inconclusive`. */
 	inconclusive: Inconclusive[]
+	/** How long each check took on each entity, start to finish. */
+	checkTimings: CheckTiming[]
+	/** What passing checks observed about policies the document leaves open. */
+	checkNotes: Array<{ check: string; entity: string; note: string }>
 	/** Name of the profile that ran — `"full"` unless `--profile` / `config.profile` said otherwise. */
 	profile: string
 	/** Operations a profile excluded, and why. Each also has a matching `profile.skip` gap finding. */
@@ -162,6 +185,8 @@ export interface RunResult {
 	teardown: TeardownReport | null
 	/** Credentials as they stood after acquire — written to `<outDir>/<datetime>/principals.json` by the CLI. */
 	principals: PersistedPrincipal[]
+	/** Set when the run was stopped before every entity was tested. */
+	interrupted?: boolean
 	/** Journal size when `exchangeDir` was set. */
 	exchanges?: { count: number }
 	/** Set when `fetch` never got an HTTP status — the run names the kind instead of crashing. */
@@ -172,19 +197,6 @@ export interface RunResult {
 		incomplete: boolean
 		url: string
 	}
-}
-
-function readPointer(body: unknown, pointer: string): unknown {
-	const path = pointer
-		.replace(/^\$\.?/, "")
-		.split(".")
-		.filter(Boolean)
-	let node: unknown = body
-	for (const segment of path) {
-		if (node === null || typeof node !== "object") return undefined
-		node = (node as Record<string, unknown>)[segment]
-	}
-	return node
 }
 
 interface ResolvedPrincipal {
@@ -254,42 +266,6 @@ async function teardownPrincipals(
 }
 
 /**
- * A 429 is a finding only when the request that drew it was demonstrably under a rate the
- * *document* declared — `rateLimitSource === "tag"` and the bucket had a free token, meaning oat
- * did not have to wait for one. A 429 against a config-supplied rate is the operator's own guess
- * about the environment, not a claim the API made, so it is paced around and never reported; a
- * 429 that only arrived after oat's own bucket made the request wait means oat's rate model was
- * too generous, which is oat's fault, not the backend's.
- *
- * Grouped by category rather than reported per request: the point is "the declared rate for X is
- * wrong", once, not a flood of identical findings for every request that category serves.
- */
-function reportRateLimitViolations(client: Client, findings: FindingCollector): void {
-	const byCategory = new Map<string, Exchange[]>()
-	for (const exchange of client.transcript) {
-		if (exchange.status !== 429) continue
-		if (exchange.rateLimitSource !== "tag" || exchange.rateLimitHadRoom !== true) continue
-		const category = exchange.rateLimitCategory ?? "unknown"
-		const list = byCategory.get(category) ?? []
-		list.push(exchange)
-		byCategory.set(category, list)
-	}
-	for (const [category, exchanges] of byCategory) {
-		findings.spec(
-			"spec.declared-rate-limit-is-honoured",
-			category,
-			`the declared "${category}" rate limit is not honoured`,
-			`${exchanges.length} request(s) to the "${category}" category returned 429 despite oat ` +
-				"pacing them within the rate x-rate-limit declares — each had a free token in its own " +
-				"bucket at the moment it was sent, so this is not oat outrunning its own model. Either " +
-				`the declared rate is wrong, or the backend enforces a stricter one than "${category}" ` +
-				"documents.",
-			exchanges.slice(0, 3),
-		)
-	}
-}
-
-/**
  * Resolves a principal to something that can produce headers on demand.
  *
  * Static headers stay static; acquired credentials refresh themselves. Returning a function
@@ -309,6 +285,12 @@ async function resolvePrincipal(
 	/* A principal without a flow authenticates by static header — a long-lived API key needs no
 	 * acquisition at all, and forcing one would be ceremony. */
 	if (principal.auth === undefined) {
+		/* A static key is a credential like any other: never written down in clear. */
+		for (const [name, value] of Object.entries(principal.headers ?? {})) {
+			if (!isSecretHeaderName(name) && !/key|token|secret|auth/i.test(name)) continue
+			registerSecretHeader(name)
+			registerSecret(value)
+		}
 		return {
 			headers: () => principal.headers ?? {},
 			id: principal.id,
@@ -385,8 +367,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	let currentCheck: string | undefined
 	let currentEntityIndex: number | undefined
 	let entityTotal: number | undefined
-	const defectCount = (): number =>
-		findings.findings.filter((f) => f.verdict !== "BLOCKED" && f.verdict !== "COVERAGE_GAP").length
+	const defectCount = (): number => findings.findings.filter(isRootCause).length
 	const oldestInflight = (): ProgressInflight | undefined => {
 		let oldest: RequestStart | undefined
 		for (const probe of inflight) {
@@ -567,6 +548,8 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	/* Fresh per run: the seed reproduces a run, the nonce keeps two runs' records apart. */
 	const nonce = options.nonce ?? randomBytes(4).toString("hex")
 	const outOfBand = resolveBackoff(options.outOfBand)
+	/* Write paths that have had the whole payload catalog, shared by every entity in the run. */
+	const payloadPaths = new Map<string, string>()
 
 	if (options.principals[0] === undefined) throw new Error("oat: at least one principal is required")
 
@@ -633,11 +616,14 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	} catch (error) {
 		if (!isNetworkError(error)) throw error
 		noteNetwork(error, "auth")
+		await journal?.flush().catch(() => undefined)
 		return {
 			checksOutOfScope: [],
 			checksRun: [],
 			checksSkipped: [],
 			checksSuppressed: [],
+			checkNotes: [],
+			checkTimings: [],
 			client,
 			created: 0,
 			entitiesTested: [],
@@ -667,6 +653,8 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			})?.id,
 	)
 	const alpha = resolved[0] as ResolvedPrincipal
+	/* Ancestors made in this run, shared by every entity nested under them. */
+	const ancestors = new Map<string, string>()
 	const ownerOf = (principal: ResolvedPrincipal): Owner => ({ headers: principal.headers, id: principal.id })
 	const alphaOwner = ownerOf(alpha)
 	/* A record a principal created and could not remove itself — a member cannot delete — may be
@@ -684,14 +672,34 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		(entity: string, id: string, values: Record<string, string>): void => {
 			ledger.record(entity, id, values, owner)
 		}
-	/* Isolation peer: first principal whose roots are a different tenant — not "whoever is
-	 * second in the array". A same-tenant viewer sitting at index 1 must not steal that slot. */
-	const peer = resolved.slice(1).find((candidate) => !sameTenant(alpha.roots, candidate.roots))
+	/**
+	 * Proactive refreshes, before each entity and before the credentials are persisted. A failure
+	 * is reported — the backend would not renew a session — and the run carries on to teardown,
+	 * where an exception here used to end it with every record still in place.
+	 */
+	const refreshAll = async (where: string): Promise<boolean> => {
+		for (const principal of resolved) {
+			try {
+				await principal.runtime?.refreshIfStale()
+			} catch (error) {
+				findings.blocked(
+					"auth.refresh",
+					where,
+					`refreshing the credential of "${principal.id}" failed`,
+					error instanceof Error ? error.message : String(error),
+				)
+				return false
+			}
+		}
+		return true
+	}
 
 	const entitiesTested: string[] = []
 	const checksRun = new Set<string>()
 	const checksSkipped: Array<{ check: string; entity: string; needs: string }> = []
 	const checksSuppressed: Array<{ check: string; entity: string; because: string }> = []
+	const checkTimings: CheckTiming[] = []
+	const checkNotes: Array<{ check: string; entity: string; note: string }> = []
 	const checksOutOfScope: Array<{ check: string; entity: string }> = []
 
 	const profileExcludes = (operationId: string): boolean => {
@@ -754,7 +762,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			requests: client.transcript.length,
 		})
 
-		for (const principal of resolved) await principal.runtime?.refreshIfStale()
+		if (!(await refreshAll(entity.name))) return
 		const rootValues = { ...options.roots, ...alpha.roots }
 		let scope: Scope
 		let records: Record_[]
@@ -795,7 +803,9 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			try {
 				scope = await resolvePathScope(createOp, model, seeding, {
 					authHeaders: alpha.headers,
+					ancestors,
 					onCreate: recorder(alphaOwner),
+					principal: alpha.id,
 					nonce,
 					roots: rootValues,
 					seed,
@@ -813,7 +823,9 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					{
 						authHeaders: alpha.headers,
 						...(options.cohortSize === undefined ? {} : { cohortSize: options.cohortSize }),
+						ancestors,
 						onCreate: recorder(alphaOwner),
+						principal: alpha.id,
 						nonce,
 						roots: rootValues,
 						seed,
@@ -823,6 +835,28 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				)
 				if (cohort.uniqueGap !== undefined) {
 					entityFindings.gap("world.seed", entity.name, cohort.uniqueGap, cohort.uniqueGap)
+				}
+				for (const failed of cohort.failedVariants ?? []) {
+					const said = JSON.stringify(failed.exchange.responseBody).slice(0, 300)
+					if (failed.exchange.status >= 500) {
+						entityFindings.backend(
+							"create.does-not-error",
+							entity.name,
+							`creating the "${failed.variant}" variant of a "${entity.name}" fails with a server error`,
+							`${createOp.operationId} returned ${failed.exchange.status} for a body generated from the ` +
+								`documented schema (${said}). The other variants were created, so this input is what ` +
+								"breaks the handler. Checks that need this variant's data run without it.",
+							[failed.exchange],
+						)
+					} else {
+						entityFindings.gap(
+							"world.seed",
+							entity.name,
+							`the "${failed.variant}" variant of "${entity.name}" was refused with ${failed.exchange.status}`,
+							`${createOp.operationId} refused a body the document permits (${said}). Checks that ` +
+								"rely on this variant's values run without them.",
+						)
+					}
 				}
 				if (cohort.adopted === true) {
 					/* Plan limit after an effect already created the row: keep the id so children
@@ -860,15 +894,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				} else if (cohort.featureGate !== null) {
 					/* Same degradation a profile-excluded create takes: the tag said this
 					 * principal cannot create the row, so a correct 403 is coverage, not a
-					 * seed defect. The 403 body still has to match the documented schema. */
-					reportFeatureGateSchemaDrift(
-						entityFindings,
-						validator,
-						createOp,
-						model.rawOperations.get(createOp.operationId),
-						cohort.featureGate.exchange,
-						entity.name,
-					)
+					 * seed defect. schema.error-response-matches-document still judges its body. */
 					entityFindings.gap(
 						"world.seed",
 						entity.name,
@@ -924,7 +950,12 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					const evidence =
 						error instanceof SeedError && error.exchange !== undefined
 							? [error.exchange]
-							: client.transcript.filter((e) => e.status >= 500).slice(-1)
+							: await Promise.all(
+									client.transcript
+										.filter((e) => e.status >= 500)
+										.slice(-1)
+										.map((e) => client.hydrate(e)),
+								)
 					/* Under --ops a create nobody targeted is support. Its failure leaves the targets
 					 * ungraded — blocked, with the evidence — but it is not what this run was asked to
 					 * judge, so it is not reported as a defect of its own. */
@@ -984,7 +1015,9 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				const next = await resolvePathScope(listOp, model, seeding, {
 					authHeaders: principal.headers,
 					/* Created as this principal, so removed as this principal. */
+					ancestors,
 					onCreate: recorder(ownerOf(principal)),
+					principal: principal.id,
 					nonce,
 					roots,
 					seed: seed + seedOffset,
@@ -1117,7 +1150,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 						sortable: capabilities.sortable.map((field) => field.field),
 					}
 
-		const ctx: CheckContext = {
+		const ctx: WriteContext = {
 			actors,
 			altAuth,
 			altScope,
@@ -1135,6 +1168,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			inScope: (op) => runScope.inScope(op.operationId),
 			hooks,
 			outOfBand,
+			payloads: { policy: options.payloads ?? "per-write-path", ran: payloadPaths },
 			auth: alpha.headers,
 			recordCreated: recorder(alphaOwner),
 			...(alpha.runtime === undefined ? {} : { refreshIfStale: alpha.runtime.refreshIfStale }),
@@ -1186,14 +1220,20 @@ export async function run(options: RunOptions): Promise<RunResult> {
 
 		/* Subjects each check grades on this entity: in scope, and not excluded by the profile. */
 		const gradedBy = new Map<string, string[]>()
+		/* What each check's plan gathered, and how each check ended, on this entity. */
+		const plans = new Map<string, unknown>()
+		const outcomes = new Map<string, Outcome>()
 		const runOne = async (check: (typeof CHECKS)[number]): Promise<void> => {
 			const graded = gradedBy.get(check.id) ?? []
 			let judged: Set<string> | undefined
-			const view: CheckContext = {
+			/* Its own client: every exchange names this check, even while a batch runs concurrently.
+			 * A check that does not mutate gets one that refuses to write. */
+			const stamp = { check: check.id, purpose: "assertion", subject: entity.name } as const
+			const attributed = graded.length === 0 ? findings : findings.attributed(graded)
+			const view: WriteContext = {
 				...ctx,
-				/* Its own client: every exchange names this check, even while a batch runs concurrently. */
-				client: tracked(client.view({ check: check.id, purpose: "assertion", subject: entity.name })),
-				...(graded.length === 0 ? {} : { findings: findings.attributed(graded) }),
+				client: tracked(check.mutates === true ? client.view(stamp) : (client.readOnlyView(stamp) as Client)),
+				findings: attributed.ownedBy(check.id),
 				judged: (operationIds) => {
 					judged ??= new Set()
 					for (const id of operationIds) judged.add(id)
@@ -1210,19 +1250,52 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				phase: "test",
 				requests: client.transcript.length,
 			})
+			const start = findings.findings.length
+			const began = performance.now()
+			let outcome: Outcome
 			try {
-				await check.run(view)
+				outcome = await check.run(view, plans.get(check.id))
 			} catch (error) {
 				if (isNetworkError(error)) {
 					noteNetwork(error, entity.name)
+					outcomes.set(check.id, { kind: "unresolved", reason: "the network failed" })
 					return
 				}
-				view.findings.gap(
+				if (error instanceof AuthRefreshError) {
+					outcomes.set(check.id, { kind: "unresolved", reason: "a credential could not be refreshed" })
+					attributed.blocked(
+						"auth.refresh",
+						entity.name,
+						`refreshing the credential${error.principal === undefined ? "" : ` of "${error.principal}"`} failed`,
+						`${error.message}. ${check.id} could not complete.`,
+					)
+					return
+				}
+				outcome = view.findings.gap(
 					check.id,
 					entity.name,
 					`check "${check.id}" could not complete`,
 					error instanceof Error ? error.message : String(error),
 				)
+			}
+			checkTimings.push({ check: check.id, entity: entity.name, ms: Math.round(performance.now() - began) })
+			/* A check that reported along the way and then fell through to "asserted" did not
+			 * assert anything: what it reported is the outcome. */
+			if (outcome.kind === "asserted") {
+				const reported = findings.findings
+					.slice(start)
+					.find((f) => f.check === check.id && f.entity === entity.name && isRootCause(f))
+				if (reported !== undefined) outcome = { kind: "finding", verdict: reported.verdict }
+			}
+			outcomes.set(check.id, outcome)
+			if (outcome.kind === "asserted" && outcome.note !== undefined) {
+				checkNotes.push({ check: check.id, entity: entity.name, note: outcome.note })
+			}
+			if (outcome.kind === "stood-down") {
+				/* Not a pass: the property was never tested here, and the report says why. */
+				checksSkipped.push({ check: check.id, entity: entity.name, needs: outcome.reason })
+				grades.skipped(graded, outcome.reason)
+				return
 			}
 			grades.graded(judged === undefined ? graded : graded.filter((id) => judged?.has(id) === true), check.id)
 		}
@@ -1245,7 +1318,14 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		const suppressedBy = new Map<string, string>()
 		const suppressed = (check: (typeof CHECKS)[number]): boolean => {
 			for (const dependency of check.dependsOn ?? []) {
-				const failed = findings.findings.some((f) => f.check === dependency && f.entity === entity.name)
+				/* Only a failed premise suppresses. A dependency that stood down, could not reach a
+				 * verdict, or was blocked says nothing about whether its premise holds. */
+				const outcome = outcomes.get(dependency)
+				const failed =
+					outcome === undefined
+						? /* Not run as a check here, but reported against — during seeding, say. */
+							findings.findings.some((f) => f.check === dependency && f.entity === entity.name && isRootCause(f))
+						: outcome.kind === "finding"
 				const inherited = suppressedBy.get(dependency)
 				if (!failed && inherited === undefined) continue
 				const because = failed ? dependency : (inherited as string)
@@ -1274,6 +1354,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		}
 
 		for (const check of CHECKS) {
+			if (options.signal?.aborted === true) break
 			const graded = check.subjects(entity, model).filter((id) => runScope.inScope(id) && !profileExcludes(id))
 			/* Out of scope is not a skip: the check could have run, this run was not asked to. */
 			if (runScope.mode === "targeted" && graded.length === 0) {
@@ -1281,15 +1362,19 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				continue
 			}
 			gradedBy.set(check.id, graded)
-			if (!check.applicable(ctx)) {
+			const planned = check.plan(ctx)
+			if (!planned.ok) {
 				/* Recorded, not dropped: on an API shaped unlike the fixture this is most of the
 				 * suite, and a silent skip reads exactly like a clean result. */
-				const needs = check.needs ?? "an unstated precondition"
+				const needs = planned.needs ?? check.needs ?? "an unstated precondition"
 				checksSkipped.push({ check: check.id, entity: entity.name, needs })
 				grades.skipped(graded, needs)
 				continue
 			}
-			if (check.mutates === true) {
+			plans.set(check.id, planned.value)
+			/* A writer runs alone; so does a check that judges the transcript, once everything
+			 * queued before it has finished sending. */
+			if (check.mutates === true || check.judgesTranscript === true) {
 				await flush()
 				if (suppressed(check)) continue
 				await runOne(check)
@@ -1305,28 +1390,61 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	}
 
 	/*
-	 * Entities run in series. Checks inside an entity stay sequential because cascade
-	 * suppression consults findings already reported for it — concurrent checks would let a
-	 * root cause and its consequences race and both be reported. Nested graphs also couple
-	 * entities: a child create in flight while a parent page-walk runs invents pagination
-	 * findings, so there are no entity lanes.
+	 * Checks inside an entity stay ordered because cascade suppression consults findings already
+	 * reported for it — concurrent checks would let a root cause and its consequences race and
+	 * both be reported. Nested graphs couple entities too: a child create in flight while a
+	 * parent page-walk runs invents pagination findings. So entities that can observe each
+	 * other share a lane and run in series, and only lanes run side by side.
 	 */
 	const queue = runScope.entities
 	entityTotal = queue.length
-	for (const [index, entity] of queue.entries()) {
-		if (networkGate.exhausted) {
-			const left = queue.length - index
-			findings.blocked(
-				"net.unreachable",
-				"run",
-				`skipped ${left} remaining entit${left === 1 ? "y" : "ies"}`,
-				"network down",
-			)
-			break
+	let interrupted = false
+	let started = 0
+	let stopNoted = false
+	/* Entities that share nothing run side by side; see `entityLanes`. */
+	const runLane = async (lane: EntityModel[]): Promise<void> => {
+		for (const entity of lane) {
+			/* Stopped from outside — Ctrl-C, a deadline. Nothing more is tested, and everything
+			 * made so far is still removed below. */
+			if (options.signal?.aborted === true || networkGate.exhausted) {
+				if (stopNoted) return
+				stopNoted = true
+				const left = queue.length - started
+				if (options.signal?.aborted === true) {
+					interrupted = true
+					findings.gap(
+						"run.interrupted",
+						"run",
+						`stopped before ${left} remaining entit${left === 1 ? "y" : "ies"}`,
+						"the run was interrupted; what was tested is reported, and what oat created is removed",
+					)
+				} else {
+					findings.blocked(
+						"net.unreachable",
+						"run",
+						`skipped ${left} remaining entit${left === 1 ? "y" : "ies"}`,
+						"network down",
+					)
+				}
+				return
+			}
+			started += 1
+			currentEntityIndex = started
+			try {
+				await testEntity(entity)
+			} catch (error) {
+				/* An error oat did not expect must not skip teardown: it is reported, and the run
+				 * carries on to remove what it made and write its report. */
+				findings.blocked(
+					"run.error",
+					entity.name,
+					`testing "${entity.name}" stopped on an unexpected error`,
+					error instanceof Error ? (error.stack ?? error.message) : String(error),
+				)
+			}
 		}
-		currentEntityIndex = index + 1
-		await testEntity(entity)
 	}
+	await Promise.all(entityLanes(model, queue).map(runLane))
 
 	/* Unwind after every check has run, never per case: a check may legitimately depend on records
 	 * another one created, and tearing down early turns that into a phantom defect. */
@@ -1360,9 +1478,10 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		)
 	}
 
-	reportRateLimitViolations(client, findings)
-
-	for (const principal of resolved) await principal.runtime?.refreshIfStale()
+	await refreshAll("run")
+	/* Every check has judged the transcript; bodies moved out of memory are no longer needed. */
+	await client.dispose()
+	await journal?.flush().catch(() => undefined)
 	const persisted = resolved.map((principal) =>
 		snapshotPrincipal({
 			headers: principal.headers,
@@ -1401,6 +1520,8 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	})
 
 	return {
+		checkNotes,
+		checkTimings,
 		checksOutOfScope,
 		checksRun: [...checksRun].sort(),
 		checksSkipped,
@@ -1416,6 +1537,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		profileExclusions,
 		scope: coverage,
 		teardown,
+		...(interrupted ? { interrupted } : {}),
 		...(journal === null ? {} : { exchanges: { count: journal.count } }),
 		...(networkOutcome === undefined ? {} : { network: networkOutcome }),
 	}
@@ -1525,4 +1647,55 @@ async function runSecondaryOrigins(
 			findings.unresolved(item.check, `${origin.id}:${item.entity}`, item.reason)
 		}
 	}
+}
+
+/**
+ * Entities grouped into lanes that can be tested side by side.
+ *
+ * Two entities share a lane when one can observe the other's writes: one's collection lives
+ * under the other's (a child, created inside a parent oat also makes), an operation of one
+ * invalidates a route of the other, or one's effects, waits or async polls land on the other.
+ * Inside a lane entities keep their order and run one after another; lanes share nothing, so
+ * nothing one does can turn up as a finding in another.
+ */
+export function entityLanes(model: SpecModel, entities: readonly EntityModel[]): EntityModel[][] {
+	const names = entities.map((entity) => entity.name)
+	const parent = new Map(names.map((name) => [name, name]))
+	const find = (name: string): string => {
+		let root = name
+		while (parent.get(root) !== root) root = parent.get(root) ?? root
+		return root
+	}
+	const join = (a: string | null | undefined, b: string | null | undefined): void => {
+		if (a === null || a === undefined || b === null || b === undefined) return
+		if (!parent.has(a) || !parent.has(b)) return
+		parent.set(find(a), find(b))
+	}
+	const collection = (entity: EntityModel): string | undefined => {
+		const op = model.byOperationId.get(entity.list ?? entity.create ?? "")
+		return op?.path.replace(/\/+$/, "")
+	}
+	for (const a of entities) {
+		const pathA = collection(a)
+		for (const b of entities) {
+			const pathB = collection(b)
+			if (a === b || pathA === undefined || pathB === undefined) continue
+			if (pathB.startsWith(`${pathA}/`)) join(a.name, b.name)
+		}
+	}
+	for (const op of model.operations) {
+		for (const route of op.invalidates) join(op.entity, model.byRoute.get(route)?.entity)
+		for (const effect of op.effects) join(op.entity, effect.entity)
+		if (op.wait !== null) join(op.entity, model.byOperationId.get(op.wait.operationId)?.entity)
+		if (op.async !== null) {
+			const poll = model.byOperationId.get(op.async.poll) ?? model.byRoute.get(op.async.poll)
+			join(op.entity, poll?.entity)
+		}
+	}
+	const lanes = new Map<string, EntityModel[]>()
+	for (const entity of entities) {
+		const root = find(entity.name)
+		lanes.set(root, [...(lanes.get(root) ?? []), entity])
+	}
+	return [...lanes.values()]
 }

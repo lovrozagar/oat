@@ -255,9 +255,18 @@ export async function runListing(
 	/* A sort without a total order is not a sort: equal keys may come back in any order, and
 	 * paging over it silently loses rows. The identity tiebreak is what makes paging sound. */
 	const unstable = defects.has("UNSTABLE_SORT")
+	/* Ties broken by a text field instead of the declared tiebreak: still a total order, so pages
+	 * are sound, but not the one the document promises. */
+	const tiebreak = defects.has("TIEBREAK_NOT_APPLIED")
+		? entity.fields.find((field) => field.searchable === true && field.name !== entity.identity)?.name
+		: undefined
 	const fullOrder = unstable
 		? order
-		: [...order, { asText: false, descending: false, field: entity.identity, nullsFirst: false }]
+		: [
+				...order,
+				...(tiebreak === undefined ? [] : [{ asText: true, descending: false, field: tiebreak, nullsFirst: false }]),
+				{ asText: false, descending: false, field: entity.identity, nullsFirst: false },
+			]
 
 	/* Paging before filtering: the window is cut from the unfiltered set and the predicate is then
 	 * applied to whatever that window held. */
@@ -300,6 +309,10 @@ export async function runListing(
 	} else {
 		pageNumber = page ?? 1
 		offset = (pageNumber - 1) * servedLimit + (defects.has("OFF_BY_ONE_PAGE") && pageNumber > 1 ? 1 : 0)
+		/* A page past the end served as the last page again, instead of empty. */
+		if (defects.has("PAGE_PAST_END_REPEATS") && offset >= rows.length && rows.length > 0) {
+			offset = (Math.ceil(rows.length / servedLimit) - 1) * servedLimit
+		}
 	}
 
 	let window = defects.has("LIMIT_IGNORED") ? rows.slice(offset) : rows.slice(offset, offset + servedLimit)

@@ -9,28 +9,30 @@
  * Redaction is on by default. This is oat's journal, not a HAR file.
  */
 
+import { presentHeader } from "./headers.ts"
 import { createHash } from "node:crypto"
 import { existsSync } from "node:fs"
 import { appendFile, mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { describeRequestBody, type Exchange } from "./client.ts"
+import {
+	REDACTED,
+	isSecretHeaderName,
+	isSecretJsonKey,
+	redactHeaders,
+	redactJson,
+	redactText,
+	redactUrl,
+} from "./redact.ts"
 import { sseEvents } from "./sse.ts"
+
+/* One redactor for every sink; these names stay importable from here. */
+export { REDACTED, isSecretHeaderName, isSecretJsonKey, redactHeaders, redactJson, redactText, redactUrl }
 
 export const INLINE_BODY_LIMIT = 256 * 1024
 
-export const REDACTED = "<redacted>"
-
-const REDACT_HEADER_NAMES = new Set(["authorization", "cookie", "set-cookie", "proxy-authorization", "x-ia-tester-key"])
-
-const REDACT_JSON_KEYS = new Set([
-	"access_token",
-	"refresh_token",
-	"id_token",
-	"password",
-	"token",
-	"secret",
-	"api_key",
-])
+/** Index lines buffered before one append. */
+const JOURNAL_BATCH = 64
 
 export interface ExchangeMeta {
 	check?: string
@@ -42,6 +44,8 @@ export interface ExchangeJournal {
 	readonly dir: string
 	readonly count: number
 	record(exchange: Exchange, meta?: ExchangeMeta): Promise<void>
+	/** Writes the index lines still buffered. Called once the run is over. */
+	flush(): Promise<void>
 }
 
 export function resolveSaveExchanges(options: {
@@ -53,34 +57,6 @@ export function resolveSaveExchanges(options: {
 	if (options.flag !== undefined) return options.flag
 	if (options.config !== undefined) return options.config
 	return options.profile !== "cheap"
-}
-
-export function isSecretHeaderName(name: string): boolean {
-	const lower = name.toLowerCase()
-	if (REDACT_HEADER_NAMES.has(lower)) return true
-	return /^x-.+-(key|secret)$/i.test(lower)
-}
-
-export function redactHeaders(headers: Record<string, string>): Record<string, string> {
-	const out: Record<string, string> = {}
-	for (const [key, value] of Object.entries(headers)) {
-		out[key] = isSecretHeaderName(key) ? REDACTED : value
-	}
-	return out
-}
-
-export function isSecretJsonKey(name: string): boolean {
-	return REDACT_JSON_KEYS.has(name.toLowerCase())
-}
-
-export function redactJson(value: unknown): unknown {
-	if (Array.isArray(value)) return value.map((item) => redactJson(item))
-	if (value === null || typeof value !== "object") return value
-	const out: Record<string, unknown> = {}
-	for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-		out[key] = isSecretJsonKey(key) ? REDACTED : redactJson(child)
-	}
-	return out
 }
 
 export function sanitizeExchangeId(requestId: string): string {
@@ -127,14 +103,6 @@ function utf8Bytes(text: string): Uint8Array {
 	return new TextEncoder().encode(text)
 }
 
-function headerOf(headers: Record<string, string>, name: string): string | undefined {
-	const want = name.toLowerCase()
-	for (const [key, value] of Object.entries(headers)) {
-		if (key.toLowerCase() === want && value.trim() !== "") return value
-	}
-	return undefined
-}
-
 async function bytesOf(value: unknown): Promise<Uint8Array | undefined> {
 	if (value instanceof Uint8Array) return value
 	if (typeof ArrayBuffer !== "undefined" && value instanceof ArrayBuffer) return new Uint8Array(value)
@@ -156,6 +124,14 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 	const writtenBlobs = new Set<string>()
 	let count = 0
 	let ready: Promise<void> | undefined
+	/* Index lines are appended in batches: one write per exchange was most of the journal's cost. */
+	let pending: string[] = []
+	const flush = async (): Promise<void> => {
+		if (pending.length === 0) return
+		const lines = pending
+		pending = []
+		await appendFile(join(dir, "exchanges.jsonl"), lines.join(""))
+	}
 
 	const ensure = async (): Promise<void> => {
 		if (ready === undefined) {
@@ -232,7 +208,7 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 	}
 
 	const persistResponseBody = async (exchange: Exchange): Promise<unknown> => {
-		const mediaType = headerOf(exchange.responseHeaders, "content-type") ?? ""
+		const mediaType = presentHeader(exchange.responseHeaders, "content-type") ?? ""
 		const body = exchange.responseBody
 		if (isPersistedBodyRef(body) || isPersistedFormSnapshot(body)) return body
 		if (mediaType.toLowerCase().includes("text/event-stream")) {
@@ -269,6 +245,7 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 		get dir() {
 			return dir
 		},
+		flush,
 		async record(exchange, meta = {}) {
 			await ensure()
 			const requestBody = await persistRequestBody(exchange.requestBody)
@@ -299,12 +276,12 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 							redirects: exchange.redirects.map((hop) => ({
 								responseHeaders: redactHeaders(hop.responseHeaders),
 								status: hop.status,
-								url: hop.url,
+								url: redactUrl(hop.url),
 							})),
 						}),
 				seq: exchange.seq,
 				status: exchange.status,
-				url: exchange.url,
+				url: redactUrl(exchange.url),
 			}
 			await writeFile(join(dir, rel), `${JSON.stringify(file, null, 2)}\n`)
 			const line: Record<string, unknown> = {
@@ -317,7 +294,7 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 				responseBytes: exchange.responseBytes,
 				seq: exchange.seq,
 				status: exchange.status,
-				url: exchange.url,
+				url: redactUrl(exchange.url),
 			}
 			if (exchange.operationId !== undefined) line.operationId = exchange.operationId
 			if (exchange.fixture !== undefined) line.fixture = exchange.fixture
@@ -326,7 +303,8 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 			if (meta.check !== undefined) line.check = meta.check
 			if (meta.entity !== undefined) line.entity = meta.entity
 			if (meta.phase !== undefined) line.phase = meta.phase
-			await appendFile(join(dir, "exchanges.jsonl"), `${JSON.stringify(line)}\n`)
+			pending.push(`${JSON.stringify(line)}\n`)
+			if (pending.length >= JOURNAL_BATCH) await flush()
 			count += 1
 		},
 	}

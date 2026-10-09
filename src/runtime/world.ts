@@ -128,6 +128,10 @@ export interface WorldOptions {
 	 * only after the step that made it returns is dropped whenever a later step throws.
 	 */
 	onCreate?: (entity: string, id: string, scope: Record<string, string>) => void
+	/** Who is creating — keys the ancestor cache, since one principal's parent is not another's. */
+	principal?: string
+	/** Ancestors already made in this run, by principal, operation and parent path. */
+	ancestors?: Map<string, string>
 }
 
 /**
@@ -165,13 +169,23 @@ export async function resolvePathScope(
 		if (createOp === undefined) throw new SeedError(param, `missing operation ${entity.create}`)
 
 		await resolvePathScope(createOp, model, client, options, scope)
-		const created = await createOne(createOp, model, client, options, scope)
+		/* One ancestor per principal and parent path: a row and its siblings share the table oat
+		 * made for the first of them, instead of each leaving another table behind. */
+		const cacheKey = `${options.principal ?? ""}\u0000${createOp.operationId}\u0000${fillPath(createOp.path, scope.values)}`
+		const cached = options.ancestors?.get(cacheKey)
+		if (cached !== undefined) {
+			scope.values[param] = cached
+			continue
+		}
+		const { record: created, adopted } = await createOne(createOp, model, client, options, scope)
 		const identity = entity.identity ?? "id"
 		const id = created[identity]
 		if (typeof id !== "string" && typeof id !== "number") {
 			throw new SeedError(param, `create for "${owner}" returned no usable "${identity}"`)
 		}
-		options.onCreate?.(owner, String(id), { ...scope.values })
+		/* Adopted, not created: somebody else's record, never oat's to remove. */
+		if (!adopted) options.onCreate?.(owner, String(id), { ...scope.values })
+		options.ancestors?.set(cacheKey, String(id))
 		scope.values[param] = String(id)
 		scope.created.push({
 			entity: owner,
@@ -188,7 +202,7 @@ async function createOne(
 	client: Client,
 	options: WorldOptions,
 	scope: Scope,
-): Promise<Record_> {
+): Promise<{ record: Record_; adopted: boolean }> {
 	const schema = requestSchemaOf(createOp, model)
 	let member: CohortMember | undefined
 	try {
@@ -226,11 +240,11 @@ async function createOne(
 		 * same-tenant row from the list. Do not invent an id. */
 		if (isPlanLimitResponse(exchange.status, exchange.responseBody)) {
 			const reused = await adoptExisting(createOp, model, client, options, scope)
-			if (reused !== null) return reused
+			if (reused !== null) return { adopted: true, record: reused }
 		}
 		if (isUniqueConflictResponse(createOp, exchange.status)) {
 			const reused = await adoptExisting(createOp, model, client, options, scope)
-			if (reused !== null) return reused
+			if (reused !== null) return { adopted: true, record: reused }
 		}
 		throw new SeedError(
 			createOp.operationId,
@@ -240,7 +254,7 @@ async function createOne(
 			exchange,
 		)
 	}
-	return (exchange.responseBody ?? {}) as Record_
+	return { adopted: false, record: (exchange.responseBody ?? {}) as Record_ }
 }
 
 /** First listed record with a usable identity, or null — never synthesises a row. */
@@ -296,6 +310,12 @@ export interface SeededCohort {
 	uniqueAdopted?: boolean
 	/** Set when extra cohort variants were dropped because unique values could not differ. */
 	uniqueGap?: string
+	/**
+	 * Variants after the first whose create failed. The cohort carries on without them, and the
+	 * run reports each: a 5xx is the backend's failure, a 4xx a variant the document permits and
+	 * the backend refused.
+	 */
+	failedVariants?: Array<{ variant: string; exchange: Exchange }>
 }
 
 /** Creates the cohort and returns the server's view of each instance. */
@@ -369,7 +389,12 @@ export async function seedCohort(
 		})
 	}
 
-	const withGap = (cohort: SeededCohort): SeededCohort => (uniqueGap === undefined ? cohort : { ...cohort, uniqueGap })
+	const failedVariants: Array<{ variant: string; exchange: Exchange }> = []
+	const withGap = (cohort: SeededCohort): SeededCohort => ({
+		...cohort,
+		...(uniqueGap === undefined ? {} : { uniqueGap }),
+		...(failedVariants.length === 0 ? {} : { failedVariants }),
+	})
 
 	const failOrAdopt = async (member: CohortMember, exchange: Exchange): Promise<SeededCohort | null> => {
 		if (records.length > 0) return withGap({ featureGate: null, members: seededMembers, records })
@@ -433,7 +458,13 @@ export async function seedCohort(
 		}
 		for (const member of members) {
 			const exchange = await postMember(member, nextUploads)
-			if (exchange.status >= 300) return failOrAdopt(member, exchange)
+			if (exchange.status >= 300) {
+				/* The first create decides whether there is a cohort at all; a later one failing
+				 * is a variant lost, reported rather than ending the cohort in silence. */
+				if (records.length === 0) return failOrAdopt(member, exchange)
+				failedVariants.push({ exchange, variant: member.variant })
+				continue
+			}
 			seededMembers.push(member)
 			records.push(created(exchange))
 		}

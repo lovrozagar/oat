@@ -168,7 +168,7 @@ describe("resolvePrincipalAuth / fromHook", () => {
 		expect(runtime.headers().authorization).toBe("Bearer second")
 		expect(runtime.scope.refreshToken).toBe("rt")
 		expect(runtime.matches({ authorization: "Bearer first" })).toBe(true)
-		await runtime.reacquire()
+		await runtime.refreshIfStale(true)
 		expect(n).toBe(3)
 	})
 

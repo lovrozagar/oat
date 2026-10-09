@@ -6,13 +6,21 @@
  * stream ends without a terminal frame and `idFrom` resolved.
  */
 
+import { readPath } from "./path.ts"
 import type { AsyncSpec } from "../spec/extensions.ts"
 import type { Client, Exchange } from "./client.ts"
 import { type SseEvent, sseEvents } from "./sse.ts"
 import { fillPath } from "./world.ts"
 
 export interface AsyncOutcome {
-	/** Terminal state reached, or null on timeout. */
+	/**
+	 * How polling ended: a terminal state; the job vanished after it had been served; the poll
+	 * path could not be filled, so the job was never asked about; or time ran out.
+	 */
+	state: "terminal" | "vanished" | "unfillable" | "timed-out"
+	/** Why the poll path could not be filled, when it could not. */
+	unfillable?: string
+	/** Terminal state reached, or null otherwise. */
 	terminal: Record<string, unknown> | null
 	exchanges: Exchange[]
 	polls: number
@@ -52,18 +60,6 @@ export function matchesPredicate(record: Record<string, unknown>, expression: st
 		default:
 			return false
 	}
-}
-
-export function readPath(body: unknown, path: string): unknown {
-	let node: unknown = body
-	for (const segment of path
-		.replace(/^\$\.?/, "")
-		.split(".")
-		.filter(Boolean)) {
-		if (node === null || typeof node !== "object") return undefined
-		node = (node as Record<string, unknown>)[segment]
-	}
-	return node
 }
 
 function recordOf(data: unknown): Record<string, unknown> | null {
@@ -136,6 +132,8 @@ export async function driveAsync(
 	scope: Record<string, string>,
 	headers: () => Record<string, string>,
 	refreshIfStale?: (force?: boolean) => Promise<void>,
+	/** Resolves a `poll` that names an operation rather than spelling `"GET /path"`. */
+	operation?: (operationId: string) => { method: string; path: string } | undefined,
 ): Promise<AsyncOutcome> {
 	const exchanges: Exchange[] = []
 	const began = performance.now()
@@ -152,18 +150,22 @@ export async function driveAsync(
 		}
 	}
 
-	const [method = "GET", template = spec.poll] = spec.poll.split(" ")
+	const named = spec.poll.includes("/") ? undefined : operation?.(spec.poll)
+	const [method = "GET", template = spec.poll] =
+		named === undefined ? spec.poll.split(" ") : [named.method.toUpperCase(), named.path]
 	let path: string
 	try {
 		path = fillPath(template, pollScope)
-	} catch {
+	} catch (error) {
 		return {
 			elapsedMs: performance.now() - began,
 			exchanges,
 			polls: 0,
+			state: "unfillable",
 			succeeded: false,
 			terminal: null,
 			timedOut: false,
+			unfillable: error instanceof Error ? error.message : String(error),
 		}
 	}
 
@@ -189,16 +191,25 @@ export async function driveAsync(
 						elapsedMs: performance.now() - began,
 						exchanges,
 						polls,
+						state: "terminal",
 						succeeded: spec.successWhen === undefined || matchesPredicate(record, spec.successWhen),
 						terminal: record,
 						timedOut: false,
 					}
 				}
 			}
-		} else if (exchange.status === 404 && polls > 1) {
-			/* The job existed and then did not — a vanished job is terminal, and reporting it as a
-			 * timeout would name the wrong problem. */
-			break
+		} else if (exchange.status === 404 && exchanges.some((prior) => prior.status < 300)) {
+			/* The job was served and then was not — a vanished job, and reporting it as a timeout
+			 * would name the wrong problem. */
+			return {
+				elapsedMs: performance.now() - began,
+				exchanges,
+				polls,
+				state: "vanished",
+				succeeded: false,
+				terminal: null,
+				timedOut: false,
+			}
 		}
 
 		await sleep(spec.pollIntervalMs)
@@ -208,6 +219,7 @@ export async function driveAsync(
 		elapsedMs: performance.now() - began,
 		exchanges,
 		polls,
+		state: "timed-out",
 		succeeded: false,
 		terminal: null,
 		timedOut: true,
@@ -217,3 +229,5 @@ export async function driveAsync(
 function sleep(ms: number): Promise<void> {
 	return new Promise((done) => setTimeout(done, ms))
 }
+
+export { readPath }

@@ -6,6 +6,7 @@
  * observable. That set is the criss-cross matrix.
  */
 
+import { validateTags } from "./tag-schema.ts"
 import {
 	deriveCollectionShape,
 	deriveIdentity,
@@ -165,8 +166,24 @@ export function buildModel(doc: OpenApiDocument): SpecModel {
 	const operations = endpoints.map((e) => modelOperation(e, doc, gaps))
 
 	demoteNonEntities(operations, gaps)
+	separateSameNamedCollections(operations)
 
-	const byOperationId = new Map(operations.map((o) => [o.operationId, o]))
+	/* Two operations sharing an id would silently become one. The first keeps the id; the
+	 * other is reported, since findings, scope and `--ops` all name operations by it. */
+	const byOperationId = new Map<string, OperationModel>()
+	for (const op of operations) {
+		const first = byOperationId.get(op.operationId)
+		if (first === undefined) {
+			byOperationId.set(op.operationId, op)
+			continue
+		}
+		gaps.record(
+			op.operationId,
+			"operationId",
+			`is declared by both ${first.route} and ${op.route}; operation ids must be unique, so ` +
+				`${op.route} is reachable only by its route`,
+		)
+	}
 	const byRoute = new Map(operations.map((o) => [o.route, o]))
 
 	const entities = buildEntities(operations, byRoute, gaps)
@@ -179,7 +196,8 @@ export function buildModel(doc: OpenApiDocument): SpecModel {
 		gaps,
 		hasAuthOperations: operations.some((o) => /auth|login|token|session/i.test(o.path)),
 		operations,
-		rawOperations: new Map(endpoints.map((e) => [e.operationId, e.op])),
+		/* First wins, like `byOperationId`. */
+		rawOperations: new Map([...endpoints].reverse().map((e) => [e.operationId, e.op])),
 		defs: documentDefs(doc),
 		roots,
 		securitySchemes: Object.keys(doc.components?.securitySchemes ?? {}),
@@ -191,6 +209,7 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 	const responseSchema = successSchema(op)
 	const collection = deriveCollectionShape(responseSchema)
 	const bodySchema = requestSchema(op)
+	validateTags(op, operationId, gaps)
 	const entity = readEntity(endpoint, gaps)
 	const pathParams = pathParameterNames(path)
 	const lastParam = pathParams.at(-1)
@@ -213,7 +232,7 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 		cost: readCost(op),
 		featureGate: readFeatureGate(op),
 		unique: readUnique(op, operationId, gaps),
-		destructive: readFlag(op, "x-destructive"),
+		destructive: readFlag(op, "x-destructive", true),
 		documentedStatuses,
 		statuses,
 		effects: readEffects(op, operationId, gaps),
@@ -272,6 +291,66 @@ const PARAM_SEGMENT = /^\{[^}]+\}$/
  * Everything else is an action on the nearest enclosing entity. Without this pass a spec with
  * 5 entities models as 24, and every spurious one drags a full lifecycle plan behind it.
  */
+/**
+ * One inferred name, two collections: `/projects/{id}/members` and `/orgs/{id}/members` both
+ * read as `member`, and fusing them would seed one through the other's routes. An entity is its
+ * collection's path template, so same-named collections under different parents are told apart
+ * by their parents: `project-member` and `org-member`. A tagged name is the author's and stays.
+ */
+function separateSameNamedCollections(operations: OperationModel[]): void {
+	const templateOf = (op: OperationModel): string[] | null => {
+		const segments = op.path.split("/").filter(Boolean)
+		for (let i = segments.length - 1; i >= 0; i--) {
+			const segment = segments[i]
+			if (segment !== undefined && !PARAM_SEGMENT.test(segment) && singularise(segment) === op.entity) {
+				return segments.slice(0, i + 1)
+			}
+		}
+		return null
+	}
+	const key = (segments: string[]): string => segments.map((s) => (PARAM_SEGMENT.test(s) ? "{}" : s)).join("/")
+	const templates = new Map<string, Map<string, string[]>>()
+	for (const op of operations) {
+		if (op.entity === null || op.entitySource !== "heuristic") continue
+		const segments = templateOf(op)
+		if (segments === null) continue
+		const byName = templates.get(op.entity) ?? new Map<string, string[]>()
+		byName.set(key(segments), segments)
+		templates.set(op.entity, byName)
+	}
+	const renamed = new Map<string, string>()
+	for (const [name, byTemplate] of templates) {
+		if (byTemplate.size < 2) continue
+		/* Prefix ancestors until every collection of this name reads differently. */
+		for (let depth = 1; ; depth++) {
+			const names = new Map<string, string>()
+			for (const [template, segments] of byTemplate) {
+				const parents = segments
+					.slice(0, -1)
+					.filter((segment) => !PARAM_SEGMENT.test(segment) && !/^v\d+$/i.test(segment))
+					.slice(-depth)
+					.map(singularise)
+				names.set(template, [...parents, name].join("-"))
+			}
+			const exhausted = [...byTemplate.values()].every(
+				(segments) => segments.slice(0, -1).filter((s) => !PARAM_SEGMENT.test(s)).length <= depth,
+			)
+			if (new Set(names.values()).size === names.size || exhausted) {
+				for (const [template, renamedTo] of names) renamed.set(`${name}\u0000${template}`, renamedTo)
+				break
+			}
+		}
+	}
+	if (renamed.size === 0) return
+	for (const op of operations) {
+		if (op.entity === null || op.entitySource !== "heuristic") continue
+		const segments = templateOf(op)
+		if (segments === null) continue
+		const to = renamed.get(`${op.entity}\u0000${key(segments)}`)
+		if (to !== undefined) op.entity = to
+	}
+}
+
 function demoteNonEntities(operations: OperationModel[], gaps: GapCollector): void {
 	const nounsWithItemRoute = new Set<string>()
 	for (const op of operations) {
@@ -286,9 +365,26 @@ function demoteNonEntities(operations: OperationModel[], gaps: GapCollector): vo
 		}
 	}
 
+	/* A noun kept for its collection GET keeps the create posted to the same collection: the
+	 * decision is per noun, so an entity is never left listable but not creatable. */
+	const keptCollections = new Set(
+		operations
+			.filter(
+				(op) =>
+					op.entity !== null &&
+					op.entitySource !== "tag" &&
+					!nounsWithItemRoute.has(op.entity) &&
+					op.method === "GET" &&
+					op.collection !== null &&
+					!isVerbPhrase(op.path),
+			)
+			.map((op) => `${op.entity}\u0000${op.path}`),
+	)
+
 	for (const op of operations) {
 		if (op.entity === null || op.entitySource === "tag") continue
 		if (nounsWithItemRoute.has(op.entity)) continue
+		if (op.action === "create" && keptCollections.has(`${op.entity}\u0000${op.path}`)) continue
 
 		const collectionShaped = op.method === "GET" && op.collection !== null
 		if (collectionShaped && !isVerbPhrase(op.path)) {
@@ -304,6 +400,14 @@ function demoteNonEntities(operations: OperationModel[], gaps: GapCollector): vo
 		}
 
 		const parent = enclosingEntity(op.path, nounsWithItemRoute)
+		if (parent === null) {
+			gaps.record(
+				op.operationId,
+				"x-entity",
+				`"${op.path}" names no collection with an item route and sits under none, so it belongs ` +
+					"to no entity and gets no lifecycle coverage. Name its entity with x-entity",
+			)
+		}
 		op.entity = parent
 		op.action = parent === null ? null : "action"
 	}
@@ -564,7 +668,7 @@ export function describeSuccess(statuses: DocumentedStatuses): string[] {
  */
 export function operationResolver(
 	model: SpecModel,
-): (method: string, relativePath: string) => { operationId: string; template: string } | null {
+): (method: string, relativePath: string) => { operationId: string; template: string; entity: string | null } | null {
 	const candidates = [...model.operations].sort(
 		(a, b) => (a.path.match(/\{/g)?.length ?? 0) - (b.path.match(/\{/g)?.length ?? 0),
 	)
@@ -573,6 +677,6 @@ export function operationResolver(
 		const op = candidates.find(
 			(candidate) => candidate.method.toUpperCase() === verb && pathTemplateMatches(candidate.path, relativePath),
 		)
-		return op === undefined ? null : { operationId: op.operationId, template: op.path }
+		return op === undefined ? null : { entity: op.entity, operationId: op.operationId, template: op.path }
 	}
 }

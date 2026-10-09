@@ -81,6 +81,8 @@ export const SHAPES: readonly NamedShape[] = [
 			/* Both are seen by comparing a cursor walk with a page walk, and there are no pages. */
 			"CURSOR_DRIFT",
 			"COLLATION_INCONSISTENT",
+			/* There is no page number to go past the end with. */
+			"PAGE_PAST_END_REPEATS",
 		],
 		name: "cursor-only",
 		shape: { pagination: "cursor-only" },
@@ -112,7 +114,13 @@ export const SHAPES: readonly NamedShape[] = [
 	{ name: "path-prefix", shape: { basePath: "/api" }, why: "the whole API is mounted under /api" },
 	{
 		/* PUT replaces by contract, so "a partial update that replaces" has no partial update to break. */
-		cannotExhibit: ["PATCH_REPLACES"],
+		/* Both are partial-write faults; under PUT the checks that see them stand down. */
+		cannotExhibit: ["PATCH_REPLACES", "CONCURRENT_WRITE_LOST"],
+		cannotRun: {
+			"concurrency.no-lost-update":
+				"two concurrent PUTs each replace the whole record; only partial writes can be lost",
+			"patch.minimality": "a PUT replaces the record by contract; there is no partial update to keep minimal",
+		},
 		name: "put-update",
 		shape: { updateMethod: "PUT" },
 		why: "update is PUT, replacing the record; there is no PATCH",
@@ -129,7 +137,13 @@ export const SHAPES: readonly NamedShape[] = [
 		why: "required date-time, a bounded number, a const, and one schema used twice in a body",
 	},
 	{ name: "large-pages", shape: { largeRecords: true }, why: "one list page is larger than 256 KiB" },
-	{ name: "range-statuses", shape: { rangeStatuses: true }, why: "responses documented as 2XX and default" },
+	{
+		/* 2XX documents 200 and 201 alike: answering one where the other was meant is permitted. */
+		cannotExhibit: ["CREATED_201_AS_200", "RESPONSE_STATUS_UNDECLARED"],
+		name: "range-statuses",
+		shape: { rangeStatuses: true },
+		why: "responses documented as 2XX and default",
+	},
 	{
 		name: "spec-layout",
 		shape: { specLayout: true },

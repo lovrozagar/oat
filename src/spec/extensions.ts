@@ -520,8 +520,14 @@ export function formatUniqueSets(sets: string[][] | null): string {
 	return sets.map((set) => `[${set.join(", ")}]`).join("; ")
 }
 
-export function readFlag(op: OperationObject, key: string): boolean {
-	return ext<unknown>(op, key) === true
+/**
+ * A boolean tag. A malformed value is reported by `validateTags`; here it reads as `whenMalformed`
+ * — `x-destructive` passes `true`, so a typo never makes a destructive operation look safe.
+ */
+export function readFlag(op: OperationObject, key: string, whenMalformed = false): boolean {
+	const value = ext<unknown>(op, key)
+	if (value === undefined || typeof value === "boolean") return value === true
+	return whenMalformed
 }
 
 export function readCleanup(op: OperationObject): string | null {

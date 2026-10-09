@@ -73,17 +73,22 @@ export class Ledger {
 		const report: TeardownReport = { failed: [], removed: 0, unsupported: [] }
 		const unsupported = new Set<string>()
 
-		/* Newest first: a child created inside a parent must be removed before the parent, and
-		 * creation order already encodes that dependency. */
+		/*
+		 * Deepest first, one level at a time, and every record within a level at once. A record's
+		 * depth is how many path parameters its delete route takes: a child's route carries its
+		 * parent's parameters and its own, so a level never holds a record and its parent.
+		 * Newest first within a level keeps the order the creation sequence implies.
+		 */
 		const queue = [...this.items].reverse()
+		const depthOf = (item: Disposable): number => deleteOperationFor(item.entity, model)?.pathParams.length ?? 0
+		const levels = [...new Set(queue.map(depthOf))].sort((a, b) => b - a)
 		let done = 0
-		for (const item of queue) {
-			onItem?.(done, queue.length, item)
+		const remove = async (item: Disposable): Promise<void> => {
 			const deleteOp = deleteOperationFor(item.entity, model)
 			if (deleteOp === null) {
 				unsupported.add(item.entity)
 				done += 1
-				continue
+				return
 			}
 
 			const param = deleteOp.pathParams.at(-1)
@@ -99,7 +104,7 @@ export class Ledger {
 					reason: error instanceof Error ? error.message : String(error),
 				})
 				done += 1
-				continue
+				return
 			}
 
 			try {
@@ -134,6 +139,9 @@ export class Ledger {
 			}
 			done += 1
 			onItem?.(done, queue.length, item)
+		}
+		for (const level of levels) {
+			await Promise.all(queue.filter((item) => depthOf(item) === level).map(remove))
 		}
 
 		report.unsupported = [...unsupported]

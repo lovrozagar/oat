@@ -409,6 +409,9 @@ export interface RateLimitSpec {
 
 /* --------------------------------------------------------------------- config */
 
+/** How much of the string payload catalog a run sends. */
+export type PayloadPolicy = "full" | "per-write-path"
+
 export interface OatConfig {
 	/** OpenAPI document — an http(s) URL or a filesystem path. JSON or YAML. */
 	spec: string
@@ -435,6 +438,12 @@ export interface OatConfig {
 	 * Defaults: `{ attempts: 6, initialMs: 200, maxMs: 3000 }` (~9s worst case).
 	 */
 	outOfBand?: OutOfBandConfig
+	/**
+	 * How much of the 159-case string payload catalog to send. `"per-write-path"` (the default)
+	 * sends all of it once per distinct write path — request media type and field type — and a
+	 * representative family of each kind elsewhere; `"full"` sends all of it to every field.
+	 */
+	payloads?: PayloadPolicy
 	/** Path parameters oat cannot create. Also declarable in-spec via `x-root`. */
 	roots?: Record<string, string>
 	/** Fixture generation derives from this, so a failing run is exactly reproducible. */

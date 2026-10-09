@@ -23,11 +23,46 @@ export interface EncodedBody {
 	contentType: string | null | undefined
 }
 
+/** An OpenAPI Encoding Object, as far as serialization goes. */
+export interface FieldEncoding {
+	contentType?: string
+	style?: string
+	explode?: boolean
+}
+
+/**
+ * One form field as the key/value pairs the operation's `encoding` says it becomes.
+ *
+ * The OpenAPI default for a form is `style: form, explode: true`: an array repeats its key per
+ * item, an object spreads its properties as keys of their own. `deepObject` writes `name[key]`;
+ * `explode: false` joins with the style's delimiter; a JSON `contentType` sends the value as JSON.
+ */
+export function formPairs(name: string, value: unknown, encoding: FieldEncoding | undefined): Array<[string, string]> {
+	const scalar = (item: unknown): string =>
+		item !== null && typeof item === "object" ? JSON.stringify(item) : String(item)
+	if (value === undefined || value === null) return []
+	if (encoding?.contentType?.includes("json") === true) return [[name, JSON.stringify(value)]]
+	const explode = encoding?.explode ?? true
+	const style = encoding?.style ?? "form"
+	if (Array.isArray(value)) {
+		if (explode) return value.map((item) => [name, scalar(item)])
+		const delimiter = style === "spaceDelimited" ? " " : style === "pipeDelimited" ? "|" : ","
+		return [[name, value.map(scalar).join(delimiter)]]
+	}
+	if (typeof value === "object") {
+		const entries = Object.entries(value as Record<string, unknown>).filter(([, item]) => item !== undefined)
+		if (style === "deepObject") return entries.map(([key, item]) => [`${name}[${key}]`, scalar(item)])
+		if (explode) return entries.map(([key, item]) => [key, scalar(item)])
+		return [[name, entries.flatMap(([key, item]) => [key, scalar(item)]).join(",")]]
+	}
+	return [[name, String(value)]]
+}
+
 export interface EncodeOptions {
 	operationId: string
 	mediaType: string
 	schema: Record<string, unknown>
-	encoding?: Record<string, { contentType?: string }>
+	encoding?: Record<string, FieldEncoding>
 	fields: Record<string, unknown>
 	variant: string
 	index: number
@@ -75,7 +110,10 @@ export async function encodeRequest(options: EncodeOptions): Promise<EncodedBody
 		return { body: await encodeMultipart(next), contentType: null }
 	}
 	if (media.includes("x-www-form-urlencoded")) {
-		return { body: encodeUrlencoded(next.fields), contentType: "application/x-www-form-urlencoded" }
+		return {
+			body: encodeUrlencoded(next.fields, next.encoding),
+			contentType: "application/x-www-form-urlencoded",
+		}
 	}
 	return { body: next.fields, contentType: undefined }
 }
@@ -113,7 +151,7 @@ async function encodeMultipart(options: EncodeOptions): Promise<FormData> {
 		}
 		const value = options.fields[name]
 		if (value === undefined || value === null) continue
-		appendScalar(form, name, value)
+		appendValue(form, name, value, options.encoding?.[name])
 	}
 
 	await appendAdditionalFile(form, options, sent, required)
@@ -128,12 +166,10 @@ function overrideIncludesFile(fields: Record<string, string | UploadFile>, fileN
 	return false
 }
 
-function encodeUrlencoded(fields: Record<string, unknown>): URLSearchParams {
+function encodeUrlencoded(fields: Record<string, unknown>, encoding?: Record<string, FieldEncoding>): URLSearchParams {
 	const params = new URLSearchParams()
 	for (const [name, value] of Object.entries(fields)) {
-		if (value === undefined || value === null) continue
-		if (typeof value === "object") continue
-		params.set(name, String(value))
+		for (const [key, item] of formPairs(name, value, encoding?.[name])) params.append(key, item)
 	}
 	return params
 }
@@ -209,12 +245,28 @@ function appendFile(form: FormData, name: string, file: UploadFile): void {
 	form.append(name, blob, file.filename)
 }
 
-function appendScalar(form: FormData, name: string, value: unknown): void {
-	if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-		form.append(name, String(value))
+/**
+ * One multipart field: a part per array item, and an object as one JSON part (the OpenAPI
+ * default content type for an object in multipart) unless the encoding says otherwise.
+ */
+function appendValue(form: FormData, name: string, value: unknown, encoding: FieldEncoding | undefined): void {
+	const json = (item: unknown): Blob => new Blob([JSON.stringify(item)], { type: "application/json" })
+	if (encoding?.contentType?.includes("json") === true) {
+		form.append(name, json(value))
 		return
 	}
-	form.append(name, JSON.stringify(value))
+	if (Array.isArray(value)) {
+		for (const item of value) {
+			if (item !== null && typeof item === "object") form.append(name, json(item))
+			else form.append(name, String(item))
+		}
+		return
+	}
+	if (value !== null && typeof value === "object") {
+		form.append(name, json(value))
+		return
+	}
+	form.append(name, String(value))
 }
 
 export function isFilePart(schema: unknown, encoding?: { contentType?: string }): boolean {

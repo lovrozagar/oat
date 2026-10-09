@@ -122,8 +122,10 @@ function documentFor(schema: Record<string, unknown>, version: string): OpenApiD
 }
 
 function requestSchema(doc: OpenApiDocument): Record<string, unknown> {
-	const post = (doc.paths?.["/things"] as { post: { requestBody: { content: Record<string, { schema: unknown }> } } })
-		.post
+	const item = (doc.paths?.["/things"] ?? {}) as unknown as {
+		post: { requestBody: { content: Record<string, { schema: unknown }> } }
+	}
+	const post = item.post
 	return post.requestBody.content["application/json"]?.schema as Record<string, unknown>
 }
 

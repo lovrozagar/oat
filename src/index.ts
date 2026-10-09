@@ -33,10 +33,15 @@ export type {
 	UploadResolution,
 	Uploads,
 } from "./config/define-config.ts"
-export { loadConfig } from "./config/load.ts"
+export { interpolate, loadConfig } from "./config/load.ts"
+export { configProblems } from "./config/validate.ts"
+export type { PayloadPolicy } from "./config/define-config.ts"
+export { EXIT, exitCode } from "./runtime/exit.ts"
+export { isRootCause } from "./runtime/finding.ts"
+export type { ReportInput } from "./report/render.ts"
 export { loadPersistedPrincipals, parsePersistedPrincipals } from "./runtime/principals.ts"
 export type { PersistedPrincipal } from "./runtime/principals.ts"
-export { allocateRunDir, DEFAULT_RUNS_ROOT, formatRunStamp } from "./runtime/runs.ts"
+export { allocateRunDir, DEFAULT_RUNS_ROOT, formatRunStamp, publishLatest } from "./runtime/runs.ts"
 export type { AllocatedRunDir } from "./runtime/runs.ts"
 export { worstCaseWaitMs, resolveBackoff, DEFAULT_OUT_OF_BAND } from "./runtime/poll.ts"
 export { deriveCollectionShape, deriveIdentity } from "./spec/collection.ts"
@@ -49,7 +54,7 @@ export { AuthRefreshRequiredError } from "./runtime/auth.ts"
 export { NetworkError, classifyNetworkError, isNetworkError } from "./runtime/network.ts"
 export type { NetworkKind } from "./runtime/network.ts"
 export { run } from "./runtime/run.ts"
-export type { RunOptions, RunResult } from "./runtime/run.ts"
+export type { CheckTiming, RunOptions, RunResult } from "./runtime/run.ts"
 export { planScope, resolveTargetScope, ScopeError } from "./runtime/scope.ts"
 export type {
 	OperationCoverage,

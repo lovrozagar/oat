@@ -245,7 +245,14 @@ export function runCoverageReportSuite(): ParserResult[] {
  * maintained list that drifts the moment a check's applicability changes, and a coverage promise
  * nobody verified is worse than no promise.
  */
-export async function runTagUnlockSuite(): Promise<ParserResult[]> {
+/**
+ * `baselines`, when given, are the checks the defect matrix's two clean baselines ran — the same
+ * two runs this would otherwise make again.
+ */
+export async function runTagUnlockSuite(baselines?: {
+	tagged: readonly string[]
+	untagged: readonly string[]
+}): Promise<ParserResult[]> {
 	const { createMemoryServer } = await import("../reference/http.ts")
 	const { TAG_UNLOCKS } = await import("../report/console.ts")
 
@@ -264,8 +271,8 @@ export async function runTagUnlockSuite(): Promise<ParserResult[]> {
 		}
 	}
 
-	const tagged = await ran(false)
-	const untagged = await ran(true)
+	const tagged = baselines === undefined ? await ran(false) : new Set(baselines.tagged)
+	const untagged = baselines === undefined ? await ran(true) : new Set(baselines.untagged)
 	const lost = [...tagged].filter((id) => !untagged.has(id)).sort()
 	const promised = Object.values(TAG_UNLOCKS).flat().sort()
 
@@ -812,6 +819,8 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	DELETE_MISSING_OK: "delete.absent-record-returns-404",
 	ERROR_500_ON_BAD_FILTER: [
 		"error.malformed-filter-not-5xx",
+		/* A crash on an unknown field is this check's own failure: it is not rejected. */
+		"filter.unknown-field-rejected",
 		/* 500 is not in the document. The status-vs-document check is a real second symptom,
 		 * not a misdiagnosis: the handler crashed and invented a code the spec never named. */
 		"response.status-is-documented",
@@ -824,7 +833,12 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	SELECT_IGNORED: "select.projection-honoured",
 	SOFT_DELETE_LEAK: "softdelete.absent-from-default-list",
 	STALE_LIST: "list.read-after-write",
-	TENANT_LEAK_VIA_FILTER: "tenant.filter-does-not-bypass-scope",
+	TENANT_LEAK_VIA_FILTER: [
+		"tenant.filter-does-not-bypass-scope",
+		/* Any filtered query reaches across tenants, so a filter combined with a search returns
+		 * foreign records the search alone does not: the same leak, seen from the composition. */
+		"query.search-and-filter-compose",
+	],
 	UNSTABLE_SORT: [
 		"pagination.page-walk-covers-set",
 		/* An unstable default order can hide a just-created record behind a page boundary,
@@ -955,6 +969,21 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	NESTED_SELECT_IGNORED: "select.nested-honoured",
 	DEFAULT_ORDER_IGNORED: "sort.default-order-applied",
 	SIDE_EFFECT_NEVER_ARRIVES: "effects.side-effect-arrives",
+	RATE_LIMIT_STRICTER_THAN_DECLARED: "spec.declared-rate-limit-is-honoured",
+	IDEMPOTENT_REPLAY_INSERTS: "idempotency.replay-does-not-duplicate",
+	TIEBREAK_NOT_APPLIED: "sort.stable-tiebreak",
+	CROSS_TENANT_WRITE: "tenant.item-not-writable-cross-tenant",
+	ROLE_WRITE_INVERTED: "auth.rank-is-monotonic-on-writes",
+	UNKNOWN_PARAM_EMPTIES_LIST: "query.unknown-parameter-consistent",
+	/* A walk whose last page is full asks once more, and sees the repeat. */
+	PAGE_PAST_END_REPEATS: ["pagination.bounds-handled", "pagination.page-walk-covers-set"],
+	FOREIGN_PARENT_ACCEPTED: "tenant.parent-not-reachable-from-another-root",
+	CREATE_500_ON_NON_ASCII: [
+		"create.does-not-error",
+		/* The probes that write non-ASCII strings hit the same crash on their own creates. */
+		"payload.string-survives",
+		"response.status-is-documented",
+	],
 }
 
 /**
@@ -1334,6 +1363,41 @@ export async function runSuite(
 	return results
 }
 
+/** Defects whose symptom does not depend on the API's query or envelope conventions. */
+const DIALECT_INSENSITIVE: ReadonlySet<DefectName> = new Set<DefectName>([
+	"PATCH_REPLACES",
+	"EXISTENCE_LEAK_VIA_STATUS",
+	"UNIQUE_NOT_ENFORCED",
+	"IDEMPOTENCY_IGNORED",
+	"IDEMPOTENT_REPLAY_INSERTS",
+	"IMMUTABLE_WRITABLE",
+	"CREATED_201_AS_200",
+	"DELETE_MISSING_OK",
+	"CROSS_TENANT_READ",
+	"CREATE_DROPS_FIELD",
+	"STRING_PAYLOAD_MANGLED",
+	"ENUM_NOT_VALIDATED",
+	"MAXLENGTH_NOT_VALIDATED",
+	"REQUIRED_NOT_VALIDATED",
+	"CONTENT_TYPE_NOT_ENFORCED",
+	"ERROR_SCHEMA_DRIFT",
+	"ASYNC_NEVER_COMPLETES",
+	"ASYNC_RECEIPT_MISSING_ID",
+	"CONCURRENT_WRITE_LOST",
+	"ROLE_MONOTONICITY_BROKEN",
+	"INVITE_NEVER_GRANTS",
+	"REVOKE_IGNORED",
+	"CREATE_500_ON_NON_ASCII",
+	"SIDE_EFFECT_NEVER_ARRIVES",
+	"RATE_LIMIT_STRICTER_THAN_DECLARED",
+])
+
+/** Defects that need a page-number parameter to be seen. */
+const PAGE_NUMBER_ONLY: ReadonlySet<DefectName> = new Set<DefectName>(["PAGE_PAST_END_REPEATS"])
+
+/** Defects that run on the in-memory engine only: the store plays no part in them. */
+const ONE_ENGINE: ReadonlySet<DefectName> = new Set<DefectName>(["CONCURRENT_WRITE_LOST"])
+
 /** Every defect this backend and dialect can exhibit, narrowed to `filter` when one is given. */
 export function defectsFor(backend: Backend, dialect: string, filter?: readonly string[]): DefectName[] {
 	return (
@@ -1350,7 +1414,14 @@ export function defectsFor(backend: Backend, dialect: string, filter?: readonly 
 			.filter((name) => DIALECTS_WITH_FILTER_EXPRESSION.has(dialect) || !EXPRESSION_ONLY.has(name))
 			.filter((name) => DIALECTS_WITH_POSTGREST_FILTER.has(dialect) || !POSTGREST_OP_ONLY.has(name))
 			.filter((name) => DIALECTS[dialect]?.params.searchMode !== undefined || !SEARCH_MODE_ONLY.has(name))
+			/* A dialect that pages by offset has no page number to ask past the end. */
+			.filter((name) => DIALECTS[dialect]?.params.page !== undefined || !PAGE_NUMBER_ONLY.has(name))
 			.filter((name) => (DIALECTS[dialect]?.sortGrammar ?? "dotted") === "dotted" || !NULLS_TOKEN_ONLY.has(name))
+			/* A fault in writes, auth or validation reads the same under every dialect; the extra
+			 * dialect passes are for how a listing is asked for and answered. */
+			.filter((name) => dialect === "postgrest" || !DIALECT_INSENSITIVE.has(name))
+			/* A store-independent race, timed with a sleep: one engine shows it as well as three. */
+			.filter((name) => backend === "memory" || !ONE_ENGINE.has(name))
 			/* D1 is a network round trip per statement. Restricting it to the engine-sensitive set
 			 * keeps a run to minutes rather than an hour, and drops nothing D1 could uniquely show. */
 			.filter((name) => backend !== "d1" || ENGINE_SENSITIVE.has(name))
