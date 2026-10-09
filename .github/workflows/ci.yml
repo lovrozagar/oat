@@ -59,7 +59,7 @@ jobs:
     # every engine difference go untested, and the suite fails rather than skip it silently.
     services:
       postgres:
-        image: postgres:17
+        image: public.ecr.aws/docker/library/postgres:17 # Docker Hub rate-limits anonymous pulls
         env:
           POSTGRES_USER: runner
           POSTGRES_PASSWORD: postgres
