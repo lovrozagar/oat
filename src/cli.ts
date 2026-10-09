@@ -402,6 +402,8 @@ export async function main(): Promise<number> {
 
 	if (command === "conformance") {
 		const {
+			defectsFor,
+			passAnswer,
 			postgresAvailable,
 			renderParserSuite,
 			renderUnproven,
@@ -570,9 +572,23 @@ export async function main(): Promise<number> {
 		/* Every leg is queued at once and printed in order as its turn comes. */
 		const pool = createPool(jobs)
 		const withShapes = requested === undefined || requested === "memory"
-		const passAnswers = passes.map((pass) =>
-			pool.run({ backend: pass.backend, dialect: pass.dialect, kind: "pass", ...(only === undefined ? {} : { only }) }),
-		)
+		/* A leg goes out as its baselines and its defects in chunks, so a long leg spreads across
+		 * the pool; its results come back in order and are rendered here. */
+		const LEG_CHUNK = 6
+		const passAnswers = passes.map(async (pass) => {
+			const defects = defectsFor(pass.backend, pass.dialect, only)
+			const chunks = Array.from({ length: Math.ceil(defects.length / LEG_CHUNK) }, (_, index) =>
+				defects.slice(index * LEG_CHUNK, (index + 1) * LEG_CHUNK),
+			)
+			const answers = await Promise.all([
+				pool.run({ backend: pass.backend, dialect: pass.dialect, kind: "baselines" }),
+				...chunks.map((chunk) =>
+					pool.run({ backend: pass.backend, dialect: pass.dialect, defects: chunk, kind: "defects" }),
+				),
+			])
+			const results = answers.flatMap((answer) => (answer.kind === "leg" ? answer.results : []))
+			return { kind: "pass" as const, ...passAnswer(results, pass.backend, pass.dialect) }
+		})
 		const shapeAnswer = withShapes ? pool.run({ kind: "shapes" }) : undefined
 		/* `--ops` recall needs each defect's full run, which the default pass has just made; only
 		 * the targeted half is sent, spread across the pool. */

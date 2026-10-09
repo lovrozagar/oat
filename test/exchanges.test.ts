@@ -161,6 +161,7 @@ describe("exchange journal", () => {
 				url: "http://app.test/verify?t=1",
 			}),
 		)
+		await journal.flush()
 		const file = JSON.parse(await readFile(join(dir, "exchanges/consume-1.json"), "utf8")) as {
 			finalUrl: string
 			redirects: Array<{ responseHeaders: Record<string, string>; status: number }>
@@ -198,6 +199,7 @@ describe("exchange journal", () => {
 			}),
 			{ check: "effects.declared-effect-occurs", entity: "thing", phase: "test" },
 		)
+		await journal.flush()
 		await journal.record(
 			exchange({
 				method: "GET",
@@ -209,6 +211,7 @@ describe("exchange journal", () => {
 				url: "http://x.test/v1/things/1",
 			}),
 		)
+		await journal.flush()
 		expect(journal.count).toBe(2)
 		await journal.flush()
 		const jsonl = (await readFile(join(dir, "exchanges.jsonl"), "utf8")).trim().split("\n")
@@ -253,6 +256,7 @@ describe("exchange journal", () => {
 					url: "http://x.test/v1/upload",
 				}),
 			)
+			await journal.flush()
 		}
 		await once(1, "up-1")
 		await once(2, "up-2")
@@ -282,8 +286,11 @@ describe("exchange journal", () => {
 		const dir = await scratch()
 		const journal = createExchangeJournal(dir)
 		await journal.record(exchange({ requestId: "", seq: 4, url: "http://x.test/a" }))
+		await journal.flush()
 		await journal.record(exchange({ requestId: "same", seq: 5, url: "http://x.test/b" }))
+		await journal.flush()
 		await journal.record(exchange({ requestId: "same", seq: 6, url: "http://x.test/c" }))
+		await journal.flush()
 		expect(existsSync(join(dir, "exchanges/seq-4.json"))).toBe(true)
 		expect(existsSync(join(dir, "exchanges/same.json"))).toBe(true)
 		expect(existsSync(join(dir, "exchanges/same-6.json"))).toBe(true)
@@ -302,11 +309,13 @@ describe("exchange journal", () => {
 		await writeFile(join(dir, "exchanges/pre.json"), '{"keep":true}\n')
 		const journal = createExchangeJournal(dir)
 		await journal.record(exchange({ requestId: "pre", seq: 9 }))
+		await journal.flush()
 		expect(JSON.parse(await readFile(join(dir, "exchanges/pre.json"), "utf8"))).toEqual({ keep: true })
 		expect(existsSync(join(dir, "exchanges/pre-9.json"))).toBe(true)
 		await writeFile(join(dir, "exchanges/dup.json"), "{}\n")
 		await writeFile(join(dir, "exchanges/dup-3.json"), "{}\n")
 		await journal.record(exchange({ requestId: "dup", seq: 3 }))
+		await journal.flush()
 		expect(existsSync(join(dir, "exchanges/dup-3-2.json"))).toBe(true)
 	})
 
@@ -324,8 +333,10 @@ describe("exchange journal", () => {
 				seq: 1,
 			}),
 		)
+		await journal.flush()
 		const snap = { parts: [{ field: "title", value: "scan" }] }
 		await journal.record(exchange({ method: "POST", requestBody: snap, requestId: "snap-1", seq: 2 }))
+		await journal.flush()
 		const file = JSON.parse(await readFile(join(dir, "exchanges/ref-1.json"), "utf8")) as {
 			requestBody: unknown
 			responseBody: unknown
@@ -349,6 +360,7 @@ describe("exchange journal", () => {
 				seq: 1,
 			}),
 		)
+		await journal.flush()
 		const file = JSON.parse(await readFile(join(dir, "exchanges/sse-frames.json"), "utf8")) as {
 			responseBody: unknown
 		}
@@ -366,6 +378,7 @@ describe("exchange journal", () => {
 				seq: 1,
 			}),
 		)
+		await journal.flush()
 		const file = JSON.parse(await readFile(join(dir, "exchanges/sse-1.json"), "utf8")) as {
 			responseBody: Array<{ event: string; data: Record<string, unknown> }>
 		}
@@ -384,6 +397,7 @@ describe("exchange journal", () => {
 				seq: 1,
 			}),
 		)
+		await journal.flush()
 		const file = JSON.parse(await readFile(join(dir, "exchanges/sse-raw.json"), "utf8")) as { responseBody: unknown }
 		expect(file.responseBody).toBe("not a frame")
 	})
@@ -399,6 +413,7 @@ describe("exchange journal", () => {
 				seq: 1,
 			}),
 		)
+		await journal.flush()
 		const file = JSON.parse(await readFile(join(dir, "exchanges/sse-guess.json"), "utf8")) as { responseBody: unknown }
 		expect(file.responseBody).toEqual([{ data: { ok: true }, event: "message" }])
 	})
@@ -417,6 +432,7 @@ describe("exchange journal", () => {
 				seq: 1,
 			}),
 		)
+		await journal.flush()
 		const file = JSON.parse(await readFile(join(dir, "exchanges/big-text.json"), "utf8")) as {
 			requestBody: { sha256: string; bytes: number; mediaType: string }
 			responseBody: { sha256: string; bytes: number; mediaType: string }
@@ -439,6 +455,7 @@ describe("exchange journal", () => {
 				seq: 1,
 			}),
 		)
+		await journal.flush()
 		await journal.record(
 			exchange({
 				requestId: "pdf-obj",
@@ -447,6 +464,7 @@ describe("exchange journal", () => {
 				seq: 2,
 			}),
 		)
+		await journal.flush()
 		const file = JSON.parse(await readFile(join(dir, "exchanges/pdf.json"), "utf8")) as {
 			responseBody: { sha256: string; mediaType: string }
 		}
@@ -466,6 +484,7 @@ describe("exchange journal", () => {
 				seq: 1,
 			}),
 		)
+		await journal.flush()
 		await journal.record(
 			exchange({
 				method: "POST",
@@ -474,6 +493,7 @@ describe("exchange journal", () => {
 				seq: 2,
 			}),
 		)
+		await journal.flush()
 		await journal.record(
 			exchange({
 				method: "POST",
@@ -482,6 +502,7 @@ describe("exchange journal", () => {
 				seq: 3,
 			}),
 		)
+		await journal.flush()
 		await journal.record(
 			exchange({
 				method: "POST",
@@ -490,6 +511,7 @@ describe("exchange journal", () => {
 				seq: 4,
 			}),
 		)
+		await journal.flush()
 		await journal.record(
 			exchange({
 				method: "POST",
@@ -498,6 +520,7 @@ describe("exchange journal", () => {
 				seq: 5,
 			}),
 		)
+		await journal.flush()
 		await journal.record(
 			exchange({
 				method: "POST",
@@ -507,6 +530,7 @@ describe("exchange journal", () => {
 				seq: 6,
 			}),
 		)
+		await journal.flush()
 		await journal.record(
 			exchange({
 				requestId: "sse-obj",
@@ -515,6 +539,7 @@ describe("exchange journal", () => {
 				seq: 7,
 			}),
 		)
+		await journal.flush()
 		const qs = JSON.parse(await readFile(join(dir, "exchanges/qs.json"), "utf8")) as {
 			requestBody: Record<string, unknown>
 		}
@@ -542,6 +567,7 @@ describe("exchange journal", () => {
 				seq: 8,
 			}),
 		)
+		await journal.flush()
 		const reused = JSON.parse(await readFile(join(dir, "exchanges/reuse-blob.json"), "utf8")) as {
 			requestBody: { sha256: string }
 			responseBody: { sha256: string }
@@ -552,6 +578,7 @@ describe("exchange journal", () => {
 		const emptyType = new FormData()
 		emptyType.append("file", new File([new Uint8Array([1])], "a.bin"))
 		await journal.record(exchange({ method: "POST", requestBody: emptyType, requestId: "empty-type", seq: 9 }))
+		await journal.flush()
 		const empty = JSON.parse(await readFile(join(dir, "exchanges/empty-type.json"), "utf8")) as {
 			requestBody: { parts: Array<Record<string, unknown>> }
 		}
@@ -560,6 +587,7 @@ describe("exchange journal", () => {
 		const formText = new FormData()
 		formText.append("note", "hi")
 		await journal.record(exchange({ method: "POST", requestBody: formText, requestId: "form-text", seq: 10 }))
+		await journal.flush()
 
 		await journal.record(
 			exchange({
@@ -569,6 +597,7 @@ describe("exchange journal", () => {
 				seq: 11,
 			}),
 		)
+		await journal.flush()
 		const sseCase = JSON.parse(await readFile(join(dir, "exchanges/sse-case.json"), "utf8")) as {
 			responseBody: unknown
 		}
@@ -582,6 +611,7 @@ describe("exchange journal", () => {
 				seq: 12,
 			}),
 		)
+		await journal.flush()
 		expect(
 			(
 				JSON.parse(await readFile(join(dir, "exchanges/pdf-bytes.json"), "utf8")) as {
@@ -591,6 +621,7 @@ describe("exchange journal", () => {
 		).toBe("application/pdf")
 
 		await journal.record(exchange({ requestId: "scalar-res", responseBody: 0, seq: 13 }))
+		await journal.flush()
 
 		const hugeStream = "x".repeat(INLINE_BODY_LIMIT + 4)
 		await journal.record(
@@ -601,6 +632,7 @@ describe("exchange journal", () => {
 				seq: 14,
 			}),
 		)
+		await journal.flush()
 		const spilled = JSON.parse(await readFile(join(dir, "exchanges/sse-huge.json"), "utf8")) as {
 			responseBody: { sha256: string; mediaType: string }
 		}
@@ -614,6 +646,7 @@ describe("exchange journal", () => {
 				seq: 15,
 			}),
 		)
+		await journal.flush()
 		expect(
 			(JSON.parse(await readFile(join(dir, "exchanges/plain-text.json"), "utf8")) as { responseBody: unknown })
 				.responseBody,
@@ -626,6 +659,7 @@ describe("exchange journal", () => {
 				seq: 16,
 			}),
 		)
+		await journal.flush()
 		expect(
 			(JSON.parse(await readFile(join(dir, "exchanges/no-type.json"), "utf8")) as { responseBody: { ok: boolean } })
 				.responseBody.ok,

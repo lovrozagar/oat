@@ -165,8 +165,17 @@ export function buildModel(doc: OpenApiDocument): SpecModel {
 	const endpoints = listEndpoints(doc)
 	const operations = endpoints.map((e) => modelOperation(e, doc, gaps))
 
-	demoteNonEntities(operations, gaps)
+	const views = demoteNonEntities(operations, gaps)
 	separateSameNamedCollections(operations)
+	/* Named once the entities have their final names: a split `member` is `org-member` here. */
+	for (const op of views) {
+		gaps.record(
+			op.operationId,
+			"x-entity",
+			`returns a collection but exposes no item route, so oat treats "${op.entity}" as its ` +
+				"own entity. If it is a filtered view of another entity, name that entity explicitly",
+		)
+	}
 
 	/* Two operations sharing an id would silently become one. The first keeps the id; the
 	 * other is reported, since findings, scope and `--ops` all name operations by it. */
@@ -351,7 +360,9 @@ function separateSameNamedCollections(operations: OperationModel[]): void {
 	}
 }
 
-function demoteNonEntities(operations: OperationModel[], gaps: GapCollector): void {
+/** Demotes operations that belong to no entity. Returns the collection-shaped views kept as their own entity. */
+function demoteNonEntities(operations: OperationModel[], gaps: GapCollector): OperationModel[] {
+	const views: OperationModel[] = []
 	const nounsWithItemRoute = new Set<string>()
 	for (const op of operations) {
 		const segments = op.path.split("/").filter(Boolean)
@@ -390,12 +401,7 @@ function demoteNonEntities(operations: OperationModel[], gaps: GapCollector): vo
 		if (collectionShaped && !isVerbPhrase(op.path)) {
 			/* A collection-shaped GET with no item route is usually a named view of another
 			 * entity (`/table-templates/mine`). oat cannot know which, so it says so. */
-			gaps.record(
-				op.operationId,
-				"x-entity",
-				`returns a collection but exposes no item route, so oat treats "${op.entity}" as its ` +
-					"own entity. If it is a filtered view of another entity, name that entity explicitly",
-			)
+			views.push(op)
 			continue
 		}
 
@@ -411,6 +417,7 @@ function demoteNonEntities(operations: OperationModel[], gaps: GapCollector): vo
 		op.entity = parent
 		op.action = parent === null ? null : "action"
 	}
+	return views
 }
 
 /**

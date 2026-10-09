@@ -28,6 +28,24 @@ describe("model derivation", () => {
 		expect(model.entities.get("org-member")?.create).toBe("orgs.members.create")
 	})
 
+	it("names a split collection by its final name when it reports a gap", () => {
+		const views = (parent: string, param: string) => ({
+			[`/v1/${parent}/{${param}}/members`]: {
+				get: { operationId: `${parent}.members.list`, responses: ok({ items: member, type: "array" }) },
+			},
+		})
+		const doc = {
+			info: { title: "t", version: "1" },
+			openapi: "3.1.0",
+			paths: { ...views("projects", "project_id"), ...views("orgs", "org_id") },
+		} as OpenApiDocument
+		const details = buildModel(dereference(doc).doc)
+			.gaps.gaps.filter((gap) => gap.tag === "x-entity")
+			.map((gap) => gap.detail)
+		expect(details.some((detail) => detail.includes('treats "org-member" as its own entity'))).toBe(true)
+		expect(details.some((detail) => detail.includes('treats "member"'))).toBe(false)
+	})
+
 	it("leaves a name alone when only one collection carries it", () => {
 		const doc = {
 			info: { title: "t", version: "1" },
@@ -119,5 +137,38 @@ describe("tag validation", () => {
 		expect(details.some((detail) => detail.startsWith("x-cost must be one of"))).toBe(true)
 		expect(details.some((detail) => detail.startsWith("x-invalidate must be an array of routes"))).toBe(true)
 		expect(model.byOperationId.get("notes.delete")?.destructive).toBe(true)
+	})
+
+	it("checks x-query field by field, and accepts a well-formed one", () => {
+		const listing = (xQuery: Record<string, unknown>) =>
+			({
+				info: { title: "t", version: "1" },
+				openapi: "3.1.0",
+				paths: {
+					"/v1/notes": {
+						get: { operationId: "notes.list", responses: { "200": { description: "ok" } }, "x-query": xQuery },
+					},
+				},
+			}) as unknown as OpenApiDocument
+		const gapsFor = (xQuery: Record<string, unknown>) =>
+			buildModel(dereference(listing(xQuery)).doc)
+				.gaps.gaps.filter((gap) => gap.tag === "x-query")
+				.map((gap) => gap.detail)
+		expect(gapsFor({ grammar: "bogus" })).toEqual([
+			'x-query "grammar" must be one of "postgrest", "colon", "equality"; oat cannot use it',
+		])
+		expect(gapsFor({ filterable: 5 })[0]).toMatch(/"filterable" must be an array/)
+		expect(gapsFor({ maxLimit: "x" })[0]).toMatch(/"maxLimit" must be a positive integer/)
+		expect(gapsFor({ sortable: [{ type: "date" }] })[0]).toMatch(/"sortable" has a row that needs "field"/)
+		expect(
+			gapsFor({
+				filterable: ["id", { field: "name", ops: ["eq", "like"], type: "string" }],
+				filterableFrom: { operationId: "table.get", path: "$.columns[*].name" },
+				grammar: "postgrest",
+				maxLimit: 100,
+				searchable: null,
+				sortCollation: "case-insensitive",
+			}),
+		).toEqual([])
 	})
 })

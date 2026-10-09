@@ -15,23 +15,41 @@ export const EXIT = {
 	failed: 3,
 } as const
 
+export type RunOutcome = "clean" | "defects" | "failed"
+
 /**
- * Exit code for a finished run. Root causes fail it, not raw findings: gaps and blocked entries
- * are information. A run that graded nothing proved nothing, and under `--ops` a target nothing
- * graded must not read as a pass.
+ * The verdict on a finished run, and why. Root causes fail it, not raw findings: gaps and blocked
+ * entries are information. A run that graded nothing proved nothing, and under `--ops` a target
+ * nothing graded must not read as a pass. The exit code and every report state this one verdict.
  */
-export function exitCode(result: {
+export function runVerdict(result: {
 	findings: ReadonlyArray<{ verdict: string }>
 	network?: { incomplete: boolean }
-	scope: { mode: string; operations: ReadonlyArray<{ status: string }> }
-}): number {
-	if (result.network?.incomplete === true) return EXIT.failed
-	const graded = result.scope.operations.filter((op) => op.status === "held" || op.status === "failed")
-	if (graded.length === 0) return EXIT.failed
-	if (result.findings.some(isRootCause)) return EXIT.defects
-	if (result.scope.mode === "targeted") {
-		if (result.scope.operations.some((op) => op.status === "failed")) return EXIT.defects
-		if (result.scope.operations.some((op) => op.status !== "held")) return EXIT.failed
+	scope?: { mode: string; operations: ReadonlyArray<{ operationId?: string; status: string }> }
+}): { outcome: RunOutcome; reason: string } {
+	if (result.network?.incomplete === true) {
+		return { outcome: "failed", reason: "the network went away before the run finished" }
 	}
-	return EXIT.clean
+	const rootCauses = result.findings.filter(isRootCause).length
+	if (result.scope !== undefined) {
+		const graded = result.scope.operations.filter((op) => op.status === "held" || op.status === "failed")
+		if (graded.length === 0) return { outcome: "failed", reason: "no operation was graded, so nothing was proved" }
+	}
+	if (rootCauses > 0) {
+		return { outcome: "defects", reason: `${rootCauses} root-cause finding${rootCauses === 1 ? "" : "s"}` }
+	}
+	if (result.scope?.mode === "targeted") {
+		const failed = result.scope.operations.filter((op) => op.status === "failed")
+		if (failed.length > 0) return { outcome: "defects", reason: `${failed.length} targeted operation(s) failed` }
+		const unjudged = result.scope.operations.filter((op) => op.status !== "held")
+		if (unjudged.length > 0) {
+			return { outcome: "failed", reason: `${unjudged.length} targeted operation(s) were never judged` }
+		}
+	}
+	return { outcome: "clean", reason: "no defects found in what was graded" }
+}
+
+/** Exit code for a finished run: {@link runVerdict}, as a number. */
+export function exitCode(result: Parameters<typeof runVerdict>[0]): number {
+	return EXIT[runVerdict(result).outcome]
 }

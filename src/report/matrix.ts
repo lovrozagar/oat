@@ -325,7 +325,18 @@ export function renderMatrixGraphFromParts(parts: MatrixParts): string {
 	return `${JSON.stringify(compactMatrixGraph(buildMatrixGraph(parts)), null, 2)}\n`
 }
 
+/** One graph per report: the HTML poster and the JSON graph both draw it. */
+const graphs = new WeakMap<ReportInput, MatrixGraph>()
+
 export function buildMatrixGraphFromReport(input: ReportInput): MatrixGraph {
+	const built = graphs.get(input)
+	if (built !== undefined) return built
+	const graph = assembleReportGraph(input)
+	graphs.set(input, graph)
+	return graph
+}
+
+function assembleReportGraph(input: ReportInput): MatrixGraph {
 	const names = input.entitiesTested.length > 0 ? input.entitiesTested : ["entity"]
 	const partsFor = (name: string): MatrixParts => ({
 		baseUrl: input.baseUrl,
@@ -361,9 +372,9 @@ function entitySlice(name: string, parts: MatrixParts, readSurface: string[], id
 		}
 		const need = NEEDS.get(id)
 		if (need !== undefined) node.needs = need
-		const suppressed = byCheck(parts.checksSuppressed, id).find((s) => matchesEntity(s.entity, name))
+		const suppressed = rowsFor(parts.checksSuppressed, id, name)[0]
 		if (suppressed !== undefined) node.because = suppressed.because
-		const finding = byCheck(parts.findings, id).find((f) => onPrimary(f) && matchesEntity(f.entity, name))
+		const finding = rowsFor(parts.findings, id, name).find(onPrimary)
 		if (finding !== undefined) {
 			node.summary = finding.summary
 			node.verdict = finding.verdict
@@ -383,13 +394,11 @@ function entitySlice(name: string, parts: MatrixParts, readSurface: string[], id
 }
 
 function statusFor(entity: string, id: string, parts: MatrixParts): CellStatus {
-	const finding = byCheck(parts.findings, id).find(
-		(f) => onPrimary(f) && matchesEntity(f.entity, entity) && isRootCause(f),
-	)
+	const finding = rowsFor(parts.findings, id, entity).find((f) => onPrimary(f) && isRootCause(f))
 	if (finding !== undefined) return "failed"
-	if (byCheck(parts.checksSuppressed, id).some((s) => matchesEntity(s.entity, entity))) return "blocked"
-	if (byCheck(parts.checksSkipped, id).some((s) => matchesEntity(s.entity, entity))) return "skipped"
-	if (byCheck(parts.checksOutOfScope ?? [], id).some((s) => matchesEntity(s.entity, entity))) return "out-of-scope"
+	if (rowsFor(parts.checksSuppressed, id, entity).length > 0) return "blocked"
+	if (rowsFor(parts.checksSkipped, id, entity).length > 0) return "skipped"
+	if (rowsFor(parts.checksOutOfScope ?? [], id, entity).length > 0) return "out-of-scope"
 	if (ranSet(parts.checksRun).has(id)) return "held"
 	return "skipped"
 }
@@ -405,21 +414,37 @@ function ranSet(ids: readonly string[]): Set<string> {
 	return set
 }
 
-/** Rows of a report list indexed by check id, built once per list rather than scanned per cell. */
-const checkIndexes = new WeakMap<readonly object[], Map<string, unknown[]>>()
+/** The entity a report row is about: `table`, `table · fixture` and `table.field` are all `table`. */
+function entityKey(value: string): string {
+	return (value.split(" · ")[0] ?? "").split(".")[0] ?? ""
+}
 
-function byCheck<T extends { check: string }>(rows: readonly T[], check: string): readonly T[] {
-	let index = checkIndexes.get(rows) as Map<string, T[]> | undefined
+/** Rows of a report list indexed by check id, then by entity, built once per list rather than
+ * scanned per cell. A row naming no entity applies to every entity. */
+const rowIndexes = new WeakMap<readonly object[], Map<string, Map<string, Array<{ at: number; row: unknown }>>>>()
+
+function rowsFor<T extends { check: string; entity?: string }>(
+	rows: readonly T[],
+	check: string,
+	entity: string,
+): readonly T[] {
+	let index = rowIndexes.get(rows)
 	if (index === undefined) {
-		index = new Map<string, T[]>()
-		for (const row of rows) {
-			const list = index.get(row.check)
-			if (list === undefined) index.set(row.check, [row])
-			else list.push(row)
+		index = new Map()
+		for (const [at, row] of rows.entries()) {
+			const byEntity = index.get(row.check) ?? new Map<string, Array<{ at: number; row: unknown }>>()
+			index.set(row.check, byEntity)
+			const key = row.entity === undefined ? "*" : entityKey(row.entity)
+			byEntity.set(key, [...(byEntity.get(key) ?? []), { at, row }])
 		}
-		checkIndexes.set(rows, index as Map<string, unknown[]>)
+		rowIndexes.set(rows, index)
 	}
-	return index.get(check) ?? []
+	const byEntity = index.get(check)
+	if (byEntity === undefined) return []
+	const own = byEntity.get(entityKey(entity)) ?? []
+	const everyone = byEntity.get("*") ?? []
+	const merged = everyone.length === 0 ? own : [...own, ...everyone].sort((a, b) => a.at - b.at)
+	return merged.map((entry) => entry.row as T).filter((row) => matchesEntity(row.entity, entity))
 }
 
 /**

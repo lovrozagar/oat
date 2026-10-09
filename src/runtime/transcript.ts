@@ -74,7 +74,7 @@ export function bodyRef(bytes: Uint8Array, mediaType: string): BodyRef {
 	return { bytes: bytes.byteLength, mediaType, sha256: sha256Hex(bytes) }
 }
 
-export async function compactRequestBody(body: unknown, knownBytes?: number): Promise<unknown> {
+export async function compactRequestBody(body: unknown, knownBytes?: number, digest?: BodyDigest): Promise<unknown> {
 	if (body === undefined) return undefined
 	if (isFormSnapshot(body) || isBodyRef(body)) return body
 	if (isFormData(body)) {
@@ -106,6 +106,15 @@ export async function compactRequestBody(body: unknown, knownBytes?: number): Pr
 	}
 	const raw = await bytesOf(body)
 	if (raw !== undefined) return bodyRef(raw, "application/octet-stream")
+	/* Hashed when it was sent, from the text that went out (a string or JSON); nothing to
+	 * serialize again. */
+	if (digest !== undefined) {
+		return {
+			bytes: digest.bytes,
+			mediaType: typeof body === "string" ? "text/plain" : "application/json",
+			sha256: digest.sha256,
+		}
+	}
 	if (typeof body === "string") {
 		const bytes = utf8Bytes(body)
 		return bytes.byteLength <= INLINE_BODY_LIMIT ? body : bodyRef(bytes, "text/plain")
@@ -174,7 +183,7 @@ export async function compactResponseBody(
 
 /** Drop live request/response payloads on an exchange already pushed to the transcript. */
 export async function releaseTranscriptBodies(exchange: Exchange): Promise<void> {
-	exchange.requestBody = await compactRequestBody(exchange.requestBody, exchange.requestBytes)
+	exchange.requestBody = await compactRequestBody(exchange.requestBody, exchange.requestBytes, exchange.requestDigest)
 	exchange.responseBody = await compactResponseBody(
 		exchange.responseBody,
 		exchange.responseHeaders,

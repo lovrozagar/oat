@@ -42,6 +42,10 @@ describe("exchange model", () => {
 		)
 		client.setPrincipalResolver((headers) => (headers.authorization === "Bearer a" ? "alpha" : undefined))
 		expect(client.relativePath(`${url}/v1/tables/1`)).toBe("/v1/tables/1")
+		/* A sibling path that merely starts with the same letters is not below the base. */
+		const sibling = new URL(url)
+		sibling.pathname = `${sibling.pathname.replace(/\/$/, "")}v2/v1/tables/1`
+		expect(client.relativePath(sibling.toString())).toBe(sibling.pathname)
 
 		const view = client.view({ check: "c.one", subject: "table" })
 		const exchange = await view.get("/v1/tables/7", {

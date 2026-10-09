@@ -11,6 +11,7 @@ import { describeRequestBody, toCurl } from "../runtime/client.ts"
 import { redactJson, redactUrl } from "../runtime/redact.ts"
 import type { Client, Exchange } from "../runtime/client.ts"
 import { describeRequested, type OperationCoverage, type OperationStatus, type ScopeReport } from "../runtime/scope.ts"
+import { EXIT, runVerdict } from "../runtime/exit.ts"
 import { type Finding, isRootCause, type Verdict } from "../runtime/finding.ts"
 import type { SpecModel } from "../spec/graph.ts"
 import type { CheckTiming } from "../runtime/run.ts"
@@ -121,9 +122,11 @@ export function renderMarkdown(input: ReportInput): string {
 	const lines: string[] = []
 	const coverage = coverageByCheck(input)
 
+	const verdict = runVerdict(input)
 	lines.push("# oat report")
 	lines.push("")
 	lines.push(`- **Backend**: ${input.baseUrl}`)
+	lines.push(`- **Result**: ${verdict.outcome} — ${verdict.reason}`)
 	lines.push(`- **Generated**: ${input.startedAt.toISOString()} (${(input.durationMs / 1000).toFixed(1)}s)`)
 	if (input.scope !== undefined) lines.push(`- **Scope**: ${scopeLine(input.scope, " — ")}`)
 	lines.push(`- **Entities tested**: ${entityList(input.entitiesTested)}`)
@@ -186,7 +189,11 @@ export function renderMarkdown(input: ReportInput): string {
 	}
 
 	if (real.length === 0) {
-		lines.push(`No defects found across ${input.checksRun.length} checks.`)
+		lines.push(
+			verdict.outcome === "failed"
+				? `No defects found, but the run failed: ${verdict.reason}.`
+				: `No defects found across ${input.checksRun.length} checks.`,
+		)
 		lines.push("")
 	} else {
 		lines.push("## Summary")
@@ -513,6 +520,8 @@ export function renderConsole(input: ReportInput): string {
 	const profileLine = profileExclusionSummary(input)
 	if (profileLine !== null) lines.push(`  ${profileLine}`)
 	if (input.scope !== undefined) lines.push(...scopeConsole(input.scope))
+	const verdict = runVerdict(input)
+	lines.push(`  result: ${verdict.outcome} — ${verdict.reason}`)
 	lines.push("")
 
 	const renderSkipped = (): void => {
@@ -579,7 +588,7 @@ export function renderConsole(input: ReportInput): string {
 	}
 
 	if (real.length === 0 && findings.length === 0) {
-		lines.push("  no defects found")
+		lines.push(verdict.outcome === "failed" ? `  run failed — ${verdict.reason}` : "  no defects found")
 		lines.push("")
 		/* Printed even on a clean run — especially on a clean run. "Nothing found" and "nothing
 		 * was looked for" read identically without it. */
@@ -660,6 +669,8 @@ export function renderJson(input: ReportInput): string {
 	return `${JSON.stringify(
 		{
 			backend: input.baseUrl,
+			/* The same verdict the process exit code states. */
+			outcome: (({ outcome, reason }) => ({ exitCode: EXIT[outcome], reason, result: outcome }))(runVerdict(input)),
 			checksRun: input.checksRun,
 			checksSkipped: input.checksSkipped ?? [],
 			checksSuppressed: input.checksSuppressed ?? [],

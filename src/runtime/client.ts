@@ -28,7 +28,15 @@ import {
 } from "./network.ts"
 import { sleep } from "./poll.ts"
 import { REDACTED, isSecretHeaderName, isSecretJsonKey, redactJson, redactText, redactUrl } from "./redact.ts"
-import { BodySpool, isBodyRef, isFormSnapshot, readResponsePayload, releaseTranscriptBodies } from "./transcript.ts"
+import { INLINE_BODY_LIMIT } from "./exchanges.ts"
+import {
+	BodySpool,
+	isBodyRef,
+	isFormSnapshot,
+	readResponsePayload,
+	releaseTranscriptBodies,
+	sha256Hex,
+} from "./transcript.ts"
 
 export interface Exchange {
 	seq: number
@@ -57,6 +65,8 @@ export interface Exchange {
 	rateLimitSource?: "tag" | "config" | "implicit"
 	/** Whether the bucket had a token without waiting — oat believes it was under its own pace. */
 	rateLimitHadRoom?: boolean
+	/** Size and hash of a large request body as sent; what a stored reference names. */
+	requestDigest?: { bytes: number; sha256: string }
 	/** Size and hash of a large response body as received; what a stored reference names. */
 	responseDigest?: { bytes: number; sha256: string }
 	/** Named operation, when the caller passed one. */
@@ -258,7 +268,8 @@ export class Client {
 	relativePath(url: URL | string): string {
 		const pathname = typeof url === "string" ? new URL(url).pathname : url.pathname
 		const base = new URL(this.baseUrl).pathname.replace(/\/$/, "")
-		return base !== "" && pathname.startsWith(base) ? pathname.slice(base.length) || "/" : pathname
+		const below = base === "" ? undefined : belowBase(pathname, base)
+		return below === undefined ? pathname : below || "/"
 	}
 
 	/** Exchanges that resolved to an operation of `entity`, in order. */
@@ -374,6 +385,11 @@ export class Client {
 			if (bound !== undefined) userHeaders = { ...userHeaders, ...bound.headers() }
 			const headers: Record<string, string> = { ...this.globalHeaders, ...hookHeaders, ...userHeaders }
 			const encoded = encodeBody(options.body, options.contentType)
+			/* A body that will be stored by reference is hashed once, from the text that was sent. */
+			const requestDigest =
+				encoded.text !== undefined && encoded.bytes > INLINE_BODY_LIMIT
+					? { bytes: encoded.bytes, sha256: sha256Hex(Buffer.from(encoded.text)) }
+					: undefined
 			if (encoded.contentType !== undefined) headers["content-type"] = encoded.contentType
 
 			const jar = new CookieJar()
@@ -527,6 +543,7 @@ export class Client {
 				responseBytes: responseMessageBytes(response.status, response.statusText, responseHeaders, bodyBytes),
 				responseHeaders,
 				...(digest === undefined ? {} : { responseDigest: digest }),
+				...(requestDigest === undefined ? {} : { requestDigest }),
 				seq: this.seq,
 				status: response.status,
 				url: url.toString(),
@@ -687,6 +704,17 @@ export interface CurlOptions {
  * silently runs against a literal `$BASE` with a literal `$TOKEN`. Everything else is
  * single-quoted so JSON bodies and query strings survive untouched.
  */
+/**
+ * What follows `base` in `target`, when `target` lies under it: `/api` holds `/api/x` and `/api?q`,
+ * not `/apiv2/x`. `undefined` otherwise.
+ */
+export function belowBase(target: string, base: string): string | undefined {
+	const prefix = base.replace(/\/$/, "")
+	if (!target.startsWith(prefix)) return undefined
+	const rest = target.slice(prefix.length)
+	return rest === "" || /^[/?#]/.test(rest) ? rest : undefined
+}
+
 /** One shell word, whatever it holds: single-quoted, with each `'` closed, escaped and reopened. */
 function shellQuote(text: string): string {
 	return `'${text.replace(/'/g, `'\\''`)}'`
@@ -695,10 +723,8 @@ function shellQuote(text: string): string {
 export function toCurl(exchange: Exchange, options: CurlOptions = {}): string {
 	const redact = options.redact
 	const target = redactUrl(exchange.url)
-	const url =
-		options.origin !== undefined && target.startsWith(options.origin)
-			? `"$BASE${shellEscapeDouble(target.slice(options.origin.length))}"`
-			: shellQuote(target)
+	const below = options.origin === undefined ? undefined : belowBase(target, options.origin)
+	const url = below === undefined ? shellQuote(target) : `"$BASE${shellEscapeDouble(below)}"`
 
 	const parts = [`curl -i -X ${exchange.method} ${url}`]
 	for (const [key, value] of Object.entries(exchange.requestHeaders)) {

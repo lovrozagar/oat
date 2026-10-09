@@ -340,6 +340,7 @@ describe("Client transcript lifecycle", () => {
 		expect(isFormSnapshot(stored?.requestBody)).toBe(true)
 		expect(exchange.requestBody).toBe(form)
 		expect(exchange.responseBody).toEqual({ id: "1" })
+		await journal.flush()
 		expect(exchange.fixture).toBe("blob.bin")
 		const file = JSON.parse(
 			await readFile(join(dir, "exchanges", `${exchange.requestId || `seq-${exchange.seq}`}.json`), "utf8"),
@@ -647,6 +648,38 @@ describe("run() times out a hung stream as a network outcome", () => {
 })
 
 describe("a large body stored by reference", () => {
+	it("names a large text request by the digest taken when it was sent", async () => {
+		const digest = { bytes: INLINE_BODY_LIMIT + 1, sha256: "ab".repeat(32) }
+		expect(await compactRequestBody("x".repeat(INLINE_BODY_LIMIT + 1), undefined, digest)).toEqual({
+			...digest,
+			mediaType: "text/plain",
+		})
+	})
+
+	it("names the request bytes that were sent", async () => {
+		let received = Buffer.alloc(0)
+		const server = await listen((req, res) => {
+			const chunks: Buffer[] = []
+			req.on("data", (chunk: Buffer) => chunks.push(chunk))
+			req.on("end", () => {
+				received = Buffer.concat(chunks)
+				res.writeHead(201, { "content-type": "application/json" }).end('{"id":"1"}')
+			})
+		})
+		closers.push(server.close)
+		const client = new Client(server.url)
+		const body = { rows: Array.from({ length: 4000 }, (_, i) => ({ id: i, name: "n".repeat(60) })) }
+		const exchange = await client.request("POST", "/rows", { body })
+		const stored = { ...exchange }
+		await releaseTranscriptBodies(stored)
+		expect(received.byteLength).toBeGreaterThan(INLINE_BODY_LIMIT)
+		expect(stored.requestBody).toEqual({
+			bytes: received.byteLength,
+			mediaType: "application/json",
+			sha256: sha256Hex(received),
+		})
+	})
+
 	it("names the bytes the server sent, not a re-encoding of them", async () => {
 		/* Spacing JSON.stringify would not reproduce: hashing the parsed value would miss it. */
 		const sent = `{ "rows" : [ ${Array.from({ length: 4000 }, (_, i) => `{ "id" : ${i}, "name" : "${"n".repeat(60)}" }`).join(" , ")} ] }`

@@ -87,6 +87,8 @@ describe("scope in reports", () => {
 		const table = graph.entities.find((entity) => entity.name === "table")
 		expect(table?.nodes.find((node) => node.id === "patch.minimality")?.status).toBe("out-of-scope")
 		expect(table?.nodes.find((node) => node.id === "tenant.item-not-readable-cross-tenant")?.status).toBe("held")
+		/* The poster and the JSON graph draw one graph, built once per report. */
+		expect(buildMatrixGraphFromReport(input)).toBe(graph)
 	})
 
 	it("a full run lists every operation with its status", async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { EXIT, exitCode } from "../src/runtime/exit.ts"
+import { EXIT, exitCode, runVerdict } from "../src/runtime/exit.ts"
 
 const ops = (...statuses: string[]) => statuses.map((status) => ({ status }))
 const full = (findings: string[], ...statuses: string[]) => ({
@@ -37,5 +37,17 @@ describe("exitCode", () => {
 	it("under --ops, reports defects when a target failed", () => {
 		const targeted = { findings: [], scope: { mode: "targeted", operations: ops("held", "failed") } }
 		expect(exitCode(targeted)).toBe(EXIT.defects)
+	})
+
+	it("is the verdict every report states, with its reason", () => {
+		expect(runVerdict(full([], "skipped"))).toEqual({
+			outcome: "failed",
+			reason: "no operation was graded, so nothing was proved",
+		})
+		expect(runVerdict(full(["BACKEND_BUG", "SECURITY"], "failed"))).toEqual({
+			outcome: "defects",
+			reason: "2 root-cause findings",
+		})
+		expect(runVerdict(full([], "held")).outcome).toBe("clean")
 	})
 })

@@ -3,33 +3,29 @@
  *
  * Every case already owns its server, so cases share nothing but the CPU — and the suite is
  * CPU-bound: oat and the reference backend run in one process, so concurrency inside it buys
- * nothing. Threads do. A task is one leg — a backend and dialect pass, the shape suite, or the
- * recall cases behind one shape — and comes back as plain data the parent prints in order.
+ * nothing. Threads do. A task is a slice of a leg — a pass's baselines or a chunk of its defects,
+ * the shape suite, or the recall cases behind one shape — and comes back as plain data the parent
+ * assembles and prints in order.
  */
 
 import { availableParallelism } from "node:os"
 import { Worker } from "node:worker_threads"
 import type { ShapeCase } from "./shapes.ts"
-import type { Backend, ParserResult } from "./suite.ts"
+import type { DefectName } from "../reference/defects.ts"
+import type { Backend, CaseResult, ParserResult } from "./suite.ts"
 
 export type ConformanceTask =
-	| { kind: "pass"; backend: Backend; dialect: string; only?: string[] }
+	/* One leg in pieces: its baselines, and its defects a chunk at a time, so the longest leg no
+	 * longer sets the wall time. */
+	| { kind: "baselines"; backend: Backend; dialect: string }
+	| { kind: "defects"; backend: Backend; dialect: string; defects: DefectName[] }
 	| { kind: "shapes" }
 	| { kind: "recall"; shapes: ShapeCase[] }
 	| { kind: "scope"; defects: string[]; known: Record<string, string[]> }
 
 export type ConformanceAnswer =
-	| {
-			kind: "pass"
-			text: string
-			failures: number
-			proven: string[]
-			/** Checks the two clean baselines ran, tagged and untagged. */
-			baselines: { tagged: string[]; untagged: string[] }
-			/** Per detected defect, the operations its expected finding judged. */
-			primaryOps: Record<string, string[]>
-	  }
 	| { kind: "cases"; cases: ShapeCase[] }
+	| { kind: "leg"; results: CaseResult[] }
 	| { kind: "results"; results: ParserResult[] }
 
 export interface ConformancePool {

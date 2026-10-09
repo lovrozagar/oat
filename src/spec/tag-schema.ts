@@ -27,6 +27,11 @@ const oneOf =
 		allowed.includes(value as string) ? null : `must be one of ${allowed.map((a) => `"${a}"`).join(", ")}`
 const positive: Check = (value) => (typeof value === "number" && value > 0 ? null : "must be a positive number")
 
+const integer: Check = (value) =>
+	typeof value === "number" && Number.isInteger(value) && value > 0 ? null : "must be a positive integer"
+const stringMap: Check = (value) =>
+	isObject(value) && Object.values(value).every((item) => typeof item === "string") ? null : "must map names to strings"
+
 /** An object with these fields; `required` must be present, the rest are checked when present. */
 const shape =
 	(fields: Record<string, Check>, required: readonly string[] = []): Check =>
@@ -41,6 +46,59 @@ const shape =
 		}
 		return null
 	}
+
+/** One query axis: field names, structured rows, or `null` for an explicit "none". */
+const axis = (row: Record<string, Check>): Check => {
+	const fieldRow = shape(row, ["field"])
+	return (value) => {
+		if (value === null) return null
+		if (!Array.isArray(value)) return "must be an array of field names or { field } rows"
+		for (const item of value) {
+			if (typeof item === "string") continue
+			const problem = fieldRow(item)
+			if (problem !== null) return `has a row that ${problem}`
+		}
+		return null
+	}
+}
+const harvest = shape({ operationId: string, path: string, typeMap: stringMap, typePath: string }, [
+	"operationId",
+	"path",
+])
+
+/** `x-query`, as `docs/tags.md` documents it. */
+const xQuery = shape({
+	aliases: stringMap,
+	defaultOrder: string,
+	emptyIn: oneOf("reject", "match-none"),
+	filterable: axis({ field: string, ops: strings, type: string }),
+	filterableFrom: harvest,
+	grammar: oneOf("postgrest", "colon", "equality"),
+	identityFilter: string,
+	maxFilterConditions: integer,
+	maxInValues: integer,
+	maxLimit: integer,
+	maxSortKeys: integer,
+	operators: strings,
+	operatorsByType: (value) =>
+		isObject(value) && Object.values(value).every((ops) => strings(ops) === null)
+			? null
+			: "must map type names to arrays of operators",
+	searchable: axis({ field: string }),
+	searchableFrom: harvest,
+	searchEmpty: oneOf("ignore", "match-all", "reject"),
+	searchModes: strings,
+	selectable: axis({ field: string }),
+	selectableFrom: harvest,
+	selectNested: boolean,
+	selectUnknown: oneOf("reject", "ignore"),
+	sortable: axis({ field: string, nulls: strings, type: string }),
+	sortableFrom: harvest,
+	sortCollation: oneOf("binary", "case-insensitive", "locale"),
+	sortDefaultNulls: oneOf("first", "last"),
+	sortNulls: strings,
+	stableTiebreak: string,
+})
 
 const OPERATION_TAGS: Record<string, Check> = {
 	"x-async": shape(
@@ -81,7 +139,7 @@ const OPERATION_TAGS: Record<string, Check> = {
 		},
 		["invite", "accept", "revoke"],
 	),
-	"x-query": (value) => (isObject(value) ? null : "must be an object"),
+	"x-query": xQuery,
 	"x-rate-limit": shape({ category: string, rps: positive }, ["category"]),
 	"x-soft-delete": string,
 	"x-tenant": string,

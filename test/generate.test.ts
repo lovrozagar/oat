@@ -193,3 +193,93 @@ describe("intents", () => {
 		expect(one.ok && two.ok && JSON.stringify(one.value) !== JSON.stringify(two.value)).toBe(true)
 	})
 })
+
+/* A property test: random schemas, each satisfiable by construction, and every value generated
+ * from one must validate against it. Seeded, so a failure names a schema that replays. */
+function randomSchemas(seed: number, count: number): Array<Record<string, unknown>> {
+	let state = seed >>> 0
+	const next = (): number => {
+		state = (Math.imul(state, 1664525) + 1013904223) >>> 0
+		return state / 2 ** 32
+	}
+	let names = 0
+	const pick = <T>(items: readonly T[]): T => items[Math.floor(next() * items.length)] as T
+	const int = (lo: number, hi: number): number => lo + Math.floor(next() * (hi - lo + 1))
+
+	const scalar = (): Record<string, unknown> => {
+		switch (pick(["string", "format", "integer", "number", "boolean", "enum", "const"] as const)) {
+			case "string": {
+				const min = int(0, 5)
+				return { maxLength: min + int(0, 20), minLength: min, type: "string" }
+			}
+			case "format":
+				return {
+					format: pick(["date", "date-time", "time", "uuid", "email", "uri", "hostname", "ipv4"]),
+					type: "string",
+				}
+			case "integer": {
+				const lo = int(-50, 50)
+				const step = pick([undefined, 2, 3, 5])
+				const schema: Record<string, unknown> = { maximum: lo + int(10, 100), minimum: lo, type: "integer" }
+				if (step !== undefined) schema.multipleOf = step
+				return schema
+			}
+			case "number": {
+				const lo = int(-10, 10)
+				return next() < 0.5
+					? { maximum: lo + int(1, 20), minimum: lo, type: "number" }
+					: { exclusiveMaximum: lo + int(2, 20), exclusiveMinimum: lo, type: "number" }
+			}
+			case "boolean":
+				return { type: "boolean" }
+			case "enum":
+				return { enum: ["a", "b", "c"].slice(0, int(1, 3)), type: "string" }
+			default:
+				return { const: pick(["fixed", 7, true]) }
+		}
+	}
+	const node = (depth: number): Record<string, unknown> => {
+		const roll = next()
+		if (depth >= 2 || roll < 0.5) {
+			const base = scalar()
+			return next() < 0.2 ? { anyOf: [base, { type: "null" }] } : base
+		}
+		if (roll < 0.7) {
+			const lo = int(0, 2)
+			return { items: node(depth + 1), maxItems: lo + int(0, 3), minItems: lo, type: "array" }
+		}
+		if (roll < 0.85) return object(depth + 1)
+		return { allOf: [object(depth + 1), object(depth + 1)] }
+	}
+	const object = (depth: number): Record<string, unknown> => {
+		const properties: Record<string, unknown> = {}
+		const required: string[] = []
+		for (let i = 0; i < int(1, 4); i++) {
+			/* Unique, so allOf branches never declare one property two incompatible ways. */
+			const name = `p${depth}_${i}_${(names += 1)}`
+			properties[name] = node(depth)
+			if (next() < 0.6) required.push(name)
+		}
+		return { properties, required, type: "object" }
+	}
+	return Array.from({ length: count }, () => object(0))
+}
+
+describe("every generated value validates against a random schema it came from", () => {
+	it("holds for 300 seeded schemas under every variant", () => {
+		for (const [n, schema] of randomSchemas(20261009, 300).entries()) {
+			const { doc } = dereference(documentFor(schema, "3.1.0"))
+			const defs = documentDefs(doc)
+			const normalized = normalizeSchema(requestSchema(doc), { direction: "request" })
+			for (const variant of VARIANTS) {
+				for (let index = 0; index < 3; index++) {
+					const result = generate(normalized, { defs, index, nonce: "n0nce", variant })
+					const where = `schema #${n} ${variant} #${index}: ${JSON.stringify(schema)}`
+					expect(result, where).toMatchObject({ ok: true })
+					if (!result.ok) continue
+					expect(instanceErrors(normalized, result.value, defs), where).toEqual([])
+				}
+			}
+		}
+	})
+})

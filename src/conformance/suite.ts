@@ -1001,14 +1001,14 @@ export type Backend = "memory" | "sqlite" | "postgres" | "d1"
  *
  * Every statement against D1 is a network round trip, so a full pass costs minutes. The defects
  * worth paying that for are the ones whose behaviour comes from the *engine build* — collation,
- * type affinity, NULL ordering, LIKE escaping, identifier resolution — plus the lost-update one,
- * which only becomes realistic when a write genuinely takes time. Everything else is decided in
- * the request handler, where D1 would re-derive a result `node:sqlite` already gave for free.
+ * type affinity, NULL ordering, LIKE escaping, identifier resolution. Everything else is decided
+ * in the request handler, where D1 would re-derive a result `node:sqlite` already gave for free.
+ * The lost update is not among them: the handler holds the write open on purpose, so it is real on
+ * any engine and runs on the in-memory one only (`ONE_ENGINE`).
  */
 export const ENGINE_SENSITIVE: ReadonlySet<DefectName> = new Set<DefectName>([
 	"COLLATION_INCONSISTENT",
 	"COLUMN_NAME_MISMATCH",
-	"CONCURRENT_WRITE_LOST",
 	"LIKE_UNESCAPED",
 	"NEQ_DROPS_NULLS",
 	"NUMERIC_COMPARED_AS_TEXT",
@@ -1291,6 +1291,51 @@ export async function runSuite(
 	backend: Backend = "memory",
 	dialect = "postgrest",
 ): Promise<CaseResult[]> {
+	const results = await runBaselines(backend, dialect)
+	for (const defect of defectsFor(backend, dialect, filter)) {
+		results.push(await judgeDefect(defect, backend, dialect))
+	}
+	return results
+}
+
+/** A leg's answer, from its results in order: the two baselines first, then its defects. */
+export function passAnswer(
+	results: CaseResult[],
+	backend: Backend,
+	dialect: string,
+): {
+	text: string
+	failures: number
+	proven: string[]
+	baselines: { tagged: string[]; untagged: string[] }
+	primaryOps: Record<string, string[]>
+} {
+	const rendered = renderSuite(results, dialect, backend)
+	const primaryOps: Record<string, string[]> = {}
+	for (const result of results) {
+		const finding = result.findings.find((item) => item.check === result.expected)
+		if (result.defect !== null && finding?.operations !== undefined) primaryOps[result.defect] = finding.operations
+	}
+	return {
+		baselines: { tagged: results[0]?.checksRun ?? [], untagged: results[1]?.checksRun ?? [] },
+		failures: rendered.failures,
+		primaryOps,
+		proven: [...rendered.proven],
+		text: rendered.text,
+	}
+}
+
+/**
+ * A case's result as it can cross to another thread: findings keep everything the verdicts read,
+ * and drop the exchanges they cite, which hold live bodies.
+ */
+export function portableResult(result: CaseResult): CaseResult {
+	const strip = (finding: Finding): Finding => ({ ...finding, evidence: [] })
+	return { ...result, findings: result.findings.map(strip), spurious: result.spurious.map(strip) }
+}
+
+/** The two clean baselines of a leg: tagged, then with every meta tag stripped. */
+export async function runBaselines(backend: Backend = "memory", dialect = "postgrest"): Promise<CaseResult[]> {
 	const results: CaseResult[] = []
 
 	/* Baseline first — everything downstream is meaningless if this is not clean. */
@@ -1354,10 +1399,6 @@ export async function runSuite(
 			label: "baseline (untagged spec)",
 			spurious: [],
 		})
-	}
-
-	for (const defect of defectsFor(backend, dialect, filter)) {
-		results.push(await judgeDefect(defect, backend, dialect))
 	}
 
 	return results

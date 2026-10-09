@@ -34,6 +34,12 @@ describe("repro scripts", () => {
 		expect(script?.content).toContain('"$BASE/v1/rows"')
 	})
 
+	it("only abbreviate a URL that lies under the base path", () => {
+		const [script] = renderRepros([finding([exchange("http://h.test/apiv2/rows")])], "http://h.test/api")
+		expect(script?.content).toContain("'http://h.test/apiv2/rows'")
+		expect(script?.content).not.toContain("$BASE")
+	})
+
 	it("quote what they send, quotes included", () => {
 		const [script] = renderRepros(
 			[finding([exchange("http://other.test/it's", { "x-note": "it's" })])],

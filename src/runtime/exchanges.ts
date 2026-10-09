@@ -124,12 +124,18 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 	const writtenBlobs = new Set<string>()
 	let count = 0
 	let ready: Promise<void> | undefined
-	/* Index lines are appended in batches: one write per exchange was most of the journal's cost. */
+	/* Index lines and exchange files are written in batches: one awaited write per exchange was
+	 * most of the journal's cost. */
 	let pending: string[] = []
+	let pendingFiles: Array<{ path: string; content: string }> = []
 	const flush = async (): Promise<void> => {
+		/* An exchange's file and its index line are queued together. */
 		if (pending.length === 0) return
 		const lines = pending
+		const files = pendingFiles
 		pending = []
+		pendingFiles = []
+		await Promise.all(files.map((file) => writeFile(file.path, file.content)))
 		await appendFile(join(dir, "exchanges.jsonl"), lines.join(""))
 	}
 
@@ -165,9 +171,9 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 
 	const persistJson = async (value: unknown, mediaType: string): Promise<unknown> => {
 		const redacted = redactJson(value)
-		const text = JSON.stringify(redacted)
-		if (utf8Bytes(text).byteLength <= INLINE_BODY_LIMIT) return redacted
-		const blob = await putBlob(utf8Bytes(text))
+		const bytes = utf8Bytes(JSON.stringify(redacted))
+		if (bytes.byteLength <= INLINE_BODY_LIMIT) return redacted
+		const blob = await putBlob(bytes)
 		return { ...blob, mediaType }
 	}
 
@@ -283,7 +289,7 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 				status: exchange.status,
 				url: redactUrl(exchange.url),
 			}
-			await writeFile(join(dir, rel), `${JSON.stringify(file, null, 2)}\n`)
+			pendingFiles.push({ content: `${JSON.stringify(file, null, 2)}\n`, path: join(dir, rel) })
 			const line: Record<string, unknown> = {
 				at: exchange.at,
 				durationMs: exchange.durationMs,

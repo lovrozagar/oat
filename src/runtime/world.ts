@@ -177,23 +177,50 @@ export async function resolvePathScope(
 			scope.values[param] = cached
 			continue
 		}
-		const { record: created, adopted } = await createOne(createOp, model, client, options, scope)
-		const identity = entity.identity ?? "id"
-		const id = created[identity]
-		if (typeof id !== "string" && typeof id !== "number") {
-			throw new SeedError(param, `create for "${owner}" returned no usable "${identity}"`)
+		/* Entities in parallel lanes can reach the same missing ancestor at once; the second
+		 * waits for the first's create rather than making a twin. */
+		const pending = options.ancestors === undefined ? undefined : inflightAncestors(options.ancestors).get(cacheKey)
+		if (pending !== undefined) {
+			scope.values[param] = await pending
+			continue
 		}
-		/* Adopted, not created: somebody else's record, never oat's to remove. */
-		if (!adopted) options.onCreate?.(owner, String(id), { ...scope.values })
-		options.ancestors?.set(cacheKey, String(id))
-		scope.values[param] = String(id)
+		const creating = (async (): Promise<string> => {
+			const { record: created, adopted } = await createOne(createOp, model, client, options, scope)
+			const identity = entity.identity ?? "id"
+			const id = created[identity]
+			if (typeof id !== "string" && typeof id !== "number") {
+				throw new SeedError(param, `create for "${owner}" returned no usable "${identity}"`)
+			}
+			/* Adopted, not created: somebody else's record, never oat's to remove. */
+			if (!adopted) options.onCreate?.(owner, String(id), { ...scope.values })
+			options.ancestors?.set(cacheKey, String(id))
+			return String(id)
+		})()
+		if (options.ancestors !== undefined) inflightAncestors(options.ancestors).set(cacheKey, creating)
+		try {
+			scope.values[param] = await creating
+		} finally {
+			if (options.ancestors !== undefined) inflightAncestors(options.ancestors).delete(cacheKey)
+		}
 		scope.created.push({
 			entity: owner,
-			id: String(id),
+			id: scope.values[param] as string,
 			path: fillPath(createOp.path, scope.values),
 		})
 	}
 	return scope
+}
+
+/** Ancestor creates under way, per ancestor cache. */
+const INFLIGHT = new WeakMap<Map<string, string>, Map<string, Promise<string>>>()
+
+function inflightAncestors(cache: Map<string, string>): Map<string, Promise<string>> {
+	let pending = INFLIGHT.get(cache)
+	if (pending === undefined) {
+		pending = new Map()
+		INFLIGHT.set(cache, pending)
+	}
+	return pending
 }
 
 async function createOne(
