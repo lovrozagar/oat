@@ -1167,9 +1167,8 @@ const readAfterWrite: Check<{ id: string }> = {
 	async run(ctx, { id }): Promise<Outcome> {
 		const walkSize = pageSize(ctx)
 		/*
-		 * Walk by short page, never by `hasMore`. Trusting the flag is the same trap
-		 * {@link isComplete} documents: a backend whose more-pages signal is wrong makes a
-		 * record on page two look like a lost write.
+		 * Walk by short page, never by `hasMore` alone: a backend whose more-pages signal is
+		 * wrong would make a record on page two look like a lost write.
 		 *
 		 * Deliberately unsorted. STALE_LIST only freezes the default listing — adding `order`
 		 * takes a live path and the defect vanishes. An unstable default order can hide a
@@ -6569,7 +6568,7 @@ const stringPayloadSurvives: Check<{
 			const writtenId = viaPatch ? recordId : identityOf(written)
 			if (writtenId === undefined) {
 				return {
-					evidence: [],
+					evidence: [written],
 					kind: "failed",
 					line: `${payload.id} (${payload.why}): write succeeded but returned no identity`,
 				}
