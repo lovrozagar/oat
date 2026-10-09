@@ -798,12 +798,38 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 		"filter.negation-partitions-the-set",
 		"pagination.page-walk-covers-set",
 		"count.matches-filtered-set",
+		/* Every larger composition that sorts a filter sees the same drop. */
+		"query.filter-search-sort-compose",
+		"query.filter-sort-select-compose",
+		"query.filter-search-sort-select-compose",
 	],
-	FILTER_DROPPED_WHEN_SELECTED: "query.filter-and-select-compose",
-	FILTER_DROPPED_WHEN_SEARCHED: "query.search-and-filter-compose",
-	FILTER_DROPPED_WHEN_SORTED_AND_SELECTED: "query.filter-sort-select-compose",
-	FILTER_DROPPED_WHEN_SORTED_AND_SEARCHED: "query.filter-search-sort-compose",
-	FILTER_DROPPED_WHEN_SEARCHED_AND_SELECTED: "query.filter-search-select-compose",
+	/* As above: each composition holding the filter and the axis that drops it sees the drop. */
+	FILTER_DROPPED_WHEN_SELECTED: [
+		"query.filter-and-select-compose",
+		"query.filter-search-select-compose",
+		"query.filter-sort-select-compose",
+		"query.filter-search-sort-select-compose",
+	],
+	FILTER_DROPPED_WHEN_SEARCHED: [
+		"query.search-and-filter-compose",
+		"query.filter-search-sort-compose",
+		"query.filter-search-select-compose",
+		"query.filter-search-sort-select-compose",
+	],
+	/* The four-axis query holds each of these pairs, so it sees the dropped filter too — and
+	 * reports it whenever another defect leaves the triple unable to. */
+	FILTER_DROPPED_WHEN_SORTED_AND_SELECTED: [
+		"query.filter-sort-select-compose",
+		"query.filter-search-sort-select-compose",
+	],
+	FILTER_DROPPED_WHEN_SORTED_AND_SEARCHED: [
+		"query.filter-search-sort-compose",
+		"query.filter-search-sort-select-compose",
+	],
+	FILTER_DROPPED_WHEN_SEARCHED_AND_SELECTED: [
+		"query.filter-search-select-compose",
+		"query.filter-search-sort-select-compose",
+	],
 	LIST_DETAIL_DISAGREE: [
 		"consistency.projections-agree",
 		/* A listing serving a different value for a searchable field also breaks every predicate
@@ -954,9 +980,21 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	FILTER_NIN_FIRST_ONLY: "filter.nin-complements-in",
 	FILTER_DROPPED_WHEN_SORTED_SEARCHED_AND_SELECTED: "query.filter-search-sort-select-compose",
 	/* The search is dropped wherever a select joins it, the filter+search+select triple included. */
-	SEARCH_DROPPED_WHEN_SELECTED: ["query.search-and-select-compose", "query.filter-search-select-compose"],
-	SEARCH_DROPPED_WHEN_SORTED: ["query.search-and-sort-compose", "query.filter-search-sort-compose"],
-	ORDER_DROPPED_WHEN_SELECTED: "query.sort-and-select-compose",
+	SEARCH_DROPPED_WHEN_SELECTED: [
+		"query.search-and-select-compose",
+		"query.filter-search-select-compose",
+		"query.filter-search-sort-select-compose",
+	],
+	SEARCH_DROPPED_WHEN_SORTED: [
+		"query.search-and-sort-compose",
+		"query.filter-search-sort-compose",
+		"query.filter-search-sort-select-compose",
+	],
+	ORDER_DROPPED_WHEN_SELECTED: [
+		"query.sort-and-select-compose",
+		"query.filter-sort-select-compose",
+		"query.filter-search-sort-select-compose",
+	],
 	SEARCH_CASE_SENSITIVE: "search.case-insensitive",
 	SEARCH_EMPTY_MATCHES_NONE: "search.empty-q",
 	SEARCH_ONLY_FIRST_TOKEN: "search.tokens-and",

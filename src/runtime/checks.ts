@@ -31,6 +31,7 @@ import {
 	describeSuccess,
 	documentedPage,
 	documentsStatus,
+	largestPageQuery,
 	readStatuses,
 } from "../spec/graph.ts"
 import type { OperationObject } from "../spec/types.ts"
@@ -1192,6 +1193,17 @@ const readAfterWrite: Check<{ id: string }> = {
 		 * records the list *never* shows. */
 		for (let attempt = 0; attempt < 2 && located.status === "missing"; attempt++) {
 			located = await locate()
+		}
+		/* Missing from every walk, but a walk crosses page boundaries, and a backend that pages
+		 * wrongly loses records exactly there. A walk at the largest documented page size puts the
+		 * boundaries elsewhere: a record it finds was lost to paging, which the pagination checks
+		 * own, not to the write. */
+		if (located.status === "missing") {
+			const largest = Object.values(largestPageQuery(ctx.model, ctx.listOp))[0]
+			/* When the walk already uses the largest size, one smaller moves the boundaries too. */
+			const other = largest !== undefined && largest !== walkSize ? largest : walkSize > 1 ? walkSize - 1 : undefined
+			const moved = other === undefined ? null : await collectSet(ctx, other)
+			if (moved?.items.some((item) => String(item[ctx.identity]) === id) === true) return ASSERTED
 		}
 		if (located.status === "found") return ASSERTED
 		if (located.status === "unresolved") {
@@ -2942,9 +2954,10 @@ const filterAndPagingCompose: Check<Subset & { value: unknown }> = {
 	subjects: subjectsOf.list,
 	async run(ctx, { field, term, value }): Promise<Outcome> {
 		const conventions = conv(ctx)
-		/* A small page deliberately: the bug only shows once the window excludes matching rows,
-		 * so a page large enough to hold the collection would hide it entirely. */
-		const pageSize = Math.max(1, Math.min(2, ctx.query?.maxLimit ?? 2))
+		/* One row per page, deliberately: the bug only shows once a window excludes matching rows,
+		 * and a one-row window that does not match comes back empty and ends the walk, so every
+		 * later match is lost. Any larger page leaves detection to how matches happen to fall. */
+		const pageSize = 1
 
 		const tiebreak = (ctx.query?.sortable ?? []).includes(ctx.identity) ? ctx.identity : undefined
 		const walkOrder = tiebreak === undefined ? undefined : sortTerm(conventions, tiebreak, "asc")
@@ -4825,6 +4838,21 @@ const orderChangesResult: Check<{ field: string }> = {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the sort field is absent from the listed records")
 		const order = sortedUnder(ctx, field, values)
 		if (order !== null) {
+			/* An ignored order can come back ascending by accident — a server's own tiebreak on
+			 * this very field does it — but not ascending and descending at once. */
+			const descending = await list(ctx, q(ctx, { limit, order: sortTerm(conv(ctx), field, "desc") }))
+			const reversed = descending.items.map((item) => item[field])
+			const distinct = new Set(values.map((value) => JSON.stringify(value))).size
+			if (descending.exchange.status < 400 && distinct > 1 && JSON.stringify(reversed) === JSON.stringify(values)) {
+				return ctx.findings.backend(
+					this.id,
+					ctx.entityName,
+					"order is accepted but has no effect",
+					`order=${field}.asc and order=${field}.desc returned the same sequence of "${field}" ` +
+						"values. The listing comes back in one fixed order whatever is asked for.",
+					[ascending.exchange, descending.exchange],
+				)
+			}
 			observeTextOrder(ctx, field, order, values)
 			return ASSERTED
 		}
@@ -7449,29 +7477,53 @@ function firstIllegalOp(ctx: CheckContext, field: EffectiveFilterField): (typeof
 	return FILTER_OPS.find((op) => !permitted(op) && canWriteFilterOp(conv(ctx), op))
 }
 
-const filterIllegalOpRejected: Check<{
+type IllegalOpProbe = {
 	field: EffectiveFilterField
 	op: (typeof FILTER_OPS)[number]
 	term: Record<string, string>
-}> = {
+	/** The same field under an operator it allows: the control that the field itself is accepted. */
+	control: Record<string, string>
+}
+
+const filterIllegalOpRejected: Check<{ probes: IllegalOpProbe[] }> = {
 	plan: (ctx) => {
-		const field = resolvedCaps(ctx).filterable.find((item) => firstIllegalOp(ctx, item) !== undefined)
-		const op = field === undefined ? undefined : firstIllegalOp(ctx, field)
-		if (field === undefined || op === undefined) return cannot()
-		const sample = ctx.records.find((row) => row[field.field] != null)
-		const term = filterTerm(
-			conv(ctx),
-			field.field,
-			op,
-			sample === undefined ? "oat-probe" : asTermValue(sample[field.field]),
-		)
-		return term === null ? cannot(`a filter grammar that can spell \`${op}\``) : ready({ field, op, term })
+		const probes: IllegalOpProbe[] = []
+		for (const field of resolvedCaps(ctx).filterable) {
+			const op = firstIllegalOp(ctx, field)
+			if (op === undefined) continue
+			const sample = ctx.records.find((row) => row[field.field] != null)
+			const value = sample === undefined ? "oat-probe" : asTermValue(sample[field.field])
+			const legal = opsForField(field, resolvedCaps(ctx)).find((allowed) => canWriteFilterOp(conv(ctx), allowed))
+			const term = filterTerm(conv(ctx), field.field, op, value)
+			const control =
+				legal === undefined ? null : filterTerm(conv(ctx), field.field, legal as (typeof FILTER_OPS)[number], value)
+			if (term !== null && control !== null) probes.push({ control, field, op, term })
+		}
+		return probes.length === 0 ? cannot() : ready({ probes })
 	},
 	dependsOn: ["list.read-after-write", "filter.unknown-field-rejected", "error.malformed-filter-not-5xx"],
 	id: "filter.illegal-op-rejected",
 	needs: "a field with a closed operator list",
 	subjects: subjectsOf.list,
-	async run(ctx, { field, op, term }): Promise<Outcome> {
+	async run(ctx, { probes }): Promise<Outcome> {
+		/* A refusal proves the operator is policed only when the field itself is accepted: a field
+		 * the backend will not filter on at all refuses every operator, illegal or not. */
+		let picked: IllegalOpProbe | undefined
+		for (const probe of probes) {
+			const control = await list(ctx, { ...q(ctx, { limit: pageSize(ctx) }), ...probe.control })
+			if (control.exchange.status < 400) {
+				picked = probe
+				break
+			}
+		}
+		if (picked === undefined) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"no field with a closed operator list accepted even an operator it allows",
+			)
+		}
+		const { field, op, term } = picked
 		const baseline = await list(ctx, q(ctx, { limit: pageSize(ctx) }))
 		const result = await list(ctx, { ...q(ctx, { limit: pageSize(ctx) }), ...term })
 		if (result.exchange.status >= 500) {
@@ -7911,11 +7963,13 @@ const sortMultiKeyTiebreak: Check<{ primary: string; secondary: string; tied: Re
 	subjects: subjectsOf.list,
 	async run(ctx, { primary, secondary, tied }): Promise<Outcome> {
 		const conventions = conv(ctx)
-		const order = `${sortTerm(conventions, primary, "asc")},${sortTerm(conventions, secondary, "asc")}`
+		/* The second key descending: whatever tiebreak a server applies on its own runs ascending,
+		 * and asking for the same field ascending would let that accident pass for a second key. */
+		const order = `${sortTerm(conventions, primary, "asc")},${sortTerm(conventions, secondary, "desc")}`
 		const result = await collectSet(ctx, pageSize(ctx), {}, order)
 		if (result === null) return ctx.findings.unresolved(this.id, ctx.entityName, "multi-key order was rejected")
 		const slice = result.items.filter((item) => JSON.stringify(item[primary]) === JSON.stringify(tied[0]?.[primary]))
-		const seconds = slice.map((item) => item[secondary])
+		const seconds = slice.map((item) => item[secondary]).reverse()
 		if (sortedUnder(ctx, secondary, seconds) !== null) return ASSERTED
 		return ctx.findings.backend(
 			this.id,
@@ -8077,8 +8131,10 @@ const searchTokensAnd: Check<{ a: string; b: string }> = {
 		for (const row of ctx.records) {
 			const value = row[field]
 			if (typeof value !== "string") continue
+			/* As written: lowercasing it would match nothing on a case-sensitive search, and two
+			 * empty sides agree vacuously. */
 			const word = value.split(/\s+/).find((part) => part.length >= 3)
-			if (word !== undefined) tokens.push(word.toLowerCase())
+			if (word !== undefined) tokens.push(word)
 		}
 		const [a, b] = [...new Set(tokens)]
 		return a === undefined || b === undefined
@@ -8102,6 +8158,13 @@ const searchTokensAnd: Check<{ a: string; b: string }> = {
 		}
 		const setA = setOf(onlyA.items, ctx.identity)
 		const setB = setOf(onlyB.items, ctx.identity)
+		if (setA.size === 0 || setB.size === 0) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				`a token taken from the cohort matched nothing (q="${setA.size === 0 ? a : b}"), so how two combine cannot be judged`,
+			)
+		}
 		const expected = new Set([...setA].filter((id) => setB.has(id)))
 		const got = setOf(both.items, ctx.identity)
 		if (sameSet(expected, got) || sameSet(got, new Set([...setA, ...setB]))) return ASSERTED
