@@ -2928,8 +2928,8 @@ const filterAndPagingCompose: Check<Subset & { value: unknown }> = {
 	/*
 	 * A foundation, not a composition: every check that reads a filtered set relies on the filter
 	 * applying to the whole collection, so they depend on this and not the other way round. A
-	 * filter that is ignored, or dropped once a sort is present, makes both walks return the same
-	 * set — this then passes quietly, and the check that owns that defect reports it.
+	 * filter dropped once a sort is present is walked around without the sort; one ignored outright
+	 * leaves this unresolved, and the check that owns that defect reports it.
 	 */
 	dependsOn: [
 		"list.read-after-write",
@@ -2948,8 +2948,16 @@ const filterAndPagingCompose: Check<Subset & { value: unknown }> = {
 
 		const tiebreak = (ctx.query?.sortable ?? []).includes(ctx.identity) ? ctx.identity : undefined
 		const walkOrder = tiebreak === undefined ? undefined : sortTerm(conventions, tiebreak, "asc")
-		const everything = await collectSet(ctx, pageSize, {}, walkOrder)
-		const serverSide = await collectSet(ctx, pageSize, term, walkOrder)
+		const matches = (row: Record_): boolean => JSON.stringify(row[field]) === JSON.stringify(value)
+		let everything = await collectSet(ctx, pageSize, {}, walkOrder)
+		let serverSide = await collectSet(ctx, pageSize, term, walkOrder)
+		/* Rows that do not match mean the filter was not applied to this walk. A backend that
+		 * drops the filter once a sort is present does exactly that to the sorted walk, and every
+		 * row it skipped would hide among the extras — so walk again without the sort. */
+		if (walkOrder !== undefined && serverSide !== null && !serverSide.items.every(matches)) {
+			everything = await collectSet(ctx, pageSize, {})
+			serverSide = await collectSet(ctx, pageSize, term)
+		}
 		if (everything === null || serverSide === null) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -2965,12 +2973,16 @@ const filterAndPagingCompose: Check<Subset & { value: unknown }> = {
 			)
 		}
 
+		if (!serverSide.items.every(matches)) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"the filter was not applied at all, so where it is applied cannot be judged",
+			)
+		}
+
 		/* The predicate applied by oat, over everything the API served. */
-		const clientSide = new Set(
-			everything.items
-				.filter((row) => JSON.stringify(row[field]) === JSON.stringify(value))
-				.map((row) => String(row[ctx.identity])),
-		)
+		const clientSide = new Set(everything.items.filter(matches).map((row) => String(row[ctx.identity])))
 		const returned = new Set(ids(serverSide.items, ctx.identity))
 		const skipped = [...clientSide].filter((id) => !returned.has(id))
 		if (skipped.length === 0) return ASSERTED
