@@ -653,8 +653,6 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			})?.id,
 	)
 	const alpha = resolved[0] as ResolvedPrincipal
-	/* Ancestors made in this run, shared by every entity nested under them. */
-	const ancestors = new Map<string, string>()
 	const ownerOf = (principal: ResolvedPrincipal): Owner => ({ headers: principal.headers, id: principal.id })
 	const alphaOwner = ownerOf(alpha)
 	/* A record a principal created and could not remove itself — a member cannot delete — may be
@@ -733,6 +731,10 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		/* Cohort variants the backend refused. A check that stands down for want of cohort data
 		 * says which variants never arrived, so the gap points at the seed rather than the API. */
 		let lostVariants: string[] = []
+		/* This entity's own scratch parents, shared by its records and its principals' scopes but by
+		 * no other entity: entities whose parent chains are disjoint run side by side, and one that
+		 * shares a parent record with another could see that entity's writes through it. */
+		const ancestors = new Map<string, string>()
 		const withLostVariants = (needs: string): string =>
 			lostVariants.length === 0 || !/cohort|record/.test(needs)
 				? needs

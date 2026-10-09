@@ -1,6 +1,5 @@
-/** One conformance leg per message; see `pool.ts`. */
+/** One conformance task per message, in a forked process; see `pool.ts`. */
 
-import { parentPort } from "node:worker_threads"
 import type { ConformanceAnswer, ConformanceTask } from "./pool.ts"
 import { runScopeSuite } from "./scope.ts"
 import { runShapeRecall, runShapeSuite } from "./shapes.ts"
@@ -21,11 +20,11 @@ async function answer(task: ConformanceTask): Promise<ConformanceAnswer> {
 	return { cases: await runShapeRecall("memory", task.shapes), kind: "cases" }
 }
 
-parentPort?.on("message", (task: ConformanceTask) => {
+process.on("message", (task: ConformanceTask) => {
 	answer(task).then(
-		(result) => parentPort?.postMessage({ answer: result, ok: true }),
+		(result) => process.send?.({ answer: result, ok: true }),
 		(error: unknown) =>
-			parentPort?.postMessage({
+			process.send?.({
 				error: error instanceof Error ? (error.stack ?? error.message) : String(error),
 				ok: false,
 			}),

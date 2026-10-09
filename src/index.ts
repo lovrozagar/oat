@@ -36,7 +36,7 @@ export type {
 export { interpolate, loadConfig } from "./config/load.ts"
 export { configProblems } from "./config/validate.ts"
 export type { PayloadPolicy } from "./config/define-config.ts"
-export { EXIT, exitCode } from "./runtime/exit.ts"
+export { EXIT, exitCode, type RunOutcome, runVerdict } from "./runtime/exit.ts"
 export { isRootCause } from "./runtime/finding.ts"
 export type { ReportInput } from "./report/render.ts"
 export { loadPersistedPrincipals, parsePersistedPrincipals } from "./runtime/principals.ts"

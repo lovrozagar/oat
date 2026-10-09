@@ -41,6 +41,11 @@ const result = await run({
 
 `loadConfig(path)` loads `.ts` / `.js` / `.mjs` / `.json` the same way the CLI does. The CLI then expands `${NAME}` in every string. `defineConfig` is an identity function for typing; it does not interpolate. If you call `run()` with an in-process object, resolve secrets yourself (template literals, `process.env`) before passing it.
 
+`runVerdict(result)` is the verdict the CLI and every report state: `{ outcome, reason }`, where
+`outcome` is `clean`, `defects` or `failed` (a run that graded nothing, a network that went away, or
+a `--ops` target never judged). `exitCode(result)` is that outcome as the CLI's exit code, from
+`EXIT`: 0, 1 or 3.
+
 `run(options)` does not write files. The CLI writes reports after `run` returns. To produce the same artifacts, call `renderMarkdown` / `renderJson` / `renderMatrixHtml` / `renderMatrixGraph` / `renderRepros` with a `ReportInput` (`findings`, `model`, `client`, `baseUrl`, `entitiesTested`, `checksRun`, `startedAt`, `durationMs`, plus optional skip/suppress/inconclusive lists).
 
 Offline:
