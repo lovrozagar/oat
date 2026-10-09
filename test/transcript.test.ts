@@ -645,3 +645,25 @@ describe("run() times out a hung stream as a network outcome", () => {
 		}
 	})
 })
+
+describe("a large body stored by reference", () => {
+	it("names the bytes the server sent, not a re-encoding of them", async () => {
+		/* Spacing JSON.stringify would not reproduce: hashing the parsed value would miss it. */
+		const sent = `{ "rows" : [ ${Array.from({ length: 4000 }, (_, i) => `{ "id" : ${i}, "name" : "${"n".repeat(60)}" }`).join(" , ")} ] }`
+		const server = await listen((_req, res) => {
+			res.writeHead(200, { "content-type": "application/json" })
+			res.end(sent)
+		})
+		closers.push(server.close)
+		const client = new Client(server.url)
+		const exchange = await client.request("GET", "/rows")
+		const stored = { ...exchange }
+		await releaseTranscriptBodies(stored)
+		const raw = Buffer.from(sent)
+		expect(stored.responseBody).toEqual({
+			bytes: raw.byteLength,
+			mediaType: "application/json",
+			sha256: sha256Hex(raw),
+		})
+	})
+})

@@ -35,7 +35,7 @@ import {
 } from "../spec/graph.ts"
 import type { OperationObject } from "../spec/types.ts"
 import { encodeForOperation } from "./body.ts"
-import { absentIdentifier, distinctValue, filterSentinel, outsideEnum } from "./generate.ts"
+import { absentIdentifier, distinctValue, filterSentinel, outsideEnum, overMaxLength } from "./generate.ts"
 import { normalizeSchema } from "../spec/schema.ts"
 import type { Client, Exchange, ReadClient, RequestOptions } from "./client.ts"
 import { REQUIRED_IDS, STRING_PAYLOADS, type StringPayload, payloadFits } from "./payloads.ts"
@@ -194,9 +194,11 @@ function identifierSchema(ctx: CheckContext): Record<string, unknown> {
  * with a 400 before existence is ever considered, and comparing that with a real 404 reads as a
  * leak that is not there.
  */
-function absentId(ctx: CheckContext): string {
-	return constructedAbsentId(ctx) ?? `oat-absent-${ctx.nonce ?? "0"}`
+function absentId(ctx: CheckContext): string | null {
+	return constructedAbsentId(ctx)
 }
+
+const NO_ABSENT_ID = "an identifier of the documented shape that names no record"
 
 /** A well-formed identifier that names nothing, or `null` when the identifier schema allows none. */
 function constructedAbsentId(ctx: CheckContext): string | null {
@@ -664,17 +666,6 @@ function ids(records: Record_[], identity: string): string[] {
  * much data the system under test happens to be holding.
  */
 const MAX_WALK_PAGES = 6
-/** Hard cap so a live collection of thousands cannot turn one check into a crawl. */
-const WALK_RECORD_CAP = 200
-
-/** Pages needed to cover `total` rows at `pageSize`, never fewer than the default bound. */
-function pagesToCover(total: number | undefined, pageSize: number): number {
-	const size = Math.max(1, pageSize)
-	if (total === undefined || !Number.isFinite(total) || total < 0) return MAX_WALK_PAGES
-	const needed = Math.ceil(total / size) + 1
-	const cap = Math.ceil(WALK_RECORD_CAP / size)
-	return Math.min(cap, Math.max(MAX_WALK_PAGES, needed))
-}
 
 interface Walk {
 	ids: string[]
@@ -907,7 +898,6 @@ async function collectSet(
 	ctx: CheckContext,
 	requested: number,
 	extra: Record<string, string> = {},
-	_maxPages?: number,
 	order?: string,
 ): Promise<SetRead | null> {
 	const read = await readSet(ctx, extra, { order, size: requested })
@@ -1177,11 +1167,20 @@ const readAfterWrite: Check<{ id: string }> = {
 		const locate = async (): Promise<{
 			status: "found" | "missing" | "unresolved"
 			last: ListResult | null
+			reason?: string
 		}> => {
 			const gathered = await collectSet(ctx, walkSize)
-			if (gathered === null) return { last: null, status: "unresolved" }
+			if (gathered === null) return { last: null, reason: "the list was rejected", status: "unresolved" }
 			if (gathered.items.some((item) => String(item[ctx.identity]) === id)) {
 				return { last: gathered.last, status: "found" }
+			}
+			/* Absent from a walk that stopped early is not absent from the list. */
+			if (!gathered.complete) {
+				return {
+					last: gathered.last,
+					reason: gathered.reason ?? "the list could not be read whole",
+					status: "unresolved",
+				}
 			}
 			return { last: gathered.last, status: "missing" }
 		}
@@ -1199,7 +1198,7 @@ const readAfterWrite: Check<{ id: string }> = {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
-				"the list was rejected, so whether the write is visible cannot be decided",
+				`${located.reason ?? "the list was rejected"}, so whether the write is visible cannot be decided`,
 			)
 		}
 
@@ -1327,7 +1326,9 @@ const equalityFilterSelectsOne: Check<{ id: string; field: string; term: Record<
 const zeroMatchFilter: Check<{ term: Record<string, string> }> = {
 	plan: (ctx) => {
 		if (!filterable(ctx) || !identityIsFilterable(ctx)) return cannot()
-		const term = filterTerm(conv(ctx), filterIdentity(ctx), "eq", absentId(ctx))
+		const missing = absentId(ctx)
+		if (missing === null) return cannot(NO_ABSENT_ID)
+		const term = filterTerm(conv(ctx), filterIdentity(ctx), "eq", missing)
 		return term === null ? cannot("a filter grammar that can express equality on the identity") : ready({ term })
 	},
 	dependsOn: ["query.filter-selects-from-whole-set", "list.read-after-write"],
@@ -1607,8 +1608,8 @@ const sortReverseSymmetry: Check<{ field: string }> = {
 		/* Gathered across pages: a collection larger than one page would otherwise leave this
 		 * property — that a reversal reorders a set without changing its membership — untested on
 		 * exactly the collections where sorting matters most. */
-		const ascending = await collectSet(ctx, limit, {}, MAX_WALK_PAGES, sortTerm(conv(ctx), field, "asc"))
-		const descending = await collectSet(ctx, limit, {}, MAX_WALK_PAGES, sortTerm(conv(ctx), field, "desc"))
+		const ascending = await collectSet(ctx, limit, {}, sortTerm(conv(ctx), field, "asc"))
+		const descending = await collectSet(ctx, limit, {}, sortTerm(conv(ctx), field, "desc"))
 		if (ascending === null || descending === null) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -2256,20 +2257,33 @@ async function createExchange(ctx: CheckContext): Promise<Exchange | undefined> 
 	return found === undefined ? undefined : ctx.client.hydrate(found)
 }
 
-const deleteMissingIs404: Check<{ deleteOp: OperationModel }> = {
-	plan: (ctx) => (ctx.deleteOp === undefined ? cannot() : ready({ deleteOp: ctx.deleteOp })),
+const deleteMissingIs404: Check<{ deleteOp: OperationModel; missing: string }> = {
+	plan: (ctx) => {
+		if (ctx.deleteOp === undefined) return cannot()
+		const missing = absentId(ctx)
+		return missing === null ? cannot(NO_ABSENT_ID) : ready({ deleteOp: ctx.deleteOp, missing })
+	},
 	mutates: true,
 	id: "delete.absent-record-returns-404",
 	needs: "a delete operation",
 	subjects: subjectsOf.delete,
-	async run(ctx, { deleteOp }): Promise<Outcome> {
-		const params = { ...ctx.scope, ...itemParamFor(ctx, absentId(ctx)) }
+	async run(ctx, { deleteOp, missing }): Promise<Outcome> {
+		const params = { ...ctx.scope, ...itemParamFor(ctx, missing) }
 		const exchange = await asProbe(ctx).client.request("DELETE", fillPath(deleteOp.path, params), {
 			headers: ctx.auth(),
 		})
 		if (standDownForFeatureGate(ctx, deleteOp, exchange, this.id))
 			return standDown("a documented feature gate refused the request")
 		if (exchange.status === 404 || exchange.status === 410 || exchange.status === 400) return ASSERTED
+		if (exchange.status >= 500) {
+			return ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"deleting a nonexistent record crashes",
+				`DELETE of an id that was never created returned ${exchange.status}; it should be 404.`,
+				[exchange],
+			)
+		}
 		if (exchange.status >= 300)
 			return ctx.findings.unresolved(
 				this.id,
@@ -2856,7 +2870,7 @@ const queryAxesCompose: Check<Subset & { sortField: string }> = {
 		 * the set is larger than one page, and the difference would be read as a dropped filter.
 		 */
 		const filtered = await collectSet(ctx, limit, term)
-		const both = await collectSet(ctx, limit, term, MAX_WALK_PAGES, sortTerm(conventions, sortField, "desc"))
+		const both = await collectSet(ctx, limit, term, sortTerm(conventions, sortField, "desc"))
 		if (filtered === null || both === null) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -2934,11 +2948,8 @@ const filterAndPagingCompose: Check<Subset & { value: unknown }> = {
 
 		const tiebreak = (ctx.query?.sortable ?? []).includes(ctx.identity) ? ctx.identity : undefined
 		const walkOrder = tiebreak === undefined ? undefined : sortTerm(conventions, tiebreak, "asc")
-		const probe = await list(ctx, q(ctx, { limit: 1, order: walkOrder }))
-		const reported = envelopeValue(ctx, probe, "total")
-		const pages = pagesToCover(typeof reported === "number" ? reported : undefined, pageSize)
-		const everything = await collectSet(ctx, pageSize, {}, pages, walkOrder)
-		const serverSide = await collectSet(ctx, pageSize, term, pages, walkOrder)
+		const everything = await collectSet(ctx, pageSize, {}, walkOrder)
+		const serverSide = await collectSet(ctx, pageSize, term, walkOrder)
 		if (everything === null || serverSide === null) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -3205,13 +3216,7 @@ const filterSortSelectCompose: Check<
 		const limit = pageSize(ctx)
 
 		const filtered = await collectSet(ctx, limit, term)
-		const triple = await collectSet(
-			ctx,
-			limit,
-			{ ...term, ...projection },
-			MAX_WALK_PAGES,
-			sortTerm(conventions, sortField, "desc"),
-		)
+		const triple = await collectSet(ctx, limit, { ...term, ...projection }, sortTerm(conventions, sortField, "desc"))
 		if (filtered === null || triple === null) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -3298,7 +3303,6 @@ const filterSearchSortCompose: Check<Subset & { token: string; sortField: string
 			ctx,
 			limit,
 			{ ...term, ...q(ctx, { search: token }) } as Record<string, string>,
-			MAX_WALK_PAGES,
 			sortTerm(conventions, sortField, "desc"),
 		)
 		if (pair === null || triple === null) {
@@ -5073,8 +5077,10 @@ const maxLengthValidated: Check<CreateBody & { target: ConstrainedField }> = {
 	subjects: subjectsOf.create,
 	async run(ctx, { createOp, schema, target }): Promise<Outcome> {
 		const max = target.schema.maxLength as number
-
-		const body = { ...validBody(ctx, schema), [target.name]: "x".repeat(max + 25) }
+		const over = overMaxLength(target.schema)
+		if (!over.ok) return standDown(over.reason)
+		const value = over.value as string
+		const body = { ...validBody(ctx, schema), [target.name]: value }
 		const exchange = await asProbe(ctx).client.request("POST", fillPath(createOp.path, ctx.scope), {
 			...(await encodeOpBody(ctx, createOp, body)),
 			headers: ctx.auth(),
@@ -5088,7 +5094,7 @@ const maxLengthValidated: Check<CreateBody & { target: ConstrainedField }> = {
 			this.id,
 			ctx.entityName,
 			"a string longer than the declared maxLength was accepted",
-			`"${target.name}" declares maxLength ${max} but a ${max + 25}-character value was stored ` +
+			`"${target.name}" declares maxLength ${max} but a ${value.length}-character value was stored ` +
 				`(${exchange.status}). The constraint exists in the document only.`,
 			[exchange],
 		)
@@ -5254,7 +5260,9 @@ async function probeMissingItemError(
 	validator: SchemaValidator,
 	check: string,
 ): Promise<void> {
-	const params = { ...ctx.scope, ...itemParamFor(ctx, absentId(ctx)) }
+	const missing = absentId(ctx)
+	if (missing === null) return
+	const params = { ...ctx.scope, ...itemParamFor(ctx, missing) }
 	const exchange = await asProbe(ctx).client.get(fillPath(readOp.path, params), { headers: ctx.auth() })
 	if (exchange.status < 400 || !validator.documents(raw, exchange.status)) return
 	const result = validator.validate(readOp.operationId, raw, exchange.status, exchange.responseBody)
@@ -7616,7 +7624,12 @@ function capabilityProbe(
 	if (type === "array") {
 		if (!canUseOp(ctx, field, "contains")) return null
 		const element = Array.isArray(sample) ? sample[0] : undefined
-		return { op: "contains", value: element === undefined ? "oat-declared-field" : asTermValue(element) }
+		if (element !== undefined) return { op: "contains", value: asTermValue(element) }
+		const items = (
+			ctx.listOp.collection?.itemSchema?.properties as Record<string, Record<string, unknown>> | undefined
+		)?.[name]?.items
+		const sentinel = filterSentinel(items ?? { type: "string" }, ctx.nonce ?? "oat")
+		return sentinel.ok ? { op: "contains", value: asTermValue(sentinel.value) } : null
 	}
 	if (!canUseOp(ctx, field, "eq")) return null
 	if (sample !== undefined && typeof sample !== "object") return { op: "eq", value: asTermValue(sample) }
@@ -7812,7 +7825,7 @@ const sortNullsFirstLast: Check<{
 		const limit = pageSize(ctx)
 		if (firstClause !== null) {
 			const clause = firstClause
-			const result = await collectSet(ctx, limit, {}, MAX_WALK_PAGES, clause)
+			const result = await collectSet(ctx, limit, {}, clause)
 			if (result === null) return ctx.findings.unresolved(this.id, ctx.entityName, "nullsfirst listing was rejected")
 			const first = result.items[0]
 			if (first !== undefined && first[field.field] !== null && first[field.field] !== undefined) {
@@ -7827,7 +7840,7 @@ const sortNullsFirstLast: Check<{
 		}
 		if (lastClause !== null) {
 			const clause = lastClause
-			const result = await collectSet(ctx, limit, {}, MAX_WALK_PAGES, clause)
+			const result = await collectSet(ctx, limit, {}, clause)
 			if (result === null) return ctx.findings.unresolved(this.id, ctx.entityName, "nullslast listing was rejected")
 			/* The last record of a partial walk is not the last record of the set. */
 			if (!result.complete) {
@@ -7887,7 +7900,7 @@ const sortMultiKeyTiebreak: Check<{ primary: string; secondary: string; tied: Re
 	async run(ctx, { primary, secondary, tied }): Promise<Outcome> {
 		const conventions = conv(ctx)
 		const order = `${sortTerm(conventions, primary, "asc")},${sortTerm(conventions, secondary, "asc")}`
-		const result = await collectSet(ctx, pageSize(ctx), {}, MAX_WALK_PAGES, order)
+		const result = await collectSet(ctx, pageSize(ctx), {}, order)
 		if (result === null) return ctx.findings.unresolved(this.id, ctx.entityName, "multi-key order was rejected")
 		const slice = result.items.filter((item) => JSON.stringify(item[primary]) === JSON.stringify(tied[0]?.[primary]))
 		const seconds = slice.map((item) => item[secondary])
@@ -7914,7 +7927,7 @@ const sortDefaultOrderApplied: Check<{ declared: string }> = {
 	async run(ctx, { declared }): Promise<Outcome> {
 		const limit = pageSize(ctx)
 		const implicit = await collectSet(ctx, limit)
-		const explicit = await collectSet(ctx, limit, {}, MAX_WALK_PAGES, declared)
+		const explicit = await collectSet(ctx, limit, {}, declared)
 		if (implicit === null || explicit === null) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "default-order walk was rejected")
 		}
@@ -8534,7 +8547,6 @@ const queryFilterSearchSortSelectCompose: Check<
 			ctx,
 			pageSize(ctx),
 			{ ...term, ...projection, ...(conventions.search === undefined ? {} : { [conventions.search]: token }) },
-			MAX_WALK_PAGES,
 			sortTerm(conventions, sortField, "asc"),
 		)
 		if (base === null || combined === null) {
@@ -8672,6 +8684,17 @@ const uniqueConflictCreate: Check<{ createOp: OperationModel; sets: string[][] }
 				)
 				continue
 			}
+			if (probe.status >= 500) {
+				ctx.findings.backend(
+					this.id,
+					ctx.entityName,
+					"a duplicate unique-set create drew a server error",
+					`${createOp.operationId} returned ${probe.status} for a second create colliding ` +
+						`${set.join(", ")}. A documented unique constraint must be refused with 409, not crash.`,
+					[probe],
+				)
+				continue
+			}
 			ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
@@ -8775,6 +8798,18 @@ const uniqueConflictUpdate: Check<{ updateOp: OperationModel; sets: string[][] }
 					`${updateOp.operationId} returned ${probe.status} when ${update.method} moved a different row ` +
 						`onto ${set.join(", ")} values already held by another row. A documented unique ` +
 						"constraint must be 409, not 2xx.",
+					[probe],
+				)
+				continue
+			}
+			if (probe.status >= 500) {
+				ctx.findings.backend(
+					this.id,
+					ctx.entityName,
+					"a duplicate unique-set update drew a server error",
+					`${updateOp.operationId} returned ${probe.status} when ${update.method} moved a different row ` +
+						`onto ${set.join(", ")} values already held by another row. A documented unique ` +
+						"constraint must be refused with 409, not crash.",
 					[probe],
 				)
 				continue

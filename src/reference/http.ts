@@ -573,6 +573,27 @@ export async function createReferenceServer(
 		return out
 	}
 
+	/** The page a plain listing asks for, or `null` when a paging value is not a valid one. */
+	function staleWindow(
+		url: URL,
+		dialect: Dialect,
+		entity: EntityDef,
+	): { limit: number; offset: number; page: number } | null {
+		const read = (name: string | undefined, min: number): number | undefined | null => {
+			const raw = name === undefined ? null : url.searchParams.get(name)
+			if (raw === null) return undefined
+			const value = Number(raw)
+			return raw.trim() !== "" && Number.isInteger(value) && value >= min ? value : null
+		}
+		const limit = read(dialect.params.limit, 1)
+		const page = read(dialect.params.page, 1)
+		const offset = read(dialect.params.offset, 0)
+		if (limit === null || page === null || offset === null) return null
+		const size = Math.min(limit ?? entity.defaultLimit, entity.maxLimit)
+		const start = offset ?? ((page ?? 1) - 1) * size
+		return { limit: size, offset: start, page: page ?? Math.floor(start / size) + 1 }
+	}
+
 	function snapshotKey(entity: EntityDef, scope: Scope): string {
 		return `${entity.name}:${scope.project_id ?? ""}:${scope.table_id ?? ""}`
 	}
@@ -881,17 +902,20 @@ export async function createReferenceServer(
 				const plainListing = [...url.searchParams.keys()].every(
 					(k) => k === dialect.params.limit || k === dialect.params.page || k === dialect.params.offset,
 				)
-				if (defects.has("STALE_LIST") && plainListing && staleSnapshot.has(key)) {
+				/* The stale rows are still paged as asked: the lie is what the listing holds, not how
+				 * it pages. Paging values the live path would refuse go there to be refused. */
+				const window = plainListing ? staleWindow(url, dialect, entity) : null
+				if (defects.has("STALE_LIST") && window !== null && staleSnapshot.has(key)) {
 					const frozen = staleSnapshot.get(key) ?? []
-					const items = frozen.slice(0, entity.defaultLimit)
+					const items = frozen.slice(window.offset, window.offset + window.limit)
 					const stale = paginated(dialect, entity, url, {
 						count: frozen.length,
-						hasMore: false,
+						hasMore: window.offset + items.length < frozen.length,
 						items,
-						limit: entity.defaultLimit,
+						limit: window.limit,
 						nextCursor: null,
-						offset: 0,
-						page: 1,
+						offset: window.offset,
+						page: window.page,
 					})
 					return send(res, 200, stale.body, stale.headers)
 				}

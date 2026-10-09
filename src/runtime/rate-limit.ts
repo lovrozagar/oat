@@ -14,7 +14,8 @@ import type { RateLimitSpec } from "../config/define-config.ts"
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
 
 export interface CompiledRateLimitRule {
-	test: (method: string, pathname: string) => boolean
+	/** `operationId` is the operation the client stamped on the request, when it resolved one. */
+	test: (method: string, pathname: string, operationId?: string) => boolean
 	category: string
 	rps: number
 	/** A 429 against a tag-sourced rule is a claim the document made; against config, it is the
@@ -44,28 +45,32 @@ function compilePathPattern(pattern: string): RegExp {
 	return new RegExp(`^${compiled}$`)
 }
 
+/**
+ * A rule for one operation. A request the client resolved to an operation matches by that
+ * operationId alone; only a request it could not resolve — an absolute URL off the document —
+ * falls back to comparing method and path.
+ */
+function operationTest(op: OperationModel): (method: string, pathname: string, operationId?: string) => boolean {
+	const pathRegex = compilePathPattern(op.path)
+	const method = op.method.toUpperCase()
+	return (m, p, operationId) =>
+		operationId !== undefined ? operationId === op.operationId : m === method && pathRegex.test(p)
+}
+
 /** Compiles one `match` string against the model — an operationId, a path pattern, or a category. */
 function compileMatch(
 	match: string,
 	model: SpecModel,
-): Array<{ test: (method: string, pathname: string) => boolean; category: string }> {
+): Array<{ test: (method: string, pathname: string, operationId?: string) => boolean; category: string }> {
 	if (match.startsWith("category:")) {
 		const category = match.slice("category:".length).trim()
 		return model.operations
 			.filter((op) => op.rateLimit?.category === category)
-			.map((op) => {
-				const pathRegex = compilePathPattern(op.path)
-				const method = op.method.toUpperCase()
-				return { category, test: (m: string, p: string) => m === method && pathRegex.test(p) }
-			})
+			.map((op) => ({ category, test: operationTest(op) }))
 	}
 
 	const op = model.byOperationId.get(match)
-	if (op !== undefined) {
-		const pathRegex = compilePathPattern(op.path)
-		const method = op.method.toUpperCase()
-		return [{ category: match, test: (m: string, p: string) => m === method && pathRegex.test(p) }]
-	}
+	if (op !== undefined) return [{ category: match, test: operationTest(op) }]
 
 	/* "METHOD /pattern" or a bare "/pattern" matching any method. */
 	const spaceAt = match.indexOf(" ")
@@ -109,7 +114,7 @@ export function buildRateLimitRules(
 	const byCategory = new Map<string, { rps: number | null; ops: OperationModel[] }>()
 	for (const op of model.operations) {
 		if (op.rateLimit === null) continue
-		if (rules.some((rule) => rule.test(op.method.toUpperCase(), op.path))) continue
+		if (rules.some((rule) => rule.test(op.method.toUpperCase(), op.path, op.operationId))) continue
 		const entry = byCategory.get(op.rateLimit.category) ?? { ops: [], rps: null }
 		entry.ops.push(op)
 		if (op.rateLimit.rps !== null)
@@ -118,16 +123,7 @@ export function buildRateLimitRules(
 	}
 	for (const [category, entry] of byCategory) {
 		if (entry.rps === null) continue
-		for (const op of entry.ops) {
-			const pathRegex = compilePathPattern(op.path)
-			const method = op.method.toUpperCase()
-			rules.push({
-				category,
-				rps: entry.rps,
-				source: "tag",
-				test: (m, p) => m === method && pathRegex.test(p),
-			})
-		}
+		for (const op of entry.ops) rules.push({ category, rps: entry.rps, source: "tag", test: operationTest(op) })
 	}
 
 	return rules
@@ -234,8 +230,8 @@ export class RateLimiter {
 
 	constructor(private readonly rules: readonly CompiledRateLimitRule[]) {}
 
-	resolve(method: string, pathname: string): CompiledRateLimitRule | undefined {
-		return this.rules.find((rule) => rule.test(method, pathname))
+	resolve(method: string, pathname: string, operationId?: string): CompiledRateLimitRule | undefined {
+		return this.rules.find((rule) => rule.test(method, pathname, operationId))
 	}
 
 	/**
@@ -257,8 +253,8 @@ export class RateLimiter {
 	 * Feed a 429 wait into the matching bucket, or open the implicit untagged cooldown when the
 	 * operation never declared a rate. Tags stay the proactive path; this is the reactive one.
 	 */
-	noteBackoff(method: string, pathname: string, waitMs: number): CompiledRateLimitRule {
-		const tagged = this.resolve(method, pathname)
+	noteBackoff(method: string, pathname: string, waitMs: number, operationId?: string): CompiledRateLimitRule {
+		const tagged = this.resolve(method, pathname, operationId)
 		if (tagged !== undefined) {
 			this.bucketFor(tagged).penalize(waitMs)
 			return tagged

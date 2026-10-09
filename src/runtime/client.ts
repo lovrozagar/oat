@@ -57,6 +57,8 @@ export interface Exchange {
 	rateLimitSource?: "tag" | "config" | "implicit"
 	/** Whether the bucket had a token without waiting — oat believes it was under its own pace. */
 	rateLimitHadRoom?: boolean
+	/** Size and hash of a large response body as received; what a stored reference names. */
+	responseDigest?: { bytes: number; sha256: string }
 	/** Named operation, when the caller passed one. */
 	operationId?: string
 	/** `uploads.each` filename, when this request is one cell of that matrix. */
@@ -397,7 +399,11 @@ export class Client {
 			 * entirely inside that window and never changes what maxInFlight itself guarantees. */
 			const verb = method.toUpperCase()
 			/* Rules are written against documented paths, which never include the base path. */
-			const tagged = this.rateLimiter?.resolve(verb, this.relativePath(url))
+			const tagged = this.rateLimiter?.resolve(
+				verb,
+				this.relativePath(url),
+				options.operationId ?? resolved?.operationId,
+			)
 			const implicit = tagged === undefined ? this.rateLimiter?.implicitRule(verb) : undefined
 			const rule = tagged ?? implicit
 			await this.acquire()
@@ -406,6 +412,7 @@ export class Client {
 			let response: Response
 			let parsed: unknown = null
 			let bodyBytes = 0
+			let digest: { bytes: number; sha256: string } | undefined
 			let at = 0
 			try {
 				if (tagged !== undefined) rateLimitHadRoom = await this.rateLimiter?.acquire(tagged)
@@ -426,7 +433,7 @@ export class Client {
 						fetch(target, signal === undefined ? hopInit : { ...hopInit, signal })
 					applyJarToHeaders(hopHeaders, jar, hopUrl, callerCookie)
 					response = await once(hopUrl, { ...init, headers: hopHeaders, method: hopMethod })
-					;({ parsed, bodyBytes } = await readResponsePayload(response))
+					;({ parsed, bodyBytes, digest } = await readResponsePayload(response))
 					jar.absorb(hopUrl, setCookieHeadersFrom(response.headers))
 					if (options.redirect === "follow") {
 						while (isRedirectStatus(response.status) && hops.length < MAX_REDIRECTS) {
@@ -459,7 +466,7 @@ export class Client {
 							}
 							if (hopBody !== undefined) nextInit.body = hopBody
 							response = await once(hopUrl, nextInit)
-							;({ parsed, bodyBytes } = await readResponsePayload(response))
+							;({ parsed, bodyBytes, digest } = await readResponsePayload(response))
 							jar.absorb(hopUrl, setCookieHeadersFrom(response.headers))
 						}
 					}
@@ -519,6 +526,7 @@ export class Client {
 				responseBody: parsed,
 				responseBytes: responseMessageBytes(response.status, response.statusText, responseHeaders, bodyBytes),
 				responseHeaders,
+				...(digest === undefined ? {} : { responseDigest: digest }),
 				seq: this.seq,
 				status: response.status,
 				url: url.toString(),
@@ -594,7 +602,12 @@ export class Client {
 		 * this path honours the server even when the op has no x-rate-limit at all. */
 		for (let attempt = 0; exchange.status === 429 && attempt < MAX_429_RETRIES; attempt++) {
 			const waitMs = retryWaitMs(headerValue(exchange.responseHeaders, "retry-after"), attempt)
-			this.rateLimiter?.noteBackoff(method.toUpperCase(), this.relativePath(url), waitMs)
+			this.rateLimiter?.noteBackoff(
+				method.toUpperCase(),
+				this.relativePath(url),
+				waitMs,
+				options.operationId ?? resolved?.operationId,
+			)
 			if (waitMs > 0) await new Promise<void>((resolve) => setTimeout(resolve, waitMs))
 			this.supersede(exchange)
 			exchange = await resilient()

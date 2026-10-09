@@ -256,3 +256,16 @@ describe("Client.request 429 retry", () => {
 		expect(result.client.transcript.some((e) => e.method === "POST" && e.status === 201)).toBe(true)
 	})
 })
+
+describe("rate-limit rules for a documented operation", () => {
+	it("match the operation the client stamped, not the path", () => {
+		const model = buildModel(dereference(thingSpec({ category: "writes", rps: 2 })).doc)
+		const [rule] = buildRateLimitRules(model, undefined)
+		expect(rule?.test("POST", "/v1/things", "thing.create")).toBe(true)
+		/* Behind a base path the request path no longer looks like the template; the stamp still says which operation it was. */
+		expect(rule?.test("POST", "/api/v1/things", "thing.create")).toBe(true)
+		expect(rule?.test("POST", "/v1/things", "other.op")).toBe(false)
+		/* Unresolved, as for an absolute URL: method and path are all there is. */
+		expect(rule?.test("POST", "/v1/things")).toBe(true)
+	})
+})

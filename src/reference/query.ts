@@ -14,7 +14,8 @@
  * Null semantics, decided once and held by every store:
  *   - `eq`, `gt`, `gte`, `lt`, `lte`, `in`, `like`, `ilike` never match a null value.
  *   - `neq` and `nin` do match a null value: null is not equal to, and not a member of, anything.
- *   - `is.null` / `is.notnull` test for null explicitly.
+ *   - `is.null` / `is.notnull` test for null explicitly. `eq.null` is not a null test: on a
+ *     text field it compares against the text "null", as PostgREST does.
  */
 
 import { DefectSet } from "./defects.ts"

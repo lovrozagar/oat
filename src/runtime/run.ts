@@ -730,6 +730,14 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		const listOp = model.byOperationId.get(entity.list ?? "")
 		const createOp = model.byOperationId.get(entity.create ?? "")
 		if (listOp === undefined) return
+		/* Cohort variants the backend refused. A check that stands down for want of cohort data
+		 * says which variants never arrived, so the gap points at the seed rather than the API. */
+		let lostVariants: string[] = []
+		const withLostVariants = (needs: string): string =>
+			lostVariants.length === 0 || !/cohort|record/.test(needs)
+				? needs
+				: `${needs} (the cohort is missing its ${lostVariants.map((v) => `"${v}"`).join(", ")} ` +
+					`variant${lostVariants.length === 1 ? "" : "s"}, which failed to seed)`
 		if (networkGate.exhausted) return
 		/* Targets this entity's checks can grade. Seeding findings land on them: under --ops a seed
 		 * that fails leaves exactly these ungraded, and the report has to say which. */
@@ -836,6 +844,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				if (cohort.uniqueGap !== undefined) {
 					entityFindings.gap("world.seed", entity.name, cohort.uniqueGap, cohort.uniqueGap)
 				}
+				lostVariants = (cohort.failedVariants ?? []).map((failed) => failed.variant)
 				for (const failed of cohort.failedVariants ?? []) {
 					const said = JSON.stringify(failed.exchange.responseBody).slice(0, 300)
 					if (failed.exchange.status >= 500) {
@@ -1293,8 +1302,9 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			}
 			if (outcome.kind === "stood-down") {
 				/* Not a pass: the property was never tested here, and the report says why. */
-				checksSkipped.push({ check: check.id, entity: entity.name, needs: outcome.reason })
-				grades.skipped(graded, outcome.reason)
+				const needs = withLostVariants(outcome.reason)
+				checksSkipped.push({ check: check.id, entity: entity.name, needs })
+				grades.skipped(graded, needs)
 				return
 			}
 			grades.graded(judged === undefined ? graded : graded.filter((id) => judged?.has(id) === true), check.id)
@@ -1366,7 +1376,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			if (!planned.ok) {
 				/* Recorded, not dropped: on an API shaped unlike the fixture this is most of the
 				 * suite, and a silent skip reads exactly like a clean result. */
-				const needs = planned.needs ?? check.needs ?? "an unstated precondition"
+				const needs = withLostVariants(planned.needs ?? check.needs ?? "an unstated precondition")
 				checksSkipped.push({ check: check.id, entity: entity.name, needs })
 				grades.skipped(graded, needs)
 				continue
@@ -1439,12 +1449,18 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					"run.error",
 					entity.name,
 					`testing "${entity.name}" stopped on an unexpected error`,
-					error instanceof Error ? (error.stack ?? error.message) : String(error),
+					errorText(error),
 				)
 			}
 		}
 	}
-	await Promise.all(entityLanes(model, queue).map(runLane))
+	try {
+		await Promise.all(entityLanes(model, queue).map(runLane))
+	} catch (error) {
+		/* Each entity's errors are caught where it runs; this is the scheduling around them. What
+		 * was created is still removed below, and the report still written. */
+		findings.blocked("run.error", "run", "testing stopped on an unexpected error", errorText(error))
+	}
 
 	/* Unwind after every check has run, never per case: a check may legitimately depend on records
 	 * another one created, and tearing down early turns that into a phantom defect. */
@@ -1455,10 +1471,14 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		phase: "teardown",
 		requests: client.transcript.length,
 	})
-	const teardown =
-		options.keepFixtures === true || ledger.size === 0
-			? null
-			: await ledger.unwind(model, client.view({ purpose: "teardown" }), fallbackDeleters, (done, total, item) => {
+	let teardown: TeardownReport | null = null
+	if (options.keepFixtures !== true && ledger.size > 0) {
+		try {
+			teardown = await ledger.unwind(
+				model,
+				client.view({ purpose: "teardown" }),
+				fallbackDeleters,
+				(done, total, item) => {
 					if (done % 25 !== 0 && done !== total) return
 					tick({
 						entity: item.entity,
@@ -1466,7 +1486,17 @@ export async function run(options: RunOptions): Promise<RunResult> {
 						phase: "teardown",
 						requests: client.transcript.length,
 					})
-				})
+				},
+			)
+		} catch (error) {
+			findings.blocked(
+				"world.teardown",
+				"run",
+				`teardown stopped on an unexpected error with ${ledger.size} record(s) ledgered`,
+				errorText(error),
+			)
+		}
+	}
 
 	if (teardown !== null && teardown.unsupported.length > 0) {
 		findings.gap(
@@ -1495,18 +1525,22 @@ export async function run(options: RunOptions): Promise<RunResult> {
 
 	const coverage = scopeReport()
 	if ((options.origins ?? []).length > 0 && options.skipPrincipalTeardown !== true) {
-		await runSecondaryOrigins(
-			options,
-			persisted,
-			findings,
-			checksRun,
-			checksSkipped,
-			checksSuppressed,
-			checksOutOfScope,
-			entitiesTested,
-			runScope,
-			coverage,
-		)
+		try {
+			await runSecondaryOrigins(
+				options,
+				persisted,
+				findings,
+				checksRun,
+				checksSkipped,
+				checksSuppressed,
+				checksOutOfScope,
+				entitiesTested,
+				runScope,
+				coverage,
+			)
+		} catch (error) {
+			findings.blocked("run.error", "origins", "the secondary origins stopped on an unexpected error", errorText(error))
+		}
 	}
 
 	if (options.skipPrincipalTeardown !== true) {
@@ -1575,6 +1609,10 @@ async function loadOriginClients(
 		map.set(origin.id, { client: originClient, model: originModel })
 	}
 	return map
+}
+
+function errorText(error: unknown): string {
+	return error instanceof Error ? (error.stack ?? error.message) : String(error)
 }
 
 async function runSecondaryOrigins(

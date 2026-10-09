@@ -123,8 +123,12 @@ export async function compactResponseBody(
 	body: unknown,
 	responseHeaders: Record<string, string>,
 	knownBytes?: number,
+	digest?: BodyDigest,
 ): Promise<unknown> {
 	if (body === undefined) return undefined
+	/* What was received, when the client kept its size and hash; a re-encoding otherwise. */
+	const refOf = (bytes: Uint8Array, type: string): BodyRef =>
+		digest === undefined ? bodyRef(bytes, type) : { bytes: digest.bytes, mediaType: type, sha256: digest.sha256 }
 	if (isBodyRef(body) || isFormSnapshot(body)) return body
 	const mediaType = presentHeader(responseHeaders, "content-type") ?? ""
 	const sse = mediaType.toLowerCase().includes("text/event-stream")
@@ -152,7 +156,9 @@ export async function compactResponseBody(
 		const bytes = utf8Bytes(body)
 		if (sse && bytes.byteLength <= INLINE_BODY_LIMIT) return body
 		if (!sse && !isBinaryMediaType(mediaType) && bytes.byteLength <= INLINE_BODY_LIMIT) return body
-		return bodyRef(bytes, primaryMediaType(mediaType, sse ? "text/event-stream" : "text/plain"))
+		return sse
+			? bodyRef(bytes, primaryMediaType(mediaType, "text/event-stream"))
+			: refOf(bytes, primaryMediaType(mediaType, "text/plain"))
 	}
 	const raw = await bytesOf(body)
 	if (raw !== undefined) {
@@ -161,9 +167,7 @@ export async function compactResponseBody(
 	if (body !== null && typeof body === "object") {
 		if (knownBytes !== undefined && knownBytes <= INLINE_BODY_LIMIT) return body
 		const bytes = utf8Bytes(JSON.stringify(body))
-		return bytes.byteLength <= INLINE_BODY_LIMIT
-			? body
-			: bodyRef(bytes, primaryMediaType(mediaType, "application/json"))
+		return bytes.byteLength <= INLINE_BODY_LIMIT ? body : refOf(bytes, primaryMediaType(mediaType, "application/json"))
 	}
 	return body
 }
@@ -175,12 +179,20 @@ export async function releaseTranscriptBodies(exchange: Exchange): Promise<void>
 		exchange.responseBody,
 		exchange.responseHeaders,
 		exchange.responseBytes,
+		exchange.responseDigest,
 	)
 }
 
 export interface ResponsePayload {
 	parsed: unknown
 	bodyBytes: number
+	/** Size and hash of the bytes as received, for a body too large to keep inline. */
+	digest?: BodyDigest
+}
+
+export interface BodyDigest {
+	bytes: number
+	sha256: string
 }
 
 /**
@@ -198,12 +210,16 @@ export async function readResponsePayload(response: Response): Promise<ResponseP
 	const bytes = new Uint8Array(await response.arrayBuffer())
 	const bodyBytes = bytes.byteLength
 	if (bodyBytes === 0) return { bodyBytes: 0, parsed: null }
-	if (isBinaryMediaType(contentType)) return { bodyBytes, parsed: bytes }
+	/* A body that will be stored by reference is hashed now, while its received bytes exist:
+	 * re-encoding the parsed value later would hash something the server never sent. */
+	const digest = bodyBytes > INLINE_BODY_LIMIT ? { bytes: bodyBytes, sha256: sha256Hex(bytes) } : undefined
+	const withDigest = digest === undefined ? {} : { digest }
+	if (isBinaryMediaType(contentType)) return { bodyBytes, parsed: bytes, ...withDigest }
 	const text = decodeText(bytes, contentType)
 	try {
-		return { bodyBytes, parsed: JSON.parse(text) as unknown }
+		return { bodyBytes, parsed: JSON.parse(text) as unknown, ...withDigest }
 	} catch {
-		return { bodyBytes, parsed: text }
+		return { bodyBytes, parsed: text, ...withDigest }
 	}
 }
 

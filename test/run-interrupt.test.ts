@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { leftBehind } from "../src/conformance/leaks.ts"
 import { PRINCIPALS } from "../src/conformance/suite.ts"
 import { createMemoryServer } from "../src/reference/http.ts"
 import { redactText } from "../src/runtime/redact.ts"
 import { run } from "../src/runtime/run.ts"
+import { Ledger } from "../src/runtime/teardown.ts"
 
 describe("a run that is stopped", () => {
 	it("stops testing, still removes what it made, and says it was interrupted", async () => {
@@ -46,6 +47,8 @@ describe("a cohort variant the backend refuses", () => {
 			const crashed = result.findings.find((finding) => finding.check === "create.does-not-error")
 			expect(crashed?.summary).toContain('"unicode" variant')
 			expect(result.checksRun.length).toBeGreaterThan(20)
+			/* A check that stood down for want of cohort data names the variant that never arrived. */
+			expect(result.checksSkipped.some((skip) => skip.needs.includes('missing its "unicode" variant'))).toBe(true)
 		} finally {
 			await server.close()
 		}
@@ -102,6 +105,28 @@ describe("a credential that cannot be renewed", () => {
 				true,
 			)
 		} finally {
+			await server.close()
+		}
+	})
+})
+
+describe("a teardown that throws", () => {
+	it("is reported, and the run still returns its result", async () => {
+		const server = await createMemoryServer()
+		const unwind = vi.spyOn(Ledger.prototype, "unwind").mockRejectedValue(new Error("delete exploded"))
+		try {
+			const result = await run({
+				baseUrl: server.url,
+				only: ["job"],
+				principals: PRINCIPALS,
+				seed: 42,
+				spec: `${server.url}/v1/openapi/spec`,
+			})
+			const failed = result.findings.find((finding) => finding.check === "world.teardown")
+			expect(failed?.summary).toMatch(/teardown stopped on an unexpected error/)
+			expect(result.checksRun.length).toBeGreaterThan(0)
+		} finally {
+			unwind.mockRestore()
 			await server.close()
 		}
 	})

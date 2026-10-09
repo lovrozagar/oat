@@ -27,7 +27,27 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
+    # `bun run test` includes the Postgres leg, and a missing backend fails it, as in ci.yml.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: runner
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U runner"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: runner
+      PGPASSWORD: postgres
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
