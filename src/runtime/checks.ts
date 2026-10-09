@@ -23,10 +23,21 @@ import {
 	opsForField,
 } from "../spec/query-capabilities.ts"
 import { requestContent } from "../spec/collection.ts"
-import type { EntityModel, OperationModel, SpecModel } from "../spec/graph.ts"
+import {
+	type EntityModel,
+	type OperationModel,
+	type SpecModel,
+	describeSuccess,
+	documentedPage,
+	documentsStatus,
+	largestPageQuery,
+	readStatuses,
+} from "../spec/graph.ts"
 import { pathTemplateMatches } from "../spec/load.ts"
 import type { OperationObject } from "../spec/types.ts"
 import { encodeForOperation } from "./body.ts"
+import { absentIdentifier, distinctValue, filterSentinel, outsideEnum } from "./generate.ts"
+import { normalizeSchema } from "../spec/schema.ts"
 import type { Client, Exchange, RequestOptions } from "./client.ts"
 import { STRING_PAYLOADS, payloadFits } from "./payloads.ts"
 import { describeFeatureGate, isDocumentedFeatureGateDenial, reportFeatureGateSchemaDrift } from "./feature-gate.ts"
@@ -107,6 +118,8 @@ export interface CheckContext {
 	altScope: Record<string, string> | undefined
 	validator: SchemaValidator | undefined
 	seed: number
+	/** Per-run token for values that must not collide across runs: unique columns, idempotency keys. */
+	nonce: string
 	/** Effective unique column sets for this entity (`[]` when the tag is absent or empty). */
 	uniqueSets: string[][]
 	/** First-variant create 409 adopted a same-tenant row; unique probes still run. */
@@ -132,6 +145,11 @@ export interface CheckContext {
 	 */
 	inScope?: (op: OperationModel) => boolean
 	/**
+	 * Registers a record this check caused to exist — a declared effect, a started job — for
+	 * teardown. Records made through the entity's own create are tracked without it.
+	 */
+	recordCreated?: (entity: string, id: string, scope: Record<string, string>) => void
+	/**
 	 * Narrows what this check graded to the operations it actually judged. A check that judges
 	 * after the fact — from whatever the transcript happens to hold — calls it, so an operation
 	 * nothing ever exercised is not reported as held. Checks that invoke their subjects need not.
@@ -140,6 +158,50 @@ export interface CheckContext {
 }
 
 const graded = (ctx: CheckContext, op: OperationModel): boolean => ctx.inScope?.(op) ?? true
+
+/* ------------------------------------------------------------------- invented values */
+
+/** This entity's identifier as its item route takes it: the path parameter's schema, else the record's. */
+function identifierSchema(ctx: CheckContext): Record<string, unknown> {
+	for (const op of [ctx.readOp, ctx.deleteOp, ctx.updateOp]) {
+		if (op === undefined) continue
+		const name = op.pathParams.at(-1)
+		const raw = ctx.model.rawOperations.get(op.operationId)
+		const declared = (raw?.parameters ?? []).find(
+			(parameter) => "name" in parameter && parameter.in === "path" && parameter.name === name,
+		) as { schema?: Record<string, unknown> } | undefined
+		if (declared?.schema !== undefined) return declared.schema
+	}
+	const properties = (ctx.listOp.collection?.itemSchema?.properties ?? {}) as Record<string, Record<string, unknown>>
+	return properties[ctx.identity] ?? { type: "string" }
+}
+
+/**
+ * An identifier of the right shape that names nothing. A probe in the wrong format is answered
+ * with a 400 before existence is ever considered, and comparing that with a real 404 reads as a
+ * leak that is not there.
+ */
+function absentId(ctx: CheckContext): string {
+	const made = absentIdentifier(identifierSchema(ctx), ctx.nonce ?? "oat")
+	return made.ok ? String(made.value) : `oat-absent-${ctx.nonce ?? "0"}`
+}
+
+/** The schema of `field` as the item's representation declares it. */
+function propertySchemaOf(ctx: CheckContext, field: string, op?: OperationModel): Record<string, unknown> | undefined {
+	const request = op === undefined ? null : requestSchemaOf(ctx, op)
+	const fromRequest = (request?.properties as Record<string, Record<string, unknown>> | undefined)?.[field]
+	if (fromRequest !== undefined) return normalizeSchema(fromRequest, { direction: "request" })
+	const item = (ctx.listOp.collection?.itemSchema?.properties ?? {}) as Record<string, Record<string, unknown>>
+	return item[field] === undefined ? undefined : normalizeSchema(item[field], { direction: "request" })
+}
+
+/** A valid value for `field` that differs from `current` — what a write probe changes it to. */
+function changedValue(ctx: CheckContext, field: string, current: unknown, op?: OperationModel): unknown {
+	const schema = propertySchemaOf(ctx, field, op)
+	if (schema === undefined) return undefined
+	const made = distinctValue(schema, current, { defs: ctx.model.defs, nonce: ctx.nonce, variant: "lexical-last" })
+	return made.ok ? made.value : undefined
+}
 
 /** The context a multi-operation check uses for one subject: its findings land on that operation. */
 function forOperation(ctx: CheckContext, op: OperationModel): CheckContext {
@@ -301,7 +363,11 @@ function q(
 ): Record<string, string | number | undefined> {
 	const c = conv(ctx)
 	const out: Record<string, string | number | undefined> = {}
-	if (roles.limit !== undefined && c.limit !== undefined) out[c.limit] = roles.limit
+	/* Never above the documented maximum: a backend is right to refuse a request that breaks the
+	 * contract, and reading that refusal as anything about the backend would be oat's own fault.
+	 * The one check that probes past the cap on purpose sets the parameter itself. */
+	const size = roles.limit === undefined ? undefined : Math.min(roles.limit, pageSize(ctx))
+	if (size !== undefined && c.limit !== undefined) out[c.limit] = size
 	if (roles.page !== undefined && c.page !== undefined) out[c.page] = roles.page
 	else if (roles.page !== undefined && c.offset !== undefined) {
 		/*
@@ -317,8 +383,7 @@ function q(
 		/* A page size must be assumed when the caller did not state one; 20 is the common default
 		 * and any consistent value keeps the walk's arithmetic self-consistent, which is what the
 		 * property depends on. */
-		const size = roles.limit ?? 20
-		out[c.offset] = Math.max(roles.page - 1, 0) * size
+		out[c.offset] = Math.max(roles.page - 1, 0) * (size ?? 20)
 	}
 	if (roles.cursor !== undefined && c.cursor !== undefined) out[c.cursor] = roles.cursor
 	if (roles.order !== undefined && c.order !== undefined) out[c.order] = roles.order
@@ -326,6 +391,11 @@ function q(
 	if (roles.searchMode !== undefined && c.searchMode !== undefined) out[c.searchMode] = roles.searchMode
 	if (roles.filter !== undefined && c.filter !== undefined) out[c.filter] = roles.filter
 	return out
+}
+
+/** The largest page this endpoint documents — see `documentedPage`. */
+function pageSize(ctx: CheckContext): number {
+	return documentedPage(ctx.model, ctx.listOp).size
 }
 
 /**
@@ -521,19 +591,21 @@ interface Walk {
  */
 async function collectSet(
 	ctx: CheckContext,
-	pageSize: number,
+	requested: number,
 	extra: Record<string, string> = {},
 	maxPages = MAX_WALK_PAGES,
 	order?: string,
 ): Promise<{ items: Record_[]; complete: boolean; last: ListResult } | null> {
 	const items: Record_[] = []
 	let last: ListResult | null = null
+	/* The size actually asked for — `q` never exceeds the documented maximum. */
+	const size = Math.min(requested, pageSize(ctx))
 	for (let page = 1; page <= maxPages; page++) {
-		const result = await list(ctx, { ...q(ctx, { limit: pageSize, order, page }), ...extra })
+		const result = await list(ctx, { ...q(ctx, { limit: size, order, page }), ...extra })
 		last = result
 		if (result.exchange.status >= 400) return null
 		items.push(...result.items)
-		if (result.items.length < pageSize) return { complete: true, items, last: result }
+		if (result.items.length < size) return { complete: true, items, last: result }
 	}
 	return last === null ? null : { complete: false, items, last }
 }
@@ -759,7 +831,7 @@ const readAfterWrite: Check = {
 		const target = ctx.records[0]
 		if (target === undefined) return
 		const id = String(target[ctx.identity])
-		const pageSize = ctx.query?.maxLimit ?? 100
+		const walkSize = pageSize(ctx)
 		/*
 		 * Walk by short page, never by `hasMore`. Trusting the flag is the same trap
 		 * {@link isComplete} documents: a backend whose more-pages signal is wrong makes a
@@ -773,7 +845,7 @@ const readAfterWrite: Check = {
 			status: "found" | "missing" | "unresolved"
 			last: ListResult | null
 		}> => {
-			const gathered = await collectSet(ctx, pageSize)
+			const gathered = await collectSet(ctx, walkSize)
 			if (gathered === null) return { last: null, status: "unresolved" }
 			if (gathered.items.some((item) => String(item[ctx.identity]) === id)) {
 				return { last: gathered.last, status: "found" }
@@ -852,10 +924,10 @@ const unknownFilterRejected: Check = {
 	needs: "a way to express a filter — a filter expression parameter, or filterable fields",
 	subjects: subjectsOf.list,
 	async run(ctx) {
-		const baseline = await list(ctx, q(ctx, { limit: 100 }))
+		const baseline = await list(ctx, q(ctx, { limit: pageSize(ctx) }))
 		const unknownField = filterTerm(conv(ctx), "oat_no_such_field_xyz", "eq", 1)
 		if (unknownField === null) return
-		const result = await list(ctx, { ...q(ctx, { limit: 100 }), ...unknownField })
+		const result = await list(ctx, { ...q(ctx, { limit: pageSize(ctx) }), ...unknownField })
 
 		if (result.exchange.status >= 500) {
 			ctx.findings.backend(
@@ -897,7 +969,7 @@ const equalityFilterSelectsOne: Check = {
 		const field = filterIdentity(ctx)
 		const term = filterTerm(conv(ctx), field, "eq", id)
 		if (term === null) return
-		const result = await list(ctx, { ...q(ctx, { limit: 100 }), ...term })
+		const result = await list(ctx, { ...q(ctx, { limit: pageSize(ctx) }), ...term })
 		/* A rejected filter is not a wrong answer. If the backend says this field is not
 		 * filterable, that is a capability statement — the gap belongs to x-query, which is
 		 * already reported, not here. Reading a 4xx as "returned zero records" invents a defect. */
@@ -921,9 +993,9 @@ const zeroMatchFilter: Check = {
 	needs: "a `filter` parameter that accepts the identity field",
 	subjects: subjectsOf.list,
 	async run(ctx) {
-		const term = filterTerm(conv(ctx), filterIdentity(ctx), "eq", "oat-nonexistent-value-000")
+		const term = filterTerm(conv(ctx), filterIdentity(ctx), "eq", absentId(ctx))
 		if (term === null) return
-		const result = await list(ctx, { ...q(ctx, { limit: 100 }), ...term })
+		const result = await list(ctx, { ...q(ctx, { limit: pageSize(ctx) }), ...term })
 		if (result.exchange.status >= 400) return
 		if (result.items.length === 0) return
 		ctx.findings.backend(
@@ -966,7 +1038,7 @@ const negationPartitions: Check = {
 			)
 		}
 		const value = String(probe)
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		const eqTerm = filterTerm(conv(ctx), field, "eq", value)
 		const neqTerm = filterTerm(conv(ctx), field, "neq", value)
 		/* Negation has no representation in an equality-only grammar, so this property simply
@@ -1076,7 +1148,7 @@ const filterAndComposesAsIntersection: Check = {
 			)
 		}
 
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		const onlyA = await collectSet(ctx, limit, termA)
 		const onlyB = await collectSet(ctx, limit, termB)
 		const both = await collectSet(ctx, limit, combined)
@@ -1164,7 +1236,7 @@ const filterOrComposesAsUnion: Check = {
 			)
 		}
 
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		const onlyA = await collectSet(ctx, limit, termA)
 		const onlyB = await collectSet(ctx, limit, termB)
 		const either = await collectSet(ctx, limit, combined)
@@ -1232,7 +1304,7 @@ const sortReverseSymmetry: Check = {
 		if (field === undefined) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "no sortable field is available to order by")
 		}
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		/* Gathered across pages: a collection larger than one page would otherwise leave this
 		 * property — that a reversal reorders a set without changing its membership — untested on
 		 * exactly the collections where sorting matters most. */
@@ -1307,7 +1379,7 @@ const pageWalkCoversSet: Check = {
 	needs: "a way to page forward — a page number or a row offset — and at least three records",
 	subjects: subjectsOf.list,
 	async run(ctx) {
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		/* Walk under a low-cardinality sort. Distinct keys admit exactly one valid order, so an
 		 * unstable sort is indistinguishable from a correct one until values tie. */
 		const order = tiedSortField(ctx)
@@ -1449,7 +1521,7 @@ const countIsConsistentWithPage: Check = {
 	needs: "a total-count field in the list envelope",
 	subjects: subjectsOf.list,
 	async run(ctx) {
-		const result = await list(ctx, q(ctx, { limit: ctx.query?.maxLimit ?? 100 }))
+		const result = await list(ctx, q(ctx, { limit: pageSize(ctx) }))
 		if (result.exchange.status >= 400) return
 		const reported = envelopeValue(ctx, result, "total")
 		if (typeof reported !== "number") return
@@ -1486,7 +1558,7 @@ const countMatchesWalk: Check = {
 		const id = String(target[ctx.identity])
 		const countTerm = filterTerm(conv(ctx), filterIdentity(ctx), "eq", id)
 		if (countTerm === null) return
-		const filtered = await list(ctx, { ...q(ctx, { limit: 100 }), ...countTerm })
+		const filtered = await list(ctx, { ...q(ctx, { limit: pageSize(ctx) }), ...countTerm })
 		if (filtered.exchange.status >= 400) return
 		const reported = envelopeValue(ctx, filtered, "total")
 		if (typeof reported !== "number") return
@@ -1605,9 +1677,13 @@ const patchMinimality: Check = {
 
 		const field = pickWritableStringField(ctx, original)
 		if (field === null) return
+		const next = changedValue(ctx, field, original[field], ctx.updateOp)
+		if (next === undefined) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, `no other valid value for "${field}" can be made`)
+		}
 
 		const patched = await ctx.client.request("PATCH", fillPath(ctx.updateOp.path, params), {
-			body: { [field]: "oat patched value" },
+			body: { [field]: next },
 			headers: ctx.auth(),
 		})
 		if (standDownForFeatureGate(ctx, ctx.updateOp, patched, this.id)) return
@@ -1688,7 +1764,10 @@ const immutableRejected: Check = {
 		const id = String(target[ctx.identity])
 		const params = { ...ctx.scope, ...itemParamFor(ctx, id) }
 
-		const probe = "oat-immutable-probe"
+		const probe = changedValue(ctx, field, target[field])
+		if (probe === undefined) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, `no other valid value for "${field}" can be made`)
+		}
 		const patched = await ctx.client.request("PATCH", fillPath(ctx.updateOp.path, params), {
 			body: { [field]: probe },
 			headers: ctx.auth(),
@@ -1733,12 +1812,12 @@ const likeEscaping: Check = {
 				"no field is both filterable and searchable, so no like probe can be built",
 			)
 		}
-		const total = await list(ctx, q(ctx, { limit: 100 }))
+		const total = await list(ctx, q(ctx, { limit: pageSize(ctx) }))
 		/* A literal `%` is not a wildcard in this grammar — `*` is. Matching everything means the
 		 * value was interpolated into a LIKE pattern unescaped. */
 		const likeTerm = filterTerm(conv(ctx), field, "like", "%")
 		if (likeTerm === null) return
-		const probe = await list(ctx, { ...q(ctx, { limit: 100 }), ...likeTerm })
+		const probe = await list(ctx, { ...q(ctx, { limit: pageSize(ctx) }), ...likeTerm })
 		if (probe.exchange.status >= 400) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -1776,8 +1855,8 @@ const createStatusMatchesSpec: Check = {
 		if (createOp === undefined) return
 		const exchange = createExchange(ctx)
 		if (exchange === undefined) return
-		if (createOp.documentedStatuses.includes(exchange.status)) return
-		const success = createOp.documentedStatuses.filter((s) => s < 300)
+		if (documentsStatus(createOp.statuses, exchange.status)) return
+		const success = describeSuccess(createOp.statuses)
 		if (success.length === 0) return
 		ctx.findings.spec(
 			this.id,
@@ -1807,9 +1886,11 @@ function createExchange(ctx: CheckContext): Exchange | undefined {
 	} catch {
 		return undefined
 	}
-	return ctx.client.transcript.find(
-		(e) => e.method === "POST" && e.status < 300 && new URL(e.url).pathname === resolved,
-	)
+	/* By operation, then by the resolved path below the base URL: a pathname comparison misses
+	 * every exchange once the API is mounted under a prefix. */
+	return ctx.client
+		.exchangesFor(createOp.operationId)
+		.find((e) => e.status < 300 && ctx.client.relativePath(e.url) === resolved)
 }
 
 const deleteMissingIs404: Check = {
@@ -1820,7 +1901,7 @@ const deleteMissingIs404: Check = {
 	subjects: subjectsOf.delete,
 	async run(ctx) {
 		if (ctx.deleteOp === undefined) return
-		const params = { ...ctx.scope, ...itemParamFor(ctx, "oat-nonexistent-id-000") }
+		const params = { ...ctx.scope, ...itemParamFor(ctx, absentId(ctx)) }
 		const exchange = await ctx.client.request("DELETE", fillPath(ctx.deleteOp.path, params), {
 			headers: ctx.auth(),
 		})
@@ -1864,7 +1945,7 @@ const softDeleteHidden: Check = {
 			)
 		}
 
-		const after = await list(ctx, q(ctx, { limit: ctx.query?.maxLimit ?? 100 }))
+		const after = await list(ctx, q(ctx, { limit: pageSize(ctx) }))
 		if (!ids(after.items, ctx.identity).includes(id)) return
 		ctx.findings.backend(
 			this.id,
@@ -1905,7 +1986,7 @@ const denialDoesNotRevealExistence: Check = {
 		const realId = String(target[ctx.identity])
 		/* Shaped like a real identifier so the difference under test is existence, not format —
 		 * a backend may legitimately reject a malformed id differently. */
-		const absentId = `${realId}-oat-absent`
+		const absentProbe = absentId(ctx)
 
 		const ask = async (id: string): Promise<Exchange> =>
 			ctx.client.get(fillPath(ctx.readOp?.path ?? "", { ...(ctx.altScope ?? ctx.scope), ...itemParamFor(ctx, id) }), {
@@ -1913,7 +1994,7 @@ const denialDoesNotRevealExistence: Check = {
 			})
 
 		const existing = await ask(realId)
-		const absent = await ask(absentId)
+		const absent = await ask(absentProbe)
 
 		/* Only a denial pair is meaningful. A 2xx on the existing record is a cross-tenant read,
 		 * which the check above owns and this one is suppressed by. */
@@ -1969,7 +2050,9 @@ const idempotentReplay: Check = {
 		}
 
 		const body = validBody(ctx, schema)
-		const key = `oat-idem-${ctx.seed}-${ctx.entityName}`
+		/* The nonce keeps a second run from replaying the first run's request — and getting the
+		 * first run's record back, which reads as a pass while proving nothing. */
+		const key = `oat-idem-${ctx.nonce}-${ctx.entityName}`
 		const path = fillPath(createOp.path, ctx.scope)
 		const headers = { ...ctx.auth(), [header]: key }
 
@@ -2195,7 +2278,7 @@ const projectionsAgree: Check = {
 			)
 		}
 
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		const seen: Array<{ projection: string; value: unknown }> = []
 		const record = (result: ListResult): Record_ | undefined =>
 			result.items.find((item) => String(item[ctx.identity]) === id)
@@ -2255,12 +2338,31 @@ const projectionsAgree: Check = {
 		}
 
 		/* Membership is a projection too: a filter that matches the value must return the record,
-		 * its negation must not, and both are read off the same fact just proven consistent. */
+		 * its negation must not, and both are read off the same fact just proven consistent.
+		 * Equality says nothing about null — whether `eq` matches a null is the backend's
+		 * convention, not a contract — so a null value has no membership to test. */
+		if (value === null || value === undefined) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				`"${field}" is null on the item route, and equality is not defined for null`,
+			)
+		}
 		const matching = filterTerm(conventions, field, "eq", rendered)
 		if (matching === null) return
-		const included = await list(ctx, { ...q(ctx, { limit }), ...matching })
-		if (included.exchange.status >= 400) return
-		if (record(included) !== undefined) return
+		/* The whole filtered set, not its first page: absence from one page proves nothing. */
+		const included = await collectSet(ctx, limit, matching)
+		if (included === null) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, `filtering on "${field}" was rejected`)
+		}
+		if (included.items.some((item) => String(item[ctx.identity]) === id)) return
+		if (!included.complete) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"the filtered set is larger than the walk covers, so the record's absence is not established",
+			)
+		}
 
 		ctx.findings.backend(
 			this.id,
@@ -2269,7 +2371,7 @@ const projectionsAgree: Check = {
 			`${ctx.entityName} ${id} carries "${field}" = ${JSON.stringify(value)} on every read path, ` +
 				`yet filtering for exactly that value does not return it. The record and the predicate ` +
 				"agree; the index or query that answers the filter does not.",
-			[detail, included.exchange],
+			[detail, included.last.exchange],
 		)
 	},
 }
@@ -2305,7 +2407,7 @@ const queryAxesCompose: Check = {
 	subjects: subjectsOf.list,
 	async run(ctx) {
 		const conventions = conv(ctx)
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 
 		/*
 		 * A field, and a value on it, selecting a *proper subset* of the cohort: more than one
@@ -2543,7 +2645,7 @@ const filterAndSelectCompose: Check = {
 	subjects: subjectsOf.list,
 	async run(ctx) {
 		const conventions = conv(ctx)
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 
 		let field: string | undefined
 		let target: Record_ | undefined
@@ -2667,7 +2769,7 @@ const searchAndFilterCompose: Check = {
 	subjects: subjectsOf.list,
 	async run(ctx) {
 		const conventions = conv(ctx)
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 
 		/*
 		 * The first proper-subset filter is not always the one that overlaps a search. A status
@@ -2805,7 +2907,7 @@ const filterSortSelectCompose: Check = {
 	subjects: subjectsOf.list,
 	async run(ctx) {
 		const conventions = conv(ctx)
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		const picked = properSubsetFilter(ctx)
 		if (picked === null) {
 			return ctx.findings.unresolved(
@@ -2907,7 +3009,7 @@ const filterSearchSortCompose: Check = {
 	subjects: subjectsOf.list,
 	async run(ctx) {
 		const conventions = conv(ctx)
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		const picked = overlappingFilterAndSearch(ctx)
 		if (picked === null) {
 			return ctx.findings.unresolved(
@@ -2991,7 +3093,7 @@ const filterSearchSelectCompose: Check = {
 	subjects: subjectsOf.list,
 	async run(ctx) {
 		const conventions = conv(ctx)
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		const picked = overlappingFilterAndSearch(ctx)
 		if (picked === null) {
 			return ctx.findings.unresolved(
@@ -3187,14 +3289,12 @@ const declaredFilterableWorks: Check = {
 
 		for (const field of ctx.query?.filterable ?? []) {
 			/* A declared field that never appears on the cohort is still a promise — often the
-			 * most expensive kind, a column the document invented. Probe it with a sentinel. */
-			const sample = ctx.records.find((record) => record[field] != null)
-			const term = filterTerm(
-				conventions,
-				field,
-				"eq",
-				sample === undefined ? "oat-declared-field" : String(sample[field]),
-			)
+			 * most expensive kind, a column the document invented. It is probed with an operator
+			 * the field allows and a value of the field's own type: a backend that rejects a
+			 * string compared with a number is right to, and that says nothing about the field. */
+			const probe = capabilityProbe(ctx, field)
+			if (probe === null) continue
+			const term = filterTerm(conventions, field, probe.op, probe.value)
 			if (term === null) continue
 			probed += 1
 			const result = await list(ctx, { ...q(ctx, { limit: 5 }), ...term })
@@ -3428,7 +3528,7 @@ const crossTenantFilterBypass: Check = {
 
 		const tenantTerm = filterTerm(conv(ctx), filterIdentity(ctx), "eq", id)
 		if (tenantTerm === null) return
-		const result = await list(ctx, { ...q(ctx, { limit: 100 }), ...tenantTerm }, ctx.altAuth, ctx.altScope)
+		const result = await list(ctx, { ...q(ctx, { limit: pageSize(ctx) }), ...tenantTerm }, ctx.altAuth, ctx.altScope)
 		if (result.exchange.status >= 400) return
 		if (!ids(result.items, ctx.identity).includes(id)) return
 
@@ -3792,7 +3892,10 @@ const limitRespectsMax: Check = {
 	async run(ctx) {
 		const max = ctx.query?.maxLimit
 		if (max === undefined) return
-		const result = await list(ctx, q(ctx, { limit: max + 50 }))
+		const limitParam = conv(ctx).limit
+		if (limitParam === undefined) return
+		/* Deliberately past the cap — the one request that may break the documented bound. */
+		const result = await list(ctx, { [limitParam]: max + 50 })
 		if (result.exchange.status >= 400) return
 		if (result.items.length <= max) return
 		ctx.findings.backend(
@@ -3845,7 +3948,7 @@ const orderChangesResult: Check = {
 	async run(ctx) {
 		const field = ctx.query?.sortable.find((f) => f !== ctx.identity) ?? ctx.query?.sortable[0]
 		if (field === undefined) return
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		const ascending = await list(ctx, q(ctx, { limit, order: sortTerm(conv(ctx), field, "asc") }))
 		if (ascending.exchange.status >= 400 || ascending.items.length < 2) return
 
@@ -3878,6 +3981,14 @@ function numericLexicalDisagrees(ctx: CheckContext, field: string): boolean {
 	return asNumbers.join(",") !== asText.join(",")
 }
 
+/** Numbers numerically, everything else by its text — the one ordering every collation shares on ids. */
+function compareScalars(a: unknown, b: unknown): number {
+	if (typeof a === "number" && typeof b === "number") return a - b
+	const as = String(a)
+	const bs = String(b)
+	return as < bs ? -1 : as > bs ? 1 : 0
+}
+
 function compareValues(a: unknown, b: unknown): number {
 	if (a === null || a === undefined) return -1
 	if (b === null || b === undefined) return 1
@@ -3897,7 +4008,7 @@ const searchNarrowsResult: Check = {
 	async run(ctx) {
 		const field = ctx.query?.searchable[0]
 		if (field === undefined) return
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		const all = await list(ctx, q(ctx, { limit }))
 		if (all.items.length < 2) return
 
@@ -3968,7 +4079,9 @@ const enumValidated: Check = {
 		const target = findConstrained(schema, (s) => Array.isArray(s.enum) && s.enum.length > 0)
 		if (target === null) return
 
-		const body = { ...validBody(ctx, schema), [target.name]: "oat-not-a-member" }
+		const outside = outsideEnum(target.schema)
+		if (!outside.ok) return ctx.findings.unresolved(this.id, ctx.entityName, outside.reason)
+		const body = { ...validBody(ctx, schema), [target.name]: outside.value }
 		const exchange = await ctx.client.request("POST", fillPath(createOp.path, ctx.scope), {
 			...(await encodeOpBody(ctx, createOp, body)),
 			headers: ctx.auth(),
@@ -3981,7 +4094,7 @@ const enumValidated: Check = {
 			this.id,
 			ctx.entityName,
 			"a value outside the declared enum was accepted",
-			`"${target.name}" declares [${declared}] but the backend accepted "oat-not-a-member" ` +
+			`"${target.name}" declares [${declared}] but the backend accepted ${JSON.stringify(outside.value)} ` +
 				`with ${exchange.status}. Clients generated from this document will assume the field ` +
 				"only ever holds a declared member.",
 			[exchange],
@@ -4059,7 +4172,7 @@ const requiredValidated: Check = {
 }
 
 const contentTypeEnforced: Check = {
-	applicable: (ctx) => ctx.createOp !== undefined && ctx.createOp.documentedStatuses.includes(415),
+	applicable: (ctx) => ctx.createOp !== undefined && documentsStatus(ctx.createOp.statuses, 415),
 	mutates: true,
 	id: "validation.content-type-enforced",
 	needs: "a documented 415 response",
@@ -4140,10 +4253,19 @@ async function probeMissingItemError(
 	validator: SchemaValidator,
 	check: string,
 ): Promise<void> {
-	const params = { ...ctx.scope, ...itemParamFor(ctx, "oat-definitely-missing-id") }
+	const params = { ...ctx.scope, ...itemParamFor(ctx, absentId(ctx)) }
 	const exchange = await ctx.client.get(fillPath(readOp.path, params), { headers: ctx.auth() })
 	if (exchange.status < 400 || !validator.documents(raw, exchange.status)) return
 	const result = validator.validate(readOp.operationId, raw, exchange.status, exchange.responseBody)
+	if (result.unchecked !== undefined) {
+		ctx.findings.gap(
+			check,
+			ctx.entityName,
+			`${readOp.operationId} ${exchange.status} has a schema that cannot be compiled`,
+			`AJV refused the documented schema, so the body was not validated: ${result.unchecked}`,
+		)
+		return
+	}
 	if (result.ok) return
 	ctx.findings
 		.attributed([readOp.operationId])
@@ -4187,6 +4309,15 @@ const successSchemaHonoured: Check = {
 		}
 
 		const result = validator.validate(createOp.operationId, raw, exchange.status, exchange.responseBody)
+		if (result.unchecked !== undefined) {
+			ctx.findings.gap(
+				this.id,
+				ctx.entityName,
+				`${createOp.operationId} ${exchange.status} has a schema that cannot be compiled`,
+				`AJV refused the documented schema, so the body was not validated: ${result.unchecked}`,
+			)
+			return
+		}
 		if (result.ok) return
 
 		ctx.findings.spec(
@@ -4203,11 +4334,15 @@ const successSchemaHonoured: Check = {
 
 /** Builds a body that should be accepted, for use as the base of a negative probe. */
 function validBody(ctx: CheckContext, schema: Record<string, unknown>): Record<string, unknown> {
-	const [member] = buildCohort(schema, ctx.seed, ["baseline"], ctx.createOp?.operationId ?? ctx.entityName)
+	const [member] = buildCohort(schema, ctx.seed, ["baseline"], ctx.createOp?.operationId ?? ctx.entityName, {
+		defs: ctx.model.defs,
+		distinct: new Set((ctx.uniqueSets ?? []).flat()),
+		nonce: `${ctx.nonce}${ctx.client.transcript.length}`,
+	})
 	const body = member?.body ?? {}
 	const sets = ctx.uniqueSets ?? []
 	if (sets.length === 0) return body
-	return uniquifyProbeBody(body, sets, schema, `p${ctx.seed}x${ctx.client.transcript.length}`)
+	return uniquifyProbeBody(body, sets, schema, `p${ctx.nonce}x${ctx.client.transcript.length}`)
 }
 
 /** Invite bodies must carry the peer's `inviteAs`, never a generated email. */
@@ -4396,7 +4531,7 @@ const numericComparisonIsNumeric: Check = {
 
 		const gtTerm = filterTerm(conv(ctx), field, "gt", threshold)
 		if (gtTerm === null) return
-		const result = await list(ctx, { ...q(ctx, { limit: ctx.query?.maxLimit ?? 100 }), ...gtTerm })
+		const result = await list(ctx, { ...q(ctx, { limit: pageSize(ctx) }), ...gtTerm })
 		if (result.exchange.status >= 400) return
 		const got = ids(result.items, ctx.identity)
 		const gotKnown = [...knownHits(result.items, ctx)].sort()
@@ -4712,6 +4847,10 @@ const declaredEffectsOccur: Check = {
 					const delta = after.ids.length - prior.length
 					const added = after.ids.filter((id) => !prior.includes(id))
 					const removed = prior.filter((id) => !after.ids.includes(id))
+					/* Records the operation made on oat's behalf are oat's to remove. */
+					if (effect.op === "create" || effect.op === "append") {
+						for (const id of added) ctx.recordCreated?.(effect.entity, id, { ...scope })
+					}
 
 					if (effectHolds(effect, delta, added.length, removed.length)) {
 						if (effect.op === "create") {
@@ -4879,7 +5018,7 @@ async function observe(
 	const exchange = await ctx.client.get(path, {
 		headers: ctx.auth(),
 		operationId: listOp.operationId,
-		query: { limit: listOp.query?.maxLimit ?? 100 },
+		query: largestPageQuery(ctx.model, listOp),
 	})
 	if (exchange.status >= 400) return { exchange, status: "error" }
 	const identity = ctx.model.entities.get(listOp.entity ?? "")?.identity ?? "id"
@@ -4949,6 +5088,12 @@ const asyncReachesTerminalState: Check = {
 				}
 
 				const outcome = await driveAsync(ctx.client, spec, receipt, ctx.scope, ctx.auth, ctx.refreshIfStale)
+				/* The job this start created is a record like any other, and oat's to remove. */
+				const jobId = spec.idFrom === undefined ? undefined : resolveAsyncId(receipt, spec.idFrom)
+				const polled = (ctx.model.byRoute.get(spec.poll) ?? ctx.model.byOperationId.get(spec.poll))?.entity
+				if ((typeof jobId === "string" || typeof jobId === "number") && polled !== null && polled !== undefined) {
+					ctx.recordCreated?.(polled, String(jobId), { ...ctx.scope })
+				}
 
 				if (outcome.timedOut) {
 					ctx.findings.backend(
@@ -5290,25 +5435,34 @@ const stringPayloadSurvives: Check = {
 	},
 }
 
-function resolveEntityOperation(ctx: CheckContext, method: string, pathname: string): OperationModel | null {
-	let best: OperationModel | null = null
-	for (const op of ctx.model.operations) {
-		if (op.method !== method) continue
-		if (op.entity !== ctx.entityName) continue
-		if (!pathTemplateMatches(op.path, pathname)) continue
-		if (best === null || op.path.length > best.path.length) best = op
+/** One line per operation: what it returned, and what the document declares. */
+function describeUndeclared(
+	ctx: CheckContext,
+	byOp: Map<string, Exchange[]>,
+): { lines: string[]; evidence: Exchange[] } {
+	const lines: string[] = []
+	const evidence: Exchange[] = []
+	for (const [operationId, exchanges] of byOp) {
+		const raw = ctx.model.rawOperations.get(operationId)
+		const declared = Object.keys(raw?.responses ?? {})
+			.filter((key) => key !== "default")
+			.sort()
+			.join(", ")
+		const seen = [...new Set(exchanges.map((item) => item.status))].sort((a, b) => a - b)
+		lines.push(`${operationId} returned ${seen.join(", ")}; the document declares ${declared || "no concrete status"}`)
+		const first = exchanges[0]
+		if (first !== undefined && evidence.length < 6) evidence.push(first)
 	}
-	return best
+	return { evidence, lines }
 }
 
 function statusIsDeclared(raw: OperationObject | undefined, status: number): boolean {
-	const keys = Object.keys(raw?.responses ?? {})
-	if (keys.includes(String(status))) return true
-	return keys.includes(`${Math.floor(status / 100)}XX`)
+	return documentsStatus(readStatuses(raw?.responses), status)
 }
 
 function declaresConcreteStatuses(raw: OperationObject | undefined): boolean {
-	return Object.keys(raw?.responses ?? {}).some((key) => /^\d{3}$/.test(key) || /^[1-5]XX$/i.test(key))
+	const statuses = readStatuses(raw?.responses)
+	return statuses.exact.length > 0 || statuses.ranges.length > 0
 }
 
 const documentedStatusHonoured: Check = {
@@ -5319,16 +5473,14 @@ const documentedStatusHonoured: Check = {
 	async run(ctx) {
 		const createId = ctx.createOp?.operationId
 		const byOp = new Map<string, Exchange[]>()
+		const probes = new Map<string, Exchange[]>()
 		const observed = new Set<string>()
 		for (const exchange of ctx.client.transcript) {
-			let pathname: string
-			try {
-				pathname = new URL(exchange.url).pathname
-			} catch {
-				continue
-			}
-			const op = resolveEntityOperation(ctx, exchange.method, pathname)
-			if (op === null) continue
+			/* A status-0 network failure has no status to judge, and an answer that was asked again
+			 * after a refresh or a wait is not the backend's verdict on the request. */
+			if (exchange.status === 0 || exchange.superseded === true) continue
+			const op = exchange.operationId === undefined ? undefined : ctx.model.byOperationId.get(exchange.operationId)
+			if (op === undefined || op.entity !== ctx.entityName) continue
 			if (!graded(ctx, op)) continue
 			if (op.operationId === createId || op.action === "create") continue
 			if (exchange.status === 429) continue
@@ -5337,29 +5489,31 @@ const documentedStatusHonoured: Check = {
 			observed.add(op.operationId)
 			if (isDocumentedFeatureGateDenial(op, exchange.status, exchange.responseBody)) continue
 			if (statusIsDeclared(raw, exchange.status)) continue
-			const seen = byOp.get(op.operationId) ?? []
+			/* A deliberately invalid request may draw a status the document never needed to name
+			 * for real traffic. It is reported, but apart from what ordinary requests got. */
+			const bucket = exchange.purpose === "probe" ? probes : byOp
+			const seen = bucket.get(op.operationId) ?? []
 			seen.push(exchange)
-			byOp.set(op.operationId, seen)
+			bucket.set(op.operationId, seen)
 		}
 		ctx.judged?.([...observed])
+		if (probes.size > 0) {
+			const { lines, evidence } = describeUndeclared(ctx, probes)
+			ctx.findings
+				.attributed([...probes.keys()])
+				.spec(
+					this.id,
+					ctx.entityName,
+					"requests oat sent to be refused drew statuses the document does not declare",
+					`${lines.join(". ")}. These were deliberately invalid probes, so the refusal is right; ` +
+						"its status is what the document leaves out.",
+					evidence,
+				)
+		}
 		if (byOp.size === 0) return
 
-		const lines: string[] = []
-		const evidence: Exchange[] = []
-		for (const [operationId, exchanges] of byOp) {
-			const raw = ctx.model.rawOperations.get(operationId)
-			const declared = Object.keys(raw?.responses ?? {})
-				.filter((key) => key !== "default")
-				.sort()
-				.join(", ")
-			const seen = [...new Set(exchanges.map((item) => item.status))].sort((a, b) => a - b)
-			lines.push(
-				`${operationId} returned ${seen.join(", ")}; the document declares ${declared || "no concrete status"}`,
-			)
-			const first = exchanges[0]
-			if (first !== undefined && evidence.length < 6) evidence.push(first)
-		}
-
+		const { lines, evidence } = describeUndeclared(ctx, byOp)
+		if (lines.length === 0) return
 		ctx.findings
 			.attributed([...byOp.keys()])
 			.spec(
@@ -5418,7 +5572,7 @@ const filterInIsUnionOfEq: Check = {
 		const eqA = filterTerm(conventions, picked.field.field, "eq", asTermValue(a))
 		const eqB = filterTerm(conventions, picked.field.field, "eq", asTermValue(b))
 		if (inTerm === null || eqA === null || eqB === null) return
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		const together = await collectSet(ctx, limit, inTerm)
 		const onlyA = await collectSet(ctx, limit, eqA)
 		const onlyB = await collectSet(ctx, limit, eqB)
@@ -5450,15 +5604,17 @@ const filterNinComplementsIn: Check = {
 	needs: "a field that allows both `in` and `nin`",
 	subjects: subjectsOf.list,
 	async run(ctx) {
-		const picked = pickFieldForOp(ctx, "in", 1)
+		/* Two members where the cohort has them: a list of one cannot tell "every member" from
+		 * "the first member" apart. */
+		const picked = pickFieldForOp(ctx, "in", 2) ?? pickFieldForOp(ctx, "in", 1)
 		if (picked === null || !canUseOp(ctx, picked.field, "nin")) return
-		const value = picked.values[0]
-		if (value === undefined) return
+		const members = picked.values.slice(0, 2).map(asTermValue)
+		if (members.length === 0) return
 		const conventions = conv(ctx)
-		const inTerm = filterTerm(conventions, picked.field.field, "in", [asTermValue(value)])
-		const ninTerm = filterTerm(conventions, picked.field.field, "nin", [asTermValue(value)])
+		const inTerm = filterTerm(conventions, picked.field.field, "in", members)
+		const ninTerm = filterTerm(conventions, picked.field.field, "nin", members)
 		if (inTerm === null || ninTerm === null) return
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		const all = await collectSet(ctx, limit)
 		const inside = await collectSet(ctx, limit, inTerm)
 		const outside = await collectSet(ctx, limit, ninTerm)
@@ -5541,7 +5697,7 @@ async function assertRangeUnion(
 	const openTerm = filterTerm(conventions, field, open, threshold)
 	const eqTerm = filterTerm(conventions, field, "eq", threshold)
 	if (closedTerm === null || openTerm === null || eqTerm === null) return
-	const limit = ctx.query?.maxLimit ?? 100
+	const limit = pageSize(ctx)
 	const closedSet = await collectSet(ctx, limit, closedTerm)
 	const openSet = await collectSet(ctx, limit, openTerm)
 	const eqSet = await collectSet(ctx, limit, eqTerm)
@@ -5579,7 +5735,7 @@ const filterOrderedTriplePartitions: Check = {
 		const eq = filterTerm(conventions, picked.field.field, "eq", threshold)
 		const gt = filterTerm(conventions, picked.field.field, "gt", threshold)
 		if (lt === null || eq === null || gt === null) return
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		const all = await collectSet(ctx, limit)
 		const lower = await collectSet(ctx, limit, lt)
 		const equal = await collectSet(ctx, limit, eq)
@@ -5649,7 +5805,7 @@ const filterIlikeIsCaseInsensitive: Check = {
 		const likeTerm = filterTerm(conventions, field.field, "like", flipped)
 		const ilikeTerm = filterTerm(conventions, field.field, "ilike", flipped)
 		if (likeTerm === null || ilikeTerm === null) return
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		const like = await list(ctx, { ...q(ctx, { limit }), ...likeTerm })
 		const ilike = await list(ctx, { ...q(ctx, { limit }), ...ilikeTerm })
 		if (like.exchange.status >= 400 || ilike.exchange.status >= 400) {
@@ -5696,7 +5852,7 @@ const filterIsNullSelectsNulls: Check = {
 		const nullTerm = filterTerm(conventions, field.field, "is", "null")
 		const notNullTerm = filterTerm(conventions, field.field, "is", "notnull")
 		if (nullTerm === null || notNullTerm === null) return
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		const all = await collectSet(ctx, limit)
 		const nulls = await collectSet(ctx, limit, nullTerm)
 		const present = await collectSet(ctx, limit, notNullTerm)
@@ -5726,33 +5882,41 @@ const filterIsNullSelectsNulls: Check = {
 	},
 }
 
+/** An array field membership can be asked of, with a known element — one rule for both phases. */
+function containsField(ctx: CheckContext): EffectiveFilterField | undefined {
+	return resolvedCaps(ctx).filterable.find(
+		(field) =>
+			(field.type === "array" ||
+				schemaType(ctx, field.field) === "array" ||
+				fieldAllows(field, "contains", resolvedCaps(ctx))) &&
+			canWriteFilterOp(conv(ctx), "contains") &&
+			ctx.records.some((row) => Array.isArray(row[field.field]) && (row[field.field] as unknown[]).length > 0),
+	)
+}
+
 const filterContainsMembership: Check = {
-	applicable: (ctx) =>
-		resolvedCaps(ctx).filterable.some(
-			(field) =>
-				(field.type === "array" || fieldAllows(field, "contains", resolvedCaps(ctx))) &&
-				canWriteFilterOp(conv(ctx), "contains") &&
-				ctx.records.some((row) => Array.isArray(row[field.field]) && (row[field.field] as unknown[]).length > 0),
-		),
+	applicable: (ctx) => containsField(ctx) !== undefined,
 	dependsOn: [...FOUNDATIONS],
 	id: "filter.contains-membership",
 	needs: "an array field that allows `contains` and a known element",
 	subjects: subjectsOf.list,
 	async run(ctx) {
-		const field = resolvedCaps(ctx).filterable.find(
-			(item) =>
-				canUseOp(ctx, item, "contains") &&
-				ctx.records.some((row) => Array.isArray(row[item.field]) && (row[item.field] as unknown[]).length > 0),
-		)
+		const field = containsField(ctx)
 		if (field === undefined) return
-		const sample = ctx.records.find(
-			(row) => Array.isArray(row[field.field]) && (row[field.field] as unknown[]).length > 0,
-		)
-		const element = Array.isArray(sample?.[field.field]) ? (sample[field.field] as unknown[])[0] : undefined
+		/* The most telling element is one that also occurs inside another element's text: an
+		 * implementation matching the serialised array instead of its members over-selects there. */
+		const elements = [
+			...new Set(
+				ctx.records.flatMap((row) => (Array.isArray(row[field.field]) ? (row[field.field] as unknown[]) : [])),
+			),
+		].map(String)
+		const element =
+			elements.find((candidate) => elements.some((other) => other !== candidate && other.includes(candidate))) ??
+			elements[0]
 		if (element === undefined) return
 		const term = filterTerm(conv(ctx), field.field, "contains", asTermValue(element))
 		if (term === null) return
-		const result = await collectSet(ctx, ctx.query?.maxLimit ?? 100, term)
+		const result = await collectSet(ctx, pageSize(ctx), term)
 		if (result === null) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "contains probe was rejected")
 		}
@@ -5805,7 +5969,7 @@ const filterNestedAndOrDistributes: Check = {
 		const termB = filterTerm(conventions, picked.fieldB, "eq", String(picked.target[picked.fieldB]))
 		const termC = filterTerm(conventions, idField, "eq", String(picked.target[ctx.identity]))
 		if (termA === null || termB === null || termC === null) return
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		const onlyA = await collectSet(ctx, limit, termA)
 		const onlyB = await collectSet(ctx, limit, termB)
 		const onlyC = await collectSet(ctx, limit, termC)
@@ -5841,7 +6005,7 @@ const filterAliasMatchesCanonical: Check = {
 	async run(ctx) {
 		const caps = resolvedCaps(ctx)
 		const conventions = conv(ctx)
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		for (const [alias, target] of Object.entries(caps.aliases)) {
 			if (!isFilterOp(alias) || target === undefined) continue
 			const field = resolvedCaps(ctx).filterable.find((item) => fieldAllows(item, target, caps))
@@ -5896,8 +6060,8 @@ const filterIllegalOpRejected: Check = {
 			sample === undefined ? "oat-probe" : asTermValue(sample[field.field]),
 		)
 		if (term === null) return
-		const baseline = await list(ctx, q(ctx, { limit: 100 }))
-		const result = await list(ctx, { ...q(ctx, { limit: 100 }), ...term })
+		const baseline = await list(ctx, q(ctx, { limit: pageSize(ctx) }))
+		const result = await list(ctx, { ...q(ctx, { limit: pageSize(ctx) }), ...term })
 		if (result.exchange.status >= 500) {
 			ctx.findings.backend(
 				this.id,
@@ -5934,8 +6098,8 @@ const filterEmptyIn: Check = {
 		if (picked === null || policy === undefined) return
 		const term = filterTerm(conv(ctx), picked.field.field, "in", [])
 		if (term === null) return
-		const baseline = await list(ctx, q(ctx, { limit: 100 }))
-		const result = await list(ctx, { ...q(ctx, { limit: 100 }), ...term })
+		const baseline = await list(ctx, q(ctx, { limit: pageSize(ctx) }))
+		const result = await list(ctx, { ...q(ctx, { limit: pageSize(ctx) }), ...term })
 		if (policy === "reject") {
 			if (result.exchange.status >= 400 && result.exchange.status < 500) return
 			ctx.findings.backend(
@@ -6016,6 +6180,53 @@ const filterConditionCapRejected: Check = {
 	},
 }
 
+/** The JSON type the item schema gives a property, looking through a nullable union. */
+function schemaType(ctx: CheckContext, field: string): string | undefined {
+	const properties = (ctx.listOp.collection?.itemSchema?.properties ?? {}) as Record<string, Record<string, unknown>>
+	const declared = properties[field]
+	if (declared === undefined) return undefined
+	const branches = [declared, ...((declared.oneOf ?? declared.anyOf ?? []) as Array<Record<string, unknown>>)]
+	for (const branch of branches) {
+		const type = branch.type
+		if (typeof type === "string" && type !== "null") return type
+		if (Array.isArray(type)) {
+			const named = type.find((item) => item !== "null")
+			if (typeof named === "string") return named
+		}
+	}
+	return undefined
+}
+
+/**
+ * An operator the field allows and a value of the field's own type, to ask whether a declared
+ * filter exists at all. Equality where it is allowed; membership for an array.
+ */
+function capabilityProbe(
+	ctx: CheckContext,
+	name: string,
+): { op: (typeof FILTER_OPS)[number]; value: string | number | boolean } | null {
+	const caps = resolvedCaps(ctx)
+	const field = caps.filterable.find((item) => item.field === name) ?? { field: name }
+	const type = field.type ?? schemaType(ctx, name)
+	const sample = ctx.records.find((record) => record[name] !== null && record[name] !== undefined)?.[name]
+	if (type === "array") {
+		if (!canUseOp(ctx, field, "contains")) return null
+		const element = Array.isArray(sample) ? sample[0] : undefined
+		return { op: "contains", value: element === undefined ? "oat-declared-field" : asTermValue(element) }
+	}
+	if (!canUseOp(ctx, field, "eq")) return null
+	if (sample !== undefined && typeof sample !== "object") return { op: "eq", value: asTermValue(sample) }
+	const declared = (ctx.listOp.collection?.itemSchema?.properties as Record<string, unknown> | undefined)?.[name]
+	const sentinel = filterSentinel(declared ?? { type: type ?? "string" }, ctx.nonce ?? "oat")
+	if (
+		sentinel.ok &&
+		(typeof sentinel.value === "string" || typeof sentinel.value === "number" || typeof sentinel.value === "boolean")
+	) {
+		return { op: "eq", value: sentinel.value }
+	}
+	return null
+}
+
 function probeValueForOp(
 	ctx: CheckContext,
 	field: EffectiveFilterField,
@@ -6066,19 +6277,6 @@ const declaredFilterableOpsAccepted: Check = {
 	},
 }
 
-const declaredFilterableIllegalOpRejected: Check = {
-	applicable: (ctx) =>
-		ctx.query?.source === "tag" &&
-		resolvedCaps(ctx).filterable.some((field) => firstIllegalOp(ctx, field) !== undefined),
-	dependsOn: ["filter.illegal-op-rejected", "spec.declared-filterable-is-filterable"],
-	id: "spec.declared-filterable-illegal-op-rejected",
-	needs: "a closed operator list on a declared field",
-	subjects: subjectsOf.list,
-	async run(ctx) {
-		await filterIllegalOpRejected.run(ctx)
-	},
-}
-
 const sortUnknownFieldRejected: Check = {
 	applicable: (ctx) => conv(ctx).order !== undefined,
 	dependsOn: ["error.malformed-filter-not-5xx"],
@@ -6123,10 +6321,7 @@ const sortNumericOrderIsNumeric: Check = {
 	async run(ctx) {
 		const field = resolvedCaps(ctx).sortable.find((item) => numericLexicalDisagrees(ctx, item.field))
 		if (field === undefined) return
-		const result = await list(
-			ctx,
-			q(ctx, { limit: ctx.query?.maxLimit ?? 100, order: sortTerm(conv(ctx), field.field, "asc") }),
-		)
+		const result = await list(ctx, q(ctx, { limit: pageSize(ctx), order: sortTerm(conv(ctx), field.field, "asc") }))
 		if (result.exchange.status >= 400) return
 		const numbers = result.items.map((item) => item[field.field]).filter((v): v is number => typeof v === "number")
 		const sorted = [...numbers].sort((a, b) => a - b)
@@ -6161,7 +6356,7 @@ const sortNullsFirstLast: Check = {
 				ctx.records.some((row) => row[item.field] === null || row[item.field] === undefined),
 		)
 		if (field === undefined) return
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		if (fieldAllowsNulls(field, resolvedCaps(ctx), "first")) {
 			const clause = sortTermWithNulls(conv(ctx), field.field, "asc", "first")
 			if (clause === null) return
@@ -6236,7 +6431,7 @@ const sortMultiKeyTiebreak: Check = {
 		const { primary, secondary, tied } = pair
 		const conventions = conv(ctx)
 		const order = `${sortTerm(conventions, primary, "asc")},${sortTerm(conventions, secondary, "asc")}`
-		const result = await collectSet(ctx, ctx.query?.maxLimit ?? 100, {}, MAX_WALK_PAGES, order)
+		const result = await collectSet(ctx, pageSize(ctx), {}, MAX_WALK_PAGES, order)
 		if (result === null) return ctx.findings.unresolved(this.id, ctx.entityName, "multi-key order was rejected")
 		const slice = result.items.filter((item) => JSON.stringify(item[primary]) === JSON.stringify(tied[0]?.[primary]))
 		const seconds = slice.map((item) => item[secondary])
@@ -6262,7 +6457,7 @@ const sortDefaultOrderApplied: Check = {
 	async run(ctx) {
 		const declared = resolvedCaps(ctx).sort?.defaultOrder ?? ctx.query?.defaultOrder
 		if (declared === undefined) return
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		const implicit = await collectSet(ctx, limit)
 		const explicit = await collectSet(ctx, limit, {}, MAX_WALK_PAGES, declared)
 		if (implicit === null || explicit === null) {
@@ -6294,20 +6489,52 @@ const sortStableTiebreak: Check = {
 	subjects: subjectsOf.list,
 	async run(ctx) {
 		const tiebreak = resolvedCaps(ctx).sort?.stableTiebreak ?? ctx.query?.stableTiebreak
-		const primary = ctx.query?.sortable.find((name) => name !== tiebreak) ?? ctx.query?.sortable[0]
-		if (tiebreak === undefined || primary === undefined) return
+		/* Only ties exercise a tiebreak: on distinct keys every implementation looks stable. */
+		const primary = tiedSortField(ctx)
+		if (tiebreak === undefined) return
+		if (primary === null || primary === tiebreak) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, "no sortable field has tied values in the cohort")
+		}
 		const order = sortTerm(conv(ctx), primary, "asc")
-		const first = await collectSet(ctx, ctx.query?.maxLimit ?? 100, {}, MAX_WALK_PAGES, order)
-		const second = await collectSet(ctx, ctx.query?.maxLimit ?? 100, {}, MAX_WALK_PAGES, order)
+		const first = await collectSet(ctx, pageSize(ctx), {}, MAX_WALK_PAGES, order)
+		const second = await collectSet(ctx, pageSize(ctx), {}, MAX_WALK_PAGES, order)
 		if (first === null || second === null)
 			return ctx.findings.unresolved(this.id, ctx.entityName, "repeat sort was rejected")
-		if (ids(first.items, ctx.identity).join(",") === ids(second.items, ctx.identity).join(",")) return
+		if (ids(first.items, ctx.identity).join(",") !== ids(second.items, ctx.identity).join(",")) {
+			ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"the same order is not deterministic across two walks",
+				`order=${order} (stableTiebreak=${tiebreak}) returned two different sequences.`,
+				[first.last.exchange, second.last.exchange],
+			)
+			return
+		}
+		/* Within a run of equal keys the declared tiebreak decides the order, so its values must
+		 * move one way. Which way is the backend's to choose; moving both ways is no tiebreak. */
+		const broken: string[] = []
+		let run: Record_[] = []
+		const flush = (): void => {
+			const values = run.map((row) => row[tiebreak]).filter((value) => value !== null && value !== undefined)
+			const rising = values.every((value, i) => i === 0 || compareScalars(values[i - 1], value) <= 0)
+			const falling = values.every((value, i) => i === 0 || compareScalars(values[i - 1], value) >= 0)
+			if (!rising && !falling) broken.push(JSON.stringify(run[0]?.[primary]))
+			run = []
+		}
+		for (const row of first.items) {
+			if (run.length > 0 && JSON.stringify(run[0]?.[primary]) !== JSON.stringify(row[primary])) flush()
+			run.push(row)
+		}
+		flush()
+		if (broken.length === 0) return
 		ctx.findings.backend(
 			this.id,
 			ctx.entityName,
-			"the same order is not deterministic across two walks",
-			`order=${order} (stableTiebreak=${tiebreak}) returned two different sequences.`,
-			[first.last.exchange, second.last.exchange],
+			"ties are not broken by the declared tiebreak",
+			`order=${order} returned records tied on ${primary} (${broken.slice(0, 3).join(", ")}) in an ` +
+				`order the declared stableTiebreak "${tiebreak}" does not explain. Pagination over such an ` +
+				"order can repeat or drop records at a page boundary.",
+			[first.last.exchange],
 		)
 	},
 }
@@ -6371,7 +6598,7 @@ const searchTokensAnd: Check = {
 		}
 		const [a, b] = unique
 		if (a === undefined || b === undefined) return
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		const onlyA = await list(ctx, q(ctx, { limit, search: a }))
 		const onlyB = await list(ctx, q(ctx, { limit, search: b }))
 		const both = await list(ctx, q(ctx, { limit, search: `${a} ${b}` }))
@@ -6418,7 +6645,7 @@ const searchCaseInsensitive: Check = {
 		if (sample === undefined) return
 		const token = sample.split(/\s+/).find((part) => /[A-Za-z]/.test(part)) ?? sample
 		const flipped = token.replace(/[A-Za-z]/, (ch) => (ch === ch.toLowerCase() ? ch.toUpperCase() : ch.toLowerCase()))
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		const original = await list(ctx, q(ctx, { limit, search: token }))
 		const other = await list(ctx, q(ctx, { limit, search: flipped }))
 		if (original.exchange.status >= 400 || other.exchange.status >= 400) return
@@ -6452,7 +6679,7 @@ const searchEmptyQ: Check = {
 	async run(ctx) {
 		const policy = resolvedCaps(ctx).searchEmpty
 		if (policy === undefined) return
-		const limit = ctx.query?.maxLimit ?? 100
+		const limit = pageSize(ctx)
 		const baseline = await list(ctx, q(ctx, { limit }))
 		const empty = await list(ctx, q(ctx, { limit, search: "" }))
 		if (policy === "reject") {
@@ -6477,27 +6704,6 @@ const searchEmptyQ: Check = {
 			`searchEmpty=${policy} but q= returned ${empty.items.length} of ${baseline.items.length} records.`,
 			[baseline.exchange, empty.exchange],
 		)
-	},
-}
-
-const searchUndeclaredFieldNotRequired: Check = {
-	applicable: (ctx) => {
-		if (conv(ctx).search === undefined || (ctx.query?.searchable.length ?? 0) === 0) return false
-		const searchable = new Set(ctx.query?.searchable ?? [])
-		return ctx.records.some((row) =>
-			Object.entries(row).some(
-				([key, value]) =>
-					!searchable.has(key) && typeof value === "string" && value.length >= 4 && !searchableHasToken(ctx, value),
-			),
-		)
-	},
-	dependsOn: ["search.q-narrows-result"],
-	id: "search.undeclared-field-not-required",
-	needs: "a searchable field and a non-searchable string",
-	subjects: subjectsOf.list,
-	async run() {
-		/* Extra recall is not a defect. This check exists so undeclared-field hits are not
-		 * reported as SEARCH_IGNORED by other checks. */
 	},
 }
 
@@ -6534,40 +6740,6 @@ const searchModeAccepted: Check = {
 			"a declared search mode is rejected",
 			`rejected: ${rejected.join(", ")}.`,
 			[],
-		)
-	},
-}
-
-const searchModesDiffer: Check = {
-	applicable: (ctx) =>
-		conv(ctx).searchMode !== undefined &&
-		(resolvedCaps(ctx).searchModes?.length ?? 0) >= 2 &&
-		conv(ctx).search !== undefined,
-	dependsOn: ["search.mode-accepted"],
-	id: "search.modes-differ",
-	needs: "at least two declared searchModes and a mode parameter",
-	subjects: subjectsOf.list,
-	async run(ctx) {
-		const modes = resolvedCaps(ctx).searchModes ?? []
-		const a = modes[0]
-		const b = modes[1]
-		if (a === undefined || b === undefined) return
-		const field = ctx.query?.searchable[0]
-		const token =
-			field === undefined
-				? "oat"
-				: ctx.records
-						.map((row) => row[field])
-						.find((value): value is string => typeof value === "string" && value.length > 2)
-		if (token === undefined) return
-		const left = await list(ctx, q(ctx, { limit: 100, search: token, searchMode: a }))
-		const right = await list(ctx, q(ctx, { limit: 100, search: token, searchMode: b }))
-		if (left.exchange.status >= 400 || right.exchange.status >= 400) return
-		if (ids(left.items, ctx.identity).join(",") !== ids(right.items, ctx.identity).join(",")) return
-		ctx.findings.unresolved(
-			this.id,
-			ctx.entityName,
-			`modes ${a} and ${b} returned the same set; cannot prove they are distinct implementations`,
 		)
 	},
 }
@@ -6702,9 +6874,9 @@ const querySortAndSelectCompose: Check = {
 	subjects: subjectsOf.list,
 	async run(ctx) {
 		const field = ctx.query?.sortable.find((name) => name !== ctx.identity) ?? ctx.query?.sortable[0]
-		const extra = ctx.query?.selectable.find((name) => name !== ctx.identity)
 		if (field === undefined) return
-		const requested = extra === undefined ? [ctx.identity] : [ctx.identity, extra]
+		/* The sort field itself must survive the projection, or the order has nothing to be read off. */
+		const requested = field === ctx.identity ? [ctx.identity] : [ctx.identity, field]
 		const projection = selectTerm(conv(ctx), requested, ctx.entityName)
 		if (projection === null) return
 		const result = await list(ctx, {
@@ -6750,8 +6922,8 @@ const querySearchAndSelectCompose: Check = {
 		const requested = [ctx.identity, field]
 		const projection = selectTerm(conv(ctx), requested, ctx.entityName)
 		if (projection === null) return
-		const searched = await list(ctx, q(ctx, { limit: 100, search: token }))
-		const combined = await list(ctx, { ...q(ctx, { limit: 100, search: token }), ...projection })
+		const searched = await list(ctx, q(ctx, { limit: pageSize(ctx), search: token }))
+		const combined = await list(ctx, { ...q(ctx, { limit: pageSize(ctx), search: token }), ...projection })
 		if (searched.exchange.status >= 400 || combined.exchange.status >= 400) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "search+select probe was rejected")
 		}
@@ -6787,10 +6959,10 @@ const querySearchAndSortCompose: Check = {
 			.map((row) => row[searchField])
 			.find((value): value is string => typeof value === "string" && value.length > 2)
 		if (token === undefined) return
-		const searched = await list(ctx, q(ctx, { limit: 100, search: token }))
+		const searched = await list(ctx, q(ctx, { limit: pageSize(ctx), search: token }))
 		const combined = await list(
 			ctx,
-			q(ctx, { limit: 100, search: token, order: sortTerm(conv(ctx), sortField, "asc") }),
+			q(ctx, { limit: pageSize(ctx), search: token, order: sortTerm(conv(ctx), sortField, "asc") }),
 		)
 		if (searched.exchange.status >= 400 || combined.exchange.status >= 400) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "search+sort probe was rejected")
@@ -6855,13 +7027,13 @@ const queryFilterSearchSortSelectCompose: Check = {
 		const requested = extra === undefined ? [ctx.identity] : [ctx.identity, extra]
 		const projection = selectTerm(conventions, requested, ctx.entityName)
 		if (projection === null) return
-		const base = await collectSet(ctx, ctx.query?.maxLimit ?? 100, {
+		const base = await collectSet(ctx, pageSize(ctx), {
 			...term,
 			...(conventions.search === undefined ? {} : { [conventions.search]: picked.token }),
 		})
 		const combined = await collectSet(
 			ctx,
-			ctx.query?.maxLimit ?? 100,
+			pageSize(ctx),
 			{ ...term, ...projection, ...(conventions.search === undefined ? {} : { [conventions.search]: picked.token }) },
 			MAX_WALK_PAGES,
 			sortTerm(conventions, sortField, "asc"),
@@ -6929,7 +7101,7 @@ const uniqueConflictCreate: Check = {
 		const bodyCols = bodyPropertyNames(createOp, ctx.model)
 		const path = fillPath(createOp.path, ctx.scope)
 		const required = idempotencyHeaderRequired(createOp, ctx.model)
-		const listLimit = ctx.query?.maxLimit ?? 100
+		const listLimit = pageSize(ctx)
 		const before = await list(ctx, q(ctx, { limit: listLimit }))
 		const listResolved = before.exchange.status < 400
 		const evidence: Exchange[] = listResolved ? [before.exchange] : []
@@ -6944,7 +7116,7 @@ const uniqueConflictCreate: Check = {
 				validBody(ctx, schema ?? {}),
 				ctx.uniqueSets,
 				schema,
-				`u${ctx.seed}${index}${ctx.client.transcript.length}`,
+				`u${ctx.nonce}${index}${ctx.client.transcript.length}`,
 			)
 			const body = collisionCreateBody(base, known, set, ctx.scope, bodyCols, createOp.generated)
 			if (body === null) continue
@@ -7032,7 +7204,7 @@ const uniqueConflictUpdate: Check = {
 		const sets = probeableUniqueSets(updateOp, ctx.model, "update", ctx.uniqueSets)
 		const bodyCols = bodyPropertyNames(updateOp, ctx.model)
 		const required = idempotencyHeaderRequired(updateOp, ctx.model)
-		const listLimit = ctx.query?.maxLimit ?? 100
+		const listLimit = pageSize(ctx)
 		const before = await list(ctx, q(ctx, { limit: listLimit }))
 		const listResolved = before.exchange.status < 400
 		const live: Record_[] = []
@@ -7182,9 +7354,7 @@ export const CHECKS: readonly Check[] = [
 	searchTokensAnd,
 	searchCaseInsensitive,
 	searchEmptyQ,
-	searchUndeclaredFieldNotRequired,
 	searchModeAccepted,
-	searchModesDiffer,
 	selectProjection,
 	selectRequestedFieldsPresent,
 	selectUnknownFieldRejected,
@@ -7218,7 +7388,6 @@ export const CHECKS: readonly Check[] = [
 	queryFilterSearchSortSelectCompose,
 	declaredFilterableWorks,
 	declaredFilterableOpsAccepted,
-	declaredFilterableIllegalOpRejected,
 	declaredSortableWorks,
 	declaredSortableNullsAccepted,
 	declaredSelectableWorks,

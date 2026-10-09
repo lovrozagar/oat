@@ -282,25 +282,68 @@ export const DEFECTS = {
 	INVITE_NEVER_GRANTS: "accepting an invite does not grant access to the record",
 	/** Revoke returns success and the invitee can still read. */
 	REVOKE_IGNORED: "revoking an invite does not remove access",
+	/** The alias table maps `ne` to the wrong operator: it behaves as `eq`. */
+	FILTER_ALIAS_MISMAPPED: "the ne alias is mapped to eq instead of neq",
+	/** A filter with more terms than `maxFilterConditions` is evaluated instead of rejected. */
+	FILTER_CONDITION_CAP_IGNORED: "a filter over the documented condition cap is accepted",
+	/** An `in()` list longer than `maxInValues` is evaluated instead of rejected. */
+	FILTER_IN_CAP_IGNORED: "an in() list over the documented maximum is accepted",
+	/** `lte` is compiled as `lt`. */
+	FILTER_LTE_IS_LT: "lte is implemented as lt",
+	/** `lt` is compiled as `lte`, so a boundary value is both below and equal to itself. */
+	FILTER_LT_IS_LTE: "lt is implemented as lte",
+	/**
+	 * A builder that keeps one "current joiner": once a nested group sets it, the enclosing group
+	 * joins its remaining terms with the nested group's combinator. Flat and()/or() are unaffected.
+	 */
+	FILTER_NESTED_COMBINATOR_LEAKS: "a nested group's combinator replaces the enclosing group's",
+	/** `nin.(a,b)` only excludes the first listed value. */
+	FILTER_NIN_FIRST_ONLY: "nin() excludes only the first listed value",
+	/** Every pair and triple of axes composes; all four together drop the filter. */
+	FILTER_DROPPED_WHEN_SORTED_SEARCHED_AND_SELECTED:
+		"a filter stops being applied once a sort, a search and a select are requested together",
+	/** A free-text search is dropped once a sparse fieldset joins it. */
+	SEARCH_DROPPED_WHEN_SELECTED: "a search stops being applied once a select is also requested",
+	/** A free-text search is dropped once a sort joins it. */
+	SEARCH_DROPPED_WHEN_SORTED: "a search stops being applied once a sort is also requested",
+	/** The sort is dropped once a sparse fieldset joins it. */
+	ORDER_DROPPED_WHEN_SELECTED: "a sort stops being applied once a select is also requested",
+	/** Search compares case-sensitively although the document declares it insensitive. */
+	SEARCH_CASE_SENSITIVE: "search is case-sensitive despite searchCase: insensitive",
+	/** An empty `q` matches nothing although the document declares it matches everything. */
+	SEARCH_EMPTY_MATCHES_NONE: "an empty search matches nothing despite searchEmpty: match-all",
+	/** Only the first whitespace-separated search token is applied. */
+	SEARCH_ONLY_FIRST_TOKEN: "only the first search token is applied",
+	/** An unknown select field is dropped although the document says it is rejected. */
+	SELECT_UNKNOWN_IGNORED: "an unknown select field is ignored despite select.unknown: reject",
+	/** `nullsfirst` / `nullslast` are parsed and ignored. */
+	SORT_NULLS_MODIFIER_IGNORED: "nullsfirst and nullslast modifiers are ignored",
+	/** An order on a field that does not exist is dropped instead of rejected. */
+	SORT_UNKNOWN_FIELD_IGNORED: "an unknown sort field is silently ignored rather than rejected",
+	/** The document lists an operator for a field that the backend rejects. */
+	SPEC_OVERCLAIMS_FILTER_OP: "x-query declares a filter operator on a field that the backend rejects",
+	/** `contains` matches the serialised array as text, so an element also matches its superstrings. */
+	CONTAINS_MATCHES_SUBSTRING: "contains matches any element containing the value, not the element itself",
+	/** A search mode the document declares is rejected. */
+	SEARCH_MODE_REJECTED: "a declared search mode is rejected",
+	/** A nested select returns the whole related record rather than the requested fields. */
+	NESTED_SELECT_IGNORED: "a nested select returns every field of the relation",
+	/** Without an explicit order the listing does not use the documented default order. */
+	DEFAULT_ORDER_IGNORED: "the listing ignores the documented default order",
+	/** A write whose side effect is declared with x-wait never produces it. */
+	SIDE_EFFECT_NEVER_ARRIVES: "a side effect declared with x-wait never arrives",
 } as const
 
 export type DefectName = keyof typeof DEFECTS
 
 export class DefectSet {
-	private readonly enabled: ReadonlySet<string>
+	private readonly enabled: ReadonlySet<DefectName>
 
+	/** Throws on a name that is not a defect: a typo must not silently run a clean backend. */
 	constructor(names: readonly string[] = []) {
-		this.enabled = new Set(names)
-	}
-
-	static fromEnv(value: string | undefined): DefectSet {
-		if (value === undefined || value.trim() === "") return new DefectSet()
-		return new DefectSet(
-			value
-				.split(",")
-				.map((s) => s.trim())
-				.filter(Boolean),
-		)
+		const unknown = names.filter((name) => !isDefectName(name))
+		if (unknown.length > 0) throw new Error(`unknown defect(s): ${unknown.join(", ")}`)
+		this.enabled = new Set(names as DefectName[])
 	}
 
 	has(name: DefectName): boolean {
@@ -308,7 +351,7 @@ export class DefectSet {
 	}
 
 	list(): DefectName[] {
-		return [...this.enabled] as DefectName[]
+		return [...this.enabled]
 	}
 }
 

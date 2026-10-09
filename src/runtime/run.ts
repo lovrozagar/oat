@@ -6,8 +6,9 @@
  * per case — which is what made prior attempts produce dozens of failures from one broken fixture.
  */
 
-import { buildModel, type EntityModel, type OperationModel, type SpecModel } from "../spec/graph.ts"
-import { dereference, loadSpec } from "../spec/load.ts"
+import { randomBytes } from "node:crypto"
+import { buildModel, type EntityModel, type OperationModel, type SpecModel, operationResolver } from "../spec/graph.ts"
+import { dereference, documentDefs, loadSpec } from "../spec/load.ts"
 import type {
 	EntityConfig,
 	Hooks,
@@ -35,7 +36,7 @@ import {
 import { type BackoffConfig, resolveBackoff } from "./poll.ts"
 import { type PersistedPrincipal, persistedToPrincipal, snapshotPrincipal } from "./principals.ts"
 import { CHECKS, type Actor, type CheckContext } from "./checks.ts"
-import { Client, type Exchange, type HttpHooks, type RequestStart } from "./client.ts"
+import { Client, type Exchange, type HttpHooks, type RequestOptions, type RequestStart } from "./client.ts"
 import type { ProgressHandler, ProgressInflight, ProgressLast, ProgressSnapshot } from "./progress.ts"
 import { type Finding, FindingCollector, type Inconclusive } from "./finding.ts"
 import { reportFeatureGateSchemaDrift } from "./feature-gate.ts"
@@ -53,7 +54,7 @@ import {
 } from "./scope.ts"
 import { buildRateLimitRules, RateLimiter } from "./rate-limit.ts"
 import { resolveEntityCapabilities } from "./query-capabilities.ts"
-import { Ledger, type TeardownReport } from "./teardown.ts"
+import { Ledger, type Owner, type TeardownReport } from "./teardown.ts"
 import { SchemaValidator } from "./validate.ts"
 import { isOverflowError, overflowFrom } from "./fixture.ts"
 import type { UploadContext } from "./upload.ts"
@@ -94,6 +95,8 @@ export interface RunOptions {
 	profiles?: Record<string, ProfileSpec>
 	/** Active profile by name. Defaults to `"full"` — every operation runs, today's behaviour. */
 	profile?: string
+	/** Per-run token for values that must not collide across runs. Random when omitted. */
+	nonce?: string
 	/** Leaves created records in place. Useful when inspecting a failure by hand. */
 	keepFixtures?: boolean
 	/** Requests allowed in flight at once, across the whole run. */
@@ -354,6 +357,7 @@ async function resolvePrincipal(
 /** Reads whatever the list endpoint already returns, for degraded read-only coverage. */
 async function readExisting(
 	listOp: OperationModel,
+	model: SpecModel,
 	client: Client,
 	headers: Record<string, string>,
 	roots: Record<string, string>,
@@ -365,7 +369,7 @@ async function readExisting(
 	for (const param of listOp.pathParams) {
 		if (scope[param] === undefined) return { records: [], scope }
 	}
-	const records = await listExisting(listOp, client, headers, scope)
+	const records = await listExisting(listOp, model, client, headers, scope)
 	return { records, scope }
 }
 
@@ -486,9 +490,11 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		remember(exchange)
 		if (journal !== null) {
 			try {
+				/* The exchange names its own check and entity: a shared "current check" was wrong
+				 * whenever checks ran concurrently, and journaled a whole batch under the last one. */
 				await journal.record(exchange, {
-					...(currentCheck === undefined ? {} : { check: currentCheck }),
-					...(currentEntity === undefined ? {} : { entity: currentEntity }),
+					...(exchange.check === undefined ? {} : { check: exchange.check }),
+					...(exchange.subject === undefined ? {} : { entity: exchange.subject }),
 					phase: currentPhase,
 				})
 			} catch {
@@ -554,9 +560,12 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		networkClient,
 	)
 	if (hooks.resolveHeaders !== undefined) client.setResolveHeaders(hooks.resolveHeaders)
-	const validator = new SchemaValidator()
+	client.setOperationResolver(operationResolver(model))
+	const validator = new SchemaValidator(model.defs)
 	const ledger = new Ledger()
 	const seed = options.seed ?? 1
+	/* Fresh per run: the seed reproduces a run, the nonce keeps two runs' records apart. */
+	const nonce = options.nonce ?? randomBytes(4).toString("hex")
 	const outOfBand = resolveBackoff(options.outOfBand)
 
 	if (options.principals[0] === undefined) throw new Error("oat: at least one principal is required")
@@ -614,7 +623,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				await resolvePrincipal(
 					principal,
 					model,
-					client,
+					client.view({ purpose: "auth" }),
 					hooks,
 					outOfBand,
 					originClients.size === 0 ? undefined : originClients,
@@ -649,7 +658,32 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		phase: "auth",
 		requests: client.transcript.length,
 	})
+	/* Every exchange names the principal whose credential it carried. */
+	client.setPrincipalResolver(
+		(sent) =>
+			resolved.find((principal) => {
+				const own = principal.headers()
+				return Object.keys(own).length > 0 && Object.entries(own).every(([key, value]) => sent[key] === value)
+			})?.id,
+	)
 	const alpha = resolved[0] as ResolvedPrincipal
+	const ownerOf = (principal: ResolvedPrincipal): Owner => ({ headers: principal.headers, id: principal.id })
+	const alphaOwner = ownerOf(alpha)
+	/* A record a principal created and could not remove itself — a member cannot delete — may be
+	 * removed by a stronger principal of the same tenant, and by nobody else. */
+	const fallbackDeleters = (owner: Owner): Owner[] => {
+		const creator = resolved.find((principal) => principal.id === owner.id)
+		if (creator === undefined) return []
+		return resolved
+			.filter((principal) => principal.id !== creator.id && sameTenant(principal.roots, creator.roots))
+			.sort((a, b) => b.rank - a.rank)
+			.map(ownerOf)
+	}
+	const recorder =
+		(owner: Owner) =>
+		(entity: string, id: string, values: Record<string, string>): void => {
+			ledger.record(entity, id, values, owner)
+		}
 	/* Isolation peer: first principal whose roots are a different tenant — not "whoever is
 	 * second in the array". A same-tenant viewer sitting at index 1 must not steal that slot. */
 	const peer = resolved.slice(1).find((candidate) => !sameTenant(alpha.roots, candidate.roots))
@@ -709,6 +743,8 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		currentEntity = entity.name
 		currentCheck = undefined
 		currentPhase = "seed"
+		/* Everything this entity's world-building sends is seeding, attributed to the entity. */
+		const seeding = client.view({ purpose: "seed", subject: entity.name })
 		tick({
 			entity: entity.name,
 			entityIndex: currentEntityIndex,
@@ -728,7 +764,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			/* Same fallback a failed create takes below: read-only coverage against whatever
 			 * already exists beats no coverage, and it is exactly the state most likely to hide a
 			 * read-path bug. The gap finding excludeOp already reported names the reason. */
-			const existing = await readExisting(listOp, client, alpha.headers(), {
+			const existing = await readExisting(listOp, model, seeding, alpha.headers(), {
 				...options.roots,
 				...alpha.roots,
 			})
@@ -748,7 +784,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		} else if (createOp === undefined || authProvisioned) {
 			/* Invite is not a fixture create; register / x-fresh-principal already ran in auth.
 			 * The invite check is the only thing that POSTs a grant, and it uses inviteAs. */
-			const existing = await readExisting(listOp, client, alpha.headers(), {
+			const existing = await readExisting(listOp, model, seeding, alpha.headers(), {
 				...options.roots,
 				...alpha.roots,
 			})
@@ -757,8 +793,10 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			degraded = true
 		} else {
 			try {
-				scope = await resolvePathScope(createOp, model, client, {
+				scope = await resolvePathScope(createOp, model, seeding, {
 					authHeaders: alpha.headers,
+					onCreate: recorder(alphaOwner),
+					nonce,
 					roots: rootValues,
 					seed,
 					uploads,
@@ -771,10 +809,12 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				const cohort = await seedCohort(
 					createOp,
 					model,
-					client,
+					seeding,
 					{
 						authHeaders: alpha.headers,
 						...(options.cohortSize === undefined ? {} : { cohortSize: options.cohortSize }),
+						onCreate: recorder(alphaOwner),
+						nonce,
 						roots: rootValues,
 						seed,
 						uploads,
@@ -796,17 +836,10 @@ export async function run(options: RunOptions): Promise<RunResult> {
 							"had a record — likely an earlier x-effects create. Write-path checks stand " +
 							"down rather than treat payment_required as a backend defect.",
 					)
+					/* Adopted, not created: what oat did create was recorded as it happened, and
+					 * this record is somebody else's to keep. */
 					records = cohort.records
 					degraded = true
-					for (const ancestor of scope.created) {
-						ledger.record(ancestor.entity, ancestor.id, scope.values)
-					}
-					for (const record of records) {
-						const id = record[entity.identity ?? "id"]
-						if (typeof id === "string" || typeof id === "number") {
-							ledger.record(entity.name, String(id), scope.values)
-						}
-					}
 				} else if (cohort.uniqueAdopted === true) {
 					/* Unique 409 on the first variant with a same-tenant list: adopt like 402,
 					 * but unique-conflict checks still run against that row. Write-path oracles
@@ -824,15 +857,6 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					records = cohort.records
 					degraded = true
 					uniqueAdopted = true
-					for (const ancestor of scope.created) {
-						ledger.record(ancestor.entity, ancestor.id, scope.values)
-					}
-					for (const record of records) {
-						const id = record[entity.identity ?? "id"]
-						if (typeof id === "string" || typeof id === "number") {
-							ledger.record(entity.name, String(id), scope.values)
-						}
-					}
 				} else if (cohort.featureGate !== null) {
 					/* Same degradation a profile-excluded create takes: the tag said this
 					 * principal cannot create the row, so a correct 403 is coverage, not a
@@ -852,7 +876,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 						`${cohort.featureGate.detail}. Checks that need a row oat created stand down ` +
 							"rather than treat the documented 403 as a defect.",
 					)
-					const existing = await readExisting(listOp, client, alpha.headers(), {
+					const existing = await readExisting(listOp, model, seeding, alpha.headers(), {
 						...options.roots,
 						...alpha.roots,
 					})
@@ -869,15 +893,9 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					records = existing.records
 					degraded = true
 				} else {
+					/* Every ancestor and cohort record was ledgered as it was created, in creation
+					 * order — the unwind reverses it, so children go before their parents. */
 					records = cohort.records
-					/* Ancestors first, then the cohort — the unwind reverses this, so children are
-					 * always removed before the parents they hang from. */
-					for (const ancestor of scope.created) {
-						ledger.record(ancestor.entity, ancestor.id, scope.values)
-					}
-					for (const record of records) {
-						ledger.record(entity.name, String(record[entity.identity ?? "id"]), scope.values)
-					}
 				}
 			} catch (error) {
 				if (isNetworkError(error)) {
@@ -887,7 +905,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				if (isOverflowError(error)) {
 					const overflow = overflowFrom(error, createOp.operationId)
 					entityFindings.gap("world.seed", entity.name, overflow.message, overflow.message)
-					const existing = await readExisting(listOp, client, alpha.headers(), {
+					const existing = await readExisting(listOp, model, seeding, alpha.headers(), {
 						...options.roots,
 						...alpha.roots,
 					})
@@ -932,7 +950,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					/* Fall back to whatever already exists. A backend whose create is broken can still
 					 * have a working list, and read-only coverage beats no coverage — this is exactly
 					 * the state in which a read-path bug is most likely to be sitting undiscovered. */
-					const existing = await readExisting(listOp, client, alpha.headers(), {
+					const existing = await readExisting(listOp, model, seeding, alpha.headers(), {
 						...options.roots,
 						...alpha.roots,
 					})
@@ -963,8 +981,11 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		const actorOf = async (principal: ResolvedPrincipal, seedOffset: number): Promise<Actor> => {
 			const roots = { ...options.roots, ...principal.roots }
 			try {
-				const next = await resolvePathScope(listOp, model, client, {
+				const next = await resolvePathScope(listOp, model, seeding, {
 					authHeaders: principal.headers,
+					/* Created as this principal, so removed as this principal. */
+					onCreate: recorder(ownerOf(principal)),
+					nonce,
 					roots,
 					seed: seed + seedOffset,
 					uploads: worldUploads(seedOffset),
@@ -1020,10 +1041,22 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		 * reporting that it had cleaned up everything it made. Recording centrally rather than at
 		 * each call site means a new check cannot forget: the wrapper sees every request.
 		 */
-		const trackingClient =
+		let createPath: string | undefined
+		try {
+			createPath = createOp === undefined ? undefined : fillPath(createOp.path, scope.values)
+		} catch {
+			createPath = undefined
+		}
+		/* Whoever sent the request owns what it created: matched on the credential it carried. */
+		const ownerByHeaders = (sent: RequestOptions["headers"]): Owner => {
+			const rendered = JSON.stringify(typeof sent === "function" ? sent() : (sent ?? {}))
+			const match = resolved.find((principal) => JSON.stringify(principal.headers()) === rendered)
+			return match === undefined ? alphaOwner : ownerOf(match)
+		}
+		const tracked = (base: Client): Client =>
 			createOp === undefined || degraded
-				? client
-				: new Proxy(client, {
+				? base
+				: new Proxy(base, {
 						get(target, property, receiver) {
 							if (property !== "request") return Reflect.get(target, property, receiver)
 							return async (
@@ -1033,13 +1066,15 @@ export async function run(options: RunOptions): Promise<RunResult> {
 							): Promise<Exchange> => {
 								const exchange = await target.request(method, path, options ?? {})
 								if (method.toUpperCase() !== "POST" || exchange.status >= 300) return exchange
+								/* Only this entity's own create makes one of its records. Any other 2xx
+								 * POST carrying an `id` — an invite, an action — names something else, and
+								 * on an integer-id API deleting by that number removes an unrelated row. */
+								if (path !== createPath) return exchange
 								const body = exchange.responseBody
 								if (body === null || typeof body !== "object") return exchange
 								const id = (body as Record<string, unknown>)[entity.identity ?? "id"]
 								if (typeof id !== "string" && typeof id !== "number") return exchange
-								/* Recording the same id twice is harmless — the unwind tolerates a 404
-								 * on an already-removed record — and missing one is not. */
-								ledger.record(entity.name, String(id), scope.values)
+								ledger.record(entity.name, String(id), scope.values, ownerByHeaders(options?.headers))
 								return exchange
 							}
 						},
@@ -1101,8 +1136,9 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			hooks,
 			outOfBand,
 			auth: alpha.headers,
+			recordCreated: recorder(alphaOwner),
 			...(alpha.runtime === undefined ? {} : { refreshIfStale: alpha.runtime.refreshIfStale }),
-			client: trackingClient,
+			client: tracked(client.view({ purpose: "assertion", subject: entity.name })),
 			collectionKey: listOp.collection?.key ?? null,
 			/* In degraded mode oat did not write these records, so it has no oracle for them —
 			 * every write-path check must sit out rather than assert against data it did not
@@ -1127,6 +1163,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				model.operations.find((op) => op.entity === entity.name && op.softDelete !== null)?.softDelete ??
 				listOp.softDelete,
 			seed,
+			nonce,
 			updateOp: degraded || updateExcluded ? undefined : updateOpModel,
 			uploads,
 			validator,
@@ -1154,6 +1191,8 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			let judged: Set<string> | undefined
 			const view: CheckContext = {
 				...ctx,
+				/* Its own client: every exchange names this check, even while a batch runs concurrently. */
+				client: tracked(client.view({ check: check.id, purpose: "assertion", subject: entity.name })),
 				...(graded.length === 0 ? {} : { findings: findings.attributed(graded) }),
 				judged: (operationIds) => {
 					judged ??= new Set()
@@ -1301,7 +1340,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	const teardown =
 		options.keepFixtures === true || ledger.size === 0
 			? null
-			: await ledger.unwind(model, client, alpha.headers, (done, total, item) => {
+			: await ledger.unwind(model, client.view({ purpose: "teardown" }), fallbackDeleters, (done, total, item) => {
 					if (done % 25 !== 0 && done !== total) return
 					tick({
 						entity: item.entity,

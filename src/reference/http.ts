@@ -17,11 +17,15 @@
  * a database.
  */
 
+import { createHash } from "node:crypto"
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { DefectSet as Defects, type DefectSet } from "./defects.ts"
-import { ENTITIES, type EntityDef, type FieldDef, JOB, TABLE, fieldsWhere, writableFields } from "./model.ts"
-import { type Dialect, DIALECTS, POSTGREST, toCanonicalFilter } from "./dialect.ts"
+import { type EntityDef, type FieldDef, fieldsWhere, shapedEntities, writableFields } from "./model.ts"
+import { type Dialect, DIALECTS, toCanonicalFilter } from "./dialect.ts"
+import { type ListingRequest, runListing } from "./listing.ts"
+import { DEFAULT_CONVENTIONS, type FilterNode, type QueryConventions, and } from "./query.ts"
+import { type ReferenceShape, shapeNamed, shapedDialect } from "./shapes.ts"
 import { buildSpec, buildUntaggedSpec } from "./spec.ts"
 import { SqlError, type Row, type Store } from "./store-api.ts"
 
@@ -42,6 +46,15 @@ const PRINCIPALS: Principal[] = [
 
 const TENANT_FIELD = "project_id"
 
+/** Path parameters, typed: an integer identifier is a number from the moment it is parsed. */
+type Scope = Record<string, string | number>
+
+/** 48 KiB per record: six of them make one listing page larger than 256 KiB. */
+const PADDING = "oat reference padding · ".repeat(2100).slice(0, 49_152)
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/i
+
 class HttpError extends Error {
 	constructor(
 		readonly status: number,
@@ -54,7 +67,13 @@ class HttpError extends Error {
 
 /* ------------------------------------------------------------------ validation */
 
-function validateBody(entity: EntityDef, body: unknown, phase: "create" | "update", defects: DefectSet): Row {
+function validateBody(
+	entity: EntityDef,
+	body: unknown,
+	mode: "create" | "update" | "replace",
+	defects: DefectSet,
+): Row {
+	const phase = mode === "create" ? "create" : "update"
 	if (body === null || typeof body !== "object" || Array.isArray(body)) {
 		throw new HttpError(400, "invalid_input", "request body must be a JSON object")
 	}
@@ -74,7 +93,8 @@ function validateBody(entity: EntityDef, body: unknown, phase: "create" | "updat
 		throw new HttpError(400, "invalid_input", `unknown field "${key}"`)
 	}
 
-	if (phase === "create") {
+	/* A create, and a replacing update, must carry every required field. */
+	if (mode !== "update") {
 		for (const field of allowed.values()) {
 			if (field.required === true && input[field.name] === undefined && !defects.has("REQUIRED_NOT_VALIDATED")) {
 				throw new HttpError(400, "invalid_input", `field "${field.name}" is required`)
@@ -99,13 +119,37 @@ function coerceField(field: FieldDef, value: unknown, defects: DefectSet): unkno
 		return null
 	}
 	if (field.type === "integer" || field.type === "number") {
-		if (typeof value !== "number") {
+		if (typeof value !== "number" || !Number.isFinite(value)) {
 			throw new HttpError(400, "invalid_input", `field "${field.name}" must be a number`)
 		}
 		if (field.type === "integer" && !Number.isInteger(value)) {
 			throw new HttpError(400, "invalid_input", `field "${field.name}" must be an integer`)
 		}
+		if (
+			(field.minimum !== undefined && value < field.minimum) ||
+			(field.maximum !== undefined && value > field.maximum) ||
+			(field.multipleOf !== undefined && !Number.isInteger(value / field.multipleOf))
+		) {
+			throw new HttpError(400, "invalid_input", `field "${field.name}" is out of range`)
+		}
 		return value
+	}
+	if (field.type === "array") {
+		const allowed = field.items ?? []
+		if (
+			!Array.isArray(value) ||
+			value.length > 5 ||
+			value.some((element) => typeof element !== "string" || !allowed.includes(element))
+		) {
+			throw new HttpError(400, "invalid_input", `field "${field.name}" must be a list of ${allowed.join(", ")}`)
+		}
+		return [...value]
+	}
+	if (field.type === "object") {
+		if (field.ref !== "Point" || !isPoint(value)) {
+			throw new HttpError(400, "invalid_input", `field "${field.name}" must be a ${field.ref ?? "object"}`)
+		}
+		return { x: value.x, y: value.y }
 	}
 	if (field.type === "boolean") {
 		if (typeof value !== "boolean") {
@@ -122,10 +166,60 @@ function coerceField(field: FieldDef, value: unknown, defects: DefectSet): unkno
 	if (field.enum !== undefined && !field.enum.includes(value) && !defects.has("ENUM_NOT_VALIDATED")) {
 		throw new HttpError(400, "invalid_input", `field "${field.name}" must be one of ${field.enum.join(", ")}`)
 	}
+	if (field.const !== undefined && value !== field.const) {
+		throw new HttpError(400, "invalid_input", `field "${field.name}" must be "${field.const}"`)
+	}
+	if (field.format === "date-time" && (!DATE_TIME.test(value) || Number.isNaN(Date.parse(value)))) {
+		throw new HttpError(400, "invalid_input", `field "${field.name}" must be an RFC 3339 date-time`)
+	}
+	if (field.format === "uuid" && !UUID.test(value)) {
+		throw new HttpError(400, "invalid_input", `field "${field.name}" must be a UUID`)
+	}
 	if (defects.has("STRING_PAYLOAD_MANGLED")) {
 		return value.replace(/[^\x20-\x7E]/g, "").trim()
 	}
 	return value
+}
+
+/** The value a field takes when nobody supplied one. */
+function emptyValue(field: FieldDef): unknown {
+	if (field.nullable === true) return null
+	if (field.type === "array") return []
+	if (field.type === "boolean") return false
+	if (field.type === "integer" || field.type === "number") return 0
+	return field.enum?.[0] ?? ""
+}
+
+function isPoint(value: unknown): value is { x: number; y: number } {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) return false
+	const keys = Object.keys(value)
+	const { x, y } = value as { x?: unknown; y?: unknown }
+	return keys.length === 2 && Number.isInteger(x) && Number.isInteger(y)
+}
+
+/**
+ * Reads a form-encoded body into the types the schema declares.
+ *
+ * A form carries only strings, so a correct backend coerces each field by its declared type —
+ * exactly what it would have to do in production.
+ */
+function formFields(entity: EntityDef, text: string): Row {
+	const out: Row = {}
+	for (const [key, raw] of new URLSearchParams(text)) {
+		const field = entity.fields.find((candidate) => candidate.name === key)
+		if (field === undefined) {
+			out[key] = raw
+			continue
+		}
+		if (field.type === "integer" || field.type === "number") {
+			out[key] = raw.trim() === "" ? raw : Number(raw)
+		} else if (field.type === "boolean") {
+			out[key] = raw === "true" ? true : raw === "false" ? false : raw
+		} else {
+			out[key] = raw
+		}
+	}
+	return out
 }
 
 /* --------------------------------------------------------------------- routing */
@@ -136,9 +230,9 @@ interface Match {
 	itemId: string | null
 }
 
-function matchRoute(pathname: string): Match | null {
+function matchRoute(pathname: string, entities: readonly EntityDef[]): Match | null {
 	const segments = pathname.split("/").filter(Boolean)
-	for (const entity of ENTITIES) {
+	for (const entity of entities) {
 		for (const [template, isItem] of [
 			[entity.itemPath, true],
 			[entity.collectionPath, false],
@@ -154,7 +248,7 @@ function matchRoute(pathname: string): Match | null {
 					ok = false
 					break
 				}
-				if (part.startsWith("{")) scope[part.slice(1, -1)] = value
+				if (part.startsWith("{")) scope[part.slice(1, -1)] = decodeURIComponent(value)
 				else if (part !== value) {
 					ok = false
 					break
@@ -175,6 +269,24 @@ export interface ReferenceServer {
 	defects: DefectSet
 	close: () => Promise<void>
 	principals: Principal[]
+	/** Every record currently stored, per entity, for leak accounting. Reads the store directly. */
+	snapshot: () => Promise<Record<string, Row[]>>
+}
+
+export interface ReferenceOptions {
+	defects?: string[]
+	untagged?: boolean
+	dialect?: string
+	/** A correct API shape oat was not written against — by name, or spelled out. */
+	shape?: string | ReferenceShape
+}
+
+function resolveDialect(name: string | undefined): Dialect {
+	const dialect = DIALECTS[name ?? "postgrest"]
+	if (dialect === undefined) {
+		throw new Error(`unknown dialect "${name}" — expected one of ${Object.keys(DIALECTS).join(", ")}`)
+	}
+	return dialect
 }
 
 /**
@@ -182,20 +294,80 @@ export interface ReferenceServer {
  * a disagreement between engines meaningful rather than an artefact of two implementations.
  */
 export async function createReferenceServer(
-	options: { defects?: string[]; untagged?: boolean; dialect?: string },
+	options: ReferenceOptions,
 	/* Required, and every caller supplies it by dynamic import: a static import of a storage
 	 * module would load that engine's driver for *every* backend, and a missing optional
 	 * runtime (node:sqlite behind a flag) would then take down paths that never touch it. */
-	createStore: (defects: DefectSet) => Promise<Store>,
+	createStore: (defects: DefectSet, entities: readonly EntityDef[]) => Promise<Store>,
 ): Promise<ReferenceServer> {
 	const defects = new Defects(options.defects ?? [])
-	const dialect: Dialect = DIALECTS[options.dialect ?? "postgrest"] ?? POSTGREST
-	const store = await createStore(defects)
+	const shape: ReferenceShape =
+		typeof options.shape === "string" ? shapeNamed(options.shape).shape : (options.shape ?? {})
+	const dialect = shapedDialect(resolveDialect(options.dialect), shape)
+	const entities = shapedEntities(shape)
+	const TABLE = entities.find((entity) => entity.name === "table") as EntityDef
+	const JOB = entities.find((entity) => entity.name === "job") as EntityDef
+	const conventions: QueryConventions = { ...DEFAULT_CONVENTIONS, ...shape.conventions }
+	const basePath = shape.basePath ?? ""
+	const updateMethod = shape.updateMethod ?? "PATCH"
+	const store = await createStore(defects, entities)
 	const jobStartedAt = new Map<string, number>()
 	/* Snapshot of a collection taken before a write, replayed while STALE_LIST is on. */
 	const staleSnapshot = new Map<string, Row[]>()
 	/* Idempotency-Key → the record the first request created, so a replay returns it. */
 	const idempotent = new Map<string, Row>()
+	/* Delivered notifications, per project. */
+	const inboxes = new Map<string, Array<{ id: string; message: string }>>()
+
+	/* Identifiers and timestamps are the server's, not the store's: one sequence, so every engine
+	 * issues the same ids in the same order. Timestamps derive from it rather than the clock —
+	 * wall-clock time makes ordering assertions flaky for reasons unrelated to the backend. */
+	let sequence = 0
+	const nextId = (entity: EntityDef): string | number => {
+		sequence += 1
+		const identity = entity.fields.find((field) => field.name === entity.identity)
+		if (identity?.type === "integer") return sequence
+		if (identity?.format === "uuid") {
+			/* Deterministic but unordered, like a real v4: creation order says nothing about id order. */
+			const h = createHash("sha1").update(`oat-ref-${sequence}`).digest("hex")
+			const variant = "89ab"[Number.parseInt(h[16] ?? "0", 16) % 4]
+			return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`
+		}
+		return `${entity.name}_${String(sequence).padStart(6, "0")}`
+	}
+	const now = (): number => 1_700_000_000_000 + sequence * 1000
+
+	/**
+	 * Reads one path identifier as the type its entity declares. A malformed one is a 400 — the
+	 * strict validation real frameworks apply before a handler ever runs.
+	 */
+	function pathId(param: string, raw: string): string | number {
+		const owner = entities.find((entity) => entity.itemParam === param)
+		const identity = owner?.fields.find((field) => field.name === owner.identity)
+		if (identity?.type === "integer") {
+			if (!/^[1-9]\d{0,14}$/.test(raw)) throw new HttpError(400, "invalid_input", `"${raw}" is not a valid ${param}`)
+			return Number(raw)
+		}
+		if (identity?.format === "uuid" && !UUID.test(raw)) {
+			throw new HttpError(400, "invalid_input", `"${raw}" is not a valid ${param}`)
+		}
+		return raw
+	}
+
+	function typedScope(scope: Record<string, string>): Scope {
+		const out: Scope = {}
+		for (const [param, raw] of Object.entries(scope)) out[param] = pathId(param, raw)
+		return out
+	}
+
+	/** A record as it leaves the server: write-only fields never do. */
+	function present(entity: EntityDef, record: Row): Row {
+		const hidden = entity.fields.filter((field) => field.writeOnly === true)
+		if (hidden.length === 0) return decorate(record)
+		const out = { ...record }
+		for (const field of hidden) delete out[field.name]
+		return decorate(out)
+	}
 
 	function authenticate(req: IncomingMessage): Principal {
 		const header = req.headers.authorization
@@ -217,12 +389,15 @@ export async function createReferenceServer(
 		}
 	}
 
-	function assertTenant(principal: Principal, scope: Record<string, string>): void {
+	function assertTenant(principal: Principal, scope: Scope): void {
 		const projectId = scope.project_id
 		if (projectId !== undefined && projectId !== principal.projectId) {
 			throw new HttpError(403, "forbidden", "resource belongs to another tenant")
 		}
 	}
+
+	const tombstoned = (entity: EntityDef, record: Row): boolean =>
+		entity.softDeleteField !== undefined && record[entity.softDeleteField] !== null
 
 	/** Walks a record up its parent chain to the owning tenant, driven by the descriptors. */
 	async function ownedByTenant(entity: EntityDef, record: Row, principal: Principal): Promise<boolean> {
@@ -230,10 +405,10 @@ export async function createReferenceServer(
 			return record[TENANT_FIELD] === principal.projectId
 		}
 		for (const parentParam of entity.parents) {
-			const parentEntity = ENTITIES.find((e) => e.itemParam === parentParam)
+			const parentEntity = entities.find((e) => e.itemParam === parentParam)
 			if (parentEntity === undefined) continue
 			const link = record[parentParam]
-			if (typeof link !== "string") continue
+			if (typeof link !== "string" && typeof link !== "number") continue
 			const parent = await store.byId(parentEntity, link)
 			if (parent === null) return false
 			return ownedByTenant(parentEntity, parent, principal)
@@ -241,12 +416,70 @@ export async function createReferenceServer(
 		return false
 	}
 
-	function projectJob(job: Row): Row {
-		const startedAt = jobStartedAt.get(String(job.id))
-		if (startedAt === undefined || defects.has("ASYNC_NEVER_COMPLETES")) return job
-		const ratio = Math.min((Date.now() - startedAt) / 60, 1)
-		const progress = Math.floor(ratio * 100)
-		return { ...job, progress, status: ratio >= 1 ? "complete" : progress > 0 ? "running" : "pending" }
+	/**
+	 * Every ancestor named in the path must exist, be live, and belong to the caller — and its own
+	 * ancestors must be the ones the path names. Without this, a caller could list or write rows of
+	 * another tenant's table by placing that table's id under their own project.
+	 */
+	async function assertParents(entity: EntityDef, scope: Scope, principal: Principal): Promise<void> {
+		for (const param of entity.parents) {
+			const parentEntity = entities.find((candidate) => candidate.itemParam === param)
+			if (parentEntity === undefined) continue
+			const id = scope[param] ?? ""
+			const parent = await store.byId(parentEntity, id)
+			const linked =
+				parent !== null &&
+				parentEntity.parents.every(
+					(ancestor) => !parentEntity.fields.some((f) => f.name === ancestor) || parent[ancestor] === scope[ancestor],
+				)
+			if (
+				parent === null ||
+				!linked ||
+				tombstoned(parentEntity, parent) ||
+				!(await ownedByTenant(parentEntity, parent, principal))
+			) {
+				throw new HttpError(404, "not_found", `${parentEntity.name} ${id} does not exist`)
+			}
+		}
+	}
+
+	/**
+	 * A record is served under the path that names its own parents, and no other — all the way up:
+	 * a row's table must itself sit under the project the path names.
+	 */
+	async function underPath(entity: EntityDef, record: Row, scope: Scope): Promise<boolean> {
+		const stored = (param: string): boolean => entity.fields.some((f) => f.name === param)
+		for (const param of entity.parents) {
+			if (stored(param) && scope[param] !== undefined && record[param] !== scope[param]) return false
+		}
+		const parentParam = [...entity.parents].reverse().find((param) => entities.some((e) => e.itemParam === param))
+		if (parentParam === undefined || !stored(parentParam)) return true
+		const parentEntity = entities.find((e) => e.itemParam === parentParam) as EntityDef
+		const parent = await store.byId(parentEntity, record[parentParam] as string)
+		return parent !== null && underPath(parentEntity, parent, scope)
+	}
+
+	/**
+	 * Advances started jobs and writes the result back.
+	 *
+	 * Progress is persisted rather than computed per response, so a filter on `status` and the
+	 * body it returns describe the same state. Applied before every job read.
+	 */
+	async function advanceJobs(): Promise<void> {
+		if (defects.has("ASYNC_NEVER_COMPLETES")) return
+		for (const [id, startedAt] of jobStartedAt) {
+			const ratio = Math.min((Date.now() - startedAt) / 60, 1)
+			const progress = Math.floor(ratio * 100)
+			const status = ratio >= 1 ? "complete" : progress > 0 ? "running" : "pending"
+			const current = await store.byId(JOB, id)
+			if (current === null) {
+				jobStartedAt.delete(id)
+				continue
+			}
+			if (current.status === status && current.progress === progress) continue
+			await store.update(JOB, id, { progress, status })
+			if (status === "complete") jobStartedAt.delete(id)
+		}
 	}
 
 	/**
@@ -267,36 +500,31 @@ export async function createReferenceServer(
 		return { ...record, _internal_revision: 7, _shard: "shard-a" }
 	}
 
-	async function assertUnique(
-		entity: EntityDef,
-		record: Row,
-		exceptId: string | undefined,
-		defects: DefectSet,
-	): Promise<void> {
+	/** The live records of one parent scope — what uniqueness and derived counts range over. */
+	async function liveRows(entity: EntityDef, scope: Record<string, unknown>): Promise<Row[]> {
+		const constraints: FilterNode[] = Object.entries(scope)
+			.filter(([name, value]) => value !== undefined && entity.fields.some((field) => field.name === name))
+			.map(([field, value]) => ({
+				asText: false,
+				field,
+				kind: "cmp",
+				nullsMatch: false,
+				op: "eq",
+				value: value as string,
+			}))
+		const soft = entity.softDeleteField
+		const where = and(...constraints, soft === undefined ? null : { field: soft, kind: "isnull", negate: false })
+		return store.select(entity, { collation: "binary", order: [], shuffleTies: false, where })
+	}
+
+	async function assertUnique(entity: EntityDef, record: Row, exceptId: string | undefined): Promise<void> {
 		if (defects.has("UNIQUE_NOT_ENFORCED")) return
 		const sets = entity.unique ?? []
 		if (sets.length === 0) return
-		const scope: Record<string, string> = {}
-		for (const parent of entity.parents) {
-			const value = record[parent]
-			if (typeof value === "string") scope[parent] = value
-		}
-		const tenant = record[TENANT_FIELD]
-		if (typeof tenant === "string") scope[TENANT_FIELD] = tenant
-		const pageSize = Math.max(entity.maxLimit, 100)
-		const items: Row[] = []
-		for (let page = 1; page <= 200; page++) {
-			const chunk = await store.query(
-				entity,
-				scope,
-				{ limit: pageSize, page },
-				{
-					softDeleteField: entity.softDeleteField,
-				},
-			)
-			items.push(...chunk.items)
-			if (chunk.items.length < pageSize) break
-		}
+		const scope: Row = {}
+		for (const parent of entity.parents) scope[parent] = record[parent]
+		scope[TENANT_FIELD] = record[TENANT_FIELD]
+		const items = await liveRows(entity, scope)
 		for (const set of sets) {
 			const collides = items.some((row) => {
 				if (exceptId !== undefined && String(row[entity.identity]) === exceptId) return false
@@ -306,30 +534,32 @@ export async function createReferenceServer(
 		}
 	}
 
-	function withDefaults(entity: EntityDef, input: Row, scope: Record<string, string>): Row {
+	function withDefaults(entity: EntityDef, input: Row, scope: Scope): Row {
 		const record: Row = { ...input }
-		record[entity.identity] = store.nextId(entity.name)
+		record[entity.identity] = nextId(entity)
 		for (const parent of entity.parents) {
 			if (entity.fields.some((f) => f.name === parent)) record[parent] = scope[parent] ?? null
 		}
-		record.created_at = store.now()
-		record.updated_at = store.now()
+		record.created_at = now()
+		record.updated_at = now()
 		if (entity.softDeleteField !== undefined) record[entity.softDeleteField] = null
+		/* A server-generated field large enough that one page of records exceeds 256 KiB. */
+		if (entity.fields.some((field) => field.name === "padding")) record.padding = PADDING
 		for (const field of entity.fields) {
 			if (record[field.name] !== undefined) continue
-			record[field.name] =
-				field.nullable === true
-					? null
-					: field.type === "boolean"
-						? false
-						: field.type === "integer" || field.type === "number"
-							? 0
-							: (field.enum?.[0] ?? "")
+			record[field.name] = emptyValue(field)
 		}
 		return record
 	}
 
-	function snapshotKey(entity: EntityDef, scope: Record<string, string>): string {
+	/** Defaults for a replacing update: every writable field the body leaves out is reset. */
+	function replacementDefaults(entity: EntityDef): Row {
+		const out: Row = {}
+		for (const field of writableFields(entity, "update")) out[field.name] = emptyValue(field)
+		return out
+	}
+
+	function snapshotKey(entity: EntityDef, scope: Scope): string {
 		return `${entity.name}:${scope.project_id ?? ""}:${scope.table_id ?? ""}`
 	}
 
@@ -340,38 +570,69 @@ export async function createReferenceServer(
 	 * route serves. Under the defect the promise is published and not kept, which is the common
 	 * real failure — a denormalised counter or a cached projection that nobody refreshes.
 	 */
-	async function refreshParentCount(
-		entity: EntityDef,
-		scope: Record<string, string>,
-		principal: Principal,
-	): Promise<void> {
+	async function refreshParentCount(entity: EntityDef, scope: Scope): Promise<void> {
 		if (entity.name !== "row") return
 		if (defects.has("PARENT_PROJECTION_STALE")) return
-		const table = ENTITIES.find((candidate) => candidate.name === "table")
+		const table = entities.find((candidate) => candidate.name === "table")
 		const tableId = scope.table_id
 		if (table === undefined || tableId === undefined) return
-		/*
-		 * Paged, because the store caps a page at the entity's declared maxLimit — `row` allows 5 —
-		 * so a single large-limit query silently counts one page rather than the collection.
-		 *
-		 * The envelope's own total is deliberately not used either: a defect that corrupts the
-		 * reported count would propagate into this derived value and make the parent look stale
-		 * for a reason that has nothing to do with invalidation.
-		 */
-		const pageSize = entity.maxLimit
-		let total = 0
-		for (let page = 1; page <= 200; page++) {
-			const chunk = await store.query(
-				entity,
-				{ ...scope, project_id: principal.projectId },
-				{ limit: pageSize, page },
-				{ softDeleteField: entity.softDeleteField },
-			)
-			total += chunk.items.length
-			if (chunk.items.length < pageSize) break
-		}
+		const total = (await liveRows(entity, { table_id: tableId })).length
 		await store.update(table, tableId, { row_count: total })
 	}
+
+	/**
+	 * PATCH without a lock: read the row, yield, then write every column back — the ORM
+	 * `save(entity)` pattern. Two concurrent patches to different fields, and the later write
+	 * reinstates the earlier field's old value. The yield makes the window observable rather
+	 * than dependent on scheduler luck; it runs only under the defect.
+	 */
+	async function readModifyWrite(entity: EntityDef, id: string | number, patch: Row): Promise<Row | null> {
+		const current = await store.byId(entity, id)
+		if (current === null) return null
+		await new Promise((resolve) => setTimeout(resolve, 15))
+		return store.update(entity, id, { ...current, ...patch })
+	}
+
+	/**
+	 * Records that exist before oat arrives — what every real environment has.
+	 *
+	 * Names alternate case so binary and case-insensitive collations order them differently, some
+	 * descriptions are null, and values repeat, so the data looks like a lived-in collection rather
+	 * than a fixture. Written straight to the store: none of it is oat's to clean up.
+	 */
+	async function prepopulate(perTenant: number): Promise<void> {
+		const words = ["apple", "Banana", "cherry", "Date", "elder", "Fig", "grape", "Honeydew", "kiwi", "Lemon"]
+		for (const [projectId, count] of [
+			["proj_alpha", perTenant],
+			["proj_beta", Math.ceil(perTenant / 10)],
+		] as const) {
+			for (let i = 0; i < count; i++) {
+				const word = words[i % words.length] as string
+				const name = `${word} ${projectId === "proj_alpha" ? "" : "beta "}${String(i).padStart(4, "0")}`
+				const table = withDefaults(
+					TABLE,
+					{
+						description: i % 3 === 0 ? null : `pre-existing ${word.toLowerCase()} record`,
+						name,
+						position: (i * 7) % 100,
+						slug: name.toLowerCase().replace(/\s+/g, "-"),
+						status: ["active", "draft", "archived"][i % 3],
+					},
+					{ project_id: projectId },
+				)
+				await store.insert(TABLE, table)
+				const job = withDefaults(
+					JOB,
+					{ kind: ["export", "import", "sync"][i % 3], name, note: i % 4 === 0 ? null : word },
+					{ project_id: projectId },
+				)
+				job.status = "complete"
+				job.progress = 100
+				await store.insert(JOB, job)
+			}
+		}
+	}
+	if (shape.prepopulate !== undefined) await prepopulate(shape.prepopulate)
 
 	interface Grant {
 		accepted: boolean
@@ -393,11 +654,15 @@ export async function createReferenceServer(
 		return false
 	}
 
-	async function findItem(entity: EntityDef, principal: Principal, id: string): Promise<Row> {
+	async function findItem(entity: EntityDef, principal: Principal, id: string | number, scope: Scope): Promise<Row> {
 		const record = await store.byId(entity, id)
 		if (record === null) throw new HttpError(404, "not_found", `${entity.name} ${id} does not exist`)
-		const owned = await ownedByTenant(entity, record, principal)
-		if (!defects.has("CROSS_TENANT_READ") && !owned && !canReadViaGrant(entity.name, id, principal)) {
+		/* A record named under somebody else's parents is not this caller's to read, whoever owns it. */
+		const inPath = await underPath(entity, record, scope)
+		const owned = inPath && (await ownedByTenant(entity, record, principal))
+		const granted = inPath && canReadViaGrant(entity.name, String(id), principal)
+		/* The leak is a lookup by id alone: no tenant check, and no check of the path either. */
+		if (!defects.has("CROSS_TENANT_READ") && !owned && !granted) {
 			/* Correct is 404: the same answer an id that never existed would get. Answering 403
 			 * here is the defect — the denial is right, but the *status* confirms the record is
 			 * real, which is all an attacker enumerating identifiers needs. */
@@ -405,7 +670,7 @@ export async function createReferenceServer(
 				? new HttpError(403, "forbidden", `${entity.name} ${id} belongs to another tenant`)
 				: new HttpError(404, "not_found", `${entity.name} ${id} does not exist`)
 		}
-		if (entity.softDeleteField !== undefined && record[entity.softDeleteField] !== null) {
+		if (tombstoned(entity, record)) {
 			throw new HttpError(404, "not_found", `${entity.name} ${id} has been deleted`)
 		}
 		return record
@@ -415,8 +680,21 @@ export async function createReferenceServer(
 		const url = new URL(req.url ?? "/", "http://localhost")
 		const method = (req.method ?? "GET").toUpperCase()
 
+		/* Mounted under a prefix, the API exists only there. */
+		if (basePath !== "") {
+			if (url.pathname !== basePath && !url.pathname.startsWith(`${basePath}/`)) {
+				throw new HttpError(404, "not_found", `no route for ${url.pathname}`)
+			}
+			url.pathname = url.pathname.slice(basePath.length) || "/"
+		}
+
 		if (url.pathname === "/v1/openapi/spec") {
-			return send(res, 200, options.untagged === true ? buildUntaggedSpec(dialect) : buildSpec(dialect))
+			const context = { entities, shape }
+			return send(
+				res,
+				200,
+				options.untagged === true ? buildUntaggedSpec(dialect, context) : buildSpec(dialect, context),
+			)
 		}
 
 		if (url.pathname === "/v1/auth/token" && method === "POST") {
@@ -455,11 +733,47 @@ export async function createReferenceServer(
 			)
 		}
 
+		/* A write whose effect lands elsewhere, later: the message reaches the inbox after a short
+		 * delay, the way a queue consumer or a webhook delivery would. x-wait documents it. */
+		const notifyMatch = /^\/v1\/projects\/([^/]+)\/notifications$/.exec(url.pathname)
+		if (notifyMatch !== null && method === "POST") {
+			const principal = authenticate(req)
+			const projectId = notifyMatch[1] ?? ""
+			if (projectId !== principal.projectId) {
+				throw new HttpError(403, "forbidden", "resource belongs to another tenant")
+			}
+			assertWrite(principal, "create")
+			requireJson(req, defects)
+			const message = ((await readJson(req)) as { message?: unknown }).message
+			if (typeof message !== "string" || message === "" || message.length > 200) {
+				throw new HttpError(400, "invalid_input", 'field "message" is required')
+			}
+			sequence += 1
+			const id = `ntf_${String(sequence).padStart(6, "0")}`
+			if (!defects.has("SIDE_EFFECT_NEVER_ARRIVES")) {
+				setTimeout(() => {
+					const inbox = inboxes.get(projectId) ?? []
+					inbox.push({ id, message })
+					inboxes.set(projectId, inbox)
+				}, 40)
+			}
+			return send(res, 202, { accepted: true, notification_id: id })
+		}
+		const inboxMatch = /^\/v1\/projects\/([^/]+)\/inbox$/.exec(url.pathname)
+		if (inboxMatch !== null && method === "GET") {
+			const principal = authenticate(req)
+			const projectId = inboxMatch[1] ?? ""
+			if (projectId !== principal.projectId) {
+				throw new HttpError(403, "forbidden", "resource belongs to another tenant")
+			}
+			return send(res, 200, { messages: inboxes.get(projectId) ?? [] })
+		}
+
 		const inviteMatch = /^\/v1\/projects\/([^/]+)\/tables\/([^/]+)\/invites$/.exec(url.pathname)
 		if (inviteMatch !== null && method === "POST") {
 			const principal = authenticate(req)
 			const projectId = inviteMatch[1] ?? ""
-			const tableId = inviteMatch[2] ?? ""
+			const tableId = pathId(TABLE.itemParam, inviteMatch[2] ?? "")
 			if (projectId !== principal.projectId) {
 				throw new HttpError(403, "forbidden", "resource belongs to another tenant")
 			}
@@ -472,13 +786,13 @@ export async function createReferenceServer(
 			if (PRINCIPALS.find((p) => p.key === key) === undefined) {
 				throw new HttpError(400, "invalid_input", "unknown invitee key")
 			}
-			await findItem(TABLE, principal, tableId)
+			await findItem(TABLE, principal, tableId, { project_id: projectId })
 			const grant: Grant = {
 				accepted: false,
 				entity: "table",
 				grantId: `grn_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
 				granteeKey: key,
-				resourceId: tableId,
+				resourceId: String(tableId),
 				token: `inv_${Math.random().toString(36).slice(2, 12)}`,
 			}
 			grants.set(grant.grantId, grant)
@@ -502,7 +816,7 @@ export async function createReferenceServer(
 		if (revokeMatch !== null && method === "DELETE") {
 			const principal = authenticate(req)
 			const projectId = revokeMatch[1] ?? ""
-			const tableId = revokeMatch[2] ?? ""
+			const tableId = String(pathId(TABLE.itemParam, revokeMatch[2] ?? ""))
 			const grantId = revokeMatch[3] ?? ""
 			if (projectId !== principal.projectId) {
 				throw new HttpError(403, "forbidden", "resource belongs to another tenant")
@@ -516,14 +830,21 @@ export async function createReferenceServer(
 			return send(res, 200, { revoked: true })
 		}
 
-		const match = matchRoute(url.pathname)
+		const match = matchRoute(url.pathname, entities)
 		if (match === null) throw new HttpError(404, "not_found", `no route for ${url.pathname}`)
 
 		const principal = authenticate(req)
-		const { entity, scope, itemId } = match
+		const { entity } = match
+		const scope = typedScope(match.scope)
+		const itemId = match.itemId === null ? null : (scope[entity.itemParam] ?? null)
 		/* Item GET may be a delegated read — assertTenant would 403 a valid grant before
 		 * findItem can honour it. Collection GET and mutations stay tenant-bound. */
-		if (!(method === "GET" && itemId !== null)) assertTenant(principal, match.scope)
+		const delegatedRead = method === "GET" && itemId !== null
+		if (!delegatedRead) {
+			assertTenant(principal, scope)
+			await assertParents(entity, scope, principal)
+		}
+		if (entity.name === JOB.name && method === "GET") await advanceJobs()
 
 		if (itemId === null) {
 			if (method === "GET") {
@@ -536,108 +857,72 @@ export async function createReferenceServer(
 				)
 				if (defects.has("STALE_LIST") && plainListing && staleSnapshot.has(key)) {
 					const frozen = staleSnapshot.get(key) ?? []
+					const items = frozen.slice(0, entity.defaultLimit)
 					const stale = paginated(dialect, entity, url, {
 						count: frozen.length,
 						hasMore: false,
-						items: frozen,
+						items,
 						limit: entity.defaultLimit,
 						nextCursor: null,
+						offset: 0,
 						page: 1,
 					})
 					return send(res, 200, stale.body, stale.headers)
 				}
-				const number = (name: string): number | undefined => {
-					const raw = url.searchParams.get(name)
-					if (raw === null) return undefined
-					const parsed = Number(raw)
-					if (!Number.isFinite(parsed)) {
-						throw new HttpError(400, "invalid_input", `query parameter "${name}" must be numeric`)
-					}
-					return parsed
-				}
 				const rawFilter =
 					dialect.grammar === "equality" ? equalityFilter(url, entity) : url.searchParams.get(dialect.params.filter)
 				let filter: string | undefined
-				/* Alone, the filter behaves perfectly. Each of these defects drops it the moment
-				 * another axis joins the request — the combination is the bug, not either axis. */
-				const sorted = url.searchParams.get(dialect.params.order)
-				const selected = readSelect(url, dialect, entity)
-				const searched = url.searchParams.get(dialect.params.search)
-				const hasSort = sorted !== null && sorted !== ""
-				const hasSelect = selected !== undefined && selected !== "" && selected !== "*"
-				const hasSearch = searched !== null && searched !== ""
-				const dropFilter =
-					(defects.has("FILTER_DROPPED_WHEN_SORTED") && hasSort) ||
-					(defects.has("FILTER_DROPPED_WHEN_SELECTED") && hasSelect) ||
-					(defects.has("FILTER_DROPPED_WHEN_SEARCHED") && hasSearch) ||
-					(defects.has("FILTER_DROPPED_WHEN_SORTED_AND_SELECTED") && hasSort && hasSelect) ||
-					(defects.has("FILTER_DROPPED_WHEN_SORTED_AND_SEARCHED") && hasSort && hasSearch) ||
-					(defects.has("FILTER_DROPPED_WHEN_SEARCHED_AND_SELECTED") && hasSearch && hasSelect)
-				if (rawFilter !== null && rawFilter !== "" && !dropFilter) {
+				if (rawFilter !== null && rawFilter !== "") {
 					const canonical = toCanonicalFilter(rawFilter, dialect)
-					if (canonical === null) {
-						/* A filter the dialect cannot parse is bad client input, so 400 — unless the
-						 * defect that turns parse failures into server errors is active. Routing this
-						 * path through the same defect matters: on a dialect whose grammar rejects a
-						 * malformed value here rather than in the store, the store's 500 path is never
-						 * reached and the defect would be silently inexpressible. */
-						throw defects.has("ERROR_500_ON_BAD_FILTER")
-							? new HttpError(500, "internal_error", "filter parser threw")
-							: new HttpError(400, "invalid_input", `malformed filter: ${rawFilter}`)
-					}
+					if (canonical === null) throw new SqlError("invalid_filter", `malformed filter: ${rawFilter}`)
 					filter = canonical
 				}
-
-				/*
-				 * Under the defect the predicate is withheld from the store, so the page window is
-				 * computed over the unfiltered set; the filter is then applied to whatever that
-				 * window contained. Modelled here rather than in each store because it is a bug in
-				 * *ordering of operations*, not in any one engine's query compiler.
-				 */
-				const pageBeforeFilter = defects.has("FILTER_AFTER_PAGINATION") && filter !== undefined
-				const result = await store.query(
+				const param = (name: string | undefined): string | undefined =>
+					name === undefined ? undefined : (url.searchParams.get(name) ?? undefined)
+				const request: ListingRequest = {
+					cursor: param(dialect.params.cursor),
+					filter,
+					limit: param(dialect.params.limit),
+					offset: param(dialect.params.offset),
+					order: toCanonicalOrder(param(dialect.params.order), dialect),
+					page: param(dialect.params.page),
+					q: param(dialect.params.search),
+					searchMode: param(dialect.params.searchMode),
+					select: readSelect(url, dialect, entity),
+				}
+				const result = await runListing(
+					store,
 					entity,
-					{ ...scope, project_id: principal.projectId },
+					request,
 					{
-						cursor:
-							dialect.params.cursor === undefined
-								? undefined
-								: (url.searchParams.get(dialect.params.cursor) ?? undefined),
-						filter: pageBeforeFilter ? undefined : filter,
-						limit: number(dialect.params.limit),
-						order: toCanonicalOrder(url.searchParams.get(dialect.params.order) ?? undefined, dialect),
-						/* Whichever the dialect publishes. The store pages by number, so an offset is
-						 * converted using the page size actually in force — the same arithmetic the
-						 * caller performed to produce the offset. */
-						page: pageFrom(url, dialect, number(dialect.params.limit) ?? entity.defaultLimit),
-						q: searched ?? undefined,
-						select: selected,
-					},
-					{
-						softDeleteField: entity.softDeleteField,
+						conventions,
+						clampLimit: shape.clampLimit,
+						/* A row embeds the table it belongs to: `select=id,table(name)`. */
+						embed: async (relation, row) => {
+							const declared = entity.relations?.[relation]
+							const target = entities.find((candidate) => candidate.name === declared?.entity)
+							const link = declared === undefined ? undefined : row[declared.via]
+							if (target === undefined || (typeof link !== "string" && typeof link !== "number")) return null
+							const related = await store.byId(target, link)
+							return related === null ? null : present(target, related)
+						},
+						scope: { ...scope, project_id: principal.projectId },
 						/* Applied to the collection only — the item route never passes through here —
 						 * so a skewed field makes the two projections disagree exactly as a stale
 						 * denormalised listing does. */
-						transform: (row: Row) => skewForList(entity.name === "job" ? projectJob(row) : row),
+						transform: skewForList,
 					},
+					defects,
 				)
-				if (pageBeforeFilter && filter !== undefined) {
-					const matching = await store.query(
-						entity,
-						{ ...scope, project_id: principal.projectId },
-						{ filter, limit: 1000 },
-						{ softDeleteField: entity.softDeleteField },
-					)
-					const allowed = new Set(matching.items.map((row) => String(row[entity.identity])))
-					result.items = result.items.filter((row) => allowed.has(String(row[entity.identity])))
-				}
 				const listing = paginated(dialect, entity, url, result)
 				return send(res, 200, listing.body, listing.headers)
 			}
 
 			if (method === "POST") {
 				assertWrite(principal, "create")
-				requireJson(req, defects)
+				const form = shape.formCreate === true
+				if (form) requireForm(req, defects)
+				else requireJson(req, defects)
 				/* Scoped by principal as well as key: two tenants using the same key must not be
 				 * able to read each other's result back. */
 				const idempotencyKey = req.headers["idempotency-key"]
@@ -648,35 +933,28 @@ export async function createReferenceServer(
 				if (replayKey !== null && !defects.has("IDEMPOTENCY_IGNORED")) {
 					const previous = idempotent.get(replayKey)
 					if (previous !== undefined) {
-						return send(res, defects.has("CREATED_201_AS_200") ? 200 : 201, decorate(previous))
+						return send(res, defects.has("CREATED_201_AS_200") ? 200 : 201, present(entity, previous))
 					}
 				}
-				const input = validateBody(entity, await readJson(req), "create", defects)
+				const input = validateBody(
+					entity,
+					form ? formFields(entity, await readText(req)) : await readJson(req),
+					"create",
+					defects,
+				)
 				if (defects.has("STALE_LIST")) {
 					const key = snapshotKey(entity, scope)
 					if (!staleSnapshot.has(key)) {
-						staleSnapshot.set(
-							key,
-							(
-								await store.query(
-									entity,
-									{ ...scope, project_id: principal.projectId },
-									{ limit: 1000 },
-									{ softDeleteField: entity.softDeleteField },
-								)
-							).items,
-						)
+						staleSnapshot.set(key, await liveRows(entity, { ...scope, project_id: principal.projectId }))
 					}
 				}
 				if (defects.has("CREATE_DROPS_FIELD")) delete input.description
 				const record = withDefaults(entity, input, { ...scope, project_id: principal.projectId })
-				await assertUnique(entity, record, undefined, defects)
+				await assertUnique(entity, record, undefined)
 				const created = await store.insert(entity, record)
-				/* Progress starts on POST .../jobs/start, not on create. A seeded job that
-				 * ticks for 60ms looks like a PATCH side effect once x-generated is stripped. */
-				await refreshParentCount(entity, scope, principal)
+				await refreshParentCount(entity, scope)
 				if (replayKey !== null) idempotent.set(replayKey, created)
-				return send(res, defects.has("CREATED_201_AS_200") ? 200 : 201, decorate(created))
+				return send(res, defects.has("CREATED_201_AS_200") ? 200 : 201, present(entity, created))
 			}
 			throw new HttpError(404, "not_found", `method ${method} not supported here`)
 		}
@@ -687,15 +965,16 @@ export async function createReferenceServer(
 			if (defects.has("ROLE_MONOTONICITY_BROKEN") && principal.rank === 1) {
 				throw new HttpError(403, "forbidden", "role cannot read this record")
 			}
-			const record = await findItem(entity, principal, itemId)
-			return send(res, 200, decorate(entity.name === "job" ? projectJob(record) : record))
+			const record = await findItem(entity, principal, itemId, scope)
+			return send(res, 200, present(entity, record))
 		}
 
-		if (method === "PATCH") {
+		if (method === updateMethod) {
 			assertWrite(principal, "update")
 			requireJson(req, defects)
-			const existing = await findItem(entity, principal, itemId)
-			const patch = validateBody(entity, await readJson(req), "update", defects)
+			const existing = await findItem(entity, principal, itemId, scope)
+			const replace = method === "PUT"
+			const patch = validateBody(entity, await readJson(req), replace ? "replace" : "update", defects)
 			/*
 			 * Write only the fields the caller named.
 			 *
@@ -704,24 +983,29 @@ export async function createReferenceServer(
 			 * commits second reinstates the values it read before the first had committed. The
 			 * merged record is still built, but only to shape the response.
 			 */
+			/* PUT is a replacement by contract: what the body leaves out is reset, not kept. */
 			const changes: Row = defects.has("PATCH_REPLACES")
 				? {
 						...withDefaults(entity, {}, { ...scope, project_id: principal.projectId }),
 						...patch,
 					}
-				: { ...patch }
-			changes.updated_at = store.now()
+				: replace
+					? { ...replacementDefaults(entity), ...patch }
+					: { ...patch }
+			changes.updated_at = now()
 			delete changes[entity.identity]
 			delete changes.created_at
 			if (!defects.has("IMMUTABLE_WRITABLE")) {
 				for (const parent of entity.parents) delete changes[parent]
 			}
-			await assertUnique(entity, { ...existing, ...changes }, itemId, defects)
-			const updated = await store.update(entity, itemId, changes)
+			await assertUnique(entity, { ...existing, ...changes }, String(itemId))
+			const updated = defects.has("CONCURRENT_WRITE_LOST")
+				? await readModifyWrite(entity, itemId, changes)
+				: await store.update(entity, itemId, changes)
 			return send(
 				res,
 				defects.has("RESPONSE_STATUS_UNDECLARED") ? 201 : 200,
-				decorate(updated ?? { ...existing, ...changes }),
+				present(entity, updated ?? { ...existing, ...changes }),
 			)
 		}
 
@@ -732,19 +1016,20 @@ export async function createReferenceServer(
 				if (defects.has("DELETE_MISSING_OK")) return send(res, 200, { [entity.identity]: itemId })
 				throw new HttpError(404, "not_found", `${entity.name} ${itemId} does not exist`)
 			}
-			const record = await findItem(entity, principal, itemId)
+			const record = await findItem(entity, principal, itemId, scope)
 			if (entity.softDeleteField !== undefined) {
 				const updated = await store.update(entity, itemId, {
-					[entity.softDeleteField]: store.now(),
-					updated_at: store.now(),
+					[entity.softDeleteField]: now(),
+					updated_at: now(),
 				})
-				return send(res, 200, decorate(updated ?? record))
+				return send(res, 200, present(entity, updated ?? record))
 			}
 			await store.remove(entity, itemId)
-			return send(res, 200, decorate(record))
+			await refreshParentCount(entity, scope)
+			return send(res, 200, present(entity, record))
 		}
 
-		throw new HttpError(404, "not_found", `method ${method} not supported`)
+		throw new HttpError(405, "method_not_allowed", `method ${method} not supported`)
 	}
 
 	const server = createServer((req, res) => {
@@ -761,7 +1046,9 @@ export async function createReferenceServer(
 				})
 			}
 			if (error instanceof SqlError) {
-				if (defects.has("ERROR_500_ON_BAD_FILTER")) {
+				/* Correct behaviour is a 400. The defect lets the filter parser's own exception
+				 * escape, which the transport surfaces as a 500 — validation confused with crashing. */
+				if (defects.has("ERROR_500_ON_BAD_FILTER") && error.code === "invalid_filter") {
 					return send(res, 500, {
 						error_key: "internal_error",
 						message: error.message,
@@ -809,7 +1096,19 @@ export async function createReferenceServer(
 				defects,
 				principals: PRINCIPALS,
 				server,
-				url: `http://127.0.0.1:${address.port}`,
+				snapshot: async () => {
+					const out: Record<string, Row[]> = {}
+					for (const entity of entities) {
+						out[entity.name] = await store.select(entity, {
+							collation: "binary",
+							order: [],
+							shuffleTies: false,
+							where: { kind: "const", value: true },
+						})
+					}
+					return out
+				},
+				url: `http://127.0.0.1:${address.port}${basePath}`,
 			})
 		})
 	})
@@ -828,10 +1127,10 @@ function send(res: ServerResponse, status: number, body: Json, extraHeaders: Rec
 }
 
 /**
- * Rewrites a sort expression from the dialect's grammar into the canonical `field.asc` the stores
- * parse, so the storage layer never learns which spelling arrived.
+ * Rewrites a sort expression from the dialect's grammar into the canonical `field.asc` the
+ * listing parses, so the storage layer never learns which spelling arrived.
  *
- * Unparseable terms are passed through untouched rather than dropped: the store rejects an
+ * Unparseable terms are passed through untouched rather than dropped: the parser rejects an
  * unknown sort field with a 400, which is the correct answer to a malformed sort and keeps a bad
  * expression from silently becoming no sort at all.
  */
@@ -887,29 +1186,6 @@ function readSelect(url: URL, dialect: Dialect, entity: EntityDef): string | und
 }
 
 /**
- * The page number a request is asking for, whichever way the dialect counts.
- *
- * The store pages by number; an API that counts rows skipped is converted using the page size in
- * force — the same arithmetic the caller did to produce the offset. An offset that is not a whole
- * multiple of the page size has no exact page number, and rounding down matches what every offset
- * API does anyway: return the window starting there.
- */
-function pageFrom(url: URL, dialect: Dialect, pageSize: number): number | undefined {
-	const read = (name: string | undefined): number | undefined => {
-		if (name === undefined) return undefined
-		const raw = url.searchParams.get(name)
-		if (raw === null) return undefined
-		const parsed = Number(raw)
-		return Number.isFinite(parsed) ? parsed : undefined
-	}
-	const page = read(dialect.params.page)
-	if (page !== undefined) return page
-	const offset = read(dialect.params.offset)
-	if (offset === undefined) return undefined
-	return Math.floor(offset / Math.max(pageSize, 1)) + 1
-}
-
-/**
  * Builds a listing response in whichever pagination model the dialect speaks.
  *
  * Two genuinely different models, not two spellings: an envelope carrying the array alongside a
@@ -926,20 +1202,19 @@ function paginated(
 		hasMore: boolean
 		nextCursor: string | null
 		page: number | null
+		offset: number
 		limit: number
 	},
 ): { body: Json; headers: Record<string, string> } {
-	if (dialect.envelope !== null) {
-		const envelope: Record<string, unknown> = {
-			[dialect.envelope.collection ?? entity.plural]: result.items,
-			[dialect.envelope.hasMore]: result.hasMore,
-			[dialect.envelope.limit]: result.limit,
-			[dialect.envelope.page]: result.page,
-			[dialect.envelope.total]: result.count,
-		}
-		if (dialect.envelope.nextCursor !== undefined) {
-			envelope[dialect.envelope.nextCursor] = result.nextCursor
-		}
+	const env = dialect.envelope
+	if (env !== null) {
+		const envelope: Record<string, unknown> = { [env.collection ?? entity.plural]: result.items }
+		/* Only the facts this API publishes. */
+		if (env.hasMore !== undefined) envelope[env.hasMore] = result.hasMore
+		if (env.limit !== undefined) envelope[env.limit] = result.limit
+		if (env.page !== undefined) envelope[env.page] = result.page
+		if (env.total !== undefined) envelope[env.total] = result.count
+		if (env.nextCursor !== undefined) envelope[env.nextCursor] = result.nextCursor
 		return { body: envelope as Json, headers: {} }
 	}
 
@@ -949,14 +1224,27 @@ function paginated(
 	const offsetParam = dialect.params.offset
 	if (result.hasMore && offsetParam !== undefined) {
 		const next = new URL(requestUrl.toString())
-		const consumed = Number(next.searchParams.get(offsetParam) ?? 0) + result.items.length
-		next.searchParams.set(offsetParam, String(consumed))
+		next.searchParams.set(offsetParam, String(result.offset + result.items.length))
 		links.push(`<${next.pathname}${next.search}>; rel="next"`)
 	}
 	return {
 		body: result.items as unknown as Json,
 		headers: links.length > 0 ? { link: links.join(", ") } : {},
 	}
+}
+
+function requireForm(req: IncomingMessage, defects: DefectSet): void {
+	if (defects.has("CONTENT_TYPE_NOT_ENFORCED")) return
+	const type = req.headers["content-type"]
+	if (typeof type !== "string" || !type.includes("application/x-www-form-urlencoded")) {
+		throw new HttpError(415, "unsupported_media_type", "expected application/x-www-form-urlencoded")
+	}
+}
+
+async function readText(req: IncomingMessage): Promise<string> {
+	const chunks: Buffer[] = []
+	for await (const chunk of req) chunks.push(chunk as Buffer)
+	return Buffer.concat(chunks).toString("utf8")
 }
 
 function requireJson(req: IncomingMessage, defects: DefectSet): void {
@@ -980,20 +1268,18 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
 }
 
 /** In-memory reference server — no dependencies, no flags, nothing to have running. */
-export async function createMemoryServer(
-	options: { defects?: string[]; untagged?: boolean; dialect?: string } = {},
-): Promise<ReferenceServer> {
+export async function createMemoryServer(options: ReferenceOptions = {}): Promise<ReferenceServer> {
 	const { MemoryStore } = await import("./stores/memory.ts")
-	return createReferenceServer(options, async (defects) => new MemoryStore(defects))
+	return createReferenceServer(options, async () => new MemoryStore())
 }
 
 /** SQLite-backed reference server, in-process via `node:sqlite`. */
-export async function createSqliteServer(
-	options: { defects?: string[]; untagged?: boolean; dialect?: string } = {},
-): Promise<ReferenceServer> {
+export async function createSqliteServer(options: ReferenceOptions = {}): Promise<ReferenceServer> {
 	const { SqlStore } = await import("./stores/sqlite.ts")
 	const { nodeSqliteDriver } = await import("./stores/sqlite-driver.ts")
-	return createReferenceServer(options, async (defects) => SqlStore.create(defects, await nodeSqliteDriver()))
+	return createReferenceServer(options, async (defects, entities) =>
+		SqlStore.create(defects, await nodeSqliteDriver(), "", entities),
+	)
 }
 
 /**
@@ -1004,10 +1290,7 @@ export async function createSqliteServer(
  * runs sharing one database would otherwise contaminate each other's results.
  */
 export async function createD1Server(
-	options: {
-		defects?: string[]
-		untagged?: boolean
-		dialect?: string
+	options: ReferenceOptions & {
 		accountId?: string
 		databaseId?: string
 		apiToken?: string
@@ -1028,7 +1311,7 @@ export async function createD1Server(
 	const { SqlStore } = await import("./stores/sqlite.ts")
 	const { d1Driver } = await import("./stores/sqlite-driver.ts")
 	const prefix = `oat_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}_`
-	return createReferenceServer(options, (defects) =>
+	return createReferenceServer(options, (defects, entities) =>
 		SqlStore.create(
 			defects,
 			d1Driver({
@@ -1037,14 +1320,13 @@ export async function createD1Server(
 				databaseId: databaseId as string,
 			}),
 			prefix,
+			entities,
 		),
 	)
 }
 
 /** Postgres-backed reference server. Imported lazily so the driver is only loaded when used. */
-export async function createPostgresServer(
-	options: { defects?: string[]; untagged?: boolean; dialect?: string } = {},
-): Promise<ReferenceServer> {
+export async function createPostgresServer(options: ReferenceOptions = {}): Promise<ReferenceServer> {
 	const { PgStore } = await import("./stores/postgres.ts")
-	return createReferenceServer(options, (defects) => PgStore.create(defects))
+	return createReferenceServer(options, (defects, entities) => PgStore.create(defects, entities))
 }

@@ -12,11 +12,19 @@ import type { Client } from "./client.ts"
 import { parseRouteRef } from "../spec/load.ts"
 import { fillPath } from "./world.ts"
 
+/** The principal a record belongs to, as far as removing it goes. */
+export interface Owner {
+	id: string
+	headers: () => Record<string, string>
+}
+
 export interface Disposable {
 	entity: string
 	id: string
 	/** Path parameters in scope when the record was created. */
 	scope: Record<string, string>
+	/** Who created it. Only the creator's view of the record decides whether it is gone. */
+	owner: Owner
 }
 
 export interface TeardownReport {
@@ -26,15 +34,24 @@ export interface TeardownReport {
 }
 
 /**
- * Registry of what a run brought into existence. Entities are recorded in creation order so the
- * unwind can reverse it.
+ * Registry of what a run brought into existence, recorded the moment each record is created.
+ *
+ * Entries carry their creator. Removing a record with somebody else's credential is at best a
+ * 403 and at worst a 404 that reads as success while the record sits on in the creator's tenant —
+ * so the creator deletes first, and a 404 counts as removal only when the creator sees it.
+ * Entities are recorded in creation order so the unwind can reverse it. A record oat adopted
+ * rather than created must never be recorded here: it was not oat's to remove.
  */
 export class Ledger {
 	private readonly items: Disposable[] = []
+	private readonly seen = new Set<string>()
 
-	record(entity: string, id: string, scope: Record<string, string>): void {
+	record(entity: string, id: string, scope: Record<string, string>, owner: Owner): void {
 		if (id === "" || id === "undefined") return
-		this.items.push({ entity, id, scope: { ...scope } })
+		const key = `${entity}\u0000${id}`
+		if (this.seen.has(key)) return
+		this.seen.add(key)
+		this.items.push({ entity, id, owner, scope: { ...scope } })
 	}
 
 	get size(): number {
@@ -48,7 +65,9 @@ export class Ledger {
 	async unwind(
 		model: SpecModel,
 		client: Client,
-		headers: () => Record<string, string>,
+		/* Principals allowed to remove a record its creator was refused, strongest first — the
+		 * same tenant's owner removing what a member created. */
+		fallbacks: (owner: Owner) => Owner[],
 		onItem?: (done: number, total: number, item: Disposable) => void,
 	): Promise<TeardownReport> {
 		const report: TeardownReport = { failed: [], removed: 0, unsupported: [] }
@@ -84,15 +103,26 @@ export class Ledger {
 			}
 
 			try {
-				const exchange = await client.request("DELETE", path, { headers })
-				/* 404 means it is already gone — the goal is absence, not a successful call. */
-				if (exchange.status < 300 || exchange.status === 404 || exchange.status === 410) {
-					report.removed += 1
-				} else {
+				const attempts: string[] = []
+				let removed = false
+				for (const [index, deleter] of [item.owner, ...fallbacks(item.owner)].entries()) {
+					const exchange = await client.request("DELETE", path, { headers: deleter.headers })
+					attempts.push(`${deleter.id}: ${exchange.status}`)
+					/* Gone is the goal, not a successful call — but only the creator's 404 says the
+					 * record is gone. Anyone else's may just mean they cannot see it. */
+					if (exchange.status < 300 || (index === 0 && (exchange.status === 404 || exchange.status === 410))) {
+						removed = true
+						break
+					}
+					/* Only a denial is worth retrying with a stronger credential. */
+					if (exchange.status !== 401 && exchange.status !== 403) break
+				}
+				if (removed) report.removed += 1
+				else {
 					report.failed.push({
 						entity: item.entity,
 						id: item.id,
-						reason: `DELETE ${path} returned ${exchange.status}`,
+						reason: `DELETE ${path} returned ${attempts.join(", ")}`,
 					})
 				}
 			} catch (error) {

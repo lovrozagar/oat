@@ -54,7 +54,28 @@ jobs:
   test:
     name: conformance
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
+    # The Postgres leg is part of the self-test, not an extra: without it the SQL-only defects and
+    # every engine difference go untested, and the suite fails rather than skip it silently.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: runner
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U runner"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: runner
+      PGPASSWORD: postgres
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -64,7 +85,13 @@ jobs:
         with:
           node-version: "22"
       - run: bun install --frozen-lockfile
-      - run: bun run test
+      - run: bun run build && bun run test:unit
+      # A fresh seed per run, printed in the output, so the combination pass explores new ground
+      # and any failure it finds replays exactly.
+      - name: Conformance
+        run: node --experimental-sqlite dist/cli.js conformance --fuzz-seed ${{ github.run_id }}
+      - name: Precision
+        run: node --experimental-sqlite dist/cli.js conformance --precision 20 --seed ${{ github.run_id }}
       - name: CLI smoke
         run: |
           node dist/cli.js help

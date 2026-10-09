@@ -129,14 +129,15 @@ describe("encode + client", () => {
 				contentType: encoded.contentType,
 			})
 
-			expect(exchange.requestBody).toMatchObject({
+			expect(exchange.requestBody).toBeInstanceOf(FormData)
+			expect(client.transcript.at(-1)?.requestBody).toMatchObject({
 				parts: expect.arrayContaining([
 					expect.objectContaining({ field: "text", value: "invoice text" }),
 					expect.objectContaining({ field: "file", mediaType: "application/pdf" }),
 				]),
 			})
 			expect(exchange.requestHeaders["content-type"]).toBeUndefined()
-			const filePart = (exchange.requestBody as { parts: Array<Record<string, unknown>> }).parts.find(
+			const filePart = (client.transcript.at(-1)?.requestBody as { parts: Array<Record<string, unknown>> }).parts.find(
 				(part) => part.field === "file",
 			)
 			expect(filePart).toMatchObject({ field: "file", mediaType: "application/pdf" })
@@ -273,7 +274,7 @@ describe("encode + client", () => {
 				body: encoded.body,
 				contentType: encoded.contentType,
 			})
-			expect(exchange.requestBody).toEqual({ password: "<redacted>", username: "oat" })
+			expect(client.transcript.at(-1)?.requestBody).toEqual({ password: "<redacted>", username: "oat" })
 			expect(exchange.requestHeaders["content-type"]).toBe("application/x-www-form-urlencoded")
 			expect(last().contentType).toContain("application/x-www-form-urlencoded")
 			expect(last().raw).toContain("username=oat")

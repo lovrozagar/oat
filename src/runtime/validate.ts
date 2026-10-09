@@ -8,6 +8,8 @@
 
 import ajvModule from "ajv/dist/2020.js"
 import formatsModule from "ajv-formats"
+import { DEFS_ID } from "../spec/load.ts"
+import { normalizeSchema } from "../spec/schema.ts"
 import type { OperationObject, SchemaObject } from "../spec/types.ts"
 
 /** Minimal surface oat uses — avoids depending on AJV's CJS/ESM type shape. */
@@ -18,6 +20,7 @@ export interface ValidateFunction {
 
 interface AjvLike {
 	compile: (schema: unknown) => ValidateFunction
+	addSchema: (schema: unknown, key?: string) => unknown
 }
 
 type AjvConstructor = new (options: Record<string, unknown>) => AjvLike
@@ -25,6 +28,11 @@ type AjvConstructor = new (options: Record<string, unknown>) => AjvLike
 export interface ValidationResult {
 	ok: boolean
 	errors: string[]
+	/**
+	 * Set when the documented schema could not be compiled, with AJV's reason. Nothing was
+	 * validated, and the caller must say so — an uncompilable schema is not a passing one.
+	 */
+	unchecked?: string
 }
 
 const OK: ValidationResult = { errors: [], ok: true }
@@ -36,9 +44,10 @@ const addFormats = ((formatsModule as { default?: unknown }).default ?? formatsM
 
 export class SchemaValidator {
 	private readonly ajv: AjvLike
-	private readonly cache = new Map<string, ValidateFunction | null>()
+	private readonly cache = new Map<string, ValidateFunction | { failed: string } | null>()
 
-	constructor() {
+	/** `defs`: the recursive schemas a dereferenced document refers to (see `dereference`). */
+	constructor(defs: Record<string, SchemaObject> = {}) {
 		this.ajv = new Ajv2020({
 			allErrors: true,
 			/* Specs in the wild carry annotations AJV does not know; refusing to compile over a
@@ -47,10 +56,15 @@ export class SchemaValidator {
 			validateFormats: true,
 		})
 		addFormats(this.ajv)
+		/* Recursive schemas are referenced as `oat-defs#/$defs/<name>`, so they are registered
+		 * once under that id and every compiled schema can reach them. */
+		const $defs: Record<string, SchemaObject> = {}
+		for (const [name, def] of Object.entries(defs)) $defs[name] = normalizeSchema(def, { direction: "response" })
+		this.ajv.addSchema({ $defs, $id: DEFS_ID })
 	}
 
 	/** Compiles the schema documented for this operation and status, if there is one. */
-	private compile(op: OperationObject, key: string, status: number): ValidateFunction | null {
+	private compile(op: OperationObject, key: string, status: number): ValidateFunction | { failed: string } | null {
 		const cached = this.cache.get(key)
 		if (cached !== undefined) return cached
 
@@ -60,20 +74,22 @@ export class SchemaValidator {
 			return null
 		}
 		try {
-			const validate = this.ajv.compile(sanitise(schema))
+			const validate = this.ajv.compile(normalizeSchema(schema, { direction: "response" }))
 			this.cache.set(key, validate)
 			return validate
-		} catch {
+		} catch (error) {
 			/* An uncompilable schema is a spec defect, surfaced by the caller as a gap rather than
-			 * crashing the run. */
-			this.cache.set(key, null)
-			return null
+			 * crashing the run — and never as a pass. */
+			const failed = { failed: error instanceof Error ? error.message : String(error) }
+			this.cache.set(key, failed)
+			return failed
 		}
 	}
 
 	validate(operationId: string, op: OperationObject, status: number, body: unknown): ValidationResult {
 		const validate = this.compile(op, `${operationId}:${status}`, status)
 		if (validate === null) return OK
+		if ("failed" in validate) return { errors: [], ok: true, unchecked: validate.failed }
 		if (validate(body) === true) return OK
 		const errors = (validate.errors ?? []).map((error) => {
 			const at = error.instancePath === undefined || error.instancePath === "" ? "(root)" : error.instancePath
@@ -101,28 +117,42 @@ function schemaFor(op: OperationObject, status: number): SchemaObject | null {
 	return null
 }
 
+/* One AJV per set of definitions: each registers them under `oat-defs`, as the document names them. */
+const instanceAjvs = new WeakMap<object, AjvLike>()
+const NO_DEFS: Record<string, SchemaObject> = {}
+const instanceCache = new WeakMap<object, ValidateFunction | { failed: string }>()
+
+function ajvFor(defs: Record<string, SchemaObject>): AjvLike {
+	const existing = instanceAjvs.get(defs)
+	if (existing !== undefined) return existing
+	const ajv = new Ajv2020({ allErrors: true, strict: false, validateFormats: true })
+	addFormats(ajv)
+	const $defs: Record<string, SchemaObject> = {}
+	for (const [name, def] of Object.entries(defs)) $defs[name] = normalizeSchema(def, { direction: "request" })
+	ajv.addSchema({ $defs, $id: DEFS_ID })
+	instanceAjvs.set(defs, ajv)
+	return ajv
+}
+
 /**
- * Strips constructs that break AJV but carry no validation meaning here: OpenAPI's `nullable`
- * without a sibling `type` (invalid JSON Schema, emitted by several generators), and `example`
- * keys that collide with the `examples` keyword in draft 2020-12.
+ * Whether `value` satisfies an already-normalized `schema` — the self-check every generated body
+ * passes before it is sent. Returns AJV's complaints, or `[]`.
  */
-function sanitise(schema: SchemaObject): SchemaObject {
-	const walk = (node: unknown): unknown => {
-		if (Array.isArray(node)) return node.map(walk)
-		if (node === null || typeof node !== "object") return node
-		const out: Record<string, unknown> = {}
-		for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
-			if (key === "nullable") continue
-			if (key === "example") continue
-			if (key === "discriminator") continue
-			out[key] = walk(value)
+export function instanceErrors(
+	schema: SchemaObject,
+	value: unknown,
+	defs: Record<string, SchemaObject> = NO_DEFS,
+): string[] {
+	let compiled = instanceCache.get(schema)
+	if (compiled === undefined) {
+		try {
+			compiled = ajvFor(defs).compile(schema)
+		} catch (error) {
+			compiled = { failed: error instanceof Error ? error.message : String(error) }
 		}
-		/* `nullable: true` with a concrete type widens the type rather than being dropped. */
-		const original = node as Record<string, unknown>
-		if (original.nullable === true && typeof original.type === "string") {
-			out.type = [original.type, "null"]
-		}
-		return out
+		instanceCache.set(schema, compiled)
 	}
-	return walk(schema) as SchemaObject
+	if ("failed" in compiled) return [`schema cannot be compiled: ${compiled.failed}`]
+	if (compiled(value) === true) return []
+	return (compiled.errors ?? []).map((error) => `${error.instancePath || "(root)"} ${error.message ?? "is invalid"}`)
 }

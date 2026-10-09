@@ -11,19 +11,22 @@
 import { execFile } from "node:child_process"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
-import { mkdtemp, writeFile } from "node:fs/promises"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
 import { DEFECTS, type DefectName } from "../reference/defects.ts"
+import { DIALECTS } from "../reference/dialect.ts"
 import { STRING_PAYLOADS, catalogProblems } from "../runtime/payloads.ts"
 import { coverageByCheck, renderConsole, renderRepros, type ReportInput } from "../report/render.ts"
 import { CHECKS } from "../runtime/checks.ts"
-import type { Finding } from "../runtime/finding.ts"
+import type { Finding, Inconclusive } from "../runtime/finding.ts"
 import { type PrincipalSpec, run } from "../runtime/run.ts"
 import { buildModel } from "../spec/graph.ts"
 import { dereference, loadSpec } from "../spec/load.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
+import { EXPECTED_INCONCLUSIVE } from "./expected-failures.ts"
+import { leftBehind } from "./leaks.ts"
 import { SPEC_FIXTURES } from "./specs.ts"
 
 export interface ParserResult {
@@ -705,6 +708,15 @@ export async function checkReproSyntax(findings: Finding[]): Promise<string[]> {
 	const scripts = renderRepros(findings, "https://example.test")
 	if (scripts.length === 0) return []
 	const dir = await mkdtemp(join(tmpdir(), "oat-repro-"))
+	try {
+		return await checkScripts(dir, scripts)
+	} finally {
+		/* A self-test that litters the temp directory is the same failure it reports elsewhere. */
+		await rm(dir, { force: true, recursive: true })
+	}
+}
+
+async function checkScripts(dir: string, scripts: ReturnType<typeof renderRepros>): Promise<string[]> {
 	const failures: string[] = []
 	for (const script of scripts) {
 		const path = join(dir, script.filename)
@@ -769,6 +781,8 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 		/* The tenant-scoping probe filters too, so its records fall outside the window and the
 		 * leak it looks for cannot be observed. */
 		"tenant.filter-does-not-bypass-scope",
+		/* A membership filter is a filter: its matches outside the window are lost the same way. */
+		"filter.contains-membership",
 	],
 	FILTER_DROPPED_WHEN_SORTED: [
 		"query.axes-compose",
@@ -912,20 +926,44 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 		"async.reaches-terminal-state",
 		"schema.success-response-matches-document",
 	],
+	FILTER_ALIAS_MISMAPPED: [
+		"filter.alias-matches-canonical",
+		/* `ne` read as `eq` is legal on a field that allows eq and not neq — so an operator the
+		 * document closes off is accepted. The same mismapping, seen from the allowlist. */
+		"filter.illegal-op-rejected",
+	],
+	FILTER_CONDITION_CAP_IGNORED: "filter.condition-cap-rejected",
+	FILTER_IN_CAP_IGNORED: "filter.in-over-limit-rejected",
+	FILTER_LTE_IS_LT: "filter.lte-is-lt-or-eq",
+	FILTER_LT_IS_LTE: "filter.ordered-triple-partitions",
+	FILTER_NESTED_COMBINATOR_LEAKS: "filter.nested-and-or-distributes",
+	FILTER_NIN_FIRST_ONLY: "filter.nin-complements-in",
+	FILTER_DROPPED_WHEN_SORTED_SEARCHED_AND_SELECTED: "query.filter-search-sort-select-compose",
+	/* The search is dropped wherever a select joins it, the filter+search+select triple included. */
+	SEARCH_DROPPED_WHEN_SELECTED: ["query.search-and-select-compose", "query.filter-search-select-compose"],
+	SEARCH_DROPPED_WHEN_SORTED: ["query.search-and-sort-compose", "query.filter-search-sort-compose"],
+	ORDER_DROPPED_WHEN_SELECTED: "query.sort-and-select-compose",
+	SEARCH_CASE_SENSITIVE: "search.case-insensitive",
+	SEARCH_EMPTY_MATCHES_NONE: "search.empty-q",
+	SEARCH_ONLY_FIRST_TOKEN: "search.tokens-and",
+	SELECT_UNKNOWN_IGNORED: "select.unknown-field-rejected",
+	SORT_NULLS_MODIFIER_IGNORED: "sort.nulls-first-last",
+	SORT_UNKNOWN_FIELD_IGNORED: "sort.unknown-field-rejected",
+	SPEC_OVERCLAIMS_FILTER_OP: "spec.declared-filterable-ops-accepted",
+	CONTAINS_MATCHES_SUBSTRING: "filter.contains-membership",
+	SEARCH_MODE_REJECTED: "search.mode-accepted",
+	NESTED_SELECT_IGNORED: "select.nested-honoured",
+	DEFAULT_ORDER_IGNORED: "sort.default-order-applied",
+	SIDE_EFFECT_NEVER_ARRIVES: "effects.side-effect-arrives",
 }
 
 /**
  * Defects only the SQL-backed reference can exhibit.
  *
  * The in-memory store has no physical column names, so a DDL/read naming mismatch has nowhere
- * to happen. Running it there would report a miss for something that cannot occur.
+ * to happen. Every other defect is defined above the stores and runs on every engine.
  */
-export const SQL_ONLY: ReadonlySet<DefectName> = new Set<DefectName>([
-	"COLUMN_NAME_MISMATCH",
-	"NUMERIC_COMPARED_AS_TEXT",
-	"COLLATION_INCONSISTENT",
-	"CONCURRENT_WRITE_LOST",
-])
+export const SQL_ONLY: ReadonlySet<DefectName> = new Set<DefectName>(["COLUMN_NAME_MISMATCH"])
 
 export type Backend = "memory" | "sqlite" | "postgres" | "d1"
 
@@ -1016,6 +1054,10 @@ export const EXPRESSION_ONLY: ReadonlySet<DefectName> = new Set<DefectName>([
 	"NUMERIC_COMPARED_AS_TEXT",
 	"FILTER_ILLEGAL_OP_IGNORED",
 	"FILTER_GTE_IS_GT",
+	"FILTER_LTE_IS_LT",
+	"FILTER_LT_IS_LTE",
+	/* The overclaimed operator is `like`, which per-field equality cannot write. */
+	"SPEC_OVERCLAIMS_FILTER_OP",
 ])
 
 /**
@@ -1027,7 +1069,22 @@ export const POSTGREST_OP_ONLY: ReadonlySet<DefectName> = new Set<DefectName>([
 	"FILTER_IN_FIRST_ONLY",
 	"FILTER_ILIKE_IS_LIKE",
 	"FILTER_IS_NULL_MATCHES_ALL",
+	"FILTER_IN_CAP_IGNORED",
+	"FILTER_NIN_FIRST_ONLY",
+	"CONTAINS_MATCHES_SUBSTRING",
+	/* The alias is `ne`, which only the postgrest-shaped writer spells. */
+	"FILTER_ALIAS_MISMAPPED",
+	/* Grouping — nested and()/or(), and enough terms in one expression to pass a cap — exists
+	 * only in the postgrest-shaped grammar. */
+	"FILTER_CONDITION_CAP_IGNORED",
+	"FILTER_NESTED_COMBINATOR_LEAKS",
 ])
+
+/** Defects that need a search-mode parameter, which only some dialects publish. */
+export const SEARCH_MODE_ONLY: ReadonlySet<DefectName> = new Set<DefectName>(["SEARCH_MODE_REJECTED"])
+
+/** Defects that need a nulls token in the sort grammar — only the dotted grammar writes one. */
+export const NULLS_TOKEN_ONLY: ReadonlySet<DefectName> = new Set<DefectName>(["SORT_NULLS_MODIFIER_IGNORED"])
 
 export const DIALECTS_WITH_POSTGREST_FILTER: ReadonlySet<string> = new Set(["postgrest", "linked", "jsonapi"])
 
@@ -1142,6 +1199,8 @@ export interface CaseResult {
 	checksRun: string[]
 	/** Records created and not cleaned up. */
 	leaked?: number
+	/** Checks that ran and could not reach a verdict, as `check@entity: reason`. */
+	inconclusive?: string[]
 	/** Checks this defect may legitimately trip, primary first. */
 	acceptable?: string[]
 	error?: string
@@ -1152,11 +1211,14 @@ async function runAgainst(
 	untagged = false,
 	backend: Backend = "memory",
 	dialect = "postgrest",
+	shape?: string,
 ): Promise<{
 	findings: Finding[]
 	entitiesTested: string[]
 	checksRun: string[]
+	inconclusive: Inconclusive[]
 	leaked: number
+	leakedRecords: string[]
 }> {
 	/* One HTTP implementation, one store per engine — see reference/http.ts. Imported lazily so
 	 * an optional runtime such as node:sqlite cannot take down paths that never touch it. */
@@ -1170,21 +1232,25 @@ async function runAgainst(
 				: backend === "d1"
 					? createD1Server
 					: createPostgresServer
-	const server = await factory({ defects, dialect, untagged })
+	const server = await factory({ defects, dialect, untagged, ...(shape === undefined ? {} : { shape }) })
 	try {
+		const before = await server.snapshot()
 		const result = await run({
 			baseUrl: server.url,
 			principals: PRINCIPALS,
 			seed: 42,
 			spec: `${server.url}/v1/openapi/spec`,
 		})
+		/* A tester that litters is one nobody runs twice against anything real, so this is
+		 * asserted, not assumed — and read from the backend, not from oat's ledger. */
+		const leakedRecords = leftBehind(before, await server.snapshot())
 		return {
 			checksRun: result.checksRun,
 			entitiesTested: result.entitiesTested,
 			findings: result.findings,
-			/* Records the run created and did not remove. A tester that litters is one nobody
-			 * runs twice against anything real, so this is asserted, not assumed. */
-			leaked: result.created - (result.teardown?.removed ?? 0),
+			inconclusive: result.inconclusive,
+			leaked: leakedRecords.length,
+			leakedRecords,
 		}
 	} finally {
 		await server.close()
@@ -1200,10 +1266,11 @@ export async function runSuite(
 
 	/* Baseline first — everything downstream is meaningless if this is not clean. */
 	try {
-		const { findings, entitiesTested, checksRun, leaked } = await runAgainst([], false, backend, dialect)
+		const { findings, entitiesTested, checksRun, leaked, inconclusive } = await runAgainst([], false, backend, dialect)
 		const real = findings.filter((f) => f.verdict !== "COVERAGE_GAP")
 		results.push({
 			checksRun,
+			inconclusive: inconclusive.map((item) => `${item.check}@${item.entity}: ${item.reason}`),
 			leaked,
 			defect: null,
 			detected: real.length === 0,
@@ -1232,7 +1299,7 @@ export async function runSuite(
 	 * backend when it is running on heuristics alone — a fallback that invents findings would
 	 * make the tool unusable on any spec that has not been annotated yet. */
 	try {
-		const { findings, entitiesTested, checksRun } = await runAgainst([], true, backend, dialect)
+		const { findings, entitiesTested, checksRun, inconclusive } = await runAgainst([], true, backend, dialect)
 		const real = findings.filter((f) => f.verdict !== "COVERAGE_GAP")
 		results.push({
 			checksRun,
@@ -1241,6 +1308,7 @@ export async function runSuite(
 			entitiesTested,
 			expected: null,
 			findings,
+			inconclusive: inconclusive.map((item) => `${item.check}@${item.entity}: ${item.reason}`),
 			acceptable: [],
 			label: "baseline (untagged spec)",
 			spurious: real,
@@ -1259,75 +1327,96 @@ export async function runSuite(
 		})
 	}
 
-	const names = (Object.keys(DEFECTS) as DefectName[])
-		.filter((name) => filter === undefined || filter.length === 0 || filter.includes(name))
-		/* A defect the backend structurally cannot exhibit is not a miss: the in-memory store has
-		 * no physical column names, so a DDL/read mismatch has nowhere to happen. */
-		.filter((name) => backend !== "memory" || !SQL_ONLY.has(name))
-		/* Likewise a dialect that has no cursor cannot drift one. */
-		.filter((name) => DIALECTS_WITH_CURSOR.has(dialect) || !CURSOR_ONLY.has(name))
-		/* Likewise a shape with no total cannot report a wrong one. */
-		.filter((name) => DIALECTS_WITH_TOTAL.has(dialect) || !COUNT_ONLY.has(name))
-		/* And a shape with no filter *expression* cannot malform one. */
-		.filter((name) => DIALECTS_WITH_FILTER_EXPRESSION.has(dialect) || !EXPRESSION_ONLY.has(name))
-		.filter((name) => DIALECTS_WITH_POSTGREST_FILTER.has(dialect) || !POSTGREST_OP_ONLY.has(name))
-		/* D1 is a network round trip per statement. Restricting it to the engine-sensitive set
-		 * keeps a run to minutes rather than an hour, and drops nothing D1 could uniquely show. */
-		.filter((name) => backend !== "d1" || ENGINE_SENSITIVE.has(name))
-
-	for (const defect of names) {
-		const expected = EXPECTED[defect]
-		try {
-			const { findings, entitiesTested, checksRun } = await runAgainst([defect], false, backend, dialect)
-			const reproFailures = await checkReproSyntax(findings)
-			if (reproFailures.length > 0) {
-				results.push({
-					acceptable: acceptableOf(expected),
-					checksRun,
-					defect,
-					detected: false,
-					entitiesTested,
-					error: `generated reproducer is not runnable — ${reproFailures[0]}`,
-					expected: primaryOf(expected),
-					findings,
-					label: defect,
-					spurious: [],
-				})
-				continue
-			}
-			const real = findings.filter((f) => f.verdict !== "COVERAGE_GAP")
-			const acceptable = acceptableOf(expected)
-			results.push({
-				acceptable,
-				checksRun,
-				defect,
-				detected: real.some((f) => f.check === primaryOf(expected)),
-				entitiesTested,
-				expected: primaryOf(expected),
-				findings,
-				label: defect,
-				spurious: real.filter((f) => !acceptable.includes(f.check)),
-			})
-		} catch (error) {
-			results.push({
-				checksRun: [],
-				defect,
-				detected: false,
-				entitiesTested: [],
-				error: error instanceof Error ? error.message : String(error),
-				acceptable: acceptableOf(expected),
-				expected: primaryOf(expected),
-				findings: [],
-				label: defect,
-				spurious: [],
-			})
-		}
+	for (const defect of defectsFor(backend, dialect, filter)) {
+		results.push(await judgeDefect(defect, backend, dialect))
 	}
 
 	return results
 }
 
-export function renderSuite(results: CaseResult[], dialect = "postgrest"): { text: string; failures: number } {
+/** Every defect this backend and dialect can exhibit, narrowed to `filter` when one is given. */
+export function defectsFor(backend: Backend, dialect: string, filter?: readonly string[]): DefectName[] {
+	return (
+		(Object.keys(DEFECTS) as DefectName[])
+			.filter((name) => filter === undefined || filter.length === 0 || filter.includes(name))
+			/* A defect the backend structurally cannot exhibit is not a miss: the in-memory store has
+			 * no physical column names, so a DDL/read mismatch has nowhere to happen. */
+			.filter((name) => backend !== "memory" || !SQL_ONLY.has(name))
+			/* Likewise a dialect that has no cursor cannot drift one. */
+			.filter((name) => DIALECTS_WITH_CURSOR.has(dialect) || !CURSOR_ONLY.has(name))
+			/* Likewise a shape with no total cannot report a wrong one. */
+			.filter((name) => DIALECTS_WITH_TOTAL.has(dialect) || !COUNT_ONLY.has(name))
+			/* And a shape with no filter *expression* cannot malform one. */
+			.filter((name) => DIALECTS_WITH_FILTER_EXPRESSION.has(dialect) || !EXPRESSION_ONLY.has(name))
+			.filter((name) => DIALECTS_WITH_POSTGREST_FILTER.has(dialect) || !POSTGREST_OP_ONLY.has(name))
+			.filter((name) => DIALECTS[dialect]?.params.searchMode !== undefined || !SEARCH_MODE_ONLY.has(name))
+			.filter((name) => (DIALECTS[dialect]?.sortGrammar ?? "dotted") === "dotted" || !NULLS_TOKEN_ONLY.has(name))
+			/* D1 is a network round trip per statement. Restricting it to the engine-sensitive set
+			 * keeps a run to minutes rather than an hour, and drops nothing D1 could uniquely show. */
+			.filter((name) => backend !== "d1" || ENGINE_SENSITIVE.has(name))
+	)
+}
+
+/** One defect, injected alone: detected, and nothing reported that it does not explain. */
+export async function judgeDefect(
+	defect: DefectName,
+	backend: Backend,
+	dialect: string,
+	shape?: string,
+	label: string = defect,
+): Promise<CaseResult> {
+	const expected = EXPECTED[defect]
+	const acceptable = acceptableOf(expected)
+	try {
+		const { findings, entitiesTested, checksRun } = await runAgainst([defect], false, backend, dialect, shape)
+		const reproFailures = await checkReproSyntax(findings)
+		if (reproFailures.length > 0) {
+			return {
+				acceptable,
+				checksRun,
+				defect,
+				detected: false,
+				entitiesTested,
+				error: `generated reproducer is not runnable — ${reproFailures[0]}`,
+				expected: primaryOf(expected),
+				findings,
+				label,
+				spurious: [],
+			}
+		}
+		const real = findings.filter((f) => f.verdict !== "COVERAGE_GAP")
+		return {
+			acceptable,
+			checksRun,
+			defect,
+			detected: real.some((f) => f.check === primaryOf(expected)),
+			entitiesTested,
+			expected: primaryOf(expected),
+			findings,
+			label,
+			spurious: real.filter((f) => !acceptable.includes(f.check)),
+		}
+	} catch (error) {
+		return {
+			acceptable,
+			checksRun: [],
+			defect,
+			detected: false,
+			entitiesTested: [],
+			error: error instanceof Error ? error.message : String(error),
+			expected: primaryOf(expected),
+			findings: [],
+			label,
+			spurious: [],
+		}
+	}
+}
+
+export function renderSuite(
+	results: CaseResult[],
+	dialect = "postgrest",
+	backend: Backend = "memory",
+): { text: string; failures: number; proven: Set<string> } {
 	const lines: string[] = []
 	let failures = 0
 
@@ -1349,10 +1438,18 @@ export function renderSuite(results: CaseResult[], dialect = "postgrest"): { tex
 		 * there is the result being measured, not a regression. */
 		const vacuous = result.label === "baseline (correct backend)" && result.checksRun.length < floor
 		const leaked = result.leaked ?? 0
+		/* A clean baseline that could not decide a check has not shown that check passes. Only a
+		 * verdict declared expected for this backend and shape may stand. */
+		const variant = result.label === "baseline (untagged spec)" ? ":untagged" : ""
+		const allowed = EXPECTED_INCONCLUSIVE[`${backend}:${dialect}${variant}`] ?? []
+		const undecided = (result.inconclusive ?? []).filter(
+			(entry) => !allowed.some((prefix) => entry.startsWith(`${prefix}:`)),
+		)
 		const ok = isBaseline
 			? result.spurious.length === 0 &&
 				!vacuous &&
 				leaked === 0 &&
+				undecided.length === 0 &&
 				/* An untagged run that finds nothing *and* runs almost nothing proves nothing. */
 				result.checksRun.length >= 10
 			: result.detected && result.spurious.length === 0
@@ -1377,6 +1474,9 @@ export function renderSuite(results: CaseResult[], dialect = "postgrest"): { tex
 			lines.push(
 				`      left ${leaked} record(s) behind after teardown — a run must not litter the ` + "system under test",
 			)
+		}
+		for (const entry of isBaseline ? undecided : []) {
+			lines.push(`      inconclusive on a correct backend: ${entry}`)
 		}
 		if (vacuous) {
 			lines.push(
@@ -1409,16 +1509,30 @@ export function renderSuite(results: CaseResult[], dialect = "postgrest"): { tex
 	lines.push(`  ${cases - failures}/${cases} cases passed`)
 	lines.push("")
 
-	/* Every check must be exercised by at least one defect. An unexercised check has never been
-	 * shown to detect anything, so its passing tells you nothing. */
-	const baselineChecks = results.find((r) => r.defect === null)?.checksRun ?? []
-	const proven = new Set(results.filter((r) => r.detected).flatMap((r) => r.acceptable ?? [r.expected ?? ""]))
-	const unproven = baselineChecks.filter((id) => !proven.has(id))
-	if (unproven.length > 0) {
-		lines.push(`  ${unproven.length} check(s) run but never proven by an injected defect:`)
-		for (const id of unproven) lines.push(`    ${id}`)
-		lines.push("")
-	}
+	/* A check is proven by having fired against a defect built for it — not by appearing on a
+	 * list of checks a defect may trip. Whether every registered check is proven is decided over
+	 * the whole run, since some defects only exist in some shapes. */
+	const proven = new Set(
+		results
+			.filter((r) => r.defect !== null && r.detected)
+			.flatMap((r) => r.findings.filter((f) => f.verdict !== "COVERAGE_GAP").map((f) => f.check)),
+	)
 
-	return { failures, text: lines.join("\n") }
+	return { failures, proven, text: lines.join("\n") }
+}
+
+/** Registered checks no injected defect made fire anywhere in the run. Each one fails the suite. */
+export function renderUnproven(proven: ReadonlySet<string>): { text: string; failures: number } {
+	const unproven = ALL_CHECK_IDS.filter((id) => !proven.has(id))
+	if (unproven.length === 0) {
+		return {
+			failures: 0,
+			text: `\n  every one of ${ALL_CHECK_IDS.length} registered checks fired on a defect built for it\n`,
+		}
+	}
+	const lines = ["", `  ✗ ${unproven.length} registered check(s) never fired on an injected defect:`]
+	for (const id of unproven) lines.push(`      ${id}`)
+	lines.push("    a check never shown to detect anything proves nothing by passing — give it a defect or delete it")
+	lines.push("")
+	return { failures: unproven.length, text: lines.join("\n") }
 }

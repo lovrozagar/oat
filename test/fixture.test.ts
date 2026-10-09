@@ -9,7 +9,7 @@ import {
 	overflowFrom,
 } from "../src/runtime/fixture.ts"
 import { codePointCount } from "../src/runtime/payloads.ts"
-import { dereference } from "../src/spec/load.ts"
+import { dereference, documentDefs } from "../src/spec/load.ts"
 import type { OpenApiDocument } from "../src/spec/types.ts"
 
 describe("fixture walk", () => {
@@ -61,7 +61,7 @@ describe("fixture walk", () => {
 		const schema = (
 			doc.paths?.["/tables"] as { post?: { requestBody?: { content?: Record<string, { schema?: unknown }> } } }
 		)?.post?.requestBody?.content?.["application/json"]?.schema as Record<string, unknown>
-		expect(() => buildCohort(schema ?? {}, 1, ["baseline"], "table.create")).not.toThrow()
+		expect(() => buildCohort(schema ?? {}, 1, ["baseline"], "table.create", { defs: documentDefs(doc) })).not.toThrow()
 	})
 
 	it("puts several scripts on the unicode cohort member", () => {

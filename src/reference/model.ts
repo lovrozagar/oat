@@ -7,7 +7,19 @@
 
 export interface FieldDef {
 	name: string
-	type: "string" | "number" | "integer" | "boolean"
+	type: "string" | "number" | "integer" | "boolean" | "object" | "array"
+	/** For an array field: the values its elements may take. */
+	items?: readonly string[]
+	/** Declared `format`; the server rejects a value that does not match it. */
+	format?: "date-time" | "uuid"
+	minimum?: number
+	maximum?: number
+	multipleOf?: number
+	const?: string
+	/** Accepted on write and never returned. */
+	writeOnly?: boolean
+	/** For an object field: the component schema it references. */
+	ref?: "Point" | "TreeNode"
 	nullable?: boolean
 	enum?: readonly string[]
 	maxLength?: number
@@ -48,6 +60,10 @@ export interface EntityDef {
 	}
 	/** Column sets that must stay unique. Emitted as `x-unique` and enforced as HTTP 409. */
 	unique?: string[][]
+	/** The order a listing takes when the request names none, canonical `field.dir`. */
+	defaultOrder: string
+	/** Related records a sparse fieldset may embed: `table(name)` on a row. */
+	relations?: Record<string, { entity: string; via: string; fields: readonly string[] }>
 }
 
 const TIMESTAMPS: FieldDef[] = [
@@ -58,6 +74,7 @@ const TIMESTAMPS: FieldDef[] = [
 export const TABLE: EntityDef = {
 	collectionPath: "/v1/projects/{project_id}/tables",
 	defaultLimit: 20,
+	defaultOrder: "created_at.desc",
 	fields: [
 		{ generated: true, immutable: true, name: "id", required: true, sortable: true, filterable: true, type: "string" },
 		{ generated: true, immutable: true, name: "project_id", required: true, filterable: true, type: "string" },
@@ -125,6 +142,7 @@ export const TABLE: EntityDef = {
 export const ROW: EntityDef = {
 	collectionPath: "/v1/projects/{project_id}/tables/{table_id}/rows",
 	defaultLimit: 20,
+	defaultOrder: "created_at.desc",
 	fields: [
 		{ generated: true, immutable: true, name: "id", required: true, sortable: true, filterable: true, type: "string" },
 		{ generated: true, immutable: true, name: "table_id", required: true, filterable: true, type: "string" },
@@ -148,10 +166,14 @@ export const ROW: EntityDef = {
 			type: "string",
 		},
 		{ filterable: true, name: "active", sortable: true, type: "boolean" },
+		/* An array, so set membership (`contains`) has something real to test. The elements are
+		 * chosen so one is a prefix of another: matching by substring is then visibly wrong. */
+		{ filterable: true, items: ["red", "redwood", "blue", "green"], name: "tags", type: "array" },
 		...TIMESTAMPS,
 	],
 	identity: "id",
 	itemParam: "row_id",
+	relations: { table: { entity: "table", fields: ["name", "status"], via: "table_id" } },
 	itemPath: "/v1/projects/{project_id}/tables/{table_id}/rows/{row_id}",
 	/* Deliberately below the default cohort size so the cap is observable at all — a limit
 	 * ceiling no request can reach cannot be tested. */
@@ -168,6 +190,7 @@ export const ROW: EntityDef = {
 export const JOB: EntityDef = {
 	collectionPath: "/v1/projects/{project_id}/jobs",
 	defaultLimit: 20,
+	defaultOrder: "created_at.desc",
 	fields: [
 		{ generated: true, immutable: true, name: "id", required: true, sortable: true, filterable: true, type: "string" },
 		{ generated: true, immutable: true, name: "project_id", required: true, filterable: true, type: "string" },
@@ -247,5 +270,53 @@ export function writableFields(entity: EntityDef, phase: "create" | "update"): F
 		if (f.generated === true) return false
 		if (phase === "update" && (f.immutable === true || f.createOnly === true)) return false
 		return true
+	})
+}
+
+/**
+ * The entities as a given shape serves them.
+ *
+ * A shape changes what the records look like — the identifier format, extra fields a real schema
+ * would carry — without changing what a correct backend does with them. Copies are returned, so
+ * one server's shape never leaks into another's.
+ */
+export function shapedEntities(shape: {
+	ids?: "uuid" | "integer"
+	writeOnlyField?: boolean
+	richSchema?: boolean
+	largeRecords?: boolean
+	specLayout?: boolean
+}): EntityDef[] {
+	const idField = (field: FieldDef): FieldDef => {
+		if (shape.ids === "uuid") return { ...field, format: "uuid", type: "string" }
+		if (shape.ids === "integer") return { ...field, type: "integer" }
+		return field
+	}
+	const linkParams = new Set(ENTITIES.map((entity) => entity.itemParam))
+	return ENTITIES.map((entity) => {
+		const fields = entity.fields.map((field) =>
+			field.name === entity.identity || linkParams.has(field.name) ? idField(field) : { ...field },
+		)
+		if (entity.name === TABLE.name) {
+			if (shape.writeOnlyField === true) {
+				fields.push({ maxLength: 64, name: "secret", required: true, type: "string", writeOnly: true })
+			}
+			if (shape.richSchema === true) {
+				fields.push(
+					{ format: "date-time", name: "due_at", required: true, type: "string" },
+					{ maximum: 10, minimum: 1, multipleOf: 0.5, name: "weight", required: true, type: "number" },
+					{ const: "v1", name: "schema_version", required: true, type: "string" },
+					{ name: "start", ref: "Point", required: true, type: "object" },
+					{ name: "end", ref: "Point", required: true, type: "object" },
+				)
+			}
+			if (shape.largeRecords === true) {
+				fields.push({ generated: true, name: "padding", type: "string" })
+			}
+			if (shape.specLayout === true) {
+				fields.push({ generated: true, name: "tree", nullable: true, ref: "TreeNode", type: "object" })
+			}
+		}
+		return { ...entity, fields }
 	})
 }

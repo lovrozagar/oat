@@ -19,7 +19,7 @@ import {
 import { codePointCount } from "../runtime/payloads.ts"
 import { run } from "../runtime/run.ts"
 import { buildModel } from "../spec/graph.ts"
-import { dereference } from "../spec/load.ts"
+import { dereference, documentDefs } from "../spec/load.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
 import type { ParserResult } from "./suite.ts"
 
@@ -96,7 +96,7 @@ export function runFixtureWalkCases(): ParserResult[] {
 		const schema = (
 			doc.paths?.["/tables"] as { post?: { requestBody?: { content?: Record<string, { schema?: unknown }> } } }
 		)?.post?.requestBody?.content?.["application/json"]?.schema as Record<string, unknown>
-		const members = buildCohort(schema ?? {}, 1, ["baseline"], "table.create")
+		const members = buildCohort(schema ?? {}, 1, ["baseline"], "table.create", { defs: documentDefs(doc) })
 		push(
 			results,
 			"cyclic $ref: # after deref does not throw",

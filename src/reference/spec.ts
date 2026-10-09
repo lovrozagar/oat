@@ -6,17 +6,54 @@
  */
 
 import { type Dialect, POSTGREST } from "./dialect.ts"
-import { ENTITIES, type EntityDef, type FieldDef, JOB, TABLE, fieldsWhere, writableFields } from "./model.ts"
+import { ENTITIES, type EntityDef, type FieldDef, fieldsWhere, writableFields } from "./model.ts"
+import type { ReferenceShape } from "./shapes.ts"
 
 type Json = Record<string, unknown>
 
+/** What a document is generated from: the entities as this server serves them, and its shape. */
+export interface SpecContext {
+	entities: readonly EntityDef[]
+	shape: ReferenceShape
+}
+
+const DEFAULT_CONTEXT: SpecContext = { entities: ENTITIES, shape: {} }
+
+function entityNamed(ctx: SpecContext, name: string): EntityDef {
+	return ctx.entities.find((entity) => entity.name === name) as EntityDef
+}
+
 function fieldSchema(field: FieldDef): Json {
-	const base: Json = { type: field.type }
+	const base: Json = field.ref === undefined ? { type: field.type } : { $ref: `#/components/schemas/${field.ref}` }
+	if (field.type === "array") {
+		base.items = { enum: [...(field.items ?? [])], type: "string" }
+		base.maxItems = 5
+	}
+	if (field.format !== undefined) base.format = field.format
+	if (field.minimum !== undefined) base.minimum = field.minimum
+	if (field.maximum !== undefined) base.maximum = field.maximum
+	if (field.multipleOf !== undefined) base.multipleOf = field.multipleOf
+	if (field.const !== undefined) base.const = field.const
 	if (field.enum !== undefined) base.enum = [...field.enum]
 	if (field.maxLength !== undefined) base.maxLength = field.maxLength
 	if (field.generated === true) base.readOnly = true
+	if (field.writeOnly === true) base.writeOnly = true
 	if (field.nullable === true) return { oneOf: [base, { type: "null" }] }
 	return base
+}
+
+/** The schema of an identifier in a path, matching the identity it names. */
+function idSchema(ctx: SpecContext, param: string): Json {
+	const owner = ctx.entities.find((entity) => entity.itemParam === param)
+	const identity = owner?.fields.find((field) => field.name === owner.identity)
+	if (identity?.type === "integer") return { minimum: 1, type: "integer" }
+	if (identity?.format === "uuid") return { format: "uuid", type: "string" }
+	return { type: "string" }
+}
+
+/** A success status as the document spells it — exactly, or as the `2XX` range. */
+function ok(ctx: SpecContext, status: number): string {
+	return ctx.shape.rangeStatuses === true ? "2XX" : String(status)
 }
 
 function itemSchema(entity: EntityDef): Json {
@@ -30,15 +67,25 @@ function itemSchema(entity: EntityDef): Json {
 	}
 }
 
-function bodySchema(entity: EntityDef, phase: "create" | "update"): Json {
+/** An entity's record schema — inline, or a reference into `components` under the layout shape. */
+function itemSchemaRef(ctx: SpecContext, entity: EntityDef): Json {
+	return ctx.shape.specLayout === true ? { $ref: `#/components/schemas/${schemaName(entity)}` } : itemSchema(entity)
+}
+
+function schemaName(entity: EntityDef): string {
+	return `${entity.name[0]?.toUpperCase() ?? ""}${entity.name.slice(1)}`
+}
+
+function bodySchema(entity: EntityDef, phase: "create" | "update", replace = false): Json {
 	const properties: Json = {}
 	for (const field of writableFields(entity, phase)) properties[field.name] = fieldSchema(field)
 	return {
 		additionalProperties: false,
 		properties,
+		/* A create, and a replacing update, must carry every required field; a PATCH need not. */
 		required:
-			phase === "create"
-				? writableFields(entity, "create")
+			phase === "create" || replace
+				? writableFields(entity, phase)
 						.filter((f) => f.required === true)
 						.map((f) => f.name)
 				: [],
@@ -51,24 +98,24 @@ function collectionKey(entity: EntityDef, dialect: Dialect): string {
 	return dialect.envelope?.collection ?? entity.plural
 }
 
-function listSchema(entity: EntityDef, dialect: Dialect): Json {
+function listSchema(ctx: SpecContext, entity: EntityDef, dialect: Dialect): Json {
 	const env = dialect.envelope
 	/* No envelope: the response *is* the array. A document that says so is the only place oat can
 	 * learn it, so the schema has to say it rather than describe a wrapper that does not exist. */
-	if (env === null) return { items: itemSchema(entity), type: "array" }
+	if (env === null) return { items: itemSchemaRef(ctx, entity), type: "array" }
 	const key = collectionKey(entity, dialect)
-	const properties: Json = {
-		[env.hasMore]: { type: "boolean" },
-		[env.limit]: { minimum: 1, type: "integer" },
-		[env.page]: { oneOf: [{ minimum: 1, type: "integer" }, { type: "null" }] },
-		[env.total]: { minimum: 0, type: "integer" },
-		[key]: { items: itemSchema(entity), type: "array" },
+	const properties: Json = { [key]: { items: itemSchemaRef(ctx, entity), type: "array" } }
+	const required = [key]
+	const declare = (name: string | undefined, schema: Json): void => {
+		if (name === undefined) return
+		properties[name] = schema
+		required.push(name)
 	}
-	const required = [env.hasMore, env.limit, env.page, env.total, key]
-	if (env.nextCursor !== undefined) {
-		properties[env.nextCursor] = { oneOf: [{ type: "string" }, { type: "null" }] }
-		required.push(env.nextCursor)
-	}
+	declare(env.hasMore, { type: "boolean" })
+	declare(env.limit, { minimum: 1, type: "integer" })
+	declare(env.page, { oneOf: [{ minimum: 1, type: "integer" }, { type: "null" }] })
+	declare(env.total, { minimum: 0, type: "integer" })
+	declare(env.nextCursor, { oneOf: [{ type: "string" }, { type: "null" }] })
 	return { additionalProperties: false, properties, required, type: "object" }
 }
 
@@ -95,7 +142,16 @@ const ERRORS: Array<[number, string]> = [
 	[415, "unsupported_media_type"],
 ]
 
-function errorResponses(codes: number[]): Json {
+function errorResponses(ctx: SpecContext, codes: number[]): Json {
+	/* A document may describe every failure at once: one `default` response and one schema. */
+	if (ctx.shape.rangeStatuses === true) {
+		return {
+			default: {
+				content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+				description: "error",
+			},
+		}
+	}
 	const out: Json = {}
 	for (const [status, key] of ERRORS) {
 		if (!codes.includes(status)) continue
@@ -179,6 +235,13 @@ function listQueryParams(dialect: Dialect, entity: EntityDef): Array<[string, Js
 		],
 		[p.search, { maxLength: 200, type: "string" }, "Free-text search across searchable fields"],
 	)
+	if (p.searchMode !== undefined) {
+		params.push([
+			p.searchMode,
+			{ default: "contains", enum: ["contains", "prefix"], type: "string" },
+			"How the search term matches: anywhere in a field, or at its start",
+		])
+	}
 	/* Exactly one paging model is published, because that is what a real document does — and a
 	 * document advertising a parameter the backend ignores is itself a defect oat reports. */
 	if (p.page !== undefined) {
@@ -193,16 +256,31 @@ function listQueryParams(dialect: Dialect, entity: EntityDef): Array<[string, Js
 	return params
 }
 
-function pathParams(entity: EntityDef, includeItem: boolean): Json[] {
+/** A canonical `field.dir` order spelled in the dialect's own sort grammar. */
+function renderOrder(dialect: Dialect, canonical: string): string {
+	const [field = "", direction = "asc"] = canonical.split(".")
+	switch (dialect.sortGrammar ?? "dotted") {
+		case "prefixed":
+			return direction === "desc" ? `-${field}` : field
+		case "colon":
+			return `${field}:${direction}`
+		case "spaced":
+			return `${field} ${direction}`
+		case "dotted":
+			return `${field}.${direction}`
+	}
+}
+
+function pathParams(ctx: SpecContext, entity: EntityDef, includeItem: boolean): Json[] {
 	const params: Json[] = entity.parents.map((name) => ({
 		in: "path",
 		name,
 		required: true,
-		schema: { type: "string" },
+		schema: idSchema(ctx, name),
 		...(name === "project_id" ? { "x-root": true } : {}),
 	}))
 	if (includeItem) {
-		params.push({ in: "path", name: entity.itemParam, required: true, schema: { type: "string" } })
+		params.push({ in: "path", name: entity.itemParam, required: true, schema: idSchema(ctx, entity.itemParam) })
 	}
 	return params
 }
@@ -227,14 +305,14 @@ function queryFieldType(field: FieldDef | undefined): "string" | "number" | "boo
  * row write genuinely changes the table's representation. Declaring routes that a write does not
  * actually affect would make the invalidation check assert something false.
  */
-function parentReadRoutes(entity: EntityDef): string[] {
+function parentReadRoutes(ctx: SpecContext, entity: EntityDef): string[] {
 	if (entity.name !== "row") return []
-	const table = ENTITIES.find((candidate) => candidate.name === "table")
+	const table = ctx.entities.find((candidate) => candidate.name === "table")
 	if (table === undefined) return []
 	return [`GET ${table.collectionPath}`, `GET ${table.itemPath}`]
 }
 
-function buildEntityPaths(entity: EntityDef, dialect: Dialect): Json {
+function buildEntityPaths(ctx: SpecContext, entity: EntityDef, dialect: Dialect): Json {
 	const listRoute = `GET ${entity.collectionPath}`
 	const itemRoute = `GET ${entity.itemPath}`
 	const surface = [listRoute, itemRoute]
@@ -269,6 +347,23 @@ function buildEntityPaths(entity: EntityDef, dialect: Dialect): Json {
 						return row
 					}),
 		stableTiebreak: entity.identity,
+		/* Search semantics stated rather than left to inference: case-insensitive, and a blank
+		 * term matches everything. */
+		searchCase: "insensitive",
+		searchEmpty: "match-all",
+		sort: { defaultOrder: renderOrder(dialect, entity.defaultOrder) },
+		...(dialect.params.searchMode === undefined ? {} : { searchModes: ["contains", "prefix"] }),
+		...(entity.relations === undefined
+			? {}
+			: {
+					select: {
+						nested: true,
+						relations: Object.entries(entity.relations).map(([name, relation]) => ({
+							fields: [...relation.fields],
+							name,
+						})),
+					},
+				}),
 		...(catalog === undefined
 			? {}
 			: {
@@ -276,7 +371,6 @@ function buildEntityPaths(entity: EntityDef, dialect: Dialect): Json {
 					emptyIn: catalog.emptyIn,
 					maxFilterConditions: catalog.maxFilterConditions,
 					maxInValues: catalog.maxInValues,
-					searchEmpty: "match-all",
 					selectUnknown: catalog.selectUnknown,
 					sortNulls: ["first", "last"],
 					maxSortKeys: 3,
@@ -287,7 +381,7 @@ function buildEntityPaths(entity: EntityDef, dialect: Dialect): Json {
 		get: {
 			operationId: `${entity.name}.list`,
 			parameters: [
-				...pathParams(entity, false),
+				...pathParams(ctx, entity, false),
 				...listQueryParams(dialect, entity).map(([name, schema, description]) => ({
 					description,
 					in: "query",
@@ -303,8 +397,12 @@ function buildEntityPaths(entity: EntityDef, dialect: Dialect): Json {
 				},
 			],
 			responses: {
-				"200": jsonResponse(`List ${entity.plural}`, listSchema(entity, dialect), listResponseHeaders(dialect)),
-				...errorResponses([400, 401, 403, 404]),
+				[ok(ctx, 200)]: jsonResponse(
+					`List ${entity.plural}`,
+					listSchema(ctx, entity, dialect),
+					listResponseHeaders(dialect),
+				),
+				...errorResponses(ctx, [400, 401, 403, 404]),
 			},
 			summary: `List ${entity.plural}`,
 			tags: [title],
@@ -316,7 +414,7 @@ function buildEntityPaths(entity: EntityDef, dialect: Dialect): Json {
 		post: {
 			operationId: `${entity.name}.create`,
 			parameters: [
-				...pathParams(entity, false),
+				...pathParams(ctx, entity, false),
 				/* Declared as an ordinary header parameter, because that is how real APIs publish
 				 * it. oat needs no new meta tag to find this: a create operation naming a header
 				 * whose name reads as an idempotency key is enough to know replay is promised. */
@@ -331,12 +429,16 @@ function buildEntityPaths(entity: EntityDef, dialect: Dialect): Json {
 				},
 			],
 			requestBody: {
-				content: { "application/json": { schema: bodySchema(entity, "create") } },
+				content: {
+					[ctx.shape.formCreate === true ? "application/x-www-form-urlencoded" : "application/json"]: {
+						schema: bodySchema(entity, "create"),
+					},
+				},
 				required: true,
 			},
 			responses: {
-				"201": jsonResponse(`Created ${entity.name}`, itemSchema(entity)),
-				...errorResponses([400, 401, 403, 404, 409, 415]),
+				[ok(ctx, 201)]: jsonResponse(`Created ${entity.name}`, itemSchemaRef(ctx, entity)),
+				...errorResponses(ctx, [400, 401, 403, 404, 409, 415]),
 			},
 			summary: `Create ${entity.name}`,
 			tags: [title],
@@ -348,7 +450,7 @@ function buildEntityPaths(entity: EntityDef, dialect: Dialect): Json {
 			 * carries a derived value — the parent's routes as well. Declaring it is what makes
 			 * the cross-entity consistency testable rather than assumed.
 			 */
-			"x-invalidate": [listRoute, ...parentReadRoutes(entity)],
+			"x-invalidate": [listRoute, ...parentReadRoutes(ctx, entity)],
 			"x-tenant": tenantParam(entity),
 		},
 	}
@@ -356,40 +458,43 @@ function buildEntityPaths(entity: EntityDef, dialect: Dialect): Json {
 	const item: Json = {
 		delete: {
 			operationId: `${entity.name}.delete`,
-			parameters: pathParams(entity, true),
+			parameters: pathParams(ctx, entity, true),
 			responses: {
-				"200": jsonResponse(`Deleted ${entity.name}`, itemSchema(entity)),
-				...errorResponses([400, 401, 403, 404]),
+				[ok(ctx, 200)]: jsonResponse(`Deleted ${entity.name}`, itemSchemaRef(ctx, entity)),
+				...errorResponses(ctx, [400, 401, 403, 404]),
 			},
 			summary: `Delete ${entity.name}`,
 			tags: [title],
 			"x-entity": { action: "delete", identity: entity.identity, name: entity.name },
-			"x-invalidate": surface,
+			/* A delete changes the parent's derived count just as a create does. */
+			"x-invalidate": [...surface, ...parentReadRoutes(ctx, entity)],
 			"x-tenant": tenantParam(entity),
 			...(entity.softDeleteField === undefined ? {} : { "x-soft-delete": entity.softDeleteField }),
 		},
 		get: {
 			operationId: `${entity.name}.get`,
-			parameters: pathParams(entity, true),
+			parameters: pathParams(ctx, entity, true),
 			responses: {
-				"200": jsonResponse(entity.name, itemSchema(entity)),
-				...errorResponses([400, 401, 403, 404]),
+				[ok(ctx, 200)]: jsonResponse(entity.name, itemSchemaRef(ctx, entity)),
+				...errorResponses(ctx, [400, 401, 403, 404]),
 			},
 			summary: `Get ${entity.name}`,
 			tags: [title],
 			"x-entity": { action: "read", identity: entity.identity, name: entity.name },
 			"x-tenant": tenantParam(entity),
 		},
-		patch: {
+		[ctx.shape.updateMethod === "PUT" ? "put" : "patch"]: {
 			operationId: `${entity.name}.update`,
-			parameters: pathParams(entity, true),
+			parameters: pathParams(ctx, entity, true),
 			requestBody: {
-				content: { "application/json": { schema: bodySchema(entity, "update") } },
+				content: {
+					"application/json": { schema: bodySchema(entity, "update", ctx.shape.updateMethod === "PUT") },
+				},
 				required: true,
 			},
 			responses: {
-				"200": jsonResponse(`Updated ${entity.name}`, itemSchema(entity)),
-				...errorResponses([400, 401, 403, 404, 409, 415]),
+				[ok(ctx, 200)]: jsonResponse(`Updated ${entity.name}`, itemSchemaRef(ctx, entity)),
+				...errorResponses(ctx, [400, 401, 403, 404, 409, 415]),
 			},
 			summary: `Update ${entity.name}`,
 			tags: [title],
@@ -407,14 +512,16 @@ function buildEntityPaths(entity: EntityDef, dialect: Dialect): Json {
 	return { [entity.collectionPath]: collection, [entity.itemPath]: item }
 }
 
-export function buildSpec(dialect: Dialect = POSTGREST): Json {
+export function buildSpec(dialect: Dialect = POSTGREST, ctx: SpecContext = DEFAULT_CONTEXT): Json {
+	const TABLE = entityNamed(ctx, "table")
+	const JOB = entityNamed(ctx, "job")
 	const paths: Json = {}
-	for (const entity of ENTITIES) Object.assign(paths, buildEntityPaths(entity, dialect))
+	for (const entity of ctx.entities) Object.assign(paths, buildEntityPaths(ctx, entity, dialect))
 
 	paths[`${TABLE.itemPath}/invites`] = {
 		post: {
 			operationId: "table.invite",
-			parameters: pathParams(TABLE, true),
+			parameters: pathParams(ctx, TABLE, true),
 			requestBody: {
 				content: {
 					"application/json": {
@@ -429,13 +536,13 @@ export function buildSpec(dialect: Dialect = POSTGREST): Json {
 				required: true,
 			},
 			responses: {
-				"201": jsonResponse("Invite created", {
+				[ok(ctx, 201)]: jsonResponse("Invite created", {
 					additionalProperties: false,
 					properties: { grant_id: { type: "string" }, token: { type: "string" } },
 					required: ["grant_id", "token"],
 					type: "object",
 				}),
-				...errorResponses([400, 401, 403, 404, 415]),
+				...errorResponses(ctx, [400, 401, 403, 404, 415]),
 			},
 			summary: "Invite another principal to read this table",
 			tags: ["Table"],
@@ -456,13 +563,13 @@ export function buildSpec(dialect: Dialect = POSTGREST): Json {
 			operationId: "invite.accept",
 			parameters: [{ in: "path", name: "token", required: true, schema: { type: "string" } }],
 			responses: {
-				"200": jsonResponse("Invite accepted", {
+				[ok(ctx, 200)]: jsonResponse("Invite accepted", {
 					additionalProperties: false,
 					properties: { accepted: { type: "boolean" } },
 					required: ["accepted"],
 					type: "object",
 				}),
-				...errorResponses([400, 401, 404]),
+				...errorResponses(ctx, [400, 401, 404]),
 			},
 			summary: "Accept an invite",
 			tags: ["Table"],
@@ -473,17 +580,17 @@ export function buildSpec(dialect: Dialect = POSTGREST): Json {
 		delete: {
 			operationId: "table.revoke",
 			parameters: [
-				...pathParams(TABLE, true),
+				...pathParams(ctx, TABLE, true),
 				{ in: "path", name: "grant_id", required: true, schema: { type: "string" } },
 			],
 			responses: {
-				"200": jsonResponse("Grant revoked", {
+				[ok(ctx, 200)]: jsonResponse("Grant revoked", {
 					additionalProperties: false,
 					properties: { revoked: { type: "boolean" } },
 					required: ["revoked"],
 					type: "object",
 				}),
-				...errorResponses([400, 401, 403, 404]),
+				...errorResponses(ctx, [400, 401, 403, 404]),
 			},
 			summary: "Revoke a grant",
 			tags: ["Table"],
@@ -497,7 +604,7 @@ export function buildSpec(dialect: Dialect = POSTGREST): Json {
 	paths[`${JOB.collectionPath}/start`] = {
 		post: {
 			operationId: "job.start",
-			parameters: pathParams(JOB, false),
+			parameters: pathParams(ctx, JOB, false),
 			requestBody: {
 				content: {
 					"application/json": {
@@ -512,13 +619,13 @@ export function buildSpec(dialect: Dialect = POSTGREST): Json {
 				required: true,
 			},
 			responses: {
-				"202": jsonResponse("Job accepted", {
+				[ok(ctx, 202)]: jsonResponse("Job accepted", {
 					additionalProperties: false,
 					properties: { accepted: { type: "boolean" }, job_id: { type: "string" } },
 					required: ["job_id", "accepted"],
 					type: "object",
 				}),
-				...errorResponses([400, 401, 403, 404, 415]),
+				...errorResponses(ctx, [400, 401, 403, 404, 415]),
 			},
 			summary: "Start a job",
 			tags: ["Job"],
@@ -531,6 +638,70 @@ export function buildSpec(dialect: Dialect = POSTGREST): Json {
 				until: "status.in.(complete,failed)",
 			},
 			"x-effects": [{ count: 1, entity: "job", op: "create" }],
+			"x-entity": { action: "action", identity: "id", name: "job" },
+			"x-tenant": tenantParam(JOB),
+		},
+	}
+
+	/* A write whose effect arrives elsewhere, later. x-wait tells oat where to look and how long. */
+	paths[`${JOB.collectionPath.replace("/jobs", "")}/notifications`] = {
+		post: {
+			operationId: "job.notify",
+			parameters: pathParams(ctx, JOB, false),
+			requestBody: {
+				content: {
+					"application/json": {
+						schema: {
+							additionalProperties: false,
+							properties: { message: { maxLength: 200, minLength: 1, type: "string" } },
+							required: ["message"],
+							type: "object",
+						},
+					},
+				},
+				required: true,
+			},
+			responses: {
+				[ok(ctx, 202)]: jsonResponse("Notification queued", {
+					additionalProperties: false,
+					properties: { accepted: { type: "boolean" }, notification_id: { type: "string" } },
+					required: ["accepted", "notification_id"],
+					type: "object",
+				}),
+				...errorResponses(ctx, [400, 401, 403, 404, 415]),
+			},
+			summary: "Queue a notification for delivery to the project inbox",
+			tags: ["Job"],
+			"x-entity": { action: "action", identity: "id", name: "job" },
+			"x-tenant": tenantParam(JOB),
+			"x-wait": { operationId: "job.inbox", timeoutMs: 2000, until: "$.messages[0]" },
+		},
+	}
+	paths[`${JOB.collectionPath.replace("/jobs", "")}/inbox`] = {
+		get: {
+			operationId: "job.inbox",
+			parameters: pathParams(ctx, JOB, false),
+			responses: {
+				[ok(ctx, 200)]: jsonResponse("Delivered notifications", {
+					additionalProperties: false,
+					properties: {
+						messages: {
+							items: {
+								additionalProperties: false,
+								properties: { id: { type: "string" }, message: { type: "string" } },
+								required: ["id", "message"],
+								type: "object",
+							},
+							type: "array",
+						},
+					},
+					required: ["messages"],
+					type: "object",
+				}),
+				...errorResponses(ctx, [401, 403, 404]),
+			},
+			summary: "List delivered notifications",
+			tags: ["Job"],
 			"x-entity": { action: "action", identity: "id", name: "job" },
 			"x-tenant": tenantParam(JOB),
 		},
@@ -553,7 +724,7 @@ export function buildSpec(dialect: Dialect = POSTGREST): Json {
 				required: true,
 			},
 			responses: {
-				"200": jsonResponse("Access token", {
+				[ok(ctx, 200)]: jsonResponse("Access token", {
 					additionalProperties: false,
 					properties: {
 						access_token: { type: "string" },
@@ -563,7 +734,7 @@ export function buildSpec(dialect: Dialect = POSTGREST): Json {
 					required: ["access_token", "expires_in", "project_id"],
 					type: "object",
 				}),
-				...errorResponses([400, 401, 415]),
+				...errorResponses(ctx, [400, 401, 415]),
 			},
 			security: [],
 			summary: "Exchange an API key for an access token",
@@ -573,15 +744,42 @@ export function buildSpec(dialect: Dialect = POSTGREST): Json {
 
 	const schemas: Json = {}
 	for (const [status, key] of ERRORS) schemas[`Err${status}`] = errorSchema(status, key)
-
-	return {
-		components: {
-			schemas,
-			securitySchemes: { bearer: { bearerFormat: "JWT", scheme: "bearer", type: "http" } },
+	schemas.Error = {
+		additionalProperties: false,
+		properties: {
+			error_key: { type: "string" },
+			message: { type: "string" },
+			status: { type: "integer" },
+			success: { const: false },
 		},
-		info: { title: "oat reference backend", version: "1.0.0" },
-		openapi: "3.1.0",
-		paths,
+		required: ["error_key", "message", "status", "success"],
+		type: "object",
+	}
+	schemas.Point = {
+		additionalProperties: false,
+		properties: { x: { type: "integer" }, y: { type: "integer" } },
+		required: ["x", "y"],
+		type: "object",
+	}
+	/* Recursive: a node's children are nodes. Real documents describe trees, comment threads and
+	 * org charts this way, and nothing about it is unusual — except to a tool that inlines refs. */
+	schemas.TreeNode = {
+		properties: {
+			children: { items: { $ref: "#/components/schemas/TreeNode" }, type: "array" },
+			name: { type: "string" },
+		},
+		required: ["name"],
+		type: "object",
+	}
+
+	if (ctx.shape.specLayout === true) {
+		for (const entity of ctx.entities) schemas[schemaName(entity)] = itemSchema(entity)
+	}
+	const components = {
+		schemas,
+		securitySchemes: { bearer: { bearerFormat: "JWT", scheme: "bearer", type: "http" } },
+	}
+	const rest = {
 		security: [{ bearer: [] }],
 		"x-auth-flows": {
 			default: {
@@ -591,11 +789,40 @@ export function buildSpec(dialect: Dialect = POSTGREST): Json {
 			},
 		},
 	}
+	const head = { info: { title: "oat reference backend", version: "1.0.0" }, openapi: "3.1.0" }
+	/* Key order is the layout: a document is free to define its components before its paths, and
+	 * to declare path parameters once on the path item rather than on every operation. */
+	if (ctx.shape.specLayout === true) {
+		return { ...head, components, paths: hoistPathParameters(paths), ...rest }
+	}
+	return { ...head, paths, components, ...rest }
+}
+
+/** Moves each path item's `in: path` parameters from its operations onto the path item itself. */
+function hoistPathParameters(paths: Json): Json {
+	const out: Json = {}
+	for (const [route, item] of Object.entries(paths)) {
+		const operations = Object.entries(item as Json)
+		const shared = new Map<string, Json>()
+		const hoisted: Json = {}
+		for (const [method, operation] of operations) {
+			const parameters = ((operation as Json).parameters ?? []) as Json[]
+			for (const parameter of parameters) {
+				if (parameter.in === "path") shared.set(String(parameter.name), parameter)
+			}
+			hoisted[method] = {
+				...(operation as Json),
+				parameters: parameters.filter((parameter) => parameter.in !== "path"),
+			}
+		}
+		out[route] = shared.size === 0 ? item : { parameters: [...shared.values()], ...hoisted }
+	}
+	return out
 }
 
 /** Variant with every oat meta tag removed — exercises the heuristic fallbacks. */
-export function buildUntaggedSpec(dialect: Dialect = POSTGREST): Json {
-	const spec = buildSpec(dialect)
+export function buildUntaggedSpec(dialect: Dialect = POSTGREST, ctx: SpecContext = DEFAULT_CONTEXT): Json {
+	const spec = buildSpec(dialect, ctx)
 	const strip = (node: unknown): unknown => {
 		if (Array.isArray(node)) return node.map(strip)
 		if (node === null || typeof node !== "object") return node

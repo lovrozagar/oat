@@ -64,7 +64,7 @@ export function listEndpoints(doc: OpenApiDocument): Endpoint[] {
 		for (const method of HTTP_METHODS) {
 			const op = (item as Record<string, unknown>)[method]
 			if (op === null || typeof op !== "object") continue
-			const operation = op as OperationObject
+			const operation = withPathParameters(op as OperationObject, (item as { parameters?: unknown }).parameters)
 			out.push({
 				method,
 				op: operation,
@@ -74,4 +74,22 @@ export function listEndpoints(doc: OpenApiDocument): Endpoint[] {
 		}
 	}
 	return out
+}
+
+/**
+ * An operation with its path item's `parameters` folded in.
+ *
+ * A path item may declare parameters once for every operation under it, and an operation may
+ * override one by name and location. Reading only the operation's own list lost every shared
+ * path parameter, and with it the declared schema of each identifier.
+ */
+function withPathParameters(op: OperationObject, shared: unknown): OperationObject {
+	if (!Array.isArray(shared) || shared.length === 0) return op
+	const own = op.parameters ?? []
+	const key = (p: { name?: unknown; in?: unknown }): string => `${String(p.in)}:${String(p.name)}`
+	const overridden = new Set(own.map(key))
+	const inherited = (shared as ParameterObject[]).filter(
+		(parameter) => parameter !== null && typeof parameter === "object" && !overridden.has(key(parameter)),
+	)
+	return inherited.length === 0 ? op : { ...op, parameters: [...inherited, ...own] }
 }

@@ -15,8 +15,10 @@ import { fillPath } from "./world.ts"
 export function readPointer(body: unknown, pointer: string): unknown {
 	if (pointer.startsWith("/")) return readJsonPointer(body, pointer)
 	let node: unknown = body
+	/* `$.messages[0].id` and `$.messages.0.id` name the same node: brackets are read as segments. */
 	for (const segment of pointer
 		.replace(/^\$\.?/, "")
+		.replace(/\[(\d+)\]/g, ".$1")
 		.split(".")
 		.filter(Boolean)) {
 		if (node === null || typeof node !== "object") return undefined

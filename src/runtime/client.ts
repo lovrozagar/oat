@@ -70,7 +70,42 @@ export interface Exchange {
 	finalUrl?: string
 	/** Cookie jar after this hop (this response + followed hops). */
 	cookies?: Record<string, string>
+	/** The documented path template this request resolved to, e.g. `/v1/tables/{table_id}`. */
+	template?: string
+	/** The principal whose credential the request carried, when one did. */
+	principal?: string
+	/** Why oat sent it — see `Purpose`. */
+	purpose?: Purpose
+	/** The check that issued it, when a check did. */
+	check?: string
+	/** The entity under test when it was issued. */
+	subject?: string
+	/**
+	 * Set when this response was answered again: a 401 refreshed and retried, or a 429 waited out.
+	 * Only the final answer is the backend's verdict on the request.
+	 */
+	superseded?: true
 }
+
+/**
+ * Why an exchange happened. Normal traffic — seeding, a check's assertions, auth, teardown — is
+ * what the document has to describe. A deliberate negative probe is oat sending something it
+ * expects to be refused, and what a backend answers it with is judged separately.
+ */
+export type Purpose = "seed" | "assertion" | "probe" | "auth" | "teardown"
+
+/** Who is asking, and why: carried onto every exchange a view sends. */
+export interface ExchangeContext {
+	check?: string
+	subject?: string
+	purpose?: Purpose
+}
+
+/** Maps a request to the documented operation it is an instance of. */
+export type OperationResolver = (
+	method: string,
+	relativePath: string,
+) => { operationId: string; template: string } | null
 
 /** A principal bound so every dispatch can refresh and retry a 401 without call-site ceremony. */
 export interface BoundAuth {
@@ -110,6 +145,8 @@ export interface RequestOptions {
 	refreshIfStale?: (force?: boolean) => Promise<void>
 	/** Auth acquire / refresh hops must set this so they cannot recurse into refresh. */
 	skipAuthRefresh?: boolean
+	/** Who is asking and why. A view fills this in; a caller may narrow `purpose` per request. */
+	context?: ExchangeContext
 	/** Named operation, when the caller knows it — `resolveHeaders` uses this to attach captcha. */
 	operationId?: string
 	/** `uploads.each` filename, recorded on the exchange for the journal. */
@@ -129,7 +166,14 @@ export interface NetworkClientOptions {
 }
 
 export class Client {
+	/**
+	 * Every exchange, with bodies compacted for memory. The exchange a request returns to its
+	 * caller is never compacted: it holds the real body, however large.
+	 */
 	readonly transcript: Exchange[] = []
+	private readonly byOperationId = new Map<string, Exchange[]>()
+	private operationResolver: OperationResolver | undefined
+	private principalResolver: ((headers: Record<string, string>) => string | undefined) | undefined
 	private seq = 0
 	private inFlight = 0
 	private readonly waiting: Array<() => void> = []
@@ -161,6 +205,52 @@ export class Client {
 		this.resolveHeaders = fn
 	}
 
+	/** Resolves each request to its documented operation, so nothing downstream parses URLs. */
+	setOperationResolver(resolve: OperationResolver): void {
+		this.operationResolver = resolve
+	}
+
+	/** Names the principal a set of request headers belongs to. */
+	setPrincipalResolver(resolve: (headers: Record<string, string>) => string | undefined): void {
+		this.principalResolver = resolve
+	}
+
+	/** The path below the base URL — what a documented path template describes. */
+	relativePath(url: URL | string): string {
+		const pathname = typeof url === "string" ? new URL(url).pathname : url.pathname
+		const base = new URL(this.baseUrl).pathname.replace(/\/$/, "")
+		return base !== "" && pathname.startsWith(base) ? pathname.slice(base.length) || "/" : pathname
+	}
+
+	/** Exchanges that resolved to `operationId`, in order. */
+	exchangesFor(operationId: string): readonly Exchange[] {
+		return this.byOperationId.get(operationId) ?? []
+	}
+
+	/**
+	 * A client that stamps every request it sends with `context`. Checks each get their own, so
+	 * an exchange names the check that issued it even while checks run concurrently.
+	 */
+	view(context: ExchangeContext): Client {
+		const base = this
+		return new Proxy(this, {
+			get(target, property, receiver) {
+				if (property === "request") {
+					return (method: string, path: string, options: RequestOptions = {}) =>
+						base.request(method, path, { ...options, context: { ...context, ...options.context } })
+				}
+				/* Through the receiver, so a proxy wrapped around this view still sees the request. */
+				if (property === "get") {
+					return (path: string, options: RequestOptions = {}) => (receiver as Client).request("GET", path, options)
+				}
+				if (property === "view") {
+					return (more: ExchangeContext) => base.view({ ...context, ...more })
+				}
+				return Reflect.get(target, property, receiver)
+			},
+		})
+	}
+
 	/** Register a principal so every request that carries its credential refreshes and 401-retries. */
 	bindAuth(auth: BoundAuth): void {
 		this.boundAuth.push(auth)
@@ -185,6 +275,22 @@ export class Client {
 		const url = new URL(isAbsoluteHttpUrl(path) ? path : `${this.baseUrl}${path}`)
 		for (const [key, value] of Object.entries(options.query ?? {})) {
 			if (value !== undefined) url.searchParams.set(key, String(value))
+		}
+		const resolved = isAbsoluteHttpUrl(path)
+			? null
+			: (this.operationResolver?.(method.toUpperCase(), this.relativePath(url)) ?? null)
+		const stamp = (headers: Record<string, string>): Partial<Exchange> => {
+			const operationId = options.operationId ?? resolved?.operationId
+			const principal = this.principalResolver?.(headers)
+			const context = options.context ?? {}
+			return {
+				...(operationId === undefined ? {} : { operationId }),
+				...(resolved === null ? {} : { template: resolved.template }),
+				...(principal === undefined ? {} : { principal }),
+				...(context.purpose === undefined ? {} : { purpose: context.purpose }),
+				...(context.check === undefined ? {} : { check: context.check }),
+				...(context.subject === undefined ? {} : { subject: context.subject }),
+			}
 		}
 
 		const resolveUserHeaders = (): Record<string, string> => {
@@ -229,7 +335,8 @@ export class Client {
 			 * slot is acquired first and released in the same finally as before — pacing sits
 			 * entirely inside that window and never changes what maxInFlight itself guarantees. */
 			const verb = method.toUpperCase()
-			const tagged = this.rateLimiter?.resolve(verb, url.pathname)
+			/* Rules are written against documented paths, which never include the base path. */
+			const tagged = this.rateLimiter?.resolve(verb, this.relativePath(url))
 			const implicit = tagged === undefined ? this.rateLimiter?.implicitRule(verb) : undefined
 			const rule = tagged ?? implicit
 			await this.acquire()
@@ -311,12 +418,11 @@ export class Client {
 						seq: this.seq,
 						status: 0,
 						url: url.toString(),
-						...(options.operationId === undefined ? {} : { operationId: options.operationId }),
+						...stamp(headers),
 						...(options.fixture === undefined ? {} : { fixture: options.fixture }),
 					}
-					this.transcript.push(failed)
 					await this.onExchange?.(failed)
-					await releaseTranscriptBodies(failed)
+					await this.record(failed)
 					throw new NetworkError({
 						attempts: attempt + 1,
 						cause: error,
@@ -351,15 +457,14 @@ export class Client {
 				url: url.toString(),
 				...(rule === undefined ? {} : { rateLimitCategory: rule.category, rateLimitSource: rule.source }),
 				...(rateLimitHadRoom === undefined ? {} : { rateLimitHadRoom }),
-				...(options.operationId === undefined ? {} : { operationId: options.operationId }),
+				...stamp(headers),
 				...(options.fixture === undefined ? {} : { fixture: options.fixture }),
 				...(hops.length === 0 ? {} : { redirects: hops }),
 				...(landing === url.toString() ? {} : { finalUrl: landing }),
 				...(Object.keys(cookies).length === 0 ? {} : { cookies }),
 			}
-			this.transcript.push(exchange)
 			await this.onExchange?.(exchange)
-			await releaseTranscriptBodies(exchange)
+			await this.record(exchange)
 			return exchange
 		}
 
@@ -384,6 +489,7 @@ export class Client {
 		if (refresh !== undefined) await refresh(false)
 		let exchange = await resilient()
 		if (exchange.status === 401 && refresh !== undefined) {
+			this.supersede(exchange)
 			await refresh(true)
 			exchange = await resilient()
 		}
@@ -391,10 +497,12 @@ export class Client {
 		 * this path honours the server even when the op has no x-rate-limit at all. */
 		for (let attempt = 0; exchange.status === 429 && attempt < MAX_429_RETRIES; attempt++) {
 			const waitMs = retryWaitMs(headerValue(exchange.responseHeaders, "retry-after"), attempt)
-			this.rateLimiter?.noteBackoff(method.toUpperCase(), url.pathname, waitMs)
+			this.rateLimiter?.noteBackoff(method.toUpperCase(), this.relativePath(url), waitMs)
 			if (waitMs > 0) await new Promise<void>((resolve) => setTimeout(resolve, waitMs))
+			this.supersede(exchange)
 			exchange = await resilient()
 			if (exchange.status === 401 && refresh !== undefined) {
+				this.supersede(exchange)
 				await refresh(true)
 				exchange = await resilient()
 			}
@@ -404,6 +512,30 @@ export class Client {
 
 	get(path: string, options: RequestOptions = {}): Promise<Exchange> {
 		return this.request("GET", path, options)
+	}
+
+	/**
+	 * Keeps a compacted copy in the transcript. The caller's exchange is left whole: a check
+	 * reading a 300 KiB page must see the page, not a hash of it.
+	 */
+	private async record(exchange: Exchange): Promise<void> {
+		const stored: Exchange = { ...exchange }
+		await releaseTranscriptBodies(stored)
+		this.transcript.push(stored)
+		this.stored.set(exchange.seq, stored)
+		if (stored.operationId !== undefined) {
+			const list = this.byOperationId.get(stored.operationId) ?? []
+			list.push(stored)
+			this.byOperationId.set(stored.operationId, list)
+		}
+	}
+
+	private readonly stored = new Map<number, Exchange>()
+
+	/** Marks an answer that was asked again: only the final answer is the backend's verdict. */
+	private supersede(exchange: Exchange): void {
+		const stored = this.stored.get(exchange.seq)
+		if (stored !== undefined) stored.superseded = true
 	}
 }
 

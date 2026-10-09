@@ -65,6 +65,15 @@ export function reportFeatureGateSchemaDrift(
 	if (raw === undefined) return
 	if (!validator.documents(raw, exchange.status)) return
 	const result = validator.validate(op.operationId, raw, exchange.status, exchange.responseBody)
+	if (result.unchecked !== undefined) {
+		findings.gap(
+			"schema.error-response-matches-document",
+			entity,
+			`${op.operationId} ${exchange.status} has a schema that cannot be compiled`,
+			`AJV refused the documented schema, so the body was not validated: ${result.unchecked}`,
+		)
+		return
+	}
 	if (result.ok) return
 	if (
 		findings.findings.some(

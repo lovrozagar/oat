@@ -5,6 +5,7 @@
  * not required. Uniqueness is never inferred from a 409 without the tag.
  */
 
+import { generate } from "./generate.ts"
 import { requestContent } from "../spec/collection.ts"
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
 import type { OperationObject } from "../spec/types.ts"
@@ -121,33 +122,25 @@ export function uniquifyProbeBody(
 	return out
 }
 
+/**
+ * A value for a unique column that no earlier record — this run's or an earlier run's — holds.
+ *
+ * Drawn from the column's own schema with the token mixed in, so it honours `maximum`,
+ * `multipleOf`, `enum`, `pattern` and `format`. Appending a suffix to whatever was there broke
+ * every one of those. Where the schema admits nothing new, the value is left as it was and the
+ * caller's collision check decides.
+ */
 function distinctUniqueValue(value: unknown, token: string, schema: Record<string, unknown> | undefined): unknown {
-	if (typeof value === "number" && Number.isFinite(value)) {
-		const n = token.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
-		return value + (n % 97) + 1
-	}
-	if (typeof value !== "string") return value
-	return suffixUniqueString(value, token, schema)
-}
-
-function suffixUniqueString(value: string, token: string, schema: Record<string, unknown> | undefined): string {
-	const max = typeof schema?.maxLength === "number" ? schema.maxLength : undefined
-	const pattern = typeof schema?.pattern === "string" ? schema.pattern : undefined
-	const suffix = `-${token}`
-	let next = `${value}${suffix}`
-	if (max !== undefined && next.length > max) {
-		const keep = Math.max(0, max - suffix.length)
-		next = `${value.slice(0, keep)}${suffix}`
-		if (next.length > max) next = suffix.slice(-max)
-	}
-	if (pattern !== undefined) {
-		try {
-			if (!new RegExp(pattern, "u").test(next)) return value
-		} catch {
-			return value
-		}
-	}
-	return next
+	if (schema === undefined) return value
+	let h = 0
+	for (const ch of token) h = (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0
+	const result = generate(
+		{ properties: { value: schema }, required: ["value"], type: "object" },
+		{ distinct: new Set(["value"]), index: h % 1000, nonce: token },
+	)
+	if (!result.ok) return value
+	const next = (result.value as Record<string, unknown>).value
+	return JSON.stringify(next) === JSON.stringify(value) ? value : next
 }
 
 /**
@@ -211,6 +204,15 @@ export function reportUniqueSchemaDrift(
 	if (raw === undefined) return
 	if (!validator.documents(raw, exchange.status)) return
 	const result = validator.validate(op.operationId, raw, exchange.status, exchange.responseBody)
+	if (result.unchecked !== undefined) {
+		findings.gap(
+			"schema.error-response-matches-document",
+			entity,
+			`${op.operationId} ${exchange.status} has a schema that cannot be compiled`,
+			`AJV refused the documented schema, so the body was not validated: ${result.unchecked}`,
+		)
+		return
+	}
 	if (result.ok) return
 	if (
 		findings.findings.some(

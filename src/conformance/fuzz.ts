@@ -21,20 +21,7 @@
 import { DEFECTS, type DefectName } from "../reference/defects.ts"
 import { CHECKS } from "../runtime/checks.ts"
 import { type PrincipalSpec, run } from "../runtime/run.ts"
-import {
-	type Backend,
-	COUNT_ONLY,
-	CURSOR_ONLY,
-	DIALECTS_WITH_CURSOR,
-	DIALECTS_WITH_FILTER_EXPRESSION,
-	DIALECTS_WITH_POSTGREST_FILTER,
-	DIALECTS_WITH_TOTAL,
-	EXPRESSION_ONLY,
-	EXPECTED,
-	POSTGREST_OP_ONLY,
-	PRINCIPALS,
-	SQL_ONLY,
-} from "./suite.ts"
+import { type Backend, EXPECTED, PRINCIPALS, defectsFor } from "./suite.ts"
 
 export interface FuzzCase {
 	seed: number
@@ -113,17 +100,7 @@ export async function runFuzz(options: FuzzOptions = {}): Promise<FuzzCase[]> {
 
 	/* Defects the chosen backend or dialect cannot express are excluded from the draw rather than
 	 * excused afterwards — a case that cannot fail teaches nothing and still costs a run. */
-	const pool = (Object.keys(DEFECTS) as DefectName[]).filter(
-		(name) =>
-			(backend !== "memory" || !SQL_ONLY.has(name)) &&
-			(DIALECTS_WITH_CURSOR.has(dialect) || !CURSOR_ONLY.has(name)) &&
-			/* A shape publishing no total cannot publish a wrong one, so drawing a count defect
-			 * against it produces a case that cannot fail — and then fails, because nothing
-			 * detects a defect with nowhere to happen. */
-			(DIALECTS_WITH_TOTAL.has(dialect) || !COUNT_ONLY.has(name)) &&
-			(DIALECTS_WITH_FILTER_EXPRESSION.has(dialect) || !EXPRESSION_ONLY.has(name)) &&
-			(DIALECTS_WITH_POSTGREST_FILTER.has(dialect) || !POSTGREST_OP_ONLY.has(name)),
-	)
+	const pool = defectsFor(backend, dialect)
 
 	const results: FuzzCase[] = []
 	const random = rng(rootSeed)

@@ -1,60 +1,31 @@
 /**
  * Storage contract shared by the reference backends.
  *
- * One HTTP server implementation runs against every store, so a defect is defined once and
- * exercised on each engine. Where two engines disagree about what a defect *does*, that is
- * itself the finding — SQLite and Postgres differ on NULL ordering, type discipline, collation
- * and case-insensitive matching, and those are exactly the semantics oat's checks reason about.
+ * A store is deliberately dumb: it persists rows and answers "which rows match this predicate, in
+ * this order". Parsing, validation, paging, projection and every defect that is not a property of
+ * the engine itself live above it (see `query.ts` and `listing.ts`), so they are written once and
+ * every engine exhibits them identically.
+ *
+ * What the engines are still free to disagree on is what engines genuinely disagree on: how they
+ * compile a predicate, how their collations order text, and how their type systems store values.
+ * Where two stores then disagree, that is a real difference, not two implementations drifting.
  *
  * Async throughout, because a real database is: SQLite implementations resolve immediately.
  */
 
 import type { EntityDef } from "./model.ts"
+import type { SelectPlan } from "./query.ts"
 
 export type Row = Record<string, unknown>
 
-export interface QueryParams {
-	filter?: string | undefined
-	order?: string | undefined
-	select?: string | undefined
-	q?: string | undefined
-	limit?: number | undefined
-	page?: number | undefined
-	cursor?: string | undefined
-}
-
-export interface QueryOptions {
-	softDeleteField?: string | undefined
-	/**
-	 * Applied to each row *before* the sparse fieldset, so a derived value cannot reintroduce a
-	 * column the caller deselected.
-	 */
-	transform?: ((row: Row) => Row) | undefined
-}
-
-export interface QueryResult {
-	items: Row[]
-	count: number
-	hasMore: boolean
-	nextCursor: string | null
-	page: number | null
-	limit: number
-}
-
 export interface Store {
 	close(): Promise<void>
-	nextId(prefix: string): string
-	now(): number
 	insert(entity: EntityDef, record: Row): Promise<Row>
-	byId(entity: EntityDef, id: string): Promise<Row | null>
-	update(entity: EntityDef, id: string, patch: Row): Promise<Row | null>
-	remove(entity: EntityDef, id: string): Promise<void>
-	query(
-		entity: EntityDef,
-		scope: Record<string, string>,
-		params: QueryParams,
-		options: QueryOptions,
-	): Promise<QueryResult>
+	byId(entity: EntityDef, id: string | number): Promise<Row | null>
+	update(entity: EntityDef, id: string | number, patch: Row): Promise<Row | null>
+	remove(entity: EntityDef, id: string | number): Promise<void>
+	/** Every row matching `plan.where`, ordered by `plan.order`. Paging happens above the store. */
+	select(entity: EntityDef, plan: SelectPlan): Promise<Row[]>
 }
 
 /** Raised for input the storage layer rejects — surfaces as 400, or 500 under the defect. */
@@ -79,63 +50,4 @@ export function decodeCursor(cursor: string): string {
 	} catch {
 		throw new SqlError("invalid_cursor", "cursor is not a value produced by this API")
 	}
-}
-
-/** Splits on commas at paren depth zero — shared by the filter and order grammars. */
-export function splitTopLevel(input: string): string[] {
-	const parts: string[] = []
-	let depth = 0
-	let start = 0
-	for (let i = 0; i < input.length; i++) {
-		const ch = input[i]
-		if (ch === "(") depth++
-		else if (ch === ")") depth--
-		else if (ch === "," && depth === 0) {
-			parts.push(input.slice(start, i))
-			start = i + 1
-		}
-	}
-	parts.push(input.slice(start))
-	return parts.map((p) => p.trim()).filter((p) => p.length > 0)
-}
-
-export function stripParens(value: string): string {
-	return value.startsWith("(") && value.endsWith(")") ? value.slice(1, -1) : value
-}
-
-export function project(
-	row: Row,
-	select: string | undefined,
-	ignore: boolean,
-	/* Fields the document still declares selectable that the backend has stopped honouring — see
-	 * SPEC_OVERCLAIMS_SELECTABLE. Everything else stays as permissive as before: an unrecognised
-	 * field is silently dropped, never rejected. */
-	excluded: readonly string[] = [],
-	options: {
-		identity?: string
-		selectUnknown?: "reject" | "ignore"
-		dropRequested?: boolean
-	} = {},
-): Row {
-	if (select === undefined || select === "" || select === "*") return { ...row }
-	if (ignore) return { ...row }
-	const fields = select
-		.split(",")
-		.map((s) => s.trim())
-		.filter(Boolean)
-	const rejected = fields.find((f) => excluded.includes(f))
-	if (rejected !== undefined) {
-		throw new SqlError("invalid_select", `field "${rejected}" is not selectable`)
-	}
-	if (options.selectUnknown === "reject") {
-		const bogus = fields.find((field) => !Object.hasOwn(row, field) && !field.includes("("))
-		if (bogus !== undefined) throw new SqlError("invalid_select", `field "${bogus}" is not selectable`)
-	}
-	const identity = options.identity ?? "id"
-	const out: Row = {}
-	for (const field of fields) {
-		if (options.dropRequested === true && field !== identity && Object.hasOwn(row, field)) continue
-		if (Object.hasOwn(row, field)) out[field] = row[field]
-	}
-	return out
 }

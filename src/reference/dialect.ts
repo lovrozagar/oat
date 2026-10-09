@@ -25,6 +25,8 @@ export interface Dialect {
 		/** Rows to skip, where the API pages by offset rather than page number. */
 		offset?: string
 		cursor?: string
+		/** How the search term matches, where the API lets the caller choose. */
+		searchMode?: string
 	}
 	/**
 	 * Envelope property names, by role.
@@ -37,11 +39,12 @@ export interface Dialect {
 	envelope: {
 		/** Property holding the array. `null` means "named after the entity" — `tables`, `rows`. */
 		collection: string | null
-		total: string
-		hasMore: string
+		/* Each pagination fact is optional: a correct API may publish any subset of them. */
+		total?: string
+		hasMore?: string
 		nextCursor?: string
-		page: string
-		limit: string
+		page?: string
+		limit?: string
 	} | null
 	/**
 	 * How filter expressions are written.
@@ -77,6 +80,7 @@ export const POSTGREST: Dialect = {
 		order: "order",
 		page: "page",
 		search: "q",
+		searchMode: "search_mode",
 		select: "select",
 	},
 }

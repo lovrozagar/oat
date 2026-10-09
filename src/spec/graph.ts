@@ -47,7 +47,7 @@ import {
 	singularise,
 } from "./extensions.ts"
 import { deriveQueryConventions, type QueryConventions } from "./conventions.ts"
-import { parseRouteRef } from "./load.ts"
+import { documentDefs, parseRouteRef, pathTemplateMatches } from "./load.ts"
 import { type Endpoint, MUTATING_METHODS, type OpenApiDocument, type OperationObject, listEndpoints } from "./types.ts"
 
 export interface OperationModel {
@@ -78,7 +78,9 @@ export interface OperationModel {
 	idempotencyHeader: string | null
 	/** What this endpoint's query parameters and envelope mean, derived from the document. */
 	conventions: QueryConventions
+	/** Exact status codes the document names. Ranges and `default` live in `statuses`. */
 	documentedStatuses: number[]
+	statuses: DocumentedStatuses
 	securitySchemes: string[]
 	collection: CollectionShape | null
 	identity: string | null
@@ -132,6 +134,8 @@ export interface SpecModel {
 	byRoute: Map<string, OperationModel>
 	/** The untouched operation objects, keyed by id — schemas are read from here. */
 	rawOperations: Map<string, OperationObject>
+	/** Recursive schemas the dereferenced document refers to as `oat-defs#/$defs/<name>`. */
+	defs: Record<string, Record<string, unknown>>
 	entities: Map<string, EntityModel>
 	roots: string[]
 	gaps: GapCollector
@@ -176,6 +180,7 @@ export function buildModel(doc: OpenApiDocument): SpecModel {
 		hasAuthOperations: operations.some((o) => /auth|login|token|session/i.test(o.path)),
 		operations,
 		rawOperations: new Map(endpoints.map((e) => [e.operationId, e.op])),
+		defs: documentDefs(doc),
 		roots,
 		securitySchemes: Object.keys(doc.components?.securitySchemes ?? {}),
 	}
@@ -196,10 +201,8 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 	const security = op.security ?? doc.security ?? []
 	const securitySchemes = [...new Set(security.flatMap((group) => Object.keys(group)))]
 
-	const documentedStatuses = Object.keys(op.responses ?? {})
-		.map((s) => Number.parseInt(s, 10))
-		.filter((n) => !Number.isNaN(n))
-		.sort((a, b) => a - b)
+	const statuses = readStatuses(op.responses)
+	const documentedStatuses = statuses.exact
 
 	return {
 		action: entity?.action ?? null,
@@ -212,6 +215,7 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 		unique: readUnique(op, operationId, gaps),
 		destructive: readFlag(op, "x-destructive"),
 		documentedStatuses,
+		statuses,
 		effects: readEffects(op, operationId, gaps),
 		entity: entity?.name ?? null,
 		entitySource: entity?.source ?? null,
@@ -487,4 +491,88 @@ export function impliedEntityName(param: string): string | null {
 		.replace(/([a-z0-9])([A-Z])/g, "$1_$2")
 		.toLowerCase()
 	return stripped.length === 0 ? null : stripped.replace(/_/g, "-")
+}
+
+/**
+ * The largest page a list operation documents, and the parameter that asks for it.
+ *
+ * `x-query`'s `maxLimit` first, then the page-size parameter's schema `maximum`, then a
+ * conventional 100 where the document states no bound. A request above the documented maximum is
+ * the caller breaking the contract, and a backend is right to refuse it. `param` is undefined when
+ * the operation has no page-size parameter at all — then no size can be asked for.
+ */
+export function documentedPage(model: SpecModel, op: OperationModel): { param: string | undefined; size: number } {
+	const param = op.conventions.limit
+	if (op.query?.maxLimit !== undefined) return { param, size: op.query.maxLimit }
+	const raw = model.rawOperations.get(op.operationId)
+	const declared = (raw?.parameters ?? []).find(
+		(candidate) => "name" in candidate && candidate.in === "query" && candidate.name === param,
+	) as { schema?: { maximum?: unknown } } | undefined
+	const max = declared?.schema?.maximum
+	return { param, size: typeof max === "number" && max >= 1 ? max : 100 }
+}
+
+/** The query that asks an operation for its largest documented page. */
+export function largestPageQuery(model: SpecModel, op: OperationModel): Record<string, number> {
+	const { param, size } = documentedPage(model, op)
+	return param === undefined ? {} : { [param]: size }
+}
+
+/**
+ * The responses an operation documents: exact codes, `NXX` ranges, and `default`.
+ *
+ * Parsing the keys as integers read `2XX` as status 2 and dropped `default` entirely, so a
+ * document written in ranges declared nothing a real status could match.
+ */
+export interface DocumentedStatuses {
+	exact: number[]
+	/** Status classes documented as a range: 2 for `2XX`. */
+	ranges: number[]
+	default: boolean
+}
+
+export function readStatuses(responses: Record<string, unknown> | undefined): DocumentedStatuses {
+	const exact: number[] = []
+	const ranges: number[] = []
+	let hasDefault = false
+	for (const key of Object.keys(responses ?? {})) {
+		if (/^[1-5]\d\d$/.test(key)) exact.push(Number(key))
+		else if (/^[1-5]xx$/i.test(key)) ranges.push(Number(key[0]))
+		else if (key === "default") hasDefault = true
+	}
+	return { default: hasDefault, exact: exact.sort((a, b) => a - b), ranges: ranges.sort((a, b) => a - b) }
+}
+
+/** Whether `status` is covered: named exactly, by its range, or by `default`. */
+export function documentsStatus(statuses: DocumentedStatuses, status: number): boolean {
+	return statuses.exact.includes(status) || statuses.ranges.includes(Math.floor(status / 100)) || statuses.default
+}
+
+/** The success statuses as the document spells them, for messages. */
+export function describeSuccess(statuses: DocumentedStatuses): string[] {
+	return [
+		...statuses.exact.filter((code) => code < 300).map(String),
+		...statuses.ranges.filter((c) => c === 2).map(() => "2XX"),
+	]
+}
+
+/**
+ * Maps a request (method + path below the base URL) to the documented operation it instances.
+ *
+ * Literal segments beat parameters where two templates match — `/tables/archived` is not
+ * `/tables/{id}` — so the most specific template wins.
+ */
+export function operationResolver(
+	model: SpecModel,
+): (method: string, relativePath: string) => { operationId: string; template: string } | null {
+	const candidates = [...model.operations].sort(
+		(a, b) => (a.path.match(/\{/g)?.length ?? 0) - (b.path.match(/\{/g)?.length ?? 0),
+	)
+	return (method, relativePath) => {
+		const verb = method.toUpperCase()
+		const op = candidates.find(
+			(candidate) => candidate.method.toUpperCase() === verb && pathTemplateMatches(candidate.path, relativePath),
+		)
+		return op === undefined ? null : { operationId: op.operationId, template: op.path }
+	}
 }

@@ -9,7 +9,7 @@
 
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
 import { requestContent } from "../spec/collection.ts"
-import { owningEntityName } from "../spec/graph.ts"
+import { largestPageQuery, owningEntityName } from "../spec/graph.ts"
 import { encodeForOperation } from "./body.ts"
 import { forEachInvocation } from "./upload-each.ts"
 import type { Client, Exchange } from "./client.ts"
@@ -92,6 +92,7 @@ export function recordsFromList(body: unknown, collectionKey: string | null): Re
 /** Same-tenant records the list route already returns. Empty when the route cannot be resolved. */
 export async function listExisting(
 	listOp: OperationModel,
+	model: SpecModel,
 	client: Client,
 	headers: Record<string, string> | (() => Record<string, string>),
 	values: Record<string, string>,
@@ -100,7 +101,10 @@ export async function listExisting(
 		if (values[param] === undefined) return []
 	}
 	try {
-		const exchange = await client.get(fillPath(listOp.path, values), { headers, query: { limit: 50 } })
+		const exchange = await client.get(fillPath(listOp.path, values), {
+			headers,
+			query: largestPageQuery(model, listOp),
+		})
 		if (exchange.status >= 300) return []
 		return recordsFromList(exchange.responseBody, listOp.collection?.key ?? null)
 	} catch {
@@ -111,9 +115,19 @@ export async function listExisting(
 export interface WorldOptions {
 	roots: Record<string, string>
 	seed: number
+	/**
+	 * Per-run token mixed into every value that must not collide with an earlier run's records —
+	 * unique columns, above all. A seed alone repeats exactly, which is its job.
+	 */
+	nonce?: string
 	cohortSize?: number
 	authHeaders: () => Record<string, string>
 	uploads?: UploadContext
+	/**
+	 * Called the moment a record exists, before anything else can fail. A record learned about
+	 * only after the step that made it returns is dropped whenever a later step throws.
+	 */
+	onCreate?: (entity: string, id: string, scope: Record<string, string>) => void
 }
 
 /**
@@ -157,6 +171,7 @@ export async function resolvePathScope(
 		if (typeof id !== "string" && typeof id !== "number") {
 			throw new SeedError(param, `create for "${owner}" returned no usable "${identity}"`)
 		}
+		options.onCreate?.(owner, String(id), { ...scope.values })
 		scope.values[param] = String(id)
 		scope.created.push({
 			entity: owner,
@@ -177,7 +192,11 @@ async function createOne(
 	const schema = requestSchemaOf(createOp, model)
 	let member: CohortMember | undefined
 	try {
-		;[member] = buildCohort(schema ?? {}, options.seed, ["baseline"], createOp.operationId)
+		;[member] = buildCohort(schema ?? {}, options.seed, ["baseline"], createOp.operationId, {
+			defs: model.defs,
+			distinct: new Set((createOp.unique ?? []).flat()),
+			...(options.nonce === undefined ? {} : { nonce: options.nonce }),
+		})
 	} catch (error) {
 		if (isOverflowError(error)) throw overflowFrom(error, createOp.operationId)
 		throw error
@@ -186,7 +205,7 @@ async function createOne(
 	if ((createOp.unique?.length ?? 0) > 0) {
 		/* Ancestor creates share the entity seed with the entity's own cohort; unique columns
 		 * must not collide with a later seed of the same collection. */
-		body = uniquifyProbeBody(body, createOp.unique ?? [], schema, `anc${options.seed}`)
+		body = uniquifyProbeBody(body, createOp.unique ?? [], schema, `anc${options.seed}-${options.nonce ?? ""}`)
 	}
 	const encoded = await encodeForOperation(
 		createOp,
@@ -238,7 +257,7 @@ async function adoptExisting(
 	if (entity?.list === undefined) return null
 	const listOp = model.byOperationId.get(entity.list)
 	if (listOp === undefined) return null
-	const records = await listExisting(listOp, client, options.authHeaders, { ...options.roots, ...scope.values })
+	const records = await listExisting(listOp, model, client, options.authHeaders, { ...options.roots, ...scope.values })
 	const identity = entity.identity ?? "id"
 	return (
 		records.find((record) => {
@@ -294,11 +313,16 @@ export async function seedCohort(
 	let members: CohortMember[]
 	let uniqueGap: string | undefined
 	try {
-		const generated = buildCohort(schema, options.seed, undefined, createOp.operationId).slice(
-			0,
-			options.cohortSize ?? 7,
-		)
-		const distinct = ensureDistinctUniqueValues(generated, createOp.unique ?? [], schema)
+		const generated = buildCohort(schema, options.seed, undefined, createOp.operationId, {
+			defs: model.defs,
+			distinct: new Set((createOp.unique ?? []).flat()),
+			...(options.nonce === undefined ? {} : { nonce: options.nonce }),
+		}).slice(0, options.cohortSize ?? 7)
+		const distinct = ensureDistinctUniqueValues(generated, createOp.unique ?? [], schema, {
+			defs: model.defs,
+			distinct: new Set((createOp.unique ?? []).flat()),
+			...(options.nonce === undefined ? {} : { nonce: options.nonce }),
+		})
 		members = distinct.members
 		if (distinct.gap !== null) uniqueGap = distinct.gap
 		const entity = createOp.entity === null ? undefined : model.entities.get(createOp.entity)
@@ -306,12 +330,12 @@ export async function seedCohort(
 		const existing =
 			listOp === undefined
 				? []
-				: await listExisting(listOp, client, options.authHeaders, { ...options.roots, ...scope.values })
+				: await listExisting(listOp, model, client, options.authHeaders, { ...options.roots, ...scope.values })
 		if (existing.length > 0 && (createOp.unique?.length ?? 0) > 0) {
 			members = members.map((member, index) => {
 				let body = member.body
 				for (let token = 0; token < 8 && uniqueTupleCollides(body, createOp.unique ?? [], existing); token++) {
-					body = uniquifyProbeBody(body, createOp.unique ?? [], schema, `ex${index}${token}`)
+					body = uniquifyProbeBody(body, createOp.unique ?? [], schema, `ex${index}${token}-${options.nonce ?? ""}`)
 				}
 				return { ...member, body }
 			})
@@ -324,6 +348,15 @@ export async function seedCohort(
 	const path = fillPath(createOp.path, scope.values)
 	const uploads = uploadContext(options)
 	const seededMembers: CohortMember[] = []
+	const identity = (createOp.entity === null ? undefined : model.entities.get(createOp.entity))?.identity ?? "id"
+	const created = (exchange: Exchange): Record_ => {
+		const record = (exchange.responseBody ?? {}) as Record_
+		const id = record[identity]
+		if (createOp.entity !== null && (typeof id === "string" || typeof id === "number")) {
+			options.onCreate?.(createOp.entity, String(id), { ...scope.values })
+		}
+		return record
+	}
 
 	const postMember = async (member: CohortMember, nextUploads: typeof uploads): Promise<Exchange> => {
 		const encoded = await encodeForOperation(createOp, model, member.body, nextUploads, member.variant, records.length)
@@ -395,14 +428,14 @@ export async function seedCohort(
 				return null
 			}
 			seededMembers.push(member)
-			records.push((exchange.responseBody ?? {}) as Record_)
+			records.push(created(exchange))
 			return null
 		}
 		for (const member of members) {
 			const exchange = await postMember(member, nextUploads)
 			if (exchange.status >= 300) return failOrAdopt(member, exchange)
 			seededMembers.push(member)
-			records.push((exchange.responseBody ?? {}) as Record_)
+			records.push(created(exchange))
 		}
 		return null
 	})
@@ -426,7 +459,7 @@ export function probeCreateFixtures(model: SpecModel): void {
 		if (op === undefined) continue
 		const schema = requestSchemaOf(op, model) ?? {}
 		try {
-			buildCohort(schema, 1, ["baseline"], op.operationId)
+			buildCohort(schema, 1, ["baseline"], op.operationId, { defs: model.defs })
 		} catch (error) {
 			if (isOverflowError(error)) {
 				const overflow = overflowFrom(error, op.operationId)

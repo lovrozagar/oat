@@ -51,6 +51,8 @@ export const KNOWN_FLAGS = new Set([
 	"parser",
 	"save-exchanges",
 	"no-save-exchanges",
+	"skip-backend",
+	"fuzz-seed",
 ])
 
 export function parseArgs(argv: string[]): Args {
@@ -108,6 +110,8 @@ Flags
   --precision [n]  vary cohort data against a correct backend; any finding is a false positive
   --max-defects    most defects per combination (default: 4)
   --seed           fuzz seed, so a failing combination replays exactly
+  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
+  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
   --json       machine-readable output, for plan and doctor
 `
 
@@ -314,6 +318,7 @@ export async function main(): Promise<number> {
 			postgresAvailable,
 			renderParserSuite,
 			renderSuite,
+			renderUnproven,
 			runExampleSpecSuite,
 			runTagUnlockSuite,
 			runParserSuite,
@@ -326,6 +331,31 @@ export async function main(): Promise<number> {
 			sqliteAvailable,
 			d1Available,
 		} = await import("./conformance/suite.ts")
+		/* A typo in a selector must stop the run, not widen it: an unknown backend once ran every
+		 * backend, and an unknown dialect silently filtered out the defects it could not express. */
+		const { DIALECTS } = await import("./reference/dialect.ts")
+		const { isDefectName } = await import("./reference/defects.ts")
+		const backendFlag = str(flags, "backend")
+		const backendNames = ["memory", "sqlite", "postgres", "d1"]
+		if (backendFlag !== undefined && !backendNames.includes(backendFlag)) {
+			process.stderr.write(`oat: unknown --backend "${backendFlag}" — expected ${backendNames.join(", ")}\n`)
+			return 2
+		}
+		const dialectFlag = str(flags, "dialect")
+		if (dialectFlag !== undefined && !Object.hasOwn(DIALECTS, dialectFlag)) {
+			process.stderr.write(`oat: unknown --dialect "${dialectFlag}" — expected ${Object.keys(DIALECTS).join(", ")}\n`)
+			return 2
+		}
+		const onlyFlag = str(flags, "only")?.split(",").filter(Boolean)
+		const unknownDefects = (onlyFlag ?? []).filter((name) => !isDefectName(name))
+		if (flags.only === true || (onlyFlag !== undefined && onlyFlag.length === 0)) {
+			process.stderr.write("oat: --only needs a comma-separated list of defect names\n")
+			return 2
+		}
+		if (unknownDefects.length > 0) {
+			process.stderr.write(`oat: --only names no defect: ${unknownDefects.join(", ")}\n`)
+			return 2
+		}
 		const { runFeatureGateSuite } = await import("./conformance/feature-gate.ts")
 		const { runRateLimitSuite } = await import("./conformance/rate-limit.ts")
 		const { runUniqueSuite } = await import("./conformance/unique.ts")
@@ -439,19 +469,54 @@ export async function main(): Promise<number> {
 				: backends.map((backend) => ({ backend, dialect: dialect ?? "postgrest" }))
 
 		let failures = parser.failures
+		const proven = new Set<string>()
 		for (const pass of passes) {
 			process.stdout.write(`\n  ── ${pass.backend} · ${pass.dialect} ${"─".repeat(46)}\n`)
-			const result = renderSuite(await runSuite(only, pass.backend, pass.dialect), pass.dialect)
+			const result = renderSuite(await runSuite(only, pass.backend, pass.dialect), pass.dialect, pass.backend)
 			process.stdout.write(result.text)
 			failures += result.failures
+			for (const id of result.proven) proven.add(id)
+		}
+		/* Only a complete run can say a check was never proven; a filtered one never tried. */
+		if (only === undefined && requested === undefined && dialect === undefined) {
+			const unproven = renderUnproven(proven)
+			process.stdout.write(unproven.text)
+			failures += unproven.failures
+		}
+		/* The opposite question to the defect matrix: whether oat stays quiet on a correct backend
+		 * shaped unlike the one it was written against. One engine is enough — a shape varies the
+		 * API, not the storage. */
+		if (requested === undefined || requested === "memory") {
+			const { renderShapeSuite, runShapeRecall, runShapeSuite } = await import("./conformance/shapes.ts")
+			process.stdout.write(`\n  ── shapes · memory ${"─".repeat(46)}\n`)
+			const shapeCases = await runShapeSuite("memory")
+			const shapes = renderShapeSuite(shapeCases)
+			process.stdout.write(shapes.text)
+			failures += shapes.failures
+			if (only === undefined) {
+				process.stdout.write(`\n  ── recall behind shapes · memory ${"─".repeat(32)}\n`)
+				const recall = renderShapeSuite(await runShapeRecall("memory", shapeCases), true)
+				process.stdout.write(recall.text)
+				failures += recall.failures
+			}
 		}
 		if (requested === undefined && skipped.length > 0) {
+			/* An engine that is not there is not a pass: the SQL-only defects and every engine
+			 * difference go untested. Leaving one out has to be asked for by name. */
+			const allowed = new Set(str(flags, "skip-backend")?.split(",") ?? [])
 			for (const backend of skipped) {
 				const why =
 					backend === "sqlite"
 						? "node:sqlite unavailable (Node 22 needs --experimental-sqlite)"
 						: "no Postgres server reachable on the default connection"
-				process.stdout.write(`  note: ${backend} backend skipped — ${why}\n`)
+				if (allowed.has(backend)) {
+					process.stdout.write(`  note: ${backend} backend skipped as asked — ${why}\n`)
+				} else {
+					failures += 1
+					process.stdout.write(
+						`  ✗ ${backend} backend unavailable — ${why}. Start it, or pass --skip-backend ${backend}\n`,
+					)
+				}
 			}
 			process.stdout.write("\n")
 		}
@@ -462,7 +527,15 @@ export async function main(): Promise<number> {
 			 * probe writing into a constrained field — was invisible to the one-at-a-time matrix. */
 			const { renderFuzz, runFuzz } = await import("./conformance/fuzz.ts")
 			process.stdout.write(`\n  ── combinations ${"─".repeat(46)}\n`)
-			const smoke = renderFuzz(await runFuzz({ backend: "memory", cases: 40, maxDefects: 6, seed: 1 }))
+			/* A fixed seed tests the same 40 combinations forever. CI passes a fresh one per run and
+			 * the seed is printed, so any failure it finds replays exactly. */
+			const fuzzSeed = Number.parseInt(str(flags, "fuzz-seed") ?? "1", 10)
+			if (!Number.isSafeInteger(fuzzSeed) || fuzzSeed < 1) {
+				process.stderr.write("oat: --fuzz-seed must be a positive integer\n")
+				return 2
+			}
+			process.stdout.write(`  fuzz seed ${fuzzSeed} — replay with --fuzz 40 --max-defects 6 --seed ${fuzzSeed}\n`)
+			const smoke = renderFuzz(await runFuzz({ backend: "memory", cases: 40, maxDefects: 6, seed: fuzzSeed }))
 			process.stdout.write(smoke.text)
 			failures += smoke.failures
 		}

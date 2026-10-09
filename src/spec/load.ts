@@ -23,32 +23,62 @@ export async function loadSpec(
 	baseUrl?: string,
 	network?: NetworkFetchOptions,
 ): Promise<OpenApiDocument> {
-	const text = await readSpecSource(source, baseUrl, network)
+	/* A byte-order mark is not part of the document; JSON.parse rejects it outright. */
+	const text = (await readSpecSource(source, baseUrl, network)).replace(/^\uFEFF/, "")
 
 	if (text.trim() === "") {
 		throw new Error(`oat: ${source} is empty`)
 	}
 
+	let parsed: unknown
 	if (looksLikeJson(text)) {
 		try {
-			return JSON.parse(text) as OpenApiDocument
+			parsed = JSON.parse(text)
 		} catch (error) {
 			throw new Error(
 				`oat: ${source} starts as JSON but does not parse: ${
 					error instanceof Error ? error.message : String(error)
 				}. ${diagnoseJson(text)}`,
+				{ cause: error },
+			)
+		}
+	} else {
+		try {
+			const { parse } = await import("yaml")
+			parsed = parse(text)
+		} catch (error) {
+			throw new Error(
+				`oat: could not parse ${source} as JSON or YAML: ${error instanceof Error ? error.message : String(error)}`,
+				{ cause: error },
 			)
 		}
 	}
+	return assertOpenApi(parsed, source)
+}
 
-	try {
-		const { parse } = await import("yaml")
-		return parse(text) as OpenApiDocument
-	} catch (error) {
-		throw new Error(
-			`oat: could not parse ${source} as JSON or YAML: ${error instanceof Error ? error.message : String(error)}`,
-		)
+/**
+ * Accepts an OpenAPI 3.x document and nothing else.
+ *
+ * YAML parses almost any text — a `Not Found` page is a valid YAML string — so "it parsed" says
+ * nothing about whether this is a document oat can test. Accepting it produced a run that graded
+ * zero operations and reported success.
+ */
+export function assertOpenApi(parsed: unknown, source: string): OpenApiDocument {
+	if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+		const shown = typeof parsed === "string" ? JSON.stringify(parsed.slice(0, 60)) : String(parsed)
+		throw new Error(`oat: ${source} is not an OpenAPI document — it parsed as ${shown}`)
 	}
+	const doc = parsed as Record<string, unknown>
+	if (typeof doc.swagger === "string") {
+		throw new Error(`oat: ${source} is Swagger ${doc.swagger}; oat reads OpenAPI 3.x — convert it first`)
+	}
+	if (typeof doc.openapi !== "string" || !/^3\.\d+(\.\d+)?/.test(doc.openapi)) {
+		throw new Error(`oat: ${source} has no "openapi: 3.x" version field, so it is not an OpenAPI 3 document`)
+	}
+	if (doc.paths === null || typeof doc.paths !== "object" || Array.isArray(doc.paths)) {
+		throw new Error(`oat: ${source} has no "paths" object, so there is nothing to test`)
+	}
+	return doc as OpenApiDocument
 }
 
 function looksLikeJson(text: string): boolean {
@@ -113,21 +143,43 @@ async function fetchText(url: string, network?: NetworkFetchOptions): Promise<st
 	return res.text()
 }
 
+/** Where recursive schemas live after dereferencing: `$ref: "oat-defs#/$defs/<name>"`. */
+export const DEFS_ID = "oat-defs"
+export const DEFS_KEY = "x-oat-defs"
+
+/** The recursive schemas a dereferenced document refers to, by name. Empty when there are none. */
+export function documentDefs(doc: OpenApiDocument): Record<string, Record<string, unknown>> {
+	const defs = (doc as Record<string, unknown>)[DEFS_KEY]
+	return defs !== null && typeof defs === "object" ? (defs as Record<string, Record<string, unknown>>) : {}
+}
+
 /**
- * Resolves internal `$ref`s in place, sharing object identity for repeated refs so the result
- * stays compact. Cycles are preserved as shared references rather than expanded — AJV handles
- * recursive schemas natively, and expanding them would not terminate.
+ * Resolves internal `$ref`s, producing a document with no references left in it except the ones
+ * that must stay: external refs, reported by the caller as a coverage gap, and refs that would
+ * otherwise recurse forever.
  *
- * External refs are left untouched and reported by the caller as a coverage gap: resolving them
- * would mean fetching arbitrary URLs, which a test tool should not do implicitly.
+ * Every source node maps to exactly one output node, so the result is the same whatever order the
+ * document lists its keys in — `components` before `paths` or after. Sibling keys beside a `$ref`
+ * (OpenAPI 3.1) apply to that use site only and never leak onto the shared target. Data is left
+ * alone: a `$ref` inside an `example` is an example, not a reference.
+ *
+ * A schema that refers to itself, directly or through others, cannot be inlined: the result would
+ * be a cyclic object that no serializer can print and no generator can bound. Such a reference
+ * becomes `$ref: "oat-defs#/$defs/<name>"` and the schema is stored once under `x-oat-defs`, which
+ * the validator registers with AJV and the generator follows to a bounded depth.
  */
 export function dereference(doc: OpenApiDocument): {
 	doc: OpenApiDocument
 	externalRefs: string[]
 } {
 	const externalRefs = new Set<string>()
-	const resolving = new Map<string, unknown>()
-	const seen = new WeakSet<object>()
+	/* source object → its resolved output, so a node is resolved once wherever it is reached */
+	const memo = new Map<object, unknown>()
+	/* source nodes whose output is still being built: reaching one again is a cycle, whether it
+	 * was entered through a $ref or walked directly as part of `components` */
+	const building = new Set<object>()
+	const defNames = new Map<string, string>()
+	const defs: Record<string, unknown> = {}
 
 	function resolvePointer(ref: string): unknown {
 		if (ref === "#" || ref === "#/") return doc
@@ -135,62 +187,104 @@ export function dereference(doc: OpenApiDocument): {
 		let node: unknown = doc
 		for (const seg of path) {
 			if (node === null || typeof node !== "object") return undefined
+			if (!Object.hasOwn(node, seg)) return undefined
 			node = (node as Record<string, unknown>)[seg]
 		}
 		return node
 	}
 
-	function walk(node: unknown): unknown {
-		if (Array.isArray(node)) {
-			if (seen.has(node)) return node
-			seen.add(node)
-			return node.map(walk)
-		}
-		if (node === null || typeof node !== "object") return node
-		if (seen.has(node)) return node
-		seen.add(node)
+	function defName(ref: string): string {
+		const existing = defNames.get(ref)
+		if (existing !== undefined) return existing
+		const base = (decodeSegment(ref.split("/").at(-1) ?? "") || "schema").replace(/[^\w.-]/g, "_")
+		let name = base
+		for (let n = 2; Object.values(Object.fromEntries(defNames)).includes(name); n++) name = `${base}_${n}`
+		defNames.set(ref, name)
+		return name
+	}
 
-		const obj = node as Record<string, unknown>
-		const ref = obj.$ref
-		if (typeof ref === "string") {
-			const internal = ref === "#" || ref === "#/" || ref.startsWith("#/")
-			if (!internal) {
-				externalRefs.add(ref)
-				return node
-			}
-			const cached = resolving.get(ref)
-			if (cached !== undefined) return cached
-			const target = resolvePointer(ref)
-			if (target === undefined) {
-				throw new Error(`oat: unresolvable $ref ${ref}`)
-			}
-			/* Placeholder registered before recursing so a cycle lands on this same object
-			 * instead of recursing forever. Seen identity is the other half: after inlining,
-			 * the same node can be reached without a $ref. */
-			const placeholder: Record<string, unknown> = {}
-			resolving.set(ref, placeholder)
-			seen.add(placeholder)
-			const resolved = walk(target)
-			if (resolved !== null && typeof resolved === "object" && !Array.isArray(resolved)) {
-				Object.assign(placeholder, resolved as Record<string, unknown>)
-			}
-			/* Sibling keys alongside $ref (OpenAPI 3.1 allows this) override the target. */
-			for (const [k, v] of Object.entries(obj)) {
-				if (k !== "$ref") placeholder[k] = walk(v)
-			}
-			return placeholder
+	function walkRef(obj: Record<string, unknown>, ref: string): unknown {
+		const internal = ref === "#" || ref === "#/" || ref.startsWith("#/")
+		if (!internal) {
+			externalRefs.add(ref)
+			return obj
 		}
-
-		const out: Record<string, unknown> = {}
-		for (const [k, v] of Object.entries(obj)) out[k] = walk(v)
+		const target = resolvePointer(ref)
+		if (target === undefined) throw new Error(`oat: unresolvable $ref ${ref}`)
+		if (target !== null && typeof target === "object" && building.has(target)) {
+			return { $ref: `${DEFS_ID}#/$defs/${defName(ref)}` }
+		}
+		const resolved = walk(target)
+		const siblings = Object.entries(obj).filter(([key]) => key !== "$ref")
+		if (siblings.length === 0) return resolved
+		const base = resolved !== null && typeof resolved === "object" && !Array.isArray(resolved) ? resolved : {}
+		const out: Record<string, unknown> = { ...(base as Record<string, unknown>) }
+		for (const [key, value] of siblings) out[key] = walk(value)
 		return out
 	}
 
-	return { doc: walk(doc) as OpenApiDocument, externalRefs: [...externalRefs] }
+	/**
+	 * `mode` says what the node is: ordinary document structure, data that is never resolved
+	 * (an `example`, a schema's `examples` array), or an Example Object, whose `value` is data.
+	 */
+	function walk(node: unknown, mode: "node" | "data" | "example" = "node"): unknown {
+		if (node === null || typeof node !== "object" || mode === "data") return node
+		const cached = mode === "node" ? memo.get(node) : undefined
+		if (cached !== undefined) return cached
+		if (Array.isArray(node)) {
+			const out: unknown[] = []
+			memo.set(node, out)
+			building.add(node)
+			for (const item of node) out.push(walk(item))
+			building.delete(node)
+			return out
+		}
+		const obj = node as Record<string, unknown>
+		if (typeof obj.$ref === "string") {
+			/* Not memoized by node: whether a ref recurses depends on the path that reached it. */
+			return walkRef(obj, obj.$ref)
+		}
+		const out: Record<string, unknown> = {}
+		if (mode === "node") memo.set(node, out)
+		building.add(node)
+		for (const [key, value] of Object.entries(obj)) {
+			if (key === "example" || (mode === "example" && key === "value")) out[key] = value
+			else if (key === "examples" && Array.isArray(value)) out[key] = value
+			else if (key === "examples" && value !== null && typeof value === "object") {
+				/* A map of Example Objects: each may be a $ref, and each one's `value` is data. */
+				const examples: Record<string, unknown> = {}
+				for (const [name, example] of Object.entries(value as Record<string, unknown>)) {
+					examples[name] = walk(example, "example")
+				}
+				out[key] = examples
+			} else out[key] = walk(value)
+		}
+		building.delete(node)
+		return out
+	}
+
+	const out = walk(doc) as OpenApiDocument
+	/* Each recursive schema, stored once by name. Its body is the completed output for the
+	 * target node, whose own self-references are already `$ref`s into these definitions. */
+	for (const [ref, name] of defNames) {
+		const target = resolvePointer(ref)
+		const body = target !== null && typeof target === "object" ? (memo.get(target) ?? walk(target)) : target
+		/* `$ref: "#"` names the document itself, which is about to carry these definitions: store a
+		 * copy without them, or the definitions would contain themselves. */
+		defs[name] = body === out ? { ...out } : body
+	}
+	if (Object.keys(defs).length > 0) (out as Record<string, unknown>)[DEFS_KEY] = defs
+	return { doc: out, externalRefs: [...externalRefs] }
 }
 
+/** A JSON pointer segment: `~1` and `~0` escapes, then percent-encoding (`%7Bid%7D`). */
 function decodeSegment(seg: string): string {
-	return seg.replace(/~1/g, "/").replace(/~0/g, "~")
+	const unescaped = seg.replace(/~1/g, "/").replace(/~0/g, "~")
+	try {
+		return decodeURIComponent(unescaped)
+	} catch {
+		return unescaped
+	}
 }
 
 /** Normalises `/things/:id` to `/things/{id}` so both path syntaxes compare equal. */

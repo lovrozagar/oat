@@ -51,7 +51,6 @@ export const TAG_UNLOCKS: Record<string, readonly string[]> = {
 		"spec.declared-sortable-is-sortable",
 		"spec.declared-selectable-is-selectable",
 		"spec.declared-filterable-ops-accepted",
-		"spec.declared-filterable-illegal-op-rejected",
 		"spec.declared-sortable-nulls-accepted",
 		"filter.in-is-union-of-eq",
 		"filter.nin-complements-in",
@@ -65,9 +64,15 @@ export const TAG_UNLOCKS: Record<string, readonly string[]> = {
 		"sort.nulls-first-last",
 		"sort.stable-tiebreak",
 		"search.empty-q",
+		"search.mode-accepted",
 		"select.unknown-field-rejected",
+		"select.nested-honoured",
+		"sort.default-order-applied",
+		/* Membership needs an array the document marks filterable; untagged, no array is guessed. */
+		"filter.contains-membership",
 	],
 	"x-soft-delete": ["softdelete.absent-from-default-list"],
+	"x-wait": ["effects.side-effect-arrives"],
 	"x-invite": ["auth.invite-grants-then-revokes"],
 	"x-unique": ["create.unique-conflict-rejected", "update.unique-conflict-rejected"],
 }
@@ -247,7 +252,7 @@ function catalogCheckPreview(
 	if (caps.filterable.some((field) => opsAreClosed(field, caps))) {
 		ids.push("filter.illegal-op-rejected")
 		if (source === "tag" || source === "mixed") {
-			ids.push("spec.declared-filterable-ops-accepted", "spec.declared-filterable-illegal-op-rejected")
+			ids.push("spec.declared-filterable-ops-accepted")
 		}
 	}
 	if (caps.emptyIn !== undefined && anyFieldAllows(caps, "in") && write("in")) ids.push("filter.empty-in")
@@ -271,11 +276,10 @@ function catalogCheckPreview(
 		if (caps.sort?.stableTiebreak !== undefined) ids.push("sort.stable-tiebreak")
 	}
 	if (list.conventions.search !== undefined && caps.searchable.length > 0) {
-		ids.push("search.tokens-and", "search.case-insensitive", "search.undeclared-field-not-required")
+		ids.push("search.tokens-and", "search.case-insensitive")
 		if (caps.searchEmpty !== undefined) ids.push("search.empty-q")
 		if (caps.searchModes !== undefined && list.conventions.searchMode !== undefined) {
 			ids.push("search.mode-accepted")
-			if (caps.searchModes.length >= 2) ids.push("search.modes-differ")
 		}
 	}
 	if (list.conventions.select !== undefined && caps.selectable.length > 0) {

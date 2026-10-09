@@ -334,8 +334,11 @@ describe("Client transcript lifecycle", () => {
 			fixture: "blob.bin",
 			operationId: "upload.once",
 		})
-		expect(holdsLiveBody(exchange.requestBody)).toBe(false)
-		expect(isFormSnapshot(exchange.requestBody)).toBe(true)
+		/* The transcript keeps a compact copy; the caller keeps the real body. */
+		const stored = client.transcript.at(-1)
+		expect(holdsLiveBody(stored?.requestBody)).toBe(false)
+		expect(isFormSnapshot(stored?.requestBody)).toBe(true)
+		expect(exchange.requestBody).toBe(form)
 		expect(exchange.responseBody).toEqual({ id: "1" })
 		expect(exchange.fixture).toBe("blob.bin")
 		const file = JSON.parse(
