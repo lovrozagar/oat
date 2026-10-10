@@ -12,6 +12,7 @@ export const TYPICAL_REQUESTS: Partial<Record<CheckId, number>> = {
 	"async.receipt-identifies-the-job": 1,
 	"auth.invite-grants-then-revokes": 7,
 	"auth.rank-is-monotonic": 3,
+	"auth.self-is-the-caller": 4,
 	"concurrency.no-lost-update": 5,
 	"consistency.projections-agree": 6,
 	"count.consistent-with-returned-page": 1,

@@ -61,6 +61,8 @@ x-entity:
 
 Overrides path-segment inference. `identity` is required when the item schema has no `id` (or `uuid` / `slug` / `key` / `name`).
 
+`identity: self` means the signed-up caller is the record. The entity needs a read or an update and does not need a list or a create. The read returns 200. An update is still there on the next read. No token returns 401.
+
 **Fallback:** deepest plural segment + HTTP verb. See [How the model is derived](model.md#how-the-model-is-derived).
 
 ### `x-invite`

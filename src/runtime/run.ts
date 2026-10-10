@@ -38,6 +38,7 @@ import {
 import { type BackoffConfig, resolveBackoff } from "./poll.ts"
 import { type PersistedPrincipal, persistedToPrincipal, snapshotPrincipal } from "./principals.ts"
 import { CHECKS, type Actor, type WriteContext } from "./checks.ts"
+import { entityIsSelf, runSelfIdentity, SELF_CHECK_ID, selfOperationIds } from "./self.ts"
 import {
 	AuthRefreshError,
 	Client,
@@ -757,7 +758,29 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	const testEntity = async (entity: EntityModel): Promise<void> => {
 		const listOp = model.byOperationId.get(entity.list ?? "")
 		const createOp = model.byOperationId.get(entity.create ?? "")
-		if (listOp === undefined) return
+		/* The caller is the record. Nothing to list, and register is not a create. */
+		if (listOp === undefined) {
+			if (!entityIsSelf(entity)) return
+			entitiesTested.push(entity.name)
+			currentEntity = entity.name
+			currentCheck = SELF_CHECK_ID
+			currentPhase = "test"
+			const ops = selfOperationIds(entity)
+			checksRun.add(SELF_CHECK_ID)
+			const outcome = await runSelfIdentity({
+				auth: alpha.headers,
+				client,
+				entity,
+				findings,
+				model,
+			})
+			if (outcome.kind === "stood-down" || outcome.kind === "unresolved") {
+				grades.skipped(ops, outcome.reason)
+				return
+			}
+			grades.graded(ops, SELF_CHECK_ID)
+			return
+		}
 		/* Cohort variants the backend refused. A check that stands down for want of cohort data
 		 * says which variants never arrived, so the gap points at the seed rather than the API. */
 		let lostVariants: string[] = []

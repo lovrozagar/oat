@@ -9,6 +9,7 @@ export const CHECK_IDS = [
 	"auth.invite-grants-then-revokes",
 	"auth.rank-is-monotonic",
 	"auth.rank-is-monotonic-on-writes",
+	"auth.self-is-the-caller",
 	"concurrency.no-lost-update",
 	"consistency.projections-agree",
 	"count.consistent-with-returned-page",

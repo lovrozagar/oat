@@ -10,6 +10,7 @@ import type { Hooks, PayloadPolicy } from "../config/define-config.ts"
 import { canWriteFilterOp, filterTerm, selectTerm, sortTerm, sortTermWithNulls } from "../spec/conventions.ts"
 import type { InviteSpec } from "../spec/extensions.ts"
 import { CHECK_IDS, type CheckId } from "./check-ids.ts"
+import { selfIdentityCheck } from "./self.ts"
 import type { QueryCapability } from "../spec/extensions.ts"
 import {
 	type EffectiveFilterField,
@@ -9090,6 +9091,7 @@ export const CHECKS: readonly Check[] = [
 	rankIsMonotonic,
 	rankIsMonotonicOnWrites,
 	inviteGrantsThenRevokes,
+	selfIdentityCheck,
 
 	/* declared side effects and async lifecycles, last: both invoke operations that change the
 	 * world, and both are meaningless if the read surface above is already known broken */
