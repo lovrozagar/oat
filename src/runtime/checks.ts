@@ -66,6 +66,7 @@ import {
 import {
 	bindAfterCreateEffects,
 	bindCreatedScope,
+	bindInstanceScope,
 	bindMissingPathParams,
 	canFillPath,
 	describeEffectHold,
@@ -5941,7 +5942,7 @@ const declaredEffectsOccur: Check = {
 				const effects = op.effects
 				if (effects.length === 0) return
 
-				const scope = { ...ctx.scope }
+				const scope = bindInstanceScope(ctx.model, ctx.entityName, ctx.identity, ctx.records, ctx.scope)
 				const befores = new Map<string, Observation>()
 
 				for (const effect of effects) {
@@ -5952,7 +5953,7 @@ const declaredEffectsOccur: Check = {
 				}
 
 				const body = op.hasRequestBody ? bodyForOp(ctx, op) : undefined
-				const invoked = await ctx.client.request(op.method, fillPath(op.path, ctx.scope), {
+				const invoked = await ctx.client.request(op.method, fillPath(op.path, scope), {
 					headers: ctx.auth(),
 					operationId: op.operationId,
 					...(fixture === undefined ? {} : { fixture }),

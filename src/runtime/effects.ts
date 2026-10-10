@@ -110,6 +110,27 @@ export function bindCreatedScope(
 	return bound
 }
 
+/**
+ * An action on an existing row (`POST /tables/{table_id}/columns`) is not a create.
+ * The entity scope only has parent ids. Bind the seeded row's id when the path still needs it.
+ */
+export function bindInstanceScope(
+	model: SpecModel,
+	entityName: string,
+	identity: string,
+	records: readonly Record<string, unknown>[],
+	scope: Record<string, string>,
+): Record<string, string> {
+	const param = identityPathParam(model, entityName)
+	if (scope[param] !== undefined) return { ...scope }
+	for (const record of records) {
+		const id = scalarId(record[identity]) ?? scalarId(record.id) ?? scalarId(record[param])
+		if (id === undefined) continue
+		return { ...scope, [param]: id }
+	}
+	return { ...scope }
+}
+
 /** Fill poll-path params the write scope does not have, from the write body. */
 export function bindMissingPathParams(
 	pathParams: readonly string[],

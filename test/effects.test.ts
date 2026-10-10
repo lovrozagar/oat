@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import {
 	bindAfterCreateEffects,
 	bindCreatedScope,
+	bindInstanceScope,
 	bindMissingPathParams,
 	canFillPath,
 	createdIdKeys,
@@ -265,6 +266,29 @@ describe("bind created parent id", () => {
 		const model = buildModel(nestedSpec())
 		expect(identityPathParam(model, "table")).toBe("table_id")
 		expect(identityPathParam(model, "missing")).toBe("missing_id")
+		expect(bindInstanceScope(model, "table", "id", [{ id: "t_seed" }], { project_id: "p1" })).toEqual({
+			project_id: "p1",
+			table_id: "t_seed",
+		})
+		expect(bindInstanceScope(model, "table", "id", [{ id: "t_seed" }], { project_id: "p1", table_id: "kept" })).toEqual(
+			{
+				project_id: "p1",
+				table_id: "kept",
+			},
+		)
+		expect(bindInstanceScope(model, "table", "missing", [{ id: "from-id" }], { project_id: "p1" })).toEqual({
+			project_id: "p1",
+			table_id: "from-id",
+		})
+		expect(bindInstanceScope(model, "table", "missing", [{ table_id: "from-param" }], { project_id: "p1" })).toEqual({
+			project_id: "p1",
+			table_id: "from-param",
+		})
+		expect(bindInstanceScope(model, "table", "id", [{}, { id: "t2" }], { project_id: "p1" })).toEqual({
+			project_id: "p1",
+			table_id: "t2",
+		})
+		expect(bindInstanceScope(model, "table", "id", [{}], { project_id: "p1" })).toEqual({ project_id: "p1" })
 		expect(bindCreatedScope(model, "table", { table_id: "t_body" })).toEqual({ table_id: "t_body" })
 		expect(bindCreatedScope(model, "table", { id: "t_id" })).toEqual({ table_id: "t_id" })
 		expect(bindCreatedScope(model, "table", {}, ["t_delta"])).toEqual({ table_id: "t_delta" })
@@ -612,6 +636,77 @@ describe("declared effects bind the nested list", () => {
 			seed: 1,
 			spec: `${server.url}/v1/openapi/spec`,
 		})
+		expect(result.findings.filter((finding) => finding.check === "effects.declared-effect-occurs")).toEqual([])
+	})
+})
+
+describe("action on a seeded instance", () => {
+	it("calls an action whose path needs the seeded table id", async () => {
+		const spec = nestedSpec()
+		delete spec.paths?.["/v1/projects/{project_id}/extract"]
+		const paths = spec.paths
+		if (paths === undefined) throw new Error("missing paths")
+		paths["/v1/projects/{project_id}/tables/{table_id}/duplicate"] = {
+			post: {
+				operationId: "table.duplicate",
+				parameters: [
+					{ in: "path", name: "project_id", required: true, schema: { type: "string" } },
+					{ in: "path", name: "table_id", required: true, schema: { type: "string" } },
+				],
+				responses: { "201": { description: "created" } },
+				"x-effects": [{ entity: "table", op: "create" }],
+				"x-entity": { action: "action", identity: "id", name: "table" },
+			},
+		} as never
+		const tables = new Map<string, { id: string; name: string }>()
+		let seq = 0
+		const duplicated: string[] = []
+		const server = await listen((req, res) => {
+			void (async () => {
+				const url = new URL(req.url ?? "/", "http://127.0.0.1")
+				const method = (req.method ?? "GET").toUpperCase()
+				if (url.pathname === "/v1/openapi/spec") return send(res, 200, spec)
+				if (url.pathname.endsWith("/tables") && method === "GET")
+					return send(res, 200, { tables: [...tables.values()] })
+				if (url.pathname.endsWith("/tables") && method === "POST") {
+					const id = `t_${String((seq += 1))}`
+					const chunks: Buffer[] = []
+					for await (const chunk of req) chunks.push(chunk as Buffer)
+					const body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as { name?: string }
+					tables.set(id, { id, name: body.name ?? "n" })
+					return send(res, 201, { id, name: body.name ?? "n" })
+				}
+				const copy = /\/tables\/([^/]+)\/duplicate$/.exec(url.pathname)
+				if (copy !== null && method === "POST") {
+					const source = copy[1] ?? ""
+					duplicated.push(source)
+					if (!tables.has(source)) return send(res, 404)
+					const id = `t_${String((seq += 1))}`
+					tables.set(id, { id, name: "copy" })
+					return send(res, 201, { id, name: "copy" })
+				}
+				const item = /\/tables\/([^/]+)$/.exec(url.pathname)
+				if (item !== null && method === "GET") {
+					const row = tables.get(item[1] ?? "")
+					return row === undefined ? send(res, 404) : send(res, 200, row)
+				}
+				if (item !== null && method === "DELETE") {
+					tables.delete(item[1] ?? "")
+					return send(res, 204)
+				}
+				if (item !== null && method === "PATCH") return send(res, 200, tables.get(item[1] ?? "") ?? {})
+				return send(res, 404)
+			})().catch(() => send(res, 500))
+		})
+		const result = await run({
+			baseUrl: server.url,
+			cohortSize: 1,
+			only: ["table"],
+			principals: [{ headers: { authorization: "Bearer t" }, id: "a", roots: { project_id: "p1" } }],
+			seed: 1,
+			spec: `${server.url}/v1/openapi/spec`,
+		})
+		expect(duplicated.length).toBeGreaterThan(0)
 		expect(result.findings.filter((finding) => finding.check === "effects.declared-effect-occurs")).toEqual([])
 	})
 })
