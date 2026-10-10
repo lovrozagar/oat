@@ -233,6 +233,12 @@ export interface InputRequest {
 	/** JSON-path style pointer, e.g. `$.payment_method_id`. */
 	pointer: string
 	schema: unknown
+	/**
+	 * Value the generator put on this field. `undefined` when the field was left out
+	 * (a required-field probe). A string or array outside `schema` max/min bounds is a
+	 * constraint probe. Return `null` to send that value unchanged.
+	 */
+	value: unknown
 }
 
 export interface SideEffectRequest {
@@ -320,7 +326,8 @@ export interface Hooks {
 	 */
 	resolveHeaders?: (request: HeaderRequest) => Promise<Record<string, string> | null>
 	/**
-	 * Replace a generated JSON field. Return `null` to keep the generator.
+	 * Replace a generated JSON field. Return `null` to keep the generator, including a field
+	 * the check left out or sized past the schema. `request.value` is that generated value.
 	 * Same idea as `resolveUpload`, for JSON (Stripe `pm_…`, vendor tokens).
 	 */
 	resolveInput?: (request: InputRequest) => Promise<unknown | null>

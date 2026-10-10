@@ -35,6 +35,7 @@ async function walk(
 			operationId,
 			pointer: childPointer,
 			schema: childSchema ?? {},
+			value: Object.prototype.hasOwnProperty.call(record, name) ? record[name] : undefined,
 		}
 		const resolved = await hook(request)
 		if (resolved !== null && resolved !== undefined) {

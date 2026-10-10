@@ -20,9 +20,10 @@ describe("resolveInput", () => {
 					payment_method_id: { type: "string" },
 				},
 			},
-			async ({ operationId, field, pointer }) => {
+			async ({ operationId, field, pointer, value }) => {
 				if (operationId === "billing.subscribe" && field === "payment_method_id") {
 					expect(pointer).toBe("$.payment_method_id")
+					expect(value).toBe("generated")
 					return "pm_test_123"
 				}
 				return null
@@ -51,9 +52,37 @@ describe("resolveInput", () => {
 			{},
 			"billing.subscribe",
 			{ properties: { payment_method_id: { type: "string" } } },
-			async ({ field }) => (field === "payment_method_id" ? "pm_only_schema" : null),
+			async ({ field, value }) => {
+				expect(value).toBeUndefined()
+				return field === "payment_method_id" ? "pm_only_schema" : null
+			},
 		)
 		expect(out.payment_method_id).toBe("pm_only_schema")
+	})
+
+	it("passes an oversized value through when the hook returns null", async () => {
+		const over = "x".repeat(65)
+		const out = await applyResolveInput(
+			{ category: over },
+			"tableTemplate.create",
+			{ properties: { category: { maxLength: 64, type: "string" } } },
+			async ({ value }) => (value === undefined || (typeof value === "string" && value.length > 64) ? null : "general"),
+		)
+		expect(out.category).toBe(over)
+	})
+
+	it("leaves an omitted field omitted when the hook returns null", async () => {
+		const out = await applyResolveInput(
+			{ name: "Quarterly Report 0" },
+			"table.create",
+			{ properties: { columns_json: { type: "array" }, name: { type: "string" } } },
+			async ({ field, value }) => {
+				if (field === "columns_json") expect(value).toBeUndefined()
+				return null
+			},
+		)
+		expect(out).toEqual({ name: "Quarterly Report 0" })
+		expect("columns_json" in out).toBe(false)
 	})
 
 	it("applies during JSON encode", async () => {
