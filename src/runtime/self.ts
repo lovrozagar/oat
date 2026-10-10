@@ -31,9 +31,32 @@ interface ProbeField {
 	name: string
 }
 
+function asSchema(value: unknown): Record<string, unknown> | null {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) return null
+	return value as Record<string, unknown>
+}
+
+/** A nullable union is the non-null branch. `type: ["string", "null"]` is a string. */
+function unwrap(schema: Record<string, unknown>): Record<string, unknown> {
+	const branches = Array.isArray(schema.anyOf) ? schema.anyOf : Array.isArray(schema.oneOf) ? schema.oneOf : null
+	if (branches !== null) {
+		const nonNull = branches
+			.map(asSchema)
+			.filter((branch): branch is Record<string, unknown> => branch !== null && branch.type !== "null")
+		const only = nonNull.length === 1 ? nonNull[0] : undefined
+		if (only !== undefined) return unwrap(only)
+	}
+	if (Array.isArray(schema.type)) {
+		const types = schema.type.filter((type) => type !== "null")
+		if (types.length === 1) return { ...schema, type: types[0] }
+	}
+	return schema
+}
+
 function probeField(schema: unknown): ProbeField | null {
-	if (schema === null || typeof schema !== "object") return null
-	const properties = (schema as { properties?: unknown }).properties
+	const root = asSchema(schema)
+	if (root === null) return null
+	const properties = unwrap(root).properties
 	if (properties === null || typeof properties !== "object") return null
 	const record = properties as Record<string, unknown>
 	const names = [
@@ -41,13 +64,13 @@ function probeField(schema: unknown): ProbeField | null {
 		...Object.keys(record).filter((name) => !PREFERRED_FIELDS.includes(name)),
 	]
 	for (const name of names) {
-		const raw = record[name]
-		if (raw === null || typeof raw !== "object") continue
-		const rec = raw as { format?: unknown; maxLength?: unknown; readOnly?: unknown; type?: unknown }
-		const types = Array.isArray(rec.type) ? rec.type : [rec.type]
-		if (!types.includes("string")) continue
+		const raw = asSchema(record[name])
+		if (raw === null) continue
+		const rec = unwrap(raw)
+		if (rec.type !== "string") continue
 		if (rec.readOnly === true) continue
 		if (rec.format === "email" || rec.format === "uri" || rec.format === "date-time") continue
+		if (typeof rec.pattern === "string") continue
 		const maxLength = typeof rec.maxLength === "number" ? rec.maxLength : 64
 		if (maxLength < 4) continue
 		return { maxLength, name }
@@ -143,7 +166,9 @@ export async function runSelfIdentity(input: {
 	if (updatePath === null) return ASSERTED
 	const content = requestContentOf(updateOp, input.model)
 	const field = probeField(content?.schema)
-	if (field === null) return ASSERTED
+	if (field === null) {
+		return findings.unresolved(SELF_CHECK_ID, input.entity.name, "the update has no plain string field to change")
+	}
 	const before = read.responseBody
 	const current =
 		before !== null && typeof before === "object" ? (before as Record<string, unknown>)[field.name] : undefined

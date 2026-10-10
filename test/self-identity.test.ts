@@ -16,7 +16,9 @@ afterEach(async () => {
 
 function profileSpec(): OpenApiDocument {
 	const profile = {
-		properties: { first_name: { maxLength: 64, type: "string" } },
+		properties: {
+			first_name: { anyOf: [{ maxLength: 50, type: "string" }, { type: "null" }] },
+		},
 		type: "object",
 	}
 	return {
@@ -129,6 +131,8 @@ describe("identity self", () => {
 		expect(read?.checks.held).toContain("auth.self-is-the-caller")
 		const anonymous = result.client.transcript.find((exchange) => exchange.status === 401)
 		expect(anonymous?.requestHeaders.authorization).toBeUndefined()
+		const patched = result.client.transcript.find((exchange) => exchange.method === "PATCH")
+		expect(patched?.requestBody).toEqual({ first_name: "Oat" })
 	})
 
 	it("reports a caller route that answers with no token", async () => {
