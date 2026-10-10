@@ -519,6 +519,7 @@ export function buildSpec(dialect: Dialect = POSTGREST, ctx: SpecContext = DEFAU
 	const JOB = entityNamed(ctx, "job")
 	const paths: Json = {}
 	for (const entity of ctx.entities) Object.assign(paths, buildEntityPaths(ctx, entity, dialect))
+	Object.assign(paths, callerProfilePaths(ctx))
 
 	paths[`${TABLE.itemPath}/invites`] = {
 		post: {
@@ -798,6 +799,45 @@ export function buildSpec(dialect: Dialect = POSTGREST, ctx: SpecContext = DEFAU
 		return { ...head, components, paths: hoistPathParameters(paths), ...rest }
 	}
 	return { ...head, paths, components, ...rest }
+}
+
+/** The signed-up caller is the record. No list, no create, no path id. */
+function callerProfilePaths(ctx: SpecContext): Json {
+	const schema: Json = {
+		additionalProperties: false,
+		properties: { first_name: { maxLength: 64, type: "string" } },
+		required: ["first_name"],
+		type: "object",
+	}
+	return {
+		"/v1/me": {
+			get: {
+				operationId: "profile.get",
+				responses: {
+					[ok(ctx, 200)]: jsonResponse("The signed-up caller", schema),
+					...errorResponses(ctx, [401]),
+				},
+				summary: "Read the signed-up caller",
+				tags: ["Profile"],
+				"x-entity": { action: "read", identity: "self", name: "profile" },
+			},
+			patch: {
+				operationId: "profile.update",
+				requestBody: {
+					content: { "application/json": { schema } },
+					required: true,
+				},
+				responses: {
+					[ok(ctx, 200)]: jsonResponse("The signed-up caller", schema),
+					...errorResponses(ctx, [400, 401]),
+				},
+				summary: "Update the signed-up caller",
+				tags: ["Profile"],
+				"x-entity": { action: "update", identity: "self", name: "profile" },
+				"x-invalidate": ["GET /v1/me"],
+			},
+		},
+	}
 }
 
 /** Moves each path item's `in: path` parameters from its operations onto the path item itself. */

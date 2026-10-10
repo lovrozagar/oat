@@ -204,6 +204,13 @@ export const DEFECTS = {
 	/** A field is accepted at create and silently discarded. */
 	CREATE_DROPS_FIELD: "create accepts a field and does not persist it",
 	/**
+	 * PATCH of the signed-up caller returns 200 and leaves the record unchanged.
+	 *
+	 * The caller is the record. A success that the next read does not show is a lost update
+	 * with nowhere else to look: there is no list and no id.
+	 */
+	CALLER_UPDATE_DROPPED: "an update to the signed-up caller returns success and does not stick",
+	/**
 	 * Non-ASCII and surrounding whitespace are stripped on write.
 	 *
 	 * The realistic shape: a column that is not Unicode, a `.trim()`, a "sanitiser" that drops

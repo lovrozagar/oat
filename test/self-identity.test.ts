@@ -2,6 +2,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import type { OpenApiDocument } from "../src/spec/types.ts"
+import { PRINCIPALS, judgeDefect } from "../src/conformance/suite.ts"
+import { createMemoryServer } from "../src/reference/http.ts"
 import { run } from "../src/runtime/run.ts"
 
 const DEFECT_VERDICTS = new Set(["BACKEND_BUG", "SECURITY", "SPEC_BUG"])
@@ -143,5 +145,29 @@ describe("identity self", () => {
 		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
 		expect(defects.map((finding) => finding.summary)).toContain("an update to the caller did not stick")
 		expect(result.scope.operations.find((op) => op.operationId === "profile.update")?.status).toBe("failed")
+	})
+
+	it("the reference backend is caught only when the caller update does not stick", async () => {
+		const dropped = await judgeDefect("CALLER_UPDATE_DROPPED", "memory", "postgrest")
+		expect(dropped.error).toBeUndefined()
+		expect(dropped.detected).toBe(true)
+		expect(dropped.spurious).toEqual([])
+	})
+
+	it("an untagged reference does not blame the caller routes", async () => {
+		const server = await createMemoryServer({ untagged: true })
+		open.push(server)
+		const result = await run({
+			baseUrl: server.url,
+			principals: PRINCIPALS,
+			seed: 42,
+			spec: `${server.url}/v1/openapi/spec`,
+		})
+		const blamed = result.findings.filter(
+			(finding) =>
+				DEFECT_VERDICTS.has(finding.verdict) &&
+				(finding.entity === "profile" || finding.entity === "me" || finding.check === "auth.self-is-the-caller"),
+		)
+		expect(blamed).toEqual([])
 	})
 })

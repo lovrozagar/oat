@@ -15,7 +15,7 @@ describe("operation scope", () => {
 	it("is full when nothing is requested", () => {
 		const scope = resolveTargetScope(referenceModel(), {})
 		expect(scope.mode).toBe("full")
-		expect(names(scope)).toEqual(["job", "row", "table"])
+		expect(names(scope)).toEqual(["job", "profile", "row", "table"])
 		expect(scope.inScope("table.get")).toBe(true)
 		expect(scope.untestable.size).toBe(0)
 	})

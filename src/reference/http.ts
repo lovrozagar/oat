@@ -678,6 +678,7 @@ export async function createReferenceServer(
 		token: string
 	}
 	const grants = new Map<string, Grant>()
+	const profiles = new Map<string, { first_name: string }>()
 
 	function canReadViaGrant(entityName: string, id: string, principal: Principal): boolean {
 		if (defects.has("INVITE_NEVER_GRANTS")) return false
@@ -871,6 +872,21 @@ export async function createReferenceServer(
 			}
 			if (!defects.has("REVOKE_IGNORED")) grants.delete(grantId)
 			return send(res, 200, { revoked: true })
+		}
+
+		if (url.pathname === "/v1/me" && (method === "GET" || method === "PATCH")) {
+			const principal = authenticate(req)
+			const current = profiles.get(principal.token) ?? { first_name: "Ada" }
+			if (method === "GET") return send(res, 200, current)
+			requireJson(req, defects)
+			const body = await readJson(req)
+			const name = body !== null && typeof body === "object" ? (body as { first_name?: unknown }).first_name : undefined
+			if (typeof name !== "string" || name.length === 0 || name.length > 64) {
+				throw new HttpError(400, "invalid_input", 'field "first_name" must be a string')
+			}
+			const next = { first_name: name }
+			if (!defects.has("CALLER_UPDATE_DROPPED")) profiles.set(principal.token, next)
+			return send(res, 200, defects.has("CALLER_UPDATE_DROPPED") ? current : next)
 		}
 
 		const match = matchRoute(url.pathname, entities)
