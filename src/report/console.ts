@@ -77,6 +77,8 @@ export const TAG_UNLOCKS: Record<string, readonly string[]> = {
 	"x-soft-delete": ["softdelete.absent-from-default-list"],
 	"x-wait": ["effects.side-effect-arrives"],
 	"x-invite": ["auth.invite-grants-then-revokes"],
+	/* identity: self is an x-entity value. Strip the tag and the caller is no longer the record. */
+	"x-entity": ["auth.self-is-the-caller"],
 	"x-unique": ["create.unique-conflict-rejected", "update.unique-conflict-rejected"],
 }
 
@@ -495,6 +497,9 @@ function doctor(
 	)
 	for (const entity of entities) {
 		if (entity.invite !== null) declared.add("x-invite")
+	}
+	if (model.operations.some((op) => op.entitySource === "tag" && op.identity === "self")) {
+		declared.add("x-entity")
 	}
 	const lockedTags = Object.keys(TAG_UNLOCKS).filter((tag) => !declared.has(tag))
 	const lockedChecks = lockedTags.flatMap((tag) => TAG_UNLOCKS[tag] ?? [])
