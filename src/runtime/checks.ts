@@ -66,8 +66,12 @@ import {
 import {
 	bindAfterCreateEffects,
 	bindCreatedScope,
+	applyActionBind,
+	bindActionScope,
 	bindInstanceScope,
 	bindMissingPathParams,
+	readActionBind,
+	readBefore,
 	canFillPath,
 	describeEffectHold,
 	effectHolds,
@@ -5942,7 +5946,69 @@ const declaredEffectsOccur: Check = {
 				const effects = op.effects
 				if (effects.length === 0) return
 
-				const scope = bindInstanceScope(ctx.model, ctx.entityName, ctx.identity, ctx.records, ctx.scope)
+				let scope = bindInstanceScope(ctx.model, ctx.entityName, ctx.identity, ctx.records, ctx.scope)
+				const raw = ctx.model.rawOperations.get(op.operationId) as
+					| { "x-bind"?: unknown; "x-before"?: unknown }
+					| undefined
+				const actionBind = readActionBind(raw?.["x-bind"])
+				const beforeId = readBefore(raw?.["x-before"])
+				let beforeBody: unknown
+				if (beforeId !== undefined) {
+					const beforeOp = ctx.model.byOperationId.get(beforeId)
+					if (beforeOp === undefined) {
+						ctx.findings.gap(
+							this.id,
+							subject(ctx.entityName, op.operationId, fixture),
+							`${op.operationId} names x-before "${beforeId}", which is not an operation`,
+							"the action was not invoked",
+							fixture,
+						)
+						return
+					}
+					const beforeScope = bindActionScope(beforeOp.pathParams, ctx.records, scope, null, undefined)
+					if (!canFillPath(beforeOp.path, beforeScope)) {
+						const missing = beforeOp.pathParams.filter((name) => beforeScope[name] === undefined)
+						ctx.findings.gap(
+							this.id,
+							subject(ctx.entityName, op.operationId, fixture),
+							`${op.operationId} could not run x-before "${beforeId}"`,
+							`missing ${missing.map((name) => `{${name}}`).join(", ")}`,
+							fixture,
+						)
+						return
+					}
+					const beforeFields = beforeOp.hasRequestBody ? bodyForOp(ctx, beforeOp) : undefined
+					const beforeInvoked = await ctx.client.request(beforeOp.method, fillPath(beforeOp.path, beforeScope), {
+						headers: ctx.auth(),
+						operationId: beforeOp.operationId,
+						...(beforeFields === undefined
+							? {}
+							: await encodeOpBody(ctx, beforeOp, beforeFields, "baseline", 0, uploads)),
+					})
+					if (beforeInvoked.status >= 400) {
+						ctx.findings.gap(
+							this.id,
+							subject(ctx.entityName, op.operationId, fixture),
+							`${beforeId} (x-before) returned ${beforeInvoked.status}`,
+							`${op.operationId} was not invoked`,
+							fixture,
+						)
+						return
+					}
+					beforeBody = beforeInvoked.responseBody
+				}
+				scope = bindActionScope(op.pathParams, ctx.records, scope, actionBind, beforeBody)
+				if (!canFillPath(op.path, scope)) {
+					const missing = op.pathParams.filter((name) => scope[name] === undefined)
+					ctx.findings.gap(
+						this.id,
+						subject(ctx.entityName, op.operationId, fixture),
+						`${op.operationId} could not be invoked`,
+						`missing ${missing.map((name) => `{${name}}`).join(", ")}`,
+						fixture,
+					)
+					return
+				}
 				const befores = new Map<string, Observation>()
 
 				for (const effect of effects) {
@@ -5952,11 +6018,18 @@ const declaredEffectsOccur: Check = {
 					befores.set(effect.entity, await observe(ctx, listOp, scope))
 				}
 
-				const body = op.hasRequestBody ? bodyForOp(ctx, op) : undefined
+				const prepared = applyActionBind(
+					actionBind,
+					ctx.records,
+					beforeBody,
+					op.hasRequestBody ? bodyForOp(ctx, op) : undefined,
+				)
+				const body = prepared.body
 				const invoked = await ctx.client.request(op.method, fillPath(op.path, scope), {
 					headers: ctx.auth(),
 					operationId: op.operationId,
 					...(fixture === undefined ? {} : { fixture }),
+					...(Object.keys(prepared.query).length === 0 ? {} : { query: prepared.query }),
 					...(body === undefined ? {} : await encodeOpBody(ctx, op, body, "baseline", 0, uploads)),
 				})
 				if (standDownForFeatureGate(ctx, op, invoked, this.id)) return

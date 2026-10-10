@@ -101,6 +101,8 @@ const xQuery = shape({
 })
 
 const OPERATION_TAGS: Record<string, Check> = {
+	"x-before": string,
+	"x-bind": shape({ body: stringMap, path: stringMap, query: stringMap }),
 	"x-async": shape(
 		{ idFrom: string, poll: string, pollIntervalMs: positive, successWhen: string, timeoutMs: positive, until: string },
 		["poll"],

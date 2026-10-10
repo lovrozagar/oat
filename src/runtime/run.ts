@@ -782,7 +782,16 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		const entityFindings = entityTargets.length === 0 ? findings : findings.attributed(entityTargets)
 		const inviteOnly = entity.invite !== null && createOp === undefined
 		const authProvisioned = createOp !== undefined && createIsAuthProvisioned(createOp, authCreates)
-		if (createOp === undefined && !inviteOnly) return
+		/* A listable entity with no create can still run an action that declares x-effects.
+		 * The owner row is already there; the action's x-before makes the row it needs. */
+		const needsListedCohort =
+			createOp === undefined &&
+			!inviteOnly &&
+			entity.actions.some((id) => {
+				const action = model.byOperationId.get(id)
+				return action !== undefined && action.effects.length > 0 && runScope.inScope(id)
+			})
+		if (createOp === undefined && !inviteOnly && !needsListedCohort) return
 		if (excludeOp(entity, listOp)) {
 			/* No fallback for a list route itself: every other check on this entity is reached
 			 * through it, so its exclusion is the whole entity's, not one operation's. */
@@ -831,11 +840,23 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			degraded = true
 		} else if (createOp === undefined || authProvisioned) {
 			/* Invite is not a fixture create; register / x-fresh-principal already ran in auth.
-			 * The invite check is the only thing that POSTs a grant, and it uses inviteAs. */
-			const existing = await readExisting(listOp, model, seeding, alpha.headers(), {
-				...options.roots,
-				...alpha.roots,
-			})
+			 * The invite check is the only thing that POSTs a grant, and it uses inviteAs.
+			 * An action cohort still has to create the parent the list path names. */
+			let listedRoots = { ...options.roots, ...alpha.roots }
+			if (needsListedCohort) {
+				const resolved = await resolvePathScope(listOp, model, seeding, {
+					authHeaders: alpha.headers,
+					ancestors,
+					onCreate: recorder(alphaOwner),
+					principal: alpha.id,
+					nonce,
+					roots: rootValues,
+					seed,
+					uploads,
+				})
+				listedRoots = { ...rootValues, ...resolved.values }
+			}
+			const existing = await readExisting(listOp, model, seeding, alpha.headers(), listedRoots)
 			scope = { created: [], values: { ...rootValues, ...existing.scope } }
 			records = existing.records
 			degraded = true

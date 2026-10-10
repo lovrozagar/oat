@@ -85,6 +85,17 @@ export function untestableEntityReason(
 		return `"${entity.name}" is created by the auth flow and has no item route`
 	}
 	if (entity.invite !== null && entity.list !== undefined) return null
+	/* An action that declares x-effects can run against rows the list already returns.
+	 * The action's x-before creates the row the list does not have yet. */
+	if (
+		entity.list !== undefined &&
+		entity.actions.some((id) => {
+			const action = model.byOperationId.get(id)
+			return action !== undefined && action.effects.length > 0
+		})
+	) {
+		return null
+	}
 	const missing = [
 		...(entity.list === undefined ? ["a list operation"] : []),
 		...(entity.create === undefined ? ["a create operation"] : []),

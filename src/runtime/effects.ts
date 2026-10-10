@@ -131,6 +131,171 @@ export function bindInstanceScope(
 	return { ...scope }
 }
 
+/** `x-bind` strings: a literal, `$.…` on the seeded record, or `before:$.…` on the prelude body. */
+export interface ActionBind {
+	path: Record<string, string>
+	body: Record<string, string>
+	query: Record<string, string>
+}
+
+export function readActionBind(value: unknown): ActionBind | null {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) return null
+	const rec = value as Record<string, unknown>
+	return { path: bindStrings(rec.path), body: bindStrings(rec.body), query: bindStrings(rec.query) }
+}
+
+export function readBefore(value: unknown): string | undefined {
+	return typeof value === "string" && value !== "" ? value : undefined
+}
+
+function bindStrings(value: unknown): Record<string, string> {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) return {}
+	const out: Record<string, string> = {}
+	for (const [key, item] of Object.entries(value)) {
+		if (typeof item === "string" && item !== "") out[key] = item
+	}
+	return out
+}
+
+/** `$.a.b[0].c` and `$.a[*].c`. A `*` step returns every match; otherwise the first. */
+export function valueAt(root: unknown, pointer: string): unknown {
+	if (!pointer.startsWith("$")) return undefined
+	const parts = pointerTokens(pointer)
+	let current: unknown[] = [root]
+	for (const part of parts) {
+		const next: unknown[] = []
+		for (const node of current) {
+			if (part === "*") {
+				if (Array.isArray(node)) next.push(...node)
+				continue
+			}
+			if (node === null || typeof node !== "object") continue
+			if (typeof part === "number") {
+				if (Array.isArray(node)) next.push(node[part])
+				continue
+			}
+			next.push((node as Record<string, unknown>)[part])
+		}
+		current = next
+	}
+	if (parts.includes("*")) return current.filter((item) => item !== undefined)
+	return current[0]
+}
+
+function pointerTokens(pointer: string): Array<string | number | "*"> {
+	const body = pointer.startsWith("$.") ? pointer.slice(2) : pointer.slice(1)
+	const tokens: Array<string | number | "*"> = []
+	const re = /([^[\].]+)|\[(\*|\d+)\]/g
+	for (let match = re.exec(body); match !== null; match = re.exec(body)) {
+		if (match[1] !== undefined) tokens.push(match[1])
+		else if (match[2] === "*") tokens.push("*")
+		else tokens.push(Number(match[2]))
+	}
+	return tokens
+}
+
+function resolveBindExpr(expr: string, records: readonly Record<string, unknown>[], beforeBody: unknown): unknown {
+	if (expr.startsWith("before:")) return valueAt(beforeBody, expr.slice("before:".length))
+	if (!expr.startsWith("$")) return expr
+	for (const record of records) {
+		const value = valueAt(record, expr)
+		if (value !== undefined) return value
+	}
+	return undefined
+}
+
+/**
+ * First id under a key that names this path param. `col_id` reads `columns_json[0].id`
+ * when the record has no literal `col_id`.
+ */
+export function nestedParamId(record: Record<string, unknown>, param: string): string | undefined {
+	const direct = findCreatedId(record, [param])
+	if (direct !== undefined) return direct
+	if (!param.endsWith("_id")) return undefined
+	return stemArrayId(record, param.slice(0, -"_id".length), 0)
+}
+
+function stemArrayId(value: unknown, stem: string, depth: number): string | undefined {
+	if (stem === "" || depth > 6 || value === null || typeof value !== "object") return undefined
+	if (Array.isArray(value)) {
+		for (const item of value) {
+			const found = stemArrayId(item, stem, depth + 1)
+			if (found !== undefined) return found
+		}
+		return undefined
+	}
+	for (const [key, child] of Object.entries(value)) {
+		const bare = key.replace(/_json$/, "")
+		if ((bare === stem || bare === `${stem}s` || bare.startsWith(stem)) && Array.isArray(child)) {
+			for (const item of child) {
+				if (item === null || typeof item !== "object" || Array.isArray(item)) continue
+				const id = scalarId((item as Record<string, unknown>).id)
+				if (id !== undefined) return id
+			}
+		}
+		const deeper = stemArrayId(child, stem, depth + 1)
+		if (deeper !== undefined) return deeper
+	}
+	return undefined
+}
+
+/** Fill path params still missing after the instance id bind. Explicit `x-bind.path` wins over the stem walk. */
+export function bindActionScope(
+	pathParams: readonly string[],
+	records: readonly Record<string, unknown>[],
+	scope: Record<string, string>,
+	bind: ActionBind | null,
+	beforeBody: unknown,
+): Record<string, string> {
+	const next = { ...scope }
+	for (const param of pathParams) {
+		const expr = bind?.path[param]
+		if (expr !== undefined) {
+			const value = resolveBindExpr(expr, records, beforeBody)
+			const id = scalarId(value) ?? (Array.isArray(value) ? scalarId(value[0]) : undefined)
+			if (id !== undefined) {
+				next[param] = id
+				continue
+			}
+		}
+		if (next[param] !== undefined) continue
+		for (const record of records) {
+			const id = nestedParamId(record, param)
+			if (id === undefined) continue
+			next[param] = id
+			break
+		}
+	}
+	return next
+}
+
+/** Overlay `x-bind` body fields and query values. Literals pass through; pointers read the record or prelude. */
+export function applyActionBind(
+	bind: ActionBind | null,
+	records: readonly Record<string, unknown>[],
+	beforeBody: unknown,
+	body: Record<string, unknown> | undefined,
+): { body: Record<string, unknown> | undefined; query: Record<string, string> } {
+	const query: Record<string, string> = {}
+	if (bind === null) return { body, query }
+	const next = body === undefined ? undefined : { ...body }
+	for (const [field, expr] of Object.entries(bind.body)) {
+		if (next === undefined) break
+		const value = resolveBindExpr(expr, records, beforeBody)
+		if (value !== undefined) next[field] = value
+	}
+	for (const [field, expr] of Object.entries(bind.query)) {
+		const value = resolveBindExpr(expr, records, beforeBody)
+		if (typeof value === "string" && value !== "") query[field] = value
+		else if (typeof value === "number" && Number.isFinite(value)) query[field] = String(value)
+		else if (Array.isArray(value)) {
+			const joined = value.filter((item): item is string => typeof item === "string" && item !== "").join(",")
+			if (joined !== "") query[field] = joined
+		}
+	}
+	return { body: next, query }
+}
+
 /** Fill poll-path params the write scope does not have, from the write body. */
 export function bindMissingPathParams(
 	pathParams: readonly string[],

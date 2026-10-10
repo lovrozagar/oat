@@ -2,10 +2,16 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import {
+	applyActionBind,
+	bindActionScope,
 	bindAfterCreateEffects,
 	bindCreatedScope,
 	bindInstanceScope,
 	bindMissingPathParams,
+	nestedParamId,
+	readActionBind,
+	readBefore,
+	valueAt,
 	canFillPath,
 	createdIdKeys,
 	describeEffectHold,
@@ -289,6 +295,133 @@ describe("bind created parent id", () => {
 			table_id: "t2",
 		})
 		expect(bindInstanceScope(model, "table", "id", [{}], { project_id: "p1" })).toEqual({ project_id: "p1" })
+		expect(readActionBind(null)).toBeNull()
+		expect(readActionBind([])).toBeNull()
+		expect(readActionBind({ path: { col_id: "$.columns_json[0].id" }, body: { order: 1 }, query: {} })).toEqual({
+			path: { col_id: "$.columns_json[0].id" },
+			body: {},
+			query: {},
+		})
+		expect(readBefore("")).toBeUndefined()
+		expect(readBefore("table.delete")).toBe("table.delete")
+		expect(valueAt({ columns_json: [{ id: "c1" }, { id: "c2" }] }, "$.columns_json[*].id")).toEqual(["c1", "c2"])
+		expect(valueAt({ columns_json: [{ id: "c1" }] }, "$.columns_json[0].id")).toBe("c1")
+		expect(valueAt({ id: "nope" }, "$.missing")).toBeUndefined()
+		expect(valueAt("nope", "$.id")).toBeUndefined()
+		expect(nestedParamId({ columns_json: [{ id: "c1" }] }, "col_id")).toBe("c1")
+		expect(nestedParamId({ col_id: "direct" }, "col_id")).toBe("direct")
+		expect(nestedParamId({ name: "n" }, "slug")).toBeUndefined()
+		expect(nestedParamId({ columns_json: [{}] }, "col_id")).toBeUndefined()
+		const record = { columns_json: [{ id: "c1", name: "aa0" }] }
+		expect(bindActionScope(["table_id", "col_id"], [record], { table_id: "t1" }, null, undefined)).toEqual({
+			table_id: "t1",
+			col_id: "c1",
+		})
+		expect(
+			bindActionScope(
+				["member_id"],
+				[],
+				{ member_id: "owner" },
+				readActionBind({ path: { member_id: "before:$.id" } }),
+				{ id: "mem_1" },
+			),
+		).toEqual({ member_id: "mem_1" })
+		expect(
+			bindActionScope(
+				["member_id"],
+				[],
+				{ member_id: "owner" },
+				readActionBind({ path: { member_id: "before:$.missing" } }),
+				{},
+			),
+		).toEqual({ member_id: "owner" })
+		expect(
+			bindActionScope(["template_id"], [record], {}, readActionBind({ path: { template_id: "before:$.id" } }), {
+				id: "tmpl_1",
+			}),
+		).toEqual({ template_id: "tmpl_1" })
+		expect(bindActionScope(["col_id"], [{}], {}, null, undefined)).toEqual({})
+		const applied = applyActionBind(
+			readActionBind({
+				body: { order: "$.columns_json[*].id" },
+				query: { aggs: "aa0.count", names: "$.columns_json[*].name" },
+			}),
+			[record],
+			undefined,
+			{ order: ["generated"] },
+		)
+		expect(applied.body).toEqual({ order: ["c1"] })
+		expect(applied.query).toEqual({ aggs: "aa0.count", names: "aa0" })
+		expect(applyActionBind(null, [], undefined, undefined)).toEqual({ body: undefined, query: {} })
+		expect(applyActionBind(readActionBind({ query: { n: "$.n" } }), [{ n: 2 }], undefined, undefined).query).toEqual({
+			n: "2",
+		})
+		expect(
+			bindActionScope(["col_id"], [record], {}, readActionBind({ path: { col_id: "$.nope" } }), undefined),
+		).toEqual({
+			col_id: "c1",
+		})
+		expect(valueAt({ a: "x" }, "$.a[0]")).toBeUndefined()
+		expect(valueAt({ a: { 0: "c1" } }, "$.a[0]")).toBeUndefined()
+		expect(valueAt({ id: "z" }, "$id")).toBe("z")
+		expect(valueAt({ a: "x" }, "$.a[*]")).toEqual([])
+		expect(canFillPath("/v1/{ghost_id}", { project_id: "p1" })).toBe(false)
+		expect(canFillPath("/v1/{project_id}", { project_id: "p1" })).toBe(true)
+		expect(nestedParamId({ columns_json: [{ id: "c1" }] }, "_id")).toBeUndefined()
+		expect(nestedParamId({ cols: [{ id: "c9" }] }, "col_id")).toBe("c9")
+		let deep: Record<string, unknown> = { columns_json: [{ id: "too-deep" }] }
+		for (let i = 0; i < 8; i++) deep = { nest: deep }
+		expect(nestedParamId(deep, "col_id")).toBeUndefined()
+		expect(nestedParamId({ wrap: [{ columns_json: [{ id: "c3" }] }] }, "col_id")).toBe("c3")
+		expect(
+			applyActionBind(
+				readActionBind({ body: { order: "$.id" }, query: { aggs: "$.name" } }),
+				[{ id: "c1", name: "" }],
+				undefined,
+				undefined,
+			),
+		).toEqual({ body: undefined, query: {} })
+		expect(
+			applyActionBind(
+				readActionBind({ query: { names: "$.columns_json[*].name" } }),
+				[{ columns_json: [{ name: "" }, { name: "aa0" }] }],
+				undefined,
+				{},
+			).query,
+		).toEqual({ names: "aa0" })
+		expect(
+			bindActionScope(["template_id"], [], {}, readActionBind({ path: { template_id: "before:id" } }), { id: "x" }),
+		).toEqual({})
+		expect(
+			bindActionScope(
+				["col_id"],
+				[record],
+				{},
+				readActionBind({ path: { col_id: "$.columns_json[*].id" } }),
+				undefined,
+			),
+		).toEqual({ col_id: "c1" })
+		expect(
+			bindActionScope(
+				["col_id"],
+				[record],
+				{},
+				readActionBind({ path: { col_id: "$.columns_json[*].nope" } }),
+				undefined,
+			),
+		).toEqual({ col_id: "c1" })
+		expect(
+			applyActionBind(readActionBind({ body: { name: "$.missing" } }), [record], undefined, { name: "old" }).body,
+		).toEqual({ name: "old" })
+		expect(
+			applyActionBind(
+				readActionBind({ query: { names: "$.columns_json[*].name", n: "$.n" } }),
+				[{ columns_json: [{ name: "" }], n: Number.POSITIVE_INFINITY }],
+				undefined,
+				{},
+			).query,
+		).toEqual({})
+		expect(nestedParamId({ columns_json: [null, [], { id: "c4" }] }, "col_id")).toBe("c4")
 		expect(bindCreatedScope(model, "table", { table_id: "t_body" })).toEqual({ table_id: "t_body" })
 		expect(bindCreatedScope(model, "table", { id: "t_id" })).toEqual({ table_id: "t_id" })
 		expect(bindCreatedScope(model, "table", {}, ["t_delta"])).toEqual({ table_id: "t_delta" })
@@ -708,6 +841,233 @@ describe("action on a seeded instance", () => {
 		})
 		expect(duplicated.length).toBeGreaterThan(0)
 		expect(result.findings.filter((finding) => finding.check === "effects.declared-effect-occurs")).toEqual([])
+	})
+
+	it("binds a nested column id, overlays the body, and runs x-before first", async () => {
+		const spec = nestedSpec()
+		delete spec.paths?.["/v1/projects/{project_id}/extract"]
+		const paths = spec.paths
+		if (paths === undefined) throw new Error("missing paths")
+		paths["/v1/projects/{project_id}/tables/{table_id}/columns/{col_id}"] = {
+			patch: {
+				operationId: "column.update",
+				parameters: [
+					{ in: "path", name: "project_id", required: true, schema: { type: "string" } },
+					{ in: "path", name: "table_id", required: true, schema: { type: "string" } },
+					{ in: "path", name: "col_id", required: true, schema: { type: "string" } },
+				],
+				requestBody: {
+					content: { "application/json": { schema: { properties: { name: { type: "string" } }, type: "object" } } },
+				},
+				responses: { "200": { description: "ok" } },
+				"x-before": "column.add",
+				"x-bind": { path: { col_id: "$.columns_json[0].id" }, body: { name: "kept" } },
+				"x-effects": [{ entity: "table", op: "update" }],
+				"x-entity": { action: "action", identity: "id", name: "table" },
+			},
+		} as never
+		paths["/v1/projects/{project_id}/tables/{table_id}/columns"] = {
+			post: {
+				operationId: "column.add",
+				parameters: [
+					{ in: "path", name: "project_id", required: true, schema: { type: "string" } },
+					{ in: "path", name: "table_id", required: true, schema: { type: "string" } },
+				],
+				responses: { "200": { description: "ok" } },
+				"x-entity": { action: "action", identity: "id", name: "table" },
+			},
+		} as never
+		const seen: string[] = []
+		const server = await listen((req, res) => {
+			void (async () => {
+				const url = new URL(req.url ?? "/", "http://127.0.0.1")
+				const method = (req.method ?? "GET").toUpperCase()
+				if (url.pathname === "/v1/openapi/spec") return send(res, 200, spec)
+				if (url.pathname.endsWith("/tables") && method === "GET")
+					return send(res, 200, { tables: [{ id: "t1", columns_json: [{ id: "c1" }] }] })
+				if (url.pathname.endsWith("/tables") && method === "POST")
+					return send(res, 201, { id: "t1", columns_json: [{ id: "c1", name: "aa0" }] })
+				if (url.pathname.endsWith("/columns") && method === "POST") {
+					seen.push("add")
+					return send(res, 200, { id: "t1" })
+				}
+				const update = /\/tables\/([^/]+)\/columns\/([^/]+)$/.exec(url.pathname)
+				if (update !== null && method === "PATCH") {
+					seen.push(`${update[1]}:${update[2]}`)
+					return send(res, 200, { id: "t1" })
+				}
+				const item = /\/tables\/([^/]+)$/.exec(url.pathname)
+				if (item !== null && method === "GET") return send(res, 200, { id: item[1] })
+				if (item !== null && method === "DELETE") return send(res, 204)
+				if (item !== null && method === "PATCH") return send(res, 200, { id: item[1] })
+				return send(res, 404)
+			})().catch(() => send(res, 500))
+		})
+		const result = await run({
+			baseUrl: server.url,
+			cohortSize: 1,
+			only: ["table"],
+			principals: [{ headers: { authorization: "Bearer t" }, id: "a", roots: { project_id: "p1" } }],
+			seed: 1,
+			spec: `${server.url}/v1/openapi/spec`,
+		})
+		expect(seen[0]).toBe("add")
+		expect(seen).toContain("t1:c1")
+		expect(result.findings.filter((finding) => finding.check === "effects.declared-effect-occurs")).toEqual([])
+	})
+
+	it("seeds a list-only entity and reports a coverage gap when a path stays empty", async () => {
+		const spec = nestedSpec()
+		const paths = spec.paths
+		if (paths === undefined) throw new Error("missing paths")
+		paths["/v1/organizations"] = {
+			get: {
+				operationId: "org.list",
+				responses: {
+					"200": {
+						content: {
+							"application/json": {
+								schema: {
+									properties: {
+										organizations: { items: { properties: { id: { type: "string" } }, type: "object" }, type: "array" },
+									},
+									type: "object",
+								},
+							},
+						},
+						description: "ok",
+					},
+				},
+				"x-entity": { action: "list", identity: "id", name: "organization" },
+			},
+			post: {
+				operationId: "org.create",
+				responses: {
+					"201": {
+						description: "created",
+						content: { "application/json": { schema: { properties: { id: { type: "string" } }, type: "object" } } },
+					},
+				},
+				"x-entity": { action: "create", identity: "id", name: "organization" },
+			},
+		} as never
+		paths["/v1/organizations/{organization_id}"] = {
+			delete: {
+				operationId: "org.delete",
+				parameters: [{ in: "path", name: "organization_id", required: true, schema: { type: "string" } }],
+				responses: { "204": { description: "gone" } },
+				"x-entity": { action: "delete", identity: "id", name: "organization" },
+			},
+		} as never
+		paths["/v1/organizations/{organization_id}/members"] = {
+			get: {
+				operationId: "org.listMembers",
+				parameters: [{ in: "path", name: "organization_id", required: true, schema: { type: "string" } }],
+				responses: {
+					"200": {
+						content: {
+							"application/json": {
+								schema: {
+									properties: {
+										members: { items: { properties: { id: { type: "string" } }, type: "object" }, type: "array" },
+									},
+									type: "object",
+								},
+							},
+						},
+						description: "ok",
+					},
+				},
+				"x-entity": { action: "list", identity: "id", name: "member" },
+			},
+		} as never
+		paths["/v1/organizations/{organization_id}/invites"] = {
+			post: {
+				operationId: "org.inviteMember",
+				parameters: [{ in: "path", name: "organization_id", required: true, schema: { type: "string" } }],
+				responses: { "201": { description: "invited" } },
+				"x-entity": { action: "action", identity: "id", name: "organization" },
+			},
+		} as never
+		paths["/v1/organizations/{organization_id}/members/{member_id}"] = {
+			patch: {
+				operationId: "org.updateMemberRole",
+				parameters: [
+					{ in: "path", name: "organization_id", required: true, schema: { type: "string" } },
+					{ in: "path", name: "member_id", required: true, schema: { type: "string" } },
+				],
+				responses: { "200": { description: "ok" } },
+				"x-before": "org.inviteMember",
+				"x-bind": { path: { member_id: "before:$.id" } },
+				"x-effects": [{ entity: "member", op: "update" }],
+				"x-entity": { action: "action", identity: "id", name: "member" },
+			},
+		} as never
+		paths["/v1/ghost/{ghost_id}"] = {
+			post: {
+				operationId: "member.needsGhost",
+				parameters: [{ in: "path", name: "ghost_id", required: true, schema: { type: "string" } }],
+				responses: { "200": { description: "ok" } },
+				"x-entity": { action: "action", identity: "id", name: "member" },
+			},
+		} as never
+		paths["/v1/organizations/{organization_id}/touch"] = {
+			post: {
+				operationId: "member.touch",
+				parameters: [{ in: "path", name: "organization_id", required: true, schema: { type: "string" } }],
+				responses: { "200": { description: "ok" } },
+				"x-before": "member.needsGhost",
+				"x-effects": [{ entity: "member", op: "update" }],
+				"x-entity": { action: "action", identity: "id", name: "member" },
+			},
+		} as never
+		paths["/v1/nope/{nope_id}"] = {
+			post: {
+				operationId: "member.orphan",
+				parameters: [{ in: "path", name: "nope_id", required: true, schema: { type: "string" } }],
+				responses: { "200": { description: "ok" } },
+				"x-effects": [{ entity: "member", op: "update" }],
+				"x-entity": { action: "action", identity: "id", name: "member" },
+			},
+		} as never
+		const seen: string[] = []
+		const members: Array<{ id: string }> = []
+		const server = await listen((req, res) => {
+			void (async () => {
+				const url = new URL(req.url ?? "/", "http://127.0.0.1")
+				const method = (req.method ?? "GET").toUpperCase()
+				if (url.pathname === "/v1/openapi/spec") return send(res, 200, spec)
+				if (url.pathname === "/v1/organizations" && method === "POST") return send(res, 201, { id: "org_1" })
+				if (url.pathname === "/v1/organizations" && method === "GET")
+					return send(res, 200, { organizations: [{ id: "org_1" }] })
+				if (url.pathname === "/v1/organizations/org_1" && method === "DELETE") return send(res, 204)
+				if (url.pathname.endsWith("/members") && method === "GET") return send(res, 200, { members })
+				if (url.pathname.endsWith("/invites") && method === "POST") {
+					seen.push("invite")
+					members.push({ id: "mem_1" })
+					return send(res, 201, { id: "mem_1" })
+				}
+				if (url.pathname.endsWith("/members/mem_1") && method === "PATCH") {
+					seen.push("role")
+					return send(res, 200, { id: "mem_1" })
+				}
+				return send(res, 404)
+			})().catch(() => send(res, 500))
+		})
+		const result = await run({
+			baseUrl: server.url,
+			cohortSize: 1,
+			only: ["member"],
+			principals: [{ headers: { authorization: "Bearer t" }, id: "a", roots: {} }],
+			seed: 1,
+			spec: `${server.url}/v1/openapi/spec`,
+		})
+		expect(seen).toEqual(["invite", "role"])
+		const gaps = result.findings.filter((finding) => finding.check === "effects.declared-effect-occurs")
+		expect(gaps.map((finding) => finding.summary).sort()).toEqual([
+			"member.orphan could not be invoked",
+			'member.touch could not run x-before "member.needsGhost"',
+		])
 	})
 })
 

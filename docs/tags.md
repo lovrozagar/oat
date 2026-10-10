@@ -204,6 +204,20 @@ After a write that declares `create` on A, oat binds the new A id from the write
 
 An extract-shaped write (create table + append ≥1 row) fails when the new table's row list is empty, and passes when it has 5.
 
+### `x-before` and `x-bind`
+
+```yaml
+x-before: table.delete
+x-bind:
+  path: { template_id: before:$.id, col_id: $.columns_json[0].id }
+  body: { order: $.columns_json[*].id }
+  query: { aggs: aa0.count }
+```
+
+`x-before` is an operationId oat calls immediately before the effect invoke, with the same instance scope. The list baseline is taken after that call, so the effect cardinality is about the operation under test. A 4xx prelude is a coverage gap.
+
+`x-bind` fills the action from the seeded record (`$.…`, `$.arr[*].field`) or the prelude body (`before:$.id`). A value that does not start with `$` or `before:` is a literal. Path params still missing after `x-bind` take the first id in an array whose key starts with the param stem (`col_id` → `columns_json[0].id`).
+
 **Fallback:** derived from `x-entity.action` for this entity only.
 
 ### `x-wait`
