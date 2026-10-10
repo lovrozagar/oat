@@ -202,11 +202,38 @@ export interface RunResult {
 interface ResolvedPrincipal {
 	id: string
 	headers: () => Record<string, string>
+	/** Swap the credential this principal sends. Static headers and auth flows both implement it. */
+	adoptCredential: (token: string) => void
 	roots: Record<string, string>
 	role: string | undefined
 	rank: number
 	inviteAs: string | undefined
 	runtime?: PrincipalRuntime
+}
+
+/**
+ * Static principals have no auth runtime. Copy the configured headers so adopting a credential
+ * does not mutate the config object, and keep a `Bearer ` prefix when that is how the header
+ * was already written.
+ */
+function holdHeaders(initial: Record<string, string> | undefined): {
+	headers: () => Record<string, string>
+	adoptCredential: (token: string) => void
+} {
+	let current: Record<string, string> = initial === undefined ? {} : { ...initial }
+	return {
+		adoptCredential: (token: string) => {
+			if (token === "") return
+			const key = Object.keys(current).find((name) => name.toLowerCase() === "authorization") ?? "authorization"
+			const previous = current[key]
+			const value = previous === undefined || /^bearer\s+/i.test(previous) ? `Bearer ${token}` : token
+			current = { ...current, [key]: value }
+			registerSecretHeader(key)
+			registerSecret(token)
+			registerSecret(value)
+		},
+		headers: () => current,
+	}
 }
 
 function sameTenant(a: Record<string, string>, b: Record<string, string>): boolean {
@@ -291,8 +318,10 @@ async function resolvePrincipal(
 			registerSecretHeader(name)
 			registerSecret(value)
 		}
+		const held = holdHeaders(principal.headers)
 		return {
-			headers: () => principal.headers ?? {},
+			adoptCredential: held.adoptCredential,
+			headers: held.headers,
 			id: principal.id,
 			inviteAs: principal.inviteAs,
 			rank: principal.rank ?? 0,
@@ -326,6 +355,7 @@ async function resolvePrincipal(
 	})
 
 	return {
+		adoptCredential: (token) => runtime.adoptCredential(token),
 		headers,
 		id: principal.id,
 		inviteAs: principal.inviteAs,
@@ -1035,6 +1065,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					uploads: worldUploads(seedOffset),
 				})
 				return {
+					adoptCredential: principal.adoptCredential,
 					headers: principal.headers,
 					id: principal.id,
 					inviteAs: principal.inviteAs,
@@ -1045,6 +1076,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				}
 			} catch {
 				return {
+					adoptCredential: principal.adoptCredential,
 					headers: principal.headers,
 					id: principal.id,
 					inviteAs: principal.inviteAs,
@@ -1058,6 +1090,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 
 		const actors: Actor[] = [
 			{
+				adoptCredential: alpha.adoptCredential,
 				headers: alpha.headers,
 				id: alpha.id,
 				inviteAs: alpha.inviteAs,

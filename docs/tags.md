@@ -76,6 +76,7 @@ x-invite:
   tokenFrom: response # or outOfBand
   tokenKind: org-invite # only when tokenFrom is outOfBand; default `${entity}-invite`
   acceptFrom: token # default. `link` = GET the OOB URL instead of POSTing accept JSON
+  credentialFrom: $.access_token # default. invitee adopts this field from a 2xx accept body
 ```
 
 Put this on the invite operation. Config must give the invitee `inviteAs`. Defaults if omitted: `granteeField: key`, `tokenPointer: $.token`, `grantPointer: $.grant_id`, `tokenFrom: response`, `acceptFrom: token`. All three of `invite` / `accept` / `revoke` (operationIds) are required or the tag is ignored. `oat doctor` / `oat plan` print the accept mode.
@@ -89,6 +90,8 @@ Put this on the invite operation. Config must give the invitee `inviteAs`. Defau
 An invite operation is **not** the entity's fixture create, even when it is `POST` on the collection. oat will not seed it with a generated email. The invite check (and only that check) creates the grant, using `inviteAs` as `granteeField`. The check still runs when there is no non-invite create, as long as an item or list route exists.
 
 Timeline asserted: cannot read → invite → still cannot → accept → can → revoke → cannot.
+
+After a 2xx accept, oat reads `credentialFrom` (default `$.access_token`). When that value is a string, the invitee sends it on the later grant read and the post-revoke read. No such field leaves the invitee's existing credential in place, so `{ ok: true }` accepts stay as they are. A `link` accept that returns HTML does not count as a credential.
 
 Accept and revoke send the documented JSON request body when the operation declares one, filled from the invite token / grant id (and other known scope values). A path-only accept (`POST /invites/{token}` with no body) stays path-only — oat does not invent a body.
 

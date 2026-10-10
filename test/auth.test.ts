@@ -353,4 +353,31 @@ describe("countdown refresh", () => {
 		expect(harness.registerHits).toEqual(["token", "token"])
 		expect(harness.refreshHits).toEqual([])
 	})
+
+	it("adopts a credential issued outside the auth flow without refreshing it away", async () => {
+		const harness = await startAuthServer({ expiresIn: 20 })
+		servers.push(harness)
+		const { runtime } = await principalOf(harness, tokenExchangeFlow())
+		const scope = { ...runtime.scope }
+		expect(runtime.headers().authorization).toBe("Bearer acquire-1")
+
+		runtime.adoptCredential("fresh")
+		expect(runtime.credential()).toBe("fresh")
+		expect(runtime.headers().authorization).toBe("Bearer fresh")
+		expect(runtime.expiresAt).toBeNull()
+		expect(runtime.scope).toEqual(scope)
+		await runtime.refreshIfStale()
+		expect(harness.registerHits).toEqual(["token"])
+		expect(runtime.credential()).toBe("fresh")
+
+		const payload = Buffer.from(JSON.stringify({ exp: 4_102_444_800 })).toString("base64url")
+		const jwt = `eyJhbGciOiJub25lIn0.${payload}.sig`
+		runtime.adoptCredential(jwt)
+		expect(runtime.credential()).toBe(jwt)
+		expect(runtime.headers().authorization).toBe(`Bearer ${jwt}`)
+		expect(runtime.expiresAt).toBe(4_102_444_800_000)
+		expect(runtime.matches({ authorization: "Bearer acquire-1" })).toBe(true)
+		expect(runtime.matches({ authorization: `Bearer ${jwt}` })).toBe(true)
+		expect(runtime.scope).toEqual(scope)
+	})
 })

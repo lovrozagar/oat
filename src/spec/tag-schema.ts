@@ -129,6 +129,7 @@ const OPERATION_TAGS: Record<string, Check> = {
 		{
 			accept: string,
 			acceptFrom: oneOf("link"),
+			credentialFrom: string,
 			grantPointer: string,
 			granteeField: string,
 			invite: string,

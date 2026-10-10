@@ -80,6 +80,11 @@ export interface Actor {
 	/** Higher can do everything a lower rank can. Same rank = peers. */
 	rank: number
 	headers: () => Record<string, string>
+	/**
+	 * Replace this actor's credential after a response issues a new one.
+	 * Static principals and auth flows both implement it. Absent means the actor cannot.
+	 */
+	adoptCredential?: (token: string) => void
 	/** Tenant identity from config / the auth flow — not the full path scope. */
 	roots: Record<string, string>
 	scope: Record<string, string>
@@ -4671,6 +4676,8 @@ const inviteGrantsThenRevokes: Check<{
 			if (acceptFailed) {
 				return ctx.findings.unresolved(this.id, ctx.entityName, `accept returned ${accepted.status}`)
 			}
+			const issued = pointerValue(accepted.responseBody, spec.credentialFrom)
+			if (issued !== undefined) delegate.adoptCredential?.(issued)
 			if ((await canRead()) === false) {
 				return ctx.findings.backend(
 					this.id,

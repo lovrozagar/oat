@@ -658,4 +658,60 @@ describe("invite accept request", () => {
 			),
 		).toBe(true)
 	})
+
+	it("reads the grant with the access token the accept response returns", async () => {
+		const spec = inviteSpec("body")
+		let granted = false
+		const server = await listen((req, res) => {
+			void (async () => {
+				const url = new URL(req.url ?? "/", "http://127.0.0.1")
+				const method = (req.method ?? "GET").toUpperCase()
+				const auth = req.headers.authorization ?? ""
+				if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, spec)
+				if (url.pathname === "/v1/orgs/org_1/members" && method === "GET") {
+					return send(res, 200, { members: [{ email: "owner@x.test", id: "m1" }] })
+				}
+				if (url.pathname === "/v1/orgs/org_1/members" && method === "POST") {
+					return send(res, 201, { grant_id: "g1", token: "tok-from-invite" })
+				}
+				if (url.pathname === "/v1/invites/accept" && method === "POST") {
+					const body = await readJson(req)
+					if ((body as { token?: unknown })?.token !== "tok-from-invite") return send(res, 400)
+					granted = true
+					return send(res, 200, { access_token: "fresh", id: "g1" })
+				}
+				if (url.pathname === "/v1/orgs/org_1/grants/g1" && method === "DELETE") {
+					granted = false
+					return send(res, 200, { ok: true })
+				}
+				if (url.pathname === "/v1/orgs/org_1/members/m1" && method === "GET") {
+					if (auth === "Bearer a") return send(res, 200, { email: "owner@x.test", id: "m1" })
+					if (auth === "Bearer fresh" && granted) return send(res, 200, { email: "beta@x.test", id: "m1" })
+					return send(res, 403, { error: "forbidden" })
+				}
+				return send(res, 404)
+			})().catch(() => {
+				if (!res.headersSent) send(res, 500)
+			})
+		})
+		closers.push(server.close)
+
+		const result = await run({
+			baseUrl: server.url,
+			only: ["member"],
+			principals,
+			seed: 1,
+			spec: `${server.url}/v1/openapi/spec`,
+		})
+		const acceptAt = result.client.transcript.findIndex(
+			(exchange) => exchange.method === "POST" && new URL(exchange.url).pathname === "/v1/invites/accept",
+		)
+		const grantRead = result.client.transcript
+			.slice(acceptAt + 1)
+			.find((exchange) => exchange.method === "GET" && new URL(exchange.url).pathname === "/v1/orgs/org_1/members/m1")
+		expect(acceptAt).toBeGreaterThanOrEqual(0)
+		expect(grantRead?.requestHeaders.authorization).toBe("Bearer fresh")
+		expect(grantRead?.status).toBe(200)
+		expect(result.findings.filter((finding) => finding.check === "auth.invite-grants-then-revokes")).toEqual([])
+	})
 })

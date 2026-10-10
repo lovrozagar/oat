@@ -65,6 +65,12 @@ export interface PrincipalRuntime {
 	expiresAt: number | null
 	/** True when `headers` carry a credential this principal issued (current or previous). */
 	matches: (headers: Record<string, string>) => boolean
+	/**
+	 * Swap in a credential a later response issued (an invite accept, for example).
+	 * Scope stays. Expiry becomes the new token's JWT `exp`, or none when it has no `exp`.
+	 * Previously issued values still match.
+	 */
+	adoptCredential: (token: string) => void
 }
 
 /** `{name}` placeholders resolved from the accumulated scope. */
@@ -467,8 +473,19 @@ async function createHookPrincipal(id: string, spec: HookAuth, context: AcquireC
 	const ctx: AcquireContext = { ...context, principalId: id }
 	const authValue = (token: string): string => template.replace("{credential}", token)
 
+	const adoptCredential = (token: string): void => {
+		if (token === "") return
+		credential = token
+		runtime.expiresAt = jwtExpiryMs(token)
+		issued.add(authValue(credential))
+		registerSecretHeader(header)
+		registerSecret(credential)
+		registerSecret(authValue(credential))
+	}
+
 	const runtime: PrincipalRuntime = {
 		address: null,
+		adoptCredential,
 		credential: () => credential,
 		expiresAt: null,
 		headers: () => ({ [header]: authValue(credential) }),
@@ -540,8 +557,19 @@ async function createFlowPrincipal(id: string, spec: AuthFlow, context: AcquireC
 
 	const authValue = (token: string): string => template.replace("{credential}", token)
 
+	const adoptCredential = (token: string): void => {
+		if (token === "") return
+		credential = token
+		runtime.expiresAt = jwtExpiryMs(token)
+		issued.add(authValue(credential))
+		registerSecretHeader(header)
+		registerSecret(credential)
+		registerSecret(authValue(credential))
+	}
+
 	const runtime: PrincipalRuntime = {
 		address: null,
+		adoptCredential,
 		credential: () => credential,
 		expiresAt: null,
 		headers: () => ({ [header]: authValue(credential) }),

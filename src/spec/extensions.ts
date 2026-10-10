@@ -367,6 +367,12 @@ export interface InviteSpec {
 	 * JSON / path. `link` GETs the out-of-band value as an absolute URL (the mailed consume hop).
 	 */
 	acceptFrom?: "token" | "link"
+	/**
+	 * JSON path of a credential in a 2xx accept body. When it is a non-empty string, the invitee
+	 * uses it for the grant read. Missing means the invitee keeps the credential it already had.
+	 * Default `$.access_token`.
+	 */
+	credentialFrom: string
 }
 
 export function readInvite(op: OperationObject): InviteSpec | null {
@@ -379,6 +385,8 @@ export function readInvite(op: OperationObject): InviteSpec | null {
 	const tokenFrom = tag.tokenFrom === "outOfBand" ? "outOfBand" : "response"
 	const spec: InviteSpec = {
 		accept,
+		credentialFrom:
+			typeof tag.credentialFrom === "string" && tag.credentialFrom !== "" ? tag.credentialFrom : "$.access_token",
 		grantPointer: typeof tag.grantPointer === "string" ? tag.grantPointer : "$.grant_id",
 		granteeField: typeof tag.granteeField === "string" ? tag.granteeField : "key",
 		invite,
