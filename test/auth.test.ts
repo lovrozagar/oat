@@ -13,6 +13,8 @@ interface Harness {
 	registerHits: string[]
 	refreshHits: string[]
 	resourceAuth: string[]
+	tokenBodies: unknown[]
+	tokenWho: string[]
 	setGetStatus: (status: number | ((n: number) => number)) => void
 	delayRefreshMs: number
 }
@@ -121,6 +123,8 @@ async function startAuthServer(options?: {
 		refreshHits,
 		registerHits,
 		resourceAuth,
+		tokenBodies: [],
+		tokenWho: [],
 		setGetStatus: (status) => {
 			getStatus = status
 		},
@@ -148,6 +152,8 @@ async function startAuthServer(options?: {
 			}
 			if (url.pathname === "/v1/auth/token" && method === "POST") {
 				registerHits.push("token")
+				harness.tokenBodies.push(await readJson(req))
+				harness.tokenWho.push(req.headers["x-who"] ?? "")
 				return send(res, 200, issue("acquire"))
 			}
 			if (url.pathname === "/v1/auth/refresh" && method === "POST") {
@@ -378,6 +384,30 @@ describe("countdown refresh", () => {
 		expect(runtime.expiresAt).toBe(4_102_444_800_000)
 		expect(runtime.matches({ authorization: "Bearer acquire-1" })).toBe(true)
 		expect(runtime.matches({ authorization: `Bearer ${jwt}` })).toBe(true)
+		expect(runtime.matches({})).toBe(false)
+		runtime.adoptCredential("")
+		expect(runtime.credential()).toBe(jwt)
 		expect(runtime.scope).toEqual(scope)
+	})
+
+	it("interpolates nested bodies, arrays, and non-strings", async () => {
+		const harness = await startAuthServer()
+		servers.push(harness)
+		const spec: AcquireSpec = {
+			credentialFrom: "$.access_token",
+			steps: [
+				{
+					bind: { who: "oat" },
+					body: { empty: null, meta: { name: "{who}" }, n: 1, ok: true, tags: ["{who}", 2] },
+					headers: { "x-who": "{who}" },
+					operationId: "auth.token",
+					query: { q: "{who}" },
+				},
+			],
+		}
+		const { runtime } = await principalOf(harness, spec)
+		expect(harness.tokenBodies).toEqual([{ empty: null, meta: { name: "oat" }, n: 1, ok: true, tags: ["oat", 2] }])
+		expect(harness.tokenWho).toEqual(["oat"])
+		expect(runtime.credential()).toBe("acquire-1")
 	})
 })
