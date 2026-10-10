@@ -879,6 +879,7 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	SEARCH_IGNORED: "search.q-narrows-result",
 	CREATE_DROPS_FIELD: "create.persists-submitted-fields",
 	CALLER_UPDATE_DROPPED: "auth.self-is-the-caller",
+	PUBLIC_GET_NOT_SUCCESS: "response.public-get-returns-success",
 	STRING_PAYLOAD_MANGLED: "payload.string-survives",
 	RESPONSE_STATUS_UNDECLARED: "response.status-is-documented",
 	ENUM_NOT_VALIDATED: "validation.enum-enforced",
@@ -1447,6 +1448,7 @@ export async function runBaselines(backend: Backend = "memory", dialect = "postg
 const DIALECT_INSENSITIVE: ReadonlySet<DefectName> = new Set<DefectName>([
 	"PATCH_REPLACES",
 	"CALLER_UPDATE_DROPPED",
+	"PUBLIC_GET_NOT_SUCCESS",
 	"EXISTENCE_LEAK_VIA_STATUS",
 	"UNIQUE_NOT_ENFORCED",
 	"IDEMPOTENCY_IGNORED",
@@ -1477,7 +1479,11 @@ const DIALECT_INSENSITIVE: ReadonlySet<DefectName> = new Set<DefectName>([
 const PAGE_NUMBER_ONLY: ReadonlySet<DefectName> = new Set<DefectName>(["PAGE_PAST_END_REPEATS"])
 
 /** Defects that run on the in-memory engine only: the store plays no part in them. */
-const ONE_ENGINE: ReadonlySet<DefectName> = new Set<DefectName>(["CONCURRENT_WRITE_LOST", "CALLER_UPDATE_DROPPED"])
+const ONE_ENGINE: ReadonlySet<DefectName> = new Set<DefectName>([
+	"CONCURRENT_WRITE_LOST",
+	"CALLER_UPDATE_DROPPED",
+	"PUBLIC_GET_NOT_SUCCESS",
+])
 
 /** Every defect this backend and dialect can exhibit, narrowed to `filter` when one is given. */
 export function defectsFor(backend: Backend, dialect: string, filter?: readonly string[]): DefectName[] {

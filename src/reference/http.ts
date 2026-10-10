@@ -874,6 +874,11 @@ export async function createReferenceServer(
 			return send(res, 200, { revoked: true })
 		}
 
+		if (url.pathname === "/health" && method === "GET") {
+			if (defects.has("PUBLIC_GET_NOT_SUCCESS")) return send(res, 500, { error_key: "internal_server_error" })
+			return send(res, 200, { ok: true })
+		}
+
 		if (url.pathname === "/v1/me" && (method === "GET" || method === "PATCH")) {
 			const principal = authenticate(req)
 			const current = profiles.get(principal.token) ?? { first_name: "Ada" }

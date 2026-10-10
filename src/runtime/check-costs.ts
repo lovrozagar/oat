@@ -68,6 +68,7 @@ export const TYPICAL_REQUESTS: Partial<Record<CheckId, number>> = {
 	"query.search-and-select-compose": 4,
 	"query.search-and-sort-compose": 2,
 	"query.sort-and-select-compose": 1,
+	"response.public-get-returns-success": 1,
 	"response.status-is-documented": 1,
 	"schema.error-response-matches-document": 1,
 	"schema.success-response-matches-document": 1,

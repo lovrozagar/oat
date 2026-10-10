@@ -519,7 +519,7 @@ export function buildSpec(dialect: Dialect = POSTGREST, ctx: SpecContext = DEFAU
 	const JOB = entityNamed(ctx, "job")
 	const paths: Json = {}
 	for (const entity of ctx.entities) Object.assign(paths, buildEntityPaths(ctx, entity, dialect))
-	Object.assign(paths, callerProfilePaths(ctx))
+	Object.assign(paths, callerProfilePaths(ctx), publicReadPaths(ctx))
 
 	paths[`${TABLE.itemPath}/invites`] = {
 		post: {
@@ -799,6 +799,28 @@ export function buildSpec(dialect: Dialect = POSTGREST, ctx: SpecContext = DEFAU
 		return { ...head, components, paths: hoistPathParameters(paths), ...rest }
 	}
 	return { ...head, paths, components, ...rest }
+}
+
+/** A public read. No token, no id, no body. */
+function publicReadPaths(ctx: SpecContext): Json {
+	return {
+		"/health": {
+			get: {
+				operationId: "gateway.health",
+				responses: {
+					[ok(ctx, 200)]: jsonResponse("The service is up", {
+						additionalProperties: false,
+						properties: { ok: { type: "boolean" } },
+						required: ["ok"],
+						type: "object",
+					}),
+				},
+				security: [],
+				summary: "Health",
+				tags: ["Gateway"],
+			},
+		},
+	}
 }
 
 /** The signed-up caller is the record. No list, no create, no path id. */

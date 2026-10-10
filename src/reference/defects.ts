@@ -211,6 +211,13 @@ export const DEFECTS = {
 	 */
 	CALLER_UPDATE_DROPPED: "an update to the signed-up caller returns success and does not stick",
 	/**
+	 * A public read with no id returns 500.
+	 *
+	 * Nothing is created first and no token is sent. The document named a success status.
+	 * A 500 is the server failing that read, not a missing fixture.
+	 */
+	PUBLIC_GET_NOT_SUCCESS: "a public read with no id returns a server error",
+	/**
 	 * Non-ASCII and surrounding whitespace are stripped on write.
 	 *
 	 * The realistic shape: a column that is not Unicode, a `.trim()`, a "sanitiser" that drops

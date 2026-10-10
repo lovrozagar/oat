@@ -38,6 +38,7 @@ import {
 import { type BackoffConfig, resolveBackoff } from "./poll.ts"
 import { type PersistedPrincipal, persistedToPrincipal, snapshotPrincipal } from "./principals.ts"
 import { CHECKS, type Actor, type WriteContext } from "./checks.ts"
+import { runPublicGets } from "./one-shot.ts"
 import { entityIsSelf, runSelfIdentity, SELF_CHECK_ID, selfOperationIds } from "./self.ts"
 import {
 	AuthRefreshError,
@@ -1485,6 +1486,16 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	 * parent page-walk runs invents pagination findings. So entities that can observe each
 	 * other share a lane and run in series, and only lanes run side by side.
 	 */
+	await runPublicGets({
+		checksRun,
+		client,
+		findings,
+		grades,
+		inScope: (operationId) => runScope.inScope(operationId),
+		mode: runScope.mode,
+		model,
+	})
+
 	const queue = runScope.entities
 	entityTotal = queue.length
 	let interrupted = false
