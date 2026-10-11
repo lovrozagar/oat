@@ -98,6 +98,8 @@ export function untestableEntityReason(
 	) {
 		return null
 	}
+	/* A list with no create is still a cohort: the rows already there are the records. */
+	if (entity.list !== undefined && entity.create === undefined) return null
 	const missing = [
 		...(entity.list === undefined ? ["a list operation"] : []),
 		...(entity.create === undefined ? ["a create operation"] : []),
@@ -444,10 +446,15 @@ export function buildScopeReport(input: CoverageInput): ScopeReport {
 				scope.untestable.get(operationId) ??
 				(op !== undefined && !graded.has(operationId) ? untestableReason(op, model, input.authCreates) : undefined)
 			const needs = [...(ledger.needs.get(operationId) ?? [])]
+			const emptyList = needs.find((need) => need === "the list returned no id")
 			reason =
 				statically ??
 				(gapFindings[0] === undefined ? undefined : `coverage gap: ${gapFindings[0].summary}`) ??
-				(needs.length > 0 ? `no check applied: needs ${needs.slice(0, 3).join("; ")}` : "no check exercised it")
+				(emptyList !== undefined
+					? emptyList
+					: needs.length > 0
+						? `no check applied: needs ${needs.slice(0, 3).join("; ")}`
+						: "no check exercised it")
 		}
 		return {
 			checks: { failed, gaps, inconclusive, passed, suppressed },

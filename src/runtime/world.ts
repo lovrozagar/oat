@@ -103,6 +103,7 @@ export async function listExisting(
 	try {
 		const exchange = await client.get(fillPath(listOp.path, values), {
 			headers,
+			operationId: listOp.operationId,
 			query: largestPageQuery(model, listOp),
 		})
 		if (exchange.status >= 300) return []

@@ -45,6 +45,7 @@ export const CHECK_IDS = [
 	"filter.zero-match-returns-none",
 	"idempotency.replay-does-not-duplicate",
 	"invalidation.declared-route-changes",
+	"list.item-matches-listed-row",
 	"list.read-after-write",
 	"pagination.bounds-handled",
 	"pagination.cursor-agrees-with-page",

@@ -815,7 +815,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				const action = model.byOperationId.get(id)
 				return action !== undefined && action.effects.length > 0 && runScope.inScope(id)
 			})
-		if (createOp === undefined && !inviteOnly && !needsListedCohort) return
+		if (createOp === undefined && !inviteOnly && !needsListedCohort && listOp === undefined) return
 		if (excludeOp(entity, listOp)) {
 			/* No fallback for a list route itself: every other check on this entity is reached
 			 * through it, so its exclusion is the whole entity's, not one operation's. */

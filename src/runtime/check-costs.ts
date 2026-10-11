@@ -48,6 +48,7 @@ export const TYPICAL_REQUESTS: Partial<Record<CheckId, number>> = {
 	"filter.zero-match-returns-none": 1,
 	"idempotency.replay-does-not-duplicate": 7,
 	"invalidation.declared-route-changes": 5,
+	"list.item-matches-listed-row": 1,
 	"list.read-after-write": 2,
 	"pagination.cursor-agrees-with-page": 10,
 	"pagination.has-more-is-accurate": 2,

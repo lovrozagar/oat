@@ -880,6 +880,7 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	CREATE_DROPS_FIELD: "create.persists-submitted-fields",
 	CALLER_UPDATE_DROPPED: "auth.self-is-the-caller",
 	PUBLIC_GET_NOT_SUCCESS: "response.public-get-returns-success",
+	LISTED_GET_DIFFERS: "list.item-matches-listed-row",
 	STRING_PAYLOAD_MANGLED: "payload.string-survives",
 	RESPONSE_STATUS_UNDECLARED: "response.status-is-documented",
 	ENUM_NOT_VALIDATED: "validation.enum-enforced",
@@ -1449,6 +1450,7 @@ const DIALECT_INSENSITIVE: ReadonlySet<DefectName> = new Set<DefectName>([
 	"PATCH_REPLACES",
 	"CALLER_UPDATE_DROPPED",
 	"PUBLIC_GET_NOT_SUCCESS",
+	"LISTED_GET_DIFFERS",
 	"EXISTENCE_LEAK_VIA_STATUS",
 	"UNIQUE_NOT_ENFORCED",
 	"IDEMPOTENCY_IGNORED",
@@ -1483,6 +1485,7 @@ const ONE_ENGINE: ReadonlySet<DefectName> = new Set<DefectName>([
 	"CONCURRENT_WRITE_LOST",
 	"CALLER_UPDATE_DROPPED",
 	"PUBLIC_GET_NOT_SUCCESS",
+	"LISTED_GET_DIFFERS",
 ])
 
 /** Every defect this backend and dialect can exhibit, narrowed to `filter` when one is given. */

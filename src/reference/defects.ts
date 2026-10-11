@@ -217,6 +217,8 @@ export const DEFECTS = {
 	 * A 500 is the server failing that read, not a missing fixture.
 	 */
 	PUBLIC_GET_NOT_SUCCESS: "a public read with no id returns a server error",
+	/** The get of a listed row returns a different body than the list. */
+	LISTED_GET_DIFFERS: "the get of a listed row returns a different body",
 	/**
 	 * Non-ASCII and surrounding whitespace are stripped on write.
 	 *

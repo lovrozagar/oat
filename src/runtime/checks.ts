@@ -1255,6 +1255,55 @@ function itemParamFor(ctx: CheckContext, id: string): Record<string, string> {
 	return param === undefined ? {} : { [param]: id }
 }
 
+function listedRowMatches(listed: Record<string, unknown>, body: unknown): boolean {
+	if (body === null || typeof body !== "object" || Array.isArray(body)) return false
+	const got = body as Record<string, unknown>
+	return Object.entries(listed).every(([key, value]) => JSON.stringify(got[key]) === JSON.stringify(value))
+}
+
+/** A list with no create still has a get. The get body is the row the list already returned. */
+const listedRowIsTheGet: Check<{ id: string; listed: Record<string, unknown> }> = {
+	plan: (ctx) => {
+		if (ctx.readOp === undefined || ctx.createOp !== undefined) return cannot()
+		const listed = ctx.records[0]
+		const id = listed?.[ctx.identity]
+		if (listed === undefined || (typeof id !== "string" && typeof id !== "number")) {
+			return cannot("the list returned no id")
+		}
+		return ready({ id: String(id), listed })
+	},
+	id: "list.item-matches-listed-row",
+	needs: "a list with no create and one listed row",
+	subjects: (entity) => (entity.read === undefined ? [] : [entity.read]),
+	async run(ctx, { id, listed }): Promise<Outcome> {
+		const op = ctx.readOp
+		if (op === undefined) return standDown("the entity has no read")
+		const item = await ctx.client.get(fillPath(op.path, { ...ctx.scope, ...itemParamFor(ctx, id) }), {
+			headers: ctx.auth(),
+			operationId: op.operationId,
+		})
+		if (item.status >= 300) {
+			return ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"the listed row is not returned by its get",
+				`${op.operationId} returned ${item.status} for ${ctx.entityName} ${id}`,
+				[item],
+			)
+		}
+		if (!listedRowMatches(listed, item.responseBody)) {
+			return ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"the get body is not the listed row",
+				`${op.operationId} returned a body that does not contain the row ${ctx.listOp?.operationId ?? "the list"} already returned for ${id}`,
+				[item],
+			)
+		}
+		return ASSERTED
+	},
+}
+
 /**
  * Isolation checks need a tenant boundary to have meaning. A public catalogue has neither
  * `x-tenant` nor a path parameter that looks like one; a 200 from another principal is the
@@ -5248,6 +5297,8 @@ const errorSchemaHonoured: Check<{ readOp: OperationModel; validator: SchemaVali
 		]),
 	],
 	async run(ctx, { raw, readOp, validator }): Promise<Outcome> {
+		/* An empty list has no id to miss. Probing one would grade the get without a row. */
+		if (ctx.createOp === undefined && ctx.records.length === 0) return standDown("the list returned no id")
 		const judged: string[] = []
 		if (graded(ctx, readOp)) {
 			await probeMissingItemError(ctx, readOp, raw, validator, this.id)
@@ -8987,6 +9038,7 @@ export const CHECKS: readonly Check[] = [
 	 * Everything below assumes these hold, so they must be evaluated first for cascade
 	 * suppression to have anything to consult. */
 	readAfterWrite,
+	listedRowIsTheGet,
 	createPersistsFields,
 	createStatusMatchesSpec,
 	successSchemaHonoured,

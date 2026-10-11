@@ -879,6 +879,18 @@ export async function createReferenceServer(
 			return send(res, 200, { ok: true })
 		}
 
+		if (url.pathname === "/v1/notices" && method === "GET") {
+			authenticate(req)
+			return send(res, 200, { notices: [{ id: "note_1", title: "Hello" }] })
+		}
+		const notice = /^\/v1\/notices\/([^/]+)$/.exec(url.pathname)
+		if (notice !== null && method === "GET") {
+			authenticate(req)
+			if (notice[1] !== "note_1") throw new HttpError(404, "not_found", "notice note_1 does not exist")
+			const title = defects.has("LISTED_GET_DIFFERS") ? "Other" : "Hello"
+			return send(res, 200, { id: "note_1", title })
+		}
+
 		if (url.pathname === "/v1/me" && (method === "GET" || method === "PATCH")) {
 			const principal = authenticate(req)
 			const current = profiles.get(principal.token) ?? { first_name: "Ada" }

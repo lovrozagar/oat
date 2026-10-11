@@ -519,7 +519,7 @@ export function buildSpec(dialect: Dialect = POSTGREST, ctx: SpecContext = DEFAU
 	const JOB = entityNamed(ctx, "job")
 	const paths: Json = {}
 	for (const entity of ctx.entities) Object.assign(paths, buildEntityPaths(ctx, entity, dialect))
-	Object.assign(paths, callerProfilePaths(ctx), publicReadPaths(ctx))
+	Object.assign(paths, callerProfilePaths(ctx), publicReadPaths(ctx), noticePaths(ctx))
 
 	paths[`${TABLE.itemPath}/invites`] = {
 		post: {
@@ -799,6 +799,47 @@ export function buildSpec(dialect: Dialect = POSTGREST, ctx: SpecContext = DEFAU
 		return { ...head, components, paths: hoistPathParameters(paths), ...rest }
 	}
 	return { ...head, paths, components, ...rest }
+}
+
+/** A list with no create. The row is already there. */
+function noticePaths(ctx: SpecContext): Json {
+	const article = {
+		additionalProperties: false,
+		properties: { id: { type: "string" }, title: { type: "string" } },
+		required: ["id", "title"],
+		type: "object",
+	}
+	return {
+		"/v1/notices": {
+			get: {
+				operationId: "notice.list",
+				responses: {
+					[ok(ctx, 200)]: jsonResponse("Notices", {
+						additionalProperties: false,
+						properties: { notices: { items: article, type: "array" } },
+						required: ["notices"],
+						type: "object",
+					}),
+				},
+				summary: "List notices",
+				tags: ["Notices"],
+				"x-entity": { action: "list", identity: "id", name: "notice" },
+			},
+		},
+		"/v1/notices/{id}": {
+			get: {
+				operationId: "notice.get",
+				parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
+				responses: {
+					[ok(ctx, 200)]: jsonResponse("One notice", article),
+					...errorResponses(ctx, [404]),
+				},
+				summary: "Get notice",
+				tags: ["Notices"],
+				"x-entity": { action: "read", identity: "id", name: "notice" },
+			},
+		},
+	}
 }
 
 /** A public read. No token, no id, no body. */
