@@ -71,13 +71,13 @@ Each target ends with one status:
 
 | status         | meaning                                                                                                                                                 |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `held`         | at least one check graded it and none failed                                                                                                            |
+| `passed`       | at least one check graded it and none failed                                                                                                            |
 | `failed`       | a defect finding is attributed to it                                                                                                                    |
 | `inconclusive` | checks ran and none could decide                                                                                                                        |
 | `blocked`      | every check was suppressed, or a support operation it needed failed (named, with evidence)                                                              |
 | `untested`     | nothing exercised it. The reason says why (`unmodeled`, `entity-not-testable`, `coverage gap: …`, `no check applied: needs …`, `no check exercised it`) |
 
-A targeted run exits `0` only when every target is `held`. A target nothing could grade must not read as a pass.
+A targeted run exits `0` only when every target is `passed`. A target nothing could grade must not read as a pass.
 
 Validation happens before any principal signs up: a name that matches nothing exits `2` with the nearest operationIds; an exact target the active `--profile` excludes exits `2`; a glob or `--only` match the profile excludes is dropped and listed. An origin no target names is not run.
 

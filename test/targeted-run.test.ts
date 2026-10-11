@@ -65,8 +65,8 @@ describe("targeted runs", () => {
 		const result = await runAt(server.url)
 		expect(result.scope.mode).toBe("full")
 		expect(defects(result)).toEqual([])
-		expect(coverage(result, "table.get")?.status).toBe("held")
-		expect(coverage(result, "row.list")?.status).toBe("held")
+		expect(coverage(result, "table.get")?.status).toBe("passed")
+		expect(coverage(result, "row.list")?.status).toBe("passed")
 		expect(coverage(result, "auth.token")).toMatchObject({ status: "untested" })
 		expect(coverage(result, "auth.token")?.reason).toMatch(/^unmodeled:/)
 	})
@@ -77,7 +77,7 @@ describe("targeted runs", () => {
 		expect(result.scope.mode).toBe("targeted")
 		expect(defects(result)).toEqual([])
 		expect(result.scope.operations.map((op) => op.operationId)).toEqual(["table.list"])
-		expect(coverage(result, "table.list")?.status).toBe("held")
+		expect(coverage(result, "table.list")?.status).toBe("passed")
 		expect(result.checksRun).not.toContain("patch.minimality")
 		expect(result.scope.support.map((op) => op.operationId)).toContain("table.create")
 	})
@@ -98,7 +98,7 @@ describe("targeted runs", () => {
 		const started = result.client.transcript.filter((e) => e.method === "POST" && e.url.endsWith("/jobs/start"))
 		expect(started).toEqual([])
 		expect(result.checksRun).not.toContain("async.reaches-terminal-state")
-		expect(coverage(result, "job.list")?.status).toBe("held")
+		expect(coverage(result, "job.list")?.status).toBe("passed")
 	})
 
 	it("reports an unreachable target as untested with the reason", async () => {
@@ -174,7 +174,7 @@ describe("targeted runs", () => {
 		})
 		expect(result.client.transcript.some((e) => e.method === "DELETE" && e.url.includes("/grants/"))).toBe(false)
 		expect(coverage(result, "table.revoke")?.status).toBe("untested")
-		expect(coverage(result, "table.revoke")?.checks.held).toEqual([])
+		expect(coverage(result, "table.revoke")?.checks.passed).toEqual([])
 	})
 
 	it("rejects an unknown target before any request", async () => {

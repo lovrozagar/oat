@@ -44,11 +44,11 @@ export type Outcome =
 	| { kind: "unresolved"; reason: string }
 	| { kind: "stood-down"; reason: string }
 
-/** The property was tested and held — or, if the check reported along the way, did not. */
+/** The property was tested and passed — or, if the check reported along the way, did not. */
 export const ASSERTED: Outcome = Object.freeze({ kind: "asserted" })
 
 /**
- * The property held, and how the backend behaved is worth saying — a policy the document leaves
+ * The property passed, and how the backend behaved is worth saying — a policy the document leaves
  * open, such as whether unknown query parameters are rejected or ignored.
  */
 export function asserted(note: string): Outcome {
@@ -64,7 +64,7 @@ export function standDown(reason: string): Outcome {
  * A check that ran, could not reach a verdict, and stopped.
  *
  * Distinct from a skip (the entity never had what the check needs) and from a pass (the property
- * was tested and held). Before this existed a check that bailed halfway — no matching field, an
+ * was tested and passed). Before this existed a check that bailed halfway — no matching field, an
  * empty listing, a probe that errored — simply returned, and the report was identical to one
  * where the property was verified. On a backend with several faults that is most of the suite
  * going quiet at once, which is the precise moment a reader most needs to know it happened.

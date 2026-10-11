@@ -4,7 +4,7 @@ import { isRootCause } from "./finding.ts"
 
 /** What the process exit code says. Defects found and oat failing are different answers. */
 export const EXIT = {
-	/** Every graded operation held. */
+	/** Every graded operation passed. */
 	clean: 0,
 	/** At least one root-cause finding — or, under `--ops`, a target that failed. */
 	defects: 1,
@@ -32,7 +32,7 @@ export function runVerdict(result: {
 	}
 	const rootCauses = result.findings.filter(isRootCause).length
 	if (result.scope !== undefined) {
-		const graded = result.scope.operations.filter((op) => op.status === "held" || op.status === "failed")
+		const graded = result.scope.operations.filter((op) => op.status === "passed" || op.status === "failed")
 		if (graded.length === 0) return { outcome: "failed", reason: "no operation was graded, so nothing was proved" }
 	}
 	if (rootCauses > 0) {
@@ -41,7 +41,7 @@ export function runVerdict(result: {
 	if (result.scope?.mode === "targeted") {
 		const failed = result.scope.operations.filter((op) => op.status === "failed")
 		if (failed.length > 0) return { outcome: "defects", reason: `${failed.length} targeted operation(s) failed` }
-		const unjudged = result.scope.operations.filter((op) => op.status !== "held")
+		const unjudged = result.scope.operations.filter((op) => op.status !== "passed")
 		if (unjudged.length > 0) {
 			return { outcome: "failed", reason: `${unjudged.length} targeted operation(s) were never judged` }
 		}

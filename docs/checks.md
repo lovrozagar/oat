@@ -164,7 +164,7 @@ Coverage is split **never** (zero entities could run it) vs **partial** (ran on 
 
 Cascade suppression is transitive: one root cause is one finding, not a page of consequences. A blocked check has **not** been verified; re-run after the cause is fixed.
 
-`oat run` exit `1` if any finding has a failing verdict. Gaps and blocked entries do not fail a full run. A targeted run (`--ops`) also exits `1` when any target did not end `held`.
+`oat run` exit `1` if any finding has a failing verdict. Gaps and blocked entries do not fail a full run. A targeted run (`--ops`) also exits `1` when any target did not end `passed`.
 
 Console (stdout) after a run:
 

@@ -27,6 +27,6 @@ describe("the matrix of the primary backend", () => {
 	})
 
 	it("does not land a secondary origin's finding on a same-named primary entity", () => {
-		expect(listNode(matrixViewFromParts(parts([{ origin: "staging" }])))).toBe("held")
+		expect(listNode(matrixViewFromParts(parts([{ origin: "staging" }])))).toBe("passed")
 	})
 })

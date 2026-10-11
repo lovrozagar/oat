@@ -298,7 +298,7 @@ export function resolveTargetScope(model: SpecModel, input: ScopeInput): TargetS
 
 /* ------------------------------------------------------------------ coverage */
 
-export type OperationStatus = "held" | "failed" | "inconclusive" | "blocked" | "untested"
+export type OperationStatus = "passed" | "failed" | "inconclusive" | "blocked" | "untested"
 
 export interface OperationCoverage {
 	operationId: string
@@ -307,7 +307,7 @@ export interface OperationCoverage {
 	entity: string | null
 	status: OperationStatus
 	/** `gaps`: ran, but reported it could not exercise this operation (a missing peer, tag, or route). */
-	checks: { held: string[]; failed: string[]; suppressed: string[]; inconclusive: string[]; gaps: string[] }
+	checks: { passed: string[]; failed: string[]; suppressed: string[]; inconclusive: string[]; gaps: string[] }
 	/** Defect findings attributed to this operation. */
 	findings: number
 	/** Why it was not graded, when it was not. */
@@ -398,9 +398,9 @@ export interface CoverageInput {
 	authCreates: ReadonlySet<string>
 }
 
-function statusOf(held: number, failed: number, inconclusive: number, blocked: boolean): OperationStatus {
+function statusOf(passed: number, failed: number, inconclusive: number, blocked: boolean): OperationStatus {
 	if (failed > 0) return "failed"
-	if (held > 0) return "held"
+	if (passed > 0) return "passed"
 	if (inconclusive > 0) return "inconclusive"
 	return blocked ? "blocked" : "untested"
 }
@@ -426,12 +426,12 @@ export function buildScopeReport(input: CoverageInput): ScopeReport {
 			(f) => mine(f.operations) && f.verdict === "COVERAGE_GAP" && ran.has(f.check),
 		)
 		const gaps = [...new Set(gapFindings.map((f) => f.check))].filter((check) => !failed.includes(check)).sort()
-		const held = [...ran]
+		const passed = [...ran]
 			.filter((check) => !failed.includes(check) && !inconclusive.includes(check) && !gaps.includes(check))
 			.sort()
 		const suppressed = [...(ledger.suppressed.get(operationId) ?? [])].sort()
 		const status = statusOf(
-			held.length,
+			passed.length,
 			failed.length,
 			inconclusive.length,
 			suppressed.length > 0 || blocked.length > 0,
@@ -450,7 +450,7 @@ export function buildScopeReport(input: CoverageInput): ScopeReport {
 				(needs.length > 0 ? `no check applied: needs ${needs.slice(0, 3).join("; ")}` : "no check exercised it")
 		}
 		return {
-			checks: { failed, gaps, held, inconclusive, suppressed },
+			checks: { failed, gaps, inconclusive, passed, suppressed },
 			entity: op?.entity ?? null,
 			findings: defects.length,
 			operationId,

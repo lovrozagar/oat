@@ -53,7 +53,7 @@ describe("scope in reports", () => {
 		const md = renderMarkdown(input)
 		expect(md).toContain("- **Scope**: targeted — 2 operations (--ops table.get,table.update)")
 		expect(md).toContain("## Operations")
-		expect(md).toMatch(/\| table\.get \| table \| held \|/)
+		expect(md).toMatch(/\| table\.get \| table \| passed \|/)
 		expect(md).toMatch(/\| table\.update \| table \| failed \|/)
 		expect(md).toContain("## Support operations")
 		expect(md).toMatch(/\| table\.create \| \d+ \|/)
@@ -64,14 +64,14 @@ describe("scope in reports", () => {
 		}
 		expect(json.scope.mode).toBe("targeted")
 		expect(json.scope.operations.map((op) => [op.operationId, op.status])).toEqual([
-			["table.get", "held"],
+			["table.get", "passed"],
 			["table.update", "failed"],
 		])
 		expect(json.findings.find((f) => f.check === "patch.minimality")?.operations).toEqual(["table.update"])
 
 		const text = renderConsole(input)
 		expect(text).toContain("scope: targeted · 2 operations (--ops table.get,table.update)")
-		expect(text).toMatch(/✓ table\.get\s+held/)
+		expect(text).toMatch(/✓ table\.get\s+passed/)
 		expect(text).toMatch(/✗ table\.update\s+failed/)
 
 		expect(progress.some((snap) => snap.phase === "load" && snap.message?.startsWith("scope: targeted"))).toBe(true)
@@ -86,7 +86,7 @@ describe("scope in reports", () => {
 		const graph = buildMatrixGraphFromReport(input)
 		const table = graph.entities.find((entity) => entity.name === "table")
 		expect(table?.nodes.find((node) => node.id === "patch.minimality")?.status).toBe("out-of-scope")
-		expect(table?.nodes.find((node) => node.id === "tenant.item-not-readable-cross-tenant")?.status).toBe("held")
+		expect(table?.nodes.find((node) => node.id === "tenant.item-not-readable-cross-tenant")?.status).toBe("passed")
 		/* The poster and the JSON graph draw one graph, built once per report. */
 		expect(buildMatrixGraphFromReport(input)).toBe(graph)
 	})

@@ -415,7 +415,7 @@ function profileExclusionSummary(input: ReportInput): string | null {
 const STATUS_MARK: Record<OperationStatus, string> = {
 	blocked: "○",
 	failed: "✗",
-	held: "✓",
+	passed: "✓",
 	inconclusive: "?",
 	untested: "○",
 }
@@ -442,12 +442,12 @@ function scopeSections(scope: ScopeReport): string[] {
 			: "> The targets of this run. Everything else oat called is listed under support: called, never graded.",
 	)
 	lines.push("")
-	lines.push("| operation | entity | status | held | failed | suppressed | inconclusive | reason |")
+	lines.push("| operation | entity | status | passed | failed | suppressed | inconclusive | reason |")
 	lines.push("| --- | --- | --- | --- | --- | --- | --- | --- |")
 	for (const op of scope.operations) {
 		const failed = op.checks.failed.length === 0 ? "0" : `${op.checks.failed.length} (${op.checks.failed.join(", ")})`
 		lines.push(
-			`| ${operationLabel(op)} | ${op.entity ?? "—"} | ${op.status} | ${op.checks.held.length} | ${failed} | ` +
+			`| ${operationLabel(op)} | ${op.entity ?? "—"} | ${op.status} | ${op.checks.passed.length} | ${failed} | ` +
 				`${op.checks.suppressed.length} | ${op.checks.inconclusive.length} | ${(op.reason ?? "").replace(/\|/g, "\\|")} |`,
 		)
 	}
@@ -489,11 +489,11 @@ function scopeConsole(scope: ScopeReport): string[] {
 	const lines = [`  scope: ${scopeLine(scope, " · ")} · ${scope.support.length} support op(s)`]
 	const width = Math.max(16, ...scope.operations.map((op) => operationLabel(op).length)) + 2
 	for (const op of scope.operations) {
-		const graded = op.checks.held.length + op.checks.failed.length + op.checks.inconclusive.length
+		const graded = op.checks.passed.length + op.checks.failed.length + op.checks.inconclusive.length
 		const detail =
 			op.status === "failed"
 				? `${graded} checks · ${op.findings} finding(s) (${op.checks.failed.join(", ")})`
-				: op.status === "held" || op.status === "inconclusive"
+				: op.status === "passed" || op.status === "inconclusive"
 					? `${graded} checks`
 					: (op.reason ?? "")
 		lines.push(`    ${STATUS_MARK[op.status]} ${operationLabel(op).padEnd(width)}${op.status.padEnd(14)}${detail}`)

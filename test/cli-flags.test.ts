@@ -111,11 +111,11 @@ describe("--ops on the CLI", () => {
 		expect(out).toContain("Did you mean: table.create")
 	})
 
-	it("exits 0 when every target held", async () => {
+	it("exits 0 when every target passed", async () => {
 		const { code, out } = await cli(["run", "--config", await config(), "--ops", "table.get", "--out", dir, "--quiet"])
 		expect(code).toBe(0)
 		expect(out).toContain("scope: targeted")
-		expect(out).toMatch(/table\.get\s+held/)
+		expect(out).toMatch(/table\.get\s+passed/)
 	})
 
 	it("exits 3 when a target was not graded, and reads targets from config", async () => {

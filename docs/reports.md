@@ -59,7 +59,7 @@ Join `progress.tsv` `req_id` to `exchanges.jsonl` `requestId` (response `x-reque
 				"entity": "product",
 				"status": "failed",
 				"checks": {
-					"held": ["concurrency.no-lost-update"],
+					"passed": ["concurrency.no-lost-update"],
 					"failed": ["patch.minimality"],
 					"suppressed": [],
 					"inconclusive": [],
@@ -125,13 +125,13 @@ Gate in CI on process exit code, or on `findings` whose `verdict` is not `COVERA
 	"thesis": "…",
 	"summary": "…",
 	"index": { "entityCount": 5, "failed": ["product"], "parents": ["store"], "crossClaims": 1, "inbound": {} },
-	"counts": { "failed": 1, "blocked": 0, "held": 40, "skipped": 14 },
+	"counts": { "failed": 1, "blocked": 0, "passed": 40, "skipped": 14 },
 	"entities": [
 		{
 			"name": "product",
 			"identity": "id",
 			"readSurface": ["GET /v1/products", "GET /v1/products/{id}"],
-			"counts": { "failed": 1, "blocked": 0, "held": 20, "skipped": 5 },
+			"counts": { "failed": 1, "blocked": 0, "passed": 20, "skipped": 5 },
 			"roots": ["store_id"],
 			"nodes": [
 				{
@@ -159,7 +159,7 @@ Gate in CI on process exit code, or on `findings` whose `verdict` is not `COVERA
 }
 ```
 
-Cell `status`: `held` (passed), `failed`, `blocked`, `skipped`. Edge `kind`: `dependsOn` (cascade) or `uses` (a composition check built from a single-axis check).
+Cell `status`: `passed`, `failed`, `blocked`, `skipped`. Edge `kind`: `dependsOn` (cascade) or `uses` (a composition check built from a single-axis check).
 
 ### `issue-repro/<entity>-<check>.sh`
 

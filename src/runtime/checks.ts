@@ -175,7 +175,7 @@ export interface CheckContext<C extends ReadClient = ReadClient> {
 	/**
 	 * Narrows what this check graded to the operations it actually judged. A check that judges
 	 * after the fact — from whatever the transcript happens to hold — calls it, so an operation
-	 * nothing ever exercised is not reported as held. Checks that invoke their subjects need not.
+	 * nothing ever exercised is not reported as passed. Checks that invoke their subjects need not.
 	 */
 	judged?: (operationIds: readonly string[]) => void
 }

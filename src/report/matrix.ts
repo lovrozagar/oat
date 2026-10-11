@@ -2,7 +2,7 @@
  * Poster + machine graph of how oat crossed the entities in a run.
  *
  * One entity gets its own graph: single-axis checks (filter, sort, search, select, page/count)
- * on one cohort, composition checks that only run once every axis they combine has held. Several
+ * on one cohort, composition checks that only run once every axis they combine has passed. Several
  * entities add a second graph on top — `x-invalidate` edges from a writer to another entity's
  * read surface. That is the claim `invalidation.declared-route-changes` actually tests.
  */
@@ -13,7 +13,7 @@ import type { SpecModel } from "../spec/graph.ts"
 import type { ReportInput } from "./render.ts"
 
 /** `out-of-scope`: a targeted run (`--ops`) did not ask for it — it could apply, it was not graded. */
-export type CellStatus = "held" | "failed" | "blocked" | "skipped" | "out-of-scope"
+export type CellStatus = "passed" | "failed" | "blocked" | "skipped" | "out-of-scope"
 export type MatrixLayer = "axis" | "composition" | "surface" | "auth" | "schema" | "spec"
 
 export interface MatrixView {
@@ -23,7 +23,7 @@ export interface MatrixView {
 	readSurface: string[]
 	failed: number
 	blocked: number
-	held: number
+	passed: number
 	skipped: number
 	nodes: MatrixNode[]
 }
@@ -302,7 +302,7 @@ export function matrixViewFromParts(parts: MatrixParts): MatrixView {
 		entity: parts.entity,
 		failed: slice.counts.failed,
 		generatedAt: parts.generatedAt,
-		held: slice.counts.held,
+		passed: slice.counts.passed,
 		nodes,
 		readSurface: parts.readSurface,
 		skipped: slice.counts.skipped,
@@ -382,7 +382,7 @@ function entitySlice(name: string, parts: MatrixParts, readSurface: string[], id
 		return node
 	})
 
-	const counts: Record<CellStatus, number> = { blocked: 0, failed: 0, held: 0, "out-of-scope": 0, skipped: 0 }
+	const counts: Record<CellStatus, number> = { blocked: 0, failed: 0, passed: 0, "out-of-scope": 0, skipped: 0 }
 	for (const node of nodes) counts[node.status] += 1
 
 	const failedSet = new Set(nodes.filter((n) => n.status === "failed").map((n) => n.id))
@@ -399,7 +399,7 @@ function statusFor(entity: string, id: string, parts: MatrixParts): CellStatus {
 	if (rowsFor(parts.checksSuppressed, id, entity).length > 0) return "blocked"
 	if (rowsFor(parts.checksSkipped, id, entity).length > 0) return "skipped"
 	if (rowsFor(parts.checksOutOfScope ?? [], id, entity).length > 0) return "out-of-scope"
-	if (ranSet(parts.checksRun).has(id)) return "held"
+	if (ranSet(parts.checksRun).has(id)) return "passed"
 	return "skipped"
 }
 
@@ -493,7 +493,7 @@ function assembleGraph(
 	entities: EntityMatrix[],
 	invalidate: InvalidateLink[],
 ): MatrixGraph {
-	const counts: Record<CellStatus, number> = { blocked: 0, failed: 0, held: 0, "out-of-scope": 0, skipped: 0 }
+	const counts: Record<CellStatus, number> = { blocked: 0, failed: 0, passed: 0, "out-of-scope": 0, skipped: 0 }
 	for (const entity of entities) {
 		for (const status of Object.keys(counts) as CellStatus[]) counts[status] += entity.counts[status]
 	}
@@ -505,7 +505,7 @@ function assembleGraph(
 	const inbound: Record<string, number> = {}
 	for (const link of cross) inbound[link.toEntity] = (inbound[link.toEntity] ?? 0) + 1
 	const summary =
-		`${who}: ${counts.failed} failed, ${counts.blocked} blocked, ${counts.held} held, ${counts.skipped} skipped` +
+		`${who}: ${counts.failed} failed, ${counts.blocked} blocked, ${counts.passed} passed, ${counts.skipped} skipped` +
 		(counts["out-of-scope"] > 0 ? `, ${counts["out-of-scope"]} out of scope.` : ".") +
 		(cross.length > 8
 			? ` ${unique(cross.map((l) => l.toEntity)).length} parents receive ${cross.length} cross-entity claims.`
@@ -531,7 +531,7 @@ function assembleGraph(
 			status: {
 				blocked: "not evaluated; a dependsOn check already failed",
 				failed: "two projections of the same fact disagreed — a finding",
-				held: "tested, and the projections agreed",
+				passed: "tested, and the projections agreed",
 				"out-of-scope": "a targeted run (--ops) did not grade it; it could apply",
 				skipped: "the document does not support this check",
 			},
@@ -647,7 +647,7 @@ function mermaidFromGraph(entities: EntityMatrix[], invalidate: InvalidateLink[]
 			lines.push(`  ${mid(`${focus.name}__${edge.from}`)} ${arrow} ${mid(`${focus.name}__${edge.to}`)}`)
 		}
 	}
-	lines.push("  classDef held stroke:#7dcea0")
+	lines.push("  classDef passed stroke:#7dcea0")
 	lines.push("  classDef failed stroke:#ff6b3d,color:#ff6b3d")
 	lines.push("  classDef blocked stroke:#6d7686,stroke-dasharray: 4 4")
 	lines.push("  classDef skipped stroke:#3d4758")
@@ -679,7 +679,7 @@ function renderPoster(graph: MatrixGraph): string {
     --ink: #f2ead8;
     --mute: #9aa3b2;
     --line: #4a5870;
-    --held: #7dcea0;
+    --passed: #7dcea0;
     --fail: #ff6b3d;
     --block: #6d7686;
     --skip: #3d4758;
@@ -713,7 +713,7 @@ function renderPoster(graph: MatrixGraph): string {
   .counts span { color: var(--mute); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
   .counts .failed b { color: var(--fail); }
   .counts .blocked b { color: var(--block); }
-  .counts .held b { color: var(--held); }
+  .counts .passed b { color: var(--passed); }
   .band, .stage, .cards { margin-top: 18px; background: var(--card); border: 1px solid var(--line); }
   .band-label, .stage-label {
     color: var(--mute);
@@ -728,7 +728,7 @@ function renderPoster(graph: MatrixGraph): string {
     color: var(--mute); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
   }
   .swatch { display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; }
-  .swatch.held { background: var(--held); }
+  .swatch.passed { background: var(--passed); }
   .swatch.failed { background: var(--fail); }
   .swatch.blocked { background: var(--block); box-shadow: inset 0 0 0 1px #9aa3b2; }
   .swatch.skipped { background: var(--skip); }
@@ -748,7 +748,7 @@ function renderPoster(graph: MatrixGraph): string {
   .card .meta { color: var(--mute); font-size: 11px; margin-bottom: 10px; }
   .dots { display: flex; gap: 5px; flex-wrap: wrap; }
   .dot { width: 12px; height: 12px; border: 1px solid var(--line); }
-  .dot.held { background: var(--held); border-color: #3f6b55; }
+  .dot.passed { background: var(--passed); border-color: #3f6b55; }
   .dot.failed { background: var(--fail); border-color: var(--fail); }
   .dot.blocked { background: transparent; border-style: dashed; border-color: var(--block); }
   .dot.skipped { background: var(--skip); }
@@ -758,7 +758,7 @@ function renderPoster(graph: MatrixGraph): string {
   .strip-title { color: var(--mute); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; padding-top: 6px; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .chip { border: 1px solid var(--line); padding: 3px 8px; color: var(--mute); }
-  .chip.held { color: var(--held); border-color: #3f6b55; }
+  .chip.passed { color: var(--passed); border-color: #3f6b55; }
   .chip.failed { color: var(--fail); border-color: var(--fail); background: #3a221c; }
   .chip.blocked { color: var(--block); border-style: dashed; }
   .chip.skipped { opacity: 0.45; }
@@ -782,7 +782,7 @@ function renderPoster(graph: MatrixGraph): string {
     <div class="counts">
       <div class="failed"><b>${graph.counts.failed}</b><span>disagreed</span></div>
       <div class="blocked"><b>${graph.counts.blocked}</b><span>blocked</span></div>
-      <div class="held"><b>${graph.counts.held}</b><span>agreed</span></div>
+      <div class="passed"><b>${graph.counts.passed}</b><span>passed</span></div>
       <div class="skipped"><b>${graph.counts.skipped}</b><span>did not apply</span></div>
       ${graph.counts["out-of-scope"] > 0 ? `<div class="skipped"><b>${graph.counts["out-of-scope"]}</b><span>out of scope</span></div>` : ""}
     </div>
@@ -792,7 +792,7 @@ function renderPoster(graph: MatrixGraph): string {
     <div class="band-label">entities and x-invalidate</div>
     ${entityBand(graph)}
     <div class="legend">
-      <span><i class="swatch held"></i>own read surface</span>
+      <span><i class="swatch passed"></i>own read surface</span>
       <span><i class="swatch failed"></i>cross-entity invalidate — the check that needs two entities</span>
     </div>
   </div>
@@ -804,7 +804,7 @@ function renderPoster(graph: MatrixGraph): string {
     <div class="stage-label">${focus === undefined ? "checks" : `checks — ${esc(focus.name)}`}</div>
     ${loom}
     <div class="legend">
-      <span><i class="swatch held"></i>agreed</span>
+      <span><i class="swatch passed"></i>passed</span>
       <span><i class="swatch failed"></i>disagreed — a finding</span>
       <span><i class="swatch blocked"></i>blocked — an earlier check it depends on already failed</span>
       <span><i class="swatch skipped"></i>did not apply — the document has no support for this check</span>
@@ -941,7 +941,7 @@ function crowdedBand(graph: MatrixGraph): string {
 function forestSummary(graph: MatrixGraph): string {
 	const failed = graph.entities.filter((e) => e.counts.failed > 0)
 	const blocked = graph.entities.filter((e) => e.counts.blocked > 0 && e.counts.failed === 0)
-	const held = graph.entities.filter((e) => e.counts.failed === 0 && e.counts.blocked === 0)
+	const passed = graph.entities.filter((e) => e.counts.failed === 0 && e.counts.blocked === 0)
 	const cards = [...failed, ...blocked.slice(0, 8)].map((entity) => {
 		const outbound = graph.invalidate.filter((l) => l.fromEntity === entity.name && l.cross)
 		const inv =
@@ -954,7 +954,7 @@ function forestSummary(graph: MatrixGraph): string {
     </div>`
 	})
 	return `<div class="crowd-note">
-    ${held.length} entities agreed on every check that applied.
+    ${passed.length} entities passed every check that applied.
     ${failed.length === 0 ? "Showing the detail view for one writer, not all 200 entities." : `Showing ${failed.length} entities that disagreed.`}
   </div>
   ${cards.length > 0 ? `<div class="cards">${cards.join("")}</div>` : ""}`
@@ -1104,16 +1104,16 @@ function loomSvg(focus: EntityMatrix): string {
 
 function link(from: { x: number; y: number }, to: { x: number; y: number }, status: CellStatus): string {
 	const color =
-		status === "failed" ? "#ff6b3d" : status === "held" ? "#7dcea0" : status === "blocked" ? "#6d7686" : "#3d4758"
+		status === "failed" ? "#ff6b3d" : status === "passed" ? "#7dcea0" : status === "blocked" ? "#6d7686" : "#3d4758"
 	const dash = status === "blocked" || status === "skipped" || status === "out-of-scope" ? 'stroke-dasharray="5 5"' : ""
 	return `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" stroke="${color}" stroke-width="1.6" ${dash}/>`
 }
 
 function box(pt: { x: number; y: number }, label: string, caption: string, status: CellStatus): string {
 	const stroke =
-		status === "failed" ? "#ff6b3d" : status === "held" ? "#7dcea0" : status === "blocked" ? "#6d7686" : "#3d4758"
+		status === "failed" ? "#ff6b3d" : status === "passed" ? "#7dcea0" : status === "blocked" ? "#6d7686" : "#3d4758"
 	const fill = status === "failed" ? "#ff6b3d" : "#1b2332"
-	const ink = status === "failed" ? "#243044" : status === "held" ? "#7dcea0" : "#9aa3b2"
+	const ink = status === "failed" ? "#243044" : status === "passed" ? "#7dcea0" : "#9aa3b2"
 	const dash = status === "blocked" || status === "skipped" || status === "out-of-scope" ? 'stroke-dasharray="3 3"' : ""
 	const w = Math.max(92, label.length * 7.4 + 22)
 	const x = pt.x - w / 2

@@ -147,7 +147,7 @@ These are deliberate. An agent should not invent a flag for them.
 - **`or()` is postgrest-only.**
 - **Leftover rows on a shared DB** poison numeric and filter checks. Wipe between runs.
 - **`--only` uses plan names** (`store`, not `stores` or `/v1/stores`).
-- **`--ops` trusts support operations.** A targeted green means the targets held, given that what they needed worked. A defect in an untargeted operation is out of scope, even when a target called it.
+- **`--ops` trusts support operations.** A targeted green means the targets passed, given that what they needed worked. A defect in an untargeted operation is out of scope, even when a target called it.
 - **Default cohort is 7.** `pagination.limit-respects-documented-max` needs `cohortSize > maxLimit`.
 - **First principal is the writer.** Extra principals are peers / lattice, not a pool of writers.
 
