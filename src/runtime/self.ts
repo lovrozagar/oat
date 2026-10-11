@@ -17,9 +17,14 @@ export const SELF_CHECK_ID = "auth.self-is-the-caller" as const satisfies CheckI
 
 const PREFERRED_FIELDS = ["first_name", "display_name", "name", "nickname"]
 
+export function selfReadIds(entity: EntityModel): string[] {
+	if (entity.reads !== undefined && entity.reads.length > 0) return entity.reads
+	return entity.read === undefined ? [] : [entity.read]
+}
+
 export function selfOperationIds(entity: EntityModel): string[] {
 	if (entity.identity !== SELF_IDENTITY) return []
-	return [entity.read, entity.update].filter((id): id is string => id !== undefined)
+	return [...selfReadIds(entity), entity.update].filter((id): id is string => id !== undefined)
 }
 
 export function entityIsSelf(entity: EntityModel): boolean {
@@ -27,6 +32,7 @@ export function entityIsSelf(entity: EntityModel): boolean {
 }
 
 interface ProbeField {
+	kind: "boolean" | "string"
 	maxLength: number
 	name: string
 }
@@ -63,24 +69,30 @@ function probeField(schema: unknown): ProbeField | null {
 		...PREFERRED_FIELDS.filter((name) => record[name] !== undefined),
 		...Object.keys(record).filter((name) => !PREFERRED_FIELDS.includes(name)),
 	]
+	let boolean: ProbeField | null = null
 	for (const name of names) {
 		const raw = asSchema(record[name])
 		if (raw === null) continue
 		const rec = unwrap(raw)
-		if (rec.type !== "string") continue
 		if (rec.readOnly === true) continue
+		if (rec.type === "boolean") {
+			boolean ??= { kind: "boolean", maxLength: 0, name }
+			continue
+		}
+		if (rec.type !== "string") continue
 		if (rec.format === "email" || rec.format === "uri" || rec.format === "date-time") continue
 		if (typeof rec.pattern === "string") continue
 		const maxLength = typeof rec.maxLength === "number" ? rec.maxLength : 64
 		if (maxLength < 4) continue
-		return { maxLength, name }
+		return { kind: "string", maxLength, name }
 	}
-	return null
+	return boolean
 }
 
-function nextValue(maxLength: number, current: unknown): string {
-	const primary = "Oat".slice(0, maxLength)
-	const alternate = "Xot".slice(0, maxLength)
+function nextValue(field: ProbeField, current: unknown): boolean | string {
+	if (field.kind === "boolean") return current !== true
+	const primary = "Oat".slice(0, field.maxLength)
+	const alternate = "Xot".slice(0, field.maxLength)
 	return current === primary ? alternate : primary
 }
 
@@ -129,7 +141,9 @@ export async function runSelfIdentity(input: {
 		)
 	}
 
-	if (readOp === undefined) {
+	const readIds = selfReadIds(input.entity)
+	const readOps = readIds.map((id) => operation(input.model, id)).filter((op): op is OperationModel => op !== undefined)
+	if (readOps.length === 0 && readOp === undefined) {
 		const updatePath = pathOf(updateOp as OperationModel)
 		if (updatePath === null || updateOp === undefined) return ASSERTED
 		const wrote = await sendUpdate(input.client, updateOp, updatePath, input.auth, { note: "Oat" })
@@ -145,21 +159,29 @@ export async function runSelfIdentity(input: {
 		return ASSERTED
 	}
 
-	const readPath = pathOf(readOp)
-	if (readPath === null) return findings.unresolved(SELF_CHECK_ID, input.entity.name, "the read needs a path id")
-	const read = await input.client.request(readOp.method, readPath, {
-		headers: input.auth,
-		operationId: readOp.operationId,
-	})
-	if (read.status !== 200) {
-		return findings.backend(
-			SELF_CHECK_ID,
-			input.entity.name,
-			"reading the caller failed",
-			`${readOp.operationId} returned ${read.status} for the signed-up caller. The read is that caller and returns 200.`,
-			[anonymous, read],
-		)
+	const reads: Exchange[] = []
+	for (const op of readOps) {
+		const readPath = pathOf(op)
+		if (readPath === null) {
+			return findings.unresolved(SELF_CHECK_ID, input.entity.name, `${op.operationId} needs a path id`)
+		}
+		const read = await input.client.request(op.method, readPath, {
+			headers: input.auth,
+			operationId: op.operationId,
+		})
+		if (read.status !== 200) {
+			return findings.backend(
+				SELF_CHECK_ID,
+				input.entity.name,
+				"reading the caller failed",
+				`${op.operationId} returned ${read.status} for the signed-up caller. The read is that caller and returns 200.`,
+				[anonymous, read],
+			)
+		}
+		reads.push(read)
 	}
+	const read = reads[0]
+	if (read === undefined || readOp === undefined) return ASSERTED
 
 	if (updateOp === undefined) return ASSERTED
 	const updatePath = pathOf(updateOp)
@@ -167,12 +189,16 @@ export async function runSelfIdentity(input: {
 	const content = requestContentOf(updateOp, input.model)
 	const field = probeField(content?.schema)
 	if (field === null) {
-		return findings.unresolved(SELF_CHECK_ID, input.entity.name, "the update has no plain string field to change")
+		return findings.unresolved(
+			SELF_CHECK_ID,
+			input.entity.name,
+			"the update has no plain string or boolean field to change",
+		)
 	}
 	const before = read.responseBody
 	const current =
 		before !== null && typeof before === "object" ? (before as Record<string, unknown>)[field.name] : undefined
-	const value = nextValue(field.maxLength, current)
+	const value = nextValue(field, current)
 	const wrote = await sendUpdate(input.client, updateOp, updatePath, input.auth, { [field.name]: value })
 	if (wrote.status < 200 || wrote.status >= 300) {
 		return findings.backend(
@@ -183,7 +209,9 @@ export async function runSelfIdentity(input: {
 			[read, wrote],
 		)
 	}
-	const again = await input.client.request(readOp.method, readPath, {
+	const againPath = pathOf(readOp)
+	if (againPath === null) return findings.unresolved(SELF_CHECK_ID, input.entity.name, "the read needs a path id")
+	const again = await input.client.request(readOp.method, againPath, {
 		headers: input.auth,
 		operationId: readOp.operationId,
 	})
@@ -200,7 +228,7 @@ export async function runSelfIdentity(input: {
 			[wrote, again],
 		)
 	}
-	if (typeof current === "string" || current === null) {
+	if (typeof current === "string" || current === null || typeof current === "boolean") {
 		await sendUpdate(input.client, updateOp, updatePath, input.auth, { [field.name]: current })
 	}
 	return ASSERTED

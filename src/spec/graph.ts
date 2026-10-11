@@ -115,6 +115,8 @@ export interface EntityModel {
 	create?: string
 	list?: string
 	read?: string
+	/** Every read on this entity. `read` stays the first. */
+	reads?: string[]
 	update?: string
 	delete?: string
 	actions: string[]
@@ -497,7 +499,9 @@ function buildEntities(
 				entity.list = op.operationId
 				break
 			case "read":
-				entity.read = op.operationId
+				entity.reads ??= []
+				if (!entity.reads.includes(op.operationId)) entity.reads.push(op.operationId)
+				entity.read ??= op.operationId
 				break
 			case "update":
 				entity.update = op.operationId

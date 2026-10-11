@@ -108,6 +108,126 @@ async function serve(mode: "hold" | "open" | "forget"): Promise<string> {
 	return url
 }
 
+function booleanSpec(paths: OpenApiDocument["paths"]): OpenApiDocument {
+	return {
+		info: { title: "self-boolean", version: "1" },
+		openapi: "3.1.0",
+		paths,
+	} as OpenApiDocument
+}
+
+const booleanSchema = {
+	properties: { dismissed: { type: "boolean" } },
+	required: ["dismissed"],
+	type: "object",
+}
+
+async function serveBoolean(): Promise<string> {
+	let dismissed = false
+	const spec = booleanSpec({
+		"/v1/me": {
+			get: {
+				operationId: "profile.read",
+				responses: {
+					"200": { content: { "application/json": { schema: booleanSchema } }, description: "ok" },
+					"401": { description: "unauthorized" },
+				},
+				"x-entity": { action: "read", identity: "self", name: "profile" },
+			},
+			patch: {
+				operationId: "profile.update",
+				requestBody: { content: { "application/json": { schema: booleanSchema } }, required: true },
+				responses: {
+					"200": { content: { "application/json": { schema: booleanSchema } }, description: "ok" },
+					"401": { description: "unauthorized" },
+				},
+				"x-entity": { action: "update", identity: "self", name: "profile" },
+			},
+		},
+	})
+	return serveSpec(
+		spec,
+		() => ({ dismissed }),
+		(body) => {
+			if (typeof body.dismissed === "boolean") dismissed = body.dismissed
+		},
+	)
+}
+
+async function serveTwoReads(): Promise<string> {
+	let dismissed = false
+	const read = {
+		responses: {
+			"200": { content: { "application/json": { schema: booleanSchema } }, description: "ok" },
+			"401": { description: "unauthorized" },
+		},
+		"x-entity": { action: "read", identity: "self", name: "profile" },
+	}
+	const spec = booleanSpec({
+		"/v1/me": {
+			get: { ...read, operationId: "profile.read" },
+			patch: {
+				operationId: "profile.update",
+				requestBody: { content: { "application/json": { schema: booleanSchema } }, required: true },
+				responses: read.responses,
+				"x-entity": { action: "update", identity: "self", name: "profile" },
+			},
+		},
+		"/v1/me/flags": {
+			get: { ...read, operationId: "profile.flags" },
+		},
+	})
+	return serveSpec(
+		spec,
+		() => ({ dismissed }),
+		(body) => {
+			if (typeof body.dismissed === "boolean") dismissed = body.dismissed
+		},
+	)
+}
+
+async function serveSpec(
+	spec: OpenApiDocument,
+	read: () => { dismissed: boolean },
+	write: (body: { dismissed?: unknown }) => void,
+): Promise<string> {
+	const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+		void (async () => {
+			const url = new URL(req.url ?? "/", "http://127.0.0.1")
+			const method = (req.method ?? "GET").toUpperCase()
+			if (url.pathname === "/openapi.json" && method === "GET") {
+				res.writeHead(200, { "content-type": "application/json" })
+				res.end(JSON.stringify(spec))
+				return
+			}
+			if (url.pathname === "/v1/me" || url.pathname === "/v1/me/flags") {
+				if (req.headers.authorization !== "Bearer alpha") {
+					res.writeHead(401, { "content-type": "application/json" })
+					res.end(JSON.stringify({ error: "unauthorized" }))
+					return
+				}
+				if (method === "GET") {
+					res.writeHead(200, { "content-type": "application/json" })
+					res.end(JSON.stringify(read()))
+					return
+				}
+				if (method === "PATCH" && url.pathname === "/v1/me") {
+					write((await readBody(req)) as { dismissed?: unknown })
+					res.writeHead(200, { "content-type": "application/json" })
+					res.end(JSON.stringify(read()))
+					return
+				}
+			}
+			res.writeHead(404)
+			res.end()
+		})()
+	})
+	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+	const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+	open.push({ close: () => new Promise<void>((resolve) => server.close(() => resolve())) })
+	return url
+}
+
 async function runProfile(baseUrl: string) {
 	return run({
 		baseUrl,
@@ -149,6 +269,39 @@ describe("identity self", () => {
 		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
 		expect(defects.map((finding) => finding.summary)).toContain("an update to the caller did not stick")
 		expect(result.scope.operations.find((op) => op.operationId === "profile.update")?.status).toBe("failed")
+	})
+
+	it("flips a boolean-only caller field, reads it back, and restores it", async () => {
+		const url = await serveBoolean()
+		const result = await runProfile(url)
+		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
+		expect(defects).toEqual([])
+		const patches = result.client.transcript.filter((exchange) => exchange.method === "PATCH")
+		expect(patches.map((exchange) => exchange.requestBody)).toEqual([{ dismissed: true }, { dismissed: false }])
+		const reads = result.client.transcript.filter((exchange) => exchange.method === "GET" && exchange.status === 200)
+		expect(
+			reads.some(
+				(exchange) =>
+					exchange.responseBody !== null && (exchange.responseBody as { dismissed?: boolean }).dismissed === true,
+			),
+		).toBe(true)
+	})
+
+	it("grades both reads on one caller entity", async () => {
+		const url = await serveTwoReads()
+		const result = await runProfile(url)
+		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
+		expect(defects).toEqual([])
+		for (const id of ["profile.read", "profile.flags"]) {
+			const op = result.scope.operations.find((item) => item.operationId === id)
+			expect(op?.status).toBe("passed")
+			expect(op?.checks.passed).toContain("auth.self-is-the-caller")
+		}
+		const paths = result.client.transcript
+			.filter((exchange) => exchange.method === "GET" && exchange.status === 200)
+			.map((exchange) => new URL(exchange.url).pathname)
+		expect(paths).toContain("/v1/me")
+		expect(paths).toContain("/v1/me/flags")
 	})
 
 	it("the reference backend is caught only when the caller update does not stick", async () => {
