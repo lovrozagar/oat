@@ -80,6 +80,7 @@ function probeField(schema: unknown): ProbeField | null {
 			continue
 		}
 		if (rec.type !== "string") continue
+		if (Array.isArray(rec.enum)) continue
 		if (rec.format === "email" || rec.format === "uri" || rec.format === "date-time") continue
 		if (typeof rec.pattern === "string") continue
 		const maxLength = typeof rec.maxLength === "number" ? rec.maxLength : 64

@@ -154,6 +154,75 @@ async function serveBoolean(): Promise<string> {
 	)
 }
 
+async function serveEnumAndBoolean(): Promise<string> {
+	let dismissed = false
+	const schema = {
+		properties: {
+			channel: { enum: ["app", "email"], type: "string" },
+			dismissed: { type: "boolean" },
+		},
+		required: ["channel", "dismissed"],
+		type: "object",
+	}
+	const spec = booleanSpec({
+		"/v1/me": {
+			get: {
+				operationId: "profile.read",
+				responses: {
+					"200": { content: { "application/json": { schema } }, description: "ok" },
+					"401": { description: "unauthorized" },
+				},
+				"x-entity": { action: "read", identity: "self", name: "profile" },
+			},
+			patch: {
+				operationId: "profile.update",
+				requestBody: { content: { "application/json": { schema } }, required: true },
+				responses: {
+					"200": { content: { "application/json": { schema } }, description: "ok" },
+					"401": { description: "unauthorized" },
+				},
+				"x-entity": { action: "update", identity: "self", name: "profile" },
+			},
+		},
+	})
+	const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+		void (async () => {
+			const url = new URL(req.url ?? "/", "http://127.0.0.1")
+			const method = (req.method ?? "GET").toUpperCase()
+			if (url.pathname === "/openapi.json" && method === "GET") {
+				res.writeHead(200, { "content-type": "application/json" })
+				res.end(JSON.stringify(spec))
+				return
+			}
+			if (url.pathname === "/v1/me") {
+				if (req.headers.authorization !== "Bearer alpha") {
+					res.writeHead(401, { "content-type": "application/json" })
+					res.end(JSON.stringify({ error: "unauthorized" }))
+					return
+				}
+				if (method === "GET") {
+					res.writeHead(200, { "content-type": "application/json" })
+					res.end(JSON.stringify({ channel: "app", dismissed }))
+					return
+				}
+				if (method === "PATCH") {
+					const body = (await readBody(req)) as { dismissed?: unknown }
+					if (typeof body.dismissed === "boolean") dismissed = body.dismissed
+					res.writeHead(200, { "content-type": "application/json" })
+					res.end(JSON.stringify({ channel: "app", dismissed }))
+					return
+				}
+			}
+			res.writeHead(404)
+			res.end()
+		})()
+	})
+	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+	const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+	open.push({ close: () => new Promise<void>((resolve) => server.close(() => resolve())) })
+	return url
+}
+
 async function serveTwoReads(): Promise<string> {
 	let dismissed = false
 	const read = {
@@ -285,6 +354,15 @@ describe("identity self", () => {
 					exchange.responseBody !== null && (exchange.responseBody as { dismissed?: boolean }).dismissed === true,
 			),
 		).toBe(true)
+	})
+
+	it("flips a boolean when the only other field is an enum", async () => {
+		const url = await serveEnumAndBoolean()
+		const result = await runProfile(url)
+		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
+		expect(defects).toEqual([])
+		const patches = result.client.transcript.filter((exchange) => exchange.method === "PATCH")
+		expect(patches[0]?.requestBody).toEqual({ dismissed: true })
 	})
 
 	it("grades both reads on one caller entity", async () => {
