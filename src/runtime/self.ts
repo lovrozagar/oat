@@ -1,15 +1,19 @@
 /**
  * `x-entity.identity: self` — the signed-up caller is the record.
- * There is no list and no create. A read returns that caller. An update is still there
- * on the next read. No token is a 401.
+ * There is no list. A create, when the spec has one, runs before the read and the read
+ * must show a value from that create. An update is still there on the next read.
+ * No token is a 401.
  */
 
 import type { EntityModel, OperationModel, SpecModel } from "../spec/graph.ts"
+import type { Hooks } from "../config/define-config.ts"
 import type { CheckContext, WriteContext } from "./checks.ts"
 import { requestContentOf } from "./body.ts"
 import type { Client, Exchange } from "./client.ts"
 import { ASSERTED, type FindingCollector, type Outcome } from "./finding.ts"
-import { fillPath } from "./world.ts"
+import { buildCohort, isOverflowError } from "./fixture.ts"
+import { applyResolveInput } from "./input.ts"
+import { fillPath, requestSchemaOf } from "./world.ts"
 import type { CheckId } from "./check-ids.ts"
 
 export const SELF_IDENTITY = "self"
@@ -24,7 +28,9 @@ export function selfReadIds(entity: EntityModel): string[] {
 
 export function selfOperationIds(entity: EntityModel): string[] {
 	if (entity.identity !== SELF_IDENTITY) return []
-	return [...selfReadIds(entity), entity.update].filter((id): id is string => id !== undefined)
+	const ids = [...selfReadIds(entity), entity.update].filter((id): id is string => id !== undefined)
+	if (ids.length === 0 || entity.create === undefined) return ids
+	return [entity.create, ...ids]
 }
 
 export function entityIsSelf(entity: EntityModel): boolean {
@@ -115,6 +121,9 @@ export async function runSelfIdentity(input: {
 	entity: EntityModel
 	findings: FindingCollector
 	model: SpecModel
+	nonce?: string
+	resolveInput?: Hooks["resolveInput"]
+	seed?: number
 }): Promise<Outcome> {
 	const readOp = operation(input.model, input.entity.read)
 	const updateOp = operation(input.model, input.entity.update)
@@ -160,6 +169,9 @@ export async function runSelfIdentity(input: {
 		return ASSERTED
 	}
 
+	const created = await createCaller(input, findings)
+	if (created !== null && "kind" in created) return created
+
 	const reads: Exchange[] = []
 	for (const op of readOps) {
 		const readPath = pathOf(op)
@@ -183,6 +195,15 @@ export async function runSelfIdentity(input: {
 	}
 	const read = reads[0]
 	if (read === undefined || readOp === undefined) return ASSERTED
+	if (created !== null && !callerEchoed(created.body, read.responseBody)) {
+		return findings.backend(
+			SELF_CHECK_ID,
+			input.entity.name,
+			"the create did not show up on the next read",
+			`${created.exchange.operationId} sent ${JSON.stringify(created.body)}, and the next ${readOp.operationId} returned ${JSON.stringify(read.responseBody)}.`,
+			[created.exchange, read],
+		)
+	}
 
 	if (updateOp === undefined) return ASSERTED
 	const updatePath = pathOf(updateOp)
@@ -196,9 +217,8 @@ export async function runSelfIdentity(input: {
 			"the update has no plain string or boolean field to change",
 		)
 	}
-	const before = read.responseBody
-	const current =
-		before !== null && typeof before === "object" ? (before as Record<string, unknown>)[field.name] : undefined
+	const before = locateProbe(read.responseBody, field.name)
+	const current = before.current
 	const value = nextValue(field, current)
 	const wrote = await sendUpdate(input.client, updateOp, updatePath, input.auth, { [field.name]: value })
 	if (wrote.status < 200 || wrote.status >= 300) {
@@ -216,16 +236,13 @@ export async function runSelfIdentity(input: {
 		headers: input.auth,
 		operationId: readOp.operationId,
 	})
-	const seen =
-		again.responseBody !== null && typeof again.responseBody === "object"
-			? (again.responseBody as Record<string, unknown>)[field.name]
-			: undefined
-	if (again.status !== 200 || seen !== value) {
+	const after = locateProbe(again.responseBody, field.name)
+	if (again.status !== 200 || !probeStuck(before, after, value)) {
 		return findings.backend(
 			SELF_CHECK_ID,
 			input.entity.name,
 			"an update to the caller did not stick",
-			`${updateOp.operationId} set ${field.name} to ${JSON.stringify(value)}, and the next ${readOp.operationId} returned ${again.status} with ${JSON.stringify(seen)}.`,
+			`${updateOp.operationId} set ${field.name} to ${JSON.stringify(value)}, and the next ${readOp.operationId} returned ${again.status} with ${JSON.stringify(after.where === "top" ? after.current : after.values)}.`,
 			[wrote, again],
 		)
 	}
@@ -233,6 +250,120 @@ export async function runSelfIdentity(input: {
 		await sendUpdate(input.client, updateOp, updatePath, input.auth, { [field.name]: current })
 	}
 	return ASSERTED
+}
+
+interface CreatedCaller {
+	body: Record<string, unknown>
+	exchange: Exchange
+}
+
+function propertyNames(schema: Record<string, unknown>): Set<string> {
+	const properties = schema.properties
+	if (properties === null || typeof properties !== "object" || Array.isArray(properties)) return new Set()
+	return new Set(Object.keys(properties as Record<string, unknown>))
+}
+
+interface LocatedProbe {
+	current: unknown
+	values: unknown[]
+	where: "missing" | "nested" | "top"
+}
+
+/** Top-level field, or the same field on each nested object when the read is a map of records. */
+function locateProbe(body: unknown, field: string): LocatedProbe {
+	if (body === null || typeof body !== "object" || Array.isArray(body)) {
+		return { current: undefined, values: [], where: "missing" }
+	}
+	const record = body as Record<string, unknown>
+	if (Object.prototype.hasOwnProperty.call(record, field)) {
+		return { current: record[field], values: [record[field]], where: "top" }
+	}
+	const values: unknown[] = []
+	for (const value of Object.values(record)) {
+		if (value === null || typeof value !== "object" || Array.isArray(value)) continue
+		const child = value as Record<string, unknown>
+		if (Object.prototype.hasOwnProperty.call(child, field)) values.push(child[field])
+	}
+	if (values.length === 0) return { current: undefined, values: [], where: "missing" }
+	return { current: values[0], values, where: "nested" }
+}
+
+function probeStuck(before: LocatedProbe, after: LocatedProbe, value: unknown): boolean {
+	if (before.where === "nested") {
+		return (
+			after.where === "nested" &&
+			after.values.includes(value) &&
+			JSON.stringify(after.values) !== JSON.stringify(before.values)
+		)
+	}
+	return after.current === value
+}
+
+function callerEchoed(sent: Record<string, unknown>, body: unknown): boolean {
+	if (body === null || typeof body !== "object" || Array.isArray(body)) return false
+	const record = body as Record<string, unknown>
+	return Object.entries(sent).some(([key, value]) => {
+		if (value === null || typeof value === "object") return false
+		return record[key] === value
+	})
+}
+
+/** POST the spec's create. `null` when this caller record already exists. */
+async function createCaller(
+	input: {
+		auth: () => Record<string, string>
+		client: Client
+		entity: EntityModel
+		model: SpecModel
+		nonce?: string
+		resolveInput?: Hooks["resolveInput"]
+		seed?: number
+	},
+	findings: FindingCollector,
+): Promise<CreatedCaller | Outcome | null> {
+	const createOp = operation(input.model, input.entity.create)
+	if (createOp === undefined) return null
+	const createPath = pathOf(createOp)
+	if (createPath === null) {
+		return findings.unresolved(SELF_CHECK_ID, input.entity.name, `${createOp.operationId} needs a path id`)
+	}
+	const schema = requestSchemaOf(createOp, input.model)
+	if (schema === null) {
+		return findings.unresolved(SELF_CHECK_ID, input.entity.name, `${createOp.operationId} declares no request body`)
+	}
+	let body: Record<string, unknown>
+	try {
+		const [member] = buildCohort(schema, input.seed ?? 1, ["baseline"], createOp.operationId, {
+			distinct: propertyNames(schema),
+			...(input.nonce === undefined ? {} : { nonce: input.nonce }),
+		})
+		body = member?.body ?? {}
+	} catch (error) {
+		if (!isOverflowError(error)) throw error
+		return findings.unresolved(
+			SELF_CHECK_ID,
+			input.entity.name,
+			error instanceof Error ? error.message : `${createOp.operationId} body could not be generated`,
+		)
+	}
+	if (input.resolveInput !== undefined) {
+		body = await applyResolveInput(body, createOp.operationId, schema, input.resolveInput)
+	}
+	const exchange = await input.client.request(createOp.method, createPath, {
+		body,
+		headers: input.auth,
+		operationId: createOp.operationId,
+	})
+	if (exchange.status < 200 || exchange.status >= 300) {
+		return findings.backend(
+			SELF_CHECK_ID,
+			input.entity.name,
+			"creating the caller failed",
+			`${createOp.operationId} returned ${exchange.status} for the signed-up caller.`,
+			[exchange],
+		)
+	}
+	return { body, exchange }
 }
 
 async function sendUpdate(

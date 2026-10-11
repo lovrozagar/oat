@@ -365,6 +365,193 @@ describe("identity self", () => {
 		expect(patches[0]?.requestBody).toEqual({ dismissed: true })
 	})
 
+	it("creates the caller through the spec create before the read", async () => {
+		let stored: { display_name: string } | undefined
+		const schema = {
+			properties: { display_name: { maxLength: 50, minLength: 1, type: "string" } },
+			required: ["display_name"],
+			type: "object",
+		}
+		const spec = booleanSpec({
+			"/v1/me": {
+				get: {
+					operationId: "profile.read",
+					responses: {
+						"200": { content: { "application/json": { schema } }, description: "ok" },
+						"401": { description: "unauthorized" },
+						"404": { description: "missing" },
+					},
+					"x-entity": { action: "read", identity: "self", name: "profile" },
+				},
+				patch: {
+					operationId: "profile.update",
+					requestBody: { content: { "application/json": { schema } }, required: true },
+					responses: {
+						"200": { content: { "application/json": { schema } }, description: "ok" },
+						"401": { description: "unauthorized" },
+						"404": { description: "missing" },
+					},
+					"x-entity": { action: "update", identity: "self", name: "profile" },
+				},
+				post: {
+					operationId: "profile.create",
+					requestBody: { content: { "application/json": { schema } }, required: true },
+					responses: {
+						"201": { content: { "application/json": { schema } }, description: "created" },
+						"401": { description: "unauthorized" },
+					},
+					"x-entity": { action: "create", identity: "self", name: "profile" },
+				},
+			},
+		})
+		const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+			void (async () => {
+				const url = new URL(req.url ?? "/", "http://127.0.0.1")
+				const method = (req.method ?? "GET").toUpperCase()
+				if (url.pathname === "/openapi.json" && method === "GET") {
+					res.writeHead(200, { "content-type": "application/json" })
+					res.end(JSON.stringify(spec))
+					return
+				}
+				if (url.pathname === "/v1/me") {
+					if (req.headers.authorization !== "Bearer alpha") {
+						res.writeHead(401, { "content-type": "application/json" })
+						res.end(JSON.stringify({ error: "unauthorized" }))
+						return
+					}
+					if (method === "POST") {
+						const body = (await readBody(req)) as { display_name?: unknown }
+						if (typeof body.display_name !== "string" || body.display_name === "") {
+							res.writeHead(400, { "content-type": "application/json" })
+							res.end(JSON.stringify({ error: "invalid" }))
+							return
+						}
+						stored = { display_name: body.display_name }
+						res.writeHead(201, { "content-type": "application/json" })
+						res.end(JSON.stringify(stored))
+						return
+					}
+					if (stored === undefined) {
+						res.writeHead(404, { "content-type": "application/json" })
+						res.end(JSON.stringify({ error: "missing" }))
+						return
+					}
+					if (method === "GET") {
+						res.writeHead(200, { "content-type": "application/json" })
+						res.end(JSON.stringify(stored))
+						return
+					}
+					if (method === "PATCH") {
+						const body = (await readBody(req)) as { display_name?: unknown }
+						if (typeof body.display_name === "string") stored = { display_name: body.display_name }
+						res.writeHead(200, { "content-type": "application/json" })
+						res.end(JSON.stringify(stored))
+						return
+					}
+				}
+				res.writeHead(404)
+				res.end()
+			})()
+		})
+		await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+		const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+		open.push({ close: () => new Promise<void>((resolve) => server.close(() => resolve())) })
+		const result = await runProfile(url)
+		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
+		expect(defects).toEqual([])
+		for (const id of ["profile.create", "profile.read", "profile.update"]) {
+			expect(result.scope.operations.find((op) => op.operationId === id)?.status).toBe("passed")
+		}
+		const post = result.client.transcript.find((exchange) => exchange.method === "POST" && exchange.status === 201)
+		const sent = (post?.requestBody as { display_name?: unknown } | undefined)?.display_name
+		const firstRead = result.client.transcript.find((exchange) => exchange.method === "GET" && exchange.status === 200)
+		expect(sent).toEqual(expect.any(String))
+		expect((firstRead?.responseBody as { display_name?: unknown } | undefined)?.display_name).toBe(sent)
+		const postAt = result.client.transcript.findIndex((exchange) => exchange.method === "POST")
+		const readAt = result.client.transcript.findIndex(
+			(exchange) => exchange.method === "GET" && exchange.status === 200,
+		)
+		expect(postAt).toBeGreaterThanOrEqual(0)
+		expect(readAt).toBeGreaterThan(postAt)
+	})
+
+	it("flips a boolean the read nests under other keys", async () => {
+		const channels = { app: { dismissed: true }, email: { dismissed: true } }
+		const readSchema = {
+			additionalProperties: booleanSchema,
+			type: "object",
+		}
+		const updateSchema = {
+			properties: {
+				channel: { enum: ["app", "email"], type: "string" },
+				dismissed: { type: "boolean" },
+			},
+			type: "object",
+		}
+		const spec = booleanSpec({
+			"/v1/me": {
+				get: {
+					operationId: "profile.read",
+					responses: {
+						"200": { content: { "application/json": { schema: readSchema } }, description: "ok" },
+						"401": { description: "unauthorized" },
+					},
+					"x-entity": { action: "read", identity: "self", name: "profile" },
+				},
+				patch: {
+					operationId: "profile.update",
+					requestBody: { content: { "application/json": { schema: updateSchema } }, required: true },
+					responses: {
+						"200": { content: { "application/json": { schema: readSchema } }, description: "ok" },
+						"401": { description: "unauthorized" },
+					},
+					"x-entity": { action: "update", identity: "self", name: "profile" },
+				},
+			},
+		})
+		const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+			void (async () => {
+				const url = new URL(req.url ?? "/", "http://127.0.0.1")
+				const method = (req.method ?? "GET").toUpperCase()
+				if (url.pathname === "/openapi.json" && method === "GET") {
+					res.writeHead(200, { "content-type": "application/json" })
+					res.end(JSON.stringify(spec))
+					return
+				}
+				if (url.pathname === "/v1/me") {
+					if (req.headers.authorization !== "Bearer alpha") {
+						res.writeHead(401, { "content-type": "application/json" })
+						res.end(JSON.stringify({ error: "unauthorized" }))
+						return
+					}
+					if (method === "GET") {
+						res.writeHead(200, { "content-type": "application/json" })
+						res.end(JSON.stringify(channels))
+						return
+					}
+					if (method === "PATCH") {
+						const body = (await readBody(req)) as { dismissed?: unknown }
+						if (typeof body.dismissed === "boolean") channels.email.dismissed = body.dismissed
+						res.writeHead(200, { "content-type": "application/json" })
+						res.end(JSON.stringify(channels))
+						return
+					}
+				}
+				res.writeHead(404)
+				res.end()
+			})()
+		})
+		await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+		const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+		open.push({ close: () => new Promise<void>((resolve) => server.close(() => resolve())) })
+		const result = await runProfile(url)
+		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
+		expect(defects).toEqual([])
+		const patches = result.client.transcript.filter((exchange) => exchange.method === "PATCH")
+		expect(patches.map((exchange) => exchange.requestBody)).toEqual([{ dismissed: false }, { dismissed: true }])
+		expect(result.scope.operations.find((op) => op.operationId === "profile.update")?.status).toBe("passed")
+	})
+
 	it("grades both reads on one caller entity", async () => {
 		const url = await serveTwoReads()
 		const result = await runProfile(url)

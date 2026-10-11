@@ -774,6 +774,9 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				entity,
 				findings,
 				model,
+				nonce,
+				...(hooks.resolveInput === undefined ? {} : { resolveInput: hooks.resolveInput }),
+				seed,
 			})
 			if (outcome.kind === "stood-down" || outcome.kind === "unresolved") {
 				grades.skipped(ops, outcome.reason)
