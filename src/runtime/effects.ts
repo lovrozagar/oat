@@ -282,7 +282,10 @@ export function applyActionBind(
 	for (const [field, expr] of Object.entries(bind.body)) {
 		if (next === undefined) break
 		const value = resolveBindExpr(expr, records, beforeBody)
-		if (value !== undefined) next[field] = value
+		if (value === undefined) continue
+		/* One id bound into a list field (`ids: $.id`) stays a list. */
+		const current = next[field]
+		next[field] = Array.isArray(current) && !Array.isArray(value) ? [value] : value
 	}
 	for (const [field, expr] of Object.entries(bind.query)) {
 		const value = resolveBindExpr(expr, records, beforeBody)

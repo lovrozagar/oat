@@ -414,6 +414,11 @@ describe("bind created parent id", () => {
 			applyActionBind(readActionBind({ body: { name: "$.missing" } }), [record], undefined, { name: "old" }).body,
 		).toEqual({ name: "old" })
 		expect(
+			applyActionBind(readActionBind({ body: { ids: "$.id" } }), [{ id: "apkey_1" }], undefined, {
+				ids: ["generated"],
+			}).body,
+		).toEqual({ ids: ["apkey_1"] })
+		expect(
 			applyActionBind(
 				readActionBind({ query: { names: "$.columns_json[*].name", n: "$.n" } }),
 				[{ columns_json: [{ name: "" }], n: Number.POSITIVE_INFINITY }],
