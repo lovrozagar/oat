@@ -368,7 +368,10 @@ describe("identity self", () => {
 	it("creates the caller through the spec create before the read", async () => {
 		let stored: { display_name: string } | undefined
 		const schema = {
-			properties: { display_name: { maxLength: 50, minLength: 1, type: "string" } },
+			properties: {
+				display_name: { maxLength: 50, minLength: 1, type: "string" },
+				link_label: { maxLength: 20, type: "string" },
+			},
 			required: ["display_name"],
 			type: "object",
 		}
@@ -420,7 +423,12 @@ describe("identity self", () => {
 						return
 					}
 					if (method === "POST") {
-						const body = (await readBody(req)) as { display_name?: unknown }
+						const body = (await readBody(req)) as { display_name?: unknown; link_label?: unknown }
+						if ("link_label" in body) {
+							res.writeHead(400, { "content-type": "application/json" })
+							res.end(JSON.stringify({ error: "label without url" }))
+							return
+						}
 						if (typeof body.display_name !== "string" || body.display_name === "") {
 							res.writeHead(400, { "content-type": "application/json" })
 							res.end(JSON.stringify({ error: "invalid" }))

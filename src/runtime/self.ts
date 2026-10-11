@@ -257,6 +257,20 @@ interface CreatedCaller {
 	exchange: Exchange
 }
 
+/** Optional fields stay out. A create that pairs them (a label without its url) is a different check. */
+function requiredSchema(schema: Record<string, unknown>): Record<string, unknown> {
+	const required = Array.isArray(schema.required)
+		? schema.required.filter((name): name is string => typeof name === "string")
+		: []
+	if (required.length === 0) return schema
+	const properties = schema.properties
+	if (properties === null || typeof properties !== "object" || Array.isArray(properties)) return schema
+	const source = properties as Record<string, unknown>
+	const picked: Record<string, unknown> = {}
+	for (const name of required) if (name in source) picked[name] = source[name]
+	return { ...schema, properties: picked, required }
+}
+
 function propertyNames(schema: Record<string, unknown>): Set<string> {
 	const properties = schema.properties
 	if (properties === null || typeof properties !== "object" || Array.isArray(properties)) return new Set()
@@ -332,9 +346,10 @@ async function createCaller(
 		return findings.unresolved(SELF_CHECK_ID, input.entity.name, `${createOp.operationId} declares no request body`)
 	}
 	let body: Record<string, unknown>
+	const required = requiredSchema(schema)
 	try {
-		const [member] = buildCohort(schema, input.seed ?? 1, ["baseline"], createOp.operationId, {
-			distinct: propertyNames(schema),
+		const [member] = buildCohort(required, input.seed ?? 1, ["baseline"], createOp.operationId, {
+			distinct: propertyNames(required),
 			...(input.nonce === undefined ? {} : { nonce: input.nonce }),
 		})
 		body = member?.body ?? {}
