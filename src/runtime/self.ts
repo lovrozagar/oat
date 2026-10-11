@@ -26,11 +26,21 @@ export function selfReadIds(entity: EntityModel): string[] {
 	return entity.read === undefined ? [] : [entity.read]
 }
 
-export function selfOperationIds(entity: EntityModel): string[] {
+/** GET actions with no path id, such as a handle query on the caller. */
+export function selfActionIds(entity: EntityModel, model: SpecModel): string[] {
+	if (entity.identity !== SELF_IDENTITY) return []
+	return entity.actions.filter((id) => {
+		const op = model.byOperationId.get(id)
+		return op !== undefined && op.method.toUpperCase() === "GET" && op.pathParams.length === 0
+	})
+}
+
+export function selfOperationIds(entity: EntityModel, model?: SpecModel): string[] {
 	if (entity.identity !== SELF_IDENTITY) return []
 	const ids = [...selfReadIds(entity), entity.update].filter((id): id is string => id !== undefined)
-	if (ids.length === 0 || entity.create === undefined) return ids
-	return [entity.create, ...ids]
+	const actions = model === undefined ? [] : selfActionIds(entity, model)
+	const withCreate = ids.length === 0 || entity.create === undefined ? ids : [entity.create, ...ids]
+	return [...withCreate, ...actions]
 }
 
 export function entityIsSelf(entity: EntityModel): boolean {
@@ -127,7 +137,7 @@ export async function runSelfIdentity(input: {
 }): Promise<Outcome> {
 	const readOp = operation(input.model, input.entity.read)
 	const updateOp = operation(input.model, input.entity.update)
-	const ops = selfOperationIds(input.entity)
+	const ops = selfOperationIds(input.entity, input.model)
 	const findings = input.findings.attributed(ops).ownedBy(SELF_CHECK_ID)
 	const probe = readOp ?? updateOp
 	if (probe === undefined) return findings.unresolved(SELF_CHECK_ID, input.entity.name, "no read or update")
@@ -204,6 +214,9 @@ export async function runSelfIdentity(input: {
 			[created.exchange, read],
 		)
 	}
+
+	const acted = await runSelfActions(input, findings, created === null ? null : created.body)
+	if (acted !== null) return acted
 
 	if (updateOp === undefined) return ASSERTED
 	const updatePath = pathOf(updateOp)
@@ -381,6 +394,66 @@ async function createCaller(
 	return { body, exchange }
 }
 
+async function runSelfActions(
+	input: {
+		auth: () => Record<string, string>
+		client: Client
+		entity: EntityModel
+		model: SpecModel
+	},
+	findings: FindingCollector,
+	created: Record<string, unknown> | null,
+): Promise<Outcome | null> {
+	for (const id of selfActionIds(input.entity, input.model)) {
+		const op = operation(input.model, id)
+		if (op === undefined) continue
+		const query: Record<string, string> = {}
+		for (const name of op.queryParamNames) {
+			const value = created?.[name]
+			if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+				query[name] = String(value)
+			}
+		}
+		const missing = op.queryParamNames.filter((name) => query[name] === undefined)
+		if (missing.length > 0) {
+			return findings.unresolved(
+				SELF_CHECK_ID,
+				input.entity.name,
+				`${op.operationId} needs ${missing.join(", ")} and the create did not send it`,
+			)
+		}
+		const response = await input.client.request(op.method, op.path, {
+			headers: input.auth,
+			operationId: op.operationId,
+			query,
+		})
+		if (response.status !== 200) {
+			return findings.backend(
+				SELF_CHECK_ID,
+				input.entity.name,
+				"the caller query failed",
+				`${op.operationId} returned ${response.status} for ${JSON.stringify(query)}.`,
+				[response],
+			)
+		}
+		if (response.responseBody !== null && typeof response.responseBody === "object") {
+			const record = response.responseBody as Record<string, unknown>
+			for (const [name, value] of Object.entries(query)) {
+				if (Object.prototype.hasOwnProperty.call(record, name) && String(record[name]) !== value) {
+					return findings.backend(
+						SELF_CHECK_ID,
+						input.entity.name,
+						"the caller query answered about a different value",
+						`${op.operationId} was asked for ${name}=${value} and returned ${JSON.stringify(record[name])}.`,
+						[response],
+					)
+				}
+			}
+		}
+	}
+	return null
+}
+
 async function sendUpdate(
 	client: Client,
 	op: OperationModel,
@@ -415,5 +488,5 @@ export const selfIdentityCheck = {
 			model: ctx.model,
 		})
 	},
-	subjects: (entity: EntityModel): string[] => selfOperationIds(entity),
+	subjects: (entity: EntityModel, model?: SpecModel): string[] => selfOperationIds(entity, model),
 }

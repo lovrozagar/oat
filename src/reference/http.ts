@@ -374,14 +374,18 @@ export async function createReferenceServer(
 		return decorate(out)
 	}
 
+	const liveTokens = new Set(PRINCIPALS.map((principal) => principal.token))
+
 	function authenticate(req: IncomingMessage): Principal {
 		const header = req.headers.authorization
 		if (typeof header !== "string" || !header.startsWith("Bearer ")) {
 			throw new HttpError(401, "unauthorized", "missing bearer credential")
 		}
-		const principal = PRINCIPALS.find((p) => p.token === header.slice(7).trim())
-		if (principal === undefined) throw new HttpError(401, "unauthorized", "unrecognised credential")
-		return principal
+		const token = header.slice(7).trim()
+		if (!liveTokens.has(token)) throw new HttpError(401, "unauthorized", "unrecognised credential")
+		const principal = PRINCIPALS.find((item) => item.token === token)
+		if (principal !== undefined) return principal
+		return { key: token, projectId: "proj_alpha", rank: 2, token }
 	}
 
 	function assertWrite(principal: Principal, kind: "create" | "update" | "delete"): void {
@@ -889,6 +893,26 @@ export async function createReferenceServer(
 			if (notice[1] !== "note_1") throw new HttpError(404, "not_found", "notice note_1 does not exist")
 			const title = defects.has("LISTED_GET_DIFFERS") ? "Other" : "Hello"
 			return send(res, 200, { id: "note_1", title })
+		}
+
+		if (url.pathname === "/v1/register" && method === "POST") {
+			const token = `tok_disp_${liveTokens.size}`
+			liveTokens.add(token)
+			return send(res, 201, { access_token: token })
+		}
+
+		if (url.pathname === "/v1/logout" && method === "POST") {
+			const header = req.headers.authorization
+			const token = typeof header === "string" && header.startsWith("Bearer ") ? header.slice(7).trim() : ""
+			if (defects.has("DISPOSABLE_KILLS_CALLER")) liveTokens.clear()
+			else liveTokens.delete(token)
+			return send(res, 200, { ok: true })
+		}
+
+		const overview = /^\/v1\/projects\/([^/]+)\/overview$/.exec(url.pathname)
+		if (overview !== null && method === "GET") {
+			if (!defects.has("ROOT_READ_OPEN")) authenticate(req)
+			return send(res, 200, { extractions: 0, project_id: overview[1] ?? "" })
 		}
 
 		if (url.pathname === "/v1/me" && (method === "GET" || method === "PATCH")) {

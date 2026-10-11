@@ -11,6 +11,10 @@
 
 export const DEFECTS = {
 	/** Sort has no total order, so keyset paging silently drops and repeats rows. */
+	/** A destructive call, run as the second user, also kills the suite caller's session. */
+	DISPOSABLE_KILLS_CALLER: "logout revokes the suite caller along with the disposable session",
+	/** The caller's project read answers with no credential. */
+	ROOT_READ_OPEN: "the caller project read answers with no token",
 	UNSTABLE_SORT: "sort lacks a tiebreak; page walks drop or duplicate rows",
 	/** Writes land in the item store but the list projection serves a stale snapshot. */
 	STALE_LIST: "list projection does not reflect writes visible on the item route",

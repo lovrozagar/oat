@@ -11,6 +11,8 @@ import { canWriteFilterOp, filterTerm, selectTerm, sortTerm, sortTermWithNulls }
 import type { InviteSpec } from "../spec/extensions.ts"
 import { CHECK_IDS, type CheckId } from "./check-ids.ts"
 import { publicGetCheck } from "./one-shot.ts"
+import { disposableCheck } from "./disposable.ts"
+import { rootReadCheck } from "./root-read.ts"
 import { selfIdentityCheck } from "./self.ts"
 import type { QueryCapability } from "../spec/extensions.ts"
 import {
@@ -9145,6 +9147,8 @@ export const CHECKS: readonly Check[] = [
 	rankIsMonotonicOnWrites,
 	inviteGrantsThenRevokes,
 	selfIdentityCheck,
+	rootReadCheck,
+	disposableCheck,
 	publicGetCheck,
 
 	/* declared side effects and async lifecycles, last: both invoke operations that change the

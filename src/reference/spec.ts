@@ -519,7 +519,7 @@ export function buildSpec(dialect: Dialect = POSTGREST, ctx: SpecContext = DEFAU
 	const JOB = entityNamed(ctx, "job")
 	const paths: Json = {}
 	for (const entity of ctx.entities) Object.assign(paths, buildEntityPaths(ctx, entity, dialect))
-	Object.assign(paths, callerProfilePaths(ctx), publicReadPaths(ctx), noticePaths(ctx))
+	Object.assign(paths, callerProfilePaths(ctx), publicReadPaths(ctx), noticePaths(ctx), callerRootPaths(ctx))
 
 	paths[`${TABLE.itemPath}/invites`] = {
 		post: {
@@ -898,6 +898,87 @@ function callerProfilePaths(ctx: SpecContext): Json {
 				tags: ["Profile"],
 				"x-entity": { action: "update", identity: "self", name: "profile" },
 				"x-invalidate": ["GET /v1/me"],
+			},
+		},
+	}
+}
+
+/** A read of the caller's own project, plus a register and a logout for the disposable user. */
+function callerRootPaths(ctx: SpecContext): Json {
+	return {
+		"/v1/logout": {
+			post: {
+				operationId: "auth.logout",
+				responses: {
+					[ok(ctx, 200)]: jsonResponse("Logged out", {
+						additionalProperties: false,
+						properties: { ok: { type: "boolean" } },
+						required: ["ok"],
+						type: "object",
+					}),
+					...errorResponses(ctx, [401]),
+				},
+				summary: "Log out this session",
+				tags: ["Profile"],
+				"x-destructive": true,
+				"x-invalidate": ["GET /v1/me"],
+			},
+		},
+		"/v1/projects/{project_id}/overview": {
+			get: {
+				operationId: "project.overview",
+				parameters: [
+					{
+						in: "path",
+						name: "project_id",
+						required: true,
+						schema: { type: "string" },
+					},
+				],
+				responses: {
+					[ok(ctx, 200)]: jsonResponse("The caller's project", {
+						additionalProperties: false,
+						properties: {
+							extractions: { type: "integer" },
+							project_id: { type: "string" },
+						},
+						required: ["extractions", "project_id"],
+						type: "object",
+					}),
+					...errorResponses(ctx, [401]),
+				},
+				summary: "Read the caller's project",
+				tags: ["Profile"],
+				"x-entity": { action: "read", identity: "root", name: "overview" },
+			},
+		},
+		"/v1/register": {
+			post: {
+				operationId: "auth.register",
+				requestBody: {
+					content: {
+						"application/json": {
+							schema: {
+								additionalProperties: false,
+								properties: { email: { format: "email", type: "string" } },
+								required: ["email"],
+								type: "object",
+							},
+						},
+					},
+					required: true,
+				},
+				responses: {
+					[ok(ctx, 201)]: jsonResponse("A new caller", {
+						additionalProperties: false,
+						properties: { access_token: { type: "string" } },
+						required: ["access_token"],
+						type: "object",
+					}),
+				},
+				summary: "Register a caller",
+				tags: ["Profile"],
+				"x-fresh-principal": true,
 			},
 		},
 	}

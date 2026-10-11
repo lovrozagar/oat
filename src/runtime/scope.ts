@@ -87,6 +87,8 @@ export function untestableEntityReason(
 	if (entity.invite !== null && entity.list !== undefined) return null
 	/* The signed-up caller is the record. A read or an update is enough. */
 	if (entity.identity === "self" && (entity.read !== undefined || entity.update !== undefined)) return null
+	/* The path id is the caller's root, already bound at signup. */
+	if (entity.identity === "root" && entity.read !== undefined) return null
 	/* An action that declares x-effects can run against rows the list already returns.
 	 * The action's x-before creates the row the list does not have yet. */
 	if (

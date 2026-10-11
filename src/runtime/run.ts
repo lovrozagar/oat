@@ -39,6 +39,8 @@ import { type BackoffConfig, resolveBackoff } from "./poll.ts"
 import { type PersistedPrincipal, persistedToPrincipal, snapshotPrincipal } from "./principals.ts"
 import { CHECKS, type Actor, type WriteContext } from "./checks.ts"
 import { runPublicGets } from "./one-shot.ts"
+import { runDisposableOps } from "./disposable.ts"
+import { rootReadIds, ROOT_READ_CHECK_ID, runRootRead } from "./root-read.ts"
 import { entityIsSelf, runSelfIdentity, SELF_CHECK_ID, selfOperationIds } from "./self.ts"
 import {
 	AuthRefreshError,
@@ -759,6 +761,29 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	const testEntity = async (entity: EntityModel): Promise<void> => {
 		const listOp = model.byOperationId.get(entity.list ?? "")
 		const createOp = model.byOperationId.get(entity.create ?? "")
+		/* The path id is the caller's root. Nothing to create. */
+		if (listOp === undefined && rootReadIds(entity).length > 0) {
+			entitiesTested.push(entity.name)
+			currentEntity = entity.name
+			currentCheck = ROOT_READ_CHECK_ID
+			currentPhase = "test"
+			const ops = rootReadIds(entity)
+			checksRun.add(ROOT_READ_CHECK_ID)
+			const outcome = await runRootRead({
+				auth: alpha.headers,
+				client,
+				entity,
+				findings,
+				model,
+				roots: { ...options.roots, ...alpha.roots },
+			})
+			if (outcome.kind === "stood-down" || outcome.kind === "unresolved") {
+				grades.skipped(ops, outcome.reason)
+				return
+			}
+			grades.graded(ops, ROOT_READ_CHECK_ID)
+			return
+		}
 		/* The caller is the record. Nothing to list, and register is not a create. */
 		if (listOp === undefined) {
 			if (!entityIsSelf(entity)) return
@@ -766,7 +791,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			currentEntity = entity.name
 			currentCheck = SELF_CHECK_ID
 			currentPhase = "test"
-			const ops = selfOperationIds(entity)
+			const ops = selfOperationIds(entity, model)
 			checksRun.add(SELF_CHECK_ID)
 			const outcome = await runSelfIdentity({
 				auth: alpha.headers,
@@ -1554,6 +1579,20 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		 * was created is still removed below, and the report still written. */
 		findings.blocked("run.error", "run", "testing stopped on an unexpected error", errorText(error))
 	}
+
+	await runDisposableOps({
+		auth: alpha.headers,
+		checksRun,
+		client,
+		findings,
+		grades,
+		inScope: (operationId) => runScope.inScope(operationId),
+		mode: runScope.mode,
+		model,
+		nonce,
+		...(hooks.resolveInput === undefined ? {} : { resolveInput: hooks.resolveInput }),
+		seed,
+	})
 
 	/* Unwind after every check has run, never per case: a check may legitimately depend on records
 	 * another one created, and tearing down early turns that into a phantom defect. */

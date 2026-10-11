@@ -879,6 +879,8 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	SEARCH_IGNORED: "search.q-narrows-result",
 	CREATE_DROPS_FIELD: "create.persists-submitted-fields",
 	CALLER_UPDATE_DROPPED: "auth.self-is-the-caller",
+	DISPOSABLE_KILLS_CALLER: "auth.destructive-spares-the-caller",
+	ROOT_READ_OPEN: "read.matches-caller-root",
 	PUBLIC_GET_NOT_SUCCESS: "response.public-get-returns-success",
 	LISTED_GET_DIFFERS: "list.item-matches-listed-row",
 	STRING_PAYLOAD_MANGLED: "payload.string-survives",

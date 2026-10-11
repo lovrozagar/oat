@@ -42,6 +42,7 @@ export interface DoctorConfig {
  */
 export const TAG_UNLOCKS: Record<string, readonly string[]> = {
 	"x-async": ["async.reaches-terminal-state", "async.receipt-identifies-the-job"],
+	"x-destructive": ["auth.destructive-spares-the-caller"],
 	"x-effects": ["effects.declared-effect-occurs"],
 	"x-immutable": ["patch.immutable-field-rejected"],
 	"x-invalidate": ["invalidation.declared-route-changes"],
@@ -78,7 +79,7 @@ export const TAG_UNLOCKS: Record<string, readonly string[]> = {
 	"x-wait": ["effects.side-effect-arrives"],
 	"x-invite": ["auth.invite-grants-then-revokes"],
 	/* identity: self is an x-entity value. Strip the tag and the caller is no longer the record. */
-	"x-entity": ["auth.self-is-the-caller"],
+	"x-entity": ["auth.self-is-the-caller", "read.matches-caller-root"],
 	"x-unique": ["create.unique-conflict-rejected", "update.unique-conflict-rejected"],
 }
 
