@@ -31,14 +31,15 @@ export function signupOperationId(auth: PrincipalAuth | undefined): string | und
 	return undefined
 }
 
+function looksLikeSignup(op: OperationModel): boolean {
+	if (/passkey/i.test(op.operationId) || /passkey/i.test(op.path)) return false
+	return REGISTER_LIKE.test(op.operationId) || REGISTER_LIKE.test(op.path)
+}
+
 function registerOperation(model: SpecModel, preferredId?: string): OperationModel | undefined {
-	if (preferredId !== undefined) {
-		const preferred = model.byOperationId.get(preferredId)
-		if (preferred !== undefined) return preferred
-	}
-	const fresh = model.operations.find((op) => op.freshPrincipal)
-	if (fresh !== undefined) return fresh
-	return model.operations.find((op) => REGISTER_LIKE.test(op.path) && !/passkey/i.test(op.operationId))
+	const preferred = preferredId === undefined ? undefined : model.byOperationId.get(preferredId)
+	if (preferred !== undefined && (preferred.freshPrincipal || looksLikeSignup(preferred))) return preferred
+	return model.operations.find((op) => op.freshPrincipal || looksLikeSignup(op))
 }
 
 function callerRead(model: SpecModel): OperationModel | undefined {
