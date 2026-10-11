@@ -80,9 +80,13 @@ export async function runDisposableOps(input: {
 	let body: Record<string, unknown> = {}
 	if (schema !== null) {
 		try {
-			const [member] = buildCohort(requiredSchema(schema), input.seed ?? 1, ["baseline"], register.operationId, {
-				...(input.nonce === undefined ? {} : { nonce: input.nonce }),
-			})
+			const [member] = buildCohort(
+				requiredSchema(schema),
+				input.seed ?? 1,
+				["baseline"],
+				register.operationId,
+				input.nonce === undefined ? {} : { nonce: input.nonce },
+			)
 			body = member?.body ?? {}
 		} catch (error) {
 			if (!isOverflowError(error)) throw error
