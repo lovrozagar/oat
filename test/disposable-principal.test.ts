@@ -62,6 +62,15 @@ function spec(): OpenApiDocument {
 					"x-entity": { action: "update", identity: "self", name: "profile" },
 				},
 			},
+			"/v1/passkeys/register/options": {
+				post: {
+					operationId: "auth.passkeyRegisterOptions",
+					responses: {
+						"200": { description: "ok" },
+						"401": { description: "unauthorized" },
+					},
+				},
+			},
 			"/v1/register": {
 				post: {
 					operationId: "auth.register",
@@ -111,6 +120,11 @@ async function serve(killCaller: boolean): Promise<string> {
 				return
 			}
 			const token = typeof req.headers.authorization === "string" ? req.headers.authorization.slice(7).trim() : ""
+			if (url.pathname === "/v1/passkeys/register/options") {
+				res.writeHead(401, { "content-type": "application/json" })
+				res.end(JSON.stringify({ error: "unauthorized" }))
+				return
+			}
 			if (url.pathname === "/v1/register" && method === "POST") {
 				const tokenId = `disp-${names.size}`
 				names.set(tokenId, "Ada")

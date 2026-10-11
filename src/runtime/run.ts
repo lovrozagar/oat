@@ -39,7 +39,7 @@ import { type BackoffConfig, resolveBackoff } from "./poll.ts"
 import { type PersistedPrincipal, persistedToPrincipal, snapshotPrincipal } from "./principals.ts"
 import { CHECKS, type Actor, type WriteContext } from "./checks.ts"
 import { runPublicGets } from "./one-shot.ts"
-import { runDisposableOps } from "./disposable.ts"
+import { runDisposableOps, signupOperationId } from "./disposable.ts"
 import { rootReadIds, ROOT_READ_CHECK_ID, runRootRead } from "./root-read.ts"
 import { entityIsSelf, runSelfIdentity, SELF_CHECK_ID, selfOperationIds } from "./self.ts"
 import {
@@ -1580,6 +1580,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		findings.blocked("run.error", "run", "testing stopped on an unexpected error", errorText(error))
 	}
 
+	const registerOperationId = signupOperationId(options.principals[0]?.auth)
 	await runDisposableOps({
 		auth: alpha.headers,
 		checksRun,
@@ -1590,6 +1591,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		mode: runScope.mode,
 		model,
 		nonce,
+		...(registerOperationId === undefined ? {} : { registerOperationId }),
 		...(hooks.resolveInput === undefined ? {} : { resolveInput: hooks.resolveInput }),
 		seed,
 	})

@@ -13,7 +13,7 @@ import type { GradeLedger } from "./scope.ts"
 import { buildCohort, isOverflowError } from "./fixture.ts"
 import { applyResolveInput } from "./input.ts"
 import { requestSchemaOf } from "./world.ts"
-import type { Hooks } from "../config/define-config.ts"
+import type { Hooks, PrincipalAuth } from "../config/define-config.ts"
 
 export const DISPOSABLE_CHECK_ID = "auth.destructive-spares-the-caller" as const satisfies CheckId
 
@@ -23,14 +23,32 @@ export function destructiveOps(model: SpecModel): OperationModel[] {
 	return model.operations.filter((op) => op.destructive)
 }
 
-function registerOperation(model: SpecModel): OperationModel | undefined {
-	return model.operations.find(
-		(op) => op.freshPrincipal || REGISTER_LIKE.test(op.operationId) || REGISTER_LIKE.test(op.path),
-	)
+export function signupOperationId(auth: PrincipalAuth | undefined): string | undefined {
+	if (auth === undefined || !("steps" in auth)) return undefined
+	for (const step of auth.steps) {
+		if ("operationId" in step && typeof step.operationId === "string") return step.operationId
+	}
+	return undefined
+}
+
+function registerOperation(model: SpecModel, preferredId?: string): OperationModel | undefined {
+	if (preferredId !== undefined) {
+		const preferred = model.byOperationId.get(preferredId)
+		if (preferred !== undefined) return preferred
+	}
+	const fresh = model.operations.find((op) => op.freshPrincipal)
+	if (fresh !== undefined) return fresh
+	return model.operations.find((op) => REGISTER_LIKE.test(op.path) && !/passkey/i.test(op.operationId))
 }
 
 function callerRead(model: SpecModel): OperationModel | undefined {
-	return model.operations.find((op) => op.identity === "self" && op.action === "read" && op.pathParams.length === 0)
+	const reads = model.operations.filter(
+		(op) => op.identity === "self" && op.action === "read" && op.pathParams.length === 0,
+	)
+	return (
+		reads.find((op) => op.operationId === "auth.getProfile" || op.path === "/v1/auth/me" || op.path === "/v1/me") ??
+		reads[0]
+	)
 }
 
 function requiredSchema(schema: Record<string, unknown>): Record<string, unknown> {
@@ -62,6 +80,8 @@ export async function runDisposableOps(input: {
 	mode: "full" | "targeted"
 	model: SpecModel
 	nonce?: string
+	/** The suite principal's signup operation, when its auth flow names one. */
+	registerOperationId?: string
 	resolveInput?: Hooks["resolveInput"]
 	seed?: number
 }): Promise<void> {
@@ -69,7 +89,7 @@ export async function runDisposableOps(input: {
 	if (ops.length === 0) return
 	input.checksRun?.add(DISPOSABLE_CHECK_ID)
 	const ids = ops.map((op) => op.operationId)
-	const register = registerOperation(input.model)
+	const register = registerOperation(input.model, input.registerOperationId)
 	const read = callerRead(input.model)
 	if (register === undefined || read === undefined) {
 		const reason = register === undefined ? "no register operation" : "no caller read"
