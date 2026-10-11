@@ -1,5 +1,0 @@
-description = "Low reasoning role"
-default_capability_mode = "all"
-reasoning_effort = "low"
-model = "grok-4.5"
-default_fork_context = false
