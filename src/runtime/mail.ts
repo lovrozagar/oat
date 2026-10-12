@@ -28,7 +28,7 @@ export interface MailPair {
 export function mailPairs(model: SpecModel): MailPair[] {
 	const pairs: MailPair[] = []
 	for (const consumer of model.operations) {
-		if (consumer.method !== "POST") continue
+		if (consumer.method !== "POST" && !(consumer.method === "GET" && consumer.invalidates.some((item) => item.startsWith("GET ")))) continue
 		if (spentField(consumer, model) === null) continue
 		const sender = senderFor(model, consumer)
 		if (sender === undefined) continue

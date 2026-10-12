@@ -374,6 +374,24 @@ function newsletterDocument(): OpenApiDocument {
 	} as OpenApiDocument
 }
 
+function unsubscribeGetDocument(): OpenApiDocument {
+	const base = newsletterDocument()
+	return {
+		...base,
+		paths: {
+			...base.paths,
+			"/v1/newsletter/unsubscribe": {
+				get: {
+					operationId: "newsletter.unsubscribeGet",
+					parameters: [{ in: "query", name: "token", required: true, schema: { type: "string" } }],
+					responses: { "200": { description: "ok" } },
+					"x-invalidate": ["GET /v1/newsletter/preferences"],
+				},
+			},
+		},
+	} as OpenApiDocument
+}
+
 function inviteDocument(): OpenApiDocument {
 	const base = document()
 	const inviteTag = (accept: string) => ({
@@ -1038,6 +1056,63 @@ describe("mail token", () => {
 		expect(result.scope.operations.find((op) => op.operationId === "newsletter.unsubscribe")?.status).toBe("passed")
 		expect([...state.values()][0]?.topics[0]?.subscribed).toBe(true)
 		expect([...state.values()].some((row) => row.status === "unsubscribed")).toBe(true)
+	})
+
+	it("unsubscribes from the mailed token with a GET", async () => {
+		const state = new Map<string, { status: string }>()
+		const mail = new Map<string, string>()
+		const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+			void (async () => {
+				const url = new URL(req.url ?? "/", "http://127.0.0.1")
+				const method = (req.method ?? "GET").toUpperCase()
+				const chunks: Buffer[] = []
+				for await (const chunk of req) chunks.push(chunk as Buffer)
+				const raw = Buffer.concat(chunks).toString("utf8")
+				const body = raw === "" ? {} : (JSON.parse(raw) as Record<string, unknown>)
+				const token = typeof req.headers.authorization === "string" ? req.headers.authorization.slice(7).trim() : ""
+				const send = (status: number, payload: unknown) => {
+					res.writeHead(status, { "content-type": "application/json" })
+					res.end(JSON.stringify(payload))
+				}
+				if (url.pathname === "/openapi.json" && method === "GET") return send(200, unsubscribeGetDocument())
+				if (url.pathname === "/v1/register" && method === "POST") return send(201, { access_token: "reg" })
+				if (url.pathname === "/v1/me" && method === "GET") {
+					if (token === "alpha" || token === "reg") return send(200, { email: "ada@example.test", first_name: "Ada" })
+					return send(401, { error: "unauthorized" })
+				}
+				if (url.pathname === "/v1/newsletter/subscribe" && method === "POST") {
+					state.set(String(body.email), { status: "pending" })
+					mail.set(String(body.email), "https://example.test/newsletter/confirm?token=tok-get")
+					return send(202, { status: "accepted" })
+				}
+				if (url.pathname === "/v1/newsletter/preferences" && method === "GET") {
+					const row = state.get([...mail.keys()][0] ?? "")
+					if (url.searchParams.get("token") !== "tok-get" || row === undefined) return send(401, { error_key: "bad" })
+					return send(200, row)
+				}
+				if (url.pathname === "/v1/newsletter/unsubscribe" && method === "GET") {
+					const row = [...state.values()][0]
+					if (url.searchParams.get("token") !== "tok-get" || row === undefined) return send(401, { error_key: "bad" })
+					row.status = "unsubscribed"
+					return send(200, { success: true })
+				}
+				return send(404, { error: "missing" })
+			})()
+		})
+		await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+		const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+		open.push({ close: () => new Promise<void>((resolve) => server.close(() => resolve())) })
+		const result = await run({
+			baseUrl: url,
+			hooks: { resolveOutOfBand: async (req) => mail.get(req.address) ?? null },
+			nonce: "n1",
+			ops: ["newsletter.unsubscribeGet"],
+			principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+			seed: 1,
+			spec: `${url}/openapi.json`,
+		})
+		expect(result.scope.operations.find((op) => op.operationId === "newsletter.unsubscribeGet")?.status).toBe("passed")
+		expect([...state.values()][0]?.status).toBe("unsubscribed")
 	})
 
 	it("accepts a collaborator invite, resends it, and declines another", async () => {
