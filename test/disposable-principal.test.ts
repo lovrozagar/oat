@@ -276,6 +276,132 @@ async function serveRefresh(refreshLives: boolean): Promise<string> {
 	return url
 }
 
+function passwordSpec(): OpenApiDocument {
+	const document = spec()
+	const paths = document.paths as Record<string, Record<string, unknown>>
+	delete paths["/v1/logout"]
+	const json = (required: string[]) => ({
+		content: {
+			"application/json": {
+				schema: {
+					properties: Object.fromEntries(required.map((name) => [name, { type: "string" }])),
+					required,
+					type: "object",
+				},
+			},
+		},
+		required: true,
+	})
+	paths["/v1/reauth"] = {
+		post: {
+			operationId: "auth.reauthenticate",
+			requestBody: json(["password"]),
+			responses: { "200": { description: "ok" }, "401": { description: "unauthorized" } },
+		},
+	}
+	paths["/v1/password/change"] = {
+		post: {
+			operationId: "auth.changePassword",
+			requestBody: json(["current_password", "new_password"]),
+			responses: { "200": { description: "ok" }, "401": { description: "unauthorized" } },
+			"x-destructive": true,
+		},
+	}
+	paths["/v1/password/set"] = {
+		post: {
+			operationId: "auth.setPassword",
+			requestBody: json(["password"]),
+			responses: {
+				"200": { description: "ok" },
+				"401": { description: "unauthorized" },
+				"403": { description: "reauth" },
+			},
+			"x-destructive": true,
+		},
+	}
+	return document
+}
+
+async function servePasswordRotation(): Promise<string> {
+	const document = passwordSpec()
+	const names = new Map<string, string>([
+		["alpha", "Ada"],
+		["t1", "Ada"],
+	])
+	let live = "t1"
+	const stamped = new Set<string>()
+	const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+		void (async () => {
+			const url = new URL(req.url ?? "/", "http://127.0.0.1")
+			const method = (req.method ?? "GET").toUpperCase()
+			if (url.pathname === "/openapi.json" && method === "GET") {
+				res.writeHead(200, { "content-type": "application/json" })
+				res.end(JSON.stringify(document))
+				return
+			}
+			const chunks: Buffer[] = []
+			for await (const chunk of req) chunks.push(chunk as Buffer)
+			const raw = Buffer.concat(chunks).toString("utf8")
+			const body = raw === "" ? {} : (JSON.parse(raw) as Record<string, unknown>)
+			const token = typeof req.headers.authorization === "string" ? req.headers.authorization.slice(7).trim() : ""
+			const send = (status: number, payload: unknown) => {
+				res.writeHead(status, { "content-type": "application/json" })
+				res.end(JSON.stringify(payload))
+			}
+			if (url.pathname === "/v1/register" && method === "POST") {
+				names.set("t1", "Ada")
+				send(201, {
+					access_token: "t1",
+					current_password: "secret",
+					new_password: "secret2",
+					password: "secret",
+					refresh_token: "r1",
+				})
+				return
+			}
+			if (url.pathname === "/v1/me" && method === "GET") {
+				if (!names.has(token)) return send(401, { error: "unauthorized" })
+				send(200, { first_name: names.get(token) })
+				return
+			}
+			if (url.pathname === "/v1/me" && method === "PATCH") {
+				if (!names.has(token)) return send(401, { error: "unauthorized" })
+				if (typeof body.first_name === "string") names.set(token, body.first_name)
+				send(200, { first_name: names.get(token) })
+				return
+			}
+			if (url.pathname === "/v1/reauth" && method === "POST") {
+				if (token !== live) return send(401, { error: "unauthorized" })
+				stamped.add(token)
+				send(200, { reauthenticated_until: Date.now() + 600_000 })
+				return
+			}
+			if (url.pathname === "/v1/password/change" && method === "POST") {
+				if (token !== live) return send(401, { error: "unauthorized" })
+				live = "t2"
+				names.set("t2", "Ada")
+				stamped.delete("t1")
+				send(200, { access_token: "t2", refresh_token: "r2" })
+				return
+			}
+			if (url.pathname === "/v1/logout" && method === "POST") {
+				send(200, { ok: true })
+				return
+			}
+			if (url.pathname === "/v1/password/set" && method === "POST") {
+				if (token !== live || !stamped.has(token)) return send(403, { error: "reauth" })
+				send(200, { ok: true })
+				return
+			}
+			send(404, { error: "missing" })
+		})()
+	})
+	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+	const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+	open.push({ close: () => new Promise<void>((resolve) => server.close(() => resolve())) })
+	return url
+}
+
 async function runDisposable(baseUrl: string) {
 	return run({
 		baseUrl,
@@ -382,6 +508,17 @@ describe("disposable principal", () => {
 		expect(defects.map((finding) => finding.summary ?? finding.check)).toContain(
 			"the disposable session was still accepted",
 		)
+	})
+
+	it("reauths on the token a password change just issued", async () => {
+		const url = await servePasswordRotation()
+		const result = await runDisposable(url)
+		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
+		expect(defects).toEqual([])
+		expect(result.scope.operations.find((op) => op.operationId === "auth.setPassword")?.status).toBe("passed")
+		const set = result.client.transcript.filter((exchange) => exchange.url.endsWith("/v1/password/set"))
+		expect(set.at(-1)?.status).toBe(200)
+		expect(set.at(-1)?.requestHeaders.authorization).toBe("Bearer t2")
 	})
 
 	it("reports a logout that also kills the suite session", async () => {

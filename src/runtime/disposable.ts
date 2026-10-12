@@ -120,6 +120,7 @@ export async function runDisposableOps(input: {
 	let headers: () => Record<string, string>
 	let issued: Record<string, unknown>
 	let signupExchange: Exchange | undefined
+	let adopt = (_body: unknown): void => undefined
 	if (flowSignsUp && flow !== null && input.hooks !== undefined) {
 		let session: Awaited<ReturnType<typeof sessionFromFlow>>
 		try {
@@ -155,14 +156,15 @@ export async function runDisposableOps(input: {
 		}
 		headers = session.headers
 		issued = session.known
+		adopt = session.adopt
 	} else {
 		const acquired = await sessionFromRegister(register, input)
 		if (acquired === null) return
 		headers = acquired.headers
 		issued = acquired.issued
 		signupExchange = acquired.exchange
+		adopt = acquired.adopt
 	}
-	await reauthenticate(input.model, input.client, headers, issued)
 	const ordered = [...ops].sort((a, b) => destructiveRank(a, read.path) - destructiveRank(b, read.path))
 	for (const op of ordered) {
 		const blame = input.findings.attributed([op.operationId]).ownedBy(DISPOSABLE_CHECK_ID)
@@ -175,12 +177,18 @@ export async function runDisposableOps(input: {
 			input.grades.graded([op.operationId], DISPOSABLE_CHECK_ID)
 			continue
 		}
+		await reauthenticate(input.model, input.client, headers, issued)
 		const sent = bodyFrom(requestSchemaOf(op, input.model), issued)
 		const called = await input.client.request(op.method, path, {
 			...(Object.keys(sent).length === 0 ? {} : { body: sent }),
 			headers,
 			operationId: op.operationId,
 		})
+		adopt(called.responseBody)
+		if (called.status >= 200 && called.status < 300 && typeof sent.new_password === "string") {
+			issued.password = sent.new_password
+			issued.current_password = sent.new_password
+		}
 		if (called.status < 200 || called.status >= 300) {
 			blame.backend(
 				DISPOSABLE_CHECK_ID,
@@ -207,7 +215,7 @@ export async function runDisposableOps(input: {
 			input.grades.graded([op.operationId], DISPOSABLE_CHECK_ID)
 			continue
 		}
-		const endsSession = op.invalidates.some((route) => route.endsWith(read.path))
+		const endsSession = /logout|deleteaccount|account\/delete/i.test(`${op.operationId} ${op.path}`)
 		if (endsSession) {
 			const gone = await input.client.request(read.method, read.path, {
 				headers,
@@ -240,9 +248,12 @@ export async function runDisposableOps(input: {
 	}
 }
 
-function destructiveRank(op: OperationModel, callerPath: string): number {
-	if (/deleteaccount|account\/delete/i.test(`${op.operationId} ${op.path}`)) return 2
-	if (op.invalidates.some((route) => route.endsWith(callerPath))) return 1
+function destructiveRank(op: OperationModel, _callerPath: string): number {
+	const label = `${op.operationId} ${op.path}`
+	/* Deleting the account has to see a live reauth window, so it runs after the other calls
+	 * and before logout, which revokes that session. */
+	if (/deleteaccount|account\/delete/i.test(label)) return 2
+	if (/logout/i.test(label)) return 3
 	return 0
 }
 
@@ -306,7 +317,11 @@ async function sessionFromFlow(
 		nonce?: string
 		outOfBand?: Partial<BackoffConfig>
 	},
-): Promise<{ headers: () => Record<string, string>; known: Record<string, unknown> } | null> {
+): Promise<{
+	adopt: (body: unknown) => void
+	headers: () => Record<string, string>
+	known: Record<string, unknown>
+} | null> {
 	if (input.hooks === undefined) return null
 	const email = disposableAddress(flow, input.nonce ?? "user")
 	const password = signupPassword(flow)
@@ -327,7 +342,16 @@ async function sessionFromFlow(
 	const refresh = principal.scope.refreshToken
 	if (refresh !== undefined) known.refresh_token = refresh
 	for (const [key, value] of Object.entries(principal.scope)) known[key] = value
-	return { headers: principal.headers, known }
+	return {
+		adopt(body: unknown) {
+			if (body === null || typeof body !== "object") return
+			const record = body as Record<string, unknown>
+			if (typeof record.access_token === "string") principal.adoptCredential(record.access_token)
+			if (typeof record.refresh_token === "string") known.refresh_token = record.refresh_token
+		},
+		headers: principal.headers,
+		known,
+	}
 }
 
 async function sessionFromRegister(
@@ -341,7 +365,12 @@ async function sessionFromRegister(
 		resolveInput?: Hooks["resolveInput"]
 		seed?: number
 	},
-): Promise<{ exchange: Exchange; headers: () => Record<string, string>; issued: Record<string, unknown> } | null> {
+): Promise<{
+	adopt: (body: unknown) => void
+	exchange: Exchange
+	headers: () => Record<string, string>
+	issued: Record<string, unknown>
+} | null> {
 	const ids = destructiveOps(input.model).map((op) => op.operationId)
 	const read = callerRead(input.model)
 	const schema = requestSchemaOf(register, input.model)
@@ -387,7 +416,26 @@ async function sessionFromRegister(
 		input.grades.graded(ids, DISPOSABLE_CHECK_ID)
 		return null
 	}
-	return { exchange, headers: () => ({ authorization: `Bearer ${token}` }), issued }
+	if (typeof body.password === "string") {
+		issued.password = body.password
+		issued.current_password = body.password
+		issued.new_password = `${body.password}2`
+	}
+	const cred = { token }
+	return {
+		adopt(next: unknown) {
+			if (next === null || typeof next !== "object") return
+			const record = next as Record<string, unknown>
+			if (typeof record.access_token === "string") {
+				cred.token = record.access_token
+				issued.access_token = record.access_token
+			}
+			if (typeof record.refresh_token === "string") issued.refresh_token = record.refresh_token
+		},
+		exchange,
+		headers: () => ({ authorization: `Bearer ${cred.token}` }),
+		issued,
+	}
 }
 
 function rootsFor(map: Record<string, string> | undefined, known: Record<string, unknown>): Record<string, string> {
