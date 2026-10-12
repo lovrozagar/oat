@@ -359,6 +359,58 @@ describe("mail token", () => {
 		}
 	})
 
+	it("ignores a verification mail that arrived before this send", async () => {
+		let sent = false
+		let verified = false
+		const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+			void (async () => {
+				const url = new URL(req.url ?? "/", "http://127.0.0.1")
+				const method = (req.method ?? "GET").toUpperCase()
+				const chunks: Buffer[] = []
+				for await (const chunk of req) chunks.push(chunk as Buffer)
+				const raw = Buffer.concat(chunks).toString("utf8")
+				const body = raw === "" ? {} : (JSON.parse(raw) as Record<string, unknown>)
+				const token = typeof req.headers.authorization === "string" ? req.headers.authorization.slice(7).trim() : ""
+				const send = (status: number, payload: unknown) => {
+					res.writeHead(status, { "content-type": "application/json" })
+					res.end(JSON.stringify(payload))
+				}
+				if (url.pathname === "/openapi.json" && method === "GET") return send(200, verifyDocument())
+				if (url.pathname === "/v1/register" && method === "POST") return send(201, { access_token: "t-reg" })
+				if (url.pathname === "/v1/me" && method === "GET") {
+					if (token === "alpha") return send(200, { email: "alpha@example.test", first_name: "Ada" })
+					if (token !== "t-reg" && token !== "t-verified") return send(401, { error: "unauthorized" })
+					return send(200, { email: "mail@example.test", first_name: "Ada", verified })
+				}
+				if (url.pathname === "/v1/auth/email/request-verification" && method === "POST") {
+					sent = true
+					return send(200, { success: true })
+				}
+				if (url.pathname === "/v1/auth/email/verify" && method === "POST") {
+					if (body.token !== "tok-verify") return send(400, { error_key: "bad_token" })
+					verified = true
+					return send(200, { access_token: "t-verified" })
+				}
+				return send(404, { error: "missing" })
+			})()
+		})
+		await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+		const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+		open.push({ close: () => new Promise<void>((resolve) => server.close(() => resolve())) })
+		const oldLink = "https://example.test/verify-email?token=tok-old"
+		const newLink = "https://example.test/verify-email?token=tok-verify"
+		const result = await run({
+			baseUrl: url,
+			hooks: { resolveOutOfBand: async () => (sent ? newLink : oldLink) },
+			nonce: "n1",
+			principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+			seed: 1,
+			spec: `${url}/openapi.json`,
+		})
+		expect(result.scope.operations.find((op) => op.operationId === "auth.verifyEmail")?.status).toBe("passed")
+		expect(verified).toBe(true)
+	})
+
 	it("reports a token whose session cannot read the profile", async () => {
 		const { box, url } = await serve(false)
 		const result = await runMail(url, box)

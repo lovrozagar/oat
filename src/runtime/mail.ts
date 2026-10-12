@@ -11,8 +11,9 @@ import type { FindingCollector } from "./finding.ts"
 import { buildCohort } from "./fixture.ts"
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
 import type { GradeLedger } from "./scope.ts"
-import { resolveOutOfBandValue } from "./auth.ts"
+import type { OutOfBandRequest } from "../config/define-config.ts"
 import type { BackoffConfig } from "./poll.ts"
+import { isAbsentValue, pollWithBackoff, resolveBackoff } from "./poll.ts"
 import { fillPath, requestSchemaOf } from "./world.ts"
 
 export const MAIL_CHECK_ID = "mail.token-changes-the-caller"
@@ -100,6 +101,8 @@ export async function runMailOps(input: {
 			headers = opened
 		}
 		const sent = await senderBody(input, pair.sender, email, nextEmail)
+		const hint = mailHint(input.model, pair.sender)
+		const stale = await peekMail(input, email, hint)
 		let called = await input.client.request(pair.sender.method, pair.sender.path, {
 			...(Object.keys(sent).length === 0 ? {} : { body: sent }),
 			...(headers === undefined ? {} : { headers }),
@@ -129,7 +132,7 @@ export async function runMailOps(input: {
 			input.grades.graded(ids, MAIL_CHECK_ID)
 			continue
 		}
-		const token = await mailed(input, email, mailHint(input.model, pair.sender))
+		const token = await mailed(input, email, hint, stale)
 		if (token === null) {
 			blame.backend(
 				MAIL_CHECK_ID,
@@ -385,21 +388,41 @@ async function reauth(
 	})
 }
 
-async function mailed(
-	input: { hooks?: Hooks; outOfBand?: Partial<BackoffConfig> },
+async function peekMail(
+	input: { hooks?: Hooks },
 	address: string,
 	kind: string,
 ): Promise<string | null> {
 	if (input.hooks?.resolveOutOfBand === undefined) return null
 	try {
-		const value = await resolveOutOfBandValue(input.hooks.resolveOutOfBand, address, kind, {
-			label: kind,
-			...(input.outOfBand === undefined ? {} : { outOfBand: input.outOfBand }),
-		})
-		return tokenFrom(value)
+		const value = await input.hooks.resolveOutOfBand(outOfBandRequest(address, kind, 1))
+		return typeof value === "string" && value !== "" ? value : null
 	} catch {
 		return null
 	}
+}
+
+async function mailed(
+	input: { hooks?: Hooks; outOfBand?: Partial<BackoffConfig> },
+	address: string,
+	kind: string,
+	stale: string | null,
+): Promise<string | null> {
+	if (input.hooks?.resolveOutOfBand === undefined) return null
+	try {
+		const value = await pollWithBackoff(
+			(attempt) => input.hooks?.resolveOutOfBand?.(outOfBandRequest(address, kind, attempt)) ?? Promise.resolve(null),
+			resolveBackoff(input.outOfBand),
+			(item) => isAbsentValue(item) || item === stale,
+		)
+		return typeof value === "string" && value !== "" && value !== stale ? tokenFrom(value) : null
+	} catch {
+		return null
+	}
+}
+
+function outOfBandRequest(address: string, kind: string, attempt: number): OutOfBandRequest {
+	return { address, attempt, headers: {}, kind, scope: {} }
 }
 
 function generatedBody(
