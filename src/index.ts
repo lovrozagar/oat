@@ -18,6 +18,7 @@ export type {
 	OutOfBandConfig,
 	OutOfBandRequest,
 	OutOfBandStep,
+	PathValueRequest,
 	Principal,
 	PrincipalAuth,
 	PrincipalAuthResult,

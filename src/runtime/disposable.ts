@@ -20,6 +20,7 @@ import { isHookAuth } from "../config/define-config.ts"
 import { createHmac } from "node:crypto"
 import { createPrincipal, readPath, resolveOutOfBandValue } from "./auth.ts"
 import { sleep, type BackoffConfig } from "./poll.ts"
+import { createSoftAuthenticator } from "./webauthn-soft.ts"
 
 export const DISPOSABLE_CHECK_ID = "auth.destructive-spares-the-caller" as const satisfies CheckId
 
@@ -235,6 +236,19 @@ export async function runDisposableOps(input: {
 				"the suite caller was logged out",
 				`${op.operationId} ran as the second user, and the suite ${read.operationId} then returned ${caller.status}.`,
 				[called, caller],
+			)
+			input.grades.graded([op.operationId], DISPOSABLE_CHECK_ID)
+			continue
+		}
+		const remains = await credentialRemains(input.client, input.model, op, values, headers)
+		if (remains) {
+			const followUp = input.client.transcript.at(-1)
+			blame.backend(
+				DISPOSABLE_CHECK_ID,
+				op.entity ?? read.entity ?? "caller",
+				"the credential was still listed",
+				`${op.operationId} returned ${called.status}, and the follow-up list still contained the value this call deleted.`,
+				followUp === undefined ? [called] : [called, followUp],
 			)
 			input.grades.graded([op.operationId], DISPOSABLE_CHECK_ID)
 			continue
@@ -544,7 +558,17 @@ function createScene(scene: Scene): SceneRuntime {
 	return {
 		completeBody: (op, body) => completeBody(scene, op, body, nextCode),
 		note,
-		pathValues: (op, roots) => pathValues(scene, op, roots, backups, nextCode),
+		pathValues: (op, roots) =>
+			pathValues(scene, op, roots, backups, nextCode, () =>
+				reauthenticate(
+					scene,
+					() => stampedBearer,
+					(value) => {
+						stampedBearer = value
+					},
+					nextCode,
+				),
+			),
 		reauthenticate: () =>
 			reauthenticate(
 				scene,
@@ -596,11 +620,7 @@ async function reauthenticate(
 		if (code !== null) body.two_factor_code = code
 	}
 	if (Object.keys(body).length === 0) return
-	let called = await scene.client.request(op.method, op.path, {
-		body,
-		headers: scene.headers,
-		operationId: op.operationId,
-	})
+	let called = await requestAllowingRateLimit(scene, op, op.path, { body, headers: scene.headers })
 	if (
 		called.status >= 400 &&
 		called.status < 500 &&
@@ -610,11 +630,7 @@ async function reauthenticate(
 		const code = await nextCode()
 		if (code !== null) {
 			body.two_factor_code = code
-			called = await scene.client.request(op.method, op.path, {
-				body,
-				headers: scene.headers,
-				operationId: op.operationId,
-			})
+			called = await requestAllowingRateLimit(scene, op, op.path, { body, headers: scene.headers })
 			scene.known.totp_on = true
 		}
 	}
@@ -829,12 +845,23 @@ async function pathValues(
 	roots: Record<string, string>,
 	backups: string[],
 	nextCode: () => Promise<string | null>,
+	ensureReauth: () => Promise<void>,
 ): Promise<Record<string, string>> {
 	const values = { ...roots }
 	for (const param of op.pathParams) {
 		if (values[param] !== undefined) continue
-		const id = await discoverPathId(scene, op, backups, nextCode)
-		if (id !== null) values[param] = id
+		const listed = await listedParam(scene, op, param)
+		if (listed !== null) {
+			values[param] = listed
+			continue
+		}
+		const id = await discoverPathId(scene, op, backups, nextCode, ensureReauth)
+		if (id !== null) {
+			values[param] = id
+			continue
+		}
+		const hooked = await hookedParam(scene, op, param)
+		if (hooked !== null) values[param] = hooked
 	}
 	return values
 }
@@ -844,6 +871,7 @@ async function discoverPathId(
 	op: OperationModel,
 	backups: string[],
 	nextCode: () => Promise<string | null>,
+	ensureReauth: () => Promise<void>,
 ): Promise<string | null> {
 	const parent = op.path.replace(/\/\{[^}]+\}$/, "")
 	const list = scene.model.operations.find((item) => item.method === "GET" && item.path === parent)
@@ -864,7 +892,10 @@ async function discoverPathId(
 	}
 	const existing = await read()
 	if (existing !== null) return existing
-	if (!itemHas(list, scene.model, ["expires_at"]) || scene.known.totp_on !== true) return null
+	/* A passkey list has an id and no expiry. A trusted-device list has both, and only that one
+	 * is created by a second login. */
+	if (!itemHas(list, scene.model, ["expires_at"])) return registerPasskey(scene, list, ensureReauth)
+	if (scene.known.totp_on !== true) return null
 	const email = scene.known.email
 	const password = scene.known.password
 	const login = scene.model.operations.find((item) => {
@@ -880,6 +911,286 @@ async function discoverPathId(
 	})
 	await finishSecondFactor(scene, signed.responseBody, nextCode, true, backups)
 	return read()
+}
+
+const RATE_LIMIT_WAIT_MS = 13_000
+
+async function requestAllowingRateLimit(
+	scene: Scene,
+	op: OperationModel,
+	path: string,
+	init: { body?: Record<string, unknown>; headers: (() => Record<string, string>) | Record<string, string> },
+): Promise<Exchange> {
+	let called: Exchange | undefined
+	for (let attempt = 0; attempt < 4; attempt++) {
+		called = await scene.client.request(op.method, path, {
+			...(init.body === undefined ? {} : { body: init.body }),
+			headers: init.headers,
+			operationId: op.operationId,
+		})
+		if (called.status !== 429 || attempt === 3) return called
+		await sleep(RATE_LIMIT_WAIT_MS)
+	}
+	return called as Exchange
+}
+
+async function listedParam(scene: Scene, op: OperationModel, param: string): Promise<string | null> {
+	const list = parentList(scene, op)
+	if (list === undefined || !itemHas(list, scene.model, [param])) return null
+	const listed = await readList(scene, list)
+	if (listed === null) return null
+	const skipEmail = recordFlag(listed.responseBody, "has_password")
+	for (const row of recordsOf(listed.responseBody, list, scene.model)) {
+		const value = row[param]
+		if (typeof value !== "string" || value === "") continue
+		if (skipEmail && value === "email") continue
+		return value
+	}
+	return null
+}
+
+async function hookedParam(scene: Scene, op: OperationModel, param: string): Promise<string | null> {
+	const hook = scene.hooks?.resolvePathValue
+	if (hook === undefined) return null
+	const value = await hook({
+		enumValues: pathParamEnum(op, scene.model, param),
+		headers: scene.headers(),
+		method: op.method,
+		operationId: op.operationId,
+		param,
+		path: op.path,
+	})
+	return typeof value === "string" && value !== "" ? value : null
+}
+
+async function registerPasskey(
+	scene: Scene,
+	list: OperationModel,
+	ensureReauth: () => Promise<void>,
+): Promise<string | null> {
+	const verify = bestOperation(scene, list.path, (item) => {
+		const schema = requestSchemaOf(item, scene.model)
+		return schema !== null && findSchemaPath(schema, ["attestationObject", "clientDataJSON"]) !== null
+	})
+	const options = bestOperation(scene, list.path, (item) => {
+		const raw = scene.model.rawOperations.get(item.operationId)
+		const schema = raw === undefined ? null : successSchema(raw)
+		return schema !== null && namedProperty(schema, "challenge") !== null && hasUserId(schema)
+	})
+	if (verify === undefined || options === undefined) return null
+	let optionsPath = options.path
+	let verifyPath = verify.path
+	try {
+		optionsPath = fillPath(options.path, {})
+		verifyPath = fillPath(verify.path, {})
+	} catch {
+		return null
+	}
+	await ensureReauth()
+	const opened = await requestAllowingRateLimit(scene, options, optionsPath, { headers: scene.headers })
+	if (opened.status < 200 || opened.status >= 300) return null
+	const challenge = nestedString(opened.responseBody, ["challenge"])
+	const rpId = nestedString(opened.responseBody, ["rp", "id"])
+	const userId = nestedString(opened.responseBody, ["user", "id"])
+	if (challenge === null || rpId === null || userId === null) return null
+	const authenticator = createSoftAuthenticator({ origin: `https://${rpId}`, rpId })
+	const credential = await authenticator.register({ challenge, user: { id: userId } })
+	const body = credentialBody(requestSchemaOf(verify, scene.model), credential)
+	if (body === null) return null
+	const verified = await requestAllowingRateLimit(scene, verify, verifyPath, { body, headers: scene.headers })
+	if (verified.status < 200 || verified.status >= 300) return null
+	const listed = await readList(scene, list)
+	if (listed === null) return null
+	const id = recordsOf(listed.responseBody, list, scene.model).find((row) => typeof row.id === "string")?.id
+	return typeof id === "string" ? id : null
+}
+
+function credentialBody(
+	schema: Record<string, unknown> | null,
+	credential: {
+		response: { attestationObject: string; clientDataJSON: string }
+	} & Record<string, unknown>,
+): Record<string, unknown> | null {
+	if (schema === null) return null
+	const inner = findSchemaPath(schema, ["attestationObject", "clientDataJSON"])
+	if (inner === null) return null
+	const parent = inner.slice(0, -1)
+	const parentProps = propertiesOf(schemaAt(schema, parent))
+	const wrapped = "id" in parentProps || "rawId" in parentProps
+	const slot = wrapped ? parent : inner
+	const value = wrapped ? credential : credential.response
+	if (slot.length === 0) return value
+	return setPath(slot, value)
+}
+
+async function credentialRemains(
+	client: Client,
+	model: SpecModel,
+	op: OperationModel,
+	values: Record<string, string>,
+	headers: () => Record<string, string>,
+): Promise<boolean> {
+	if (op.method !== "DELETE" || op.pathParams.length === 0) return false
+	const param = op.pathParams.at(-1)
+	if (param === undefined) return false
+	const value = values[param]
+	if (value === undefined) return false
+	const list = model.operations.find(
+		(item) => item.method === "GET" && item.path === op.path.replace(/\/\{[^}]+\}$/, ""),
+	)
+	if (list === undefined) return false
+	let path = list.path
+	try {
+		path = fillPath(list.path, values)
+	} catch {
+		return false
+	}
+	const listed = await client.request(list.method, path, { headers, operationId: list.operationId })
+	if (listed.status === 404) return false
+	if (listed.status < 200 || listed.status >= 300) return true
+	const props = itemProperties(list, model)
+	const field = param in props ? param : "id"
+	return recordsOf(listed.responseBody, list, model).some((row) => row[field] === value)
+}
+
+function parentList(scene: Scene, op: OperationModel): OperationModel | undefined {
+	const parent = op.path.replace(/\/\{[^}]+\}$/, "")
+	return scene.model.operations.find((item) => item.method === "GET" && item.path === parent)
+}
+
+async function readList(scene: Scene, list: OperationModel): Promise<Exchange | null> {
+	let path = list.path
+	try {
+		path = fillPath(list.path, {})
+	} catch {
+		return null
+	}
+	return scene.client.request(list.method, path, { headers: scene.headers, operationId: list.operationId })
+}
+
+function bestOperation(scene: Scene, near: string, match: (op: OperationModel) => boolean): OperationModel | undefined {
+	let best: OperationModel | undefined
+	let score = -1
+	for (const op of scene.model.operations) {
+		if (!match(op)) continue
+		const next = commonPrefix(near, op.path)
+		if (next > score) {
+			best = op
+			score = next
+		}
+	}
+	return best
+}
+
+function commonPrefix(left: string, right: string): number {
+	const limit = Math.min(left.length, right.length)
+	let index = 0
+	while (index < limit && left[index] === right[index]) index++
+	return index
+}
+
+function pathParamEnum(op: OperationModel, model: SpecModel, name: string): string[] {
+	const parameters = model.rawOperations.get(op.operationId)?.parameters
+	if (!Array.isArray(parameters)) return []
+	for (const parameter of parameters) {
+		if (parameter === null || typeof parameter !== "object") continue
+		const record = parameter as { in?: unknown; name?: unknown; schema?: { enum?: unknown } }
+		if (record.in !== "path" || record.name !== name) continue
+		const values = record.schema?.enum
+		if (!Array.isArray(values)) return []
+		return values.filter((item): item is string => typeof item === "string")
+	}
+	return []
+}
+
+function findSchemaPath(schema: unknown, names: string[], depth = 0): string[] | null {
+	if (schema === null || typeof schema !== "object" || depth > 8) return null
+	const node = schema as Record<string, unknown>
+	const props = propertiesOf(schema)
+	if (names.every((name) => name in props)) return []
+	for (const [key, child] of Object.entries(props)) {
+		const found = findSchemaPath(child, names, depth + 1)
+		if (found !== null) return [key, ...found]
+	}
+	for (const key of ["oneOf", "anyOf", "allOf"] as const) {
+		const list = node[key]
+		if (!Array.isArray(list)) continue
+		for (const item of list) {
+			const found = findSchemaPath(item, names, depth + 1)
+			if (found !== null) return found
+		}
+	}
+	return null
+}
+
+function namedProperty(schema: unknown, name: string, depth = 0): unknown {
+	if (schema === null || typeof schema !== "object" || depth > 8) return null
+	const node = schema as Record<string, unknown>
+	const props = propertiesOf(schema)
+	if (name in props) return props[name]
+	for (const child of Object.values(props)) {
+		const found = namedProperty(child, name, depth + 1)
+		if (found !== null) return found
+	}
+	for (const key of ["oneOf", "anyOf", "allOf"] as const) {
+		const list = node[key]
+		if (!Array.isArray(list)) continue
+		for (const item of list) {
+			const found = namedProperty(item, name, depth + 1)
+			if (found !== null) return found
+		}
+	}
+	return null
+}
+
+function hasUserId(schema: unknown): boolean {
+	const user = namedProperty(schema, "user")
+	return user !== null && namedProperty(user, "id") !== null
+}
+
+function schemaAt(schema: unknown, path: string[]): unknown {
+	let cursor = schema
+	for (const key of path) {
+		cursor = propertiesOf(cursor)[key]
+		if (cursor === undefined) return null
+	}
+	return cursor
+}
+
+function propertiesOf(schema: unknown): Record<string, unknown> {
+	if (schema === null || typeof schema !== "object") return {}
+	const props = (schema as { properties?: unknown }).properties
+	if (props === null || typeof props !== "object" || Array.isArray(props)) return {}
+	return props as Record<string, unknown>
+}
+
+function setPath(path: string[], value: Record<string, unknown>): Record<string, unknown> {
+	const root: Record<string, unknown> = {}
+	let cursor = root
+	for (let index = 0; index < path.length - 1; index++) {
+		const key = path[index]
+		if (key === undefined) return root
+		const next: Record<string, unknown> = {}
+		cursor[key] = next
+		cursor = next
+	}
+	const leaf = path.at(-1)
+	if (leaf !== undefined) cursor[leaf] = value
+	return root
+}
+
+function nestedString(body: unknown, path: string[]): string | null {
+	let cursor: unknown = body
+	for (const key of path) {
+		if (cursor === null || typeof cursor !== "object") return null
+		cursor = (cursor as Record<string, unknown>)[key]
+	}
+	return typeof cursor === "string" && cursor !== "" ? cursor : null
+}
+
+function recordFlag(body: unknown, key: string): boolean {
+	if (body === null || typeof body !== "object") return false
+	return (body as Record<string, unknown>)[key] === true
 }
 
 async function recover(

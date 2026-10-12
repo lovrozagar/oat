@@ -801,7 +801,11 @@ async function serveDevices(): Promise<string> {
 			return { body: { access_token: "second" }, status: 200 }
 		}
 		if (path === "/v1/trusted-devices" && method === "GET") return { body: { devices }, status: 200 }
-		if (path === "/v1/trusted-devices/dev_1" && method === "DELETE") return { body: { forgotten: 1 }, status: 200 }
+		if (path === "/v1/trusted-devices/dev_1" && method === "DELETE") {
+			const index = devices.findIndex((device) => device.id === "dev_1")
+			if (index >= 0) devices.splice(index, 1)
+			return { body: { forgotten: 1 }, status: 200 }
+		}
 		return undefined
 	})
 }
@@ -1345,6 +1349,100 @@ describe("disposable principal", () => {
 		expect(result.scope.operations.find((op) => op.operationId === "auth.deleteAccount")?.status).toBe("passed")
 	})
 
+	it("registers a passkey, then removes that id", async () => {
+		const url = await servePasskeys(true)
+		const result = await runWithPassword(url)
+		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
+		expect(defects).toEqual([])
+		expect(result.scope.operations.find((op) => op.operationId === "auth.removePasskey")?.status).toBe("passed")
+		const reauthAt = result.client.transcript.findIndex((exchange) => exchange.url.endsWith("/v1/auth/reauth"))
+		const optionsAt = result.client.transcript.findIndex((exchange) =>
+			exchange.url.endsWith("/v1/auth/passkeys/register/options"),
+		)
+		const verify = result.client.transcript.find((exchange) =>
+			exchange.url.endsWith("/v1/auth/passkeys/register/verify"),
+		)
+		expect(reauthAt).toBeGreaterThanOrEqual(0)
+		expect(optionsAt).toBeGreaterThan(reauthAt)
+		const response = (verify?.requestBody as { response?: { response?: { attestationObject?: unknown } } } | undefined)
+			?.response?.response
+		expect(typeof response?.attestationObject).toBe("string")
+		const removed = result.client.transcript.find((exchange) => exchange.method === "DELETE")
+		expect(removed?.url.endsWith("/v1/auth/passkeys/pk_1")).toBe(true)
+		const after = result.client.transcript.slice(result.client.transcript.indexOf(removed!) + 1)
+		const listed = after.find((exchange) => exchange.method === "GET" && exchange.url.endsWith("/v1/auth/passkeys"))
+		expect(listed?.responseBody).toEqual({ passkeys: [] })
+	})
+
+	it("reports a passkey delete whose id is still listed", async () => {
+		const url = await servePasskeys(false)
+		const result = await runWithPassword(url)
+		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
+		expect(defects.map((finding) => finding.summary ?? finding.check)).toContain("the credential was still listed")
+		expect(result.scope.operations.find((op) => op.operationId === "auth.removePasskey")?.status).toBe("failed")
+	})
+
+	it("unlinks a provider that is not the password email", async () => {
+		const accounts: Array<{ provider: string }> = [{ provider: "email" }]
+		const asked: string[] = []
+		const url = await serveAccounts(accounts)
+		const result = await run({
+			baseUrl: url,
+			hooks: {
+				resolvePathValue: async (request) => {
+					asked.push(request.param)
+					const provider = request.enumValues.find((value) => value !== "email")
+					if (provider === undefined) return null
+					accounts.push({ provider })
+					return provider
+				},
+			},
+			principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+			seed: 1,
+			spec: `${url}/openapi.json`,
+		})
+		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
+		expect(defects).toEqual([])
+		expect(result.scope.operations.find((op) => op.operationId === "auth.unlinkAccount")?.status).toBe("passed")
+		expect(asked).toEqual(["provider"])
+		const removed = result.client.transcript.find((exchange) => exchange.method === "DELETE")
+		expect(removed?.url.endsWith("/v1/auth/accounts/apple")).toBe(true)
+		expect(removed?.requestHeaders.authorization).toBe("Bearer t1")
+		const after = result.client.transcript.slice(result.client.transcript.indexOf(removed!) + 1)
+		const listed = after.find((exchange) => exchange.method === "GET" && exchange.url.endsWith("/v1/auth/accounts"))
+		expect(listed?.responseBody).toEqual({ accounts: [{ provider: "email" }], has_password: true })
+	})
+
+	it("uses a linked provider that is already on the account", async () => {
+		const accounts: Array<{ provider: string }> = [{ provider: "email" }, { provider: "google" }]
+		let asked = false
+		const url = await serveAccounts(accounts)
+		const result = await run({
+			baseUrl: url,
+			hooks: {
+				resolvePathValue: async () => {
+					asked = true
+					return "microsoft"
+				},
+			},
+			principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+			seed: 1,
+			spec: `${url}/openapi.json`,
+		})
+		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
+		expect(defects).toEqual([])
+		expect(asked).toBe(false)
+		const removed = result.client.transcript.find((exchange) => exchange.method === "DELETE")
+		expect(removed?.url.endsWith("/v1/auth/accounts/google")).toBe(true)
+	})
+
+	it("leaves an account unlink unresolved when no second provider exists", async () => {
+		const url = await serveAccounts([{ provider: "email" }])
+		const result = await runDisposable(url)
+		expect(result.scope.operations.find((op) => op.operationId === "auth.unlinkAccount")?.status).toBe("inconclusive")
+		expect(result.client.transcript.some((exchange) => exchange.method === "DELETE")).toBe(false)
+	})
+
 	it("reports a logout that also kills the suite session", async () => {
 		const url = await serve(true)
 		const result = await runDisposable(url)
@@ -1353,3 +1451,193 @@ describe("disposable principal", () => {
 		expect(result.scope.operations.find((op) => op.operationId === "profile.read")?.status).not.toBe("failed")
 	})
 })
+
+function passkeySpec(): OpenApiDocument {
+	const document = withoutLogout()
+	const paths = document.paths as Record<string, Record<string, unknown>>
+	delete paths["/v1/passkeys/register/options"]
+	paths["/v1/auth/reauth"] = {
+		post: {
+			operationId: "auth.reauthenticate",
+			requestBody: requestBody(["password"]),
+			responses: ok({ ok: { type: "boolean" } }, ["ok"]),
+		},
+	}
+	paths["/v1/auth/passkeys"] = {
+		get: {
+			operationId: "auth.listPasskeys",
+			responses: ok(
+				{
+					passkeys: {
+						items: {
+							properties: { id: { type: "string" }, name: { type: "string" } },
+							type: "object",
+						},
+						type: "array",
+					},
+				},
+				["passkeys"],
+			),
+		},
+	}
+	paths["/v1/auth/passkeys/register/options"] = {
+		post: {
+			operationId: "auth.passkeyRegisterOptions",
+			responses: ok(
+				{
+					challenge: { type: "string" },
+					rp: { properties: { id: { type: "string" }, name: { type: "string" } }, type: "object" },
+					user: { properties: { id: { type: "string" } }, required: ["id"], type: "object" },
+				},
+				["challenge", "rp", "user"],
+			),
+		},
+	}
+	paths["/v1/auth/passkeys/register/verify"] = {
+		post: {
+			operationId: "auth.passkeyRegister",
+			requestBody: {
+				content: {
+					"application/json": {
+						schema: {
+							properties: {
+								response: {
+									properties: {
+										id: { type: "string" },
+										rawId: { type: "string" },
+										response: {
+											properties: {
+												attestationObject: { type: "string" },
+												clientDataJSON: { type: "string" },
+											},
+											required: ["attestationObject", "clientDataJSON"],
+											type: "object",
+										},
+										type: { type: "string" },
+									},
+									required: ["id", "rawId", "response", "type"],
+									type: "object",
+								},
+							},
+							required: ["response"],
+							type: "object",
+						},
+					},
+				},
+				required: true,
+			},
+			responses: ok({ id: { type: "string" } }, ["id"]),
+		},
+	}
+	paths["/v1/auth/passkeys/{id}"] = {
+		delete: {
+			operationId: "auth.removePasskey",
+			responses: ok({ id: { type: "string" } }, ["id"]),
+			"x-destructive": true,
+		},
+	}
+	return document
+}
+
+async function servePasskeys(removeOnDelete: boolean): Promise<string> {
+	const passkeys: Array<{ id: string }> = []
+	let reauthed = false
+	return startServer(passkeySpec(), ({ method, path, body }) => {
+		if (path === "/v1/auth/reauth" && method === "POST") {
+			reauthed = true
+			return { body: { ok: true }, status: 200 }
+		}
+		if (path === "/v1/auth/passkeys/register/options" && method === "POST") {
+			if (!reauthed) return { body: { error_key: "account_reauth_required" }, status: 403 }
+			return {
+				body: { challenge: "chal", rp: { id: "example.test", name: "Example" }, user: { id: "user-1" } },
+				status: 200,
+			}
+		}
+		if (path === "/v1/auth/passkeys/register/verify" && method === "POST") {
+			const inner = (
+				body.response as { response?: { attestationObject?: unknown; clientDataJSON?: unknown } } | undefined
+			)?.response
+			if (typeof inner?.attestationObject !== "string" || typeof inner.clientDataJSON !== "string") {
+				return { body: { error_key: "passkey_verification_failed" }, status: 400 }
+			}
+			passkeys.push({ id: "pk_1" })
+			return { body: { id: "pk_1" }, status: 200 }
+		}
+		if (path === "/v1/auth/passkeys" && method === "GET") return { body: { passkeys: [...passkeys] }, status: 200 }
+		if (path === "/v1/auth/passkeys/pk_1" && method === "DELETE") {
+			if (removeOnDelete) {
+				const index = passkeys.findIndex((row) => row.id === "pk_1")
+				if (index >= 0) passkeys.splice(index, 1)
+			}
+			return { body: { id: "pk_1" }, status: 200 }
+		}
+		return undefined
+	})
+}
+
+async function runWithPassword(baseUrl: string) {
+	return run({
+		baseUrl,
+		hooks: {},
+		principals: [
+			{
+				auth: {
+					credentialFrom: "$.access_token",
+					steps: [
+						{
+							body: { email: "oat-alpha@anyrow.ai", password: "secret" },
+							operationId: "auth.register",
+							saveAs: { credential: "$.access_token" },
+						},
+					],
+				},
+				id: "alpha",
+			},
+		],
+		seed: 1,
+		spec: `${baseUrl}/openapi.json`,
+	})
+}
+
+function accountSpec(): OpenApiDocument {
+	const document = withoutLogout()
+	const paths = document.paths as Record<string, Record<string, unknown>>
+	const provider = { enum: ["apple", "email", "google"], type: "string" }
+	paths["/v1/auth/accounts"] = {
+		get: {
+			operationId: "auth.listAccounts",
+			responses: ok(
+				{
+					accounts: { items: { properties: { provider }, type: "object" }, type: "array" },
+					has_password: { type: "boolean" },
+				},
+				["accounts", "has_password"],
+			),
+		},
+	}
+	paths["/v1/auth/accounts/{provider}"] = {
+		delete: {
+			operationId: "auth.unlinkAccount",
+			parameters: [{ in: "path", name: "provider", required: true, schema: provider }],
+			responses: ok({ provider: { type: "string" } }, ["provider"]),
+			"x-destructive": true,
+		},
+	}
+	return document
+}
+
+async function serveAccounts(accounts: Array<{ provider: string }>): Promise<string> {
+	return startServer(accountSpec(), ({ method, path }) => {
+		if (path === "/v1/auth/accounts" && method === "GET") {
+			return { body: { accounts: accounts.map((row) => ({ ...row })), has_password: true }, status: 200 }
+		}
+		if (method === "DELETE" && path.startsWith("/v1/auth/accounts/")) {
+			const provider = decodeURIComponent(path.slice("/v1/auth/accounts/".length))
+			const index = accounts.findIndex((row) => row.provider === provider)
+			if (index >= 0) accounts.splice(index, 1)
+			return { body: { provider }, status: 200 }
+		}
+		return undefined
+	})
+}

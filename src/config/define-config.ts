@@ -337,6 +337,12 @@ export interface Hooks {
 	 */
 	resolvePrincipalAuth?: (fromHook: string) => Promise<PrincipalAuthResult | null>
 	/**
+	 * A path parameter the document does not let oat create (an account provider with no row yet).
+	 * Return the value to send, or `null` to leave the operation unresolved. Product doors stay
+	 * in the hook.
+	 */
+	resolvePathValue?: (request: PathValueRequest) => Promise<string | null>
+	/**
 	 * After a write that declares `x-wait`, return `true` when the side effect is visible.
 	 * `null` retries until `x-wait.timeoutMs` (default 30s).
 	 */
@@ -351,6 +357,16 @@ export interface Hooks {
 	resolveQueryCapabilities?: (
 		request: QueryCapabilitiesRequest,
 	) => Promise<FilterableField[] | Partial<QueryCapabilities> | null>
+}
+
+export interface PathValueRequest {
+	operationId: string
+	param: string
+	method: string
+	path: string
+	/** Enum values the path parameter declares. Empty when the document lists none. */
+	enumValues: string[]
+	headers: Record<string, string>
 }
 
 export interface QueryCapabilitiesRequest {
