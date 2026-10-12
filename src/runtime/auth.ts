@@ -79,6 +79,9 @@ export function interpolate(value: unknown, scope: Record<string, string>): unkn
 		return value.replace(/\{([A-Za-z0-9_]+)\}/g, (match, key: string) => scope[key] ?? match)
 	}
 	if (Array.isArray(value)) return value.map((item) => interpolate(item, scope))
+	/* Bytes are a file's content, not text to fill: walking them would turn an upload into JSON. */
+	if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) return value
+	if (typeof Blob !== "undefined" && value instanceof Blob) return value
 	if (value !== null && typeof value === "object") {
 		const out: Record<string, unknown> = {}
 		for (const [key, item] of Object.entries(value as Record<string, unknown>)) {

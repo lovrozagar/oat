@@ -433,7 +433,7 @@ scenarios: [
 ],
 ```
 
-Steps are the auth-flow steps (`operationId` / raw `method` + `path`, `body`, `bind`, `saveAs`, `expect`, `origin`, `redirect`, and `outOfBand`) plus:
+Steps are the auth-flow steps (`operationId` / raw `method` + `path`, `body`, `bind`, `saveAs`, `expect`, `origin`, `redirect`, and `outOfBand`). `{name}` is filled in a text or JSON `body`; a byte body (`Uint8Array`, `ArrayBuffer`, `Blob`) is an upload and is sent as it is, under the step's `mediaType`. Plus:
 
 | on a request step                                             | meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
