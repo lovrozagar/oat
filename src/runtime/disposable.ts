@@ -12,8 +12,11 @@ import type { OperationModel, SpecModel } from "../spec/graph.ts"
 import type { GradeLedger } from "./scope.ts"
 import { buildCohort, isOverflowError } from "./fixture.ts"
 import { applyResolveInput } from "./input.ts"
-import { requestSchemaOf } from "./world.ts"
-import type { Hooks, PrincipalAuth } from "../config/define-config.ts"
+import { fillPath, requestSchemaOf } from "./world.ts"
+import type { AuthFlow, Hooks, PrincipalAuth } from "../config/define-config.ts"
+import { isHookAuth } from "../config/define-config.ts"
+import { createPrincipal } from "./auth.ts"
+import type { BackoffConfig } from "./poll.ts"
 
 export const DISPOSABLE_CHECK_ID = "auth.destructive-spares-the-caller" as const satisfies CheckId
 
@@ -89,7 +92,11 @@ export async function runDisposableOps(input: {
 	nonce?: string
 	/** The suite principal's signup operation, when its auth flow names one. */
 	registerOperationId?: string
+	authFlow?: PrincipalAuth
+	hooks?: Hooks
+	outOfBand?: Partial<BackoffConfig>
 	resolveInput?: Hooks["resolveInput"]
+	rootsFromFlow?: Record<string, string>
 	seed?: number
 }): Promise<void> {
 	const ops = destructiveOps(input.model).filter((op) => input.mode === "full" || input.inScope(op.operationId))
@@ -103,57 +110,75 @@ export async function runDisposableOps(input: {
 		input.grades.skipped(ids, reason)
 		return
 	}
-	const schema = requestSchemaOf(register, input.model)
-	let body: Record<string, unknown> = {}
-	if (schema !== null) {
+	const flow = authFlowOf(input.authFlow)
+	const flowSignsUp =
+		flow !== null &&
+		flow.steps.some(
+			(step) =>
+				"operationId" in step && /register|sign[-_]?up/i.test(step.operationId) && !/passkey/i.test(step.operationId),
+		)
+	let headers: () => Record<string, string>
+	let issued: Record<string, unknown>
+	let signupExchange: Exchange | undefined
+	if (flowSignsUp && flow !== null && input.hooks !== undefined) {
+		let session: Awaited<ReturnType<typeof sessionFromFlow>>
 		try {
-			const required = requiredSchema(schema)
-			const distinct = propertyNames(required)
-			const [member] = buildCohort(required, input.seed ?? 1, ["baseline"], register.operationId, {
-				distinct,
-				...(input.nonce === undefined ? {} : { nonce: input.nonce }),
-			})
-			body = member?.body ?? {}
+			session = await sessionFromFlow(flow, input)
 		} catch (error) {
-			if (!isOverflowError(error)) throw error
-			input.grades.skipped(ids, error instanceof Error ? error.message : "register body could not be generated")
+			session = null
+			input.findings
+				.attributed(ids)
+				.ownedBy(DISPOSABLE_CHECK_ID)
+				.backend(
+					DISPOSABLE_CHECK_ID,
+					read.entity ?? "caller",
+					"the disposable signup failed",
+					error instanceof Error ? error.message : "the auth flow did not yield a credential.",
+					[],
+				)
+			input.grades.graded(ids, DISPOSABLE_CHECK_ID)
 			return
 		}
-		if (input.resolveInput !== undefined) {
-			body = await applyResolveInput(body, register.operationId, schema, input.resolveInput)
+		if (session === null) {
+			input.findings
+				.attributed(ids)
+				.ownedBy(DISPOSABLE_CHECK_ID)
+				.backend(
+					DISPOSABLE_CHECK_ID,
+					read.entity ?? "caller",
+					"the disposable signup failed",
+					"the auth flow did not yield a credential.",
+					[],
+				)
+			input.grades.graded(ids, DISPOSABLE_CHECK_ID)
+			return
 		}
+		headers = session.headers
+		issued = session.known
+	} else {
+		const acquired = await sessionFromRegister(register, input)
+		if (acquired === null) return
+		headers = acquired.headers
+		issued = acquired.issued
+		signupExchange = acquired.exchange
 	}
-	const signed = await input.client.request(register.method, register.path, {
-		body,
-		headers: {},
-		operationId: register.operationId,
-	})
-	const token = tokenOf(signed.responseBody)
-	const issued =
-		signed.responseBody !== null && typeof signed.responseBody === "object"
-			? (signed.responseBody as Record<string, unknown>)
-			: {}
-	if (signed.status < 200 || signed.status >= 300 || token === null) {
-		input.findings
-			.attributed(ids)
-			.ownedBy(DISPOSABLE_CHECK_ID)
-			.backend(
-				DISPOSABLE_CHECK_ID,
-				read.entity ?? "caller",
-				"the disposable signup failed",
-				`${register.operationId} returned ${signed.status}.`,
-				[signed],
-			)
-		input.grades.graded(ids, DISPOSABLE_CHECK_ID)
-		return
-	}
-	const disposable = { authorization: `Bearer ${token}` }
-	for (const op of ops) {
+	await reauthenticate(input.model, input.client, headers, issued)
+	const ordered = [...ops].sort((a, b) => destructiveRank(a, read.path) - destructiveRank(b, read.path))
+	for (const op of ordered) {
 		const blame = input.findings.attributed([op.operationId]).ownedBy(DISPOSABLE_CHECK_ID)
+		await createOnSamePath(input, op, headers)
+		let path = op.path
+		try {
+			path = fillPath(op.path, rootsFor(input.rootsFromFlow, issued))
+		} catch {
+			blame.unresolved(DISPOSABLE_CHECK_ID, op.entity ?? read.entity ?? "caller", `${op.operationId} needs a path id`)
+			input.grades.graded([op.operationId], DISPOSABLE_CHECK_ID)
+			continue
+		}
 		const sent = bodyFrom(requestSchemaOf(op, input.model), issued)
-		const called = await input.client.request(op.method, op.path, {
+		const called = await input.client.request(op.method, path, {
 			...(Object.keys(sent).length === 0 ? {} : { body: sent }),
-			headers: disposable,
+			headers,
 			operationId: op.operationId,
 		})
 		if (called.status < 200 || called.status >= 300) {
@@ -162,7 +187,7 @@ export async function runDisposableOps(input: {
 				op.entity ?? read.entity ?? "caller",
 				"the disposable call failed",
 				`${op.operationId} returned ${called.status} for the second user.`,
-				[signed, called],
+				signupExchange === undefined ? [called] : [signupExchange, called],
 			)
 			input.grades.graded([op.operationId], DISPOSABLE_CHECK_ID)
 			continue
@@ -185,7 +210,7 @@ export async function runDisposableOps(input: {
 		const endsSession = op.invalidates.some((route) => route.endsWith(read.path))
 		if (endsSession) {
 			const gone = await input.client.request(read.method, read.path, {
-				headers: disposable,
+				headers,
 				operationId: read.operationId,
 			})
 			const refreshToken = typeof sent.refresh_token === "string" ? sent.refresh_token : undefined
@@ -213,6 +238,213 @@ export async function runDisposableOps(input: {
 		}
 		input.grades.graded([op.operationId], DISPOSABLE_CHECK_ID)
 	}
+}
+
+function destructiveRank(op: OperationModel, callerPath: string): number {
+	if (/deleteaccount|account\/delete/i.test(`${op.operationId} ${op.path}`)) return 2
+	if (op.invalidates.some((route) => route.endsWith(callerPath))) return 1
+	return 0
+}
+
+function authFlowOf(auth: PrincipalAuth | undefined): AuthFlow | null {
+	if (auth === undefined || isHookAuth(auth) || !("steps" in auth)) return null
+	return auth
+}
+
+export function freshSignupFlow(spec: AuthFlow, email: string): AuthFlow {
+	const from = signupEmail(spec)
+	const copy = structuredClone(spec)
+	if (from === undefined || from === email) return copy
+	return rewriteEmail(copy, from, email) as AuthFlow
+}
+
+export function disposableAddress(spec: AuthFlow, nonce: string): string {
+	const from = signupEmail(spec)
+	const at = from?.lastIndexOf("@") ?? -1
+	const domain = at > 0 && from !== undefined ? from.slice(at + 1) : "example.test"
+	return `oat-disp-${nonce}@${domain}`
+}
+
+function signupEmail(spec: AuthFlow): string | undefined {
+	for (const step of spec.steps) {
+		if ("bind" in step && typeof step.bind?.address === "string") return step.bind.address
+		if ("body" in step && step.body !== null && typeof step.body === "object" && "email" in step.body) {
+			const email = (step.body as { email?: unknown }).email
+			if (typeof email === "string") return email
+		}
+	}
+	return undefined
+}
+
+function signupPassword(spec: AuthFlow): string | undefined {
+	for (const step of spec.steps) {
+		if ("body" in step && step.body !== null && typeof step.body === "object" && "password" in step.body) {
+			const password = (step.body as { password?: unknown }).password
+			if (typeof password === "string") return password
+		}
+	}
+	return undefined
+}
+
+function rewriteEmail(value: unknown, from: string, to: string): unknown {
+	if (typeof value === "string") return value.split(from).join(to)
+	if (Array.isArray(value)) return value.map((item) => rewriteEmail(item, from, to))
+	if (value !== null && typeof value === "object") {
+		const out: Record<string, unknown> = {}
+		for (const [key, item] of Object.entries(value)) out[key] = rewriteEmail(item, from, to)
+		return out
+	}
+	return value
+}
+
+async function sessionFromFlow(
+	flow: AuthFlow,
+	input: {
+		client: Client
+		hooks?: Hooks
+		model: SpecModel
+		nonce?: string
+		outOfBand?: Partial<BackoffConfig>
+	},
+): Promise<{ headers: () => Record<string, string>; known: Record<string, unknown> } | null> {
+	if (input.hooks === undefined) return null
+	const email = disposableAddress(flow, input.nonce ?? "user")
+	const password = signupPassword(flow)
+	const principal = await createPrincipal("disposable", freshSignupFlow(flow, email), {
+		client: input.client,
+		hooks: input.hooks,
+		model: input.model,
+		principalId: "disposable",
+		...(input.outOfBand === undefined ? {} : { outOfBand: input.outOfBand }),
+	})
+	if (principal.credential() === "") return null
+	const known: Record<string, unknown> = { email }
+	if (password !== undefined) {
+		known.password = password
+		known.current_password = password
+		known.new_password = `${password}2`
+	}
+	const refresh = principal.scope.refreshToken
+	if (refresh !== undefined) known.refresh_token = refresh
+	for (const [key, value] of Object.entries(principal.scope)) known[key] = value
+	return { headers: principal.headers, known }
+}
+
+async function sessionFromRegister(
+	register: OperationModel,
+	input: {
+		client: Client
+		findings: FindingCollector
+		grades: GradeLedger
+		model: SpecModel
+		nonce?: string
+		resolveInput?: Hooks["resolveInput"]
+		seed?: number
+	},
+): Promise<{ exchange: Exchange; headers: () => Record<string, string>; issued: Record<string, unknown> } | null> {
+	const ids = destructiveOps(input.model).map((op) => op.operationId)
+	const read = callerRead(input.model)
+	const schema = requestSchemaOf(register, input.model)
+	let body: Record<string, unknown> = {}
+	if (schema !== null) {
+		try {
+			const required = requiredSchema(schema)
+			const [member] = buildCohort(required, input.seed ?? 1, ["baseline"], register.operationId, {
+				distinct: propertyNames(required),
+				...(input.nonce === undefined ? {} : { nonce: input.nonce }),
+			})
+			body = member?.body ?? {}
+		} catch (error) {
+			if (!isOverflowError(error)) throw error
+			input.grades.skipped(ids, error instanceof Error ? error.message : "register body could not be generated")
+			return null
+		}
+		if (input.resolveInput !== undefined) {
+			body = await applyResolveInput(body, register.operationId, schema, input.resolveInput)
+		}
+	}
+	const exchange = await input.client.request(register.method, register.path, {
+		body,
+		headers: {},
+		operationId: register.operationId,
+	})
+	const token = tokenOf(exchange.responseBody)
+	const issued =
+		exchange.responseBody !== null && typeof exchange.responseBody === "object"
+			? (exchange.responseBody as Record<string, unknown>)
+			: {}
+	if (exchange.status < 200 || exchange.status >= 300 || token === null) {
+		input.findings
+			.attributed(ids)
+			.ownedBy(DISPOSABLE_CHECK_ID)
+			.backend(
+				DISPOSABLE_CHECK_ID,
+				read?.entity ?? "caller",
+				"the disposable signup failed",
+				`${register.operationId} returned ${exchange.status}.`,
+				[exchange],
+			)
+		input.grades.graded(ids, DISPOSABLE_CHECK_ID)
+		return null
+	}
+	return { exchange, headers: () => ({ authorization: `Bearer ${token}` }), issued }
+}
+
+function rootsFor(map: Record<string, string> | undefined, known: Record<string, unknown>): Record<string, string> {
+	const roots: Record<string, string> = {}
+	for (const [param, key] of Object.entries(map ?? {})) {
+		const value = known[key]
+		if (typeof value === "string") roots[param] = value
+	}
+	return roots
+}
+
+async function reauthenticate(
+	model: SpecModel,
+	client: Client,
+	headers: () => Record<string, string>,
+	known: Record<string, unknown>,
+): Promise<void> {
+	const password = known.password
+	if (typeof password !== "string") return
+	const op = model.operations.find(
+		(item) => /reauthentica|\/reauth/i.test(item.operationId) || /\/reauth/.test(item.path),
+	)
+	if (op === undefined) return
+	await client.request(op.method, op.path, { body: { password }, headers, operationId: op.operationId })
+}
+
+async function createOnSamePath(
+	input: { client: Client; model: SpecModel; nonce?: string; resolveInput?: Hooks["resolveInput"]; seed?: number },
+	op: OperationModel,
+	headers: () => Record<string, string>,
+): Promise<void> {
+	if (op.method !== "DELETE") return
+	const create = input.model.operations.find(
+		(item) => item.method === "POST" && item.path === op.path && item.operationId !== op.operationId,
+	)
+	if (create === undefined) return
+	const schema = requestSchemaOf(create, input.model)
+	let body: Record<string, unknown> = {}
+	if (schema !== null) {
+		try {
+			const required = requiredSchema(schema)
+			const [member] = buildCohort(required, input.seed ?? 1, ["baseline"], create.operationId, {
+				distinct: propertyNames(required),
+				...(input.nonce === undefined ? {} : { nonce: input.nonce }),
+			})
+			body = member?.body ?? {}
+		} catch {
+			return
+		}
+		if (input.resolveInput !== undefined)
+			body = await applyResolveInput(body, create.operationId, schema, input.resolveInput)
+	}
+	await input.client.request(create.method, create.path, {
+		...(Object.keys(body).length === 0 ? {} : { body }),
+		headers,
+		operationId: create.operationId,
+	})
 }
 
 function renewOperation(model: SpecModel, exceptId: string): OperationModel | undefined {

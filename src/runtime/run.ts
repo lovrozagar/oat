@@ -1591,8 +1591,14 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		mode: runScope.mode,
 		model,
 		nonce,
+		...(options.principals[0]?.auth === undefined ? {} : { authFlow: options.principals[0].auth }),
+		hooks,
+		outOfBand,
 		...(registerOperationId === undefined ? {} : { registerOperationId }),
 		...(hooks.resolveInput === undefined ? {} : { resolveInput: hooks.resolveInput }),
+		...(options.principals[0]?.rootsFromFlow === undefined
+			? {}
+			: { rootsFromFlow: options.principals[0].rootsFromFlow }),
 		seed,
 	})
 
