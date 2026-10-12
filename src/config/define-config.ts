@@ -50,6 +50,8 @@ interface StepBase {
 export interface OperationStep extends StepBase {
 	operationId: string
 	body?: unknown
+	/** One of the request media types the operation documents. Default: oat's preferred one. */
+	mediaType?: string
 	headers?: Record<string, string>
 	query?: Record<string, string>
 	/** Named `origins[]` entry. Omit to hit the primary `baseUrl`. */

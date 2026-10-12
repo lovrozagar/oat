@@ -59,6 +59,25 @@ function spec(): OpenApiDocument {
 			"/v1/checkout": {
 				post: { operationId: "checkout.open", responses: { "200": { content: json, description: "ok" } } },
 			},
+			"/v1/forms": {
+				post: {
+					operationId: "form.send",
+					requestBody: {
+						content: {
+							"multipart/form-data": {
+								schema: {
+									properties: { file: { format: "binary", type: "string" }, text: { type: "string" } },
+									type: "object",
+								},
+							},
+							"application/x-www-form-urlencoded": {
+								schema: { properties: { text: { type: "string" } }, type: "object" },
+							},
+						},
+					},
+					responses: { "200": { content: json, description: "ok" } },
+				},
+			},
 			"/v1/token": {
 				post: { operationId: "token.mint", responses: { "200": { content: json, description: "ok" } } },
 			},
@@ -107,7 +126,8 @@ async function serve(options: { brokenRename?: boolean; statsLagMs?: number } = 
 		const method = (req.method ?? "GET").toUpperCase()
 		let raw = ""
 		for await (const chunk of req) raw += chunk
-		const body = raw === "" ? {} : (JSON.parse(raw) as Record<string, unknown>)
+		const isJson = String(req.headers["content-type"] ?? "").includes("json")
+		const body = raw === "" || !isJson ? {} : (JSON.parse(raw) as Record<string, unknown>)
 		const send = (status: number, value: unknown) => {
 			res.writeHead(status, { "content-type": "application/json" })
 			res.end(JSON.stringify(value))
@@ -136,6 +156,9 @@ async function serve(options: { brokenRename?: boolean; statsLagMs?: number } = 
 		}
 		if (url.pathname === "/v1/checkout" && method === "POST") {
 			return send(200, { url: "https://pay.example/session/cs_1" })
+		}
+		if (url.pathname === "/v1/forms" && method === "POST") {
+			return send(200, { type: req.headers["content-type"] ?? "", body: raw })
 		}
 		if (url.pathname === "/v1/token" && method === "POST") {
 			const claims = Buffer.from(JSON.stringify({ sub: "usr_42" })).toString("base64url")
@@ -427,6 +450,26 @@ describe("scenarios", () => {
 			(exchange) => exchange.operationId === "notes.list" && exchange.status === 401,
 		)
 		expect(refused?.requestHeaders.authorization).toBe("Bearer nobody")
+	})
+
+	it("sends the request media type a step names, among those the operation documents", async () => {
+		const api = await serve()
+		const scenario: Scenario = {
+			covers: ["form.send"],
+			id: "form",
+			steps: [
+				{
+					assert: { contains: "application/x-www-form-urlencoded", from: "$.type" },
+					body: { text: "plain words" },
+					mediaType: "application/x-www-form-urlencoded",
+					operationId: "form.send",
+				},
+			],
+		}
+		const result = await runWith(api, [scenario], ["form.send"])
+		expect(row(result, "form.send")?.status).toBe("passed")
+		const sent = result.client.transcript.find((exchange) => exchange.operationId === "form.send")
+		expect(JSON.stringify(sent?.requestBody)).toContain("plain words")
 	})
 
 	it("refuses a scenario that covers an operation it never calls", async () => {

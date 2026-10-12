@@ -157,6 +157,9 @@ describe("shared catalogue", () => {
 		})
 		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
 		expect(defects).toEqual([])
-		expect(result.scope.operations.find((op) => op.operationId === "catalogue.get")?.status).toBe("passed")
+		/* The only get in this run asked for an id that was never listed (404): no pass to claim. */
+		const get = result.scope.operations.find((op) => op.operationId === "catalogue.get")
+		expect(get?.status).not.toBe("failed")
+		expect(get?.findings).toBe(0)
 	})
 })

@@ -66,13 +66,17 @@ export interface RequestContent {
  * Prefers multipart, then urlencoded, then JSON, then the first listed type.
  * File ops often document both JSON and a form; the form is the real contract.
  */
-export function requestContent(op: OperationObject): RequestContent | null {
+/** The request body oat sends: `preferred` when the operation documents it, else the best-ranked one. */
+export function requestContent(op: OperationObject, preferred?: string): RequestContent | null {
 	const content = op.requestBody?.content
 	if (content === undefined) return null
 	const keys = Object.keys(content)
 	if (keys.length === 0) return null
 
-	const mediaType = [...keys].sort((a, b) => mediaRank(a) - mediaRank(b) || keys.indexOf(a) - keys.indexOf(b))[0]
+	const mediaType =
+		preferred !== undefined && keys.includes(preferred)
+			? preferred
+			: [...keys].sort((a, b) => mediaRank(a) - mediaRank(b) || keys.indexOf(a) - keys.indexOf(b))[0]
 	if (mediaType === undefined) return null
 	const media = content[mediaType]
 	const picked: RequestContent = {

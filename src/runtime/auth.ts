@@ -315,7 +315,7 @@ export async function resolveRequest(
 		}
 		const raw = target.model.rawOperations.get(step.operationId)
 		const interpolated = step.body === undefined ? undefined : interpolate(step.body, scope)
-		const encoded = await encodeAuthBody(step.operationId, raw, interpolated)
+		const encoded = await encodeAuthBody(step.operationId, raw, interpolated, step.mediaType)
 		return {
 			client: target.client,
 			method: op.method,
@@ -364,9 +364,10 @@ async function encodeAuthBody(
 	operationId: string,
 	raw: ReturnType<SpecModel["rawOperations"]["get"]>,
 	body: unknown,
+	mediaType?: string,
 ): Promise<{ body?: unknown; contentType?: string | null }> {
 	if (body === undefined) return {}
-	const content = raw === undefined ? null : requestContent(raw)
+	const content = raw === undefined ? null : requestContent(raw, mediaType)
 	if (content === null || body === null || typeof body !== "object" || Array.isArray(body)) {
 		return { body }
 	}

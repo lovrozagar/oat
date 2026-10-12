@@ -457,9 +457,20 @@ export function buildScopeReport(input: CoverageInput): ScopeReport {
 			(f) => mine(f.operations) && f.verdict === "COVERAGE_GAP" && ran.has(f.check),
 		)
 		const gaps = [...new Set(gapFindings.map((f) => f.check))].filter((check) => !failed.includes(check)).sort()
-		const passed = [...ran]
-			.filter((check) => !failed.includes(check) && !inconclusive.includes(check) && !gaps.includes(check))
-			.sort()
+		/* A pass rests on a request that reached this operation and succeeded. A check that graded it
+		 * without one (a rate-limit or bookkeeping check over a route nothing called) proves nothing. */
+		const succeeded = input.transcript.some(
+			(exchange) =>
+				exchange.status >= 200 &&
+				exchange.status < 400 &&
+				(exchange.operationId ?? operationFor(model, exchange.method, exchange.url, input.baseUrl)?.operationId) ===
+					operationId,
+		)
+		const passed = succeeded
+			? [...ran]
+					.filter((check) => !failed.includes(check) && !inconclusive.includes(check) && !gaps.includes(check))
+					.sort()
+			: []
 		const suppressed = [...(ledger.suppressed.get(operationId) ?? [])].sort()
 		const status = statusOf(
 			passed.length,
@@ -480,7 +491,10 @@ export function buildScopeReport(input: CoverageInput): ScopeReport {
 			const tried = needs.find((need) =>
 				/^(contract call|destructive call|unresolved |the second user|no way to sign up)/.test(need),
 			)
+			const uncalled =
+				ran.size > 0 && !succeeded ? `graded by checks, but no request to ${operationId} succeeded` : undefined
 			reason =
+				uncalled ??
 				emptyList ??
 				(statically !== undefined && tried !== undefined ? `${statically}; ${tried}` : undefined) ??
 				tried ??
