@@ -45,6 +45,16 @@ describe("transcript bodies past the memory budget", () => {
 		expect((await spool.hydrate(kept[0] as Exchange)).responseBody).toEqual({ rows: "x".repeat(8 * 1024) })
 		await spool.dispose()
 	})
+
+	it("come back when concurrent requests spool their first bodies at once", async () => {
+		const spool = new BodySpool(100)
+		const sent = Array.from({ length: 8 }, (_, index) => exchange(index + 1, { rows: String(index).repeat(80) }))
+		await Promise.all(sent.map((each) => spool.keep(each)))
+		for (const [index, each] of sent.entries()) {
+			expect((await spool.hydrate(each)).responseBody).toEqual({ rows: String(index).repeat(80) })
+		}
+		await spool.dispose()
+	})
 })
 
 describe("spooled bodies, at the edges", () => {

@@ -345,7 +345,9 @@ export function isSpooledBody(value: unknown): value is SpooledBody {
 export class BodySpool {
 	private readonly kept: Array<{ exchange: Exchange; bytes: number }> = []
 	private held = 0
-	private dir: string | undefined
+	/* One directory per spool. The promise, not its result, is shared: concurrent first writes
+	 * that each made their own directory left all but the last one's bodies where no read looks. */
+	private dir: Promise<string> | undefined
 
 	constructor(private readonly budget = TRANSCRIPT_BODY_BUDGET) {}
 
@@ -365,7 +367,8 @@ export class BodySpool {
 		if (!isSpooledBody(exchange.responseBody) && !isSpooledBody(exchange.requestBody)) return exchange
 		const seq = (isSpooledBody(exchange.responseBody) ? exchange.responseBody : exchange.requestBody) as SpooledBody
 		/* A marker exists only once a write has made the directory. */
-		const saved = JSON.parse(await readFile(join(this.dir as string, `${seq.spooled}.json`), "utf8")) as {
+		const dir = await (this.dir as Promise<string>)
+		const saved = JSON.parse(await readFile(join(dir, `${seq.spooled}.json`), "utf8")) as {
 			requestBody?: unknown
 			responseBody?: unknown
 		}
@@ -373,15 +376,16 @@ export class BodySpool {
 	}
 
 	async dispose(): Promise<void> {
-		if (this.dir === undefined) return
-		await rm(this.dir, { force: true, recursive: true })
+		const dir = this.dir
+		if (dir === undefined) return
 		this.dir = undefined
+		await rm(await dir, { force: true, recursive: true })
 	}
 
 	private async write(exchange: Exchange): Promise<void> {
-		this.dir ??= await mkdtemp(join(tmpdir(), "oat-transcript-"))
+		const dir = await (this.dir ??= mkdtemp(join(tmpdir(), "oat-transcript-")))
 		const body = { requestBody: exchange.requestBody, responseBody: exchange.responseBody }
-		await writeFile(join(this.dir, `${exchange.seq}.json`), JSON.stringify(body))
+		await writeFile(join(dir, `${exchange.seq}.json`), JSON.stringify(body))
 		const marker: SpooledBody = { spooled: exchange.seq }
 		exchange.requestBody = exchange.requestBody === undefined ? undefined : marker
 		exchange.responseBody = exchange.responseBody === undefined ? undefined : marker
