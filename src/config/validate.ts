@@ -87,6 +87,7 @@ const CONFIG = {
 	rateLimits: arrayOf(object),
 	roots: recordOf(string),
 	saveExchanges: boolean,
+	scenarios: arrayOf(object),
 	seed: integer(Number.MIN_SAFE_INTEGER),
 	spec: string,
 	uploads: object,

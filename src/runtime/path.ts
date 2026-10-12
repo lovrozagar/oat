@@ -39,3 +39,20 @@ function readJsonPointer(body: unknown, pointer: string): unknown {
 	}
 	return node
 }
+
+/**
+ * Every node `path` names, fanning out at `[*]`: `$.items[*].name` is each item's name. A path
+ * without `[*]` names at most one node, the same one `readPath` returns.
+ */
+export function readAll(body: unknown, path: string): unknown[] {
+	const star = path.indexOf("[*]")
+	if (star < 0) {
+		const node = readPath(body, path)
+		return node === undefined ? [] : [node]
+	}
+	const head = path.slice(0, star)
+	const rest = path.slice(star + 3)
+	const list = head === "$" || head === "" ? body : readPath(body, head)
+	if (!Array.isArray(list)) return []
+	return list.flatMap((item) => (rest === "" ? [item] : readAll(item, `$${rest}`)))
+}

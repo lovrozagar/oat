@@ -442,12 +442,12 @@ function scopeSections(scope: ScopeReport): string[] {
 			: "> The targets of this run. Everything else oat called is listed under support: called, never graded.",
 	)
 	lines.push("")
-	lines.push("| operation | entity | status | passed | failed | suppressed | inconclusive | reason |")
-	lines.push("| --- | --- | --- | --- | --- | --- | --- | --- |")
+	lines.push("| operation | entity | status | tier | passed | failed | suppressed | inconclusive | reason |")
+	lines.push("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
 	for (const op of scope.operations) {
 		const failed = op.checks.failed.length === 0 ? "0" : `${op.checks.failed.length} (${op.checks.failed.join(", ")})`
 		lines.push(
-			`| ${operationLabel(op)} | ${op.entity ?? "—"} | ${op.status} | ${op.checks.passed.length} | ${failed} | ` +
+			`| ${operationLabel(op)} | ${op.entity ?? "—"} | ${op.status} | ${op.tier ?? ""} | ${op.checks.passed.length} | ${failed} | ` +
 				`${op.checks.suppressed.length} | ${op.checks.inconclusive.length} | ${(op.reason ?? "").replace(/\|/g, "\\|")} |`,
 		)
 	}

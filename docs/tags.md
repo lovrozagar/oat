@@ -295,7 +295,9 @@ x-idempotent: true
 x-fresh-principal: true
 ```
 
-`x-cost` and `x-destructive` are consulted by `--profile` (below). `x-idempotent` and `x-fresh-principal` are parsed onto the operation model for the `plan`/`doctor` output but not yet consulted anywhere else. Replay safety is tested from a documented `Idempotency-Key` header (`idempotency.replay-does-not-duplicate`), not from `x-idempotent`.
+`x-cost` and `x-destructive` are consulted by `--profile` (below). Replay safety is tested from a documented `Idempotency-Key` header (`idempotency.replay-does-not-duplicate`), not from `x-idempotent`.
+
+An `x-destructive` operation runs as a second user, never the suite caller. That user signs up through the first principal's auth flow with a fresh address, or — when the flow has no address to change — through the `x-fresh-principal` operation. The suite caller's own read (`x-entity: { identity: self, action: read }`) must still answer 200 afterwards. When the operation's `x-invalidate` names that read, the second user's credential must then be refused, and a refresh the flow declares must no longer renew it. A delete with an id is proven by its parent list no longer holding the id. A destructive call the backend refuses (it needs a scene: a second factor enabled, a credential registered) stays `untested` with the status; cover it with a scenario.
 
 ### `x-feature-gate`
 

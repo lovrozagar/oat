@@ -1,30 +1,41 @@
 /**
- * `x-destructive` runs as a second user registered through the spec, never the suite caller.
- * Afterwards the suite caller's own read still returns 200. When the operation invalidates
- * that read, the disposable credential's next read is 401.
+ * `x-destructive` runs as a second user, never the suite caller. That user signs up through the
+ * suite principal's own auth flow with a fresh address, or through the document's
+ * `x-fresh-principal` operation. Afterwards the suite caller's own read still answers 200. An
+ * operation that invalidates the caller read must leave that second user's credential refused,
+ * and a declared refresh must no longer renew it.
+ *
+ * What a destructive call needs beforehand — a second factor enabled, a credential registered,
+ * ownership handed off — is product knowledge. When the call is refused for want of it, the
+ * operation stays untested and a scenario sets the scene.
  */
 
+import type { AuthFlow, Hooks, PrincipalAuth } from "../config/define-config.ts"
+import { isHookAuth } from "../config/define-config.ts"
+import { deriveCollectionShape, deriveIdentity, effective, successSchema } from "../spec/collection.ts"
+import type { OperationModel, SpecModel } from "../spec/graph.ts"
+import { createPrincipal, readPath, runAuthSteps } from "./auth.ts"
+import type { CheckId } from "./check-ids.ts"
 import type { Check } from "./checks.ts"
 import type { Client, Exchange } from "./client.ts"
 import { ASSERTED, type FindingCollector, type Outcome } from "./finding.ts"
-import type { CheckId } from "./check-ids.ts"
-import type { OperationModel, SpecModel } from "../spec/graph.ts"
-import { deriveCollectionShape, effective, successSchema } from "../spec/collection.ts"
-import type { SchemaObject } from "../spec/types.ts"
-import type { GradeLedger } from "./scope.ts"
 import { buildCohort, isOverflowError } from "./fixture.ts"
 import { applyResolveInput } from "./input.ts"
+import type { BackoffConfig } from "./poll.ts"
+import type { GradeLedger, PassEvidence } from "./scope.ts"
 import { fillPath, requestSchemaOf } from "./world.ts"
-import type { AuthFlow, Hooks, PrincipalAuth } from "../config/define-config.ts"
-import { isHookAuth } from "../config/define-config.ts"
-import { createHmac } from "node:crypto"
-import { createPrincipal, readPath, resolveOutOfBandValue } from "./auth.ts"
-import { sleep, type BackoffConfig } from "./poll.ts"
-import { createSoftAuthenticator } from "./webauthn-soft.ts"
 
 export const DISPOSABLE_CHECK_ID = "auth.destructive-spares-the-caller" as const satisfies CheckId
 
-const REGISTER_LIKE = /register|sign[-_]?up/i
+export const disposableCheck: Check = {
+	id: DISPOSABLE_CHECK_ID,
+	mutates: true,
+	needs: "x-destructive, a way to sign up a second user, and a caller read",
+	plan: () => ({ ok: false }),
+	run: (): Promise<Outcome> => Promise.resolve(ASSERTED),
+	/* Destructive routes have no entity. `runDisposableOps` grades them after the entity loop. */
+	subjects: () => [],
+}
 
 export function destructiveOps(model: SpecModel): OperationModel[] {
 	return model.operations.filter((op) => op.destructive)
@@ -38,302 +49,18 @@ export function signupOperationId(auth: PrincipalAuth | undefined): string | und
 	return undefined
 }
 
-function looksLikeSignup(op: OperationModel): boolean {
-	if (/passkey/i.test(op.operationId) || /passkey/i.test(op.path)) return false
-	return REGISTER_LIKE.test(op.operationId) || REGISTER_LIKE.test(op.path)
-}
-
-function registerOperation(model: SpecModel, preferredId?: string): OperationModel | undefined {
-	const preferred = preferredId === undefined ? undefined : model.byOperationId.get(preferredId)
-	if (preferred !== undefined && (preferred.freshPrincipal || looksLikeSignup(preferred))) return preferred
-	return model.operations.find((op) => op.freshPrincipal || looksLikeSignup(op))
-}
-
+/** The caller reading itself: an `identity: self` read with nothing to fill in. */
 function callerRead(model: SpecModel): OperationModel | undefined {
-	const reads = model.operations.filter(
-		(op) => op.identity === "self" && op.action === "read" && op.pathParams.length === 0,
-	)
-	return (
-		reads.find((op) => op.operationId === "auth.getProfile" || op.path === "/v1/auth/me" || op.path === "/v1/me") ??
-		reads[0]
-	)
+	return model.operations.find((op) => op.identity === "self" && op.action === "read" && op.pathParams.length === 0)
 }
 
-function propertyNames(schema: Record<string, unknown>): Set<string> {
-	const properties = schema.properties
-	if (properties === null || typeof properties !== "object" || Array.isArray(properties)) return new Set()
-	return new Set(Object.keys(properties as Record<string, unknown>))
-}
-
-function requiredSchema(schema: Record<string, unknown>): Record<string, unknown> {
-	const required = Array.isArray(schema.required)
-		? schema.required.filter((name): name is string => typeof name === "string")
-		: []
-	if (required.length === 0) return schema
-	const properties = schema.properties
-	if (properties === null || typeof properties !== "object" || Array.isArray(properties)) return schema
-	const source = properties as Record<string, unknown>
-	const picked: Record<string, unknown> = {}
-	for (const name of required) if (name in source) picked[name] = source[name]
-	return { ...schema, properties: picked, required }
-}
-
-function tokenOf(body: unknown): string | null {
-	if (body === null || typeof body !== "object") return null
-	const token = (body as Record<string, unknown>).access_token
-	return typeof token === "string" && token !== "" ? token : null
-}
-
-export async function runDisposableOps(input: {
-	auth: () => Record<string, string>
-	client: Client
-	findings: FindingCollector
-	checksRun?: Set<string>
-	grades: GradeLedger
-	inScope: (operationId: string) => boolean
-	mode: "full" | "targeted"
-	model: SpecModel
-	nonce?: string
-	/** The suite principal's signup operation, when its auth flow names one. */
-	registerOperationId?: string
-	authFlow?: PrincipalAuth
-	hooks?: Hooks
-	outOfBand?: Partial<BackoffConfig>
-	resolveInput?: Hooks["resolveInput"]
-	rootsFromFlow?: Record<string, string>
-	seed?: number
-}): Promise<void> {
-	const ops = destructiveOps(input.model).filter((op) => input.mode === "full" || input.inScope(op.operationId))
-	if (ops.length === 0) return
-	input.checksRun?.add(DISPOSABLE_CHECK_ID)
-	const ids = ops.map((op) => op.operationId)
-	const register = registerOperation(input.model, input.registerOperationId)
-	const read = callerRead(input.model)
-	if (register === undefined || read === undefined) {
-		const reason = register === undefined ? "no register operation" : "no caller read"
-		input.grades.skipped(ids, reason)
-		return
-	}
-	const flow = authFlowOf(input.authFlow)
-	const flowSignsUp =
-		flow !== null &&
-		flow.steps.some(
-			(step) =>
-				"operationId" in step && /register|sign[-_]?up/i.test(step.operationId) && !/passkey/i.test(step.operationId),
-		)
-	let headers: () => Record<string, string>
-	let issued: Record<string, unknown>
-	let signupExchange: Exchange | undefined
-	let adopt = (_body: unknown): void => undefined
-	if (flowSignsUp && flow !== null && input.hooks !== undefined) {
-		let session: Awaited<ReturnType<typeof sessionFromFlow>>
-		try {
-			session = await sessionFromFlow(flow, input)
-		} catch (error) {
-			session = null
-			input.findings
-				.attributed(ids)
-				.ownedBy(DISPOSABLE_CHECK_ID)
-				.backend(
-					DISPOSABLE_CHECK_ID,
-					read.entity ?? "caller",
-					"the disposable signup failed",
-					error instanceof Error ? error.message : "the auth flow did not yield a credential.",
-					[],
-				)
-			input.grades.graded(ids, DISPOSABLE_CHECK_ID)
-			return
-		}
-		if (session === null) {
-			input.findings
-				.attributed(ids)
-				.ownedBy(DISPOSABLE_CHECK_ID)
-				.backend(
-					DISPOSABLE_CHECK_ID,
-					read.entity ?? "caller",
-					"the disposable signup failed",
-					"the auth flow did not yield a credential.",
-					[],
-				)
-			input.grades.graded(ids, DISPOSABLE_CHECK_ID)
-			return
-		}
-		headers = session.headers
-		issued = session.known
-		adopt = session.adopt
-	} else {
-		const acquired = await sessionFromRegister(register, input)
-		if (acquired === null) return
-		headers = acquired.headers
-		issued = acquired.issued
-		signupExchange = acquired.exchange
-		adopt = acquired.adopt
-	}
-	const suiteEmail = flow === null ? undefined : signupEmail(flow)
-	const scene = createScene({
-		adopt,
-		client: input.client,
-		headers,
-		known: issued,
-		model: input.model,
-		nonce: input.nonce ?? "user",
-		seed: input.seed ?? 1,
-		suiteAuth: input.auth,
-		...(input.hooks === undefined ? {} : { hooks: input.hooks }),
-		...(input.outOfBand === undefined ? {} : { outOfBand: input.outOfBand }),
-		...(input.resolveInput === undefined ? {} : { resolveInput: input.resolveInput }),
-		...(suiteEmail === undefined ? {} : { suiteEmail }),
-	})
-	const ordered = [...ops].sort((a, b) => destructiveRank(a, input.model) - destructiveRank(b, input.model))
-	for (const op of ordered) {
-		const blame = input.findings.attributed([op.operationId]).ownedBy(DISPOSABLE_CHECK_ID)
-		await createOnSamePath(input, op, headers)
-		const values = await scene.pathValues(op, rootsFor(input.rootsFromFlow, issued))
-		let path = op.path
-		try {
-			path = fillPath(op.path, values)
-		} catch {
-			blame.unresolved(DISPOSABLE_CHECK_ID, op.entity ?? read.entity ?? "caller", `${op.operationId} needs a path id`)
-			input.grades.graded([op.operationId], DISPOSABLE_CHECK_ID)
-			continue
-		}
-		await scene.reauthenticate()
-		const sent = await scene.completeBody(op, bodyFrom(requestSchemaOf(op, input.model), issued))
-		let called = await input.client.request(op.method, path, {
-			...(Object.keys(sent).length === 0 ? {} : { body: sent }),
-			headers,
-			operationId: op.operationId,
-		})
-		let sameUser = true
-		if (called.status < 200 || called.status >= 300) {
-			const recovered = await scene.recover(op, called, values, sent)
-			if (recovered !== null) {
-				called = recovered.exchange
-				path = recovered.path
-				sameUser = recovered.sameUser
-			}
-		}
-		if (sameUser) scene.note(called.responseBody, sent, called.status)
-		if (called.status < 200 || called.status >= 300) {
-			blame.backend(
-				DISPOSABLE_CHECK_ID,
-				op.entity ?? read.entity ?? "caller",
-				"the disposable call failed",
-				`${op.operationId} returned ${called.status} for the second user.`,
-				signupExchange === undefined ? [called] : [signupExchange, called],
-			)
-			input.grades.graded([op.operationId], DISPOSABLE_CHECK_ID)
-			continue
-		}
-		const caller = await input.client.request(read.method, read.path, {
-			headers: input.auth,
-			operationId: read.operationId,
-		})
-		if (caller.status !== 200) {
-			blame.backend(
-				DISPOSABLE_CHECK_ID,
-				read.entity ?? "caller",
-				"the suite caller was logged out",
-				`${op.operationId} ran as the second user, and the suite ${read.operationId} then returned ${caller.status}.`,
-				[called, caller],
-			)
-			input.grades.graded([op.operationId], DISPOSABLE_CHECK_ID)
-			continue
-		}
-		const remains = await credentialRemains(input.client, input.model, op, values, headers)
-		if (remains) {
-			const followUp = input.client.transcript.at(-1)
-			blame.backend(
-				DISPOSABLE_CHECK_ID,
-				op.entity ?? read.entity ?? "caller",
-				"the credential was still listed",
-				`${op.operationId} returned ${called.status}, and the follow-up list still contained the value this call deleted.`,
-				followUp === undefined ? [called] : [called, followUp],
-			)
-			input.grades.graded([op.operationId], DISPOSABLE_CHECK_ID)
-			continue
-		}
-		const endsSession = /logout|deleteaccount|account\/delete/i.test(`${op.operationId} ${op.path}`)
-		if (endsSession) {
-			const gone = await input.client.request(read.method, read.path, {
-				headers,
-				operationId: read.operationId,
-			})
-			const refreshToken = typeof sent.refresh_token === "string" ? sent.refresh_token : undefined
-			const renew = refreshToken === undefined ? undefined : renewOperation(input.model, op.operationId)
-			let renewExchange: Exchange | undefined
-			if (gone.status !== 401 && renew !== undefined && refreshToken !== undefined) {
-				renewExchange = await input.client.request(renew.method, renew.path, {
-					body: { refresh_token: refreshToken },
-					headers: {},
-					operationId: renew.operationId,
-				})
-			}
-			/* Logout leaves the account and refuses the session (401). Delete removes the account,
-			 * so the same read is 404. Either way the disposable credential can no longer read it. */
-			const sessionGone =
-				gone.status === 401 ||
-				gone.status === 404 ||
-				(renewExchange !== undefined && renewExchange.status >= 400 && renewExchange.status < 500)
-			if (!sessionGone) {
-				blame.backend(
-					DISPOSABLE_CHECK_ID,
-					op.entity ?? read.entity ?? "caller",
-					"the disposable session was still accepted",
-					`${op.operationId} invalidates ${read.operationId}, and that read then returned ${gone.status} with the second user's credential.`,
-					renewExchange === undefined ? [called, gone] : [called, gone, renewExchange],
-				)
-			}
-		}
-		input.grades.graded([op.operationId], DISPOSABLE_CHECK_ID)
-	}
-}
-
-function destructiveRank(op: OperationModel, model: SpecModel): number {
-	const label = `${op.operationId} ${op.path}`
-	/* Deleting the account has to see a live reauth window, so it runs after the other calls
-	 * and before logout, which revokes that session. */
-	if (/deleteaccount|account\/delete/i.test(label)) return 80
-	if (/logout/i.test(label)) return 90
-	const request = propertyBag(requestSchemaOf(op, model))
-	const required = requiredNames(requestSchemaOf(op, model))
-	/* A password rotation revokes every session and wipes trusted devices. */
-	if ("new_password" in request) return 70
-	if (responseHas(op, model, "revoked_count")) return 70
-	if (op.method === "DELETE" && op.pathParams.length === 0 && deviceCollection(op, model)) return 70
-	/* Setting a password is for an account that does not have one yet, and it has to see the
-	 * credential a rotation just issued when both calls are in the same run. */
-	if (required.includes("password") && !("new_password" in request) && !("current_password" in request)) return 75
-	if (op.method === "DELETE" && op.pathParams.length > 0 && deviceItem(op, model)) return 40
-	if (responseHas(op, model, "secret", "otpauth_uri")) return 10
-	if (required.includes("code") && responseHas(op, model, "enabled")) return 20
-	if (required.includes("code")) return 30
-	if (responseHas(op, model, "disabled")) return 50
-	/* Leave a nested resource before the organization that contains it. Creating the membership
-	 * needs the caller to still belong to that organization. */
-	if (op.method === "POST" && op.path.endsWith("/leave")) {
-		return op.pathParams.includes("organization_id") ? 65 : 55
-	}
-	return 60
+function invalidatesCaller(op: OperationModel, read: OperationModel): boolean {
+	return op.invalidates.some((route) => route === `${read.method.toUpperCase()} ${read.path}` || route === read.route)
 }
 
 function authFlowOf(auth: PrincipalAuth | undefined): AuthFlow | null {
 	if (auth === undefined || isHookAuth(auth) || !("steps" in auth)) return null
 	return auth
-}
-
-export function freshSignupFlow(spec: AuthFlow, email: string): AuthFlow {
-	const from = signupEmail(spec)
-	const copy = structuredClone(spec)
-	if (from === undefined || from === email) return copy
-	return rewriteEmail(copy, from, email) as AuthFlow
-}
-
-export function disposableAddress(spec: AuthFlow, nonce: string): string {
-	const from = signupEmail(spec)
-	const at = from?.lastIndexOf("@") ?? -1
-	const domain = at > 0 && from !== undefined ? from.slice(at + 1) : "example.test"
-	return `oat-disp-${nonce}@${domain}`
 }
 
 function signupEmail(spec: AuthFlow): string | undefined {
@@ -342,16 +69,6 @@ function signupEmail(spec: AuthFlow): string | undefined {
 		if ("body" in step && step.body !== null && typeof step.body === "object" && "email" in step.body) {
 			const email = (step.body as { email?: unknown }).email
 			if (typeof email === "string") return email
-		}
-	}
-	return undefined
-}
-
-function signupPassword(spec: AuthFlow): string | undefined {
-	for (const step of spec.steps) {
-		if ("body" in step && step.body !== null && typeof step.body === "object" && "password" in step.body) {
-			const password = (step.body as { password?: unknown }).password
-			if (typeof password === "string") return password
 		}
 	}
 	return undefined
@@ -368,1482 +85,341 @@ function rewriteEmail(value: unknown, from: string, to: string): unknown {
 	return value
 }
 
-async function sessionFromFlow(
-	flow: AuthFlow,
-	input: {
-		client: Client
-		hooks?: Hooks
-		model: SpecModel
-		nonce?: string
-		outOfBand?: Partial<BackoffConfig>
-	},
-): Promise<{
-	adopt: (body: unknown) => void
-	headers: () => Record<string, string>
-	known: Record<string, unknown>
-} | null> {
-	if (input.hooks === undefined) return null
-	const email = disposableAddress(flow, input.nonce ?? "user")
-	const password = signupPassword(flow)
-	const principal = await createPrincipal("disposable", freshSignupFlow(flow, email), {
-		client: input.client,
-		hooks: input.hooks,
-		model: input.model,
-		principalId: "disposable",
-		...(input.outOfBand === undefined ? {} : { outOfBand: input.outOfBand }),
-	})
-	if (principal.credential() === "") return null
-	const known: Record<string, unknown> = { email }
-	if (password !== undefined) {
-		known.password = password
-		known.current_password = password
-		known.new_password = `${password}2`
-	}
-	const refresh = principal.scope.refreshToken
-	if (refresh !== undefined) known.refresh_token = refresh
-	for (const [key, value] of Object.entries(principal.scope)) known[key] = value
-	return {
-		adopt(body: unknown) {
-			if (body === null || typeof body !== "object") return
-			const record = body as Record<string, unknown>
-			if (typeof record.access_token === "string") principal.adoptCredential(record.access_token)
-			if (typeof record.refresh_token === "string") known.refresh_token = record.refresh_token
-		},
-		headers: principal.headers,
-		known,
-	}
+/** The suite principal's signup flow, sent for a different address. Nothing else changes. */
+export function freshSignupFlow(spec: AuthFlow, email: string): AuthFlow {
+	const from = signupEmail(spec)
+	const copy = structuredClone(spec)
+	if (from === undefined || from === email) return copy
+	return rewriteEmail(copy, from, email) as AuthFlow
 }
 
-async function sessionFromRegister(
-	register: OperationModel,
-	input: {
-		client: Client
-		findings: FindingCollector
-		grades: GradeLedger
-		model: SpecModel
-		nonce?: string
-		resolveInput?: Hooks["resolveInput"]
-		seed?: number
-	},
-): Promise<{
-	adopt: (body: unknown) => void
-	exchange: Exchange
+export function disposableAddress(spec: AuthFlow, nonce: string): string {
+	const from = signupEmail(spec)
+	const at = from?.lastIndexOf("@") ?? -1
+	const domain = at > 0 && from !== undefined ? from.slice(at + 1) : "example.test"
+	return `oat-disp-${nonce}@${domain}`
+}
+
+/** Top-level strings a signup answered with — tokens a later body may need by the same name. */
+function answered(exchange: Exchange | undefined): Record<string, unknown> {
+	const body = exchange?.responseBody
+	if (body === null || typeof body !== "object" || Array.isArray(body)) return {}
+	return Object.fromEntries(
+		Object.entries(body as Record<string, unknown>).filter(([, value]) => typeof value === "string"),
+	)
+}
+
+interface Session {
 	headers: () => Record<string, string>
-	issued: Record<string, unknown>
-} | null> {
-	const ids = destructiveOps(input.model).map((op) => op.operationId)
-	const read = callerRead(input.model)
+	/** Values the signup sent or returned, by name — a body field with the same name gets them. */
+	known: Record<string, unknown>
+	roots: Record<string, string>
+	/** Re-runs the flow's declared refresh; resolves to the exchange it ended on, if any. */
+	renew?: () => Promise<Exchange | undefined>
+}
+
+interface Input {
+	auth: () => Record<string, string>
+	client: Client
+	findings: FindingCollector
+	checksRun?: Set<string>
+	grades: GradeLedger
+	inScope: (operationId: string) => boolean
+	mode: "full" | "targeted"
+	model: SpecModel
+	nonce?: string
+	authFlow?: PrincipalAuth
+	hooks?: Hooks
+	outOfBand?: Partial<BackoffConfig>
+	resolveInput?: Hooks["resolveInput"]
+	rootsFromFlow?: Record<string, string>
+	seed?: number
+	/** Kept for callers; the signup comes from the auth flow or `x-fresh-principal`. */
+	registerOperationId?: string
+}
+
+async function signUp(input: Input, label: string): Promise<Session | null> {
+	const flow = authFlowOf(input.authFlow)
+	/* Only a flow that signs up an address can sign up a different one; a fixed login would just
+	 * hand back the suite user. */
+	if (flow !== null && input.hooks !== undefined && signupEmail(flow) !== undefined) {
+		const email = disposableAddress(flow, `${input.nonce ?? "user"}-${label}`)
+		const fresh = freshSignupFlow(flow, email)
+		const context = {
+			client: input.client,
+			hooks: input.hooks,
+			model: input.model,
+			principalId: `disposable-${label}`,
+			...(input.outOfBand === undefined ? {} : { outOfBand: input.outOfBand }),
+		}
+		const principal = await createPrincipal(`disposable-${label}`, fresh, context)
+		if (principal.credential() === "") return null
+		const signupId = signupOperationId(fresh)
+		const signup = input.client.transcript.findLast(
+			(exchange) => exchange.operationId === signupId && exchange.status >= 200 && exchange.status < 300,
+		)
+		const known: Record<string, unknown> = { ...answered(signup), ...principal.scope, email }
+		for (const step of fresh.steps) {
+			if ("body" in step && step.body !== null && typeof step.body === "object") {
+				for (const [key, value] of Object.entries(step.body as Record<string, unknown>)) known[key] ??= value
+			}
+		}
+		const roots: Record<string, string> = {}
+		for (const [param, key] of Object.entries(input.rootsFromFlow ?? {})) {
+			const value = principal.scope[key]
+			if (value !== undefined) roots[param] = value
+		}
+		const refresh = fresh.refresh
+		return {
+			headers: principal.headers,
+			known,
+			roots,
+			...(refresh === undefined
+				? {}
+				: {
+						renew: async () => {
+							const before = input.client.transcript.length
+							try {
+								await runAuthSteps(refresh.steps, fresh, context, { ...principal.scope })
+							} catch {
+								/* A refused refresh is what a revoked session should answer. */
+							}
+							return input.client.transcript.slice(before).at(-1)
+						},
+					}),
+		}
+	}
+	const register = input.model.operations.find((op) => op.freshPrincipal)
+	if (register === undefined) return null
 	const schema = requestSchemaOf(register, input.model)
 	let body: Record<string, unknown> = {}
 	if (schema !== null) {
-		try {
-			const required = requiredSchema(schema)
-			const [member] = buildCohort(required, input.seed ?? 1, ["baseline"], register.operationId, {
-				distinct: propertyNames(required),
-				...(input.nonce === undefined ? {} : { nonce: input.nonce }),
-			})
-			body = member?.body ?? {}
-		} catch (error) {
-			if (!isOverflowError(error)) throw error
-			input.grades.skipped(ids, error instanceof Error ? error.message : "register body could not be generated")
-			return null
-		}
+		const [member] = buildCohort(schema, input.seed ?? 1, ["baseline"], register.operationId, {
+			nonce: `${input.nonce ?? "user"}${label}`,
+		})
+		body = member?.body ?? {}
 		if (input.resolveInput !== undefined) {
 			body = await applyResolveInput(body, register.operationId, schema, input.resolveInput)
 		}
 	}
-	const exchange = await input.client.request(register.method, register.path, {
+	const signup = await input.client.request(register.method, register.path, {
 		body,
 		headers: {},
 		operationId: register.operationId,
 	})
-	const token = tokenOf(exchange.responseBody)
-	const issued =
-		exchange.responseBody !== null && typeof exchange.responseBody === "object"
-			? (exchange.responseBody as Record<string, unknown>)
-			: {}
-	if (exchange.status < 200 || exchange.status >= 300 || token === null) {
-		input.findings
-			.attributed(ids)
-			.ownedBy(DISPOSABLE_CHECK_ID)
-			.backend(
-				DISPOSABLE_CHECK_ID,
-				read?.entity ?? "caller",
-				"the disposable signup failed",
-				`${register.operationId} returned ${exchange.status}.`,
-				[exchange],
-			)
-		input.grades.graded(ids, DISPOSABLE_CHECK_ID)
-		return null
-	}
-	if (typeof body.email === "string" && typeof issued.email !== "string") issued.email = body.email
-	if (typeof body.password === "string") {
-		issued.password = body.password
-		issued.current_password = body.password
-		issued.new_password = `${body.password}2`
-	}
-	const cred = { token }
-	return {
-		adopt(next: unknown) {
-			if (next === null || typeof next !== "object") return
-			const record = next as Record<string, unknown>
-			if (typeof record.access_token === "string") {
-				cred.token = record.access_token
-				issued.access_token = record.access_token
-			}
-			if (typeof record.refresh_token === "string") issued.refresh_token = record.refresh_token
-		},
-		exchange,
-		headers: () => ({ authorization: `Bearer ${cred.token}` }),
-		issued,
-	}
-}
-
-function rootsFor(map: Record<string, string> | undefined, known: Record<string, unknown>): Record<string, string> {
-	const roots: Record<string, string> = {}
-	for (const [param, key] of Object.entries(map ?? {})) {
-		const value = known[key]
-		if (typeof value === "string") roots[param] = value
-	}
-	return roots
-}
-
-interface Scene {
-	adopt: (body: unknown) => void
-	client: Client
-	headers: () => Record<string, string>
-	hooks?: Hooks
-	known: Record<string, unknown>
-	model: SpecModel
-	nonce: string
-	outOfBand?: Partial<BackoffConfig>
-	resolveInput?: Hooks["resolveInput"]
-	seed: number
-	suiteAuth: () => Record<string, string>
-	suiteEmail?: string
-}
-
-interface SceneRuntime {
-	completeBody: (op: OperationModel, body: Record<string, unknown>) => Promise<Record<string, unknown>>
-	note: (body: unknown, sent: Record<string, unknown>, status: number) => void
-	pathValues: (op: OperationModel, roots: Record<string, string>) => Promise<Record<string, string>>
-	reauthenticate: () => Promise<void>
-	recover: (
-		op: OperationModel,
-		failed: Exchange,
-		values: Record<string, string>,
-		sent: Record<string, unknown>,
-	) => Promise<{ exchange: Exchange; path: string; sameUser: boolean } | null>
-}
-
-function createScene(scene: Scene): SceneRuntime {
-	const backups: string[] = []
-	const issuedCode = { last: "" }
-	let stampedBearer: string | null = null
-	const bearer = () => scene.headers().authorization ?? ""
-	const nextCode = (): Promise<string | null> => harvestCode(scene, issuedCode)
-
-	const note = (body: unknown, sent: Record<string, unknown>, status: number): void => {
-		const before = bearer()
-		scene.adopt(body)
-		if (bearer() !== before) stampedBearer = null
-		if (status < 200 || status >= 300) return
-		if (typeof sent.new_password === "string") {
-			scene.known.password = sent.new_password
-			scene.known.current_password = sent.new_password
-		}
-		remember(body, scene.known, backups)
-	}
-
-	return {
-		completeBody: (op, body) => completeBody(scene, op, body, nextCode),
-		note,
-		pathValues: (op, roots) =>
-			pathValues(scene, op, roots, backups, nextCode, () =>
-				reauthenticate(
-					scene,
-					() => stampedBearer,
-					(value) => {
-						stampedBearer = value
-					},
-					nextCode,
-				),
-			),
-		reauthenticate: () =>
-			reauthenticate(
-				scene,
-				() => stampedBearer,
-				(value) => {
-					stampedBearer = value
-				},
-				nextCode,
-			),
-		recover: (op, failed, values, sent) => recover(scene, op, failed, values, sent),
-	}
-}
-
-function remember(body: unknown, known: Record<string, unknown>, backups: string[]): void {
-	if (body === null || typeof body !== "object") return
-	const record = body as Record<string, unknown>
-	if (typeof record.secret === "string" && typeof record.otpauth_uri === "string") {
-		known.totp_secret = record.secret
-		known.totp_uri = record.otpauth_uri
-	}
-	if (record.enabled === true) known.totp_on = true
-	if (record.disabled === true) known.totp_on = false
-	if (Array.isArray(record.backup_codes)) {
-		const fresh = record.backup_codes.filter((code): code is string => typeof code === "string" && code !== "")
-		if (fresh.length > 0) {
-			backups.length = 0
-			backups.push(...fresh)
-		}
-	}
-}
-
-async function reauthenticate(
-	scene: Scene,
-	stamped: () => string | null,
-	stamp: (value: string | null) => void,
-	nextCode: () => Promise<string | null>,
-): Promise<void> {
-	const password = scene.known.password
-	if (typeof password !== "string") return
-	const op = reauthOperation(scene.model)
-	if (op === undefined) return
-	const current = scene.headers().authorization ?? ""
-	if (current !== "" && current === stamped()) return
-	const request = propertyBag(requestSchemaOf(op, scene.model))
-	const body: Record<string, unknown> = {}
-	if ("password" in request) body.password = password
-	if (scene.known.totp_on === true && "two_factor_code" in request) {
-		const code = await nextCode()
-		if (code !== null) body.two_factor_code = code
-	}
-	if (Object.keys(body).length === 0) return
-	let called = await requestAllowingRateLimit(scene, op, op.path, { body, headers: scene.headers })
-	if (
-		called.status >= 400 &&
-		called.status < 500 &&
-		errorKey(called.responseBody).includes("two_factor") &&
-		!("two_factor_code" in body)
-	) {
-		const code = await nextCode()
-		if (code !== null) {
-			body.two_factor_code = code
-			called = await requestAllowingRateLimit(scene, op, op.path, { body, headers: scene.headers })
-			scene.known.totp_on = true
-		}
-	}
-	if (called.status >= 200 && called.status < 300) stamp(scene.headers().authorization ?? current)
-}
-
-function reauthOperation(model: SpecModel): OperationModel | undefined {
-	return model.operations.find((item) => {
-		if (!/\/reauth/.test(item.path) || /\/code/.test(item.path)) return false
-		return "password" in propertyBag(requestSchemaOf(item, model))
-	})
-}
-
-async function completeBody(
-	scene: Scene,
-	op: OperationModel,
-	body: Record<string, unknown>,
-	nextCode: () => Promise<string | null>,
-): Promise<Record<string, unknown>> {
-	const schema = requestSchemaOf(op, scene.model)
-	const required = requiredNames(schema)
-	if (required.includes("code") && body.code === undefined && typeof scene.known.totp_secret === "string") {
-		const code = await nextCode()
-		if (code !== null) body.code = code
-	}
-	if (required.includes("family_id") && body.family_id === undefined) {
-		const family = await otherFamilyId(scene, nextCode)
-		if (family !== null) body.family_id = family
-	}
-	return body
-}
-
-async function harvestFromSpec(scene: Scene, issuedCode: { last: string }): Promise<string | null> {
-	const source = scene.model.operations.find((item) => {
-		const props = propertyBag(requestSchemaOf(item, scene.model))
-		return "secret" in props && "run_id" in props && responseHas(item, scene.model, "code")
-	})
-	const secret = scene.known.totp_secret
-	if (source === undefined || typeof secret !== "string") return null
-	for (let attempt = 0; attempt < 3; attempt++) {
-		const runId = `oat-${scene.nonce}-${attempt}-${Date.now().toString(36)}`.slice(0, 64)
-		const called = await scene.client.request(source.method, source.path, {
-			body: { run_id: runId, secret },
-			headers: scene.headers,
-			operationId: source.operationId,
-		})
-		const code = stringField(called.responseBody, "code")
-		if (code === null) return null
-		if (code !== issuedCode.last) {
-			issuedCode.last = code
-			return code
-		}
-		await sleep(totpPeriodMs(scene.known))
-	}
-	return null
-}
-
-async function harvestCode(scene: Scene, issuedCode: { last: string }): Promise<string | null> {
-	const fromSpec = await harvestFromSpec(scene, issuedCode)
-	if (fromSpec !== null) return fromSpec
-	const secret = scene.known.totp_secret
-	if (typeof secret !== "string") return null
-	const period = totpPeriodMs(scene.known)
-	const digits = totpDigits(scene.known)
-	for (let attempt = 0; attempt < 3; attempt++) {
-		const code = totpCode(secret, Date.now(), period / 1000, digits)
-		if (code !== "" && code !== issuedCode.last) {
-			issuedCode.last = code
-			return code
-		}
-		await sleep(period)
-	}
-	return null
-}
-
-const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
-
-function base32Decode(input: string): Buffer {
-	const clean = input
-		.replace(/=+$/g, "")
-		.toUpperCase()
-		.replace(/[^A-Z2-7]/g, "")
-	let bits = 0
-	let value = 0
-	const out: number[] = []
-	for (const char of clean) {
-		const index = BASE32.indexOf(char)
-		if (index < 0) continue
-		value = (value << 5) | index
-		bits += 5
-		if (bits >= 8) {
-			bits -= 8
-			out.push((value >>> bits) & 0xff)
-		}
-	}
-	return Buffer.from(out)
-}
-
-/** RFC 6238 TOTP from a base32 secret. `atMs` 0 and the SHA-1 test secret yields `755224`. */
-export function totpCode(secret: string, atMs: number, periodSeconds = 30, digits = 6): string {
-	if (periodSeconds <= 0 || digits <= 0) return ""
-	const counter = Math.floor(atMs / 1000 / periodSeconds)
-	const key = base32Decode(secret)
-	if (key.length === 0) return ""
-	const message = Buffer.alloc(8)
-	message.writeUInt32BE(Math.floor(counter / 2 ** 32), 0)
-	message.writeUInt32BE(counter >>> 0, 4)
-	const hmac = createHmac("sha1", key).update(message).digest()
-	const offset = (hmac.at(-1) ?? 0) & 0x0f
-	const bin =
-		((hmac[offset] ?? 0) & 0x7f) * 2 ** 24 +
-		(hmac[offset + 1] ?? 0) * 2 ** 16 +
-		(hmac[offset + 2] ?? 0) * 2 ** 8 +
-		(hmac[offset + 3] ?? 0)
-	return String(bin % 10 ** digits).padStart(digits, "0")
-}
-
-function totpDigits(known: Record<string, unknown>): number {
-	const uri = known.totp_uri
-	if (typeof uri !== "string") return 6
-	try {
-		const digits = Number(new URL(uri).searchParams.get("digits"))
-		if (Number.isInteger(digits) && digits > 0) return digits
-	} catch {
-		/* The secret's own length is the fallback. */
-	}
-	return 6
-}
-
-function totpPeriodMs(known: Record<string, unknown>): number {
-	const uri = known.totp_uri
-	if (typeof uri !== "string") return 30_000
-	try {
-		const period = Number(new URL(uri).searchParams.get("period"))
-		if (Number.isFinite(period) && period > 0) return period * 1000
-	} catch {
-		/* A secret without a parseable otpauth URI still steps on the common 30s window. */
-	}
-	return 30_000
-}
-
-async function otherFamilyId(scene: Scene, nextCode: () => Promise<string | null>): Promise<string | null> {
-	const email = scene.known.email
-	const password = scene.known.password
-	if (typeof email !== "string" || typeof password !== "string") return null
-	const login = scene.model.operations.find((item) => {
-		if (looksLikeSignup(item)) return false
-		const props = propertyBag(requestSchemaOf(item, scene.model))
-		return "email" in props && "password" in props
-	})
-	if (login === undefined) return null
-	const signed = await scene.client.request(login.method, login.path, {
-		body: { email, password },
-		headers: {},
-		operationId: login.operationId,
-	})
-	await finishSecondFactor(scene, signed.responseBody, nextCode, false, [])
-	const list = scene.model.operations.find(
-		(item) => item.method === "GET" && itemHas(item, scene.model, ["id", "current"]),
-	)
-	if (list === undefined) return null
-	let path = list.path
-	try {
-		path = fillPath(list.path, {})
-	} catch {
-		return null
-	}
-	const listed = await scene.client.request(list.method, path, {
-		headers: scene.headers,
-		operationId: list.operationId,
-	})
-	const other = recordsOf(listed.responseBody, list, scene.model).find((row) => row.current === false)
-	const id = other?.id
-	return typeof id === "string" && id !== "" ? id : null
-}
-
-async function finishSecondFactor(
-	scene: Scene,
-	body: unknown,
-	nextCode: () => Promise<string | null>,
-	trust: boolean,
-	backups: string[],
-): Promise<void> {
-	if (body === null || typeof body !== "object") return
-	const record = body as Record<string, unknown>
-	if (record.requires_2fa !== true || typeof record.temp_token !== "string") return
-	const verify = scene.model.operations.find((item) => {
-		const props = propertyBag(requestSchemaOf(item, scene.model))
-		return "temp_token" in props && "code" in props
-	})
-	if (verify === undefined) return
-	const props = propertyBag(requestSchemaOf(verify, scene.model))
-	const sent: Record<string, unknown> = { temp_token: record.temp_token }
-	if (trust && "trust_device" in props) sent.trust_device = true
-	const backup = trust && "type" in props ? backups.shift() : undefined
-	if (backup !== undefined) {
-		sent.code = backup
-		sent.type = enumValue(props.type, "backup") ?? "backup"
-	} else {
-		const code = await nextCode()
-		if (code === null) return
-		sent.code = code
-		if ("type" in props) sent.type = enumValue(props.type, "totp") ?? "totp"
-	}
-	/* The second session must not replace the disposable credential. */
-	await scene.client.request(verify.method, verify.path, { body: sent, headers: {}, operationId: verify.operationId })
-}
-
-async function pathValues(
-	scene: Scene,
-	op: OperationModel,
-	roots: Record<string, string>,
-	backups: string[],
-	nextCode: () => Promise<string | null>,
-	ensureReauth: () => Promise<void>,
-): Promise<Record<string, string>> {
-	const values = { ...roots }
-	for (const param of op.pathParams) {
-		if (values[param] !== undefined) continue
-		const listed = await listedParam(scene, op, param)
-		if (listed !== null) {
-			values[param] = listed
-			continue
-		}
-		const id = await discoverPathId(scene, op, backups, nextCode, ensureReauth)
-		if (id !== null) {
-			values[param] = id
-			continue
-		}
-		const hooked = await hookedParam(scene, op, param)
-		if (hooked !== null) values[param] = hooked
-	}
-	return values
-}
-
-async function discoverPathId(
-	scene: Scene,
-	op: OperationModel,
-	backups: string[],
-	nextCode: () => Promise<string | null>,
-	ensureReauth: () => Promise<void>,
-): Promise<string | null> {
-	const parent = op.path.replace(/\/\{[^}]+\}$/, "")
-	const list = scene.model.operations.find((item) => item.method === "GET" && item.path === parent)
-	if (list === undefined || !itemHas(list, scene.model, ["id"]) || itemHas(list, scene.model, ["current"])) return null
-	const read = async (): Promise<string | null> => {
-		let path = list.path
-		try {
-			path = fillPath(list.path, {})
-		} catch {
-			return null
-		}
-		const listed = await scene.client.request(list.method, path, {
-			headers: scene.headers,
-			operationId: list.operationId,
-		})
-		const id = recordsOf(listed.responseBody, list, scene.model).find((row) => typeof row.id === "string")?.id
-		return typeof id === "string" ? id : null
-	}
-	const existing = await read()
-	if (existing !== null) return existing
-	/* A passkey list has an id and no expiry. A trusted-device list has both, and only that one
-	 * is created by a second login. */
-	if (!itemHas(list, scene.model, ["expires_at"])) return registerPasskey(scene, list, ensureReauth)
-	if (scene.known.totp_on !== true) return null
-	const email = scene.known.email
-	const password = scene.known.password
-	const login = scene.model.operations.find((item) => {
-		if (looksLikeSignup(item)) return false
-		const props = propertyBag(requestSchemaOf(item, scene.model))
-		return "email" in props && "password" in props
-	})
-	if (login === undefined || typeof email !== "string" || typeof password !== "string") return null
-	const signed = await scene.client.request(login.method, login.path, {
-		body: { email, password },
-		headers: {},
-		operationId: login.operationId,
-	})
-	await finishSecondFactor(scene, signed.responseBody, nextCode, true, backups)
-	return read()
-}
-
-const RATE_LIMIT_WAIT_MS = 13_000
-
-async function requestAllowingRateLimit(
-	scene: Scene,
-	op: OperationModel,
-	path: string,
-	init: { body?: Record<string, unknown>; headers: (() => Record<string, string>) | Record<string, string> },
-): Promise<Exchange> {
-	let called: Exchange | undefined
-	for (let attempt = 0; attempt < 4; attempt++) {
-		called = await scene.client.request(op.method, path, {
-			...(init.body === undefined ? {} : { body: init.body }),
-			headers: init.headers,
-			operationId: op.operationId,
-		})
-		if (called.status !== 429 || attempt === 3) return called
-		await sleep(RATE_LIMIT_WAIT_MS)
-	}
-	return called as Exchange
-}
-
-async function listedParam(scene: Scene, op: OperationModel, param: string): Promise<string | null> {
-	const list = parentList(scene, op)
-	if (list === undefined || !itemHas(list, scene.model, [param])) return null
-	const listed = await readList(scene, list)
-	if (listed === null) return null
-	const skipEmail = recordFlag(listed.responseBody, "has_password")
-	for (const row of recordsOf(listed.responseBody, list, scene.model)) {
-		const value = row[param]
-		if (typeof value !== "string" || value === "") continue
-		if (skipEmail && value === "email") continue
-		return value
-	}
-	return null
-}
-
-async function hookedParam(scene: Scene, op: OperationModel, param: string): Promise<string | null> {
-	const hook = scene.hooks?.resolvePathValue
-	if (hook === undefined) return null
-	const value = await hook({
-		enumValues: pathParamEnum(op, scene.model, param),
-		headers: scene.headers(),
-		method: op.method,
-		operationId: op.operationId,
-		param,
-		path: op.path,
-	})
-	return typeof value === "string" && value !== "" ? value : null
-}
-
-async function registerPasskey(
-	scene: Scene,
-	list: OperationModel,
-	ensureReauth: () => Promise<void>,
-): Promise<string | null> {
-	const verify = bestOperation(scene, list.path, (item) => {
-		const schema = requestSchemaOf(item, scene.model)
-		return schema !== null && findSchemaPath(schema, ["attestationObject", "clientDataJSON"]) !== null
-	})
-	const options = bestOperation(scene, list.path, (item) => {
-		const raw = scene.model.rawOperations.get(item.operationId)
-		const schema = raw === undefined ? null : successSchema(raw)
-		return schema !== null && namedProperty(schema, "challenge") !== null && hasUserId(schema)
-	})
-	if (verify === undefined || options === undefined) return null
-	let optionsPath = options.path
-	let verifyPath = verify.path
-	try {
-		optionsPath = fillPath(options.path, {})
-		verifyPath = fillPath(verify.path, {})
-	} catch {
-		return null
-	}
-	await ensureReauth()
-	const opened = await requestAllowingRateLimit(scene, options, optionsPath, { headers: scene.headers })
-	if (opened.status < 200 || opened.status >= 300) return null
-	const challenge = nestedString(opened.responseBody, ["challenge"])
-	const rpId = nestedString(opened.responseBody, ["rp", "id"])
-	const userId = nestedString(opened.responseBody, ["user", "id"])
-	if (challenge === null || rpId === null || userId === null) return null
-	const authenticator = createSoftAuthenticator({ origin: `https://${rpId}`, rpId })
-	const credential = await authenticator.register({ challenge, user: { id: userId } })
-	const body = credentialBody(requestSchemaOf(verify, scene.model), credential)
-	if (body === null) return null
-	const verified = await requestAllowingRateLimit(scene, verify, verifyPath, { body, headers: scene.headers })
-	if (verified.status < 200 || verified.status >= 300) return null
-	const listed = await readList(scene, list)
-	if (listed === null) return null
-	const id = recordsOf(listed.responseBody, list, scene.model).find((row) => typeof row.id === "string")?.id
-	return typeof id === "string" ? id : null
-}
-
-function credentialBody(
-	schema: Record<string, unknown> | null,
-	credential: {
-		response: { attestationObject: string; clientDataJSON: string }
-	} & Record<string, unknown>,
-): Record<string, unknown> | null {
-	if (schema === null) return null
-	const inner = findSchemaPath(schema, ["attestationObject", "clientDataJSON"])
-	if (inner === null) return null
-	const parent = inner.slice(0, -1)
-	const parentProps = propertiesOf(schemaAt(schema, parent))
-	const wrapped = "id" in parentProps || "rawId" in parentProps
-	const slot = wrapped ? parent : inner
-	const value = wrapped ? credential : credential.response
-	if (slot.length === 0) return value
-	return setPath(slot, value)
-}
-
-async function credentialRemains(
-	client: Client,
-	model: SpecModel,
-	op: OperationModel,
-	values: Record<string, string>,
-	headers: () => Record<string, string>,
-): Promise<boolean> {
-	if (op.method !== "DELETE" || op.pathParams.length === 0) return false
-	const param = op.pathParams.at(-1)
-	if (param === undefined) return false
-	const value = values[param]
-	if (value === undefined) return false
-	const list = model.operations.find(
-		(item) => item.method === "GET" && item.path === op.path.replace(/\/\{[^}]+\}$/, ""),
-	)
-	if (list === undefined) return false
-	let path = list.path
-	try {
-		path = fillPath(list.path, values)
-	} catch {
-		return false
-	}
-	const listed = await client.request(list.method, path, { headers, operationId: list.operationId })
-	if (listed.status === 404) return false
-	if (listed.status < 200 || listed.status >= 300) return true
-	const props = itemProperties(list, model)
-	const field = param in props ? param : "id"
-	return recordsOf(listed.responseBody, list, model).some((row) => row[field] === value)
-}
-
-function parentList(scene: Scene, op: OperationModel): OperationModel | undefined {
-	const parent = op.path.replace(/\/\{[^}]+\}$/, "")
-	return scene.model.operations.find((item) => item.method === "GET" && item.path === parent)
-}
-
-async function readList(scene: Scene, list: OperationModel): Promise<Exchange | null> {
-	let path = list.path
-	try {
-		path = fillPath(list.path, {})
-	} catch {
-		return null
-	}
-	return scene.client.request(list.method, path, { headers: scene.headers, operationId: list.operationId })
-}
-
-function bestOperation(scene: Scene, near: string, match: (op: OperationModel) => boolean): OperationModel | undefined {
-	let best: OperationModel | undefined
-	let score = -1
-	for (const op of scene.model.operations) {
-		if (!match(op)) continue
-		const next = commonPrefix(near, op.path)
-		if (next > score) {
-			best = op
-			score = next
-		}
-	}
-	return best
-}
-
-function commonPrefix(left: string, right: string): number {
-	const limit = Math.min(left.length, right.length)
-	let index = 0
-	while (index < limit && left[index] === right[index]) index++
-	return index
-}
-
-function pathParamEnum(op: OperationModel, model: SpecModel, name: string): string[] {
-	const parameters = model.rawOperations.get(op.operationId)?.parameters
-	if (!Array.isArray(parameters)) return []
-	for (const parameter of parameters) {
-		if (parameter === null || typeof parameter !== "object") continue
-		const record = parameter as { in?: unknown; name?: unknown; schema?: { enum?: unknown } }
-		if (record.in !== "path" || record.name !== name) continue
-		const values = record.schema?.enum
-		if (!Array.isArray(values)) return []
-		return values.filter((item): item is string => typeof item === "string")
-	}
-	return []
-}
-
-function findSchemaPath(schema: unknown, names: string[], depth = 0): string[] | null {
-	if (schema === null || typeof schema !== "object" || depth > 8) return null
-	const node = schema as Record<string, unknown>
-	const props = propertiesOf(schema)
-	if (names.every((name) => name in props)) return []
-	for (const [key, child] of Object.entries(props)) {
-		const found = findSchemaPath(child, names, depth + 1)
-		if (found !== null) return [key, ...found]
-	}
-	for (const key of ["oneOf", "anyOf", "allOf"] as const) {
-		const list = node[key]
-		if (!Array.isArray(list)) continue
-		for (const item of list) {
-			const found = findSchemaPath(item, names, depth + 1)
-			if (found !== null) return found
-		}
-	}
-	return null
-}
-
-function namedProperty(schema: unknown, name: string, depth = 0): unknown {
-	if (schema === null || typeof schema !== "object" || depth > 8) return null
-	const node = schema as Record<string, unknown>
-	const props = propertiesOf(schema)
-	if (name in props) return props[name]
-	for (const child of Object.values(props)) {
-		const found = namedProperty(child, name, depth + 1)
-		if (found !== null) return found
-	}
-	for (const key of ["oneOf", "anyOf", "allOf"] as const) {
-		const list = node[key]
-		if (!Array.isArray(list)) continue
-		for (const item of list) {
-			const found = namedProperty(item, name, depth + 1)
-			if (found !== null) return found
-		}
-	}
-	return null
-}
-
-function hasUserId(schema: unknown): boolean {
-	const user = namedProperty(schema, "user")
-	return user !== null && namedProperty(user, "id") !== null
-}
-
-function schemaAt(schema: unknown, path: string[]): unknown {
-	let cursor = schema
-	for (const key of path) {
-		cursor = propertiesOf(cursor)[key]
-		if (cursor === undefined) return null
-	}
-	return cursor
-}
-
-function propertiesOf(schema: unknown): Record<string, unknown> {
-	if (schema === null || typeof schema !== "object") return {}
-	const props = (schema as { properties?: unknown }).properties
-	if (props === null || typeof props !== "object" || Array.isArray(props)) return {}
-	return props as Record<string, unknown>
-}
-
-function setPath(path: string[], value: Record<string, unknown>): Record<string, unknown> {
-	const root: Record<string, unknown> = {}
-	let cursor = root
-	for (let index = 0; index < path.length - 1; index++) {
-		const key = path[index]
-		if (key === undefined) return root
-		const next: Record<string, unknown> = {}
-		cursor[key] = next
-		cursor = next
-	}
-	const leaf = path.at(-1)
-	if (leaf !== undefined) cursor[leaf] = value
-	return root
-}
-
-function nestedString(body: unknown, path: string[]): string | null {
-	let cursor: unknown = body
-	for (const key of path) {
-		if (cursor === null || typeof cursor !== "object") return null
-		cursor = (cursor as Record<string, unknown>)[key]
-	}
-	return typeof cursor === "string" && cursor !== "" ? cursor : null
-}
-
-function recordFlag(body: unknown, key: string): boolean {
-	if (body === null || typeof body !== "object") return false
-	return (body as Record<string, unknown>)[key] === true
-}
-
-async function recover(
-	scene: Scene,
-	op: OperationModel,
-	failed: Exchange,
-	values: Record<string, string>,
-	sent: Record<string, unknown>,
-): Promise<{ exchange: Exchange; path: string; sameUser: boolean } | null> {
-	const key = errorKey(failed.responseBody)
-	if (key === "password_already_exists") {
-		const exchange = await callAsPasswordless(scene, op, sent)
-		return exchange === null ? null : { exchange, path: failed.url, sameUser: false }
-	}
-	if (key.endsWith("last_owner")) {
-		const handed = op.pathParams.length === 0 ? await releaseOwnedOrgs(scene) : await handOff(scene, op, values)
-		if (!handed) return null
-		const path = fillPath(op.path, values)
-		const exchange = await scene.client.request(op.method, path, {
-			...(Object.keys(sent).length === 0 ? {} : { body: sent }),
-			headers: scene.headers,
-			operationId: op.operationId,
-		})
-		return { exchange, path, sameUser: true }
-	}
-	if (key.endsWith("not_found") && op.pathParams.length > 0) {
-		const created = await createOwnedId(scene, op, values)
-		if (created === null) return null
-		const next = { ...values, [created.param]: created.id }
-		let path = fillPath(op.path, next)
-		let exchange = await scene.client.request(op.method, path, {
-			...(Object.keys(sent).length === 0 ? {} : { body: sent }),
-			headers: scene.headers,
-			operationId: op.operationId,
-		})
-		if (errorKey(exchange.responseBody).endsWith("last_owner")) {
-			const handed = await handOff(scene, op, next)
-			if (!handed) return { exchange, path, sameUser: true }
-			path = fillPath(op.path, next)
-			exchange = await scene.client.request(op.method, path, {
-				...(Object.keys(sent).length === 0 ? {} : { body: sent }),
-				headers: scene.headers,
-				operationId: op.operationId,
-			})
-		}
-		return { exchange, path, sameUser: true }
-	}
-	return null
-}
-
-async function callAsPasswordless(
-	scene: Scene,
-	op: OperationModel,
-	sent: Record<string, unknown>,
-): Promise<Exchange | null> {
-	if (scene.hooks?.resolveOutOfBand === undefined) return null
-	const start = scene.model.operations.find((item) => {
-		const props = propertyBag(requestSchemaOf(item, scene.model))
-		if (!("email" in props) || "password" in props) return false
-		return tokenVerify(scene.model, item) !== undefined
-	})
-	const verify = start === undefined ? undefined : tokenVerify(scene.model, start)
-	if (start === undefined || verify === undefined) return null
-	const email = `oat-set-${scene.nonce}@${domainOf(scene.known.email)}`
-	const opened = await scene.client.request(start.method, start.path, {
-		body: { email },
-		headers: {},
-		operationId: start.operationId,
-	})
-	if (opened.status < 200 || opened.status >= 300) return null
-	const token = await mailed(scene, email, mailKind(scene.model, start))
-	if (token === null) return null
-	const verified = await scene.client.request(verify.method, verify.path, {
-		body: { token },
-		headers: {},
-		operationId: verify.operationId,
-	})
-	const access = stringField(verified.responseBody, "access_token")
-	if (access === null) return null
-	const headers = () => ({ authorization: `Bearer ${access}` })
-	await reauthByMail(scene, headers, email)
-	return scene.client.request(op.method, op.path, {
-		...(Object.keys(sent).length === 0 ? {} : { body: sent }),
-		headers,
-		operationId: op.operationId,
-	})
-}
-
-async function reauthByMail(scene: Scene, headers: () => Record<string, string>, email: string): Promise<void> {
-	const requestCode = scene.model.operations.find((item) => item.path.endsWith("/reauth/code"))
-	const reauth = reauthOperation(scene.model)
-	if (requestCode === undefined || reauth === undefined || scene.hooks?.resolveOutOfBand === undefined) return
-	const asked = await scene.client.request(requestCode.method, requestCode.path, {
-		headers,
-		operationId: requestCode.operationId,
-	})
-	if (asked.status < 200 || asked.status >= 300) return
-	const code = await mailed(scene, email, mailKind(scene.model, requestCode))
-	if (code === null) return
-	const props = propertyBag(requestSchemaOf(reauth, scene.model))
-	if (!("email_code" in props)) return
-	await scene.client.request(reauth.method, reauth.path, {
-		body: { email_code: code },
-		headers,
-		operationId: reauth.operationId,
-	})
-}
-
-async function releaseOwnedOrgs(scene: Scene): Promise<boolean> {
-	const leave = scene.model.operations.find(
-		(item) => item.method === "POST" && item.path.endsWith("/leave") && item.pathParams.includes("organization_id"),
-	)
-	const list = collectionByParam(scene.model, "organization_id")
-	if (leave === undefined || list === undefined) return false
-	let path = list.path
-	try {
-		path = fillPath(list.path, {})
-	} catch {
-		return false
-	}
-	const listed = await scene.client.request(list.method, path, {
-		headers: scene.headers,
-		operationId: list.operationId,
-	})
-	let handed = false
-	for (const row of recordsOf(listed.responseBody, list, scene.model)) {
-		if (typeof row.id !== "string") continue
-		handed = (await handOff(scene, leave, { organization_id: row.id })) || handed
-	}
-	return handed
-}
-
-async function handOff(scene: Scene, op: OperationModel, values: Record<string, string>): Promise<boolean> {
-	const email = scene.suiteEmail
-	if (email === undefined || scene.hooks?.resolveOutOfBand === undefined) return false
-	/* A project owner can hand the project to an organization member, not to a collaborator. */
-	if (!op.pathParams.includes("organization_id") && values.organization_id !== undefined) {
-		return handOffThroughOrg(scene, op, values)
-	}
-	const invite = scene.model.operations.find(
-		(item) => item.invite !== null && item.pathParams.some((param) => op.pathParams.includes(param)),
-	)
-	if (invite?.invite === null || invite?.invite === undefined) return false
-	let invitePath: string
-	try {
-		invitePath = fillPath(invite.path, values)
-	} catch {
-		return false
-	}
-	const inviteFields = propertyBag(requestSchemaOf(invite, scene.model))
-	const grantee = invite.invite.granteeField
-	const granteeField = grantee in inviteFields ? grantee : "email" in inviteFields ? "email" : grantee
-	const invited = await scene.client.request(invite.method, invitePath, {
-		body: { [granteeField]: email },
-		headers: scene.headers,
-		operationId: invite.operationId,
-	})
-	const duplicate = errorKey(invited.responseBody).includes("already")
-	if ((invited.status < 200 || invited.status >= 300) && !duplicate) return false
-	if (!duplicate) {
-		const mailedToken =
-			invite.invite.tokenFrom === "outOfBand"
-				? await mailed(scene, email, invite.invite.tokenKind ?? mailKind(scene.model, invite))
-				: null
-		const pointed = readPath(invited.responseBody, invite.invite.tokenPointer)
-		const token = mailedToken ?? (typeof pointed === "string" && pointed !== "" ? pointed : null)
-		if (token === null) return false
-		const accept = scene.model.byOperationId.get(invite.invite.accept)
-		if (accept === undefined) return false
-		let acceptPath: string
-		try {
-			acceptPath = fillPath(accept.path, values)
-		} catch {
-			return false
-		}
-		const accepted = await scene.client.request(accept.method, acceptPath, {
-			body: { token },
-			headers: scene.suiteAuth,
-			operationId: accept.operationId,
-		})
-		if (accepted.status < 200 || accepted.status >= 300) return false
-	}
-	const members = scene.model.operations.find(
-		(item) =>
-			item.method === "GET" &&
-			item.pathParams.some((param) => op.pathParams.includes(param)) &&
-			itemHas(item, scene.model, ["id", "invite_email"]),
-	)
-	if (members === undefined) return false
-	let memberPath: string
-	try {
-		memberPath = fillPath(members.path, values)
-	} catch {
-		return false
-	}
-	const listed = await scene.client.request(members.method, memberPath, {
-		headers: scene.headers,
-		operationId: members.operationId,
-	})
-	const memberId = memberIdFor(recordsOf(listed.responseBody, members, scene.model), email)
-	if (typeof memberId !== "string") return false
-	const transfer = scene.model.operations.find((item) => {
-		if (!requiredNames(requestSchemaOf(item, scene.model)).includes("member_id")) return false
-		return item.pathParams.some((param) => op.pathParams.includes(param))
-	})
-	if (transfer === undefined) return false
-	let transferPath: string
-	try {
-		transferPath = fillPath(transfer.path, values)
-	} catch {
-		return false
-	}
-	const moved = await scene.client.request(transfer.method, transferPath, {
-		body: { member_id: memberId },
-		headers: scene.headers,
-		operationId: transfer.operationId,
-	})
-	return moved.status >= 200 && moved.status < 300
-}
-
-async function handOffThroughOrg(scene: Scene, op: OperationModel, values: Record<string, string>): Promise<boolean> {
-	const email = scene.suiteEmail
-	const organizationId = values.organization_id
-	if (email === undefined || organizationId === undefined) return false
-	const invite = scene.model.operations.find(
-		(item) => item.invite !== null && item.pathParams.includes("organization_id"),
-	)
-	if (invite?.invite === null || invite?.invite === undefined) return false
-	const orgValues = { organization_id: organizationId }
-	let invitePath: string
-	try {
-		invitePath = fillPath(invite.path, orgValues)
-	} catch {
-		return false
-	}
-	const fields = propertyBag(requestSchemaOf(invite, scene.model))
-	const grantee = invite.invite.granteeField
-	const granteeField = grantee in fields ? grantee : "email" in fields ? "email" : grantee
-	const invited = await scene.client.request(invite.method, invitePath, {
-		body: { [granteeField]: email },
-		headers: scene.headers,
-		operationId: invite.operationId,
-	})
-	const duplicate = errorKey(invited.responseBody).includes("already")
-	if ((invited.status < 200 || invited.status >= 300) && !duplicate) return false
-	if (!duplicate) {
-		const token = await mailed(scene, email, invite.invite.tokenKind ?? mailKind(scene.model, invite))
-		if (token === null) return false
-		const accept = scene.model.byOperationId.get(invite.invite.accept)
-		if (accept === undefined) return false
-		const accepted = await scene.client.request(accept.method, accept.path, {
-			body: { token },
-			headers: scene.suiteAuth,
-			operationId: accept.operationId,
-		})
-		if (accepted.status < 200 || accepted.status >= 300) return false
-	}
-	const members = scene.model.operations.find(
-		(item) =>
-			item.method === "GET" &&
-			item.pathParams.includes("organization_id") &&
-			itemHas(item, scene.model, ["id", "user_id", "invite_email"]),
-	)
-	if (members === undefined) return false
-	let memberPath: string
-	try {
-		memberPath = fillPath(members.path, orgValues)
-	} catch {
-		return false
-	}
-	const listed = await scene.client.request(members.method, memberPath, {
-		headers: scene.headers,
-		operationId: members.operationId,
-	})
-	const people = recordsOf(listed.responseBody, members, scene.model)
-	const person = people.find((row) => row.id === memberIdFor(people, email))
-	const userId = person?.user_id
-	if (typeof userId !== "string") return false
-	const add = scene.model.operations.find((item) => {
-		if (item.method !== "POST") return false
-		if (!item.pathParams.some((param) => op.pathParams.includes(param))) return false
-		return requiredNames(requestSchemaOf(item, scene.model)).includes("user_id")
-	})
-	if (add === undefined) return false
-	let addPath: string
-	try {
-		addPath = fillPath(add.path, values)
-	} catch {
-		return false
-	}
-	const schema = requestSchemaOf(add, scene.model)
-	const permissions = permissionList(schema)
-	const added = await scene.client.request(add.method, addPath, {
-		body: permissions === undefined ? { user_id: userId } : { permissions, user_id: userId },
-		headers: scene.headers,
-		operationId: add.operationId,
-	})
-	const createdId = stringField(added.responseBody, "id")
-	const already = errorKey(added.responseBody).includes("already")
-	if ((added.status < 200 || added.status >= 300) && !already) return false
-	const memberId = createdId ?? (await projectMemberId(scene, op, values, userId))
-	if (memberId === null) return false
-	const transfer = scene.model.operations.find((item) => {
-		if (!requiredNames(requestSchemaOf(item, scene.model)).includes("member_id")) return false
-		return item.pathParams.some((param) => op.pathParams.includes(param))
-	})
-	if (transfer === undefined) return false
-	let transferPath: string
-	try {
-		transferPath = fillPath(transfer.path, values)
-	} catch {
-		return false
-	}
-	const moved = await scene.client.request(transfer.method, transferPath, {
-		body: { member_id: memberId },
-		headers: scene.headers,
-		operationId: transfer.operationId,
-	})
-	return moved.status >= 200 && moved.status < 300
-}
-
-async function projectMemberId(
-	scene: Scene,
-	op: OperationModel,
-	values: Record<string, string>,
-	userId: string,
-): Promise<string | null> {
-	const list = scene.model.operations.find(
-		(item) =>
-			item.method === "GET" &&
-			item.pathParams.some((param) => op.pathParams.includes(param)) &&
-			itemHas(item, scene.model, ["id", "user_id"]),
-	)
-	if (list === undefined) return null
-	let path: string
-	try {
-		path = fillPath(list.path, values)
-	} catch {
-		return null
-	}
-	const listed = await scene.client.request(list.method, path, {
-		headers: scene.headers,
-		operationId: list.operationId,
-	})
-	const rows = recordsOf(listed.responseBody, list, scene.model).filter((row) => row.user_id === userId)
-	const direct = rows.find((row) => row.collaborator !== true) ?? rows[0]
-	return typeof direct?.id === "string" ? direct.id : null
-}
-
-function memberIdFor(records: Record<string, unknown>[], email: string): string | null {
-	const matches = records.filter((row) => row.invite_email === email || row.email === email)
-	/* A second invite can leave a pending row beside the accepted member. Ownership moves to the
-	 * accepted one; a pending row is refused. */
-	const accepted = matches.find((row) => typeof row.accepted_at === "number")
-	const chosen = accepted ?? matches[0]
-	return typeof chosen?.id === "string" ? chosen.id : null
-}
-
-function permissionList(schema: Record<string, unknown> | null): string[] | undefined {
-	const prop = propertyBag(schema).permissions
-	if (prop === null || typeof prop !== "object") return undefined
-	const items = (prop as { items?: unknown }).items
-	if (items === null || typeof items !== "object") return undefined
-	const values = (items as { enum?: unknown }).enum
-	if (!Array.isArray(values)) return undefined
-	const first = values.find((item): item is string => typeof item === "string")
-	return first === undefined ? undefined : [first]
-}
-
-async function createOwnedId(
-	scene: Scene,
-	op: OperationModel,
-	values: Record<string, string>,
-): Promise<{ id: string; param: string } | null> {
-	const param = op.pathParams.find((name) => name.endsWith("_id"))
-	if (param === undefined) return null
-	const resource = param.slice(0, -"_id".length)
-	const plural = resource.endsWith("s") ? resource : `${resource}s`
-	const create = scene.model.operations.find((item) => {
-		if (item.method !== "POST" || item.operationId === op.operationId) return false
-		if (item.path.split("/").filter(Boolean).at(-1) !== plural) return false
-		return responseHas(item, scene.model, "id")
-	})
-	if (create === undefined) return null
-	let path: string
-	try {
-		path = fillPath(create.path, values)
-	} catch {
-		return null
-	}
-	const body = await generatedBody(scene, create)
-	const created = await scene.client.request(create.method, path, {
-		...(Object.keys(body).length === 0 ? {} : { body }),
-		headers: scene.headers,
-		operationId: create.operationId,
-	})
-	const id = stringField(created.responseBody, "id")
-	return id === null ? null : { id, param }
-}
-
-async function generatedBody(scene: Scene, op: OperationModel): Promise<Record<string, unknown>> {
-	const schema = requestSchemaOf(op, scene.model)
-	if (schema === null) return {}
-	try {
-		const required = requiredSchema(schema)
-		const [member] = buildCohort(required, scene.seed, ["baseline"], op.operationId, {
-			distinct: propertyNames(required),
-			nonce: scene.nonce,
-		})
-		let body = member?.body ?? {}
-		if (scene.resolveInput !== undefined)
-			body = await applyResolveInput(body, op.operationId, schema, scene.resolveInput)
-		return body
-	} catch {
-		return {}
-	}
-}
-
-async function mailed(scene: Scene, address: string, kind: string): Promise<string | null> {
-	if (scene.hooks?.resolveOutOfBand === undefined) return null
-	try {
-		return await resolveOutOfBandValue(scene.hooks.resolveOutOfBand, address, kind, {
-			label: kind,
-			...(scene.outOfBand === undefined ? {} : { outOfBand: scene.outOfBand }),
-		})
-	} catch {
-		return null
-	}
-}
-
-function tokenVerify(model: SpecModel, start: OperationModel): OperationModel | undefined {
-	return model.operations.find((item) => {
-		if (item.operationId === start.operationId || !item.path.startsWith(start.path)) return false
-		if (!("token" in propertyBag(requestSchemaOf(item, model)))) return false
-		return responseHas(item, model, "access_token")
-	})
-}
-
-function mailKind(model: SpecModel, op: OperationModel): string {
-	const kinds = mailboxKinds(model)
-	const segments = op.path.split("/").filter(Boolean)
-	const exact = kinds.find((kind) => segments.includes(kind))
-	if (exact !== undefined) return exact
-	const fuzzy = kinds.find((kind) => segments.some((segment) => segment.length >= 4 && kind.includes(segment)))
-	if (fuzzy !== undefined) return fuzzy
-	const summary = model.rawOperations.get(op.operationId)?.summary
-	if (typeof summary === "string") {
-		const named = summary.toLowerCase().match(/[a-z]+ code/)
-		if (named !== null) return named[0].replace(" ", "-")
-	}
-	return segments.at(-1) ?? "mail"
-}
-
-function mailboxKinds(model: SpecModel): string[] {
-	for (const op of model.operations) {
-		if (op.method !== "GET") continue
-		const params = model.rawOperations.get(op.operationId)?.parameters
-		if (!Array.isArray(params)) continue
-		for (const param of params) {
-			if (param === null || typeof param !== "object") continue
-			const record = param as Record<string, unknown>
-			if (record.in !== "query" || record.name !== "type") continue
-			const schema = record.schema
-			if (schema === null || typeof schema !== "object") continue
-			const values = (schema as { enum?: unknown }).enum
-			if (!Array.isArray(values)) continue
-			const kinds = values.filter((item): item is string => typeof item === "string")
-			if (kinds.length > 0) return kinds
-		}
-	}
-	return []
-}
-
-function collectionByParam(model: SpecModel, param: string): OperationModel | undefined {
-	const resource = param.endsWith("_id") ? param.slice(0, -"_id".length) : param
-	const plural = resource.endsWith("s") ? resource : `${resource}s`
-	return model.operations.find((item) => {
-		if (item.method !== "GET") return false
-		if (item.path.split("/").filter(Boolean).at(-1) !== plural) return false
-		return itemHas(item, model, ["id"])
-	})
-}
-
-function deviceCollection(op: OperationModel, model: SpecModel): boolean {
-	const list = model.operations.find((item) => item.method === "GET" && item.path === op.path)
-	return list !== undefined && itemHas(list, model, ["id", "expires_at"]) && !itemHas(list, model, ["current"])
-}
-
-function deviceItem(op: OperationModel, model: SpecModel): boolean {
-	const parent = op.path.replace(/\/\{[^}]+\}$/, "")
-	const list = model.operations.find((item) => item.method === "GET" && item.path === parent)
-	return list !== undefined && itemHas(list, model, ["id", "expires_at"]) && !itemHas(list, model, ["current"])
-}
-
-function itemHas(op: OperationModel, model: SpecModel, names: string[]): boolean {
-	const props = itemProperties(op, model)
-	return names.every((name) => name in props)
-}
-
-function itemProperties(op: OperationModel, model: SpecModel): Record<string, unknown> {
-	const raw = model.rawOperations.get(op.operationId)
-	const shape = raw === undefined ? null : deriveCollectionShape(successSchema(raw))
-	const props = shape?.itemSchema?.properties
-	if (props === null || typeof props !== "object" || Array.isArray(props)) return {}
-	return props as Record<string, unknown>
+	const token = readPath(signup.responseBody, "$.access_token")
+	if (signup.status < 200 || signup.status >= 300 || typeof token !== "string" || token === "") return null
+	return { headers: () => ({ authorization: `Bearer ${token}` }), known: { ...answered(signup), ...body }, roots: {} }
 }
 
 function recordsOf(body: unknown, op: OperationModel, model: SpecModel): Record<string, unknown>[] {
 	const raw = model.rawOperations.get(op.operationId)
 	const shape = raw === undefined ? null : deriveCollectionShape(successSchema(raw))
 	if (body === null || typeof body !== "object") return []
-	const record = body as Record<string, unknown>
-	const value = shape?.key === null || shape?.key === undefined ? body : record[shape.key]
+	const value = shape?.key === null || shape?.key === undefined ? body : (body as Record<string, unknown>)[shape.key]
 	if (!Array.isArray(value)) return []
 	return value.filter(
 		(item): item is Record<string, unknown> => item !== null && typeof item === "object" && !Array.isArray(item),
 	)
 }
 
-function responseHas(op: OperationModel, model: SpecModel, ...names: string[]): boolean {
-	const raw = model.rawOperations.get(op.operationId)
-	const schema = raw === undefined ? null : effective(successSchema(raw))
-	const props = propertyBag(schema as Record<string, unknown> | null)
-	return names.every((name) => name in props)
+function identityOf(list: OperationModel, model: SpecModel, param: string): string {
+	const raw = model.rawOperations.get(list.operationId)
+	const shape = raw === undefined ? null : deriveCollectionShape(successSchema(raw))
+	const props = effective(shape?.itemSchema ?? null)?.properties
+	if (props !== null && props !== undefined && typeof props === "object" && param in props) return param
+	return deriveIdentity(shape?.itemSchema ?? null, param) ?? "id"
 }
 
-function propertyBag(schema: Record<string, unknown> | null, depth = 0): Record<string, unknown> {
-	if (schema === null || depth > 6) return {}
-	const out: Record<string, unknown> = {}
-	const flat = effective(schema as SchemaObject)
-	const properties = flat?.properties
-	if (properties !== null && typeof properties === "object" && !Array.isArray(properties)) {
-		Object.assign(out, properties)
-	}
-	for (const key of ["oneOf", "anyOf", "allOf"] as const) {
-		const list = schema[key]
-		if (!Array.isArray(list)) continue
-		for (const item of list) {
-			if (item !== null && typeof item === "object" && !Array.isArray(item)) {
-				Object.assign(out, propertyBag(item as Record<string, unknown>, depth + 1))
-			}
-		}
+/** The collection read one level up — `GET /a/{id}` lists for `DELETE /a/{id}/b/{item}`. */
+function parentList(model: SpecModel, op: OperationModel): OperationModel | undefined {
+	const parent = op.path.replace(/\/\{[^}]+\}$/, "")
+	return model.operations.find((item) => item.method.toUpperCase() === "GET" && item.path === parent)
+}
+
+function bodyFor(schema: Record<string, unknown> | null, known: Record<string, unknown>, generated: unknown): unknown {
+	if (schema === null) return undefined
+	const out = generated !== null && typeof generated === "object" ? { ...(generated as Record<string, unknown>) } : {}
+	const props = schema.properties
+	if (props !== null && props !== undefined && typeof props === "object") {
+		for (const name of Object.keys(props)) if (name in known) out[name] = known[name]
 	}
 	return out
 }
 
-function requiredNames(schema: Record<string, unknown> | null): string[] {
-	if (schema === null) return []
-	const names = new Set<string>()
-	const collect = (node: Record<string, unknown>, depth: number): void => {
-		if (depth > 6) return
-		if (Array.isArray(node.required)) {
-			for (const name of node.required) if (typeof name === "string") names.add(name)
+export async function runDisposableOps(input: Input): Promise<void> {
+	const ops = destructiveOps(input.model).filter((op) => input.mode === "full" || input.inScope(op.operationId))
+	if (ops.length === 0) return
+	input.checksRun?.add(DISPOSABLE_CHECK_ID)
+	const selfRead = callerRead(input.model)
+	if (selfRead === undefined) {
+		input.grades.skipped(
+			ops.map((op) => op.operationId),
+			"no caller read (an identity: self read)",
+		)
+		return
+	}
+	/* An operation that ends the session gets a user of its own, so no order between them matters. */
+	let shared: Session | null | undefined
+	for (const [index, op] of ops.entries()) {
+		const ends = invalidatesCaller(op, selfRead)
+		let session: Session | null
+		try {
+			session = ends ? await signUp(input, `${index}`) : (shared ??= await signUp(input, "shared"))
+		} catch (error) {
+			input.grades.skipped(
+				[op.operationId],
+				`the second user could not sign up: ${error instanceof Error ? error.message : String(error)}`,
+			)
+			continue
 		}
-		for (const key of ["oneOf", "anyOf", "allOf"] as const) {
-			const list = node[key]
-			if (!Array.isArray(list)) continue
-			for (const item of list) {
-				if (item !== null && typeof item === "object" && !Array.isArray(item))
-					collect(item as Record<string, unknown>, depth + 1)
+		if (session === null) {
+			input.grades.skipped([op.operationId], "no way to sign up a second user (an auth flow or x-fresh-principal)")
+			continue
+		}
+		await runOne(op, session, selfRead, ends)
+	}
+
+	async function runOne(op: OperationModel, session: Session, read: OperationModel, ends: boolean): Promise<void> {
+		const blame = input.findings.attributed([op.operationId]).ownedBy(DISPOSABLE_CHECK_ID)
+		const entity = op.entity ?? read.entity ?? "caller"
+		const values: Record<string, string> = { ...session.roots }
+		for (const param of op.pathParams) {
+			if (values[param] !== undefined) continue
+			const list = parentList(input.model, op)
+			if (list === undefined) {
+				input.grades.skipped([op.operationId], `unresolved param ${param}`)
+				return
+			}
+			const listed = await input.client.request(list.method, fillPath(list.path, values), {
+				headers: session.headers,
+				operationId: list.operationId,
+			})
+			const field = identityOf(list, input.model, param)
+			const row = recordsOf(listed.responseBody, list, input.model).find((item) => typeof item[field] === "string")
+			if (row === undefined) {
+				input.grades.skipped([op.operationId], "the list returned no id")
+				return
+			}
+			values[param] = String(row[field])
+		}
+		const schema = requestSchemaOf(op, input.model)
+		let generated: unknown = {}
+		if (schema !== null) {
+			try {
+				generated = buildCohort(schema, input.seed ?? 1, ["baseline"], op.operationId, {
+					nonce: `${input.nonce ?? "user"}d`,
+				})[0]?.body
+			} catch (error) {
+				if (!isOverflowError(error)) throw error
+			}
+			if (input.resolveInput !== undefined && generated !== null && typeof generated === "object") {
+				generated = await applyResolveInput(
+					generated as Record<string, unknown>,
+					op.operationId,
+					schema,
+					input.resolveInput,
+				)
 			}
 		}
-	}
-	collect(schema, 0)
-	return [...names]
-}
-
-function enumValue(schema: unknown, prefer: string): string | undefined {
-	if (schema === null || typeof schema !== "object") return undefined
-	const values = (schema as { enum?: unknown }).enum
-	if (!Array.isArray(values)) return prefer
-	const strings = values.filter((item): item is string => typeof item === "string")
-	if (strings.includes(prefer)) return prefer
-	return strings[0]
-}
-
-function errorKey(body: unknown): string {
-	return stringField(body, "error_key") ?? ""
-}
-
-function stringField(body: unknown, key: string): string | null {
-	if (body === null || typeof body !== "object") return null
-	const value = (body as Record<string, unknown>)[key]
-	return typeof value === "string" && value !== "" ? value : null
-}
-
-function domainOf(email: unknown): string {
-	if (typeof email !== "string") return "example.test"
-	const at = email.lastIndexOf("@")
-	return at > 0 ? email.slice(at + 1) : "example.test"
-}
-
-async function createOnSamePath(
-	input: { client: Client; model: SpecModel; nonce?: string; resolveInput?: Hooks["resolveInput"]; seed?: number },
-	op: OperationModel,
-	headers: () => Record<string, string>,
-): Promise<void> {
-	if (op.method !== "DELETE") return
-	const create = input.model.operations.find(
-		(item) => item.method === "POST" && item.path === op.path && item.operationId !== op.operationId,
-	)
-	if (create === undefined) return
-	const schema = requestSchemaOf(create, input.model)
-	let body: Record<string, unknown> = {}
-	if (schema !== null) {
-		try {
-			const required = requiredSchema(schema)
-			const [member] = buildCohort(required, input.seed ?? 1, ["baseline"], create.operationId, {
-				distinct: propertyNames(required),
-				...(input.nonce === undefined ? {} : { nonce: input.nonce }),
-			})
-			body = member?.body ?? {}
-		} catch {
+		const body = bodyFor(schema, session.known, generated)
+		const called = await input.client.request(op.method, fillPath(op.path, values), {
+			...(body === undefined ? {} : { body }),
+			headers: session.headers,
+			operationId: op.operationId,
+		})
+		if (called.status >= 500) {
+			input.grades.graded([op.operationId], DISPOSABLE_CHECK_ID)
+			blame.backend(
+				DISPOSABLE_CHECK_ID,
+				entity,
+				"the disposable call failed",
+				`${op.operationId} returned ${called.status}.`,
+				[called],
+			)
 			return
 		}
-		if (input.resolveInput !== undefined)
-			body = await applyResolveInput(body, create.operationId, schema, input.resolveInput)
+		if (called.status < 200 || called.status >= 300) {
+			input.grades.skipped(
+				[op.operationId],
+				`destructive call returned ${called.status}; a scenario must set the scene`,
+			)
+			return
+		}
+		input.grades.graded([op.operationId], DISPOSABLE_CHECK_ID)
+		const caller = await input.client.request(read.method, read.path, {
+			headers: input.auth,
+			operationId: read.operationId,
+		})
+		if (caller.status !== 200) {
+			blame.backend(
+				DISPOSABLE_CHECK_ID,
+				read.entity ?? "caller",
+				"the suite caller was logged out",
+				`${op.operationId} ran as the second user, and the suite ${read.operationId} then returned ${caller.status}.`,
+				[called, caller],
+			)
+			return
+		}
+		let observation: PassEvidence["observation"]
+		const param = op.pathParams.at(-1)
+		const list = parentList(input.model, op)
+		if (op.method.toUpperCase() === "DELETE" && param !== undefined && list !== undefined) {
+			const listed = await input.client.request(list.method, fillPath(list.path, values), {
+				headers: session.headers,
+				operationId: list.operationId,
+			})
+			const field = identityOf(list, input.model, param)
+			const value = values[param] ?? ""
+			if (listed.status >= 200 && listed.status < 300) {
+				if (recordsOf(listed.responseBody, list, input.model).some((row) => row[field] === value)) {
+					blame.backend(
+						DISPOSABLE_CHECK_ID,
+						entity,
+						"the credential was still listed",
+						`${op.operationId} returned ${called.status}, and the follow-up list still contained ${value}.`,
+						[called, listed],
+					)
+					return
+				}
+				observation = { absent: true, path: "$", seq: listed.seq, value }
+			}
+		}
+		if (ends) {
+			const gone = await input.client.request(read.method, read.path, {
+				headers: session.headers,
+				operationId: read.operationId,
+			})
+			const renewed = session.renew === undefined ? undefined : await session.renew()
+			const refused = gone.status === 401 || gone.status === 403 || gone.status === 404
+			const renewRefused = renewed === undefined || (renewed.status >= 400 && renewed.status < 500)
+			if (!refused && !renewRefused) {
+				blame.backend(
+					DISPOSABLE_CHECK_ID,
+					entity,
+					"the disposable session was still accepted",
+					`${op.operationId} invalidates ${read.operationId}, and that read then returned ${gone.status} with the second user's credential.`,
+					renewed === undefined ? [called, gone] : [called, gone, renewed],
+				)
+				return
+			}
+			if (refused && renewed !== undefined && !renewRefused) {
+				blame.backend(
+					DISPOSABLE_CHECK_ID,
+					entity,
+					"the refresh token still renews after the session ended",
+					`${op.operationId} ended the session, and the declared refresh then returned ${renewed.status}.`,
+					[called, gone, renewed],
+				)
+				return
+			}
+			observation = refused
+				? { seq: gone.seq, status: gone.status }
+				: { seq: (renewed as Exchange).seq, status: (renewed as Exchange).status }
+		}
+		input.grades.prove(
+			op.operationId,
+			observation === undefined ? { call: called.seq } : { call: called.seq, observation },
+		)
 	}
-	await input.client.request(create.method, create.path, {
-		...(Object.keys(body).length === 0 ? {} : { body }),
-		headers,
-		operationId: create.operationId,
-	})
-}
-
-function renewOperation(model: SpecModel, exceptId: string): OperationModel | undefined {
-	return model.operations.find((op) => {
-		if (op.operationId === exceptId) return false
-		const schema = requestSchemaOf(op, model)
-		const properties = schema?.properties
-		if (properties === null || typeof properties !== "object" || Array.isArray(properties)) return false
-		return "refresh_token" in (properties as Record<string, unknown>)
-	})
-}
-
-function bodyFrom(schema: Record<string, unknown> | null, issued: Record<string, unknown>): Record<string, unknown> {
-	if (schema === null) return {}
-	const properties = schema.properties
-	if (properties === null || typeof properties !== "object" || Array.isArray(properties)) return {}
-	const body: Record<string, unknown> = {}
-	for (const name of Object.keys(properties as Record<string, unknown>)) {
-		const value = issued[name]
-		if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") body[name] = value
-	}
-	return body
-}
-
-export const disposableCheck: Check = {
-	id: DISPOSABLE_CHECK_ID,
-	mutates: true,
-	needs: "x-destructive, a register operation, and a caller read",
-	plan: () => ({ ok: false }),
-	run: (): Promise<Outcome> => Promise.resolve(ASSERTED),
-	/* Destructive routes have no entity. `runDisposableOps` grades them after the entity loop. */
-	subjects: () => [],
 }

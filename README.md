@@ -68,7 +68,12 @@ Unknown commands, unknown flags, and missing required flags exit `2`.
 3. **Authenticate** every configured principal (static headers and/or an auth flow). Credentials refresh on a countdown from `exp` (default 30s buffer) before every dispatch and each async poll.
 4. **Seed** a cohort of records per entity, in parent-before-child order, using each entity's create operation.
 5. **Test** the matrix entity by entity: foundations first, then composition, writes, isolation, declared effects. Entities that can see each other's writes — a parent and its children, a route one invalidates, an effect one lands on another — run in series; entities that share nothing run side by side. Checks inside an entity stay ordered.
-6. **Teardown** everything the run created, unless `--keep-fixtures` / `keepFixtures: true`.
+6. **Destructive** operations (`x-destructive`) run as a second user signed up for the purpose, never the suite caller.
+7. **Scenarios** run the flows the config declares for operations the matrix cannot reach on its own (a payment, a consent, an invite accepted by a second user).
+8. **Floor**: every operation nothing above graded is called once with a request built from its schema. A delete that only answered 2xx is read back once.
+9. **Teardown** everything the run created, unless `--keep-fixtures` / `keepFixtures: true`.
+
+Every pass names its tier. `verified`: a later exchange shows a value from the call — the read holding the created id, the list without the deleted one, the session refused after the logout. `contract`: the call got a documented success and its body matched the schema, and nothing later showed more. An operation oat could not call at all stays `untested` with the reason (`unresolved param team_id`, `contract call returned 409 …`); declare a scenario for it.
 
 The first principal is the writer. Isolation needs a second principal with different `roots`. A rank lattice needs two or more principals that share `roots` and differ in `rank`. Invite checks need `x-invite` plus a peer with `inviteAs`.
 

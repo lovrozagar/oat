@@ -37,9 +37,11 @@ Redaction is on by default (not opt-in), applied on write:
 - Headers: `authorization`, `cookie`, `set-cookie`, `proxy-authorization`, and any `x-*-key` / `x-*-secret` / `x-ia-tester-key` (case-insensitive).
 - JSON bodies, any depth: `access_token`, `refresh_token`, `id_token`, `password`, `token`, `secret`, `api_key` → `"<redacted>"`.
 
-Every report names its scope. The console prints `scope: full · 141 of 212 operations graded` or `scope: targeted · 2 operations (--ops …)` followed by one line per target. `oat-report.md` has a **Scope** line and an **Operations** table: on a full run, every operation in the document with its status (so operations no check ever grades are visible); on a targeted run, the targets only, followed by **Support operations** with call and non-2xx counts. In `matrix.html` / `matrix.json` a check a targeted run did not ask for is `out-of-scope`, distinct from `skipped` (not applicable).
+Every report names its scope. The console prints `scope: full · 141 of 212 operations graded` or `scope: targeted · 2 operations (--ops …)` followed by one line per target. `oat-report.md` has a **Scope** line and an **Operations** table: on a full run, every operation in the document with its status and, for a pass, its **tier** (so operations no check ever grades are visible); on a targeted run, the targets only, followed by **Support operations** with call and non-2xx counts. In `matrix.html` / `matrix.json` a check a targeted run did not ask for is `out-of-scope`, distinct from `skipped` (not applicable).
 
 Join `progress.tsv` `req_id` to `exchanges.jsonl` `requestId` (response `x-request-id` / `request-id` / `x-correlation-id` / `correlation-id` wins; else what oat sent). `oat-report.md` includes one line such as `1841 exchanges → exchanges/`.
+
+A pass carries `tier` and `evidence`, naming exchanges by their run `seq` (each saved exchange records it). `verified`: `evidence.observation` is a later exchange that holds `value` at `path`; for a delete, a later read answering `status` (404/410), or a later list where `value` is `absent`. `contract`: only `evidence.call` — a documented success whose body matched the schema.
 
 ### `oat-report.json`
 
@@ -66,6 +68,22 @@ Join `progress.tsv` `req_id` to `exchanges.jsonl` `requestId` (response `x-reque
 					"gaps": []
 				},
 				"findings": 1,
+				"reason": null
+			},
+			{
+				"operationId": "product.create",
+				"entity": "product",
+				"status": "passed",
+				"tier": "verified",
+				"evidence": { "call": 14, "observation": { "seq": 15, "path": "$.items[*].id", "value": "prd_9" } },
+				"checks": {
+					"passed": ["create.persists-submitted-fields"],
+					"failed": [],
+					"suppressed": [],
+					"inconclusive": [],
+					"gaps": []
+				},
+				"findings": 0,
 				"reason": null
 			}
 		],

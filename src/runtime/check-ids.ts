@@ -70,6 +70,7 @@ export const CHECK_IDS = [
 	"query.sort-and-select-compose",
 	"query.unknown-parameter-consistent",
 	"read.matches-caller-root",
+	"response.contract-call",
 	"response.public-get-returns-success",
 	"response.status-is-documented",
 	"schema.error-response-matches-document",

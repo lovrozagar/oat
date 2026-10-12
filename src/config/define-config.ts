@@ -92,6 +92,59 @@ export interface OutOfBandStep {
 
 export type AuthStep = OperationStep | RequestStep | OutOfBandStep
 
+/* ------------------------------------------------------------------ scenarios */
+
+/**
+ * The value at `from` in a step's response must equal, or contain, the expected text after
+ * `{name}` interpolation. `from` is a JSON path; `[*]` fans out over an array, so
+ * `$.items[*].name` passes when any item's name matches.
+ */
+export interface ScenarioAssert {
+	from: string
+	equals?: string
+	contains?: string
+	/**
+	 * Earlier operations this read proves. A passing assert marks each one `verified`, with this
+	 * exchange as the observation. The step's own operation always counts.
+	 */
+	observes?: string[]
+}
+
+/** A request in a scenario: an `OperationStep` or `RequestStep`, plus what to check. */
+export type ScenarioRequestStep = (OperationStep | RequestStep) & {
+	assert?: ScenarioAssert
+	/** Re-send until the assert passes or `within` (`"30s"`, `"500ms"`, `"2m"`) runs out. */
+	poll?: { within: string; everyMs?: number }
+	/** Send without the scenario principal's credential. */
+	anonymous?: boolean
+}
+
+/**
+ * Something only a person or a browser can do — pay with a test card, give OAuth consent.
+ * oat calls `hooks.external(name, input)` and binds the string it returns to `as`.
+ */
+export interface ExternalStep {
+	external: string
+	input?: Record<string, unknown>
+	as: string
+}
+
+export type ScenarioStep = ScenarioRequestStep | OutOfBandStep | ExternalStep
+
+/**
+ * A declared flow for operations the matrix cannot reach on its own: steps run in order as one
+ * principal, values flow forward through `{name}`, and each operation in `covers` is graded by
+ * what the steps observed. Product knowledge lives here, in the config — not in oat.
+ */
+export interface Scenario {
+	id: string
+	/** Operations this scenario grades. Each must be called by one of its steps. */
+	covers: string[]
+	/** Config principal whose credential the steps send. Default: the first principal. */
+	principal?: string
+	steps: ScenarioStep[]
+}
+
 /* ----------------------------------------------------------------- auth flows */
 
 /** How to renew a credential without re-running the acquire chain. */
@@ -302,26 +355,13 @@ export interface Uploads {
 }
 
 export interface Hooks {
+	/**
+	 * Performs a scenario `external` step — a browser payment, an OAuth consent — and returns
+	 * the value the next step needs. `null` fails the step.
+	 */
+	external?: (name: string, input: Record<string, unknown>) => Promise<string | null>
 	/** Return `null` to ask oat to retry — the value may simply not have arrived yet. */
 	resolveOutOfBand?: (request: OutOfBandRequest) => Promise<string | null>
-	/**
-	 * Records written for this run after an `x-effect-record` call. `null` retries.
-	 * The route passes only when one record contains that call's path values.
-	 */
-	resolveRunRecord?: () => Promise<unknown>
-	/**
-	 * Raw body and headers for an `x-signed-event` call. The bytes are sent unchanged, so a
-	 * signature in `headers` can match `body`. `null` leaves the operation ungraded.
-	 */
-	resolveSignedEvent?: (request: {
-		operationId: string
-		scope: Record<string, string>
-	}) => Promise<{ body: string; headers: Record<string, string> } | null>
-	/**
-	 * Makes the caller a platform admin before `x-admin` routes. Return false when the grant
-	 * did not stick. Oat refreshes the caller's credential after a true result.
-	 */
-	preparePlatformAdmin?: (request: { headers: Record<string, string> }) => Promise<boolean>
 	/**
 	 * Removes a principal the run provisioned, and everything that principal created with it.
 	 * `ctx.headers` is the live principal header map so authenticated delete-account is
@@ -454,6 +494,8 @@ export interface RateLimitSpec {
 export type PayloadPolicy = "full" | "per-write-path"
 
 export interface OatConfig {
+	/** Declared flows for operations the matrix cannot reach. See `Scenario`. */
+	scenarios?: Scenario[]
 	/** OpenAPI document — an http(s) URL or a filesystem path. JSON or YAML. */
 	spec: string
 	/** Backend under test. */

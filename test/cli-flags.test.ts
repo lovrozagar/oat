@@ -1,3 +1,5 @@
+import { createServer } from "node:http"
+import type { AddressInfo } from "node:net"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -119,9 +121,39 @@ describe("--ops on the CLI", () => {
 	})
 
 	it("exits 3 when a target was not graded, and reads targets from config", async () => {
-		const { code, out } = await cli(["run", "--config", await config({ ops: ["auth.token"] }), "--out", dir, "--quiet"])
-		expect(code).toBe(3)
-		expect(out).toMatch(/auth\.token\s+untested/)
+		/* One read keyed by an id nothing in the document produces: oat can call nothing for it. */
+		const document = {
+			info: { title: "unreachable", version: "1" },
+			openapi: "3.1.0",
+			paths: {
+				"/v1/things/{thing_id}": {
+					get: {
+						operationId: "thing.get",
+						parameters: [{ in: "path", name: "thing_id", required: true, schema: { type: "string" } }],
+						responses: { "200": { description: "ok" } },
+					},
+				},
+			},
+		}
+		const lone = createServer((_req, res) => {
+			res.writeHead(200, { "content-type": "application/json" })
+			res.end(JSON.stringify(document))
+		})
+		await new Promise<void>((resolve) => lone.listen(0, "127.0.0.1", resolve))
+		const url = `http://127.0.0.1:${(lone.address() as AddressInfo).port}`
+		try {
+			const path = await config({
+				baseUrl: url,
+				ops: ["thing.get"],
+				principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+				spec: `${url}/openapi.json`,
+			})
+			const { code, out } = await cli(["run", "--config", path, "--out", dir, "--quiet"])
+			expect(code).toBe(3)
+			expect(out).toMatch(/thing\.get\s+untested/)
+		} finally {
+			await new Promise<void>((resolve) => lone.close(() => resolve()))
+		}
 	})
 
 	it("plan --ops prints the scope without a run", async () => {

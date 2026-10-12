@@ -11,6 +11,7 @@ import { canWriteFilterOp, filterTerm, selectTerm, sortTerm, sortTermWithNulls }
 import type { InviteSpec } from "../spec/extensions.ts"
 import { CHECK_IDS, type CheckId } from "./check-ids.ts"
 import { publicGetCheck } from "./one-shot.ts"
+import { contractCallCheck } from "./contract.ts"
 import { disposableCheck } from "./disposable.ts"
 import { rootReadCheck } from "./root-read.ts"
 import { selfIdentityCheck } from "./self.ts"
@@ -9150,6 +9151,7 @@ export const CHECKS: readonly Check[] = [
 	rootReadCheck,
 	disposableCheck,
 	publicGetCheck,
+	contractCallCheck,
 
 	/* declared side effects and async lifecycles, last: both invoke operations that change the
 	 * world, and both are meaningless if the read surface above is already known broken */

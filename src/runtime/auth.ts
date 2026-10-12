@@ -74,7 +74,7 @@ export interface PrincipalRuntime {
 }
 
 /** `{name}` placeholders resolved from the accumulated scope. */
-function interpolate(value: unknown, scope: Record<string, string>): unknown {
+export function interpolate(value: unknown, scope: Record<string, string>): unknown {
 	if (typeof value === "string") {
 		return value.replace(/\{([A-Za-z0-9_]+)\}/g, (match, key: string) => scope[key] ?? match)
 	}
@@ -288,7 +288,7 @@ function isRequestStep(step: AuthStep): step is RequestStep {
 	return "method" in step && "path" in step
 }
 
-async function resolveRequest(
+export async function resolveRequest(
 	step: AuthStep,
 	context: AcquireContext,
 	scope: Record<string, string>,

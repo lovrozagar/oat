@@ -52,6 +52,17 @@ async function serve(healthStatus: number): Promise<{ hits: string[]; url: strin
 			res.end(JSON.stringify({ ok: healthStatus === 200 }))
 			return
 		}
+		const authed = req.headers.authorization === "Bearer alpha"
+		if (url.pathname === "/v1/private" && method === "GET" && authed) {
+			res.writeHead(200, { "content-type": "application/json" })
+			res.end(JSON.stringify({ ok: true }))
+			return
+		}
+		if (url.pathname === "/v1/needs-query" && method === "GET" && url.searchParams.get("token") !== null) {
+			res.writeHead(200, { "content-type": "application/json" })
+			res.end(JSON.stringify({ ok: true }))
+			return
+		}
 		res.writeHead(500, { "content-type": "application/json" })
 		res.end(JSON.stringify({ error: "should not have been called" }))
 	})
@@ -71,7 +82,7 @@ async function runAt(baseUrl: string) {
 }
 
 describe("a public read with no id", () => {
-	it("calls only the public read and holds its documented success", async () => {
+	it("holds the public read anonymously and grades the rest at the contract tier", async () => {
 		const { hits, url } = await serve(200)
 		const result = await runAt(url)
 		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
@@ -79,9 +90,16 @@ describe("a public read with no id", () => {
 		const health = result.scope.operations.find((op) => op.operationId === "gateway.health")
 		expect(health?.status).toBe("passed")
 		expect(health?.checks.passed).toContain("response.public-get-returns-success")
-		expect(hits.filter((hit) => hit !== "GET /openapi.json")).toEqual(["GET /health"])
-		expect(result.scope.operations.find((op) => op.operationId === "needs.query")?.status).toBe("untested")
-		expect(result.scope.operations.find((op) => op.operationId === "private.read")?.status).toBe("untested")
+		expect(hits.filter((hit) => hit !== "GET /openapi.json").sort()).toEqual([
+			"GET /health",
+			"GET /v1/needs-query",
+			"GET /v1/private",
+		])
+		for (const id of ["needs.query", "private.read"]) {
+			const row = result.scope.operations.find((op) => op.operationId === id)
+			expect(row?.status).toBe("passed")
+			expect(row?.tier).toBe("contract")
+		}
 	})
 
 	it("reports a public read that does not return its success status", async () => {

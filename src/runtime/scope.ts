@@ -316,6 +316,25 @@ export interface OperationCoverage {
 	findings: number
 	/** Why it was not graded, when it was not. */
 	reason: string | null
+	/**
+	 * How a pass was proven. `verified`: a later exchange shows a value from the call.
+	 * `contract`: the call got a documented success and its body matched the schema.
+	 */
+	tier?: PassTier
+	/** The exchanges behind a pass. */
+	evidence?: PassEvidence
+}
+
+export type PassTier = "contract" | "verified"
+
+/** Exchanges by `seq`, which is unique within a run; the journal saves each with its `seq`. */
+export interface PassEvidence {
+	call: number
+	/**
+	 * A later exchange holding `value` at `path`. For a delete: a later read of the same resource
+	 * answering `status`, or a later list of its collection where `value` is `absent`.
+	 */
+	observation?: { seq: number; path: string; value: string; absent?: true } | { seq: number; status: number }
 }
 
 /** An operation a targeted run called without grading it. */
@@ -343,6 +362,7 @@ export class GradeLedger {
 	readonly ran = new Map<string, Set<string>>()
 	readonly suppressed = new Map<string, Set<string>>()
 	readonly needs = new Map<string, Set<string>>()
+	readonly evidence = new Map<string, PassEvidence>()
 
 	#add(map: Map<string, Set<string>>, operations: readonly string[], value: string): void {
 		for (const op of operations) {
@@ -362,6 +382,13 @@ export class GradeLedger {
 
 	skipped(operations: readonly string[], needs: string): void {
 		this.#add(this.needs, operations, needs)
+	}
+
+	/** The call behind a pass, and the later read that showed it. An observation is never downgraded. */
+	prove(operation: string, evidence: PassEvidence): void {
+		const known = this.evidence.get(operation)
+		if (known?.observation !== undefined && evidence.observation === undefined) return
+		this.evidence.set(operation, evidence)
 	}
 }
 
@@ -449,7 +476,14 @@ export function buildScopeReport(input: CoverageInput): ScopeReport {
 				(op !== undefined && !graded.has(operationId) ? untestableReason(op, model, input.authCreates) : undefined)
 			const needs = [...(ledger.needs.get(operationId) ?? [])]
 			const emptyList = needs.find((need) => need === "the list returned no id")
+			/* The contract call actually tried this operation; what stopped it beats a static guess. */
+			const tried = needs.find((need) =>
+				/^(contract call|destructive call|unresolved |the second user|no way to sign up)/.test(need),
+			)
 			reason =
+				emptyList ??
+				(statically !== undefined && tried !== undefined ? `${statically}; ${tried}` : undefined) ??
+				tried ??
 				statically ??
 				(gapFindings[0] === undefined ? undefined : `coverage gap: ${gapFindings[0].summary}`) ??
 				(emptyList !== undefined
@@ -458,6 +492,7 @@ export function buildScopeReport(input: CoverageInput): ScopeReport {
 						? `no check applied: needs ${needs.slice(0, 3).join("; ")}`
 						: "no check exercised it")
 		}
+		const evidence = status === "passed" ? ledger.evidence.get(operationId) : undefined
 		return {
 			checks: { failed, gaps, inconclusive, passed, suppressed },
 			entity: op?.entity ?? null,
@@ -465,6 +500,9 @@ export function buildScopeReport(input: CoverageInput): ScopeReport {
 			operationId,
 			reason,
 			status,
+			...(evidence === undefined
+				? {}
+				: { evidence, tier: evidence.observation === undefined ? ("contract" as const) : ("verified" as const) }),
 		}
 	})
 

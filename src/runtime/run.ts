@@ -20,6 +20,7 @@ import type {
 	ProfileSpec,
 	QueryCapabilities,
 	RateLimitSpec,
+	Scenario,
 	Uploads,
 } from "../config/define-config.ts"
 import { type OriginClient, createPrincipal, type PrincipalRuntime } from "./auth.ts"
@@ -40,12 +41,9 @@ import { type PersistedPrincipal, persistedToPrincipal, snapshotPrincipal } from
 import { CHECKS, type Actor, type WriteContext } from "./checks.ts"
 import { runPublicGets } from "./one-shot.ts"
 import { runDisposableOps, signupOperationId } from "./disposable.ts"
-import { runEffectRecords } from "./effect-record.ts"
-import { runPlatformAdmin } from "./admin.ts"
-import { runImages, runObjects } from "./object.ts"
-import { runFiles } from "./file.ts"
-import { runSignedEvents } from "./signed-event.ts"
-import { runMailOps } from "./mail.ts"
+import { assertScenarios, runScenarios } from "./scenario.ts"
+import { confirmDeletes, runContractCalls } from "./contract.ts"
+import { proveFromTranscript } from "./evidence.ts"
 import { rootReadIds, ROOT_READ_CHECK_ID, runRootRead } from "./root-read.ts"
 import { entityIsSelf, runSelfIdentity, SELF_CHECK_ID, selfOperationIds } from "./self.ts"
 import {
@@ -127,6 +125,8 @@ export interface RunOptions {
 	onProgress?: ProgressHandler
 	/** Extra hosts with their own OpenAPI. Auth stays on the primary. */
 	origins?: OriginSpec[]
+	/** Declared flows for operations the matrix cannot reach. */
+	scenarios?: Scenario[]
 	/** Backoff for `resolveOutOfBand` / `resolvePrincipalAuth`. */
 	outOfBand?: OutOfBandConfig
 	/** How much of the payload catalog to send; see `OatConfig.payloads`. */
@@ -610,6 +610,8 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		exclusion: { profile: profile.name, reason: (op) => excludedByProfile(op, profile.spec) },
 		origins: new Map([...originClients].map(([id, origin]) => [id, origin.model])),
 	})
+	/* A scenario that names an operation it never calls is a config error, caught before signup. */
+	assertScenarios(options.scenarios ?? [], (id) => model.byOperationId.has(id))
 	const grades = new GradeLedger()
 	tick({
 		message:
@@ -1607,7 +1609,23 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			: { rootsFromFlow: options.principals[0].rootsFromFlow }),
 		seed,
 	})
-	await runMailOps({
+	await runScenarios({
+		checksRun,
+		client,
+		defaultPrincipal: alpha.id,
+		findings,
+		grades,
+		hooks,
+		inScope: (operationId) => runScope.inScope(operationId),
+		mode: runScope.mode,
+		model,
+		originClients,
+		outOfBand: options.outOfBand ?? {},
+		principals: new Map(resolved.map((principal) => [principal.id, principal.headers])),
+		scenarios: options.scenarios ?? [],
+	})
+	await proveFromTranscript({ client, grades, model })
+	await confirmDeletes({
 		auth: alpha.headers,
 		client,
 		findings,
@@ -1615,90 +1633,24 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		inScope: (operationId) => runScope.inScope(operationId),
 		mode: runScope.mode,
 		model,
-		nonce,
-		...(options.principals[0]?.auth === undefined ? {} : { authFlow: options.principals[0].auth }),
+		stopped: () => options.signal?.aborted === true || networkGate.exhausted,
+	})
+	await runContractCalls({
+		auth: alpha.headers,
+		checksRun,
+		client,
+		findings,
+		grades,
 		hooks,
-		outOfBand,
+		inScope: (operationId) => runScope.inScope(operationId),
+		mode: runScope.mode,
+		model,
+		nonce,
+		owned: new Set((options.scenarios ?? []).flatMap((scenario) => scenario.covers)),
 		roots: alpha.roots,
 		seed,
-	})
-	await runEffectRecords({
-		client,
-		findings,
-		grades,
-		inScope: (operationId) => runScope.inScope(operationId),
-		mode: runScope.mode,
-		model,
-		nonce,
-		...(options.principals[0]?.auth === undefined ? {} : { authFlow: options.principals[0].auth }),
-		hooks,
-		outOfBand,
-	})
-	await runSignedEvents({
-		auth: alpha.headers,
-		client,
-		findings,
-		grades,
-		inScope: (operationId) => runScope.inScope(operationId),
-		mode: runScope.mode,
-		model,
-		hooks,
-		roots: alpha.roots,
-	})
-	await runFiles({
-		auth: alpha.headers,
-		client,
-		findings,
-		grades,
-		hooks,
-		inScope: (operationId) => runScope.inScope(operationId),
-		mode: runScope.mode,
-		model,
-		...(options.principals[0]?.auth === undefined ? {} : { authFlow: options.principals[0].auth }),
-		roots: alpha.roots,
-	})
-	const beta = resolved[1]
-	await runPlatformAdmin({
-		auth: alpha.headers,
-		client,
-		findings,
-		grades,
-		hooks,
-		inScope: (operationId) => runScope.inScope(operationId),
-		mode: runScope.mode,
-		model,
-		...(alpha.runtime === undefined ? {} : { refresh: alpha.runtime.refreshIfStale }),
-		...(options.principals[0]?.auth === undefined ? {} : { authFlow: options.principals[0].auth }),
-		...(beta === undefined
-			? {}
-			: {
-					other: {
-						auth: beta.headers,
-						...(options.principals[1]?.auth === undefined ? {} : { flow: options.principals[1].auth }),
-					},
-				}),
-		roots: alpha.roots,
-	})
-	const cdn = originClients.get("cdn")
-	await runImages({
-		auth: alpha.headers,
-		client,
-		findings,
-		grades,
-		inScope: (operationId) => runScope.inScope(operationId),
-		mode: runScope.mode,
-		model,
-		...(cdn === undefined ? {} : { cdn: cdn.client }),
-	})
-	await runObjects({
-		auth: alpha.headers,
-		client,
-		findings,
-		grades,
-		inScope: (operationId) => runScope.inScope(operationId),
-		mode: runScope.mode,
-		model,
-		roots: alpha.roots,
+		stopped: () => options.signal?.aborted === true || networkGate.exhausted,
+		validator,
 	})
 
 	/* Unwind after every check has run, never per case: a check may legitimately depend on records

@@ -67,8 +67,8 @@ describe("targeted runs", () => {
 		expect(defects(result)).toEqual([])
 		expect(coverage(result, "table.get")?.status).toBe("passed")
 		expect(coverage(result, "row.list")?.status).toBe("passed")
-		expect(coverage(result, "auth.token")).toMatchObject({ status: "untested" })
-		expect(coverage(result, "auth.token")?.reason).toMatch(/^unmodeled:/)
+		/* Principals sign in through it; that exchange is its contract-tier proof. */
+		expect(coverage(result, "auth.token")).toMatchObject({ status: "passed", tier: "contract" })
 	})
 
 	it("does not grade an operation outside the targets", async () => {
@@ -101,12 +101,14 @@ describe("targeted runs", () => {
 		expect(coverage(result, "job.list")?.status).toBe("passed")
 	})
 
-	it("reports an unreachable target as untested with the reason", async () => {
+	it("grades a sign-in target from the exchange that signed in, without calling it again", async () => {
 		const server = await reference()
 		const result = await runAt(server.url, ["auth.token"])
 		expect(result.entitiesTested).toEqual([])
-		expect(coverage(result, "auth.token")).toMatchObject({ status: "untested" })
-		expect(coverage(result, "auth.token")?.reason).toMatch(/^unmodeled:/)
+		const row = coverage(result, "auth.token")
+		expect(row).toMatchObject({ status: "passed", tier: "contract" })
+		const calls = result.client.transcript.filter((exchange) => exchange.operationId === "auth.token")
+		expect(calls.map((exchange) => exchange.seq)).toContain(row?.evidence?.call)
 	})
 
 	it("blocks a target whose support operation fails, without calling it a defect", async () => {

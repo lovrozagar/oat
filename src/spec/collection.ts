@@ -165,6 +165,16 @@ export function deriveCollectionShape(raw: SchemaObject | null): CollectionShape
 	if (chosen === undefined) return null
 
 	const siblingNames = entries.map(([name]) => name).filter((name) => name !== chosen.name)
+	/* An envelope's other fields describe the page — counts, cursors, a meta or links sidecar.
+	 * A body with its own nested objects beside the array (an OpenAPI document's `info` and
+	 * `paths` beside `servers`) is a document that happens to hold a list, not a list. */
+	const substantive = entries.filter(
+		([name, value]) =>
+			name !== chosen.name &&
+			!/^(errors?|warnings?|messages?|meta|links|filters?|facets)$/i.test(name) &&
+			(value?.type === "object" || value?.properties !== undefined || value?.additionalProperties !== undefined),
+	)
+	if (substantive.length > 0) return null
 	const pagination: CollectionShape["pagination"] = {}
 	const pick = (keys: string[]): string | undefined => siblingNames.find((n) => keys.includes(n))
 	const countKey = pick(COUNT_KEYS)

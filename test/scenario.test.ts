@@ -1,0 +1,270 @@
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
+import type { AddressInfo } from "node:net"
+import { afterEach, describe, expect, it } from "vitest"
+import type { Scenario } from "../src/config/define-config.ts"
+import type { OpenApiDocument } from "../src/spec/types.ts"
+import { run } from "../src/runtime/run.ts"
+
+let open: Array<{ close: () => Promise<void> }> = []
+afterEach(async () => {
+	for (const server of open) await server.close()
+	open = []
+})
+
+const json = { "application/json": { schema: { type: "object" } } }
+const noteSchema = {
+	properties: { id: { type: "string" }, text: { type: "string" } },
+	required: ["id", "text"],
+	type: "object",
+}
+const noteJson = { "application/json": { schema: noteSchema } }
+const noteList = {
+	"application/json": {
+		schema: { properties: { items: { items: noteSchema, type: "array" } }, required: ["items"], type: "object" },
+	},
+}
+const noteWrite = {
+	content: {
+		"application/json": {
+			schema: { properties: { text: { type: "string" } }, required: ["text"], type: "object" },
+		},
+	},
+}
+
+function spec(): OpenApiDocument {
+	return {
+		components: { securitySchemes: { bearer: { scheme: "bearer", type: "http" } } },
+		info: { title: "scenario", version: "1" },
+		openapi: "3.1.0",
+		paths: {
+			"/v1/notes": {
+				get: { operationId: "notes.list", responses: { "200": { content: noteList, description: "ok" } } },
+				post: {
+					operationId: "notes.write",
+					requestBody: noteWrite,
+					responses: { "201": { content: noteJson, description: "ok" } },
+				},
+			},
+			"/v1/notes/{id}": {
+				patch: {
+					operationId: "notes.rename",
+					parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
+					requestBody: noteWrite,
+					responses: { "200": { content: noteJson, description: "ok" } },
+				},
+			},
+			"/v1/stats": {
+				get: { operationId: "stats.get", responses: { "200": { content: json, description: "ok" } } },
+			},
+			"/v1/checkout": {
+				post: { operationId: "checkout.open", responses: { "200": { content: json, description: "ok" } } },
+			},
+			"/v1/checkout/confirm": {
+				post: {
+					operationId: "checkout.confirm",
+					requestBody: { content: { "application/json": { schema: { type: "object" } } } },
+					responses: { "200": { content: json, description: "ok" } },
+				},
+			},
+		},
+		security: [{ bearer: [] }],
+	} as unknown as OpenApiDocument
+}
+
+interface Api {
+	url: string
+	/** Writes to stats become visible this long after they happen. */
+	statsLagMs: number
+}
+
+async function serve(options: { brokenRename?: boolean; statsLagMs?: number } = {}): Promise<Api> {
+	const notes = new Map<string, { id: string; text: string }>()
+	const statWrites: Array<{ at: number; text: string }> = []
+	const statsLagMs = options.statsLagMs ?? 0
+	const document = spec()
+	const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+		const url = new URL(req.url ?? "/", "http://127.0.0.1")
+		const method = (req.method ?? "GET").toUpperCase()
+		let raw = ""
+		for await (const chunk of req) raw += chunk
+		const body = raw === "" ? {} : (JSON.parse(raw) as Record<string, unknown>)
+		const send = (status: number, value: unknown) => {
+			res.writeHead(status, { "content-type": "application/json" })
+			res.end(JSON.stringify(value))
+		}
+		if (url.pathname === "/openapi.json") return send(200, document)
+		if (req.headers.authorization !== "Bearer alpha") return send(401, { error: "unauthorized" })
+		const invalid = (method === "POST" || method === "PATCH") && url.pathname.startsWith("/v1/notes")
+		if (invalid && typeof body["text"] !== "string") return send(400, { error: "text_required" })
+		if (url.pathname === "/v1/notes" && method === "POST") {
+			const note = { id: `n${notes.size + 1}`, text: String(body["text"]) }
+			notes.set(note.id, note)
+			statWrites.push({ at: Date.now(), text: note.text })
+			return send(201, note)
+		}
+		if (url.pathname === "/v1/notes" && method === "GET") return send(200, { items: [...notes.values()] })
+		const item = /^\/v1\/notes\/([^/]+)$/.exec(url.pathname)
+		if (item !== null && method === "PATCH") {
+			const note = notes.get(item[1] ?? "")
+			if (note === undefined) return send(404, { error: "not_found" })
+			if (options.brokenRename !== true) note.text = String(body["text"])
+			return send(200, note)
+		}
+		if (url.pathname === "/v1/stats") {
+			const visible = statWrites.filter((write) => Date.now() - write.at >= statsLagMs)
+			return send(200, { texts: visible.map((write) => write.text) })
+		}
+		if (url.pathname === "/v1/checkout" && method === "POST") {
+			return send(200, { url: "https://pay.example/session/cs_1" })
+		}
+		if (url.pathname === "/v1/checkout/confirm" && method === "POST") {
+			return send(200, { confirmed: body["session"] === "cs_1-paid" })
+		}
+		send(404, { error: "not_found" })
+	})
+	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+	const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+	open.push({ close: () => new Promise<void>((resolve) => server.close(() => resolve())) })
+	return { statsLagMs, url }
+}
+
+const RENAME: Scenario = {
+	covers: ["notes.write", "notes.rename"],
+	id: "notes",
+	steps: [
+		{ body: { text: "first" }, operationId: "notes.write", saveAs: { id: "$.id" } },
+		{
+			assert: { contains: "first", from: "$.items[*].text", observes: ["notes.write"] },
+			operationId: "notes.list",
+		},
+		{ bind: { id: "{id}" }, body: { text: "second" }, operationId: "notes.rename" },
+		{
+			assert: { contains: "second", from: "$.items[*].text", observes: ["notes.rename"] },
+			operationId: "notes.list",
+		},
+	],
+}
+
+async function runWith(api: Api, scenarios: Scenario[], ops: string[], hooks = {}) {
+	return run({
+		baseUrl: api.url,
+		hooks,
+		ops,
+		principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+		scenarios,
+		seed: 1,
+		spec: `${api.url}/openapi.json`,
+	})
+}
+
+function row(result: Awaited<ReturnType<typeof runWith>>, operationId: string) {
+	return result.scope.operations.find((op) => op.operationId === operationId)
+}
+
+describe("scenarios", () => {
+	it("grades each covered operation verified when a later read shows its value", async () => {
+		const api = await serve()
+		const result = await runWith(api, [RENAME], ["notes.write", "notes.rename"])
+		for (const id of ["notes.write", "notes.rename"]) {
+			const graded = row(result, id)
+			expect(graded?.status).toBe("passed")
+			expect(graded?.tier).toBe("verified")
+			const call = result.client.transcript.find((exchange) => exchange.seq === graded?.evidence?.call)
+			const seen = result.client.transcript.find((exchange) => exchange.seq === graded?.evidence?.observation?.seq)
+			expect(call?.operationId).toBe(id)
+			expect(seen?.operationId).toBe("notes.list")
+			expect(seen?.seq).toBeGreaterThan(call?.seq ?? Number.POSITIVE_INFINITY)
+		}
+		expect(row(result, "notes.rename")?.evidence?.observation).toMatchObject({
+			path: "$.items[*].text",
+			value: "second",
+		})
+	})
+
+	it("fails the operation whose read does not show it and blocks what the scenario never reached", async () => {
+		const api = await serve({ brokenRename: true })
+		const extended: Scenario = {
+			...RENAME,
+			covers: [...RENAME.covers, "stats.get"],
+			steps: [...RENAME.steps, { assert: { contains: "first", from: "$.texts[*]" }, operationId: "stats.get" }],
+		}
+		const result = await runWith(api, [extended], ["notes.write", "notes.rename", "stats.get"])
+		expect(row(result, "notes.write")?.status).toBe("passed")
+		expect(row(result, "notes.rename")?.status).toBe("failed")
+		expect(row(result, "stats.get")?.status).toBe("blocked")
+		expect(row(result, "stats.get")?.reason).toContain('scenario "notes" stopped at step 4')
+		const finding = result.findings.find((f) => f.operations?.includes("notes.rename"))
+		expect(finding?.check).toBe("scenario.notes")
+		expect(finding?.evidence.map((exchange) => exchange.operationId)).toContain("notes.list")
+	})
+
+	it("polls an eventually consistent read until it shows the call's value", async () => {
+		const api = await serve({ statsLagMs: 400 })
+		const scenario: Scenario = {
+			covers: ["notes.write", "stats.get"],
+			id: "lagging",
+			steps: [
+				{ body: { text: "lagging-write" }, operationId: "notes.write" },
+				{
+					assert: { equals: "lagging-write", from: "$.texts[*]", observes: ["notes.write"] },
+					operationId: "stats.get",
+					poll: { within: "3s" },
+				},
+			],
+		}
+		const result = await runWith(api, [scenario], ["notes.write", "stats.get"])
+		expect(row(result, "stats.get")?.status).toBe("passed")
+		expect(row(result, "notes.write")?.tier).toBe("verified")
+	})
+
+	it("fails a lagging read without poll", async () => {
+		const api = await serve({ statsLagMs: 2_000 })
+		const scenario: Scenario = {
+			covers: ["notes.write", "stats.get"],
+			id: "impatient",
+			steps: [
+				{ body: { text: "impatient-write" }, operationId: "notes.write" },
+				{
+					assert: { equals: "impatient-write", from: "$.texts[*]", observes: ["notes.write"] },
+					operationId: "stats.get",
+				},
+			],
+		}
+		const result = await runWith(api, [scenario], ["notes.write", "stats.get"])
+		expect(row(result, "stats.get")?.status).toBe("failed")
+	})
+
+	it("hands a browser step to the external hook and feeds its answer forward", async () => {
+		const api = await serve()
+		const seen: Array<{ input: unknown; name: string }> = []
+		const scenario: Scenario = {
+			covers: ["checkout.open", "checkout.confirm"],
+			id: "pay",
+			steps: [
+				{ operationId: "checkout.open", saveAs: { checkoutUrl: "$.url" } },
+				{ as: "session", external: "pay-with-test-card", input: { url: "{checkoutUrl}" } },
+				{
+					assert: { equals: "true", from: "$.confirmed", observes: ["checkout.open"] },
+					body: { session: "{session}" },
+					operationId: "checkout.confirm",
+				},
+			],
+		}
+		const external = async (name: string, input: Record<string, unknown>) => {
+			seen.push({ input, name })
+			return "cs_1-paid"
+		}
+		const result = await runWith(api, [scenario], ["checkout.open", "checkout.confirm"], { external })
+		expect(seen).toEqual([{ input: { url: "https://pay.example/session/cs_1" }, name: "pay-with-test-card" }])
+		expect(row(result, "checkout.open")?.tier).toBe("verified")
+		expect(row(result, "checkout.confirm")?.status).toBe("passed")
+	})
+
+	it("refuses a scenario that covers an operation it never calls", async () => {
+		const api = await serve()
+		const scenario: Scenario = { ...RENAME, covers: [...RENAME.covers, "stats.get"] }
+		await expect(runWith(api, [scenario], ["notes.write"])).rejects.toThrow(
+			'scenario "notes" covers stats.get but no step calls it',
+		)
+	})
+})

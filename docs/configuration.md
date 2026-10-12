@@ -178,6 +178,7 @@ export default defineConfig({
 | `network`       | no       | `{ retries: 4, waitMs: 60000, requestTimeoutMs: 180000 }` | When `fetch` throws (offline / DNS / reset / timeout): retry, then wait once for the link. Not a 5xx policy. `requestTimeoutMs: 0` disables the per-attempt cap |
 | `query`         | no       |                                                           | Global query-catalog defaults. Overlay after `x-query`. Does not invent operators                                                                               |
 | `entities`      | no       |                                                           | Per-entity overlays. This release only reads `query`. Unknown names are ignored; `doctor` warns                                                                 |
+| `scenarios`     | no       | `[]`                                                      | Declared flows for operations the matrix cannot reach. See [Scenarios](#scenarios)                                                                              |
 
 `spec` may be a path relative to `baseUrl` (`/v1/openapi/spec`) or an absolute URL or a file.
 
@@ -413,6 +414,39 @@ principals: [
 
 The address used for `teardownPrincipal` is `scope.address` or `scope.email` (set via `bind: { address }` or `bind: { email }`).
 
+### Scenarios
+
+Some operations need a scene the document cannot describe: a second factor enabled before it can be verified, a checkout paid before the webhook lands, an invite accepted by someone other than the inviter. A scenario declares that scene as steps. oat runs them and grades each operation in `covers` by what the steps observed. The product knowledge lives in your config; oat stays generic.
+
+```ts
+scenarios: [
+	{
+		id: "rename",
+		covers: ["notes.create", "notes.rename"],
+		steps: [
+			{ operationId: "notes.create", body: { text: "first" }, saveAs: { id: "$.id" } },
+			{ operationId: "notes.list", assert: { from: "$.items[*].text", contains: "first", observes: ["notes.create"] } },
+			{ operationId: "notes.rename", bind: { id: "{id}" }, body: { text: "second" } },
+			{ operationId: "notes.list", assert: { from: "$.items[*].text", contains: "second", observes: ["notes.rename"] } },
+		],
+	},
+],
+```
+
+Steps are the auth-flow steps (`operationId` / raw `method` + `path`, `body`, `bind`, `saveAs`, `expect`, `origin`, `redirect`, and `outOfBand`) plus:
+
+| on a request step                                 | meaning                                                                                                                                                                                                                                   |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `assert: { from, equals \| contains, observes? }` | The value at the JSON path `from` (`[*]` fans out) must equal or contain the text after `{name}` interpolation. A pass marks the step's own operation and every operation in `observes` `verified`, with this exchange as the observation |
+| `poll: { within: "30s", everyMs?: 500 }`          | Re-send until the assert passes or the window runs out — for reads that are eventually consistent                                                                                                                                         |
+| `anonymous: true`                                 | Send without the scenario principal's credential                                                                                                                                                                                          |
+
+| step                                                                                 | meaning                                                                                                                    |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `{ external: "pay-with-test-card", input: { url: "{checkoutUrl}" }, as: "session" }` | Something only a browser or a person can do. oat calls `hooks.external(name, input)` and binds the returned string to `as` |
+
+`principal` picks the config principal whose credential the steps send (default: the first). Each id in `covers` must be called by a step — a scenario that covers what it never calls is refused before the run starts. A step that fails stops the scenario: the operation it blamed is `failed` with the exchanges as evidence, and every covered operation it never reached is `blocked` with the step named. An operation a scenario covers is never graded by the contract floor.
+
 ### Harvested principal
 
 When the credential is produced outside oat (a human finishes Google OAuth on a harvest page, a pair lands in KV), do not make oat drive `authorize` / `callback`:
@@ -504,6 +538,12 @@ hooks: {
     if (entity !== "row") return null
     const body = await get("table.get")
     return { filterable: /* harvest from body */ [] }
+  },
+  // A scenario `external` step: something only a browser or a person can do. Return the value
+  // the next step needs, or null to fail the step.
+  external: async (name, input) => {
+    if (name === "pay-with-test-card") return await payInBrowser(String(input.url), "4242424242424242")
+    return null
   },
   // Optional extra stop condition while x-wait polls.
   awaitSideEffect: async ({ operationId, record }) => {
