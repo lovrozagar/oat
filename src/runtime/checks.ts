@@ -954,6 +954,10 @@ function membership(records: Record_[], identity: string): string {
 	return ids(records, identity).sort().join(",")
 }
 
+const MOVING_FILTER =
+	"the collection gained or lost rows between the term reads and the combined read (something wrote " +
+	"to it while the check ran), so the reads cannot be compared"
+
 const MOVING =
 	"the collection gained or lost rows between two reads in the same direction (something wrote to it " +
 	"while the check ran), so the reads cannot be compared"
@@ -978,6 +982,56 @@ async function settlePair<T extends { items: Record_[] }>(
 	if (secondAgain === null) return null
 	if (membership(secondAgain.items, identity) !== membership(second.items, identity)) return "moving"
 	return { first: firstAgain, second: secondAgain }
+}
+
+/** The three reads a combinator check compares, and what they say. */
+interface Composed {
+	combined: SetRead
+	expected: Set<string>
+	extra: string[]
+	got: Set<string>
+	missing: string[]
+	onlyA: SetRead
+	onlyB: SetRead
+	setA: Set<string>
+	setB: Set<string>
+}
+
+/**
+ * Reads each term alone and then combined. A disagreement is read again: when any of the three
+ * reads now holds other rows, another writer moved the collection between them — a record created
+ * after the term reads and before the combined one — and that is no defect of composition. Only a
+ * disagreement the fresh reads repeat is the backend's.
+ */
+async function readComposed(
+	ctx: CheckContext,
+	terms: { combined: Record<string, string>; termA: Record<string, string>; termB: Record<string, string> },
+	compose: (setA: Set<string>, setB: Set<string>) => Set<string>,
+): Promise<Composed | "rejected" | "incomplete" | "moving"> {
+	const limit = pageSize(ctx)
+	const read = async (fresh: boolean): Promise<Composed | "rejected" | "incomplete"> => {
+		const onlyA = await collectSet(ctx, limit, terms.termA, undefined, fresh)
+		const onlyB = await collectSet(ctx, limit, terms.termB, undefined, fresh)
+		const combined = await collectSet(ctx, limit, terms.combined, undefined, fresh)
+		if (onlyA === null || onlyB === null || combined === null) return "rejected"
+		if (!onlyA.complete || !onlyB.complete || !combined.complete) return "incomplete"
+		const setA = new Set(ids(onlyA.items, ctx.identity))
+		const setB = new Set(ids(onlyB.items, ctx.identity))
+		const expected = compose(setA, setB)
+		const got = new Set(ids(combined.items, ctx.identity))
+		const missing = [...expected].filter((id) => !got.has(id))
+		const extra = [...got].filter((id) => !expected.has(id))
+		return { combined, expected, extra, got, missing, onlyA, onlyB, setA, setB }
+	}
+	const first = await read(false)
+	if (typeof first === "string" || (first.missing.length === 0 && first.extra.length === 0)) return first
+	const again = await read(true)
+	if (typeof again === "string") return again
+	const same = (a: SetRead, b: SetRead) => membership(a.items, ctx.identity) === membership(b.items, ctx.identity)
+	if (!same(first.onlyA, again.onlyA) || !same(first.onlyB, again.onlyB) || !same(first.combined, again.combined)) {
+		return "moving"
+	}
+	return again
 }
 
 /** Walks pages in order, returning ids as encountered — repeats kept, since they are the finding. */
@@ -1605,31 +1659,27 @@ const filterAndComposesAsIntersection: Check<Compound> = {
 	needs: "two filterable fields and a filter parameter or grammar supporting eq",
 	subjects: subjectsOf.list,
 	async run(ctx, { combined, fieldA, fieldB, termA, termB, valueA, valueB }): Promise<Outcome> {
-		const limit = pageSize(ctx)
-		const onlyA = await collectSet(ctx, limit, termA)
-		const onlyB = await collectSet(ctx, limit, termB)
-		const both = await collectSet(ctx, limit, combined)
-		if (onlyA === null || onlyB === null || both === null) {
+		const composed = await readComposed(
+			ctx,
+			{ combined, termA, termB },
+			(a, b) => new Set([...a].filter((id) => b.has(id))),
+		)
+		if (composed === "rejected") {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
 				"one of the three listings needed for the intersection was rejected",
 			)
 		}
-		if (!onlyA.complete || !onlyB.complete || !both.complete) {
+		if (composed === "incomplete") {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
 				"the collection is larger than the walk covers, so the intersection cannot be verified",
 			)
 		}
-
-		const setA = new Set(ids(onlyA.items, ctx.identity))
-		const setB = new Set(ids(onlyB.items, ctx.identity))
-		const expected = new Set([...setA].filter((id) => setB.has(id)))
-		const got = new Set(ids(both.items, ctx.identity))
-		const missing = [...expected].filter((id) => !got.has(id))
-		const extra = [...got].filter((id) => !expected.has(id))
+		if (composed === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_FILTER)
+		const { expected, extra, got, missing, onlyA, onlyB, setA, setB } = composed
 		if (missing.length === 0 && extra.length === 0) return ASSERTED
 
 		return ctx.findings.backend(
@@ -1642,7 +1692,7 @@ const filterAndComposesAsIntersection: Check<Compound> = {
 				(missing.length > 0 ? `Missing from the combined result: ${missing.slice(0, 3).join(", ")}. ` : "") +
 				(extra.length > 0 ? `Present but should not match both terms: ${extra.slice(0, 3).join(", ")}. ` : "") +
 				"A conjunction must select exactly the records both terms match individually.",
-			[onlyA.last.exchange, onlyB.last.exchange, both.last.exchange],
+			[onlyA.last.exchange, onlyB.last.exchange, composed.combined.last.exchange],
 		)
 	},
 }
@@ -1672,31 +1722,23 @@ const filterOrComposesAsUnion: Check<Compound> = {
 	needs: "two filterable fields and an or() combinator (postgrest-shaped filter grammar)",
 	subjects: subjectsOf.list,
 	async run(ctx, { combined, fieldA, fieldB, termA, termB, valueA, valueB }): Promise<Outcome> {
-		const limit = pageSize(ctx)
-		const onlyA = await collectSet(ctx, limit, termA)
-		const onlyB = await collectSet(ctx, limit, termB)
-		const either = await collectSet(ctx, limit, combined)
-		if (onlyA === null || onlyB === null || either === null) {
+		const composed = await readComposed(ctx, { combined, termA, termB }, (a, b) => new Set([...a, ...b]))
+		if (composed === "rejected") {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
 				"one of the three listings needed for the union was rejected",
 			)
 		}
-		if (!onlyA.complete || !onlyB.complete || !either.complete) {
+		if (composed === "incomplete") {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
 				"the collection is larger than the walk covers, so the union cannot be verified",
 			)
 		}
-
-		const setA = new Set(ids(onlyA.items, ctx.identity))
-		const setB = new Set(ids(onlyB.items, ctx.identity))
-		const expected = new Set([...setA, ...setB])
-		const got = new Set(ids(either.items, ctx.identity))
-		const missing = [...expected].filter((id) => !got.has(id))
-		const extra = [...got].filter((id) => !expected.has(id))
+		if (composed === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_FILTER)
+		const { expected, extra, got, missing, onlyA, onlyB, setA, setB } = composed
 		if (missing.length === 0 && extra.length === 0) return ASSERTED
 
 		return ctx.findings.backend(
@@ -1709,7 +1751,7 @@ const filterOrComposesAsUnion: Check<Compound> = {
 				(missing.length > 0 ? `Missing from the combined result: ${missing.slice(0, 3).join(", ")}. ` : "") +
 				(extra.length > 0 ? `Present but matches neither term individually: ${extra.slice(0, 3).join(", ")}. ` : "") +
 				"A disjunction must select exactly the records either term matches alone.",
-			[onlyA.last.exchange, onlyB.last.exchange, either.last.exchange],
+			[onlyA.last.exchange, onlyB.last.exchange, composed.combined.last.exchange],
 		)
 	},
 }
