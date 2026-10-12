@@ -318,6 +318,11 @@ export interface Hooks {
 		scope: Record<string, string>
 	}) => Promise<{ body: string; headers: Record<string, string> } | null>
 	/**
+	 * Makes the caller a platform admin before `x-admin` routes. Return false when the grant
+	 * did not stick. Oat refreshes the caller's credential after a true result.
+	 */
+	preparePlatformAdmin?: (request: { headers: Record<string, string> }) => Promise<boolean>
+	/**
 	 * Removes a principal the run provisioned, and everything that principal created with it.
 	 * `ctx.headers` is the live principal header map so authenticated delete-account is
 	 * expressible without a tester-key god route. Address stays — some backends still key
