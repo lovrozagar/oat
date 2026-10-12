@@ -1076,6 +1076,7 @@ describe("mail token", () => {
 				if (url.pathname === "/v1/projects/prj_1/collaborators/mem_1/resend" && method === "POST") {
 					const row = invites.find((item) => item.id === "mem_1")
 					if (row) row.invited_at = (row.invited_at as number) + 10
+					mail.set(String(row?.invite_email), "project-token-2")
 					return send(200, { id: "mem_1" })
 				}
 				if (url.pathname === "/v1/organizations/org_1/members" && method === "POST") {
@@ -1086,7 +1087,7 @@ describe("mail token", () => {
 					return send(200, { invites: invites.filter((item) => item.invite_email === emailOf()) })
 				}
 				if (url.pathname === "/v1/projects/collaborators/accept" && method === "POST") {
-					if (body.token !== "project-token") return send(400, { error_key: "invite_expired" })
+					if (body.token !== "project-token-2") return send(410, { error_key: "invite_expired" })
 					const index = invites.findIndex((item) => item.id === "mem_1")
 					if (index >= 0) invites.splice(index, 1)
 					return send(200, { access_token: "accepted", id: "mem_1", project_id: "prj_1" })

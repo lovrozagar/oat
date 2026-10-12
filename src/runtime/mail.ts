@@ -769,39 +769,56 @@ async function runCollaboratorScene(input: MailInput): Promise<void> {
 		input.grades.graded(ids, MAIL_CHECK_ID)
 		return
 	}
+	const first = await mailed(input, email, hint, stale)
+	let current = first
 	if (resend !== undefined && (input.mode === "full" || input.inScope(resend.operationId))) {
 		const proved = await resendCollaborator(input, resend, roots, email)
 		if (!proved) {
-			blame.backend(MAIL_CHECK_ID, "caller", "the resent invite did not change the member", `${resend.operationId} did not change the member row.`, [called])
-			input.grades.graded(ids, MAIL_CHECK_ID)
-			return
+			input.findings
+				.attributed([resend.operationId])
+				.ownedBy(MAIL_CHECK_ID)
+				.backend(MAIL_CHECK_ID, "caller", "the resent invite did not change the member", `${resend.operationId} did not change the member row.`, [called])
 		}
+		input.grades.graded([resend.operationId], MAIL_CHECK_ID)
+		const rotated = await mailed(input, email, hint, first)
+		if (rotated !== null) current = rotated
 	}
 	if (accept !== undefined && (input.mode === "full" || input.inScope(accept.operationId))) {
-		const raw = await mailed(input, email, hint, stale)
-		const token = raw === null ? null : tokenFrom(raw)
+		const token = current === null ? null : tokenFrom(current)
 		if (token === null) {
-			blame.backend(MAIL_CHECK_ID, "caller", "the mail never arrived", `${invite.operationId} returned ${called.status} and no out-of-band token followed.`, [called])
-			input.grades.graded(ids, MAIL_CHECK_ID)
-			return
+			input.findings
+				.attributed([accept.operationId])
+				.ownedBy(MAIL_CHECK_ID)
+				.backend(MAIL_CHECK_ID, "caller", "the mail never arrived", `${invite.operationId} returned ${called.status} and no out-of-band token followed.`, [called])
+		} else {
+			const before = await invalidatedRead(input, accept, token, headers)
+			const round = await consume(input, accept, token, headers, password)
+			const last = round.at(-1)
+			const after = await invalidatedRead(input, accept, token, headers)
+			const changed =
+				last !== undefined &&
+				last.status >= 200 &&
+				last.status < 300 &&
+				after !== null &&
+				after.status >= 200 &&
+				after.status < 300 &&
+				(before === null || JSON.stringify(before.responseBody) !== JSON.stringify(after.responseBody))
+			if (!changed) {
+				input.findings
+					.attributed([accept.operationId])
+					.ownedBy(MAIL_CHECK_ID)
+					.backend(
+						MAIL_CHECK_ID,
+						"caller",
+						"the follow-up did not show the mailed change",
+						`${accept.operationId} did not change the invite list.`,
+						[called, ...round],
+					)
+			}
 		}
-		const before = await invalidatedRead(input, accept, token, headers)
-		const round = await consume(input, accept, token, headers, password)
-		const last = round.at(-1)
-		const after = await invalidatedRead(input, accept, token, headers)
-		const changed =
-			last !== undefined &&
-			last.status >= 200 &&
-			last.status < 300 &&
-			after !== null &&
-			after.status >= 200 &&
-			after.status < 300 &&
-			(before === null || JSON.stringify(before.responseBody) !== JSON.stringify(after.responseBody))
-		if (!changed) {
-			blame.backend(MAIL_CHECK_ID, "caller", "the follow-up did not show the mailed change", `${accept.operationId} did not change the invite list.`, [called, ...round])
-		}
+		input.grades.graded([accept.operationId], MAIL_CHECK_ID)
 	}
-	input.grades.graded(ids, MAIL_CHECK_ID)
+	if (input.mode === "full" || input.inScope(invite.operationId)) input.grades.graded([invite.operationId], MAIL_CHECK_ID)
 }
 
 async function resendCollaborator(
