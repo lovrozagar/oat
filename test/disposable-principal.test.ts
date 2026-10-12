@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import type { OpenApiDocument } from "../src/spec/types.ts"
-import { disposableAddress, freshSignupFlow } from "../src/runtime/disposable.ts"
+import { disposableAddress, freshSignupFlow, totpCode } from "../src/runtime/disposable.ts"
 import { run } from "../src/runtime/run.ts"
 
 const DEFECT_VERDICTS = new Set(["BACKEND_BUG", "SECURITY", "SPEC_BUG"])
@@ -656,7 +656,11 @@ function passwordlessSpec(): OpenApiDocument {
 		},
 	}
 	paths["/v1/reauth/code"] = {
-		post: { operationId: "auth.requestReauthCode", responses: ok({ success: { type: "boolean" } }, ["success"]) },
+		post: {
+			operationId: "auth.requestReauthCode",
+			responses: ok({ success: { type: "boolean" } }, ["success"]),
+			summary: "Email a security code that confirms it's you",
+		},
 	}
 	paths["/v1/reauth"] = {
 		post: {
@@ -674,19 +678,6 @@ function passwordlessSpec(): OpenApiDocument {
 				"409": { description: "exists" },
 			},
 			"x-destructive": true,
-		},
-	}
-	paths["/v1/test/last-mail"] = {
-		get: {
-			operationId: "test.lastMail",
-			parameters: [
-				{
-					in: "query",
-					name: "type",
-					schema: { enum: ["magic-link", "security-code", "email-verify"], type: "string" },
-				},
-			],
-			responses: { "200": { description: "ok" } },
 		},
 	}
 	return document
@@ -843,7 +834,14 @@ function ownershipSpec(): OpenApiDocument {
 			responses: ok(
 				{
 					members: {
-						items: { properties: { id: { type: "string" }, invite_email: { type: "string" } }, type: "object" },
+						items: {
+							properties: {
+								id: { type: "string" },
+								invite_email: { type: "string" },
+								user_id: { type: "string" },
+							},
+							type: "object",
+						},
 						type: "array",
 					},
 				},
@@ -888,6 +886,11 @@ function ownershipSpec(): OpenApiDocument {
 		},
 	}
 	paths["/v1/projects/{project_id}/members"] = {
+		post: {
+			operationId: "project.addMember",
+			requestBody: requestBody(["user_id"]),
+			responses: ok({ id: { type: "string" } }, ["id"]),
+		},
 		get: {
 			operationId: "project.listMembers",
 			responses: ok(
@@ -989,7 +992,7 @@ async function serveOwnership(box: Map<string, string>): Promise<string> {
 				return
 			}
 			if (url.pathname === "/v1/organizations/org_1/members" && method === "GET") {
-				send(200, { members: [{ id: "mem_suite", invite_email: "suite@example.test" }] })
+				send(200, { members: [{ id: "mem_suite", invite_email: "suite@example.test", user_id: "usr_suite" }] })
 				return
 			}
 			if (url.pathname === "/v1/organizations/org_1/transfer" && method === "POST") {
@@ -1025,8 +1028,13 @@ async function serveOwnership(box: Map<string, string>): Promise<string> {
 				send(200, { members })
 				return
 			}
+			if (method === "POST" && url.pathname.endsWith("/members") && url.pathname.startsWith("/v1/projects/")) {
+				if (body.user_id !== "usr_suite") return send(404, { error_key: "project_member_not_org_member" })
+				send(201, { id: "pmem_direct" })
+				return
+			}
 			if (url.pathname === "/v1/projects/proj_new/transfer" && method === "POST") {
-				if (body.member_id !== "pmem_suite") return send(404, { error_key: "project_member_not_found" })
+				if (body.member_id !== "pmem_direct") return send(403, { error_key: "project_member_transfer_collaborator" })
 				projectOwner = "suite"
 				send(200, { ok: true })
 				return
@@ -1047,6 +1055,39 @@ async function serveOwnership(box: Map<string, string>): Promise<string> {
 }
 
 describe("disposable principal", () => {
+	it("builds the standard TOTP code from a base32 secret", () => {
+		const secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+		expect(totpCode(secret, 0, 30, 6)).toBe("755224")
+		expect(totpCode(secret, 59_000, 30, 6)).toBe("287082")
+	})
+
+	it("sends a code computed from the otpauth secret when the spec has no code door", async () => {
+		const document = secondFactorSpec()
+		delete (document.paths as Record<string, unknown>)["/v1/totp"]
+		delete (document.paths as Record<string, unknown>)["/v1/two-factor/backup-codes"]
+		delete (document.paths as Record<string, unknown>)["/v1/two-factor/disable"]
+		const url = await startServer(document, ({ method, path, body }) => {
+			if (path === "/v1/two-factor/setup" && method === "POST") {
+				return {
+					body: { otpauth_uri: "otpauth://totp/a?digits=6&period=30&secret=SHHH", qr_code: "qr", secret: "SHHH" },
+					status: 200,
+				}
+			}
+			if (path === "/v1/two-factor/enable" && method === "POST") {
+				const now = Date.now()
+				const okCode =
+					body.code === totpCode("SHHH", now, 30, 6) || body.code === totpCode("SHHH", now - 30_000, 30, 6)
+				if (!okCode) return { body: { error_key: "two_factor_code_invalid" }, status: 400 }
+				return { body: { backup_codes: ["BACKUP-1"], enabled: true }, status: 200 }
+			}
+			return undefined
+		})
+		const result = await runDisposable(url)
+		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
+		expect(defects).toEqual([])
+		expect(result.scope.operations.find((op) => op.operationId === "auth.enable2fa")?.status).toBe("passed")
+	})
+
 	it("rewrites only the signup email", () => {
 		const flow = freshSignupFlow(
 			{

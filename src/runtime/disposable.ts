@@ -17,6 +17,7 @@ import { applyResolveInput } from "./input.ts"
 import { fillPath, requestSchemaOf } from "./world.ts"
 import type { AuthFlow, Hooks, PrincipalAuth } from "../config/define-config.ts"
 import { isHookAuth } from "../config/define-config.ts"
+import { createHmac } from "node:crypto"
 import { createPrincipal, readPath, resolveOutOfBandValue } from "./auth.ts"
 import { sleep, type BackoffConfig } from "./poll.ts"
 
@@ -626,7 +627,7 @@ async function completeBody(
 	return body
 }
 
-async function harvestCode(scene: Scene, issuedCode: { last: string }): Promise<string | null> {
+async function harvestFromSpec(scene: Scene, issuedCode: { last: string }): Promise<string | null> {
 	const source = scene.model.operations.find((item) => {
 		const props = propertyBag(requestSchemaOf(item, scene.model))
 		return "secret" in props && "run_id" in props && responseHas(item, scene.model, "code")
@@ -649,6 +650,75 @@ async function harvestCode(scene: Scene, issuedCode: { last: string }): Promise<
 		await sleep(totpPeriodMs(scene.known))
 	}
 	return null
+}
+
+async function harvestCode(scene: Scene, issuedCode: { last: string }): Promise<string | null> {
+	const fromSpec = await harvestFromSpec(scene, issuedCode)
+	if (fromSpec !== null) return fromSpec
+	const secret = scene.known.totp_secret
+	if (typeof secret !== "string") return null
+	const period = totpPeriodMs(scene.known)
+	const digits = totpDigits(scene.known)
+	for (let attempt = 0; attempt < 3; attempt++) {
+		const code = totpCode(secret, Date.now(), period / 1000, digits)
+		if (code !== "" && code !== issuedCode.last) {
+			issuedCode.last = code
+			return code
+		}
+		await sleep(period)
+	}
+	return null
+}
+
+const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+
+function base32Decode(input: string): Buffer {
+	const clean = input.replace(/=+$/g, "").toUpperCase().replace(/[^A-Z2-7]/g, "")
+	let bits = 0
+	let value = 0
+	const out: number[] = []
+	for (const char of clean) {
+		const index = BASE32.indexOf(char)
+		if (index < 0) continue
+		value = (value << 5) | index
+		bits += 5
+		if (bits >= 8) {
+			bits -= 8
+			out.push((value >>> bits) & 0xff)
+		}
+	}
+	return Buffer.from(out)
+}
+
+/** RFC 6238 TOTP from a base32 secret. `atMs` 0 and the SHA-1 test secret yields `755224`. */
+export function totpCode(secret: string, atMs: number, periodSeconds = 30, digits = 6): string {
+	if (periodSeconds <= 0 || digits <= 0) return ""
+	const counter = Math.floor(atMs / 1000 / periodSeconds)
+	const key = base32Decode(secret)
+	if (key.length === 0) return ""
+	const message = Buffer.alloc(8)
+	message.writeUInt32BE(Math.floor(counter / 2 ** 32), 0)
+	message.writeUInt32BE(counter >>> 0, 4)
+	const hmac = createHmac("sha1", key).update(message).digest()
+	const offset = (hmac.at(-1) ?? 0) & 0x0f
+	const bin =
+		((hmac[offset] ?? 0) & 0x7f) * 2 ** 24 +
+		(hmac[offset + 1] ?? 0) * 2 ** 16 +
+		(hmac[offset + 2] ?? 0) * 2 ** 8 +
+		(hmac[offset + 3] ?? 0)
+	return String(bin % 10 ** digits).padStart(digits, "0")
+}
+
+function totpDigits(known: Record<string, unknown>): number {
+	const uri = known.totp_uri
+	if (typeof uri !== "string") return 6
+	try {
+		const digits = Number(new URL(uri).searchParams.get("digits"))
+		if (Number.isInteger(digits) && digits > 0) return digits
+	} catch {
+		/* The secret's own length is the fallback. */
+	}
+	return 6
 }
 
 function totpPeriodMs(known: Record<string, unknown>): number {
@@ -911,6 +981,10 @@ async function releaseOwnedOrgs(scene: Scene): Promise<boolean> {
 async function handOff(scene: Scene, op: OperationModel, values: Record<string, string>): Promise<boolean> {
 	const email = scene.suiteEmail
 	if (email === undefined || scene.hooks?.resolveOutOfBand === undefined) return false
+	/* A project owner can hand the project to an organization member, not to a collaborator. */
+	if (!op.pathParams.includes("organization_id") && values.organization_id !== undefined) {
+		return handOffThroughOrg(scene, op, values)
+	}
 	const invite = scene.model.operations.find(
 		(item) => item.invite !== null && item.pathParams.some((param) => op.pathParams.includes(param)),
 	)
@@ -929,7 +1003,9 @@ async function handOff(scene: Scene, op: OperationModel, values: Record<string, 
 		headers: scene.headers,
 		operationId: invite.operationId,
 	})
-	if (invited.status < 200 || invited.status >= 300) return false
+	const duplicate = errorKey(invited.responseBody).includes("already")
+	if ((invited.status < 200 || invited.status >= 300) && !duplicate) return false
+	if (!duplicate) {
 	const mailedToken =
 		invite.invite.tokenFrom === "outOfBand"
 			? await mailed(scene, email, invite.invite.tokenKind ?? mailKind(scene.model, invite))
@@ -951,6 +1027,7 @@ async function handOff(scene: Scene, op: OperationModel, values: Record<string, 
 		operationId: accept.operationId,
 	})
 	if (accepted.status < 200 || accepted.status >= 300) return false
+	}
 	const members = scene.model.operations.find(
 		(item) => item.method === "GET" && item.pathParams.some((param) => op.pathParams.includes(param)) && itemHas(item, scene.model, ["id", "invite_email"]),
 	)
@@ -985,6 +1062,148 @@ async function handOff(scene: Scene, op: OperationModel, values: Record<string, 
 		operationId: transfer.operationId,
 	})
 	return moved.status >= 200 && moved.status < 300
+}
+
+async function handOffThroughOrg(
+	scene: Scene,
+	op: OperationModel,
+	values: Record<string, string>,
+): Promise<boolean> {
+	const email = scene.suiteEmail
+	const organizationId = values.organization_id
+	if (email === undefined || organizationId === undefined) return false
+	const invite = scene.model.operations.find(
+		(item) => item.invite !== null && item.pathParams.includes("organization_id"),
+	)
+	if (invite?.invite === null || invite?.invite === undefined) return false
+	const orgValues = { organization_id: organizationId }
+	let invitePath: string
+	try {
+		invitePath = fillPath(invite.path, orgValues)
+	} catch {
+		return false
+	}
+	const fields = propertyBag(requestSchemaOf(invite, scene.model))
+	const grantee = invite.invite.granteeField
+	const granteeField = grantee in fields ? grantee : "email" in fields ? "email" : grantee
+	const invited = await scene.client.request(invite.method, invitePath, {
+		body: { [granteeField]: email },
+		headers: scene.headers,
+		operationId: invite.operationId,
+	})
+	const duplicate = errorKey(invited.responseBody).includes("already")
+	if ((invited.status < 200 || invited.status >= 300) && !duplicate) return false
+	if (!duplicate) {
+		const token = await mailed(scene, email, invite.invite.tokenKind ?? mailKind(scene.model, invite))
+		if (token === null) return false
+		const accept = scene.model.byOperationId.get(invite.invite.accept)
+		if (accept === undefined) return false
+		const accepted = await scene.client.request(accept.method, accept.path, {
+			body: { token },
+			headers: scene.suiteAuth,
+			operationId: accept.operationId,
+		})
+		if (accepted.status < 200 || accepted.status >= 300) return false
+	}
+	const members = scene.model.operations.find(
+		(item) =>
+			item.method === "GET" &&
+			item.pathParams.includes("organization_id") &&
+			itemHas(item, scene.model, ["id", "user_id", "invite_email"]),
+	)
+	if (members === undefined) return false
+	let memberPath: string
+	try {
+		memberPath = fillPath(members.path, orgValues)
+	} catch {
+		return false
+	}
+	const listed = await scene.client.request(members.method, memberPath, {
+		headers: scene.headers,
+		operationId: members.operationId,
+	})
+	const person = recordsOf(listed.responseBody, members, scene.model).find(
+		(row) => row.invite_email === email || row.email === email,
+	)
+	const userId = person?.user_id
+	if (typeof userId !== "string") return false
+	const add = scene.model.operations.find((item) => {
+		if (item.method !== "POST") return false
+		if (!item.pathParams.some((param) => op.pathParams.includes(param))) return false
+		return requiredNames(requestSchemaOf(item, scene.model)).includes("user_id")
+	})
+	if (add === undefined) return false
+	let addPath: string
+	try {
+		addPath = fillPath(add.path, values)
+	} catch {
+		return false
+	}
+	const schema = requestSchemaOf(add, scene.model)
+	const permissions = permissionList(schema)
+	const added = await scene.client.request(add.method, addPath, {
+		body: permissions === undefined ? { user_id: userId } : { permissions, user_id: userId },
+		headers: scene.headers,
+		operationId: add.operationId,
+	})
+	const createdId = stringField(added.responseBody, "id")
+	const already = errorKey(added.responseBody).includes("already")
+	if ((added.status < 200 || added.status >= 300) && !already) return false
+	const memberId = createdId ?? (await projectMemberId(scene, op, values, userId))
+	if (memberId === null) return false
+	const transfer = scene.model.operations.find((item) => {
+		if (!requiredNames(requestSchemaOf(item, scene.model)).includes("member_id")) return false
+		return item.pathParams.some((param) => op.pathParams.includes(param))
+	})
+	if (transfer === undefined) return false
+	let transferPath: string
+	try {
+		transferPath = fillPath(transfer.path, values)
+	} catch {
+		return false
+	}
+	const moved = await scene.client.request(transfer.method, transferPath, {
+		body: { member_id: memberId },
+		headers: scene.headers,
+		operationId: transfer.operationId,
+	})
+	return moved.status >= 200 && moved.status < 300
+}
+
+async function projectMemberId(
+	scene: Scene,
+	op: OperationModel,
+	values: Record<string, string>,
+	userId: string,
+): Promise<string | null> {
+	const list = scene.model.operations.find(
+		(item) =>
+			item.method === "GET" &&
+			item.pathParams.some((param) => op.pathParams.includes(param)) &&
+			itemHas(item, scene.model, ["id", "user_id"]),
+	)
+	if (list === undefined) return null
+	let path: string
+	try {
+		path = fillPath(list.path, values)
+	} catch {
+		return null
+	}
+	const listed = await scene.client.request(list.method, path, { headers: scene.headers, operationId: list.operationId })
+	const rows = recordsOf(listed.responseBody, list, scene.model).filter((row) => row.user_id === userId)
+	const direct = rows.find((row) => row.collaborator !== true) ?? rows[0]
+	return typeof direct?.id === "string" ? direct.id : null
+}
+
+function permissionList(schema: Record<string, unknown> | null): string[] | undefined {
+	const prop = propertyBag(schema).permissions
+	if (prop === null || typeof prop !== "object") return undefined
+	const items = (prop as { items?: unknown }).items
+	if (items === null || typeof items !== "object") return undefined
+	const values = (items as { enum?: unknown }).enum
+	if (!Array.isArray(values)) return undefined
+	const first = values.find((item): item is string => typeof item === "string")
+	return first === undefined ? undefined : [first]
 }
 
 async function createOwnedId(
@@ -1062,6 +1281,11 @@ function mailKind(model: SpecModel, op: OperationModel): string {
 	if (exact !== undefined) return exact
 	const fuzzy = kinds.find((kind) => segments.some((segment) => segment.length >= 4 && kind.includes(segment)))
 	if (fuzzy !== undefined) return fuzzy
+	const summary = model.rawOperations.get(op.operationId)?.summary
+	if (typeof summary === "string") {
+		const named = summary.toLowerCase().match(/[a-z]+ code/)
+		if (named !== null) return named[0].replace(" ", "-")
+	}
 	return segments.at(-1) ?? "mail"
 }
 
