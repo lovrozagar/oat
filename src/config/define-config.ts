@@ -95,7 +95,7 @@ export type AuthStep = OperationStep | RequestStep | OutOfBandStep
 /* ------------------------------------------------------------------ scenarios */
 
 /**
- * The value at `from` in a step's response must equal, or contain, the expected text after
+ * The value at `from` in a step's response must equal, contain, or no longer hold the text after
  * `{name}` interpolation. `from` is a JSON path; `[*]` fans out over an array, so
  * `$.items[*].name` passes when any item's name matches.
  */
@@ -103,6 +103,8 @@ export interface ScenarioAssert {
 	from: string
 	equals?: string
 	contains?: string
+	/** The value must no longer appear at `from` — a removal, proven by a later read. */
+	excludes?: string
 	/**
 	 * Earlier operations this read proves. A passing assert marks each one `verified`, with this
 	 * exchange as the observation. The step's own operation always counts.

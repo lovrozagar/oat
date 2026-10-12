@@ -62,20 +62,19 @@ function durationMs(text: string): number {
 	return match[2] === "ms" ? value : match[2] === "s" ? value * 1000 : value * 60_000
 }
 
-function expected(
-	assert: ScenarioAssert,
-	scope: Record<string, string>,
-): { mode: "contains" | "equals"; value: string } {
+type Want = { mode: "contains" | "equals" | "excludes"; value: string }
+
+function expected(assert: ScenarioAssert, scope: Record<string, string>): Want {
 	if (assert.equals !== undefined) return { mode: "equals", value: String(interpolate(assert.equals, scope)) }
 	if (assert.contains !== undefined) return { mode: "contains", value: String(interpolate(assert.contains, scope)) }
-	throw new Error(`oat: an assert on ${assert.from} needs equals or contains`)
+	if (assert.excludes !== undefined) return { mode: "excludes", value: String(interpolate(assert.excludes, scope)) }
+	throw new Error(`oat: an assert on ${assert.from} needs equals, contains or excludes`)
 }
 
-function holds(body: unknown, path: string, want: { mode: "contains" | "equals"; value: string }): boolean {
-	return readAll(body, path).some((node) => {
-		const text = typeof node === "string" ? node : JSON.stringify(node)
-		return want.mode === "equals" ? text === want.value : text.includes(want.value)
-	})
+function holds(body: unknown, path: string, want: Want): boolean {
+	const nodes = readAll(body, path).map((node) => (typeof node === "string" ? node : JSON.stringify(node)))
+	if (want.mode === "excludes") return !nodes.includes(want.value)
+	return nodes.some((text) => (want.mode === "equals" ? text === want.value : text.includes(want.value)))
 }
 
 function succeeded(step: ScenarioRequestStep, exchange: Exchange): boolean {
@@ -133,6 +132,20 @@ export async function runScenarios(input: {
 			...(input.outOfBand === undefined ? {} : { outOfBand: input.outOfBand }),
 		}
 		const scope: Record<string, string> = {}
+		/* Objects a response or a hook handed back, kept whole: a field that is exactly `{name}`
+		 * sends the object itself (a WebAuthn credential), not its string form. */
+		const objects = new Map<string, unknown>()
+		const withObjects = (value: unknown): unknown => {
+			if (typeof value === "string") {
+				const name = /^\{([A-Za-z0-9_]+)\}$/.exec(value)?.[1]
+				return name !== undefined && objects.has(name) ? objects.get(name) : value
+			}
+			if (Array.isArray(value)) return value.map(withObjects)
+			if (value !== null && typeof value === "object") {
+				return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, withObjects(item)]))
+			}
+			return value
+		}
 		const calls = new Map<string, Exchange>()
 		const observed = new Map<string, PassEvidence["observation"]>()
 		let stoppedAt: { index: number; failure: StepFailure } | null = null
@@ -208,12 +221,19 @@ export async function runScenarios(input: {
 				}
 				const value = await input.hooks.external(
 					step.external,
-					interpolate(step.input ?? {}, scope) as Record<string, unknown>,
+					interpolate(withObjects(step.input ?? {}), scope) as Record<string, unknown>,
 				)
 				if (value === null || value === "") {
 					throw new StepFailure(`hooks.external("${step.external}") returned nothing`, [], [])
 				}
 				scope[step.as] = value
+				if (/^\s*[[{]/.test(value)) {
+					try {
+						objects.set(step.as, JSON.parse(value))
+					} catch {
+						/* A string that only looks like JSON stays a string. */
+					}
+				}
 				return
 			}
 
@@ -221,7 +241,12 @@ export async function runScenarios(input: {
 			const deadline = step.poll === undefined ? 0 : Date.now() + durationMs(step.poll.within)
 			let waitMs = step.poll?.everyMs ?? 500
 			for (;;) {
-				const request = await resolveRequest(step, context, scope, index)
+				const request = await resolveRequest(
+					step.body === undefined ? step : { ...step, body: withObjects(step.body) },
+					context,
+					scope,
+					index,
+				)
 				const exchange = await request.client.request(request.method, request.path, {
 					...(request.body === undefined ? {} : { body: request.body }),
 					...(request.contentType === undefined ? {} : { contentType: request.contentType }),
@@ -262,12 +287,7 @@ export async function runScenarios(input: {
 			}
 		}
 
-		function record(
-			step: ScenarioRequestStep,
-			exchange: Exchange,
-			own: string | undefined,
-			want: { mode: "contains" | "equals"; value: string } | null,
-		): void {
+		function record(step: ScenarioRequestStep, exchange: Exchange, own: string | undefined, want: Want | null): void {
 			if (own !== undefined) calls.set(own, exchange)
 			const cookies = exchange.cookies ?? cookiesFromRecordedHeaders(exchange.responseHeaders)
 			for (const [name, template] of Object.entries(step.saveAs ?? {})) {
@@ -285,10 +305,16 @@ export async function runScenarios(input: {
 						own === undefined ? [] : [own],
 					)
 				}
-				scope[name] = String(value)
+				if (typeof value === "object") {
+					objects.set(name, value)
+					scope[name] = JSON.stringify(value)
+				} else scope[name] = String(value)
 			}
 			if (step.assert === undefined || want === null) return
-			const observation = { path: step.assert.from, seq: exchange.seq, value: want.value }
+			const observation =
+				want.mode === "excludes"
+					? { absent: true as const, path: step.assert.from, seq: exchange.seq, value: want.value }
+					: { path: step.assert.from, seq: exchange.seq, value: want.value }
 			for (const id of [...(step.assert.observes ?? []), ...(own === undefined ? [] : [own])]) {
 				if (calls.has(id)) observed.set(id, observation)
 			}

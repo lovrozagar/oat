@@ -59,6 +59,16 @@ function spec(): OpenApiDocument {
 			"/v1/checkout": {
 				post: { operationId: "checkout.open", responses: { "200": { content: json, description: "ok" } } },
 			},
+			"/v1/ceremony/options": {
+				post: { operationId: "ceremony.options", responses: { "200": { content: json, description: "ok" } } },
+			},
+			"/v1/ceremony/verify": {
+				post: {
+					operationId: "ceremony.verify",
+					requestBody: { content: { "application/json": { schema: { type: "object" } } } },
+					responses: { "200": { content: json, description: "ok" } },
+				},
+			},
 			"/v1/checkout/confirm": {
 				post: {
 					operationId: "checkout.confirm",
@@ -116,6 +126,13 @@ async function serve(options: { brokenRename?: boolean; statsLagMs?: number } = 
 		}
 		if (url.pathname === "/v1/checkout" && method === "POST") {
 			return send(200, { url: "https://pay.example/session/cs_1" })
+		}
+		if (url.pathname === "/v1/ceremony/options" && method === "POST") {
+			return send(200, { options: { challenge: "ch_1", rp: { id: "example.test" } } })
+		}
+		if (url.pathname === "/v1/ceremony/verify" && method === "POST") {
+			const credential = body["credential"] as { signed?: unknown } | undefined
+			return send(200, { verified: credential?.signed === "ch_1" })
 		}
 		if (url.pathname === "/v1/checkout/confirm" && method === "POST") {
 			return send(200, { confirmed: body["session"] === "cs_1-paid" })
@@ -258,6 +275,62 @@ describe("scenarios", () => {
 		expect(seen).toEqual([{ input: { url: "https://pay.example/session/cs_1" }, name: "pay-with-test-card" }])
 		expect(row(result, "checkout.open")?.tier).toBe("verified")
 		expect(row(result, "checkout.confirm")?.status).toBe("passed")
+	})
+
+	it("keeps an object a response or a hook returns, and sends it whole where a body names it", async () => {
+		const api = await serve()
+		const seen: unknown[] = []
+		const scenario: Scenario = {
+			covers: ["ceremony.options", "ceremony.verify"],
+			id: "ceremony",
+			steps: [
+				{ operationId: "ceremony.options", saveAs: { options: "$.options" } },
+				{ as: "credential", external: "sign", input: { options: "{options}" } },
+				{
+					assert: { equals: "true", from: "$.verified", observes: ["ceremony.options"] },
+					body: { credential: "{credential}" },
+					operationId: "ceremony.verify",
+				},
+			],
+		}
+		const external = async (_name: string, input: Record<string, unknown>) => {
+			seen.push(input)
+			const options = input["options"] as { challenge: string }
+			return JSON.stringify({ signed: options.challenge })
+		}
+		const result = await runWith(api, [scenario], ["ceremony.options", "ceremony.verify"], { external })
+		expect(seen).toEqual([{ options: { challenge: "ch_1", rp: { id: "example.test" } } }])
+		expect(row(result, "ceremony.verify")?.status).toBe("passed")
+		const sent = result.client.transcript.find((exchange) => exchange.operationId === "ceremony.verify")
+		expect(sent?.requestBody).toEqual({ credential: { signed: "ch_1" } })
+	})
+
+	it("proves a removal by a later read that no longer holds the value", async () => {
+		const api = await serve()
+		const scenario: Scenario = {
+			covers: ["notes.write", "stats.get"],
+			id: "gone",
+			steps: [
+				{ body: { text: "keep-me" }, operationId: "notes.write" },
+				{
+					assert: { excludes: "never-written", from: "$.texts[*]", observes: ["notes.write"] },
+					operationId: "stats.get",
+				},
+			],
+		}
+		const result = await runWith(api, [scenario], ["notes.write", "stats.get"])
+		expect(row(result, "notes.write")?.tier).toBe("verified")
+		expect(row(result, "notes.write")?.evidence?.observation).toMatchObject({ absent: true, value: "never-written" })
+		const failing: Scenario = {
+			...scenario,
+			id: "still-there",
+			steps: [
+				scenario.steps[0] as Scenario["steps"][number],
+				{ assert: { excludes: "keep-me", from: "$.texts[*]", observes: ["notes.write"] }, operationId: "stats.get" },
+			],
+		}
+		const refused = await runWith(await serve(), [failing], ["notes.write", "stats.get"])
+		expect(row(refused, "notes.write")?.status).toBe("failed")
 	})
 
 	it("refuses a scenario that covers an operation it never calls", async () => {
