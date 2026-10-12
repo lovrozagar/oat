@@ -41,6 +41,7 @@ import { CHECKS, type Actor, type WriteContext } from "./checks.ts"
 import { runPublicGets } from "./one-shot.ts"
 import { runDisposableOps, signupOperationId } from "./disposable.ts"
 import { runEffectRecords } from "./effect-record.ts"
+import { runFiles } from "./file.ts"
 import { runSignedEvents } from "./signed-event.ts"
 import { runMailOps } from "./mail.ts"
 import { rootReadIds, ROOT_READ_CHECK_ID, runRootRead } from "./root-read.ts"
@@ -1640,6 +1641,17 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		mode: runScope.mode,
 		model,
 		hooks,
+		roots: alpha.roots,
+	})
+	await runFiles({
+		auth: alpha.headers,
+		client,
+		findings,
+		grades,
+		inScope: (operationId) => runScope.inScope(operationId),
+		mode: runScope.mode,
+		model,
+		...(options.principals[0]?.auth === undefined ? {} : { authFlow: options.principals[0].auth }),
 		roots: alpha.roots,
 	})
 
