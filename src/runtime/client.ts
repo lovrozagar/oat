@@ -130,7 +130,7 @@ export interface ExchangeContext {
 export type OperationResolver = (
 	method: string,
 	relativePath: string,
-) => { operationId: string; template: string; entity?: string | null } | null
+) => { operationId: string; template: string; entity?: string | null; redirects?: boolean } | null
 
 /** A principal bound so every dispatch can refresh and retry a 401 without call-site ceremony. */
 export interface BoundAuth {
@@ -407,7 +407,7 @@ export class Client {
 			const hopHeaders: Record<string, string> = { ...headers }
 			const init: RequestInit = { headers: hopHeaders, method: hopMethod }
 			if (hopBody !== undefined) init.body = hopBody
-			if (options.redirect !== undefined) init.redirect = "manual"
+			if (options.redirect !== undefined || resolved?.redirects === true) init.redirect = "manual"
 
 			/* Two independent constraints, both held: maxInFlight bounds in-flight HTTP with no
 			 * notion of time, a rate-limit category bounds throughput over time. The in-flight

@@ -679,7 +679,10 @@ export function describeSuccess(statuses: DocumentedStatuses): string[] {
  */
 export function operationResolver(
 	model: SpecModel,
-): (method: string, relativePath: string) => { operationId: string; template: string; entity: string | null } | null {
+): (
+	method: string,
+	relativePath: string,
+) => { operationId: string; template: string; entity: string | null; redirects: boolean } | null {
 	const candidates = [...model.operations].sort(
 		(a, b) => (a.path.match(/\{/g)?.length ?? 0) - (b.path.match(/\{/g)?.length ?? 0),
 	)
@@ -688,6 +691,9 @@ export function operationResolver(
 		const op = candidates.find(
 			(candidate) => candidate.method.toUpperCase() === verb && pathTemplateMatches(candidate.path, relativePath),
 		)
-		return op === undefined ? null : { entity: op.entity, operationId: op.operationId, template: op.path }
+		if (op === undefined) return null
+		/* A documented 3xx is the answer to grade, not a hop to follow. */
+		const redirects = op.statuses.exact.some((code) => code >= 300 && code < 400) || op.statuses.ranges.includes(3)
+		return { entity: op.entity, operationId: op.operationId, redirects, template: op.path }
 	}
 }
