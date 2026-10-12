@@ -568,13 +568,17 @@ export function readRateLimit(op: OperationObject): RateLimitTag | null {
 const TENANT_PARAM = /^(org(anization)?|tenant|workspace|account|project|app)_?(id|slug)?$/i
 
 export function readTenantSource(endpoint: Endpoint): "tag" | "heuristic" | null {
-	if (typeof ext<unknown>(endpoint.op, "x-tenant") === "string") return "tag"
+	const tag = ext<unknown>(endpoint.op, "x-tenant")
+	/* `false` is a shared catalogue that happens to sit under a project path. */
+	if (tag === false) return null
+	if (typeof tag === "string") return "tag"
 	const guess = pathParameterNames(endpoint.path).find((name) => TENANT_PARAM.test(name))
 	return guess === undefined ? null : "heuristic"
 }
 
 export function readTenantParam(endpoint: Endpoint, gaps?: GapCollector): string | null {
 	const tag = ext<unknown>(endpoint.op, "x-tenant")
+	if (tag === false) return null
 	if (typeof tag === "string") return tag
 
 	const pathParams = pathParameterNames(endpoint.path)
