@@ -477,6 +477,12 @@ async function startServer(
 				res.end(JSON.stringify({ access_token: "t1", refresh_token: "r1" }))
 				return
 			}
+			const hit = handle({ body, method, path: url.pathname, token })
+			if (hit !== undefined) {
+				res.writeHead(hit.status, { "content-type": "application/json" })
+				res.end(JSON.stringify(hit.body))
+				return
+			}
 			if (url.pathname === "/v1/me" && (method === "GET" || method === "PATCH")) {
 				if (!names.has(token)) {
 					res.writeHead(401, { "content-type": "application/json" })
@@ -488,14 +494,8 @@ async function startServer(
 				res.end(JSON.stringify({ first_name: names.get(token) }))
 				return
 			}
-			const hit = handle({ body, method, path: url.pathname, token })
-			if (hit === undefined) {
-				res.writeHead(404, { "content-type": "application/json" })
-				res.end(JSON.stringify({ error: "missing" }))
-				return
-			}
-			res.writeHead(hit.status, { "content-type": "application/json" })
-			res.end(JSON.stringify(hit.body))
+			res.writeHead(404, { "content-type": "application/json" })
+			res.end(JSON.stringify({ error: "missing" }))
 		})()
 	})
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
@@ -1310,6 +1310,33 @@ describe("disposable principal", () => {
 			"/v1/organizations/org_1/leave",
 			"/v1/projects/proj_new/leave",
 		])
+	})
+
+	it("accepts an account delete whose caller read is gone", async () => {
+		const document = withoutLogout()
+		const paths = document.paths as Record<string, Record<string, unknown>>
+		paths["/v1/account/delete"] = {
+			post: {
+				operationId: "auth.deleteAccount",
+				responses: ok({ ok: { type: "boolean" } }, ["ok"]),
+				"x-destructive": true,
+			},
+		}
+		let deleted = false
+		const url = await startServer(document, ({ method, path, token }) => {
+			if (path === "/v1/me" && method === "GET" && token === "t1" && deleted) {
+				return { body: { error_key: "not_found" }, status: 404 }
+			}
+			if (path === "/v1/account/delete" && method === "POST") {
+				deleted = true
+				return { body: { ok: true }, status: 200 }
+			}
+			return undefined
+		})
+		const result = await runDisposable(url)
+		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
+		expect(defects).toEqual([])
+		expect(result.scope.operations.find((op) => op.operationId === "auth.deleteAccount")?.status).toBe("passed")
 	})
 
 	it("reports a logout that also kills the suite session", async () => {

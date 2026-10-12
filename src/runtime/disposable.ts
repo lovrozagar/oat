@@ -255,8 +255,11 @@ export async function runDisposableOps(input: {
 					operationId: renew.operationId,
 				})
 			}
+			/* Logout leaves the account and refuses the session (401). Delete removes the account,
+			 * so the same read is 404. Either way the disposable credential can no longer read it. */
 			const sessionGone =
 				gone.status === 401 ||
+				gone.status === 404 ||
 				(renewExchange !== undefined && renewExchange.status >= 400 && renewExchange.status < 500)
 			if (!sessionGone) {
 				blame.backend(
