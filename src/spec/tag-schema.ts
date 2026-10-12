@@ -134,6 +134,7 @@ const OPERATION_TAGS: Record<string, Check> = {
 			credentialFrom: string,
 			grantPointer: string,
 			granteeField: string,
+			grants: string,
 			invite: string,
 			revoke: string,
 			tokenFrom: oneOf("response", "outOfBand"),

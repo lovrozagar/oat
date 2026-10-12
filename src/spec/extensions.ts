@@ -373,6 +373,12 @@ export interface InviteSpec {
 	 * Default `$.access_token`.
 	 */
 	credentialFrom: string
+	/**
+	 * operationId of the read the accepted invite opens, filled from the inviter's scope. Default:
+	 * the invite entity's own item read. Name it when the grant opens a parent (an organization)
+	 * rather than the record the invite creates.
+	 */
+	grants?: string
 }
 
 export function readInvite(op: OperationObject): InviteSpec | null {
@@ -395,6 +401,7 @@ export function readInvite(op: OperationObject): InviteSpec | null {
 		tokenPointer: typeof tag.tokenPointer === "string" ? tag.tokenPointer : "$.token",
 	}
 	if (typeof tag.tokenKind === "string" && tag.tokenKind !== "") spec.tokenKind = tag.tokenKind
+	if (typeof tag.grants === "string" && tag.grants !== "") spec.grants = tag.grants
 	if (tag.acceptFrom === "link") spec.acceptFrom = "link"
 	return spec
 }

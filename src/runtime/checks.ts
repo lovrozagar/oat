@@ -4582,6 +4582,7 @@ const inviteGrantsThenRevokes: Check<{
 	inviteOp: OperationModel
 	acceptOp: OperationModel
 	revokeOp: OperationModel
+	grantsOp: OperationModel | undefined
 }> = {
 	mutates: true,
 	plan: (ctx) => {
@@ -4601,25 +4602,36 @@ const inviteGrantsThenRevokes: Check<{
 		if (inviteOp === undefined || acceptOp === undefined || revokeOp === undefined) {
 			return cannot("x-invite operations that exist in the document")
 		}
-		return ready({ acceptOp, delegate, inviteAs: delegate.inviteAs, inviteOp, owner, revokeOp, spec })
+		const grantsOp = spec.grants === undefined ? undefined : ctx.model.byOperationId.get(spec.grants)
+		if (spec.grants !== undefined && grantsOp === undefined)
+			return cannot("an x-invite.grants read that exists in the document")
+		return ready({ acceptOp, delegate, grantsOp, inviteAs: delegate.inviteAs, inviteOp, owner, revokeOp, spec })
 	},
 	dependsOn: ["list.read-after-write", "tenant.item-not-readable-cross-tenant"],
 	id: "auth.invite-grants-then-revokes",
 	needs: "x-invite naming invite/accept/revoke, a peer principal with inviteAs, and an item or list route",
 	subjects: subjectsOf.invite,
-	async run(ctx, { acceptOp, delegate, inviteAs, inviteOp, owner, revokeOp, spec }): Promise<Outcome> {
+	async run(ctx, { acceptOp, delegate, grantsOp, inviteAs, inviteOp, owner, revokeOp, spec }): Promise<Outcome> {
 		const target = ctx.records[0]
 		const id = target === undefined ? undefined : String(target[ctx.identity])
 		const resource = {
 			...ctx.scope,
 			...(id === undefined ? {} : itemParamFor(ctx, id)),
 		}
+		const grantRead =
+			grantsOp !== undefined
+				? { operationId: grantsOp.operationId, path: grantsOp.path }
+				: ctx.readOp === undefined || id === undefined
+					? undefined
+					: { operationId: ctx.readOp.operationId, path: ctx.readOp.path }
+		const subject =
+			grantsOp === undefined ? `${ctx.entityName} ${id}` : `${grantsOp.operationId} on the inviter's scope`
 
-		const itemPath = ctx.readOp?.path
 		const canRead = async (): Promise<boolean | null> => {
-			if (itemPath === undefined || id === undefined) return null
-			const exchange = await ctx.client.get(fillPath(itemPath, { ...delegate.roots, ...resource }), {
+			if (grantRead === undefined) return null
+			const exchange = await ctx.client.get(fillPath(grantRead.path, { ...delegate.roots, ...resource }), {
 				headers: delegate.headers(),
+				operationId: grantRead.operationId,
 			})
 			return exchange.status < 300
 		}
@@ -4650,9 +4662,16 @@ const inviteGrantsThenRevokes: Check<{
 		const grantId = pointerValue(invited.responseBody, spec.grantPointer)
 		let token: string | undefined
 		let revokedAlready = false
+		/* The grant is its own record: revoke addresses it, not the record the check read first. */
+		const revokeParam = revokeOp.pathParams.at(-1)
 		const revoke = async (grant: string): Promise<Exchange> => {
 			revokedAlready = true
-			const revokeScope = { ...resource, grant_id: grant, ...(token === undefined ? {} : { token }) }
+			const revokeScope = {
+				...resource,
+				...(revokeParam === undefined || revokeParam in ctx.scope ? {} : { [revokeParam]: grant }),
+				grant_id: grant,
+				...(token === undefined ? {} : { token }),
+			}
 			const revokeBody = documentedJsonBody(ctx, revokeOp, revokeScope)
 			return ctx.client.request(revokeOp.method, fillPath(revokeOp.path, revokeScope), {
 				...(revokeBody === undefined ? {} : { body: revokeBody }),
@@ -4671,7 +4690,7 @@ const inviteGrantsThenRevokes: Check<{
 					this.id,
 					ctx.entityName,
 					"an invite grants access before it is accepted",
-					`inviting ${delegate.id} made ${ctx.entityName} ${id} readable immediately. The accept ` +
+					`inviting ${delegate.id} made ${subject} readable immediately. The accept ` +
 						"step is then theatre — anyone who can be named in an invite body is already in.",
 					[invited],
 				)
@@ -4742,7 +4761,7 @@ const inviteGrantsThenRevokes: Check<{
 					this.id,
 					ctx.entityName,
 					"accepting an invite does not grant access",
-					`${delegate.id} accepted an invite to ${ctx.entityName} ${id} and still cannot read it. ` +
+					`${delegate.id} accepted an invite and still cannot read ${subject}. ` +
 						"The invite flow completed; the grant did not.",
 					[invited, accepted],
 				)
@@ -4766,7 +4785,7 @@ const inviteGrantsThenRevokes: Check<{
 					this.id,
 					ctx.entityName,
 					"revoking an invite does not remove access",
-					`${delegate.id} can still read ${ctx.entityName} ${id} after the grant was revoked. ` +
+					`${delegate.id} can still read ${subject} after the grant was revoked. ` +
 						"A share that cannot be taken back is a standing leak.",
 					[invited, accepted, revoked],
 				)

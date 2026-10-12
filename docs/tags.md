@@ -79,6 +79,7 @@ x-invite:
   tokenKind: org-invite # only when tokenFrom is outOfBand; default `${entity}-invite`
   acceptFrom: token # default. `link` = GET the OOB URL instead of POSTing accept JSON
   credentialFrom: $.access_token # default. invitee adopts this field from a 2xx accept body
+  grants: org.get # optional. the read the accepted grant opens; default the entity's item read
 ```
 
 Put this on the invite operation. Config must give the invitee `inviteAs`. Defaults if omitted: `granteeField: key`, `tokenPointer: $.token`, `grantPointer: $.grant_id`, `tokenFrom: response`, `acceptFrom: token`. All three of `invite` / `accept` / `revoke` (operationIds) are required or the tag is ignored. `oat doctor` / `oat plan` print the accept mode.
@@ -92,6 +93,8 @@ Put this on the invite operation. Config must give the invitee `inviteAs`. Defau
 An invite operation is **not** the entity's fixture create, even when it is `POST` on the collection. oat will not seed it with a generated email. The invite check (and only that check) creates the grant, using `inviteAs` as `granteeField`. The check still runs when there is no non-invite create, as long as an item or list route exists.
 
 Timeline asserted: cannot read → invite → still cannot → accept → can → revoke → cannot.
+
+"Read" is the entity's item read on the first listed record, unless `grants` names another operation. Name it when the grant opens a parent rather than the record the invite creates: an organization invite opens the organization, and a plain member may rightly be refused other members' records. oat fills it from the inviter's scope. Revoke always addresses the grant: its last path parameter that is not a scope root gets the id at `grantPointer`.
 
 After a 2xx accept, oat reads `credentialFrom` (default `$.access_token`). When that value is a string, the invitee sends it on the later grant read and the post-revoke read. No such field leaves the invitee's existing credential in place, so `{ ok: true }` accepts stay as they are. A `link` accept that returns HTML does not count as a credential.
 
