@@ -78,8 +78,10 @@ import {
 	readActionBind,
 	readBefore,
 	canFillPath,
+	createdIdKeys,
 	describeEffectHold,
 	effectHolds,
+	findCreatedId,
 	identityPathParam,
 } from "./effects.ts"
 
@@ -276,7 +278,32 @@ function judgeRefusal(
  * from what ordinary traffic got.
  */
 function asProbe<C extends ReadClient>(ctx: CheckContext<C>): CheckContext<C> {
-	return { ...ctx, client: ctx.client.view({ purpose: "probe" }) as C }
+	const view = ctx.client.view({ purpose: "probe" }) as C
+	const createOp = ctx.createOp
+	const record = ctx.recordCreated
+	if (createOp === undefined || record === undefined || !("request" in view)) return { ...ctx, client: view }
+	/* A probe sends what should be refused. When the server accepts it anyway, the record it made is
+	 * the run's to remove like any other: the finding says what went wrong, the teardown cleans up. */
+	const createPath = fillPath(createOp.path, ctx.scope)
+	const keys = createdIdKeys(ctx.entityName, ctx.identity)
+	const client = new Proxy(view, {
+		get(target, property) {
+			const value = Reflect.get(target, property, target) as unknown
+			if (property !== "request" || typeof value !== "function") {
+				return typeof value === "function" ? value.bind(target) : value
+			}
+			return async (method: string, path: string, options?: unknown) => {
+				const exchange = (await value.call(target, method, path, options)) as Exchange
+				const created = method.toUpperCase() === createOp.method.toUpperCase() && path === createPath
+				if (created && exchange.status >= 200 && exchange.status < 300) {
+					const id = findCreatedId(exchange.responseBody, keys)
+					if (id !== undefined) record(ctx.entityName, id, { ...ctx.scope })
+				}
+				return exchange
+			}
+		},
+	})
+	return { ...ctx, client }
 }
 
 /** A valid value for `field` that differs from `current` — what a write probe changes it to. */

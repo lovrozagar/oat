@@ -54,8 +54,14 @@ export class Ledger {
 		this.items.push({ entity, id, owner, scope: { ...scope } })
 	}
 
+	/** Records waiting to be removed. */
 	get size(): number {
 		return this.items.length
+	}
+
+	/** Every record the run made, removed or not. */
+	get recorded(): number {
+		return this.seen.size
 	}
 
 	entries(): readonly Disposable[] {
@@ -79,7 +85,8 @@ export class Ledger {
 		 * parent's parameters and its own, so a level never holds a record and its parent.
 		 * Newest first within a level keeps the order the creation sequence implies.
 		 */
-		const queue = [...this.items].reverse()
+		/* Takes what is ledgered now; a later unwind removes only what was recorded after this one. */
+		const queue = this.items.splice(0).reverse()
 		const depthOf = (item: Disposable): number => deleteOperationFor(item.entity, model)?.pathParams.length ?? 0
 		const levels = [...new Set(queue.map(depthOf))].sort((a, b) => b - a)
 		let done = 0

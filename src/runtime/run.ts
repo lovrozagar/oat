@@ -1622,6 +1622,50 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			: { rootsFromFlow: options.principals[0].rootsFromFlow }),
 		seed,
 	})
+	/* Unwind after every check has run, never per case: a check may legitimately depend on records
+	 * another one created, and tearing down early turns that into a phantom defect. */
+	let teardown: TeardownReport | null = null
+	const unwindLedger = async (): Promise<void> => {
+		currentPhase = "teardown"
+		currentCheck = undefined
+		tick({
+			message: `${ledger.size} record(s)`,
+			phase: "teardown",
+			requests: client.transcript.length,
+		})
+		if (options.keepFixtures === true || ledger.size === 0) return
+		try {
+			const report = await ledger.unwind(
+				model,
+				client.view({ purpose: "teardown" }),
+				fallbackDeleters,
+				(done, total, item) => {
+					if (done % 25 !== 0 && done !== total) return
+					tick({
+						entity: item.entity,
+						message: `${done}/${total} ${item.entity} ${item.id}`,
+						phase: "teardown",
+						requests: client.transcript.length,
+					})
+				},
+			)
+			teardown = {
+				failed: [...(teardown?.failed ?? []), ...report.failed],
+				removed: (teardown?.removed ?? 0) + report.removed,
+				unsupported: [...new Set([...(teardown?.unsupported ?? []), ...report.unsupported])],
+			}
+		} catch (error) {
+			findings.blocked(
+				"world.teardown",
+				"run",
+				`teardown stopped on an unexpected error with ${ledger.size} record(s) ledgered`,
+				errorText(error),
+			)
+		}
+	}
+	/* The matrix's fixtures go before the scenarios: a scenario sets its own scene, and a record a
+	 * check left (a pending invite) would refuse the scenario's own as a duplicate. */
+	await unwindLedger()
 	await runScenarios({
 		checksRun,
 		client,
@@ -1668,48 +1712,16 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		validator,
 	})
 
-	/* Unwind after every check has run, never per case: a check may legitimately depend on records
-	 * another one created, and tearing down early turns that into a phantom defect. */
-	currentPhase = "teardown"
-	currentCheck = undefined
-	tick({
-		message: `${ledger.size} record(s)`,
-		phase: "teardown",
-		requests: client.transcript.length,
-	})
-	let teardown: TeardownReport | null = null
-	if (options.keepFixtures !== true && ledger.size > 0) {
-		try {
-			teardown = await ledger.unwind(
-				model,
-				client.view({ purpose: "teardown" }),
-				fallbackDeleters,
-				(done, total, item) => {
-					if (done % 25 !== 0 && done !== total) return
-					tick({
-						entity: item.entity,
-						message: `${done}/${total} ${item.entity} ${item.id}`,
-						phase: "teardown",
-						requests: client.transcript.length,
-					})
-				},
-			)
-		} catch (error) {
-			findings.blocked(
-				"world.teardown",
-				"run",
-				`teardown stopped on an unexpected error with ${ledger.size} record(s) ledgered`,
-				errorText(error),
-			)
-		}
-	}
-
-	if (teardown !== null && teardown.unsupported.length > 0) {
+	/* What scenarios and contract calls created since. */
+	await unwindLedger()
+	const unremovable = (teardown as TeardownReport | null)?.unsupported ?? []
+	if (unremovable.length > 0) {
+		const names = unremovable.join(", ")
 		findings.gap(
 			"world.teardown",
-			teardown.unsupported.join(", "),
+			names,
 			"records created during the run could not be removed",
-			`no delete operation is reachable for ${teardown.unsupported.join(", ")}, so this run left ` +
+			`no delete operation is reachable for ${names}, so this run left ` +
 				"fixtures behind. Declare x-cleanup to name the route that removes them.",
 		)
 	}
@@ -1768,7 +1780,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		checksSuppressed,
 		inconclusive: findings.inconclusive,
 		client,
-		created: ledger.size,
+		created: ledger.recorded,
 		entitiesTested,
 		findings: findings.findings,
 		model,
