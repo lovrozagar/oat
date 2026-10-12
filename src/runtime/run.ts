@@ -42,6 +42,7 @@ import { runPublicGets } from "./one-shot.ts"
 import { runDisposableOps, signupOperationId } from "./disposable.ts"
 import { runEffectRecords } from "./effect-record.ts"
 import { runPlatformAdmin } from "./admin.ts"
+import { runImages, runObjects } from "./object.ts"
 import { runFiles } from "./file.ts"
 import { runSignedEvents } from "./signed-event.ts"
 import { runMailOps } from "./mail.ts"
@@ -1676,6 +1677,27 @@ export async function run(options: RunOptions): Promise<RunResult> {
 						...(options.principals[1]?.auth === undefined ? {} : { flow: options.principals[1].auth }),
 					},
 				}),
+		roots: alpha.roots,
+	})
+	const cdn = originClients.get("cdn")
+	await runImages({
+		auth: alpha.headers,
+		client,
+		findings,
+		grades,
+		inScope: (operationId) => runScope.inScope(operationId),
+		mode: runScope.mode,
+		model,
+		...(cdn === undefined ? {} : { cdn: cdn.client }),
+	})
+	await runObjects({
+		auth: alpha.headers,
+		client,
+		findings,
+		grades,
+		inScope: (operationId) => runScope.inScope(operationId),
+		mode: runScope.mode,
+		model,
 		roots: alpha.roots,
 	})
 
