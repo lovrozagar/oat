@@ -65,8 +65,9 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
 	return JSON.parse(text) as unknown
 }
 
-async function serve(mode: "hold" | "open" | "forget"): Promise<string> {
+async function serve(mode: "hold" | "open" | "forget" | "throttle"): Promise<string> {
 	let first = "Ada"
+	let patched = false
 	const spec = profileSpec()
 	const server = createServer((req: IncomingMessage, res: ServerResponse) => {
 		void (async () => {
@@ -86,6 +87,12 @@ async function serve(mode: "hold" | "open" | "forget"): Promise<string> {
 					return
 				}
 				if (method === "GET") {
+					/* Throttled: once the update lands, the bucket is empty for every read after it. */
+					if (mode === "throttle" && patched) {
+						res.writeHead(429, { "content-type": "application/json", "retry-after": "0" })
+						res.end(JSON.stringify({ error: "too_many_requests" }))
+						return
+					}
 					res.writeHead(200, { "content-type": "application/json" })
 					res.end(JSON.stringify({ first_name: first }))
 					return
@@ -93,6 +100,7 @@ async function serve(mode: "hold" | "open" | "forget"): Promise<string> {
 				if (method === "PATCH") {
 					const body = (await readBody(req)) as { first_name?: unknown }
 					if (mode !== "forget" && typeof body.first_name === "string") first = body.first_name
+					patched = true
 					res.writeHead(200, { "content-type": "application/json" })
 					res.end(JSON.stringify({ first_name: mode === "forget" ? "Ada" : first }))
 					return
@@ -338,6 +346,14 @@ describe("identity self", () => {
 		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
 		expect(defects.map((finding) => finding.summary)).toContain("an update to the caller did not stick")
 		expect(result.scope.operations.find((op) => op.operationId === "profile.update")?.status).toBe("failed")
+	})
+
+	it("does not call a rate-limited read a lost update", async () => {
+		const url = await serve("throttle")
+		const result = await runProfile(url)
+		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
+		expect(defects.map((finding) => finding.summary)).not.toContain("an update to the caller did not stick")
+		expect(result.scope.operations.find((op) => op.operationId === "profile.update")?.status).not.toBe("failed")
 	})
 
 	it("flips a boolean-only caller field, reads it back, and restores it", async () => {

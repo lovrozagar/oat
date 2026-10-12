@@ -167,6 +167,7 @@ export async function runSelfIdentity(input: {
 		const updatePath = pathOf(updateOp as OperationModel)
 		if (updatePath === null || updateOp === undefined) return ASSERTED
 		const wrote = await sendUpdate(input.client, updateOp, updatePath, input.auth, { note: "Oat" })
+		if (wrote.status === 429) return throttled(findings, input.entity.name)
 		if (wrote.status < 200 || wrote.status >= 300) {
 			return findings.backend(
 				SELF_CHECK_ID,
@@ -192,6 +193,7 @@ export async function runSelfIdentity(input: {
 			headers: input.auth,
 			operationId: op.operationId,
 		})
+		if (read.status === 429) return throttled(findings, input.entity.name)
 		if (read.status !== 200) {
 			return findings.backend(
 				SELF_CHECK_ID,
@@ -234,6 +236,7 @@ export async function runSelfIdentity(input: {
 	const current = before.current
 	const value = nextValue(field, current)
 	const wrote = await sendUpdate(input.client, updateOp, updatePath, input.auth, { [field.name]: value })
+	if (wrote.status === 429) return throttled(findings, input.entity.name)
 	if (wrote.status < 200 || wrote.status >= 300) {
 		return findings.backend(
 			SELF_CHECK_ID,
@@ -249,6 +252,7 @@ export async function runSelfIdentity(input: {
 		headers: input.auth,
 		operationId: readOp.operationId,
 	})
+	if (again.status === 429) return throttled(findings, input.entity.name)
 	const after = locateProbe(again.responseBody, field.name)
 	if (again.status !== 200 || !probeStuck(before, after, value)) {
 		return findings.backend(
@@ -263,6 +267,15 @@ export async function runSelfIdentity(input: {
 		await sendUpdate(input.client, updateOp, updatePath, input.auth, { [field.name]: current })
 	}
 	return ASSERTED
+}
+
+/** A 429 that outlived the client's retries is the bucket, not the caller routes: nothing was shown. */
+function throttled(findings: FindingCollector, entity: string): Outcome {
+	return findings.unresolved(
+		SELF_CHECK_ID,
+		entity,
+		"the request was rate-limited (429) after retries, so this check could not complete",
+	)
 }
 
 interface CreatedCaller {
