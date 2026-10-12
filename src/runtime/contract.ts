@@ -284,6 +284,20 @@ export async function confirmDeletes(input: {
 			continue
 		}
 		if (after.status < 200 || after.status >= 300) continue
+		/* A delete of the whole collection has no item to read back: the read on its path is the
+		 * list, and the empty list it leaves is the proof. */
+		if (read.collection !== null) {
+			const key = read.collection.key
+			const listed = key === null ? after.responseBody : (after.responseBody as Record<string, unknown> | null)?.[key]
+			if (Array.isArray(listed) && listed.length === 0) {
+				grades.graded([op.operationId], DELETE_CHECK_ID)
+				grades.prove(op.operationId, {
+					call: call.seq,
+					observation: { path: key === null ? "$" : `$.${key}`, seq: after.seq, value: "[]" },
+				})
+				continue
+			}
+		}
 		const marker = op.softDelete ?? read.softDelete
 		const body = after.responseBody as Record<string, unknown> | null
 		const marked = marker === null ? undefined : body?.[marker]
