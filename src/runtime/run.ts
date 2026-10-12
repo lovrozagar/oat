@@ -1648,6 +1648,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		client,
 		findings,
 		grades,
+		hooks,
 		inScope: (operationId) => runScope.inScope(operationId),
 		mode: runScope.mode,
 		model,

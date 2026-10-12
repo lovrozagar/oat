@@ -3,7 +3,7 @@
  * file. The download passes when that body contains the caller's address.
  */
 
-import type { PrincipalAuth } from "../config/define-config.ts"
+import type { Hooks, PrincipalAuth } from "../config/define-config.ts"
 import type { Client, Exchange } from "./client.ts"
 import type { FindingCollector } from "./finding.ts"
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
@@ -35,6 +35,7 @@ export async function runFiles(input: {
 	client: Client
 	findings: FindingCollector
 	grades: GradeLedger
+	hooks?: Hooks
 	inScope: (operationId: string) => boolean
 	mode: "full" | "targeted"
 	model: SpecModel
@@ -80,12 +81,10 @@ export async function runFiles(input: {
 			input.grades.graded(ids, FILE_CHECK_ID)
 			continue
 		}
-		const scope = input.roots ?? {}
+		const scope = await fillMissing(input, produce, { ...(input.roots ?? {}) })
 		let producePath: string
-		let pollPath: string
 		try {
 			producePath = fillPath(produce.path, scope)
-			pollPath = fillPath(poll.path, scope)
 		} catch (error) {
 			blame.backend(
 				FILE_CHECK_ID,
@@ -121,14 +120,33 @@ export async function runFiles(input: {
 			input.grades.graded(ids, FILE_CHECK_ID)
 			continue
 		}
+		const bound = bindProduced(poll.path, scope, called.responseBody)
+		let pollPath: string
+		try {
+			pollPath = fillPath(poll.path, bound)
+		} catch (error) {
+			blame.backend(
+				FILE_CHECK_ID,
+				poll.entity ?? "caller",
+				"the file path had no scope",
+				error instanceof Error ? error.message : String(error),
+				[called],
+			)
+			input.grades.graded(ids, FILE_CHECK_ID)
+			continue
+		}
 		const waited = await pollUntil(input, poll, pollPath, spec)
 		const shown = waited.ready
 			? artifact.operationId === poll.operationId
 				? waited.exchange
-				: await input.client.request(artifact.method, fillPath(artifact.path, scope), {
-						headers: input.auth,
-						operationId: artifact.operationId,
-					})
+				: await input.client.request(
+						artifact.method,
+						fillPath(artifact.path, bindProduced(artifact.path, bound, called.responseBody)),
+						{
+							headers: input.auth,
+							operationId: artifact.operationId,
+						},
+					)
 			: undefined
 		if (shown === undefined || !fileShows(spec, email, called, shown)) {
 			blame.backend(
@@ -250,6 +268,47 @@ function claimedStrings(body: unknown): string[] {
 	}
 	walk(body)
 	return out
+}
+
+async function fillMissing(
+	input: { auth: () => Record<string, string>; hooks?: Hooks },
+	op: OperationModel,
+	scope: Record<string, string>,
+): Promise<Record<string, string>> {
+	const next = { ...scope }
+	if (input.hooks?.resolvePathValue === undefined) return next
+	for (const name of op.pathParams) {
+		if (next[name] !== undefined && next[name] !== "") continue
+		const value = await input.hooks.resolvePathValue({
+			enumValues: [],
+			headers: input.auth(),
+			method: op.method,
+			operationId: op.operationId,
+			param: name,
+			path: op.path,
+		})
+		if (typeof value === "string" && value !== "") next[name] = value
+	}
+	return next
+}
+
+/** The start body's id fills the one path parameter the status read still lacks. */
+function bindProduced(template: string, scope: Record<string, string>, body: unknown): Record<string, string> {
+	const next = { ...scope }
+	const names = [...template.matchAll(/\{([^}]+)\}/g)].map((match) => match[1] ?? "").filter((name) => name !== "")
+	const record =
+		body !== null && typeof body === "object" && !Array.isArray(body) ? (body as Record<string, unknown>) : {}
+	for (const name of names) {
+		if (next[name] !== undefined && next[name] !== "") continue
+		const named = record[name]
+		if (typeof named === "string" && named !== "") next[name] = named
+	}
+	const missing = names.filter((name) => next[name] === undefined || next[name] === "")
+	const id = record.id
+	if (missing.length === 1 && missing[0] !== undefined && typeof id === "string" && id.length >= MIN_PRODUCED_LENGTH) {
+		next[missing[0]] = id
+	}
+	return next
 }
 
 function queryOf(model: SpecModel, op: OperationModel): { query?: Record<string, string> } {

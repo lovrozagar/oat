@@ -179,4 +179,79 @@ describe("downloaded files", () => {
 		})
 		expect(result.scope.operations.find((op) => op.operationId === "auth.downloadDataExport")?.status).toBe("failed")
 	})
+
+	it("passes when the status read shows the export this call started", async () => {
+		let exportPath = ""
+		let statusPath = ""
+		const base = await listen((req, res) => {
+			const url = new URL(req.url ?? "/", "http://127.0.0.1")
+			if (url.pathname === "/openapi.json") {
+				json(res, 200, exportDocument())
+				return
+			}
+			if (url.pathname.endsWith("/export")) {
+				exportPath = url.pathname
+				json(res, 200, { id: "exprt_oat_export_01", status: "processing" })
+				return
+			}
+			statusPath = url.pathname
+			json(res, 200, { id: "exprt_oat_export_01", row_count: 1, status: "complete" })
+		})
+		const result = await run({
+			baseUrl: base,
+			hooks: {
+				resolvePathValue: async (request) => (request.param === "table_id" ? "tbl_oat_export_1" : null),
+			},
+			ops: ["export.get"],
+			principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha", roots: { project_id: "prj_1" } }],
+			seed: 1,
+			spec: `${base}/openapi.json`,
+		})
+		expect(exportPath).toBe("/v1/projects/prj_1/tables/tbl_oat_export_1/export")
+		expect(statusPath).toBe("/v1/projects/prj_1/exports/exprt_oat_export_01")
+		expect(result.scope.operations.find((op) => op.operationId === "export.get")?.status).toBe("passed")
+	})
 })
+
+function exportDocument(): OpenApiDocument {
+	return {
+		info: { title: "export", version: "1" },
+		openapi: "3.1.0",
+		paths: {
+			"/v1/projects/{project_id}/exports/{export_id}": {
+				get: {
+					operationId: "export.get",
+					parameters: [
+						{ in: "path", name: "project_id", required: true, schema: { type: "string" } },
+						{ in: "path", name: "export_id", required: true, schema: { type: "string" } },
+					],
+					responses: { "200": { description: "ok" } },
+					"x-file": {
+						contains: "produced",
+						pollIntervalMs: 20,
+						produce: "table.export",
+						ready: "complete",
+						timeoutMs: 2000,
+						until: "$.status",
+					},
+				},
+			},
+			"/v1/projects/{project_id}/tables/{table_id}/export": {
+				get: {
+					operationId: "table.export",
+					parameters: [
+						{ in: "path", name: "project_id", required: true, schema: { type: "string" } },
+						{ in: "path", name: "table_id", required: true, schema: { type: "string" } },
+						{
+							in: "query",
+							name: "format",
+							required: true,
+							schema: { enum: ["csv", "json", "xlsx"], type: "string" },
+						},
+					],
+					responses: { "200": { description: "ok" } },
+				},
+			},
+		},
+	} as OpenApiDocument
+}
