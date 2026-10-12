@@ -69,12 +69,16 @@ function durationMs(text: string): number {
 	return match[2] === "ms" ? value : match[2] === "s" ? value * 1000 : value * 60_000
 }
 
-type Want = { mode: "contains" | "equals" | "excludes"; value: string }
+/** What an assert wants, with `{name}` already filled in its path and its value. */
+type Want = { from: string; mode: "contains" | "equals" | "excludes"; value: string }
 
 function expected(assert: ScenarioAssert, scope: Record<string, string>): Want {
-	if (assert.equals !== undefined) return { mode: "equals", value: String(interpolate(assert.equals, scope)) }
-	if (assert.contains !== undefined) return { mode: "contains", value: String(interpolate(assert.contains, scope)) }
-	if (assert.excludes !== undefined) return { mode: "excludes", value: String(interpolate(assert.excludes, scope)) }
+	const from = String(interpolate(assert.from, scope))
+	if (assert.equals !== undefined) return { from, mode: "equals", value: String(interpolate(assert.equals, scope)) }
+	if (assert.contains !== undefined)
+		return { from, mode: "contains", value: String(interpolate(assert.contains, scope)) }
+	if (assert.excludes !== undefined)
+		return { from, mode: "excludes", value: String(interpolate(assert.excludes, scope)) }
 	throw new Error(`oat: an assert on ${assert.from} needs equals, contains or excludes`)
 }
 
@@ -289,7 +293,7 @@ export async function runScenarios(input: {
 				})
 				const ok = succeeded(step, exchange)
 				const want = step.assert === undefined ? null : expected(step.assert, scope)
-				const shown = ok && (step.assert === undefined || want === null || holds(exchange, step.assert.from, want))
+				const shown = ok && (step.assert === undefined || want === null || holds(exchange, want.from, want))
 				if (shown) {
 					record(step, exchange, own, want)
 					return
@@ -311,7 +315,7 @@ export async function runScenarios(input: {
 					)
 				}
 				throw new StepFailure(
-					`${request.method} ${request.path} did not show ${want?.mode} "${want?.value}" at ${step.assert?.from}`,
+					`${request.method} ${request.path} did not show ${want?.mode} "${want?.value}" at ${want?.from}`,
 					[...earlier, exchange],
 					proves,
 				)
@@ -369,8 +373,13 @@ export async function runScenarios(input: {
 			if (step.assert === undefined || want === null) return
 			const observation =
 				want.mode === "excludes"
-					? { absent: true as const, path: step.assert.from, seq: exchange.seq, value: want.value }
-					: { path: step.assert.from, seq: exchange.seq, value: want.value }
+					? {
+							absent: true as const,
+							path: want.from,
+							seq: exchange.seq,
+							value: want.value,
+						}
+					: { path: want.from, seq: exchange.seq, value: want.value }
 			/* A write's own response is its claim, not a later read of it: it proves nothing about itself. */
 			const reads = /^(GET|HEAD)$/i.test(exchange.method)
 			for (const id of [...(step.assert.observes ?? []), ...(own === undefined ? [] : [own])]) {

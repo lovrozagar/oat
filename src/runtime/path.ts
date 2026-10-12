@@ -40,19 +40,46 @@ function readJsonPointer(body: unknown, pointer: string): unknown {
 	return node
 }
 
+/* `[?(@.field==value)]`: a quoted string, a number, true, false or null. */
+const FILTER_RE = /\[\?\(@\.([A-Za-z0-9_]+)==(?:'([^']*)'|"([^"]*)"|([^)\]]+))\)\]/
+
+function filterValue(match: RegExpExecArray): unknown {
+	if (match[2] !== undefined) return match[2]
+	if (match[3] !== undefined) return match[3]
+	const literal = (match[4] ?? "").trim()
+	if (literal === "true") return true
+	if (literal === "false") return false
+	if (literal === "null") return null
+	const number = Number(literal)
+	return Number.isNaN(number) ? literal : number
+}
+
 /**
- * Every node `path` names, fanning out at `[*]`: `$.items[*].name` is each item's name. A path
- * without `[*]` names at most one node, the same one `readPath` returns.
+ * Every node `path` names, fanning out at `[*]` and narrowing at `[?(@.field==value)]`:
+ * `$.items[*].name` is each item's name, `$.items[?(@.id=='a')].name` the name of the item whose
+ * id is `a`. A path with neither names at most one node, the same one `readPath` returns.
  */
 export function readAll(body: unknown, path: string): unknown[] {
 	const star = path.indexOf("[*]")
-	if (star < 0) {
+	const filter = FILTER_RE.exec(path)
+	if (star < 0 && filter === null) {
 		const node = readPath(body, path)
 		return node === undefined ? [] : [node]
 	}
-	const head = path.slice(0, star)
-	const rest = path.slice(star + 3)
+	const fansOut = filter === null || (star >= 0 && star < filter.index)
+	const at = fansOut ? star : (filter?.index ?? 0)
+	const head = path.slice(0, at)
+	const rest = path.slice(at + (fansOut ? 3 : (filter?.[0].length ?? 0)))
 	const list = head === "$" || head === "" ? body : readPath(body, head)
 	if (!Array.isArray(list)) return []
-	return list.flatMap((item) => (rest === "" ? [item] : readAll(item, `$${rest}`)))
+	const kept =
+		fansOut || filter === null
+			? list
+			: list.filter(
+					(item) =>
+						item !== null &&
+						typeof item === "object" &&
+						(item as Record<string, unknown>)[filter[1] ?? ""] === filterValue(filter),
+				)
+	return kept.flatMap((item) => (rest === "" ? [item] : readAll(item, `$${rest}`)))
 }
