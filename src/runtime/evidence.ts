@@ -61,6 +61,11 @@ export function pathTo(body: unknown, value: string, prefix = "$", depth = 0): s
 	return null
 }
 
+/** `ancestor` is `path` or a path above it, segment by segment. */
+function isAncestor(ancestor: string, path: string): boolean {
+	return ancestor === path || path.startsWith(`${ancestor}/`)
+}
+
 async function infer(op: OperationModel, client: Client): Promise<PassEvidence | undefined> {
 	const transcript = client.transcript
 	const at = new Map(transcript.map((exchange, index) => [exchange.seq, index]))
@@ -90,6 +95,21 @@ async function infer(op: OperationModel, client: Client): Promise<PassEvidence |
 				}
 				if (ok(read) && id !== "" && pathOf(read.url) === collection) {
 					if (pathTo((await whole(read)).responseBody, id) === null) {
+						return { call: call.seq, observation: { absent: true, path: "$", seq: read.seq, value: id } }
+					}
+				}
+			}
+			/* A nested item with no read of its own (a column inside its table) shows through an
+			 * ancestor: the same ancestor read held the id before the call and lacks it after. */
+			const before = transcript.slice(Math.max(0, index - WINDOW), index)
+			for (const read of transcript.slice(index + 1, index + 1 + WINDOW)) {
+				if (id === "" || !READS.has(read.method.toUpperCase()) || !ok(read)) continue
+				const path = pathOf(read.url)
+				if (!isAncestor(path, collection)) continue
+				if (pathTo((await whole(read)).responseBody, id) !== null) continue
+				for (const prior of before) {
+					if (!READS.has(prior.method.toUpperCase()) || !ok(prior) || pathOf(prior.url) !== path) continue
+					if (pathTo((await whole(prior)).responseBody, id) !== null) {
 						return { call: call.seq, observation: { absent: true, path: "$", seq: read.seq, value: id } }
 					}
 				}
