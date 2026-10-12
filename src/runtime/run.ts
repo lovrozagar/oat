@@ -747,6 +747,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		return op !== undefined && excludedByProfile(op, profile.spec) !== null
 	}
 	const excludedIds = new Set<string>()
+	const scenarioOwned = new Set((options.scenarios ?? []).flatMap((scenario) => scenario.covers))
 	const excludeOp = (entity: EntityModel, op: OperationModel | undefined): boolean => {
 		if (op === undefined) return false
 		const reason = excludedByProfile(op, profile.spec)
@@ -877,7 +878,19 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		let records: Record_[]
 		let degraded = false
 		let uniqueAdopted = false
-		if (createOp !== undefined && excludeOp(entity, createOp)) {
+		if (createOp !== undefined && scenarioOwned.has(createOp.operationId)) {
+			/* A scenario owns this create: it holds what the create needs (a mailed token, a paid
+			 * session), and a generated body would only be refused. The matrix reads what exists;
+			 * with nothing to read, the entity is the scenario's alone. */
+			const existing = await readExisting(listOp, model, seeding, alpha.headers(), {
+				...options.roots,
+				...alpha.roots,
+			})
+			if (existing.records.length === 0) return
+			scope = { created: [], values: existing.scope }
+			records = existing.records
+			degraded = true
+		} else if (createOp !== undefined && excludeOp(entity, createOp)) {
 			/* Same fallback a failed create takes below: read-only coverage against whatever
 			 * already exists beats no coverage, and it is exactly the state most likely to hide a
 			 * read-path bug. The gap finding excludeOp already reported names the reason. */
@@ -1648,7 +1661,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		mode: runScope.mode,
 		model,
 		nonce,
-		owned: new Set((options.scenarios ?? []).flatMap((scenario) => scenario.covers)),
+		owned: scenarioOwned,
 		roots: alpha.roots,
 		seed,
 		stopped: () => options.signal?.aborted === true || networkGate.exhausted,
