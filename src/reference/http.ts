@@ -751,7 +751,7 @@ export async function createReferenceServer(
 			if (principal === undefined) throw new HttpError(401, "unauthorized", "unknown API key")
 			return send(res, 200, {
 				access_token: principal.token,
-				expires_in: 3600,
+				expires_in: defects.has("TOKEN_EXPIRY_AS_STRING") ? "3600" : 3600,
 				project_id: principal.projectId,
 			})
 		}

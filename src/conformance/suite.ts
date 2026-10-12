@@ -882,6 +882,7 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	DISPOSABLE_KILLS_CALLER: "auth.destructive-spares-the-caller",
 	ROOT_READ_OPEN: "read.matches-caller-root",
 	PUBLIC_GET_NOT_SUCCESS: "response.public-get-returns-success",
+	TOKEN_EXPIRY_AS_STRING: "response.contract-call",
 	LISTED_GET_DIFFERS: "list.item-matches-listed-row",
 	STRING_PAYLOAD_MANGLED: "payload.string-survives",
 	RESPONSE_STATUS_UNDECLARED: "response.status-is-documented",
@@ -1452,6 +1453,7 @@ const DIALECT_INSENSITIVE: ReadonlySet<DefectName> = new Set<DefectName>([
 	"PATCH_REPLACES",
 	"CALLER_UPDATE_DROPPED",
 	"PUBLIC_GET_NOT_SUCCESS",
+	"TOKEN_EXPIRY_AS_STRING",
 	"LISTED_GET_DIFFERS",
 	"EXISTENCE_LEAK_VIA_STATUS",
 	"UNIQUE_NOT_ENFORCED",
@@ -1487,6 +1489,7 @@ const ONE_ENGINE: ReadonlySet<DefectName> = new Set<DefectName>([
 	"CONCURRENT_WRITE_LOST",
 	"CALLER_UPDATE_DROPPED",
 	"PUBLIC_GET_NOT_SUCCESS",
+	"TOKEN_EXPIRY_AS_STRING",
 	"LISTED_GET_DIFFERS",
 ])
 

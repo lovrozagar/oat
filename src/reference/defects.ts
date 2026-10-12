@@ -221,6 +221,13 @@ export const DEFECTS = {
 	 * A 500 is the server failing that read, not a missing fixture.
 	 */
 	PUBLIC_GET_NOT_SUCCESS: "a public read with no id returns a server error",
+	/**
+	 * The token exchange answers `expires_in` as a string where the document declares an integer.
+	 *
+	 * The credential still works, so every check that only uses it stays quiet. Only the contract
+	 * tier holds that body to its schema: auth runs before any check and nothing else grades it.
+	 */
+	TOKEN_EXPIRY_AS_STRING: "the token exchange answers expires_in as a string, not the documented integer",
 	/** The get of a listed row returns a different body than the list. */
 	LISTED_GET_DIFFERS: "the get of a listed row returns a different body",
 	/**
