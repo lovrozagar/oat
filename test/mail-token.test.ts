@@ -174,6 +174,52 @@ async function serve(acceptFollowUp: boolean): Promise<{ box: Map<string, string
 	return { box, url }
 }
 
+function verifyDocument(): OpenApiDocument {
+	const base = document()
+	return {
+		...base,
+		paths: {
+			"/v1/me": base.paths["/v1/me"],
+			"/v1/register": base.paths["/v1/register"],
+			"/v1/auth/email/request-verification": {
+				post: {
+					operationId: "auth.requestEmailVerification",
+					responses: { "200": { description: "ok" } },
+					security: [{ jwt: [] }],
+				},
+			},
+			"/v1/auth/email/verify": {
+				post: {
+					operationId: "auth.verifyEmail",
+					requestBody: {
+						content: {
+							"application/json": {
+								schema: { properties: { token: { type: "string" } }, required: ["token"], type: "object" },
+							},
+						},
+						required: true,
+					},
+					responses: {
+						"200": {
+							content: {
+								"application/json": {
+									schema: {
+										properties: { access_token: { type: "string" } },
+										required: ["access_token"],
+										type: "object",
+									},
+								},
+							},
+							description: "ok",
+						},
+					},
+					"x-invalidate": ["GET /v1/me"],
+				},
+			},
+		},
+	} as OpenApiDocument
+}
+
 async function runMail(url: string, box: Map<string, string>) {
 	return run({
 		baseUrl: url,
@@ -194,6 +240,52 @@ describe("mail token", () => {
 			["auth.requestPasswordReset", "auth.resetPassword"],
 		])
 		expect(mailHint(loaded, pairs[0]!.sender)).toContain("magic-link")
+		const withChange = buildModel({
+			...document(),
+			paths: {
+				...document().paths,
+				"/v1/auth/email/verify": {
+					post: {
+						operationId: "auth.verifyEmail",
+						requestBody: {
+							content: {
+								"application/json": {
+									schema: { properties: { token: { type: "string" } }, required: ["token"], type: "object" },
+								},
+							},
+							required: true,
+						},
+						responses: { "200": { description: "ok" } },
+					},
+				},
+				"/v1/auth/email/change/request": {
+					post: {
+						operationId: "auth.requestEmailChange",
+						requestBody: {
+							content: {
+								"application/json": {
+									schema: {
+										properties: { new_email: { type: "string" } },
+										required: ["new_email"],
+										type: "object",
+									},
+								},
+							},
+							required: true,
+						},
+						responses: { "200": { description: "ok" } },
+					},
+				},
+				"/v1/auth/email/request-verification": {
+					post: {
+						operationId: "auth.requestEmailVerification",
+						responses: { "200": { description: "ok" } },
+					},
+				},
+			},
+		})
+		const verify = mailPairs(withChange).find((pair) => pair.consumer.operationId === "auth.verifyEmail")
+		expect(verify?.sender.operationId).toBe("auth.requestEmailVerification")
 		expect(mailHint(loaded, pairs[1]!.sender)).toContain("reset")
 	})
 
@@ -212,6 +304,59 @@ describe("mail token", () => {
 			(exchange) => exchange.url.includes("magic-link") || exchange.url.includes("password"),
 		)
 		expect(mailed.some((exchange) => JSON.stringify(exchange.requestBody).includes("alpha"))).toBe(false)
+	})
+
+	it("passes email verify only when the caller read changes", async () => {
+		for (const flip of [false, true]) {
+			const box = new Map<string, string>()
+			let verified = false
+			const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+				void (async () => {
+					const url = new URL(req.url ?? "/", "http://127.0.0.1")
+					const method = (req.method ?? "GET").toUpperCase()
+					const chunks: Buffer[] = []
+					for await (const chunk of req) chunks.push(chunk as Buffer)
+					const raw = Buffer.concat(chunks).toString("utf8")
+					const body = raw === "" ? {} : (JSON.parse(raw) as Record<string, unknown>)
+					const token =
+						typeof req.headers.authorization === "string" ? req.headers.authorization.slice(7).trim() : ""
+					const send = (status: number, payload: unknown) => {
+						res.writeHead(status, { "content-type": "application/json" })
+						res.end(JSON.stringify(payload))
+					}
+					if (url.pathname === "/openapi.json" && method === "GET") return send(200, verifyDocument())
+					if (url.pathname === "/v1/register" && method === "POST") return send(201, { access_token: "t-reg" })
+					if (url.pathname === "/v1/me" && method === "GET") {
+						if (token === "alpha") return send(200, { email: "alpha@example.test", first_name: "Ada" })
+						if (token !== "t-reg" && token !== "t-verified") return send(401, { error: "unauthorized" })
+						return send(200, { email: "mail@example.test", first_name: "Ada", verified })
+					}
+					if (url.pathname === "/v1/auth/email/request-verification" && method === "POST") {
+						box.set("pending", "https://example.test/verify-email?token=tok-verify")
+						return send(200, { success: true })
+					}
+					if (url.pathname === "/v1/auth/email/verify" && method === "POST") {
+						if (body.token !== "tok-verify") return send(400, { error_key: "bad_token" })
+						if (flip) verified = true
+						return send(200, { access_token: "t-verified" })
+					}
+					return send(404, { error: "missing" })
+				})()
+			})
+			await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+			const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+			open.push({ close: () => new Promise<void>((resolve) => server.close(() => resolve())) })
+			const result = await run({
+				baseUrl: url,
+				hooks: { resolveOutOfBand: async () => box.get("pending") ?? null },
+				nonce: "n1",
+				principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+				seed: 1,
+				spec: `${url}/openapi.json`,
+			})
+			const status = result.scope.operations.find((op) => op.operationId === "auth.verifyEmail")?.status
+			expect(status).toBe(flip ? "passed" : "failed")
+		}
 	})
 
 	it("reports a token whose session cannot read the profile", async () => {

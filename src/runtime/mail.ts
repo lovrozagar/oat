@@ -80,7 +80,9 @@ export async function runMailOps(input: {
 		const email = `oat-mail-${input.nonce ?? "user"}-${sequence}@${domain}`
 		sequence += 1
 		const nextEmail = `oat-mail-next-${input.nonce ?? "user"}-${sequence}@${domain}`
-		const needsAccount = pair.sender.securitySchemes.includes("jwt") || pathHas(pair.sender, "reset")
+		const senderProps = propertyBag(requestSchemaOf(pair.sender, input.model))
+		const needsAccount =
+			pair.sender.securitySchemes.includes("jwt") || "email" in senderProps || pathHas(pair.sender, "reset")
 		let headers: (() => Record<string, string>) | undefined
 		if (needsAccount) {
 			const opened = await openAccount(input, email, password)
@@ -203,7 +205,8 @@ function pairScore(sender: string, consumer: string): number {
 	const prefix = commonPrefix(sender, consumer)
 	const segments = prefix.split("/").filter(Boolean).length
 	if (segments < 3) return -1
-	return prefix.length
+	const extra = sender.split("/").filter(Boolean).length - segments
+	return prefix.length * 100 - extra
 }
 
 function commonPrefix(left: string, right: string): string {
@@ -330,6 +333,13 @@ async function followUpShows(
 		if (profile.status !== 200) return false
 		if ("new_email" in propertyBag(requestSchemaOf(pair.sender, input.model))) {
 			return JSON.stringify(profile.responseBody).includes(nextEmail)
+		}
+		/* A session alone does not prove a write that claims to change the caller read. */
+		if (pair.consumer.invalidates.includes(`${read.method} ${read.path}`)) {
+			if (before === null || before.status < 200 || before.status >= 300) return false
+			const after = await invalidatedRead(input, pair.consumer, token, headers)
+			if (after === null || after.status < 200 || after.status >= 300) return false
+			return JSON.stringify(before.responseBody) !== JSON.stringify(after.responseBody)
 		}
 		return true
 	}
