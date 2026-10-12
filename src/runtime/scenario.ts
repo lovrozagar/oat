@@ -14,7 +14,14 @@ import type {
 	ScenarioStep,
 } from "../config/define-config.ts"
 import type { SpecModel } from "../spec/graph.ts"
-import { type AcquireContext, interpolate, type OriginClient, resolveOutOfBandValue, resolveRequest } from "./auth.ts"
+import {
+	type AcquireContext,
+	interpolate,
+	jwtClaims,
+	type OriginClient,
+	resolveOutOfBandValue,
+	resolveRequest,
+} from "./auth.ts"
 import type { Client, Exchange } from "./client.ts"
 import { cookiesFromRecordedHeaders, readSaveAs } from "./cookies.ts"
 import type { FindingCollector } from "./finding.ts"
@@ -309,6 +316,26 @@ export async function runScenarios(input: {
 					objects.set(name, value)
 					scope[name] = JSON.stringify(value)
 				} else scope[name] = String(value)
+			}
+			if (step.saveClaimsFrom !== undefined) {
+				const from = step.saveClaimsFrom.token
+				const token =
+					!from.startsWith("$") && scope[from] !== undefined ? scope[from] : readPath(exchange.responseBody, from)
+				const claims = typeof token === "string" ? jwtClaims(token) : null
+				if (claims === null) {
+					throw new StepFailure(`saveClaimsFrom: no JWT at ${from}`, [exchange], own === undefined ? [] : [own])
+				}
+				for (const [name, claim] of Object.entries(step.saveClaimsFrom.bind)) {
+					const value = readPath(claims, claim)
+					if (value === undefined || value === null) {
+						throw new StepFailure(
+							`saveClaimsFrom: the token carries no "${claim}"`,
+							[exchange],
+							own === undefined ? [] : [own],
+						)
+					}
+					scope[name] = String(value)
+				}
 			}
 			if (step.assert === undefined || want === null) return
 			const observation =

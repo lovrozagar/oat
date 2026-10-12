@@ -59,6 +59,16 @@ function spec(): OpenApiDocument {
 			"/v1/checkout": {
 				post: { operationId: "checkout.open", responses: { "200": { content: json, description: "ok" } } },
 			},
+			"/v1/token": {
+				post: { operationId: "token.mint", responses: { "200": { content: json, description: "ok" } } },
+			},
+			"/v1/users/{user_id}": {
+				get: {
+					operationId: "user.get",
+					parameters: [{ in: "path", name: "user_id", required: true, schema: { type: "string" } }],
+					responses: { "200": { content: json, description: "ok" } },
+				},
+			},
 			"/v1/ceremony/options": {
 				post: { operationId: "ceremony.options", responses: { "200": { content: json, description: "ok" } } },
 			},
@@ -127,6 +137,11 @@ async function serve(options: { brokenRename?: boolean; statsLagMs?: number } = 
 		if (url.pathname === "/v1/checkout" && method === "POST") {
 			return send(200, { url: "https://pay.example/session/cs_1" })
 		}
+		if (url.pathname === "/v1/token" && method === "POST") {
+			const claims = Buffer.from(JSON.stringify({ sub: "usr_42" })).toString("base64url")
+			return send(200, { token: `h.${claims}.s` })
+		}
+		if (url.pathname === "/v1/users/usr_42" && method === "GET") return send(200, { id: "usr_42" })
 		if (url.pathname === "/v1/ceremony/options" && method === "POST") {
 			return send(200, { options: { challenge: "ch_1", rp: { id: "example.test" } } })
 		}
@@ -331,6 +346,29 @@ describe("scenarios", () => {
 		}
 		const refused = await runWith(await serve(), [failing], ["notes.write", "stats.get"])
 		expect(row(refused, "notes.write")?.status).toBe("failed")
+	})
+
+	it("binds values out of a token's claims, as an auth flow does", async () => {
+		const api = await serve()
+		const scenario: Scenario = {
+			covers: ["token.mint", "user.get"],
+			id: "claims",
+			steps: [
+				{
+					operationId: "token.mint",
+					saveAs: { token: "$.token" },
+					saveClaimsFrom: { bind: { userId: "sub" }, token: "token" },
+				},
+				{
+					assert: { equals: "usr_42", from: "$.id", observes: ["token.mint"] },
+					bind: { user_id: "{userId}" },
+					operationId: "user.get",
+				},
+			],
+		}
+		const result = await runWith(api, [scenario], ["token.mint", "user.get"])
+		expect(row(result, "user.get")?.status).toBe("passed")
+		expect(row(result, "token.mint")?.tier).toBe("verified")
 	})
 
 	it("refuses a scenario that covers an operation it never calls", async () => {
