@@ -1016,6 +1016,118 @@ describe("action on a seeded instance", () => {
 		expect(result.findings.filter((finding) => finding.check === "effects.declared-effect-occurs")).toEqual([])
 	})
 
+	it("removes what an x-before prelude created through an invite", async () => {
+		const member = { properties: { id: { type: "string" }, role: { type: "string" } }, type: "object" }
+		const params = [{ in: "path", name: "org_id", required: true, schema: { type: "string" } }]
+		const memberParams = [...params, { in: "path", name: "member_id", required: true, schema: { type: "string" } }]
+		const spec = {
+			info: { title: "prelude-invite", version: "1" },
+			openapi: "3.1.0",
+			paths: {
+				"/v1/orgs/{org_id}/members": {
+					get: {
+						operationId: "member.list",
+						parameters: params,
+						responses: {
+							"200": {
+								content: {
+									"application/json": {
+										schema: {
+											properties: { members: { items: member, type: "array" } },
+											required: ["members"],
+											type: "object",
+										},
+									},
+								},
+								description: "ok",
+							},
+						},
+						"x-entity": { action: "list", identity: "id", name: "member" },
+					},
+					post: {
+						operationId: "member.invite",
+						parameters: params,
+						requestBody: {
+							content: {
+								"application/json": {
+									schema: { properties: { email: { type: "string" } }, required: ["email"], type: "object" },
+								},
+							},
+						},
+						responses: { "201": { content: { "application/json": { schema: member } }, description: "invited" } },
+						"x-entity": { action: "create", identity: "id", name: "member" },
+						"x-invite": {
+							accept: "member.accept",
+							granteeField: "email",
+							invite: "member.invite",
+							revoke: "member.remove",
+						},
+					},
+				},
+				"/v1/orgs/{org_id}/members/{member_id}": {
+					delete: {
+						operationId: "member.remove",
+						parameters: memberParams,
+						responses: { "200": { description: "removed" } },
+						"x-entity": { action: "delete", identity: "id", name: "member" },
+					},
+					patch: {
+						operationId: "member.setRole",
+						parameters: memberParams,
+						requestBody: {
+							content: {
+								"application/json": { schema: { properties: { role: { type: "string" } }, type: "object" } },
+							},
+						},
+						responses: { "200": { content: { "application/json": { schema: member } }, description: "ok" } },
+						"x-before": "member.invite",
+						"x-bind": { path: { member_id: "before:$.id" } },
+						"x-effects": [{ entity: "member", op: "update" }],
+						"x-entity": { action: "action", identity: "id", name: "member" },
+					},
+				},
+				"/v1/invites/{token}/accept": {
+					post: {
+						operationId: "member.accept",
+						parameters: [{ in: "path", name: "token", required: true, schema: { type: "string" } }],
+						responses: { "200": { description: "accepted" } },
+					},
+				},
+			},
+		} as unknown as OpenApiDocument
+		const members = new Map<string, { id: string; role: string }>([["m_owner", { id: "m_owner", role: "owner" }]])
+		let seq = 0
+		const server = await listen((req, res) => {
+			void (async () => {
+				const url = new URL(req.url ?? "/", "http://127.0.0.1")
+				const method = (req.method ?? "GET").toUpperCase()
+				if (url.pathname === "/v1/openapi/spec") return send(res, 200, spec)
+				if (url.pathname.endsWith("/members") && method === "GET")
+					return send(res, 200, { members: [...members.values()] })
+				if (url.pathname.endsWith("/members") && method === "POST") {
+					const id = `m_${String((seq += 1))}`
+					members.set(id, { id, role: "member" })
+					return send(res, 201, members.get(id))
+				}
+				const item = /\/members\/([^/]+)$/.exec(url.pathname)
+				if (item !== null && method === "DELETE") {
+					members.delete(item[1] ?? "")
+					return send(res, 200, {})
+				}
+				if (item !== null && method === "PATCH") return send(res, 200, members.get(item[1] ?? "") ?? {})
+				return send(res, 404)
+			})().catch(() => send(res, 500))
+		})
+		await run({
+			baseUrl: server.url,
+			principals: [{ headers: { authorization: "Bearer t" }, id: "a", roots: { org_id: "o1" } }],
+			seed: 1,
+			spec: `${server.url}/v1/openapi/spec`,
+		})
+		expect(seq).toBeGreaterThan(0)
+		expect([...members.keys()]).toEqual(["m_owner"])
+	})
+
 	it("seeds a list-only entity and reports a coverage gap when a path stays empty", async () => {
 		const spec = nestedSpec()
 		const paths = spec.paths

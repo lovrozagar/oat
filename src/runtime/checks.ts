@@ -6201,6 +6201,13 @@ const declaredEffectsOccur: Check = {
 						return
 					}
 					beforeBody = beforeInvoked.responseBody
+					/* A prelude that creates is the run's to remove. One through the entity's own create is
+					 * already tracked; an invite is not, since an invite POST is never an entity's create. */
+					const made = beforeOp.action === "create" ? ctx.model.entities.get(beforeOp.entity ?? "") : undefined
+					if (made !== undefined && made.delete !== undefined) {
+						const id = findCreatedId(beforeBody, createdIdKeys(made.name, made.identity))
+						if (id !== undefined) ctx.recordCreated?.(made.name, id, { ...beforeScope })
+					}
 				}
 				const current = await currentRecords(ctx, scope)
 				scope = bindActionScope(op.pathParams, current, scope, actionBind, beforeBody)
