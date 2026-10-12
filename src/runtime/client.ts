@@ -130,7 +130,13 @@ export interface ExchangeContext {
 export type OperationResolver = (
 	method: string,
 	relativePath: string,
-) => { operationId: string; template: string; entity?: string | null; redirects?: boolean } | null
+) => {
+	operationId: string
+	template: string
+	entity?: string | null
+	redirects?: boolean
+	requiredQuery?: Record<string, string>
+} | null
 
 /** A principal bound so every dispatch can refresh and retry a 401 without call-site ceremony. */
 export interface BoundAuth {
@@ -345,6 +351,10 @@ export class Client {
 		const resolved = isAbsoluteHttpUrl(path)
 			? null
 			: (this.operationResolver?.(method.toUpperCase(), this.relativePath(url)) ?? null)
+		/* A parameter the caller names — even as undefined, to leave it out on purpose — is theirs. */
+		for (const [name, value] of Object.entries(resolved?.requiredQuery ?? {})) {
+			if (!(name in (options.query ?? {})) && !url.searchParams.has(name)) url.searchParams.set(name, value)
+		}
 		const stamp = (headers: Record<string, string>): Partial<Exchange> => {
 			if (resolved?.entity !== undefined && resolved.entity !== null) pendingEntity = resolved.entity
 			const operationId = options.operationId ?? resolved?.operationId

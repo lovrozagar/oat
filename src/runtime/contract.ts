@@ -167,7 +167,7 @@ export async function runContractCalls(input: {
 		const query: Record<string, string> = {}
 		for (const param of params) {
 			if (param.in !== "query" || param.required !== true || param.name === undefined) continue
-			const value = exampleOf(param.schema)
+			const value = op.requiredQuery[param.name] ?? exampleOf(param.schema)
 			if (value === undefined) {
 				grades.skipped([op.operationId], `unresolved query param ${param.name}`)
 				return

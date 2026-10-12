@@ -49,7 +49,14 @@ import {
 } from "./extensions.ts"
 import { deriveQueryConventions, type QueryConventions } from "./conventions.ts"
 import { documentDefs, parseRouteRef, pathTemplateMatches } from "./load.ts"
-import { type Endpoint, MUTATING_METHODS, type OpenApiDocument, type OperationObject, listEndpoints } from "./types.ts"
+import {
+	type Endpoint,
+	MUTATING_METHODS,
+	type OpenApiDocument,
+	type OperationObject,
+	type ParameterObject,
+	listEndpoints,
+} from "./types.ts"
 
 export interface OperationModel {
 	operationId: string
@@ -70,6 +77,12 @@ export interface OperationModel {
 	pathParams: string[]
 	rootParams: string[]
 	queryParamNames: string[]
+	/**
+	 * Required query parameters and the value the document declares for each. A request the
+	 * document calls incomplete without one is sent with it; a parameter with no declared value
+	 * is left to the caller, never invented.
+	 */
+	requiredQuery: Record<string, string>
 	/**
 	 * Header parameter this operation accepts as an idempotency key, when it declares one.
 	 *
@@ -271,6 +284,7 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 			successResponseHeaders(op),
 		),
 		queryParamNames: (op.parameters ?? []).filter((p) => p.in === "query").map((p) => p.name),
+		requiredQuery: readRequiredQuery(op.parameters ?? []),
 		idempotencyHeader:
 			(op.parameters ?? []).find(
 				(p) => p.in === "header" && /^(x-)?idempotenc(y|e)([-_]?key)?$/i.test(p.name.replace(/\s/g, "")),
@@ -284,6 +298,38 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 		tenantParam: readTenantParam(endpoint, gaps),
 		tenantSource: readTenantSource(endpoint),
 	}
+}
+
+/** The value a parameter's document gives it: an example first, then a const, enum, or default. */
+function declaredValue(param: ParameterObject): string | undefined {
+	const schema = param.schema ?? {}
+	const named = param["examples"]
+	const fromNamed =
+		named !== null && typeof named === "object"
+			? Object.values(named as Record<string, { value?: unknown }>).find((entry) => entry?.value !== undefined)?.value
+			: undefined
+	const listed = Array.isArray(schema["examples"]) ? (schema["examples"] as unknown[])[0] : undefined
+	const enumerated = Array.isArray(schema["enum"]) ? (schema["enum"] as unknown[])[0] : undefined
+	const value = [
+		param["example"],
+		fromNamed,
+		listed,
+		schema["example"],
+		schema["const"],
+		enumerated,
+		schema["default"],
+	].find((candidate) => candidate !== undefined && candidate !== null && typeof candidate !== "object")
+	return value === undefined ? undefined : String(value)
+}
+
+function readRequiredQuery(parameters: ParameterObject[]): Record<string, string> {
+	const out: Record<string, string> = {}
+	for (const param of parameters) {
+		if (param.in !== "query" || param.required !== true) continue
+		const value = declaredValue(param)
+		if (value !== undefined) out[param.name] = value
+	}
+	return out
 }
 
 function ext<T>(op: OperationObject, key: string): T | undefined {
@@ -677,12 +723,16 @@ export function describeSuccess(statuses: DocumentedStatuses): string[] {
  * Literal segments beat parameters where two templates match — `/tables/archived` is not
  * `/tables/{id}` — so the most specific template wins.
  */
-export function operationResolver(
-	model: SpecModel,
-): (
+export function operationResolver(model: SpecModel): (
 	method: string,
 	relativePath: string,
-) => { operationId: string; template: string; entity: string | null; redirects: boolean } | null {
+) => {
+	operationId: string
+	template: string
+	entity: string | null
+	redirects: boolean
+	requiredQuery: Record<string, string>
+} | null {
 	const candidates = [...model.operations].sort(
 		(a, b) => (a.path.match(/\{/g)?.length ?? 0) - (b.path.match(/\{/g)?.length ?? 0),
 	)
@@ -694,6 +744,12 @@ export function operationResolver(
 		if (op === undefined) return null
 		/* A documented 3xx is the answer to grade, not a hop to follow. */
 		const redirects = op.statuses.exact.some((code) => code >= 300 && code < 400) || op.statuses.ranges.includes(3)
-		return { entity: op.entity, operationId: op.operationId, redirects, template: op.path }
+		return {
+			entity: op.entity,
+			operationId: op.operationId,
+			redirects,
+			requiredQuery: op.requiredQuery,
+			template: op.path,
+		}
 	}
 }
