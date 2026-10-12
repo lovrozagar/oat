@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { readAll } from "../src/runtime/path.ts"
+import { readAll, readPath } from "../src/runtime/path.ts"
 
 const body = {
 	topics: [
@@ -23,5 +23,12 @@ describe("readAll", () => {
 
 	it("names nothing when no item matches the filter", () => {
 		expect(readAll(body, "$.topics[?(@.id=='t_9')].subscribed")).toEqual([])
+	})
+})
+
+describe("readPath", () => {
+	it("reads the first item a filter names, so saveAs can pick a row by a field", () => {
+		expect(readPath(body, "$.topics[?(@.name=='Engineering')].id")).toBe("t_2")
+		expect(readPath(body, "$.topics[?(@.name=='Nobody')].id")).toBeUndefined()
 	})
 })

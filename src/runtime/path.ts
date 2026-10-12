@@ -6,6 +6,8 @@
 
 export function readPath(body: unknown, pointer: string): unknown {
 	if (pointer.startsWith("/")) return readJsonPointer(body, pointer)
+	/* A filter names items, not one node: the first match is the one a saved value means. */
+	if (FILTER_RE.test(pointer)) return readAll(body, pointer)[0]
 	let node: unknown = body
 	/* `$.messages[0].id` and `$.messages.0.id` name the same node: brackets are read as segments. */
 	for (const segment of pointer
