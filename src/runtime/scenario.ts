@@ -295,7 +295,8 @@ export async function runScenarios(input: {
 		}
 
 		function record(step: ScenarioRequestStep, exchange: Exchange, own: string | undefined, want: Want | null): void {
-			if (own !== undefined) calls.set(own, exchange)
+			/* An observed call keeps its pair; a later repeat of the operation proves nothing new. */
+			if (own !== undefined && !observed.has(own)) calls.set(own, exchange)
 			const cookies = exchange.cookies ?? cookiesFromRecordedHeaders(exchange.responseHeaders)
 			for (const [name, template] of Object.entries(step.saveAs ?? {})) {
 				const path = String(interpolate(template, scope))

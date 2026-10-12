@@ -371,6 +371,24 @@ describe("scenarios", () => {
 		expect(row(result, "token.mint")?.tier).toBe("verified")
 	})
 
+	it("keeps each observation with the call it saw, when an operation is called again", async () => {
+		const api = await serve()
+		const scenario: Scenario = {
+			covers: ["notes.write"],
+			id: "twice",
+			steps: [
+				{ body: { text: "once" }, operationId: "notes.write" },
+				{ assert: { contains: "once", from: "$.items[*].text", observes: ["notes.write"] }, operationId: "notes.list" },
+				{ body: { text: "twice" }, operationId: "notes.write" },
+			],
+		}
+		const result = await runWith(api, [scenario], ["notes.write"])
+		const evidence = row(result, "notes.write")?.evidence
+		const call = result.client.transcript.find((exchange) => exchange.seq === evidence?.call)
+		expect(call?.requestBody).toEqual({ text: "once" })
+		expect(evidence?.observation?.seq).toBeGreaterThan(evidence?.call ?? Number.POSITIVE_INFINITY)
+	})
+
 	it("refuses a scenario that covers an operation it never calls", async () => {
 		const api = await serve()
 		const scenario: Scenario = { ...RENAME, covers: [...RENAME.covers, "stats.get"] }
