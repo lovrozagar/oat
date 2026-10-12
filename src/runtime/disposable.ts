@@ -1042,8 +1042,7 @@ async function handOff(scene: Scene, op: OperationModel, values: Record<string, 
 		headers: scene.headers,
 		operationId: members.operationId,
 	})
-	const member = recordsOf(listed.responseBody, members, scene.model).find((row) => row.invite_email === email || row.email === email)
-	const memberId = member?.id
+	const memberId = memberIdFor(recordsOf(listed.responseBody, members, scene.model), email)
 	if (typeof memberId !== "string") return false
 	const transfer = scene.model.operations.find((item) => {
 		if (!requiredNames(requestSchemaOf(item, scene.model)).includes("member_id")) return false
@@ -1122,9 +1121,8 @@ async function handOffThroughOrg(
 		headers: scene.headers,
 		operationId: members.operationId,
 	})
-	const person = recordsOf(listed.responseBody, members, scene.model).find(
-		(row) => row.invite_email === email || row.email === email,
-	)
+	const people = recordsOf(listed.responseBody, members, scene.model)
+	const person = people.find((row) => row.id === memberIdFor(people, email))
 	const userId = person?.user_id
 	if (typeof userId !== "string") return false
 	const add = scene.model.operations.find((item) => {
@@ -1193,6 +1191,15 @@ async function projectMemberId(
 	const rows = recordsOf(listed.responseBody, list, scene.model).filter((row) => row.user_id === userId)
 	const direct = rows.find((row) => row.collaborator !== true) ?? rows[0]
 	return typeof direct?.id === "string" ? direct.id : null
+}
+
+function memberIdFor(records: Record<string, unknown>[], email: string): string | null {
+	const matches = records.filter((row) => row.invite_email === email || row.email === email)
+	/* A second invite can leave a pending row beside the accepted member. Ownership moves to the
+	 * accepted one; a pending row is refused. */
+	const accepted = matches.find((row) => typeof row.accepted_at === "number")
+	const chosen = accepted ?? matches[0]
+	return typeof chosen?.id === "string" ? chosen.id : null
 }
 
 function permissionList(schema: Record<string, unknown> | null): string[] | undefined {

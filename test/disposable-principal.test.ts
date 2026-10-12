@@ -992,7 +992,12 @@ async function serveOwnership(box: Map<string, string>): Promise<string> {
 				return
 			}
 			if (url.pathname === "/v1/organizations/org_1/members" && method === "GET") {
-				send(200, { members: [{ id: "mem_suite", invite_email: "suite@example.test", user_id: "usr_suite" }] })
+				send(200, {
+					members: [
+						{ accepted_at: null, id: "mem_pending", invite_email: "suite@example.test", user_id: "usr_pending" },
+						{ accepted_at: 1, id: "mem_suite", invite_email: "suite@example.test", user_id: "usr_suite" },
+					],
+				})
 				return
 			}
 			if (url.pathname === "/v1/organizations/org_1/transfer" && method === "POST") {
