@@ -310,6 +310,14 @@ export interface Hooks {
 	 */
 	resolveRunRecord?: () => Promise<unknown>
 	/**
+	 * Raw body and headers for an `x-signed-event` call. The bytes are sent unchanged, so a
+	 * signature in `headers` can match `body`. `null` leaves the operation ungraded.
+	 */
+	resolveSignedEvent?: (request: {
+		operationId: string
+		scope: Record<string, string>
+	}) => Promise<{ body: string; headers: Record<string, string> } | null>
+	/**
 	 * Removes a principal the run provisioned, and everything that principal created with it.
 	 * `ctx.headers` is the live principal header map so authenticated delete-account is
 	 * expressible without a tester-key god route. Address stays — some backends still key
