@@ -23,7 +23,7 @@ import {
 	resolveRequest,
 } from "./auth.ts"
 import type { Client, Exchange } from "./client.ts"
-import { cookiesFromRecordedHeaders, readSaveAs } from "./cookies.ts"
+import { cookiesFromRecordedHeaders, describeSaveAs, readSaveAs } from "./cookies.ts"
 import type { FindingCollector } from "./finding.ts"
 import { readAll, readPath } from "./path.ts"
 import type { BackoffConfig } from "./poll.ts"
@@ -78,8 +78,20 @@ function expected(assert: ScenarioAssert, scope: Record<string, string>): Want {
 	throw new Error(`oat: an assert on ${assert.from} needs equals, contains or excludes`)
 }
 
-function holds(body: unknown, path: string, want: Want): boolean {
-	const nodes = readAll(body, path).map((node) => (typeof node === "string" ? node : JSON.stringify(node)))
+/** The values at `from`: a JSON path into the body, or `header:Name` / `cookie:name` as saveAs reads them. */
+function observed(exchange: Exchange, from: string): unknown[] {
+	if (describeSaveAs(from).kind === "json") return readAll(exchange.responseBody, from)
+	const value = readSaveAs(from, {
+		body: exchange.responseBody,
+		cookies: exchange.cookies ?? cookiesFromRecordedHeaders(exchange.responseHeaders),
+		headers: exchange.responseHeaders,
+		readJson: readPath,
+	})
+	return value === undefined ? [] : [value]
+}
+
+function holds(exchange: Exchange, path: string, want: Want): boolean {
+	const nodes = observed(exchange, path).map((node) => (typeof node === "string" ? node : JSON.stringify(node)))
 	if (want.mode === "excludes") return !nodes.includes(want.value)
 	return nodes.some((text) => (want.mode === "equals" ? text === want.value : text.includes(want.value)))
 }
@@ -276,8 +288,7 @@ export async function runScenarios(input: {
 				})
 				const ok = succeeded(step, exchange)
 				const want = step.assert === undefined ? null : expected(step.assert, scope)
-				const shown =
-					ok && (step.assert === undefined || want === null || holds(exchange.responseBody, step.assert.from, want))
+				const shown = ok && (step.assert === undefined || want === null || holds(exchange, step.assert.from, want))
 				if (shown) {
 					record(step, exchange, own, want)
 					return
