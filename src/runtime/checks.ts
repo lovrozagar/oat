@@ -915,9 +915,42 @@ async function collectSet(
 	requested: number,
 	extra: Record<string, string> = {},
 	order?: string,
+	/* A repeat read that must see the collection as it is now, not as an earlier read saw it. */
+	fresh = false,
 ): Promise<SetRead | null> {
-	const read = await readSet(ctx, extra, { order, size: requested })
+	const read = await readSet(ctx, extra, { ...(fresh ? { fresh: true } : {}), order, size: requested })
 	return read.status === "ok" ? read : null
+}
+
+/** A read's rows as a set: two reads of one collection agree on it unless the collection moved. */
+function membership(records: Record_[], identity: string): string {
+	return ids(records, identity).sort().join(",")
+}
+
+const MOVING =
+	"the collection gained or lost rows between two reads in the same direction (something wrote to it " +
+	"while the check ran), so the reads cannot be compared"
+
+/**
+ * Two reads that must hold the same rows and do not. Read the first again: when the same read
+ * now holds other rows, the collection is moving under the check — an append-only log the run
+ * itself writes to — and that is no defect of ordering. When it holds still, read the second again
+ * and compare that fresh pair; only a disagreement that survives it is the backend's.
+ */
+async function settlePair<T extends { items: Record_[] }>(
+	identity: string,
+	first: T,
+	second: T,
+	again: { first: () => Promise<T | null>; second: () => Promise<T | null> },
+): Promise<{ first: T; second: T } | "moving" | null> {
+	if (membership(first.items, identity) === membership(second.items, identity)) return { first, second }
+	const firstAgain = await again.first()
+	if (firstAgain === null) return null
+	if (membership(firstAgain.items, identity) !== membership(first.items, identity)) return "moving"
+	const secondAgain = await again.second()
+	if (secondAgain === null) return null
+	if (membership(secondAgain.items, identity) !== membership(second.items, identity)) return "moving"
+	return { first: firstAgain, second: secondAgain }
 }
 
 /** Walks pages in order, returning ids as encountered — repeats kept, since they are the finding. */
@@ -1684,8 +1717,8 @@ const sortReverseSymmetry: Check<{ field: string }> = {
 		/* Gathered across pages: a collection larger than one page would otherwise leave this
 		 * property — that a reversal reorders a set without changing its membership — untested on
 		 * exactly the collections where sorting matters most. */
-		const ascending = await collectSet(ctx, limit, {}, sortTerm(conv(ctx), field, "asc"))
-		const descending = await collectSet(ctx, limit, {}, sortTerm(conv(ctx), field, "desc"))
+		let ascending = await collectSet(ctx, limit, {}, sortTerm(conv(ctx), field, "asc"))
+		let descending = await collectSet(ctx, limit, {}, sortTerm(conv(ctx), field, "desc"))
 		if (ascending === null || descending === null) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -1706,6 +1739,16 @@ const sortReverseSymmetry: Check<{ field: string }> = {
 			)
 		}
 
+		const settled = await settlePair(ctx.identity, ascending, descending, {
+			first: () => collectSet(ctx, limit, {}, sortTerm(conv(ctx), field, "asc"), true),
+			second: () => collectSet(ctx, limit, {}, sortTerm(conv(ctx), field, "desc"), true),
+		})
+		if (settled === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING)
+		if (settled === null) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, `ordering by "${field}" was rejected on a repeat read`)
+		}
+		ascending = settled.first
+		descending = settled.second
 		const forward = ids(ascending.items, ctx.identity)
 		const backward = ids(descending.items, ctx.identity)
 		if (forward.length !== backward.length) {
@@ -8148,11 +8191,19 @@ const sortDefaultOrderApplied: Check<{ declared: string }> = {
 	subjects: subjectsOf.list,
 	async run(ctx, { declared }): Promise<Outcome> {
 		const limit = pageSize(ctx)
-		const implicit = await collectSet(ctx, limit)
-		const explicit = await collectSet(ctx, limit, {}, declared)
+		let implicit = await collectSet(ctx, limit)
+		let explicit = await collectSet(ctx, limit, {}, declared)
 		if (implicit === null || explicit === null) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "default-order walk was rejected")
 		}
+		const settled = await settlePair(ctx.identity, implicit, explicit, {
+			first: () => collectSet(ctx, limit, {}, undefined, true),
+			second: () => collectSet(ctx, limit, {}, declared, true),
+		})
+		if (settled === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING)
+		if (settled === null) return ctx.findings.unresolved(this.id, ctx.entityName, "default-order walk was rejected")
+		implicit = settled.first
+		explicit = settled.second
 		if (!implicit.complete || !explicit.complete) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -8187,10 +8238,18 @@ const sortStableTiebreak: Check<{ primary: string; tiebreak: string }> = {
 	async run(ctx, { primary, tiebreak }): Promise<Outcome> {
 		const order = sortTerm(conv(ctx), primary, "asc")
 		/* Two independent reads: a shared one would compare a walk with itself. */
-		const first = await readSet(ctx, {}, { fresh: true, order })
-		const second = await readSet(ctx, {}, { fresh: true, order })
-		if (first.status !== "ok" || second.status !== "ok")
+		const read = async () => {
+			const result = await readSet(ctx, {}, { fresh: true, order })
+			return result.status === "ok" ? result : null
+		}
+		const firstRead = await read()
+		const secondRead = await read()
+		if (firstRead === null || secondRead === null)
 			return ctx.findings.unresolved(this.id, ctx.entityName, "repeat sort was rejected")
+		const settled = await settlePair(ctx.identity, firstRead, secondRead, { first: read, second: read })
+		if (settled === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING)
+		if (settled === null) return ctx.findings.unresolved(this.id, ctx.entityName, "repeat sort was rejected")
+		const { first, second } = settled
 		if (ids(first.items, ctx.identity).join(",") !== ids(second.items, ctx.identity).join(",")) {
 			return ctx.findings.backend(
 				this.id,
