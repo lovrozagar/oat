@@ -28,7 +28,11 @@ export interface MailPair {
 export function mailPairs(model: SpecModel): MailPair[] {
 	const pairs: MailPair[] = []
 	for (const consumer of model.operations) {
-		if (consumer.method !== "POST" && !(consumer.method === "GET" && consumer.invalidates.some((item) => item.startsWith("GET ")))) continue
+		if (
+			consumer.method !== "POST" &&
+			!(consumer.method === "GET" && consumer.invalidates.some((item) => item.startsWith("GET ")))
+		)
+			continue
 		if (spentField(consumer, model) === null) continue
 		const sender = senderFor(model, consumer)
 		if (sender === undefined) continue
@@ -66,10 +70,7 @@ export async function runMailOps(input: {
 	seed?: number
 }): Promise<void> {
 	if (input.hooks?.resolveOutOfBand === undefined) return
-	const pairs = mailPairs(input.model).filter(
-		(pair) =>
-			input.mode === "full" || input.inScope(pair.sender.operationId) || input.inScope(pair.consumer.operationId),
-	)
+	const pairs = mailPairs(input.model).filter((pair) => pairSelected(input, pair))
 	await runInviteScenes(input)
 	if (pairs.length === 0) return
 	const read = callerRead(input.model)
@@ -82,7 +83,15 @@ export async function runMailOps(input: {
 		const spent = spentField(pair.consumer, input.model)
 		const hasRead = pair.consumer.invalidates.some((item) => item.startsWith("GET "))
 		if (spent !== "token" && !hasRead) continue
+		const readOp = invalidatedOperation(input.model, pair.consumer)
+		const targetedRead =
+			input.mode === "targeted" &&
+			readOp !== undefined &&
+			input.inScope(readOp.operationId) &&
+			!input.inScope(pair.sender.operationId) &&
+			!input.inScope(pair.consumer.operationId)
 		const ids = [pair.sender.operationId, pair.consumer.operationId]
+		if (targetedRead && readOp !== undefined) ids.push(readOp.operationId)
 		const blame = input.findings.attributed(ids).ownedBy(MAIL_CHECK_ID)
 		const email = `oat-mail-${input.nonce ?? "user"}-${sequence}@${domain}`
 		sequence += 1
@@ -135,6 +144,7 @@ export async function runMailOps(input: {
 		let seen = stale
 		let token: string | null = null
 		let before: Exchange | null = null
+		let posted: string[] = []
 		const consumed: Exchange[] = []
 		let missing = false
 		let refused = false
@@ -147,16 +157,10 @@ export async function runMailOps(input: {
 			}
 			token = tokenFrom(raw)
 			if (before === null) before = await invalidatedRead(input, pair.consumer, token, headers)
-			const round = await consume(
-				input,
-				pair.consumer,
-				token,
-				headers,
-				password,
-				stringIds(before?.responseBody),
-			)
-			consumed.push(...round)
-			const lastRound = round.at(-1)
+			const round = await consume(input, pair.consumer, token, headers, password, stringIds(before?.responseBody))
+			consumed.push(...round.exchanges)
+			posted = round.posted
+			const lastRound = round.exchanges.at(-1)
 			if (lastRound !== undefined && lastRound.status >= 200 && lastRound.status < 300) break
 			if (lastRound !== undefined && tokenRejected(lastRound) && attempt < 3) {
 				seen = raw
@@ -188,8 +192,9 @@ export async function runMailOps(input: {
 			input.grades.graded(ids, MAIL_CHECK_ID)
 			continue
 		}
-		const proved = await followUpShows(input, pair, last, token, before, headers, nextEmail, read)
-		if (!proved) {
+		const proof = await followUpShows(input, pair, last, token, before, headers, nextEmail, read)
+		const shown = proof.ok && bodyShowsPosted(proof.after?.responseBody, posted)
+		if (!proof.ok) {
 			blame.backend(
 				MAIL_CHECK_ID,
 				read?.entity ?? "caller",
@@ -197,6 +202,16 @@ export async function runMailOps(input: {
 				`${pair.consumer.operationId} returned ${last.status}, and the follow-up read did not show this call.`,
 				[called, ...consumed],
 			)
+		} else if (targetedRead && readOp !== undefined && !shown) {
+			blame.backend(
+				MAIL_CHECK_ID,
+				readOp.entity ?? "caller",
+				"the follow-up read did not show this call",
+				`${readOp.operationId} returned ${proof.after?.status ?? 0}, and the body did not contain the value this call set.`,
+				[called, ...consumed, ...(proof.after === null ? [] : [proof.after])],
+			)
+		} else if (shown && readOp !== undefined && !ids.includes(readOp.operationId)) {
+			ids.push(readOp.operationId)
 		}
 		const suite =
 			read === undefined
@@ -341,11 +356,12 @@ async function consume(
 	headers: (() => Record<string, string>) | undefined,
 	password: string,
 	ids: string[] = [],
-): Promise<Exchange[]> {
+): Promise<{ exchanges: Exchange[]; posted: string[] }> {
 	const schema = requestSchemaOf(op, input.model)
 	const enums = enumFields(schema).filter((field) => field.name !== "token")
 	const rounds = enums.length === 0 ? [undefined] : enums.flatMap((field) => field.values)
 	const exchanges: Exchange[] = []
+	let posted: string[] = []
 	for (const value of rounds) {
 		const body = generatedBody(schema, input.seed ?? 1, op.operationId)
 		const spent = spentField(op, input.model)
@@ -363,7 +379,7 @@ async function consume(
 		try {
 			path = fillPath(op.path, {})
 		} catch {
-			return exchanges
+			return { exchanges, posted }
 		}
 		exchanges.push(
 			await input.client.request(op.method, path, {
@@ -373,8 +389,10 @@ async function consume(
 				operationId: op.operationId,
 			}),
 		)
+		const status = exchanges.at(-1)?.status ?? 0
+		if (status >= 200 && status < 300) posted = postedValues(body)
 	}
-	return exchanges
+	return { exchanges, posted }
 }
 
 async function followUpShows(
@@ -386,30 +404,78 @@ async function followUpShows(
 	headers: (() => Record<string, string>) | undefined,
 	nextEmail: string,
 	read: OperationModel | undefined,
-): Promise<boolean> {
+): Promise<{ ok: boolean; after: Exchange | null }> {
 	const access = stringField(last.responseBody, "access_token")
 	if (access !== null && read !== undefined) {
 		const profile = await input.client.request(read.method, read.path, {
 			headers: { authorization: `Bearer ${access}` },
 			operationId: read.operationId,
 		})
-		if (profile.status !== 200) return false
+		if (profile.status !== 200) return { ok: false, after: null }
 		if ("new_email" in propertyBag(requestSchemaOf(pair.sender, input.model))) {
-			return JSON.stringify(profile.responseBody).includes(nextEmail)
+			return { ok: JSON.stringify(profile.responseBody).includes(nextEmail), after: profile }
 		}
 		/* A session alone does not prove a write that claims to change the caller read. */
 		if (pair.consumer.invalidates.includes(`${read.method} ${read.path}`)) {
-			if (before === null || before.status < 200 || before.status >= 300) return false
+			if (before === null || before.status < 200 || before.status >= 300) return { ok: false, after: null }
 			const after = await invalidatedRead(input, pair.consumer, token, headers)
-			if (after === null || after.status < 200 || after.status >= 300) return false
-			return JSON.stringify(before.responseBody) !== JSON.stringify(after.responseBody)
+			if (after === null || after.status < 200 || after.status >= 300) return { ok: false, after }
+			return { ok: JSON.stringify(before.responseBody) !== JSON.stringify(after.responseBody), after }
 		}
-		return true
+		return { ok: true, after: profile }
 	}
 	const after = await invalidatedRead(input, pair.consumer, token, headers)
-	if (after === null || after.status < 200 || after.status >= 300) return false
-	if (before === null) return true
-	return before.status !== after.status || JSON.stringify(before.responseBody) !== JSON.stringify(after.responseBody)
+	if (after === null || after.status < 200 || after.status >= 300) return { ok: false, after }
+	if (before === null) return { ok: true, after }
+	return {
+		ok: before.status !== after.status || JSON.stringify(before.responseBody) !== JSON.stringify(after.responseBody),
+		after,
+	}
+}
+
+function invalidatedOperation(model: SpecModel, op: OperationModel): OperationModel | undefined {
+	const named = op.invalidates.find((item) => item.startsWith("GET "))
+	if (named === undefined) return undefined
+	const path = named.slice(4).replaceAll(": ", "/").replaceAll(":", "/")
+	return model.operations.find((item) => item.method === "GET" && (item.path === path || item.route === named))
+}
+
+function pairSelected(
+	input: { inScope: (operationId: string) => boolean; mode: "full" | "targeted"; model: SpecModel },
+	pair: MailPair,
+): boolean {
+	if (input.mode === "full") return true
+	if (input.inScope(pair.sender.operationId) || input.inScope(pair.consumer.operationId)) return true
+	const read = invalidatedOperation(input.model, pair.consumer)
+	return read !== undefined && input.inScope(read.operationId) && consumerSetsValue(pair.consumer, input.model)
+}
+
+function consumerSetsValue(op: OperationModel, model: SpecModel): boolean {
+	return Object.keys(propertyBag(requestSchemaOf(op, model))).some(
+		(key) => key !== "token" && key !== "password" && key !== "code" && !key.endsWith("_code"),
+	)
+}
+
+function postedValues(body: Record<string, unknown>): string[] {
+	const out: string[] = []
+	const walk = (value: unknown) => {
+		if (typeof value === "string") {
+			if (value !== "") out.push(value)
+			return
+		}
+		if (Array.isArray(value)) for (const item of value) walk(item)
+	}
+	for (const [key, value] of Object.entries(body)) {
+		if (key === "token" || key === "password") continue
+		walk(value)
+	}
+	return out
+}
+
+function bodyShowsPosted(body: unknown, posted: readonly string[]): boolean {
+	if (posted.length === 0) return false
+	const text = JSON.stringify(body)
+	return typeof text === "string" && posted.every((value) => text.includes(value))
 }
 
 async function invalidatedRead(
@@ -421,9 +487,7 @@ async function invalidatedRead(
 	const named = op.invalidates.find((item) => item.startsWith("GET "))
 	if (named === undefined) return null
 	const path = named.slice(4).replaceAll(": ", "/").replaceAll(":", "/")
-	const target = input.model.operations.find(
-		(item) => item.method === "GET" && (item.path === path || item.route === named),
-	)
+	const target = invalidatedOperation(input.model, op)
 	const query = target !== undefined && queryToken(target, input.model) ? { token } : undefined
 	return input.client.request("GET", path, {
 		...(query === undefined ? {} : { query }),
@@ -491,7 +555,7 @@ async function adoptVerifiedSession(
 		const raw = await mailed(input, email, hint, seen)
 		if (raw === null) return null
 		const round = await consume(input, pair.consumer, tokenFrom(raw), headers, password)
-		const last = round.at(-1)
+		const last = round.exchanges.at(-1)
 		if (last !== undefined && last.status >= 200 && last.status < 300) {
 			const access = stringField(last.responseBody, "access_token")
 			if (access === null) return headers
@@ -522,11 +586,7 @@ async function reauth(
 	})
 }
 
-async function peekMail(
-	input: { hooks?: Hooks },
-	address: string,
-	kind: string,
-): Promise<string | null> {
+async function peekMail(input: { hooks?: Hooks }, address: string, kind: string): Promise<string | null> {
 	if (input.hooks?.resolveOutOfBand === undefined) return null
 	try {
 		const value = await input.hooks.resolveOutOfBand(outOfBandRequest(address, kind, 1))
@@ -754,7 +814,13 @@ async function runCollaboratorScene(input: MailInput): Promise<void> {
 	}
 	const { email, headers, password } = await mailedAccount(input, "collab")
 	if (headers === null) {
-		blame.backend(MAIL_CHECK_ID, "caller", "the mail account could not be opened", `${invite.operationId} had no account.`, [])
+		blame.backend(
+			MAIL_CHECK_ID,
+			"caller",
+			"the mail account could not be opened",
+			`${invite.operationId} had no account.`,
+			[],
+		)
 		input.grades.graded(ids, MAIL_CHECK_ID)
 		return
 	}
@@ -765,7 +831,13 @@ async function runCollaboratorScene(input: MailInput): Promise<void> {
 	const stale = await peekMail(input, email, hint)
 	const called = await postSender(input, invite, sent, input.auth, invitePath)
 	if (called.status < 200 || called.status >= 300) {
-		blame.backend(MAIL_CHECK_ID, "caller", "the invite was not sent", `${invite.operationId} returned ${called.status}.`, [called])
+		blame.backend(
+			MAIL_CHECK_ID,
+			"caller",
+			"the invite was not sent",
+			`${invite.operationId} returned ${called.status}.`,
+			[called],
+		)
 		input.grades.graded(ids, MAIL_CHECK_ID)
 		return
 	}
@@ -777,7 +849,13 @@ async function runCollaboratorScene(input: MailInput): Promise<void> {
 			input.findings
 				.attributed([resend.operationId])
 				.ownedBy(MAIL_CHECK_ID)
-				.backend(MAIL_CHECK_ID, "caller", "the resent invite did not change the member", `${resend.operationId} did not change the member row.`, [called])
+				.backend(
+					MAIL_CHECK_ID,
+					"caller",
+					"the resent invite did not change the member",
+					`${resend.operationId} did not change the member row.`,
+					[called],
+				)
 		}
 		input.grades.graded([resend.operationId], MAIL_CHECK_ID)
 		const rotated = await mailed(input, email, hint, first)
@@ -789,11 +867,17 @@ async function runCollaboratorScene(input: MailInput): Promise<void> {
 			input.findings
 				.attributed([accept.operationId])
 				.ownedBy(MAIL_CHECK_ID)
-				.backend(MAIL_CHECK_ID, "caller", "the mail never arrived", `${invite.operationId} returned ${called.status} and no out-of-band token followed.`, [called])
+				.backend(
+					MAIL_CHECK_ID,
+					"caller",
+					"the mail never arrived",
+					`${invite.operationId} returned ${called.status} and no out-of-band token followed.`,
+					[called],
+				)
 		} else {
 			const before = await invalidatedRead(input, accept, token, headers)
 			const round = await consume(input, accept, token, headers, password)
-			const last = round.at(-1)
+			const last = round.exchanges.at(-1)
 			const after = await invalidatedRead(input, accept, token, headers)
 			const changed =
 				last !== undefined &&
@@ -812,13 +896,14 @@ async function runCollaboratorScene(input: MailInput): Promise<void> {
 						"caller",
 						"the follow-up did not show the mailed change",
 						`${accept.operationId} did not change the invite list.`,
-						[called, ...round],
+						[called, ...round.exchanges],
 					)
 			}
 		}
 		input.grades.graded([accept.operationId], MAIL_CHECK_ID)
 	}
-	if (input.mode === "full" || input.inScope(invite.operationId)) input.grades.graded([invite.operationId], MAIL_CHECK_ID)
+	if (input.mode === "full" || input.inScope(invite.operationId))
+		input.grades.graded([invite.operationId], MAIL_CHECK_ID)
 }
 
 async function resendCollaborator(
@@ -837,7 +922,10 @@ async function resendCollaborator(
 	} catch {
 		return false
 	}
-	const before = await input.client.request(list.method, listPath, { headers: input.auth, operationId: list.operationId })
+	const before = await input.client.request(list.method, listPath, {
+		headers: input.auth,
+		operationId: list.operationId,
+	})
 	const row = rowsOf(before.responseBody).find((item) => item.invite_email === email || item.email === email)
 	if (row === undefined || typeof row.id !== "string") return false
 	let resendPath: string
@@ -848,7 +936,10 @@ async function resendCollaborator(
 	}
 	const called = await postSender(input, resend, { invite_email: email }, input.auth, resendPath)
 	if (called.status < 200 || called.status >= 300) return false
-	const after = await input.client.request(list.method, listPath, { headers: input.auth, operationId: list.operationId })
+	const after = await input.client.request(list.method, listPath, {
+		headers: input.auth,
+		operationId: list.operationId,
+	})
 	const next = rowsOf(after.responseBody).find((item) => item.id === row.id)
 	return next !== undefined && JSON.stringify(next) !== JSON.stringify(row)
 }
@@ -862,7 +953,13 @@ async function runDeclineScene(input: MailInput): Promise<void> {
 	const ids = [decline.operationId]
 	const blame = input.findings.attributed(ids).ownedBy(MAIL_CHECK_ID)
 	if (invite?.invite == null) {
-		blame.backend(MAIL_CHECK_ID, "caller", "the invite was not sent", `${decline.operationId} had no invite to decline.`, [])
+		blame.backend(
+			MAIL_CHECK_ID,
+			"caller",
+			"the invite was not sent",
+			`${decline.operationId} had no invite to decline.`,
+			[],
+		)
 		input.grades.graded(ids, MAIL_CHECK_ID)
 		return
 	}
@@ -870,13 +967,25 @@ async function runDeclineScene(input: MailInput): Promise<void> {
 	try {
 		invitePath = fillPath(invite.path, input.roots ?? {})
 	} catch {
-		blame.backend(MAIL_CHECK_ID, "caller", "the invite had no project", `${decline.operationId} had no organization id.`, [])
+		blame.backend(
+			MAIL_CHECK_ID,
+			"caller",
+			"the invite had no project",
+			`${decline.operationId} had no organization id.`,
+			[],
+		)
 		input.grades.graded(ids, MAIL_CHECK_ID)
 		return
 	}
 	const { email, headers } = await mailedAccount(input, "decline")
 	if (headers === null) {
-		blame.backend(MAIL_CHECK_ID, "caller", "the mail account could not be opened", `${decline.operationId} had no account.`, [])
+		blame.backend(
+			MAIL_CHECK_ID,
+			"caller",
+			"the mail account could not be opened",
+			`${decline.operationId} had no account.`,
+			[],
+		)
 		input.grades.graded(ids, MAIL_CHECK_ID)
 		return
 	}
@@ -885,7 +994,13 @@ async function runDeclineScene(input: MailInput): Promise<void> {
 	if (grantee in propertyBag(requestSchemaOf(invite, input.model))) sent[grantee] = email
 	const called = await postSender(input, invite, sent, input.auth, invitePath)
 	if (called.status < 200 || called.status >= 300) {
-		blame.backend(MAIL_CHECK_ID, "caller", "the invite was not sent", `${invite.operationId} returned ${called.status}.`, [called])
+		blame.backend(
+			MAIL_CHECK_ID,
+			"caller",
+			"the invite was not sent",
+			`${invite.operationId} returned ${called.status}.`,
+			[called],
+		)
 		input.grades.graded(ids, MAIL_CHECK_ID)
 		return
 	}
@@ -893,7 +1008,13 @@ async function runDeclineScene(input: MailInput): Promise<void> {
 	const before = await list
 	const row = rowsOf(before?.responseBody).find((item) => item.invite_email === email || item.email === email)
 	if (before === null || row === undefined) {
-		blame.backend(MAIL_CHECK_ID, "caller", "the follow-up did not show the mailed change", `${decline.operationId} found no invite row.`, [called])
+		blame.backend(
+			MAIL_CHECK_ID,
+			"caller",
+			"the follow-up did not show the mailed change",
+			`${decline.operationId} found no invite row.`,
+			[called],
+		)
 		input.grades.graded(ids, MAIL_CHECK_ID)
 		return
 	}
@@ -913,7 +1034,13 @@ async function runDeclineScene(input: MailInput): Promise<void> {
 	try {
 		declinePath = fillPath(decline.path, values)
 	} catch {
-		blame.backend(MAIL_CHECK_ID, "caller", "the invite was not sent", `${decline.operationId} could not fill its path.`, [called])
+		blame.backend(
+			MAIL_CHECK_ID,
+			"caller",
+			"the invite was not sent",
+			`${decline.operationId} could not fill its path.`,
+			[called],
+		)
 		input.grades.graded(ids, MAIL_CHECK_ID)
 		return
 	}
@@ -925,15 +1052,19 @@ async function runDeclineScene(input: MailInput): Promise<void> {
 	const after = await invalidatedRead(input, decline, "", headers)
 	const gone = rowsOf(after?.responseBody).every((item) => item.id !== row.id)
 	if (declined.status < 200 || declined.status >= 300 || after === null || !gone) {
-		blame.backend(MAIL_CHECK_ID, "caller", "the follow-up did not show the mailed change", `${decline.operationId} returned ${declined.status}.`, [called, declined])
+		blame.backend(
+			MAIL_CHECK_ID,
+			"caller",
+			"the follow-up did not show the mailed change",
+			`${decline.operationId} returned ${declined.status}.`,
+			[called, declined],
+		)
 	}
 	input.grades.graded(ids, MAIL_CHECK_ID)
 }
 
 function inPlay(input: MailInput, ops: OperationModel[]): string[] {
-	return ops
-		.filter((op) => input.mode === "full" || input.inScope(op.operationId))
-		.map((op) => op.operationId)
+	return ops.filter((op) => input.mode === "full" || input.inScope(op.operationId)).map((op) => op.operationId)
 }
 
 async function mailedAccount(

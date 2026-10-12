@@ -296,10 +296,10 @@ function changeDocument(): OpenApiDocument {
 			"/v1/auth/email/change/confirm": {
 				post: {
 					operationId: "auth.confirmEmailChange",
-					requestBody: tokenBody(
-						{ confirmation_type: { enum: ["new", "old"], type: "string" } },
-						["confirmation_type", "token"],
-					),
+					requestBody: tokenBody({ confirmation_type: { enum: ["new", "old"], type: "string" } }, [
+						"confirmation_type",
+						"token",
+					]),
 					responses: {
 						"200": {
 							content: {
@@ -458,7 +458,11 @@ function inviteDocument(): OpenApiDocument {
 					requestBody: {
 						content: {
 							"application/json": {
-								schema: { properties: { invite_email: { type: "string" } }, required: ["invite_email"], type: "object" },
+								schema: {
+									properties: { invite_email: { type: "string" } },
+									required: ["invite_email"],
+									type: "object",
+								},
 							},
 						},
 						required: true,
@@ -591,8 +595,7 @@ describe("mail token", () => {
 					for await (const chunk of req) chunks.push(chunk as Buffer)
 					const raw = Buffer.concat(chunks).toString("utf8")
 					const body = raw === "" ? {} : (JSON.parse(raw) as Record<string, unknown>)
-					const token =
-						typeof req.headers.authorization === "string" ? req.headers.authorization.slice(7).trim() : ""
+					const token = typeof req.headers.authorization === "string" ? req.headers.authorization.slice(7).trim() : ""
 					const send = (status: number, payload: unknown) => {
 						res.writeHead(status, { "content-type": "application/json" })
 						res.end(JSON.stringify(payload))
@@ -867,7 +870,8 @@ describe("mail token", () => {
 			},
 		})
 		const pairs = mailPairs(loaded)
-		const id = (operationId: string) => pairs.find((pair) => pair.consumer.operationId === operationId)?.sender.operationId
+		const id = (operationId: string) =>
+			pairs.find((pair) => pair.consumer.operationId === operationId)?.sender.operationId
 		expect(id("auth.reauthenticate")).toBe("auth.requestReauthCode")
 		expect(id("newsletter.unsubscribe")).toBe("newsletter.subscribe")
 		expect(id("newsletterPreference.update")).toBe("newsletter.subscribe")
@@ -1009,9 +1013,11 @@ describe("mail token", () => {
 					res.end(JSON.stringify(payload))
 				}
 				if (url.pathname === "/openapi.json" && method === "GET") return send(200, newsletterDocument())
-				if (url.pathname === "/v1/register" && method === "POST") return send(201, { access_token: `reg-${String(body.email)}` })
+				if (url.pathname === "/v1/register" && method === "POST")
+					return send(201, { access_token: `reg-${String(body.email)}` })
 				if (url.pathname === "/v1/me" && method === "GET") {
-					if (token === "alpha" || token.startsWith("reg-")) return send(200, { email: "ada@example.test", first_name: "Ada" })
+					if (token === "alpha" || token.startsWith("reg-"))
+						return send(200, { email: "ada@example.test", first_name: "Ada" })
 					return send(401, { error: "unauthorized" })
 				}
 				if (url.pathname === "/v1/newsletter/subscribe" && method === "POST") {
@@ -1022,19 +1028,22 @@ describe("mail token", () => {
 				}
 				if (url.pathname === "/v1/newsletter/preferences" && method === "GET") {
 					const row = [...state.values()][0]
-					if (url.searchParams.get("token") !== "tok-nl" || row === undefined) return send(401, { error_key: "newsletter_preference_invalid_token" })
+					if (url.searchParams.get("token") !== "tok-nl" || row === undefined)
+						return send(401, { error_key: "newsletter_preference_invalid_token" })
 					return send(200, row)
 				}
 				if (url.pathname === "/v1/newsletter/preferences" && method === "POST") {
 					const row = [...state.values()][0]
-					if (body.token !== "tok-nl" || row === undefined) return send(401, { error_key: "newsletter_preference_invalid_token" })
+					if (body.token !== "tok-nl" || row === undefined)
+						return send(401, { error_key: "newsletter_preference_invalid_token" })
 					const ids = new Set(Array.isArray(body.topic_ids) ? body.topic_ids.map(String) : [])
 					row.topics = row.topics.map((topic) => ({ ...topic, subscribed: ids.has(topic.id) }))
 					return send(200, { updated: true })
 				}
 				if (url.pathname === "/v1/newsletter/unsubscribe" && method === "POST") {
 					const row = [...state.values()][0]
-					if (body.token !== "tok-nl" || row === undefined) return send(401, { error_key: "newsletter_unsubscribe_invalid" })
+					if (body.token !== "tok-nl" || row === undefined)
+						return send(401, { error_key: "newsletter_unsubscribe_invalid" })
 					row.status = "unsubscribed"
 					return send(200, { success: true })
 				}
@@ -1052,10 +1061,134 @@ describe("mail token", () => {
 			seed: 1,
 			spec: `${url}/openapi.json`,
 		})
-		expect(result.scope.operations.find((op) => op.operationId === "newsletterPreference.update")?.status).toBe("passed")
+		expect(result.scope.operations.find((op) => op.operationId === "newsletterPreference.get")?.status).toBe("passed")
+		expect(result.scope.operations.find((op) => op.operationId === "newsletterPreference.update")?.status).toBe(
+			"passed",
+		)
 		expect(result.scope.operations.find((op) => op.operationId === "newsletter.unsubscribe")?.status).toBe("passed")
 		expect([...state.values()][0]?.topics[0]?.subscribed).toBe(true)
 		expect([...state.values()].some((row) => row.status === "unsubscribed")).toBe(true)
+	})
+
+	it("grades the preference read when it shows the topic this call set", async () => {
+		const state = new Map<string, { status: string; topics: Array<{ id: string; subscribed: boolean }> }>()
+		const mail = new Map<string, string>()
+		const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+			void (async () => {
+				const url = new URL(req.url ?? "/", "http://127.0.0.1")
+				const method = (req.method ?? "GET").toUpperCase()
+				const chunks: Buffer[] = []
+				for await (const chunk of req) chunks.push(chunk as Buffer)
+				const raw = Buffer.concat(chunks).toString("utf8")
+				const body = raw === "" ? {} : (JSON.parse(raw) as Record<string, unknown>)
+				const token = typeof req.headers.authorization === "string" ? req.headers.authorization.slice(7).trim() : ""
+				const send = (status: number, payload: unknown) => {
+					res.writeHead(status, { "content-type": "application/json" })
+					res.end(JSON.stringify(payload))
+				}
+				if (url.pathname === "/openapi.json" && method === "GET") return send(200, newsletterDocument())
+				if (url.pathname === "/v1/register" && method === "POST") return send(201, { access_token: "reg" })
+				if (url.pathname === "/v1/me" && method === "GET") {
+					if (token === "alpha" || token === "reg") return send(200, { email: "ada@example.test", first_name: "Ada" })
+					return send(401, { error: "unauthorized" })
+				}
+				if (url.pathname === "/v1/newsletter/subscribe" && method === "POST") {
+					state.set(String(body.email), { status: "pending", topics: [{ id: "ntop_1", subscribed: false }] })
+					mail.set(String(body.email), "https://example.test/newsletter/confirm?token=tok-nl")
+					return send(202, { status: "accepted" })
+				}
+				if (url.pathname === "/v1/newsletter/preferences" && method === "GET") {
+					const row = [...state.values()][0]
+					if (url.searchParams.get("token") !== "tok-nl" || row === undefined)
+						return send(401, { error_key: "newsletter_preference_invalid_token" })
+					return send(200, row)
+				}
+				if (url.pathname === "/v1/newsletter/preferences" && method === "POST") {
+					const row = [...state.values()][0]
+					if (body.token !== "tok-nl" || row === undefined)
+						return send(401, { error_key: "newsletter_preference_invalid_token" })
+					const ids = new Set(Array.isArray(body.topic_ids) ? body.topic_ids.map(String) : [])
+					row.topics = row.topics.map((topic) => ({ ...topic, subscribed: ids.has(topic.id) }))
+					return send(200, { updated: true })
+				}
+				return send(404, { error: "missing" })
+			})()
+		})
+		await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+		const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+		open.push({ close: () => new Promise<void>((resolve) => server.close(() => resolve())) })
+		const result = await run({
+			baseUrl: url,
+			hooks: { resolveOutOfBand: async (req) => mail.get(req.address) ?? null },
+			nonce: "n1",
+			ops: ["newsletterPreference.get"],
+			principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+			seed: 1,
+			spec: `${url}/openapi.json`,
+		})
+		expect(result.scope.operations.find((op) => op.operationId === "newsletterPreference.get")?.status).toBe("passed")
+		expect([...state.values()][0]?.topics[0]?.subscribed).toBe(true)
+	})
+
+	it("fails the preference read when the body omits the topic this call set", async () => {
+		const state = new Map<string, { mark: string; topics: Array<{ id: string; subscribed: boolean }> }>()
+		const mail = new Map<string, string>()
+		let reads = 0
+		const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+			void (async () => {
+				const url = new URL(req.url ?? "/", "http://127.0.0.1")
+				const method = (req.method ?? "GET").toUpperCase()
+				const chunks: Buffer[] = []
+				for await (const chunk of req) chunks.push(chunk as Buffer)
+				const raw = Buffer.concat(chunks).toString("utf8")
+				const body = raw === "" ? {} : (JSON.parse(raw) as Record<string, unknown>)
+				const token = typeof req.headers.authorization === "string" ? req.headers.authorization.slice(7).trim() : ""
+				const send = (status: number, payload: unknown) => {
+					res.writeHead(status, { "content-type": "application/json" })
+					res.end(JSON.stringify(payload))
+				}
+				if (url.pathname === "/openapi.json" && method === "GET") return send(200, newsletterDocument())
+				if (url.pathname === "/v1/register" && method === "POST") return send(201, { access_token: "reg" })
+				if (url.pathname === "/v1/me" && method === "GET") {
+					if (token === "alpha" || token === "reg") return send(200, { email: "ada@example.test", first_name: "Ada" })
+					return send(401, { error: "unauthorized" })
+				}
+				if (url.pathname === "/v1/newsletter/subscribe" && method === "POST") {
+					state.set(String(body.email), { mark: "before", topics: [{ id: "ntop_1", subscribed: false }] })
+					mail.set(String(body.email), "https://example.test/newsletter/confirm?token=tok-nl")
+					return send(202, { status: "accepted" })
+				}
+				if (url.pathname === "/v1/newsletter/preferences" && method === "GET") {
+					const row = [...state.values()][0]
+					if (url.searchParams.get("token") !== "tok-nl" || row === undefined)
+						return send(401, { error_key: "newsletter_preference_invalid_token" })
+					reads += 1
+					if (reads === 1) return send(200, row)
+					return send(200, { mark: row.mark })
+				}
+				if (url.pathname === "/v1/newsletter/preferences" && method === "POST") {
+					const row = [...state.values()][0]
+					if (body.token !== "tok-nl" || row === undefined)
+						return send(401, { error_key: "newsletter_preference_invalid_token" })
+					row.mark = "after"
+					return send(200, { updated: true })
+				}
+				return send(404, { error: "missing" })
+			})()
+		})
+		await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+		const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+		open.push({ close: () => new Promise<void>((resolve) => server.close(() => resolve())) })
+		const result = await run({
+			baseUrl: url,
+			hooks: { resolveOutOfBand: async (req) => mail.get(req.address) ?? null },
+			nonce: "n1",
+			ops: ["newsletterPreference.get"],
+			principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+			seed: 1,
+			spec: `${url}/openapi.json`,
+		})
+		expect(result.scope.operations.find((op) => op.operationId === "newsletterPreference.get")?.status).toBe("failed")
 	})
 
 	it("unsubscribes from the mailed token with a GET", async () => {
@@ -1134,14 +1267,23 @@ describe("mail token", () => {
 				}
 				const emailOf = () => (token.startsWith("reg-") ? token.slice(4) : "")
 				if (url.pathname === "/openapi.json" && method === "GET") return send(200, inviteDocument())
-				if (url.pathname === "/v1/register" && method === "POST") return send(201, { access_token: `reg-${String(body.email)}` })
+				if (url.pathname === "/v1/register" && method === "POST")
+					return send(201, { access_token: `reg-${String(body.email)}` })
 				if (url.pathname === "/v1/me" && method === "GET") {
-					if (token === "owner" || token.startsWith("reg-")) return send(200, { email: token === "owner" ? "owner@example.test" : emailOf(), first_name: "Ada" })
+					if (token === "owner" || token.startsWith("reg-"))
+						return send(200, { email: token === "owner" ? "owner@example.test" : emailOf(), first_name: "Ada" })
 					return send(401, { error: "unauthorized" })
 				}
 				if (url.pathname === "/v1/projects/prj_1/collaborators" && method === "POST") {
 					invitedAt += 1
-					invites.push({ id: "mem_1", invite_email: body.email, invited_at: invitedAt, project_id: "prj_1", sid: 1, type: "project" })
+					invites.push({
+						id: "mem_1",
+						invite_email: body.email,
+						invited_at: invitedAt,
+						project_id: "prj_1",
+						sid: 1,
+						type: "project",
+					})
 					mail.set(String(body.email), "project-token")
 					return send(201, { id: "mem_1" })
 				}
@@ -1180,7 +1322,9 @@ describe("mail token", () => {
 		open.push({ close: () => new Promise<void>((resolve) => server.close(() => resolve())) })
 		const result = await run({
 			baseUrl: url,
-			hooks: { resolveOutOfBand: async (req) => (req.kind === "project-invite" ? (mail.get(req.address) ?? null) : null) },
+			hooks: {
+				resolveOutOfBand: async (req) => (req.kind === "project-invite" ? (mail.get(req.address) ?? null) : null),
+			},
 			nonce: "n1",
 			principals: [
 				{
@@ -1193,8 +1337,12 @@ describe("mail token", () => {
 			seed: 1,
 			spec: `${url}/openapi.json`,
 		})
-		expect(result.scope.operations.find((op) => op.operationId === "project.acceptCollaboratorInvite")?.status).toBe("passed")
-		expect(result.scope.operations.find((op) => op.operationId === "project.resendCollaboratorInvite")?.status).toBe("passed")
+		expect(result.scope.operations.find((op) => op.operationId === "project.acceptCollaboratorInvite")?.status).toBe(
+			"passed",
+		)
+		expect(result.scope.operations.find((op) => op.operationId === "project.resendCollaboratorInvite")?.status).toBe(
+			"passed",
+		)
 		expect(result.scope.operations.find((op) => op.operationId === "invite.decline")?.status).toBe("passed")
 	})
 
