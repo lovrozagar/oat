@@ -40,6 +40,7 @@ import { type PersistedPrincipal, persistedToPrincipal, snapshotPrincipal } from
 import { CHECKS, type Actor, type WriteContext } from "./checks.ts"
 import { runPublicGets } from "./one-shot.ts"
 import { runDisposableOps, signupOperationId } from "./disposable.ts"
+import { runMailOps } from "./mail.ts"
 import { rootReadIds, ROOT_READ_CHECK_ID, runRootRead } from "./root-read.ts"
 import { entityIsSelf, runSelfIdentity, SELF_CHECK_ID, selfOperationIds } from "./self.ts"
 import {
@@ -1599,6 +1600,20 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		...(options.principals[0]?.rootsFromFlow === undefined
 			? {}
 			: { rootsFromFlow: options.principals[0].rootsFromFlow }),
+		seed,
+	})
+	await runMailOps({
+		auth: alpha.headers,
+		client,
+		findings,
+		grades,
+		inScope: (operationId) => runScope.inScope(operationId),
+		mode: runScope.mode,
+		model,
+		nonce,
+		...(options.principals[0]?.auth === undefined ? {} : { authFlow: options.principals[0].auth }),
+		hooks,
+		outOfBand,
 		seed,
 	})
 

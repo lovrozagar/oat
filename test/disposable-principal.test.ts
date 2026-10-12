@@ -701,6 +701,9 @@ async function servePasswordless(box: Map<string, string>): Promise<string> {
 			if (body.token !== "magtok") return { body: { error_key: "magic_link_invalid" }, status: 400 }
 			return { body: { access_token: "magic" }, status: 200 }
 		}
+		if (path === "/v1/me" && method === "GET" && token === "magic") {
+			return { body: { first_name: "Ada" }, status: 200 }
+		}
 		if (path === "/v1/reauth/code" && method === "POST") {
 			box.set("oat-set-n1@example.test:security-code", "654321")
 			return { body: { success: true }, status: 200 }
@@ -1242,7 +1245,18 @@ describe("disposable principal", () => {
 		const url = await servePasswordless(box)
 		const result = await run({
 			baseUrl: url,
-			hooks: { resolveOutOfBand: async (req) => box.get(`${req.address}:${req.kind}`) ?? null },
+			hooks: {
+				resolveOutOfBand: async (req) => {
+					const exact = box.get(`${req.address}:${req.kind}`)
+					if (exact !== undefined) return exact
+					for (const [key, value] of box) {
+						if (!key.startsWith(`${req.address}:`)) continue
+						const kind = key.slice(req.address.length + 1)
+						if (req.kind.includes(kind)) return value
+					}
+					return null
+				},
+			},
 			nonce: "n1",
 			principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
 			seed: 1,
