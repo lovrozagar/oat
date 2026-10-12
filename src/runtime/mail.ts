@@ -70,6 +70,7 @@ export async function runMailOps(input: {
 		(pair) =>
 			input.mode === "full" || input.inScope(pair.sender.operationId) || input.inScope(pair.consumer.operationId),
 	)
+	await runInviteScenes(input)
 	if (pairs.length === 0) return
 	const read = callerRead(input.model)
 	const flow = authFlowOf(input.authFlow)
@@ -215,7 +216,6 @@ export async function runMailOps(input: {
 		}
 		input.grades.graded(ids, MAIL_CHECK_ID)
 	}
-	await runInviteScenes(input)
 }
 
 function senderFor(model: SpecModel, consumer: OperationModel): OperationModel | undefined {
@@ -349,9 +349,12 @@ async function consume(
 	for (const value of rounds) {
 		const body = generatedBody(schema, input.seed ?? 1, op.operationId)
 		const spent = spentField(op, input.model)
+		if (spent !== null && spent !== "token") {
+			for (const key of Object.keys(body)) if (key !== spent) delete body[key]
+		}
 		if (spent !== null && spent in propertyBag(schema)) body[spent] = token
 		applyListedIds(body, schema, ids)
-		if ("password" in propertyBag(schema)) body.password = `${password}2`
+		if (spent === "token" && "password" in propertyBag(schema)) body.password = `${password}2`
 		if (enums.length > 0 && value !== undefined) {
 			for (const field of enums) body[field.name] = value
 		}
@@ -681,7 +684,6 @@ function stringIds(body: unknown): string[] {
 }
 
 function applyListedIds(body: Record<string, unknown>, schema: Record<string, unknown> | null, ids: string[]): void {
-	if (ids.length === 0) return
 	for (const [name, value] of Object.entries(propertyBag(schema))) {
 		if (value === null || typeof value !== "object") continue
 		const record = value as { items?: { type?: unknown }; type?: unknown }
@@ -827,7 +829,7 @@ async function resendCollaborator(
 	} catch {
 		return false
 	}
-	const called = await postSender(input, resend, {}, input.auth, resendPath)
+	const called = await postSender(input, resend, { invite_email: email }, input.auth, resendPath)
 	if (called.status < 200 || called.status >= 300) return false
 	const after = await input.client.request(list.method, listPath, { headers: input.auth, operationId: list.operationId })
 	const next = rowsOf(after.responseBody).find((item) => item.id === row.id)
