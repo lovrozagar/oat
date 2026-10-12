@@ -221,7 +221,7 @@ x-bind:
 
 `x-before` is an operationId oat calls immediately before the effect invoke, with the same instance scope. The list baseline is taken after that call, so the effect cardinality is about the operation under test. A 4xx prelude is a coverage gap.
 
-`x-bind` fills the action from the seeded record (`$.…`, `$.arr[*].field`) or the prelude body (`before:$.id`). A value that does not start with `$` or `before:` is a literal. Path params still missing after `x-bind` take the first id in an array whose key starts with the param stem (`col_id` → `columns_json[0].id`).
+`x-bind` fills the action from the instance as it is when the action runs (`$.…`, `$.arr[*].field`) or the prelude body (`before:$.id`). oat reads the instance again through its read route first, so a bind sees what an earlier action or the `x-before` changed; without a read route it falls back to the seeded record. A value that does not start with `$` or `before:` is a literal. Path params still missing after `x-bind` take the first id in an array whose key starts with the param stem (`col_id` → `columns_json[0].id`).
 
 **Fallback:** derived from `x-entity.action` for this entity only.
 

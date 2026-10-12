@@ -131,7 +131,7 @@ export function bindInstanceScope(
 	return { ...scope }
 }
 
-/** `x-bind` strings: a literal, `$.…` on the seeded record, or `before:$.…` on the prelude body. */
+/** `x-bind` strings: a literal, `$.…` on the instance as it is now, or `before:$.…` on the prelude body. */
 export interface ActionBind {
 	path: Record<string, string>
 	body: Record<string, string>

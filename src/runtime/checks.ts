@@ -6117,6 +6117,24 @@ function writableStringFields(ctx: CheckContext, record: Record_): string[] {
 	return out
 }
 
+/**
+ * The instance an action binds from, as it is now. An earlier action — or this one's x-before —
+ * may have changed it since it was seeded: a reorder bound to every column the seed held refuses
+ * the column added since. The fresh read leads; the seeded records stay behind it for whatever the
+ * read does not hold.
+ */
+async function currentRecords(ctx: CheckContext, scope: Record<string, string>): Promise<readonly Record_[]> {
+	const readOp = ctx.readOp
+	if (readOp === undefined || !canFillPath(readOp.path, scope)) return ctx.records
+	const read = await ctx.client.get(fillPath(readOp.path, scope), {
+		headers: ctx.auth(),
+		operationId: readOp.operationId,
+	})
+	const body = read.responseBody
+	if (read.status >= 300 || body === null || typeof body !== "object" || Array.isArray(body)) return ctx.records
+	return [body as Record_, ...ctx.records]
+}
+
 const declaredEffectsOccur: Check = {
 	plan: (ctx) => when(ctx.effectOps.length > 0),
 	/* An effect is counted by reading whole sets before and after, across pages. */
@@ -6184,7 +6202,8 @@ const declaredEffectsOccur: Check = {
 					}
 					beforeBody = beforeInvoked.responseBody
 				}
-				scope = bindActionScope(op.pathParams, ctx.records, scope, actionBind, beforeBody)
+				const current = await currentRecords(ctx, scope)
+				scope = bindActionScope(op.pathParams, current, scope, actionBind, beforeBody)
 				if (!canFillPath(op.path, scope)) {
 					const missing = op.pathParams.filter((name) => scope[name] === undefined)
 					ctx.findings.gap(
@@ -6207,7 +6226,7 @@ const declaredEffectsOccur: Check = {
 
 				const prepared = applyActionBind(
 					actionBind,
-					ctx.records,
+					current,
 					beforeBody,
 					op.hasRequestBody ? bodyForOp(ctx, op) : undefined,
 				)

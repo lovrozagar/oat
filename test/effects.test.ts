@@ -921,6 +921,101 @@ describe("action on a seeded instance", () => {
 		expect(result.findings.filter((finding) => finding.check === "effects.declared-effect-occurs")).toEqual([])
 	})
 
+	it("binds from the instance as it is now, after another action changed it", async () => {
+		const spec = nestedSpec()
+		delete spec.paths?.["/v1/projects/{project_id}/extract"]
+		const paths = spec.paths
+		if (paths === undefined) throw new Error("missing paths")
+		const tableParams = [
+			{ in: "path", name: "project_id", required: true, schema: { type: "string" } },
+			{ in: "path", name: "table_id", required: true, schema: { type: "string" } },
+		]
+		paths["/v1/projects/{project_id}/tables/{table_id}/columns"] = {
+			post: {
+				operationId: "column.add",
+				parameters: tableParams,
+				responses: { "200": { description: "ok" } },
+				"x-effects": [{ entity: "table", op: "update" }],
+				"x-entity": { action: "action", identity: "id", name: "table" },
+			},
+		} as never
+		paths["/v1/projects/{project_id}/tables/{table_id}/columns/order"] = {
+			put: {
+				operationId: "column.reorder",
+				parameters: tableParams,
+				requestBody: {
+					content: {
+						"application/json": {
+							schema: {
+								properties: { order: { items: { type: "string" }, type: "array" } },
+								required: ["order"],
+								type: "object",
+							},
+						},
+					},
+				},
+				responses: { "200": { description: "ok" }, "400": { description: "not every column" } },
+				"x-bind": { body: { order: "$.columns_json[*].id" } },
+				"x-effects": [{ entity: "table", op: "update" }],
+				"x-entity": { action: "action", identity: "id", name: "table" },
+			},
+		} as never
+		const columns = new Map<string, string[]>()
+		let seq = 0
+		const orders: string[][] = []
+		const server = await listen((req, res) => {
+			void (async () => {
+				const url = new URL(req.url ?? "/", "http://127.0.0.1")
+				const method = (req.method ?? "GET").toUpperCase()
+				const row = (id: string) => ({ columns_json: (columns.get(id) ?? []).map((c) => ({ id: c })), id })
+				if (url.pathname === "/v1/openapi/spec") return send(res, 200, spec)
+				if (url.pathname.endsWith("/tables") && method === "GET")
+					return send(res, 200, { tables: [...columns.keys()].map(row) })
+				if (url.pathname.endsWith("/tables") && method === "POST") {
+					const id = `t${String((seq += 1))}`
+					columns.set(id, ["c1"])
+					return send(res, 201, row(id))
+				}
+				const add = /\/tables\/([^/]+)\/columns$/.exec(url.pathname)
+				if (add !== null && method === "POST") {
+					const id = add[1] ?? ""
+					columns.get(id)?.push(`c${String((seq += 1))}`)
+					return send(res, 200, row(id))
+				}
+				const reorder = /\/tables\/([^/]+)\/columns\/order$/.exec(url.pathname)
+				if (reorder !== null && method === "PUT") {
+					const chunks: Buffer[] = []
+					for await (const chunk of req) chunks.push(chunk as Buffer)
+					const order = (JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as { order?: string[] }).order ?? []
+					orders.push(order)
+					const have = columns.get(reorder[1] ?? "") ?? []
+					if ([...order].sort().join() !== [...have].sort().join()) return send(res, 400, { error: "not every column" })
+					return send(res, 200, row(reorder[1] ?? ""))
+				}
+				const item = /\/tables\/([^/]+)$/.exec(url.pathname)
+				if (item !== null && method === "GET") {
+					return columns.has(item[1] ?? "") ? send(res, 200, row(item[1] ?? "")) : send(res, 404)
+				}
+				if (item !== null && method === "DELETE") {
+					columns.delete(item[1] ?? "")
+					return send(res, 204)
+				}
+				if (item !== null && method === "PATCH") return send(res, 200, row(item[1] ?? ""))
+				return send(res, 404)
+			})().catch(() => send(res, 500))
+		})
+		const result = await run({
+			baseUrl: server.url,
+			cohortSize: 1,
+			only: ["table"],
+			principals: [{ headers: { authorization: "Bearer t" }, id: "a", roots: { project_id: "p1" } }],
+			seed: 1,
+			spec: `${server.url}/v1/openapi/spec`,
+		})
+		expect(orders.length).toBeGreaterThan(0)
+		expect(result.findings.filter((finding) => finding.check === "effects.declared-effect-occurs")).toEqual([])
+	})
+
 	it("seeds a list-only entity and reports a coverage gap when a path stays empty", async () => {
 		const spec = nestedSpec()
 		const paths = spec.paths
