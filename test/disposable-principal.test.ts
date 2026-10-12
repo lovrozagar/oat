@@ -449,9 +449,12 @@ function ok(properties: Record<string, unknown>, required: string[]) {
 
 async function startServer(
 	document: OpenApiDocument,
-	handle: (hit: { method: string; path: string; body: Record<string, unknown>; token: string }) =>
-		| { status: number; body: unknown }
-		| undefined,
+	handle: (hit: {
+		method: string
+		path: string
+		body: Record<string, unknown>
+		token: string
+	}) => { status: number; body: unknown } | undefined,
 ): Promise<string> {
 	const names = new Map<string, string>([
 		["alpha", "Ada"],
@@ -517,10 +520,11 @@ function secondFactorSpec(): OpenApiDocument {
 	paths["/v1/two-factor/setup"] = {
 		post: {
 			operationId: "auth.setup2fa",
-			responses: ok(
-				{ otpauth_uri: { type: "string" }, qr_code: { type: "string" }, secret: { type: "string" } },
-				["otpauth_uri", "qr_code", "secret"],
-			),
+			responses: ok({ otpauth_uri: { type: "string" }, qr_code: { type: "string" }, secret: { type: "string" } }, [
+				"otpauth_uri",
+				"qr_code",
+				"secret",
+			]),
 			"x-destructive": true,
 		},
 	}
@@ -528,7 +532,9 @@ function secondFactorSpec(): OpenApiDocument {
 		post: {
 			operationId: "auth.enable2fa",
 			requestBody: requestBody(["code"]),
-			responses: ok({ backup_codes: { items: { type: "string" }, type: "array" }, enabled: { type: "boolean" } }, ["enabled"]),
+			responses: ok({ backup_codes: { items: { type: "string" }, type: "array" }, enabled: { type: "boolean" } }, [
+				"enabled",
+			]),
 			"x-destructive": true,
 		},
 	}
@@ -629,7 +635,8 @@ async function serveSessions(): Promise<string> {
 			return { body: { sessions }, status: 200 }
 		}
 		if (path === "/v1/sessions/revoke" && method === "POST") {
-			if (body.family_id !== "fam-other" || token !== "t1") return { body: { error_key: "unsupported_media_type" }, status: 415 }
+			if (body.family_id !== "fam-other" || token !== "t1")
+				return { body: { error_key: "unsupported_media_type" }, status: 415 }
 			return { body: { ok: true }, status: 200 }
 		}
 		return undefined
@@ -727,10 +734,10 @@ function deviceSpec(): OpenApiDocument {
 		post: {
 			operationId: "auth.login",
 			requestBody: requestBody(["email", "password"]),
-			responses: ok(
-				{ requires_2fa: { type: "boolean" }, temp_token: { type: "string" } },
-				["requires_2fa", "temp_token"],
-			),
+			responses: ok({ requires_2fa: { type: "boolean" }, temp_token: { type: "string" } }, [
+				"requires_2fa",
+				"temp_token",
+			]),
 		},
 	}
 	paths["/v1/login/verify"] = {
@@ -925,9 +932,7 @@ function ownershipSpec(): OpenApiDocument {
 	paths["/v1/test/last-mail"] = {
 		get: {
 			operationId: "test.lastMail",
-			parameters: [
-				{ in: "query", name: "type", schema: { enum: ["org-invite", "project-invite"], type: "string" } },
-			],
+			parameters: [{ in: "query", name: "type", schema: { enum: ["org-invite", "project-invite"], type: "string" } }],
 			responses: { "200": { description: "ok" } },
 		},
 	}
@@ -1080,8 +1085,7 @@ describe("disposable principal", () => {
 			}
 			if (path === "/v1/two-factor/enable" && method === "POST") {
 				const now = Date.now()
-				const okCode =
-					body.code === totpCode("SHHH", now, 30, 6) || body.code === totpCode("SHHH", now - 30_000, 30, 6)
+				const okCode = body.code === totpCode("SHHH", now, 30, 6) || body.code === totpCode("SHHH", now - 30_000, 30, 6)
 				if (!okCode) return { body: { error_key: "two_factor_code_invalid" }, status: 400 }
 				return { body: { backup_codes: ["BACKUP-1"], enabled: true }, status: 200 }
 			}
@@ -1305,7 +1309,9 @@ describe("disposable principal", () => {
 		expect(defects).toEqual([])
 		expect(result.scope.operations.find((op) => op.operationId === "org.leave")?.status).toBe("passed")
 		expect(result.scope.operations.find((op) => op.operationId === "project.leave")?.status).toBe("passed")
-		const leaves = result.client.transcript.filter((exchange) => exchange.url.endsWith("/leave") && exchange.status === 200)
+		const leaves = result.client.transcript.filter(
+			(exchange) => exchange.url.endsWith("/leave") && exchange.status === 200,
+		)
 		expect(leaves.map((exchange) => new URL(exchange.url).pathname).sort()).toEqual([
 			"/v1/organizations/org_1/leave",
 			"/v1/projects/proj_new/leave",

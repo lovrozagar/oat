@@ -545,7 +545,15 @@ function createScene(scene: Scene): SceneRuntime {
 		completeBody: (op, body) => completeBody(scene, op, body, nextCode),
 		note,
 		pathValues: (op, roots) => pathValues(scene, op, roots, backups, nextCode),
-		reauthenticate: () => reauthenticate(scene, () => stampedBearer, (value) => { stampedBearer = value }, nextCode),
+		reauthenticate: () =>
+			reauthenticate(
+				scene,
+				() => stampedBearer,
+				(value) => {
+					stampedBearer = value
+				},
+				nextCode,
+			),
 		recover: (op, failed, values, sent) => recover(scene, op, failed, values, sent),
 	}
 }
@@ -588,8 +596,17 @@ async function reauthenticate(
 		if (code !== null) body.two_factor_code = code
 	}
 	if (Object.keys(body).length === 0) return
-	let called = await scene.client.request(op.method, op.path, { body, headers: scene.headers, operationId: op.operationId })
-	if (called.status >= 400 && called.status < 500 && errorKey(called.responseBody).includes("two_factor") && !("two_factor_code" in body)) {
+	let called = await scene.client.request(op.method, op.path, {
+		body,
+		headers: scene.headers,
+		operationId: op.operationId,
+	})
+	if (
+		called.status >= 400 &&
+		called.status < 500 &&
+		errorKey(called.responseBody).includes("two_factor") &&
+		!("two_factor_code" in body)
+	) {
 		const code = await nextCode()
 		if (code !== null) {
 			body.two_factor_code = code
@@ -676,7 +693,10 @@ async function harvestCode(scene: Scene, issuedCode: { last: string }): Promise<
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
 
 function base32Decode(input: string): Buffer {
-	const clean = input.replace(/=+$/g, "").toUpperCase().replace(/[^A-Z2-7]/g, "")
+	const clean = input
+		.replace(/=+$/g, "")
+		.toUpperCase()
+		.replace(/[^A-Z2-7]/g, "")
 	let bits = 0
 	let value = 0
 	const out: number[] = []
@@ -752,7 +772,9 @@ async function otherFamilyId(scene: Scene, nextCode: () => Promise<string | null
 		operationId: login.operationId,
 	})
 	await finishSecondFactor(scene, signed.responseBody, nextCode, false, [])
-	const list = scene.model.operations.find((item) => item.method === "GET" && itemHas(item, scene.model, ["id", "current"]))
+	const list = scene.model.operations.find(
+		(item) => item.method === "GET" && itemHas(item, scene.model, ["id", "current"]),
+	)
 	if (list === undefined) return null
 	let path = list.path
 	try {
@@ -760,7 +782,10 @@ async function otherFamilyId(scene: Scene, nextCode: () => Promise<string | null
 	} catch {
 		return null
 	}
-	const listed = await scene.client.request(list.method, path, { headers: scene.headers, operationId: list.operationId })
+	const listed = await scene.client.request(list.method, path, {
+		headers: scene.headers,
+		operationId: list.operationId,
+	})
 	const other = recordsOf(listed.responseBody, list, scene.model).find((row) => row.current === false)
 	const id = other?.id
 	return typeof id === "string" && id !== "" ? id : null
@@ -830,7 +855,10 @@ async function discoverPathId(
 		} catch {
 			return null
 		}
-		const listed = await scene.client.request(list.method, path, { headers: scene.headers, operationId: list.operationId })
+		const listed = await scene.client.request(list.method, path, {
+			headers: scene.headers,
+			operationId: list.operationId,
+		})
 		const id = recordsOf(listed.responseBody, list, scene.model).find((row) => typeof row.id === "string")?.id
 		return typeof id === "string" ? id : null
 	}
@@ -972,7 +1000,10 @@ async function releaseOwnedOrgs(scene: Scene): Promise<boolean> {
 	} catch {
 		return false
 	}
-	const listed = await scene.client.request(list.method, path, { headers: scene.headers, operationId: list.operationId })
+	const listed = await scene.client.request(list.method, path, {
+		headers: scene.headers,
+		operationId: list.operationId,
+	})
 	let handed = false
 	for (const row of recordsOf(listed.responseBody, list, scene.model)) {
 		if (typeof row.id !== "string") continue
@@ -1009,30 +1040,33 @@ async function handOff(scene: Scene, op: OperationModel, values: Record<string, 
 	const duplicate = errorKey(invited.responseBody).includes("already")
 	if ((invited.status < 200 || invited.status >= 300) && !duplicate) return false
 	if (!duplicate) {
-	const mailedToken =
-		invite.invite.tokenFrom === "outOfBand"
-			? await mailed(scene, email, invite.invite.tokenKind ?? mailKind(scene.model, invite))
-			: null
-	const pointed = readPath(invited.responseBody, invite.invite.tokenPointer)
-	const token = mailedToken ?? (typeof pointed === "string" && pointed !== "" ? pointed : null)
-	if (token === null) return false
-	const accept = scene.model.byOperationId.get(invite.invite.accept)
-	if (accept === undefined) return false
-	let acceptPath: string
-	try {
-		acceptPath = fillPath(accept.path, values)
-	} catch {
-		return false
-	}
-	const accepted = await scene.client.request(accept.method, acceptPath, {
-		body: { token },
-		headers: scene.suiteAuth,
-		operationId: accept.operationId,
-	})
-	if (accepted.status < 200 || accepted.status >= 300) return false
+		const mailedToken =
+			invite.invite.tokenFrom === "outOfBand"
+				? await mailed(scene, email, invite.invite.tokenKind ?? mailKind(scene.model, invite))
+				: null
+		const pointed = readPath(invited.responseBody, invite.invite.tokenPointer)
+		const token = mailedToken ?? (typeof pointed === "string" && pointed !== "" ? pointed : null)
+		if (token === null) return false
+		const accept = scene.model.byOperationId.get(invite.invite.accept)
+		if (accept === undefined) return false
+		let acceptPath: string
+		try {
+			acceptPath = fillPath(accept.path, values)
+		} catch {
+			return false
+		}
+		const accepted = await scene.client.request(accept.method, acceptPath, {
+			body: { token },
+			headers: scene.suiteAuth,
+			operationId: accept.operationId,
+		})
+		if (accepted.status < 200 || accepted.status >= 300) return false
 	}
 	const members = scene.model.operations.find(
-		(item) => item.method === "GET" && item.pathParams.some((param) => op.pathParams.includes(param)) && itemHas(item, scene.model, ["id", "invite_email"]),
+		(item) =>
+			item.method === "GET" &&
+			item.pathParams.some((param) => op.pathParams.includes(param)) &&
+			itemHas(item, scene.model, ["id", "invite_email"]),
 	)
 	if (members === undefined) return false
 	let memberPath: string
@@ -1066,11 +1100,7 @@ async function handOff(scene: Scene, op: OperationModel, values: Record<string, 
 	return moved.status >= 200 && moved.status < 300
 }
 
-async function handOffThroughOrg(
-	scene: Scene,
-	op: OperationModel,
-	values: Record<string, string>,
-): Promise<boolean> {
+async function handOffThroughOrg(scene: Scene, op: OperationModel, values: Record<string, string>): Promise<boolean> {
 	const email = scene.suiteEmail
 	const organizationId = values.organization_id
 	if (email === undefined || organizationId === undefined) return false
@@ -1190,7 +1220,10 @@ async function projectMemberId(
 	} catch {
 		return null
 	}
-	const listed = await scene.client.request(list.method, path, { headers: scene.headers, operationId: list.operationId })
+	const listed = await scene.client.request(list.method, path, {
+		headers: scene.headers,
+		operationId: list.operationId,
+	})
 	const rows = recordsOf(listed.responseBody, list, scene.model).filter((row) => row.user_id === userId)
 	const direct = rows.find((row) => row.collaborator !== true) ?? rows[0]
 	return typeof direct?.id === "string" ? direct.id : null
@@ -1257,7 +1290,8 @@ async function generatedBody(scene: Scene, op: OperationModel): Promise<Record<s
 			nonce: scene.nonce,
 		})
 		let body = member?.body ?? {}
-		if (scene.resolveInput !== undefined) body = await applyResolveInput(body, op.operationId, schema, scene.resolveInput)
+		if (scene.resolveInput !== undefined)
+			body = await applyResolveInput(body, op.operationId, schema, scene.resolveInput)
 		return body
 	} catch {
 		return {}
@@ -1360,7 +1394,9 @@ function recordsOf(body: unknown, op: OperationModel, model: SpecModel): Record<
 	const record = body as Record<string, unknown>
 	const value = shape?.key === null || shape?.key === undefined ? body : record[shape.key]
 	if (!Array.isArray(value)) return []
-	return value.filter((item): item is Record<string, unknown> => item !== null && typeof item === "object" && !Array.isArray(item))
+	return value.filter(
+		(item): item is Record<string, unknown> => item !== null && typeof item === "object" && !Array.isArray(item),
+	)
 }
 
 function responseHas(op: OperationModel, model: SpecModel, ...names: string[]): boolean {
@@ -1402,7 +1438,8 @@ function requiredNames(schema: Record<string, unknown> | null): string[] {
 			const list = node[key]
 			if (!Array.isArray(list)) continue
 			for (const item of list) {
-				if (item !== null && typeof item === "object" && !Array.isArray(item)) collect(item as Record<string, unknown>, depth + 1)
+				if (item !== null && typeof item === "object" && !Array.isArray(item))
+					collect(item as Record<string, unknown>, depth + 1)
 			}
 		}
 	}

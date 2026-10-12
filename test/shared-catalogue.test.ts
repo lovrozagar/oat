@@ -96,7 +96,13 @@ async function serve(): Promise<string> {
 				return
 			}
 			const parts = url.pathname.split("/").filter(Boolean)
-			if (parts[0] === "v1" && parts[1] === "projects" && parts[3] === "templates" && parts.length === 4 && method === "GET") {
+			if (
+				parts[0] === "v1" &&
+				parts[1] === "projects" &&
+				parts[3] === "templates" &&
+				parts.length === 4 &&
+				method === "GET"
+			) {
 				res.writeHead(200, { "content-type": "application/json" })
 				res.end(JSON.stringify(rows))
 				return

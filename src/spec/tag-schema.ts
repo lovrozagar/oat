@@ -146,9 +146,7 @@ const OPERATION_TAGS: Record<string, Check> = {
 	"x-rate-limit": shape({ category: string, rps: positive }, ["category"]),
 	"x-soft-delete": string,
 	"x-tenant": (value) =>
-		value === false || (typeof value === "string" && value !== "")
-			? null
-			: "must be a path parameter name or false",
+		value === false || (typeof value === "string" && value !== "") ? null : "must be a path parameter name or false",
 	"x-wait": shape({ operationId: string, pollIntervalMs: positive, timeoutMs: positive, until: string }, [
 		"operationId",
 	]),
