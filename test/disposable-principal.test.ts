@@ -296,6 +296,12 @@ describe("disposable principal", () => {
 		)
 		expect(logoutAt).toBeGreaterThanOrEqual(0)
 		const logout = result.client.transcript[logoutAt]
+		const registered = result.client.transcript.find(
+			(exchange) => exchange.method === "POST" && exchange.url.endsWith("/v1/register"),
+		)
+		const email = (registered?.requestBody as { email?: unknown } | undefined)?.email
+		expect(email).toEqual(expect.stringContaining("@"))
+		expect(email).not.toBe("oat-baseline-0@example.test")
 		expect(logout?.requestHeaders.authorization).not.toBe("Bearer alpha")
 		const after = result.client.transcript.slice(logoutAt + 1)
 		expect(

@@ -52,6 +52,12 @@ function callerRead(model: SpecModel): OperationModel | undefined {
 	)
 }
 
+function propertyNames(schema: Record<string, unknown>): Set<string> {
+	const properties = schema.properties
+	if (properties === null || typeof properties !== "object" || Array.isArray(properties)) return new Set()
+	return new Set(Object.keys(properties as Record<string, unknown>))
+}
+
 function requiredSchema(schema: Record<string, unknown>): Record<string, unknown> {
 	const required = Array.isArray(schema.required)
 		? schema.required.filter((name): name is string => typeof name === "string")
@@ -101,13 +107,12 @@ export async function runDisposableOps(input: {
 	let body: Record<string, unknown> = {}
 	if (schema !== null) {
 		try {
-			const [member] = buildCohort(
-				requiredSchema(schema),
-				input.seed ?? 1,
-				["baseline"],
-				register.operationId,
-				input.nonce === undefined ? {} : { nonce: input.nonce },
-			)
+			const required = requiredSchema(schema)
+			const distinct = propertyNames(required)
+			const [member] = buildCohort(required, input.seed ?? 1, ["baseline"], register.operationId, {
+				distinct,
+				...(input.nonce === undefined ? {} : { nonce: input.nonce }),
+			})
 			body = member?.body ?? {}
 		} catch (error) {
 			if (!isOverflowError(error)) throw error
