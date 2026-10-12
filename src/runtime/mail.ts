@@ -132,22 +132,45 @@ export async function runMailOps(input: {
 			input.grades.graded(ids, MAIL_CHECK_ID)
 			continue
 		}
-		const token = await mailed(input, email, hint, stale)
-		if (token === null) {
+		let seen = stale
+		let token: string | null = null
+		let before: Exchange | null = null
+		const consumed: Exchange[] = []
+		let missing = false
+		let refused = false
+		for (let attempt = 0; attempt < 4; attempt++) {
+			const raw = await mailed(input, email, hint, seen)
+			if (raw === null) {
+				missing = token === null
+				refused = token !== null
+				break
+			}
+			token = tokenFrom(raw)
+			if (before === null) before = await invalidatedRead(input, pair.consumer, token, headers)
+			const round = await consume(input, pair.consumer, token, headers, password)
+			consumed.push(...round)
+			const lastRound = round.at(-1)
+			if (lastRound !== undefined && lastRound.status >= 200 && lastRound.status < 300) break
+			if (lastRound !== undefined && tokenRejected(lastRound) && attempt < 3) {
+				seen = raw
+				continue
+			}
+			refused = true
+			break
+		}
+		if (missing || token === null) {
 			blame.backend(
 				MAIL_CHECK_ID,
 				"caller",
 				"the mail never arrived",
 				`${pair.sender.operationId} returned ${called.status} and no out-of-band token followed.`,
-				[called],
+				[called, ...consumed],
 			)
 			input.grades.graded(ids, MAIL_CHECK_ID)
 			continue
 		}
-		const before = await invalidatedRead(input, pair.consumer, token, headers)
-		const consumed = await consume(input, pair.consumer, token, headers, password)
 		const last = consumed.at(-1)
-		if (last === undefined || last.status < 200 || last.status >= 300) {
+		if (refused || last === undefined || last.status < 200 || last.status >= 300) {
 			blame.backend(
 				MAIL_CHECK_ID,
 				"caller",
@@ -415,7 +438,7 @@ async function mailed(
 			resolveBackoff(input.outOfBand),
 			(item) => isAbsentValue(item) || item === stale,
 		)
-		return typeof value === "string" && value !== "" && value !== stale ? tokenFrom(value) : null
+		return typeof value === "string" && value !== "" && value !== stale ? value : null
 	} catch {
 		return null
 	}
@@ -531,4 +554,10 @@ function stringField(body: unknown, key: string): string | null {
 
 function errorKey(body: unknown): string {
 	return stringField(body, "error_key") ?? ""
+}
+
+function tokenRejected(exchange: Exchange): boolean {
+	if (exchange.status < 400 || exchange.status >= 500) return false
+	const key = errorKey(exchange.responseBody)
+	return key.includes("token") || key.includes("code") || key.includes("expired")
 }
