@@ -13,7 +13,7 @@ import type { OperationModel, SpecModel } from "../spec/graph.ts"
 import type { GradeLedger } from "./scope.ts"
 import type { OutOfBandRequest } from "../config/define-config.ts"
 import type { BackoffConfig } from "./poll.ts"
-import { isAbsentValue, pollWithBackoff, resolveBackoff } from "./poll.ts"
+import { isAbsentValue, pollWithBackoff, resolveBackoff, sleep } from "./poll.ts"
 import { fillPath, requestSchemaOf } from "./world.ts"
 
 export const MAIL_CHECK_ID = "mail.token-changes-the-caller"
@@ -28,8 +28,8 @@ export interface MailPair {
 export function mailPairs(model: SpecModel): MailPair[] {
 	const pairs: MailPair[] = []
 	for (const consumer of model.operations) {
-		if (!requiresToken(consumer, model)) continue
-		if (isInviteAccept(model, consumer)) continue
+		if (consumer.method !== "POST") continue
+		if (spentField(consumer, model) === null) continue
 		const sender = senderFor(model, consumer)
 		if (sender === undefined) continue
 		pairs.push({ consumer, sender })
@@ -76,6 +76,10 @@ export async function runMailOps(input: {
 	const password = flow === null ? "secret" : (signupPassword(flow) ?? "secret")
 	let sequence = 0
 	for (const pair of pairs) {
+		if (pair.sender.path.includes("{") || pair.consumer.path.includes("{")) continue
+		const spent = spentField(pair.consumer, input.model)
+		const hasRead = pair.consumer.invalidates.some((item) => item.startsWith("GET "))
+		if (spent !== "token" && !hasRead) continue
 		const ids = [pair.sender.operationId, pair.consumer.operationId]
 		const blame = input.findings.attributed(ids).ownedBy(MAIL_CHECK_ID)
 		const email = `oat-mail-${input.nonce ?? "user"}-${sequence}@${domain}`
@@ -103,23 +107,17 @@ export async function runMailOps(input: {
 		const sent = await senderBody(input, pair.sender, email, nextEmail)
 		const hint = mailHint(input.model, pair.sender)
 		const stale = await peekMail(input, email, hint)
-		let called = await input.client.request(pair.sender.method, pair.sender.path, {
-			...(Object.keys(sent).length === 0 ? {} : { body: sent }),
-			...(headers === undefined ? {} : { headers }),
-			operationId: pair.sender.operationId,
-		})
-		if (
-			called.status === 403 &&
-			errorKey(called.responseBody).includes("reauth") &&
-			headers !== undefined &&
-			flow !== null
-		) {
+		let called = await postSender(input, pair.sender, sent, headers)
+		if (unverified(called) && headers !== undefined) {
+			const upgraded = await adoptVerifiedSession(input, email, headers, password)
+			if (upgraded !== null) {
+				headers = upgraded
+				called = await postSender(input, pair.sender, sent, headers)
+			}
+		}
+		if (needsReauth(called) && headers !== undefined) {
 			await reauth(input, headers, password)
-			called = await input.client.request(pair.sender.method, pair.sender.path, {
-				...(Object.keys(sent).length === 0 ? {} : { body: sent }),
-				headers,
-				operationId: pair.sender.operationId,
-			})
+			called = await postSender(input, pair.sender, sent, headers)
 		}
 		if (called.status < 200 || called.status >= 300) {
 			blame.backend(
@@ -216,7 +214,7 @@ function senderFor(model: SpecModel, consumer: OperationModel): OperationModel |
 	let bestScore = -1
 	for (const op of model.operations) {
 		if (op.operationId === consumer.operationId || op.method !== "POST") continue
-		if (requiresToken(op, model)) continue
+		if (spentField(op, model) !== null) continue
 		const score = pairScore(op.path, consumer.path)
 		if (score > bestScore) {
 			best = op
@@ -228,11 +226,29 @@ function senderFor(model: SpecModel, consumer: OperationModel): OperationModel |
 
 function pairScore(sender: string, consumer: string): number {
 	if (consumer === sender || consumer.startsWith(`${sender}/`)) return 10_000 + sender.length
+	if (sender === `${consumer}/code`) return 9_000 + consumer.length
+	const tail = staticSegments(sender).at(-1)
+	if (tail !== undefined && tail.length >= 8 && staticSegments(consumer).includes(tail)) {
+		return 8_000 + tail.length
+	}
 	const prefix = commonPrefix(sender, consumer)
 	const segments = prefix.split("/").filter(Boolean).length
-	if (segments < 3) return -1
+	if (segments < 2) return -1
+	if (segments < 3 && !siblingPair(sender, consumer)) return -1
 	const extra = sender.split("/").filter(Boolean).length - segments
 	return prefix.length * 100 - extra
+}
+
+function siblingPair(sender: string, consumer: string): boolean {
+	const left = sender.split("/").filter(Boolean)
+	const right = consumer.split("/").filter(Boolean)
+	if (left.length !== 3 || right.length !== 3) return false
+	if (left.some((part) => part.startsWith("{")) || right.some((part) => part.startsWith("{"))) return false
+	return left[0] === right[0] && left[1] === right[1] && left[2] !== right[2]
+}
+
+function staticSegments(path: string): string[] {
+	return path.split("/").filter((part) => part !== "" && !part.startsWith("{"))
 }
 
 function commonPrefix(left: string, right: string): string {
@@ -240,6 +256,16 @@ function commonPrefix(left: string, right: string): string {
 	let index = 0
 	while (index < limit && left[index] === right[index]) index++
 	return left.slice(0, index)
+}
+
+function spentField(op: OperationModel, model: SpecModel): string | null {
+	if (requiresToken(op, model)) return "token"
+	const child = model.operations.some((item) => item.method === "POST" && item.path === `${op.path}/code`)
+	if (!child) return null
+	const name = Object.keys(propertyBag(requestSchemaOf(op, model))).find(
+		(key) => key === "code" || key.endsWith("_code"),
+	)
+	return name ?? null
 }
 
 function requiresToken(op: OperationModel, model: SpecModel): boolean {
@@ -252,10 +278,6 @@ function requiresToken(op: OperationModel, model: SpecModel): boolean {
 		const record = parameter as { in?: unknown; name?: unknown; required?: unknown }
 		return record.in === "query" && record.name === "token" && record.required !== false
 	})
-}
-
-function isInviteAccept(model: SpecModel, op: OperationModel): boolean {
-	return model.operations.some((item) => item.invite?.accept === op.operationId)
 }
 
 function pathHas(op: OperationModel, word: string): boolean {
@@ -316,7 +338,8 @@ async function consume(
 	const exchanges: Exchange[] = []
 	for (const value of rounds) {
 		const body = generatedBody(schema, input.seed ?? 1, op.operationId)
-		if (requiresToken(op, input.model) && "token" in propertyBag(schema)) body.token = token
+		const spent = spentField(op, input.model)
+		if (spent !== null && spent in propertyBag(schema)) body[spent] = token
 		if ("password" in propertyBag(schema)) body.password = `${password}2`
 		if (enums.length > 0 && value !== undefined) {
 			for (const field of enums) body[field.name] = value
@@ -393,6 +416,79 @@ async function invalidatedRead(
 		...(headers === undefined ? {} : { headers }),
 		...(target === undefined ? {} : { operationId: target.operationId }),
 	})
+}
+
+const RATE_LIMIT_WAIT_MS = 13_000
+
+async function postSender(
+	input: { client: Client },
+	op: OperationModel,
+	body: Record<string, unknown>,
+	headers: (() => Record<string, string>) | undefined,
+): Promise<Exchange> {
+	let called: Exchange | undefined
+	for (let attempt = 0; attempt < 4; attempt++) {
+		called = await input.client.request(op.method, op.path, {
+			...(Object.keys(body).length === 0 ? {} : { body }),
+			...(headers === undefined ? {} : { headers }),
+			operationId: op.operationId,
+		})
+		if (called.status !== 429 || attempt === 3) return called
+		await sleep(RATE_LIMIT_WAIT_MS)
+	}
+	return called as Exchange
+}
+
+function unverified(exchange: Exchange): boolean {
+	if (exchange.status !== 403) return false
+	const key = errorKey(exchange.responseBody)
+	return key.includes("verif") && !key.includes("already")
+}
+
+function needsReauth(exchange: Exchange): boolean {
+	return exchange.status === 403 && errorKey(exchange.responseBody).includes("reauth")
+}
+
+async function adoptVerifiedSession(
+	input: {
+		client: Client
+		hooks?: Hooks
+		model: SpecModel
+		outOfBand?: Partial<BackoffConfig>
+		seed?: number
+	},
+	email: string,
+	headers: () => Record<string, string>,
+	password: string,
+): Promise<(() => Record<string, string>) | null> {
+	const pair = mailPairs(input.model).find((item) => {
+		const path = item.consumer.path.toLowerCase()
+		return path.includes("verify") && !path.includes("change")
+	})
+	if (pair === undefined) return null
+	const hint = mailHint(input.model, pair.sender)
+	const stale = await peekMail(input, email, hint)
+	const sent = await senderBody(input, pair.sender, email, email)
+	const called = await postSender(input, pair.sender, sent, headers)
+	if (called.status < 200 || called.status >= 300) return null
+	let seen = stale
+	for (let attempt = 0; attempt < 4; attempt++) {
+		const raw = await mailed(input, email, hint, seen)
+		if (raw === null) return null
+		const round = await consume(input, pair.consumer, tokenFrom(raw), headers, password)
+		const last = round.at(-1)
+		if (last !== undefined && last.status >= 200 && last.status < 300) {
+			const access = stringField(last.responseBody, "access_token")
+			if (access === null) return headers
+			return () => ({ authorization: `Bearer ${access}` })
+		}
+		if (last !== undefined && tokenRejected(last) && attempt < 3) {
+			seen = raw
+			continue
+		}
+		return null
+	}
+	return null
 }
 
 async function reauth(

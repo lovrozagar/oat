@@ -220,6 +220,106 @@ function verifyDocument(): OpenApiDocument {
 	} as OpenApiDocument
 }
 
+function changeDocument(): OpenApiDocument {
+	const base = document()
+	const tokenBody = (extra: Record<string, unknown>, required: string[]) => ({
+		content: {
+			"application/json": {
+				schema: { properties: { token: { type: "string" }, ...extra }, required, type: "object" },
+			},
+		},
+		required: true,
+	})
+	return {
+		...base,
+		paths: {
+			"/v1/me": base.paths["/v1/me"],
+			"/v1/register": base.paths["/v1/register"],
+			"/v1/auth/email/request-verification": {
+				post: {
+					operationId: "auth.requestEmailVerification",
+					responses: { "200": { description: "ok" } },
+					security: [{ jwt: [] }],
+				},
+			},
+			"/v1/auth/email/verify": {
+				post: {
+					operationId: "auth.verifyEmail",
+					requestBody: tokenBody({}, ["token"]),
+					responses: {
+						"200": {
+							content: {
+								"application/json": {
+									schema: {
+										properties: { access_token: { type: "string" } },
+										required: ["access_token"],
+										type: "object",
+									},
+								},
+							},
+							description: "ok",
+						},
+					},
+					"x-invalidate": ["GET /v1/me"],
+				},
+			},
+			"/v1/auth/reauth": {
+				post: {
+					operationId: "auth.reauthenticate",
+					requestBody: {
+						content: {
+							"application/json": {
+								schema: { properties: { password: { type: "string" } }, required: ["password"], type: "object" },
+							},
+						},
+						required: true,
+					},
+					responses: { "200": { description: "ok" } },
+					security: [{ jwt: [] }],
+				},
+			},
+			"/v1/auth/email/change/request": {
+				post: {
+					operationId: "auth.requestEmailChange",
+					requestBody: {
+						content: {
+							"application/json": {
+								schema: { properties: { new_email: { type: "string" } }, required: ["new_email"], type: "object" },
+							},
+						},
+						required: true,
+					},
+					responses: { "200": { description: "ok" } },
+					security: [{ jwt: [] }],
+				},
+			},
+			"/v1/auth/email/change/confirm": {
+				post: {
+					operationId: "auth.confirmEmailChange",
+					requestBody: tokenBody(
+						{ confirmation_type: { enum: ["new", "old"], type: "string" } },
+						["confirmation_type", "token"],
+					),
+					responses: {
+						"200": {
+							content: {
+								"application/json": {
+									schema: {
+										properties: { access_token: { type: "string" }, completed: { type: "boolean" } },
+										type: "object",
+									},
+								},
+							},
+							description: "ok",
+						},
+					},
+					"x-invalidate": ["GET /v1/me"],
+				},
+			},
+		},
+	} as OpenApiDocument
+}
+
 async function runMail(url: string, box: Map<string, string>) {
 	return run({
 		baseUrl: url,
@@ -468,6 +568,255 @@ describe("mail token", () => {
 		})
 		expect(result.scope.operations.find((op) => op.operationId === "auth.verifyEmail")?.status).toBe("passed")
 		expect(verified).toBe(true)
+	})
+
+	it("pairs a code child, a newsletter sibling, and a collaborator invite", () => {
+		const loaded = buildModel({
+			...document(),
+			paths: {
+				...document().paths,
+				"/v1/auth/reauth": {
+					post: {
+						operationId: "auth.reauthenticate",
+						requestBody: {
+							content: {
+								"application/json": {
+									schema: {
+										properties: { email_code: { type: "string" }, password: { type: "string" } },
+										type: "object",
+									},
+								},
+							},
+							required: true,
+						},
+						responses: { "200": { description: "ok" } },
+					},
+				},
+				"/v1/auth/reauth/code": {
+					post: {
+						operationId: "auth.requestReauthCode",
+						responses: { "200": { description: "ok" } },
+						summary: "Email a security code",
+					},
+				},
+				"/v1/newsletter/subscribe": {
+					post: {
+						operationId: "newsletter.subscribe",
+						requestBody: {
+							content: {
+								"application/json": {
+									schema: { properties: { email: { type: "string" } }, required: ["email"], type: "object" },
+								},
+							},
+							required: true,
+						},
+						responses: { "202": { description: "accepted" } },
+					},
+				},
+				"/v1/newsletter/unsubscribe": {
+					post: {
+						operationId: "newsletter.unsubscribe",
+						requestBody: {
+							content: {
+								"application/json": {
+									schema: { properties: { token: { type: "string" } }, required: ["token"], type: "object" },
+								},
+							},
+							required: true,
+						},
+						responses: { "200": { description: "ok" } },
+					},
+				},
+				"/v1/newsletter/preferences": {
+					post: {
+						operationId: "newsletterPreference.update",
+						requestBody: {
+							content: {
+								"application/json": {
+									schema: {
+										properties: { token: { type: "string" }, topic_ids: { items: { type: "string" }, type: "array" } },
+										required: ["token"],
+										type: "object",
+									},
+								},
+							},
+							required: true,
+						},
+						responses: { "200": { description: "ok" } },
+					},
+				},
+				"/v1/projects/{project_id}/collaborators": {
+					post: {
+						operationId: "project.inviteCollaborator",
+						requestBody: {
+							content: {
+								"application/json": {
+									schema: { properties: { email: { type: "string" } }, required: ["email"], type: "object" },
+								},
+							},
+							required: true,
+						},
+						responses: { "201": { description: "created" } },
+					},
+				},
+				"/v1/projects/collaborators/accept": {
+					post: {
+						operationId: "project.acceptCollaboratorInvite",
+						requestBody: {
+							content: {
+								"application/json": {
+									schema: { properties: { token: { type: "string" } }, required: ["token"], type: "object" },
+								},
+							},
+							required: true,
+						},
+						responses: { "200": { description: "ok" } },
+					},
+				},
+				"/v1/invites/{invite_id}/decline": {
+					post: {
+						operationId: "invite.decline",
+						requestBody: {
+							content: {
+								"application/json": {
+									schema: {
+										properties: { sid: { type: "number" }, type: { type: "string" } },
+										required: ["sid", "type"],
+										type: "object",
+									},
+								},
+							},
+							required: true,
+						},
+						responses: { "200": { description: "ok" } },
+					},
+				},
+			},
+		})
+		const pairs = mailPairs(loaded)
+		const id = (operationId: string) => pairs.find((pair) => pair.consumer.operationId === operationId)?.sender.operationId
+		expect(id("auth.reauthenticate")).toBe("auth.requestReauthCode")
+		expect(id("newsletter.unsubscribe")).toBe("newsletter.subscribe")
+		expect(id("newsletterPreference.update")).toBe("newsletter.subscribe")
+		expect(id("project.acceptCollaboratorInvite")).toBe("project.inviteCollaborator")
+		expect(id("invite.decline")).toBeUndefined()
+	})
+
+	it("verifies and reauthenticates before an email change", async () => {
+		const verifyMail = new Map<string, string>()
+		const changeMail = new Map<string, string>()
+		const verifyToken = new Map<string, string>()
+		const changeToken = new Map<string, string>()
+		const sessions = new Map<string, string>()
+		const users = new Map<
+			string,
+			{ confirmed: Set<string>; email: string; next: string; reauthed: boolean; verified: boolean }
+		>()
+		let sequence = 0
+		const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+			void (async () => {
+				const url = new URL(req.url ?? "/", "http://127.0.0.1")
+				const method = (req.method ?? "GET").toUpperCase()
+				const chunks: Buffer[] = []
+				for await (const chunk of req) chunks.push(chunk as Buffer)
+				const raw = Buffer.concat(chunks).toString("utf8")
+				const body = raw === "" ? {} : (JSON.parse(raw) as Record<string, unknown>)
+				const token = typeof req.headers.authorization === "string" ? req.headers.authorization.slice(7).trim() : ""
+				const send = (status: number, payload: unknown) => {
+					res.writeHead(status, { "content-type": "application/json" })
+					res.end(JSON.stringify(payload))
+				}
+				const user = () => {
+					const email = sessions.get(token)
+					return email === undefined ? undefined : users.get(email)
+				}
+				if (url.pathname === "/openapi.json" && method === "GET") return send(200, changeDocument())
+				if (url.pathname === "/v1/register" && method === "POST") {
+					const email = String(body.email)
+					users.set(email, { confirmed: new Set(), email, next: "", reauthed: false, verified: false })
+					const access = `reg-${sequence}`
+					sequence += 1
+					sessions.set(access, email)
+					return send(201, { access_token: access })
+				}
+				if (url.pathname === "/v1/me" && method === "GET") {
+					if (token === "alpha") return send(200, { email: "alpha@example.test", first_name: "Ada" })
+					const account = user()
+					if (account === undefined) return send(401, { error: "unauthorized" })
+					return send(200, { email: account.email, verified: account.verified })
+				}
+				if (url.pathname === "/v1/auth/email/request-verification" && method === "POST") {
+					const account = user()
+					if (account === undefined) return send(401, { error: "unauthorized" })
+					const mailed = `verify-${sequence}`
+					sequence += 1
+					verifyToken.set(mailed, sessions.get(token) ?? account.email)
+					verifyMail.set(account.email, `https://example.test/verify-email?token=${encodeURIComponent(mailed)}`)
+					return send(200, { success: true })
+				}
+				if (url.pathname === "/v1/auth/email/verify" && method === "POST") {
+					const email = verifyToken.get(String(body.token))
+					const account = email === undefined ? undefined : users.get(email)
+					if (account === undefined) return send(400, { error_key: "email_verification_code_invalid" })
+					account.verified = true
+					const access = `verified-${account.email}`
+					sessions.set(access, account.email)
+					return send(200, { access_token: access })
+				}
+				if (url.pathname === "/v1/auth/reauth" && method === "POST") {
+					const account = user()
+					if (account === undefined) return send(401, { error: "unauthorized" })
+					account.reauthed = true
+					return send(200, { reauthenticated_until: 1 })
+				}
+				if (url.pathname === "/v1/auth/email/change/request" && method === "POST") {
+					const account = user()
+					if (account === undefined) return send(401, { error: "unauthorized" })
+					if (!account.verified) return send(403, { error_key: "email_not_verified" })
+					if (!account.reauthed) return send(403, { error_key: "account_reauth_required" })
+					account.next = String(body.new_email)
+					const mailed = `change-${sequence}`
+					sequence += 1
+					changeToken.set(mailed, sessions.get(token) ?? account.email)
+					changeMail.set(account.email, `https://example.test/confirm-email-change?token=${encodeURIComponent(mailed)}`)
+					return send(200, { success: true })
+				}
+				if (url.pathname === "/v1/auth/email/change/confirm" && method === "POST") {
+					const email = changeToken.get(String(body.token))
+					const account = email === undefined ? undefined : users.get(email)
+					if (account === undefined) return send(400, { error_key: "email_change_code_invalid" })
+					account.confirmed.add(String(body.confirmation_type))
+					if (account.confirmed.size < 2) return send(200, { completed: false })
+					account.email = account.next
+					const access = `changed-${sequence}`
+					sequence += 1
+					sessions.set(access, email)
+					return send(200, { access_token: access, completed: true })
+				}
+				return send(404, { error: "missing" })
+			})()
+		})
+		await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+		const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+		open.push({ close: () => new Promise<void>((resolve) => server.close(() => resolve())) })
+		const result = await run({
+			baseUrl: url,
+			hooks: {
+				resolveOutOfBand: async (req) => {
+					if (req.kind.includes("verif")) return verifyMail.get(req.address) ?? null
+					if (req.kind.includes("change")) return changeMail.get(req.address) ?? null
+					return null
+				},
+			},
+			nonce: "n1",
+			principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+			seed: 1,
+			spec: `${url}/openapi.json`,
+		})
+		expect(result.scope.operations.find((op) => op.operationId === "auth.confirmEmailChange")?.status).toBe("passed")
+		const changed = [...users.values()].find((item) => item.email.includes("oat-mail-next-"))
+		expect(changed?.confirmed.has("new")).toBe(true)
+		expect(changed?.confirmed.has("old")).toBe(true)
 	})
 
 	it("reports a token whose session cannot read the profile", async () => {
