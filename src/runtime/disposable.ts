@@ -5,7 +5,7 @@
  */
 
 import type { Check } from "./checks.ts"
-import type { Client } from "./client.ts"
+import type { Client, Exchange } from "./client.ts"
 import { ASSERTED, type FindingCollector, type Outcome } from "./finding.ts"
 import type { CheckId } from "./check-ids.ts"
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
@@ -183,18 +183,41 @@ export async function runDisposableOps(input: {
 				headers: disposable,
 				operationId: read.operationId,
 			})
-			if (gone.status !== 401) {
+			const refreshToken = typeof sent.refresh_token === "string" ? sent.refresh_token : undefined
+			const renew = refreshToken === undefined ? undefined : renewOperation(input.model, op.operationId)
+			let renewExchange: Exchange | undefined
+			if (gone.status !== 401 && renew !== undefined && refreshToken !== undefined) {
+				renewExchange = await input.client.request(renew.method, renew.path, {
+					body: { refresh_token: refreshToken },
+					headers: {},
+					operationId: renew.operationId,
+				})
+			}
+			const sessionGone =
+				gone.status === 401 ||
+				(renewExchange !== undefined && renewExchange.status >= 400 && renewExchange.status < 500)
+			if (!sessionGone) {
 				blame.backend(
 					DISPOSABLE_CHECK_ID,
 					op.entity ?? read.entity ?? "caller",
 					"the disposable session was still accepted",
 					`${op.operationId} invalidates ${read.operationId}, and that read then returned ${gone.status} with the second user's credential.`,
-					[called, gone],
+					renewExchange === undefined ? [called, gone] : [called, gone, renewExchange],
 				)
 			}
 		}
 		input.grades.graded([op.operationId], DISPOSABLE_CHECK_ID)
 	}
+}
+
+function renewOperation(model: SpecModel, exceptId: string): OperationModel | undefined {
+	return model.operations.find((op) => {
+		if (op.operationId === exceptId) return false
+		const schema = requestSchemaOf(op, model)
+		const properties = schema?.properties
+		if (properties === null || typeof properties !== "object" || Array.isArray(properties)) return false
+		return "refresh_token" in (properties as Record<string, unknown>)
+	})
 }
 
 function bodyFrom(schema: Record<string, unknown> | null, issued: Record<string, unknown>): Record<string, unknown> {
