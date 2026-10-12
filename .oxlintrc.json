@@ -4,7 +4,20 @@
 	"env": {
 		"node": true
 	},
-	"ignorePatterns": ["dist/**", "coverage/**", "oat-out/**", ".oat/**", "labs/node_modules/**", "labs/schema/**"],
+	"ignorePatterns": [
+		"dist/**",
+		"coverage/**",
+		"oat-out/**",
+		".oat/**",
+		"labs/node_modules/**",
+		"labs/schema/**",
+		".agents/**",
+		".claude/**",
+		".codex/**",
+		".gemini/**",
+		".grok/**",
+		".rulesync/**"
+	],
 	"categories": {
 		"correctness": "error",
 		"suspicious": "warn"
