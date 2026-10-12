@@ -1621,7 +1621,9 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		model,
 		originClients,
 		outOfBand: options.outOfBand ?? {},
-		principals: new Map(resolved.map((principal) => [principal.id, principal.headers])),
+		principals: new Map(
+			resolved.map((principal) => [principal.id, { headers: principal.headers, roots: principal.roots }]),
+		),
 		scenarios: options.scenarios ?? [],
 	})
 	await proveFromTranscript({ client, grades, model })

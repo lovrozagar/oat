@@ -110,7 +110,7 @@ export async function runScenarios(input: {
 	checksRun: Set<string>
 	inScope: (operationId: string) => boolean
 	mode: "full" | "targeted"
-	principals: ReadonlyMap<string, () => Record<string, string>>
+	principals: ReadonlyMap<string, { headers: () => Record<string, string>; roots: Record<string, string> }>
 	defaultPrincipal: string
 	outOfBand?: Partial<BackoffConfig>
 	originClients?: ReadonlyMap<string, OriginClient>
@@ -126,10 +126,14 @@ export async function runScenarios(input: {
 		if (graded.length === 0 && !touches) continue
 		const check = scenarioCheckId(scenario)
 		input.checksRun.add(check)
-		const headers = input.principals.get(scenario.principal ?? input.defaultPrincipal)
-		if (headers === undefined) {
-			throw new Error(`oat: scenario "${scenario.id}" names principal "${scenario.principal}", which is not configured`)
+		const principalOf = (id: string) => {
+			const found = input.principals.get(id)
+			if (found === undefined)
+				throw new Error(`oat: scenario "${scenario.id}" names principal "${id}", which is not configured`)
+			return found
 		}
+		const own = principalOf(scenario.principal ?? input.defaultPrincipal)
+		const headers = own.headers
 		const context: AcquireContext = {
 			client: input.client,
 			hooks: input.hooks,
@@ -138,7 +142,8 @@ export async function runScenarios(input: {
 			...(input.originClients === undefined ? {} : { originClients: input.originClients }),
 			...(input.outOfBand === undefined ? {} : { outOfBand: input.outOfBand }),
 		}
-		const scope: Record<string, string> = {}
+		/* The principal's roots (organization, project …) are there from the first step, as in the matrix. */
+		const scope: Record<string, string> = { ...own.roots }
 		/* Objects a response or a hook handed back, kept whole: a field that is exactly `{name}`
 		 * sends the object itself (a WebAuthn credential), not its string form. */
 		const objects = new Map<string, unknown>()
@@ -214,7 +219,7 @@ export async function runScenarios(input: {
 					address,
 					step.outOfBand.kind,
 					{
-						headers: headers?.() ?? {},
+						headers: headers(),
 						label: `scenario "${scenario.id}"`,
 						scope: { ...scope },
 						...(input.outOfBand === undefined ? {} : { outOfBand: input.outOfBand }),
@@ -257,7 +262,14 @@ export async function runScenarios(input: {
 				const exchange = await request.client.request(request.method, request.path, {
 					...(request.body === undefined ? {} : { body: request.body }),
 					...(request.contentType === undefined ? {} : { contentType: request.contentType }),
-					headers: { ...(step.anonymous === true ? {} : (headers?.() ?? {})), ...request.headers },
+					headers: {
+						...(step.anonymous === true
+							? {}
+							: step.principal === undefined
+								? headers()
+								: principalOf(step.principal).headers()),
+						...request.headers,
+					},
 					...(request.query === undefined ? {} : { query: request.query }),
 					...(own === undefined ? {} : { operationId: own }),
 					...(request.redirect === undefined ? {} : { redirect: request.redirect }),
@@ -343,8 +355,12 @@ export async function runScenarios(input: {
 				want.mode === "excludes"
 					? { absent: true as const, path: step.assert.from, seq: exchange.seq, value: want.value }
 					: { path: step.assert.from, seq: exchange.seq, value: want.value }
+			/* A write's own response is its claim, not a later read of it: it proves nothing about itself. */
+			const reads = /^(GET|HEAD)$/i.test(exchange.method)
 			for (const id of [...(step.assert.observes ?? []), ...(own === undefined ? [] : [own])]) {
-				if (calls.has(id)) observed.set(id, observation)
+				if (!calls.has(id)) continue
+				if (calls.get(id) === exchange && !reads) continue
+				observed.set(id, observation)
 			}
 		}
 	}

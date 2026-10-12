@@ -389,6 +389,46 @@ describe("scenarios", () => {
 		expect(evidence?.observation?.seq).toBeGreaterThan(evidence?.call ?? Number.POSITIVE_INFINITY)
 	})
 
+	it("does not let a write's own response prove that write", async () => {
+		const api = await serve()
+		const scenario: Scenario = {
+			covers: ["checkout.open"],
+			id: "self-proof",
+			steps: [{ assert: { contains: "cs_1", from: "$.url" }, operationId: "checkout.open" }],
+		}
+		const result = await runWith(api, [scenario], ["checkout.open"])
+		expect(row(result, "checkout.open")?.status).toBe("passed")
+		expect(row(result, "checkout.open")?.tier).toBe("contract")
+	})
+
+	it("starts each scenario with its principal's roots, and lets a step speak as another principal", async () => {
+		const api = await serve()
+		const scenario: Scenario = {
+			covers: ["user.get"],
+			id: "roots",
+			steps: [
+				{ expect: [401], operationId: "notes.list", principal: "nobody" },
+				{ assert: { equals: "usr_42", from: "$.id" }, bind: { user_id: "{owner_id}" }, operationId: "user.get" },
+			],
+		}
+		const result = await run({
+			baseUrl: api.url,
+			ops: ["user.get"],
+			principals: [
+				{ headers: { authorization: "Bearer alpha" }, id: "alpha", roots: { owner_id: "usr_42" } },
+				{ headers: { authorization: "Bearer nobody" }, id: "nobody" },
+			],
+			scenarios: [scenario],
+			seed: 1,
+			spec: `${api.url}/openapi.json`,
+		})
+		expect(row(result, "user.get")?.status).toBe("passed")
+		const refused = result.client.transcript.find(
+			(exchange) => exchange.operationId === "notes.list" && exchange.status === 401,
+		)
+		expect(refused?.requestHeaders.authorization).toBe("Bearer nobody")
+	})
+
 	it("refuses a scenario that covers an operation it never calls", async () => {
 		const api = await serve()
 		const scenario: Scenario = { ...RENAME, covers: [...RENAME.covers, "stats.get"] }

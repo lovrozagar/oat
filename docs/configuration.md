@@ -447,7 +447,7 @@ Steps are the auth-flow steps (`operationId` / raw `method` + `path`, `body`, `b
 
 A `saveAs` that lands on an object, or an `external` step that returns JSON, keeps the object whole: a body or `input` field that is exactly `"{name}"` sends that object, not its string form. That is how a WebAuthn ceremony passes the server's options to a software authenticator and its credential back.
 
-`principal` picks the config principal whose credential the steps send (default: the first). Each id in `covers` must be called by a step — a scenario that covers what it never calls is refused before the run starts. A step that fails stops the scenario: the operation it blamed is `failed` with the exchanges as evidence, and every covered operation it never reached is `blocked` with the step named. An operation a scenario covers is never graded by the contract floor.
+`principal` picks the config principal whose credential the steps send (default: the first); its `roots` are in scope from the first step. A write's own response never proves that write — its observation has to come from a later read. Each id in `covers` must be called by a step — a scenario that covers what it never calls is refused before the run starts. A step that fails stops the scenario: the operation it blamed is `failed` with the exchanges as evidence, and every covered operation it never reached is `blocked` with the step named. An operation a scenario covers is never graded by the contract floor.
 
 ### Harvested principal
 

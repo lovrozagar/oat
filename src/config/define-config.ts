@@ -119,6 +119,8 @@ export type ScenarioRequestStep = (OperationStep | RequestStep) & {
 	poll?: { within: string; everyMs?: number }
 	/** Send without the scenario principal's credential. */
 	anonymous?: boolean
+	/** Send as this config principal instead of the scenario's — an invitee accepting, a peer reading. */
+	principal?: string
 }
 
 /**
