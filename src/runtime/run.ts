@@ -1614,6 +1614,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		...(options.principals[0]?.auth === undefined ? {} : { authFlow: options.principals[0].auth }),
 		hooks,
 		outOfBand,
+		roots: alpha.roots,
 		seed,
 	})
 

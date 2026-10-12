@@ -320,6 +320,161 @@ function changeDocument(): OpenApiDocument {
 	} as OpenApiDocument
 }
 
+function newsletterDocument(): OpenApiDocument {
+	const base = document()
+	const token = (extra: Record<string, unknown> = {}) => ({
+		content: {
+			"application/json": {
+				schema: { properties: { token: { type: "string" }, ...extra }, required: ["token"], type: "object" },
+			},
+		},
+		required: true,
+	})
+	return {
+		...base,
+		paths: {
+			"/v1/me": base.paths["/v1/me"],
+			"/v1/register": base.paths["/v1/register"],
+			"/v1/newsletter/subscribe": {
+				post: {
+					operationId: "newsletter.subscribe",
+					requestBody: {
+						content: {
+							"application/json": {
+								schema: { properties: { email: { type: "string" } }, required: ["email"], type: "object" },
+							},
+						},
+						required: true,
+					},
+					responses: { "202": { description: "accepted" } },
+				},
+			},
+			"/v1/newsletter/preferences": {
+				get: {
+					operationId: "newsletterPreference.get",
+					parameters: [{ in: "query", name: "token", required: true, schema: { type: "string" } }],
+					responses: { "200": { description: "ok" } },
+				},
+				post: {
+					operationId: "newsletterPreference.update",
+					requestBody: token({ topic_ids: { items: { type: "string" }, type: "array" } }),
+					responses: { "200": { description: "ok" } },
+					"x-invalidate": ["GET /v1/newsletter/preferences"],
+				},
+			},
+			"/v1/newsletter/unsubscribe": {
+				post: {
+					operationId: "newsletter.unsubscribe",
+					requestBody: token(),
+					responses: { "200": { description: "ok" } },
+					"x-invalidate": ["GET /v1/newsletter/preferences"],
+				},
+			},
+		},
+	} as OpenApiDocument
+}
+
+function inviteDocument(): OpenApiDocument {
+	const base = document()
+	const inviteTag = (accept: string) => ({
+		accept,
+		acceptFrom: "token",
+		granteeField: "invite_email",
+		grantPointer: "$.id",
+		invite: "pending",
+		revoke: "pending",
+		tokenFrom: "outOfBand",
+		tokenKind: "project-invite",
+		tokenPointer: "$.invite_token",
+	})
+	return {
+		...base,
+		paths: {
+			"/v1/me": base.paths["/v1/me"],
+			"/v1/register": base.paths["/v1/register"],
+			"/v1/projects/{project_id}/collaborators": {
+				post: {
+					operationId: "project.inviteCollaborator",
+					requestBody: {
+						content: {
+							"application/json": {
+								schema: { properties: { email: { type: "string" } }, required: ["email"], type: "object" },
+							},
+						},
+						required: true,
+					},
+					responses: { "201": { description: "created" } },
+					"x-invite": { ...inviteTag("project.acceptCollaboratorInvite"), granteeField: "email" },
+				},
+			},
+			"/v1/projects/collaborators/accept": {
+				post: {
+					operationId: "project.acceptCollaboratorInvite",
+					requestBody: {
+						content: {
+							"application/json": {
+								schema: { properties: { token: { type: "string" } }, required: ["token"], type: "object" },
+							},
+						},
+						required: true,
+					},
+					responses: { "200": { description: "ok" } },
+					"x-invalidate": ["GET /v1/invites"],
+				},
+			},
+			"/v1/projects/{project_id}/members": {
+				get: {
+					operationId: "project.listMembers",
+					responses: { "200": { description: "ok" } },
+				},
+			},
+			"/v1/projects/{project_id}/collaborators/{member_id}/resend": {
+				post: {
+					operationId: "project.resendCollaboratorInvite",
+					responses: { "200": { description: "ok" } },
+				},
+			},
+			"/v1/organizations/{organization_id}/members": {
+				post: {
+					operationId: "org.inviteMember",
+					requestBody: {
+						content: {
+							"application/json": {
+								schema: { properties: { invite_email: { type: "string" } }, required: ["invite_email"], type: "object" },
+							},
+						},
+						required: true,
+					},
+					responses: { "201": { description: "created" } },
+					"x-invite": inviteTag("org.acceptInvite"),
+				},
+			},
+			"/v1/invites": {
+				get: { operationId: "invite.list", responses: { "200": { description: "ok" } } },
+			},
+			"/v1/invites/{invite_id}/decline": {
+				post: {
+					operationId: "invite.decline",
+					requestBody: {
+						content: {
+							"application/json": {
+								schema: {
+									properties: { sid: { type: "number" }, type: { type: "string" } },
+									required: ["sid", "type"],
+									type: "object",
+								},
+							},
+						},
+						required: true,
+					},
+					responses: { "200": { description: "ok" } },
+					"x-invalidate": ["GET /v1/invites"],
+				},
+			},
+		},
+	} as OpenApiDocument
+}
+
 async function runMail(url: string, box: Map<string, string>) {
 	return run({
 		baseUrl: url,
@@ -817,6 +972,154 @@ describe("mail token", () => {
 		const changed = [...users.values()].find((item) => item.email.includes("oat-mail-next-"))
 		expect(changed?.confirmed.has("new")).toBe(true)
 		expect(changed?.confirmed.has("old")).toBe(true)
+	})
+
+	it("updates newsletter preferences and unsubscribes with the mailed token", async () => {
+		const state = new Map<string, { status: string; topics: Array<{ id: string; subscribed: boolean }> }>()
+		const mail = new Map<string, string>()
+		const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+			void (async () => {
+				const url = new URL(req.url ?? "/", "http://127.0.0.1")
+				const method = (req.method ?? "GET").toUpperCase()
+				const chunks: Buffer[] = []
+				for await (const chunk of req) chunks.push(chunk as Buffer)
+				const raw = Buffer.concat(chunks).toString("utf8")
+				const body = raw === "" ? {} : (JSON.parse(raw) as Record<string, unknown>)
+				const token = typeof req.headers.authorization === "string" ? req.headers.authorization.slice(7).trim() : ""
+				const send = (status: number, payload: unknown) => {
+					res.writeHead(status, { "content-type": "application/json" })
+					res.end(JSON.stringify(payload))
+				}
+				if (url.pathname === "/openapi.json" && method === "GET") return send(200, newsletterDocument())
+				if (url.pathname === "/v1/register" && method === "POST") return send(201, { access_token: `reg-${String(body.email)}` })
+				if (url.pathname === "/v1/me" && method === "GET") {
+					if (token === "alpha" || token.startsWith("reg-")) return send(200, { email: "ada@example.test", first_name: "Ada" })
+					return send(401, { error: "unauthorized" })
+				}
+				if (url.pathname === "/v1/newsletter/subscribe" && method === "POST") {
+					const email = String(body.email)
+					state.set(email, { status: "pending", topics: [{ id: "ntop_1", subscribed: false }] })
+					mail.set(email, "https://example.test/newsletter/confirm?token=tok-nl")
+					return send(202, { status: "accepted" })
+				}
+				if (url.pathname === "/v1/newsletter/preferences" && method === "GET") {
+					const row = [...state.values()][0]
+					if (url.searchParams.get("token") !== "tok-nl" || row === undefined) return send(401, { error_key: "newsletter_preference_invalid_token" })
+					return send(200, row)
+				}
+				if (url.pathname === "/v1/newsletter/preferences" && method === "POST") {
+					const row = [...state.values()][0]
+					if (body.token !== "tok-nl" || row === undefined) return send(401, { error_key: "newsletter_preference_invalid_token" })
+					const ids = new Set(Array.isArray(body.topic_ids) ? body.topic_ids.map(String) : [])
+					row.topics = row.topics.map((topic) => ({ ...topic, subscribed: ids.has(topic.id) }))
+					return send(200, { updated: true })
+				}
+				if (url.pathname === "/v1/newsletter/unsubscribe" && method === "POST") {
+					const row = [...state.values()][0]
+					if (body.token !== "tok-nl" || row === undefined) return send(401, { error_key: "newsletter_unsubscribe_invalid" })
+					row.status = "unsubscribed"
+					return send(200, { success: true })
+				}
+				return send(404, { error: "missing" })
+			})()
+		})
+		await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+		const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+		open.push({ close: () => new Promise<void>((resolve) => server.close(() => resolve())) })
+		const result = await run({
+			baseUrl: url,
+			hooks: { resolveOutOfBand: async (req) => mail.get(req.address) ?? null },
+			nonce: "n1",
+			principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+			seed: 1,
+			spec: `${url}/openapi.json`,
+		})
+		expect(result.scope.operations.find((op) => op.operationId === "newsletterPreference.update")?.status).toBe("passed")
+		expect(result.scope.operations.find((op) => op.operationId === "newsletter.unsubscribe")?.status).toBe("passed")
+		expect([...state.values()][0]?.topics[0]?.subscribed).toBe(true)
+		expect([...state.values()].some((row) => row.status === "unsubscribed")).toBe(true)
+	})
+
+	it("accepts a collaborator invite, resends it, and declines another", async () => {
+		const invites: Array<Record<string, unknown>> = []
+		const mail = new Map<string, string>()
+		let invitedAt = 1
+		const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+			void (async () => {
+				const url = new URL(req.url ?? "/", "http://127.0.0.1")
+				const method = (req.method ?? "GET").toUpperCase()
+				const chunks: Buffer[] = []
+				for await (const chunk of req) chunks.push(chunk as Buffer)
+				const raw = Buffer.concat(chunks).toString("utf8")
+				const body = raw === "" ? {} : (JSON.parse(raw) as Record<string, unknown>)
+				const token = typeof req.headers.authorization === "string" ? req.headers.authorization.slice(7).trim() : ""
+				const send = (status: number, payload: unknown) => {
+					res.writeHead(status, { "content-type": "application/json" })
+					res.end(JSON.stringify(payload))
+				}
+				const emailOf = () => (token.startsWith("reg-") ? token.slice(4) : "")
+				if (url.pathname === "/openapi.json" && method === "GET") return send(200, inviteDocument())
+				if (url.pathname === "/v1/register" && method === "POST") return send(201, { access_token: `reg-${String(body.email)}` })
+				if (url.pathname === "/v1/me" && method === "GET") {
+					if (token === "owner" || token.startsWith("reg-")) return send(200, { email: token === "owner" ? "owner@example.test" : emailOf(), first_name: "Ada" })
+					return send(401, { error: "unauthorized" })
+				}
+				if (url.pathname === "/v1/projects/prj_1/collaborators" && method === "POST") {
+					invitedAt += 1
+					invites.push({ id: "mem_1", invite_email: body.email, invited_at: invitedAt, project_id: "prj_1", sid: 1, type: "project" })
+					mail.set(String(body.email), "project-token")
+					return send(201, { id: "mem_1" })
+				}
+				if (url.pathname === "/v1/projects/prj_1/members" && method === "GET") {
+					return send(200, { members: invites.filter((item) => item.type === "project") })
+				}
+				if (url.pathname === "/v1/projects/prj_1/collaborators/mem_1/resend" && method === "POST") {
+					const row = invites.find((item) => item.id === "mem_1")
+					if (row) row.invited_at = (row.invited_at as number) + 10
+					return send(200, { id: "mem_1" })
+				}
+				if (url.pathname === "/v1/organizations/org_1/members" && method === "POST") {
+					invites.push({ id: "mem_org", invite_email: body.invite_email, sid: 2, type: "org" })
+					return send(201, { id: "mem_org" })
+				}
+				if (url.pathname === "/v1/invites" && method === "GET") {
+					return send(200, { invites: invites.filter((item) => item.invite_email === emailOf()) })
+				}
+				if (url.pathname === "/v1/projects/collaborators/accept" && method === "POST") {
+					if (body.token !== "project-token") return send(400, { error_key: "invite_expired" })
+					const index = invites.findIndex((item) => item.id === "mem_1")
+					if (index >= 0) invites.splice(index, 1)
+					return send(200, { access_token: "accepted", id: "mem_1", project_id: "prj_1" })
+				}
+				if (url.pathname === "/v1/invites/mem_org/decline" && method === "POST") {
+					const index = invites.findIndex((item) => item.id === "mem_org")
+					if (index >= 0) invites.splice(index, 1)
+					return send(200, { id: "mem_org" })
+				}
+				return send(404, { error: "missing" })
+			})()
+		})
+		await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+		const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+		open.push({ close: () => new Promise<void>((resolve) => server.close(() => resolve())) })
+		const result = await run({
+			baseUrl: url,
+			hooks: { resolveOutOfBand: async (req) => (req.kind === "project-invite" ? (mail.get(req.address) ?? null) : null) },
+			nonce: "n1",
+			principals: [
+				{
+					headers: { authorization: "Bearer owner" },
+					id: "owner",
+					roots: { organization_id: "org_1", project_id: "prj_1" },
+				},
+			],
+			ops: ["project.acceptCollaboratorInvite", "project.resendCollaboratorInvite", "invite.decline"],
+			seed: 1,
+			spec: `${url}/openapi.json`,
+		})
+		expect(result.scope.operations.find((op) => op.operationId === "project.acceptCollaboratorInvite")?.status).toBe("passed")
+		expect(result.scope.operations.find((op) => op.operationId === "project.resendCollaboratorInvite")?.status).toBe("passed")
+		expect(result.scope.operations.find((op) => op.operationId === "invite.decline")?.status).toBe("passed")
 	})
 
 	it("reports a token whose session cannot read the profile", async () => {

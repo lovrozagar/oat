@@ -62,6 +62,7 @@ export async function runMailOps(input: {
 	model: SpecModel
 	nonce?: string
 	outOfBand?: Partial<BackoffConfig>
+	roots?: Record<string, string>
 	seed?: number
 }): Promise<void> {
 	if (input.hooks?.resolveOutOfBand === undefined) return
@@ -145,7 +146,14 @@ export async function runMailOps(input: {
 			}
 			token = tokenFrom(raw)
 			if (before === null) before = await invalidatedRead(input, pair.consumer, token, headers)
-			const round = await consume(input, pair.consumer, token, headers, password)
+			const round = await consume(
+				input,
+				pair.consumer,
+				token,
+				headers,
+				password,
+				stringIds(before?.responseBody),
+			)
 			consumed.push(...round)
 			const lastRound = round.at(-1)
 			if (lastRound !== undefined && lastRound.status >= 200 && lastRound.status < 300) break
@@ -207,6 +215,7 @@ export async function runMailOps(input: {
 		}
 		input.grades.graded(ids, MAIL_CHECK_ID)
 	}
+	await runInviteScenes(input)
 }
 
 function senderFor(model: SpecModel, consumer: OperationModel): OperationModel | undefined {
@@ -331,6 +340,7 @@ async function consume(
 	token: string,
 	headers: (() => Record<string, string>) | undefined,
 	password: string,
+	ids: string[] = [],
 ): Promise<Exchange[]> {
 	const schema = requestSchemaOf(op, input.model)
 	const enums = enumFields(schema).filter((field) => field.name !== "token")
@@ -340,6 +350,7 @@ async function consume(
 		const body = generatedBody(schema, input.seed ?? 1, op.operationId)
 		const spent = spentField(op, input.model)
 		if (spent !== null && spent in propertyBag(schema)) body[spent] = token
+		applyListedIds(body, schema, ids)
 		if ("password" in propertyBag(schema)) body.password = `${password}2`
 		if (enums.length > 0 && value !== undefined) {
 			for (const field of enums) body[field.name] = value
@@ -425,10 +436,11 @@ async function postSender(
 	op: OperationModel,
 	body: Record<string, unknown>,
 	headers: (() => Record<string, string>) | undefined,
+	path = op.path,
 ): Promise<Exchange> {
 	let called: Exchange | undefined
 	for (let attempt = 0; attempt < 4; attempt++) {
-		called = await input.client.request(op.method, op.path, {
+		called = await input.client.request(op.method, path, {
 			...(Object.keys(body).length === 0 ? {} : { body }),
 			...(headers === undefined ? {} : { headers }),
 			operationId: op.operationId,
@@ -652,8 +664,267 @@ function errorKey(body: unknown): string {
 	return stringField(body, "error_key") ?? ""
 }
 
+function stringIds(body: unknown): string[] {
+	const ids: string[] = []
+	const walk = (value: unknown) => {
+		if (Array.isArray(value)) {
+			for (const item of value) walk(item)
+			return
+		}
+		if (value === null || typeof value !== "object") return
+		const record = value as Record<string, unknown>
+		if (typeof record.id === "string" && record.id !== "") ids.push(record.id)
+		for (const child of Object.values(record)) walk(child)
+	}
+	walk(body)
+	return ids
+}
+
+function applyListedIds(body: Record<string, unknown>, schema: Record<string, unknown> | null, ids: string[]): void {
+	if (ids.length === 0) return
+	for (const [name, value] of Object.entries(propertyBag(schema))) {
+		if (value === null || typeof value !== "object") continue
+		const record = value as { items?: { type?: unknown }; type?: unknown }
+		if (record.type === "array" && record.items?.type === "string") body[name] = ids
+	}
+}
+
+function rowsOf(body: unknown): Array<Record<string, unknown>> {
+	const rows: Array<Record<string, unknown>> = []
+	const walk = (value: unknown) => {
+		if (Array.isArray(value)) {
+			for (const item of value) {
+				if (item !== null && typeof item === "object" && !Array.isArray(item)) {
+					const record = item as Record<string, unknown>
+					if (typeof record.id === "string") rows.push(record)
+				}
+				walk(item)
+			}
+			return
+		}
+		if (value !== null && typeof value === "object") {
+			for (const child of Object.values(value as Record<string, unknown>)) walk(child)
+		}
+	}
+	walk(body)
+	return rows
+}
+
 function tokenRejected(exchange: Exchange): boolean {
 	if (exchange.status < 400 || exchange.status >= 500) return false
 	const key = errorKey(exchange.responseBody)
 	return key.includes("token") || key.includes("code") || key.includes("expired")
+}
+
+type MailInput = Parameters<typeof runMailOps>[0]
+
+async function runInviteScenes(input: MailInput): Promise<void> {
+	if (input.mode !== "targeted") return
+	await runCollaboratorScene(input)
+	await runDeclineScene(input)
+}
+
+async function runCollaboratorScene(input: MailInput): Promise<void> {
+	const invite = input.model.operations.find(
+		(op) =>
+			op.method === "POST" &&
+			op.invite !== null &&
+			staticSegments(op.path).includes("collaborators") &&
+			!op.path.includes("resend"),
+	)
+	if (invite?.invite == null) return
+	const accept = input.model.byOperationId.get(invite.invite.accept)
+	const resend = input.model.operations.find(
+		(op) => op.method === "POST" && op.path.endsWith("/resend") && staticSegments(op.path).includes("collaborators"),
+	)
+	const players = [invite, accept, resend].filter((op): op is OperationModel => op !== undefined)
+	const ids = inPlay(input, players)
+	if (ids.length === 0) return
+	const blame = input.findings.attributed(ids).ownedBy(MAIL_CHECK_ID)
+	const roots = input.roots ?? {}
+	let invitePath: string
+	try {
+		invitePath = fillPath(invite.path, roots)
+	} catch {
+		blame.backend(MAIL_CHECK_ID, "caller", "the invite had no project", `${invite.operationId} had no project id.`, [])
+		input.grades.graded(ids, MAIL_CHECK_ID)
+		return
+	}
+	const { email, headers, password } = await mailedAccount(input, "collab")
+	if (headers === null) {
+		blame.backend(MAIL_CHECK_ID, "caller", "the mail account could not be opened", `${invite.operationId} had no account.`, [])
+		input.grades.graded(ids, MAIL_CHECK_ID)
+		return
+	}
+	const sent = await senderBody(input, invite, email, email)
+	const grantee = invite.invite.granteeField
+	if (grantee in propertyBag(requestSchemaOf(invite, input.model))) sent[grantee] = email
+	const hint = invite.invite.tokenKind ?? mailHint(input.model, invite)
+	const stale = await peekMail(input, email, hint)
+	const called = await postSender(input, invite, sent, input.auth, invitePath)
+	if (called.status < 200 || called.status >= 300) {
+		blame.backend(MAIL_CHECK_ID, "caller", "the invite was not sent", `${invite.operationId} returned ${called.status}.`, [called])
+		input.grades.graded(ids, MAIL_CHECK_ID)
+		return
+	}
+	if (resend !== undefined && (input.mode === "full" || input.inScope(resend.operationId))) {
+		const proved = await resendCollaborator(input, resend, roots, email)
+		if (!proved) {
+			blame.backend(MAIL_CHECK_ID, "caller", "the resent invite did not change the member", `${resend.operationId} did not change the member row.`, [called])
+			input.grades.graded(ids, MAIL_CHECK_ID)
+			return
+		}
+	}
+	if (accept !== undefined && (input.mode === "full" || input.inScope(accept.operationId))) {
+		const raw = await mailed(input, email, hint, stale)
+		const token = raw === null ? null : tokenFrom(raw)
+		if (token === null) {
+			blame.backend(MAIL_CHECK_ID, "caller", "the mail never arrived", `${invite.operationId} returned ${called.status} and no out-of-band token followed.`, [called])
+			input.grades.graded(ids, MAIL_CHECK_ID)
+			return
+		}
+		const before = await invalidatedRead(input, accept, token, headers)
+		const round = await consume(input, accept, token, headers, password)
+		const last = round.at(-1)
+		const after = await invalidatedRead(input, accept, token, headers)
+		const changed =
+			last !== undefined &&
+			last.status >= 200 &&
+			last.status < 300 &&
+			after !== null &&
+			after.status >= 200 &&
+			after.status < 300 &&
+			(before === null || JSON.stringify(before.responseBody) !== JSON.stringify(after.responseBody))
+		if (!changed) {
+			blame.backend(MAIL_CHECK_ID, "caller", "the follow-up did not show the mailed change", `${accept.operationId} did not change the invite list.`, [called, ...round])
+		}
+	}
+	input.grades.graded(ids, MAIL_CHECK_ID)
+}
+
+async function resendCollaborator(
+	input: MailInput,
+	resend: OperationModel,
+	roots: Record<string, string>,
+	email: string,
+): Promise<boolean> {
+	const list = input.model.operations.find(
+		(op) => op.method === "GET" && op.pathParams.includes("project_id") && op.path.includes("members"),
+	)
+	if (list === undefined) return false
+	let listPath: string
+	try {
+		listPath = fillPath(list.path, roots)
+	} catch {
+		return false
+	}
+	const before = await input.client.request(list.method, listPath, { headers: input.auth, operationId: list.operationId })
+	const row = rowsOf(before.responseBody).find((item) => item.invite_email === email || item.email === email)
+	if (row === undefined || typeof row.id !== "string") return false
+	let resendPath: string
+	try {
+		resendPath = fillPath(resend.path, { ...roots, member_id: row.id })
+	} catch {
+		return false
+	}
+	const called = await postSender(input, resend, {}, input.auth, resendPath)
+	if (called.status < 200 || called.status >= 300) return false
+	const after = await input.client.request(list.method, listPath, { headers: input.auth, operationId: list.operationId })
+	const next = rowsOf(after.responseBody).find((item) => item.id === row.id)
+	return next !== undefined && JSON.stringify(next) !== JSON.stringify(row)
+}
+
+async function runDeclineScene(input: MailInput): Promise<void> {
+	const decline = input.model.operations.find((op) => op.method === "POST" && op.path.endsWith("/decline"))
+	if (decline === undefined || (input.mode === "targeted" && !input.inScope(decline.operationId))) return
+	const invite = input.model.operations.find(
+		(op) => op.method === "POST" && op.invite !== null && op.pathParams.includes("organization_id"),
+	)
+	const ids = [decline.operationId]
+	const blame = input.findings.attributed(ids).ownedBy(MAIL_CHECK_ID)
+	if (invite?.invite == null) {
+		blame.backend(MAIL_CHECK_ID, "caller", "the invite was not sent", `${decline.operationId} had no invite to decline.`, [])
+		input.grades.graded(ids, MAIL_CHECK_ID)
+		return
+	}
+	let invitePath: string
+	try {
+		invitePath = fillPath(invite.path, input.roots ?? {})
+	} catch {
+		blame.backend(MAIL_CHECK_ID, "caller", "the invite had no project", `${decline.operationId} had no organization id.`, [])
+		input.grades.graded(ids, MAIL_CHECK_ID)
+		return
+	}
+	const { email, headers } = await mailedAccount(input, "decline")
+	if (headers === null) {
+		blame.backend(MAIL_CHECK_ID, "caller", "the mail account could not be opened", `${decline.operationId} had no account.`, [])
+		input.grades.graded(ids, MAIL_CHECK_ID)
+		return
+	}
+	const sent = await senderBody(input, invite, email, email)
+	const grantee = invite.invite.granteeField
+	if (grantee in propertyBag(requestSchemaOf(invite, input.model))) sent[grantee] = email
+	const called = await postSender(input, invite, sent, input.auth, invitePath)
+	if (called.status < 200 || called.status >= 300) {
+		blame.backend(MAIL_CHECK_ID, "caller", "the invite was not sent", `${invite.operationId} returned ${called.status}.`, [called])
+		input.grades.graded(ids, MAIL_CHECK_ID)
+		return
+	}
+	const list = invalidatedRead(input, decline, "", headers)
+	const before = await list
+	const row = rowsOf(before?.responseBody).find((item) => item.invite_email === email || item.email === email)
+	if (before === null || row === undefined) {
+		blame.backend(MAIL_CHECK_ID, "caller", "the follow-up did not show the mailed change", `${decline.operationId} found no invite row.`, [called])
+		input.grades.graded(ids, MAIL_CHECK_ID)
+		return
+	}
+	const values: Record<string, string> = { ...(input.roots ?? {}) }
+	for (const param of decline.pathParams) {
+		const direct = row[param]
+		if (typeof direct === "string" || typeof direct === "number") values[param] = String(direct)
+		else if (param.endsWith("_id") && typeof row.id === "string") values[param] = row.id
+	}
+	const schema = requestSchemaOf(decline, input.model)
+	const body: Record<string, unknown> = {}
+	for (const name of Object.keys(propertyBag(schema))) {
+		const value = row[name]
+		if (typeof value === "string" || typeof value === "number") body[name] = value
+	}
+	let declinePath: string
+	try {
+		declinePath = fillPath(decline.path, values)
+	} catch {
+		blame.backend(MAIL_CHECK_ID, "caller", "the invite was not sent", `${decline.operationId} could not fill its path.`, [called])
+		input.grades.graded(ids, MAIL_CHECK_ID)
+		return
+	}
+	const declined = await input.client.request(decline.method, declinePath, {
+		body,
+		headers,
+		operationId: decline.operationId,
+	})
+	const after = await invalidatedRead(input, decline, "", headers)
+	const gone = rowsOf(after?.responseBody).every((item) => item.id !== row.id)
+	if (declined.status < 200 || declined.status >= 300 || after === null || !gone) {
+		blame.backend(MAIL_CHECK_ID, "caller", "the follow-up did not show the mailed change", `${decline.operationId} returned ${declined.status}.`, [called, declined])
+	}
+	input.grades.graded(ids, MAIL_CHECK_ID)
+}
+
+function inPlay(input: MailInput, ops: OperationModel[]): string[] {
+	return ops
+		.filter((op) => input.mode === "full" || input.inScope(op.operationId))
+		.map((op) => op.operationId)
+}
+
+async function mailedAccount(
+	input: MailInput,
+	label: string,
+): Promise<{ email: string; headers: (() => Record<string, string>) | null; password: string }> {
+	const flow = authFlowOf(input.authFlow)
+	const domain = flow === null ? "example.test" : domainOf(signupEmail(flow))
+	const password = flow === null ? "secret" : (signupPassword(flow) ?? "secret")
+	const email = `oat-mail-${input.nonce ?? "user"}-${label}@${domain}`
+	const headers = await openAccount(input, email, password)
+	return { email, headers, password }
 }
