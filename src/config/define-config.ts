@@ -305,6 +305,11 @@ export interface Hooks {
 	/** Return `null` to ask oat to retry — the value may simply not have arrived yet. */
 	resolveOutOfBand?: (request: OutOfBandRequest) => Promise<string | null>
 	/**
+	 * Records written for this run after an `x-effect-record` call. `null` retries.
+	 * The route passes only when one record contains that call's path values.
+	 */
+	resolveRunRecord?: () => Promise<unknown>
+	/**
 	 * Removes a principal the run provisioned, and everything that principal created with it.
 	 * `ctx.headers` is the live principal header map so authenticated delete-account is
 	 * expressible without a tester-key god route. Address stays — some backends still key

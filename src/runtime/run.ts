@@ -40,6 +40,7 @@ import { type PersistedPrincipal, persistedToPrincipal, snapshotPrincipal } from
 import { CHECKS, type Actor, type WriteContext } from "./checks.ts"
 import { runPublicGets } from "./one-shot.ts"
 import { runDisposableOps, signupOperationId } from "./disposable.ts"
+import { runEffectRecords } from "./effect-record.ts"
 import { runMailOps } from "./mail.ts"
 import { rootReadIds, ROOT_READ_CHECK_ID, runRootRead } from "./root-read.ts"
 import { entityIsSelf, runSelfIdentity, SELF_CHECK_ID, selfOperationIds } from "./self.ts"
@@ -1616,6 +1617,18 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		outOfBand,
 		roots: alpha.roots,
 		seed,
+	})
+	await runEffectRecords({
+		client,
+		findings,
+		grades,
+		inScope: (operationId) => runScope.inScope(operationId),
+		mode: runScope.mode,
+		model,
+		nonce,
+		...(options.principals[0]?.auth === undefined ? {} : { authFlow: options.principals[0].auth }),
+		hooks,
+		outOfBand,
 	})
 
 	/* Unwind after every check has run, never per case: a check may legitimately depend on records
