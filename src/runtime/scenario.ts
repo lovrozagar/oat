@@ -156,8 +156,9 @@ export async function runScenarios(input: {
 		}
 		/* The principal's roots (organization, project …) are there from the first step, as in the matrix. */
 		const scope: Record<string, string> = { ...own.roots }
-		/* Objects a response or a hook handed back, kept whole: a field that is exactly `{name}`
-		 * sends the object itself (a WebAuthn credential), not its string form. */
+		/* Values a response or a hook handed back, kept whole: a field that is exactly `{name}`
+		 * sends the object itself (a WebAuthn credential), or the number or boolean with its type,
+		 * not its string form. */
 		const objects = new Map<string, unknown>()
 		const withObjects = (value: unknown): unknown => {
 			if (typeof value === "string") {
@@ -339,7 +340,11 @@ export async function runScenarios(input: {
 				if (typeof value === "object") {
 					objects.set(name, value)
 					scope[name] = JSON.stringify(value)
-				} else scope[name] = String(value)
+				} else {
+					if (typeof value === "number" || typeof value === "boolean") objects.set(name, value)
+					else objects.delete(name)
+					scope[name] = String(value)
+				}
 			}
 			if (step.saveClaimsFrom !== undefined) {
 				const from = step.saveClaimsFrom.token
