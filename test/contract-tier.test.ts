@@ -76,6 +76,14 @@ function spec(): OpenApiDocument {
 					responses: ok({ "application/json": { schema: noteSchema } }, "201"),
 				},
 			},
+			"/v1/notes/archive-all": {
+				post: {
+					operationId: "notes.archiveAll",
+					responses: ok(accepted),
+					"x-entity": { action: "action", identity: "id", name: "note" },
+					"x-rate-limit": { category: "archive", rps: 5 },
+				},
+			},
 			"/v1/notes/{note_id}": {
 				delete: {
 					operationId: "notes.remove",
@@ -127,6 +135,7 @@ async function serve(options: { keepDeleted?: boolean } = {}): Promise<string> {
 			return send(201, note)
 		}
 		if (url.pathname === "/v1/notes" && method === "GET") return send(200, { items: notes })
+		if (url.pathname === "/v1/notes/archive-all" && method === "POST") return send(200, { received: true })
 		const item = /^\/v1\/notes\/([^/]+)$/.exec(url.pathname)
 		if (item !== null) {
 			const index = notes.findIndex((note) => note.id === item[1])
@@ -168,6 +177,13 @@ describe("the contract tier", () => {
 			expect(call?.status).toBeGreaterThanOrEqual(200)
 			expect(call?.status).toBeLessThan(300)
 		}
+	})
+
+	it("calls a rate-limited action no check sends a request to", async () => {
+		const result = await fullRun()
+		const row = result.scope.operations.find((op) => op.operationId === "notes.archiveAll")
+		expect(row?.status).toBe("passed")
+		expect(result.client.transcript.some((exchange) => exchange.operationId === "notes.archiveAll")).toBe(true)
 	})
 
 	it("fails a success whose body breaks the documented schema", async () => {

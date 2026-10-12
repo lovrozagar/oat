@@ -7081,7 +7081,12 @@ const declaredRateLimitHonoured: Check = {
 	subjects: (entity, model) => ownOps(entity, model, (op) => op.rateLimit !== null && op.rateLimit.rps !== null),
 	async run(ctx): Promise<Outcome> {
 		const byCategory = new Map<string, Exchange[]>()
+		/* Only a route something actually sent was paced and judged. Claiming the rest would mark
+		 * them graded with no request behind them, and the contract tier never calls a graded one. */
+		const observed = new Set<string>()
 		for (const exchange of ctx.client.exchangesForEntity(ctx.entityName)) {
+			const op = exchange.operationId === undefined ? undefined : ctx.model.byOperationId.get(exchange.operationId)
+			if (op?.rateLimit?.rps !== null && op?.rateLimit?.rps !== undefined) observed.add(op.operationId)
 			if (exchange.status !== 429) continue
 			if (exchange.rateLimitSource !== "tag" || exchange.rateLimitHadRoom !== true) continue
 			const category = exchange.rateLimitCategory ?? "unknown"
@@ -7100,6 +7105,7 @@ const declaredRateLimitHonoured: Check = {
 				exchanges.slice(0, 3),
 			)
 		}
+		ctx.judged?.([...observed])
 		return ASSERTED
 	},
 }
