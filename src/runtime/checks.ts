@@ -6708,10 +6708,22 @@ const asyncReceiptIsResolvable: Check = {
 			} catch {
 				continue
 			}
-			const started = ctx.client
+			const attempts = ctx.client
 				.exchangesFor(op.operationId)
-				.find((e) => e.status < 300 && ctx.client.relativePath(e.url) === resolved)
-			if (started === undefined) continue
+				.filter((e) => ctx.client.relativePath(e.url) === resolved)
+			const started = attempts.find((e) => e.status > 0 && e.status < 300)
+			if (started === undefined) {
+				/* The action never answered with a receipt: say so rather than pass in silence. */
+				const refused = attempts.at(-1)
+				if (refused !== undefined) {
+					ctx.findings.unresolved(
+						this.id,
+						ctx.entityName,
+						`${op.operationId} answered ${refused.status === 0 ? "nothing" : refused.status}, so there was no receipt to read`,
+					)
+				}
+				continue
+			}
 
 			const node = resolveAsyncId((await ctx.client.hydrate(started)).responseBody, spec.idFrom)
 			if (node !== undefined && node !== null) continue

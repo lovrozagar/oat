@@ -850,6 +850,8 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 		/* 500 is not in the document. The status-vs-document check is a real second symptom,
 		 * not a misdiagnosis: the handler crashed and invented a code the spec never named. */
 		"response.status-is-documented",
+		/* Every crash a filter probe draws that no filter check cited is failed on its own. */
+		"response.no-server-error",
 	],
 	FILTER_IGNORED: "filter.unknown-field-rejected",
 	IMMUTABLE_WRITABLE: "patch.immutable-field-rejected",
@@ -1031,6 +1033,7 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 		/* The probes that write non-ASCII strings hit the same crash on their own creates. */
 		"payload.string-survives",
 		"response.status-is-documented",
+		"response.no-server-error",
 	],
 }
 
