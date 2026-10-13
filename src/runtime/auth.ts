@@ -151,6 +151,7 @@ export async function runAuthSteps(
 				headers: flowCredentialHeaders(spec, scope),
 				label: `principal "${context.principalId}"`,
 				scope: { ...scope },
+				...(last === undefined ? {} : { since: sentAt(last) }),
 				...(context.outOfBand === undefined ? {} : { outOfBand: context.outOfBand }),
 			})
 			scope[step.outOfBand.as] = value
@@ -400,6 +401,11 @@ async function encodeAuthBody(
  * backoff rather than called once. A single read that happens to race the write looks exactly
  * like a broken delivery mechanism.
  */
+/** When an exchange's request left: its answer's time less how long it took. */
+export function sentAt(exchange: Pick<Exchange, "at" | "durationMs">): number {
+	return exchange.at - exchange.durationMs
+}
+
 export async function resolveOutOfBandValue(
 	hook: Hooks["resolveOutOfBand"],
 	address: string,
@@ -409,6 +415,8 @@ export async function resolveOutOfBandValue(
 		outOfBand?: Partial<BackoffConfig>
 		scope?: Record<string, string>
 		headers?: Record<string, string>
+		/** When the request this value answers was sent; see `OutOfBandRequest.since`. */
+		since?: number
 	},
 ): Promise<string> {
 	if (hook === undefined) {
@@ -422,7 +430,15 @@ export async function resolveOutOfBandValue(
 	const scope = options.scope ?? {}
 	const headers = options.headers ?? {}
 	const value = await pollWithBackoff(
-		(attempt) => hook({ address, attempt, headers, kind, scope }),
+		(attempt) =>
+			hook({
+				address,
+				attempt,
+				headers,
+				kind,
+				scope,
+				...(options.since === undefined ? {} : { since: options.since }),
+			}),
 		backoff,
 		isAbsentValue,
 	)

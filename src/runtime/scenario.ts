@@ -21,6 +21,7 @@ import {
 	jwtClaims,
 	type OriginClient,
 	resolveOutOfBandValue,
+	sentAt,
 	resolveRequest,
 } from "./auth.ts"
 import type { Client, Exchange } from "./client.ts"
@@ -197,6 +198,8 @@ export async function runScenarios(input: {
 			return value
 		}
 		const calls = new Map<string, Exchange>()
+		/* When the latest HTTP step was sent: a value delivered outside HTTP answers that request. */
+		let lastSentAt: number | undefined
 		const observed = new Map<string, PassEvidence["observation"]>()
 		let stoppedAt: { index: number; failure: StepFailure } | null = null
 
@@ -260,6 +263,7 @@ export async function runScenarios(input: {
 						headers: headers(),
 						label: `scenario "${scenario.id}"`,
 						scope: { ...scope },
+						...(lastSentAt === undefined ? {} : { since: lastSentAt }),
 						...(input.outOfBand === undefined ? {} : { outOfBand: input.outOfBand }),
 					},
 				)
@@ -312,6 +316,7 @@ export async function runScenarios(input: {
 					...(own === undefined ? {} : { operationId: own }),
 					...(request.redirect === undefined ? {} : { redirect: request.redirect }),
 				})
+				lastSentAt = sentAt(exchange)
 				const ok = succeeded(step, exchange)
 				const want = step.assert === undefined ? null : expected(step.assert, scope)
 				const shown = ok && (step.assert === undefined || want === null || holds(exchange, want.from, want))

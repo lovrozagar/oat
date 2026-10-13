@@ -261,6 +261,12 @@ export interface OutOfBandRequest {
 	scope: Record<string, string>
 	/** Principal credential headers as they would be sent now (Authorization or Cookie). */
 	headers: Record<string, string>
+	/**
+	 * When the request this value answers was sent (unix ms), when one preceded it in the flow. An
+	 * inbox also holds what earlier requests triggered, and those can arrive late: a value delivered
+	 * before this moment answers some other request.
+	 */
+	since?: number
 }
 
 export interface TeardownPrincipalContext {

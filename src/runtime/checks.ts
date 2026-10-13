@@ -51,7 +51,7 @@ import { headerValue } from "./headers.ts"
 import { readPath } from "./path.ts"
 import { ASSERTED, asserted, type FindingCollector, type Outcome, standDown } from "./finding.ts"
 import { driveAsync, inspectStreamAsync, matchesPredicate, resolveAsyncId } from "./async.ts"
-import { resolveOutOfBandValue } from "./auth.ts"
+import { resolveOutOfBandValue, sentAt } from "./auth.ts"
 import { isAbsoluteHttpUrl } from "./cookies.ts"
 import { buildCohort } from "./fixture.ts"
 import type { BackoffConfig } from "./poll.ts"
@@ -4850,6 +4850,7 @@ const inviteGrantsThenRevokes: Check<{
 						label: `invite to ${ctx.entityName}`,
 						outOfBand: ctx.outOfBand,
 						scope: { ...resource, inviteAs },
+						since: sentAt(invited),
 					})
 				} catch (error) {
 					return ctx.findings.unresolved(

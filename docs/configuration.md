@@ -500,9 +500,12 @@ The CLI writes `principals.json` into each run folder (and `.oat/runs/latest/pri
 hooks: {
   // Return null to retry (attempt is 1-based). oat backs off until a value arrives.
   // `scope` is the flow at this step; `headers` are the live principal credential headers.
-  resolveOutOfBand: async ({ address, kind, attempt, scope, headers }) => {
-    const link = await readMailCatcher(address, kind)
-    return link // URL or token string, or null
+  // `since` (unix ms) is when the request this value answers was sent, when one preceded it:
+  // a mail delivered before it answers some earlier request, so return null and wait.
+  resolveOutOfBand: async ({ address, kind, attempt, scope, headers, since }) => {
+    const mail = await readMailCatcher(address, kind)
+    if (mail === null || (since !== undefined && mail.receivedAt < since)) return null
+    return mail.link // URL or token string
   },
   // Remove a principal this run provisioned. `ctx` is the last live credential.
   teardownPrincipal: async (address, { credential, headers }) => {
