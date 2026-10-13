@@ -37,6 +37,11 @@ export async function loadConfig(path: string): Promise<OatConfig> {
 	}
 }
 
+function isPlainObject(value: object): boolean {
+	const proto = Object.getPrototypeOf(value) as unknown
+	return proto === Object.prototype || proto === null
+}
+
 /** Env-var interpolation so configs can carry `${API_TOKEN}` without embedding secrets. */
 export function interpolate<T>(value: T, env: Record<string, string | undefined> = process.env): T {
 	if (typeof value === "string") {
@@ -49,7 +54,8 @@ export function interpolate<T>(value: T, env: Record<string, string | undefined>
 		}) as T
 	}
 	if (Array.isArray(value)) return value.map((item) => interpolate(item, env)) as T
-	if (value !== null && typeof value === "object") {
+	/* Only plain data is walked. Anything else — an upload's bytes, a date — is the author's object. */
+	if (value !== null && typeof value === "object" && isPlainObject(value)) {
 		const out: Record<string, unknown> = {}
 		for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
 			out[key] = interpolate(item, env)
