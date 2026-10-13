@@ -14,7 +14,15 @@ import {
 	setCookieHeadersFrom,
 	type RedirectHop,
 } from "./cookies.ts"
-import { headerValue, MAX_429_RETRIES, retryWaitMs, type RateLimiter } from "./rate-limit.ts"
+import {
+	headerValue,
+	MAX_429_RETRIES,
+	MAX_UNAVAILABLE_RETRIES,
+	parseRetryAfter,
+	retryWaitMs,
+	UNAVAILABLE_WAIT_BUDGET_MS,
+	type RateLimiter,
+} from "./rate-limit.ts"
 import {
 	DEFAULT_NETWORK_RETRIES,
 	NetworkError,
@@ -645,6 +653,17 @@ export class Client {
 				await refreshing(true)
 				exchange = await resilient()
 			}
+		}
+		/* A 503 that names when to come back is a cue a well-behaved client follows: wait, ask again.
+		 * One that names no wait, or outlasts the budget, stands as the verdict. */
+		let waited = 0
+		for (let attempt = 0; exchange.status === 503 && attempt < MAX_UNAVAILABLE_RETRIES; attempt++) {
+			const waitMs = parseRetryAfter(headerValue(exchange.responseHeaders, "retry-after"))
+			if (waitMs === null || waited + waitMs > UNAVAILABLE_WAIT_BUDGET_MS) break
+			await new Promise<void>((resolve) => setTimeout(resolve, waitMs))
+			waited += waitMs
+			this.supersede(exchange)
+			exchange = await resilient()
 		}
 		return exchange
 	}

@@ -658,6 +658,53 @@ describe("declared effects bind the nested list", () => {
 		expect(full.findings.filter((finding) => finding.check === "effects.declared-effect-occurs")).toEqual([])
 	})
 
+	/* The check could not see the effect, so it reports a gap; the 500 itself is still a failure. */
+	it("fails an action that answers with a server error, not only leaves its effect unverified", async () => {
+		const spec = nestedSpec()
+		const tables = new Map<string, { id: string; name: string }>()
+		let seq = 0
+		const server = await listen((req, res) => {
+			void (async () => {
+				const url = new URL(req.url ?? "/", "http://127.0.0.1")
+				const method = (req.method ?? "GET").toUpperCase()
+				if (url.pathname === "/v1/openapi/spec") return send(res, 200, spec)
+				if (url.pathname.endsWith("/extract")) return send(res, 500, { error: "upstream unavailable" })
+				if (url.pathname.endsWith("/tables") && method === "GET")
+					return send(res, 200, { tables: [...tables.values()] })
+				if (url.pathname.endsWith("/tables") && method === "POST") {
+					const id = `t_${String((seq += 1))}`
+					tables.set(id, { id, name: "n" })
+					return send(res, 201, tables.get(id))
+				}
+				const item = /\/tables\/([^/]+)$/.exec(url.pathname)
+				if (item !== null && method === "GET") {
+					const row = tables.get(item[1] ?? "")
+					return row === undefined ? send(res, 404) : send(res, 200, row)
+				}
+				if (/\/rows$/.test(url.pathname)) return send(res, 200, { rows: [] })
+				if (item !== null && method === "DELETE") {
+					tables.delete(item[1] ?? "")
+					return send(res, 204)
+				}
+				if (item !== null && method === "PATCH") return send(res, 200, tables.get(item[1] ?? "") ?? {})
+				return send(res, 404)
+			})().catch(() => send(res, 500))
+		})
+		const result = await run({
+			baseUrl: server.url,
+			cohortSize: 1,
+			only: ["table"],
+			principals: [{ headers: { authorization: "Bearer t" }, id: "a", roots: { project_id: "p1" } }],
+			seed: 1,
+			spec: `${server.url}/v1/openapi/spec`,
+		})
+		const crashed = result.findings.filter(
+			(f) => f.verdict === "BACKEND_BUG" && f.evidence.some((e) => e.url.endsWith("/extract") && e.status === 500),
+		)
+		expect(crashed.map((f) => f.check)).toContain("response.no-server-error")
+		expect(result.scope.operations.find((op) => op.operationId === "extract.once")?.status).toBe("failed")
+	})
+
 	it("uses the bound id on x-wait after the write", async () => {
 		const spec = nestedSpec()
 		const extract = spec.paths?.["/v1/projects/{project_id}/extract"]?.post as Record<string, unknown>

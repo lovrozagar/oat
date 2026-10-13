@@ -12,6 +12,7 @@ import type { InviteSpec } from "../spec/extensions.ts"
 import { CHECK_IDS, type CheckId } from "./check-ids.ts"
 import { publicGetCheck } from "./one-shot.ts"
 import { contractCallCheck } from "./contract.ts"
+import { serverErrorCheck } from "./server-errors.ts"
 import { disposableCheck } from "./disposable.ts"
 import { rootReadCheck } from "./root-read.ts"
 import { selfIdentityCheck } from "./self.ts"
@@ -915,6 +916,8 @@ async function walkSet(
 async function listAll(
 	ctx: CheckContext,
 	query: Record<string, string | number | undefined>,
+	/* A repeat read that must see the collection as it is now, not as an earlier read saw it. */
+	fresh = false,
 ): Promise<ListResult & { complete: boolean }> {
 	const c = conv(ctx)
 	const extra: Record<string, string | number | undefined> = {}
@@ -924,7 +927,7 @@ async function listAll(
 		if (key === c.order) order = value === undefined ? undefined : String(value)
 		else extra[key] = value
 	}
-	const read = await readSet(ctx, extra, { order })
+	const read = await readSet(ctx, extra, { ...(fresh ? { fresh: true } : {}), order })
 	return {
 		complete: read.status === "ok" && read.complete,
 		envelope: read.last.envelope,
@@ -982,6 +985,37 @@ async function settlePair<T extends { items: Record_[] }>(
 	if (secondAgain === null) return null
 	if (membership(secondAgain.items, identity) !== membership(second.items, identity)) return "moving"
 	return { first: firstAgain, second: secondAgain }
+}
+
+/**
+ * Reads every term and asks whether they agree. A disagreement is read again: when any read now
+ * holds other rows, another writer moved the collection between the reads (a record created after
+ * one term was read and before the next), and that is no defect of the query. Only a disagreement
+ * the fresh reads repeat is the backend's, and those fresh reads are what is returned.
+ */
+async function readSettled(
+	ctx: CheckContext,
+	terms: ReadonlyArray<Record<string, string>>,
+	agree: (reads: SetRead[]) => boolean,
+): Promise<SetRead[] | "rejected" | "incomplete" | "moving"> {
+	const limit = pageSize(ctx)
+	const read = async (fresh: boolean): Promise<SetRead[] | "rejected" | "incomplete"> => {
+		const reads: SetRead[] = []
+		for (const term of terms) {
+			const set = await collectSet(ctx, limit, term, undefined, fresh)
+			if (set === null) return "rejected"
+			reads.push(set)
+		}
+		return reads.every((set) => set.complete) ? reads : "incomplete"
+	}
+	const first = await read(false)
+	if (typeof first === "string" || agree(first)) return first
+	const again = await read(true)
+	if (typeof again === "string") return again
+	const moved = first.some(
+		(set, i) => membership(set.items, ctx.identity) !== membership(again[i]?.items ?? [], ctx.identity),
+	)
+	return moved ? "moving" : again
 }
 
 /** The three reads a combinator check compares, and what they say. */
@@ -7387,18 +7421,22 @@ async function assertRangeUnion(
 	check: string,
 	{ closed, closedTerm, eqTerm, field, open, openTerm, threshold }: RangeProbe,
 ): Promise<Outcome> {
-	const limit = pageSize(ctx)
-	const closedSet = await collectSet(ctx, limit, closedTerm)
-	const openSet = await collectSet(ctx, limit, openTerm)
-	const eqSet = await collectSet(ctx, limit, eqTerm)
-	if (closedSet === null || openSet === null || eqSet === null) {
+	const union = ([closedSet, openSet, eqSet]: SetRead[]) => ({
+		expected: new Set([...ids(openSet?.items ?? [], ctx.identity), ...ids(eqSet?.items ?? [], ctx.identity)]),
+		got: setOf(closedSet?.items ?? [], ctx.identity),
+	})
+	const reads = await readSettled(ctx, [closedTerm, openTerm, eqTerm], (sets) => {
+		const { expected, got } = union(sets)
+		return sameSet(expected, got)
+	})
+	if (reads === "rejected")
 		return ctx.findings.unresolved(check, ctx.entityName, "one of the range listings was rejected")
-	}
-	if (!closedSet.complete || !openSet.complete || !eqSet.complete) {
+	if (reads === "incomplete") {
 		return ctx.findings.unresolved(check, ctx.entityName, "the collection is larger than the walk covers")
 	}
-	const expected = new Set([...ids(openSet.items, ctx.identity), ...ids(eqSet.items, ctx.identity)])
-	const got = setOf(closedSet.items, ctx.identity)
+	if (reads === "moving") return ctx.findings.unresolved(check, ctx.entityName, MOVING_FILTER)
+	const [closedSet, openSet, eqSet] = reads as [SetRead, SetRead, SetRead]
+	const { expected, got } = union(reads)
 	if (sameSet(expected, got)) return ASSERTED
 	return ctx.findings.backend(
 		check,
@@ -8518,14 +8556,23 @@ const searchCaseInsensitive: Check<{ token: string; flipped: string }> = {
 	subjects: subjectsOf.list,
 	async run(ctx, { flipped, token }): Promise<Outcome> {
 		const limit = pageSize(ctx)
-		const original = await listAll(ctx, q(ctx, { limit, search: token }))
-		const other = await listAll(ctx, q(ctx, { limit, search: flipped }))
-		if (original.exchange.status >= 400 || other.exchange.status >= 400) {
+		const read = (term: string, fresh: boolean) => listAll(ctx, q(ctx, { limit, search: term }), fresh)
+		const first = await read(token, false)
+		const second = await read(flipped, false)
+		if (first.exchange.status >= 400 || second.exchange.status >= 400) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "a case-flipped search was rejected")
 		}
-		if (!original.complete || !other.complete) {
+		if (!first.complete || !second.complete) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the sets are larger than a read covers")
 		}
+		/* A record written between the two searches is the collection moving, not case mattering. */
+		const settled = await settlePair(ctx.identity, first, second, {
+			first: () => read(token, true),
+			second: () => read(flipped, true),
+		})
+		if (settled === null) return ctx.findings.unresolved(this.id, ctx.entityName, "a case-flipped search was rejected")
+		if (settled === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING)
+		const { first: original, second: other } = settled
 		const a = setOf(original.items, ctx.identity)
 		const b = setOf(other.items, ctx.identity)
 		if (sameSet(a, b)) return ASSERTED
@@ -8866,17 +8913,25 @@ const querySearchAndSortCompose: Check<{ searchField: string; sortField: string;
 	needs: "searchable and sortable fields",
 	subjects: subjectsOf.list,
 	async run(ctx, { sortField, token }): Promise<Outcome> {
-		const searched = await listAll(ctx, q(ctx, { limit: pageSize(ctx), search: token }))
-		const combined = await listAll(
-			ctx,
-			q(ctx, { limit: pageSize(ctx), search: token, order: sortTerm(conv(ctx), sortField, "asc") }),
-		)
-		if (searched.exchange.status >= 400 || combined.exchange.status >= 400) {
+		const search = (fresh: boolean) => listAll(ctx, q(ctx, { limit: pageSize(ctx), search: token }), fresh)
+		const sorted = (fresh: boolean) =>
+			listAll(ctx, q(ctx, { limit: pageSize(ctx), search: token, order: sortTerm(conv(ctx), sortField, "asc") }), fresh)
+		const first = await search(false)
+		const second = await sorted(false)
+		if (first.exchange.status >= 400 || second.exchange.status >= 400) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "search+sort probe was rejected")
 		}
-		if (!searched.complete || !combined.complete) {
+		if (!first.complete || !second.complete) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the sets are larger than a read covers")
 		}
+		/* A record written between the two reads is the collection moving, not the sort filtering. */
+		const settled = await settlePair(ctx.identity, first, second, {
+			first: () => search(true),
+			second: () => sorted(true),
+		})
+		if (settled === null) return ctx.findings.unresolved(this.id, ctx.entityName, "search+sort probe was rejected")
+		if (settled === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING)
+		const { first: searched, second: combined } = settled
 		if (!sameSet(setOf(searched.items, ctx.identity), setOf(combined.items, ctx.identity))) {
 			return ctx.findings.backend(
 				this.id,
@@ -9331,6 +9386,7 @@ export const CHECKS: readonly Check[] = [
 	disposableCheck,
 	publicGetCheck,
 	contractCallCheck,
+	serverErrorCheck,
 
 	/* declared side effects and async lifecycles, last: both invoke operations that change the
 	 * world, and both are meaningless if the read surface above is already known broken */

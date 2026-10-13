@@ -268,6 +268,8 @@ export const DEFECTS = {
 	SORT_DESC_DROPS_NULLS: "descending sort omits records with a null sort key",
 	/** An operation declares an effect in the document and does not perform it. */
 	EFFECT_NOT_APPLIED: "declared x-effects side effect never happens",
+	/** An action crashes: a check that needed it to succeed can only report what it then could not verify. */
+	ACTION_CRASHES: "starting a job answers 500 instead of starting it",
 	/** An async job never leaves its running state. */
 	ASYNC_NEVER_COMPLETES: "async job stays pending forever and never reaches a terminal state",
 	/** The receipt for an async job omits the identifier needed to poll it. */

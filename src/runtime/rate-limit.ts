@@ -137,6 +137,19 @@ export const UNTAGGED_CATEGORY = "untagged"
 export const MAX_429_RETRIES = 5
 export const RETRY_BACKOFF_INITIAL_MS = 1_000
 export const RETRY_BACKOFF_CAP_MS = 30_000
+/** A 503 that names when to come back is asked again this many times, within this much waiting. */
+export const MAX_UNAVAILABLE_RETRIES = 3
+export const UNAVAILABLE_WAIT_BUDGET_MS = 60_000
+
+/**
+ * How a server error reads in a finding. A 503 that still stood after oat waited out its
+ * `Retry-After` is the backend being unavailable, told apart from a crash; both are failures.
+ */
+export function describeServerError(status: number, retryAfter: string | undefined): string {
+	return status === 503 && retryAfter !== undefined
+		? "was unavailable (503) even after waiting out its Retry-After"
+		: `answered with a server error (${status})`
+}
 const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"])
 
 /**

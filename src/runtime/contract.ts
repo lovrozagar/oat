@@ -16,6 +16,7 @@ import type { Client, Exchange } from "./client.ts"
 import { buildCohort } from "./fixture.ts"
 import type { Check } from "./checks.ts"
 import { ASSERTED, type FindingCollector, type Outcome } from "./finding.ts"
+import { describeServerError, headerValue } from "./rate-limit.ts"
 import type { GradeLedger } from "./scope.ts"
 import type { SchemaValidator } from "./validate.ts"
 import { fillPath, requestSchemaOf } from "./world.ts"
@@ -204,7 +205,7 @@ export async function runContractCalls(input: {
 			blame.backend(
 				CONTRACT_CHECK_ID,
 				entity,
-				"a schema-built request got a server error",
+				`a schema-built request ${describeServerError(exchange.status, headerValue(exchange.responseHeaders, "retry-after"))}`,
 				`${op.operationId} returned ${exchange.status}: ${snippet(exchange.responseBody)}`,
 				[exchange],
 			)

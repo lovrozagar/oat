@@ -69,6 +69,7 @@ import {
 	type TargetScope,
 } from "./scope.ts"
 import { buildRateLimitRules, RateLimiter } from "./rate-limit.ts"
+import { reportServerErrors } from "./server-errors.ts"
 import { resolveEntityCapabilities } from "./query-capabilities.ts"
 import { Ledger, type Owner, type TeardownReport } from "./teardown.ts"
 import { SchemaValidator } from "./validate.ts"
@@ -1740,6 +1741,16 @@ export async function run(options: RunOptions): Promise<RunResult> {
 
 	/* What scenarios and contract calls created since. */
 	await unwindLedger()
+	/* Last, so a teardown delete that crashed is counted with everything else. */
+	reportServerErrors({
+		checksRun,
+		findings,
+		grades,
+		inScope: (operationId) => runScope.inScope(operationId),
+		mode: runScope.mode,
+		model,
+		transcripts: [client.transcript, ...[...originClients.values()].map((origin) => origin.client.transcript)],
+	})
 	const unremovable = (teardown as TeardownReport | null)?.unsupported ?? []
 	if (unremovable.length > 0) {
 		const names = unremovable.join(", ")

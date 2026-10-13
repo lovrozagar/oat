@@ -71,6 +71,7 @@ export const CHECK_IDS = [
 	"query.unknown-parameter-consistent",
 	"read.matches-caller-root",
 	"response.contract-call",
+	"response.no-server-error",
 	"response.public-get-returns-success",
 	"response.status-is-documented",
 	"schema.error-response-matches-document",

@@ -767,6 +767,7 @@ export async function createReferenceServer(
 			if (typeof name !== "string" || name === "") {
 				throw new HttpError(400, "invalid_input", 'field "name" is required')
 			}
+			if (defects.has("ACTION_CRASHES")) throw new HttpError(500, "internal_error", "job runner unavailable")
 			const job = withDefaults(JOB, { name }, { project_id: projectId })
 			job.status = "pending"
 			job.progress = 0

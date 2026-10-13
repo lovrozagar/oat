@@ -926,6 +926,8 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 		"sort.order-is-applied",
 		"sort.multi-key-tiebreak",
 		"response.status-is-documented",
+		/* Postgres refuses the unknown column outright, so the defect's reads answer 500. */
+		"response.no-server-error",
 		/*
 		 * On an engine with double-quoted-string fallback the response *shape* is corrupted, not
 		 * just its values: D1 returns the unresolved identifier as the key, quotes included, so a
@@ -967,6 +969,8 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	SORT_MULTI_KEY_IGNORED: "sort.multi-key-tiebreak",
 	SELECT_FIELD_MISSING: "select.requested-fields-present",
 	ASYNC_NEVER_COMPLETES: "async.reaches-terminal-state",
+	/* The 500 is a crash, and one the reference document never lists, which is a spec finding too. */
+	ACTION_CRASHES: ["response.no-server-error", "response.status-is-documented"],
 	ASYNC_RECEIPT_MISSING_ID: [
 		"async.receipt-identifies-the-job",
 		"async.reaches-terminal-state",
@@ -1454,6 +1458,7 @@ const DIALECT_INSENSITIVE: ReadonlySet<DefectName> = new Set<DefectName>([
 	"CALLER_UPDATE_DROPPED",
 	"PUBLIC_GET_NOT_SUCCESS",
 	"TOKEN_EXPIRY_AS_STRING",
+	"ACTION_CRASHES",
 	"LISTED_GET_DIFFERS",
 	"EXISTENCE_LEAK_VIA_STATUS",
 	"UNIQUE_NOT_ENFORCED",
@@ -1490,6 +1495,7 @@ const ONE_ENGINE: ReadonlySet<DefectName> = new Set<DefectName>([
 	"CALLER_UPDATE_DROPPED",
 	"PUBLIC_GET_NOT_SUCCESS",
 	"TOKEN_EXPIRY_AS_STRING",
+	"ACTION_CRASHES",
 	"LISTED_GET_DIFFERS",
 ])
 
