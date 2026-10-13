@@ -56,6 +56,7 @@ Comma-separated. Each is one named lie the demo API can tell. Primary check is w
 | `SORT_MULTI_KEY_IGNORED`                    | `sort.multi-key-tiebreak`                       | the second sort key is ignored                           |
 | `TIEBREAK_NOT_APPLIED`                      | `sort.stable-tiebreak`                          | ties are broken by another field than the declared one   |
 | `RATE_LIMIT_STRICTER_THAN_DECLARED`         | `spec.declared-rate-limit-is-honoured`          | 429 well inside the declared `x-rate-limit` rate         |
+| `ACTION_CRASHES`                            | `response.no-server-error`                      | starting a job answers 500 instead of starting it        |
 | `SELECT_FIELD_MISSING`                      | `select.requested-fields-present`               | a requested select field is dropped                      |
 | `CROSS_TENANT_READ`                         | `tenant.item-not-readable-cross-tenant`         | item GET is global by id                                 |
 | `CROSS_TENANT_WRITE`                        | `tenant.item-not-writable-cross-tenant`         | update and delete reach another tenant's record          |

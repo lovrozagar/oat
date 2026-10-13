@@ -79,6 +79,10 @@ A create that returns `>= 300` on the first variant fails the entity (downstream
 
 HTTP 429 is retried first — `Retry-After` or exponential backoff, up to five times — on seed, checks, and teardown, whether or not the operation declared `x-rate-limit`. The first 429 is never a seed failure. A leftover 429 after those retries is a gap, not a backend defect.
 
+A 503 with `Retry-After` is waited out and asked again, up to three times and 60s of waiting, as a well-behaved client would. A 503 that outlasts that, or names no wait, stands. Every server error left standing fails its operation (`response.no-server-error`); a lasting 503 is reported as the operation being unavailable, any other 5xx as a crash.
+
+A request that times out is a network outcome only when the host has stopped answering. When the origin still answers a probe, the timeout fails that one operation and the run goes on.
+
 A 402 / plan-limit (`payment_required`, `*_plan_limit`) on create is not a backend defect when the same-tenant list already has a row — typically an earlier `x-effects` create that filled a free-plan quota. oat reuses that id so children (a `row` after extract created a `table`) can still seed. It does not invent records. Write-path checks on the adopted entity stand down.
 
 A documented feature-gate 403 is the exception: if create declares `x-feature-gate` and the body is `vars.type: feature_gate` (and `vars.feature` matches the tag when present), oat records a `COVERAGE_GAP` naming the tag rather than a seed defect. See [`x-feature-gate`](tags.md#x-feature-gate).
