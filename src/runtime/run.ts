@@ -121,6 +121,8 @@ export interface RunOptions {
 	maxInFlight?: number
 	/** Paces requests per category. Checked before `x-rate-limit` tags for the same request. */
 	rateLimits?: RateLimitSpec[]
+	/** Requests per second to `baseUrl` in all; see `OatConfig.maxRps`. */
+	maxRps?: number
 	/** Live status. Called on phase/entity/check/request; the CLI prints a heartbeat from this. */
 	onProgress?: ProgressHandler
 	/** Extra hosts with their own OpenAPI. Auth stays on the primary. */
@@ -492,7 +494,10 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	}
 	const hooks = options.hooks ?? {}
 	const authCreates = authStepOperationIds(options.principals)
-	const rateLimiter = new RateLimiter(buildRateLimitRules(model, options.rateLimits))
+	const rateLimiter = new RateLimiter(
+		buildRateLimitRules(model, options.rateLimits),
+		options.maxRps === undefined ? {} : { maxRps: options.maxRps },
+	)
 	const remember = (exchange: Exchange): void => {
 		last = {
 			at: exchange.at,
@@ -1840,7 +1845,7 @@ async function loadOriginClients(
 			globalHeaders,
 			maxInFlight,
 			onExchange,
-			undefined,
+			origin.maxRps === undefined ? undefined : new RateLimiter([], { maxRps: origin.maxRps }),
 			httpHooks,
 			network,
 		)
@@ -1902,6 +1907,7 @@ async function runSecondaryOrigins(
 			...(options.rateLimits === undefined ? {} : { rateLimits: options.rateLimits }),
 			...(options.keepFixtures === undefined ? {} : { keepFixtures: options.keepFixtures }),
 			...(options.maxInFlight === undefined ? {} : { maxInFlight: options.maxInFlight }),
+			...(origin.maxRps === undefined ? {} : { maxRps: origin.maxRps }),
 			...(options.outOfBand === undefined ? {} : { outOfBand: options.outOfBand }),
 			...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
 			...(options.query === undefined ? {} : { query: options.query }),

@@ -299,6 +299,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 			...(profile === undefined ? {} : { profile }),
 			...(config.profiles === undefined ? {} : { profiles: config.profiles }),
 			...(config.rateLimits === undefined ? {} : { rateLimits: config.rateLimits }),
+			...(config.maxRps === undefined ? {} : { maxRps: config.maxRps }),
 			...(config.origins === undefined ? {} : { origins: config.origins }),
 			...(config.scenarios === undefined ? {} : { scenarios: config.scenarios }),
 			...(config.outOfBand === undefined ? {} : { outOfBand: config.outOfBand }),

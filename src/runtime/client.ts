@@ -441,6 +441,8 @@ export class Client {
 			let digest: { bytes: number; sha256: string } | undefined
 			let at = 0
 			try {
+				/* The origin's ceiling holds alongside the route's own budget; neither replaces the other. */
+				await this.rateLimiter?.acquireCeiling()
 				if (tagged !== undefined) rateLimitHadRoom = await this.rateLimiter?.acquire(tagged)
 				else if (implicit !== undefined) rateLimitHadRoom = await this.rateLimiter?.waitImplicit(verb)
 				const probe: RequestStart = {

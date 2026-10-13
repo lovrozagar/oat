@@ -227,8 +227,20 @@ export class RateLimiter {
 	private readonly buckets = new Map<string, RateBucket>()
 	/** Cooldown-only: after an untagged 429, later untagged writes wait this out, then run free. */
 	private readonly implicitUntil = new Map<string, number>()
+	/** Every request to the origin, whatever its route: the limit an edge in front of it holds. */
+	private readonly ceiling: RateBucket | undefined
 
-	constructor(private readonly rules: readonly CompiledRateLimitRule[]) {}
+	constructor(
+		private readonly rules: readonly CompiledRateLimitRule[],
+		options: { maxRps?: number } = {},
+	) {
+		this.ceiling = options.maxRps === undefined ? undefined : new RateBucket(options.maxRps)
+	}
+
+	/** Waits for room under the origin-wide ceiling, when one is set. */
+	async acquireCeiling(): Promise<void> {
+		await this.ceiling?.acquire()
+	}
 
 	resolve(method: string, pathname: string, operationId?: string): CompiledRateLimitRule | undefined {
 		return this.rules.find((rule) => rule.test(method, pathname, operationId))

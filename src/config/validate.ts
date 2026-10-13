@@ -20,6 +20,8 @@ const integer =
 			: [`${path} must be an integer${min > 0 ? ` of at least ${min}` : min === 0 ? " of at least 0" : ""}`]
 const number: Rule = (value, path) =>
 	typeof value === "number" && Number.isFinite(value) ? [] : [`${path} must be a number`]
+const positive: Rule = (value, path) =>
+	typeof value === "number" && Number.isFinite(value) && value > 0 ? [] : [`${path} must be a number above 0`]
 const oneOf =
 	(...allowed: string[]): Rule =>
 	(value, path) =>
@@ -73,10 +75,11 @@ const CONFIG = {
 	hooks: object,
 	keepFixtures: boolean,
 	maxInFlight: integer(1),
+	maxRps: positive,
 	network: shape({ requestTimeoutMs: integer(0), retries: integer(0), waitMs: integer(0) }),
 	only: arrayOf(string),
 	ops: arrayOf(string),
-	origins: arrayOf(object),
+	origins: arrayOf(shape({ baseUrl: string, id: string, maxRps: positive, spec: string }, ["baseUrl", "id", "spec"])),
 	outDir: string,
 	outOfBand: shape({ attempts: integer(1), initialMs: integer(0), maxMs: integer(0) }),
 	payloads: oneOf("full", "per-write-path"),

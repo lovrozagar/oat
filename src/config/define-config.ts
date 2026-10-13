@@ -454,6 +454,8 @@ export interface OriginSpec {
 	id: string
 	baseUrl: string
 	spec: string
+	/** Requests per second this origin takes from oat in all, as `maxRps` is for `baseUrl`. */
+	maxRps?: number
 }
 
 /* -------------------------------------------------------------------- profiles */
@@ -546,6 +548,12 @@ export interface OatConfig {
 	cohortSize?: number
 	/** Requests allowed in flight at once. Past a server's comfort this makes runs slower. */
 	maxInFlight?: number
+	/**
+	 * Requests per second oat sends to `baseUrl` in all, across every route. For a limit no route
+	 * declares, such as a CDN or firewall that caps each client IP: tripping it blocks the whole
+	 * run. Routes still keep their own `rateLimits` and `x-rate-limit` budgets under it.
+	 */
+	maxRps?: number
 	/** Grade every operation these entities own, and nothing else. Joins `ops` as a union. */
 	only?: string[]
 	/**
