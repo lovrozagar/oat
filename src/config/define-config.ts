@@ -148,6 +148,11 @@ export interface Scenario {
 	covers: string[]
 	/** Config principal whose credential the steps send. Default: the first principal. */
 	principal?: string
+	/**
+	 * A configured origin this scenario belongs to: its steps and `covers` are that origin's
+	 * operations, and it runs where that origin is graded. Default: the main document.
+	 */
+	origin?: string
 	steps: ScenarioStep[]
 }
 

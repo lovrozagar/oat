@@ -611,7 +611,16 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		origins: new Map([...originClients].map(([id, origin]) => [id, origin.model])),
 	})
 	/* A scenario that names an operation it never calls is a config error, caught before signup. */
-	assertScenarios(options.scenarios ?? [], (id, origin) =>
+	/* A scenario that belongs to a secondary origin runs in that origin's run, not here. */
+	const ownScenarios = (options.scenarios ?? []).filter((scenario) => scenario.origin === undefined)
+	for (const scenario of options.scenarios ?? []) {
+		if (scenario.origin !== undefined && !originClients.has(scenario.origin)) {
+			throw new Error(
+				`oat: scenario "${scenario.id}" belongs to origin "${scenario.origin}", which is not in config.origins`,
+			)
+		}
+	}
+	assertScenarios(ownScenarios, (id, origin) =>
 		origin === undefined
 			? model.byOperationId.has(id)
 			: originClients.get(origin)?.model.byOperationId.has(id) === true,
@@ -751,7 +760,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		return op !== undefined && excludedByProfile(op, profile.spec) !== null
 	}
 	const excludedIds = new Set<string>()
-	const scenarioOwned = new Set((options.scenarios ?? []).flatMap((scenario) => scenario.covers))
+	const scenarioOwned = new Set(ownScenarios.flatMap((scenario) => scenario.covers))
 	const excludeOp = (entity: EntityModel, op: OperationModel | undefined): boolean => {
 		if (op === undefined) return false
 		const reason = excludedByProfile(op, profile.spec)
@@ -1685,7 +1694,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		principals: new Map(
 			resolved.map((principal) => [principal.id, { headers: principal.headers, roots: principal.roots }]),
 		),
-		scenarios: options.scenarios ?? [],
+		scenarios: ownScenarios,
 	})
 	await proveFromTranscript({ client, grades, model })
 	await confirmDeletes({
@@ -1877,6 +1886,9 @@ async function runSecondaryOrigins(
 			...(options.seed === undefined ? {} : { seed: options.seed }),
 			...(options.cohortSize === undefined ? {} : { cohortSize: options.cohortSize }),
 			...(originOps === undefined ? {} : { ops: originOps }),
+			scenarios: (options.scenarios ?? [])
+				.filter((scenario) => scenario.origin === origin.id)
+				.map(({ origin: _origin, ...scenario }) => scenario),
 			...(options.profiles === undefined ? {} : { profiles: options.profiles }),
 			...(options.profile === undefined ? {} : { profile: options.profile }),
 			...(options.rateLimits === undefined ? {} : { rateLimits: options.rateLimits }),
