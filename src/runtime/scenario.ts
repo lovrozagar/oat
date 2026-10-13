@@ -45,15 +45,34 @@ function stepOperation(step: ScenarioStep): string | undefined {
 	return "operationId" in step && typeof step.operationId === "string" ? step.operationId : undefined
 }
 
-/** Fails fast on a scenario that names what it cannot grade — before any request is sent. */
-export function assertScenarios(scenarios: readonly Scenario[], known: (operationId: string) => boolean): void {
+/** The secondary origin a step is sent to, or undefined for the main document. */
+function stepOriginOf(step: ScenarioStep): string | undefined {
+	return "origin" in step && typeof step.origin === "string" && step.origin !== "" ? step.origin : undefined
+}
+
+/**
+ * Fails fast on a scenario that names what it cannot grade — before any request is sent. A step on
+ * another origin names that origin's operation and is checked against its document; it supports
+ * the scenario but never covers a main operation.
+ */
+export function assertScenarios(
+	scenarios: readonly Scenario[],
+	known: (operationId: string, origin?: string) => boolean,
+): void {
 	const seen = new Set<string>()
 	for (const scenario of scenarios) {
 		if (seen.has(scenario.id)) throw new Error(`oat: two scenarios share the id "${scenario.id}"`)
 		seen.add(scenario.id)
-		const called = new Set(scenario.steps.map(stepOperation).filter((id): id is string => id !== undefined))
-		for (const id of called) {
-			if (!known(id)) throw new Error(`oat: scenario "${scenario.id}" calls ${id}, which is not in the document`)
+		const called = new Set<string>()
+		for (const step of scenario.steps) {
+			const id = stepOperation(step)
+			if (id === undefined) continue
+			const origin = stepOriginOf(step)
+			if (!known(id, origin)) {
+				const where = origin === undefined ? "the document" : `the "${origin}" origin's document`
+				throw new Error(`oat: scenario "${scenario.id}" calls ${id}, which is not in ${where}`)
+			}
+			if (origin === undefined) called.add(id)
 		}
 		for (const id of scenario.covers) {
 			if (!called.has(id)) throw new Error(`oat: scenario "${scenario.id}" covers ${id} but no step calls it`)

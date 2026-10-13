@@ -611,7 +611,11 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		origins: new Map([...originClients].map(([id, origin]) => [id, origin.model])),
 	})
 	/* A scenario that names an operation it never calls is a config error, caught before signup. */
-	assertScenarios(options.scenarios ?? [], (id) => model.byOperationId.has(id))
+	assertScenarios(options.scenarios ?? [], (id, origin) =>
+		origin === undefined
+			? model.byOperationId.has(id)
+			: originClients.get(origin)?.model.byOperationId.has(id) === true,
+	)
 	const grades = new GradeLedger()
 	tick({
 		message:
