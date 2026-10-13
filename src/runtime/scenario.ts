@@ -17,6 +17,7 @@ import type { SpecModel } from "../spec/graph.ts"
 import {
 	type AcquireContext,
 	interpolate,
+	isBytes,
 	jwtClaims,
 	type OriginClient,
 	resolveOutOfBandValue,
@@ -189,6 +190,7 @@ export async function runScenarios(input: {
 				return name !== undefined && objects.has(name) ? objects.get(name) : value
 			}
 			if (Array.isArray(value)) return value.map(withObjects)
+			if (isBytes(value)) return value
 			if (value !== null && typeof value === "object") {
 				return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, withObjects(item)]))
 			}

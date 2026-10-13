@@ -74,14 +74,18 @@ export interface PrincipalRuntime {
 }
 
 /** `{name}` placeholders resolved from the accumulated scope. */
+/** Bytes are a file's content, not text to fill: walking them would turn an upload into JSON. */
+export function isBytes(value: unknown): value is ArrayBuffer | ArrayBufferView | Blob {
+	if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) return true
+	return typeof Blob !== "undefined" && value instanceof Blob
+}
+
 export function interpolate(value: unknown, scope: Record<string, string>): unknown {
 	if (typeof value === "string") {
 		return value.replace(/\{([A-Za-z0-9_]+)\}/g, (match, key: string) => scope[key] ?? match)
 	}
 	if (Array.isArray(value)) return value.map((item) => interpolate(item, scope))
-	/* Bytes are a file's content, not text to fill: walking them would turn an upload into JSON. */
-	if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) return value
-	if (typeof Blob !== "undefined" && value instanceof Blob) return value
+	if (isBytes(value)) return value
 	if (value !== null && typeof value === "object") {
 		const out: Record<string, unknown> = {}
 		for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
@@ -370,6 +374,8 @@ async function encodeAuthBody(
 	mediaType?: string,
 ): Promise<{ body?: unknown; contentType?: string | null }> {
 	if (body === undefined) return {}
+	/* An upload goes as it is, under the media type the step names. */
+	if (isBytes(body)) return mediaType === undefined ? { body } : { body, contentType: mediaType }
 	const content = raw === undefined ? null : requestContent(raw, mediaType)
 	if (content === null || body === null || typeof body !== "object" || Array.isArray(body)) {
 		return { body }
