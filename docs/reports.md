@@ -13,20 +13,21 @@ Written under `--out` (default `./.oat/runs`). Each invocation creates a UTC tim
 
 `--out` / `outDir` replace the root, not the leaf — `--out .oat/runs/prod` writes `.oat/runs/prod/<datetime>/`.
 
-| file                         |                                                                                                                            |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `oat-report.md`              | human report: scope, per-operation status, summary, findings with request/response excerpts, coverage, latency p50/p95/max |
-| `oat-report.json`            | same data for CI. Summary only — full exchanges are not inlined here                                                       |
-| `matrix.html`                | visual matrix of entities × checks                                                                                         |
-| `matrix.json`                | the same graph (AI-friendly), including a mermaid string                                                                   |
-| `issue-repro/*.sh`           | one executable `curl` script per finding that has evidence. Directory is omitted when the run is clean                     |
-| `progress.log`               | logfmt, one event per line, never truncated                                                                                |
-| `progress.jsonl`             | same events as JSON                                                                                                        |
-| `progress.tsv`               | same columns, tab-separated. `req_id` is the join key to the exchange journal                                              |
-| `progress.json`              | latest snapshot only (overwritten ~1s)                                                                                     |
-| `exchanges.jsonl`            | one line per request (`seq`, `requestId`, method, url, status, bytes, …). Greppable                                        |
-| `exchanges/<requestId>.json` | full exchange: status, headers, described bodies. Missing id → `seq-<n>.json`. Duplicate id → `-<seq>`                     |
-| `blobs/<sha256>`             | content-addressed file parts and oversized / binary bodies                                                                 |
+| file                         |                                                                                                                                                            |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `report.html`                | **start here**: every operation in one group (Failed, Blocked, Effects unproven, Verified, Complete by contract), why, and links to the requests behind it |
+| `oat-report.md`              | human report: scope, confidence counts, per-operation status, summary, findings with request/response excerpts, coverage, latency p50/p95/max              |
+| `oat-report.json`            | same data for CI. Summary only — full exchanges are not inlined here                                                                                       |
+| `matrix.html`                | visual matrix of entities × checks                                                                                                                         |
+| `matrix.json`                | the same graph (AI-friendly), including a mermaid string                                                                                                   |
+| `issue-repro/*.sh`           | one executable `curl` script per finding that has evidence. Directory is omitted when the run is clean                                                     |
+| `progress.log`               | logfmt, one event per line, never truncated                                                                                                                |
+| `progress.jsonl`             | same events as JSON                                                                                                                                        |
+| `progress.tsv`               | same columns, tab-separated. `req_id` is the join key to the exchange journal                                                                              |
+| `progress.json`              | latest snapshot only (overwritten ~1s)                                                                                                                     |
+| `exchanges.jsonl`            | one line per request (`seq`, `requestId`, method, url, status, bytes, …). Greppable                                                                        |
+| `exchanges/<requestId>.json` | full exchange: status, headers, described bodies. Missing id → `seq-<n>.json`. Duplicate id → `-<seq>`                                                     |
+| `blobs/<sha256>`             | content-addressed file parts and oversized / binary bodies                                                                                                 |
 
 The journal is oat `Exchange` JSON, not HAR (HAR export is out of scope). Default **on** unless `--profile cheap`. `--no-save-exchanges` skips `exchanges/` entirely. `--quiet` does not. **`--no-save-exchanges` does not reduce transcript RAM** — it only skips the disk journal. The in-memory transcript always drops live `FormData` / `Blob` / `ArrayBuffer` / multi-MiB strings after each hop, keeping citeable metadata and content-addressed body descriptors. Reconstruct bytes from `blobs/<sha256>` when a check genuinely needs them.
 
@@ -42,6 +43,18 @@ Every report names its scope. The console prints `scope: full · 141 of 212 oper
 Join `progress.tsv` `req_id` to `exchanges.jsonl` `requestId` (response `x-request-id` / `request-id` / `x-correlation-id` / `correlation-id` wins; else what oat sent). `oat-report.md` includes one line such as `1841 exchanges → exchanges/`.
 
 A pass carries `tier` and `evidence`, naming exchanges by their run `seq` (each saved exchange records it). `verified`: `evidence.observation` is a later exchange that holds `value` at `path`; for a delete, a later read answering `status` (404/410), or a later list where `value` is `absent`. `contract`: only `evidence.call` — a documented success whose body matched the schema.
+
+### How far a pass goes
+
+Calling a route and getting a documented answer is not the same as proving it works, and not every route has more to prove. Each pass carries `sufficiency` and a one-line `why`:
+
+| group                    | meaning                                                                                                                                                                      |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Verified**             | a later request shows what the call did (a read returns the written value, a deleted record answers 404)                                                                     |
+| **Complete by contract** | a read (`GET` / `HEAD` / `OPTIONS`) with no declared `x-effects`, or any operation that declares `x-effects: []`: meeting its contract is all it promises                    |
+| **Effects unproven**     | met its contract, but whatever it changes was never observed. Either something should read the effect back, or the operation has none and should say so with `x-effects: []` |
+
+Operations that did not pass are **Failed** (a check found a defect) or **Blocked** (no verdict: a dependency failed, or no check could reach it), each with its reason. `report.html` shows the five groups worst first, with counts, the reason per row, and links to the call and the observing request in `exchanges/`. `oat-report.md` opens its Operations table with the same counts under **Confidence**.
 
 ### `oat-report.json`
 

@@ -7,6 +7,7 @@
  * reproducers.
  */
 
+import { renderConfidenceMarkdown } from "./confidence.ts"
 import { describeRequestBody, toCurl } from "../runtime/client.ts"
 import { redactJson, redactUrl } from "../runtime/redact.ts"
 import type { Client, Exchange } from "../runtime/client.ts"
@@ -435,20 +436,20 @@ function scopeLine(scope: ScopeReport, dash: string): string {
 }
 
 function scopeSections(scope: ScopeReport): string[] {
-	const lines = ["## Operations", ""]
+	const lines = [renderConfidenceMarkdown(scope), "## Operations", ""]
 	lines.push(
 		scope.mode === "full"
 			? "> Every operation in the document and whether any check graded it. `untested` names why not."
 			: "> The targets of this run. Everything else oat called is listed under support: called, never graded.",
 	)
 	lines.push("")
-	lines.push("| operation | entity | status | tier | passed | failed | suppressed | inconclusive | reason |")
+	lines.push("| operation | entity | status | proof | passed | failed | suppressed | inconclusive | why |")
 	lines.push("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
 	for (const op of scope.operations) {
 		const failed = op.checks.failed.length === 0 ? "0" : `${op.checks.failed.length} (${op.checks.failed.join(", ")})`
 		lines.push(
-			`| ${operationLabel(op)} | ${op.entity ?? "—"} | ${op.status} | ${op.tier ?? ""} | ${op.checks.passed.length} | ${failed} | ` +
-				`${op.checks.suppressed.length} | ${op.checks.inconclusive.length} | ${(op.reason ?? "").replace(/\|/g, "\\|")} |`,
+			`| ${operationLabel(op)} | ${op.entity ?? "—"} | ${op.status} | ${op.sufficiency ?? ""} | ${op.checks.passed.length} | ${failed} | ` +
+				`${op.checks.suppressed.length} | ${op.checks.inconclusive.length} | ${(op.why ?? op.reason ?? "").replace(/\|/g, "\\|")} |`,
 		)
 	}
 	lines.push("")

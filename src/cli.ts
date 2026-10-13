@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 import { EXIT, exitCode } from "./runtime/exit.ts"
-import { createWriteStream, writeFileSync } from "node:fs"
+import { createWriteStream, existsSync, readFileSync, writeFileSync } from "node:fs"
 import { mkdir, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import type { OatConfig } from "./config/define-config.ts"
 import { interpolate, loadConfig } from "./config/load.ts"
 import { configProblems } from "./config/validate.ts"
+import { exchangeFilesFromIndex, renderConfidenceHtml } from "./report/confidence.ts"
 import { report } from "./report/console.ts"
 import { renderMatrixGraph, renderMatrixHtml } from "./report/matrix.ts"
 import { ISSUE_REPRO_DIR, renderConsole, renderJson, renderMarkdown, renderRepros } from "./report/render.ts"
@@ -355,6 +356,12 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	await writeFile(resolve(outDir, "oat-report.json"), renderJson(input))
 	await writeFile(resolve(outDir, "matrix.html"), renderMatrixHtml(input))
 	await writeFile(resolve(outDir, "matrix.json"), renderMatrixGraph(input))
+	const index = resolve(outDir, "exchanges.jsonl")
+	const files = existsSync(index) ? exchangeFilesFromIndex(readFileSync(index, "utf8")) : new Map<number, string>()
+	await writeFile(
+		resolve(outDir, "report.html"),
+		renderConfidenceHtml({ baseUrl, generatedAt: startedAt.toISOString(), scope: result.scope }, files),
+	)
 	const scripts = renderRepros(result.findings, baseUrl)
 	if (scripts.length > 0) {
 		const dir = resolve(outDir, ISSUE_REPRO_DIR)
@@ -368,6 +375,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	for (const line of renderTeardown(result.teardown ?? { failed: [], removed: 0, unsupported: [] }, result.created)) {
 		process.stdout.write(`${line}\n`)
 	}
+	process.stdout.write(`  confidence: ${resolve(outDir, "report.html")}\n`)
 	process.stdout.write(`  report: ${resolve(outDir, "oat-report.md")}\n`)
 	process.stdout.write(`  matrix: ${resolve(outDir, "matrix.html")}\n`)
 	process.stdout.write(`  graph:  ${resolve(outDir, "matrix.json")}\n`)

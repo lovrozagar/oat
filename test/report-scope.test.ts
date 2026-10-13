@@ -95,8 +95,10 @@ describe("scope in reports", () => {
 		const { input } = await report()
 		const md = renderMarkdown(input)
 		expect(md).toContain("- **Scope**: full")
-		expect(md).toMatch(/\| auth\.token \| — \| passed \| contract \|/)
+		/* A POST that met its contract shows no effect unless it declares it has none (`x-effects: []`). */
+		expect(md).toMatch(/\| auth\.token \| — \| passed \| unproven \|/)
 		expect(md).toMatch(/\| table\.create \| table \| passed \| verified \|/)
+		expect(md).toContain("## Confidence")
 		expect(md).not.toContain("## Support operations")
 		expect(renderConsole(input)).toMatch(/scope: full · \d+ of \d+ operations graded/)
 	})

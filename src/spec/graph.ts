@@ -262,7 +262,8 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 		documentedStatuses,
 		statuses,
 		effects: readEffects(op, operationId, gaps),
-		noEffects: Array.isArray((op as Record<string, unknown>)["x-effects"]) &&
+		noEffects:
+			Array.isArray((op as Record<string, unknown>)["x-effects"]) &&
 			((op as Record<string, unknown>)["x-effects"] as unknown[]).length === 0,
 		entity: entity?.name ?? null,
 		entitySource: entity?.source ?? null,
