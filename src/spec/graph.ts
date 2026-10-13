@@ -68,6 +68,8 @@ export interface OperationModel {
 	entitySource: "tag" | "heuristic" | null
 	invalidates: string[]
 	effects: EffectSpec[]
+	/** The operation declares it has no effects (`x-effects: []`): its contract is the whole promise. */
+	noEffects: boolean
 	async: AsyncSpec | null
 	/** Documented success response lists `text/event-stream`. Media type is the stream signal. */
 	eventStream: boolean
@@ -260,6 +262,8 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 		documentedStatuses,
 		statuses,
 		effects: readEffects(op, operationId, gaps),
+		noEffects: Array.isArray((op as Record<string, unknown>)["x-effects"]) &&
+			((op as Record<string, unknown>)["x-effects"] as unknown[]).length === 0,
 		entity: entity?.name ?? null,
 		entitySource: entity?.source ?? null,
 		freshPrincipal: readFlag(op, "x-fresh-principal"),

@@ -323,9 +323,44 @@ export interface OperationCoverage {
 	tier?: PassTier
 	/** The exchanges behind a pass. */
 	evidence?: PassEvidence
+	/** How far a pass goes; see `sufficiencyOf`. */
+	sufficiency?: Sufficiency
+	/** One line on why the pass goes that far, or why the operation did not pass. */
+	why?: string
 }
 
 export type PassTier = "contract" | "verified"
+
+/**
+ * `verified`: a later exchange shows what the call did. `complete`: a read, or an operation that
+ * declares it has no effects, met its contract, which is all it promises. `unproven`: the call met
+ * its contract, but whatever it changes was never observed.
+ */
+export type Sufficiency = "verified" | "complete" | "unproven"
+
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"])
+
+export function sufficiencyOf(
+	op: Pick<OperationModel, "effects" | "method" | "noEffects"> | undefined,
+	evidence: PassEvidence,
+): { sufficiency: Sufficiency; why: string } {
+	if (evidence.observation !== undefined) {
+		return { sufficiency: "verified", why: "a later exchange shows what this call did" }
+	}
+	if (op?.noEffects === true) {
+		return { sufficiency: "complete", why: "declares no effects, so its contract is the whole promise" }
+	}
+	if (op !== undefined && op.effects.length === 0 && SAFE_METHODS.has(op.method.toUpperCase())) {
+		return { sufficiency: "complete", why: "a read with no declared effects: its contract is the whole promise" }
+	}
+	return {
+		sufficiency: "unproven",
+		why:
+			op !== undefined && op.effects.length > 0
+				? "declares effects that no later read observed"
+				: "met its contract, but no later read observed what it changed",
+	}
+}
 
 /** Exchanges by `seq`, which is unique within a run; the journal saves each with its `seq`. */
 export interface PassEvidence {
@@ -507,6 +542,7 @@ export function buildScopeReport(input: CoverageInput): ScopeReport {
 						: "no check exercised it")
 		}
 		const evidence = status === "passed" ? ledger.evidence.get(operationId) : undefined
+		const proof = evidence === undefined ? undefined : sufficiencyOf(op, evidence)
 		return {
 			checks: { failed, gaps, inconclusive, passed, suppressed },
 			entity: op?.entity ?? null,
@@ -514,9 +550,16 @@ export function buildScopeReport(input: CoverageInput): ScopeReport {
 			operationId,
 			reason,
 			status,
-			...(evidence === undefined
-				? {}
-				: { evidence, tier: evidence.observation === undefined ? ("contract" as const) : ("verified" as const) }),
+			...(evidence === undefined || proof === undefined
+				? reason === null
+					? {}
+					: { why: reason }
+				: {
+						evidence,
+						sufficiency: proof.sufficiency,
+						tier: evidence.observation === undefined ? ("contract" as const) : ("verified" as const),
+						why: proof.why,
+					}),
 		}
 	})
 
