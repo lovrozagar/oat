@@ -1679,6 +1679,12 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	/* The matrix's fixtures go before the scenarios: a scenario sets its own scene, and a record a
 	 * check left (a pending invite) would refuse the scenario's own as a duplicate. */
 	await unwindLedger()
+	/* Each stage after the first unwind names itself, so `teardown` means records are being removed. */
+	const enterStage = (phase: ProgressSnapshot["phase"], message: string): void => {
+		currentCheck = undefined
+		tick({ message, phase, requests: client.transcript.length })
+	}
+	enterStage("scenario", `${ownScenarios.length} scenario(s)`)
 	await runScenarios({
 		checksRun,
 		client,
@@ -1696,6 +1702,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		),
 		scenarios: ownScenarios,
 	})
+	enterStage("test", "evidence from the transcript")
 	await proveFromTranscript({ client, grades, model })
 	await confirmDeletes({
 		auth: alpha.headers,
@@ -1707,6 +1714,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		model,
 		stopped: () => options.signal?.aborted === true || networkGate.exhausted,
 	})
+	enterStage("contract", "operations no check or scenario reached")
 	await runContractCalls({
 		auth: alpha.headers,
 		checksRun,

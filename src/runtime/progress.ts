@@ -35,7 +35,7 @@ export interface ProgressInflight {
 }
 
 export interface ProgressSnapshot {
-	phase: "load" | "auth" | "seed" | "test" | "teardown" | "done"
+	phase: "load" | "auth" | "seed" | "test" | "scenario" | "contract" | "teardown" | "done"
 	entity?: string
 	entityIndex?: number
 	entityTotal?: number
@@ -82,7 +82,7 @@ export const PROGRESS_GLOSSARY = [
 	"# ts               when this line was written (ISO-8601 UTC). ts_ms is the same instant as unix ms",
 	"# status=ok|stall|in_flight|network  in_flight = on the wire; stall = idle after a completed call; network = fetch threw (offline/dns/reset/…)",
 	"# done/total       entity index / how many entities",
-	"# phase            load|auth|seed|test|teardown|done",
+	"# phase            load|auth|seed|test|scenario|contract|teardown|done (teardown only while records are removed)",
 	"# check            check id (empty when not in a check)",
 	"# msg              phase note (seeding, spec URL, teardown count). Not set to in-flight — that is status",
 	"# req_id           x-request-id / request-id / x-correlation-id / correlation-id on that call (empty if none)",
