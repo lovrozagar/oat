@@ -41,6 +41,8 @@ export function reportServerErrors(input: {
 	inScope: (operationId: string) => boolean
 	mode: "full" | "targeted"
 	model: SpecModel
+	/* Set when the host itself stopped answering: then a timeout is the outage, not the operation. */
+	networkDown: boolean
 	transcripts: ReadonlyArray<readonly Exchange[]>
 }): void {
 	input.checksRun.add(SERVER_ERROR_CHECK_ID)
@@ -52,7 +54,9 @@ export function reportServerErrors(input: {
 	const byOperation = new Map<string, Exchange[]>()
 	for (const transcript of input.transcripts) {
 		for (const exchange of transcript) {
-			if (exchange.status < 500 || exchange.superseded === true) continue
+			/* A request that timed out on a host that went on answering is that operation failing. */
+			const timedOut = exchange.status === 0 && exchange.network?.kind === "timeout" && !input.networkDown
+			if ((exchange.status < 500 && !timedOut) || exchange.superseded === true) continue
 			if (reported.has(exchangeKey(exchange))) continue
 			if (exchange.operationId === undefined ? input.mode !== "full" : !input.inScope(exchange.operationId)) continue
 			const key = exchange.operationId ?? `${exchange.method} ${new URL(exchange.url).pathname}`

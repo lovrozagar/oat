@@ -586,7 +586,7 @@ describe("uploads.each fan-out does not scale RSS with fixtureBytes × N", () =>
 	})
 })
 
-describe("run() times out a hung stream as a network outcome", () => {
+describe("run() times out a hung stream on a host that still answers", () => {
 	it("does not leave a giant partial buffer on the transcript", async () => {
 		const spec: OpenApiDocument = {
 			info: { title: "hang", version: "1" },
@@ -634,9 +634,13 @@ describe("run() times out a hung stream as a network outcome", () => {
 			seed: 1,
 			spec: `${server.url}/openapi.json`,
 		})
-		expect(result.network?.incomplete).toBe(true)
-		expect(result.network?.kind).toBe("timeout")
-		expect(result.findings.some((f) => f.check === "net.unreachable")).toBe(true)
+		/* The host answered the create: the hung list is that operation failing, not an outage. */
+		expect(result.network?.incomplete ?? false).toBe(false)
+		expect(
+			result.findings.some(
+				(f) => f.check === "response.no-server-error" && f.operations?.includes("item.list") === true,
+			),
+		).toBe(true)
 		for (const exchange of result.client.transcript) {
 			expect(holdsLiveBody(exchange.requestBody)).toBe(false)
 			expect(holdsLiveBody(exchange.responseBody)).toBe(false)

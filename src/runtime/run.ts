@@ -556,8 +556,11 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		waitBudgetMs: options.network?.waitMs ?? DEFAULT_NETWORK_WAIT_MS,
 	})
 	let networkOutcome: RunResult["network"]
-	const noteNetwork = (error: NetworkError, where: string): void => {
+	const noteNetwork = async (error: NetworkError, where: string): Promise<void> => {
 		if (networkOutcome !== undefined) return
+		/* One operation that never answered, on a host that still answers, is that operation failing
+		 * (reported with the server errors), not the network going away. */
+		if (error.kind === "timeout" && (await probeOrigin(options.baseUrl))) return
 		networkOutcome = {
 			attempts: error.attempts,
 			incomplete: true,
@@ -676,7 +679,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		}
 	} catch (error) {
 		if (!isNetworkError(error)) throw error
-		noteNetwork(error, "auth")
+		await noteNetwork(error, "auth")
 		await journal?.flush().catch(() => undefined)
 		return {
 			checksOutOfScope: [],
@@ -1079,7 +1082,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				}
 			} catch (error) {
 				if (isNetworkError(error)) {
-					noteNetwork(error, entity.name)
+					await noteNetwork(error, entity.name)
 					return
 				}
 				if (isOverflowError(error)) {
@@ -1414,7 +1417,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				outcome = await check.run(view, plans.get(check.id))
 			} catch (error) {
 				if (isNetworkError(error)) {
-					noteNetwork(error, entity.name)
+					await noteNetwork(error, entity.name)
 					outcomes.set(check.id, { kind: "unresolved", reason: "the network failed" })
 					return
 				}
@@ -1749,6 +1752,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		inScope: (operationId) => runScope.inScope(operationId),
 		mode: runScope.mode,
 		model,
+		networkDown: networkOutcome?.incomplete === true,
 		transcripts: [client.transcript, ...[...originClients.values()].map((origin) => origin.client.transcript)],
 	})
 	const unremovable = (teardown as TeardownReport | null)?.unsupported ?? []

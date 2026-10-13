@@ -146,6 +146,7 @@ export const UNAVAILABLE_WAIT_BUDGET_MS = 60_000
  * `Retry-After` is the backend being unavailable, told apart from a crash; both are failures.
  */
 export function describeServerError(status: number, retryAfter: string | undefined): string {
+	if (status === 0) return "did not answer before the request timed out"
 	return status === 503 && retryAfter !== undefined
 		? "was unavailable (503) even after waiting out its Retry-After"
 		: `answered with a server error (${status})`
