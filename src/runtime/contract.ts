@@ -16,6 +16,7 @@ import type { Client, Exchange } from "./client.ts"
 import { buildCohort } from "./fixture.ts"
 import type { Check } from "./checks.ts"
 import { ASSERTED, type FindingCollector, type Outcome } from "./finding.ts"
+import { applyActionBind, readActionBind } from "./effects.ts"
 import { describeServerError, headerValue } from "./rate-limit.ts"
 import type { GradeLedger } from "./scope.ts"
 import type { SchemaValidator } from "./validate.ts"
@@ -165,10 +166,14 @@ export async function runContractCalls(input: {
 			}
 			values[name] = value
 		}
+		/* What the operation names in `x-bind` is a value it accepts; a literal there beats a guess.
+		 * A pointer reads a record this call has none of, so it binds nothing here. */
+		const bind = readActionBind((raw as Record<string, unknown> | undefined)?.["x-bind"])
+		const bound = applyActionBind(bind, [], undefined, undefined).query
 		const query: Record<string, string> = {}
 		for (const param of params) {
 			if (param.in !== "query" || param.required !== true || param.name === undefined) continue
-			const value = op.requiredQuery[param.name] ?? exampleOf(param.schema)
+			const value = bound[param.name] ?? op.requiredQuery[param.name] ?? exampleOf(param.schema)
 			if (value === undefined) {
 				grades.skipped([op.operationId], `unresolved query param ${param.name}`)
 				return
@@ -186,7 +191,11 @@ export async function runContractCalls(input: {
 				defs: model.defs,
 				nonce: `${input.nonce}c${input.client.transcript.length}`,
 			})
-			body = member?.body ?? {}
+			const built = member?.body ?? {}
+			body =
+				built !== null && typeof built === "object" && !Array.isArray(built)
+					? applyActionBind(bind, [], undefined, built as Record<string, unknown>).body
+					: built
 		}
 		const exchange = await input.client.request(op.method, fillPath(op.path, values), {
 			...(body === undefined ? {} : { body }),

@@ -96,6 +96,30 @@ function spec(): OpenApiDocument {
 					responses: { ...ok({ "application/json": { schema: noteSchema } }), "404": { description: "missing" } },
 				},
 			},
+			"/v1/notes/stats": {
+				get: {
+					operationId: "notes.stats",
+					parameters: [{ in: "query", name: "aggs", required: true, schema: { type: "string" } }],
+					responses: ok(accepted),
+					"x-bind": { query: { aggs: "text.count" } },
+					"x-effects": [],
+				},
+			},
+			"/v1/notes/tag": {
+				post: {
+					operationId: "notes.tag",
+					requestBody: {
+						content: {
+							"application/json": {
+								schema: { properties: { tag: { type: "string" } }, required: ["tag"], type: "object" },
+							},
+						},
+					},
+					responses: ok(accepted),
+					"x-bind": { body: { tag: "pinned" } },
+					"x-effects": [],
+				},
+			},
 			"/v1/picky": { post: { operationId: "picky.send", requestBody: feedback, responses: ok(accepted, "202") } },
 			"/v1/version": { get: { operationId: "version.get", responses: ok(versionBody) } },
 		},
@@ -125,6 +149,14 @@ async function serve(options: { keepDeleted?: boolean } = {}): Promise<string> {
 		if (url.pathname === "/v1/feedback" && method === "POST") {
 			if (typeof body["message"] !== "string") return send(400, { error: "message_required" })
 			return send(202, { received: true })
+		}
+		if (url.pathname === "/v1/notes/stats") {
+			if (url.searchParams.get("aggs") !== "text.count") return send(400, { error: "invalid_aggregation" })
+			return send(200, { received: true })
+		}
+		if (url.pathname === "/v1/notes/tag") {
+			if (body["tag"] !== "pinned") return send(400, { error: "unknown_tag" })
+			return send(200, { received: true })
 		}
 		if (url.pathname === "/v1/picky") return send(422, { error: "needs_a_real_order" })
 		if (url.pathname === "/v1/notes" && method === "POST") {
@@ -184,6 +216,15 @@ describe("the contract tier", () => {
 		const row = result.scope.operations.find((op) => op.operationId === "notes.archiveAll")
 		expect(row?.status).toBe("passed")
 		expect(result.client.transcript.some((exchange) => exchange.operationId === "notes.archiveAll")).toBe(true)
+	})
+
+	it("sends the values the operation binds in x-bind", async () => {
+		const result = await fullRun()
+		for (const id of ["notes.stats", "notes.tag"]) {
+			const row = result.scope.operations.find((op) => op.operationId === id)
+			expect(row?.status, `${id}: ${row?.reason ?? ""}`).toBe("passed")
+			expect(row?.tier).toBe("contract")
+		}
 	})
 
 	it("fails a success whose body breaks the documented schema", async () => {
