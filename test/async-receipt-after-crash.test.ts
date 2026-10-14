@@ -26,3 +26,22 @@ describe("async.receipt-identifies-the-job when the action crashes", () => {
 		}
 	})
 })
+
+/* A job that never started cannot be watched to its end: the lifecycle check must say why. */
+describe("async.reaches-terminal-state when the action crashes", () => {
+	it("states that no job was started", { timeout: 60_000 }, async () => {
+		const server = await createMemoryServer({ defects: ["ACTION_CRASHES", "ASYNC_NEVER_COMPLETES"] })
+		try {
+			const result = await run({
+				baseUrl: server.url,
+				principals: PRINCIPALS as PrincipalSpec[],
+				seed: 42,
+				spec: `${server.url}/v1/openapi/spec`,
+			})
+			const said = result.inconclusive.find((entry) => entry.check === "async.reaches-terminal-state")
+			expect(said?.reason).toMatch(/no job/)
+		} finally {
+			await server.close()
+		}
+	})
+})

@@ -6579,6 +6579,16 @@ const asyncReachesTerminalState: Check = {
 					...(body === undefined ? {} : await encodeOpBody(ctx, op, body, "baseline", 0, uploads)),
 				})
 				if (standDownForFeatureGate(ctx, op, start, this.id)) return
+				/* A start that crashed started nothing: the lifecycle cannot be judged, and the crash
+				 * itself is failed by the server-error rule. Say so rather than stand down quietly. */
+				if (start.status === 0 || start.status >= 500) {
+					ctx.findings.unresolved(
+						this.id,
+						subject(ctx.entityName, op.operationId, fixture),
+						`${op.operationId} answered ${start.status === 0 ? "nothing" : start.status}, so no job was started to watch`,
+					)
+					return
+				}
 				if (start.status >= 400) {
 					ctx.findings.gap(
 						this.id,
