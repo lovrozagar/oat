@@ -21,8 +21,8 @@ import {
 	jwtClaims,
 	type OriginClient,
 	resolveOutOfBandValue,
-	sentAt,
 	resolveRequest,
+	triggerSentAt,
 } from "./auth.ts"
 import type { Client, Exchange } from "./client.ts"
 import { cookiesFromRecordedHeaders, describeSaveAs, readSaveAs } from "./cookies.ts"
@@ -198,8 +198,8 @@ export async function runScenarios(input: {
 			return value
 		}
 		const calls = new Map<string, Exchange>()
-		/* When the latest HTTP step was sent: a value delivered outside HTTP answers that request. */
-		let lastSentAt: number | undefined
+		/* What this scenario sent, so a value delivered outside HTTP finds the request it answers. */
+		const sent: Exchange[] = []
 		const observed = new Map<string, PassEvidence["observation"]>()
 		let stoppedAt: { index: number; failure: StepFailure } | null = null
 
@@ -255,6 +255,7 @@ export async function runScenarios(input: {
 			}
 			if (isOutOfBand(step)) {
 				const address = String(interpolate(step.outOfBand.address, scope))
+				const since = step.outOfBand.sentEarlier === true ? undefined : triggerSentAt(sent, address)
 				scope[step.outOfBand.as] = await resolveOutOfBandValue(
 					input.hooks.resolveOutOfBand,
 					address,
@@ -263,7 +264,7 @@ export async function runScenarios(input: {
 						headers: headers(),
 						label: `scenario "${scenario.id}"`,
 						scope: { ...scope },
-						...(lastSentAt === undefined ? {} : { since: lastSentAt }),
+						...(since === undefined ? {} : { since }),
 						...(input.outOfBand === undefined ? {} : { outOfBand: input.outOfBand }),
 					},
 				)
@@ -316,7 +317,7 @@ export async function runScenarios(input: {
 					...(own === undefined ? {} : { operationId: own }),
 					...(request.redirect === undefined ? {} : { redirect: request.redirect }),
 				})
-				lastSentAt = sentAt(exchange)
+				sent.push(exchange)
 				const ok = succeeded(step, exchange)
 				const want = step.assert === undefined ? null : expected(step.assert, scope)
 				const shown = ok && (step.assert === undefined || want === null || holds(exchange, want.from, want))

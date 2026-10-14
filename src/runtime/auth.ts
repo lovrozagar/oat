@@ -138,6 +138,7 @@ export async function runAuthSteps(
 ): Promise<{ credential: string; scope: Record<string, string>; expiresAt: number | null }> {
 	const scope: Record<string, string> = { ...initialScope }
 	let last: Exchange | undefined
+	const sent: Exchange[] = []
 
 	for (const [index, step] of steps.entries()) {
 		const stepBind = "bind" in step ? step.bind : undefined
@@ -147,11 +148,12 @@ export async function runAuthSteps(
 
 		if ("outOfBand" in step) {
 			const address = String(interpolate(step.outOfBand.address, scope))
+			const since = step.outOfBand.sentEarlier === true ? undefined : triggerSentAt(sent, address)
 			const value = await resolveOutOfBandValue(context.hooks.resolveOutOfBand, address, step.outOfBand.kind, {
 				headers: flowCredentialHeaders(spec, scope),
 				label: `principal "${context.principalId}"`,
 				scope: { ...scope },
-				...(last === undefined ? {} : { since: sentAt(last) }),
+				...(since === undefined ? {} : { since }),
 				...(context.outOfBand === undefined ? {} : { outOfBand: context.outOfBand }),
 			})
 			scope[step.outOfBand.as] = value
@@ -171,6 +173,7 @@ export async function runAuthSteps(
 			...(request.redirect === undefined ? {} : { redirect: request.redirect }),
 		})
 
+		sent.push(last)
 		const acceptable = ("expect" in step ? step.expect : undefined) ?? []
 		const ok = acceptable.length > 0 ? acceptable.includes(last.status) : last.status < 300
 		if (!ok) {
@@ -404,6 +407,27 @@ async function encodeAuthBody(
 /** When an exchange's request left: its answer's time less how long it took. */
 export function sentAt(exchange: Pick<Exchange, "at" | "durationMs">): number {
 	return exchange.at - exchange.durationMs
+}
+
+/**
+ * When the request a value delivered to `address` answers was sent: the latest of `sent` that names
+ * the address in its URL or body, since that request told the backend where to deliver. A later
+ * request naming someone else does not move it; when none names the address, oat cannot tell.
+ */
+export function triggerSentAt(
+	sent: readonly Pick<Exchange, "at" | "durationMs" | "requestBody" | "url">[],
+	address: string,
+): number | undefined {
+	if (address === "") return undefined
+	const forms = [address, encodeURIComponent(address)]
+	for (let i = sent.length - 1; i >= 0; i--) {
+		const exchange = sent[i]
+		if (exchange === undefined) continue
+		const body =
+			typeof exchange.requestBody === "string" ? exchange.requestBody : JSON.stringify(exchange.requestBody ?? "")
+		if (forms.some((form) => exchange.url.includes(form) || body.includes(form))) return sentAt(exchange)
+	}
+	return undefined
 }
 
 export async function resolveOutOfBandValue(

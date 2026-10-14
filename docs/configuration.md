@@ -332,6 +332,12 @@ Each step is one of:
 
 The hook returns a string. If that string is a URL, a later RequestStep must GET it — a hook-side `fetch` is not a recorded exchange.
 
+oat tells the hook when the request this value answers was sent (`since`): the latest earlier request in the flow or scenario that names `address` in its URL or body. A later request to someone else does not move it. When no request names the address, oat passes no `since`. A value sent before the scenario began — by a scheduled job, or into a seeded inbox — sets `sentEarlier: true`, so a sign-in that names the address does not hide it:
+
+```ts
+{ outOfBand: { address: "{offerEmail}", as: "offerToken", kind: "upsell-offer", sentEarlier: true } }
+```
+
 Later steps interpolate `{name}` from the flow scope, `saveAs` addresses included (`cookie:rt.{userId}` reads a per-user cookie). `saveAs` addresses:
 
 - `$.foo.bar` / `$.orgs.0.id` — JSON body (dot + numeric index only; no JSON Pointer, no filters)
@@ -500,7 +506,7 @@ The CLI writes `principals.json` into each run folder (and `.oat/runs/latest/pri
 hooks: {
   // Return null to retry (attempt is 1-based). oat backs off until a value arrives.
   // `scope` is the flow at this step; `headers` are the live principal credential headers.
-  // `since` (unix ms) is when the request this value answers was sent, when one preceded it:
+  // `since` (unix ms) is when the request that named `address` was sent, when one did:
   // a mail delivered before it answers some earlier request, so return null and wait.
   resolveOutOfBand: async ({ address, kind, attempt, scope, headers, since }) => {
     const mail = await readMailCatcher(address, kind)

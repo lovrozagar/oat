@@ -89,7 +89,16 @@ export interface RequestStep extends StepBase {
  * mailed URL); oat records the consume hop only when a later RequestStep GETs that URL.
  */
 export interface OutOfBandStep {
-	outOfBand: { address: string; kind: string; as: string }
+	outOfBand: {
+		address: string
+		kind: string
+		as: string
+		/**
+		 * The value was sent before this scenario or flow began — by a schedule, or into a seeded
+		 * inbox — so no request here triggered it and the hook gets no `since`.
+		 */
+		sentEarlier?: boolean
+	}
 }
 
 export type AuthStep = OperationStep | RequestStep | OutOfBandStep
@@ -262,9 +271,10 @@ export interface OutOfBandRequest {
 	/** Principal credential headers as they would be sent now (Authorization or Cookie). */
 	headers: Record<string, string>
 	/**
-	 * When the request this value answers was sent (unix ms), when one preceded it in the flow. An
-	 * inbox also holds what earlier requests triggered, and those can arrive late: a value delivered
-	 * before this moment answers some other request.
+	 * When the request this value answers was sent (unix ms): the latest earlier request in the
+	 * flow or scenario that named `address` in its URL or body. An inbox also holds what earlier
+	 * requests triggered, and those can arrive late: a value delivered before this moment answers
+	 * some other request. Absent when no request named the address, or the step is `sentEarlier`.
 	 */
 	since?: number
 }
