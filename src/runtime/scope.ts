@@ -9,7 +9,7 @@
  */
 
 import { isAuthFlow, type Principal } from "../config/define-config.ts"
-import { type OperationModel, type EntityModel, owningEntityName, type SpecModel } from "../spec/graph.ts"
+import { type OperationModel, type EntityModel, owningEntityOf, type SpecModel } from "../spec/graph.ts"
 import { pathTemplateMatches } from "../spec/load.ts"
 import { CHECKS } from "./checks.ts"
 import type { Exchange } from "./client.ts"
@@ -630,7 +630,7 @@ export function planScope(model: SpecModel, scope: TargetScope): ScopePlan {
 		if (op === undefined || seen.has(op.operationId)) return
 		seen.add(op.operationId)
 		for (const param of op.pathParams) {
-			const owner = owningEntityName(op.path, param)
+			const owner = owningEntityOf(model.operations, op.path, param)
 			const create = owner === null ? undefined : model.byOperationId.get(model.entities.get(owner)?.create ?? "")
 			if (create === undefined || create.operationId === op.operationId) continue
 			support.add(create.operationId)

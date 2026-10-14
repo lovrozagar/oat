@@ -137,3 +137,122 @@ describe("a listed entity with no create", () => {
 		).toBe(true)
 	})
 })
+
+/* Two collections share a last segment, so the model names the nested one after its parent too
+ * (`organization-webhook`). The parent of `{id}` is still whatever the collection before it creates. */
+const hookSpec = {
+	info: { title: "hooks", version: "1" },
+	openapi: "3.1.0",
+	paths: {
+		"/v1/billing/webhooks/stripe": {
+			post: {
+				operationId: "billing.stripeWebhook",
+				requestBody: json({ type: "object" }),
+				responses: {
+					"200": {
+						content: json({ properties: { received: { type: "boolean" } }, type: "object" }),
+						description: "ok",
+					},
+				},
+			},
+		},
+		"/v1/organizations/{organization_id}/webhooks": {
+			get: {
+				operationId: "webhook.list",
+				parameters: [idParam("organization_id")],
+				responses: {
+					"200": {
+						content: json({ properties: { items: { items: tableSchema, type: "array" } }, type: "object" }),
+						description: "ok",
+					},
+				},
+			},
+			post: {
+				operationId: "webhook.create",
+				parameters: [idParam("organization_id")],
+				requestBody: json({ properties: { name: { type: "string" } }, required: ["name"], type: "object" }),
+				responses: { "201": { content: json(tableSchema), description: "made" } },
+			},
+		},
+		"/v1/organizations/{organization_id}/webhooks/{id}": {
+			delete: {
+				operationId: "webhook.delete",
+				parameters: [idParam("organization_id"), idParam("id")],
+				responses: { "204": { description: "gone" } },
+			},
+			get: {
+				operationId: "webhook.get",
+				parameters: [idParam("organization_id"), idParam("id")],
+				responses: { "200": { content: json(tableSchema), description: "ok" }, "404": { description: "missing" } },
+			},
+		},
+		"/v1/organizations/{organization_id}/webhooks/{id}/deliveries": {
+			get: {
+				operationId: "webhook.deliveries",
+				parameters: [idParam("organization_id"), idParam("id")],
+				responses: {
+					"200": {
+						content: json({ properties: { items: { items: exportSchema, type: "array" } }, type: "object" }),
+						description: "ok",
+					},
+					"404": { description: "missing" },
+				},
+				"x-entity": { action: "list", identity: "id", name: "webhook_delivery" },
+				"x-query": { grammar: "postgrest", sortable: ["created_at"] },
+			},
+		},
+	},
+} as unknown as OpenApiDocument
+
+async function serveHooks(): Promise<string> {
+	const hooks = new Map<string, { id: string; name: string }>()
+	const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+		const url = new URL(req.url ?? "/", "http://127.0.0.1")
+		for await (const chunk of req) void chunk
+		const send = (status: number, value?: unknown) => {
+			res.writeHead(status, value === undefined ? {} : { "content-type": "application/json" })
+			res.end(value === undefined ? undefined : JSON.stringify(value))
+		}
+		if (url.pathname === "/openapi.json") return send(200, hookSpec)
+		if (url.pathname === "/v1/organizations/org_a/webhooks" && req.method === "POST") {
+			const hook = { id: `wh${hooks.size + 1}`, name: "hook" }
+			hooks.set(hook.id, hook)
+			return send(201, hook)
+		}
+		if (url.pathname === "/v1/organizations/org_a/webhooks") return send(200, { items: [...hooks.values()] })
+		const deliveries = /^\/v1\/organizations\/org_a\/webhooks\/([^/]+)\/deliveries$/.exec(url.pathname)
+		if (deliveries !== null) {
+			if (!hooks.has(deliveries[1] ?? "")) return send(404, { error: "not_found" })
+			return send(200, { items: [] })
+		}
+		const item = /^\/v1\/organizations\/org_a\/webhooks\/([^/]+)$/.exec(url.pathname)
+		if (item !== null) {
+			if (req.method === "DELETE") {
+				hooks.delete(item[1] ?? "")
+				return send(204)
+			}
+			const hook = hooks.get(item[1] ?? "")
+			return hook === undefined ? send(404, { error: "not_found" }) : send(200, hook)
+		}
+		send(404, { error: "not_found" })
+	})
+	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+	closers.push(() => new Promise((resolve) => server.close(() => resolve())))
+	return `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+}
+
+describe("a listed entity under a collection the model names after its parent", () => {
+	it("gets the parent the collection before its id creates", async () => {
+		const url = await serveHooks()
+		const result = await run({
+			baseUrl: url,
+			ops: ["webhook.deliveries"],
+			principals: [{ headers: {}, id: "alpha", roots: { organization_id: "org_a" } }],
+			seed: 1,
+			spec: `${url}/openapi.json`,
+		})
+		const missing = result.findings.filter((finding) => finding.detail.includes("no value for path parameter"))
+		expect(missing.map((finding) => `${finding.check} ${finding.entity}`)).toEqual([])
+		expect(result.client.transcript.some((exchange) => /\/webhooks\/wh\d+\/deliveries/.test(exchange.url))).toBe(true)
+	})
+})

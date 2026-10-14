@@ -631,13 +631,40 @@ function collectRoots(operations: OperationModel[], entities: Map<string, Entity
 			/* Resolve the entity from the segment the parameter qualifies, not from its name:
 			 * `/table-templates/{template_id}` identifies a `table-template`, and matching on
 			 * the name alone would invent a phantom `template` root. */
-			const implied = owningEntityName(op.path, param) ?? impliedEntityName(param)
+			const implied = owningEntityOf(operations, op.path, param) ?? impliedEntityName(param)
 			if (implied === null) continue
 			const entity = entities.get(implied)
 			if (entity === undefined || (entity.create === undefined && entity.invite === null)) roots.add(param)
 		}
 	}
 	return [...roots].sort()
+}
+
+/**
+ * The entity `{param}` identifies: whatever the document tags the collection before it as — its
+ * create, else its item read. Names can carry a parent (`organization-webhook`, when another
+ * `webhooks` collection exists), so the segment alone does not name it. Falls back to the
+ * segment's singular when no route sits on that collection.
+ */
+export function owningEntityOf(
+	operations: readonly Pick<OperationModel, "entity" | "method" | "path">[],
+	path: string,
+	param: string,
+): string | null {
+	const segments = path.split("/").filter(Boolean)
+	const index = segments.indexOf(`{${param}}`)
+	if (index <= 0) return null
+	const shape = (template: string): string =>
+		template
+			.split("/")
+			.filter(Boolean)
+			.map((segment) => (PARAM_SEGMENT.test(segment) ? "{}" : segment))
+			.join("/")
+	const collection = shape(segments.slice(0, index).join("/"))
+	const item = shape(segments.slice(0, index + 1).join("/"))
+	const tagged = (method: string, at: string) =>
+		operations.find((op) => op.entity !== null && op.method === method && shape(op.path) === at)?.entity
+	return tagged("POST", collection) ?? tagged("GET", item) ?? owningEntityName(path, param)
 }
 
 /** The collection segment immediately preceding `{param}` in the path. */

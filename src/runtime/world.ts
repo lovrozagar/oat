@@ -9,7 +9,7 @@
 
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
 import { requestContent } from "../spec/collection.ts"
-import { largestPageQuery, owningEntityName } from "../spec/graph.ts"
+import { largestPageQuery, owningEntityOf } from "../spec/graph.ts"
 import { encodeForOperation } from "./body.ts"
 import { forEachInvocation } from "./upload-each.ts"
 import type { Client, Exchange } from "./client.ts"
@@ -155,7 +155,7 @@ export async function resolvePathScope(
 			continue
 		}
 
-		const owner = owningEntityName(op.path, param)
+		const owner = owningEntityOf(model.operations, op.path, param)
 		if (owner === null) {
 			throw new SeedError(param, `path parameter {${param}} names no entity oat can create`)
 		}
