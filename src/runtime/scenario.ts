@@ -91,7 +91,7 @@ function durationMs(text: string): number {
 }
 
 /** What an assert wants, with `{name}` already filled in its path and its value. */
-type Want = { from: string; mode: "contains" | "equals" | "excludes"; value: string }
+type Want = { from: string; mode: "atLeast" | "contains" | "equals" | "excludes"; value: string }
 
 function expected(assert: ScenarioAssert, scope: Record<string, string>): Want {
 	const from = String(interpolate(assert.from, scope))
@@ -100,7 +100,8 @@ function expected(assert: ScenarioAssert, scope: Record<string, string>): Want {
 		return { from, mode: "contains", value: String(interpolate(assert.contains, scope)) }
 	if (assert.excludes !== undefined)
 		return { from, mode: "excludes", value: String(interpolate(assert.excludes, scope)) }
-	throw new Error(`oat: an assert on ${assert.from} needs equals, contains or excludes`)
+	if (assert.atLeast !== undefined) return { from, mode: "atLeast", value: String(assert.atLeast) }
+	throw new Error(`oat: an assert on ${assert.from} needs equals, contains, excludes or atLeast`)
 }
 
 /** The values at `from`: a JSON path into the body, or `header:Name` / `cookie:name` as saveAs reads them. */
@@ -115,10 +116,26 @@ function observed(exchange: Exchange, from: string): unknown[] {
 	return value === undefined ? [] : [value]
 }
 
-function holds(exchange: Exchange, path: string, want: Want): boolean {
+/** The first value at `path` that meets `want`, as text — what the evidence records. */
+function shownValue(exchange: Exchange, path: string, want: Want): string | undefined {
 	const nodes = observed(exchange, path).map((node) => (typeof node === "string" ? node : JSON.stringify(node)))
-	if (want.mode === "excludes") return !nodes.includes(want.value)
+	if (want.mode === "excludes") return nodes.includes(want.value) ? undefined : want.value
+	if (want.mode === "atLeast") {
+		const floor = Number(want.value)
+		return nodes.find((text) => text.trim() !== "" && Number(text) >= floor)
+	}
 	return nodes.some((text) => (want.mode === "equals" ? text === want.value : text.includes(want.value)))
+		? want.value
+		: undefined
+}
+
+function holds(exchange: Exchange, path: string, want: Want): boolean {
+	return shownValue(exchange, path, want) !== undefined
+}
+
+/** The wait before the next poll: doubling to five seconds, never shorter than the interval asked for. */
+export function nextPollWait(current: number, everyMs: number): number {
+	return Math.min(current * 2, Math.max(5_000, everyMs))
 }
 
 function succeeded(step: ScenarioRequestStep, exchange: Exchange): boolean {
@@ -327,7 +344,7 @@ export async function runScenarios(input: {
 				}
 				if (Date.now() < deadline) {
 					await sleep(waitMs)
-					waitMs = Math.min(waitMs * 2, 5_000)
+					waitMs = nextPollWait(waitMs, step.poll?.everyMs ?? 500)
 					continue
 				}
 				const proves = [...(step.assert?.observes ?? []), ...(own === undefined ? [] : [own])]
@@ -406,7 +423,7 @@ export async function runScenarios(input: {
 							seq: exchange.seq,
 							value: want.value,
 						}
-					: { path: want.from, seq: exchange.seq, value: want.value }
+					: { path: want.from, seq: exchange.seq, value: shownValue(exchange, want.from, want) ?? want.value }
 			/* A write's own response is its claim, not a later read of it: it proves nothing about itself. */
 			const reads = /^(GET|HEAD)$/i.test(exchange.method)
 			for (const id of [...(step.assert.observes ?? []), ...(own === undefined ? [] : [own])]) {

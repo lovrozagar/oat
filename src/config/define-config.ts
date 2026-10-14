@@ -117,6 +117,11 @@ export interface ScenarioAssert {
 	/** The value must no longer appear at `from` — a removal, proven by a later read. */
 	excludes?: string
 	/**
+	 * The number at `from` must be at least this. A count read from a sampled or eventually
+	 * consistent store (a usage chart, an analytics total) promises a floor, not an exact value.
+	 */
+	atLeast?: number
+	/**
 	 * Earlier operations this read proves. A passing assert marks each one `verified`, with this
 	 * exchange as the observation. The step's own operation always counts.
 	 */
