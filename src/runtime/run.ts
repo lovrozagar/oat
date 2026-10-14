@@ -938,8 +938,8 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			 * The invite check is the only thing that POSTs a grant, and it uses inviteAs.
 			 * An action cohort still has to create the parent the list path names. */
 			let listedRoots = { ...options.roots, ...alpha.roots }
-			if (needsListedCohort) {
-				const resolved = await resolvePathScope(listOp, model, seeding, {
+			const listParent = () =>
+				resolvePathScope(listOp, model, seeding, {
 					authHeaders: alpha.headers,
 					ancestors,
 					onCreate: recorder(alphaOwner),
@@ -949,7 +949,21 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					seed,
 					uploads,
 				})
-				listedRoots = { ...rootValues, ...resolved.values }
+			if (needsListedCohort) {
+				listedRoots = { ...rootValues, ...(await listParent()).values }
+			} else if (
+				listOp !== undefined &&
+				!inviteOnly &&
+				listOp.pathParams.some((param) => listedRoots[param] === undefined)
+			) {
+				/* A table's exports, a webhook's deliveries: nobody creates one directly, but the list
+				 * sits under a parent oat can make, and every check on the entity goes through it.
+				 * A parent oat cannot make leaves the scope as it was, and the gap says which. */
+				try {
+					listedRoots = { ...rootValues, ...(await listParent()).values }
+				} catch (error) {
+					if (!(error instanceof SeedError)) throw error
+				}
 			}
 			const existing = await readExisting(listOp, model, seeding, alpha.headers(), listedRoots)
 			scope = { created: [], values: { ...rootValues, ...existing.scope } }

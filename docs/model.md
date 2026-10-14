@@ -51,6 +51,8 @@ No meta tag. If create declares a header matching `Idempotency-Key` / `Idempoten
 
 Per entity, oat POSTs the create body built from the request schema (JSON, multipart, or urlencoded).
 
+An entity with no create of its own — a table's exports, a webhook's deliveries — is read through its list. When that list sits under a parent (`/tables/{table_id}/exports`), oat makes the parent the way it makes any ancestor, sharing the one it already made for this principal, so the entity's checks have a list to read.
+
 Default cohort is **7** records, one of each variant, sliced by `cohortSize`:
 
 | variant         | what it is for                                     |
