@@ -233,7 +233,11 @@ export async function runScenarios(input: {
 			}
 		}
 
-		const failedOps = new Set(stoppedAt?.failure.blames.filter((id) => graded.includes(id)) ?? [])
+		/* A failing step blames its own operation whether or not the scenario covers it: a support
+		 * step that fails (arming an account, setting the scene) must not stop the scenario in silence. */
+		const failedOps = new Set(
+			stoppedAt?.failure.blames.filter((id) => graded.includes(id) || input.mode === "full" || input.inScope(id)) ?? [],
+		)
 		for (const id of graded) {
 			if (failedOps.has(id)) continue
 			const call = calls.get(id)

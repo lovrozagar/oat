@@ -126,6 +126,12 @@ async function encodeMultipart(options: EncodeOptions): Promise<FormData> {
 	const hookHits = new Map<string, Awaited<ReturnType<typeof resolveUploadOverride>>>()
 	const overlays: Array<Record<string, string | UploadFile>> = []
 	for (const name of names) {
+		/* A file the caller names itself (a scenario step's body) is that part; no hook overrides it. */
+		const given = options.fields[name]
+		if (isUploadFile(given)) {
+			hookHits.set(name, given)
+			continue
+		}
 		const schema = properties[name] ?? additionalSchema(options.schema) ?? {}
 		const resolved = await resolveUploadOverride(uploadRequest(name, schema, options), options.uploads)
 		hookHits.set(name, resolved)
