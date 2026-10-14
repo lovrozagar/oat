@@ -171,8 +171,10 @@ describe("sort checks on a collection that grows while it is read", () => {
 
 	it("still reports ties that come back in a different order each time", async () => {
 		let reported = false
-		/* A shuffle can land in the same order twice; a few tries make the bug certain to show. */
-		for (let attempt = 0; attempt < 6 && !reported; attempt++) {
+		/* Two tied rows shuffle into the same order on both reads half the time, and a pair always
+		 * reads as one direction, so a try shows the bug with odds of one half: twenty leave a miss
+		 * at one in a million. */
+		for (let attempt = 0; attempt < 20 && !reported; attempt++) {
 			reported =
 				bugs(await run("sort.stable-tiebreak", { grows: false, shuffleTies: true }), "sort.stable-tiebreak").length > 0
 		}
