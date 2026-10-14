@@ -135,7 +135,8 @@ export interface ScenarioAssert {
 
 /** A request in a scenario: an `OperationStep` or `RequestStep`, plus what to check. */
 export type ScenarioRequestStep = (OperationStep | RequestStep) & {
-	assert?: ScenarioAssert
+	/** What the response must show; a list must all hold on the same exchange. */
+	assert?: ScenarioAssert | ScenarioAssert[]
 	/** Re-send until the assert passes or `within` (`"30s"`, `"500ms"`, `"2m"`) runs out. */
 	poll?: { within: string; everyMs?: number }
 	/** Send without the scenario principal's credential. */

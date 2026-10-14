@@ -131,6 +131,16 @@ function shownValue(exchange: Exchange, path: string, want: Want): string | unde
 		: undefined
 }
 
+/** A step's asserts, one or a list, each with what it wants. */
+function wantsOf(
+	step: ScenarioRequestStep,
+	scope: Record<string, string>,
+): Array<{ assert: ScenarioAssert; want: Want }> {
+	if (step.assert === undefined) return []
+	const asserts = Array.isArray(step.assert) ? step.assert : [step.assert]
+	return asserts.map((assert) => ({ assert, want: expected(assert, scope) }))
+}
+
 function holds(exchange: Exchange, path: string, want: Want): boolean {
 	return shownValue(exchange, path, want) !== undefined
 }
@@ -342,10 +352,10 @@ export async function runScenarios(input: {
 				})
 				sent.push(exchange)
 				const ok = succeeded(step, exchange)
-				const want = step.assert === undefined ? null : expected(step.assert, scope)
-				const shown = ok && (step.assert === undefined || want === null || holds(exchange, want.from, want))
-				if (shown) {
-					record(step, exchange, own, want)
+				const wants = wantsOf(step, scope)
+				const unmet = wants.find(({ want }) => !holds(exchange, want.from, want))?.want
+				if (ok && unmet === undefined) {
+					record(step, exchange, own, wants)
 					return
 				}
 				if (Date.now() < deadline) {
@@ -353,7 +363,7 @@ export async function runScenarios(input: {
 					waitMs = nextPollWait(waitMs, step.poll?.everyMs ?? 500)
 					continue
 				}
-				const proves = [...(step.assert?.observes ?? []), ...(own === undefined ? [] : [own])]
+				const proves = [...wants.flatMap(({ assert }) => assert.observes ?? []), ...(own === undefined ? [] : [own])]
 				const earlier = proves
 					.map((id) => calls.get(id))
 					.filter((call): call is Exchange => call !== undefined && call !== exchange)
@@ -365,14 +375,19 @@ export async function runScenarios(input: {
 					)
 				}
 				throw new StepFailure(
-					`${request.method} ${request.path} did not show ${want?.mode} "${want?.value}" at ${want?.from}`,
+					`${request.method} ${request.path} did not show ${unmet?.mode} "${unmet?.value}" at ${unmet?.from}`,
 					[...earlier, exchange],
 					proves,
 				)
 			}
 		}
 
-		function record(step: ScenarioRequestStep, exchange: Exchange, own: string | undefined, want: Want | null): void {
+		function record(
+			step: ScenarioRequestStep,
+			exchange: Exchange,
+			own: string | undefined,
+			wants: Array<{ assert: ScenarioAssert; want: Want }>,
+		): void {
 			/* An observed call keeps its pair; a later repeat of the operation proves nothing new. */
 			if (own !== undefined && !observed.has(own)) calls.set(own, exchange)
 			const cookies = exchange.cookies ?? cookiesFromRecordedHeaders(exchange.responseHeaders)
@@ -420,8 +435,8 @@ export async function runScenarios(input: {
 					scope[name] = String(value)
 				}
 			}
-			if (step.assert === undefined || want === null) return
-			const observation =
+			if (wants.length === 0) return
+			const observationOf = (want: Want): PassEvidence["observation"] =>
 				want.mode === "excludes" || want.mode === "omits"
 					? {
 							absent: true as const,
@@ -432,11 +447,17 @@ export async function runScenarios(input: {
 					: { path: want.from, seq: exchange.seq, value: shownValue(exchange, want.from, want) ?? want.value }
 			/* A write's own response is its claim, not a later read of it: it proves nothing about itself. */
 			const reads = /^(GET|HEAD)$/i.test(exchange.method)
-			for (const id of [...(step.assert.observes ?? []), ...(own === undefined ? [] : [own])]) {
-				if (!calls.has(id)) continue
-				if (calls.get(id) === exchange && !reads) continue
-				observed.set(id, observation)
+			const prove = (id: string, want: Want): void => {
+				if (!calls.has(id)) return
+				if (calls.get(id) === exchange && !reads) return
+				observed.set(id, observationOf(want))
 			}
+			for (const { assert, want } of wants) {
+				for (const id of assert.observes ?? []) prove(id, want)
+			}
+			/* The step's own operation is shown by the first thing the step asserts. */
+			const first = wants[0]
+			if (own !== undefined && first !== undefined) prove(own, first.want)
 		}
 	}
 }
