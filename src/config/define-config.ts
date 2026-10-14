@@ -117,6 +117,11 @@ export interface ScenarioAssert {
 	/** The value must no longer appear at `from` — a removal, proven by a later read. */
 	excludes?: string
 	/**
+	 * No node at `from` may contain this text, an object's JSON text included: what a response must
+	 * never carry (`'"token":'` is a key named `token` at any depth). No node at all passes.
+	 */
+	omits?: string
+	/**
 	 * The number at `from` must be at least this. A count read from a sampled or eventually
 	 * consistent store (a usage chart, an analytics total) promises a floor, not an exact value.
 	 */

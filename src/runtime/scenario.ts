@@ -91,7 +91,7 @@ function durationMs(text: string): number {
 }
 
 /** What an assert wants, with `{name}` already filled in its path and its value. */
-type Want = { from: string; mode: "atLeast" | "contains" | "equals" | "excludes"; value: string }
+type Want = { from: string; mode: "atLeast" | "contains" | "equals" | "excludes" | "omits"; value: string }
 
 function expected(assert: ScenarioAssert, scope: Record<string, string>): Want {
 	const from = String(interpolate(assert.from, scope))
@@ -101,7 +101,8 @@ function expected(assert: ScenarioAssert, scope: Record<string, string>): Want {
 	if (assert.excludes !== undefined)
 		return { from, mode: "excludes", value: String(interpolate(assert.excludes, scope)) }
 	if (assert.atLeast !== undefined) return { from, mode: "atLeast", value: String(assert.atLeast) }
-	throw new Error(`oat: an assert on ${assert.from} needs equals, contains, excludes or atLeast`)
+	if (assert.omits !== undefined) return { from, mode: "omits", value: String(interpolate(assert.omits, scope)) }
+	throw new Error(`oat: an assert on ${assert.from} needs equals, contains, excludes, omits or atLeast`)
 }
 
 /** The values at `from`: a JSON path into the body, or `header:Name` / `cookie:name` as saveAs reads them. */
@@ -120,6 +121,7 @@ function observed(exchange: Exchange, from: string): unknown[] {
 function shownValue(exchange: Exchange, path: string, want: Want): string | undefined {
 	const nodes = observed(exchange, path).map((node) => (typeof node === "string" ? node : JSON.stringify(node)))
 	if (want.mode === "excludes") return nodes.includes(want.value) ? undefined : want.value
+	if (want.mode === "omits") return nodes.some((text) => text.includes(want.value)) ? undefined : want.value
 	if (want.mode === "atLeast") {
 		const floor = Number(want.value)
 		return nodes.find((text) => text.trim() !== "" && Number(text) >= floor)
@@ -420,7 +422,7 @@ export async function runScenarios(input: {
 			}
 			if (step.assert === undefined || want === null) return
 			const observation =
-				want.mode === "excludes"
+				want.mode === "excludes" || want.mode === "omits"
 					? {
 							absent: true as const,
 							path: want.from,
