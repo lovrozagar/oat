@@ -87,6 +87,15 @@ export class Ledger {
 		 */
 		/* Takes what is ledgered now; a later unwind removes only what was recorded after this one. */
 		const queue = this.items.splice(0).reverse()
+		const earlierDeletes = new Set(
+			client.transcript
+				.filter((exchange) => exchange.method === "DELETE" && exchange.status >= 200 && exchange.status < 300)
+				.map((exchange) => new URL(exchange.url).pathname),
+		)
+		const deletedEarlier = (path: string): boolean => {
+			const pathname = path.split("?")[0] ?? path
+			return [...earlierDeletes].some((done) => done.endsWith(pathname))
+		}
 		const depthOf = (item: Disposable): number => deleteOperationFor(item.entity, model)?.pathParams.length ?? 0
 		const levels = [...new Set(queue.map(depthOf))].sort((a, b) => b - a)
 		let done = 0
@@ -129,6 +138,10 @@ export class Ledger {
 					/* Only a denial is worth retrying with a stronger credential. */
 					if (exchange.status !== 401 && exchange.status !== 403) break
 				}
+				/* A delete earlier in the run already removed it: a tenant the creator then left
+				 * may refuse every later request, its own delete included. The call above still
+				 * goes first, so a record restored since is removed rather than assumed gone. */
+				if (!removed && deletedEarlier(path)) removed = true
 				if (removed) report.removed += 1
 				else {
 					report.failed.push({

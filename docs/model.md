@@ -91,7 +91,7 @@ When create is tagged `x-unique`, a first-variant seed **409** with a nonempty s
 
 `--seed` / `seed` makes the bodies identical across runs. It does not make server-assigned ids identical.
 
-Teardown DELETEs created rows (or the `x-cleanup` route) newest-first. Failures and missing delete routes are printed as leftovers, not as check findings. `keepFixtures: true` skips this.
+Teardown DELETEs created rows (or the `x-cleanup` route) newest-first. A record whose delete is refused counts as removed when a delete on the same path succeeded earlier in the run: a tenant its creator has left can refuse every later request. Failures and missing delete routes are printed as leftovers, not as check findings. `keepFixtures: true` skips this.
 
 ## Query roles and grammars
 

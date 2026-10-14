@@ -1,3 +1,5 @@
+import { createServer } from "node:http"
+import type { AddressInfo } from "node:net"
 import { describe, expect, it } from "vitest"
 import { PRINCIPALS } from "../src/conformance/suite.ts"
 import { createMemoryServer } from "../src/reference/http.ts"
@@ -39,6 +41,104 @@ describe("teardown", () => {
 			const deletes = client.transcript.filter((exchange) => exchange.method === "DELETE").map((e) => e.url)
 			expect(deletes.at(-1)).toMatch(/\/tables\/[^/]+$/)
 			expect(deletes.slice(0, 2).every((url) => url.includes("/rows/"))).toBe(true)
+		} finally {
+			await server.close()
+		}
+	})
+})
+
+/* A tenant the caller left answers 403 to everything, its own delete included. */
+const orgsSpec = {
+	info: { title: "orgs", version: "1" },
+	openapi: "3.1.0",
+	paths: {
+		"/v1/orgs": {
+			post: {
+				operationId: "org.create",
+				responses: {
+					"201": {
+						content: {
+							"application/json": {
+								schema: { properties: { id: { type: "string" } }, required: ["id"], type: "object" },
+							},
+						},
+						description: "made",
+					},
+				},
+			},
+		},
+		"/v1/orgs/{org_id}": {
+			delete: {
+				operationId: "org.delete",
+				parameters: [{ in: "path", name: "org_id", required: true, schema: { type: "string" } }],
+				responses: { "204": { description: "gone" }, "403": { description: "not a member" } },
+			},
+			get: {
+				operationId: "org.get",
+				parameters: [{ in: "path", name: "org_id", required: true, schema: { type: "string" } }],
+				responses: {
+					"200": {
+						content: {
+							"application/json": {
+								schema: { properties: { id: { type: "string" } }, required: ["id"], type: "object" },
+							},
+						},
+						description: "ok",
+					},
+				},
+			},
+		},
+	},
+} as unknown as OpenApiDocument
+
+async function serveOrgs(): Promise<{ close: () => Promise<void>; url: string }> {
+	const live = new Set(["org_1"])
+	const server = createServer((req, res) => {
+		const id = /^\/v1\/orgs\/([^/]+)$/.exec(req.url ?? "")?.[1]
+		if (req.method === "DELETE" && id !== undefined) {
+			res.writeHead(live.delete(id) ? 204 : 403)
+			res.end()
+			return
+		}
+		res.writeHead(404)
+		res.end()
+	})
+	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+	return {
+		close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+		url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+	}
+}
+
+describe("teardown of a record the run already deleted", () => {
+	it("counts it removed when the earlier delete succeeded", async () => {
+		const server = await serveOrgs()
+		try {
+			const model = buildModel(dereference(orgsSpec).doc)
+			const owner = { headers: () => ({}), id: "alpha" }
+			const client = new Client(server.url)
+			expect((await client.request("DELETE", "/v1/orgs/org_1", {})).status).toBe(204)
+			const ledger = new Ledger()
+			ledger.record("org", "org_1", { org_id: "org_1" }, owner)
+			const result = await ledger.unwind(model, client, () => [])
+			expect(result.failed).toEqual([])
+			expect(result.removed).toBe(1)
+		} finally {
+			await server.close()
+		}
+	})
+
+	it("still fails a refused delete nothing removed before", async () => {
+		const server = await serveOrgs()
+		try {
+			const model = buildModel(dereference(orgsSpec).doc)
+			const owner = { headers: () => ({}), id: "alpha" }
+			const client = new Client(server.url)
+			const ledger = new Ledger()
+			ledger.record("org", "org_2", { org_id: "org_2" }, owner)
+			const result = await ledger.unwind(model, client, () => [])
+			expect(result.removed).toBe(0)
+			expect(result.failed).toHaveLength(1)
 		} finally {
 			await server.close()
 		}
