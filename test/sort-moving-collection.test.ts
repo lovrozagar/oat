@@ -9,6 +9,7 @@ import type { Record_ } from "../src/runtime/world.ts"
 import { buildModel } from "../src/spec/graph.ts"
 import { dereference } from "../src/spec/load.ts"
 import type { OpenApiDocument } from "../src/spec/types.ts"
+import { checkContext } from "./support/check-context.ts"
 
 /*
  * An append-only log (an audit trail) gains rows while it is read: the run that reads it is also
@@ -123,7 +124,7 @@ async function run(checkId: string, opts: { grows: boolean; shuffleTies?: boolea
 		send(res, { logs: rows.slice((page - 1) * limit, page * limit) })
 	})
 	const findings = new FindingCollector()
-	const ctx = {
+	const ctx = checkContext({
 		actors: [],
 		altAuth: undefined,
 		altScope: undefined,
@@ -152,7 +153,7 @@ async function run(checkId: string, opts: { grows: boolean; shuffleTies?: boolea
 		uploads: { seed: 1 },
 		validator: new SchemaValidator(),
 		waitOps: [],
-	}
+	})
 	expect(check.plan(ctx).ok).toBe(true)
 	await planAndRun(check, ctx)
 	return findings

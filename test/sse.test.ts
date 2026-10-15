@@ -12,6 +12,7 @@ import { documentsEventStream } from "../src/spec/collection.ts"
 import { buildModel } from "../src/spec/graph.ts"
 import { dereference } from "../src/spec/load.ts"
 import type { OpenApiDocument, OperationObject } from "../src/spec/types.ts"
+import { checkContext } from "./support/check-context.ts"
 
 const closers: Array<() => Promise<void>> = []
 
@@ -291,7 +292,7 @@ describe("SSE frames", () => {
 describe("documentsEventStream", () => {
 	const op = (responses: OperationObject["responses"]): OperationObject => ({
 		operationId: "op",
-		responses,
+		...(responses === undefined ? {} : { responses }),
 	})
 
 	it("is true for any success response that lists text/event-stream", () => {
@@ -428,36 +429,39 @@ describe("stream from text/event-stream", () => {
 		const check = CHECKS.find((c) => c.id === "schema.success-response-matches-document")
 		expect(check).toBeDefined()
 		if (check !== undefined)
-			await runCheck(check, {
-				actors: [],
-				altAuth: undefined,
-				altScope: undefined,
-				asyncOps: [],
-				auth: () => ({}),
-				client,
-				collectionKey: null,
-				createOp,
-				deleteOp: undefined,
-				effectOps: [],
-				entityName: "batch",
-				findings,
-				hooks: {},
-				identity: "id",
-				invite: null,
-				listOp: listOp!,
-				model,
-				outOfBand: { attempts: 6, initialMs: 200, maxMs: 3000 },
-				query: null,
-				readOp: undefined,
-				records: [],
-				scope: {},
-				seed: 1,
-				softDelete: null,
-				updateOp: undefined,
-				uploads: { seed: 1 },
-				validator: new SchemaValidator(),
-				waitOps: [],
-			})
+			await runCheck(
+				check,
+				checkContext({
+					actors: [],
+					altAuth: undefined,
+					altScope: undefined,
+					asyncOps: [],
+					auth: () => ({}),
+					client,
+					collectionKey: null,
+					createOp,
+					deleteOp: undefined,
+					effectOps: [],
+					entityName: "batch",
+					findings,
+					hooks: {},
+					identity: "id",
+					invite: null,
+					listOp: listOp!,
+					model,
+					outOfBand: { attempts: 6, initialMs: 200, maxMs: 3000 },
+					query: null,
+					readOp: undefined,
+					records: [],
+					scope: {},
+					seed: 1,
+					softDelete: null,
+					updateOp: undefined,
+					uploads: { seed: 1 },
+					validator: new SchemaValidator(),
+					waitOps: [],
+				}),
+			)
 		expect(findings.findings.filter((f) => f.check === "schema.success-response-matches-document")).toEqual([])
 	})
 
@@ -508,36 +512,39 @@ describe("stream from text/event-stream", () => {
 		const findings = new FindingCollector()
 		const check = CHECKS.find((c) => c.id === "schema.success-response-matches-document")
 		if (check !== undefined)
-			await runCheck(check, {
-				actors: [],
-				altAuth: undefined,
-				altScope: undefined,
-				asyncOps: [],
-				auth: () => ({}),
-				client,
-				collectionKey: null,
-				createOp,
-				deleteOp: undefined,
-				effectOps: [],
-				entityName: "batch",
-				findings,
-				hooks: {},
-				identity: "id",
-				invite: null,
-				listOp: listOp!,
-				model,
-				outOfBand: { attempts: 6, initialMs: 200, maxMs: 3000 },
-				query: null,
-				readOp: undefined,
-				records: [],
-				scope: {},
-				seed: 1,
-				softDelete: null,
-				updateOp: undefined,
-				uploads: { seed: 1 },
-				validator: new SchemaValidator(),
-				waitOps: [],
-			})
+			await runCheck(
+				check,
+				checkContext({
+					actors: [],
+					altAuth: undefined,
+					altScope: undefined,
+					asyncOps: [],
+					auth: () => ({}),
+					client,
+					collectionKey: null,
+					createOp,
+					deleteOp: undefined,
+					effectOps: [],
+					entityName: "batch",
+					findings,
+					hooks: {},
+					identity: "id",
+					invite: null,
+					listOp: listOp!,
+					model,
+					outOfBand: { attempts: 6, initialMs: 200, maxMs: 3000 },
+					query: null,
+					readOp: undefined,
+					records: [],
+					scope: {},
+					seed: 1,
+					softDelete: null,
+					updateOp: undefined,
+					uploads: { seed: 1 },
+					validator: new SchemaValidator(),
+					waitOps: [],
+				}),
+			)
 		expect(findings.findings.filter((f) => f.check === "schema.success-response-matches-document")).toEqual([])
 	})
 

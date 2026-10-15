@@ -9,6 +9,7 @@ import type { Record_ } from "../src/runtime/world.ts"
 import { buildModel } from "../src/spec/graph.ts"
 import { dereference } from "../src/spec/load.ts"
 import type { OpenApiDocument } from "../src/spec/types.ts"
+import { checkContext } from "./support/check-context.ts"
 
 /*
  * The case check searches a token, then the token with its first letter's case flipped. A record
@@ -122,7 +123,7 @@ async function run(opts: { grows: boolean; caseSensitive: boolean }): Promise<Fi
 		res.end(JSON.stringify({ templates: rows.slice((page - 1) * limit, page * limit) }))
 	})
 	const findings = new FindingCollector()
-	const ctx = {
+	const ctx = checkContext({
 		actors: [],
 		altAuth: undefined,
 		altScope: undefined,
@@ -151,7 +152,7 @@ async function run(opts: { grows: boolean; caseSensitive: boolean }): Promise<Fi
 		uploads: { seed: 1 },
 		validator: new SchemaValidator(),
 		waitOps: [],
-	}
+	})
 	expect(check.plan(ctx).ok).toBe(true)
 	await planAndRun(check, ctx)
 	return findings

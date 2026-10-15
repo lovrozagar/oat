@@ -155,7 +155,7 @@ describe("in-flight progress format", () => {
 		})
 		const flying = snap({
 			inflight: { at: 10, method: "POST", url: EXTRACT },
-			last: idle.last,
+			...(idle.last === undefined ? {} : { last: idle.last }),
 		})
 		const done = snap({
 			last: {

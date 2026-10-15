@@ -6,6 +6,7 @@ const exchange = (seq: number, body: unknown): Exchange => ({
 	at: 0,
 	durationMs: 0,
 	method: "GET",
+	requestBody: undefined,
 	requestBytes: 0,
 	requestHeaders: {},
 	requestId: "",

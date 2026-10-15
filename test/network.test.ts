@@ -72,7 +72,7 @@ describe("interfaces and kind copy", () => {
 	it("treats a machine with no external address as offline", () => {
 		expect(hasUsableInterface(() => ({}))).toBe(false)
 		expect(hasUsableInterface(() => ({ lo: [{ address: "127.0.0.1", internal: true }] as never }))).toBe(false)
-		expect(hasUsableInterface(() => ({ eth0: null }))).toBe(false)
+		expect(hasUsableInterface(() => ({ eth0: undefined }))).toBe(false)
 		expect(hasUsableInterface(() => ({ eth0: [{ address: "", internal: false }] as never }))).toBe(false)
 		expect(hasUsableInterface(() => ({ eth0: [{ address: "10.0.0.2", internal: false }] as never }))).toBe(true)
 		expect(hasUsableInterface()).toBe(true)
@@ -310,7 +310,6 @@ describe("probeOrigin / fetchWithNetworkRetry", () => {
 					fetchImpl: async () => {
 						throw net("ENETUNREACH")
 					},
-					now: undefined,
 					probe: async () => false,
 					retries: 0,
 					sleep: async (ms) => {
@@ -445,7 +444,8 @@ describe("Client records a status-0 network exchange and retries", () => {
 				},
 				undefined,
 				undefined,
-				{ retries: 2, waitMs: undefined },
+				/* No awaitRecovery: a failed attempt is retried at once, never waited out. */
+				{ retries: 2 },
 			)
 			const exchange = await client.get("/v1/x")
 			expect(exchange.status).toBe(200)

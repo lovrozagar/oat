@@ -368,7 +368,7 @@ describe("invite accept request", () => {
 
 	it("accepts with the mailed token when tokenFrom is outOfBand", async () => {
 		const spec = inviteSpec("body")
-		const invite = spec.paths["/v1/orgs/{org_id}/members"]?.post as Record<string, unknown>
+		const invite = spec.paths?.["/v1/orgs/{org_id}/members"]?.post as Record<string, unknown>
 		invite["x-invite"] = {
 			...(invite["x-invite"] as Record<string, unknown>),
 			tokenFrom: "outOfBand",
@@ -423,7 +423,7 @@ describe("invite accept request", () => {
 
 	it("GETs the mailed URL when acceptFrom is link and does not POST accept JSON", async () => {
 		const spec = inviteSpec("body")
-		const invite = spec.paths["/v1/orgs/{org_id}/members"]?.post as Record<string, unknown>
+		const invite = spec.paths?.["/v1/orgs/{org_id}/members"]?.post as Record<string, unknown>
 		invite["x-invite"] = {
 			...(invite["x-invite"] as Record<string, unknown>),
 			acceptFrom: "link",
@@ -501,7 +501,7 @@ describe("invite accept request", () => {
 
 	it("fails when acceptFrom is link and the GET 404s even if POST-token would work", async () => {
 		const spec = inviteSpec("body")
-		const invite = spec.paths["/v1/orgs/{org_id}/members"]?.post as Record<string, unknown>
+		const invite = spec.paths?.["/v1/orgs/{org_id}/members"]?.post as Record<string, unknown>
 		invite["x-invite"] = {
 			...(invite["x-invite"] as Record<string, unknown>),
 			acceptFrom: "link",
@@ -552,7 +552,7 @@ describe("invite accept request", () => {
 
 	it("fails when the suite POSTs accept JSON against a world that only grants on GET-link", async () => {
 		const spec = inviteSpec("body")
-		const invite = spec.paths["/v1/orgs/{org_id}/members"]?.post as Record<string, unknown>
+		const invite = spec.paths?.["/v1/orgs/{org_id}/members"]?.post as Record<string, unknown>
 		invite["x-invite"] = {
 			...(invite["x-invite"] as Record<string, unknown>),
 			tokenFrom: "outOfBand",
@@ -615,7 +615,7 @@ describe("invite accept request", () => {
 
 	it("rejects a non-URL out-of-band value when acceptFrom is link", async () => {
 		const spec = inviteSpec("body")
-		const invite = spec.paths["/v1/orgs/{org_id}/members"]?.post as Record<string, unknown>
+		const invite = spec.paths?.["/v1/orgs/{org_id}/members"]?.post as Record<string, unknown>
 		invite["x-invite"] = {
 			...(invite["x-invite"] as Record<string, unknown>),
 			acceptFrom: "link",

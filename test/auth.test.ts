@@ -153,7 +153,8 @@ async function startAuthServer(options?: {
 			if (url.pathname === "/v1/auth/token" && method === "POST") {
 				registerHits.push("token")
 				harness.tokenBodies.push(await readJson(req))
-				harness.tokenWho.push(req.headers["x-who"] ?? "")
+				const who = req.headers["x-who"]
+				harness.tokenWho.push(typeof who === "string" ? who : "")
 				return send(res, 200, issue("acquire"))
 			}
 			if (url.pathname === "/v1/auth/refresh" && method === "POST") {

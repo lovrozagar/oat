@@ -35,6 +35,13 @@ import {
 import { readQueryCapability } from "../src/spec/extensions.ts"
 import type { Endpoint } from "../src/spec/types.ts"
 
+/* The conventions with one parameter role absent, as a document without that parameter derives them. */
+function without(conventions: QueryConventions, role: "filter" | "select"): QueryConventions {
+	const copy = { ...conventions }
+	delete copy[role]
+	return copy
+}
+
 const postgrest: QueryConventions = {
 	envelope: {},
 	filter: "filter",
@@ -684,7 +691,7 @@ describe("postgrest writers", () => {
 		expect(filterTerm(postgrest, "note", "is", "true")).toBeNull()
 		expect(filterTerm(postgrest, "name", "ilike", "FOO")).toEqual({ filter: "name.ilike.FOO" })
 		expect(filterTerm(postgrest, "tags", "contains", "x")).toEqual({ filter: "tags.contains.x" })
-		expect(filterTerm({ ...postgrest, filter: undefined }, "name", "eq", "x")).toBeNull()
+		expect(filterTerm(without(postgrest, "filter"), "name", "eq", "x")).toBeNull()
 		expect(filterTerm(postgrest, "name", "eq", ["a", "b"])).toBeNull()
 		expect(sortTermWithNulls(postgrest, "name", "asc", "last")).toBe("name.asc.nullslast")
 		expect(sortTerm(postgrest, "name", "asc", "first")).toBe("name.asc.nullsfirst")
@@ -693,7 +700,7 @@ describe("postgrest writers", () => {
 		expect(sortTerm({ ...postgrest, sortGrammar: "prefixed" }, "name", "desc")).toBe("-name")
 		expect(sortTerm({ ...postgrest, sortGrammar: "prefixed" }, "name", "asc")).toBe("name")
 		expect(selectTerm(postgrest, ["id", "name"], "row")).toEqual({ select: "id,name" })
-		expect(selectTerm({ ...postgrest, select: undefined }, ["id"], "row")).toBeNull()
+		expect(selectTerm(without(postgrest, "select"), ["id"], "row")).toBeNull()
 		expect(selectTerm({ ...postgrest, select: "fields", selectGrammar: "bracketed" }, ["id"], "row")).toEqual({
 			"fields[row]": "id",
 		})
@@ -704,14 +711,14 @@ describe("postgrest writers", () => {
 
 	it("does not write in / ilike / is on colon or equality", () => {
 		const colon: QueryConventions = { ...postgrest, grammar: "colon" }
-		const equality: QueryConventions = { ...postgrest, filter: undefined, grammar: "equality" }
+		const equality: QueryConventions = { ...without(postgrest, "filter"), grammar: "equality" }
 		expect(canWriteFilterOp(colon, "in")).toBe(false)
 		expect(canWriteFilterOp(colon, "eq")).toBe(true)
 		expect(canWriteFilterOp(equality, "eq")).toBe(true)
 		expect(canWriteFilterOp(equality, "neq")).toBe(false)
 		expect(filterTerm(colon, "status", "in", ["a", "b"])).toBeNull()
 		expect(filterTerm(colon, "name", "ilike", "FOO")).toBeNull()
-		expect(filterTerm({ ...colon, filter: undefined }, "name", "eq", "x")).toBeNull()
+		expect(filterTerm(without(colon, "filter"), "name", "eq", "x")).toBeNull()
 		expect(filterTerm(colon, "name", "eq", ["a"])).toBeNull()
 		expect(filterTerm(colon, "name", "eq", "x")).toEqual({ filter: "name=eq:x" })
 		expect(filterTerm(equality, "note", "is", "null")).toBeNull()

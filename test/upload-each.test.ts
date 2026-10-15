@@ -248,7 +248,7 @@ describe("encode fill order", () => {
 			schema: SCHEMA,
 			uploads: {
 				configDir: dir,
-				fixture: slot,
+				...(slot === undefined ? {} : { fixture: slot }),
 				resolveUpload: async () => ({ fields: { columns: "vendor,date,amount" } }),
 				seed: 1,
 				uploads: { each: { "extract.once": ["./invoice.pdf"] } },

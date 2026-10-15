@@ -9,6 +9,7 @@ import { SchemaValidator } from "../src/runtime/validate.ts"
 import { buildModel } from "../src/spec/graph.ts"
 import { dereference } from "../src/spec/load.ts"
 import type { OpenApiDocument } from "../src/spec/types.ts"
+import { checkContext } from "./support/check-context.ts"
 
 const closers: Array<() => Promise<void>> = []
 
@@ -204,7 +205,7 @@ async function runCheck(
 	closers.push(server.close)
 
 	const findings = new FindingCollector()
-	const ctx = {
+	const ctx = checkContext({
 		actors: [],
 		altAuth: undefined,
 		altScope: undefined,
@@ -233,7 +234,7 @@ async function runCheck(
 		uploads: { seed: 1 },
 		validator: new SchemaValidator(),
 		waitOps: [],
-	}
+	})
 	expect(check?.plan(ctx).ok).toBe(true)
 	if (check !== undefined) await planAndRun(check, ctx)
 	return { findings, requests }

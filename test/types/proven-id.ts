@@ -1,5 +1,5 @@
 /*
- * Compile-time test, checked by `tsc -p test/types/tsconfig.json` (part of `bun check`).
+ * Compile-time test, checked by `tsc -p tsconfig.test.json` (part of `bun check`).
  *
  * Teardown deletes what was recorded. A plain string — an id oat only sent, a value lifted from a
  * request body — must not be recordable, or the next fallback that "knows" the id would delete a

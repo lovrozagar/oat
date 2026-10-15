@@ -126,7 +126,7 @@ describe("encode + client", () => {
 			const client = new Client(url)
 			const exchange = await client.request("POST", "/extract", {
 				body: encoded.body,
-				contentType: encoded.contentType,
+				...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),
 			})
 
 			expect(exchange.requestBody).toBeInstanceOf(FormData)
@@ -273,7 +273,7 @@ describe("encode + client", () => {
 			const client = new Client(url)
 			const exchange = await client.request("POST", "/login", {
 				body: encoded.body,
-				contentType: encoded.contentType,
+				...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),
 			})
 			expect(client.transcript.at(-1)?.requestBody).toEqual({ password: "<redacted>", username: "oat" })
 			expect(exchange.requestHeaders["content-type"]).toBe("application/x-www-form-urlencoded")

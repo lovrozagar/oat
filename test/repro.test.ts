@@ -7,6 +7,7 @@ const exchange = (url: string, headers: Record<string, string> = {}): Exchange =
 	at: 0,
 	durationMs: 0,
 	method: "GET",
+	requestBody: undefined,
 	requestBytes: 0,
 	requestHeaders: headers,
 	requestId: "",

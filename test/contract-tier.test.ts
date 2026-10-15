@@ -283,6 +283,8 @@ describe("matrix evidence", () => {
 		const seen = result.client.transcript.find((exchange) => exchange.seq === write?.evidence?.observation?.seq)
 		expect(call?.operationId).toBe("notes.write")
 		expect(seen?.seq).toBeGreaterThan(call?.seq ?? Number.POSITIVE_INFINITY)
-		expect(JSON.stringify(seen?.responseBody)).toContain(write?.evidence?.observation?.value ?? "missing")
+		const observation = write?.evidence?.observation
+		const value = observation !== undefined && "value" in observation ? observation.value : undefined
+		expect(JSON.stringify(seen?.responseBody)).toContain(value ?? "missing")
 	})
 })

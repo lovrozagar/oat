@@ -10,6 +10,16 @@ import { Ledger } from "../src/runtime/teardown.ts"
 import { buildModel } from "../src/spec/graph.ts"
 import { dereference } from "../src/spec/load.ts"
 import type { OpenApiDocument } from "../src/spec/types.ts"
+import { type ProvenId, answeredId, listedIds } from "../src/runtime/proven-id.ts"
+
+/* Ids as the backend gave them back; the ledger takes nothing else. */
+function proven(id: ProvenId | undefined): ProvenId {
+	if (id === undefined) throw new Error("the create answered without an id")
+	return id
+}
+function listed(id: string): ProvenId {
+	return proven(listedIds([id])[0])
+}
 
 async function referenceModel(url: string) {
 	const spec = (await (await fetch(`${url}/v1/openapi/spec`)).json()) as OpenApiDocument
@@ -25,7 +35,7 @@ describe("teardown", () => {
 			const owner = { headers: () => headers, id: "alpha" }
 			const client = new Client(server.url)
 			const table = await client.request("POST", "/v1/projects/proj_alpha/tables", { body: { name: "t" }, headers })
-			const tableId = String((table.responseBody as { id: string }).id)
+			const tableId = proven(answeredId(table, ["id"]))
 			const ledger = new Ledger()
 			ledger.record("table", tableId, { project_id: "proj_alpha", table_id: tableId }, owner)
 			for (const label of ["a", "b"]) {
@@ -33,7 +43,7 @@ describe("teardown", () => {
 					body: { label },
 					headers,
 				})
-				const rowId = String((row.responseBody as { id: string }).id)
+				const rowId = proven(answeredId(row, ["id"]))
 				ledger.record("row", rowId, { project_id: "proj_alpha", row_id: rowId, table_id: tableId }, owner)
 			}
 			const result = await ledger.unwind(model, client, () => [])
@@ -119,7 +129,7 @@ describe("teardown of a record the run already deleted", () => {
 			const client = new Client(server.url)
 			expect((await client.request("DELETE", "/v1/orgs/org_1", {})).status).toBe(204)
 			const ledger = new Ledger()
-			ledger.record("org", "org_1", { org_id: "org_1" }, owner)
+			ledger.record("org", listed("org_1"), { org_id: "org_1" }, owner)
 			const result = await ledger.unwind(model, client, () => [])
 			expect(result.failed).toEqual([])
 			expect(result.removed).toBe(1)
@@ -135,7 +145,7 @@ describe("teardown of a record the run already deleted", () => {
 			const owner = { headers: () => ({}), id: "alpha" }
 			const client = new Client(server.url)
 			const ledger = new Ledger()
-			ledger.record("org", "org_2", { org_id: "org_2" }, owner)
+			ledger.record("org", listed("org_2"), { org_id: "org_2" }, owner)
 			const result = await ledger.unwind(model, client, () => [])
 			expect(result.removed).toBe(0)
 			expect(result.failed).toHaveLength(1)

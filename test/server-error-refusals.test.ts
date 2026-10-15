@@ -16,7 +16,11 @@ async function crashingProxy(target: string, crashes: (method: string, status: n
 				Object.entries(req.headers).filter(([name]) => name !== "host" && name !== "content-length"),
 			) as Record<string, string>
 			const body = chunks.length === 0 ? undefined : Buffer.concat(chunks)
-			const upstream = await fetch(`${target}${req.url ?? "/"}`, { body, headers, method: req.method })
+			const upstream = await fetch(`${target}${req.url ?? "/"}`, {
+				...(body === undefined ? {} : { body }),
+				headers,
+				...(req.method === undefined ? {} : { method: req.method }),
+			})
 			const text = await upstream.text()
 			if (crashes(req.method ?? "GET", upstream.status)) {
 				res.writeHead(500, { "content-type": "application/json" }).end('{"error":"internal"}')
