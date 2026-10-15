@@ -875,7 +875,9 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 		"sort.stable-tiebreak",
 	],
 	LIMIT_IGNORED: "pagination.limit-bounds-page-size",
-	LIMIT_EXCEEDS_MAX: "pagination.limit-respects-documented-max",
+	/* Past the maximum is also out of the declared range, which the document says is refused. */
+	LIMIT_EXCEEDS_MAX: ["pagination.limit-respects-documented-max", "pagination.limit-bounds-enforced"],
+	LIMIT_OUT_OF_RANGE_SERVED: "pagination.limit-bounds-enforced",
 	HASMORE_ALWAYS_FALSE: "pagination.has-more-is-accurate",
 	ORDER_IGNORED: "sort.order-is-applied",
 	SEARCH_IGNORED: "search.q-narrows-result",

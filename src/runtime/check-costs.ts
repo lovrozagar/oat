@@ -35,6 +35,7 @@ export const TYPICAL_REQUESTS: Partial<Record<CheckId, number>> = {
 	"filter.gte-is-gt-or-eq": 4,
 	"filter.ilike-is-case-insensitive": 2,
 	"filter.illegal-op-rejected": 2,
+	"pagination.limit-bounds-enforced": 2,
 	"filter.malformed-term-rejected": 3,
 	"filter.in-is-union-of-eq": 3,
 	"filter.in-over-limit-rejected": 1,

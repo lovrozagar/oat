@@ -339,6 +339,8 @@ function buildEntityPaths(ctx: SpecContext, entity: EntityDef, dialect: Dialect)
 						if (type !== undefined) row.type = type
 						return row
 					}),
+		/* Refused, as the listing does — unless the shape clamps silently, which it then says. */
+		limitOutOfRange: ctx.shape.clampLimit === undefined ? "reject" : "clamp",
 		maxLimit: entity.maxLimit,
 		searchable: fieldsWhere(entity, "searchable"),
 		selectable: entity.fields.map((f) => f.name),

@@ -76,6 +76,8 @@ export const TAG_UNLOCKS: Record<string, readonly string[]> = {
 		"select.unknown-field-rejected",
 		"select.nested-honoured",
 		"sort.default-order-applied",
+		/* An out-of-range page size is judged only where x-query declares it refused. */
+		"pagination.limit-bounds-enforced",
 		/* Membership needs an array the document marks filterable; untagged, no array is guessed. */
 		"filter.contains-membership",
 	],

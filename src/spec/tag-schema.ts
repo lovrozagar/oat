@@ -73,6 +73,7 @@ const xQuery = shape({
 	aliases: stringMap,
 	defaultOrder: string,
 	emptyIn: oneOf("reject", "match-none"),
+	limitOutOfRange: oneOf("reject", "clamp"),
 	filterable: axis({ field: string, ops: strings, type: string }),
 	filterableFrom: harvest,
 	grammar: (value) => {

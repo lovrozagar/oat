@@ -68,6 +68,8 @@ export interface QueryCapabilities {
 	aliases?: Partial<Record<FilterOp, FilterOp>>
 	identityFilter?: string
 	emptyIn?: "reject" | "match-none"
+	/** What a page size of 0 or past the maximum gets: refused, or served clamped. Undeclared, either. */
+	limitOutOfRange?: "reject" | "clamp"
 	maxInValues?: number
 	maxFilterConditions?: number
 	searchModes?: SearchMode[]
@@ -116,6 +118,8 @@ export interface EffectiveQueryCapabilities {
 	aliases: Partial<Record<FilterOp, FilterOp>>
 	identityFilter?: string
 	emptyIn?: "reject" | "match-none"
+	/** What a page size of 0 or past the maximum gets: refused, or served clamped. Undeclared, either. */
+	limitOutOfRange?: "reject" | "clamp"
 	maxInValues?: number
 	maxFilterConditions?: number
 	searchModes?: SearchMode[]
@@ -251,6 +255,7 @@ export function parseQueryCatalog(tag: Record<string, unknown>): QueryCapabiliti
 	}
 	if (typeof tag.identityFilter === "string" && tag.identityFilter !== "") catalog.identityFilter = tag.identityFilter
 	if (tag.emptyIn === "reject" || tag.emptyIn === "match-none") catalog.emptyIn = tag.emptyIn
+	if (tag.limitOutOfRange === "reject" || tag.limitOutOfRange === "clamp") catalog.limitOutOfRange = tag.limitOutOfRange
 	if (typeof tag.maxInValues === "number" && Number.isFinite(tag.maxInValues) && tag.maxInValues > 0) {
 		catalog.maxInValues = Math.floor(tag.maxInValues)
 	}
@@ -544,6 +549,7 @@ function overlayCatalog(
 		if (layer.aliases !== undefined) out.aliases = { ...out.aliases, ...layer.aliases }
 		if (layer.identityFilter !== undefined) out.identityFilter = layer.identityFilter
 		if (layer.emptyIn !== undefined) out.emptyIn = layer.emptyIn
+		if (layer.limitOutOfRange !== undefined) out.limitOutOfRange = layer.limitOutOfRange
 		if (layer.maxInValues !== undefined) out.maxInValues = layer.maxInValues
 		if (layer.maxFilterConditions !== undefined) out.maxFilterConditions = layer.maxFilterConditions
 		if (layer.searchModes !== undefined) out.searchModes = layer.searchModes
@@ -564,6 +570,7 @@ function assignOptional(target: EffectiveQueryCapabilities, catalog: QueryCapabi
 	if (catalog.operatorsByType !== undefined) target.operatorsByType = catalog.operatorsByType
 	if (catalog.identityFilter !== undefined) target.identityFilter = catalog.identityFilter
 	if (catalog.emptyIn !== undefined) target.emptyIn = catalog.emptyIn
+	if (catalog.limitOutOfRange !== undefined) target.limitOutOfRange = catalog.limitOutOfRange
 	if (catalog.maxInValues !== undefined) target.maxInValues = catalog.maxInValues
 	if (catalog.maxFilterConditions !== undefined) target.maxFilterConditions = catalog.maxFilterConditions
 	if (catalog.searchModes !== undefined) target.searchModes = catalog.searchModes

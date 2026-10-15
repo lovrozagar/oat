@@ -208,6 +208,8 @@ export const DEFECTS = {
 	LIMIT_IGNORED: "limit is accepted but does not bound the page size",
 	/** More rows are returned than the documented maximum allows. */
 	LIMIT_EXCEEDS_MAX: "page size exceeds the documented maxLimit",
+	/** A page size of 0 or past the maximum is served as the nearest allowed one, though the document says it is refused. */
+	LIMIT_OUT_OF_RANGE_SERVED: "an out-of-range page size is served instead of refused",
 	/** The more-pages flag is always false, so callers stop after page one. */
 	HASMORE_ALWAYS_FALSE: "hasMore is false even when further pages exist",
 	/** The sort parameter is accepted and ignored. */

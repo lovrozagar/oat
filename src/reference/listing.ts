@@ -74,6 +74,12 @@ function integerParam(raw: string | undefined, name: string, min: number, max?: 
 	return value
 }
 
+/* LIMIT_OUT_OF_RANGE_SERVED: a page size outside the published range is quietly moved inside it. */
+function nearestLimit(raw: string | undefined, max: number | undefined): number | undefined {
+	const value = integerParam(raw, "limit", Number.MIN_SAFE_INTEGER)
+	return value === undefined ? undefined : Math.min(Math.max(value, 1), max ?? value)
+}
+
 function invert(collation: Collation): Collation {
 	return collation === "binary" ? "insensitive" : "binary"
 }
@@ -199,7 +205,10 @@ export async function runListing(
 
 	/* -- paging parameters, validated against the ranges the document publishes -- */
 	const ceiling = defects.has("LIMIT_EXCEEDS_MAX") || options.clampLimit !== undefined ? undefined : entity.maxLimit
-	const requestedLimit = integerParam(request.limit, "limit", 1, ceiling) ?? entity.defaultLimit
+	const requestedLimit =
+		(defects.has("LIMIT_OUT_OF_RANGE_SERVED")
+			? nearestLimit(request.limit, ceiling)
+			: integerParam(request.limit, "limit", 1, ceiling)) ?? entity.defaultLimit
 	const servedLimit = defects.has("LIMIT_EXCEEDS_MAX")
 		? requestedLimit
 		: Math.min(requestedLimit, options.clampLimit ?? entity.maxLimit)

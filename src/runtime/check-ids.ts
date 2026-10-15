@@ -32,6 +32,7 @@ export const CHECK_IDS = [
 	"filter.gte-is-gt-or-eq",
 	"filter.ilike-is-case-insensitive",
 	"filter.illegal-op-rejected",
+	"pagination.limit-bounds-enforced",
 	"filter.malformed-term-rejected",
 	"filter.in-is-union-of-eq",
 	"filter.in-over-limit-rejected",

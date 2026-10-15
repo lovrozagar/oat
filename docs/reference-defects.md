@@ -17,6 +17,7 @@ Comma-separated. Each is one named lie the demo API can tell. Primary check is w
 | `ERROR_SCHEMA_DRIFT`                        | `schema.error-response-matches-document`        | error body does not match the schema                                                            |
 | `LIMIT_IGNORED`                             | `pagination.limit-bounds-page-size`             | `limit` is accepted and ignored                                                                 |
 | `LIMIT_EXCEEDS_MAX`                         | `pagination.limit-respects-documented-max`      | documented max is not capped                                                                    |
+| `LIMIT_OUT_OF_RANGE_SERVED`                 | `pagination.limit-bounds-enforced`              | a page size of 0 or past the maximum is served, though the document declares it refused         |
 | `HASMORE_ALWAYS_FALSE`                      | `pagination.has-more-is-accurate`               | `hasMore` is always false                                                                       |
 | `OFF_BY_ONE_PAGE`                           | `pagination.page-walk-covers-set`               | page walk skips or repeats                                                                      |
 | `PAGE_PAST_END_REPEATS`                     | `pagination.bounds-handled`                     | a page past the end repeats the last page                                                       |

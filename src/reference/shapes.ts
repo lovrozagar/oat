@@ -16,7 +16,7 @@ import type { QueryConventions } from "./query.ts"
 
 export interface ReferenceShape {
 	/** Pagination model, layered over the dialect. */
-	pagination?: "page-total" | "cursor-only"
+	pagination?: "page-total" | "cursor-only" | "offset-total"
 	/** A page-size ceiling the server applies without documenting it. */
 	clampLimit?: number
 	/** Records already in the collection before oat arrives, per tenant. */
@@ -95,6 +95,27 @@ export const SHAPES: readonly NamedShape[] = [
 		why: "a forward cursor and nothing else to page by",
 	},
 	{
+		cannotRun: {
+			"pagination.cursor-agrees-with-page": "there is no cursor",
+			"pagination.has-more-is-accurate": "there is no more-pages flag to judge",
+		},
+		cannotExhibit: [
+			"CURSOR_DRIFT",
+			"COLLATION_INCONSISTENT",
+			"HASMORE_ALWAYS_FALSE",
+			/* There is no page number to go past the end with. */
+			"PAGE_PAST_END_REPEATS",
+		],
+		name: "offset-total",
+		shape: { pagination: "offset-total", prepopulate: 12 },
+		why: "rows skipped and taken (skip / take) under a bounded page size, with only a total in a { data, totalCount } envelope",
+	},
+	{
+		/* It clamps a page size rather than refusing it, and its document says so. */
+		cannotRun: {
+			"pagination.limit-bounds-enforced": "the page size is clamped, as the document declares, not refused",
+		},
+		cannotExhibit: ["LIMIT_OUT_OF_RANGE_SERVED"],
 		name: "clamped-limit",
 		shape: { clampLimit: 3 },
 		why: "the server serves at most 3 per page whatever is asked, and does not document it",
@@ -192,6 +213,13 @@ export function shapedDialect(dialect: Dialect, shape: ReferenceShape): Dialect 
 			envelope.page = envelope.page ?? "page"
 			envelope.total = envelope.total ?? "total"
 		}
+	} else if (shape.pagination === "offset-total") {
+		delete params.cursor
+		delete params.page
+		params.offset = "skip"
+		params.limit = "take"
+		/* The rows and how many there are in all: nothing says whether more pages follow. */
+		return { ...dialect, envelope: { collection: "data", total: "totalCount" }, params }
 	} else {
 		delete params.page
 		delete params.offset
