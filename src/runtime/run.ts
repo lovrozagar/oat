@@ -1762,6 +1762,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			}
 		}
 	}
+	const beforeLanes = findings.findings.length
 	try {
 		await Promise.all(entityLanes(model, queue).map(runLane))
 	} catch (error) {
@@ -1769,6 +1770,14 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		 * was created is still removed below, and the report still written. */
 		findings.blocked("run.error", "run", "testing stopped on an unexpected error", errorText(error))
 	}
+	/* Lanes finish in whatever order the backend answers; the result and the reports read in plan
+	 * order, so two runs of one document list the same things in the same place. */
+	const planIndex = new Map(queue.map((entity, index) => [entity.name, index]))
+	const byPlan = (a: string, b: string): number =>
+		(planIndex.get(a) ?? queue.length) - (planIndex.get(b) ?? queue.length)
+	entitiesTested.sort(byPlan)
+	const fromLanes = findings.findings.splice(beforeLanes).sort((a, b) => byPlan(a.entity, b.entity))
+	findings.findings.push(...fromLanes)
 
 	const registerOperationId = signupOperationId(options.principals[0]?.auth)
 	await runDisposableOps({
