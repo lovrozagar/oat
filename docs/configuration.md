@@ -138,6 +138,8 @@ export default defineConfig({
 	outOfBand: { attempts: 20, initialMs: 1000, maxMs: 8000 },
 	origins: [{ id: "cdn", baseUrl: "https://cdn.example.com", spec: "https://cdn.example.com/openapi.json" }],
 	query: {
+		// grammar / sortGrammar: a preset name or a template, as on x-query; outranks the document
+		grammar: "postgrest",
 		operators: ["eq", "neq", "gt", "gte", "lt", "lte", "in", "nin", "like", "ilike", "is"],
 		emptyIn: "match-none",
 		maxInValues: 100,
@@ -148,6 +150,8 @@ export default defineConfig({
 	entities: {
 		row: {
 			query: {
+				// an entity's grammar outranks the run's
+				sortGrammar: { term: "{field}_{direction}", asc: "ascending", desc: "descending", join: "," },
 				identityFilter: "_id",
 				filterable: [{ field: "_id", type: "string", ops: ["eq", "neq", "in"] }],
 			},

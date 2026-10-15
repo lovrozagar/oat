@@ -108,7 +108,8 @@ String arrays still work. Structured rows are optional. Either, not both require
 
 ```yaml
 x-query:
-  grammar: postgrest # postgrest | colon | equality
+  grammar: postgrest # postgrest | colon | equality, or a template (below)
+  sortGrammar: dotted # dotted | prefixed | colon | spaced, or a template (below)
   filterable: [id, name, created_at]
   sortable: [name, created_at]
   searchable: [name, slug]
@@ -155,6 +156,41 @@ x-query:
   searchableFrom: { operationId: table.get, path: $.columns[?(@.searchable==true)].name }
   selectableFrom: { operationId: table.get, path: $.columns[*].name }
 ```
+
+#### Template grammars
+
+A grammar oat has no name for is declared as a template. Every filter and sort term oat writes goes through one renderer; the named grammars are its presets.
+
+```yaml
+x-query:
+  grammar:
+    term: "{conj}_{field}_{op}_{value}" # placeholders: conj, field, op, value
+    conj: { and: and, or: or } # optional; omit when terms carry no conjunction
+    ops: { eq: eq, neq: ne, gt: gt, gte: gte, lt: lt, lte: lte, like: like, in: in } # only these are writable
+    null: { is: "{conj}_{field}_is_null", not: "{conj}_{field}_isn_null" } # optional null tests
+    list: "," # joiner for in / nin values
+    combine: repeat # repeat | { join: "," } | { group: "and({terms})" }
+    or: terms # none (default) | terms | { group: "or({terms})" }
+    mixed: false # always false: oat never assumes how and and or nest
+    escape: { "_": "~" } # optional per-character value escaping
+    likeMatches: pattern # pattern (% and _ are wildcards, default) | contains
+    param: "{filter}" # "{filter}" (default) | "{field}" for one parameter per field
+  sortGrammar:
+    term: "{field}_{direction}"
+    asc: ascending
+    desc: descending
+    join: "," # null: one key only, multi-key checks do not apply
+    nulls: { first: _nf, last: _nl } # optional suffixes; absent, nulls checks do not apply
+```
+
+- An operator absent from `ops` cannot be written, so a check that needs it does not apply. Null tests need `null`; `in` / `nin` need `list`.
+- `combine: repeat` sends two terms as the filter parameter repeated (`?where=and_Qty_eq_2&where=and_Name_eq_x`).
+- A value holding a character the template writes around its placeholders (`_` above), the list or combine joiner, or an escape replacement, cannot be written unambiguously: the check it belongs to does not apply. `escape` maps a character to a replacement so it can be.
+- `or: terms` writes each term with the `or` conjunction. `and(a, or(b, c))` is never composed from a template.
+- `likeMatches: contains` sends a `like` value as a bare substring. Under `pattern`, `%` is a wildcard, so the like-escaping check does not apply.
+- A template oat cannot read is an `x-query` gap naming the key at fault, and oat falls back to inference.
+
+A free-text filter parameter whose grammar oat cannot recognise, and that nobody declared, gets no filter terms at all: oat does not guess one parameter per field. The `x-query` gap says how to declare it.
 
 `defaultOrder` / `stableTiebreak` / `maxLimit` stay. Harvest keys are generic JSON paths (`$`, dots, `[n]`, `[*]`, `[?(@.key==value)]`). Absent → no harvest.
 
