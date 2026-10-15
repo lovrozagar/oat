@@ -9,6 +9,7 @@
 import type { FilterableField, QueryCapabilities } from "../spec/query-capabilities.ts"
 import type { DeclaredFilterGrammar, DeclaredSortGrammar } from "../spec/grammar-overrides.ts"
 import type { SpecOverlay } from "../spec/overlay.ts"
+import type { TargetVersionSpec } from "../runtime/target-version.ts"
 
 export type {
 	FieldType,
@@ -614,6 +615,12 @@ export interface OatConfig {
 	 * is reported as fixed.
 	 */
 	baseline?: string
+	/**
+	 * Where the backend says which build it is, read once after sign-in: an `operationId` or a
+	 * `path`, and `from` — `$.json.path` into the body or `header:<name>`. Reports and `oat diff`
+	 * show it; a version that cannot be read is noted and never fails the run.
+	 */
+	targetVersion?: TargetVersionSpec
 	/**
 	 * Backoff for `resolveOutOfBand` and `resolvePrincipalAuth`.
 	 * Defaults: `{ attempts: 6, initialMs: 200, maxMs: 3000 }` (~9s worst case).

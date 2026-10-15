@@ -14,6 +14,7 @@ import { ASSERTED, type FindingCollector, type Outcome } from "./finding.ts"
 import { describeServerError, headerValue } from "./rate-limit.ts"
 import type { GradeLedger } from "./scope.ts"
 import type { SpecModel } from "../spec/graph.ts"
+import { TARGET_VERSION_READ } from "./target-version.ts"
 
 export const SERVER_ERROR_CHECK_ID = "response.no-server-error" as const satisfies CheckId
 
@@ -57,6 +58,7 @@ export function reportServerErrors(input: {
 			/* A request that timed out on a host that went on answering is that operation failing. */
 			const timedOut = exchange.status === 0 && exchange.network?.kind === "timeout" && !input.networkDown
 			if ((exchange.status < 500 && !timedOut) || exchange.superseded === true) continue
+			if (exchange.check === TARGET_VERSION_READ) continue
 			if (reported.has(exchangeKey(exchange))) continue
 			if (exchange.operationId === undefined ? input.mode !== "full" : !input.inScope(exchange.operationId)) continue
 			const key = exchange.operationId ?? `${exchange.method} ${new URL(exchange.url).pathname}`

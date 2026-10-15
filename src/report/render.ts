@@ -15,6 +15,7 @@ import type { Client, Exchange } from "../runtime/client.ts"
 import { describeRequested, type OperationCoverage, type OperationStatus, type ScopeReport } from "../runtime/scope.ts"
 import { EXIT, runVerdict } from "../runtime/exit.ts"
 import type { BaselineEntry } from "../runtime/baseline.ts"
+import type { TargetVersion } from "../runtime/target-version.ts"
 import { type Finding, isFailingRootCause, type Verdict } from "../runtime/finding.ts"
 import type { SpecModel } from "../spec/graph.ts"
 import type { CheckTiming } from "../runtime/run.ts"
@@ -63,6 +64,8 @@ export interface ReportInput {
 	interrupted?: boolean
 	/** Baseline entries no finding matched any more. Absent with no baseline. */
 	baseline?: { fixed: BaselineEntry[] }
+	/** The build this run tested, or why it could not be read. */
+	targetVersion?: TargetVersion
 }
 
 const VERDICT_ORDER: Verdict[] = ["SECURITY", "BACKEND_BUG", "SPEC_BUG", "AMBIGUITY", "BLOCKED", "COVERAGE_GAP"]
@@ -140,6 +143,13 @@ export function renderMarkdown(input: ReportInput): string {
 	lines.push("# oat report")
 	lines.push("")
 	lines.push(`- **Backend**: ${input.baseUrl}`)
+	if (input.targetVersion !== undefined) {
+		lines.push(
+			"value" in input.targetVersion
+				? `- **Target version**: ${input.targetVersion.value}`
+				: `- **Target version**: unknown — ${input.targetVersion.error}`,
+		)
+	}
 	lines.push(`- **Result**: ${verdict.outcome} — ${verdict.reason}`)
 	if (input.interrupted === true) lines.push("- **Interrupted**: stopped by a signal; teardown ran")
 	lines.push(`- **Generated**: ${input.startedAt.toISOString()} (${(input.durationMs / 1000).toFixed(1)}s)`)
@@ -764,6 +774,7 @@ export function renderJson(input: ReportInput): string {
 			...(input.network === undefined ? {} : { network: input.network }),
 			...(input.interrupted === true ? { interrupted: true } : {}),
 			...(input.baseline === undefined ? {} : { baseline: input.baseline }),
+			...(input.targetVersion === undefined ? {} : { targetVersion: input.targetVersion }),
 			...(input.fenced === undefined
 				? {}
 				: {

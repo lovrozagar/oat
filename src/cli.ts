@@ -343,6 +343,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 			...(config.allow === undefined ? {} : { allow: config.allow }),
 			...(config.fence === undefined ? {} : { fence: config.fence }),
 			...(config.teardown === undefined ? {} : { teardown: config.teardown }),
+			...(config.targetVersion === undefined ? {} : { targetVersion: config.targetVersion }),
 			...(config.scenarios === undefined ? {} : { scenarios: config.scenarios }),
 			...(config.outOfBand === undefined ? {} : { outOfBand: config.outOfBand }),
 			...(config.payloads === undefined ? {} : { payloads: config.payloads }),
@@ -399,6 +400,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		...(result.fenced === undefined ? {} : { fenced: result.fenced }),
 		...(result.interrupted === true ? { interrupted: true } : {}),
 		...(result.baseline === undefined ? {} : { baseline: result.baseline }),
+		...(result.targetVersion === undefined ? {} : { targetVersion: result.targetVersion }),
 	}
 
 	await writeFile(resolve(outDir, "principals.json"), `${JSON.stringify({ principals: result.principals }, null, 2)}\n`)

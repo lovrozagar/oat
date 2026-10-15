@@ -13,6 +13,7 @@ import { applyGrammarOverrides } from "../spec/grammar-overrides.ts"
 import { prepareDocument } from "../spec/prepare.ts"
 import { Fence, FencedError, type FencedRequest } from "./fence.ts"
 import { applyBaseline, type BaselineEntry, type BaselineFile } from "./baseline.ts"
+import { readTargetVersion, TARGET_VERSION_READ, type TargetVersion, type TargetVersionSpec } from "./target-version.ts"
 import { applyOverlay, type SpecOverlay } from "../spec/overlay.ts"
 import { dereference, loadSpec } from "../spec/load.ts"
 import type {
@@ -145,6 +146,8 @@ export interface RunOptions {
 	teardown?: { verify?: boolean }
 	/** Known findings, as `oat baseline` writes them; see `OatConfig.baseline`. */
 	baseline?: BaselineFile
+	/** Where the backend says which build it is; see `OatConfig.targetVersion`. */
+	targetVersion?: TargetVersionSpec
 	/** Declared flows for operations the matrix cannot reach. */
 	scenarios?: Scenario[]
 	/** Backoff for `resolveOutOfBand` / `resolvePrincipalAuth`. */
@@ -215,6 +218,8 @@ export interface RunResult {
 	teardown: TeardownReport | null
 	/** Baseline entries no finding matched any more. Absent with no baseline. */
 	baseline?: { fixed: BaselineEntry[] }
+	/** The build this run tested, or why it could not be read. Absent when not configured. */
+	targetVersion?: TargetVersion
 	/** Requests `hooks.beforeRequest` refused, and whether that alone fails the run. Absent with no hook. */
 	fenced?: { requests: FencedRequest[]; failRun: boolean }
 	/** Credentials as they stood after acquire — written to `<outDir>/<datetime>/principals.json` by the CLI. */
@@ -766,6 +771,20 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			})?.id,
 	)
 	const alpha = resolved[0] as ResolvedPrincipal
+	/* Which build this run tested, read once before anything is created. Never part of the verdict. */
+	const targetVersion =
+		options.targetVersion === undefined
+			? undefined
+			: await readTargetVersion(
+					options.targetVersion,
+					model,
+					client.view({ check: TARGET_VERSION_READ, purpose: "probe" }),
+					alpha.headers,
+					{
+						...options.roots,
+						...alpha.roots,
+					},
+				)
 	const ownerOf = (principal: ResolvedPrincipal): Owner => ({ headers: principal.headers, id: principal.id })
 	const alphaOwner = ownerOf(alpha)
 	/* A record a principal created and could not remove itself — a member cannot delete — may be
@@ -1956,6 +1975,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	const baselined = options.baseline === undefined ? undefined : applyBaseline(findings.findings, options.baseline)
 	return {
 		...(baselined === undefined ? {} : { baseline: baselined }),
+		...(targetVersion === undefined ? {} : { targetVersion }),
 		checkNotes,
 		checkTimings,
 		checksOutOfScope,
