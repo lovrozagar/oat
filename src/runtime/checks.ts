@@ -80,6 +80,7 @@ import {
 	readBefore,
 	canFillPath,
 	createdIdKeys,
+	createdIdOf,
 	describeEffectHold,
 	effectHolds,
 	findCreatedId,
@@ -147,6 +148,8 @@ export interface CheckContext<C extends ReadClient = ReadClient> {
 	uniqueSets: string[][]
 	/** First-variant create 409 adopted a same-tenant row; unique probes still run. */
 	uniqueAdopted: boolean
+	/** The create acknowledged without the record; the records are the bodies oat submitted. */
+	createAcknowledged: boolean
 	/** Create operation for unique probes — still set after unique-409 adopt. */
 	uniqueCreateOp: OperationModel | undefined
 	/** Update operation for unique probes — still set after unique-409 adopt. */
@@ -297,7 +300,7 @@ function asProbe<C extends ReadClient>(ctx: CheckContext<C>): CheckContext<C> {
 				const exchange = (await value.call(target, method, path, options)) as Exchange
 				const created = method.toUpperCase() === createOp.method.toUpperCase() && path === createPath
 				if (created && exchange.status >= 200 && exchange.status < 300) {
-					const id = findCreatedId(exchange.responseBody, keys)
+					const id = createdIdOf(exchange, keys)
 					if (id !== undefined) record(ctx.entityName, id, { ...ctx.scope })
 				}
 				return exchange
@@ -5252,7 +5255,8 @@ const searchNarrowsResult: Check<{ field: string }> = {
 const createPersistsFields: Check<{ createOp: OperationModel; properties: Record<string, Record<string, unknown>> }> = {
 	plan: (ctx) => {
 		const createOp = ctx.createOp
-		if (createOp === undefined || ctx.records.length === 0) return cannot()
+		/* An acknowledgement-only create never echoes the record: nothing to compare. */
+		if (createOp === undefined || ctx.records.length === 0 || ctx.createAcknowledged) return cannot()
 		const schema = requestSchemaOf(ctx, createOp)
 		const properties = (schema?.properties ?? {}) as Record<string, Record<string, unknown>>
 		return ready({ createOp, properties })
@@ -5692,15 +5696,18 @@ async function scratchRecord(ctx: WriteContext, check: string): Promise<{ scratc
 	if (createOp === undefined || schema === null) {
 		return { outcome: standDown("a create operation with a request body, to make a record this check may change") }
 	}
+	const sent = validBody(ctx, schema)
 	const exchange = await ctx.client.request("POST", fillPath(createOp.path, ctx.scope), {
-		...(await encodeOpBody(ctx, createOp, validBody(ctx, schema))),
+		...(await encodeOpBody(ctx, createOp, sent)),
 		headers: ctx.auth(),
 		operationId: createOp.operationId,
 	})
 	if (standDownForFeatureGate(ctx, createOp, exchange, check)) {
 		return { outcome: standDown("a documented feature gate refused the request") }
 	}
-	const record = (exchange.responseBody ?? {}) as Record_
+	const answered = (exchange.responseBody ?? {}) as Record_
+	/* An acknowledgement-only create made the record it was sent, under the id the client chose. */
+	const record = ctx.createAcknowledged && answered[ctx.identity] === undefined ? sent : answered
 	const id = record[ctx.identity]
 	if (exchange.status >= 300 || (typeof id !== "string" && typeof id !== "number")) {
 		return {
@@ -6838,9 +6845,11 @@ const stringPayloadSurvives: Check<{
 			current = made.scratch.record
 		}
 
+		/* Each lane writes its own record; a PUT carries that record's representation, not the first's. */
+		const currents = new Map<string, Record_>([[id, current]])
 		const writeField = async (value: unknown, recordId: string): Promise<Exchange> => {
 			if (updateOp !== undefined) {
-				const update = await updateRequest(ctx, updateOp, current, { [field.name]: value })
+				const update = await updateRequest(ctx, updateOp, currents.get(recordId) ?? current, { [field.name]: value })
 				return ctx.client.request(
 					update.method,
 					fillPath(updateOp.path, { ...ctx.scope, ...itemParamFor(ctx, recordId) }),
@@ -6874,9 +6883,10 @@ const stringPayloadSurvives: Check<{
 
 		const identityOf = (exchange: Exchange): string | undefined => {
 			const body = exchange.responseBody
-			if (body === null || typeof body !== "object") return undefined
-			const value = (body as Record_)[ctx.identity]
-			return value === undefined || value === null ? undefined : String(value)
+			const value = body !== null && typeof body === "object" ? (body as Record_)[ctx.identity] : undefined
+			if (value !== undefined && value !== null) return String(value)
+			/* An acknowledgement-only create: the record is the one the client named. */
+			return createdIdOf({ requestBody: exchange.requestBody, responseBody: undefined }, [ctx.identity])
 		}
 
 		const control = await writeField(ASCII_PAYLOAD_PROBE, id)
@@ -6994,6 +7004,7 @@ const stringPayloadSurvives: Check<{
 				const made = await scratchRecord(ctx, this.id)
 				if ("outcome" in made) break
 				laneRecords.push(made.scratch.id)
+				currents.set(made.scratch.id, made.scratch.record)
 			}
 		}
 		const lanes = Math.max(1, Math.min(PAYLOAD_LANES, cases.length))

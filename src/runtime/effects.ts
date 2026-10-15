@@ -77,6 +77,25 @@ export function findCreatedId(body: unknown, keys: readonly string[], depth = 0)
 	return undefined
 }
 
+/**
+ * The id a create made: the one it answered with, else the one the client chose and sent. An
+ * acknowledgement-only create (`{ success: true }`) still made the record it was sent.
+ */
+export function createdIdOf(
+	exchange: { requestBody: unknown; responseBody: unknown },
+	keys: readonly string[],
+): string | undefined {
+	const answered = findCreatedId(exchange.responseBody, keys)
+	if (answered !== undefined) return answered
+	const sent = exchange.requestBody
+	if (sent === null || typeof sent !== "object" || Object.getPrototypeOf(sent) !== Object.prototype) return undefined
+	for (const key of keys) {
+		const id = scalarId((sent as Record<string, unknown>)[key])
+		if (id !== undefined) return id
+	}
+	return undefined
+}
+
 /** Path parameter that names an instance of this entity (`table` → `table_id`). */
 export function identityPathParam(model: SpecModel, entityName: string): string {
 	const conventional = `${entityName}_id`

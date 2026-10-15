@@ -20,6 +20,14 @@ import type { UploadContext } from "./upload.ts"
 
 export type Record_ = Record<string, unknown>
 
+function isScalarId(value: unknown): value is string | number {
+	return typeof value === "string" || typeof value === "number"
+}
+
+function isPlainRecord(value: unknown): value is Record_ {
+	return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 export interface Scope {
 	values: Record<string, string>
 	/** Records created while resolving ancestors, newest last — unwound in reverse at teardown. */
@@ -336,6 +344,11 @@ export interface SeededCohort {
 	 * seed body stay skipped.
 	 */
 	uniqueAdopted?: boolean
+	/**
+	 * The create answered an acknowledgement without the record, and the records are the bodies
+	 * oat submitted (client-chosen identity). Checks that judge the create's echo stand down.
+	 */
+	acknowledged?: boolean
 	/** Set when extra cohort variants were dropped because unique values could not differ. */
 	uniqueGap?: string
 	/**
@@ -397,10 +410,18 @@ export async function seedCohort(
 	const uploads = uploadContext(options)
 	const seededMembers: CohortMember[] = []
 	const identity = (createOp.entity === null ? undefined : model.entities.get(createOp.entity))?.identity ?? "id"
-	const created = (exchange: Exchange): Record_ => {
-		const record = (exchange.responseBody ?? {}) as Record_
+	let acknowledged = false
+	const created = (exchange: Exchange, sent: unknown): Record_ => {
+		const response = (exchange.responseBody ?? {}) as Record_
+		/* A create that answers an acknowledgement and not the record (`{ success: true }`) still
+		 * made the record the client sent. When the client chose the identity, that body is the
+		 * record: track it by the id it submitted rather than lose it. */
+		const echoed = isScalarId(response[identity])
+		const submitted = !echoed && isPlainRecord(sent) && isScalarId(sent[identity]) ? sent : null
+		if (submitted !== null) acknowledged = true
+		const record = submitted ?? response
 		const id = record[identity]
-		if (createOp.entity !== null && (typeof id === "string" || typeof id === "number")) {
+		if (createOp.entity !== null && isScalarId(id)) {
 			options.onCreate?.(createOp.entity, String(id), { ...scope.values })
 		}
 		return record
@@ -422,6 +443,7 @@ export async function seedCohort(
 		...cohort,
 		...(uniqueGap === undefined ? {} : { uniqueGap }),
 		...(failedVariants.length === 0 ? {} : { failedVariants }),
+		...(acknowledged ? { acknowledged } : {}),
 	})
 
 	const failOrAdopt = async (member: CohortMember, exchange: Exchange): Promise<SeededCohort | null> => {
@@ -481,7 +503,7 @@ export async function seedCohort(
 				return null
 			}
 			seededMembers.push(member)
-			records.push(created(exchange))
+			records.push(created(exchange, member.body))
 			return null
 		}
 		for (const member of members) {
@@ -494,7 +516,7 @@ export async function seedCohort(
 				continue
 			}
 			seededMembers.push(member)
-			records.push(created(exchange))
+			records.push(created(exchange, member.body))
 		}
 		return null
 	})

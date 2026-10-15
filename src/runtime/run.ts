@@ -7,6 +7,7 @@
  */
 
 import { randomBytes } from "node:crypto"
+import { createdIdOf } from "./effects.ts"
 import { isSecretHeaderName, registerSecret, registerSecretHeader } from "./redact.ts"
 import { buildModel, type EntityModel, type OperationModel, type SpecModel, operationResolver } from "../spec/graph.ts"
 import { dereference, loadSpec } from "../spec/load.ts"
@@ -900,6 +901,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		let records: Record_[]
 		let degraded = false
 		let uniqueAdopted = false
+		let createAcknowledged = false
 		if (createOp !== undefined && scenarioOwned.has(createOp.operationId)) {
 			/* A scenario owns this create: it holds what the create needs (a mailed token, a paid
 			 * session), and a generated body would only be refused. The matrix reads what exists;
@@ -1093,6 +1095,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					/* Every ancestor and cohort record was ledgered as it was created, in creation
 					 * order — the unwind reverses it, so children go before their parents. */
 					records = cohort.records
+					createAcknowledged = cohort.acknowledged === true
 				}
 			} catch (error) {
 				if (isNetworkError(error)) {
@@ -1278,10 +1281,17 @@ export async function run(options: RunOptions): Promise<RunResult> {
 								 * on an integer-id API deleting by that number removes an unrelated row. */
 								if (path !== createPath) return exchange
 								const body = exchange.responseBody
-								if (body === null || typeof body !== "object") return exchange
-								const id = (body as Record<string, unknown>)[entity.identity ?? "id"]
-								if (typeof id !== "string" && typeof id !== "number") return exchange
-								ledger.record(entity.name, String(id), scope.values, ownerByHeaders(options?.headers))
+								const answered =
+									body !== null && typeof body === "object"
+										? (body as Record<string, unknown>)[entity.identity ?? "id"]
+										: undefined
+								/* An acknowledgement-only create made the record under the id it was sent. */
+								const id =
+									typeof answered === "string" || typeof answered === "number"
+										? String(answered)
+										: createdIdOf({ requestBody: options?.body, responseBody: undefined }, [entity.identity ?? "id"])
+								if (id === undefined) return exchange
+								ledger.record(entity.name, id, scope.values, ownerByHeaders(options?.headers))
 								return exchange
 							}
 						},
@@ -1376,6 +1386,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			uploads,
 			validator,
 			uniqueAdopted,
+			createAcknowledged,
 			uniqueSets: entity.unique ?? [],
 			uniqueCreateOp:
 				(entity.unique?.length ?? 0) > 0 && (!degraded || uniqueAdopted) && createOp !== undefined
