@@ -609,6 +609,12 @@ export interface OatConfig {
 	 */
 	teardown?: { verify?: boolean }
 	/**
+	 * A file of known findings, as `oat baseline --from <run>` writes it, relative to this config.
+	 * A finding it names is reported as known and does not fail the run; an entry nothing matches
+	 * is reported as fixed.
+	 */
+	baseline?: string
+	/**
 	 * Backoff for `resolveOutOfBand` and `resolvePrincipalAuth`.
 	 * Defaults: `{ attempts: 6, initialMs: 200, maxMs: 3000 }` (~9s worst case).
 	 */

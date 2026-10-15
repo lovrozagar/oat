@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { EXIT, exitCode } from "./runtime/exit.ts"
 import { createWriteStream, existsSync, readFileSync, writeFileSync } from "node:fs"
-import { mkdir, writeFile } from "node:fs/promises"
+import { mkdir, readFile, realpath, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import type { OatConfig } from "./config/define-config.ts"
@@ -26,6 +26,7 @@ import { authStepOperationIds, planScope, resolveTargetScope, ScopeError } from 
 import { renderTeardown } from "./runtime/teardown.ts"
 import { buildModel, type SpecModel } from "./spec/graph.ts"
 import { UsageError } from "./config/usage-error.ts"
+import { type BaselineFile, baselineFrom, parseBaseline } from "./runtime/baseline.ts"
 import { FencedError } from "./runtime/fence.ts"
 import { applyGrammarOverrides } from "./spec/grammar-overrides.ts"
 import { prepareDocument } from "./spec/prepare.ts"
@@ -53,6 +54,8 @@ export const FLAGS: Readonly<Record<string, FlagSpec>> = {
 	dialect: { kind: "value" },
 	fuzz: { kind: "optional-value", number: "positive" },
 	"fuzz-seed": { kind: "value", number: "positive" },
+	force: { kind: "boolean" },
+	from: { kind: "value" },
 	help: { kind: "boolean" },
 	jobs: { kind: "value", number: "positive" },
 	json: { kind: "boolean" },
@@ -141,6 +144,7 @@ export const USAGE = `oat — OpenAPI Tester
   oat doctor  --spec <url|file>            report what oat can and cannot test, and why
   oat serve   [--defects A,B]              run a demo API to point oat at
   oat conformance                          self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
 
 Flags
   --config     oat config module (.ts/.js/.mjs/.json) with a default export
@@ -168,6 +172,8 @@ Flags
   --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
   --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
   --json       machine-readable output, for plan and doctor
+  --from       baseline: the run folder (or latest) whose findings become known
+  --force      baseline: overwrite an existing --out file
 `
 
 function str(flags: Args["flags"], key: string): string | undefined {
@@ -288,9 +294,24 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	process.on("SIGINT", onSignal)
 	process.on("SIGTERM", onSignal)
 
+	/* Known findings, relative to the config file like every other path in it. */
+	let baseline: BaselineFile | undefined
+	if (config.baseline !== undefined) {
+		const path = resolve(dirname(resolve(configPath)), config.baseline)
+		try {
+			baseline = parseBaseline(JSON.parse(await readFile(path, "utf8")), path)
+		} catch (error) {
+			process.stderr.write(
+				`oat: ${error instanceof UsageError ? error.message : `cannot read baseline ${path}: ${errorMessage(error)}`}\n`,
+			)
+			return EXIT.usage
+		}
+	}
+
 	let result: Awaited<ReturnType<typeof run>>
 	try {
 		result = await run({
+			...(baseline === undefined ? {} : { baseline }),
 			signal: stop.signal,
 			baseUrl,
 			principals,
@@ -367,6 +388,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		...(result.network === undefined ? {} : { network: result.network }),
 		...(result.fenced === undefined ? {} : { fenced: result.fenced }),
 		...(result.interrupted === true ? { interrupted: true } : {}),
+		...(result.baseline === undefined ? {} : { baseline: result.baseline }),
 	}
 
 	await writeFile(resolve(outDir, "principals.json"), `${JSON.stringify({ principals: result.principals }, null, 2)}\n`)
@@ -800,6 +822,7 @@ export async function main(): Promise<number> {
 	}
 
 	if (command === "run") return commandRun(flags)
+	if (command === "baseline") return commandBaseline(flags)
 
 	const specFlag = str(flags, "spec")
 	const configPath = str(flags, "config")
@@ -877,6 +900,13 @@ export async function main(): Promise<number> {
 						},
 			)
 			process.stdout.write(output.text)
+			/* A baseline that is not there makes every known finding fail the next run. */
+			if (config?.baseline !== undefined && configPath !== undefined) {
+				const path = resolve(dirname(resolve(configPath)), config.baseline)
+				if (!existsSync(path)) {
+					process.stdout.write(`  baseline   ${path} does not exist; \`oat baseline --from <run>\` writes one\n`)
+				}
+			}
 			return output.blocking > 0 ? 1 : 0
 		}
 		default:
@@ -901,4 +931,41 @@ export function start(): void {
  * argv[1] is the bin wrapper, not this module. */
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
 	start()
+}
+
+/** `oat baseline --from <run>`: the run's root-cause findings, as a baseline file. */
+async function commandBaseline(flags: Args["flags"]): Promise<number> {
+	const from = str(flags, "from")
+	if (from === undefined) {
+		process.stderr.write("oat: baseline needs --from <run folder | latest>\n")
+		return EXIT.usage
+	}
+	const out = resolve(str(flags, "out") ?? "oat.baseline.json")
+	let saved: { findings?: unknown }
+	try {
+		/* `latest` is a link: read where it points. */
+		const folder = await realpath(resolve(from))
+		saved = JSON.parse(await readFile(resolve(folder, "oat-report.json"), "utf8")) as { findings?: unknown }
+	} catch (error) {
+		process.stderr.write(`oat: cannot read ${resolve(from, "oat-report.json")}: ${errorMessage(error)}\n`)
+		return EXIT.usage
+	}
+	if (!Array.isArray(saved.findings)) {
+		process.stderr.write(`oat: ${resolve(from, "oat-report.json")} holds no findings list\n`)
+		return EXIT.usage
+	}
+	if (flags.force !== true && existsSync(out)) {
+		process.stderr.write(`oat: ${out} exists; --force overwrites it\n`)
+		return EXIT.usage
+	}
+	const baseline = baselineFrom(saved.findings as Parameters<typeof baselineFrom>[0])
+	await writeFile(out, `${JSON.stringify(baseline, null, "\t")}\n`)
+	process.stdout.write(
+		`  ${baseline.entries.length} known finding${baseline.entries.length === 1 ? "" : "s"} → ${out}\n`,
+	)
+	return 0
+}
+
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error)
 }

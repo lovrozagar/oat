@@ -14,7 +14,8 @@ import { redactJson, redactUrl } from "../runtime/redact.ts"
 import type { Client, Exchange } from "../runtime/client.ts"
 import { describeRequested, type OperationCoverage, type OperationStatus, type ScopeReport } from "../runtime/scope.ts"
 import { EXIT, runVerdict } from "../runtime/exit.ts"
-import { type Finding, isRootCause, type Verdict } from "../runtime/finding.ts"
+import type { BaselineEntry } from "../runtime/baseline.ts"
+import { type Finding, isFailingRootCause, type Verdict } from "../runtime/finding.ts"
 import type { SpecModel } from "../spec/graph.ts"
 import type { CheckTiming } from "../runtime/run.ts"
 import type { TeardownReport } from "../runtime/teardown.ts"
@@ -60,6 +61,8 @@ export interface ReportInput {
 	fenced?: { requests: FencedRequest[]; failRun: boolean }
 	/** A signal stopped the run before it finished; what it did test is still reported. */
 	interrupted?: boolean
+	/** Baseline entries no finding matched any more. Absent with no baseline. */
+	baseline?: { fixed: BaselineEntry[] }
 }
 
 const VERDICT_ORDER: Verdict[] = ["SECURITY", "BACKEND_BUG", "SPEC_BUG", "AMBIGUITY", "BLOCKED", "COVERAGE_GAP"]
@@ -126,8 +129,10 @@ function exchangeBlock(exchange: Exchange): string[] {
 }
 
 export function renderMarkdown(input: ReportInput): string {
-	const { findings } = input
-	const real = findings.filter(isRootCause)
+	/* Known findings have a section of their own; everything else reads as it always has. */
+	const findings = input.findings.filter((finding) => finding.known === undefined)
+	const known = input.findings.filter((finding) => finding.known !== undefined)
+	const real = findings.filter(isFailingRootCause)
 	const lines: string[] = []
 	const coverage = coverageByCheck(input)
 
@@ -231,6 +236,30 @@ export function renderMarkdown(input: ReportInput): string {
 	}
 
 	if (input.scope !== undefined) lines.push(...scopeSections(input.scope))
+	if (known.length > 0) {
+		lines.push("## Known")
+		lines.push("")
+		lines.push("Named by the baseline: reported, and not counted against the run.")
+		lines.push("")
+		for (const finding of known) {
+			lines.push(
+				`- **${finding.check}** on ${finding.entity} — ${finding.summary} _(known: ${finding.known?.reason ?? ""})_`,
+			)
+		}
+		lines.push("")
+	}
+	const fixed = input.baseline?.fixed ?? []
+	if (fixed.length > 0) {
+		lines.push("## Fixed")
+		lines.push("")
+		lines.push("Baseline entries no finding matched in this run:")
+		lines.push("")
+		for (const entry of fixed) {
+			const where = [entry.entity, entry.operationId].filter((part) => part !== undefined).join(" · ")
+			lines.push(`- **${entry.check}**${where === "" ? "" : ` (${where})`} — ${entry.reason}`)
+		}
+		lines.push("")
+	}
 
 	for (const verdict of VERDICT_ORDER) {
 		const group = findings.filter((f) => f.verdict === verdict)
@@ -527,7 +556,8 @@ function scopeConsole(scope: ScopeReport): string[] {
 export function renderConsole(input: ReportInput): string {
 	const { findings } = input
 	const lines: string[] = []
-	const real = findings.filter(isRootCause)
+	const real = findings.filter(isFailingRootCause)
+	const knownCount = findings.filter((finding) => finding.known !== undefined).length
 	const coverage = coverageByCheck(input)
 
 	lines.push("")
@@ -544,6 +574,9 @@ export function renderConsole(input: ReportInput): string {
 	if (input.scope !== undefined) lines.push(...scopeConsole(input.scope))
 	const verdict = runVerdict(input)
 	lines.push(`  result: ${verdict.outcome} — ${verdict.reason}`)
+	if (knownCount > 0 || (input.baseline?.fixed.length ?? 0) > 0) {
+		lines.push(`  baseline: ${knownCount} known · ${input.baseline?.fixed.length ?? 0} fixed`)
+	}
 	lines.push("")
 
 	const renderSkipped = (): void => {
@@ -710,6 +743,7 @@ export function renderJson(input: ReportInput): string {
 				entity: finding.entity,
 				...(finding.fixture === undefined ? {} : { fixture: finding.fixture }),
 				...(finding.operations === undefined ? {} : { operations: finding.operations }),
+				...(finding.known === undefined ? {} : { known: finding.known }),
 				evidence: finding.evidence.map((exchange) => ({
 					at: new Date(exchange.at).toISOString(),
 					durationMs: exchange.durationMs,
@@ -729,6 +763,7 @@ export function renderJson(input: ReportInput): string {
 			requests: input.client.transcript.length,
 			...(input.network === undefined ? {} : { network: input.network }),
 			...(input.interrupted === true ? { interrupted: true } : {}),
+			...(input.baseline === undefined ? {} : { baseline: input.baseline }),
 			...(input.fenced === undefined
 				? {}
 				: {

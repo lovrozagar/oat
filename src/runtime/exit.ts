@@ -1,6 +1,6 @@
 /** Process exit codes for a run, shared by the CLI and anyone embedding oat. */
 
-import { isRootCause } from "./finding.ts"
+import { isFailingRootCause } from "./finding.ts"
 
 /** What the process exit code says. Defects found and oat failing are different answers. */
 export const EXIT = {
@@ -23,7 +23,7 @@ export type RunOutcome = "clean" | "defects" | "failed"
  * nothing graded must not read as a pass. The exit code and every report state this one verdict.
  */
 export function runVerdict(result: {
-	findings: ReadonlyArray<{ verdict: string }>
+	findings: ReadonlyArray<{ verdict: string; known?: unknown; operations?: readonly string[] }>
 	network?: { incomplete: boolean }
 	fenced?: { requests: readonly unknown[]; failRun: boolean }
 	scope?: { mode: string; operations: ReadonlyArray<{ operationId?: string; status: string }> }
@@ -36,7 +36,7 @@ export function runVerdict(result: {
 	if (fenced > 0 && result.fenced?.failRun === true) {
 		return { outcome: "failed", reason: `${fenced} request${fenced === 1 ? " was" : "s were"} fenced` }
 	}
-	const rootCauses = result.findings.filter(isRootCause).length
+	const rootCauses = result.findings.filter(isFailingRootCause).length
 	if (result.scope !== undefined) {
 		const graded = result.scope.operations.filter((op) => op.status === "passed" || op.status === "failed")
 		if (graded.length === 0) return { outcome: "failed", reason: "no operation was graded, so nothing was proved" }
@@ -45,7 +45,14 @@ export function runVerdict(result: {
 		return { outcome: "defects", reason: `${rootCauses} root-cause finding${rootCauses === 1 ? "" : "s"}` }
 	}
 	if (result.scope?.mode === "targeted") {
-		const failed = result.scope.operations.filter((op) => op.status === "failed")
+		/* A target that failed only on findings a baseline names is not a new failure. */
+		const excused = (operationId: string | undefined): boolean => {
+			const naming = result.findings.filter(
+				(finding) => operationId !== undefined && (finding.operations ?? []).includes(operationId),
+			)
+			return naming.length > 0 && naming.every((finding) => !isFailingRootCause(finding))
+		}
+		const failed = result.scope.operations.filter((op) => op.status === "failed" && !excused(op.operationId))
 		if (failed.length > 0) return { outcome: "defects", reason: `${failed.length} targeted operation(s) failed` }
 		const unjudged = result.scope.operations.filter((op) => op.status !== "passed")
 		if (unjudged.length > 0) {

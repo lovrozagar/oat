@@ -22,6 +22,8 @@ export interface Finding {
 	fixture?: string
 	/** Operations this finding judges. Absent on run-level findings (teardown, network, pacing). */
 	operations?: string[]
+	/** A baseline entry names it: still reported, no longer a reason the run fails. */
+	known?: { reason: string }
 }
 
 /**
@@ -31,6 +33,11 @@ export interface Finding {
  */
 export function isRootCause(finding: { verdict: Verdict | string }): boolean {
 	return finding.verdict !== "COVERAGE_GAP" && finding.verdict !== "BLOCKED"
+}
+
+/** A root cause no baseline entry names — what the verdict and every defect count count. */
+export function isFailingRootCause(finding: { verdict: Verdict | string; known?: unknown }): boolean {
+	return isRootCause(finding) && finding.known === undefined
 }
 
 /**

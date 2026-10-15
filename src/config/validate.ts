@@ -89,6 +89,7 @@ const CONFIG = {
 	allow: arrayOf(string),
 	fence: shape({ failRun: boolean }),
 	teardown: shape({ verify: boolean }),
+	baseline: string,
 	outDir: string,
 	outOfBand: shape({ attempts: integer(1), initialMs: integer(0), maxMs: integer(0) }),
 	payloads: oneOf("full", "per-write-path"),

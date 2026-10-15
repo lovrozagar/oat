@@ -12,6 +12,7 @@ import { buildModel, type EntityModel, type OperationModel, type SpecModel, oper
 import { applyGrammarOverrides } from "../spec/grammar-overrides.ts"
 import { prepareDocument } from "../spec/prepare.ts"
 import { Fence, FencedError, type FencedRequest } from "./fence.ts"
+import { applyBaseline, type BaselineEntry, type BaselineFile } from "./baseline.ts"
 import { applyOverlay, type SpecOverlay } from "../spec/overlay.ts"
 import { dereference, loadSpec } from "../spec/load.ts"
 import type {
@@ -142,6 +143,8 @@ export interface RunOptions {
 	fence?: { failRun?: boolean }
 	/** See `OatConfig.teardown`. */
 	teardown?: { verify?: boolean }
+	/** Known findings, as `oat baseline` writes them; see `OatConfig.baseline`. */
+	baseline?: BaselineFile
 	/** Declared flows for operations the matrix cannot reach. */
 	scenarios?: Scenario[]
 	/** Backoff for `resolveOutOfBand` / `resolvePrincipalAuth`. */
@@ -210,6 +213,8 @@ export interface RunResult {
 	scope: ScopeReport
 	created: number
 	teardown: TeardownReport | null
+	/** Baseline entries no finding matched any more. Absent with no baseline. */
+	baseline?: { fixed: BaselineEntry[] }
 	/** Requests `hooks.beforeRequest` refused, and whether that alone fails the run. Absent with no hook. */
 	fenced?: { requests: FencedRequest[]; failRun: boolean }
 	/** Credentials as they stood after acquire — written to `<outDir>/<datetime>/principals.json` by the CLI. */
@@ -1948,7 +1953,9 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		requests: client.transcript.length,
 	})
 
+	const baselined = options.baseline === undefined ? undefined : applyBaseline(findings.findings, options.baseline)
 	return {
+		...(baselined === undefined ? {} : { baseline: baselined }),
 		checkNotes,
 		checkTimings,
 		checksOutOfScope,
