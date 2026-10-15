@@ -81,3 +81,26 @@ describe("oat/network-through-client", () => {
 		expect(lint("test/some.test.ts", source, "network-through-client")).toEqual([])
 	})
 })
+
+describe("oat/grammar-through-renderer", () => {
+	const source = [
+		"declare const c: { grammar: string; sortGrammar: string }",
+		'export const a = c.grammar === "postgrest"',
+		'export const b = c.sortGrammar !== "dotted"',
+		'export const d = "colon" === c.grammar',
+		"export const e = c.grammar === undefined",
+		'export const f = c.name === "postgrest"',
+	].join("\n")
+
+	it("flags a check that branches on a grammar's name instead of asking the renderer", () => {
+		expect(lint("src/runtime/probe.ts", source, "grammar-through-renderer")).toEqual([2, 3, 4])
+		expect(lint("src/report/probe.ts", source, "grammar-through-renderer")).toEqual([2, 3, 4])
+	})
+
+	it("leaves the renderer, the reference backend and tests alone", () => {
+		expect(lint("src/spec/conventions.ts", source, "grammar-through-renderer")).toEqual([])
+		expect(lint("src/spec/filter-render.ts", source, "grammar-through-renderer")).toEqual([])
+		expect(lint("src/reference/dialect.ts", source, "grammar-through-renderer")).toEqual([])
+		expect(lint("test/probe.test.ts", source, "grammar-through-renderer")).toEqual([])
+	})
+})

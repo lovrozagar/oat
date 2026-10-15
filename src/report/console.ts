@@ -11,7 +11,8 @@ import type { EntityConfig, OatConfig, QueryCapabilities } from "../config/defin
 import { formatUniqueSets } from "../spec/extensions.ts"
 import type { EntityModel, SpecModel } from "../spec/graph.ts"
 import { describeRequested, type ScopePlan } from "../runtime/scope.ts"
-import { canWriteFilterOp } from "../spec/conventions.ts"
+import { canWriteFilterOp, filterSpec, type QueryConventions } from "../spec/conventions.ts"
+import { canGroupAnd, describeFilterGrammar } from "../spec/filter-render.ts"
 import {
 	anyFieldAllows,
 	fieldAllowsNulls,
@@ -241,12 +242,12 @@ function inviteAcceptMode(spec: EntityModel["invite"]): string {
 
 function catalogCheckPreview(
 	caps: EffectiveQueryCapabilities,
-	list: { conventions: { grammar: string; order?: string; select?: string; search?: string; searchMode?: string } },
+	list: { conventions: QueryConventions },
 	source: "tag" | "heuristic" | "config" | "mixed",
 ): string[] {
 	const ids: string[] = []
-	const grammar = { grammar: list.conventions.grammar } as Parameters<typeof canWriteFilterOp>[0]
-	const write = (op: Parameters<typeof canWriteFilterOp>[1]): boolean => canWriteFilterOp(grammar, op)
+	const spec = filterSpec(list.conventions)
+	const write = (op: Parameters<typeof canWriteFilterOp>[1]): boolean => canWriteFilterOp(list.conventions, op)
 	if (anyFieldAllows(caps, "in") && write("in")) ids.push("filter.in-is-union-of-eq")
 	if (anyFieldAllows(caps, "in") && anyFieldAllows(caps, "nin") && write("in") && write("nin")) {
 		ids.push("filter.nin-complements-in")
@@ -260,7 +261,7 @@ function catalogCheckPreview(
 	}
 	if (anyFieldAllows(caps, "is") && write("is")) ids.push("filter.is-null-selects-nulls")
 	if (anyFieldAllows(caps, "contains") && write("contains")) ids.push("filter.contains-membership")
-	if (list.conventions.grammar === "postgrest" && caps.filterable.length > 1) {
+	if (spec.mixed && caps.filterable.length > 1) {
 		ids.push("filter.nested-and-or-distributes")
 	}
 	if (Object.keys(caps.aliases).length > 0) ids.push("filter.alias-matches-canonical")
@@ -273,7 +274,7 @@ function catalogCheckPreview(
 	if (caps.emptyIn !== undefined && anyFieldAllows(caps, "in") && write("in")) ids.push("filter.empty-in")
 	if (caps.maxInValues !== undefined && anyFieldAllows(caps, "in") && write("in"))
 		ids.push("filter.in-over-limit-rejected")
-	if (caps.maxFilterConditions !== undefined && list.conventions.grammar === "postgrest") {
+	if (caps.maxFilterConditions !== undefined && canGroupAnd(spec)) {
 		ids.push("filter.condition-cap-rejected")
 	}
 	if (list.conventions.order !== undefined) {
@@ -361,6 +362,8 @@ function entityQueryCatalogs(model: SpecModel, config?: DoctorConfig) {
 		harvest: string[]
 		hook: boolean
 		checks: string[]
+		/** A declared template, described; absent for a named or inferred grammar. */
+		grammar?: string
 	}> = []
 	for (const entity of [...model.entities.values()].sort((a, b) => a.name.localeCompare(b.name))) {
 		if (entity.list === undefined) continue
@@ -382,6 +385,9 @@ function entityQueryCatalogs(model: SpecModel, config?: DoctorConfig) {
 		catalogs.push({
 			aliases: caps.aliases,
 			checks: catalogCheckPreview(caps, listOp, caps.source),
+			...(listOp.conventions.filterGrammar === undefined
+				? {}
+				: { grammar: describeFilterGrammar(listOp.conventions.filterGrammar) }),
 			entity: entity.name,
 			filterable: caps.filterable,
 			harvest,
@@ -592,6 +598,7 @@ function doctor(
 			lines.push(
 				`    ${row.entity}  source=${row.source}${row.hook ? " +hook" : ""}${row.harvest.length > 0 ? ` harvest=${row.harvest.join(",")}` : ""}`,
 			)
+			if (row.grammar !== undefined) lines.push(`      grammar     ${row.grammar}`)
 			lines.push(`      filterable  ${row.filterable.map((field) => field.field).join(", ") || "—"}  ops ${ops}`)
 			lines.push(`      sortable    ${row.sortable.map((field) => field.field).join(", ") || "—"}`)
 			lines.push(`      searchable  ${row.searchable.join(", ") || "—"}`)

@@ -25,6 +25,7 @@ import { allocateRunDir, DEFAULT_RUNS_ROOT, publishLatest } from "./runtime/runs
 import { authStepOperationIds, planScope, resolveTargetScope, ScopeError } from "./runtime/scope.ts"
 import { renderTeardown } from "./runtime/teardown.ts"
 import { buildModel } from "./spec/graph.ts"
+import { applyGrammarOverrides } from "./spec/grammar-overrides.ts"
 import { dereference, loadSpec } from "./spec/load.ts"
 
 interface Args {
@@ -572,6 +573,8 @@ export async function main(): Promise<number> {
 						{ backend: "memory" as const, dialect: "linked" },
 						{ backend: "memory" as const, dialect: "jsonapi" },
 						{ backend: "memory" as const, dialect: "plain" },
+						/* A grammar oat knows only from its declaration. */
+						{ backend: "memory" as const, dialect: "template" },
 					]
 				: backends.map((backend) => ({ backend, dialect: dialect ?? "postgrest" }))
 
@@ -799,6 +802,7 @@ export async function main(): Promise<number> {
 	const raw = await loadSpec(specSource, str(flags, "base-url") ?? loaded?.baseUrl)
 	const { doc, externalRefs } = dereference(raw)
 	const model = buildModel(doc)
+	if (loaded !== undefined) applyGrammarOverrides(model, loaded)
 	try {
 		const { probeCreateFixtures } = await import("./runtime/world.ts")
 		probeCreateFixtures(model)

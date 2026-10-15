@@ -204,7 +204,9 @@ function listQueryParams(dialect: Dialect, entity: EntityDef): Array<[string, Js
 	const filterDescription =
 		dialect.grammar === "postgrest"
 			? "PostgREST-style filter expression: field.op.value, and(...), or(...)"
-			: "Filter expression: field=op:value, comma-separated. e.g. status=eq:active"
+			: dialect.grammar === "template"
+				? "One filter term per parameter, repeated: <conj>_<field>_<op>_<value>. e.g. and_status_eq_active"
+				: "Filter expression: field=op:value, comma-separated. e.g. status=eq:active"
 	const params: Array<[string, Json, string]> = []
 	if (dialect.grammar === "equality") {
 		/* One parameter per filterable field, which *is* the filter language here. Declaring them
@@ -321,7 +323,7 @@ function buildEntityPaths(ctx: SpecContext, entity: EntityDef, dialect: Dialect)
 	const catalog = entity.filterCatalog
 	const query: Json = {
 		/* Declared rather than inferred: the grammar decides what oat can even express. */
-		grammar: dialect.grammar,
+		grammar: dialect.filterTemplate ?? dialect.grammar,
 		filterable:
 			catalog?.opsByField === undefined
 				? fieldsWhere(entity, "filterable")

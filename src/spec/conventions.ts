@@ -13,12 +13,21 @@
  */
 
 import type { CollectionShape } from "./collection.ts"
+import {
+	canWriteOp,
+	FILTER_PRESETS,
+	type FilterGrammarSpec,
+	type FilterQuery,
+	type FilterTermValue,
+	parseFilterGrammar,
+	renderAnd,
+	renderOr,
+	renderTerm,
+} from "./filter-render.ts"
 import type { FilterOp } from "./query-capabilities.ts"
 import type { ParameterObject, SchemaObject } from "./types.ts"
 
-export type FilterTermValue = string | number | boolean | null | readonly (string | number | boolean | null)[]
-
-const COLON_OPS = new Set<FilterOp>(["eq", "neq", "gt", "gte", "lt", "lte", "like"])
+export type { FilterTermValue } from "./filter-render.ts"
 
 /** How filter values are spelled. Determines what oat can express, not merely what it sends. */
 export type FilterGrammar =
@@ -28,6 +37,10 @@ export type FilterGrammar =
 	| "colon"
 	/** One parameter per field, equality only — `?status=active`. */
 	| "equality"
+	/** Declared as a template; `QueryConventions.filterGrammar` says how terms are spelled. */
+	| "template"
+	/** A filter expression oat could not recognise and nobody declared: no term can be written. */
+	| "unrecognised"
 
 /**
  * How a sort direction is spelled.
@@ -74,6 +87,8 @@ export interface QueryConventions {
 	/** Opaque forward cursor. */
 	cursor?: string
 	grammar: FilterGrammar
+	/** How terms are spelled under a declared template; the named grammars are presets. */
+	filterGrammar?: FilterGrammarSpec
 	/** How sort directions are written for the `order` parameter. */
 	sortGrammar: SortGrammar
 	/** How a sparse fieldset is written for the `select` parameter. */
@@ -245,7 +260,7 @@ function inferSelectGrammar(select: ParameterObject | undefined): SelectGrammar 
 export function deriveQueryConventions(
 	parameters: readonly ParameterObject[],
 	collection: CollectionShape | null,
-	declared?: { grammar?: string },
+	declared?: { grammar?: unknown },
 	onGuess?: (message: string) => void,
 	/** Response headers the success response declares, by name. */
 	responseHeaders: readonly string[] = [],
@@ -258,24 +273,29 @@ export function deriveQueryConventions(
 	const filterName = byRole("filter")
 	const filterParam = query.find((p) => p.name === filterName)
 
-	const grammar: FilterGrammar =
+	/* An object that cannot be read is a gap `x-query`'s validation records; oat infers instead. */
+	const template = typeof declared?.grammar === "object" ? parseFilterGrammar(declared.grammar) : null
+	const named =
 		declared?.grammar === "postgrest" || declared?.grammar === "colon" || declared?.grammar === "equality"
 			? declared.grammar
-			: inferGrammar(filterParam)
-
-	if (
-		declared?.grammar === undefined &&
+			: undefined
+	const inferred = template?.ok === true ? "template" : (named ?? inferGrammar(filterParam))
+	/* A single free-text `filter` parameter almost never means equality-per-field; it means a grammar
+	 * oat could not recognise. Writing `?name=value` anyway would send parameters the document never
+	 * declared and read the shrug that comes back as a defect, so no filter term is written at all. */
+	const unrecognised =
+		inferred === "equality" &&
+		named === undefined &&
 		filterParam !== undefined &&
-		grammar === "equality" &&
 		schemaOf(filterParam).type === "string"
-	) {
-		/* A single free-text `filter` parameter almost never means equality-per-field; it means a
-		 * grammar oat could not recognise. Saying so beats sending `?name=value` and reading the
-		 * shrug that comes back as a defect. */
+	const grammar: FilterGrammar = unrecognised ? "unrecognised" : inferred
+
+	if (unrecognised && declared?.grammar === undefined) {
 		onGuess?.(
 			`parameter "${filterParam.name}" takes a filter expression whose grammar could not be ` +
-				"recognised from its description or examples, so oat assumed one parameter per field. " +
-				'Declare it with x-query: { grammar: "postgrest" | "colon" | "equality" }',
+				"recognised from its description or examples, so oat writes no filter terms for it. " +
+				'Declare it with x-query: { grammar: "postgrest" | "colon" | "equality" }, or describe it as a ' +
+				'template: { grammar: { term: "{conj}_{field}_{op}_{value}", ops: { eq: "eq" }, … } }',
 		)
 	}
 
@@ -285,6 +305,7 @@ export function deriveQueryConventions(
 	const conventions: QueryConventions = {
 		envelope: {},
 		grammar,
+		...(template?.ok === true ? { filterGrammar: template.spec } : {}),
 		selectGrammar: inferSelectGrammar(selectParam),
 		sortGrammar: inferSortGrammar(orderParam),
 	}
@@ -320,28 +341,18 @@ export function deriveQueryConventions(
 	return conventions
 }
 
-/** Whether this grammar can emit `op`. Colon and equality stay on today's writers. */
+/** How this endpoint's filter terms are spelled: its declared template, or its named grammar's preset. */
+export function filterSpec(conventions: QueryConventions): FilterGrammarSpec {
+	if (conventions.grammar === "template") {
+		if (conventions.filterGrammar === undefined) throw new Error("a template grammar without its template")
+		return conventions.filterGrammar
+	}
+	return FILTER_PRESETS[conventions.grammar]
+}
+
+/** Whether this grammar can emit `op`. */
 export function canWriteFilterOp(conventions: QueryConventions, op: FilterOp): boolean {
-	switch (conventions.grammar) {
-		case "postgrest":
-			return true
-		case "colon":
-			return COLON_OPS.has(op)
-		case "equality":
-			return op === "eq"
-	}
-}
-
-function formatFilterValue(value: FilterTermValue): string {
-	if (value === null) return "null"
-	if (typeof value === "object") {
-		return `(${value.map((item) => (item === null ? "null" : String(item))).join(",")})`
-	}
-	return String(value)
-}
-
-function isToken(value: FilterTermValue): value is string | number | boolean | null {
-	return value === null || typeof value !== "object"
+	return canWriteOp(filterSpec(conventions), op)
 }
 
 /** Renders one filter term in whichever grammar the endpoint speaks. */
@@ -351,38 +362,10 @@ export function filterTerm(
 	op: FilterOp,
 	value: FilterTermValue,
 ): Record<string, string> | null {
-	if (!canWriteFilterOp(conventions, op)) return null
-	const parameter = conventions.filter
-	switch (conventions.grammar) {
-		case "postgrest": {
-			if (parameter === undefined) return null
-			if (op === "is") {
-				const token =
-					value === null || value === "null" ? "null" : value === "notnull" || value === "not.null" ? "notnull" : null
-				if (token === null) return null
-				return { [parameter]: `${field}.is.${token}` }
-			}
-			if (op === "in" || op === "nin") {
-				const members = typeof value === "object" && value !== null ? value : [value]
-				return {
-					[parameter]: `${field}.${op}.(${members.map((item) => (item === null ? "null" : String(item))).join(",")})`,
-				}
-			}
-			if (!isToken(value)) return null
-			return { [parameter]: `${field}.${op}.${formatFilterValue(value)}` }
-		}
-		case "colon":
-			if (parameter === undefined || !isToken(value)) return null
-			return { [parameter]: `${field}=${op}:${formatFilterValue(value)}` }
-		case "equality":
-			/* Only equality is expressible, so anything else has no representation and the check
-			 * that wanted it must stand down rather than send something meaningless. */
-			if (op !== "eq" || !isToken(value)) return null
-			return { [field]: formatFilterValue(value) }
-	}
+	return renderTerm(filterSpec(conventions), conventions.filter, { field, op, value })
 }
 
-/** The bare `field.op.value` / `field=op:value` fragment `filterTerm` wraps in its parameter. */
+/** The equality term `filterTerm` wraps in its parameter, as bare text. */
 export function filterFragment(conventions: QueryConventions, field: string, value: string): string | null {
 	const term = filterTerm(conventions, field, "eq", value)
 	if (term === null) return null
@@ -394,9 +377,8 @@ export function filterFragment(conventions: QueryConventions, field: string, val
  * A conjunction of two equality predicates, in whatever grammar the endpoint speaks.
  *
  * Per-field equality ANDs implicitly — two query parameters together already mean "both must
- * hold" — so the two terms are simply merged. A raw filter expression has no such shortcut: the
- * postgrest grammar needs an explicit `and(...)`, and the colon grammar (which has no grouping
- * syntax at all — see `toCanonicalFilter`) ANDs by joining terms with a comma.
+ * hold". A raw filter expression has no such shortcut: postgrest groups with `and(...)`, the colon
+ * grammar joins with a comma, and a template says which of those, or a repeated parameter, it uses.
  */
 export function andTerm(
 	conventions: QueryConventions,
@@ -404,25 +386,16 @@ export function andTerm(
 	valueA: string,
 	fieldB: string,
 	valueB: string,
-): Record<string, string> | null {
-	if (conventions.grammar === "equality") {
-		const a = filterTerm(conventions, fieldA, "eq", valueA)
-		const b = filterTerm(conventions, fieldB, "eq", valueB)
-		if (a === null || b === null) return null
-		return { ...a, ...b } as Record<string, string>
-	}
-	if (conventions.filter === undefined) return null
-	const a = filterFragment(conventions, fieldA, valueA)
-	const b = filterFragment(conventions, fieldB, valueB)
-	if (a === null || b === null) return null
-	return { [conventions.filter]: conventions.grammar === "postgrest" ? `and(${a},${b})` : `${a},${b}` }
+): FilterQuery | null {
+	return renderAnd(filterSpec(conventions), conventions.filter, [
+		{ field: fieldA, op: "eq", value: valueA },
+		{ field: fieldB, op: "eq", value: valueB },
+	])
 }
 
 /**
- * A disjunction of two equality predicates.
- *
- * Only the postgrest grammar has an `or()` combinator at all: per-field equality has no way to
- * ask for "either" rather than "both", and the colon grammar's comma join is AND-only.
+ * A disjunction of two equality predicates; `null` for a grammar that has no way to ask for
+ * "either" rather than "both".
  */
 export function orTerm(
 	conventions: QueryConventions,
@@ -430,12 +403,11 @@ export function orTerm(
 	valueA: string,
 	fieldB: string,
 	valueB: string,
-): Record<string, string> | null {
-	if (conventions.grammar !== "postgrest" || conventions.filter === undefined) return null
-	const a = filterFragment(conventions, fieldA, valueA)
-	const b = filterFragment(conventions, fieldB, valueB)
-	if (a === null || b === null) return null
-	return { [conventions.filter]: `or(${a},${b})` }
+): FilterQuery | null {
+	return renderOr(filterSpec(conventions), conventions.filter, [
+		{ field: fieldA, op: "eq", value: valueA },
+		{ field: fieldB, op: "eq", value: valueB },
+	])
 }
 
 /** Renders a sort term in whichever grammar the endpoint speaks. */

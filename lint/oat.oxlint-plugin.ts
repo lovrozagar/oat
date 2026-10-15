@@ -11,6 +11,11 @@
  * paces it, records it and (with a fence or an allowlist) can refuse it. A `fetch` anywhere else is
  * a request no report shows and no safety control sees. The reference backend, tests and labs are
  * not oat's traffic and stay free to make their own.
+ *
+ * `oat/grammar-through-renderer`: what a filter or sort grammar can write is the renderer's to say.
+ * A check that compares a grammar's name — `grammar === "postgrest"` — answers for the presets and
+ * is wrong for every declared template, so it asks the renderer (`canWriteOr`, `canGroupAnd`, a
+ * `null` term) instead. Only the renderer, the reference backend and tests may name a grammar.
  */
 
 /* The slice of oxlint's plugin API this file uses (oxlint ships no importable plugin types). */
@@ -29,6 +34,14 @@ interface Member extends Node {
 }
 interface Call extends Node {
 	callee: Identifier | Member
+}
+interface Literal extends Node {
+	value?: unknown
+}
+interface Binary extends Node {
+	operator: string
+	left: Node
+	right: Node
 }
 interface ImportNode extends Node {
 	source: { value: string }
@@ -99,9 +112,35 @@ const networkThroughClient = {
 	},
 }
 
+const GRAMMAR_HOMES = ["/src/spec/conventions.ts", "/src/spec/filter-render.ts", "/src/reference/", "/test/"]
+const GRAMMAR_FIELDS = new Set(["grammar", "sortGrammar"])
+const BY_NAME =
+	"Ask the renderer what this grammar can write (canWriteOr, canGroupAnd, a null term) instead of comparing its name: a declared template has none of the presets' names."
+
+const isGrammarField = (node: Node): boolean =>
+	node.type === "MemberExpression" && GRAMMAR_FIELDS.has((node as Member).property.name ?? "")
+const isStringLiteral = (node: Node): boolean => node.type === "Literal" && typeof (node as Literal).value === "string"
+
+const grammarThroughRenderer = {
+	create(context: Context) {
+		const file = `/${context.filename.replaceAll("\\", "/").replace(/^\/+/, "")}`
+		if (GRAMMAR_HOMES.some((part) => file.includes(part))) return {}
+		return {
+			BinaryExpression(node: Binary) {
+				if (node.operator !== "===" && node.operator !== "!==") return
+				const named =
+					(isGrammarField(node.left) && isStringLiteral(node.right)) ||
+					(isGrammarField(node.right) && isStringLiteral(node.left))
+				if (named) context.report({ message: BY_NAME, node })
+			},
+		}
+	},
+}
+
 export default {
 	meta: { name: "oat" },
 	rules: {
+		"grammar-through-renderer": grammarThroughRenderer,
 		"network-through-client": networkThroughClient,
 		"proven-id-origin": provenIdOrigin,
 	},

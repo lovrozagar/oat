@@ -1091,7 +1091,7 @@ export const DIALECTS_WITH_CURSOR: ReadonlySet<string> = new Set(["postgrest"])
  * count defects have nowhere to happen — the same reasoning that excuses cursor defects on a
  * cursorless API, and not an excuse for a check that merely failed to fire.
  */
-export const DIALECTS_WITH_TOTAL: ReadonlySet<string> = new Set(["postgrest", "classic", "jsonapi"])
+export const DIALECTS_WITH_TOTAL: ReadonlySet<string> = new Set(["postgrest", "classic", "jsonapi", "template"])
 
 /**
  * Dialects whose filtering is an expression language rather than one parameter per field.
@@ -1105,6 +1105,7 @@ export const DIALECTS_WITH_FILTER_EXPRESSION: ReadonlySet<string> = new Set([
 	"classic",
 	"linked",
 	"jsonapi",
+	"template",
 ])
 
 /**

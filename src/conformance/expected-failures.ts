@@ -43,7 +43,7 @@ const UNTAGGED_SORT_GUESSES: readonly string[] = [
  */
 export const EXPECTED_INCONCLUSIVE: Readonly<Record<string, readonly string[]>> = Object.fromEntries(
 	["memory", "sqlite", "postgres"].flatMap((backend) =>
-		["postgrest", "classic", "linked", "jsonapi", "plain"].map((dialect) => [
+		["postgrest", "classic", "linked", "jsonapi", "plain", "template"].map((dialect) => [
 			`${backend}:${dialect}:untagged`,
 			/* With every x-* tag stripped, oat guesses that each scalar property sorts; the backend
 			 * rightly refuses parent keys. The guess is already reported as an x-query gap. */

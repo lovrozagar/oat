@@ -1000,12 +1000,17 @@ export async function createReferenceServer(
 					})
 					return send(res, 200, stale.body, stale.headers)
 				}
+				/* A template grammar repeats its parameter, one term each. */
 				const rawFilter =
-					dialect.grammar === "equality" ? equalityFilter(url, entity) : url.searchParams.get(dialect.params.filter)
+					dialect.grammar === "equality"
+						? equalityFilter(url, entity)
+						: dialect.grammar === "template"
+							? url.searchParams.getAll(dialect.params.filter)
+							: url.searchParams.get(dialect.params.filter)
 				let filter: string | undefined
-				if (rawFilter !== null && rawFilter !== "") {
+				if (rawFilter !== null && rawFilter.length > 0) {
 					const canonical = toCanonicalFilter(rawFilter, dialect)
-					if (canonical === null) throw new SqlError("invalid_filter", `malformed filter: ${rawFilter}`)
+					if (canonical === null) throw new SqlError("invalid_filter", `malformed filter: ${String(rawFilter)}`)
 					filter = canonical
 				}
 				const param = (name: string | undefined): string | undefined =>

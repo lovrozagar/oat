@@ -9,6 +9,7 @@
 import { randomBytes } from "node:crypto"
 import { isSecretHeaderName, registerSecret, registerSecretHeader } from "./redact.ts"
 import { buildModel, type EntityModel, type OperationModel, type SpecModel, operationResolver } from "../spec/graph.ts"
+import { applyGrammarOverrides } from "../spec/grammar-overrides.ts"
 import { dereference, loadSpec } from "../spec/load.ts"
 import type {
 	EntityConfig,
@@ -18,7 +19,7 @@ import type {
 	PayloadPolicy,
 	Principal,
 	ProfileSpec,
-	QueryCapabilities,
+	QueryConfig,
 	RateLimitSpec,
 	Scenario,
 	Uploads,
@@ -138,8 +139,8 @@ export interface RunOptions {
 	payloads?: PayloadPolicy
 	/** Skip `teardownPrincipal` — used when this run is a secondary origin sharing accounts. */
 	skipPrincipalTeardown?: boolean
-	/** Global filter catalog defaults. */
-	query?: QueryCapabilities
+	/** Global filter catalog defaults, and the filter grammar when oat cannot infer it. */
+	query?: QueryConfig
 	/** Per-entity overlays. */
 	entities?: Record<string, EntityConfig>
 	/**
@@ -490,6 +491,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	})
 	const { doc } = dereference(raw)
 	const model = buildModel(doc)
+	applyGrammarOverrides(model, options)
 	try {
 		probeCreateFixtures(model)
 	} catch (error) {

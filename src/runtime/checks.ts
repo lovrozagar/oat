@@ -10,7 +10,7 @@ import type { Hooks, PayloadPolicy } from "../config/define-config.ts"
 import {
 	andTerm,
 	canWriteFilterOp,
-	filterFragment,
+	filterSpec,
 	filterTerm,
 	orTerm,
 	selectTerm,
@@ -53,6 +53,7 @@ import type { OperationObject } from "../spec/types.ts"
 import { encodeForOperation } from "./body.ts"
 import { absentIdentifier, distinctValue, filterSentinel, outsideEnum, overMaxLength } from "./generate.ts"
 import { normalizeSchema } from "../spec/schema.ts"
+import { canGroupAnd, canWriteOr, type FilterQuery, renderAnd, renderAndOfOr } from "../spec/filter-render.ts"
 import type { Client, Exchange, ReadClient, RequestOptions } from "./client.ts"
 import { REQUIRED_IDS, STRING_PAYLOADS, type StringPayload, payloadFits } from "./payloads.ts"
 import { describeFeatureGate, isDocumentedFeatureGateDenial } from "./feature-gate.ts"
@@ -520,6 +521,9 @@ function conv(ctx: CheckContext) {
 	return ctx.listOp.conventions
 }
 
+/** Query parameters as the client sends them; an array value repeats its parameter. */
+type Query = NonNullable<RequestOptions["query"]>
+
 /**
  * Builds a query using whatever this endpoint actually calls each role.
  *
@@ -593,7 +597,7 @@ function filterable(ctx: CheckContext): boolean {
 	if (c.filter !== undefined) return true
 	/* Equality-per-field needs a field to attach the predicate to, and the document has to say
 	 * which fields are filterable — otherwise oat would be guessing at parameter names. */
-	return c.grammar === "equality" && (ctx.query?.filterable.length ?? 0) > 0
+	return filterSpec(c).param === "field" && (ctx.query?.filterable.length ?? 0) > 0
 }
 
 function resolvedCaps(ctx: CheckContext): EffectiveQueryCapabilities {
@@ -696,7 +700,7 @@ interface ListResult {
 
 async function list(
 	ctx: CheckContext,
-	query: Record<string, string | number | undefined> = {},
+	query: Query = {},
 	auth = ctx.auth,
 	scope = ctx.scope,
 	op: OperationModel = ctx.listOp,
@@ -811,11 +815,7 @@ const SET_RECORD_CAP = 500
  * A page answered with an error leaves the set unresolved, never "ended". Identical reads are
  * shared until the next write, unless `fresh` asks for a new one.
  */
-async function readSet(
-	ctx: CheckContext,
-	extra: Record<string, string | number | undefined> = {},
-	options: ReadOptions = {},
-): Promise<SetRead> {
+async function readSet(ctx: CheckContext, extra: Query = {}, options: ReadOptions = {}): Promise<SetRead> {
 	const size = Math.min(options.size ?? pageSize(ctx), pageSize(ctx))
 	const memo = setReads.get(ctx.model) ?? new Map<string, Promise<SetRead>>()
 	setReads.set(ctx.model, memo)
@@ -840,12 +840,7 @@ async function readSet(
 	return pending
 }
 
-async function walkSet(
-	ctx: CheckContext,
-	extra: Record<string, string | number | undefined>,
-	options: ReadOptions,
-	size: number,
-): Promise<SetRead> {
+async function walkSet(ctx: CheckContext, extra: Query, options: ReadOptions, size: number): Promise<SetRead> {
 	const c = conv(ctx)
 	const mode =
 		options.byCursor === true && c.cursor !== undefined
@@ -879,7 +874,7 @@ async function walkSet(
 	 */
 	const ahead = new Map<number, Promise<ListResult>>()
 	const fetchPage = (index: number): Promise<ListResult> => {
-		const query: Record<string, string | number | undefined> = {
+		const query: Query = {
 			...q(ctx, { limit: size, order: options.order }),
 			...extra,
 		}
@@ -953,12 +948,12 @@ async function walkSet(
  */
 async function listAll(
 	ctx: CheckContext,
-	query: Record<string, string | number | undefined>,
+	query: Query,
 	/* A repeat read that must see the collection as it is now, not as an earlier read saw it. */
 	fresh = false,
 ): Promise<ListResult & { complete: boolean }> {
 	const c = conv(ctx)
-	const extra: Record<string, string | number | undefined> = {}
+	const extra: Query = {}
 	let order: string | undefined
 	for (const [key, value] of Object.entries(query)) {
 		if (key === c.limit || key === c.page || key === c.offset || key === c.cursor) continue
@@ -981,7 +976,7 @@ async function listAll(
 async function collectSet(
 	ctx: CheckContext,
 	requested: number,
-	extra: Record<string, string> = {},
+	extra: FilterQuery = {},
 	order?: string,
 	/* A repeat read that must see the collection as it is now, not as an earlier read saw it. */
 	fresh = false,
@@ -1077,7 +1072,7 @@ interface Composed {
  */
 async function readComposed(
 	ctx: CheckContext,
-	terms: { combined: Record<string, string>; termA: Record<string, string>; termB: Record<string, string> },
+	terms: { combined: FilterQuery; termA: Record<string, string>; termB: Record<string, string> },
 	compose: (setA: Set<string>, setB: Set<string>) => Set<string>,
 ): Promise<Composed | "rejected" | "incomplete" | "moving"> {
 	const limit = pageSize(ctx)
@@ -1261,7 +1256,7 @@ interface Compound {
 	valueB: string
 	termA: Record<string, string>
 	termB: Record<string, string>
-	combined: Record<string, string>
+	combined: FilterQuery
 }
 
 function compoundPlan(
@@ -1272,7 +1267,7 @@ function compoundPlan(
 		valueA: string,
 		fieldB: string,
 		valueB: string,
-	) => Record<string, string> | null,
+	) => FilterQuery | null,
 ): Plan<Compound> {
 	const picked = twoFilterableFields(ctx)
 	if (picked === null) return cannot("a cohort record with values on two distinct filterable fields")
@@ -1723,7 +1718,7 @@ const filterAndComposesAsIntersection: Check<Compound> = {
  */
 const filterOrComposesAsUnion: Check<Compound> = {
 	plan: (ctx) =>
-		conv(ctx).grammar === "postgrest" && (ctx.query?.filterable.length ?? 0) > 1 ? compoundPlan(ctx, orTerm) : cannot(),
+		canWriteOr(filterSpec(conv(ctx))) && (ctx.query?.filterable.length ?? 0) > 1 ? compoundPlan(ctx, orTerm) : cannot(),
 	dependsOn: [
 		"query.filter-selects-from-whole-set",
 		"list.read-after-write",
@@ -2367,8 +2362,10 @@ const likeEscaping: Check<{ field: string; likeTerm: Record<string, string> }> =
 		if (!filterable(ctx) || ctx.records.length <= 1) return cannot()
 		const field = firstFilterable(ctx, (name) => (ctx.query?.searchable ?? []).includes(name))
 		if (field === null) return cannot("a field that is both filterable and searchable")
-		/* A literal `%` is not a wildcard in this grammar — `*` is. Matching everything means the
-		 * value was interpolated into a LIKE pattern unescaped. */
+		/* A literal `%` is not a wildcard in this grammar — `*` is, or the value is a bare substring.
+		 * Matching everything means the value was interpolated into a LIKE pattern unescaped. Where
+		 * the grammar declares `%` its wildcard, matching everything is the answer, not a leak. */
+		if (filterSpec(conv(ctx)).likeWildcard === "%") return cannot("a like operator that reads % literally")
 		const likeTerm = filterTerm(conv(ctx), field, "like", "%")
 		return likeTerm === null ? cannot("a filter grammar with a like operator") : ready({ field, likeTerm })
 	},
@@ -7881,7 +7878,7 @@ const filterNestedAndOrDistributes: Check<{
 	termC: Record<string, string>
 }> = {
 	plan: (ctx) => {
-		if (conv(ctx).grammar !== "postgrest" || filterableNames(ctx).length <= 1) return cannot()
+		if (!filterSpec(conv(ctx)).mixed || filterableNames(ctx).length <= 1) return cannot()
 		const picked = twoFilterableFields(ctx)
 		if (picked === null) return cannot("a cohort record with values on two distinct filterable fields")
 		const idField = filterIdentity(ctx)
@@ -7889,15 +7886,14 @@ const filterNestedAndOrDistributes: Check<{
 			return cannot("a filterable identity as a third term to nest and/or")
 		}
 		const conventions = conv(ctx)
-		const fragA = filterFragment(conventions, picked.fieldA, String(picked.target[picked.fieldA]))
-		const fragB = filterFragment(conventions, picked.fieldB, String(picked.target[picked.fieldB]))
-		const fragC = filterFragment(conventions, idField, String(picked.target[ctx.identity]))
-		const termA = filterTerm(conventions, picked.fieldA, "eq", String(picked.target[picked.fieldA]))
-		const termB = filterTerm(conventions, picked.fieldB, "eq", String(picked.target[picked.fieldB]))
-		const termC = filterTerm(conventions, idField, "eq", String(picked.target[ctx.identity]))
-		if (fragA === null || fragB === null || fragC === null || conventions.filter === undefined) return cannot()
-		if (termA === null || termB === null || termC === null) return cannot()
-		const nested = { [conventions.filter]: `and(${fragA},or(${fragB},${fragC}))` }
+		const a = { field: picked.fieldA, op: "eq", value: String(picked.target[picked.fieldA]) } as const
+		const b = { field: picked.fieldB, op: "eq", value: String(picked.target[picked.fieldB]) } as const
+		const c = { field: idField, op: "eq", value: String(picked.target[ctx.identity]) } as const
+		const nested = renderAndOfOr(filterSpec(conventions), conventions.filter, a, [b, c])
+		const termA = filterTerm(conventions, a.field, a.op, a.value)
+		const termB = filterTerm(conventions, b.field, b.op, b.value)
+		const termC = filterTerm(conventions, c.field, c.op, c.value)
+		if (nested === null || termA === null || termB === null || termC === null) return cannot()
 		return ready({ nested, termA, termB, termC })
 	},
 	dependsOn: [
@@ -8142,22 +8138,26 @@ const filterInOverLimitRejected: Check<{ field: string; max: number; term: Recor
 	},
 }
 
-const filterConditionCapRejected: Check<{ max: number; parameter: string }> = {
+const filterConditionCapRejected: Check<{ max: number; overCap: FilterQuery }> = {
 	plan: (ctx) => {
 		const max = resolvedCaps(ctx).maxFilterConditions
-		const parameter = conv(ctx).filter
-		if (max === undefined || parameter === undefined) return cannot()
-		if (conv(ctx).grammar !== "postgrest" || !identityIsFilterable(ctx)) return cannot()
-		return ready({ max, parameter })
+		const conventions = conv(ctx)
+		if (max === undefined || conventions.filter === undefined) return cannot()
+		if (!canGroupAnd(filterSpec(conventions)) || !identityIsFilterable(ctx)) return cannot()
+		const term = { field: filterIdentity(ctx), op: "eq", value: "oat-cap" } as const
+		const overCap = renderAnd(
+			filterSpec(conventions),
+			conventions.filter,
+			Array.from({ length: max + 1 }, () => term),
+		)
+		return overCap === null ? cannot() : ready({ max, overCap })
 	},
 	dependsOn: [...FOUNDATIONS, "error.malformed-filter-not-5xx"],
 	id: "filter.condition-cap-rejected",
 	needs: "`maxFilterConditions` declared and a grammar that can group eq terms",
 	subjects: subjectsOf.list,
-	async run(ctx, { max, parameter }): Promise<Outcome> {
-		const field = filterIdentity(ctx)
-		const terms = Array.from({ length: max + 1 }, () => `${field}.eq.oat-cap`)
-		const result = await list(asProbe(ctx), { ...q(ctx, { limit: 5 }), [parameter]: `and(${terms.join(",")})` })
+	async run(ctx, { max, overCap }): Promise<Outcome> {
+		const result = await list(asProbe(ctx), { ...q(ctx, { limit: 5 }), ...overCap })
 		const refused = judgeRefusal(ctx, this.id, ["validation"], result.exchange)
 		if (refused !== null) return refused
 		return ctx.findings.backend(

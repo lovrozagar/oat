@@ -7,6 +7,7 @@
  */
 
 import type { FilterableField, QueryCapabilities } from "../spec/query-capabilities.ts"
+import type { DeclaredFilterGrammar } from "../spec/grammar-overrides.ts"
 
 export type {
 	FieldType,
@@ -473,7 +474,13 @@ export interface QueryCapabilitiesRequest {
 
 /** Per-entity overlays. Only `query` is in scope this release. Unknown names are ignored. */
 export interface EntityConfig {
-	query?: QueryCapabilities
+	query?: QueryConfig
+}
+
+/** Query capabilities, plus the grammar filter terms are written in when oat cannot infer it. */
+export type QueryConfig = QueryCapabilities & {
+	/** A preset name or a template; outranks `x-query.grammar`. See docs/configuration.md. */
+	grammar?: DeclaredFilterGrammar
 }
 
 /** A second host with its own OpenAPI. Auth stays on the primary; the JWT is reused. */
@@ -606,7 +613,7 @@ export interface OatConfig {
 	 * Global filter catalog defaults. Overlay on every entity after the list operation's `x-query`.
 	 * Does not invent operators — new ops still have to be listed here or on the tag.
 	 */
-	query?: QueryCapabilities
+	query?: QueryConfig
 	/** Per-entity overlays. Unknown names are ignored (`oat doctor` warns). */
 	entities?: Record<string, EntityConfig>
 	/** Leave created records in place instead of tearing them down. */

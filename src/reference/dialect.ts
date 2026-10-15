@@ -54,7 +54,9 @@ export interface Dialect {
 	 * oat can say the least — which makes it the real test of whether "I cannot express this" is
 	 * reported honestly rather than silently skipped.
 	 */
-	grammar: "postgrest" | "colon" | "equality"
+	grammar: "postgrest" | "colon" | "equality" | "template"
+	/** The template a `template` grammar declares on `x-query.grammar`. */
+	filterTemplate?: Record<string, unknown>
 	/** How sort directions are written. Defaults to the dotted form when unset. */
 	sortGrammar?: "dotted" | "prefixed" | "colon" | "spaced"
 	/** How a sparse fieldset is written. Defaults to comma-separated names. */
@@ -194,12 +196,53 @@ export const PLAIN: Dialect = {
 	sortGrammar: "colon",
 }
 
+/**
+ * A grammar oat has no name for, declared as a template: one term per filter parameter,
+ * `and_status_eq_active`, repeated for every term. `ne` spells not-equal, null tests are terms of
+ * their own, `in` values are comma-joined, an underscore in a value is written `~`, and `like`
+ * matches a bare substring.
+ *
+ * Nothing in oat may know this grammar except through the declaration, so every filter check that
+ * still runs here is reading the template rather than a preset.
+ */
+export const TEMPLATE: Dialect = {
+	envelope: {
+		collection: "results",
+		hasMore: "has_more",
+		limit: "limit",
+		page: "page",
+		total: "total",
+	},
+	filterTemplate: {
+		combine: "repeat",
+		conj: { and: "and", or: "or" },
+		escape: { _: "~" },
+		likeMatches: "contains",
+		list: ",",
+		null: { is: "{conj}_{field}_is_null", not: "{conj}_{field}_isn_null" },
+		ops: { eq: "eq", gt: "gt", gte: "gte", in: "in", like: "like", lt: "lt", lte: "lte", neq: "ne" },
+		or: "terms",
+		term: "{conj}_{field}_{op}_{value}",
+	},
+	grammar: "template",
+	name: "template",
+	params: {
+		filter: "where",
+		limit: "limit",
+		order: "sort",
+		page: "page",
+		search: "search",
+		select: "fields",
+	},
+}
+
 export const DIALECTS: Record<string, Dialect> = {
 	jsonapi: JSONAPI,
 	plain: PLAIN,
 	classic: CLASSIC,
 	linked: LINKED,
 	postgrest: POSTGREST,
+	template: TEMPLATE,
 }
 
 /**
@@ -209,7 +252,9 @@ export const DIALECTS: Record<string, Dialect> = {
  * Returns `null` when the expression is malformed, which the caller surfaces as a 400 — the same
  * treatment the canonical grammar gets.
  */
-export function toCanonicalFilter(expression: string, dialect: Dialect): string | null {
+export function toCanonicalFilter(expression: string | readonly string[], dialect: Dialect): string | null {
+	if (typeof expression !== "string") return dialect.grammar === "template" ? fromTemplateTerms(expression) : null
+	if (dialect.grammar === "template") return fromTemplateTerms([expression])
 	/* Already canonical: the postgrest grammar *is* the canonical form, and the equality grammar
 	 * has no expression of its own — the per-field parameters were assembled into canonical terms
 	 * before reaching here. Re-parsing that would reject a well-formed expression. */
@@ -230,4 +275,56 @@ export function toCanonicalFilter(expression: string, dialect: Dialect): string 
 		canonical.push(`${match[1]}.${match[2]}.${match[3]}`)
 	}
 	return canonical.length === 1 ? (canonical[0] as string) : `and(${canonical.join(",")})`
+}
+
+/*
+ * The template dialect's terms, parsed on their own terms rather than through oat's renderer: a
+ * reference that reused the renderer would agree with it by construction and prove nothing.
+ * A value never holds an underscore (it is written `~`), so the last `_op_` in a term is its operator.
+ */
+const TEMPLATE_TERM = /^(and|or)_(.+)_(eq|ne|gt|gte|lt|lte|like|in)_([^_]*)$/s
+const TEMPLATE_NULL = /^(and|or)_(.+)_(is|isn)_null$/s
+const TEMPLATE_OPS: Record<string, string> = {
+	eq: "eq",
+	gt: "gt",
+	gte: "gte",
+	in: "in",
+	like: "like",
+	lt: "lt",
+	lte: "lte",
+	ne: "neq",
+}
+
+const unescapeTemplate = (value: string): string => value.replaceAll("~", "_")
+
+/** Repeated `and_…` terms must all hold; `or_…` terms, at least one of them. */
+function fromTemplateTerms(terms: readonly string[]): string | null {
+	const all: string[] = []
+	const any: string[] = []
+	for (const term of terms) {
+		const nullTest = TEMPLATE_NULL.exec(term)
+		const match = nullTest === null ? TEMPLATE_TERM.exec(term) : null
+		let canonical: string
+		let conj: string | undefined
+		if (nullTest !== null) {
+			conj = nullTest[1]
+			canonical = `${nullTest[2]}.is.${nullTest[3] === "is" ? "null" : "notnull"}`
+		} else if (match !== null) {
+			const [, matchConj, field, op, value] = match
+			if (field === undefined || op === undefined || value === undefined) return null
+			conj = matchConj
+			canonical =
+				op === "in"
+					? `${field}.in.(${value.split(",").map(unescapeTemplate).join(",")})`
+					: op === "like"
+						? `${field}.like.*${unescapeTemplate(value)}*`
+						: `${field}.${TEMPLATE_OPS[op]}.${unescapeTemplate(value)}`
+		} else {
+			return null
+		}
+		;(conj === "and" ? all : any).push(canonical)
+	}
+	if (any.length > 0) all.push(any.length === 1 ? (any[0] as string) : `or(${any.join(",")})`)
+	if (all.length === 0) return null
+	return all.length === 1 ? (all[0] as string) : `and(${all.join(",")})`
 }

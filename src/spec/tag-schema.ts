@@ -8,6 +8,7 @@
 
 import type { GapCollector } from "./extensions.ts"
 import type { OperationObject, ParameterObject } from "./types.ts"
+import { parseFilterGrammar } from "./filter-render.ts"
 
 type Check = (value: unknown) => string | null
 
@@ -73,7 +74,11 @@ const xQuery = shape({
 	emptyIn: oneOf("reject", "match-none"),
 	filterable: axis({ field: string, ops: strings, type: string }),
 	filterableFrom: harvest,
-	grammar: oneOf("postgrest", "colon", "equality"),
+	grammar: (value) => {
+		if (!isObject(value)) return oneOf("postgrest", "colon", "equality")(value)
+		const parsed = parseFilterGrammar(value)
+		return parsed.ok ? null : `is a template oat cannot read: ${parsed.error}`
+	},
 	identityFilter: string,
 	maxFilterConditions: integer,
 	maxInValues: integer,
