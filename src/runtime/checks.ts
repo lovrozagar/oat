@@ -2446,6 +2446,26 @@ const createStatusMatchesSpec: Check<{ createOp: OperationModel; success: string
  * parameter (`/v1/projects/{project_id}/tables` and `.../tables/{table_id}/rows` both truncate
  * to `/v1/projects/`), which silently pairs one entity's response with another's schema.
  */
+/** How many creates with distinct client-chosen ids `create.keeps-submitted-identity` judges. */
+const KEPT_IDENTITY_SAMPLES = 3
+
+/** Up to `max` successful creates on this entity's resolved path, oldest first, hydrated. */
+async function createExchanges(ctx: CheckContext, max: number): Promise<Exchange[]> {
+	const createOp = ctx.createOp
+	if (createOp === undefined) return []
+	let resolved: string
+	try {
+		resolved = fillPath(createOp.path, ctx.scope)
+	} catch {
+		return []
+	}
+	const found = ctx.client
+		.exchangesFor(createOp.operationId)
+		.filter((e) => e.status < 300 && ctx.client.relativePath(e.url) === resolved)
+		.slice(0, max)
+	return Promise.all(found.map((e) => ctx.client.hydrate(e)))
+}
+
 async function createExchange(ctx: CheckContext): Promise<Exchange | undefined> {
 	const createOp = ctx.createOp
 	if (createOp === undefined) return undefined
@@ -5259,47 +5279,58 @@ const createKeepsSubmittedIdentity: Check<{ readOp: OperationModel }> = {
 	needs: "a create that takes the record's identity from the client, and an item read",
 	subjects: subjectsOf.create,
 	async run(ctx, { readOp }): Promise<Outcome> {
-		const created = await createExchange(ctx)
-		const body = created?.requestBody
-		const sent =
-			body !== null && typeof body === "object" && !Array.isArray(body) ? (body as Record_)[ctx.identity] : undefined
-		if (created === undefined || (typeof sent !== "string" && typeof sent !== "number")) {
+		/* A server issuing its own ids from a counter can issue, by chance, the very one a create
+		 * sent: that create looks kept. Several creates with distinct ids all coinciding cannot. */
+		const creates: Array<{ created: Exchange; sent: string | number }> = []
+		for (const created of await createExchanges(ctx, KEPT_IDENTITY_SAMPLES * 4)) {
+			const body = created.requestBody
+			const sent =
+				body !== null && typeof body === "object" && !Array.isArray(body) ? (body as Record_)[ctx.identity] : undefined
+			if (typeof sent !== "string" && typeof sent !== "number") continue
+			if (creates.some((seen) => String(seen.sent) === String(sent))) continue
+			creates.push({ created, sent })
+			if (creates.length === KEPT_IDENTITY_SAMPLES) break
+		}
+		if (creates.length === 0) {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
 				"no create carrying a client-chosen identity was observed",
 			)
 		}
-		const answered =
-			created.responseBody !== null && typeof created.responseBody === "object"
-				? (created.responseBody as Record_)[ctx.identity]
-				: undefined
-		if (answered !== undefined && answered !== null) {
-			if (String(answered) === String(sent)) return ASSERTED
+		for (const { created, sent } of creates) {
+			const answered =
+				created.responseBody !== null && typeof created.responseBody === "object"
+					? (created.responseBody as Record_)[ctx.identity]
+					: undefined
+			if (answered !== undefined && answered !== null) {
+				if (String(answered) === String(sent)) continue
+				return ctx.findings.backend(
+					this.id,
+					ctx.entityName,
+					"create answers with an identity other than the one it was sent",
+					`"${ctx.identity}" was sent ${JSON.stringify(sent)} and the create answered ${JSON.stringify(answered)}. ` +
+						"A client that chose the id can no longer find its record by it.",
+					[created],
+				)
+			}
+			const read = await ctx.client.get(fillPath(readOp.path, { ...ctx.scope, ...itemParamFor(ctx, String(sent)) }), {
+				headers: ctx.auth(),
+				operationId: readOp.operationId,
+			})
+			const record = (read.responseBody ?? {}) as Record_
+			if (read.status >= 200 && read.status < 300 && String(record[ctx.identity]) === String(sent)) continue
 			return ctx.findings.backend(
 				this.id,
 				ctx.entityName,
-				"create answers with an identity other than the one it was sent",
-				`"${ctx.identity}" was sent ${JSON.stringify(sent)} and the create answered ${JSON.stringify(answered)}. ` +
-					"A client that chose the id can no longer find its record by it.",
-				[created],
+				"create acknowledged a record that is not under the identity it was sent",
+				`"${ctx.identity}" was sent ${JSON.stringify(sent)}; the create answered ${created.status} without an ` +
+					`identity, and the read under that id returned ${read.status}. The record exists, if at all, under an id ` +
+					"the client was never told.",
+				[created, read],
 			)
 		}
-		const read = await ctx.client.get(fillPath(readOp.path, { ...ctx.scope, ...itemParamFor(ctx, String(sent)) }), {
-			headers: ctx.auth(),
-			operationId: readOp.operationId,
-		})
-		const record = (read.responseBody ?? {}) as Record_
-		if (read.status >= 200 && read.status < 300 && String(record[ctx.identity]) === String(sent)) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"create acknowledged a record that is not under the identity it was sent",
-			`"${ctx.identity}" was sent ${JSON.stringify(sent)}; the create answered ${created.status} without an ` +
-				`identity, and the read under that id returned ${read.status}. The record exists, if at all, under an id ` +
-				"the client was never told.",
-			[created, read],
-		)
+		return ASSERTED
 	},
 }
 
