@@ -159,7 +159,7 @@ Flags
   --untagged       serve (or test) a document with every x-* tag stripped
   --backend        conformance storage: memory | sqlite | postgres | d1
                    (default: all local; d1 is remote and opt-in)
-  --dialect        API shape: postgrest | classic | linked | jsonapi | plain (default: all)
+  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
   --fuzz [n]       inject random defect *combinations* instead of one at a time
   --precision [n]  vary cohort data against a correct backend; any finding is a false positive
   --max-defects    most defects per combination (default: 4)
