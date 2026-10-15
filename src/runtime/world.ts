@@ -18,6 +18,7 @@ import { isUniqueConflictResponse, uniqueTupleCollides, uniquifyProbeBody } from
 import { describeFeatureGate, isDocumentedFeatureGateDenial } from "./feature-gate.ts"
 import type { UploadContext } from "./upload.ts"
 import { type ProvenId, returnedId } from "./proven-id.ts"
+import { FencedError } from "./fence.ts"
 
 export type Record_ = Record<string, unknown>
 
@@ -166,7 +167,9 @@ export async function listExisting(
 		})
 		if (exchange.status >= 300) return []
 		return recordsFromList(exchange.responseBody, listOp.collection?.key ?? null)
-	} catch {
+	} catch (error) {
+		/* A fenced read is not an empty collection. */
+		if (error instanceof FencedError) throw error
 		return []
 	}
 }

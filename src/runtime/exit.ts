@@ -25,10 +25,16 @@ export type RunOutcome = "clean" | "defects" | "failed"
 export function runVerdict(result: {
 	findings: ReadonlyArray<{ verdict: string }>
 	network?: { incomplete: boolean }
+	fenced?: { requests: readonly unknown[]; failRun: boolean }
 	scope?: { mode: string; operations: ReadonlyArray<{ operationId?: string; status: string }> }
 }): { outcome: RunOutcome; reason: string } {
 	if (result.network?.incomplete === true) {
 		return { outcome: "failed", reason: "the network went away before the run finished" }
+	}
+	/* What was refused was never tested, so the run did not do what it was asked. */
+	const fenced = result.fenced?.requests.length ?? 0
+	if (fenced > 0 && result.fenced?.failRun === true) {
+		return { outcome: "failed", reason: `${fenced} request${fenced === 1 ? " was" : "s were"} fenced` }
 	}
 	const rootCauses = result.findings.filter(isRootCause).length
 	if (result.scope !== undefined) {

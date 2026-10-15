@@ -87,6 +87,7 @@ const CONFIG = {
 	),
 	overlay,
 	allow: arrayOf(string),
+	fence: shape({ failRun: boolean }),
 	outDir: string,
 	outOfBand: shape({ attempts: integer(1), initialMs: integer(0), maxMs: integer(0) }),
 	payloads: oneOf("full", "per-write-path"),

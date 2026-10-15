@@ -26,6 +26,7 @@ import { authStepOperationIds, planScope, resolveTargetScope, ScopeError } from 
 import { renderTeardown } from "./runtime/teardown.ts"
 import { buildModel, type SpecModel } from "./spec/graph.ts"
 import { UsageError } from "./config/usage-error.ts"
+import { FencedError } from "./runtime/fence.ts"
 import { applyGrammarOverrides } from "./spec/grammar-overrides.ts"
 import { prepareDocument } from "./spec/prepare.ts"
 import { dereference, loadSpec } from "./spec/load.ts"
@@ -307,6 +308,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 			...(config.origins === undefined ? {} : { origins: config.origins }),
 			...(config.overlay === undefined ? {} : { overlay: config.overlay }),
 			...(config.allow === undefined ? {} : { allow: config.allow }),
+			...(config.fence === undefined ? {} : { fence: config.fence }),
 			...(config.scenarios === undefined ? {} : { scenarios: config.scenarios }),
 			...(config.outOfBand === undefined ? {} : { outOfBand: config.outOfBand }),
 			...(config.payloads === undefined ? {} : { payloads: config.payloads }),
@@ -320,6 +322,11 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 			...(config.network === undefined ? {} : { network: config.network }),
 		})
 	} catch (error) {
+		/* Refused before the run could start — the document, or a principal's sign-in. */
+		if (error instanceof FencedError) {
+			process.stderr.write(`oat: ${error.message}\n`)
+			return EXIT.failed
+		}
 		if (!(error instanceof UsageError)) throw error
 		process.stderr.write(`${error.message}\n`)
 		return 2
@@ -355,6 +362,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		teardown: result.teardown,
 		...(result.exchanges === undefined ? {} : { exchanges: result.exchanges }),
 		...(result.network === undefined ? {} : { network: result.network }),
+		...(result.fenced === undefined ? {} : { fenced: result.fenced }),
 	}
 
 	await writeFile(resolve(outDir, "principals.json"), `${JSON.stringify({ principals: result.principals }, null, 2)}\n`)

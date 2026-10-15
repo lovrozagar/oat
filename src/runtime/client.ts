@@ -45,6 +45,7 @@ import {
 	releaseTranscriptBodies,
 	sha256Hex,
 } from "./transcript.ts"
+import type { Fence } from "./fence.ts"
 
 export interface Exchange {
 	seq: number
@@ -237,6 +238,7 @@ export class Client {
 	private readonly byEntity = new Map<string, Exchange[]>()
 	private readonly entityOf = new Map<number, string>()
 	private operationResolver: OperationResolver | undefined
+	private fence: Fence | undefined
 	private principalResolver: ((headers: Record<string, string>) => string | undefined) | undefined
 	private seq = 0
 	private inFlight = 0
@@ -270,6 +272,11 @@ export class Client {
 	}
 
 	/** Resolves each request to its documented operation, so nothing downstream parses URLs. */
+	/** Every request, redirect hops included, asks this first; a refused one is never sent. */
+	setFence(fence: Fence): void {
+		this.fence = fence
+	}
+
 	setOperationResolver(resolve: OperationResolver): void {
 		this.operationResolver = resolve
 	}
@@ -430,6 +437,19 @@ export class Client {
 			if (hopBody !== undefined) init.body = hopBody
 			if (options.redirect !== undefined || resolved?.redirects === true) init.redirect = "manual"
 
+			const fenceAsk = (target: URL, verb: string, body: unknown): Promise<void> | undefined =>
+				this.fence?.check({
+					body,
+					headers: { ...hopHeaders },
+					method: verb,
+					phase: options.context?.purpose ?? "request",
+					url: target.toString(),
+					...((options.operationId ?? resolved?.operationId) === undefined
+						? {}
+						: { operationId: (options.operationId ?? resolved?.operationId) as string }),
+				})
+			await fenceAsk(url, method.toUpperCase(), options.body)
+
 			/* Two independent constraints, both held: maxInFlight bounds in-flight HTTP with no
 			 * notion of time, a rate-limit category bounds throughput over time. The in-flight
 			 * slot is acquired first and released in the same finally as before — pacing sits
@@ -504,6 +524,7 @@ export class Client {
 								redirect: "manual",
 							}
 							if (hopBody !== undefined) nextInit.body = hopBody
+							await fenceAsk(hopUrl, hopMethod.toUpperCase(), next.dropBody ? undefined : options.body)
 							response = await once(hopUrl, nextInit)
 							;({ parsed, bodyBytes, digest } = await readResponsePayload(response))
 							jar.absorb(hopUrl, setCookieHeadersFrom(response.headers))

@@ -66,6 +66,7 @@ import {
 } from "../spec/filter-render.ts"
 import { renderUnknownDirection } from "../spec/sort-render.ts"
 import type { Client, Exchange, ReadClient, RequestOptions } from "./client.ts"
+import { FencedError } from "./fence.ts"
 import { REQUIRED_IDS, STRING_PAYLOADS, type StringPayload, payloadFits } from "./payloads.ts"
 import { describeFeatureGate, isDocumentedFeatureGateDenial } from "./feature-gate.ts"
 import { headerValue } from "./headers.ts"
@@ -9353,7 +9354,9 @@ async function liveRecord(ctx: CheckContext, id: string | undefined): Promise<Re
 			return undefined
 		}
 		return exchange.responseBody as Record_
-	} catch {
+	} catch (error) {
+		/* A fenced read is not "no record": the caller must hear that it could not ask. */
+		if (error instanceof FencedError) throw error
 		return undefined
 	}
 }
@@ -9365,7 +9368,9 @@ async function teardownCreatedId(ctx: WriteContext, id: string): Promise<void> {
 		await ctx.client.request("DELETE", fillPath(deleteOp.path, { ...ctx.scope, ...itemParamFor(ctx, id) }), {
 			headers: ctx.auth(),
 		})
-	} catch {
+	} catch (error) {
+		/* A fenced delete is reported, not skipped: the global teardown lists it as a leftover. */
+		if (error instanceof FencedError) throw error
 		/* A leftover row is worse than a teardown 404. */
 	}
 }

@@ -9,6 +9,7 @@
 
 import { renderConfidenceMarkdown } from "./confidence.ts"
 import { describeRequestBody, toCurl } from "../runtime/client.ts"
+import type { FencedRequest } from "../runtime/fence.ts"
 import { redactJson, redactUrl } from "../runtime/redact.ts"
 import type { Client, Exchange } from "../runtime/client.ts"
 import { describeRequested, type OperationCoverage, type OperationStatus, type ScopeReport } from "../runtime/scope.ts"
@@ -55,6 +56,8 @@ export interface ReportInput {
 		incomplete: boolean
 		url: string
 	}
+	/** Requests `hooks.beforeRequest` refused, and whether that alone fails the run. */
+	fenced?: { requests: FencedRequest[]; failRun: boolean }
 }
 
 const VERDICT_ORDER: Verdict[] = ["SECURITY", "BACKEND_BUG", "SPEC_BUG", "AMBIGUITY", "BLOCKED", "COVERAGE_GAP"]
@@ -181,6 +184,18 @@ export function renderMarkdown(input: ReportInput): string {
 
 	/* Policies the document leaves open, as the backend showed them. One line per policy: the
 	 * same observation on every entity is said once. */
+	const fenced = input.fenced?.requests ?? []
+	if (fenced.length > 0) {
+		/* Never sent, so never judged: what they would have tested is unknown, not passed. */
+		lines.push("## Fenced requests")
+		lines.push("")
+		for (const request of fenced) {
+			lines.push(
+				`- \`${request.method} ${redactUrl(request.url)}\` · ${request.operationId ?? "—"} · ${request.phase} · ${request.reason}`,
+			)
+		}
+		lines.push("")
+	}
 	const observed = new Map<string, string[]>()
 	for (const note of input.checkNotes ?? []) {
 		observed.set(note.note, [...(observed.get(note.note) ?? []), note.entity])
@@ -710,6 +725,14 @@ export function renderJson(input: ReportInput): string {
 			generatedAt: input.startedAt.toISOString(),
 			requests: input.client.transcript.length,
 			...(input.network === undefined ? {} : { network: input.network }),
+			...(input.fenced === undefined
+				? {}
+				: {
+						fenced: {
+							failRun: input.fenced.failRun,
+							requests: input.fenced.requests.map((request) => ({ ...request, url: redactUrl(request.url) })),
+						},
+					}),
 			requestBytes: utf8Total(input.client.transcript, "request"),
 			responseBytes: utf8Total(input.client.transcript, "response"),
 			latency: latency(input.client.transcript),

@@ -11,6 +11,7 @@ import { isSecretHeaderName, registerSecret, registerSecretHeader } from "./reda
 import { buildModel, type EntityModel, type OperationModel, type SpecModel, operationResolver } from "../spec/graph.ts"
 import { applyGrammarOverrides } from "../spec/grammar-overrides.ts"
 import { prepareDocument } from "../spec/prepare.ts"
+import { Fence, FencedError, type FencedRequest } from "./fence.ts"
 import { applyOverlay, type SpecOverlay } from "../spec/overlay.ts"
 import { dereference, loadSpec } from "../spec/load.ts"
 import type {
@@ -137,6 +138,8 @@ export interface RunOptions {
 	overlay?: SpecOverlay
 	/** The only operationIds oat may call; see `OatConfig.allow`. */
 	allow?: string[]
+	/** See `OatConfig.fence`. */
+	fence?: { failRun?: boolean }
 	/** Declared flows for operations the matrix cannot reach. */
 	scenarios?: Scenario[]
 	/** Backoff for `resolveOutOfBand` / `resolvePrincipalAuth`. */
@@ -205,6 +208,8 @@ export interface RunResult {
 	scope: ScopeReport
 	created: number
 	teardown: TeardownReport | null
+	/** Requests `hooks.beforeRequest` refused, and whether that alone fails the run. Absent with no hook. */
+	fenced?: { requests: FencedRequest[]; failRun: boolean }
 	/** Credentials as they stood after acquire — written to `<outDir>/<datetime>/principals.json` by the CLI. */
 	principals: PersistedPrincipal[]
 	/** Set when the run was stopped before every entity was tested. */
@@ -482,7 +487,15 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		)
 	}
 
+	const fence = options.hooks?.beforeRequest === undefined ? undefined : new Fence(options.hooks.beforeRequest)
+	const fencedResult = (): Pick<RunResult, "fenced"> =>
+		fence === undefined ? {} : { fenced: { failRun: options.fence?.failRun !== false, requests: [...fence.fenced] } }
+
 	tick({ message: options.spec, phase: "load", requests: 0 })
+	/* Fetching the document is a request too, when it comes from a server. */
+	if (/^https?:\/\//i.test(options.spec)) {
+		await fence?.check({ body: undefined, headers: {}, method: "GET", phase: "load", url: options.spec })
+	}
 	const raw = await loadSpec(options.spec, options.baseUrl, {
 		onWait: (info) => {
 			tick({
@@ -554,6 +567,22 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			publish(snapshot({ inflight: displayed }))
 		},
 	}
+	/* Whether the host still answers — a request like any other, so the fence sees it first. */
+	const probeBase = async (): Promise<boolean> => {
+		try {
+			await fence?.check({
+				body: undefined,
+				headers: {},
+				method: "HEAD",
+				phase: "probe",
+				url: new URL(options.baseUrl).origin,
+			})
+		} catch (error) {
+			if (error instanceof FencedError) return false
+			throw error
+		}
+		return probeOrigin(options.baseUrl)
+	}
 	const networkGate = createNetworkGate({
 		onWait: (info) => {
 			tick({
@@ -562,7 +591,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				requests: requestCount(),
 			})
 		},
-		probe: () => probeOrigin(options.baseUrl),
+		probe: probeBase,
 		waitBudgetMs: options.network?.waitMs ?? DEFAULT_NETWORK_WAIT_MS,
 	})
 	let networkOutcome: RunResult["network"]
@@ -570,7 +599,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		if (networkOutcome !== undefined) return
 		/* One operation that never answered, on a host that still answers, is that operation failing
 		 * (reported with the server errors), not the network going away. */
-		if (error.kind === "timeout" && (await probeOrigin(options.baseUrl))) return
+		if (error.kind === "timeout" && (await probeBase())) return
 		networkOutcome = {
 			attempts: error.attempts,
 			incomplete: true,
@@ -601,6 +630,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	)
 	if (hooks.resolveHeaders !== undefined) client.setResolveHeaders(hooks.resolveHeaders)
 	client.setOperationResolver(operationResolver(model))
+	if (fence !== undefined) client.setFence(fence)
 	const validator = new SchemaValidator(model.defs)
 	const ledger = new Ledger()
 	const seed = options.seed ?? 1
@@ -620,6 +650,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		onExchange,
 		httpHooks,
 		networkClient,
+		fence,
 	)
 	/* Resolved before any principal signs up: a typo in --ops must cost nothing. */
 	const runScope: TargetScope = resolveTargetScope(model, {
@@ -709,6 +740,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			profileExclusions,
 			scope: scopeReport(),
 			teardown: null,
+			...fencedResult(),
 			...(journal === null ? {} : { exchanges: { count: journal.count } }),
 			...(networkOutcome === undefined ? {} : { network: networkOutcome }),
 		}
@@ -1133,6 +1165,15 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					await noteNetwork(error, entity.name)
 					return
 				}
+				if (error instanceof FencedError) {
+					entityFindings.blocked(
+						"world.seed",
+						entity.name,
+						`seeding "${entity.name}" was fenced: ${error.request.reason}`,
+						`${error.message}. The request was never sent, so "${entity.name}" has no cohort to test.`,
+					)
+					return
+				}
 				if (isOverflowError(error)) {
 					const overflow = overflowFrom(error, createOp.operationId)
 					entityFindings.gap("world.seed", entity.name, overflow.message, overflow.message)
@@ -1489,6 +1530,16 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				if (isNetworkError(error)) {
 					await noteNetwork(error, entity.name)
 					outcomes.set(check.id, { kind: "unresolved", reason: "the network failed" })
+					return
+				}
+				if (error instanceof FencedError) {
+					outcomes.set(check.id, { kind: "unresolved", reason: "a request was fenced" })
+					attributed.blocked(
+						"fence",
+						entity.name,
+						`${check.id} was fenced: ${error.request.reason}`,
+						`${error.message}. The request was never sent, so ${check.id} could not complete.`,
+					)
 					return
 				}
 				if (error instanceof AuthRefreshError) {
@@ -1901,6 +1952,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		profileExclusions,
 		scope: coverage,
 		teardown,
+		...fencedResult(),
 		...(interrupted ? { interrupted } : {}),
 		...(journal === null ? {} : { exchanges: { count: journal.count } }),
 		...(networkOutcome === undefined ? {} : { network: networkOutcome }),
@@ -1920,6 +1972,7 @@ async function loadOriginClients(
 	onExchange?: (exchange: Exchange) => void,
 	httpHooks?: HttpHooks,
 	network?: ConstructorParameters<typeof Client>[6],
+	fence?: Fence,
 ): Promise<Map<string, OriginClient>> {
 	const map = new Map<string, OriginClient>()
 	for (const origin of origins) {
@@ -1936,6 +1989,7 @@ async function loadOriginClients(
 			network,
 		)
 		if (hooks.resolveHeaders !== undefined) originClient.setResolveHeaders(hooks.resolveHeaders)
+		if (fence !== undefined) originClient.setFence(fence)
 		map.set(origin.id, { client: originClient, model: originModel })
 	}
 	return map

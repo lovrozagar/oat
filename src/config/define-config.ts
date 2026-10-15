@@ -394,7 +394,27 @@ export interface Uploads {
 	eachMax?: number
 }
 
+/** A request about to leave the process, as `hooks.beforeRequest` sees it. */
+export interface FenceRequest {
+	method: string
+	url: string
+	headers: Record<string, string>
+	body: unknown
+	operationId?: string
+	/** Why oat is sending it: `load`, `auth`, `seed`, `assertion`, `probe`, `teardown`, or `request`. */
+	phase: string
+}
+
+/** Let the request go, or refuse it with a reason the report shows. */
+export type FenceDecision = { allow: true } | { allow: false; reason: string }
+
 export interface Hooks {
+	/**
+	 * Sees every request before it leaves the process and may refuse it. A refused request is never
+	 * sent and never judged: its check is unresolved, its cohort blocked, its record a leftover. The
+	 * report lists every refusal, and the run fails unless `fence.failRun` is false.
+	 */
+	beforeRequest?: (request: FenceRequest) => FenceDecision | Promise<FenceDecision>
 	/**
 	 * Performs a scenario `external` step — a browser payment, an OAuth consent — and returns
 	 * the value the next step needs. `null` fails the step.
@@ -581,6 +601,8 @@ export interface OatConfig {
 	 * operation, stops the run with a usage error.
 	 */
 	allow?: string[]
+	/** `failRun: false` keeps a run whose requests `hooks.beforeRequest` refused from failing on that alone. */
+	fence?: { failRun?: boolean }
 	/**
 	 * Backoff for `resolveOutOfBand` and `resolvePrincipalAuth`.
 	 * Defaults: `{ attempts: 6, initialMs: 200, maxMs: 3000 }` (~9s worst case).
