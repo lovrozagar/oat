@@ -6290,6 +6290,10 @@ const declaredEffectsOccur: Check = {
 	needs: "an operation declaring x-effects",
 	subjects: subjectsOf.effects,
 	async run(all): Promise<Outcome> {
+		/* Whether any action was invoked and its effects compared, and why not when none was: a run
+		 * that never saw an action succeed observed nothing about its effects. */
+		let judged = false
+		let unjudged: string | undefined
 		for (const op of all.effectOps) {
 			const ctx = forOperation(all, op)
 			await forEachInvocation(op.operationId, ctx.uploads, async (uploads, slot) => {
@@ -6401,8 +6405,13 @@ const declaredEffectsOccur: Check = {
 						`returned ${invoked.status}; its declared effects are unverified`,
 						fixture,
 					)
+					/* A crash is the backend failing; a refusal more likely means oat's request was wrong. */
+					if (invoked.status >= 500) {
+						unjudged ??= `${op.operationId} returned ${invoked.status}, so its declared effects were never observed`
+					}
 					return
 				}
+				judged = true
 
 				const deltas = new Map<string, string[]>()
 				Object.assign(scope, bindAfterCreateEffects(ctx.model, effects, invoked.responseBody, deltas))
@@ -6537,6 +6546,7 @@ const declaredEffectsOccur: Check = {
 				}
 			})
 		}
+		if (!judged && unjudged !== undefined) return all.findings.unresolved(this.id, all.entityName, unjudged)
 		return ASSERTED
 	},
 }
