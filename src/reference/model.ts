@@ -286,6 +286,7 @@ export function shapedEntities(shape: {
 	richSchema?: boolean
 	largeRecords?: boolean
 	specLayout?: boolean
+	clientIds?: { min: number; max: number }
 }): EntityDef[] {
 	const idField = (field: FieldDef): FieldDef => {
 		if (shape.ids === "uuid") return { ...field, format: "uuid", type: "string" }
@@ -294,10 +295,28 @@ export function shapedEntities(shape: {
 	}
 	const linkParams = new Set(ENTITIES.map((entity) => entity.itemParam))
 	return ENTITIES.map((entity) => {
+		let unique = entity.unique
 		const fields = entity.fields.map((field) =>
 			field.name === entity.identity || linkParams.has(field.name) ? idField(field) : { ...field },
 		)
 		if (entity.name === TABLE.name) {
+			const clientIds = shape.clientIds
+			if (clientIds !== undefined) {
+				/* The client names the table: its id is a bounded, required, unique create field. */
+				const at = fields.findIndex((field) => field.name === entity.identity)
+				const id = fields[at]
+				if (id !== undefined) {
+					fields[at] = {
+						...id,
+						generated: false,
+						maximum: clientIds.max,
+						minimum: clientIds.min,
+						required: true,
+						type: "integer",
+					}
+				}
+				unique = [...(entity.unique ?? []), [entity.identity]]
+			}
 			if (shape.writeOnlyField === true) {
 				fields.push({ maxLength: 64, name: "secret", required: true, type: "string", writeOnly: true })
 			}
@@ -317,6 +336,6 @@ export function shapedEntities(shape: {
 				fields.push({ generated: true, name: "tree", nullable: true, ref: "TreeNode", type: "object" })
 			}
 		}
-		return { ...entity, fields }
+		return { ...entity, fields, ...(unique === undefined ? {} : { unique }) }
 	})
 }

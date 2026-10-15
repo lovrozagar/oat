@@ -14,6 +14,7 @@ import type { Backend } from "./suite.ts"
 import { EXPECTED_FAILURES } from "./expected-failures.ts"
 import { damagedBystanders, leftBehind, ledgeredNotCreated } from "./leaks.ts"
 import { PRINCIPALS, defectsFor, judgeDefect } from "./suite.ts"
+import { type DefectName, isDefectName } from "../reference/defects.ts"
 import { SHAPES } from "../reference/shapes.ts"
 import { run } from "../runtime/run.ts"
 
@@ -159,7 +160,8 @@ export async function runShapeRecall(backend: Backend, shapes: readonly ShapeCas
 			continue
 		}
 		const skip = new Set(named.cannotExhibit ?? [])
-		for (const defect of defectsFor(backend, "postgrest").filter((candidate) => !skip.has(candidate))) {
+		const own = (named.exhibits ?? []).filter((defect): defect is DefectName => isDefectName(defect))
+		for (const defect of [...defectsFor(backend, "postgrest").filter((candidate) => !skip.has(candidate)), ...own]) {
 			const label = `recall:${name}:${defect}`
 			const result = await judgeDefect(defect, backend, "postgrest", name, label)
 			const problems: string[] = []

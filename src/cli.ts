@@ -639,12 +639,6 @@ export async function main(): Promise<number> {
 				failures += result.failures
 				for (const id of result.proven) proven.add(id)
 			}
-			/* Only a complete run can say a check was never proven; a filtered one never tried. */
-			if (fullRun) {
-				const unproven = renderUnproven(proven)
-				process.stdout.write(unproven.text)
-				failures += unproven.failures
-			}
 			const defaultAnswer = defaultPass === -1 ? undefined : await passAnswers[defaultPass]
 			const unlocks = renderParserSuite(
 				await runTagUnlockSuite(defaultAnswer?.kind === "pass" ? defaultAnswer.baselines : undefined),
@@ -673,7 +667,21 @@ export async function main(): Promise<number> {
 					const recall = renderShapeSuite(recallCases, true)
 					process.stdout.write(recall.text)
 					failures += recall.failures
+					/* A defect only a shape can show proves its check there. */
+					const { EXPECTED } = await import("./conformance/suite.ts")
+					for (const recalled of recallCases) {
+						const defect = /^recall:[^:]+:(.+)$/.exec(recalled.label)?.[1]
+						const expected = defect === undefined ? undefined : (EXPECTED as Record<string, string | string[]>)[defect]
+						if (expected === undefined || recalled.problems.length > 0) continue
+						proven.add(Array.isArray(expected) ? (expected[0] ?? "") : expected)
+					}
 				}
+			}
+			/* Only a complete run can say a check was never proven; a filtered one never tried. */
+			if (fullRun) {
+				const unproven = renderUnproven(proven)
+				process.stdout.write(unproven.text)
+				failures += unproven.failures
 			}
 		} finally {
 			await pool.close()

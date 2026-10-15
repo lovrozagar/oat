@@ -16,6 +16,7 @@ export const CHECK_IDS = [
 	"count.consistent-with-returned-page",
 	"count.matches-filtered-set",
 	"create.persists-submitted-fields",
+	"create.keeps-submitted-identity",
 	"create.status-matches-document",
 	"create.unique-conflict-rejected",
 	"delete.absent-record-returns-404",

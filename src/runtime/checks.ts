@@ -150,7 +150,7 @@ export interface CheckContext<C extends ReadClient = ReadClient> {
 	/** The create acknowledged without the record; the records are the bodies oat submitted. */
 	createAcknowledged: boolean
 	/** Identities the collection is known to hold: a body oat generates never names one. */
-	takenIdentities?: ReadonlySet<string>
+	takenIdentities?: Set<string>
 	/** Create operation for unique probes — still set after unique-409 adopt. */
 	uniqueCreateOp: OperationModel | undefined
 	/** Update operation for unique probes — still set after unique-409 adopt. */
@@ -1344,6 +1344,8 @@ const readAfterWrite: Check<{ id: string }> = {
 		return ctx.createOp === undefined || target === undefined ? cannot() : ready({ id: String(target[ctx.identity]) })
 	},
 	mutates: true,
+	/* A record stored under an id the client was never told cannot be found by it: that is the cause. */
+	dependsOn: ["create.keeps-submitted-identity"],
 	id: "list.read-after-write",
 	needs: "a create operation and at least one seeded record",
 	subjects: subjectsOf.createAndList,
@@ -2729,7 +2731,9 @@ const idempotentReplay: Check<{ createOp: OperationModel; header: string; schema
 			const value = ((exchange.responseBody ?? {}) as Record_)[ctx.identity]
 			return typeof value === "string" || typeof value === "number" ? String(value) : undefined
 		}
-		const firstId = identityOf(first)
+		/* An acknowledgement-only create names the record by the id it was sent, once a read shows it. */
+		const acknowledged = identityOf(first) === undefined
+		const firstId = identityOf(first) ?? (await confirmedIdentity(ctx, ctx.client, body))?.id
 		if (firstId === undefined) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -2749,7 +2753,9 @@ const idempotentReplay: Check<{ createOp: OperationModel; header: string; schema
 			)
 		}
 
-		const secondId = identityOf(second)
+		/* The same key and body under an acknowledgement-only create name the same record; whether the
+		 * replay made a second one is then the collection's to say, below. */
+		const secondId = identityOf(second) ?? (acknowledged ? firstId : undefined)
 		if (secondId === undefined) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -5278,6 +5284,72 @@ const searchNarrowsResult: Check<{ field: string }> = {
 	},
 }
 
+/**
+ * A create that takes the record's identity from the client must store the record under it. An
+ * acknowledgement-only create gives nothing back to compare, so the record is read back under the
+ * id it was sent; a create that answers with an identity must answer with the one it was sent.
+ */
+const createKeepsSubmittedIdentity: Check<{ readOp: OperationModel }> = {
+	plan: (ctx) => {
+		const createOp = ctx.createOp
+		const readOp = ctx.readOp
+		if (createOp === undefined || readOp === undefined) return cannot()
+		const property = (
+			requestSchemaOf(ctx, createOp)?.properties as Record<string, Record<string, unknown>> | undefined
+		)?.[ctx.identity]
+		/* Only an identity the client writes can be kept or ignored. */
+		if (property === undefined || property.readOnly === true) return cannot()
+		return ready({ readOp })
+	},
+	dependsOn: [],
+	id: "create.keeps-submitted-identity",
+	needs: "a create that takes the record's identity from the client, and an item read",
+	subjects: subjectsOf.create,
+	async run(ctx, { readOp }): Promise<Outcome> {
+		const created = await createExchange(ctx)
+		const body = created?.requestBody
+		const sent =
+			body !== null && typeof body === "object" && !Array.isArray(body) ? (body as Record_)[ctx.identity] : undefined
+		if (created === undefined || (typeof sent !== "string" && typeof sent !== "number")) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"no create carrying a client-chosen identity was observed",
+			)
+		}
+		const answered =
+			created.responseBody !== null && typeof created.responseBody === "object"
+				? (created.responseBody as Record_)[ctx.identity]
+				: undefined
+		if (answered !== undefined && answered !== null) {
+			if (String(answered) === String(sent)) return ASSERTED
+			return ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"create answers with an identity other than the one it was sent",
+				`"${ctx.identity}" was sent ${JSON.stringify(sent)} and the create answered ${JSON.stringify(answered)}. ` +
+					"A client that chose the id can no longer find its record by it.",
+				[created],
+			)
+		}
+		const read = await ctx.client.get(fillPath(readOp.path, { ...ctx.scope, ...itemParamFor(ctx, String(sent)) }), {
+			headers: ctx.auth(),
+			operationId: readOp.operationId,
+		})
+		const record = (read.responseBody ?? {}) as Record_
+		if (read.status >= 200 && read.status < 300 && String(record[ctx.identity]) === String(sent)) return ASSERTED
+		return ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"create acknowledged a record that is not under the identity it was sent",
+			`"${ctx.identity}" was sent ${JSON.stringify(sent)}; the create answered ${created.status} without an ` +
+				`identity, and the read under that id returned ${read.status}. The record exists, if at all, under an id ` +
+				"the client was never told.",
+			[created, read],
+		)
+	},
+}
+
 const createPersistsFields: Check<{ createOp: OperationModel; properties: Record<string, Record<string, unknown>> }> = {
 	plan: (ctx) => {
 		const createOp = ctx.createOp
@@ -5646,26 +5718,34 @@ const successSchemaHonoured: Check<{ createOp: OperationModel; validator: Schema
 }
 
 /** Builds a body that should be accepted, for use as the base of a negative probe. */
-function validBody(ctx: CheckContext, schema: Record<string, unknown>): Record<string, unknown> {
+/* Bodies made so far in this process. Checks run side by side: two can make a body before either
+ * request goes out, so the transcript's length cannot tell their bodies apart. */
+let bodiesMade = 0
+
+export function validBody(ctx: CheckContext, schema: Record<string, unknown>): Record<string, unknown> {
+	bodiesMade += 1
+	const salt = `${ctx.nonce}b${bodiesMade}`
 	const [member] = buildCohort(schema, ctx.seed, ["baseline"], ctx.createOp?.operationId ?? ctx.entityName, {
 		defs: ctx.model.defs,
 		distinct: new Set((ctx.uniqueSets ?? []).flat()),
-		nonce: `${ctx.nonce}${ctx.client.transcript.length}`,
+		nonce: salt,
 	})
 	let body = member?.body ?? {}
 	const sets = ctx.uniqueSets ?? []
-	if (sets.length > 0) body = uniquifyProbeBody(body, sets, schema, `p${ctx.nonce}x${ctx.client.transcript.length}`)
+	if (sets.length > 0) body = uniquifyProbeBody(body, sets, schema, `p${salt}`)
 	/* A client-chosen identity a record already holds would overwrite or collide with that record. */
 	const taken = ctx.takenIdentities
 	if (taken === undefined || !Object.hasOwn((schema.properties ?? {}) as Record<string, unknown>, ctx.identity)) {
 		return body
 	}
 	for (let token = 0; token < 16 && taken.has(String(body[ctx.identity])); token++) {
-		body = uniquifyProbeBody(body, [[ctx.identity]], schema, `i${ctx.nonce}x${ctx.client.transcript.length}t${token}`)
+		body = uniquifyProbeBody(body, [[ctx.identity]], schema, `i${salt}t${token}`)
 	}
 	if (taken.has(String(body[ctx.identity]))) {
 		throw new Error(`no "${ctx.identity}" is left that names no existing record`)
 	}
+	/* Reserved now, before the request goes out, so a body made meanwhile picks another. */
+	taken.add(String(body[ctx.identity]))
 	return body
 }
 
@@ -7049,7 +7129,7 @@ const stringPayloadSurvives: Check<{
 				currents.set(made.scratch.id, made.scratch.record)
 			}
 		}
-		const lanes = Math.max(1, Math.min(PAYLOAD_LANES, cases.length))
+		const lanes = payloadLanes({ cases: cases.length, max: PAYLOAD_LANES, records: laneRecords.length, viaPatch })
 		const results = Array.from<CaseResult | undefined>({ length: cases.length })
 		let stopped = false
 		await Promise.all(
@@ -7109,6 +7189,16 @@ const stringPayloadSurvives: Check<{
 
 /** Records one payload run fans its cases across. */
 const PAYLOAD_LANES = 4
+
+/**
+ * How many lanes `payload.string-survives` runs. Through an update each lane writes a record of
+ * its own, so there are never more lanes than records: shared, two lanes would read back each
+ * other's writes. Through create every case is its own record.
+ */
+export function payloadLanes(input: { cases: number; max: number; records: number; viaPatch: boolean }): number {
+	const bound = Math.min(input.max, input.cases)
+	return Math.max(1, input.viaPatch ? Math.min(bound, input.records) : bound)
+}
 
 /**
  * The payload cases one field gets. Under `"per-write-path"`, the whole catalog runs once per
@@ -9350,6 +9440,7 @@ export const CHECKS: readonly Check[] = [
 	/* foundations — did the write land, is it visible, and do the paging primitives work at all.
 	 * Everything below assumes these hold, so they must be evaluated first for cascade
 	 * suppression to have anything to consult. */
+	createKeepsSubmittedIdentity,
 	readAfterWrite,
 	listedRowIsTheGet,
 	createPersistsFields,

@@ -439,7 +439,14 @@ function buildEntityPaths(ctx: SpecContext, entity: EntityDef, dialect: Dialect)
 				required: true,
 			},
 			responses: {
-				[ok(ctx, 201)]: jsonResponse(`Created ${entity.name}`, itemSchemaRef(ctx, entity)),
+				[ok(ctx, 201)]:
+					ctx.shape.ackCreate === true && entity.name === "table"
+						? jsonResponse(`Created ${entity.name}`, {
+								properties: { success: { type: "boolean" } },
+								required: ["success"],
+								type: "object",
+							})
+						: jsonResponse(`Created ${entity.name}`, itemSchemaRef(ctx, entity)),
 				...errorResponses(ctx, [400, 401, 403, 404, 409, 415]),
 			},
 			summary: `Create ${entity.name}`,

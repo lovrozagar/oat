@@ -342,7 +342,23 @@ async function createOne(
 			exchange,
 		)
 	}
-	return { adopted: false, record: (exchange.responseBody ?? {}) as Record_ }
+	const answered = (exchange.responseBody ?? {}) as Record_
+	const identity = (createOp.entity === null ? undefined : model.entities.get(createOp.entity))?.identity ?? "id"
+	/* An acknowledgement-only create: the ancestor is the one the client named, once a read shows it. */
+	if (!isScalarId(answered[identity]) && createOp.entity !== null) {
+		const confirmed = await confirmSubmitted({
+			client,
+			entity: createOp.entity,
+			headers: options.authHeaders,
+			identity,
+			model,
+			scope: { ...options.roots, ...scope.values },
+			sent: body,
+			...(options.readable === undefined ? {} : { readable: options.readable }),
+		})
+		if (confirmed !== null) return { adopted: false, record: confirmed }
+	}
+	return { adopted: false, record: answered }
 }
 
 /** First listed record with a usable identity, or null — never synthesises a row. */
@@ -492,7 +508,8 @@ export async function seedCohort(
 	const seededMembers: CohortMember[] = []
 	const identity = (createOp.entity === null ? undefined : model.entities.get(createOp.entity))?.identity ?? "id"
 	let acknowledged = false
-	const created = async (exchange: Exchange, sent: unknown): Promise<Record_> => {
+	/* `null` for an acknowledgement oat could not confirm: it names no record, so it joins no cohort. */
+	const created = async (exchange: Exchange, sent: unknown): Promise<Record_ | null> => {
 		const response = (exchange.responseBody ?? {}) as Record_
 		let record = response
 		/* A create that answers an acknowledgement and not the record (`{ success: true }`) may have
@@ -512,6 +529,8 @@ export async function seedCohort(
 			if (confirmed !== null) {
 				acknowledged = true
 				record = confirmed
+			} else if (isPlainRecord(sent) && isScalarId(sent[identity])) {
+				return null
 			}
 		}
 		const id = returnedId(record, identity)
@@ -595,8 +614,10 @@ export async function seedCohort(
 				lastFail = { exchange, member }
 				return null
 			}
+			const record = await created(exchange, member.body)
+			if (record === null) return null
 			seededMembers.push(member)
-			records.push(await created(exchange, member.body))
+			records.push(record)
 			return null
 		}
 		for (const member of members) {
@@ -608,8 +629,11 @@ export async function seedCohort(
 				failedVariants.push({ exchange, variant: member.variant })
 				continue
 			}
+			const record = await created(exchange, member.body)
+			/* Acknowledged but never confirmed: no record to stand for, so no member either. */
+			if (record === null) continue
 			seededMembers.push(member)
-			records.push(await created(exchange, member.body))
+			records.push(record)
 		}
 		return null
 	})

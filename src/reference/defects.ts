@@ -368,6 +368,13 @@ export const DEFECTS = {
 	SIDE_EFFECT_NEVER_ARRIVES: "a side effect declared with x-wait never arrives",
 	/** The first listing of each entity is refused with 429, far inside the rate x-rate-limit declares. */
 	RATE_LIMIT_STRICTER_THAN_DECLARED: "a listing answers 429 well inside the rate x-rate-limit declares",
+	/**
+	 * Under the client-ids shape: the create stores the table under an id of the server's own,
+	 * ignoring the one the client chose, and still answers only an acknowledgement.
+	 */
+	CLIENT_ID_IGNORED: "a create ignores the client-chosen id and stores the record under another",
+	/** Under the client-ids shape: a create with an id the tenant already holds overwrites that record. */
+	CLIENT_ID_OVERWRITES: "a create with an existing id silently overwrites that record",
 	/** Update and delete find the record by id alone, so another tenant can change or remove it. */
 	CROSS_TENANT_WRITE: "update and delete reach records belonging to another tenant",
 	/** A child route accepts another tenant's parent id under the caller's own root. */

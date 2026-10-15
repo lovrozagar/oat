@@ -1055,6 +1055,10 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					 * this record is somebody else's to keep. */
 					records = cohort.records
 					for (const id of cohort.existingIds ?? []) takenIdentities.add(id)
+					for (const record of records) {
+						const id = record[entity.identity ?? "id"]
+						if (typeof id === "string" || typeof id === "number") takenIdentities.add(String(id))
+					}
 					degraded = true
 				} else if (cohort.uniqueAdopted === true) {
 					/* Unique 409 on the first variant with a same-tenant list: adopt like 402,
@@ -1072,6 +1076,10 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					)
 					records = cohort.records
 					for (const id of cohort.existingIds ?? []) takenIdentities.add(id)
+					for (const record of records) {
+						const id = record[entity.identity ?? "id"]
+						if (typeof id === "string" || typeof id === "number") takenIdentities.add(String(id))
+					}
 					degraded = true
 					uniqueAdopted = true
 				} else if (cohort.featureGate !== null) {
@@ -1106,6 +1114,10 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					 * order — the unwind reverses it, so children go before their parents. */
 					records = cohort.records
 					for (const id of cohort.existingIds ?? []) takenIdentities.add(id)
+					for (const record of records) {
+						const id = record[entity.identity ?? "id"]
+						if (typeof id === "string" || typeof id === "number") takenIdentities.add(String(id))
+					}
 					createAcknowledged = cohort.acknowledged === true
 				}
 			} catch (error) {

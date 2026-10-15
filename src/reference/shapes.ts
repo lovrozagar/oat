@@ -40,6 +40,10 @@ export interface ReferenceShape {
 	rangeStatuses?: boolean
 	/** `components` before `paths`, path-level `parameters`, and a recursive schema. */
 	specLayout?: boolean
+	/** The table's identity is an integer the client chooses on create, within these bounds. */
+	clientIds?: { min: number; max: number }
+	/** The table's create answers `{ success: true }` instead of the record it made. */
+	ackCreate?: boolean
 }
 
 export interface NamedShape {
@@ -55,6 +59,8 @@ export interface NamedShape {
 	cannotRun?: Readonly<Record<string, string>>
 	/** Defects with nowhere to happen in this shape: a page-number API cannot drift a cursor. */
 	cannotExhibit?: readonly string[]
+	/** Defects only this shape can show, run in its recall pass on top of the common ones. */
+	exhibits?: readonly string[]
 }
 
 export const SHAPES: readonly NamedShape[] = [
@@ -100,6 +106,18 @@ export const SHAPES: readonly NamedShape[] = [
 	},
 	{ name: "uuid-ids", shape: { ids: "uuid" }, why: "UUID identifiers; a malformed one in a path is a 400" },
 	{ name: "integer-ids", shape: { ids: "integer" }, why: "integer identifiers; a malformed one in a path is a 400" },
+	{
+		cannotRun: {
+			"create.persists-submitted-fields": "the create answers an acknowledgement, not the record, so there is no echo",
+		},
+		/* CREATE_DROPS_FIELD: its check compares the create's echo, and there is none here; the lost
+		 * field instead fails the read-back that would confirm the record. */
+		cannotExhibit: ["CREATE_DROPS_FIELD"],
+		exhibits: ["CLIENT_ID_IGNORED", "CLIENT_ID_OVERWRITES"],
+		name: "client-ids",
+		shape: { ackCreate: true, clientIds: { max: 999, min: 1 }, ids: "integer", prepopulate: 5 },
+		why: "the client picks a table's integer id and the create only acknowledges, with tables already present",
+	},
 	{
 		name: "strict-filter-types",
 		shape: { conventions: { strictTypes: true } },

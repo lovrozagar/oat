@@ -19,6 +19,7 @@ export const TYPICAL_REQUESTS: Partial<Record<CheckId, number>> = {
 	"count.consistent-with-returned-page": 1,
 	"count.matches-filtered-set": 1,
 	"create.persists-submitted-fields": 1,
+	"create.keeps-submitted-identity": 1,
 	"create.status-matches-document": 1,
 	"create.unique-conflict-rejected": 3,
 	"delete.absent-record-returns-404": 1,

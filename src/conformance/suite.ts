@@ -1023,6 +1023,9 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	IDEMPOTENT_REPLAY_INSERTS: "idempotency.replay-does-not-duplicate",
 	TIEBREAK_NOT_APPLIED: "sort.stable-tiebreak",
 	CROSS_TENANT_WRITE: "tenant.item-not-writable-cross-tenant",
+	/* A table stored under an id the client was never told cannot parent the rows seeded under it. */
+	CLIENT_ID_IGNORED: ["create.keeps-submitted-identity", "world.seed"],
+	CLIENT_ID_OVERWRITES: "create.unique-conflict-rejected",
 	ROLE_WRITE_INVERTED: "auth.rank-is-monotonic-on-writes",
 	UNKNOWN_PARAM_EMPTIES_LIST: "query.unknown-parameter-consistent",
 	/* A walk whose last page is full asks once more, and sees the repeat. */
@@ -1044,6 +1047,11 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
  * to happen. Every other defect is defined above the stores and runs on every engine.
  */
 export const SQL_ONLY: ReadonlySet<DefectName> = new Set<DefectName>(["COLUMN_NAME_MISMATCH"])
+/* Only a create that takes the client's id can ignore or overwrite it: the client-ids shape runs these. */
+export const CLIENT_ID_ONLY: ReadonlySet<DefectName> = new Set<DefectName>([
+	"CLIENT_ID_IGNORED",
+	"CLIENT_ID_OVERWRITES",
+])
 
 export type Backend = "memory" | "sqlite" | "postgres" | "d1"
 
@@ -1536,6 +1544,8 @@ export function defectsFor(backend: Backend, dialect: string, filter?: readonly 
 			/* A defect the backend structurally cannot exhibit is not a miss: the in-memory store has
 			 * no physical column names, so a DDL/read mismatch has nowhere to happen. */
 			.filter((name) => backend !== "memory" || !SQL_ONLY.has(name))
+			/* Shape-only defects run in the recall pass of the shape that names them. */
+			.filter((name) => !CLIENT_ID_ONLY.has(name))
 			/* Likewise a dialect that has no cursor cannot drift one. */
 			.filter((name) => DIALECTS_WITH_CURSOR.has(dialect) || !CURSOR_ONLY.has(name))
 			/* Likewise a shape with no total cannot report a wrong one. */

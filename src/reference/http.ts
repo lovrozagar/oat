@@ -1083,7 +1083,9 @@ export async function createReferenceServer(
 							}
 							await store.insert(entity, withDefaults(entity, copy, { ...scope, project_id: principal.projectId }))
 						}
-						return send(res, defects.has("CREATED_201_AS_200") ? 200 : 201, present(entity, previous))
+						const replayed =
+							shape.ackCreate === true && entity.name === TABLE.name ? { success: true } : present(entity, previous)
+						return send(res, defects.has("CREATED_201_AS_200") ? 200 : 201, replayed)
 					}
 				}
 				const received = form ? formFields(entity, await readText(req)) : await readJson(req)
@@ -1106,10 +1108,43 @@ export async function createReferenceServer(
 				if (defects.has("CREATE_DROPS_FIELD")) delete input.description
 
 				const record = withDefaults(entity, input, { ...scope, project_id: principal.projectId })
+				/* Under the client-ids shape the table's id is the client's to choose. */
+				const clientIds = entity.name === TABLE.name ? shape.clientIds : undefined
+				if (clientIds !== undefined) {
+					const chosen = input[entity.identity]
+					if (
+						typeof chosen !== "number" ||
+						!Number.isInteger(chosen) ||
+						chosen < clientIds.min ||
+						chosen > clientIds.max
+					) {
+						throw new HttpError(
+							400,
+							"invalid_input",
+							`field "${entity.identity}" must be an integer from ${clientIds.min} to ${clientIds.max}`,
+						)
+					}
+					/* CLIENT_ID_IGNORED keeps the id the server issued and still acknowledges. */
+					if (!defects.has("CLIENT_ID_IGNORED")) {
+						record[entity.identity] = chosen
+						const holder = await store.byId(entity, chosen)
+						if (holder !== null) {
+							/* CLIENT_ID_OVERWRITES replaces the tenant's record that holds the id and says so with a 200. */
+							if (defects.has("CLIENT_ID_OVERWRITES") && holder[TENANT_FIELD] === record[TENANT_FIELD]) {
+								await store.update(entity, chosen, { ...input, updated_at: record.updated_at })
+								return send(res, 200, { success: true })
+							}
+							throw new HttpError(409, "conflict", `${entity.identity} ${chosen} is taken`)
+						}
+					}
+				}
 				await assertUnique(entity, record, undefined)
 				const created = await store.insert(entity, record)
 				await refreshParentCount(entity, scope)
 				if (replayKey !== null) idempotent.set(replayKey, created)
+				if (shape.ackCreate === true && entity.name === TABLE.name) {
+					return send(res, defects.has("CREATED_201_AS_200") ? 200 : 201, { success: true })
+				}
 				return send(res, defects.has("CREATED_201_AS_200") ? 200 : 201, present(entity, created))
 			}
 			throw new HttpError(404, "not_found", `method ${method} not supported here`)
