@@ -13,6 +13,7 @@ import type { EntityModel, SpecModel } from "../spec/graph.ts"
 import { describeRequested, type ScopePlan } from "../runtime/scope.ts"
 import { canWriteFilterOp, filterSpec, type QueryConventions } from "../spec/conventions.ts"
 import { canGroupAnd, describeFilterGrammar } from "../spec/filter-render.ts"
+import { describeSortGrammar } from "../spec/sort-render.ts"
 import {
 	anyFieldAllows,
 	fieldAllowsNulls,
@@ -132,7 +133,25 @@ function lifecycleGlyphs(entity: EntityModel): string {
 	return slots.map(([letter, opId]) => (opId === undefined ? "·" : letter)).join("")
 }
 
+/** The grammars a document or config declared, per entity, as `plan` and `doctor` print them. */
+function declaredGrammars(model: SpecModel): Array<{ entity: string; filter?: string; sort?: string }> {
+	return [...model.entities.values()]
+		.sort((a, b) => a.name.localeCompare(b.name))
+		.flatMap((entity) => {
+			const conventions = entity.list === undefined ? undefined : model.byOperationId.get(entity.list)?.conventions
+			if (conventions === undefined) return []
+			const filter =
+				conventions.filterGrammar === undefined ? undefined : describeFilterGrammar(conventions.filterGrammar)
+			const sort = conventions.sortSpec === undefined ? undefined : describeSortGrammar(conventions.sortSpec)
+			if (filter === undefined && sort === undefined) return []
+			return [
+				{ entity: entity.name, ...(filter === undefined ? {} : { filter }), ...(sort === undefined ? {} : { sort }) },
+			]
+		})
+}
+
 function plan(model: SpecModel, asJson: boolean, scope?: ScopePlan): string {
+	const grammars = declaredGrammars(model)
 	if (asJson) {
 		return `${JSON.stringify(
 			{
@@ -140,6 +159,7 @@ function plan(model: SpecModel, asJson: boolean, scope?: ScopePlan): string {
 					...entity,
 					estimatedRequests: estimateRequests(entity, model),
 				})),
+				...(grammars.length === 0 ? {} : { grammars }),
 				operations: model.operations,
 				roots: model.roots,
 				...(scope === undefined ? {} : { scope }),
@@ -206,6 +226,15 @@ function plan(model: SpecModel, asJson: boolean, scope?: ScopePlan): string {
 		lines.push("  invite — accept mode:")
 		for (const entity of invited) {
 			lines.push(`    ${entity.name.padEnd(28)} ${inviteAcceptMode(entity.invite)}`)
+		}
+	}
+
+	if (grammars.length > 0) {
+		lines.push("")
+		lines.push("  declared grammars — how oat writes this entity's filter and sort terms:")
+		for (const row of grammars) {
+			if (row.filter !== undefined) lines.push(`    ${row.entity.padEnd(28)} filter  ${row.filter}`)
+			if (row.sort !== undefined) lines.push(`    ${row.entity.padEnd(28)} sort    ${row.sort}`)
 		}
 	}
 
@@ -371,6 +400,8 @@ function entityQueryCatalogs(model: SpecModel, config?: DoctorConfig) {
 		checks: string[]
 		/** A declared template, described; absent for a named or inferred grammar. */
 		grammar?: string
+		/** A declared sort template, described. */
+		sortGrammar?: string
 	}> = []
 	for (const entity of [...model.entities.values()].sort((a, b) => a.name.localeCompare(b.name))) {
 		if (entity.list === undefined) continue
@@ -395,6 +426,9 @@ function entityQueryCatalogs(model: SpecModel, config?: DoctorConfig) {
 			...(listOp.conventions.filterGrammar === undefined
 				? {}
 				: { grammar: describeFilterGrammar(listOp.conventions.filterGrammar) }),
+			...(listOp.conventions.sortSpec === undefined
+				? {}
+				: { sortGrammar: describeSortGrammar(listOp.conventions.sortSpec) }),
 			entity: entity.name,
 			filterable: caps.filterable,
 			harvest,
@@ -614,6 +648,7 @@ function doctor(
 				`    ${row.entity}  source=${row.source}${row.hook ? " +hook" : ""}${row.harvest.length > 0 ? ` harvest=${row.harvest.join(",")}` : ""}`,
 			)
 			if (row.grammar !== undefined) lines.push(`      grammar     ${row.grammar}`)
+			if (row.sortGrammar !== undefined) lines.push(`      sort        ${row.sortGrammar}`)
 			lines.push(`      filterable  ${row.filterable.map((field) => field.field).join(", ") || "—"}  ops ${ops}`)
 			lines.push(`      sortable    ${row.sortable.map((field) => field.field).join(", ") || "—"}`)
 			lines.push(`      searchable  ${row.searchable.join(", ") || "—"}`)

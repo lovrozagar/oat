@@ -117,3 +117,32 @@ describe("doctor", () => {
 		expect(report.doctor(model(), [], false).text).not.toContain("grammar     ")
 	})
 })
+
+describe("oat plan and doctor", () => {
+	const SORT = { asc: "ascending", desc: "descending", join: ",", term: "{field}_{direction}" }
+	const withBoth = () => {
+		const built = model(TEMPLATE)
+		applyGrammarOverrides(built, { query: { sortGrammar: SORT } })
+		return built
+	}
+
+	it("print the declared filter and sort templates", () => {
+		const plan = report.plan(withBoth(), false)
+		expect(plan).toContain("template {conj}_{field}_{op}_{value}")
+		expect(plan).toContain("template {field}_{direction}")
+		const doctor = report.doctor(withBoth(), [], false).text
+		expect(doctor).toContain("sort        template {field}_{direction}")
+		expect(JSON.parse(report.plan(withBoth(), true)).grammars).toEqual([
+			expect.objectContaining({
+				entity: "note",
+				filter: expect.stringContaining("template"),
+				sort: expect.stringContaining("template"),
+			}),
+		])
+	})
+
+	it("print no grammar section when nothing is declared", () => {
+		expect(report.plan(model(), false)).not.toContain("declared grammars")
+		expect(JSON.parse(report.plan(model(), true))).not.toHaveProperty("grammars")
+	})
+})

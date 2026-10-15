@@ -94,3 +94,16 @@ export function parseSortGrammar(raw: unknown): ParsedSortGrammar {
 		spec: { asc: raw.asc, desc: raw.desc, join, term: raw.term, ...(nulls === undefined ? {} : { nulls }) },
 	}
 }
+
+/** A declared sort template in one line, for `plan` and `doctor`. */
+export function describeSortGrammar(spec: SortGrammarSpec): string {
+	return [
+		`template ${spec.term}`,
+		`asc ${spec.asc === "" ? "(bare)" : spec.asc}`,
+		`desc ${spec.desc}`,
+		spec.join === null ? "one key only" : `join "${spec.join}"`,
+		spec.nulls === undefined ? "" : `nulls ${spec.nulls.first} / ${spec.nulls.last}`,
+	]
+		.filter(Boolean)
+		.join("  ")
+}
