@@ -25,6 +25,7 @@
 	},
 	"rules": {
 		"no-unused-vars": "warn",
+		"oat/network-through-client": "error",
 		"oat/proven-id-origin": "error",
 		"unicorn/no-array-sort": "off",
 		"unicorn/prefer-string-starts-ends-with": "warn"

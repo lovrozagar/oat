@@ -56,3 +56,28 @@ describe("oat/proven-id-origin", () => {
 		expect(lint("src/runtime/proven-id.ts", source, "proven-id-origin")).toEqual([])
 	})
 })
+
+describe("oat/network-through-client", () => {
+	const source = [
+		'import * as http from "node:http"',
+		'import { request } from "node:https"',
+		'import { fetch as undiciFetch } from "undici"',
+		'export const a = fetch("http://x.test")',
+		'export const b = globalThis.fetch("http://x.test")',
+		'export const c = http.request("http://x.test")',
+		'export const d = request("http://x.test")',
+		"export const e = http.createServer()",
+		"export const f = (options: { fetchImpl?: typeof fetch }) => options.fetchImpl ?? fetch",
+		'export const g = undiciFetch("http://x.test")',
+	].join("\n")
+
+	it("reports every way out of the process that is not the client", () => {
+		expect(lint("src/runtime/checks.ts", source, "network-through-client")).toEqual([2, 3, 4, 5, 6])
+	})
+
+	it("allows the client itself, the reference backend and tests", () => {
+		expect(lint("src/runtime/client.ts", source, "network-through-client")).toEqual([])
+		expect(lint("src/reference/stores/sqlite-driver.ts", source, "network-through-client")).toEqual([])
+		expect(lint("test/some.test.ts", source, "network-through-client")).toEqual([])
+	})
+})
