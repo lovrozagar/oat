@@ -378,6 +378,8 @@ export function requestSchemaOf(op: OperationModel, model: SpecModel): Record<st
 export interface SeededCohort {
 	members: CohortMember[]
 	records: Record_[]
+	/** Identities the collection held before seeding, as listed: no later create may reuse one. */
+	existingIds?: string[]
 	/**
 	 * Set when the first (or only) create was a documented feature-gate 403.
 	 *
@@ -425,10 +427,21 @@ export async function seedCohort(
 	}
 	let members: CohortMember[]
 	let uniqueGap: string | undefined
+	let existingIds: string[] = []
+	/* A client-chosen identity names one record by definition: never generate one an existing record
+	 * holds. Generation only — the identity does not join the unique sets checks grade. */
+	const ownIdentity = (createOp.entity === null ? undefined : model.entities.get(createOp.entity))?.identity ?? null
+	const bodyProperties = (schema.properties ?? {}) as Record<string, unknown>
+	const identityInBody =
+		ownIdentity !== null &&
+		Object.hasOwn(bodyProperties, ownIdentity) &&
+		!(createOp.unique ?? []).some((set) => set.length === 1 && set[0] === ownIdentity)
+	const avoid: string[][] =
+		identityInBody && ownIdentity !== null ? [...(createOp.unique ?? []), [ownIdentity]] : (createOp.unique ?? [])
 	try {
 		const generated = buildCohort(schema, options.seed, undefined, createOp.operationId, {
 			defs: model.defs,
-			distinct: new Set((createOp.unique ?? []).flat()),
+			distinct: new Set(avoid.flat()),
 			...(options.nonce === undefined ? {} : { nonce: options.nonce }),
 		}).slice(0, options.cohortSize ?? 7)
 		const distinct = ensureDistinctUniqueValues(generated, createOp.unique ?? [], schema, {
@@ -444,14 +457,30 @@ export async function seedCohort(
 			listOp === undefined
 				? []
 				: await listExisting(listOp, model, client, options.authHeaders, { ...options.roots, ...scope.values })
-		if (existing.length > 0 && (createOp.unique?.length ?? 0) > 0) {
+		if (ownIdentity !== null) {
+			existingIds = existing
+				.map((row) => row[ownIdentity])
+				.filter(isScalarId)
+				.map(String)
+		}
+		if (existing.length > 0 && avoid.length > 0) {
 			members = members.map((member, index) => {
 				let body = member.body
-				for (let token = 0; token < 8 && uniqueTupleCollides(body, createOp.unique ?? [], existing); token++) {
-					body = uniquifyProbeBody(body, createOp.unique ?? [], schema, `ex${index}${token}-${options.nonce ?? ""}`)
+				for (let token = 0; token < 8 && uniqueTupleCollides(body, avoid, existing); token++) {
+					body = uniquifyProbeBody(body, avoid, schema, `ex${index}${token}-${options.nonce ?? ""}`)
 				}
 				return { ...member, body }
 			})
+			/* A body still naming an existing record's identity would overwrite or adopt it: never send it. */
+			if (identityInBody && ownIdentity !== null) {
+				members = members.filter((member) => !uniqueTupleCollides(member.body, [[ownIdentity]], existing))
+				if (members.length === 0) {
+					throw new SeedError(
+						createOp.operationId,
+						`every generated "${ownIdentity}" names an existing record, so nothing was created`,
+					)
+				}
+			}
 		}
 	} catch (error) {
 		if (isOverflowError(error)) throw overflowFrom(error, createOp.operationId)
@@ -507,6 +536,7 @@ export async function seedCohort(
 		...(uniqueGap === undefined ? {} : { uniqueGap }),
 		...(failedVariants.length === 0 ? {} : { failedVariants }),
 		...(acknowledged ? { acknowledged } : {}),
+		...(existingIds.length === 0 ? {} : { existingIds }),
 	})
 
 	const failOrAdopt = async (member: CohortMember, exchange: Exchange): Promise<SeededCohort | null> => {

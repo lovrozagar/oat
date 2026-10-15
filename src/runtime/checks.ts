@@ -149,6 +149,8 @@ export interface CheckContext<C extends ReadClient = ReadClient> {
 	uniqueAdopted: boolean
 	/** The create acknowledged without the record; the records are the bodies oat submitted. */
 	createAcknowledged: boolean
+	/** Identities the collection is known to hold: a body oat generates never names one. */
+	takenIdentities?: ReadonlySet<string>
 	/** Create operation for unique probes — still set after unique-409 adopt. */
 	uniqueCreateOp: OperationModel | undefined
 	/** Update operation for unique probes — still set after unique-409 adopt. */
@@ -5650,10 +5652,21 @@ function validBody(ctx: CheckContext, schema: Record<string, unknown>): Record<s
 		distinct: new Set((ctx.uniqueSets ?? []).flat()),
 		nonce: `${ctx.nonce}${ctx.client.transcript.length}`,
 	})
-	const body = member?.body ?? {}
+	let body = member?.body ?? {}
 	const sets = ctx.uniqueSets ?? []
-	if (sets.length === 0) return body
-	return uniquifyProbeBody(body, sets, schema, `p${ctx.nonce}x${ctx.client.transcript.length}`)
+	if (sets.length > 0) body = uniquifyProbeBody(body, sets, schema, `p${ctx.nonce}x${ctx.client.transcript.length}`)
+	/* A client-chosen identity a record already holds would overwrite or collide with that record. */
+	const taken = ctx.takenIdentities
+	if (taken === undefined || !Object.hasOwn((schema.properties ?? {}) as Record<string, unknown>, ctx.identity)) {
+		return body
+	}
+	for (let token = 0; token < 16 && taken.has(String(body[ctx.identity])); token++) {
+		body = uniquifyProbeBody(body, [[ctx.identity]], schema, `i${ctx.nonce}x${ctx.client.transcript.length}t${token}`)
+	}
+	if (taken.has(String(body[ctx.identity]))) {
+		throw new Error(`no "${ctx.identity}" is left that names no existing record`)
+	}
+	return body
 }
 
 /** Invite bodies must carry the peer's `inviteAs`, never a generated email. */

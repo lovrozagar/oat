@@ -905,6 +905,8 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		let degraded = false
 		let uniqueAdopted = false
 		let createAcknowledged = false
+		/* Identities this entity's collection is known to hold; no create oat sends may reuse one. */
+		const takenIdentities = new Set<string>()
 		if (createOp !== undefined && scenarioOwned.has(createOp.operationId)) {
 			/* A scenario owns this create: it holds what the create needs (a mailed token, a paid
 			 * session), and a generated body would only be refused. The matrix reads what exists;
@@ -1052,6 +1054,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					/* Adopted, not created: what oat did create was recorded as it happened, and
 					 * this record is somebody else's to keep. */
 					records = cohort.records
+					for (const id of cohort.existingIds ?? []) takenIdentities.add(id)
 					degraded = true
 				} else if (cohort.uniqueAdopted === true) {
 					/* Unique 409 on the first variant with a same-tenant list: adopt like 402,
@@ -1068,6 +1071,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 							"need a body oat submitted stand down.",
 					)
 					records = cohort.records
+					for (const id of cohort.existingIds ?? []) takenIdentities.add(id)
 					degraded = true
 					uniqueAdopted = true
 				} else if (cohort.featureGate !== null) {
@@ -1101,6 +1105,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					/* Every ancestor and cohort record was ledgered as it was created, in creation
 					 * order — the unwind reverses it, so children go before their parents. */
 					records = cohort.records
+					for (const id of cohort.existingIds ?? []) takenIdentities.add(id)
 					createAcknowledged = cohort.acknowledged === true
 				}
 			} catch (error) {
@@ -1309,6 +1314,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 									if (confirmed !== null) id = returnedId(confirmed, identity)
 								}
 								if (id === undefined) return exchange
+								takenIdentities.add(id)
 								ledger.record(entity.name, id, scope.values, ownerByHeaders(options?.headers))
 								return exchange
 							}
@@ -1405,6 +1411,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			validator,
 			uniqueAdopted,
 			createAcknowledged,
+			takenIdentities,
 			uniqueSets: entity.unique ?? [],
 			uniqueCreateOp:
 				(entity.unique?.length ?? 0) > 0 && (!degraded || uniqueAdopted) && createOp !== undefined
