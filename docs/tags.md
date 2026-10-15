@@ -139,6 +139,7 @@ x-query:
   aliases: { ne: neq }
   identityFilter: _id          # filter field when it differs from the JSON identity
   emptyIn: match-none          # reject | match-none; undeclared → empty-in check skips
+  limitOutOfRange: reject      # reject | clamp; reject → a page size of 0 or past maxLimit must be 4xx
   maxInValues: 100
   maxFilterConditions: 20
   searchModes: [keyword]       # free-form; undeclared → mode checks skip
