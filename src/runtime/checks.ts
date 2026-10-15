@@ -81,7 +81,7 @@ import type { UploadContext } from "./upload.ts"
 import { forEachInvocation } from "./upload-each.ts"
 import type { SchemaValidator } from "./validate.ts"
 import { driveWait } from "./wait.ts"
-import { type Record_, confirmSubmitted, fillPath, isPlanLimitResponse } from "./world.ts"
+import { type Record_, confirmSubmitted, createdRecordOf, fillPath, isPlanLimitResponse } from "./world.ts"
 import {
 	bodyPropertyNames,
 	collisionCreateBody,
@@ -2710,7 +2710,7 @@ const idempotentReplay: Check<{ createOp: OperationModel; header: string; schema
 			)
 		}
 		const identityOf = (exchange: Exchange): string | undefined => {
-			const value = ((exchange.responseBody ?? {}) as Record_)[ctx.identity]
+			const value = createdRecordOf(exchange.responseBody ?? {}, ctx.identity, exchange.requestBody)[ctx.identity]
 			return typeof value === "string" || typeof value === "number" ? String(value) : undefined
 		}
 		/* An acknowledgement-only create names the record by the id it was sent, once a read shows it. */
@@ -5345,10 +5345,7 @@ const createKeepsSubmittedIdentity: Check<{ readOp: OperationModel }> = {
 			)
 		}
 		for (const { created, sent } of creates) {
-			const answered =
-				created.responseBody !== null && typeof created.responseBody === "object"
-					? (created.responseBody as Record_)[ctx.identity]
-					: undefined
+			const answered = createdRecordOf(created.responseBody, ctx.identity, created.requestBody)[ctx.identity]
 			if (answered !== undefined && answered !== null) {
 				if (String(answered) === String(sent)) continue
 				return ctx.findings.backend(
@@ -5404,7 +5401,7 @@ const createPersistsFields: Check<{ createOp: OperationModel; properties: Record
 				? submittedFields(sent.requestBody)
 				: Object.fromEntries([...form].map(([key, values]) => [key, coerceFormValue(values, properties[key])]))
 		if (Object.keys(request).length === 0) return standDown("the create body was empty")
-		const response = (sent.responseBody ?? {}) as Record_
+		const response = createdRecordOf(sent.responseBody ?? {}, ctx.identity, request)
 
 		const dropped = Object.entries(request).filter(([key, value]) => {
 			if (value === null || value === undefined) return false
@@ -7087,8 +7084,7 @@ const stringPayloadSurvives: Check<{
 		}
 
 		const identityOf = async (exchange: Exchange): Promise<string | undefined> => {
-			const body = exchange.responseBody
-			const value = body !== null && typeof body === "object" ? (body as Record_)[ctx.identity] : undefined
+			const value = createdRecordOf(exchange.responseBody, ctx.identity, exchange.requestBody)[ctx.identity]
 			if (value !== undefined && value !== null) return String(value)
 			/* Only a successful write made a record, and only the read under the id it was sent proves
 			 * which; the field under test is left out, since mangling it is what this check measures. */

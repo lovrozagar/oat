@@ -30,6 +30,32 @@ function isPlainRecord(value: unknown): value is Record_ {
 	return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
+/** Keys a create may wrap the record it made in: `{ success, id, data: { ... } }`. */
+const CREATE_ENVELOPE_KEYS = ["data", "item", "result", "record"] as const
+
+/**
+ * The record a create answered with. Some creates wrap it — `{ success, id, data: { ID, ... } }` —
+ * and taking the envelope for the record compares the wrong object and loses the id. The record
+ * is the top level or the object under an envelope key, whichever holds more of what was sent, so
+ * a record that merely has an object field named `data` keeps its top level. When the record
+ * lacks its identity, the envelope's identity (or `id`) is the one the create answered.
+ */
+export function createdRecordOf(response: unknown, identity: string, sent: unknown): Record_ {
+	if (!isPlainRecord(response)) return {}
+	const submitted = isPlainRecord(sent)
+		? Object.entries(sent).filter(([, value]) => isScalarId(value) || typeof value === "boolean")
+		: []
+	const holds = (candidate: Record_): number => submitted.filter(([key, value]) => candidate[key] === value).length
+	let record = response
+	for (const key of CREATE_ENVELOPE_KEYS) {
+		const inner = response[key]
+		if (isPlainRecord(inner) && holds(inner) > holds(record)) record = inner
+	}
+	if (record === response || isScalarId(record[identity])) return record
+	const answered = isScalarId(response[identity]) ? response[identity] : response.id
+	return isScalarId(answered) ? { ...record, [identity]: answered } : record
+}
+
 export interface Scope {
 	values: Record<string, string>
 	/** Records created while resolving ancestors, newest last — unwound in reverse at teardown. */
@@ -513,7 +539,7 @@ export async function seedCohort(
 	let acknowledged = false
 	/* `null` for an acknowledgement oat could not confirm: it names no record, so it joins no cohort. */
 	const created = async (exchange: Exchange, sent: unknown): Promise<Record_ | null> => {
-		const response = (exchange.responseBody ?? {}) as Record_
+		const response = createdRecordOf(exchange.responseBody ?? {}, identity, sent)
 		let record = response
 		/* A create that answers an acknowledgement and not the record (`{ success: true }`) may have
 		 * made the record under the id the client chose — or ignored it. Only a read under that id
