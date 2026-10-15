@@ -82,6 +82,7 @@ Comma-separated. Each is one named lie the demo API can tell. Primary check is w
 | `IDEMPOTENT_REPLAY_INSERTS`                 | `idempotency.replay-does-not-duplicate`         | a replay returns the original but inserts another row                                           |
 | `UNIQUE_NOT_ENFORCED`                       | `create.unique-conflict-rejected`               | a duplicate unique-set write is 2xx instead of 409                                              |
 | `DELETE_MISSING_OK`                         | `delete.absent-record-returns-404`              | DELETE missing returns 200                                                                      |
+| `DELETE_KEEPS_ROW`                          | `delete.absent-record-returns-404`              | a delete answers success and keeps the row; teardown also lists each such record as a leftover  |
 | `CONCURRENT_WRITE_LOST`                     | `concurrency.no-lost-update`                    | full-row write clobbers a parallel PATCH                                                        |
 | `ENUM_NOT_VALIDATED`                        | `validation.enum-enforced`                      | enum is not enforced                                                                            |
 | `MAXLENGTH_NOT_VALIDATED`                   | `validation.max-length-enforced`                | maxLength is not enforced                                                                       |
