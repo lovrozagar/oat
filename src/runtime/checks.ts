@@ -7,7 +7,16 @@
  */
 
 import type { Hooks, PayloadPolicy } from "../config/define-config.ts"
-import { canWriteFilterOp, filterTerm, selectTerm, sortTerm, sortTermWithNulls } from "../spec/conventions.ts"
+import {
+	andTerm,
+	canWriteFilterOp,
+	filterFragment,
+	filterTerm,
+	orTerm,
+	selectTerm,
+	sortTerm,
+	sortTermWithNulls,
+} from "../spec/conventions.ts"
 import type { InviteSpec } from "../spec/extensions.ts"
 import { CHECK_IDS, type CheckId } from "./check-ids.ts"
 import { publicGetCheck } from "./one-shot.ts"
@@ -1278,62 +1287,6 @@ function compoundPlan(
 		return cannot("a filter grammar that can express a combined predicate")
 	}
 	return ready({ combined, fieldA, fieldB, termA, termB, valueA, valueB })
-}
-
-/** The bare `field.op.value` / `field=op:value` fragment `filterTerm` wraps in its parameter. */
-function filterFragment(conventions: ReturnType<typeof conv>, field: string, value: string): string | null {
-	const term = filterTerm(conventions, field, "eq", value)
-	if (term === null) return null
-	const fragment = Object.values(term)[0]
-	return typeof fragment === "string" ? fragment : null
-}
-
-/**
- * A conjunction of two equality predicates, in whatever grammar the endpoint speaks.
- *
- * Per-field equality ANDs implicitly — two query parameters together already mean "both must
- * hold" — so the two terms are simply merged. A raw filter expression has no such shortcut: the
- * postgrest grammar needs an explicit `and(...)`, and the colon grammar (which has no grouping
- * syntax at all — see `toCanonicalFilter`) ANDs by joining terms with a comma.
- */
-function andTerm(
-	conventions: ReturnType<typeof conv>,
-	fieldA: string,
-	valueA: string,
-	fieldB: string,
-	valueB: string,
-): Record<string, string> | null {
-	if (conventions.grammar === "equality") {
-		const a = filterTerm(conventions, fieldA, "eq", valueA)
-		const b = filterTerm(conventions, fieldB, "eq", valueB)
-		if (a === null || b === null) return null
-		return { ...a, ...b } as Record<string, string>
-	}
-	if (conventions.filter === undefined) return null
-	const a = filterFragment(conventions, fieldA, valueA)
-	const b = filterFragment(conventions, fieldB, valueB)
-	if (a === null || b === null) return null
-	return { [conventions.filter]: conventions.grammar === "postgrest" ? `and(${a},${b})` : `${a},${b}` }
-}
-
-/**
- * A disjunction of two equality predicates.
- *
- * Only the postgrest grammar has an `or()` combinator at all: per-field equality has no way to
- * ask for "either" rather than "both", and the colon grammar's comma join is AND-only.
- */
-function orTerm(
-	conventions: ReturnType<typeof conv>,
-	fieldA: string,
-	valueA: string,
-	fieldB: string,
-	valueB: string,
-): Record<string, string> | null {
-	if (conventions.grammar !== "postgrest" || conventions.filter === undefined) return null
-	const a = filterFragment(conventions, fieldA, valueA)
-	const b = filterFragment(conventions, fieldB, valueB)
-	if (a === null || b === null) return null
-	return { [conventions.filter]: `or(${a},${b})` }
 }
 
 /* -------------------------------------------------------------------- checks */

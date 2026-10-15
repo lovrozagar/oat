@@ -1,0 +1,1944 @@
+{
+	"canWrite|postgrest|filter|eq": true,
+	"filterTerm|postgrest|filter|eq|string": {
+		"filter": "qty.eq.alpha"
+	},
+	"filterTerm|postgrest|filter|eq|comma": {
+		"filter": "qty.eq.a,b"
+	},
+	"filterTerm|postgrest|filter|eq|dot": {
+		"filter": "qty.eq.a.b"
+	},
+	"filterTerm|postgrest|filter|eq|paren": {
+		"filter": "qty.eq.a(b"
+	},
+	"filterTerm|postgrest|filter|eq|integer": {
+		"filter": "qty.eq.5"
+	},
+	"filterTerm|postgrest|filter|eq|decimal": {
+		"filter": "qty.eq.2.5"
+	},
+	"filterTerm|postgrest|filter|eq|true": {
+		"filter": "qty.eq.true"
+	},
+	"filterTerm|postgrest|filter|eq|false": {
+		"filter": "qty.eq.false"
+	},
+	"filterTerm|postgrest|filter|eq|null": {
+		"filter": "qty.eq.null"
+	},
+	"filterTerm|postgrest|filter|eq|null-word": {
+		"filter": "qty.eq.null"
+	},
+	"filterTerm|postgrest|filter|eq|notnull": {
+		"filter": "qty.eq.notnull"
+	},
+	"filterTerm|postgrest|filter|eq|not.null": {
+		"filter": "qty.eq.not.null"
+	},
+	"filterTerm|postgrest|filter|eq|empty-list": null,
+	"filterTerm|postgrest|filter|eq|list": null,
+	"filterTerm|postgrest|filter|eq|mixed-list": null,
+	"canWrite|postgrest|filter|ne": true,
+	"filterTerm|postgrest|filter|ne|string": {
+		"filter": "qty.ne.alpha"
+	},
+	"filterTerm|postgrest|filter|ne|comma": {
+		"filter": "qty.ne.a,b"
+	},
+	"filterTerm|postgrest|filter|ne|dot": {
+		"filter": "qty.ne.a.b"
+	},
+	"filterTerm|postgrest|filter|ne|paren": {
+		"filter": "qty.ne.a(b"
+	},
+	"filterTerm|postgrest|filter|ne|integer": {
+		"filter": "qty.ne.5"
+	},
+	"filterTerm|postgrest|filter|ne|decimal": {
+		"filter": "qty.ne.2.5"
+	},
+	"filterTerm|postgrest|filter|ne|true": {
+		"filter": "qty.ne.true"
+	},
+	"filterTerm|postgrest|filter|ne|false": {
+		"filter": "qty.ne.false"
+	},
+	"filterTerm|postgrest|filter|ne|null": {
+		"filter": "qty.ne.null"
+	},
+	"filterTerm|postgrest|filter|ne|null-word": {
+		"filter": "qty.ne.null"
+	},
+	"filterTerm|postgrest|filter|ne|notnull": {
+		"filter": "qty.ne.notnull"
+	},
+	"filterTerm|postgrest|filter|ne|not.null": {
+		"filter": "qty.ne.not.null"
+	},
+	"filterTerm|postgrest|filter|ne|empty-list": null,
+	"filterTerm|postgrest|filter|ne|list": null,
+	"filterTerm|postgrest|filter|ne|mixed-list": null,
+	"canWrite|postgrest|filter|neq": true,
+	"filterTerm|postgrest|filter|neq|string": {
+		"filter": "qty.neq.alpha"
+	},
+	"filterTerm|postgrest|filter|neq|comma": {
+		"filter": "qty.neq.a,b"
+	},
+	"filterTerm|postgrest|filter|neq|dot": {
+		"filter": "qty.neq.a.b"
+	},
+	"filterTerm|postgrest|filter|neq|paren": {
+		"filter": "qty.neq.a(b"
+	},
+	"filterTerm|postgrest|filter|neq|integer": {
+		"filter": "qty.neq.5"
+	},
+	"filterTerm|postgrest|filter|neq|decimal": {
+		"filter": "qty.neq.2.5"
+	},
+	"filterTerm|postgrest|filter|neq|true": {
+		"filter": "qty.neq.true"
+	},
+	"filterTerm|postgrest|filter|neq|false": {
+		"filter": "qty.neq.false"
+	},
+	"filterTerm|postgrest|filter|neq|null": {
+		"filter": "qty.neq.null"
+	},
+	"filterTerm|postgrest|filter|neq|null-word": {
+		"filter": "qty.neq.null"
+	},
+	"filterTerm|postgrest|filter|neq|notnull": {
+		"filter": "qty.neq.notnull"
+	},
+	"filterTerm|postgrest|filter|neq|not.null": {
+		"filter": "qty.neq.not.null"
+	},
+	"filterTerm|postgrest|filter|neq|empty-list": null,
+	"filterTerm|postgrest|filter|neq|list": null,
+	"filterTerm|postgrest|filter|neq|mixed-list": null,
+	"canWrite|postgrest|filter|gt": true,
+	"filterTerm|postgrest|filter|gt|string": {
+		"filter": "qty.gt.alpha"
+	},
+	"filterTerm|postgrest|filter|gt|comma": {
+		"filter": "qty.gt.a,b"
+	},
+	"filterTerm|postgrest|filter|gt|dot": {
+		"filter": "qty.gt.a.b"
+	},
+	"filterTerm|postgrest|filter|gt|paren": {
+		"filter": "qty.gt.a(b"
+	},
+	"filterTerm|postgrest|filter|gt|integer": {
+		"filter": "qty.gt.5"
+	},
+	"filterTerm|postgrest|filter|gt|decimal": {
+		"filter": "qty.gt.2.5"
+	},
+	"filterTerm|postgrest|filter|gt|true": {
+		"filter": "qty.gt.true"
+	},
+	"filterTerm|postgrest|filter|gt|false": {
+		"filter": "qty.gt.false"
+	},
+	"filterTerm|postgrest|filter|gt|null": {
+		"filter": "qty.gt.null"
+	},
+	"filterTerm|postgrest|filter|gt|null-word": {
+		"filter": "qty.gt.null"
+	},
+	"filterTerm|postgrest|filter|gt|notnull": {
+		"filter": "qty.gt.notnull"
+	},
+	"filterTerm|postgrest|filter|gt|not.null": {
+		"filter": "qty.gt.not.null"
+	},
+	"filterTerm|postgrest|filter|gt|empty-list": null,
+	"filterTerm|postgrest|filter|gt|list": null,
+	"filterTerm|postgrest|filter|gt|mixed-list": null,
+	"canWrite|postgrest|filter|gte": true,
+	"filterTerm|postgrest|filter|gte|string": {
+		"filter": "qty.gte.alpha"
+	},
+	"filterTerm|postgrest|filter|gte|comma": {
+		"filter": "qty.gte.a,b"
+	},
+	"filterTerm|postgrest|filter|gte|dot": {
+		"filter": "qty.gte.a.b"
+	},
+	"filterTerm|postgrest|filter|gte|paren": {
+		"filter": "qty.gte.a(b"
+	},
+	"filterTerm|postgrest|filter|gte|integer": {
+		"filter": "qty.gte.5"
+	},
+	"filterTerm|postgrest|filter|gte|decimal": {
+		"filter": "qty.gte.2.5"
+	},
+	"filterTerm|postgrest|filter|gte|true": {
+		"filter": "qty.gte.true"
+	},
+	"filterTerm|postgrest|filter|gte|false": {
+		"filter": "qty.gte.false"
+	},
+	"filterTerm|postgrest|filter|gte|null": {
+		"filter": "qty.gte.null"
+	},
+	"filterTerm|postgrest|filter|gte|null-word": {
+		"filter": "qty.gte.null"
+	},
+	"filterTerm|postgrest|filter|gte|notnull": {
+		"filter": "qty.gte.notnull"
+	},
+	"filterTerm|postgrest|filter|gte|not.null": {
+		"filter": "qty.gte.not.null"
+	},
+	"filterTerm|postgrest|filter|gte|empty-list": null,
+	"filterTerm|postgrest|filter|gte|list": null,
+	"filterTerm|postgrest|filter|gte|mixed-list": null,
+	"canWrite|postgrest|filter|lt": true,
+	"filterTerm|postgrest|filter|lt|string": {
+		"filter": "qty.lt.alpha"
+	},
+	"filterTerm|postgrest|filter|lt|comma": {
+		"filter": "qty.lt.a,b"
+	},
+	"filterTerm|postgrest|filter|lt|dot": {
+		"filter": "qty.lt.a.b"
+	},
+	"filterTerm|postgrest|filter|lt|paren": {
+		"filter": "qty.lt.a(b"
+	},
+	"filterTerm|postgrest|filter|lt|integer": {
+		"filter": "qty.lt.5"
+	},
+	"filterTerm|postgrest|filter|lt|decimal": {
+		"filter": "qty.lt.2.5"
+	},
+	"filterTerm|postgrest|filter|lt|true": {
+		"filter": "qty.lt.true"
+	},
+	"filterTerm|postgrest|filter|lt|false": {
+		"filter": "qty.lt.false"
+	},
+	"filterTerm|postgrest|filter|lt|null": {
+		"filter": "qty.lt.null"
+	},
+	"filterTerm|postgrest|filter|lt|null-word": {
+		"filter": "qty.lt.null"
+	},
+	"filterTerm|postgrest|filter|lt|notnull": {
+		"filter": "qty.lt.notnull"
+	},
+	"filterTerm|postgrest|filter|lt|not.null": {
+		"filter": "qty.lt.not.null"
+	},
+	"filterTerm|postgrest|filter|lt|empty-list": null,
+	"filterTerm|postgrest|filter|lt|list": null,
+	"filterTerm|postgrest|filter|lt|mixed-list": null,
+	"canWrite|postgrest|filter|lte": true,
+	"filterTerm|postgrest|filter|lte|string": {
+		"filter": "qty.lte.alpha"
+	},
+	"filterTerm|postgrest|filter|lte|comma": {
+		"filter": "qty.lte.a,b"
+	},
+	"filterTerm|postgrest|filter|lte|dot": {
+		"filter": "qty.lte.a.b"
+	},
+	"filterTerm|postgrest|filter|lte|paren": {
+		"filter": "qty.lte.a(b"
+	},
+	"filterTerm|postgrest|filter|lte|integer": {
+		"filter": "qty.lte.5"
+	},
+	"filterTerm|postgrest|filter|lte|decimal": {
+		"filter": "qty.lte.2.5"
+	},
+	"filterTerm|postgrest|filter|lte|true": {
+		"filter": "qty.lte.true"
+	},
+	"filterTerm|postgrest|filter|lte|false": {
+		"filter": "qty.lte.false"
+	},
+	"filterTerm|postgrest|filter|lte|null": {
+		"filter": "qty.lte.null"
+	},
+	"filterTerm|postgrest|filter|lte|null-word": {
+		"filter": "qty.lte.null"
+	},
+	"filterTerm|postgrest|filter|lte|notnull": {
+		"filter": "qty.lte.notnull"
+	},
+	"filterTerm|postgrest|filter|lte|not.null": {
+		"filter": "qty.lte.not.null"
+	},
+	"filterTerm|postgrest|filter|lte|empty-list": null,
+	"filterTerm|postgrest|filter|lte|list": null,
+	"filterTerm|postgrest|filter|lte|mixed-list": null,
+	"canWrite|postgrest|filter|in": true,
+	"filterTerm|postgrest|filter|in|string": {
+		"filter": "qty.in.(alpha)"
+	},
+	"filterTerm|postgrest|filter|in|comma": {
+		"filter": "qty.in.(a,b)"
+	},
+	"filterTerm|postgrest|filter|in|dot": {
+		"filter": "qty.in.(a.b)"
+	},
+	"filterTerm|postgrest|filter|in|paren": {
+		"filter": "qty.in.(a(b)"
+	},
+	"filterTerm|postgrest|filter|in|integer": {
+		"filter": "qty.in.(5)"
+	},
+	"filterTerm|postgrest|filter|in|decimal": {
+		"filter": "qty.in.(2.5)"
+	},
+	"filterTerm|postgrest|filter|in|true": {
+		"filter": "qty.in.(true)"
+	},
+	"filterTerm|postgrest|filter|in|false": {
+		"filter": "qty.in.(false)"
+	},
+	"filterTerm|postgrest|filter|in|null": {
+		"filter": "qty.in.(null)"
+	},
+	"filterTerm|postgrest|filter|in|null-word": {
+		"filter": "qty.in.(null)"
+	},
+	"filterTerm|postgrest|filter|in|notnull": {
+		"filter": "qty.in.(notnull)"
+	},
+	"filterTerm|postgrest|filter|in|not.null": {
+		"filter": "qty.in.(not.null)"
+	},
+	"filterTerm|postgrest|filter|in|empty-list": {
+		"filter": "qty.in.()"
+	},
+	"filterTerm|postgrest|filter|in|list": {
+		"filter": "qty.in.(a,b)"
+	},
+	"filterTerm|postgrest|filter|in|mixed-list": {
+		"filter": "qty.in.(1,null,true)"
+	},
+	"canWrite|postgrest|filter|nin": true,
+	"filterTerm|postgrest|filter|nin|string": {
+		"filter": "qty.nin.(alpha)"
+	},
+	"filterTerm|postgrest|filter|nin|comma": {
+		"filter": "qty.nin.(a,b)"
+	},
+	"filterTerm|postgrest|filter|nin|dot": {
+		"filter": "qty.nin.(a.b)"
+	},
+	"filterTerm|postgrest|filter|nin|paren": {
+		"filter": "qty.nin.(a(b)"
+	},
+	"filterTerm|postgrest|filter|nin|integer": {
+		"filter": "qty.nin.(5)"
+	},
+	"filterTerm|postgrest|filter|nin|decimal": {
+		"filter": "qty.nin.(2.5)"
+	},
+	"filterTerm|postgrest|filter|nin|true": {
+		"filter": "qty.nin.(true)"
+	},
+	"filterTerm|postgrest|filter|nin|false": {
+		"filter": "qty.nin.(false)"
+	},
+	"filterTerm|postgrest|filter|nin|null": {
+		"filter": "qty.nin.(null)"
+	},
+	"filterTerm|postgrest|filter|nin|null-word": {
+		"filter": "qty.nin.(null)"
+	},
+	"filterTerm|postgrest|filter|nin|notnull": {
+		"filter": "qty.nin.(notnull)"
+	},
+	"filterTerm|postgrest|filter|nin|not.null": {
+		"filter": "qty.nin.(not.null)"
+	},
+	"filterTerm|postgrest|filter|nin|empty-list": {
+		"filter": "qty.nin.()"
+	},
+	"filterTerm|postgrest|filter|nin|list": {
+		"filter": "qty.nin.(a,b)"
+	},
+	"filterTerm|postgrest|filter|nin|mixed-list": {
+		"filter": "qty.nin.(1,null,true)"
+	},
+	"canWrite|postgrest|filter|like": true,
+	"filterTerm|postgrest|filter|like|string": {
+		"filter": "qty.like.alpha"
+	},
+	"filterTerm|postgrest|filter|like|comma": {
+		"filter": "qty.like.a,b"
+	},
+	"filterTerm|postgrest|filter|like|dot": {
+		"filter": "qty.like.a.b"
+	},
+	"filterTerm|postgrest|filter|like|paren": {
+		"filter": "qty.like.a(b"
+	},
+	"filterTerm|postgrest|filter|like|integer": {
+		"filter": "qty.like.5"
+	},
+	"filterTerm|postgrest|filter|like|decimal": {
+		"filter": "qty.like.2.5"
+	},
+	"filterTerm|postgrest|filter|like|true": {
+		"filter": "qty.like.true"
+	},
+	"filterTerm|postgrest|filter|like|false": {
+		"filter": "qty.like.false"
+	},
+	"filterTerm|postgrest|filter|like|null": {
+		"filter": "qty.like.null"
+	},
+	"filterTerm|postgrest|filter|like|null-word": {
+		"filter": "qty.like.null"
+	},
+	"filterTerm|postgrest|filter|like|notnull": {
+		"filter": "qty.like.notnull"
+	},
+	"filterTerm|postgrest|filter|like|not.null": {
+		"filter": "qty.like.not.null"
+	},
+	"filterTerm|postgrest|filter|like|empty-list": null,
+	"filterTerm|postgrest|filter|like|list": null,
+	"filterTerm|postgrest|filter|like|mixed-list": null,
+	"canWrite|postgrest|filter|ilike": true,
+	"filterTerm|postgrest|filter|ilike|string": {
+		"filter": "qty.ilike.alpha"
+	},
+	"filterTerm|postgrest|filter|ilike|comma": {
+		"filter": "qty.ilike.a,b"
+	},
+	"filterTerm|postgrest|filter|ilike|dot": {
+		"filter": "qty.ilike.a.b"
+	},
+	"filterTerm|postgrest|filter|ilike|paren": {
+		"filter": "qty.ilike.a(b"
+	},
+	"filterTerm|postgrest|filter|ilike|integer": {
+		"filter": "qty.ilike.5"
+	},
+	"filterTerm|postgrest|filter|ilike|decimal": {
+		"filter": "qty.ilike.2.5"
+	},
+	"filterTerm|postgrest|filter|ilike|true": {
+		"filter": "qty.ilike.true"
+	},
+	"filterTerm|postgrest|filter|ilike|false": {
+		"filter": "qty.ilike.false"
+	},
+	"filterTerm|postgrest|filter|ilike|null": {
+		"filter": "qty.ilike.null"
+	},
+	"filterTerm|postgrest|filter|ilike|null-word": {
+		"filter": "qty.ilike.null"
+	},
+	"filterTerm|postgrest|filter|ilike|notnull": {
+		"filter": "qty.ilike.notnull"
+	},
+	"filterTerm|postgrest|filter|ilike|not.null": {
+		"filter": "qty.ilike.not.null"
+	},
+	"filterTerm|postgrest|filter|ilike|empty-list": null,
+	"filterTerm|postgrest|filter|ilike|list": null,
+	"filterTerm|postgrest|filter|ilike|mixed-list": null,
+	"canWrite|postgrest|filter|is": true,
+	"filterTerm|postgrest|filter|is|string": null,
+	"filterTerm|postgrest|filter|is|comma": null,
+	"filterTerm|postgrest|filter|is|dot": null,
+	"filterTerm|postgrest|filter|is|paren": null,
+	"filterTerm|postgrest|filter|is|integer": null,
+	"filterTerm|postgrest|filter|is|decimal": null,
+	"filterTerm|postgrest|filter|is|true": null,
+	"filterTerm|postgrest|filter|is|false": null,
+	"filterTerm|postgrest|filter|is|null": {
+		"filter": "qty.is.null"
+	},
+	"filterTerm|postgrest|filter|is|null-word": {
+		"filter": "qty.is.null"
+	},
+	"filterTerm|postgrest|filter|is|notnull": {
+		"filter": "qty.is.notnull"
+	},
+	"filterTerm|postgrest|filter|is|not.null": {
+		"filter": "qty.is.notnull"
+	},
+	"filterTerm|postgrest|filter|is|empty-list": null,
+	"filterTerm|postgrest|filter|is|list": null,
+	"filterTerm|postgrest|filter|is|mixed-list": null,
+	"canWrite|postgrest|filter|contains": true,
+	"filterTerm|postgrest|filter|contains|string": {
+		"filter": "qty.contains.alpha"
+	},
+	"filterTerm|postgrest|filter|contains|comma": {
+		"filter": "qty.contains.a,b"
+	},
+	"filterTerm|postgrest|filter|contains|dot": {
+		"filter": "qty.contains.a.b"
+	},
+	"filterTerm|postgrest|filter|contains|paren": {
+		"filter": "qty.contains.a(b"
+	},
+	"filterTerm|postgrest|filter|contains|integer": {
+		"filter": "qty.contains.5"
+	},
+	"filterTerm|postgrest|filter|contains|decimal": {
+		"filter": "qty.contains.2.5"
+	},
+	"filterTerm|postgrest|filter|contains|true": {
+		"filter": "qty.contains.true"
+	},
+	"filterTerm|postgrest|filter|contains|false": {
+		"filter": "qty.contains.false"
+	},
+	"filterTerm|postgrest|filter|contains|null": {
+		"filter": "qty.contains.null"
+	},
+	"filterTerm|postgrest|filter|contains|null-word": {
+		"filter": "qty.contains.null"
+	},
+	"filterTerm|postgrest|filter|contains|notnull": {
+		"filter": "qty.contains.notnull"
+	},
+	"filterTerm|postgrest|filter|contains|not.null": {
+		"filter": "qty.contains.not.null"
+	},
+	"filterTerm|postgrest|filter|contains|empty-list": null,
+	"filterTerm|postgrest|filter|contains|list": null,
+	"filterTerm|postgrest|filter|contains|mixed-list": null,
+	"filterFragment|postgrest|filter|string": "qty.eq.alpha",
+	"filterFragment|postgrest|filter|comma": "qty.eq.a,b",
+	"filterFragment|postgrest|filter|dot": "qty.eq.a.b",
+	"filterFragment|postgrest|filter|paren": "qty.eq.a(b",
+	"filterFragment|postgrest|filter|integer": "qty.eq.5",
+	"filterFragment|postgrest|filter|decimal": "qty.eq.2.5",
+	"filterFragment|postgrest|filter|true": "qty.eq.true",
+	"filterFragment|postgrest|filter|false": "qty.eq.false",
+	"filterFragment|postgrest|filter|null": "qty.eq.null",
+	"filterFragment|postgrest|filter|null-word": "qty.eq.null",
+	"filterFragment|postgrest|filter|notnull": "qty.eq.notnull",
+	"filterFragment|postgrest|filter|not.null": "qty.eq.not.null",
+	"andTerm|postgrest|filter": {
+		"filter": "and(qty.eq.2,name.eq.x)"
+	},
+	"andTerm|postgrest|filter|same-field": {
+		"filter": "and(qty.eq.2,qty.eq.3)"
+	},
+	"orTerm|postgrest|filter": {
+		"filter": "or(qty.eq.2,name.eq.x)"
+	},
+	"canWrite|postgrest|no-filter-param|eq": true,
+	"filterTerm|postgrest|no-filter-param|eq|string": null,
+	"filterTerm|postgrest|no-filter-param|eq|comma": null,
+	"filterTerm|postgrest|no-filter-param|eq|dot": null,
+	"filterTerm|postgrest|no-filter-param|eq|paren": null,
+	"filterTerm|postgrest|no-filter-param|eq|integer": null,
+	"filterTerm|postgrest|no-filter-param|eq|decimal": null,
+	"filterTerm|postgrest|no-filter-param|eq|true": null,
+	"filterTerm|postgrest|no-filter-param|eq|false": null,
+	"filterTerm|postgrest|no-filter-param|eq|null": null,
+	"filterTerm|postgrest|no-filter-param|eq|null-word": null,
+	"filterTerm|postgrest|no-filter-param|eq|notnull": null,
+	"filterTerm|postgrest|no-filter-param|eq|not.null": null,
+	"filterTerm|postgrest|no-filter-param|eq|empty-list": null,
+	"filterTerm|postgrest|no-filter-param|eq|list": null,
+	"filterTerm|postgrest|no-filter-param|eq|mixed-list": null,
+	"canWrite|postgrest|no-filter-param|ne": true,
+	"filterTerm|postgrest|no-filter-param|ne|string": null,
+	"filterTerm|postgrest|no-filter-param|ne|comma": null,
+	"filterTerm|postgrest|no-filter-param|ne|dot": null,
+	"filterTerm|postgrest|no-filter-param|ne|paren": null,
+	"filterTerm|postgrest|no-filter-param|ne|integer": null,
+	"filterTerm|postgrest|no-filter-param|ne|decimal": null,
+	"filterTerm|postgrest|no-filter-param|ne|true": null,
+	"filterTerm|postgrest|no-filter-param|ne|false": null,
+	"filterTerm|postgrest|no-filter-param|ne|null": null,
+	"filterTerm|postgrest|no-filter-param|ne|null-word": null,
+	"filterTerm|postgrest|no-filter-param|ne|notnull": null,
+	"filterTerm|postgrest|no-filter-param|ne|not.null": null,
+	"filterTerm|postgrest|no-filter-param|ne|empty-list": null,
+	"filterTerm|postgrest|no-filter-param|ne|list": null,
+	"filterTerm|postgrest|no-filter-param|ne|mixed-list": null,
+	"canWrite|postgrest|no-filter-param|neq": true,
+	"filterTerm|postgrest|no-filter-param|neq|string": null,
+	"filterTerm|postgrest|no-filter-param|neq|comma": null,
+	"filterTerm|postgrest|no-filter-param|neq|dot": null,
+	"filterTerm|postgrest|no-filter-param|neq|paren": null,
+	"filterTerm|postgrest|no-filter-param|neq|integer": null,
+	"filterTerm|postgrest|no-filter-param|neq|decimal": null,
+	"filterTerm|postgrest|no-filter-param|neq|true": null,
+	"filterTerm|postgrest|no-filter-param|neq|false": null,
+	"filterTerm|postgrest|no-filter-param|neq|null": null,
+	"filterTerm|postgrest|no-filter-param|neq|null-word": null,
+	"filterTerm|postgrest|no-filter-param|neq|notnull": null,
+	"filterTerm|postgrest|no-filter-param|neq|not.null": null,
+	"filterTerm|postgrest|no-filter-param|neq|empty-list": null,
+	"filterTerm|postgrest|no-filter-param|neq|list": null,
+	"filterTerm|postgrest|no-filter-param|neq|mixed-list": null,
+	"canWrite|postgrest|no-filter-param|gt": true,
+	"filterTerm|postgrest|no-filter-param|gt|string": null,
+	"filterTerm|postgrest|no-filter-param|gt|comma": null,
+	"filterTerm|postgrest|no-filter-param|gt|dot": null,
+	"filterTerm|postgrest|no-filter-param|gt|paren": null,
+	"filterTerm|postgrest|no-filter-param|gt|integer": null,
+	"filterTerm|postgrest|no-filter-param|gt|decimal": null,
+	"filterTerm|postgrest|no-filter-param|gt|true": null,
+	"filterTerm|postgrest|no-filter-param|gt|false": null,
+	"filterTerm|postgrest|no-filter-param|gt|null": null,
+	"filterTerm|postgrest|no-filter-param|gt|null-word": null,
+	"filterTerm|postgrest|no-filter-param|gt|notnull": null,
+	"filterTerm|postgrest|no-filter-param|gt|not.null": null,
+	"filterTerm|postgrest|no-filter-param|gt|empty-list": null,
+	"filterTerm|postgrest|no-filter-param|gt|list": null,
+	"filterTerm|postgrest|no-filter-param|gt|mixed-list": null,
+	"canWrite|postgrest|no-filter-param|gte": true,
+	"filterTerm|postgrest|no-filter-param|gte|string": null,
+	"filterTerm|postgrest|no-filter-param|gte|comma": null,
+	"filterTerm|postgrest|no-filter-param|gte|dot": null,
+	"filterTerm|postgrest|no-filter-param|gte|paren": null,
+	"filterTerm|postgrest|no-filter-param|gte|integer": null,
+	"filterTerm|postgrest|no-filter-param|gte|decimal": null,
+	"filterTerm|postgrest|no-filter-param|gte|true": null,
+	"filterTerm|postgrest|no-filter-param|gte|false": null,
+	"filterTerm|postgrest|no-filter-param|gte|null": null,
+	"filterTerm|postgrest|no-filter-param|gte|null-word": null,
+	"filterTerm|postgrest|no-filter-param|gte|notnull": null,
+	"filterTerm|postgrest|no-filter-param|gte|not.null": null,
+	"filterTerm|postgrest|no-filter-param|gte|empty-list": null,
+	"filterTerm|postgrest|no-filter-param|gte|list": null,
+	"filterTerm|postgrest|no-filter-param|gte|mixed-list": null,
+	"canWrite|postgrest|no-filter-param|lt": true,
+	"filterTerm|postgrest|no-filter-param|lt|string": null,
+	"filterTerm|postgrest|no-filter-param|lt|comma": null,
+	"filterTerm|postgrest|no-filter-param|lt|dot": null,
+	"filterTerm|postgrest|no-filter-param|lt|paren": null,
+	"filterTerm|postgrest|no-filter-param|lt|integer": null,
+	"filterTerm|postgrest|no-filter-param|lt|decimal": null,
+	"filterTerm|postgrest|no-filter-param|lt|true": null,
+	"filterTerm|postgrest|no-filter-param|lt|false": null,
+	"filterTerm|postgrest|no-filter-param|lt|null": null,
+	"filterTerm|postgrest|no-filter-param|lt|null-word": null,
+	"filterTerm|postgrest|no-filter-param|lt|notnull": null,
+	"filterTerm|postgrest|no-filter-param|lt|not.null": null,
+	"filterTerm|postgrest|no-filter-param|lt|empty-list": null,
+	"filterTerm|postgrest|no-filter-param|lt|list": null,
+	"filterTerm|postgrest|no-filter-param|lt|mixed-list": null,
+	"canWrite|postgrest|no-filter-param|lte": true,
+	"filterTerm|postgrest|no-filter-param|lte|string": null,
+	"filterTerm|postgrest|no-filter-param|lte|comma": null,
+	"filterTerm|postgrest|no-filter-param|lte|dot": null,
+	"filterTerm|postgrest|no-filter-param|lte|paren": null,
+	"filterTerm|postgrest|no-filter-param|lte|integer": null,
+	"filterTerm|postgrest|no-filter-param|lte|decimal": null,
+	"filterTerm|postgrest|no-filter-param|lte|true": null,
+	"filterTerm|postgrest|no-filter-param|lte|false": null,
+	"filterTerm|postgrest|no-filter-param|lte|null": null,
+	"filterTerm|postgrest|no-filter-param|lte|null-word": null,
+	"filterTerm|postgrest|no-filter-param|lte|notnull": null,
+	"filterTerm|postgrest|no-filter-param|lte|not.null": null,
+	"filterTerm|postgrest|no-filter-param|lte|empty-list": null,
+	"filterTerm|postgrest|no-filter-param|lte|list": null,
+	"filterTerm|postgrest|no-filter-param|lte|mixed-list": null,
+	"canWrite|postgrest|no-filter-param|in": true,
+	"filterTerm|postgrest|no-filter-param|in|string": null,
+	"filterTerm|postgrest|no-filter-param|in|comma": null,
+	"filterTerm|postgrest|no-filter-param|in|dot": null,
+	"filterTerm|postgrest|no-filter-param|in|paren": null,
+	"filterTerm|postgrest|no-filter-param|in|integer": null,
+	"filterTerm|postgrest|no-filter-param|in|decimal": null,
+	"filterTerm|postgrest|no-filter-param|in|true": null,
+	"filterTerm|postgrest|no-filter-param|in|false": null,
+	"filterTerm|postgrest|no-filter-param|in|null": null,
+	"filterTerm|postgrest|no-filter-param|in|null-word": null,
+	"filterTerm|postgrest|no-filter-param|in|notnull": null,
+	"filterTerm|postgrest|no-filter-param|in|not.null": null,
+	"filterTerm|postgrest|no-filter-param|in|empty-list": null,
+	"filterTerm|postgrest|no-filter-param|in|list": null,
+	"filterTerm|postgrest|no-filter-param|in|mixed-list": null,
+	"canWrite|postgrest|no-filter-param|nin": true,
+	"filterTerm|postgrest|no-filter-param|nin|string": null,
+	"filterTerm|postgrest|no-filter-param|nin|comma": null,
+	"filterTerm|postgrest|no-filter-param|nin|dot": null,
+	"filterTerm|postgrest|no-filter-param|nin|paren": null,
+	"filterTerm|postgrest|no-filter-param|nin|integer": null,
+	"filterTerm|postgrest|no-filter-param|nin|decimal": null,
+	"filterTerm|postgrest|no-filter-param|nin|true": null,
+	"filterTerm|postgrest|no-filter-param|nin|false": null,
+	"filterTerm|postgrest|no-filter-param|nin|null": null,
+	"filterTerm|postgrest|no-filter-param|nin|null-word": null,
+	"filterTerm|postgrest|no-filter-param|nin|notnull": null,
+	"filterTerm|postgrest|no-filter-param|nin|not.null": null,
+	"filterTerm|postgrest|no-filter-param|nin|empty-list": null,
+	"filterTerm|postgrest|no-filter-param|nin|list": null,
+	"filterTerm|postgrest|no-filter-param|nin|mixed-list": null,
+	"canWrite|postgrest|no-filter-param|like": true,
+	"filterTerm|postgrest|no-filter-param|like|string": null,
+	"filterTerm|postgrest|no-filter-param|like|comma": null,
+	"filterTerm|postgrest|no-filter-param|like|dot": null,
+	"filterTerm|postgrest|no-filter-param|like|paren": null,
+	"filterTerm|postgrest|no-filter-param|like|integer": null,
+	"filterTerm|postgrest|no-filter-param|like|decimal": null,
+	"filterTerm|postgrest|no-filter-param|like|true": null,
+	"filterTerm|postgrest|no-filter-param|like|false": null,
+	"filterTerm|postgrest|no-filter-param|like|null": null,
+	"filterTerm|postgrest|no-filter-param|like|null-word": null,
+	"filterTerm|postgrest|no-filter-param|like|notnull": null,
+	"filterTerm|postgrest|no-filter-param|like|not.null": null,
+	"filterTerm|postgrest|no-filter-param|like|empty-list": null,
+	"filterTerm|postgrest|no-filter-param|like|list": null,
+	"filterTerm|postgrest|no-filter-param|like|mixed-list": null,
+	"canWrite|postgrest|no-filter-param|ilike": true,
+	"filterTerm|postgrest|no-filter-param|ilike|string": null,
+	"filterTerm|postgrest|no-filter-param|ilike|comma": null,
+	"filterTerm|postgrest|no-filter-param|ilike|dot": null,
+	"filterTerm|postgrest|no-filter-param|ilike|paren": null,
+	"filterTerm|postgrest|no-filter-param|ilike|integer": null,
+	"filterTerm|postgrest|no-filter-param|ilike|decimal": null,
+	"filterTerm|postgrest|no-filter-param|ilike|true": null,
+	"filterTerm|postgrest|no-filter-param|ilike|false": null,
+	"filterTerm|postgrest|no-filter-param|ilike|null": null,
+	"filterTerm|postgrest|no-filter-param|ilike|null-word": null,
+	"filterTerm|postgrest|no-filter-param|ilike|notnull": null,
+	"filterTerm|postgrest|no-filter-param|ilike|not.null": null,
+	"filterTerm|postgrest|no-filter-param|ilike|empty-list": null,
+	"filterTerm|postgrest|no-filter-param|ilike|list": null,
+	"filterTerm|postgrest|no-filter-param|ilike|mixed-list": null,
+	"canWrite|postgrest|no-filter-param|is": true,
+	"filterTerm|postgrest|no-filter-param|is|string": null,
+	"filterTerm|postgrest|no-filter-param|is|comma": null,
+	"filterTerm|postgrest|no-filter-param|is|dot": null,
+	"filterTerm|postgrest|no-filter-param|is|paren": null,
+	"filterTerm|postgrest|no-filter-param|is|integer": null,
+	"filterTerm|postgrest|no-filter-param|is|decimal": null,
+	"filterTerm|postgrest|no-filter-param|is|true": null,
+	"filterTerm|postgrest|no-filter-param|is|false": null,
+	"filterTerm|postgrest|no-filter-param|is|null": null,
+	"filterTerm|postgrest|no-filter-param|is|null-word": null,
+	"filterTerm|postgrest|no-filter-param|is|notnull": null,
+	"filterTerm|postgrest|no-filter-param|is|not.null": null,
+	"filterTerm|postgrest|no-filter-param|is|empty-list": null,
+	"filterTerm|postgrest|no-filter-param|is|list": null,
+	"filterTerm|postgrest|no-filter-param|is|mixed-list": null,
+	"canWrite|postgrest|no-filter-param|contains": true,
+	"filterTerm|postgrest|no-filter-param|contains|string": null,
+	"filterTerm|postgrest|no-filter-param|contains|comma": null,
+	"filterTerm|postgrest|no-filter-param|contains|dot": null,
+	"filterTerm|postgrest|no-filter-param|contains|paren": null,
+	"filterTerm|postgrest|no-filter-param|contains|integer": null,
+	"filterTerm|postgrest|no-filter-param|contains|decimal": null,
+	"filterTerm|postgrest|no-filter-param|contains|true": null,
+	"filterTerm|postgrest|no-filter-param|contains|false": null,
+	"filterTerm|postgrest|no-filter-param|contains|null": null,
+	"filterTerm|postgrest|no-filter-param|contains|null-word": null,
+	"filterTerm|postgrest|no-filter-param|contains|notnull": null,
+	"filterTerm|postgrest|no-filter-param|contains|not.null": null,
+	"filterTerm|postgrest|no-filter-param|contains|empty-list": null,
+	"filterTerm|postgrest|no-filter-param|contains|list": null,
+	"filterTerm|postgrest|no-filter-param|contains|mixed-list": null,
+	"filterFragment|postgrest|no-filter-param|string": null,
+	"filterFragment|postgrest|no-filter-param|comma": null,
+	"filterFragment|postgrest|no-filter-param|dot": null,
+	"filterFragment|postgrest|no-filter-param|paren": null,
+	"filterFragment|postgrest|no-filter-param|integer": null,
+	"filterFragment|postgrest|no-filter-param|decimal": null,
+	"filterFragment|postgrest|no-filter-param|true": null,
+	"filterFragment|postgrest|no-filter-param|false": null,
+	"filterFragment|postgrest|no-filter-param|null": null,
+	"filterFragment|postgrest|no-filter-param|null-word": null,
+	"filterFragment|postgrest|no-filter-param|notnull": null,
+	"filterFragment|postgrest|no-filter-param|not.null": null,
+	"andTerm|postgrest|no-filter-param": null,
+	"andTerm|postgrest|no-filter-param|same-field": null,
+	"orTerm|postgrest|no-filter-param": null,
+	"canWrite|colon|filter|eq": true,
+	"filterTerm|colon|filter|eq|string": {
+		"filter": "qty=eq:alpha"
+	},
+	"filterTerm|colon|filter|eq|comma": {
+		"filter": "qty=eq:a,b"
+	},
+	"filterTerm|colon|filter|eq|dot": {
+		"filter": "qty=eq:a.b"
+	},
+	"filterTerm|colon|filter|eq|paren": {
+		"filter": "qty=eq:a(b"
+	},
+	"filterTerm|colon|filter|eq|integer": {
+		"filter": "qty=eq:5"
+	},
+	"filterTerm|colon|filter|eq|decimal": {
+		"filter": "qty=eq:2.5"
+	},
+	"filterTerm|colon|filter|eq|true": {
+		"filter": "qty=eq:true"
+	},
+	"filterTerm|colon|filter|eq|false": {
+		"filter": "qty=eq:false"
+	},
+	"filterTerm|colon|filter|eq|null": {
+		"filter": "qty=eq:null"
+	},
+	"filterTerm|colon|filter|eq|null-word": {
+		"filter": "qty=eq:null"
+	},
+	"filterTerm|colon|filter|eq|notnull": {
+		"filter": "qty=eq:notnull"
+	},
+	"filterTerm|colon|filter|eq|not.null": {
+		"filter": "qty=eq:not.null"
+	},
+	"filterTerm|colon|filter|eq|empty-list": null,
+	"filterTerm|colon|filter|eq|list": null,
+	"filterTerm|colon|filter|eq|mixed-list": null,
+	"canWrite|colon|filter|ne": false,
+	"filterTerm|colon|filter|ne|string": null,
+	"filterTerm|colon|filter|ne|comma": null,
+	"filterTerm|colon|filter|ne|dot": null,
+	"filterTerm|colon|filter|ne|paren": null,
+	"filterTerm|colon|filter|ne|integer": null,
+	"filterTerm|colon|filter|ne|decimal": null,
+	"filterTerm|colon|filter|ne|true": null,
+	"filterTerm|colon|filter|ne|false": null,
+	"filterTerm|colon|filter|ne|null": null,
+	"filterTerm|colon|filter|ne|null-word": null,
+	"filterTerm|colon|filter|ne|notnull": null,
+	"filterTerm|colon|filter|ne|not.null": null,
+	"filterTerm|colon|filter|ne|empty-list": null,
+	"filterTerm|colon|filter|ne|list": null,
+	"filterTerm|colon|filter|ne|mixed-list": null,
+	"canWrite|colon|filter|neq": true,
+	"filterTerm|colon|filter|neq|string": {
+		"filter": "qty=neq:alpha"
+	},
+	"filterTerm|colon|filter|neq|comma": {
+		"filter": "qty=neq:a,b"
+	},
+	"filterTerm|colon|filter|neq|dot": {
+		"filter": "qty=neq:a.b"
+	},
+	"filterTerm|colon|filter|neq|paren": {
+		"filter": "qty=neq:a(b"
+	},
+	"filterTerm|colon|filter|neq|integer": {
+		"filter": "qty=neq:5"
+	},
+	"filterTerm|colon|filter|neq|decimal": {
+		"filter": "qty=neq:2.5"
+	},
+	"filterTerm|colon|filter|neq|true": {
+		"filter": "qty=neq:true"
+	},
+	"filterTerm|colon|filter|neq|false": {
+		"filter": "qty=neq:false"
+	},
+	"filterTerm|colon|filter|neq|null": {
+		"filter": "qty=neq:null"
+	},
+	"filterTerm|colon|filter|neq|null-word": {
+		"filter": "qty=neq:null"
+	},
+	"filterTerm|colon|filter|neq|notnull": {
+		"filter": "qty=neq:notnull"
+	},
+	"filterTerm|colon|filter|neq|not.null": {
+		"filter": "qty=neq:not.null"
+	},
+	"filterTerm|colon|filter|neq|empty-list": null,
+	"filterTerm|colon|filter|neq|list": null,
+	"filterTerm|colon|filter|neq|mixed-list": null,
+	"canWrite|colon|filter|gt": true,
+	"filterTerm|colon|filter|gt|string": {
+		"filter": "qty=gt:alpha"
+	},
+	"filterTerm|colon|filter|gt|comma": {
+		"filter": "qty=gt:a,b"
+	},
+	"filterTerm|colon|filter|gt|dot": {
+		"filter": "qty=gt:a.b"
+	},
+	"filterTerm|colon|filter|gt|paren": {
+		"filter": "qty=gt:a(b"
+	},
+	"filterTerm|colon|filter|gt|integer": {
+		"filter": "qty=gt:5"
+	},
+	"filterTerm|colon|filter|gt|decimal": {
+		"filter": "qty=gt:2.5"
+	},
+	"filterTerm|colon|filter|gt|true": {
+		"filter": "qty=gt:true"
+	},
+	"filterTerm|colon|filter|gt|false": {
+		"filter": "qty=gt:false"
+	},
+	"filterTerm|colon|filter|gt|null": {
+		"filter": "qty=gt:null"
+	},
+	"filterTerm|colon|filter|gt|null-word": {
+		"filter": "qty=gt:null"
+	},
+	"filterTerm|colon|filter|gt|notnull": {
+		"filter": "qty=gt:notnull"
+	},
+	"filterTerm|colon|filter|gt|not.null": {
+		"filter": "qty=gt:not.null"
+	},
+	"filterTerm|colon|filter|gt|empty-list": null,
+	"filterTerm|colon|filter|gt|list": null,
+	"filterTerm|colon|filter|gt|mixed-list": null,
+	"canWrite|colon|filter|gte": true,
+	"filterTerm|colon|filter|gte|string": {
+		"filter": "qty=gte:alpha"
+	},
+	"filterTerm|colon|filter|gte|comma": {
+		"filter": "qty=gte:a,b"
+	},
+	"filterTerm|colon|filter|gte|dot": {
+		"filter": "qty=gte:a.b"
+	},
+	"filterTerm|colon|filter|gte|paren": {
+		"filter": "qty=gte:a(b"
+	},
+	"filterTerm|colon|filter|gte|integer": {
+		"filter": "qty=gte:5"
+	},
+	"filterTerm|colon|filter|gte|decimal": {
+		"filter": "qty=gte:2.5"
+	},
+	"filterTerm|colon|filter|gte|true": {
+		"filter": "qty=gte:true"
+	},
+	"filterTerm|colon|filter|gte|false": {
+		"filter": "qty=gte:false"
+	},
+	"filterTerm|colon|filter|gte|null": {
+		"filter": "qty=gte:null"
+	},
+	"filterTerm|colon|filter|gte|null-word": {
+		"filter": "qty=gte:null"
+	},
+	"filterTerm|colon|filter|gte|notnull": {
+		"filter": "qty=gte:notnull"
+	},
+	"filterTerm|colon|filter|gte|not.null": {
+		"filter": "qty=gte:not.null"
+	},
+	"filterTerm|colon|filter|gte|empty-list": null,
+	"filterTerm|colon|filter|gte|list": null,
+	"filterTerm|colon|filter|gte|mixed-list": null,
+	"canWrite|colon|filter|lt": true,
+	"filterTerm|colon|filter|lt|string": {
+		"filter": "qty=lt:alpha"
+	},
+	"filterTerm|colon|filter|lt|comma": {
+		"filter": "qty=lt:a,b"
+	},
+	"filterTerm|colon|filter|lt|dot": {
+		"filter": "qty=lt:a.b"
+	},
+	"filterTerm|colon|filter|lt|paren": {
+		"filter": "qty=lt:a(b"
+	},
+	"filterTerm|colon|filter|lt|integer": {
+		"filter": "qty=lt:5"
+	},
+	"filterTerm|colon|filter|lt|decimal": {
+		"filter": "qty=lt:2.5"
+	},
+	"filterTerm|colon|filter|lt|true": {
+		"filter": "qty=lt:true"
+	},
+	"filterTerm|colon|filter|lt|false": {
+		"filter": "qty=lt:false"
+	},
+	"filterTerm|colon|filter|lt|null": {
+		"filter": "qty=lt:null"
+	},
+	"filterTerm|colon|filter|lt|null-word": {
+		"filter": "qty=lt:null"
+	},
+	"filterTerm|colon|filter|lt|notnull": {
+		"filter": "qty=lt:notnull"
+	},
+	"filterTerm|colon|filter|lt|not.null": {
+		"filter": "qty=lt:not.null"
+	},
+	"filterTerm|colon|filter|lt|empty-list": null,
+	"filterTerm|colon|filter|lt|list": null,
+	"filterTerm|colon|filter|lt|mixed-list": null,
+	"canWrite|colon|filter|lte": true,
+	"filterTerm|colon|filter|lte|string": {
+		"filter": "qty=lte:alpha"
+	},
+	"filterTerm|colon|filter|lte|comma": {
+		"filter": "qty=lte:a,b"
+	},
+	"filterTerm|colon|filter|lte|dot": {
+		"filter": "qty=lte:a.b"
+	},
+	"filterTerm|colon|filter|lte|paren": {
+		"filter": "qty=lte:a(b"
+	},
+	"filterTerm|colon|filter|lte|integer": {
+		"filter": "qty=lte:5"
+	},
+	"filterTerm|colon|filter|lte|decimal": {
+		"filter": "qty=lte:2.5"
+	},
+	"filterTerm|colon|filter|lte|true": {
+		"filter": "qty=lte:true"
+	},
+	"filterTerm|colon|filter|lte|false": {
+		"filter": "qty=lte:false"
+	},
+	"filterTerm|colon|filter|lte|null": {
+		"filter": "qty=lte:null"
+	},
+	"filterTerm|colon|filter|lte|null-word": {
+		"filter": "qty=lte:null"
+	},
+	"filterTerm|colon|filter|lte|notnull": {
+		"filter": "qty=lte:notnull"
+	},
+	"filterTerm|colon|filter|lte|not.null": {
+		"filter": "qty=lte:not.null"
+	},
+	"filterTerm|colon|filter|lte|empty-list": null,
+	"filterTerm|colon|filter|lte|list": null,
+	"filterTerm|colon|filter|lte|mixed-list": null,
+	"canWrite|colon|filter|in": false,
+	"filterTerm|colon|filter|in|string": null,
+	"filterTerm|colon|filter|in|comma": null,
+	"filterTerm|colon|filter|in|dot": null,
+	"filterTerm|colon|filter|in|paren": null,
+	"filterTerm|colon|filter|in|integer": null,
+	"filterTerm|colon|filter|in|decimal": null,
+	"filterTerm|colon|filter|in|true": null,
+	"filterTerm|colon|filter|in|false": null,
+	"filterTerm|colon|filter|in|null": null,
+	"filterTerm|colon|filter|in|null-word": null,
+	"filterTerm|colon|filter|in|notnull": null,
+	"filterTerm|colon|filter|in|not.null": null,
+	"filterTerm|colon|filter|in|empty-list": null,
+	"filterTerm|colon|filter|in|list": null,
+	"filterTerm|colon|filter|in|mixed-list": null,
+	"canWrite|colon|filter|nin": false,
+	"filterTerm|colon|filter|nin|string": null,
+	"filterTerm|colon|filter|nin|comma": null,
+	"filterTerm|colon|filter|nin|dot": null,
+	"filterTerm|colon|filter|nin|paren": null,
+	"filterTerm|colon|filter|nin|integer": null,
+	"filterTerm|colon|filter|nin|decimal": null,
+	"filterTerm|colon|filter|nin|true": null,
+	"filterTerm|colon|filter|nin|false": null,
+	"filterTerm|colon|filter|nin|null": null,
+	"filterTerm|colon|filter|nin|null-word": null,
+	"filterTerm|colon|filter|nin|notnull": null,
+	"filterTerm|colon|filter|nin|not.null": null,
+	"filterTerm|colon|filter|nin|empty-list": null,
+	"filterTerm|colon|filter|nin|list": null,
+	"filterTerm|colon|filter|nin|mixed-list": null,
+	"canWrite|colon|filter|like": true,
+	"filterTerm|colon|filter|like|string": {
+		"filter": "qty=like:alpha"
+	},
+	"filterTerm|colon|filter|like|comma": {
+		"filter": "qty=like:a,b"
+	},
+	"filterTerm|colon|filter|like|dot": {
+		"filter": "qty=like:a.b"
+	},
+	"filterTerm|colon|filter|like|paren": {
+		"filter": "qty=like:a(b"
+	},
+	"filterTerm|colon|filter|like|integer": {
+		"filter": "qty=like:5"
+	},
+	"filterTerm|colon|filter|like|decimal": {
+		"filter": "qty=like:2.5"
+	},
+	"filterTerm|colon|filter|like|true": {
+		"filter": "qty=like:true"
+	},
+	"filterTerm|colon|filter|like|false": {
+		"filter": "qty=like:false"
+	},
+	"filterTerm|colon|filter|like|null": {
+		"filter": "qty=like:null"
+	},
+	"filterTerm|colon|filter|like|null-word": {
+		"filter": "qty=like:null"
+	},
+	"filterTerm|colon|filter|like|notnull": {
+		"filter": "qty=like:notnull"
+	},
+	"filterTerm|colon|filter|like|not.null": {
+		"filter": "qty=like:not.null"
+	},
+	"filterTerm|colon|filter|like|empty-list": null,
+	"filterTerm|colon|filter|like|list": null,
+	"filterTerm|colon|filter|like|mixed-list": null,
+	"canWrite|colon|filter|ilike": false,
+	"filterTerm|colon|filter|ilike|string": null,
+	"filterTerm|colon|filter|ilike|comma": null,
+	"filterTerm|colon|filter|ilike|dot": null,
+	"filterTerm|colon|filter|ilike|paren": null,
+	"filterTerm|colon|filter|ilike|integer": null,
+	"filterTerm|colon|filter|ilike|decimal": null,
+	"filterTerm|colon|filter|ilike|true": null,
+	"filterTerm|colon|filter|ilike|false": null,
+	"filterTerm|colon|filter|ilike|null": null,
+	"filterTerm|colon|filter|ilike|null-word": null,
+	"filterTerm|colon|filter|ilike|notnull": null,
+	"filterTerm|colon|filter|ilike|not.null": null,
+	"filterTerm|colon|filter|ilike|empty-list": null,
+	"filterTerm|colon|filter|ilike|list": null,
+	"filterTerm|colon|filter|ilike|mixed-list": null,
+	"canWrite|colon|filter|is": false,
+	"filterTerm|colon|filter|is|string": null,
+	"filterTerm|colon|filter|is|comma": null,
+	"filterTerm|colon|filter|is|dot": null,
+	"filterTerm|colon|filter|is|paren": null,
+	"filterTerm|colon|filter|is|integer": null,
+	"filterTerm|colon|filter|is|decimal": null,
+	"filterTerm|colon|filter|is|true": null,
+	"filterTerm|colon|filter|is|false": null,
+	"filterTerm|colon|filter|is|null": null,
+	"filterTerm|colon|filter|is|null-word": null,
+	"filterTerm|colon|filter|is|notnull": null,
+	"filterTerm|colon|filter|is|not.null": null,
+	"filterTerm|colon|filter|is|empty-list": null,
+	"filterTerm|colon|filter|is|list": null,
+	"filterTerm|colon|filter|is|mixed-list": null,
+	"canWrite|colon|filter|contains": false,
+	"filterTerm|colon|filter|contains|string": null,
+	"filterTerm|colon|filter|contains|comma": null,
+	"filterTerm|colon|filter|contains|dot": null,
+	"filterTerm|colon|filter|contains|paren": null,
+	"filterTerm|colon|filter|contains|integer": null,
+	"filterTerm|colon|filter|contains|decimal": null,
+	"filterTerm|colon|filter|contains|true": null,
+	"filterTerm|colon|filter|contains|false": null,
+	"filterTerm|colon|filter|contains|null": null,
+	"filterTerm|colon|filter|contains|null-word": null,
+	"filterTerm|colon|filter|contains|notnull": null,
+	"filterTerm|colon|filter|contains|not.null": null,
+	"filterTerm|colon|filter|contains|empty-list": null,
+	"filterTerm|colon|filter|contains|list": null,
+	"filterTerm|colon|filter|contains|mixed-list": null,
+	"filterFragment|colon|filter|string": "qty=eq:alpha",
+	"filterFragment|colon|filter|comma": "qty=eq:a,b",
+	"filterFragment|colon|filter|dot": "qty=eq:a.b",
+	"filterFragment|colon|filter|paren": "qty=eq:a(b",
+	"filterFragment|colon|filter|integer": "qty=eq:5",
+	"filterFragment|colon|filter|decimal": "qty=eq:2.5",
+	"filterFragment|colon|filter|true": "qty=eq:true",
+	"filterFragment|colon|filter|false": "qty=eq:false",
+	"filterFragment|colon|filter|null": "qty=eq:null",
+	"filterFragment|colon|filter|null-word": "qty=eq:null",
+	"filterFragment|colon|filter|notnull": "qty=eq:notnull",
+	"filterFragment|colon|filter|not.null": "qty=eq:not.null",
+	"andTerm|colon|filter": {
+		"filter": "qty=eq:2,name=eq:x"
+	},
+	"andTerm|colon|filter|same-field": {
+		"filter": "qty=eq:2,qty=eq:3"
+	},
+	"orTerm|colon|filter": null,
+	"canWrite|colon|no-filter-param|eq": true,
+	"filterTerm|colon|no-filter-param|eq|string": null,
+	"filterTerm|colon|no-filter-param|eq|comma": null,
+	"filterTerm|colon|no-filter-param|eq|dot": null,
+	"filterTerm|colon|no-filter-param|eq|paren": null,
+	"filterTerm|colon|no-filter-param|eq|integer": null,
+	"filterTerm|colon|no-filter-param|eq|decimal": null,
+	"filterTerm|colon|no-filter-param|eq|true": null,
+	"filterTerm|colon|no-filter-param|eq|false": null,
+	"filterTerm|colon|no-filter-param|eq|null": null,
+	"filterTerm|colon|no-filter-param|eq|null-word": null,
+	"filterTerm|colon|no-filter-param|eq|notnull": null,
+	"filterTerm|colon|no-filter-param|eq|not.null": null,
+	"filterTerm|colon|no-filter-param|eq|empty-list": null,
+	"filterTerm|colon|no-filter-param|eq|list": null,
+	"filterTerm|colon|no-filter-param|eq|mixed-list": null,
+	"canWrite|colon|no-filter-param|ne": false,
+	"filterTerm|colon|no-filter-param|ne|string": null,
+	"filterTerm|colon|no-filter-param|ne|comma": null,
+	"filterTerm|colon|no-filter-param|ne|dot": null,
+	"filterTerm|colon|no-filter-param|ne|paren": null,
+	"filterTerm|colon|no-filter-param|ne|integer": null,
+	"filterTerm|colon|no-filter-param|ne|decimal": null,
+	"filterTerm|colon|no-filter-param|ne|true": null,
+	"filterTerm|colon|no-filter-param|ne|false": null,
+	"filterTerm|colon|no-filter-param|ne|null": null,
+	"filterTerm|colon|no-filter-param|ne|null-word": null,
+	"filterTerm|colon|no-filter-param|ne|notnull": null,
+	"filterTerm|colon|no-filter-param|ne|not.null": null,
+	"filterTerm|colon|no-filter-param|ne|empty-list": null,
+	"filterTerm|colon|no-filter-param|ne|list": null,
+	"filterTerm|colon|no-filter-param|ne|mixed-list": null,
+	"canWrite|colon|no-filter-param|neq": true,
+	"filterTerm|colon|no-filter-param|neq|string": null,
+	"filterTerm|colon|no-filter-param|neq|comma": null,
+	"filterTerm|colon|no-filter-param|neq|dot": null,
+	"filterTerm|colon|no-filter-param|neq|paren": null,
+	"filterTerm|colon|no-filter-param|neq|integer": null,
+	"filterTerm|colon|no-filter-param|neq|decimal": null,
+	"filterTerm|colon|no-filter-param|neq|true": null,
+	"filterTerm|colon|no-filter-param|neq|false": null,
+	"filterTerm|colon|no-filter-param|neq|null": null,
+	"filterTerm|colon|no-filter-param|neq|null-word": null,
+	"filterTerm|colon|no-filter-param|neq|notnull": null,
+	"filterTerm|colon|no-filter-param|neq|not.null": null,
+	"filterTerm|colon|no-filter-param|neq|empty-list": null,
+	"filterTerm|colon|no-filter-param|neq|list": null,
+	"filterTerm|colon|no-filter-param|neq|mixed-list": null,
+	"canWrite|colon|no-filter-param|gt": true,
+	"filterTerm|colon|no-filter-param|gt|string": null,
+	"filterTerm|colon|no-filter-param|gt|comma": null,
+	"filterTerm|colon|no-filter-param|gt|dot": null,
+	"filterTerm|colon|no-filter-param|gt|paren": null,
+	"filterTerm|colon|no-filter-param|gt|integer": null,
+	"filterTerm|colon|no-filter-param|gt|decimal": null,
+	"filterTerm|colon|no-filter-param|gt|true": null,
+	"filterTerm|colon|no-filter-param|gt|false": null,
+	"filterTerm|colon|no-filter-param|gt|null": null,
+	"filterTerm|colon|no-filter-param|gt|null-word": null,
+	"filterTerm|colon|no-filter-param|gt|notnull": null,
+	"filterTerm|colon|no-filter-param|gt|not.null": null,
+	"filterTerm|colon|no-filter-param|gt|empty-list": null,
+	"filterTerm|colon|no-filter-param|gt|list": null,
+	"filterTerm|colon|no-filter-param|gt|mixed-list": null,
+	"canWrite|colon|no-filter-param|gte": true,
+	"filterTerm|colon|no-filter-param|gte|string": null,
+	"filterTerm|colon|no-filter-param|gte|comma": null,
+	"filterTerm|colon|no-filter-param|gte|dot": null,
+	"filterTerm|colon|no-filter-param|gte|paren": null,
+	"filterTerm|colon|no-filter-param|gte|integer": null,
+	"filterTerm|colon|no-filter-param|gte|decimal": null,
+	"filterTerm|colon|no-filter-param|gte|true": null,
+	"filterTerm|colon|no-filter-param|gte|false": null,
+	"filterTerm|colon|no-filter-param|gte|null": null,
+	"filterTerm|colon|no-filter-param|gte|null-word": null,
+	"filterTerm|colon|no-filter-param|gte|notnull": null,
+	"filterTerm|colon|no-filter-param|gte|not.null": null,
+	"filterTerm|colon|no-filter-param|gte|empty-list": null,
+	"filterTerm|colon|no-filter-param|gte|list": null,
+	"filterTerm|colon|no-filter-param|gte|mixed-list": null,
+	"canWrite|colon|no-filter-param|lt": true,
+	"filterTerm|colon|no-filter-param|lt|string": null,
+	"filterTerm|colon|no-filter-param|lt|comma": null,
+	"filterTerm|colon|no-filter-param|lt|dot": null,
+	"filterTerm|colon|no-filter-param|lt|paren": null,
+	"filterTerm|colon|no-filter-param|lt|integer": null,
+	"filterTerm|colon|no-filter-param|lt|decimal": null,
+	"filterTerm|colon|no-filter-param|lt|true": null,
+	"filterTerm|colon|no-filter-param|lt|false": null,
+	"filterTerm|colon|no-filter-param|lt|null": null,
+	"filterTerm|colon|no-filter-param|lt|null-word": null,
+	"filterTerm|colon|no-filter-param|lt|notnull": null,
+	"filterTerm|colon|no-filter-param|lt|not.null": null,
+	"filterTerm|colon|no-filter-param|lt|empty-list": null,
+	"filterTerm|colon|no-filter-param|lt|list": null,
+	"filterTerm|colon|no-filter-param|lt|mixed-list": null,
+	"canWrite|colon|no-filter-param|lte": true,
+	"filterTerm|colon|no-filter-param|lte|string": null,
+	"filterTerm|colon|no-filter-param|lte|comma": null,
+	"filterTerm|colon|no-filter-param|lte|dot": null,
+	"filterTerm|colon|no-filter-param|lte|paren": null,
+	"filterTerm|colon|no-filter-param|lte|integer": null,
+	"filterTerm|colon|no-filter-param|lte|decimal": null,
+	"filterTerm|colon|no-filter-param|lte|true": null,
+	"filterTerm|colon|no-filter-param|lte|false": null,
+	"filterTerm|colon|no-filter-param|lte|null": null,
+	"filterTerm|colon|no-filter-param|lte|null-word": null,
+	"filterTerm|colon|no-filter-param|lte|notnull": null,
+	"filterTerm|colon|no-filter-param|lte|not.null": null,
+	"filterTerm|colon|no-filter-param|lte|empty-list": null,
+	"filterTerm|colon|no-filter-param|lte|list": null,
+	"filterTerm|colon|no-filter-param|lte|mixed-list": null,
+	"canWrite|colon|no-filter-param|in": false,
+	"filterTerm|colon|no-filter-param|in|string": null,
+	"filterTerm|colon|no-filter-param|in|comma": null,
+	"filterTerm|colon|no-filter-param|in|dot": null,
+	"filterTerm|colon|no-filter-param|in|paren": null,
+	"filterTerm|colon|no-filter-param|in|integer": null,
+	"filterTerm|colon|no-filter-param|in|decimal": null,
+	"filterTerm|colon|no-filter-param|in|true": null,
+	"filterTerm|colon|no-filter-param|in|false": null,
+	"filterTerm|colon|no-filter-param|in|null": null,
+	"filterTerm|colon|no-filter-param|in|null-word": null,
+	"filterTerm|colon|no-filter-param|in|notnull": null,
+	"filterTerm|colon|no-filter-param|in|not.null": null,
+	"filterTerm|colon|no-filter-param|in|empty-list": null,
+	"filterTerm|colon|no-filter-param|in|list": null,
+	"filterTerm|colon|no-filter-param|in|mixed-list": null,
+	"canWrite|colon|no-filter-param|nin": false,
+	"filterTerm|colon|no-filter-param|nin|string": null,
+	"filterTerm|colon|no-filter-param|nin|comma": null,
+	"filterTerm|colon|no-filter-param|nin|dot": null,
+	"filterTerm|colon|no-filter-param|nin|paren": null,
+	"filterTerm|colon|no-filter-param|nin|integer": null,
+	"filterTerm|colon|no-filter-param|nin|decimal": null,
+	"filterTerm|colon|no-filter-param|nin|true": null,
+	"filterTerm|colon|no-filter-param|nin|false": null,
+	"filterTerm|colon|no-filter-param|nin|null": null,
+	"filterTerm|colon|no-filter-param|nin|null-word": null,
+	"filterTerm|colon|no-filter-param|nin|notnull": null,
+	"filterTerm|colon|no-filter-param|nin|not.null": null,
+	"filterTerm|colon|no-filter-param|nin|empty-list": null,
+	"filterTerm|colon|no-filter-param|nin|list": null,
+	"filterTerm|colon|no-filter-param|nin|mixed-list": null,
+	"canWrite|colon|no-filter-param|like": true,
+	"filterTerm|colon|no-filter-param|like|string": null,
+	"filterTerm|colon|no-filter-param|like|comma": null,
+	"filterTerm|colon|no-filter-param|like|dot": null,
+	"filterTerm|colon|no-filter-param|like|paren": null,
+	"filterTerm|colon|no-filter-param|like|integer": null,
+	"filterTerm|colon|no-filter-param|like|decimal": null,
+	"filterTerm|colon|no-filter-param|like|true": null,
+	"filterTerm|colon|no-filter-param|like|false": null,
+	"filterTerm|colon|no-filter-param|like|null": null,
+	"filterTerm|colon|no-filter-param|like|null-word": null,
+	"filterTerm|colon|no-filter-param|like|notnull": null,
+	"filterTerm|colon|no-filter-param|like|not.null": null,
+	"filterTerm|colon|no-filter-param|like|empty-list": null,
+	"filterTerm|colon|no-filter-param|like|list": null,
+	"filterTerm|colon|no-filter-param|like|mixed-list": null,
+	"canWrite|colon|no-filter-param|ilike": false,
+	"filterTerm|colon|no-filter-param|ilike|string": null,
+	"filterTerm|colon|no-filter-param|ilike|comma": null,
+	"filterTerm|colon|no-filter-param|ilike|dot": null,
+	"filterTerm|colon|no-filter-param|ilike|paren": null,
+	"filterTerm|colon|no-filter-param|ilike|integer": null,
+	"filterTerm|colon|no-filter-param|ilike|decimal": null,
+	"filterTerm|colon|no-filter-param|ilike|true": null,
+	"filterTerm|colon|no-filter-param|ilike|false": null,
+	"filterTerm|colon|no-filter-param|ilike|null": null,
+	"filterTerm|colon|no-filter-param|ilike|null-word": null,
+	"filterTerm|colon|no-filter-param|ilike|notnull": null,
+	"filterTerm|colon|no-filter-param|ilike|not.null": null,
+	"filterTerm|colon|no-filter-param|ilike|empty-list": null,
+	"filterTerm|colon|no-filter-param|ilike|list": null,
+	"filterTerm|colon|no-filter-param|ilike|mixed-list": null,
+	"canWrite|colon|no-filter-param|is": false,
+	"filterTerm|colon|no-filter-param|is|string": null,
+	"filterTerm|colon|no-filter-param|is|comma": null,
+	"filterTerm|colon|no-filter-param|is|dot": null,
+	"filterTerm|colon|no-filter-param|is|paren": null,
+	"filterTerm|colon|no-filter-param|is|integer": null,
+	"filterTerm|colon|no-filter-param|is|decimal": null,
+	"filterTerm|colon|no-filter-param|is|true": null,
+	"filterTerm|colon|no-filter-param|is|false": null,
+	"filterTerm|colon|no-filter-param|is|null": null,
+	"filterTerm|colon|no-filter-param|is|null-word": null,
+	"filterTerm|colon|no-filter-param|is|notnull": null,
+	"filterTerm|colon|no-filter-param|is|not.null": null,
+	"filterTerm|colon|no-filter-param|is|empty-list": null,
+	"filterTerm|colon|no-filter-param|is|list": null,
+	"filterTerm|colon|no-filter-param|is|mixed-list": null,
+	"canWrite|colon|no-filter-param|contains": false,
+	"filterTerm|colon|no-filter-param|contains|string": null,
+	"filterTerm|colon|no-filter-param|contains|comma": null,
+	"filterTerm|colon|no-filter-param|contains|dot": null,
+	"filterTerm|colon|no-filter-param|contains|paren": null,
+	"filterTerm|colon|no-filter-param|contains|integer": null,
+	"filterTerm|colon|no-filter-param|contains|decimal": null,
+	"filterTerm|colon|no-filter-param|contains|true": null,
+	"filterTerm|colon|no-filter-param|contains|false": null,
+	"filterTerm|colon|no-filter-param|contains|null": null,
+	"filterTerm|colon|no-filter-param|contains|null-word": null,
+	"filterTerm|colon|no-filter-param|contains|notnull": null,
+	"filterTerm|colon|no-filter-param|contains|not.null": null,
+	"filterTerm|colon|no-filter-param|contains|empty-list": null,
+	"filterTerm|colon|no-filter-param|contains|list": null,
+	"filterTerm|colon|no-filter-param|contains|mixed-list": null,
+	"filterFragment|colon|no-filter-param|string": null,
+	"filterFragment|colon|no-filter-param|comma": null,
+	"filterFragment|colon|no-filter-param|dot": null,
+	"filterFragment|colon|no-filter-param|paren": null,
+	"filterFragment|colon|no-filter-param|integer": null,
+	"filterFragment|colon|no-filter-param|decimal": null,
+	"filterFragment|colon|no-filter-param|true": null,
+	"filterFragment|colon|no-filter-param|false": null,
+	"filterFragment|colon|no-filter-param|null": null,
+	"filterFragment|colon|no-filter-param|null-word": null,
+	"filterFragment|colon|no-filter-param|notnull": null,
+	"filterFragment|colon|no-filter-param|not.null": null,
+	"andTerm|colon|no-filter-param": null,
+	"andTerm|colon|no-filter-param|same-field": null,
+	"orTerm|colon|no-filter-param": null,
+	"canWrite|equality|filter|eq": true,
+	"filterTerm|equality|filter|eq|string": {
+		"qty": "alpha"
+	},
+	"filterTerm|equality|filter|eq|comma": {
+		"qty": "a,b"
+	},
+	"filterTerm|equality|filter|eq|dot": {
+		"qty": "a.b"
+	},
+	"filterTerm|equality|filter|eq|paren": {
+		"qty": "a(b"
+	},
+	"filterTerm|equality|filter|eq|integer": {
+		"qty": "5"
+	},
+	"filterTerm|equality|filter|eq|decimal": {
+		"qty": "2.5"
+	},
+	"filterTerm|equality|filter|eq|true": {
+		"qty": "true"
+	},
+	"filterTerm|equality|filter|eq|false": {
+		"qty": "false"
+	},
+	"filterTerm|equality|filter|eq|null": {
+		"qty": "null"
+	},
+	"filterTerm|equality|filter|eq|null-word": {
+		"qty": "null"
+	},
+	"filterTerm|equality|filter|eq|notnull": {
+		"qty": "notnull"
+	},
+	"filterTerm|equality|filter|eq|not.null": {
+		"qty": "not.null"
+	},
+	"filterTerm|equality|filter|eq|empty-list": null,
+	"filterTerm|equality|filter|eq|list": null,
+	"filterTerm|equality|filter|eq|mixed-list": null,
+	"canWrite|equality|filter|ne": false,
+	"filterTerm|equality|filter|ne|string": null,
+	"filterTerm|equality|filter|ne|comma": null,
+	"filterTerm|equality|filter|ne|dot": null,
+	"filterTerm|equality|filter|ne|paren": null,
+	"filterTerm|equality|filter|ne|integer": null,
+	"filterTerm|equality|filter|ne|decimal": null,
+	"filterTerm|equality|filter|ne|true": null,
+	"filterTerm|equality|filter|ne|false": null,
+	"filterTerm|equality|filter|ne|null": null,
+	"filterTerm|equality|filter|ne|null-word": null,
+	"filterTerm|equality|filter|ne|notnull": null,
+	"filterTerm|equality|filter|ne|not.null": null,
+	"filterTerm|equality|filter|ne|empty-list": null,
+	"filterTerm|equality|filter|ne|list": null,
+	"filterTerm|equality|filter|ne|mixed-list": null,
+	"canWrite|equality|filter|neq": false,
+	"filterTerm|equality|filter|neq|string": null,
+	"filterTerm|equality|filter|neq|comma": null,
+	"filterTerm|equality|filter|neq|dot": null,
+	"filterTerm|equality|filter|neq|paren": null,
+	"filterTerm|equality|filter|neq|integer": null,
+	"filterTerm|equality|filter|neq|decimal": null,
+	"filterTerm|equality|filter|neq|true": null,
+	"filterTerm|equality|filter|neq|false": null,
+	"filterTerm|equality|filter|neq|null": null,
+	"filterTerm|equality|filter|neq|null-word": null,
+	"filterTerm|equality|filter|neq|notnull": null,
+	"filterTerm|equality|filter|neq|not.null": null,
+	"filterTerm|equality|filter|neq|empty-list": null,
+	"filterTerm|equality|filter|neq|list": null,
+	"filterTerm|equality|filter|neq|mixed-list": null,
+	"canWrite|equality|filter|gt": false,
+	"filterTerm|equality|filter|gt|string": null,
+	"filterTerm|equality|filter|gt|comma": null,
+	"filterTerm|equality|filter|gt|dot": null,
+	"filterTerm|equality|filter|gt|paren": null,
+	"filterTerm|equality|filter|gt|integer": null,
+	"filterTerm|equality|filter|gt|decimal": null,
+	"filterTerm|equality|filter|gt|true": null,
+	"filterTerm|equality|filter|gt|false": null,
+	"filterTerm|equality|filter|gt|null": null,
+	"filterTerm|equality|filter|gt|null-word": null,
+	"filterTerm|equality|filter|gt|notnull": null,
+	"filterTerm|equality|filter|gt|not.null": null,
+	"filterTerm|equality|filter|gt|empty-list": null,
+	"filterTerm|equality|filter|gt|list": null,
+	"filterTerm|equality|filter|gt|mixed-list": null,
+	"canWrite|equality|filter|gte": false,
+	"filterTerm|equality|filter|gte|string": null,
+	"filterTerm|equality|filter|gte|comma": null,
+	"filterTerm|equality|filter|gte|dot": null,
+	"filterTerm|equality|filter|gte|paren": null,
+	"filterTerm|equality|filter|gte|integer": null,
+	"filterTerm|equality|filter|gte|decimal": null,
+	"filterTerm|equality|filter|gte|true": null,
+	"filterTerm|equality|filter|gte|false": null,
+	"filterTerm|equality|filter|gte|null": null,
+	"filterTerm|equality|filter|gte|null-word": null,
+	"filterTerm|equality|filter|gte|notnull": null,
+	"filterTerm|equality|filter|gte|not.null": null,
+	"filterTerm|equality|filter|gte|empty-list": null,
+	"filterTerm|equality|filter|gte|list": null,
+	"filterTerm|equality|filter|gte|mixed-list": null,
+	"canWrite|equality|filter|lt": false,
+	"filterTerm|equality|filter|lt|string": null,
+	"filterTerm|equality|filter|lt|comma": null,
+	"filterTerm|equality|filter|lt|dot": null,
+	"filterTerm|equality|filter|lt|paren": null,
+	"filterTerm|equality|filter|lt|integer": null,
+	"filterTerm|equality|filter|lt|decimal": null,
+	"filterTerm|equality|filter|lt|true": null,
+	"filterTerm|equality|filter|lt|false": null,
+	"filterTerm|equality|filter|lt|null": null,
+	"filterTerm|equality|filter|lt|null-word": null,
+	"filterTerm|equality|filter|lt|notnull": null,
+	"filterTerm|equality|filter|lt|not.null": null,
+	"filterTerm|equality|filter|lt|empty-list": null,
+	"filterTerm|equality|filter|lt|list": null,
+	"filterTerm|equality|filter|lt|mixed-list": null,
+	"canWrite|equality|filter|lte": false,
+	"filterTerm|equality|filter|lte|string": null,
+	"filterTerm|equality|filter|lte|comma": null,
+	"filterTerm|equality|filter|lte|dot": null,
+	"filterTerm|equality|filter|lte|paren": null,
+	"filterTerm|equality|filter|lte|integer": null,
+	"filterTerm|equality|filter|lte|decimal": null,
+	"filterTerm|equality|filter|lte|true": null,
+	"filterTerm|equality|filter|lte|false": null,
+	"filterTerm|equality|filter|lte|null": null,
+	"filterTerm|equality|filter|lte|null-word": null,
+	"filterTerm|equality|filter|lte|notnull": null,
+	"filterTerm|equality|filter|lte|not.null": null,
+	"filterTerm|equality|filter|lte|empty-list": null,
+	"filterTerm|equality|filter|lte|list": null,
+	"filterTerm|equality|filter|lte|mixed-list": null,
+	"canWrite|equality|filter|in": false,
+	"filterTerm|equality|filter|in|string": null,
+	"filterTerm|equality|filter|in|comma": null,
+	"filterTerm|equality|filter|in|dot": null,
+	"filterTerm|equality|filter|in|paren": null,
+	"filterTerm|equality|filter|in|integer": null,
+	"filterTerm|equality|filter|in|decimal": null,
+	"filterTerm|equality|filter|in|true": null,
+	"filterTerm|equality|filter|in|false": null,
+	"filterTerm|equality|filter|in|null": null,
+	"filterTerm|equality|filter|in|null-word": null,
+	"filterTerm|equality|filter|in|notnull": null,
+	"filterTerm|equality|filter|in|not.null": null,
+	"filterTerm|equality|filter|in|empty-list": null,
+	"filterTerm|equality|filter|in|list": null,
+	"filterTerm|equality|filter|in|mixed-list": null,
+	"canWrite|equality|filter|nin": false,
+	"filterTerm|equality|filter|nin|string": null,
+	"filterTerm|equality|filter|nin|comma": null,
+	"filterTerm|equality|filter|nin|dot": null,
+	"filterTerm|equality|filter|nin|paren": null,
+	"filterTerm|equality|filter|nin|integer": null,
+	"filterTerm|equality|filter|nin|decimal": null,
+	"filterTerm|equality|filter|nin|true": null,
+	"filterTerm|equality|filter|nin|false": null,
+	"filterTerm|equality|filter|nin|null": null,
+	"filterTerm|equality|filter|nin|null-word": null,
+	"filterTerm|equality|filter|nin|notnull": null,
+	"filterTerm|equality|filter|nin|not.null": null,
+	"filterTerm|equality|filter|nin|empty-list": null,
+	"filterTerm|equality|filter|nin|list": null,
+	"filterTerm|equality|filter|nin|mixed-list": null,
+	"canWrite|equality|filter|like": false,
+	"filterTerm|equality|filter|like|string": null,
+	"filterTerm|equality|filter|like|comma": null,
+	"filterTerm|equality|filter|like|dot": null,
+	"filterTerm|equality|filter|like|paren": null,
+	"filterTerm|equality|filter|like|integer": null,
+	"filterTerm|equality|filter|like|decimal": null,
+	"filterTerm|equality|filter|like|true": null,
+	"filterTerm|equality|filter|like|false": null,
+	"filterTerm|equality|filter|like|null": null,
+	"filterTerm|equality|filter|like|null-word": null,
+	"filterTerm|equality|filter|like|notnull": null,
+	"filterTerm|equality|filter|like|not.null": null,
+	"filterTerm|equality|filter|like|empty-list": null,
+	"filterTerm|equality|filter|like|list": null,
+	"filterTerm|equality|filter|like|mixed-list": null,
+	"canWrite|equality|filter|ilike": false,
+	"filterTerm|equality|filter|ilike|string": null,
+	"filterTerm|equality|filter|ilike|comma": null,
+	"filterTerm|equality|filter|ilike|dot": null,
+	"filterTerm|equality|filter|ilike|paren": null,
+	"filterTerm|equality|filter|ilike|integer": null,
+	"filterTerm|equality|filter|ilike|decimal": null,
+	"filterTerm|equality|filter|ilike|true": null,
+	"filterTerm|equality|filter|ilike|false": null,
+	"filterTerm|equality|filter|ilike|null": null,
+	"filterTerm|equality|filter|ilike|null-word": null,
+	"filterTerm|equality|filter|ilike|notnull": null,
+	"filterTerm|equality|filter|ilike|not.null": null,
+	"filterTerm|equality|filter|ilike|empty-list": null,
+	"filterTerm|equality|filter|ilike|list": null,
+	"filterTerm|equality|filter|ilike|mixed-list": null,
+	"canWrite|equality|filter|is": false,
+	"filterTerm|equality|filter|is|string": null,
+	"filterTerm|equality|filter|is|comma": null,
+	"filterTerm|equality|filter|is|dot": null,
+	"filterTerm|equality|filter|is|paren": null,
+	"filterTerm|equality|filter|is|integer": null,
+	"filterTerm|equality|filter|is|decimal": null,
+	"filterTerm|equality|filter|is|true": null,
+	"filterTerm|equality|filter|is|false": null,
+	"filterTerm|equality|filter|is|null": null,
+	"filterTerm|equality|filter|is|null-word": null,
+	"filterTerm|equality|filter|is|notnull": null,
+	"filterTerm|equality|filter|is|not.null": null,
+	"filterTerm|equality|filter|is|empty-list": null,
+	"filterTerm|equality|filter|is|list": null,
+	"filterTerm|equality|filter|is|mixed-list": null,
+	"canWrite|equality|filter|contains": false,
+	"filterTerm|equality|filter|contains|string": null,
+	"filterTerm|equality|filter|contains|comma": null,
+	"filterTerm|equality|filter|contains|dot": null,
+	"filterTerm|equality|filter|contains|paren": null,
+	"filterTerm|equality|filter|contains|integer": null,
+	"filterTerm|equality|filter|contains|decimal": null,
+	"filterTerm|equality|filter|contains|true": null,
+	"filterTerm|equality|filter|contains|false": null,
+	"filterTerm|equality|filter|contains|null": null,
+	"filterTerm|equality|filter|contains|null-word": null,
+	"filterTerm|equality|filter|contains|notnull": null,
+	"filterTerm|equality|filter|contains|not.null": null,
+	"filterTerm|equality|filter|contains|empty-list": null,
+	"filterTerm|equality|filter|contains|list": null,
+	"filterTerm|equality|filter|contains|mixed-list": null,
+	"filterFragment|equality|filter|string": "alpha",
+	"filterFragment|equality|filter|comma": "a,b",
+	"filterFragment|equality|filter|dot": "a.b",
+	"filterFragment|equality|filter|paren": "a(b",
+	"filterFragment|equality|filter|integer": "5",
+	"filterFragment|equality|filter|decimal": "2.5",
+	"filterFragment|equality|filter|true": "true",
+	"filterFragment|equality|filter|false": "false",
+	"filterFragment|equality|filter|null": "null",
+	"filterFragment|equality|filter|null-word": "null",
+	"filterFragment|equality|filter|notnull": "notnull",
+	"filterFragment|equality|filter|not.null": "not.null",
+	"andTerm|equality|filter": {
+		"qty": "2",
+		"name": "x"
+	},
+	"andTerm|equality|filter|same-field": {
+		"qty": "3"
+	},
+	"orTerm|equality|filter": null,
+	"canWrite|equality|no-filter-param|eq": true,
+	"filterTerm|equality|no-filter-param|eq|string": {
+		"qty": "alpha"
+	},
+	"filterTerm|equality|no-filter-param|eq|comma": {
+		"qty": "a,b"
+	},
+	"filterTerm|equality|no-filter-param|eq|dot": {
+		"qty": "a.b"
+	},
+	"filterTerm|equality|no-filter-param|eq|paren": {
+		"qty": "a(b"
+	},
+	"filterTerm|equality|no-filter-param|eq|integer": {
+		"qty": "5"
+	},
+	"filterTerm|equality|no-filter-param|eq|decimal": {
+		"qty": "2.5"
+	},
+	"filterTerm|equality|no-filter-param|eq|true": {
+		"qty": "true"
+	},
+	"filterTerm|equality|no-filter-param|eq|false": {
+		"qty": "false"
+	},
+	"filterTerm|equality|no-filter-param|eq|null": {
+		"qty": "null"
+	},
+	"filterTerm|equality|no-filter-param|eq|null-word": {
+		"qty": "null"
+	},
+	"filterTerm|equality|no-filter-param|eq|notnull": {
+		"qty": "notnull"
+	},
+	"filterTerm|equality|no-filter-param|eq|not.null": {
+		"qty": "not.null"
+	},
+	"filterTerm|equality|no-filter-param|eq|empty-list": null,
+	"filterTerm|equality|no-filter-param|eq|list": null,
+	"filterTerm|equality|no-filter-param|eq|mixed-list": null,
+	"canWrite|equality|no-filter-param|ne": false,
+	"filterTerm|equality|no-filter-param|ne|string": null,
+	"filterTerm|equality|no-filter-param|ne|comma": null,
+	"filterTerm|equality|no-filter-param|ne|dot": null,
+	"filterTerm|equality|no-filter-param|ne|paren": null,
+	"filterTerm|equality|no-filter-param|ne|integer": null,
+	"filterTerm|equality|no-filter-param|ne|decimal": null,
+	"filterTerm|equality|no-filter-param|ne|true": null,
+	"filterTerm|equality|no-filter-param|ne|false": null,
+	"filterTerm|equality|no-filter-param|ne|null": null,
+	"filterTerm|equality|no-filter-param|ne|null-word": null,
+	"filterTerm|equality|no-filter-param|ne|notnull": null,
+	"filterTerm|equality|no-filter-param|ne|not.null": null,
+	"filterTerm|equality|no-filter-param|ne|empty-list": null,
+	"filterTerm|equality|no-filter-param|ne|list": null,
+	"filterTerm|equality|no-filter-param|ne|mixed-list": null,
+	"canWrite|equality|no-filter-param|neq": false,
+	"filterTerm|equality|no-filter-param|neq|string": null,
+	"filterTerm|equality|no-filter-param|neq|comma": null,
+	"filterTerm|equality|no-filter-param|neq|dot": null,
+	"filterTerm|equality|no-filter-param|neq|paren": null,
+	"filterTerm|equality|no-filter-param|neq|integer": null,
+	"filterTerm|equality|no-filter-param|neq|decimal": null,
+	"filterTerm|equality|no-filter-param|neq|true": null,
+	"filterTerm|equality|no-filter-param|neq|false": null,
+	"filterTerm|equality|no-filter-param|neq|null": null,
+	"filterTerm|equality|no-filter-param|neq|null-word": null,
+	"filterTerm|equality|no-filter-param|neq|notnull": null,
+	"filterTerm|equality|no-filter-param|neq|not.null": null,
+	"filterTerm|equality|no-filter-param|neq|empty-list": null,
+	"filterTerm|equality|no-filter-param|neq|list": null,
+	"filterTerm|equality|no-filter-param|neq|mixed-list": null,
+	"canWrite|equality|no-filter-param|gt": false,
+	"filterTerm|equality|no-filter-param|gt|string": null,
+	"filterTerm|equality|no-filter-param|gt|comma": null,
+	"filterTerm|equality|no-filter-param|gt|dot": null,
+	"filterTerm|equality|no-filter-param|gt|paren": null,
+	"filterTerm|equality|no-filter-param|gt|integer": null,
+	"filterTerm|equality|no-filter-param|gt|decimal": null,
+	"filterTerm|equality|no-filter-param|gt|true": null,
+	"filterTerm|equality|no-filter-param|gt|false": null,
+	"filterTerm|equality|no-filter-param|gt|null": null,
+	"filterTerm|equality|no-filter-param|gt|null-word": null,
+	"filterTerm|equality|no-filter-param|gt|notnull": null,
+	"filterTerm|equality|no-filter-param|gt|not.null": null,
+	"filterTerm|equality|no-filter-param|gt|empty-list": null,
+	"filterTerm|equality|no-filter-param|gt|list": null,
+	"filterTerm|equality|no-filter-param|gt|mixed-list": null,
+	"canWrite|equality|no-filter-param|gte": false,
+	"filterTerm|equality|no-filter-param|gte|string": null,
+	"filterTerm|equality|no-filter-param|gte|comma": null,
+	"filterTerm|equality|no-filter-param|gte|dot": null,
+	"filterTerm|equality|no-filter-param|gte|paren": null,
+	"filterTerm|equality|no-filter-param|gte|integer": null,
+	"filterTerm|equality|no-filter-param|gte|decimal": null,
+	"filterTerm|equality|no-filter-param|gte|true": null,
+	"filterTerm|equality|no-filter-param|gte|false": null,
+	"filterTerm|equality|no-filter-param|gte|null": null,
+	"filterTerm|equality|no-filter-param|gte|null-word": null,
+	"filterTerm|equality|no-filter-param|gte|notnull": null,
+	"filterTerm|equality|no-filter-param|gte|not.null": null,
+	"filterTerm|equality|no-filter-param|gte|empty-list": null,
+	"filterTerm|equality|no-filter-param|gte|list": null,
+	"filterTerm|equality|no-filter-param|gte|mixed-list": null,
+	"canWrite|equality|no-filter-param|lt": false,
+	"filterTerm|equality|no-filter-param|lt|string": null,
+	"filterTerm|equality|no-filter-param|lt|comma": null,
+	"filterTerm|equality|no-filter-param|lt|dot": null,
+	"filterTerm|equality|no-filter-param|lt|paren": null,
+	"filterTerm|equality|no-filter-param|lt|integer": null,
+	"filterTerm|equality|no-filter-param|lt|decimal": null,
+	"filterTerm|equality|no-filter-param|lt|true": null,
+	"filterTerm|equality|no-filter-param|lt|false": null,
+	"filterTerm|equality|no-filter-param|lt|null": null,
+	"filterTerm|equality|no-filter-param|lt|null-word": null,
+	"filterTerm|equality|no-filter-param|lt|notnull": null,
+	"filterTerm|equality|no-filter-param|lt|not.null": null,
+	"filterTerm|equality|no-filter-param|lt|empty-list": null,
+	"filterTerm|equality|no-filter-param|lt|list": null,
+	"filterTerm|equality|no-filter-param|lt|mixed-list": null,
+	"canWrite|equality|no-filter-param|lte": false,
+	"filterTerm|equality|no-filter-param|lte|string": null,
+	"filterTerm|equality|no-filter-param|lte|comma": null,
+	"filterTerm|equality|no-filter-param|lte|dot": null,
+	"filterTerm|equality|no-filter-param|lte|paren": null,
+	"filterTerm|equality|no-filter-param|lte|integer": null,
+	"filterTerm|equality|no-filter-param|lte|decimal": null,
+	"filterTerm|equality|no-filter-param|lte|true": null,
+	"filterTerm|equality|no-filter-param|lte|false": null,
+	"filterTerm|equality|no-filter-param|lte|null": null,
+	"filterTerm|equality|no-filter-param|lte|null-word": null,
+	"filterTerm|equality|no-filter-param|lte|notnull": null,
+	"filterTerm|equality|no-filter-param|lte|not.null": null,
+	"filterTerm|equality|no-filter-param|lte|empty-list": null,
+	"filterTerm|equality|no-filter-param|lte|list": null,
+	"filterTerm|equality|no-filter-param|lte|mixed-list": null,
+	"canWrite|equality|no-filter-param|in": false,
+	"filterTerm|equality|no-filter-param|in|string": null,
+	"filterTerm|equality|no-filter-param|in|comma": null,
+	"filterTerm|equality|no-filter-param|in|dot": null,
+	"filterTerm|equality|no-filter-param|in|paren": null,
+	"filterTerm|equality|no-filter-param|in|integer": null,
+	"filterTerm|equality|no-filter-param|in|decimal": null,
+	"filterTerm|equality|no-filter-param|in|true": null,
+	"filterTerm|equality|no-filter-param|in|false": null,
+	"filterTerm|equality|no-filter-param|in|null": null,
+	"filterTerm|equality|no-filter-param|in|null-word": null,
+	"filterTerm|equality|no-filter-param|in|notnull": null,
+	"filterTerm|equality|no-filter-param|in|not.null": null,
+	"filterTerm|equality|no-filter-param|in|empty-list": null,
+	"filterTerm|equality|no-filter-param|in|list": null,
+	"filterTerm|equality|no-filter-param|in|mixed-list": null,
+	"canWrite|equality|no-filter-param|nin": false,
+	"filterTerm|equality|no-filter-param|nin|string": null,
+	"filterTerm|equality|no-filter-param|nin|comma": null,
+	"filterTerm|equality|no-filter-param|nin|dot": null,
+	"filterTerm|equality|no-filter-param|nin|paren": null,
+	"filterTerm|equality|no-filter-param|nin|integer": null,
+	"filterTerm|equality|no-filter-param|nin|decimal": null,
+	"filterTerm|equality|no-filter-param|nin|true": null,
+	"filterTerm|equality|no-filter-param|nin|false": null,
+	"filterTerm|equality|no-filter-param|nin|null": null,
+	"filterTerm|equality|no-filter-param|nin|null-word": null,
+	"filterTerm|equality|no-filter-param|nin|notnull": null,
+	"filterTerm|equality|no-filter-param|nin|not.null": null,
+	"filterTerm|equality|no-filter-param|nin|empty-list": null,
+	"filterTerm|equality|no-filter-param|nin|list": null,
+	"filterTerm|equality|no-filter-param|nin|mixed-list": null,
+	"canWrite|equality|no-filter-param|like": false,
+	"filterTerm|equality|no-filter-param|like|string": null,
+	"filterTerm|equality|no-filter-param|like|comma": null,
+	"filterTerm|equality|no-filter-param|like|dot": null,
+	"filterTerm|equality|no-filter-param|like|paren": null,
+	"filterTerm|equality|no-filter-param|like|integer": null,
+	"filterTerm|equality|no-filter-param|like|decimal": null,
+	"filterTerm|equality|no-filter-param|like|true": null,
+	"filterTerm|equality|no-filter-param|like|false": null,
+	"filterTerm|equality|no-filter-param|like|null": null,
+	"filterTerm|equality|no-filter-param|like|null-word": null,
+	"filterTerm|equality|no-filter-param|like|notnull": null,
+	"filterTerm|equality|no-filter-param|like|not.null": null,
+	"filterTerm|equality|no-filter-param|like|empty-list": null,
+	"filterTerm|equality|no-filter-param|like|list": null,
+	"filterTerm|equality|no-filter-param|like|mixed-list": null,
+	"canWrite|equality|no-filter-param|ilike": false,
+	"filterTerm|equality|no-filter-param|ilike|string": null,
+	"filterTerm|equality|no-filter-param|ilike|comma": null,
+	"filterTerm|equality|no-filter-param|ilike|dot": null,
+	"filterTerm|equality|no-filter-param|ilike|paren": null,
+	"filterTerm|equality|no-filter-param|ilike|integer": null,
+	"filterTerm|equality|no-filter-param|ilike|decimal": null,
+	"filterTerm|equality|no-filter-param|ilike|true": null,
+	"filterTerm|equality|no-filter-param|ilike|false": null,
+	"filterTerm|equality|no-filter-param|ilike|null": null,
+	"filterTerm|equality|no-filter-param|ilike|null-word": null,
+	"filterTerm|equality|no-filter-param|ilike|notnull": null,
+	"filterTerm|equality|no-filter-param|ilike|not.null": null,
+	"filterTerm|equality|no-filter-param|ilike|empty-list": null,
+	"filterTerm|equality|no-filter-param|ilike|list": null,
+	"filterTerm|equality|no-filter-param|ilike|mixed-list": null,
+	"canWrite|equality|no-filter-param|is": false,
+	"filterTerm|equality|no-filter-param|is|string": null,
+	"filterTerm|equality|no-filter-param|is|comma": null,
+	"filterTerm|equality|no-filter-param|is|dot": null,
+	"filterTerm|equality|no-filter-param|is|paren": null,
+	"filterTerm|equality|no-filter-param|is|integer": null,
+	"filterTerm|equality|no-filter-param|is|decimal": null,
+	"filterTerm|equality|no-filter-param|is|true": null,
+	"filterTerm|equality|no-filter-param|is|false": null,
+	"filterTerm|equality|no-filter-param|is|null": null,
+	"filterTerm|equality|no-filter-param|is|null-word": null,
+	"filterTerm|equality|no-filter-param|is|notnull": null,
+	"filterTerm|equality|no-filter-param|is|not.null": null,
+	"filterTerm|equality|no-filter-param|is|empty-list": null,
+	"filterTerm|equality|no-filter-param|is|list": null,
+	"filterTerm|equality|no-filter-param|is|mixed-list": null,
+	"canWrite|equality|no-filter-param|contains": false,
+	"filterTerm|equality|no-filter-param|contains|string": null,
+	"filterTerm|equality|no-filter-param|contains|comma": null,
+	"filterTerm|equality|no-filter-param|contains|dot": null,
+	"filterTerm|equality|no-filter-param|contains|paren": null,
+	"filterTerm|equality|no-filter-param|contains|integer": null,
+	"filterTerm|equality|no-filter-param|contains|decimal": null,
+	"filterTerm|equality|no-filter-param|contains|true": null,
+	"filterTerm|equality|no-filter-param|contains|false": null,
+	"filterTerm|equality|no-filter-param|contains|null": null,
+	"filterTerm|equality|no-filter-param|contains|null-word": null,
+	"filterTerm|equality|no-filter-param|contains|notnull": null,
+	"filterTerm|equality|no-filter-param|contains|not.null": null,
+	"filterTerm|equality|no-filter-param|contains|empty-list": null,
+	"filterTerm|equality|no-filter-param|contains|list": null,
+	"filterTerm|equality|no-filter-param|contains|mixed-list": null,
+	"filterFragment|equality|no-filter-param|string": "alpha",
+	"filterFragment|equality|no-filter-param|comma": "a,b",
+	"filterFragment|equality|no-filter-param|dot": "a.b",
+	"filterFragment|equality|no-filter-param|paren": "a(b",
+	"filterFragment|equality|no-filter-param|integer": "5",
+	"filterFragment|equality|no-filter-param|decimal": "2.5",
+	"filterFragment|equality|no-filter-param|true": "true",
+	"filterFragment|equality|no-filter-param|false": "false",
+	"filterFragment|equality|no-filter-param|null": "null",
+	"filterFragment|equality|no-filter-param|null-word": "null",
+	"filterFragment|equality|no-filter-param|notnull": "notnull",
+	"filterFragment|equality|no-filter-param|not.null": "not.null",
+	"andTerm|equality|no-filter-param": {
+		"qty": "2",
+		"name": "x"
+	},
+	"andTerm|equality|no-filter-param|same-field": {
+		"qty": "3"
+	},
+	"orTerm|equality|no-filter-param": null,
+	"sortTerm|dotted|asc": "qty.asc",
+	"sortTerm|dotted|asc|first": "qty.asc.nullsfirst",
+	"sortTermWithNulls|dotted|asc|first": "qty.asc.nullsfirst",
+	"sortTerm|dotted|asc|last": "qty.asc.nullslast",
+	"sortTermWithNulls|dotted|asc|last": "qty.asc.nullslast",
+	"sortTerm|dotted|desc": "qty.desc",
+	"sortTerm|dotted|desc|first": "qty.desc.nullsfirst",
+	"sortTermWithNulls|dotted|desc|first": "qty.desc.nullsfirst",
+	"sortTerm|dotted|desc|last": "qty.desc.nullslast",
+	"sortTermWithNulls|dotted|desc|last": "qty.desc.nullslast",
+	"sortTerm|prefixed|asc": "qty",
+	"sortTerm|prefixed|asc|first": "qty",
+	"sortTermWithNulls|prefixed|asc|first": null,
+	"sortTerm|prefixed|asc|last": "qty",
+	"sortTermWithNulls|prefixed|asc|last": null,
+	"sortTerm|prefixed|desc": "-qty",
+	"sortTerm|prefixed|desc|first": "-qty",
+	"sortTermWithNulls|prefixed|desc|first": null,
+	"sortTerm|prefixed|desc|last": "-qty",
+	"sortTermWithNulls|prefixed|desc|last": null,
+	"sortTerm|colon|asc": "qty:asc",
+	"sortTerm|colon|asc|first": "qty:asc",
+	"sortTermWithNulls|colon|asc|first": null,
+	"sortTerm|colon|asc|last": "qty:asc",
+	"sortTermWithNulls|colon|asc|last": null,
+	"sortTerm|colon|desc": "qty:desc",
+	"sortTerm|colon|desc|first": "qty:desc",
+	"sortTermWithNulls|colon|desc|first": null,
+	"sortTerm|colon|desc|last": "qty:desc",
+	"sortTermWithNulls|colon|desc|last": null,
+	"sortTerm|spaced|asc": "qty asc",
+	"sortTerm|spaced|asc|first": "qty asc",
+	"sortTermWithNulls|spaced|asc|first": null,
+	"sortTerm|spaced|asc|last": "qty asc",
+	"sortTermWithNulls|spaced|asc|last": null,
+	"sortTerm|spaced|desc": "qty desc",
+	"sortTerm|spaced|desc|first": "qty desc",
+	"sortTermWithNulls|spaced|desc|first": null,
+	"sortTerm|spaced|desc|last": "qty desc",
+	"sortTermWithNulls|spaced|desc|last": null,
+	"selectTerm|csv|select": {
+		"select": "id,name"
+	},
+	"selectTerm|csv|fields": {
+		"fields": "id,name"
+	},
+	"selectTerm|csv|fields[articles]": {
+		"fields[articles]": "id,name"
+	},
+	"selectTerm|csv|no-select-param": null,
+	"selectTerm|bracketed|select": {
+		"select[articles]": "id,name"
+	},
+	"selectTerm|bracketed|fields": {
+		"fields[articles]": "id,name"
+	},
+	"selectTerm|bracketed|fields[articles]": {
+		"fields[articles]": "id,name"
+	},
+	"selectTerm|bracketed|no-select-param": null
+}
