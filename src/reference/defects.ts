@@ -197,6 +197,11 @@ export const DEFECTS = {
 	ERROR_500_ON_BAD_FILTER: "malformed filter produces 500 instead of 400",
 	/** Deleting an absent record reports success. */
 	DELETE_MISSING_OK: "deleting a nonexistent record returns success instead of 404",
+	/**
+	 * A delete answers success and keeps the row. The checks catch it by reading the record back;
+	 * teardown, which deleted the same way, lists every record it could not really remove.
+	 */
+	DELETE_KEEPS_ROW: "a delete answers success but the record stays",
 	/** Reads of another tenant's record succeed. */
 	CROSS_TENANT_READ: "item route serves records belonging to another tenant",
 	/** The page-size parameter is accepted and ignored. */

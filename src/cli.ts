@@ -309,6 +309,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 			...(config.overlay === undefined ? {} : { overlay: config.overlay }),
 			...(config.allow === undefined ? {} : { allow: config.allow }),
 			...(config.fence === undefined ? {} : { fence: config.fence }),
+			...(config.teardown === undefined ? {} : { teardown: config.teardown }),
 			...(config.scenarios === undefined ? {} : { scenarios: config.scenarios }),
 			...(config.outOfBand === undefined ? {} : { outOfBand: config.outOfBand }),
 			...(config.payloads === undefined ? {} : { payloads: config.payloads }),

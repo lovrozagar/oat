@@ -7,10 +7,12 @@
  * reports exactly what it could not remove.
  */
 
-import type { OperationModel, SpecModel } from "../spec/graph.ts"
-import type { Client } from "./client.ts"
+import { largestPageQuery, type OperationModel, type SpecModel } from "../spec/graph.ts"
+import type { Client, Exchange } from "./client.ts"
 import { parseRouteRef } from "../spec/load.ts"
-import { fillPath } from "./world.ts"
+import { FencedError } from "./fence.ts"
+import { isNetworkError } from "./network.ts"
+import { fillPath, recordsFromList } from "./world.ts"
 import type { ProvenId } from "./proven-id.ts"
 
 /** The principal a record belongs to, as far as removing it goes. */
@@ -78,6 +80,8 @@ export class Ledger {
 		 * same tenant's owner removing what a member created. */
 		fallbacks: (owner: Owner) => Owner[],
 		onItem?: (done: number, total: number, item: Disposable) => void,
+		/* Read each list again afterwards, so a 2xx delete that kept its record is not counted gone. */
+		verify = true,
 	): Promise<TeardownReport> {
 		const report: TeardownReport = { failed: [], records: [], removed: 0, unsupported: [] }
 		const unsupported = new Set<string>()
@@ -171,9 +175,72 @@ export class Ledger {
 			await Promise.all(queue.filter((item) => depthOf(item) === level).map(remove))
 		}
 
+		if (verify) await verifyGone(model, client, queue, records, report)
 		report.unsupported = [...unsupported]
 		report.records = [...records.values()].toReversed()
 		return report
+	}
+}
+
+export const STILL_LISTED = "delete answered 2xx but the record is still listed"
+
+/**
+ * One read of each list a removed record lived in, with its creator's credential: a record still
+ * listed is a leftover, whatever its delete answered. A read that cannot be sent — fenced, or the
+ * network gone — verifies nothing and claims nothing. A record past the largest page is not seen.
+ */
+async function verifyGone(
+	model: SpecModel,
+	client: Client,
+	queue: readonly Disposable[],
+	records: ReadonlyMap<Disposable, { entity: string; id: string; removed: boolean }>,
+	report: TeardownReport,
+): Promise<void> {
+	const groups = new Map<
+		string,
+		{ identity: string; listOp: OperationModel; owner: Owner; path: string; items: Disposable[] }
+	>()
+	for (const item of queue) {
+		if (records.get(item)?.removed !== true) continue
+		const entity = model.entities.get(item.entity)
+		const listOp = entity?.list === undefined ? undefined : model.byOperationId.get(entity.list)
+		if (entity === undefined || listOp === undefined || entity.identity === null) continue
+		let path: string
+		try {
+			path = fillPath(listOp.path, item.scope)
+		} catch {
+			continue
+		}
+		const key = `${item.entity}\u0000${path}\u0000${item.owner.id}`
+		const group = groups.get(key) ?? { identity: entity.identity, items: [], listOp, owner: item.owner, path }
+		group.items.push(item)
+		groups.set(key, group)
+	}
+	for (const group of groups.values()) {
+		let exchange: Exchange
+		try {
+			exchange = await client.get(group.path, {
+				headers: group.owner.headers(),
+				operationId: group.listOp.operationId,
+				query: largestPageQuery(model, group.listOp),
+			})
+		} catch (error) {
+			if (error instanceof FencedError || isNetworkError(error)) continue
+			throw error
+		}
+		if (exchange.status >= 300) continue
+		const listed = new Set(
+			recordsFromList(exchange.responseBody, group.listOp.collection?.key ?? null).map((row) =>
+				String(row[group.identity]),
+			),
+		)
+		for (const item of group.items) {
+			const record = records.get(item)
+			if (record === undefined || !listed.has(item.id)) continue
+			record.removed = false
+			report.removed -= 1
+			report.failed.push({ entity: item.entity, id: item.id, reason: STILL_LISTED })
+		}
 	}
 }
 

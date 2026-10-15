@@ -604,6 +604,11 @@ export interface OatConfig {
 	/** `failRun: false` keeps a run whose requests `hooks.beforeRequest` refused from failing on that alone. */
 	fence?: { failRun?: boolean }
 	/**
+	 * `verify: false` skips reading each list again after teardown. By default a record still
+	 * listed after its delete answered 2xx is reported as a leftover.
+	 */
+	teardown?: { verify?: boolean }
+	/**
 	 * Backoff for `resolveOutOfBand` and `resolvePrincipalAuth`.
 	 * Defaults: `{ attempts: 6, initialMs: 200, maxMs: 3000 }` (~9s worst case).
 	 */

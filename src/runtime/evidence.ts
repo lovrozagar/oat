@@ -67,7 +67,10 @@ function isAncestor(ancestor: string, path: string): boolean {
 }
 
 async function infer(op: OperationModel, client: Client): Promise<PassEvidence | undefined> {
-	const transcript = client.transcript
+	/* Teardown reads check that cleanup worked; they are not evidence for what a check graded. */
+	const transcript = client.transcript.filter(
+		(exchange) => exchange.purpose !== "teardown" || !READS.has(exchange.method.toUpperCase()),
+	)
 	const at = new Map(transcript.map((exchange, index) => [exchange.seq, index]))
 	const cache = new Map<number, Exchange>()
 	const whole = async (exchange: Exchange): Promise<Exchange> => {

@@ -140,6 +140,8 @@ export interface RunOptions {
 	allow?: string[]
 	/** See `OatConfig.fence`. */
 	fence?: { failRun?: boolean }
+	/** See `OatConfig.teardown`. */
+	teardown?: { verify?: boolean }
 	/** Declared flows for operations the matrix cannot reach. */
 	scenarios?: Scenario[]
 	/** Backoff for `resolveOutOfBand` / `resolvePrincipalAuth`. */
@@ -1791,6 +1793,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 						requests: client.transcript.length,
 					})
 				},
+				options.teardown?.verify !== false,
 			)
 			teardown = {
 				failed: [...(teardown?.failed ?? []), ...report.failed],

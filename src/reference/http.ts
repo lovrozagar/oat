@@ -1222,8 +1222,10 @@ export async function createReferenceServer(
 				})
 				return send(res, 200, present(entity, updated ?? record))
 			}
-			await store.remove(entity, itemId)
-			await refreshParentCount(entity, scope)
+			if (!defects.has("DELETE_KEEPS_ROW")) {
+				await store.remove(entity, itemId)
+				await refreshParentCount(entity, scope)
+			}
 			return send(res, 200, present(entity, record))
 		}
 

@@ -283,7 +283,9 @@ export async function confirmDeletes(input: {
 		if (call === undefined) continue
 		let path: string
 		try {
-			path = new URL(call.url).pathname
+			/* Below the base URL, as the client takes it: under a mount like `/api` the full path
+			 * would be prefixed a second time and answer 404 for a record that is still there. */
+			path = input.client.relativePath(call.url)
 		} catch {
 			continue
 		}

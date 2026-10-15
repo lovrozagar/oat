@@ -967,6 +967,7 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	FILTER_ILIKE_IS_LIKE: "filter.ilike-is-case-insensitive",
 	FILTER_IS_NULL_MATCHES_ALL: "filter.is-null-selects-nulls",
 	FILTER_ILLEGAL_OP_IGNORED: "filter.illegal-op-rejected",
+	DELETE_KEEPS_ROW: "delete.absent-record-returns-404",
 	IGNORES_MALFORMED_FILTER: "filter.malformed-term-rejected",
 	IGNORES_BAD_SORT_DIRECTION: "sort.invalid-direction-rejected",
 	SORT_NUMERIC_AS_TEXT: "sort.numeric-order-is-numeric",
