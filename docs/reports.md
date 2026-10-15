@@ -56,11 +56,18 @@ Calling a route and getting a documented answer is not the same as proving it wo
 
 Operations that did not pass are **Failed** (a check found a defect) or **Blocked** (no verdict: a dependency failed, or no check could reach it), each with its reason. `report.html` shows the five groups worst first, with counts, the reason per row, and links to the call and the observing request in `exchanges/`. `oat-report.md` opens its Operations table with the same counts under **Confidence**.
 
+### Known, fixed and the target version
+
+With a `baseline`, `oat-report.md` lists the findings it names under **Known** (each with its reason) and the entries nothing matched under **Fixed**; the console prints `baseline: N known · M fixed`. Known findings carry `"known": { "reason": … }` in `oat-report.json`, which also holds `"baseline": { "fixed": [...] }`. Only findings no entry names count toward the result and the exit code.
+
+With `targetVersion`, the markdown header shows `**Target version**: 1.0.88` (or why it could not be read) and `oat-report.json` holds `"targetVersion": { "value" } | { "error" }`.
+
 ### `oat-report.json`
 
 ```json
 {
 	"backend": "https://api.example.com",
+	"targetVersion": { "value": "1.0.88" },
 	"generatedAt": "2026-08-15T12:00:00.000Z",
 	"durationMs": 41200,
 	"requests": 842,

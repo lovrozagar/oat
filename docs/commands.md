@@ -10,6 +10,8 @@ oat doctor       --spec <url|file>   what oat can and cannot test, and why
 oat plan         --spec <url|file>   print the derived model (offline)
 oat serve        [--defects A,B]     run the demo API
 oat conformance                      self-test: injected defects vs detection
+oat baseline     --from <run>        write a known-findings baseline from a run's report
+oat diff         <runA> <runB>       new, fixed and persisting findings between two runs
 oat help
 ```
 
@@ -118,6 +120,24 @@ Human output:
 ```
 
 Exit `1` if there are **blocking** gaps: entities that are not trackable (no identity / no read), or the document has roots oat cannot create. Advisory gaps (missing `x-query`, no `x-async`) print and still exit `0`.
+
+### `oat baseline`
+
+```
+oat baseline --from .oat/runs/latest [--out oat.baseline.json] [--force]
+```
+
+Reads `<run>/oat-report.json` (`latest` is followed) and writes one entry per root-cause finding — `check`, `entity`, the first operation it judges, and its summary as `reason` — deduplicated and sorted. Edit the reasons to point at tickets. An existing `--out` file is kept unless `--force`. Exit `2` when the run cannot be read.
+
+Point `baseline` in the config at the file. A finding an entry matches is reported under **Known** and does not fail the run; every other root cause still does; an entry that matched nothing is reported under **Fixed**, never as a failure. An entry with `operationId` matches only findings that judge that operation; without it, the check's findings on that entity (or every entity, without `entity`) — so keep entries narrow, or a new defect of the same check on another operation is hidden.
+
+### `oat diff`
+
+```
+oat diff .oat/runs/20261015T210304Z .oat/runs/latest [--json]
+```
+
+Compares two runs' `oat-report.json`: root-cause findings that are **new**, **fixed** and **persisting**, matched by a key that ignores run-specific values (record ids, UUIDs, timestamps, ports, nonces) and the wording of the summary; operations whose status changed; and both runs' target versions. A report without `scope` makes coverage "not comparable". Always exits `0` — it is a report, not a gate — except `2` when a run cannot be read.
 
 ### `oat plan`
 
