@@ -230,7 +230,10 @@ function parseNode(expression: string, ctx: ParseContext): FilterNode {
 	}
 
 	const segments = trimmed.split(".")
-	if (segments.length < 3) throw new SqlError("invalid_filter", `malformed filter term "${trimmed}"`)
+	if (segments.length < 3) {
+		if (defects.has("IGNORES_MALFORMED_FILTER")) return { kind: "const", value: true }
+		throw new SqlError("invalid_filter", `malformed filter term "${trimmed}"`)
+	}
 	const [name, rawOp] = segments as [string, string]
 	const raw = segments.slice(2).join(".")
 
@@ -381,9 +384,14 @@ export function parseOrder(expression: string, ctx: ParseContext, trusted = fals
 			if (defects.has("SORT_UNKNOWN_FIELD_IGNORED") && !exists) return []
 			throw new SqlError("invalid_order", `field "${name ?? ""}" is not sortable`)
 		}
-		const modifiers = defects.has("SORT_NULLS_MODIFIER_IGNORED")
-			? parsed.filter((modifier) => modifier !== "nullsfirst" && modifier !== "nullslast")
+		const known = ["asc", "desc", "nullsfirst", "nullslast"]
+		/* The defect reads a direction it does not know as no direction at all: ascending. */
+		const read = defects.has("IGNORES_BAD_SORT_DIRECTION")
+			? parsed.filter((modifier) => known.includes(modifier))
 			: parsed
+		const modifiers = defects.has("SORT_NULLS_MODIFIER_IGNORED")
+			? read.filter((modifier) => modifier !== "nullsfirst" && modifier !== "nullslast")
+			: read
 		for (const modifier of modifiers) {
 			if (!["asc", "desc", "nullsfirst", "nullslast"].includes(modifier)) {
 				throw new SqlError("invalid_order", `unknown sort modifier "${modifier}"`)

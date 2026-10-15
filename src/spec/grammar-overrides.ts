@@ -76,11 +76,13 @@ export function applyGrammarOverrides(model: SpecModel, config: GrammarConfig): 
 		const sort = own?.sort ?? global.sort
 		if (filter !== undefined) {
 			op.conventions.grammar = filter.grammar
+			op.conventions.grammarDeclared = true
 			if (filter.filterGrammar === undefined) delete op.conventions.filterGrammar
 			else op.conventions.filterGrammar = filter.filterGrammar
 		}
 		if (sort !== undefined) {
 			op.conventions.sortGrammar = sort.sortGrammar
+			op.conventions.sortDeclared = true
 			if (sort.sortSpec === undefined) delete op.conventions.sortSpec
 			else op.conventions.sortSpec = sort.sortSpec
 		}

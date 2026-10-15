@@ -15,6 +15,7 @@ import {
 	orTerm,
 	selectTerm,
 	sortKeys,
+	sortSpec,
 	sortTerm,
 	sortTermWithNulls,
 } from "../spec/conventions.ts"
@@ -54,7 +55,16 @@ import type { OperationObject } from "../spec/types.ts"
 import { encodeForOperation } from "./body.ts"
 import { absentIdentifier, distinctValue, filterSentinel, outsideEnum, overMaxLength } from "./generate.ts"
 import { normalizeSchema } from "../spec/schema.ts"
-import { canGroupAnd, canWriteOr, type FilterQuery, renderAnd, renderAndOfOr } from "../spec/filter-render.ts"
+import {
+	canGroupAnd,
+	canWriteOr,
+	type FilterQuery,
+	renderAnd,
+	renderAndOfOr,
+	renderMalformed,
+	renderUnknownOp,
+} from "../spec/filter-render.ts"
+import { renderUnknownDirection } from "../spec/sort-render.ts"
 import type { Client, Exchange, ReadClient, RequestOptions } from "./client.ts"
 import { REQUIRED_IDS, STRING_PAYLOADS, type StringPayload, payloadFits } from "./payloads.ts"
 import { describeFeatureGate, isDocumentedFeatureGateDenial } from "./feature-gate.ts"
@@ -7990,7 +8000,10 @@ function firstIllegalOp(ctx: CheckContext, field: EffectiveFilterField): (typeof
 
 type IllegalOpProbe = {
 	field: EffectiveFilterField
-	op: (typeof FILTER_OPS)[number]
+	/** The operator as written: one outside the field's closed list, or a token the grammar lacks. */
+	op: string
+	/** Whether the operator exists but the field's closed list leaves it out, or does not exist at all. */
+	kind: "closed" | "unknown"
 	term: Record<string, string>
 	/** The same field under an operator it allows: the control that the field itself is accepted. */
 	control: Record<string, string>
@@ -8008,13 +8021,27 @@ const filterIllegalOpRejected: Check<{ probes: IllegalOpProbe[] }> = {
 			const term = filterTerm(conv(ctx), field.field, op, value)
 			const control =
 				legal === undefined ? null : filterTerm(conv(ctx), field.field, legal as (typeof FILTER_OPS)[number], value)
-			if (term !== null && control !== null) probes.push({ control, field, op, term })
+			if (term !== null && control !== null) probes.push({ control, field, kind: "closed", op, term })
+		}
+		/* An operator token the grammar does not have at all — asked only of a declared grammar, where
+		 * the token is unknown on purpose rather than because oat guessed the spelling. */
+		const conventions = conv(ctx)
+		if (conventions.grammarDeclared === true) {
+			for (const field of resolvedCaps(ctx).filterable) {
+				const sample = ctx.records.find((row) => row[field.field] != null)
+				const value = sample === undefined ? "oat-probe" : String(asTermValue(sample[field.field]))
+				const term = renderUnknownOp(filterSpec(conventions), conventions.filter, field.field, UNKNOWN_OP, value)
+				const control = filterTerm(conventions, field.field, "eq", value)
+				if (term === null || control === null) continue
+				probes.push({ control, field, kind: "unknown", op: UNKNOWN_OP, term })
+				break
+			}
 		}
 		return probes.length === 0 ? cannot() : ready({ probes })
 	},
 	dependsOn: ["list.read-after-write", "filter.unknown-field-rejected", "error.malformed-filter-not-5xx"],
 	id: "filter.illegal-op-rejected",
-	needs: "a field with a closed operator list",
+	needs: "a field with a closed operator list, or a declared filter grammar",
 	subjects: subjectsOf.list,
 	async run(ctx, { probes }): Promise<Outcome> {
 		/* A refusal proves the operator is policed only when the field itself is accepted: a field
@@ -8034,7 +8061,7 @@ const filterIllegalOpRejected: Check<{ probes: IllegalOpProbe[] }> = {
 				"no field with a closed operator list accepted even an operator it allows",
 			)
 		}
-		const { field, op, term } = picked
+		const { field, kind, op, term } = picked
 		const baseline = await list(ctx, q(ctx, { limit: pageSize(ctx) }))
 		const result = await list(ctx, { ...q(ctx, { limit: pageSize(ctx) }), ...term })
 		if (result.exchange.status >= 500) {
@@ -8055,7 +8082,9 @@ const filterIllegalOpRejected: Check<{ probes: IllegalOpProbe[] }> = {
 			"an illegal filter operator is accepted",
 			`${field.field}.${op} returned ${result.exchange.status}` +
 				(same ? " with the unfiltered set, so the operator was ignored" : "") +
-				". A closed operator list is a contract: anything outside it must be rejected.",
+				(kind === "closed"
+					? ". A closed operator list is a contract: anything outside it must be rejected."
+					: ". The declared grammar has no such operator, so the term must be rejected, not dropped."),
 			[baseline.exchange, result.exchange],
 		)
 	},
@@ -8308,6 +8337,116 @@ const declaredFilterableOpsAccepted: Check = {
 			"the document declares a filter operator the backend rejects",
 			`declared ops that 4xx: ${rejected.slice(0, 8).join(", ")}.`,
 			refusedBy.slice(0, 3),
+		)
+	},
+}
+
+/** A direction token no sort grammar has. */
+const UNKNOWN_DIRECTION = "oatsideways"
+/** An operator token no filter grammar has. */
+const UNKNOWN_OP = "zz"
+
+/**
+ * A sort direction the declared grammar does not have must be refused. Read as ascending instead,
+ * a caller asking for an order the backend cannot give gets a different one and is never told.
+ */
+const sortInvalidDirectionRejected: Check<{ control: string; order: string }> = {
+	plan: (ctx) => {
+		const conventions = conv(ctx)
+		if (conventions.order === undefined || conventions.sortDeclared !== true) return cannot()
+		const field = ctx.query?.sortable.find((name) => name !== ctx.identity) ?? ctx.query?.sortable[0]
+		if (field === undefined) return cannot("a sortable field")
+		const order = renderUnknownDirection(sortSpec(conventions), field, UNKNOWN_DIRECTION)
+		if (order === null) return cannot("a sort grammar with a token for each direction")
+		return ready({ control: sortTerm(conventions, field, "asc"), order })
+	},
+	dependsOn: ["sort.order-is-applied"],
+	id: "sort.invalid-direction-rejected",
+	needs: "a declared sort grammar with a token for each direction",
+	subjects: subjectsOf.list,
+	async run(ctx, { control, order }): Promise<Outcome> {
+		const result = await list(asProbe(ctx), q(ctx, { limit: pageSize(ctx), order }))
+		if (result.exchange.status >= 500) {
+			return ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"an unknown sort direction produces a server error",
+				`order=${order} returned ${result.exchange.status}; a rejected input should be 4xx.`,
+				[result.exchange],
+			)
+		}
+		const refused = judgeRefusal(ctx, this.id, ["validation"], result.exchange)
+		if (refused !== null) return refused
+		const ascending = await list(ctx, q(ctx, { limit: pageSize(ctx), order: control }))
+		const same = ids(result.items, ctx.identity).join(",") === ids(ascending.items, ctx.identity).join(",")
+		return ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"an unknown sort direction is accepted",
+			`order=${order} returned ${result.exchange.status}` +
+				(same ? " in ascending order, so the direction was read as ascending" : "") +
+				". A direction the declared grammar does not have must be refused, not guessed.",
+			[ascending.exchange, result.exchange],
+		)
+	},
+}
+
+/**
+ * A filter term missing a piece the declared grammar requires must be refused. Dropped instead,
+ * the caller gets the whole collection back as though it matched.
+ */
+const filterMalformedTermRejected: Check<{
+	control: Record<string, string>
+	field: string
+	malformed: Record<string, string>
+}> = {
+	plan: (ctx) => {
+		const conventions = conv(ctx)
+		if (conventions.grammarDeclared !== true || !filterable(ctx)) return cannot()
+		for (const field of resolvedCaps(ctx).filterable) {
+			const sample = ctx.records.find((row) => row[field.field] != null)
+			const value = sample === undefined ? "oat-probe" : String(asTermValue(sample[field.field]))
+			const malformed = renderMalformed(filterSpec(conventions), conventions.filter, field.field, value)
+			const control = filterTerm(conventions, field.field, "eq", value)
+			if (malformed !== null && control !== null) return ready({ control, field: field.field, malformed })
+		}
+		return cannot("a declared grammar whose terms carry a conjunction or an operator to leave out")
+	},
+	dependsOn: ["list.read-after-write", "filter.unknown-field-rejected", "error.malformed-filter-not-5xx"],
+	id: "filter.malformed-term-rejected",
+	needs: "a declared filter grammar whose terms carry a conjunction or an operator",
+	subjects: subjectsOf.list,
+	async run(ctx, { control, field, malformed }): Promise<Outcome> {
+		const accepted = await list(ctx, { ...q(ctx, { limit: pageSize(ctx) }), ...control })
+		if (accepted.exchange.status >= 400) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				`a well-formed term on "${field}" was refused, so a malformed one proves nothing`,
+			)
+		}
+		const result = await list(asProbe(ctx), { ...q(ctx, { limit: pageSize(ctx) }), ...malformed })
+		if (result.exchange.status >= 500) {
+			return ctx.findings.backend(
+				this.id,
+				ctx.entityName,
+				"a malformed filter term produces a server error",
+				`${Object.values(malformed).join("&")} returned ${result.exchange.status}; a rejected input should be 4xx.`,
+				[result.exchange],
+			)
+		}
+		const refused = judgeRefusal(ctx, this.id, ["validation"], result.exchange)
+		if (refused !== null) return refused
+		const baseline = await list(ctx, q(ctx, { limit: pageSize(ctx) }))
+		const same = ids(result.items, ctx.identity).join(",") === ids(baseline.items, ctx.identity).join(",")
+		return ctx.findings.backend(
+			this.id,
+			ctx.entityName,
+			"a malformed filter term is accepted",
+			`${Object.values(malformed).join("&")} returned ${result.exchange.status}` +
+				(same ? " with the unfiltered set, so the term was dropped" : "") +
+				". A term the declared grammar cannot parse must be rejected.",
+			[baseline.exchange, result.exchange],
 		)
 	},
 }
@@ -9495,6 +9634,7 @@ export const CHECKS: readonly Check[] = [
 	unknownFilterRejected,
 	malformedFilterNot5xx,
 	sortUnknownFieldRejected,
+	sortInvalidDirectionRejected,
 	equalityFilterSelectsOne,
 	zeroMatchFilter,
 	negationPartitions,
@@ -9550,6 +9690,7 @@ export const CHECKS: readonly Check[] = [
 	declaredSelectableWorks,
 	filterAliasMatchesCanonical,
 	filterIllegalOpRejected,
+	filterMalformedTermRejected,
 	filterEmptyIn,
 	filterInOverLimitRejected,
 	filterConditionCapRejected,

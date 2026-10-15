@@ -456,3 +456,58 @@ export function describeFilterGrammar(spec: FilterGrammarSpec): string {
 		.filter(Boolean)
 		.join("  ")
 }
+
+/**
+ * A term with an operator token the grammar does not have, for asking whether the backend refuses
+ * it. `null` when the grammar has no operator token to swap.
+ */
+export function renderUnknownOp(
+	spec: FilterGrammarSpec,
+	filterParam: string | undefined,
+	field: string,
+	token: string,
+	value: string,
+): Record<string, string> | null {
+	if (spec.param !== "filter" || filterParam === undefined || !spec.term.includes("{op}")) return null
+	const conj = spec.conj?.and
+	const spelled = scalar(spec, value)
+	if (spelled === null) return null
+	const term = fill(spec.term, { field, op: token, value: spelled, ...(conj === undefined ? {} : { conj }) })
+	return term === null ? null : { [filterParam]: term }
+}
+
+/**
+ * An equality term with one required piece left out — its conjunction where it has one, else its
+ * operator, together with the literal that joined that piece to its neighbour. `null` when the
+ * grammar's terms have neither.
+ */
+export function renderMalformed(
+	spec: FilterGrammarSpec,
+	filterParam: string | undefined,
+	field: string,
+	value: string,
+): Record<string, string> | null {
+	if (spec.param !== "filter" || filterParam === undefined) return null
+	const piece = spec.term.includes("{conj}") ? "{conj}" : spec.term.includes("{op}") ? "{op}" : null
+	if (piece === null) return null
+	const at = spec.term.indexOf(piece)
+	const before = spec.term.slice(0, at)
+	const after = spec.term.slice(at + piece.length)
+	/* The literal after the piece joins it to the next one; at the end, the literal before it does. */
+	const trailing = /^[^{]*/.exec(after)?.[0] ?? ""
+	const leading = /[^}]*$/.exec(before)?.[0] ?? ""
+	const template =
+		after.length > trailing.length || before.length === 0
+			? before + after.slice(trailing.length)
+			: before.slice(0, before.length - leading.length) + after
+	const spelled = scalar(spec, value)
+	if (spelled === null) return null
+	const conj = spec.conj?.and
+	const term = fill(template, {
+		field,
+		op: spec.ops.eq ?? "eq",
+		value: spelled,
+		...(conj === undefined ? {} : { conj }),
+	})
+	return term === null ? null : { [filterParam]: term }
+}

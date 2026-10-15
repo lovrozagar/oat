@@ -146,6 +146,10 @@ export const DEFECTS = {
 	FILTER_IS_NULL_MATCHES_ALL: "is.null matches every row",
 	/** An operator outside the field's allowlist is ignored (200 + full set). */
 	FILTER_ILLEGAL_OP_IGNORED: "an illegal filter operator is accepted and ignored",
+	/** A filter term the grammar cannot parse is dropped (200 + full set) instead of refused. */
+	IGNORES_MALFORMED_FILTER: "a malformed filter term is dropped instead of refused",
+	/** A sort direction the grammar does not have is read as ascending instead of refused. */
+	IGNORES_BAD_SORT_DIRECTION: "an unknown sort direction sorts ascending instead of being refused",
 	/** Numeric sort compares as text. */
 	SORT_NUMERIC_AS_TEXT: "a numeric sortable field is ordered lexicographically",
 	/** Only the first order key is honoured. */

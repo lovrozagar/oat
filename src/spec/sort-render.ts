@@ -56,6 +56,15 @@ export function renderSortKeys(
 	return spec.join === null ? null : rendered.join(spec.join)
 }
 
+/**
+ * A key with a direction token the grammar does not have; `null` where ascending has no token of
+ * its own, since a swapped token there would read as part of the field name.
+ */
+export function renderUnknownDirection(spec: SortGrammarSpec, field: string, token: string): string | null {
+	if (spec.asc === "" || spec.desc === "") return null
+	return spec.term.replace(/\{(field|direction)\}/g, (_whole, name: string) => (name === "field" ? field : token))
+}
+
 export type ParsedSortGrammar = { ok: true; spec: SortGrammarSpec } | { ok: false; error: string }
 
 const fail = (error: string): ParsedSortGrammar => ({ error, ok: false })

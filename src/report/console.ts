@@ -61,6 +61,9 @@ export const TAG_UNLOCKS: Record<string, readonly string[]> = {
 		"filter.is-null-selects-nulls",
 		"filter.alias-matches-canonical",
 		"filter.illegal-op-rejected",
+		/* A malformed term is probed only on a grammar x-query declares. (An unknown sort direction
+		 * needs a declared sort grammar, which the reference declares only for its template dialect.) */
+		"filter.malformed-term-rejected",
 		"filter.empty-in",
 		"filter.in-over-limit-rejected",
 		"filter.condition-cap-rejected",

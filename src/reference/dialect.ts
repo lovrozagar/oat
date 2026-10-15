@@ -288,6 +288,8 @@ export function toCanonicalFilter(expression: string | readonly string[], dialec
  */
 const TEMPLATE_TERM = /^(and|or)_(.+)_(eq|ne|gt|gte|lt|lte|like|in)_([^_]*)$/s
 const TEMPLATE_NULL = /^(and|or)_(.+)_(is|isn)_null$/s
+/* An operator this grammar lacks reaches the canonical layer as one, which refuses it. */
+const TEMPLATE_UNKNOWN_OP = /^(and|or)_(.+)_([a-z]+)_([^_]*)$/s
 const TEMPLATE_OPS: Record<string, string> = {
 	eq: "eq",
 	gt: "gt",
@@ -308,6 +310,7 @@ function fromTemplateTerms(terms: readonly string[]): string | null {
 	for (const term of terms) {
 		const nullTest = TEMPLATE_NULL.exec(term)
 		const match = nullTest === null ? TEMPLATE_TERM.exec(term) : null
+		const unknown = nullTest === null && match === null ? TEMPLATE_UNKNOWN_OP.exec(term) : null
 		let canonical: string
 		let conj: string | undefined
 		if (nullTest !== null) {
@@ -323,6 +326,11 @@ function fromTemplateTerms(terms: readonly string[]): string | null {
 					: op === "like"
 						? `${field}.like.*${unescapeTemplate(value)}*`
 						: `${field}.${TEMPLATE_OPS[op]}.${unescapeTemplate(value)}`
+		} else if (unknown !== null) {
+			const [, unknownConj, field, op, value] = unknown
+			if (field === undefined || op === undefined || value === undefined) return null
+			conj = unknownConj
+			canonical = `${field}.${op}.${unescapeTemplate(value)}`
 		} else {
 			return null
 		}

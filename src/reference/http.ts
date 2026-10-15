@@ -1010,8 +1010,10 @@ export async function createReferenceServer(
 				let filter: string | undefined
 				if (rawFilter !== null && rawFilter.length > 0) {
 					const canonical = toCanonicalFilter(rawFilter, dialect)
-					if (canonical === null) throw new SqlError("invalid_filter", `malformed filter: ${String(rawFilter)}`)
-					filter = canonical
+					if (canonical !== null) filter = canonical
+					else if (!defects.has("IGNORES_MALFORMED_FILTER")) {
+						throw new SqlError("invalid_filter", `malformed filter: ${String(rawFilter)}`)
+					}
 				}
 				const param = (name: string | undefined): string | undefined =>
 					name === undefined ? undefined : (url.searchParams.get(name) ?? undefined)
@@ -1344,7 +1346,10 @@ function toCanonicalOrder(expression: string | undefined, dialect: Dialect): str
 			/* `name_descending`, read on its own terms: the last `_` before a known direction. */
 			if (grammar === "template") {
 				const match = /^(.+)_(ascending|descending)$/s.exec(term)
-				return match === null ? term : `${match[1]}.${match[2] === "descending" ? "desc" : "asc"}`
+				if (match !== null) return `${match[1]}.${match[2] === "descending" ? "desc" : "asc"}`
+				/* A direction this grammar lacks reaches the canonical layer as one, which refuses it. */
+				const unknown = /^(.+)_([a-z]+)$/s.exec(term)
+				return unknown === null ? term : `${unknown[1]}.${unknown[2]}`
 			}
 			if (grammar === "prefixed") {
 				return term.startsWith("-") ? `${term.slice(1)}.desc` : `${term}.asc`

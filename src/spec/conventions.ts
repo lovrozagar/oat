@@ -92,10 +92,17 @@ export interface QueryConventions {
 	grammar: FilterGrammar
 	/** How terms are spelled under a declared template; the named grammars are presets. */
 	filterGrammar?: FilterGrammarSpec
+	/**
+	 * The filter grammar was declared (on `x-query` or in config), not inferred. Only then is a
+	 * deliberately malformed request oat writes malformed on purpose rather than by a wrong guess.
+	 */
+	grammarDeclared?: true
 	/** How sort directions are written for the `order` parameter. */
 	sortGrammar: SortGrammar
 	/** How sort keys are spelled under a declared template; the named grammars are presets. */
 	sortSpec?: SortGrammarSpec
+	/** The sort grammar was declared, not inferred. */
+	sortDeclared?: true
 	/** How a sparse fieldset is written for the `select` parameter. */
 	selectGrammar: SelectGrammar
 	/**
@@ -266,13 +273,13 @@ function inferSelectGrammar(select: ParameterObject | undefined): SelectGrammar 
 function declaredSort(
 	declared: unknown,
 	order: ParameterObject | undefined,
-): Pick<QueryConventions, "sortGrammar" | "sortSpec"> {
+): Pick<QueryConventions, "sortGrammar" | "sortSpec" | "sortDeclared"> {
 	if (typeof declared === "string" && Object.hasOwn(SORT_PRESETS, declared)) {
-		return { sortGrammar: declared as keyof typeof SORT_PRESETS }
+		return { sortDeclared: true, sortGrammar: declared as keyof typeof SORT_PRESETS }
 	}
 	/* An object that cannot be read is a gap `x-query`'s validation records; oat infers instead. */
 	const parsed = typeof declared === "object" ? parseSortGrammar(declared) : null
-	if (parsed?.ok === true) return { sortGrammar: "template", sortSpec: parsed.spec }
+	if (parsed?.ok === true) return { sortDeclared: true, sortGrammar: "template", sortSpec: parsed.spec }
 	return { sortGrammar: inferSortGrammar(order) }
 }
 
@@ -325,6 +332,7 @@ export function deriveQueryConventions(
 		envelope: {},
 		grammar,
 		...(template?.ok === true ? { filterGrammar: template.spec } : {}),
+		...(template?.ok === true || named !== undefined ? { grammarDeclared: true as const } : {}),
 		selectGrammar: inferSelectGrammar(selectParam),
 		...declaredSort(declared?.sortGrammar, orderParam),
 	}

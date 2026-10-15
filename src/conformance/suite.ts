@@ -967,6 +967,8 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	FILTER_ILIKE_IS_LIKE: "filter.ilike-is-case-insensitive",
 	FILTER_IS_NULL_MATCHES_ALL: "filter.is-null-selects-nulls",
 	FILTER_ILLEGAL_OP_IGNORED: "filter.illegal-op-rejected",
+	IGNORES_MALFORMED_FILTER: "filter.malformed-term-rejected",
+	IGNORES_BAD_SORT_DIRECTION: "sort.invalid-direction-rejected",
 	SORT_NUMERIC_AS_TEXT: "sort.numeric-order-is-numeric",
 	SORT_MULTI_KEY_IGNORED: "sort.multi-key-tiebreak",
 	SELECT_FIELD_MISSING: "select.requested-fields-present",
@@ -1142,6 +1144,8 @@ export const EXPRESSION_ONLY: ReadonlySet<DefectName> = new Set<DefectName>([
 	"NEQ_DROPS_NULLS",
 	"NUMERIC_COMPARED_AS_TEXT",
 	"FILTER_ILLEGAL_OP_IGNORED",
+	/* Per-field equality has no operator or conjunction to leave out of a term. */
+	"IGNORES_MALFORMED_FILTER",
 	"FILTER_GTE_IS_GT",
 	"FILTER_LTE_IS_LT",
 	"FILTER_LT_IS_LTE",
@@ -1168,6 +1172,12 @@ export const POSTGREST_OP_ONLY: ReadonlySet<DefectName> = new Set<DefectName>([
 	"FILTER_CONDITION_CAP_IGNORED",
 	"FILTER_NESTED_COMBINATOR_LEAKS",
 ])
+
+/**
+ * Defects oat only probes on a declared sort grammar: a direction token is unknown on purpose only
+ * when oat knows the grammar's own. The reference declares its sort grammar where it is a template.
+ */
+export const DECLARED_SORT_ONLY: ReadonlySet<DefectName> = new Set<DefectName>(["IGNORES_BAD_SORT_DIRECTION"])
 
 /** Defects that need a search-mode parameter, which only some dialects publish. */
 export const SEARCH_MODE_ONLY: ReadonlySet<DefectName> = new Set<DefectName>(["SEARCH_MODE_REJECTED"])
@@ -1555,6 +1565,7 @@ export function defectsFor(backend: Backend, dialect: string, filter?: readonly 
 			.filter((name) => DIALECTS_WITH_FILTER_EXPRESSION.has(dialect) || !EXPRESSION_ONLY.has(name))
 			.filter((name) => DIALECTS_WITH_POSTGREST_FILTER.has(dialect) || !POSTGREST_OP_ONLY.has(name))
 			.filter((name) => DIALECTS[dialect]?.params.searchMode !== undefined || !SEARCH_MODE_ONLY.has(name))
+			.filter((name) => DIALECTS[dialect]?.sortTemplate !== undefined || !DECLARED_SORT_ONLY.has(name))
 			/* A dialect that pages by offset has no page number to ask past the end. */
 			.filter((name) => DIALECTS[dialect]?.params.page !== undefined || !PAGE_NUMBER_ONLY.has(name))
 			.filter((name) => (DIALECTS[dialect]?.sortGrammar ?? "dotted") === "dotted" || !NULLS_TOKEN_ONLY.has(name))

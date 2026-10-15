@@ -7,10 +7,10 @@
  * never queues it or attributes the finding elsewhere.
  */
 
-import { DEFECTS, type DefectName } from "../reference/defects.ts"
+import type { DefectName } from "../reference/defects.ts"
 import type { Finding } from "../runtime/finding.ts"
 import { run } from "../runtime/run.ts"
-import { CLIENT_ID_ONLY, EXPECTED, PRINCIPALS, SQL_ONLY, type ParserResult } from "./suite.ts"
+import { defectsFor, EXPECTED, PRINCIPALS, type ParserResult } from "./suite.ts"
 
 const NOT_DEFECTS = new Set(["COVERAGE_GAP", "BLOCKED"])
 
@@ -50,11 +50,11 @@ export async function runScopeSuite(
 	known?: Readonly<Record<string, readonly string[]>>,
 ): Promise<ParserResult[]> {
 	const results: ParserResult[] = []
-	const names = (Object.keys(DEFECTS) as DefectName[])
-		.filter((name) => filter === undefined || filter.length === 0 || filter.includes(name))
-		.filter((name) => !SQL_ONLY.has(name))
-		/* A shape-only defect cannot happen on the default backend this suite targets. */
-		.filter((name) => !CLIENT_ID_ONLY.has(name))
+	/* What the default backend and dialect this suite targets can exhibit: a shape-only or
+	 * dialect-only defect has nowhere to happen here. */
+	const names = defectsFor("memory", "postgrest").filter(
+		(name) => filter === undefined || filter.length === 0 || filter.includes(name),
+	)
 
 	for (const defect of names) {
 		const check = primaryOf(EXPECTED[defect])
