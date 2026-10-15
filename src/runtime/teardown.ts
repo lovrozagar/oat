@@ -11,6 +11,7 @@ import type { OperationModel, SpecModel } from "../spec/graph.ts"
 import type { Client } from "./client.ts"
 import { parseRouteRef } from "../spec/load.ts"
 import { fillPath } from "./world.ts"
+import type { ProvenId } from "./proven-id.ts"
 
 /** The principal a record belongs to, as far as removing it goes. */
 export interface Owner {
@@ -46,7 +47,7 @@ export class Ledger {
 	private readonly items: Disposable[] = []
 	private readonly seen = new Set<string>()
 
-	record(entity: string, id: string, scope: Record<string, string>, owner: Owner): void {
+	record(entity: string, id: ProvenId, scope: Record<string, string>, owner: Owner): void {
 		if (id === "" || id === "undefined") return
 		const key = `${entity}\u0000${id}`
 		if (this.seen.has(key)) return

@@ -17,6 +17,7 @@ import { type CohortMember, buildCohort, ensureDistinctUniqueValues, isOverflowE
 import { isUniqueConflictResponse, uniqueTupleCollides, uniquifyProbeBody } from "./unique.ts"
 import { describeFeatureGate, isDocumentedFeatureGateDenial } from "./feature-gate.ts"
 import type { UploadContext } from "./upload.ts"
+import { type ProvenId, returnedId } from "./proven-id.ts"
 
 export type Record_ = Record<string, unknown>
 
@@ -185,7 +186,7 @@ export interface WorldOptions {
 	 * Called the moment a record exists, before anything else can fail. A record learned about
 	 * only after the step that made it returns is dropped whenever a later step throws.
 	 */
-	onCreate?: (entity: string, id: string, scope: Record<string, string>) => void
+	onCreate?: (entity: string, id: ProvenId, scope: Record<string, string>) => void
 	/** Whether oat may call an operation (a profile can exclude one); omitted means every one. */
 	readable?: (op: OperationModel) => boolean
 	/** Who is creating — keys the ancestor cache, since one principal's parent is not another's. */
@@ -247,14 +248,14 @@ export async function resolvePathScope(
 		const creating = (async (): Promise<string> => {
 			const { record: created, adopted } = await createOne(createOp, model, client, options, scope)
 			const identity = entity.identity ?? "id"
-			const id = created[identity]
-			if (typeof id !== "string" && typeof id !== "number") {
+			const id = returnedId(created, identity)
+			if (id === undefined) {
 				throw new SeedError(param, `create for "${owner}" returned no usable "${identity}"`)
 			}
 			/* Adopted, not created: somebody else's record, never oat's to remove. */
-			if (!adopted) options.onCreate?.(owner, String(id), { ...scope.values })
-			options.ancestors?.set(cacheKey, String(id))
-			return String(id)
+			if (!adopted) options.onCreate?.(owner, id, { ...scope.values })
+			options.ancestors?.set(cacheKey, id)
+			return id
 		})()
 		if (options.ancestors !== undefined) inflightAncestors(options.ancestors).set(cacheKey, creating)
 		try {
@@ -484,10 +485,8 @@ export async function seedCohort(
 				record = confirmed
 			}
 		}
-		const id = record[identity]
-		if (createOp.entity !== null && isScalarId(id)) {
-			options.onCreate?.(createOp.entity, String(id), { ...scope.values })
-		}
+		const id = returnedId(record, identity)
+		if (createOp.entity !== null && id !== undefined) options.onCreate?.(createOp.entity, id, { ...scope.values })
 		return record
 	}
 

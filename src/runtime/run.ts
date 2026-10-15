@@ -86,6 +86,7 @@ import {
 	resolvePathScope,
 	seedCohort,
 } from "./world.ts"
+import { type ProvenId, returnedId } from "./proven-id.ts"
 
 /* The principal shape is the public config's — one definition, checked in both places. */
 export type PrincipalSpec = Principal
@@ -732,7 +733,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	}
 	const recorder =
 		(owner: Owner) =>
-		(entity: string, id: string, values: Record<string, string>): void => {
+		(entity: string, id: ProvenId, values: Record<string, string>): void => {
 			ledger.record(entity, id, values, owner)
 		}
 	/**
@@ -1287,15 +1288,14 @@ export async function run(options: RunOptions): Promise<RunResult> {
 								 * on an integer-id API deleting by that number removes an unrelated row. */
 								if (path !== createPath) return exchange
 								const body = exchange.responseBody
-								const answered =
-									body !== null && typeof body === "object"
-										? (body as Record<string, unknown>)[entity.identity ?? "id"]
-										: undefined
+								const identity = entity.identity ?? "id"
 								/* An acknowledgement-only create may have ignored the id it was sent: only a read
 								 * under that id proves the record is the one oat made. */
-								let id: string | undefined
-								if (typeof answered === "string" || typeof answered === "number") id = String(answered)
-								else {
+								let id =
+									body !== null && typeof body === "object" && !Array.isArray(body)
+										? returnedId(body as Record<string, unknown>, identity)
+										: undefined
+								if (id === undefined) {
 									const confirmed = await confirmSubmitted({
 										client: target,
 										entity: entity.name,
@@ -1306,8 +1306,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 										scope: scope.values,
 										sent: options?.body,
 									})
-									const read = confirmed?.[entity.identity ?? "id"]
-									if (typeof read === "string" || typeof read === "number") id = String(read)
+									if (confirmed !== null) id = returnedId(confirmed, identity)
 								}
 								if (id === undefined) return exchange
 								ledger.record(entity.name, id, scope.values, ownerByHeaders(options?.headers))

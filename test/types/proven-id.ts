@@ -1,0 +1,33 @@
+/*
+ * Compile-time test, checked by `tsc -p test/types/tsconfig.json` (part of `bun check`).
+ *
+ * Teardown deletes what was recorded. A plain string — an id oat only sent, a value lifted from a
+ * request body — must not be recordable, or the next fallback that "knows" the id would delete a
+ * row somebody else owns. Each line below must fail to compile; if one stops failing, the
+ * `@ts-expect-error` above it is unused and the check fails. The first three lines must compile.
+ */
+import type { CheckContext } from "../../src/runtime/checks.ts"
+import type { ProvenId } from "../../src/runtime/proven-id.ts"
+import type { Ledger, Owner } from "../../src/runtime/teardown.ts"
+import type { WorldOptions } from "../../src/runtime/world.ts"
+
+declare const ledger: Ledger
+declare const owner: Owner
+declare const options: WorldOptions
+declare const ctx: CheckContext
+declare const sentId: string
+declare const returned: ProvenId
+
+/* What the backend gave back is recordable everywhere. */
+ledger.record("note", returned, {}, owner)
+options.onCreate?.("note", returned, {})
+ctx.recordCreated?.("note", returned, {})
+
+// @ts-expect-error an id oat only sent is not proof of a record it made
+ledger.record("note", sentId, {}, owner)
+
+// @ts-expect-error seeding reports only ids a response or a confirming read returned
+options.onCreate?.("note", sentId, {})
+
+// @ts-expect-error a check records only ids the backend gave back
+ctx.recordCreated?.("note", sentId, {})

@@ -1,6 +1,7 @@
 {
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"plugins": ["typescript", "unicorn", "oxc"],
+	"jsPlugins": ["./lint/oat.oxlint-plugin.ts"],
 	"env": {
 		"node": true
 	},
@@ -24,6 +25,7 @@
 	},
 	"rules": {
 		"no-unused-vars": "warn",
+		"oat/proven-id-origin": "error",
 		"unicorn/no-array-sort": "off",
 		"unicorn/prefer-string-starts-ends-with": "warn"
 	},

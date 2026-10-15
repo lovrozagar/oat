@@ -82,9 +82,9 @@ import {
 	createdIdKeys,
 	describeEffectHold,
 	effectHolds,
-	findCreatedId,
 	identityPathParam,
 } from "./effects.ts"
+import { type ProvenId, answeredId, listedIds, receiptId, returnedId } from "./proven-id.ts"
 
 /** A resolved principal as checks see it — identity, lattice position, and how to speak as it. */
 export interface Actor {
@@ -179,7 +179,7 @@ export interface CheckContext<C extends ReadClient = ReadClient> {
 	 * Registers a record this check caused to exist — a declared effect, a started job — for
 	 * teardown. Records made through the entity's own create are tracked without it.
 	 */
-	recordCreated?: (entity: string, id: string, scope: Record<string, string>) => void
+	recordCreated?: (entity: string, id: ProvenId, scope: Record<string, string>) => void
 	/**
 	 * Narrows what this check graded to the operations it actually judged. A check that judges
 	 * after the fact — from whatever the transcript happens to hold — calls it, so an operation
@@ -284,7 +284,7 @@ async function confirmedIdentity(
 	client: Pick<Client, "get">,
 	sent: unknown,
 	ignore: readonly string[] = [],
-): Promise<{ id: string; record: Record_ } | undefined> {
+): Promise<{ id: ProvenId; record: Record_ } | undefined> {
 	const record = await confirmSubmitted({
 		client,
 		entity: ctx.entityName,
@@ -296,8 +296,8 @@ async function confirmedIdentity(
 		scope: ctx.scope,
 		sent,
 	})
-	const id = record?.[ctx.identity]
-	return record !== null && (typeof id === "string" || typeof id === "number") ? { id: String(id), record } : undefined
+	const id = record === null ? undefined : returnedId(record, ctx.identity)
+	return record !== null && id !== undefined ? { id, record } : undefined
 }
 
 /**
@@ -324,9 +324,7 @@ function asProbe<C extends ReadClient>(ctx: CheckContext<C>): CheckContext<C> {
 				const exchange = (await value.call(target, method, path, options)) as Exchange
 				const created = method.toUpperCase() === createOp.method.toUpperCase() && path === createPath
 				if (created && exchange.status >= 200 && exchange.status < 300) {
-					const id =
-						findCreatedId(exchange.responseBody, keys) ??
-						(await confirmedIdentity(ctx, target, exchange.requestBody))?.id
+					const id = answeredId(exchange, keys) ?? (await confirmedIdentity(ctx, target, exchange.requestBody))?.id
 					if (id !== undefined) record(ctx.entityName, id, { ...ctx.scope })
 				}
 				return exchange
@@ -6276,7 +6274,7 @@ const declaredEffectsOccur: Check = {
 					 * already tracked; an invite is not, since an invite POST is never an entity's create. */
 					const made = beforeOp.action === "create" ? ctx.model.entities.get(beforeOp.entity ?? "") : undefined
 					if (made !== undefined && made.delete !== undefined) {
-						const id = findCreatedId(beforeBody, createdIdKeys(made.name, made.identity))
+						const id = answeredId(beforeInvoked, createdIdKeys(made.name, made.identity))
 						if (id !== undefined) ctx.recordCreated?.(made.name, id, { ...beforeScope })
 					}
 				}
@@ -6411,7 +6409,7 @@ const declaredEffectsOccur: Check = {
 					const removed = prior.filter((id) => !after.ids.includes(id))
 					/* Records the operation made on oat's behalf are oat's to remove. */
 					if (effect.op === "create" || effect.op === "append") {
-						for (const id of added) ctx.recordCreated?.(effect.entity, id, { ...scope })
+						for (const id of listedIds(added)) ctx.recordCreated?.(effect.entity, id, { ...scope })
 					}
 
 					if (effectHolds(effect, delta, added.length, removed.length)) {
@@ -6676,10 +6674,10 @@ const asyncReachesTerminalState: Check = {
 					(operationId) => ctx.model.byOperationId.get(operationId),
 				)
 				/* The job this start created is a record like any other, and oat's to remove. */
-				const jobId = spec.idFrom === undefined ? undefined : resolveAsyncId(receipt, spec.idFrom)
+				const jobId = spec.idFrom === undefined ? undefined : receiptId(receipt, spec.idFrom)
 				const polled = (ctx.model.byRoute.get(spec.poll) ?? ctx.model.byOperationId.get(spec.poll))?.entity
-				if ((typeof jobId === "string" || typeof jobId === "number") && polled !== null && polled !== undefined) {
-					ctx.recordCreated?.(polled, String(jobId), { ...ctx.scope })
+				if (jobId !== undefined && polled !== null && polled !== undefined) {
+					ctx.recordCreated?.(polled, jobId, { ...ctx.scope })
 				}
 
 				if (outcome.timedOut) {
