@@ -169,7 +169,8 @@ export interface HttpHooks {
 
 export interface RequestOptions {
 	headers?: Record<string, string> | (() => Record<string, string>)
-	query?: Record<string, string | number | undefined>
+	/** An array is sent as the parameter repeated once per item, in order. */
+	query?: Record<string, string | number | readonly (string | number)[] | undefined>
 	/** Plain object (JSON), FormData, URLSearchParams, or any BodyInit. */
 	body?: unknown
 	/**
@@ -353,7 +354,9 @@ export class Client {
 		if (method.toUpperCase() !== "GET" && method.toUpperCase() !== "HEAD") this.writes += 1
 		const url = new URL(isAbsoluteHttpUrl(path) ? path : `${this.baseUrl}${path}`)
 		for (const [key, value] of Object.entries(options.query ?? {})) {
-			if (value !== undefined) url.searchParams.set(key, String(value))
+			if (value === undefined) continue
+			if (typeof value === "object") for (const item of value) url.searchParams.append(key, String(item))
+			else url.searchParams.set(key, String(value))
 		}
 		let pendingEntity: string | undefined
 		const resolved = isAbsoluteHttpUrl(path)

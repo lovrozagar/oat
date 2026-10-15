@@ -93,8 +93,12 @@ export function redactUrl(url: string): string {
 	} catch {
 		return redactText(url)
 	}
-	for (const key of Array.from(parsed.searchParams.keys())) {
-		if (isSecretJsonKey(key)) parsed.searchParams.set(key, REDACTED)
+	const entries = Array.from(parsed.searchParams)
+	/* Every occurrence, in place: a repeated parameter stays repeated, so the URL keeps its shape. */
+	if (entries.some(([key]) => isSecretJsonKey(key))) {
+		parsed.search = new URLSearchParams(
+			entries.map(([key, value]): [string, string] => [key, isSecretJsonKey(key) ? REDACTED : value]),
+		).toString()
 	}
 	return redactText(parsed.toString())
 }
