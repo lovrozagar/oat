@@ -14,6 +14,7 @@ import {
 	filterTerm,
 	orTerm,
 	selectTerm,
+	sortKeys,
 	sortTerm,
 	sortTermWithNulls,
 } from "../spec/conventions.ts"
@@ -8468,6 +8469,13 @@ const sortMultiKeyTiebreak: Check<{ primary: string; secondary: string; tied: Re
 	plan: (ctx) => {
 		const max = resolvedCaps(ctx).sort?.maxKeys
 		if (conv(ctx).order === undefined || (max !== undefined && max < 2)) return cannot()
+		if (
+			sortKeys(conv(ctx), [
+				["a", "asc"],
+				["b", "desc"],
+			]) === null
+		)
+			return cannot("a sort grammar that joins keys")
 		const pair = pickMultiKeyPair(ctx)
 		return pair === null ? cannot() : ready(pair)
 	},
@@ -8479,7 +8487,11 @@ const sortMultiKeyTiebreak: Check<{ primary: string; secondary: string; tied: Re
 		const conventions = conv(ctx)
 		/* The second key descending: whatever tiebreak a server applies on its own runs ascending,
 		 * and asking for the same field ascending would let that accident pass for a second key. */
-		const order = `${sortTerm(conventions, primary, "asc")},${sortTerm(conventions, secondary, "desc")}`
+		const order = sortKeys(conventions, [
+			[primary, "asc"],
+			[secondary, "desc"],
+		])
+		if (order === null) return ctx.findings.unresolved(this.id, ctx.entityName, "the grammar sorts by one key only")
 		const result = await collectSet(ctx, pageSize(ctx), {}, order)
 		if (result === null) return ctx.findings.unresolved(this.id, ctx.entityName, "multi-key order was rejected")
 		const slice = result.items.filter((item) => JSON.stringify(item[primary]) === JSON.stringify(tied[0]?.[primary]))

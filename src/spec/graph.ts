@@ -295,7 +295,7 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 		conventions: deriveQueryConventions(
 			op.parameters ?? [],
 			collection,
-			ext<{ grammar?: unknown }>(op, "x-query"),
+			ext<{ grammar?: unknown; sortGrammar?: unknown }>(op, "x-query"),
 			(message) => gaps.record(operationId, "x-query", message),
 			successResponseHeaders(op),
 		),

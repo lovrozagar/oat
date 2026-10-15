@@ -1341,6 +1341,11 @@ function toCanonicalOrder(expression: string | undefined, dialect: Dialect): str
 		.map((term) => term.trim())
 		.filter(Boolean)
 		.map((term) => {
+			/* `name_descending`, read on its own terms: the last `_` before a known direction. */
+			if (grammar === "template") {
+				const match = /^(.+)_(ascending|descending)$/s.exec(term)
+				return match === null ? term : `${match[1]}.${match[2] === "descending" ? "desc" : "asc"}`
+			}
 			if (grammar === "prefixed") {
 				return term.startsWith("-") ? `${term.slice(1)}.desc` : `${term}.asc`
 			}

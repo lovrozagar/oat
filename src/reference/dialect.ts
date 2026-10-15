@@ -58,7 +58,9 @@ export interface Dialect {
 	/** The template a `template` grammar declares on `x-query.grammar`. */
 	filterTemplate?: Record<string, unknown>
 	/** How sort directions are written. Defaults to the dotted form when unset. */
-	sortGrammar?: "dotted" | "prefixed" | "colon" | "spaced"
+	sortGrammar?: "dotted" | "prefixed" | "colon" | "spaced" | "template"
+	/** The template a `template` sort grammar declares on `x-query.sortGrammar`. */
+	sortTemplate?: Record<string, unknown>
 	/** How a sparse fieldset is written. Defaults to comma-separated names. */
 	selectGrammar?: "csv" | "bracketed"
 }
@@ -200,7 +202,7 @@ export const PLAIN: Dialect = {
  * A grammar oat has no name for, declared as a template: one term per filter parameter,
  * `and_status_eq_active`, repeated for every term. `ne` spells not-equal, null tests are terms of
  * their own, `in` values are comma-joined, an underscore in a value is written `~`, and `like`
- * matches a bare substring.
+ * matches a bare substring. Sort keys are `name_ascending` / `name_descending`, comma-joined.
  *
  * Nothing in oat may know this grammar except through the declaration, so every filter check that
  * still runs here is reading the template rather than a preset.
@@ -226,6 +228,8 @@ export const TEMPLATE: Dialect = {
 	},
 	grammar: "template",
 	name: "template",
+	sortGrammar: "template",
+	sortTemplate: { asc: "ascending", desc: "descending", join: ",", term: "{field}_{direction}" },
 	params: {
 		filter: "where",
 		limit: "limit",

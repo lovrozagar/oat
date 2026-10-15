@@ -196,6 +196,8 @@ function sortDescription(dialect: Dialect): string {
 			return "Sort: field asc or field desc, comma-separated. e.g. created_at desc"
 		case "dotted":
 			return "Sort: field[.asc|.desc][.nullsfirst|.nullslast], comma-separated"
+		case "template":
+			return "Sort: field_ascending or field_descending, comma-separated. e.g. created_at_descending"
 	}
 }
 
@@ -270,6 +272,8 @@ function renderOrder(dialect: Dialect, canonical: string): string {
 			return `${field} ${direction}`
 		case "dotted":
 			return `${field}.${direction}`
+		case "template":
+			return `${field}_${direction === "desc" ? "descending" : "ascending"}`
 	}
 }
 
@@ -324,6 +328,7 @@ function buildEntityPaths(ctx: SpecContext, entity: EntityDef, dialect: Dialect)
 	const query: Json = {
 		/* Declared rather than inferred: the grammar decides what oat can even express. */
 		grammar: dialect.filterTemplate ?? dialect.grammar,
+		...(dialect.sortTemplate === undefined ? {} : { sortGrammar: dialect.sortTemplate }),
 		filterable:
 			catalog?.opsByField === undefined
 				? fieldsWhere(entity, "filterable")

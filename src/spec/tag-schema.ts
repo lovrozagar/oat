@@ -9,6 +9,7 @@
 import type { GapCollector } from "./extensions.ts"
 import type { OperationObject, ParameterObject } from "./types.ts"
 import { parseFilterGrammar } from "./filter-render.ts"
+import { parseSortGrammar } from "./sort-render.ts"
 
 type Check = (value: unknown) => string | null
 
@@ -80,6 +81,11 @@ const xQuery = shape({
 		return parsed.ok ? null : `is a template oat cannot read: ${parsed.error}`
 	},
 	identityFilter: string,
+	sortGrammar: (value) => {
+		if (!isObject(value)) return oneOf("dotted", "prefixed", "colon", "spaced")(value)
+		const parsed = parseSortGrammar(value)
+		return parsed.ok ? null : `is a template oat cannot read: ${parsed.error}`
+	},
 	maxFilterConditions: integer,
 	maxInValues: integer,
 	maxLimit: integer,

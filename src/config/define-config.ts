@@ -7,7 +7,7 @@
  */
 
 import type { FilterableField, QueryCapabilities } from "../spec/query-capabilities.ts"
-import type { DeclaredFilterGrammar } from "../spec/grammar-overrides.ts"
+import type { DeclaredFilterGrammar, DeclaredSortGrammar } from "../spec/grammar-overrides.ts"
 
 export type {
 	FieldType,
@@ -481,6 +481,8 @@ export interface EntityConfig {
 export type QueryConfig = QueryCapabilities & {
 	/** A preset name or a template; outranks `x-query.grammar`. See docs/configuration.md. */
 	grammar?: DeclaredFilterGrammar
+	/** A preset name or a template; outranks `x-query.sortGrammar`. */
+	sortGrammar?: DeclaredSortGrammar
 }
 
 /** A second host with its own OpenAPI. Auth stays on the primary; the JWT is reused. */

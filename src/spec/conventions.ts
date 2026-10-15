@@ -25,6 +25,7 @@ import {
 	renderTerm,
 } from "./filter-render.ts"
 import type { FilterOp } from "./query-capabilities.ts"
+import { parseSortGrammar, renderSortKey, renderSortKeys, SORT_PRESETS, type SortGrammarSpec } from "./sort-render.ts"
 import type { ParameterObject, SchemaObject } from "./types.ts"
 
 export type { FilterTermValue } from "./filter-render.ts"
@@ -59,6 +60,8 @@ export type SortGrammar =
 	| "colon"
 	/** `field asc` / `field desc`, as SQL writes it. */
 	| "spaced"
+	/** Declared as a template; `QueryConventions.sortSpec` says how keys are spelled. */
+	| "template"
 
 /** How a sparse fieldset is spelled. */
 export type SelectGrammar =
@@ -91,6 +94,8 @@ export interface QueryConventions {
 	filterGrammar?: FilterGrammarSpec
 	/** How sort directions are written for the `order` parameter. */
 	sortGrammar: SortGrammar
+	/** How sort keys are spelled under a declared template; the named grammars are presets. */
+	sortSpec?: SortGrammarSpec
 	/** How a sparse fieldset is written for the `select` parameter. */
 	selectGrammar: SelectGrammar
 	/**
@@ -257,10 +262,24 @@ function inferSelectGrammar(select: ParameterObject | undefined): SelectGrammar 
 	return /fields\[[^\]]+\]/.test(description) ? "bracketed" : "csv"
 }
 
+/** A declared sort grammar, or the inferred one when none was declared or it cannot be read. */
+function declaredSort(
+	declared: unknown,
+	order: ParameterObject | undefined,
+): Pick<QueryConventions, "sortGrammar" | "sortSpec"> {
+	if (typeof declared === "string" && Object.hasOwn(SORT_PRESETS, declared)) {
+		return { sortGrammar: declared as keyof typeof SORT_PRESETS }
+	}
+	/* An object that cannot be read is a gap `x-query`'s validation records; oat infers instead. */
+	const parsed = typeof declared === "object" ? parseSortGrammar(declared) : null
+	if (parsed?.ok === true) return { sortGrammar: "template", sortSpec: parsed.spec }
+	return { sortGrammar: inferSortGrammar(order) }
+}
+
 export function deriveQueryConventions(
 	parameters: readonly ParameterObject[],
 	collection: CollectionShape | null,
-	declared?: { grammar?: unknown },
+	declared?: { grammar?: unknown; sortGrammar?: unknown },
 	onGuess?: (message: string) => void,
 	/** Response headers the success response declares, by name. */
 	responseHeaders: readonly string[] = [],
@@ -307,7 +326,7 @@ export function deriveQueryConventions(
 		grammar,
 		...(template?.ok === true ? { filterGrammar: template.spec } : {}),
 		selectGrammar: inferSelectGrammar(selectParam),
-		sortGrammar: inferSortGrammar(orderParam),
+		...declaredSort(declared?.sortGrammar, orderParam),
 	}
 
 	const link = responseHeaders.find((name) => name.toLowerCase() === "link")
@@ -410,6 +429,15 @@ export function orTerm(
 	])
 }
 
+/** How this endpoint's sort keys are spelled: its declared template, or its named grammar's preset. */
+export function sortSpec(conventions: QueryConventions): SortGrammarSpec {
+	if (conventions.sortGrammar === "template") {
+		if (conventions.sortSpec === undefined) throw new Error("a template sort grammar without its template")
+		return conventions.sortSpec
+	}
+	return SORT_PRESETS[conventions.sortGrammar]
+}
+
 /** Renders a sort term in whichever grammar the endpoint speaks. */
 export function sortTerm(
 	conventions: QueryConventions,
@@ -417,30 +445,26 @@ export function sortTerm(
 	direction: "asc" | "desc",
 	nulls?: "first" | "last",
 ): string {
-	const suffix = nulls === undefined ? "" : conventions.sortGrammar === "dotted" ? `.nulls${nulls}` : ""
-	switch (conventions.sortGrammar) {
-		case "dotted":
-			return `${field}.${direction}${suffix}`
-		case "colon":
-			return `${field}:${direction}`
-		case "spaced":
-			return `${field} ${direction}`
-		case "prefixed":
-			/* Ascending is the bare field name: there is no "+" form in this grammar, and sending
-			 * one would be a token the API has never seen. */
-			return direction === "desc" ? `-${field}` : field
-	}
+	return renderSortKey(sortSpec(conventions), field, direction, nulls)
 }
 
-/** `null` when the grammar cannot write a nulls token. Dotted (PostgREST-shaped) can. */
+/** `null` when the grammar cannot write a nulls token. */
 export function sortTermWithNulls(
 	conventions: QueryConventions,
 	field: string,
 	direction: "asc" | "desc",
 	nulls: "first" | "last",
 ): string | null {
-	if (conventions.sortGrammar !== "dotted") return null
-	return sortTerm(conventions, field, direction, nulls)
+	const spec = sortSpec(conventions)
+	return spec.nulls === undefined ? null : renderSortKey(spec, field, direction, nulls)
+}
+
+/** Several sort keys as one order value; `null` when the grammar sorts by one key only. */
+export function sortKeys(
+	conventions: QueryConventions,
+	keys: readonly (readonly [string, "asc" | "desc"])[],
+): string | null {
+	return renderSortKeys(sortSpec(conventions), keys)
 }
 
 /**
