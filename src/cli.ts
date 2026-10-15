@@ -27,7 +27,7 @@ import { renderTeardown } from "./runtime/teardown.ts"
 import { buildModel, type SpecModel } from "./spec/graph.ts"
 import { UsageError } from "./config/usage-error.ts"
 import { applyGrammarOverrides } from "./spec/grammar-overrides.ts"
-import { applyOverlay } from "./spec/overlay.ts"
+import { prepareDocument } from "./spec/prepare.ts"
 import { dereference, loadSpec } from "./spec/load.ts"
 
 interface Args {
@@ -306,6 +306,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 			...(config.maxRps === undefined ? {} : { maxRps: config.maxRps }),
 			...(config.origins === undefined ? {} : { origins: config.origins }),
 			...(config.overlay === undefined ? {} : { overlay: config.overlay }),
+			...(config.allow === undefined ? {} : { allow: config.allow }),
 			...(config.scenarios === undefined ? {} : { scenarios: config.scenarios }),
 			...(config.outOfBand === undefined ? {} : { outOfBand: config.outOfBand }),
 			...(config.payloads === undefined ? {} : { payloads: config.payloads }),
@@ -804,8 +805,9 @@ export async function main(): Promise<number> {
 	/* A relative spec resolves against the config's base URL, as it does for `run`. */
 	const raw = await loadSpec(specSource, str(flags, "base-url") ?? loaded?.baseUrl)
 	let built: { externalRefs: string[]; model: SpecModel }
+	let removed: string[] = []
 	try {
-		const { doc, externalRefs } = dereference(loaded?.overlay === undefined ? raw : applyOverlay(raw, loaded.overlay))
+		const { doc, externalRefs } = dereference(prepareDocument(raw, loaded ?? {}, (ids) => (removed = ids)))
 		const model = buildModel(doc)
 		if (loaded !== undefined) applyGrammarOverrides(model, loaded)
 		built = { externalRefs, model }
@@ -857,6 +859,7 @@ export async function main(): Promise<number> {
 							...(config.query === undefined ? {} : { query: config.query }),
 							...(config.entities === undefined ? {} : { entities: config.entities }),
 							...(config.hooks === undefined ? {} : { hooks: config.hooks }),
+							...(config.allow === undefined ? {} : { allowRemoved: removed }),
 						},
 			)
 			process.stdout.write(output.text)

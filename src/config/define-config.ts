@@ -575,6 +575,13 @@ export interface OatConfig {
 	 */
 	overlay?: SpecOverlay
 	/**
+	 * The only operationIds oat may call. Every other operation leaves the document after the
+	 * overlay and before oat reads it, so neither the matrix, the contract floor, scenarios nor
+	 * teardown can reach it. An entry naming nothing, or an auth or scenario step needing a removed
+	 * operation, stops the run with a usage error.
+	 */
+	allow?: string[]
+	/**
 	 * Backoff for `resolveOutOfBand` and `resolvePrincipalAuth`.
 	 * Defaults: `{ attempts: 6, initialMs: 200, maxMs: 3000 }` (~9s worst case).
 	 */

@@ -25,6 +25,8 @@ export interface DoctorConfig {
 	query?: QueryCapabilities
 	entities?: Record<string, EntityConfig>
 	hooks?: Pick<NonNullable<OatConfig["hooks"]>, "resolveQueryCapabilities">
+	/** Operations config `allow` took out of the document. */
+	allowRemoved?: string[]
 }
 
 /**
@@ -462,6 +464,7 @@ function doctor(
 					gaps: model.gaps.gaps,
 					listableEntities: listable.length,
 					queryCatalog: catalogs,
+					...(config?.allowRemoved === undefined ? {} : { allowRemoved: config.allowRemoved }),
 					roots: model.roots,
 					testableEntities: trackable.length,
 					trackableEntities: trackable.length,
@@ -475,6 +478,13 @@ function doctor(
 
 	const lines: string[] = []
 	lines.push("")
+	if (config?.allowRemoved !== undefined) {
+		const removed = config.allowRemoved
+		lines.push(
+			`  allow      ${removed.length} operation${removed.length === 1 ? "" : "s"} removed` +
+				(removed.length === 0 ? "" : `: ${removed.join(", ")}`),
+		)
+	}
 	lines.push(
 		`  trackable  ${bar(trackable.length, entities.length)}  ${trackable.length}/${entities.length} ` +
 			"entities have an identity and a read",

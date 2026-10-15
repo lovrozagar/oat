@@ -86,6 +86,7 @@ const CONFIG = {
 		shape({ baseUrl: string, id: string, maxRps: positive, overlay, spec: string }, ["baseUrl", "id", "spec"]),
 	),
 	overlay,
+	allow: arrayOf(string),
 	outDir: string,
 	outOfBand: shape({ attempts: integer(1), initialMs: integer(0), maxMs: integer(0) }),
 	payloads: oneOf("full", "per-write-path"),

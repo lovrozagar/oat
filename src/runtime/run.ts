@@ -10,6 +10,7 @@ import { randomBytes } from "node:crypto"
 import { isSecretHeaderName, registerSecret, registerSecretHeader } from "./redact.ts"
 import { buildModel, type EntityModel, type OperationModel, type SpecModel, operationResolver } from "../spec/graph.ts"
 import { applyGrammarOverrides } from "../spec/grammar-overrides.ts"
+import { prepareDocument } from "../spec/prepare.ts"
 import { applyOverlay, type SpecOverlay } from "../spec/overlay.ts"
 import { dereference, loadSpec } from "../spec/load.ts"
 import type {
@@ -134,6 +135,8 @@ export interface RunOptions {
 	origins?: OriginSpec[]
 	/** Patches to the document, applied before oat reads it; see `OatConfig.overlay`. */
 	overlay?: SpecOverlay
+	/** The only operationIds oat may call; see `OatConfig.allow`. */
+	allow?: string[]
 	/** Declared flows for operations the matrix cannot reach. */
 	scenarios?: Scenario[]
 	/** Backoff for `resolveOutOfBand` / `resolvePrincipalAuth`. */
@@ -492,7 +495,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		...(options.network?.waitMs === undefined ? {} : { waitMs: options.network.waitMs }),
 		...requestTimeoutOpt(options.network?.requestTimeoutMs),
 	})
-	const { doc } = dereference(options.overlay === undefined ? raw : applyOverlay(raw, options.overlay))
+	const { doc } = dereference(prepareDocument(raw, options))
 	const model = buildModel(doc)
 	applyGrammarOverrides(model, options)
 	try {
