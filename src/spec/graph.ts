@@ -100,6 +100,8 @@ export interface OperationModel {
 	securitySchemes: string[]
 	collection: CollectionShape | null
 	identity: string | null
+	/** Where `identity` came from: an `x-entity` tag, the item route's parameter, or the schema alone. */
+	identitySource: "declared" | "route" | "schema" | null
 	query: QueryCapability | null
 	immutable: string[]
 	generated: string[]
@@ -177,6 +179,11 @@ function successResponseHeaders(op: OperationObject): string[] {
 	return [...names]
 }
 
+/** How much an operation's identity counts when an entity's operations disagree. */
+function identityRank(source: OperationModel["identitySource"]): number {
+	return source === "declared" ? 2 : source === "route" ? 1 : 0
+}
+
 export function buildModel(doc: OpenApiDocument): SpecModel {
 	const gaps = new GapCollector()
 	const endpoints = listEndpoints(doc)
@@ -241,7 +248,10 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 	const lastParam = pathParams.at(-1)
 
 	const itemSchema = collection?.itemSchema ?? responseSchema
-	const identity = entity?.identity ?? deriveIdentity(itemSchema, lastParam === undefined ? undefined : lastParam)
+	const itemRoute = lastParam !== undefined && path.endsWith(`{${lastParam}}`)
+	const identity = entity?.identity ?? deriveIdentity(itemSchema, lastParam, itemRoute)
+	const identitySource: OperationModel["identitySource"] =
+		entity?.identity !== undefined ? "declared" : identity === null ? null : itemRoute ? "route" : "schema"
 
 	const security = op.security ?? doc.security ?? []
 	const securitySchemes = [...new Set(security.flatMap((group) => Object.keys(group)))]
@@ -271,6 +281,7 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 		generated: readGenerated(op, bodySchema),
 		hasRequestBody: hasRequestBody(op),
 		identity,
+		identitySource,
 		idempotent: readFlag(op, "x-idempotent"),
 		immutable: readImmutable(op),
 		invalidates: readInvalidate(op),
@@ -528,10 +539,15 @@ function buildEntities(
 		return created
 	}
 
+	const identityRanks = new Map<string, number>()
 	for (const op of operations) {
 		if (op.entity === null || op.action === null) continue
 		const entity = get(op.entity)
-		if (entity.identity === null && op.identity !== null) entity.identity = op.identity
+		/* Declared beats an item route, which beats a collection's guess: teardown deletes through the item route. */
+		if (op.identity !== null && identityRank(op.identitySource) > (identityRanks.get(entity.name) ?? -1)) {
+			entity.identity = op.identity
+			identityRanks.set(entity.name, identityRank(op.identitySource))
+		}
 		if (op.tenantParam !== null && !entity.tenantParams.includes(op.tenantParam)) {
 			entity.tenantParams.push(op.tenantParam)
 		}

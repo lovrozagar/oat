@@ -32,6 +32,8 @@ export interface TeardownReport {
 	removed: number
 	failed: Array<{ entity: string; id: string; reason: string }>
 	unsupported: string[]
+	/** Every record the unwind was given, in creation order, and whether it is gone now. */
+	records: Array<{ entity: string; id: string; removed: boolean }>
 }
 
 /**
@@ -77,7 +79,7 @@ export class Ledger {
 		fallbacks: (owner: Owner) => Owner[],
 		onItem?: (done: number, total: number, item: Disposable) => void,
 	): Promise<TeardownReport> {
-		const report: TeardownReport = { failed: [], removed: 0, unsupported: [] }
+		const report: TeardownReport = { failed: [], records: [], removed: 0, unsupported: [] }
 		const unsupported = new Set<string>()
 
 		/*
@@ -88,6 +90,7 @@ export class Ledger {
 		 */
 		/* Takes what is ledgered now; a later unwind removes only what was recorded after this one. */
 		const queue = this.items.splice(0).reverse()
+		const records = new Map(queue.map((item) => [item, { entity: item.entity, id: item.id, removed: false }]))
 		const earlierDeletes = new Set(
 			client.transcript
 				.filter((exchange) => exchange.method === "DELETE" && exchange.status >= 200 && exchange.status < 300)
@@ -143,8 +146,11 @@ export class Ledger {
 				 * may refuse every later request, its own delete included. The call above still
 				 * goes first, so a record restored since is removed rather than assumed gone. */
 				if (!removed && deletedEarlier(path)) removed = true
-				if (removed) report.removed += 1
-				else {
+				if (removed) {
+					report.removed += 1
+					const record = records.get(item)
+					if (record !== undefined) record.removed = true
+				} else {
 					report.failed.push({
 						entity: item.entity,
 						id: item.id,
@@ -166,6 +172,7 @@ export class Ledger {
 		}
 
 		report.unsupported = [...unsupported]
+		report.records = [...records.values()].toReversed()
 		return report
 	}
 }

@@ -112,6 +112,28 @@ describe("collections and identities behind composition", () => {
 		expect(deriveIdentity(null, "table_id")).toBe("id")
 		expect(deriveIdentity(null, "workspaceUuid")).toBe("uuid")
 	})
+
+	/* Teardown deletes by the identity through the item route, so the property the route's own
+	 * parameter names wins over a required display field: deleting `/notes/{name}` reads as a 404,
+	 * which counts as removed, and the real record stays behind. */
+	it("prefers the property the item route's parameter names over a required name", async () => {
+		const { deriveIdentity } = await import("../src/spec/collection.ts")
+		const note = {
+			properties: { id: { readOnly: true, type: "string" }, name: { type: "string" } },
+			required: ["name"],
+			type: "object",
+		}
+		expect(deriveIdentity(note, "noteId")).toBe("id")
+		expect(deriveIdentity(note, "note_id")).toBe("id")
+		expect(deriveIdentity(note)).toBe("name")
+		const page = {
+			properties: { id: { type: "string" }, slug: { type: "string" } },
+			required: ["id", "slug"],
+			type: "object",
+		}
+		expect(deriveIdentity(page, "pageSlug")).toBe("slug")
+		expect(deriveIdentity(page, "pageRef")).toBe("id")
+	})
 })
 
 describe("tag validation", () => {

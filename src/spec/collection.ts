@@ -202,15 +202,33 @@ function asSchema(value: unknown): SchemaObject | null {
 const IDENTITY_CANDIDATES = ["id", "uuid", "slug", "key", "name"]
 
 /**
- * Finds the property that identifies an instance. Prefers a required identity-like property,
- * then any identity-like property, then the trailing path parameter's implied name.
+ * Finds the property that identifies an instance: the one the item route's own parameter names
+ * when the schema has it (`{noteId}` → `id`), then a required identity-like property, then any
+ * identity-like property, then the parameter's implied name. The route comes first because
+ * teardown deletes through it: a `name` that is merely required would put a display value in the
+ * delete path, whose 404 counts as removed while the real record stays behind.
  */
-export function deriveIdentity(raw: SchemaObject | null, pathParamHint?: string): string | null {
+export function deriveIdentity(
+	raw: SchemaObject | null,
+	pathParamHint?: string,
+	/** The route ends in that parameter, so it names this item rather than a parent. */
+	itemRoute = true,
+): string | null {
+	/* `{table_id}` or `{tableId}` on `/tables/…` implies the item's own key is `id`. */
+	const implied =
+		pathParamHint === undefined
+			? undefined
+			: pathParamHint
+					.replace(/^.*[_.-]/, "")
+					.replace(/^[a-z0-9]+(?=[A-Z])/, "")
+					.toLowerCase()
+	const hinted = implied !== undefined && IDENTITY_CANDIDATES.includes(implied) ? implied : undefined
 	const itemSchema = effective(raw)
 	if (itemSchema !== null) {
 		const props = itemSchema.properties
 		if (props !== null && typeof props === "object") {
 			const names = Object.keys(props as Record<string, unknown>)
+			if (itemRoute && hinted !== undefined && names.includes(hinted)) return hinted
 			const required = Array.isArray(itemSchema.required) ? (itemSchema.required as string[]) : []
 			for (const candidate of IDENTITY_CANDIDATES) {
 				if (required.includes(candidate)) return candidate
@@ -220,13 +238,5 @@ export function deriveIdentity(raw: SchemaObject | null, pathParamHint?: string)
 			}
 		}
 	}
-	if (pathParamHint !== undefined) {
-		/* `{table_id}` or `{tableId}` on `/tables/…` implies the item's own key is `id`. */
-		const stripped = pathParamHint
-			.replace(/^.*[_.-]/, "")
-			.replace(/^[a-z0-9]+(?=[A-Z])/, "")
-			.toLowerCase()
-		if (IDENTITY_CANDIDATES.includes(stripped)) return stripped
-	}
-	return null
+	return hinted ?? null
 }

@@ -12,7 +12,7 @@
 
 import type { Backend } from "./suite.ts"
 import { EXPECTED_FAILURES } from "./expected-failures.ts"
-import { leftBehind } from "./leaks.ts"
+import { damagedBystanders, leftBehind, ledgeredNotCreated } from "./leaks.ts"
 import { PRINCIPALS, defectsFor, judgeDefect } from "./suite.ts"
 import { SHAPES } from "../reference/shapes.ts"
 import { run } from "../runtime/run.ts"
@@ -60,9 +60,18 @@ async function judge(
 		for (const item of result.inconclusive) {
 			problems.push(`inconclusive [${item.check}] ${item.entity}: ${item.reason}`)
 		}
-		const leaked = leftBehind(before, await server.snapshot())
+		const after = await server.snapshot()
+		const leaked = leftBehind(before, after)
 		if (leaked.length > 0) {
 			problems.push(`left ${leaked.length} record(s) behind: ${leaked.slice(0, 4).join(", ")}`)
+		}
+		const bystanders = damagedBystanders(before, after)
+		if (bystanders.length > 0) {
+			problems.push(`touched ${bystanders.length} record(s) it did not create: ${bystanders.slice(0, 4).join("; ")}`)
+		}
+		const stray = ledgeredNotCreated(result.teardown?.records ?? [], server.createdIds())
+		if (stray.length > 0) {
+			problems.push(`ledgered ${stray.length} id(s) the server never created: ${stray.slice(0, 4).join("; ")}`)
 		}
 		if (reference !== undefined) {
 			const missing = [...reference].filter((id) => !result.checksRun.includes(id) && !Object.hasOwn(cannotRun, id))

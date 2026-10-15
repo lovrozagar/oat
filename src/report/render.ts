@@ -16,9 +16,12 @@ import { EXIT, runVerdict } from "../runtime/exit.ts"
 import { type Finding, isRootCause, type Verdict } from "../runtime/finding.ts"
 import type { SpecModel } from "../spec/graph.ts"
 import type { CheckTiming } from "../runtime/run.ts"
+import type { TeardownReport } from "../runtime/teardown.ts"
 
 export interface ReportInput {
 	findings: Finding[]
+	/** What the unwind removed and left, record by record. Absent when nothing was torn down. */
+	teardown?: TeardownReport | null
 	model: SpecModel
 	client: Client
 	baseUrl: string
@@ -682,6 +685,7 @@ export function renderJson(input: ReportInput): string {
 			checksOutOfScope: input.checksOutOfScope ?? [],
 			durationMs: input.durationMs,
 			entitiesTested: input.entitiesTested,
+			...(input.teardown === undefined || input.teardown === null ? {} : { teardown: input.teardown }),
 			findings: input.findings.map((finding) => ({
 				check: finding.check,
 				detail: finding.detail,

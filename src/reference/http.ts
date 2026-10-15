@@ -274,6 +274,8 @@ export interface ReferenceServer {
 	principals: Principal[]
 	/** Every record currently stored, per entity, for leak accounting. Reads the store directly. */
 	snapshot: () => Promise<Record<string, Row[]>>
+	/** Every id the server issued or stored since it started serving, per entity, deleted since or not. */
+	createdIds: () => Record<string, string[]>
 }
 
 export interface ReferenceOptions {
@@ -328,7 +330,13 @@ export async function createReferenceServer(
 	 * issues the same ids in the same order. Timestamps derive from it rather than the clock —
 	 * wall-clock time makes ordering assertions flaky for reasons unrelated to the backend. */
 	let sequence = 0
-	const nextId = (entity: EntityDef): string | number => {
+	/* Every id issued or stored once the server is serving, per entity: what a client's run caused. */
+	const caused: Record<string, string[]> = {}
+	let serving = false
+	const note = (entity: EntityDef, id: unknown): void => {
+		if (serving) (caused[entity.name] ??= []).push(String(id))
+	}
+	const issueId = (entity: EntityDef): string | number => {
 		sequence += 1
 		const identity = entity.fields.find((field) => field.name === entity.identity)
 		if (identity?.type === "integer") return sequence
@@ -339,6 +347,13 @@ export async function createReferenceServer(
 			return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`
 		}
 		return `${entity.name}_${String(sequence).padStart(6, "0")}`
+	}
+	/* An id the server hands out counts even when a defect then fails to store the record: the
+	 * backend gave it back, so a client may rightly try to remove it. */
+	const nextId = (entity: EntityDef): string | number => {
+		const id = issueId(entity)
+		note(entity, id)
+		return id
 	}
 	const now = (): number => 1_700_000_000_000 + sequence * 1000
 
@@ -672,6 +687,14 @@ export async function createReferenceServer(
 		}
 	}
 	if (shape.prepopulate !== undefined) await prepopulate(shape.prepopulate)
+	/* From here on every issued id and stored record is one a client caused: the ids a run may ledger. */
+	serving = true
+	const insert = store.insert.bind(store)
+	store.insert = async (entity, record) => {
+		const stored = await insert(entity, record)
+		note(entity, stored[entity.identity])
+		return stored
+	}
 
 	interface Grant {
 		accepted: boolean
@@ -1226,6 +1249,7 @@ export async function createReferenceServer(
 						/* Teardown must not turn a completed run into a failed one. */
 					}
 				},
+				createdIds: () => Object.fromEntries(Object.entries(caused).map(([name, ids]) => [name, [...new Set(ids)]])),
 				defects,
 				principals: PRINCIPALS,
 				server,

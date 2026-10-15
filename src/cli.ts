@@ -347,6 +347,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		profileExclusions: result.profileExclusions,
 		scope: result.scope,
 		startedAt,
+		teardown: result.teardown,
 		...(result.exchanges === undefined ? {} : { exchanges: result.exchanges }),
 		...(result.network === undefined ? {} : { network: result.network }),
 	}
@@ -372,7 +373,10 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	}
 
 	process.stdout.write(renderConsole(input))
-	for (const line of renderTeardown(result.teardown ?? { failed: [], removed: 0, unsupported: [] }, result.created)) {
+	for (const line of renderTeardown(
+		result.teardown ?? { failed: [], records: [], removed: 0, unsupported: [] },
+		result.created,
+	)) {
 		process.stdout.write(`${line}\n`)
 	}
 	process.stdout.write(`  confidence: ${resolve(outDir, "report.html")}\n`)

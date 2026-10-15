@@ -39,6 +39,8 @@ const result = await run({
 // pass `ops: ["product.update"]` to run() for a targeted run; ScopeError on an unknown name
 ```
 
+`result.teardown` is `{ removed, failed, unsupported, records }`; `records` lists every record oat ledgered, in creation order, as `{ entity, id, removed }`. Only ids the backend gave back are ever ledgered. `oat-report.json` carries the same object under `teardown`.
+
 `loadConfig(path)` loads `.ts` / `.js` / `.mjs` / `.json` the same way the CLI does. The CLI then expands `${NAME}` in every string. `defineConfig` is an identity function for typing; it does not interpolate. If you call `run()` with an in-process object, resolve secrets yourself (template literals, `process.env`) before passing it.
 
 `runVerdict(result)` is the verdict the CLI and every report state: `{ outcome, reason }`, where

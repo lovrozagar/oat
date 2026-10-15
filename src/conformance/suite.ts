@@ -15,7 +15,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
-import { DEFECTS, type DefectName } from "../reference/defects.ts"
+import { DAMAGES_BYSTANDERS, DEFECTS, type DefectName } from "../reference/defects.ts"
 import { DIALECTS } from "../reference/dialect.ts"
 import { STRING_PAYLOADS, catalogProblems } from "../runtime/payloads.ts"
 import { coverageByCheck, renderConsole, renderRepros, type ReportInput } from "../report/render.ts"
@@ -26,7 +26,7 @@ import { buildModel } from "../spec/graph.ts"
 import { dereference, loadSpec } from "../spec/load.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
 import { EXPECTED_INCONCLUSIVE } from "./expected-failures.ts"
-import { leftBehind } from "./leaks.ts"
+import { damagedBystanders, leftBehind, ledgeredNotCreated } from "./leaks.ts"
 import { SPEC_FIXTURES } from "./specs.ts"
 
 export interface ParserResult {
@@ -1279,6 +1279,10 @@ export interface CaseResult {
 	checksRun: string[]
 	/** Records created and not cleaned up. */
 	leaked?: number
+	/** Records that existed before the run and were deleted or changed by it. */
+	bystanders?: string[]
+	/** Ids oat ledgered for teardown that the backend never created. */
+	strayLedger?: string[]
 	/** Checks that ran and could not reach a verdict, as `check@entity: reason`. */
 	inconclusive?: string[]
 	/** Checks this defect may legitimately trip, primary first. */
@@ -1299,6 +1303,8 @@ async function runAgainst(
 	inconclusive: Inconclusive[]
 	leaked: number
 	leakedRecords: string[]
+	bystanders: string[]
+	strayLedger: string[]
 }> {
 	/* One HTTP implementation, one store per engine — see reference/http.ts. Imported lazily so
 	 * an optional runtime such as node:sqlite cannot take down paths that never touch it. */
@@ -1323,7 +1329,11 @@ async function runAgainst(
 		})
 		/* A tester that litters is one nobody runs twice against anything real, so this is
 		 * asserted, not assumed — and read from the backend, not from oat's ledger. */
-		const leakedRecords = leftBehind(before, await server.snapshot())
+		const after = await server.snapshot()
+		const leakedRecords = leftBehind(before, after)
+		/* oat changes only what it made, and ledgers only what the backend made for it. */
+		const bystanders = damagedBystanders(before, after)
+		const strayLedger = ledgeredNotCreated(result.teardown?.records ?? [], server.createdIds())
 		return {
 			checksRun: result.checksRun,
 			entitiesTested: result.entitiesTested,
@@ -1331,6 +1341,8 @@ async function runAgainst(
 			inconclusive: result.inconclusive,
 			leaked: leakedRecords.length,
 			leakedRecords,
+			bystanders,
+			strayLedger,
 		}
 	} finally {
 		await server.close()
@@ -1391,9 +1403,16 @@ export async function runBaselines(backend: Backend = "memory", dialect = "postg
 
 	/* Baseline first — everything downstream is meaningless if this is not clean. */
 	try {
-		const { findings, entitiesTested, checksRun, leaked, inconclusive } = await runAgainst([], false, backend, dialect)
+		const { findings, entitiesTested, checksRun, leaked, inconclusive, bystanders, strayLedger } = await runAgainst(
+			[],
+			false,
+			backend,
+			dialect,
+		)
 		const real = findings.filter((f) => f.verdict !== "COVERAGE_GAP")
 		results.push({
+			bystanders,
+			strayLedger,
 			checksRun,
 			inconclusive: inconclusive.map((item) => `${item.check}@${item.entity}: ${item.reason}`),
 			leaked,
@@ -1424,9 +1443,16 @@ export async function runBaselines(backend: Backend = "memory", dialect = "postg
 	 * backend when it is running on heuristics alone — a fallback that invents findings would
 	 * make the tool unusable on any spec that has not been annotated yet. */
 	try {
-		const { findings, entitiesTested, checksRun, inconclusive } = await runAgainst([], true, backend, dialect)
+		const { findings, entitiesTested, checksRun, inconclusive, bystanders, strayLedger } = await runAgainst(
+			[],
+			true,
+			backend,
+			dialect,
+		)
 		const real = findings.filter((f) => f.verdict !== "COVERAGE_GAP")
 		results.push({
+			bystanders,
+			strayLedger,
 			checksRun,
 			defect: null,
 			detected: real.length === 0,
@@ -1543,7 +1569,15 @@ export async function judgeDefect(
 	const expected = EXPECTED[defect]
 	const acceptable = acceptableOf(expected)
 	try {
-		const { findings, entitiesTested, checksRun } = await runAgainst([defect], false, backend, dialect, shape)
+		const { findings, entitiesTested, checksRun, bystanders, strayLedger } = await runAgainst(
+			[defect],
+			false,
+			backend,
+			dialect,
+			shape,
+		)
+		/* A defect that by design rewrites other rows is the backend's doing, not oat's. */
+		const touched = DAMAGES_BYSTANDERS.has(defect) ? { bystanders: [], strayLedger } : { bystanders, strayLedger }
 		const reproFailures = await checkReproSyntax(findings)
 		if (reproFailures.length > 0) {
 			return {
@@ -1561,6 +1595,7 @@ export async function judgeDefect(
 		}
 		const real = findings.filter((f) => f.verdict !== "COVERAGE_GAP")
 		return {
+			...touched,
 			acceptable,
 			checksRun,
 			defect,
@@ -1620,14 +1655,19 @@ export function renderSuite(
 		const undecided = (result.inconclusive ?? []).filter(
 			(entry) => !allowed.some((prefix) => entry.startsWith(`${prefix}:`)),
 		)
-		const ok = isBaseline
-			? result.spurious.length === 0 &&
-				!vacuous &&
-				leaked === 0 &&
-				undecided.length === 0 &&
-				/* An untagged run that finds nothing *and* runs almost nothing proves nothing. */
-				result.checksRun.length >= 10
-			: result.detected && result.spurious.length === 0
+		const bystanders = result.bystanders ?? []
+		const strayLedger = result.strayLedger ?? []
+		const ok =
+			bystanders.length === 0 &&
+			strayLedger.length === 0 &&
+			(isBaseline
+				? result.spurious.length === 0 &&
+					!vacuous &&
+					leaked === 0 &&
+					undecided.length === 0 &&
+					/* An untagged run that finds nothing *and* runs almost nothing proves nothing. */
+					result.checksRun.length >= 10
+				: result.detected && result.spurious.length === 0)
 		if (!ok) failures++
 
 		const mark = ok ? "✓" : "✗"
@@ -1645,6 +1685,14 @@ export function renderSuite(
 			`  ${mark} ${result.label.padEnd(26)} ${detected.padEnd(8)} ${String(result.spurious.length).padEnd(9)} ${coverage}`,
 		)
 
+		if (bystanders.length > 0) {
+			lines.push(`      touched ${bystanders.length} record(s) it did not create: ${bystanders.slice(0, 4).join("; ")}`)
+		}
+		if (strayLedger.length > 0) {
+			lines.push(
+				`      ledgered ${strayLedger.length} id(s) the server never created: ${strayLedger.slice(0, 4).join("; ")}`,
+			)
+		}
 		if (leaked > 0) {
 			lines.push(
 				`      left ${leaked} record(s) behind after teardown — a run must not litter the ` + "system under test",

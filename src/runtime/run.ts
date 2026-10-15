@@ -1716,6 +1716,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			)
 			teardown = {
 				failed: [...(teardown?.failed ?? []), ...report.failed],
+				records: [...(teardown?.records ?? []), ...report.records],
 				removed: (teardown?.removed ?? 0) + report.removed,
 				unsupported: [...new Set([...(teardown?.unsupported ?? []), ...report.unsupported])],
 			}
