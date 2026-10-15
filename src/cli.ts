@@ -275,12 +275,14 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	/* Ctrl-C stops testing, not the run: what oat created is still removed and the partial report
 	 * is still written. A second signal means "now", and exits without either. */
 	const stop = new AbortController()
+	let firstSignal: NodeJS.Signals | undefined
 	const onSignal = (signal: NodeJS.Signals): void => {
 		if (stop.signal.aborted) {
 			process.stderr.write(`\noat: ${signal} again — exiting without teardown\n`)
 			process.exit(130)
 		}
 		process.stderr.write(`\noat: ${signal} — stopping, removing what this run created (again to exit now)\n`)
+		firstSignal = signal
 		stop.abort()
 	}
 	process.on("SIGINT", onSignal)
@@ -364,6 +366,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		...(result.exchanges === undefined ? {} : { exchanges: result.exchanges }),
 		...(result.network === undefined ? {} : { network: result.network }),
 		...(result.fenced === undefined ? {} : { fenced: result.fenced }),
+		...(result.interrupted === true ? { interrupted: true } : {}),
 	}
 
 	await writeFile(resolve(outDir, "principals.json"), `${JSON.stringify({ principals: result.principals }, null, 2)}\n`)
@@ -407,6 +410,8 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	await publishLatest(allocated)
 	process.stdout.write(`  latest: ${allocated.latest}\n\n`)
 
+	/* Stopped by a signal: the shell's convention, once teardown and the report are done. */
+	if (firstSignal !== undefined) return firstSignal === "SIGINT" ? 130 : 143
 	return exitCode(result)
 }
 

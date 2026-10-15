@@ -12,6 +12,9 @@
  * a request no report shows and no safety control sees. The reference backend, tests and labs are
  * not oat's traffic and stay free to make their own.
  *
+ * `oat/exit-only-in-cli`: only `src/cli.ts` ends the process. An exit anywhere else in oat skips
+ * teardown and the report — the records a run made stay behind on someone's backend.
+ *
  * `oat/grammar-through-renderer`: what a filter or sort grammar can write is the renderer's to say.
  * A check that compares a grammar's name — `grammar === "postgrest"` — answers for the presets and
  * is wrong for every declared template, so it asks the renderer (`canWriteOr`, `canGroupAnd`, a
@@ -137,9 +140,29 @@ const grammarThroughRenderer = {
 	},
 }
 
+const exitOnlyInCli = {
+	create(context: Context) {
+		const file = `/${context.filename.replaceAll("\\", "/").replace(/^\/+/, "")}`
+		if (!file.includes("/src/") || file.endsWith("/src/cli.ts")) return {}
+		return {
+			CallExpression(node: Call) {
+				const callee = node.callee
+				if (callee.type !== "MemberExpression") return
+				const member = callee as Member
+				if (member.object.name !== "process" || member.property.name !== "exit") return
+				context.report({
+					message: "Only src/cli.ts exits. Return or throw instead, so teardown and the report still run.",
+					node,
+				})
+			},
+		}
+	},
+}
+
 export default {
 	meta: { name: "oat" },
 	rules: {
+		"exit-only-in-cli": exitOnlyInCli,
 		"grammar-through-renderer": grammarThroughRenderer,
 		"network-through-client": networkThroughClient,
 		"proven-id-origin": provenIdOrigin,

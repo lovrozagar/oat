@@ -58,6 +58,8 @@ export interface ReportInput {
 	}
 	/** Requests `hooks.beforeRequest` refused, and whether that alone fails the run. */
 	fenced?: { requests: FencedRequest[]; failRun: boolean }
+	/** A signal stopped the run before it finished; what it did test is still reported. */
+	interrupted?: boolean
 }
 
 const VERDICT_ORDER: Verdict[] = ["SECURITY", "BACKEND_BUG", "SPEC_BUG", "AMBIGUITY", "BLOCKED", "COVERAGE_GAP"]
@@ -134,6 +136,7 @@ export function renderMarkdown(input: ReportInput): string {
 	lines.push("")
 	lines.push(`- **Backend**: ${input.baseUrl}`)
 	lines.push(`- **Result**: ${verdict.outcome} — ${verdict.reason}`)
+	if (input.interrupted === true) lines.push("- **Interrupted**: stopped by a signal; teardown ran")
 	lines.push(`- **Generated**: ${input.startedAt.toISOString()} (${(input.durationMs / 1000).toFixed(1)}s)`)
 	if (input.scope !== undefined) lines.push(`- **Scope**: ${scopeLine(input.scope, " — ")}`)
 	lines.push(`- **Entities tested**: ${entityList(input.entitiesTested)}`)
@@ -725,6 +728,7 @@ export function renderJson(input: ReportInput): string {
 			generatedAt: input.startedAt.toISOString(),
 			requests: input.client.transcript.length,
 			...(input.network === undefined ? {} : { network: input.network }),
+			...(input.interrupted === true ? { interrupted: true } : {}),
 			...(input.fenced === undefined
 				? {}
 				: {

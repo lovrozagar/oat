@@ -104,3 +104,22 @@ describe("oat/grammar-through-renderer", () => {
 		expect(lint("test/probe.test.ts", source, "grammar-through-renderer")).toEqual([])
 	})
 })
+
+describe("oat/exit-only-in-cli", () => {
+	const source = [
+		"export function stop(): void {",
+		"\tprocess.exit(1)",
+		"}",
+		"export const code = process.exitCode",
+	].join("\n")
+
+	it("flags an exit outside the CLI, which would skip teardown and the report", () => {
+		expect(lint("src/runtime/probe.ts", source, "exit-only-in-cli")).toEqual([2])
+	})
+
+	it("leaves the CLI, scripts and tests alone", () => {
+		expect(lint("src/cli.ts", source, "exit-only-in-cli")).toEqual([])
+		expect(lint("scripts/probe.ts", source, "exit-only-in-cli")).toEqual([])
+		expect(lint("test/probe.test.ts", source, "exit-only-in-cli")).toEqual([])
+	})
+})

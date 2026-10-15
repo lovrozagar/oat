@@ -26,6 +26,7 @@
 	},
 	"rules": {
 		"no-unused-vars": "warn",
+		"oat/exit-only-in-cli": "error",
 		"oat/grammar-through-renderer": "error",
 		"oat/network-through-client": "error",
 		"oat/proven-id-origin": "error",

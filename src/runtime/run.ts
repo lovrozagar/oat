@@ -1835,6 +1835,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			resolved.map((principal) => [principal.id, { headers: principal.headers, roots: principal.roots }]),
 		),
 		scenarios: ownScenarios,
+		stopped: () => options.signal?.aborted === true || networkGate.exhausted,
 	})
 	enterStage("test", "evidence from the transcript")
 	await proveFromTranscript({ client, grades, model })
@@ -1867,6 +1868,16 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		validator,
 	})
 
+	/* A stop that came after every entity had started still stopped something: say so. */
+	if (options.signal?.aborted === true && !interrupted) {
+		interrupted = true
+		findings.gap(
+			"run.interrupted",
+			"run",
+			`stopped during the ${currentPhase} phase`,
+			"the run was interrupted; what was tested is reported, and what oat created is removed",
+		)
+	}
 	/* What scenarios and contract calls created since. */
 	await unwindLedger()
 	/* Last, so a teardown delete that crashed is counted with everything else. */

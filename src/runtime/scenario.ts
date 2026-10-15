@@ -166,7 +166,14 @@ class StepFailure extends Error {
 	}
 }
 
+/** The run was told to stop: a step cut short is not a step that failed. */
+class ScenarioStopped extends Error {
+	override name = "ScenarioStopped"
+}
+
 export async function runScenarios(input: {
+	/** True once the run must stop: no further scenario, step or poll starts. */
+	stopped?: () => boolean
 	scenarios: readonly Scenario[]
 	model: SpecModel
 	client: Client
@@ -184,6 +191,7 @@ export async function runScenarios(input: {
 }): Promise<void> {
 	const sleep = input.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
 	for (const scenario of input.scenarios) {
+		if (input.stopped?.() === true) return
 		const graded = scenario.covers.filter((id) => input.mode === "full" || input.inScope(id))
 		const touches = scenario.steps.some((step) => {
 			const id = stepOperation(step)
@@ -231,11 +239,17 @@ export async function runScenarios(input: {
 		const sent: Exchange[] = []
 		const observed = new Map<string, PassEvidence["observation"]>()
 		let stoppedAt: { index: number; failure: StepFailure } | null = null
+		let cutShort = false
 
 		for (const [index, step] of scenario.steps.entries()) {
 			try {
+				if (input.stopped?.() === true) throw new ScenarioStopped()
 				await runStep(step, index)
 			} catch (error) {
+				if (error instanceof ScenarioStopped) {
+					cutShort = true
+					break
+				}
 				const failure =
 					error instanceof StepFailure
 						? error
@@ -243,6 +257,18 @@ export async function runScenarios(input: {
 				stoppedAt = { failure, index }
 				break
 			}
+		}
+
+		/* Stopped from outside: what completed is graded below; nothing unreached is a verdict. */
+		if (cutShort) {
+			for (const id of graded) {
+				const call = calls.get(id)
+				if (call === undefined) continue
+				input.grades.graded([id], check)
+				const observation = observed.get(id)
+				input.grades.prove(id, observation === undefined ? { call: call.seq } : { call: call.seq, observation })
+			}
+			return
 		}
 
 		/* A failing step blames its own operation whether or not the scenario covers it: a support
@@ -359,7 +385,9 @@ export async function runScenarios(input: {
 					return
 				}
 				if (Date.now() < deadline) {
+					if (input.stopped?.() === true) throw new ScenarioStopped()
 					await sleep(waitMs)
+					if (input.stopped?.() === true) throw new ScenarioStopped()
 					waitMs = nextPollWait(waitMs, step.poll?.everyMs ?? 500)
 					continue
 				}
