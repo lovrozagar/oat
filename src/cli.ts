@@ -27,6 +27,7 @@ import { renderTeardown } from "./runtime/teardown.ts"
 import { buildModel, type SpecModel } from "./spec/graph.ts"
 import { UsageError } from "./config/usage-error.ts"
 import { type BaselineFile, baselineFrom, parseBaseline } from "./runtime/baseline.ts"
+import { diffReports, renderDiff, type SavedReport } from "./report/diff.ts"
 import { FencedError } from "./runtime/fence.ts"
 import { applyGrammarOverrides } from "./spec/grammar-overrides.ts"
 import { prepareDocument } from "./spec/prepare.ts"
@@ -35,6 +36,8 @@ import { dereference, loadSpec } from "./spec/load.ts"
 interface Args {
 	command: string
 	flags: Record<string, string | true>
+	/** Arguments that are not flags or flag values, in order: `oat diff <runA> <runB>`. Absent when none. */
+	positionals?: string[]
 }
 
 type FlagKind = "boolean" | "value" | "optional-value"
@@ -90,13 +93,18 @@ export function parseArgs(argv: string[]): Args & { error?: string } {
 	const command = leadingFlag ? "help" : (argv[0] ?? "help")
 	const rest = leadingFlag ? argv : argv.slice(1)
 	const flags: Record<string, string | true> = {}
+	const positionals: string[] = []
 	let error: string | undefined
 	const fail = (message: string): void => {
 		error ??= message
 	}
 	for (let i = 0; i < rest.length; i++) {
 		const token = rest[i]
-		if (token === undefined || !token.startsWith("--")) continue
+		if (token === undefined) continue
+		if (!token.startsWith("--")) {
+			positionals.push(token)
+			continue
+		}
 		const equals = token.indexOf("=")
 		const key = equals === -1 ? token.slice(2) : token.slice(2, equals)
 		const inline = equals === -1 ? undefined : token.slice(equals + 1)
@@ -127,7 +135,8 @@ export function parseArgs(argv: string[]): Args & { error?: string } {
 		}
 		flags[key] = value
 	}
-	return error === undefined ? { command, flags } : { command, error, flags }
+	const extra = positionals.length === 0 ? {} : { positionals }
+	return error === undefined ? { command, flags, ...extra } : { command, error, flags, ...extra }
 }
 
 export function unknownFlag(flags: Record<string, string | true>): string | undefined {
@@ -145,6 +154,7 @@ export const USAGE = `oat — OpenAPI Tester
   oat serve   [--defects A,B]              run a demo API to point oat at
   oat conformance                          self-test: injected defects vs detection
   oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
 
 Flags
   --config     oat config module (.ts/.js/.mjs/.json) with a default export
@@ -438,7 +448,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 }
 
 export async function main(): Promise<number> {
-	const { command, error: flagError, flags } = parseArgs(process.argv.slice(2))
+	const { command, error: flagError, flags, positionals } = parseArgs(process.argv.slice(2))
 
 	const unknown = unknownFlag(flags)
 	if (unknown !== undefined) {
@@ -823,6 +833,7 @@ export async function main(): Promise<number> {
 
 	if (command === "run") return commandRun(flags)
 	if (command === "baseline") return commandBaseline(flags)
+	if (command === "diff") return commandDiff(positionals ?? [], flags)
 
 	const specFlag = str(flags, "spec")
 	const configPath = str(flags, "config")
@@ -968,4 +979,31 @@ async function commandBaseline(flags: Args["flags"]): Promise<number> {
 
 function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error)
+}
+
+/** `oat diff <runA> <runB>`: a report on two runs, never a gate. */
+async function commandDiff(positionals: readonly string[], flags: Args["flags"]): Promise<number> {
+	const [a, b] = positionals
+	if (a === undefined || b === undefined) {
+		process.stderr.write("oat: diff needs two run folders: oat diff <runA> <runB>\n")
+		return EXIT.usage
+	}
+	const reports: SavedReport[] = []
+	for (const run of [a, b]) {
+		const path = resolve(run, "oat-report.json")
+		try {
+			/* `latest` is a link: read where it points. */
+			const folder = await realpath(resolve(run))
+			const saved = JSON.parse(await readFile(resolve(folder, "oat-report.json"), "utf8")) as Partial<SavedReport>
+			if (!Array.isArray(saved.findings)) throw new Error("it holds no findings list")
+			reports.push(saved as SavedReport)
+		} catch (error) {
+			process.stderr.write(`oat: cannot read ${path}: ${errorMessage(error)}\n`)
+			return EXIT.usage
+		}
+	}
+	const [before, after] = reports as [SavedReport, SavedReport]
+	const diff = diffReports(before, after)
+	process.stdout.write(flags.json === true ? `${JSON.stringify(diff, null, 2)}\n` : renderDiff(diff))
+	return 0
 }
