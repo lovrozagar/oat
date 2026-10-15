@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { EXIT, exitCode } from "./runtime/exit.ts"
-import { createWriteStream, existsSync, readFileSync, writeFileSync } from "node:fs"
+import { createWriteStream, existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs"
 import { mkdir, readFile, realpath, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
-import { pathToFileURL } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 import type { OatConfig } from "./config/define-config.ts"
 import { interpolate, loadConfig } from "./config/load.ts"
 import { configProblems } from "./config/validate.ts"
@@ -942,7 +942,21 @@ export function start(): void {
 
 /* `node dist/cli.js …` is the test/CI entry. `bin/oat.js` calls start() itself because
  * argv[1] is the bin wrapper, not this module. */
-if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+/**
+ * Whether this module is the program Node was asked to run. Installed from a local path, oat is a
+ * symlink: Node gives `import.meta.url` the real path and leaves `process.argv[1]` the link, so
+ * the two are compared as real paths, and as written when either cannot be resolved.
+ */
+function invokedDirectly(entry: string | undefined): boolean {
+	if (entry === undefined) return false
+	try {
+		return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(resolve(entry))
+	} catch {
+		return import.meta.url === pathToFileURL(resolve(entry)).href
+	}
+}
+
+if (invokedDirectly(process.argv[1])) {
 	start()
 }
 
