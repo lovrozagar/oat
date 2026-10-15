@@ -7,6 +7,7 @@
  * with another grammar would test something they did not ask for.
  */
 
+import { UsageError } from "../config/usage-error.ts"
 import type { QueryConventions } from "./conventions.ts"
 import { type FilterGrammarSpec, parseFilterGrammar } from "./filter-render.ts"
 import type { SpecModel } from "./graph.ts"
@@ -33,10 +34,10 @@ type Sort = Pick<QueryConventions, "sortGrammar"> & { sortSpec?: SortGrammarSpec
 function resolveFilter(declared: unknown, where: string): Filter {
 	if (declared === "postgrest" || declared === "colon" || declared === "equality") return { grammar: declared }
 	if (typeof declared !== "object" || declared === null) {
-		throw new Error(`${where} must be "postgrest", "colon", "equality" or a template object`)
+		throw new UsageError(`${where} must be "postgrest", "colon", "equality" or a template object`)
 	}
 	const parsed = parseFilterGrammar(declared)
-	if (!parsed.ok) throw new Error(`${where}: ${parsed.error}`)
+	if (!parsed.ok) throw new UsageError(`${where}: ${parsed.error}`)
 	return { filterGrammar: parsed.spec, grammar: "template" }
 }
 
@@ -45,10 +46,10 @@ function resolveSort(declared: unknown, where: string): Sort {
 		return { sortGrammar: declared as keyof typeof SORT_PRESETS }
 	}
 	if (typeof declared !== "object" || declared === null) {
-		throw new Error(`${where} must be "dotted", "prefixed", "colon", "spaced" or a template object`)
+		throw new UsageError(`${where} must be "dotted", "prefixed", "colon", "spaced" or a template object`)
 	}
 	const parsed = parseSortGrammar(declared)
-	if (!parsed.ok) throw new Error(`${where}: ${parsed.error}`)
+	if (!parsed.ok) throw new UsageError(`${where}: ${parsed.error}`)
 	return { sortGrammar: "template", sortSpec: parsed.spec }
 }
 

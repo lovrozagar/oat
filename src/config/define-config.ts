@@ -8,6 +8,7 @@
 
 import type { FilterableField, QueryCapabilities } from "../spec/query-capabilities.ts"
 import type { DeclaredFilterGrammar, DeclaredSortGrammar } from "../spec/grammar-overrides.ts"
+import type { SpecOverlay } from "../spec/overlay.ts"
 
 export type {
 	FieldType,
@@ -492,6 +493,8 @@ export interface OriginSpec {
 	spec: string
 	/** Requests per second this origin takes from oat in all, as `maxRps` is for `baseUrl`. */
 	maxRps?: number
+	/** Patches to this origin's document, as `overlay` is for the primary. */
+	overlay?: SpecOverlay
 }
 
 /* -------------------------------------------------------------------- profiles */
@@ -565,6 +568,12 @@ export interface OatConfig {
 	 * A second `defineConfig` can also reuse `.oat/runs/latest/principals.json` via `loadPersistedPrincipals`.
 	 */
 	origins?: OriginSpec[]
+	/**
+	 * Patches to a document you cannot change, applied before oat reads it: operations by
+	 * `operationId`, component schemas by name. Objects merge, arrays replace, `null` deletes. A
+	 * patch naming nothing in the document stops the run with a usage error.
+	 */
+	overlay?: SpecOverlay
 	/**
 	 * Backoff for `resolveOutOfBand` and `resolvePrincipalAuth`.
 	 * Defaults: `{ attempts: 6, initialMs: 200, maxMs: 3000 }` (~9s worst case).

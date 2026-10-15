@@ -24,8 +24,10 @@ import { resolveSaveExchanges } from "./runtime/exchanges.ts"
 import { allocateRunDir, DEFAULT_RUNS_ROOT, publishLatest } from "./runtime/runs.ts"
 import { authStepOperationIds, planScope, resolveTargetScope, ScopeError } from "./runtime/scope.ts"
 import { renderTeardown } from "./runtime/teardown.ts"
-import { buildModel } from "./spec/graph.ts"
+import { buildModel, type SpecModel } from "./spec/graph.ts"
+import { UsageError } from "./config/usage-error.ts"
 import { applyGrammarOverrides } from "./spec/grammar-overrides.ts"
+import { applyOverlay } from "./spec/overlay.ts"
 import { dereference, loadSpec } from "./spec/load.ts"
 
 interface Args {
@@ -303,6 +305,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 			...(config.rateLimits === undefined ? {} : { rateLimits: config.rateLimits }),
 			...(config.maxRps === undefined ? {} : { maxRps: config.maxRps }),
 			...(config.origins === undefined ? {} : { origins: config.origins }),
+			...(config.overlay === undefined ? {} : { overlay: config.overlay }),
 			...(config.scenarios === undefined ? {} : { scenarios: config.scenarios }),
 			...(config.outOfBand === undefined ? {} : { outOfBand: config.outOfBand }),
 			...(config.payloads === undefined ? {} : { payloads: config.payloads }),
@@ -316,7 +319,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 			...(config.network === undefined ? {} : { network: config.network }),
 		})
 	} catch (error) {
-		if (!(error instanceof ScopeError)) throw error
+		if (!(error instanceof UsageError)) throw error
 		process.stderr.write(`${error.message}\n`)
 		return 2
 	} finally {
@@ -800,9 +803,18 @@ export async function main(): Promise<number> {
 
 	/* A relative spec resolves against the config's base URL, as it does for `run`. */
 	const raw = await loadSpec(specSource, str(flags, "base-url") ?? loaded?.baseUrl)
-	const { doc, externalRefs } = dereference(raw)
-	const model = buildModel(doc)
-	if (loaded !== undefined) applyGrammarOverrides(model, loaded)
+	let built: { externalRefs: string[]; model: SpecModel }
+	try {
+		const { doc, externalRefs } = dereference(loaded?.overlay === undefined ? raw : applyOverlay(raw, loaded.overlay))
+		const model = buildModel(doc)
+		if (loaded !== undefined) applyGrammarOverrides(model, loaded)
+		built = { externalRefs, model }
+	} catch (error) {
+		if (!(error instanceof UsageError)) throw error
+		process.stderr.write(`${error.message}\n`)
+		return EXIT.usage
+	}
+	const { externalRefs, model } = built
 	try {
 		const { probeCreateFixtures } = await import("./runtime/world.ts")
 		probeCreateFixtures(model)

@@ -12,10 +12,11 @@ import { isAuthFlow, type Principal } from "../config/define-config.ts"
 import { type OperationModel, type EntityModel, owningEntityOf, type SpecModel } from "../spec/graph.ts"
 import { pathTemplateMatches } from "../spec/load.ts"
 import { CHECKS } from "./checks.ts"
+import { UsageError } from "../config/usage-error.ts"
 import type { Exchange } from "./client.ts"
 import type { Finding, Inconclusive } from "./finding.ts"
 
-export class ScopeError extends Error {
+export class ScopeError extends UsageError {
 	override name = "ScopeError"
 }
 

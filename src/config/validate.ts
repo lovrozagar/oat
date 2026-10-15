@@ -67,6 +67,9 @@ const principal = shape(
 	["id"],
 )
 
+/** Patches by operationId and by schema name; each patch is an object merged into the document. */
+const overlay = shape({ operations: recordOf(object), schemas: recordOf(object) })
+
 const CONFIG = {
 	baseUrl: string,
 	cohortSize: integer(1),
@@ -79,7 +82,10 @@ const CONFIG = {
 	network: shape({ requestTimeoutMs: integer(0), retries: integer(0), waitMs: integer(0) }),
 	only: arrayOf(string),
 	ops: arrayOf(string),
-	origins: arrayOf(shape({ baseUrl: string, id: string, maxRps: positive, spec: string }, ["baseUrl", "id", "spec"])),
+	origins: arrayOf(
+		shape({ baseUrl: string, id: string, maxRps: positive, overlay, spec: string }, ["baseUrl", "id", "spec"]),
+	),
+	overlay,
 	outDir: string,
 	outOfBand: shape({ attempts: integer(1), initialMs: integer(0), maxMs: integer(0) }),
 	payloads: oneOf("full", "per-write-path"),

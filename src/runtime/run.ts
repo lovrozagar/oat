@@ -10,6 +10,7 @@ import { randomBytes } from "node:crypto"
 import { isSecretHeaderName, registerSecret, registerSecretHeader } from "./redact.ts"
 import { buildModel, type EntityModel, type OperationModel, type SpecModel, operationResolver } from "../spec/graph.ts"
 import { applyGrammarOverrides } from "../spec/grammar-overrides.ts"
+import { applyOverlay, type SpecOverlay } from "../spec/overlay.ts"
 import { dereference, loadSpec } from "../spec/load.ts"
 import type {
 	EntityConfig,
@@ -131,6 +132,8 @@ export interface RunOptions {
 	onProgress?: ProgressHandler
 	/** Extra hosts with their own OpenAPI. Auth stays on the primary. */
 	origins?: OriginSpec[]
+	/** Patches to the document, applied before oat reads it; see `OatConfig.overlay`. */
+	overlay?: SpecOverlay
 	/** Declared flows for operations the matrix cannot reach. */
 	scenarios?: Scenario[]
 	/** Backoff for `resolveOutOfBand` / `resolvePrincipalAuth`. */
@@ -489,7 +492,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		...(options.network?.waitMs === undefined ? {} : { waitMs: options.network.waitMs }),
 		...requestTimeoutOpt(options.network?.requestTimeoutMs),
 	})
-	const { doc } = dereference(raw)
+	const { doc } = dereference(options.overlay === undefined ? raw : applyOverlay(raw, options.overlay))
 	const model = buildModel(doc)
 	applyGrammarOverrides(model, options)
 	try {
@@ -1918,7 +1921,7 @@ async function loadOriginClients(
 	const map = new Map<string, OriginClient>()
 	for (const origin of origins) {
 		const raw = await loadSpec(origin.spec, origin.baseUrl)
-		const { doc } = dereference(raw)
+		const { doc } = dereference(origin.overlay === undefined ? raw : applyOverlay(raw, origin.overlay))
 		const originModel = buildModel(doc)
 		const originClient = new Client(
 			origin.baseUrl,
