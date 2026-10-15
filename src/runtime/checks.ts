@@ -59,7 +59,7 @@ import type { UploadContext } from "./upload.ts"
 import { forEachInvocation } from "./upload-each.ts"
 import type { SchemaValidator } from "./validate.ts"
 import { driveWait } from "./wait.ts"
-import { type Record_, fillPath, isPlanLimitResponse } from "./world.ts"
+import { type Record_, confirmSubmitted, fillPath, isPlanLimitResponse } from "./world.ts"
 import {
 	bodyPropertyNames,
 	collisionCreateBody,
@@ -80,7 +80,6 @@ import {
 	readBefore,
 	canFillPath,
 	createdIdKeys,
-	createdIdOf,
 	describeEffectHold,
 	effectHolds,
 	findCreatedId,
@@ -277,6 +276,31 @@ function judgeRefusal(
 }
 
 /**
+ * The id an acknowledgement-only create made, proven by the entity's read under the id it was
+ * sent (see `confirmSubmitted`). The read is the one this check context may call, or none.
+ */
+async function confirmedIdentity(
+	ctx: CheckContext,
+	client: Pick<Client, "get">,
+	sent: unknown,
+	ignore: readonly string[] = [],
+): Promise<{ id: string; record: Record_ } | undefined> {
+	const record = await confirmSubmitted({
+		client,
+		entity: ctx.entityName,
+		headers: ctx.auth(),
+		identity: ctx.identity,
+		ignore,
+		model: ctx.model,
+		readable: (op) => op.operationId === ctx.readOp?.operationId,
+		scope: ctx.scope,
+		sent,
+	})
+	const id = record?.[ctx.identity]
+	return record !== null && (typeof id === "string" || typeof id === "number") ? { id: String(id), record } : undefined
+}
+
+/**
  * The context for a request oat sends expecting it to be refused. Its exchanges are marked as
  * probes, so a status the document leaves out for deliberately invalid input is reported apart
  * from what ordinary traffic got.
@@ -300,7 +324,9 @@ function asProbe<C extends ReadClient>(ctx: CheckContext<C>): CheckContext<C> {
 				const exchange = (await value.call(target, method, path, options)) as Exchange
 				const created = method.toUpperCase() === createOp.method.toUpperCase() && path === createPath
 				if (created && exchange.status >= 200 && exchange.status < 300) {
-					const id = createdIdOf(exchange, keys)
+					const id =
+						findCreatedId(exchange.responseBody, keys) ??
+						(await confirmedIdentity(ctx, target, exchange.requestBody))?.id
 					if (id !== undefined) record(ctx.entityName, id, { ...ctx.scope })
 				}
 				return exchange
@@ -5706,8 +5732,11 @@ async function scratchRecord(ctx: WriteContext, check: string): Promise<{ scratc
 		return { outcome: standDown("a documented feature gate refused the request") }
 	}
 	const answered = (exchange.responseBody ?? {}) as Record_
-	/* An acknowledgement-only create made the record it was sent, under the id the client chose. */
-	const record = ctx.createAcknowledged && answered[ctx.identity] === undefined ? sent : answered
+	/* An acknowledgement-only create counts only once the read under the id it was sent shows it. */
+	const record =
+		answered[ctx.identity] === undefined && exchange.status >= 200 && exchange.status < 300
+			? ((await confirmedIdentity(ctx, ctx.client, sent))?.record ?? answered)
+			: answered
 	const id = record[ctx.identity]
 	if (exchange.status >= 300 || (typeof id !== "string" && typeof id !== "number")) {
 		return {
@@ -6881,12 +6910,14 @@ const stringPayloadSurvives: Check<{
 			)
 		}
 
-		const identityOf = (exchange: Exchange): string | undefined => {
+		const identityOf = async (exchange: Exchange): Promise<string | undefined> => {
 			const body = exchange.responseBody
 			const value = body !== null && typeof body === "object" ? (body as Record_)[ctx.identity] : undefined
 			if (value !== undefined && value !== null) return String(value)
-			/* An acknowledgement-only create: the record is the one the client named. */
-			return createdIdOf({ requestBody: exchange.requestBody, responseBody: undefined }, [ctx.identity])
+			/* Only a successful write made a record, and only the read under the id it was sent proves
+			 * which; the field under test is left out, since mangling it is what this check measures. */
+			if (exchange.status < 200 || exchange.status >= 300) return undefined
+			return (await confirmedIdentity(ctx, ctx.client, exchange.requestBody, [field.name]))?.id
 		}
 
 		const control = await writeField(ASCII_PAYLOAD_PROBE, id)
@@ -6916,7 +6947,7 @@ const stringPayloadSurvives: Check<{
 				[control],
 			)
 		}
-		const controlId = viaPatch ? id : identityOf(control)
+		const controlId = viaPatch ? id : await identityOf(control)
 		if (controlId === undefined) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -6965,7 +6996,7 @@ const stringPayloadSurvives: Check<{
 			if (written.status === 404 || written.status === 409 || written.status === 415) return { kind: "kept" }
 			if (written.status >= 400) {
 				if (!viaPatch && written.status < 500) {
-					const extra = identityOf(written)
+					const extra = await identityOf(written)
 					if (extra !== undefined) await remove(extra)
 				}
 				return {
@@ -6974,7 +7005,7 @@ const stringPayloadSurvives: Check<{
 					line: `${payload.id} (${payload.why}): sent ${JSON.stringify(payload.value)}, got HTTP ${written.status}`,
 				}
 			}
-			const writtenId = viaPatch ? recordId : identityOf(written)
+			const writtenId = viaPatch ? recordId : await identityOf(written)
 			if (writtenId === undefined) {
 				return {
 					evidence: [written],

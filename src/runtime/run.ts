@@ -7,7 +7,6 @@
  */
 
 import { randomBytes } from "node:crypto"
-import { createdIdOf } from "./effects.ts"
 import { isSecretHeaderName, registerSecret, registerSecretHeader } from "./redact.ts"
 import { buildModel, type EntityModel, type OperationModel, type SpecModel, operationResolver } from "../spec/graph.ts"
 import { dereference, loadSpec } from "../spec/load.ts"
@@ -77,6 +76,7 @@ import { SchemaValidator } from "./validate.ts"
 import { isOverflowError, overflowFrom } from "./fixture.ts"
 import type { UploadContext } from "./upload.ts"
 import {
+	confirmSubmitted,
 	type Record_,
 	type Scope,
 	SeedError,
@@ -771,6 +771,8 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	}
 	const excludedIds = new Set<string>()
 	const scenarioOwned = new Set(ownScenarios.flatMap((scenario) => scenario.covers))
+	/* What oat may call at all under the profile: a read that confirms a create is still a call. */
+	const readable = (op: OperationModel): boolean => excludedByProfile(op, profile.spec) === null
 	const excludeOp = (entity: EntityModel, op: OperationModel | undefined): boolean => {
 		if (op === undefined) return false
 		const reason = excludedByProfile(op, profile.spec)
@@ -943,6 +945,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			const listParent = () =>
 				resolvePathScope(listOp, model, seeding, {
 					authHeaders: alpha.headers,
+					readable,
 					ancestors,
 					onCreate: recorder(alphaOwner),
 					principal: alpha.id,
@@ -975,6 +978,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			try {
 				scope = await resolvePathScope(createOp, model, seeding, {
 					authHeaders: alpha.headers,
+					readable,
 					ancestors,
 					onCreate: recorder(alphaOwner),
 					principal: alpha.id,
@@ -994,6 +998,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					seeding,
 					{
 						authHeaders: alpha.headers,
+						readable,
 						...(options.cohortSize === undefined ? {} : { cohortSize: options.cohortSize }),
 						ancestors,
 						onCreate: recorder(alphaOwner),
@@ -1188,6 +1193,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			try {
 				const next = await resolvePathScope(listOp, model, seeding, {
 					authHeaders: principal.headers,
+					readable,
 					/* Created as this principal, so removed as this principal. */
 					ancestors,
 					onCreate: recorder(ownerOf(principal)),
@@ -1285,11 +1291,24 @@ export async function run(options: RunOptions): Promise<RunResult> {
 									body !== null && typeof body === "object"
 										? (body as Record<string, unknown>)[entity.identity ?? "id"]
 										: undefined
-								/* An acknowledgement-only create made the record under the id it was sent. */
-								const id =
-									typeof answered === "string" || typeof answered === "number"
-										? String(answered)
-										: createdIdOf({ requestBody: options?.body, responseBody: undefined }, [entity.identity ?? "id"])
+								/* An acknowledgement-only create may have ignored the id it was sent: only a read
+								 * under that id proves the record is the one oat made. */
+								let id: string | undefined
+								if (typeof answered === "string" || typeof answered === "number") id = String(answered)
+								else {
+									const confirmed = await confirmSubmitted({
+										client: target,
+										entity: entity.name,
+										headers: options?.headers,
+										identity: entity.identity ?? "id",
+										model,
+										readable,
+										scope: scope.values,
+										sent: options?.body,
+									})
+									const read = confirmed?.[entity.identity ?? "id"]
+									if (typeof read === "string" || typeof read === "number") id = String(read)
+								}
 								if (id === undefined) return exchange
 								ledger.record(entity.name, id, scope.values, ownerByHeaders(options?.headers))
 								return exchange

@@ -12,7 +12,7 @@ import { requestContent } from "../spec/collection.ts"
 import { largestPageQuery, owningEntityOf } from "../spec/graph.ts"
 import { encodeForOperation } from "./body.ts"
 import { forEachInvocation } from "./upload-each.ts"
-import type { Client, Exchange } from "./client.ts"
+import type { Client, Exchange, RequestOptions } from "./client.ts"
 import { type CohortMember, buildCohort, ensureDistinctUniqueValues, isOverflowError, overflowFrom } from "./fixture.ts"
 import { isUniqueConflictResponse, uniqueTupleCollides, uniquifyProbeBody } from "./unique.ts"
 import { describeFeatureGate, isDocumentedFeatureGateDenial } from "./feature-gate.ts"
@@ -46,6 +46,55 @@ export class SeedError extends Error {
 	) {
 		super(message)
 	}
+}
+
+/**
+ * Reads back a record an acknowledgement-only create made under a client-chosen identity.
+ *
+ * An id oat only sent proves nothing: a server may ignore it and store the record under one of its
+ * own, and on an integer-id API the id oat sent can belong to somebody else's row. The submitted
+ * id counts only when the entity's read, under that id, answers with that id and with every scalar
+ * field oat sent (`ignore` names fields the caller expects to differ). Anything less — no read, a
+ * read oat may not call, a refusal, another record — is `null`, and the record stays untracked.
+ */
+export async function confirmSubmitted(input: {
+	client: Pick<Client, "get">
+	model: SpecModel
+	entity: string
+	identity: string
+	sent: unknown
+	scope: Record<string, string>
+	headers: RequestOptions["headers"]
+	ignore?: readonly string[]
+	readable?: (op: OperationModel) => boolean
+}): Promise<Record_ | null> {
+	const { identity, sent } = input
+	if (!isPlainRecord(sent) || !isScalarId(sent[identity])) return null
+	const id = String(sent[identity])
+	const ignored = new Set([identity, ...(input.ignore ?? [])])
+	const fields = Object.entries(sent).filter(
+		([key, value]) =>
+			!ignored.has(key) && (typeof value === "string" || typeof value === "number" || typeof value === "boolean"),
+	)
+	if (fields.length === 0) return null
+	const readId = input.model.entities.get(input.entity)?.read
+	const readOp = readId === undefined ? undefined : input.model.byOperationId.get(readId)
+	const param = readOp?.pathParams.at(-1)
+	if (readOp === undefined || param === undefined || input.readable?.(readOp) === false) return null
+	let path: string
+	try {
+		path = fillPath(readOp.path, { ...input.scope, [param]: id })
+	} catch {
+		return null
+	}
+	const read = await input.client.get(path, {
+		...(input.headers === undefined ? {} : { headers: input.headers }),
+		operationId: readOp.operationId,
+	})
+	if (read.status < 200 || read.status >= 300 || !isPlainRecord(read.responseBody)) return null
+	const record = read.responseBody
+	if (!isScalarId(record[identity]) || String(record[identity]) !== id) return null
+	return fields.every(([key, value]) => JSON.stringify(record[key]) === JSON.stringify(value)) ? record : null
 }
 
 export function fillPath(template: string, values: Record<string, string>): string {
@@ -137,6 +186,8 @@ export interface WorldOptions {
 	 * only after the step that made it returns is dropped whenever a later step throws.
 	 */
 	onCreate?: (entity: string, id: string, scope: Record<string, string>) => void
+	/** Whether oat may call an operation (a profile can exclude one); omitted means every one. */
+	readable?: (op: OperationModel) => boolean
 	/** Who is creating — keys the ancestor cache, since one principal's parent is not another's. */
 	principal?: string
 	/** Ancestors already made in this run, by principal, operation and parent path. */
@@ -411,15 +462,28 @@ export async function seedCohort(
 	const seededMembers: CohortMember[] = []
 	const identity = (createOp.entity === null ? undefined : model.entities.get(createOp.entity))?.identity ?? "id"
 	let acknowledged = false
-	const created = (exchange: Exchange, sent: unknown): Record_ => {
+	const created = async (exchange: Exchange, sent: unknown): Promise<Record_> => {
 		const response = (exchange.responseBody ?? {}) as Record_
-		/* A create that answers an acknowledgement and not the record (`{ success: true }`) still
-		 * made the record the client sent. When the client chose the identity, that body is the
-		 * record: track it by the id it submitted rather than lose it. */
-		const echoed = isScalarId(response[identity])
-		const submitted = !echoed && isPlainRecord(sent) && isScalarId(sent[identity]) ? sent : null
-		if (submitted !== null) acknowledged = true
-		const record = submitted ?? response
+		let record = response
+		/* A create that answers an acknowledgement and not the record (`{ success: true }`) may have
+		 * made the record under the id the client chose — or ignored it. Only a read under that id
+		 * says which; until one does, the record is not oat's to track or remove. */
+		if (!isScalarId(response[identity]) && createOp.entity !== null) {
+			const confirmed = await confirmSubmitted({
+				client,
+				entity: createOp.entity,
+				headers: options.authHeaders,
+				identity,
+				model,
+				scope: { ...options.roots, ...scope.values },
+				sent,
+				...(options.readable === undefined ? {} : { readable: options.readable }),
+			})
+			if (confirmed !== null) {
+				acknowledged = true
+				record = confirmed
+			}
+		}
 		const id = record[identity]
 		if (createOp.entity !== null && isScalarId(id)) {
 			options.onCreate?.(createOp.entity, String(id), { ...scope.values })
@@ -503,7 +567,7 @@ export async function seedCohort(
 				return null
 			}
 			seededMembers.push(member)
-			records.push(created(exchange, member.body))
+			records.push(await created(exchange, member.body))
 			return null
 		}
 		for (const member of members) {
@@ -516,7 +580,7 @@ export async function seedCohort(
 				continue
 			}
 			seededMembers.push(member)
-			records.push(created(exchange, member.body))
+			records.push(await created(exchange, member.body))
 		}
 		return null
 	})
