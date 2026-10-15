@@ -140,7 +140,7 @@ const ALIASES: Record<
 	order: ["order", "order_by", "sort", "sort_by", "ordering"],
 	searchMode: ["search_mode", "searchmode", "search_type", "mode"],
 	page: ["page", "page_number", "pagenum", "p"],
-	search: ["q", "search", "query_text", "term", "keyword", "text"],
+	search: ["q", "search", "query_text", "term", "keyword", "text", "search_term", "searchterm"],
 	select: ["select", "fields", "field", "include_fields", "projection", "only"],
 }
 
