@@ -87,6 +87,7 @@ import {
 	createdRecord,
 	createdRecordOf,
 	fillPath,
+	idOf,
 	isPlanLimitResponse,
 } from "./world.ts"
 import {
@@ -253,6 +254,10 @@ function absentId(ctx: CheckContext): string | null {
 }
 
 const NO_ABSENT_ID = "an identifier of the documented shape that names no record"
+/* A record that does not carry its identity names nothing a request could address. */
+const NO_IDENTITY = "a record that carries its identity"
+/* Matches no id: what a record without an identity is looked up as. */
+const NO_KEY = "\u0000no-identity"
 
 /** A well-formed identifier that names nothing, or `null` when the identifier schema allows none. */
 function constructedAbsentId(ctx: CheckContext): string | null {
@@ -770,7 +775,7 @@ function extractItems(body: unknown, key: string | null): Record_[] {
 }
 
 function ids(records: Record_[], identity: string): string[] {
-	return records.map((r) => String(r[identity]))
+	return records.flatMap((r) => idOf(r, identity) ?? [])
 }
 
 /**
@@ -939,10 +944,13 @@ async function walkSet(ctx: CheckContext, extra: Query, options: ReadOptions, si
 		}
 		const page = result.items
 		if (page.length === 0) return finish(true)
-		const fresh = page.filter((item) => !seen.has(String(item[ctx.identity])))
+		const fresh = page.filter((item) => {
+			const key = idOf(item, ctx.identity)
+			return key === undefined || !seen.has(key)
+		})
 		/* A page holding nothing new means the server is not paging — the same window again. */
 		if (fresh.length === 0 && options.keepRepeats !== true) return finish(false, "pages repeat the same records")
-		for (const item of page) seen.add(String(item[ctx.identity]))
+		for (const key of page.map((item) => idOf(item, ctx.identity))) if (key !== undefined) seen.add(key)
 		items.push(...page)
 		if (items.length >= SET_RECORD_CAP) return finish(false, `more than ${SET_RECORD_CAP} records`)
 		if (mode === "single") return finish(true)
@@ -1319,8 +1327,8 @@ function compoundPlan(
 
 const readAfterWrite: Check<{ id: string }> = {
 	plan: (ctx) => {
-		const target = ctx.records[0]
-		return ctx.createOp === undefined || target === undefined ? cannot() : ready({ id: String(target[ctx.identity]) })
+		const id = idOf(ctx.records[0], ctx.identity)
+		return ctx.createOp === undefined || id === undefined ? cannot(NO_IDENTITY) : ready({ id })
 	},
 	mutates: true,
 	/* A record stored under an id the client was never told cannot be found by it: that is the cause. */
@@ -1345,7 +1353,7 @@ const readAfterWrite: Check<{ id: string }> = {
 		}> => {
 			const gathered = await collectSet(ctx, walkSize)
 			if (gathered === null) return { last: null, reason: "the list was rejected", status: "unresolved" }
-			if (gathered.items.some((item) => String(item[ctx.identity]) === id)) {
+			if (gathered.items.some((item) => idOf(item, ctx.identity) === id)) {
 				return { last: gathered.last, status: "found" }
 			}
 			/* Absent from a walk that stopped early is not absent from the list. */
@@ -1376,7 +1384,7 @@ const readAfterWrite: Check<{ id: string }> = {
 			/* When the walk already uses the largest size, one smaller moves the boundaries too. */
 			const other = largest !== undefined && largest !== walkSize ? largest : walkSize > 1 ? walkSize - 1 : undefined
 			const moved = other === undefined ? null : await collectSet(ctx, other)
-			if (moved?.items.some((item) => String(item[ctx.identity]) === id) === true) return ASSERTED
+			if (moved?.items.some((item) => idOf(item, ctx.identity) === id) === true) return ASSERTED
 		}
 		if (located.status === "found") return ASSERTED
 		if (located.status === "unresolved") {
@@ -1527,7 +1535,8 @@ const equalityFilterSelectsOne: Check<{ id: string; field: string; term: Record<
 	plan: (ctx) => {
 		const target = ctx.records[0]
 		if (!filterable(ctx) || !identityIsFilterable(ctx) || target === undefined) return cannot()
-		const id = String(target[ctx.identity])
+		const id = idOf(target, ctx.identity)
+		if (id === undefined) return cannot(NO_IDENTITY)
 		const field = filterIdentity(ctx)
 		const term = filterTerm(conv(ctx), field, "eq", id)
 		return term === null
@@ -1661,7 +1670,7 @@ const negationPartitions: Check<{
 		const missing = [...expected].filter((id) => !union.has(id))
 		if (missing.length > 0) {
 			const nulls = missing.filter((id) => {
-				const record = ctx.records.find((r) => String(r[ctx.identity]) === id)
+				const record = ctx.records.find((r) => idOf(r, ctx.identity) === id)
 				return record !== undefined && (record[field] === null || record[field] === undefined)
 			})
 			ctx.findings.backend(
@@ -2044,7 +2053,7 @@ const cursorAgreesWithPage: Check = {
 						1 +
 							cursorWalk.exchanges.findLastIndex((exchange) =>
 								extractItems(exchange.responseBody, ctx.collectionKey).some((item) =>
-									repeated.includes(String(item[ctx.identity])),
+									repeated.includes(idOf(item, ctx.identity) ?? NO_KEY),
 								),
 							),
 					),
@@ -2130,9 +2139,8 @@ const countIsConsistentWithPage: Check = {
 const countMatchesWalk: Check<{ countTerm: Record<string, string> }> = {
 	plan: (ctx) => {
 		if (ctx.records.length <= 1 || !filterable(ctx) || !identityIsFilterable(ctx)) return cannot()
-		const target = ctx.records[0]
-		const countTerm =
-			target === undefined ? null : filterTerm(conv(ctx), filterIdentity(ctx), "eq", String(target[ctx.identity]))
+		const targetId = idOf(ctx.records[0], ctx.identity)
+		const countTerm = targetId === undefined ? null : filterTerm(conv(ctx), filterIdentity(ctx), "eq", targetId)
 		return countTerm === null
 			? cannot("a filter grammar that can express equality on the identity")
 			: ready({ countTerm })
@@ -2229,9 +2237,8 @@ const patchMinimality: Check<{ updateOp: OperationModel; readOp: OperationModel 
 		 * Real APIs expose server-driven fields — job progress, computed counts, expiry clocks —
 		 * and repeated sampling cannot distinguish those from a write side effect once they
 		 * settle. A field that moves on the control moved on its own. */
-		const control = ctx.records.find((r) => String(r[ctx.identity]) !== id)
-		const controlParams =
-			control === undefined ? undefined : { ...ctx.scope, ...itemParamFor(ctx, String(control[ctx.identity])) }
+		const controlId = ctx.records.map((r) => idOf(r, ctx.identity)).find((other) => other !== undefined && other !== id)
+		const controlParams = controlId === undefined ? undefined : { ...ctx.scope, ...itemParamFor(ctx, controlId) }
 		const controlBefore =
 			controlParams === undefined
 				? undefined
@@ -2638,7 +2645,9 @@ const denialDoesNotRevealExistence: Check<{
 	needs: "a second principal in a different tenant, and a tenant tagged or inferred from the path",
 	subjects: subjectsOf.read,
 	async run(ctx, { altAuth, readOp, target }): Promise<Outcome> {
-		const realId = String(target[ctx.identity])
+		const realId = idOf(target, ctx.identity)
+		if (realId === undefined)
+			return ctx.findings.unresolved(this.id, ctx.entityName, `the record carries no "${ctx.identity}"`)
 		/* Shaped like a real identifier so the difference under test is existence, not format —
 		 * a backend may legitimately reject a malformed id differently. */
 		const absentProbe = constructedAbsentId(ctx)
@@ -2966,7 +2975,8 @@ const projectionsAgree: Check<{ id: string; field: string; target: Record_; read
 				typeof target[name] !== "object",
 		)
 		if (field === undefined) return cannot("a client-owned field that is filterable, sortable and set on a record")
-		return ready({ field, id: String(target[ctx.identity]), readOp, target })
+		const id = idOf(target, ctx.identity)
+		return id === undefined ? cannot(NO_IDENTITY) : ready({ field, id, readOp, target })
 	},
 	dependsOn: [
 		"query.filter-selects-from-whole-set",
@@ -2987,7 +2997,7 @@ const projectionsAgree: Check<{ id: string; field: string; target: Record_; read
 		const limit = pageSize(ctx)
 		const seen: Array<{ projection: string; value: unknown }> = []
 		const record = (result: ListResult): Record_ | undefined =>
-			result.items.find((item) => String(item[ctx.identity]) === id)
+			result.items.find((item) => idOf(item, ctx.identity) === id)
 
 		const detail = await ctx.client.get(fillPath(readOp.path, { ...ctx.scope, ...itemParamFor(ctx, id) }), {
 			headers: ctx.auth(),
@@ -3060,7 +3070,7 @@ const projectionsAgree: Check<{ id: string; field: string; target: Record_; read
 		if (included === null) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, `filtering on "${field}" was rejected`)
 		}
-		if (included.items.some((item) => String(item[ctx.identity]) === id)) return ASSERTED
+		if (included.items.some((item) => idOf(item, ctx.identity) === id)) return ASSERTED
 		if (!included.complete) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -3238,7 +3248,7 @@ const filterAndPagingCompose: Check<Subset & { value: unknown }> = {
 		}
 
 		/* The predicate applied by oat, over everything the API served. */
-		const clientSide = new Set(everything.items.filter(matches).map((row) => String(row[ctx.identity])))
+		const clientSide = new Set(everything.items.filter(matches).flatMap((row) => idOf(row, ctx.identity) ?? []))
 		const returned = new Set(ids(serverSide.items, ctx.identity))
 		const skipped = [...clientSide].filter((id) => !returned.has(id))
 		if (skipped.length === 0) return ASSERTED
@@ -3835,7 +3845,8 @@ function overlappingSearchToken(ctx: CheckContext, filterIds: Set<string>): stri
 						.includes(needle),
 				)
 			) {
-				hit.add(String(record[ctx.identity]))
+				const key = idOf(record, ctx.identity)
+				if (key !== undefined) hit.add(key)
 			}
 		}
 		return hit
@@ -4126,7 +4137,8 @@ const crossTenantItemRead: Check<{ id: string; readOp: OperationModel; altAuth: 
 		if (altAuth === undefined || readOp === undefined || target === undefined || !tenantBoundary(readOp)) {
 			return cannot()
 		}
-		return ready({ altAuth, id: String(target[ctx.identity]), readOp })
+		const id = idOf(target, ctx.identity)
+		return id === undefined ? cannot(NO_IDENTITY) : ready({ altAuth, id, readOp })
 	},
 	id: "tenant.item-not-readable-cross-tenant",
 	needs: "a second principal in a different tenant, and a tenant tagged or inferred from the path",
@@ -4568,16 +4580,15 @@ const foreignParentRejected: Check<{
 				[listed.exchange],
 			)
 		}
-		const target = ctx.records[0]
-		if (ctx.readOp !== undefined && target !== undefined) {
-			const read = await ctx.client.get(
-				fillPath(ctx.readOp.path, { ...mixed, ...itemParamFor(ctx, String(target[ctx.identity])) }),
-				{ headers: altAuth() },
-			)
+		const targetId = idOf(ctx.records[0], ctx.identity)
+		if (ctx.readOp !== undefined && targetId !== undefined) {
+			const read = await ctx.client.get(fillPath(ctx.readOp.path, { ...mixed, ...itemParamFor(ctx, targetId) }), {
+				headers: altAuth(),
+			})
 			if (read.status < 300) {
 				return breach(
 					"another tenant's record is readable through its parent under one's own root",
-					`${path} read ${ctx.entityName} ${String(target[ctx.identity])} (${read.status}).`,
+					`${path} read ${ctx.entityName} ${targetId} (${read.status}).`,
 					[read],
 				)
 			}
@@ -4614,7 +4625,8 @@ const crossTenantFilterBypass: Check<{
 		const target = ctx.records[0]
 		if (altAuth === undefined || altScope === undefined || target === undefined) return cannot()
 		if (!filterable(ctx) || !tenantBoundary(ctx.listOp) || !identityIsFilterable(ctx)) return cannot()
-		const id = String(target[ctx.identity])
+		const id = idOf(target, ctx.identity)
+		if (id === undefined) return cannot(NO_IDENTITY)
 		const tenantTerm = filterTerm(conv(ctx), filterIdentity(ctx), "eq", id)
 		if (tenantTerm === null) return cannot("a filter grammar that can express equality on the identity")
 		return ready({ altAuth, altScope, id, tenantTerm })
@@ -4689,7 +4701,8 @@ const rankIsMonotonic: Check<{ id: string; readOp: OperationModel; home: Actor[]
 		if (readOp === undefined || target === undefined || primary === undefined) return cannot()
 		const home = ctx.actors.filter((actor) => sameTenantScope(actor.roots, primary.roots))
 		if (new Set(home.map((actor) => actor.rank)).size < 2) return cannot()
-		return ready({ home, id: String(target[ctx.identity]), readOp })
+		const id = idOf(target, ctx.identity)
+		return id === undefined ? cannot(NO_IDENTITY) : ready({ home, id, readOp })
 	},
 	dependsOn: ["list.read-after-write"],
 	id: "auth.rank-is-monotonic",
@@ -4788,7 +4801,7 @@ const inviteGrantsThenRevokes: Check<{
 	subjects: subjectsOf.invite,
 	async run(ctx, { acceptOp, delegate, grantsOp, inviteAs, inviteOp, owner, revokeOp, spec }): Promise<Outcome> {
 		const target = ctx.records[0]
-		const id = target === undefined ? undefined : String(target[ctx.identity])
+		const id = idOf(target, ctx.identity)
 		const resource = {
 			...ctx.scope,
 			...(id === undefined ? {} : itemParamFor(ctx, id)),
@@ -5381,7 +5394,7 @@ const createKeepsSubmittedIdentity: Check<{ readOp: OperationModel }> = {
 				operationId: readOp.operationId,
 			})
 			const record = (read.responseBody ?? {}) as Record_
-			if (read.status >= 200 && read.status < 300 && String(record[ctx.identity]) === String(sent)) continue
+			if (read.status >= 200 && read.status < 300 && idOf(record, ctx.identity) === String(sent)) continue
 			return ctx.findings.backend(
 				this.id,
 				ctx.entityName,
@@ -5798,14 +5811,14 @@ export function reserveClientIdentity(
 	const taken = ctx.takenIdentities
 	if (taken === undefined || !choosesIdentity(ctx, schema)) return body
 	let reserved = body
-	for (let token = 0; token < 16 && taken.has(String(reserved[ctx.identity])); token++) {
+	const held = (): boolean => taken.has(idOf(reserved, ctx.identity) ?? NO_KEY)
+	for (let token = 0; token < 16 && held(); token++) {
 		reserved = uniquifyProbeBody(reserved, [[ctx.identity]], schema, `i${salt}t${token}`)
 	}
-	if (taken.has(String(reserved[ctx.identity]))) {
-		throw new Error(`no "${ctx.identity}" is left that names no existing record`)
-	}
+	if (held()) throw new Error(`no "${ctx.identity}" is left that names no existing record`)
 	/* Reserved now, before the request goes out, so a body made meanwhile picks another. */
-	taken.add(String(reserved[ctx.identity]))
+	const id = idOf(reserved, ctx.identity)
+	if (id !== undefined) taken.add(id)
 	return reserved
 }
 
@@ -6152,7 +6165,7 @@ const numericComparisonIsNumeric: Check<{
 		if (threshold === undefined) return cannot()
 		const expected = ctx.records
 			.filter((r) => typeof r[field] === "number" && (r[field] as number) > threshold)
-			.map((r) => String(r[ctx.identity]))
+			.flatMap((r) => idOf(r, ctx.identity) ?? [])
 			.sort()
 		if (expected.length === 0) return cannot(`a cohort value of "${field}" above the median`)
 		const gtTerm = filterTerm(conv(ctx), field, "gt", threshold)
@@ -6185,7 +6198,7 @@ const numericComparisonIsNumeric: Check<{
 		const missing = expected.filter((id) => !gotKnown.includes(id))
 		const extra = gotKnown.filter((id) => !expected.includes(id))
 		const lexical = expected.filter((id) => {
-			const record = ctx.records.find((r) => String(r[ctx.identity]) === id)
+			const record = ctx.records.find((r) => idOf(r, ctx.identity) === id)
 			return record !== undefined && String(record[field]) < String(threshold)
 		})
 		const comparedAsText = missing.length > 0 && missing.every((id) => lexical.includes(id))
@@ -7626,7 +7639,7 @@ const filterNinComplementsIn: Check<{
 			)
 		}
 		const expected = ids(all.items, ctx.identity).filter((id) => {
-			const record = ctx.records.find((row) => String(row[ctx.identity]) === id)
+			const record = ctx.records.find((row) => idOf(row, ctx.identity) === id)
 			return record !== undefined && record[field] !== null && record[field] !== undefined
 		})
 		const union = new Set([...inIds, ...ninIds])
@@ -7794,7 +7807,7 @@ const filterOrderedTriplePartitions: Check<{
 		}
 		const union = new Set([...(sets[0] ?? []), ...(sets[1] ?? []), ...(sets[2] ?? [])])
 		const expected = ids(all.items, ctx.identity).filter((id) => {
-			const record = ctx.records.find((row) => String(row[ctx.identity]) === id)
+			const record = ctx.records.find((row) => idOf(row, ctx.identity) === id)
 			return record !== undefined && typeof record[field] === "number"
 		})
 		const missing = expected.filter((id) => !union.has(id))
@@ -7846,7 +7859,9 @@ const filterIlikeIsCaseInsensitive: Check<{
 		}
 		const likeHits = ids(like.items, ctx.identity)
 		const ilikeHits = ids(ilike.items, ctx.identity)
-		const original = ctx.records.filter((row) => row[field.field] === sample).map((row) => String(row[ctx.identity]))
+		const original = ctx.records
+			.filter((row) => row[field.field] === sample)
+			.flatMap((row) => idOf(row, ctx.identity) ?? [])
 		if (original.some((id) => ilikeHits.includes(id)) && !original.some((id) => likeHits.includes(id))) return ASSERTED
 		if (original.some((id) => ilikeHits.includes(id)) && original.some((id) => likeHits.includes(id))) {
 			return ctx.findings.unresolved(
@@ -7902,7 +7917,7 @@ const filterIsNullSelectsNulls: Check<{
 		const expectedNulls = new Set(
 			ctx.records
 				.filter((row) => row[field.field] === null || row[field.field] === undefined)
-				.map((row) => String(row[ctx.identity])),
+				.flatMap((row) => idOf(row, ctx.identity) ?? []),
 		)
 		const gotNulls = knownHits(nulls.items, ctx)
 		const overlap = [...gotNulls].filter((id) => knownHits(present.items, ctx).has(id))
@@ -7970,7 +7985,7 @@ const filterContainsMembership: Check<{ field: EffectiveFilterField; element: st
 							Array.isArray(row[field.field]) &&
 							(row[field.field] as unknown[]).some((item) => String(item) === String(element)),
 					)
-					.map((row) => String(row[ctx.identity])),
+					.flatMap((row) => idOf(row, ctx.identity) ?? []),
 			)
 			const got = knownHits(result.items, ctx)
 			if (sameSet(expected, got)) return ASSERTED
@@ -8001,7 +8016,9 @@ const filterNestedAndOrDistributes: Check<{
 		const conventions = conv(ctx)
 		const a = { field: picked.fieldA, op: "eq", value: String(picked.target[picked.fieldA]) } as const
 		const b = { field: picked.fieldB, op: "eq", value: String(picked.target[picked.fieldB]) } as const
-		const c = { field: idField, op: "eq", value: String(picked.target[ctx.identity]) } as const
+		const pickedId = idOf(picked.target, ctx.identity)
+		if (pickedId === undefined) return cannot(NO_IDENTITY)
+		const c = { field: idField, op: "eq", value: pickedId } as const
 		const nested = renderAndOfOr(filterSpec(conventions), conventions.filter, a, [b, c])
 		const termA = filterTerm(conventions, a.field, a.op, a.value)
 		const termB = filterTerm(conventions, b.field, b.op, b.value)
@@ -9499,7 +9516,7 @@ const uniqueConflictCreate: Check<{ createOp: OperationModel; sets: string[][] }
 		/* A growth in the collection is only visible when both reads cover all of it. */
 		const listResolved = before.exchange.status < 400 && before.complete
 		const evidence: Exchange[] = listResolved ? [before.exchange] : []
-		const seedId = ctx.records[0] === undefined ? undefined : String(ctx.records[0][ctx.identity])
+		const seedId = idOf(ctx.records[0], ctx.identity)
 		const known = (await liveRecord(ctx, seedId)) ?? ctx.records[0]
 		if (known === undefined) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "no known row to collide unique values against")
@@ -9605,7 +9622,7 @@ const uniqueConflictUpdate: Check<{ updateOp: OperationModel; sets: string[][] }
 		const required = idempotencyHeaderRequired(updateOp, ctx.model)
 		const listLimit = pageSize(ctx)
 		const first = ctx.records[0]
-		const source = first === undefined ? undefined : ((await liveRecord(ctx, String(first[ctx.identity]))) ?? first)
+		const source = first === undefined ? undefined : ((await liveRecord(ctx, idOf(first, ctx.identity))) ?? first)
 		if (source === undefined) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "no live record holds unique values to collide with")
 		}
@@ -9632,7 +9649,8 @@ const uniqueConflictUpdate: Check<{ updateOp: OperationModel; sets: string[][] }
 				updateOp.generated,
 			)
 			if (patch === null) continue
-			const id = String(target[ctx.identity])
+			const id = idOf(target, ctx.identity)
+			if (id === undefined) continue
 			const params = { ...ctx.scope, ...itemParamFor(ctx, id) }
 			const headers = uniqueProbeHeaders(
 				ctx.auth(),

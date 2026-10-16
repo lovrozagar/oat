@@ -46,6 +46,7 @@ import {
 	sha256Hex,
 } from "./transcript.ts"
 import type { Fence } from "./fence.ts"
+import { MissingValueError } from "./missing-value.ts"
 
 export interface Exchange {
 	seq: number
@@ -373,6 +374,8 @@ export class Client {
 		for (const [name, value] of Object.entries(resolved?.requiredQuery ?? {})) {
 			if (!(name in (options.query ?? {})) && !url.searchParams.has(name)) url.searchParams.set(name, value)
 		}
+		/* A value oat did not have, written as text: nothing goes out (`MissingValueError`). */
+		if (carriesMissingValue(url)) throw new MissingValueError(`${method.toUpperCase()} ${this.relativePath(url)}`)
 		const stamp = (headers: Record<string, string>): Partial<Exchange> => {
 			if (resolved?.entity !== undefined && resolved.entity !== null) pendingEntity = resolved.entity
 			const operationId = options.operationId ?? resolved?.operationId
@@ -1040,4 +1043,20 @@ function headerOf(headers: Record<string, string>, names: readonly string[]): st
 /** Escapes the characters that stay special inside double quotes. */
 function shellEscapeDouble(text: string): string {
 	return text.replace(/(["\\`])/g, "\\$1")
+}
+
+function decoded(segment: string): string {
+	try {
+		return decodeURIComponent(segment)
+	} catch {
+		return segment
+	}
+}
+
+/* A path segment or query value that is the text of a missing value, never something oat chose. */
+function carriesMissingValue(url: URL): boolean {
+	return (
+		url.pathname.split("/").some((segment) => decoded(segment) === "undefined") ||
+		[...url.searchParams.values()].includes("undefined")
+	)
 }

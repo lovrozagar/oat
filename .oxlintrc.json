@@ -28,6 +28,7 @@
 		"no-unused-vars": "warn",
 		"oat/exit-only-in-cli": "error",
 		"oat/grammar-through-renderer": "error",
+		"oat/id-through-reader": "error",
 		"oat/network-through-client": "error",
 		"oat/proven-id-origin": "error",
 		"unicorn/no-array-sort": "off",

@@ -200,12 +200,20 @@ async function runAgainst(mode: Mode) {
 	return { ...backend, result }
 }
 
+/* A value oat did not have, sent as text: never, whatever the answer looked like. */
+function sentUndefined(result: Awaited<ReturnType<typeof run>>): string[] {
+	return result.client.transcript
+		.map((exchange) => decodeURIComponent(exchange.url))
+		.filter((url) => /[/=]undefined(?:[/&?]|$)/.test(url))
+}
+
 describe("a create's id", () => {
 	it("is read out of an envelope, so every record the run made is removed, checks' own included", async () => {
 		const { result, store } = await runAgainst("envelope")
 		expect(result.checksRun).toContain("concurrency.no-lost-update")
 		expect(result.teardown?.unidentified ?? []).toEqual([])
 		expect([...store.keys()]).toEqual([])
+		expect(sentUndefined(result)).toEqual([])
 	}, 120_000)
 
 	it("comes from a declared createdIdFrom before anything else the answer carries", async () => {
@@ -218,6 +226,7 @@ describe("a create's id", () => {
 	it("is never a nested related record's id", async () => {
 		const { deleted, result } = await runAgainst("nested-only")
 		expect(deleted).not.toContain(String(STATUS_ID))
+		expect(sentUndefined(result)).toEqual([])
 		expect(result.teardown?.unidentified.length ?? 0).toBeGreaterThan(0)
 	}, 120_000)
 
@@ -228,5 +237,6 @@ describe("a create's id", () => {
 		expect(unidentified.length).toBeGreaterThan(0)
 		expect(unidentified[0]).toMatchObject({ entity: "note", operationId: "note.create" })
 		expect(exitCode(result)).toBe(EXIT.leftovers)
+		expect(sentUndefined(result)).toEqual([])
 	}, 120_000)
 })

@@ -1305,6 +1305,8 @@ export interface CaseResult {
 	bystanders?: string[]
 	/** Ids oat ledgered for teardown that the backend never created. */
 	strayLedger?: string[]
+	/** Checks that would have sent a value oat did not have (the text "undefined"), as `check@entity`. */
+	missingValues?: string[]
 	/** Checks that ran and could not reach a verdict, as `check@entity: reason`. */
 	inconclusive?: string[]
 	/** Checks this defect may legitimately trip, primary first. */
@@ -1327,6 +1329,7 @@ async function runAgainst(
 	leakedRecords: string[]
 	bystanders: string[]
 	strayLedger: string[]
+	missingValues: string[]
 }> {
 	/* One HTTP implementation, one store per engine — see reference/http.ts. Imported lazily so
 	 * an optional runtime such as node:sqlite cannot take down paths that never touch it. */
@@ -1356,7 +1359,13 @@ async function runAgainst(
 		/* oat changes only what it made, and ledgers only what the backend made for it. */
 		const bystanders = damagedBystanders(before, after)
 		const strayLedger = ledgeredNotCreated(result.teardown?.records ?? [], server.createdIds())
+		/* A request made from a value oat did not have is refused before it leaves; any such check
+		 * is a hole in oat, whatever the backend did. */
+		const missingValues = result.inconclusive
+			.filter((item) => item.reason.startsWith("oat had no value"))
+			.map((item) => `${item.check}@${item.entity}`)
 		return {
+			missingValues,
 			checksRun: result.checksRun,
 			entitiesTested: result.entitiesTested,
 			findings: result.findings,
@@ -1425,16 +1434,13 @@ export async function runBaselines(backend: Backend = "memory", dialect = "postg
 
 	/* Baseline first — everything downstream is meaningless if this is not clean. */
 	try {
-		const { findings, entitiesTested, checksRun, leaked, inconclusive, bystanders, strayLedger } = await runAgainst(
-			[],
-			false,
-			backend,
-			dialect,
-		)
+		const { findings, entitiesTested, checksRun, leaked, inconclusive, bystanders, strayLedger, missingValues } =
+			await runAgainst([], false, backend, dialect)
 		const real = findings.filter((f) => f.verdict !== "COVERAGE_GAP")
 		results.push({
 			bystanders,
 			strayLedger,
+			missingValues,
 			checksRun,
 			inconclusive: inconclusive.map((item) => `${item.check}@${item.entity}: ${item.reason}`),
 			leaked,
@@ -1465,16 +1471,13 @@ export async function runBaselines(backend: Backend = "memory", dialect = "postg
 	 * backend when it is running on heuristics alone — a fallback that invents findings would
 	 * make the tool unusable on any spec that has not been annotated yet. */
 	try {
-		const { findings, entitiesTested, checksRun, inconclusive, bystanders, strayLedger } = await runAgainst(
-			[],
-			true,
-			backend,
-			dialect,
-		)
+		const { findings, entitiesTested, checksRun, inconclusive, bystanders, strayLedger, missingValues } =
+			await runAgainst([], true, backend, dialect)
 		const real = findings.filter((f) => f.verdict !== "COVERAGE_GAP")
 		results.push({
 			bystanders,
 			strayLedger,
+			missingValues,
 			checksRun,
 			defect: null,
 			detected: real.length === 0,
@@ -1594,7 +1597,7 @@ export async function judgeDefect(
 	const expected = EXPECTED[defect]
 	const acceptable = acceptableOf(expected)
 	try {
-		const { findings, entitiesTested, checksRun, bystanders, strayLedger } = await runAgainst(
+		const { findings, entitiesTested, checksRun, bystanders, strayLedger, missingValues } = await runAgainst(
 			[defect],
 			false,
 			backend,
@@ -1602,7 +1605,9 @@ export async function judgeDefect(
 			shape,
 		)
 		/* A defect that by design rewrites other rows is the backend's doing, not oat's. */
-		const touched = DAMAGES_BYSTANDERS.has(defect) ? { bystanders: [], strayLedger } : { bystanders, strayLedger }
+		const touched = DAMAGES_BYSTANDERS.has(defect)
+			? { bystanders: [], missingValues, strayLedger }
+			: { bystanders, missingValues, strayLedger }
 		const reproFailures = await checkReproSyntax(findings)
 		if (reproFailures.length > 0) {
 			return {
@@ -1682,9 +1687,11 @@ export function renderSuite(
 		)
 		const bystanders = result.bystanders ?? []
 		const strayLedger = result.strayLedger ?? []
+		const missingValues = result.missingValues ?? []
 		const ok =
 			bystanders.length === 0 &&
 			strayLedger.length === 0 &&
+			missingValues.length === 0 &&
 			(isBaseline
 				? result.spurious.length === 0 &&
 					!vacuous &&
@@ -1717,6 +1724,9 @@ export function renderSuite(
 			lines.push(
 				`      ledgered ${strayLedger.length} id(s) the server never created: ${strayLedger.slice(0, 4).join("; ")}`,
 			)
+		}
+		if (missingValues.length > 0) {
+			lines.push(`      would have sent a value it did not have: ${missingValues.slice(0, 4).join("; ")}`)
 		}
 		if (leaked > 0) {
 			lines.push(

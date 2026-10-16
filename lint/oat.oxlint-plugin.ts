@@ -37,6 +37,11 @@ interface Member extends Node {
 }
 interface Call extends Node {
 	callee: Identifier | Member
+	arguments?: Node[]
+}
+interface Computed extends Node {
+	computed?: boolean
+	property: Node
 }
 interface Literal extends Node {
 	value?: unknown
@@ -140,6 +145,38 @@ const grammarThroughRenderer = {
 	},
 }
 
+/*
+ * `oat/id-through-reader`: `String(record[identity])` on a record without its identity is the text
+ * "undefined", and it went out in paths, filters and probes. Ids are read with `idOf`, which says
+ * when there is none; only the module that owns it reads the field directly.
+ */
+const ID_READER_HOME = "src/runtime/world.ts"
+const ID_THROUGH_READER =
+	'Read an identity with idOf(record, identity): String() turns a missing one into the text "undefined", which then goes out in a request.'
+
+const namesIdentity = (node: Node): boolean =>
+	(node.type === "Identifier" && (node as Identifier).name === "identity") ||
+	(node.type === "MemberExpression" && (node as Member).property.name === "identity")
+
+const idThroughReader = {
+	create(context: Context) {
+		const file = `/${context.filename.replaceAll("\\", "/").replace(/^\/+/, "")}`
+		/* oat's requests are made in the runtime; the reference backend reads its own rows. */
+		if (!file.includes("/src/runtime/") || file.endsWith(`/${ID_READER_HOME}`)) return {}
+		return {
+			CallExpression(node: Call) {
+				if (node.callee.type !== "Identifier" || node.callee.name !== "String") return
+				const [argument] = node.arguments ?? []
+				if (argument?.type !== "MemberExpression") return
+				const member = argument as Computed
+				if (member.computed === true && namesIdentity(member.property)) {
+					context.report({ message: ID_THROUGH_READER, node })
+				}
+			},
+		}
+	},
+}
+
 const exitOnlyInCli = {
 	create(context: Context) {
 		const file = `/${context.filename.replaceAll("\\", "/").replace(/^\/+/, "")}`
@@ -164,6 +201,7 @@ export default {
 	rules: {
 		"exit-only-in-cli": exitOnlyInCli,
 		"grammar-through-renderer": grammarThroughRenderer,
+		"id-through-reader": idThroughReader,
 		"network-through-client": networkThroughClient,
 		"proven-id-origin": provenIdOrigin,
 	},

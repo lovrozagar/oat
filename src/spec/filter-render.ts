@@ -8,6 +8,7 @@
  */
 
 import { FILTER_OPS, type FilterOp } from "./query-capabilities.ts"
+import { MissingValueError } from "../runtime/missing-value.ts"
 
 export type FilterTermValue = string | number | boolean | null | readonly (string | number | boolean | null)[]
 
@@ -145,6 +146,8 @@ function fill(template: string, pieces: Partial<Record<string, string>>): string
 }
 
 function scalar(spec: FilterGrammarSpec, value: string | number | boolean | null): string | null {
+	/* Typed away, and still reachable from a record without the field: never write it as text. */
+	if (value === undefined) throw new MissingValueError("a filter value")
 	let text = value === null ? "null" : String(value)
 	/* A replacement already in the value would read back as the character it stands for. */
 	for (const replacement of Object.values(spec.escape)) if (text.includes(replacement)) return null

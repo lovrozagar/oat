@@ -12,7 +12,7 @@ import type { Client, Exchange } from "./client.ts"
 import { parseRouteRef } from "../spec/load.ts"
 import { FencedError } from "./fence.ts"
 import { isNetworkError } from "./network.ts"
-import { fillPath, recordsFromList } from "./world.ts"
+import { fillPath, idOf, recordsFromList } from "./world.ts"
 import type { ProvenId } from "./proven-id.ts"
 
 /** The principal a record belongs to, as far as removing it goes. */
@@ -263,8 +263,8 @@ async function verifyGone(
 		}
 		if (exchange.status >= 300) continue
 		const listed = new Set(
-			recordsFromList(exchange.responseBody, group.listOp.collection?.key ?? null).map((row) =>
-				String(row[group.identity]),
+			recordsFromList(exchange.responseBody, group.listOp.collection?.key ?? null).flatMap(
+				(row) => idOf(row, group.identity) ?? [],
 			),
 		)
 		for (const item of group.items) {

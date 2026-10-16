@@ -123,3 +123,27 @@ describe("oat/exit-only-in-cli", () => {
 		expect(lint("test/probe.test.ts", source, "exit-only-in-cli")).toEqual([])
 	})
 })
+
+describe("oat/id-through-reader", () => {
+	const source = [
+		"declare const record: Record<string, unknown>",
+		"declare const ctx: { identity: string }",
+		"declare const identity: string",
+		"export const a = String(record[ctx.identity])",
+		"export const b = String(record[identity])",
+		'export const c = String(record["name"])',
+		"export const d = String(record.identity)",
+	].join("\n")
+
+	it("reports an identity read as text without the reader", () => {
+		expect(lint("src/runtime/checks.ts", source, "id-through-reader")).toEqual([4, 5])
+	})
+
+	it("allows it in the module that owns the reader", () => {
+		expect(lint("src/runtime/world.ts", source, "id-through-reader")).toEqual([])
+	})
+
+	it("leaves the reference backend's own rows alone", () => {
+		expect(lint("src/reference/listing.ts", source, "id-through-reader")).toEqual([])
+	})
+})

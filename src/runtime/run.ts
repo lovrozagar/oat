@@ -93,6 +93,7 @@ import {
 	seedCohort,
 } from "./world.ts"
 import { type ProvenId, returnedId } from "./proven-id.ts"
+import { MissingValueError } from "./missing-value.ts"
 
 /* The principal shape is the public config's — one definition, checked in both places. */
 export type PrincipalSpec = Principal
@@ -1569,6 +1570,10 @@ export async function run(options: RunOptions): Promise<RunResult> {
 						`${check.id} was fenced: ${error.request.reason}`,
 						`${error.message}. The request was never sent, so ${check.id} could not complete.`,
 					)
+					return
+				}
+				if (error instanceof MissingValueError) {
+					outcomes.set(check.id, { kind: "unresolved", reason: error.message })
 					return
 				}
 				if (error instanceof AuthRefreshError) {
