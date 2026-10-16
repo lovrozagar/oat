@@ -38,7 +38,7 @@ describe("Client.setAfterExchange", () => {
 			if (new URL(exchange.url).pathname === "/made") await client.get("/read-back")
 		})
 		await client.request("POST", "/made", { body: {} })
-		expect(seen).toEqual(["/read-back", "/made"].toReversed())
+		expect(seen).toEqual(["/made", "/read-back"])
 	})
 
 	it("fires for a view's requests, with the view's purpose", async () => {

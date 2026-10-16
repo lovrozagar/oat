@@ -74,7 +74,8 @@ export function createTracker(input: {
 			sent: exchange.requestBody,
 		})
 		const id = made === null ? undefined : returnedId(made.record, identity)
-		if (id === undefined) {
+		/* An empty identity names nothing a delete could reach. */
+		if (id === undefined || id === "") {
 			ledger.unidentified(entity, op.operationId, exchange)
 			return
 		}

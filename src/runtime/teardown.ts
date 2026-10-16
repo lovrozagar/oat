@@ -305,12 +305,14 @@ async function stillListed(model: SpecModel, client: Client, group: ListGroup): 
 	const seen = new Set<string>()
 	/* The longest page served: a server may cap the size asked for without saying so. */
 	let fullPage = 0
+	/* Rows served so far, repeats included: what an offset counts. */
+	let served = 0
 	let cursor: string | undefined
 	for (let index = 0; index < VERIFY_PAGES; index++) {
 		const query: Record<string, string | number> = { ...first }
 		if (index > 0) {
 			if (paging.page !== undefined) query[paging.page] = index + 1
-			else if (paging.offset !== undefined) query[paging.offset] = seen.size
+			else if (paging.offset !== undefined) query[paging.offset] = served
 			else if (paging.cursor !== undefined && cursor !== undefined) query[paging.cursor] = cursor
 			else break
 		}
@@ -327,6 +329,7 @@ async function stillListed(model: SpecModel, client: Client, group: ListGroup): 
 		}
 		if (exchange.status >= 300) return index === 0 ? null : listed
 		const rows = recordsFromList(exchange.responseBody, group.listOp.collection?.key ?? null)
+		served += rows.length
 		const ids = rows.flatMap((row) => idOf(row, group.identity) ?? [])
 		const fresh = ids.filter((id) => !seen.has(id))
 		for (const id of ids) {

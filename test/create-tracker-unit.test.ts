@@ -159,6 +159,14 @@ describe("createTracker", () => {
 		expect(ledger.unidentifiedCreates).toEqual([])
 	})
 
+	it("reports a create whose answer names an empty id: nothing can be removed by it", async () => {
+		const { ledger, tracker } = setup()
+		const blank = exchange({ responseBody: { id: "", name: "t" } })
+		await tracker.observe(blank)
+		expect(ledger.entries()).toEqual([])
+		expect(ledger.unidentifiedCreates).toMatchObject([{ entity: "table", seq: blank.seq }])
+	})
+
 	it("reports a create whose answer names no id it can read", async () => {
 		const { ledger, tracker } = setup()
 		const unread = exchange({ responseBody: { ok: true } })
