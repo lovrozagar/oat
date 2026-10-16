@@ -82,6 +82,7 @@ Comma-separated. Each is one named lie the demo API can tell. Primary check is w
 | `PATCH_REPLACES`                            | `patch.minimality`                              | PATCH is implemented as replace                                                                 |
 | `IDEMPOTENCY_IGNORED`                       | `idempotency.replay-does-not-duplicate`         | Idempotency-Key is ignored                                                                      |
 | `IDEMPOTENT_REPLAY_INSERTS`                 | `idempotency.replay-does-not-duplicate`         | a replay returns the original but inserts another row                                           |
+| `HIDDEN_FROM_CREATOR`                       | `payload.string-survives`                       | a row holding a given value is never served, even to its creator, and outlives its delete       |
 | `UNIQUE_NOT_ENFORCED`                       | `create.unique-conflict-rejected`               | a duplicate unique-set write is 2xx instead of 409                                              |
 | `DELETE_MISSING_OK`                         | `delete.absent-record-returns-404`              | DELETE missing returns 200                                                                      |
 | `DELETE_KEEPS_ROW`                          | `delete.absent-record-returns-404`              | a delete answers success and keeps the row; teardown also lists each such record as a leftover  |
@@ -112,6 +113,7 @@ The `template` dialect (`oat serve --dialect template`) speaks a grammar oat kno
 Besides its defect, every case — clean baseline or injected defect — fails when oat:
 
 - leaves a record behind after teardown (baselines),
+- leaves a record behind without reporting it (any case: `left N record(s) behind without reporting them`) — teardown must name it as failed, or a create oat could not identify must account for it,
 - deletes or changes a record that existed before the run (`touched N record(s) it did not create`), or
 - ledgers for teardown an id the server never issued or stored (`ledgered N id(s) the server never created`) — an id oat only sent, say. An id a defective server handed back without storing the record counts as issued.
 

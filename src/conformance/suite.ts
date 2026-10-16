@@ -1039,6 +1039,8 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	/* A walk whose last page is full asks once more, and sees the repeat. */
 	PAGE_PAST_END_REPEATS: ["pagination.bounds-handled", "pagination.page-walk-covers-set"],
 	FOREIGN_PARENT_ACCEPTED: "tenant.parent-not-reachable-from-another-root",
+	/* The payload probe's control write is what hides the row: reading it back finds nothing. */
+	HIDDEN_FROM_CREATOR: "payload.string-survives",
 	CREATE_500_ON_NON_ASCII: [
 		"create.does-not-error",
 		/* The probes that write non-ASCII strings hit the same crash on their own creates. */

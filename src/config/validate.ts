@@ -12,6 +12,17 @@ const string: Rule = (value, path) => (typeof value === "string" ? [] : [`${path
 const boolean: Rule = (value, path) => (typeof value === "boolean" ? [] : [`${path} must be true or false`])
 const object: Rule = (value, path) =>
 	value !== null && typeof value === "object" && !Array.isArray(value) ? [] : [`${path} must be an object`]
+/* An object whose named keys, when set, hold functions; the rest are not checked here. */
+const functionsAt =
+	(...keys: string[]): Rule =>
+	(value, path) => {
+		const notObject = object(value, path)
+		if (notObject.length > 0) return notObject
+		const record = value as Record<string, unknown>
+		return keys
+			.filter((key) => record[key] !== undefined && typeof record[key] !== "function")
+			.map((key) => `${path}.${key} must be a function`)
+	}
 const integer =
 	(min: number): Rule =>
 	(value, path) =>
@@ -75,7 +86,7 @@ const CONFIG = {
 	cohortSize: integer(1),
 	entities: recordOf(object),
 	globalHeaders: recordOf(string),
-	hooks: object,
+	hooks: functionsAt("verifyRemoved"),
 	keepFixtures: boolean,
 	maxInFlight: integer(1),
 	maxRps: positive,

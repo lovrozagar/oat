@@ -475,6 +475,24 @@ export async function createReferenceServer(
 		}
 	}
 
+	/* Under HIDDEN_FROM_CREATOR: a row holding the payload probe's control value, served to nobody. */
+	const hiddenFromCreator = (entity: EntityDef, record: Row): boolean =>
+		defects.has("HIDDEN_FROM_CREATOR") &&
+		entity.name === "row" &&
+		Object.values(record).some((value) => value === HIDDEN_TEXT)
+	/* The store as a listing sees it: hidden rows are not there. */
+	const listingStore: Store = defects.has("HIDDEN_FROM_CREATOR")
+		? new Proxy(store, {
+				get(target, property) {
+					const value = Reflect.get(target, property, target) as unknown
+					if (property === "select") {
+						return async (entity: EntityDef, query: Parameters<Store["select"]>[1]) =>
+							(await target.select(entity, query)).filter((row) => !hiddenFromCreator(entity, row))
+					}
+					return typeof value === "function" ? value.bind(target) : value
+				},
+			})
+		: store
 	const tombstoned = (entity: EntityDef, record: Row): boolean =>
 		entity.softDeleteField !== undefined && record[entity.softDeleteField] !== null
 
@@ -783,7 +801,9 @@ export async function createReferenceServer(
 		purpose: "read" | "write" = "read",
 	): Promise<Row> {
 		const record = await store.byId(entity, id)
-		if (record === null) throw new HttpError(404, "not_found", `${entity.name} ${id} does not exist`)
+		if (record === null || hiddenFromCreator(entity, record)) {
+			throw new HttpError(404, "not_found", `${entity.name} ${id} does not exist`)
+		}
 		/* Writes looked up by id alone: reads stay scoped, so only a write probe can tell. */
 		if (purpose === "write" && defects.has("CROSS_TENANT_WRITE")) return record
 		/* A record named under somebody else's parents is not this caller's to read, whoever owns it. */
@@ -1096,7 +1116,7 @@ export async function createReferenceServer(
 					select: readSelect(url, dialect, entity),
 				}
 				const result = await runListing(
-					store,
+					listingStore,
 					entity,
 					request,
 					{
@@ -1292,6 +1312,10 @@ export async function createReferenceServer(
 				if (defects.has("DELETE_MISSING_OK")) return send(res, 200, { [entity.identity]: itemId })
 				throw new HttpError(404, "not_found", `${entity.name} ${itemId} does not exist`)
 			}
+			/* Answers that it removed a row it keeps. */
+			if (hiddenFromCreator(entity, existing)) {
+				return send(res, 200, answerWritten(entity, present(entity, existing), "deleted"))
+			}
 			const record = await findItem(entity, principal, itemId, scope, "write")
 			if (entity.softDeleteField !== undefined) {
 				const updated = await store.update(entity, itemId, {
@@ -1404,6 +1428,9 @@ export async function createReferenceServer(
 }
 
 type Json = Record<string, unknown>
+
+/* The control value of oat's payload probe, the first it writes to a fresh record. */
+const HIDDEN_TEXT = "oat-payload-probe"
 
 /* `Quarterly Report 0` → `quarterly-report-0`. */
 function slugify(name: string): string {

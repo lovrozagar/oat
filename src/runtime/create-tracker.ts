@@ -14,7 +14,7 @@ import type { Client, Exchange } from "./client.ts"
 import { returnedId } from "./proven-id.ts"
 import { SELF_IDENTITY } from "./self.ts"
 import type { Ledger, Owner } from "./teardown.ts"
-import { createdRecord } from "./world.ts"
+import { createdRecord, idOf, recordsFromList } from "./world.ts"
 
 /** A configured principal as the tracker needs it: who removes the record, and its roots. */
 export interface TrackedOwner {
@@ -34,29 +34,63 @@ export function createTracker(input: {
 	onRecorded?: (entity: string, id: string) => void
 }): { observe: (exchange: Exchange) => Promise<void> } {
 	const { ledger, model } = input
-	/* Each entity's create, by operation. The caller's own account is teardownPrincipal's. */
+	/* Each entity's create, read and list, by operation. The caller's own account is teardownPrincipal's. */
 	const creates = new Map<string, { entity: string; identity: string; op: OperationModel }>()
+	const reads = new Map<string, { entity: string; op: OperationModel }>()
+	const lists = new Map<string, { entity: string; identity: string; op: OperationModel }>()
 	for (const entity of model.entities.values()) {
-		if (entity.create === undefined || entity.identity === SELF_IDENTITY) continue
-		const op = model.byOperationId.get(entity.create)
-		if (op !== undefined) creates.set(op.operationId, { entity: entity.name, identity: entity.identity ?? "id", op })
+		if (entity.identity === SELF_IDENTITY) continue
+		const identity = entity.identity ?? "id"
+		const create = entity.create === undefined ? undefined : model.byOperationId.get(entity.create)
+		if (create !== undefined) creates.set(create.operationId, { entity: entity.name, identity, op: create })
+		const read = entity.read === undefined ? undefined : model.byOperationId.get(entity.read)
+		if (read !== undefined) reads.set(read.operationId, { entity: entity.name, op: read })
+		const list = entity.list === undefined ? undefined : model.byOperationId.get(entity.list)
+		if (list !== undefined) lists.set(list.operationId, { entity: entity.name, identity, op: list })
+	}
+
+	/* The parameters an exchange's path gave the operation's own template. */
+	const paramsOf = (exchange: Exchange, op: OperationModel): Record<string, string> | null =>
+		exchange.template === op.path && exchange.pathParams !== undefined
+			? exchange.pathParams
+			: pathTemplateParams(op.path, input.client.relativePath(exchange.url))
+
+	/* A principal read records back: under the read's id, or as the rows of a listing. */
+	const sight = (exchange: Exchange, principal: string): void => {
+		const operationId = exchange.operationId ?? ""
+		const read = reads.get(operationId)
+		if (read !== undefined) {
+			const param = read.op.pathParams.at(-1)
+			const id = param === undefined ? undefined : paramsOf(exchange, read.op)?.[param]
+			if (id !== undefined) ledger.sighted(read.entity, id, principal)
+			return
+		}
+		const list = lists.get(operationId)
+		if (list === undefined) return
+		for (const row of recordsFromList(exchange.responseBody, list.op.collection?.key ?? null)) {
+			const id = idOf(row, list.identity)
+			if (id !== undefined) ledger.sighted(list.entity, id, principal)
+		}
 	}
 
 	const observe = async (exchange: Exchange): Promise<void> => {
 		if (exchange.status < 200 || exchange.status >= 300) return
-		/* Teardown removes; seeding ledgers each create it makes through its own callbacks. */
-		if (exchange.purpose === "teardown" || exchange.purpose === "seed") return
-		const create = exchange.operationId === undefined ? undefined : creates.get(exchange.operationId)
-		if (create === undefined) return
+		/* Teardown reads back what it needs itself. */
+		if (exchange.purpose === "teardown") return
 		const owned = exchange.principal === undefined ? undefined : input.owners.get(exchange.principal)
 		if (owned === undefined) return
+		if (exchange.method === "GET") {
+			sight(exchange, owned.owner.id)
+			return
+		}
+		/* Seeding ledgers each create it makes through its own callbacks. */
+		if (exchange.purpose === "seed") return
+		const create = exchange.operationId === undefined ? undefined : creates.get(exchange.operationId)
+		if (create === undefined) return
 		const { entity, identity, op } = create
 		/* The exchange's parameters belong to the template it resolved to: the create's, unless the
 		 * caller named the create for another path. */
-		const params =
-			exchange.template === op.path && exchange.pathParams !== undefined
-				? exchange.pathParams
-				: pathTemplateParams(op.path, input.client.relativePath(exchange.url))
+		const params = paramsOf(exchange, op)
 		if (params === null) {
 			ledger.unidentified(entity, op.operationId, exchange)
 			return

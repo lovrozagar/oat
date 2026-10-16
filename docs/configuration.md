@@ -594,6 +594,21 @@ Worst-case wait is `sum_{i=0}^{attempts-1} min(initialMs × 2^i, maxMs)`. `worst
 
 Without `teardownPrincipal`, provisioned accounts are reported as leftover rather than cascade-deleted. Per-record DELETE still runs for seeded rows when a delete (or `x-cleanup`) exists. The hook is called with the last live credential (`ctx.credential` / `ctx.headers`), not an already-cleared one, so authenticated delete-account is expressible without a tester-key god route. One-argument JavaScript callbacks still run.
 
+#### Proving a record gone
+
+Teardown counts a record gone when its delete answers 2xx and its list no longer holds it. A record its creator could never read back proves nothing that way, so teardown reads it once before the delete; one still never seen is a leftover (`its creator could never read it back, so teardown cannot tell whether it is gone`) unless an ancestor was removed earlier in the run. `hooks.verifyRemoved` settles it from somewhere HTTP does not reach:
+
+```ts
+hooks: {
+  verifyRemoved: async ({ entity, id, scope, principal }) => {
+    const row = await db.oneOrNone(`select 1 from ${entity}s where id = $1`, [id])
+    return row === null ? "absent" : "present"
+  },
+}
+```
+
+It is asked about every record teardown counted removed and every one it could not show gone, four at a time. `"present"` makes the record a leftover (`hooks.verifyRemoved says it is still present`), `"absent"` clears one never seen, and `"unknown"` keeps teardown's own verdict. A hook that throws counts as `"unknown"`, and the run reports one `teardown.verify-hook` gap.
+
 `resolveHeaders` is called on every dispatch (including the 401 retry). Merge order: `globalHeaders` → hook → per-request headers → principal credential. Use `ctx.operationId` / `ctx.method` / `ctx.url` to attach a one-shot captcha only on captcha ops. oat does not speak Turnstile.
 
 `resolveInput` is the JSON twin of `resolveUpload`. Return a value to replace that field (`payment_method_id` on `billing.subscribe`); `null` keeps the generator. `request.value` is the generated value, or `undefined` when the field was left out. Return `null` for an omitted field or a value outside the schema's length or range bounds so a constraint check is the body the server receives.

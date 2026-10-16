@@ -403,6 +403,13 @@ export const DEFECTS = {
 	TIEBREAK_NOT_APPLIED: "ties are ordered by another field than the documented tiebreak",
 	/** A replayed idempotency key is answered with the original record, but a second row is written too. */
 	IDEMPOTENT_REPLAY_INSERTS: "a replayed create returns the original record and still inserts another",
+	/**
+	 * A row holding `oat-payload-probe` — the ASCII control `payload.string-survives` writes to a fresh
+	 * record before any case of its catalog — is hidden from everyone, its creator included: no
+	 * read or list serves it, and its delete answers 200 and keeps it. Only teardown's account of
+	 * what its creator never saw can name it.
+	 */
+	HIDDEN_FROM_CREATOR: "a row holding a given value is never served, not even to its creator, and outlives its delete",
 } as const
 
 /**

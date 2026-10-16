@@ -7,6 +7,7 @@
  * reports exactly what it could not remove.
  */
 
+import type { RemovalVerdict, RemovedRecord } from "../config/define-config.ts"
 import { largestPageQuery, type OperationModel, type SpecModel } from "../spec/graph.ts"
 import type { Client, Exchange } from "./client.ts"
 import { parseRouteRef } from "../spec/load.ts"
@@ -51,7 +52,23 @@ export interface TeardownReport {
 	records: Array<{ entity: string; id: string; principal: string; removed: boolean }>
 	/** Creates whose record oat could not identify, so could not remove. Each fails the run. */
 	unidentified: UnidentifiedCreate[]
+	/** What `hooks.verifyRemoved` threw, once per call that did; those records keep teardown's verdict. */
+	verifyHookErrors?: string[]
 }
+
+export const NEVER_SEEN = "its creator could never read it back, so teardown cannot tell whether it is gone"
+export const VERIFY_HOOK_PRESENT = "hooks.verifyRemoved says it is still present"
+
+export interface UnwindOptions {
+	onItem?: (done: number, total: number, item: Disposable) => void
+	/* Read each list again afterwards, so a 2xx delete that kept its record is not counted gone. */
+	verify?: boolean
+	/* Asked about every record counted removed and every one teardown could not show gone. */
+	verifyRemoved?: (record: RemovedRecord) => RemovalVerdict | Promise<RemovalVerdict>
+}
+
+/* Calls to `hooks.verifyRemoved` at once. */
+const VERIFY_HOOK_CONCURRENCY = 4
 
 /**
  * Registry of what a run brought into existence, recorded the moment each record is created.
@@ -69,6 +86,8 @@ export class Ledger {
 	private readonly unknown = new Map<number, UnidentifiedCreate>()
 	/* Records an accepted write moved, by entity and id, with what moved them. */
 	private readonly movedAway = new Map<string, string>()
+	/* Records a principal read back — `entity, id, principal` — wherever the read came from. */
+	private readonly sightings = new Set<string>()
 
 	record(entity: string, id: ProvenId, scope: Record<string, string>, owner: Owner): void {
 		if (id === "" || id === "undefined") return
@@ -99,6 +118,18 @@ export class Ledger {
 		this.movedAway.set(`${entity}\u0000${id}`, reason)
 	}
 
+	/**
+	 * A principal read the record back: a read under its id, or a row of a listing. Only its
+	 * creator's sighting counts toward showing it gone; a create's own answer is not one.
+	 */
+	sighted(entity: string, id: string, principal: string): void {
+		this.sightings.add(`${entity}\u0000${id}\u0000${principal}`)
+	}
+
+	private seenByCreator(item: Disposable): boolean {
+		return this.sightings.has(`${item.entity}\u0000${item.id}\u0000${item.owner.id}`)
+	}
+
 	/** Every create reported unidentified so far, in the order oat sent them. */
 	get unidentifiedCreates(): UnidentifiedCreate[] {
 		return [...this.unknown.values()].sort((a, b) => a.seq - b.seq)
@@ -118,16 +149,27 @@ export class Ledger {
 		return this.items
 	}
 
+	/* One read of the record with its creator's credential; a 2xx is the sighting it lacked. */
+	private async readBack(model: SpecModel, client: Client, item: Disposable): Promise<void> {
+		const read = readPathOf(model, item)
+		if (read === null) return
+		try {
+			const exchange = await client.get(read.path, { headers: item.owner.headers(), operationId: read.op.operationId })
+			if (exchange.status >= 200 && exchange.status < 300) this.sighted(item.entity, item.id, item.owner.id)
+		} catch (error) {
+			if (!(error instanceof FencedError) && !isNetworkError(error)) throw error
+		}
+	}
+
 	async unwind(
 		model: SpecModel,
 		client: Client,
 		/* Principals allowed to remove a record its creator was refused, strongest first — the
 		 * same tenant's owner removing what a member created. */
 		fallbacks: (owner: Owner) => Owner[],
-		onItem?: (done: number, total: number, item: Disposable) => void,
-		/* Read each list again afterwards, so a 2xx delete that kept its record is not counted gone. */
-		verify = true,
+		options: UnwindOptions = {},
 	): Promise<TeardownReport> {
+		const { onItem, verify = true } = options
 		const report: TeardownReport = { failed: [], records: [], removed: 0, unidentified: [], unsupported: [] }
 		const unsupported = new Set<string>()
 
@@ -147,9 +189,17 @@ export class Ledger {
 				.filter((exchange) => exchange.method === "DELETE" && exchange.status >= 200 && exchange.status < 300)
 				.map((exchange) => new URL(exchange.url).pathname),
 		)
+		const earlierSegments = [...earlierDeletes].map(segmentsOf)
+		/* The path itself, or an ancestor of it, removed earlier in the run — compared by segments,
+		 * so `/tables/1` is never `/tables/11`. Earlier paths carry the base path; this one does not. */
 		const deletedEarlier = (path: string): boolean => {
-			const pathname = path.split("?")[0] ?? path
-			return [...earlierDeletes].some((done) => done.endsWith(pathname))
+			const target = segmentsOf(path.split("?")[0] ?? path)
+			return earlierSegments.some((done) => {
+				for (let k = target.length; k >= 1; k--) {
+					if (done.length >= k && done.slice(-k).every((segment, at) => segment === target[at])) return true
+				}
+				return false
+			})
 		}
 		const depthOf = (item: Disposable): number => deleteOperationFor(item.entity, model)?.pathParams.length ?? 0
 		const levels = [...new Set(queue.map(depthOf))].sort((a, b) => b - a)
@@ -227,14 +277,122 @@ export class Ledger {
 		}
 		for (const level of levels) {
 			const removing = queue.filter((item) => depthOf(item) === level)
+			/* A record its creator never read back is read once, with the creator's credential. */
+			await Promise.all(
+				removing.filter((item) => !this.seenByCreator(item)).map((item) => this.readBack(model, client, item)),
+			)
 			await Promise.all(removing.map(remove))
 			/* Before the parents go: a removed parent takes with it the list its children are read in. */
 			if (verify) await verifyGone(model, client, removing, records, report)
+		}
+
+		/* Gone by every sign HTTP gives, yet its creator never saw it: no sign could have shown it. */
+		const neverSeen = new Set<Disposable>()
+		for (const item of queue) {
+			const record = records.get(item)
+			if (record?.removed !== true || this.seenByCreator(item) || readPathOf(model, item) === null) continue
+			const path = deletePathOf(model, item)
+			if (path !== null && deletedEarlier(path)) continue
+			record.removed = false
+			report.removed -= 1
+			report.failed.push({ entity: item.entity, id: item.id, principal: item.owner.id, reason: NEVER_SEEN })
+			neverSeen.add(item)
+		}
+		if (options.verifyRemoved !== undefined) {
+			await askVerifyHook(options.verifyRemoved, queue, records, neverSeen, report)
 		}
 		report.unsupported = [...unsupported]
 		report.records = [...records.values()].toReversed()
 		return report
 	}
+}
+
+/** Path segments, decoded, without empty ones. */
+function segmentsOf(pathname: string): string[] {
+	return pathname
+		.split("/")
+		.filter(Boolean)
+		.map((segment) => {
+			try {
+				return decodeURIComponent(segment)
+			} catch {
+				return segment
+			}
+		})
+}
+
+/** The record's own read path, or `null` when its entity has no read it can fill. */
+function readPathOf(model: SpecModel, item: Disposable): { op: OperationModel; path: string } | null {
+	const readId = model.entities.get(item.entity)?.read
+	const op = readId === undefined ? undefined : model.byOperationId.get(readId)
+	const param = op?.pathParams.at(-1)
+	if (op === undefined || param === undefined) return null
+	try {
+		return { op, path: fillPath(op.path, { ...item.scope, [param]: item.id }) }
+	} catch {
+		return null
+	}
+}
+
+function deletePathOf(model: SpecModel, item: Disposable): string | null {
+	const op = deleteOperationFor(item.entity, model)
+	if (op === null) return null
+	const param = op.pathParams.at(-1)
+	try {
+		return fillPath(op.path, param === undefined ? item.scope : { ...item.scope, [param]: item.id })
+	} catch {
+		return null
+	}
+}
+
+/**
+ * Applies `hooks.verifyRemoved` to every record counted removed and every one never seen, a few at
+ * a time: `present` makes a leftover, `absent` clears a never-seen record, `unknown` — or a throw —
+ * leaves teardown's own verdict.
+ */
+async function askVerifyHook(
+	hook: NonNullable<UnwindOptions["verifyRemoved"]>,
+	queue: readonly Disposable[],
+	records: ReadonlyMap<Disposable, { removed: boolean }>,
+	neverSeen: ReadonlySet<Disposable>,
+	report: TeardownReport,
+): Promise<void> {
+	const asked = queue.filter((item) => records.get(item)?.removed === true || neverSeen.has(item))
+	const errors: string[] = []
+	const answer = async (item: Disposable): Promise<RemovalVerdict> => {
+		try {
+			return await hook({ entity: item.entity, id: item.id, principal: item.owner.id, scope: { ...item.scope } })
+		} catch (error) {
+			errors.push(error instanceof Error ? error.message : String(error))
+			return "unknown"
+		}
+	}
+	for (let at = 0; at < asked.length; at += VERIFY_HOOK_CONCURRENCY) {
+		const batch = asked.slice(at, at + VERIFY_HOOK_CONCURRENCY)
+		const verdicts = await Promise.all(batch.map(answer))
+		batch.forEach((item, index) => {
+			const verdict = verdicts[index]
+			const record = records.get(item)
+			if (record === undefined || verdict === "unknown") return
+			const failure = report.failed.findIndex(
+				(entry) => entry.entity === item.entity && entry.id === item.id && entry.reason === NEVER_SEEN,
+			)
+			if (verdict === "absent") {
+				if (failure < 0) return
+				report.failed.splice(failure, 1)
+				record.removed = true
+				report.removed += 1
+				return
+			}
+			if (failure >= 0) report.failed.splice(failure, 1)
+			else {
+				record.removed = false
+				report.removed -= 1
+			}
+			report.failed.push({ entity: item.entity, id: item.id, principal: item.owner.id, reason: VERIFY_HOOK_PRESENT })
+		})
+	}
+	if (errors.length > 0) report.verifyHookErrors = errors
 }
 
 export const STILL_LISTED = "delete answered 2xx but the record is still listed"

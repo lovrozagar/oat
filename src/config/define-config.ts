@@ -409,6 +409,19 @@ export interface FenceRequest {
 /** Let the request go, or refuse it with a reason the report shows. */
 export type FenceDecision = { allow: true } | { allow: false; reason: string }
 
+/** A record teardown counted removed, or could not show gone, as `hooks.verifyRemoved` is asked about it. */
+export interface RemovedRecord {
+	entity: string
+	id: string
+	/** Path parameters in scope when the record was created. */
+	scope: Record<string, string>
+	/** The configured principal that created it. */
+	principal: string
+}
+
+/** What a store outside HTTP says about a record: still there, gone, or cannot tell. */
+export type RemovalVerdict = "present" | "absent" | "unknown"
+
 export interface Hooks {
 	/**
 	 * Sees every request before it leaves the process and may refuse it. A refused request is never
@@ -431,6 +444,13 @@ export interface Hooks {
 	 * extra); TypeScript configs should take `ctx`.
 	 */
 	teardownPrincipal?: (address: string, ctx: TeardownPrincipalContext) => Promise<void>
+	/**
+	 * Asked, after teardown, about every record it counted removed and every one it could not show
+	 * gone — a record its creator could never read back. Answer from somewhere HTTP does not reach,
+	 * the database say: `"present"` makes the record a leftover, `"absent"` clears it, `"unknown"`
+	 * keeps teardown's own verdict. A hook that throws counts as `"unknown"`, and the run notes it.
+	 */
+	verifyRemoved?: (record: RemovedRecord) => RemovalVerdict | Promise<RemovalVerdict>
 	/**
 	 * Exact file or whole request. Return `null` to fall through to `uploads.each`, then pool, then a dummy.
 	 * `UploadFile` replaces that field. `{ fields }` with a file replaces the whole request.

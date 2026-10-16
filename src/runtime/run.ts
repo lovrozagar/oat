@@ -1781,6 +1781,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	/* Unwind after every check has run, never per case: a check may legitimately depend on records
 	 * another one created, and tearing down early turns that into a phantom defect. */
 	let teardown: TeardownReport | null = null
+	let verifyHookFailed = false
 	const unwindLedger = async (): Promise<void> => {
 		currentPhase = "teardown"
 		currentCheck = undefined
@@ -1791,11 +1792,8 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		})
 		if (options.keepFixtures === true || ledger.size === 0) return
 		try {
-			const report = await ledger.unwind(
-				model,
-				client.view({ purpose: "teardown" }),
-				fallbackDeleters,
-				(done, total, item) => {
+			const report = await ledger.unwind(model, client.view({ purpose: "teardown" }), fallbackDeleters, {
+				onItem: (done, total, item) => {
 					if (done % 25 !== 0 && done !== total) return
 					tick({
 						entity: item.entity,
@@ -1804,8 +1802,20 @@ export async function run(options: RunOptions): Promise<RunResult> {
 						requests: client.transcript.length,
 					})
 				},
-				options.teardown?.verify !== false,
-			)
+				verify: options.teardown?.verify !== false,
+				...(hooks.verifyRemoved === undefined ? {} : { verifyRemoved: hooks.verifyRemoved }),
+			})
+			const hookErrors = report.verifyHookErrors ?? []
+			/* Once per run, however many calls threw or unwinds ran. */
+			if (hookErrors.length > 0 && !verifyHookFailed) {
+				verifyHookFailed = true
+				findings.gap(
+					"teardown.verify-hook",
+					"teardown",
+					"hooks.verifyRemoved threw",
+					`${hookErrors.length} call(s) threw, so those records keep teardown's own verdict: ${hookErrors[0]}`,
+				)
+			}
 			teardown = {
 				failed: [...(teardown?.failed ?? []), ...report.failed],
 				records: [...(teardown?.records ?? []), ...report.records],

@@ -62,6 +62,8 @@ A create that answered 2xx but named no id oat could read or confirm left a reco
 
 A record oat identified but could not show gone — its delete was refused, or it is still listed after a 2xx delete — is listed under **Leftovers** too, as ``- table `t9` · as beta · DELETE … returned beta: 403``. Every record names the principal that created it, since that principal's tenant is where it remains: the console prints `table t9 (as beta): …`, and `oat-report.json` carries `principal` on each `teardown.failed` and `teardown.records` entry.
 
+Two reasons are teardown's own verdict rather than an answer it got. `its creator could never read it back, so teardown cannot tell whether it is gone` names a record no read or listing by its creator ever served, not even teardown's read before the delete, so a 2xx delete and an empty list prove nothing. `hooks.verifyRemoved says it is still present` names a record the hook found after teardown counted it removed. A hook that threw is one `teardown.verify-hook` gap, and those records keep teardown's verdict.
+
 ### Known, fixed and the target version
 
 With a `baseline`, `oat-report.md` lists the findings it names under **Known** (each with its reason) and the entries nothing matched under **Fixed**; the console prints `baseline: N known · M fixed`. Known findings carry `"known": { "reason": … }` in `oat-report.json`, which also holds `"baseline": { "fixed": [...] }`. Only findings no entry names count toward the result and the exit code.
