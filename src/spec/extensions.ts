@@ -159,6 +159,12 @@ export function readEntity(endpoint: Endpoint, gaps?: GapCollector): EntityRef |
 	return inferred
 }
 
+/** `x-entity.recordPath`: the JSON path where this operation's answer keeps the record (or a list's rows). */
+export function readRecordPath(endpoint: Endpoint): string | null {
+	const path = ext<{ recordPath?: unknown }>(endpoint.op, "x-entity")?.recordPath
+	return typeof path === "string" && path !== "" ? path : null
+}
+
 /** `x-entity.createdIdFrom`: the JSON path where a create's answer puts the made record's id. */
 export function readCreatedIdFrom(endpoint: Endpoint): string | null {
 	const from = ext<{ createdIdFrom?: unknown }>(endpoint.op, "x-entity")?.createdIdFrom

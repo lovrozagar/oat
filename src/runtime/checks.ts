@@ -89,6 +89,7 @@ import {
 	fillPath,
 	idOf,
 	isPlanLimitResponse,
+	recordOf,
 } from "./world.ts"
 import {
 	bodyPropertyNames,
@@ -254,6 +255,14 @@ function absentId(ctx: CheckContext): string | null {
 }
 
 const NO_ABSENT_ID = "an identifier of the documented shape that names no record"
+/* A declared `x-entity.recordPath` that names nothing in the answer: there is no record to compare. */
+const NO_RECORD = "the answer holds no record where x-entity.recordPath says it is"
+
+/** The record a single-record answer holds (`x-entity.recordPath`), or `undefined` when there is none. */
+function readRecord(op: OperationModel, exchange: Exchange): Record_ | undefined {
+	return recordOf(op, exchange.responseBody)
+}
+
 /* A record that does not carry its identity names nothing a request could address. */
 const NO_IDENTITY = "a record that carries its identity"
 /* Matches no id: what a record without an identity is looked up as. */
@@ -2231,7 +2240,8 @@ const patchMinimality: Check<{ updateOp: OperationModel; readOp: OperationModel 
 				`reading the record back returned ${before.status}, so no baseline could be established`,
 			)
 		}
-		const original = (before.responseBody ?? {}) as Record_
+		const original = readRecord(readOp, before)
+		if (original === undefined) return ctx.findings.unresolved(this.id, ctx.entityName, NO_RECORD)
 
 		/* A control record, never written to, observed across the same window as the target.
 		 * Real APIs expose server-driven fields — job progress, computed counts, expiry clocks —
@@ -2272,7 +2282,7 @@ const patchMinimality: Check<{ updateOp: OperationModel; readOp: OperationModel 
 			...(updateOp.generated ?? []),
 		])
 		if (settle.status < 300) {
-			const second = (settle.responseBody ?? {}) as Record_
+			const second = readRecord(readOp, settle) ?? original
 			for (const key of Object.keys(original)) {
 				if (JSON.stringify(original[key]) !== JSON.stringify(second[key])) drifting.add(key)
 			}
@@ -2294,9 +2304,10 @@ const patchMinimality: Check<{ updateOp: OperationModel; readOp: OperationModel 
 		if (patched.status >= 300) return ctx.findings.unresolved(this.id, ctx.entityName, "the patch was refused")
 
 		const after = await ctx.client.get(fillPath(readOp.path, params), { headers: ctx.auth() })
-		const current = (after.responseBody ?? {}) as Record_
+		const current = readRecord(readOp, after)
+		if (current === undefined) return ctx.findings.unresolved(this.id, ctx.entityName, NO_RECORD)
 
-		const baseline = (settle.status < 300 ? settle.responseBody : before.responseBody) as Record_
+		const baseline = (settle.status < 300 ? readRecord(readOp, settle) : undefined) ?? original
 		let collateral = Object.keys(original).filter((key) => {
 			if (key === field || drifting.has(key)) return false
 			return JSON.stringify(baseline[key]) !== JSON.stringify(current[key])
@@ -2309,9 +2320,11 @@ const patchMinimality: Check<{ updateOp: OperationModel; readOp: OperationModel 
 				headers: ctx.auth(),
 			})
 			if (controlAfter.status < 300) {
-				const from = (controlBefore.responseBody ?? {}) as Record_
-				const to = (controlAfter.responseBody ?? {}) as Record_
-				collateral = collateral.filter((key) => JSON.stringify(from[key]) === JSON.stringify(to[key]))
+				const from = readRecord(readOp, controlBefore)
+				const to = readRecord(readOp, controlAfter)
+				if (from !== undefined && to !== undefined) {
+					collateral = collateral.filter((key) => JSON.stringify(from[key]) === JSON.stringify(to[key]))
+				}
 			}
 		}
 		if (collateral.length === 0) return ASSERTED
@@ -2378,9 +2391,9 @@ const immutableRejected: Check<{ field: string; updateOp: OperationModel; readOp
 		/* Read the echoed record first. Re-reading can itself fail once the write lands — writing
 		 * a tenant key, for instance, moves the record out of the caller's scope — and that
 		 * failure would otherwise mask the very defect being probed. */
-		const echoed = (patched.responseBody ?? {}) as Record_
+		const echoed = readRecord(updateOp, patched) ?? {}
 		const after = await ctx.client.get(fillPath(readOp.path, params), { headers: ctx.auth() })
-		const current = (after.responseBody ?? {}) as Record_
+		const current = readRecord(readOp, after) ?? {}
 		const accepted = echoed[field] === probe || current[field] === probe
 		if (!accepted) return ASSERTED
 
@@ -3016,7 +3029,7 @@ const projectionsAgree: Check<{ id: string; field: string; target: Record_; read
 		 * The claim being tested is that the read paths agree with each other, which is exactly
 		 * what anchoring on one of them and comparing the rest establishes.
 		 */
-		const value = (detail.responseBody as Record_)[field]
+		const value = readRecord(readOp, detail)?.[field]
 		const rendered = String(value)
 
 		const plain = await list(ctx, q(ctx, { limit }))
@@ -4255,7 +4268,7 @@ const crossTenantItemWrite: Check<{
 					operationId: updateOp.operationId,
 				})
 				const after = await reread()
-				const now = ((after.responseBody ?? {}) as Record_)[field]
+				const now = readRecord(readOp, after)?.[field]
 				if (after.status < 300 && JSON.stringify(now) === JSON.stringify(value)) {
 					return breach(
 						updateOp,
@@ -5393,7 +5406,7 @@ const createKeepsSubmittedIdentity: Check<{ readOp: OperationModel }> = {
 				headers: ctx.auth(),
 				operationId: readOp.operationId,
 			})
-			const record = (read.responseBody ?? {}) as Record_
+			const record = readRecord(readOp, read)
 			if (read.status >= 200 && read.status < 300 && idOf(record, ctx.identity) === String(sent)) continue
 			return ctx.findings.backend(
 				this.id,
@@ -6280,7 +6293,8 @@ const noLostUpdate: Check<{ updateOp: OperationModel; readOp: OperationModel }> 
 				`reading the record back returned ${before.status}, so there was no baseline to race ` + "against",
 			)
 		}
-		const original = (before.responseBody ?? {}) as Record_
+		const original = readRecord(readOp, before)
+		if (original === undefined) return ctx.findings.unresolved(this.id, ctx.entityName, NO_RECORD)
 
 		/* Two distinct writable string fields, so the writes cannot legitimately clobber each
 		 * other — last-write-wins on the *same* field would be a defensible policy. */
@@ -6329,7 +6343,8 @@ const noLostUpdate: Check<{ updateOp: OperationModel; readOp: OperationModel }> 
 				`reading the record back after the race returned ${after.status}`,
 			)
 		}
-		const current = (after.responseBody ?? {}) as Record_
+		const current = readRecord(readOp, after)
+		if (current === undefined) return ctx.findings.unresolved(this.id, ctx.entityName, NO_RECORD)
 
 		const lost: string[] = []
 		if (current[first] !== "oat-concurrent-a") lost.push(first)
@@ -7120,8 +7135,7 @@ const stringPayloadSurvives: Check<{
 			const exchange = await ctx.client.get(fillPath(readOp.path, { ...ctx.scope, ...itemParamFor(ctx, recordId) }), {
 				headers: ctx.auth(),
 			})
-			const body = (exchange.responseBody ?? {}) as Record_
-			return { exchange, value: body[field.name] }
+			return { exchange, value: readRecord(readOp, exchange)?.[field.name] }
 		}
 
 		const remove = async (recordId: string): Promise<void> => {
@@ -9471,7 +9485,7 @@ async function liveRecord(ctx: CheckContext, id: string | undefined): Promise<Re
 		if (exchange.status >= 300 || exchange.responseBody === null || typeof exchange.responseBody !== "object") {
 			return undefined
 		}
-		return exchange.responseBody as Record_
+		return readRecord(ctx.readOp, exchange)
 	} catch (error) {
 		/* A fenced read is not "no record": the caller must hear that it could not ask. */
 		if (error instanceof FencedError) throw error
@@ -9569,9 +9583,8 @@ const uniqueConflictCreate: Check<{ createOp: OperationModel; sets: string[][] }
 				continue
 			}
 			if (probe.status >= 200 && probe.status < 300) {
-				const returned = (probe.responseBody ?? {}) as Record_
-				const id = returned[ctx.identity]
-				if (typeof id === "string" || typeof id === "number") await teardownCreatedId(ctx, String(id))
+				const id = idOf(ctx.createOp === undefined ? undefined : readRecord(ctx.createOp, probe), ctx.identity)
+				if (id !== undefined) await teardownCreatedId(ctx, id)
 				ctx.findings.backend(
 					this.id,
 					ctx.entityName,

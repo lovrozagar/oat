@@ -44,6 +44,17 @@ export interface ReferenceShape {
 	clientIds?: { min: number; max: number }
 	/** The table's create answers `{ success: true }` instead of the record it made. */
 	ackCreate?: boolean
+	/** Each record's identity is a field of this name (`ID`) instead of `id`. */
+	identityField?: string
+	/**
+	 * Single records travel wrapped: a create answers `{ success, id, message, data }`, a read
+	 * `{ data, fields }`, an update or a delete `{ success, id, message }` with no record at all,
+	 * and a listing carries a `fields` sidecar beside its rows. The document says where the
+	 * record is (`x-entity.recordPath`) and where a create's id is (`createdIdFrom`).
+	 */
+	recordEnvelope?: boolean
+	/** Each record carries a read-only related record with an id of its own: `Status: { ID, Name }`. */
+	relatedRecord?: boolean
 }
 
 export interface NamedShape {
@@ -111,6 +122,23 @@ export const SHAPES: readonly NamedShape[] = [
 		why: "rows skipped and taken (skip / take) under a bounded page size, with only a total in a { data, totalCount } envelope",
 	},
 	{
+		cannotRun: {
+			"pagination.cursor-agrees-with-page": "there is no cursor",
+			"pagination.has-more-is-accurate": "there is no more-pages flag to judge",
+		},
+		cannotExhibit: ["CURSOR_DRIFT", "COLLATION_INCONSISTENT", "HASMORE_ALWAYS_FALSE", "PAGE_PAST_END_REPEATS"],
+		name: "wrapped-records",
+		shape: {
+			identityField: "ID",
+			ids: "integer",
+			pagination: "offset-total",
+			prepopulate: 6,
+			recordEnvelope: true,
+			relatedRecord: true,
+		},
+		why: "an upper-case integer ID, records wrapped on create and read, writes answered without the record, rows beside a fields sidecar, and a related record nested in each",
+	},
+	{
 		/* It clamps a page size rather than refusing it, and its document says so. */
 		cannotRun: {
 			"pagination.limit-bounds-enforced": "the page size is clamped, as the document declares, not refused",
@@ -133,7 +161,9 @@ export const SHAPES: readonly NamedShape[] = [
 		},
 		/* CREATE_DROPS_FIELD: its check compares the create's echo, and there is none here; the lost
 		 * field instead fails the read-back that would confirm the record. */
-		cannotExhibit: ["CREATE_DROPS_FIELD"],
+		/* READ_DROPS_FIELD: an acknowledged create is confirmed by the read that drops the field, so
+		 * no record is ever confirmed and the seed stops before anything can be judged. */
+		cannotExhibit: ["CREATE_DROPS_FIELD", "READ_DROPS_FIELD"],
 		exhibits: ["CLIENT_ID_IGNORED", "CLIENT_ID_OVERWRITES"],
 		name: "client-ids",
 		shape: { ackCreate: true, clientIds: { max: 999, min: 1 }, ids: "integer", prepopulate: 5 },

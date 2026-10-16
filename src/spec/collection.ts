@@ -135,7 +135,7 @@ export function effective(schema: SchemaObject | null): SchemaObject | null {
 	return merged
 }
 
-export function deriveCollectionShape(raw: SchemaObject | null): CollectionShape | null {
+export function deriveCollectionShape(raw: SchemaObject | null, rowsKey?: string | null): CollectionShape | null {
 	const schema = effective(raw)
 	if (schema === null) return null
 
@@ -165,7 +165,15 @@ export function deriveCollectionShape(raw: SchemaObject | null): CollectionShape
 		.map(([name, value]) => ({ item: effective(asSchema(value.items)), name }))
 		.filter((c) => c.item !== null)
 
-	const chosen = candidates.find((c) => c.item?.type === "object" || c.item?.properties !== undefined) ?? candidates[0]
+	/* Two arrays of objects (rows beside a `fields` sidecar) leave the rows unnamed: taking the
+	 * first compares the wrong records. The list's `x-entity.recordPath` names them. */
+	const objectRows = candidates.filter((c) => c.item?.type === "object" || c.item?.properties !== undefined)
+	const chosen =
+		rowsKey !== undefined && rowsKey !== null
+			? candidates.find((c) => c.name === rowsKey)
+			: objectRows.length > 1
+				? undefined
+				: (objectRows[0] ?? candidates[0])
 	if (chosen === undefined) return null
 
 	const siblingNames = entries.map(([name]) => name).filter((name) => name !== chosen.name)
@@ -239,4 +247,31 @@ export function deriveIdentity(
 		}
 	}
 	return hinted ?? null
+}
+
+/**
+ * The arrays of objects a list response could hold its rows in, when there is more than one: a
+ * document that leaves this open needs `x-entity.recordPath` on the list. Empty otherwise.
+ */
+export function ambiguousRows(raw: SchemaObject | null): string[] {
+	const schema = effective(raw)
+	if (schema === null || schema.type === "array") return []
+	const props = schema.properties
+	if (props === null || typeof props !== "object") return []
+	const rows = Object.entries(props as Record<string, SchemaObject>)
+		.filter(([name, value]) => {
+			const resolved = effective(value) ?? value
+			if (resolved?.type !== "array" || /^(errors?|warnings?|messages?|meta|links)$/i.test(name)) return false
+			const item = effective(asSchema(resolved.items))
+			return item?.type === "object" || item?.properties !== undefined
+		})
+		.map(([name]) => name)
+	return rows.length > 1 ? rows : []
+}
+
+/** The top-level key a list's `recordPath` names (`$.data` or `$.data[*]`), or null. */
+export function rowsKeyOf(recordPath: string | null): string | null {
+	if (recordPath === null) return null
+	const match = /^\$\.([A-Za-z0-9_-]+)(?:\[\*\])?$/.exec(recordPath)
+	return match?.[1] ?? null
 }

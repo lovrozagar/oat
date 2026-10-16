@@ -10,6 +10,7 @@ Comma-separated. Each is one named lie the demo API can tell. Primary check is w
 | ------------------------------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `STALE_LIST`                                | `list.read-after-write`                         | create succeeds, list does not show the row                                                     |
 | `CREATE_DROPS_FIELD`                        | `create.persists-submitted-fields`              | a submitted field is dropped                                                                    |
+| `READ_DROPS_FIELD`                          | `consistency.projections-agree`                 | the item read leaves out a field the record and its listing still hold                          |
 | `STRING_PAYLOAD_MANGLED`                    | `payload.string-survives`                       | non-ASCII / surrounding whitespace stripped on write                                            |
 | `RESPONSE_STATUS_UNDECLARED`                | `response.status-is-documented`                 | PATCH returns 201 when the document names 200                                                   |
 | `CREATED_201_AS_200`                        | `create.status-matches-document`                | create returns 200 when the spec says 201                                                       |

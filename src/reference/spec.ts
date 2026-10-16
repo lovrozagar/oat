@@ -69,7 +69,75 @@ function itemSchema(entity: EntityDef): Json {
 
 /** An entity's record schema — inline, or a reference into `components` under the layout shape. */
 function itemSchemaRef(ctx: SpecContext, entity: EntityDef): Json {
-	return ctx.shape.specLayout === true ? { $ref: `#/components/schemas/${schemaName(entity)}` } : itemSchema(entity)
+	if (ctx.shape.specLayout === true) return { $ref: `#/components/schemas/${schemaName(entity)}` }
+	const schema = itemSchema(entity) as { properties: Record<string, Json>; required: string[] }
+	if (ctx.shape.relatedRecord === true) {
+		const id = ctx.shape.identityField ?? "id"
+		schema.properties.Status = {
+			additionalProperties: false,
+			properties: { Name: { type: "string" }, [id]: { type: "integer" } },
+			readOnly: true,
+			required: [id, "Name"],
+			type: "object",
+		}
+		schema.required.push("Status")
+	}
+	return schema as Json
+}
+
+/* Under `recordEnvelope`: the answers' shapes, and where the document says the record is. */
+const FIELD_LIST: Json = {
+	items: {
+		additionalProperties: false,
+		properties: { name: { type: "string" }, type: { type: "string" } },
+		required: ["name", "type"],
+		type: "object",
+	},
+	type: "array",
+}
+function identitySchema(entity: EntityDef): Json {
+	const field = entity.fields.find((candidate) => candidate.name === entity.identity)
+	return field === undefined ? { type: "string" } : fieldSchema(field)
+}
+/* The async job is an action's receipt, not a record: its answers stay plain. */
+function wraps(ctx: SpecContext, entity: EntityDef): boolean {
+	return ctx.shape.recordEnvelope === true && entity.name !== "job"
+}
+function createdSchema(ctx: SpecContext, entity: EntityDef): Json {
+	if (!wraps(ctx, entity)) return itemSchemaRef(ctx, entity)
+	return {
+		additionalProperties: false,
+		properties: {
+			data: itemSchemaRef(ctx, entity),
+			id: identitySchema(entity),
+			message: { type: "string" },
+			success: { type: "boolean" },
+		},
+		required: ["success", "id", "message", "data"],
+		type: "object",
+	}
+}
+function readSchema(ctx: SpecContext, entity: EntityDef): Json {
+	if (!wraps(ctx, entity)) return itemSchemaRef(ctx, entity)
+	return {
+		additionalProperties: false,
+		properties: { data: itemSchemaRef(ctx, entity), fields: FIELD_LIST },
+		required: ["data", "fields"],
+		type: "object",
+	}
+}
+function writtenSchema(ctx: SpecContext, entity: EntityDef): Json {
+	if (!wraps(ctx, entity)) return itemSchemaRef(ctx, entity)
+	return {
+		additionalProperties: false,
+		properties: { id: identitySchema(entity), message: { type: "string" }, success: { type: "boolean" } },
+		required: ["success", "id", "message"],
+		type: "object",
+	}
+}
+function located(ctx: SpecContext, entity: EntityDef, action: "create" | "read" | "list"): Json {
+	if (!wraps(ctx, entity)) return {}
+	return action === "create" ? { createdIdFrom: "$.id", recordPath: "$.data" } : { recordPath: "$.data" }
 }
 
 function schemaName(entity: EntityDef): string {
@@ -116,6 +184,7 @@ function listSchema(ctx: SpecContext, entity: EntityDef, dialect: Dialect): Json
 	declare(env.page, { oneOf: [{ minimum: 1, type: "integer" }, { type: "null" }] })
 	declare(env.total, { minimum: 0, type: "integer" })
 	declare(env.nextCursor, { oneOf: [{ type: "string" }, { type: "null" }] })
+	if (wraps(ctx, entity)) declare("fields", FIELD_LIST)
 	return { additionalProperties: false, properties, required, type: "object" }
 }
 
@@ -415,7 +484,7 @@ function buildEntityPaths(ctx: SpecContext, entity: EntityDef, dialect: Dialect)
 			},
 			summary: `List ${entity.plural}`,
 			tags: [title],
-			"x-entity": { action: "list", identity: entity.identity, name: entity.name },
+			"x-entity": { action: "list", identity: entity.identity, name: entity.name, ...located(ctx, entity, "list") },
 			"x-query": query,
 			/* Generous enough never to slow a run; declared so a stricter real limit is testable. */
 			"x-rate-limit": { category: `${entity.name}.list`, rps: 500 },
@@ -455,12 +524,12 @@ function buildEntityPaths(ctx: SpecContext, entity: EntityDef, dialect: Dialect)
 								required: ["success"],
 								type: "object",
 							})
-						: jsonResponse(`Created ${entity.name}`, itemSchemaRef(ctx, entity)),
+						: jsonResponse(`Created ${entity.name}`, createdSchema(ctx, entity)),
 				...errorResponses(ctx, [400, 401, 403, 404, 409, 415]),
 			},
 			summary: `Create ${entity.name}`,
 			tags: [title],
-			"x-entity": { action: "create", identity: entity.identity, name: entity.name },
+			"x-entity": { action: "create", identity: entity.identity, name: entity.name, ...located(ctx, entity, "create") },
 			"x-generated": fieldsWhere(entity, "generated"),
 			...(entity.unique === undefined || entity.unique.length === 0 ? {} : { "x-unique": entity.unique }),
 			/*
@@ -478,7 +547,7 @@ function buildEntityPaths(ctx: SpecContext, entity: EntityDef, dialect: Dialect)
 			operationId: `${entity.name}.delete`,
 			parameters: pathParams(ctx, entity, true),
 			responses: {
-				[ok(ctx, 200)]: jsonResponse(`Deleted ${entity.name}`, itemSchemaRef(ctx, entity)),
+				[ok(ctx, 200)]: jsonResponse(`Deleted ${entity.name}`, writtenSchema(ctx, entity)),
 				...errorResponses(ctx, [400, 401, 403, 404]),
 			},
 			summary: `Delete ${entity.name}`,
@@ -493,12 +562,12 @@ function buildEntityPaths(ctx: SpecContext, entity: EntityDef, dialect: Dialect)
 			operationId: `${entity.name}.get`,
 			parameters: pathParams(ctx, entity, true),
 			responses: {
-				[ok(ctx, 200)]: jsonResponse(entity.name, itemSchemaRef(ctx, entity)),
+				[ok(ctx, 200)]: jsonResponse(entity.name, readSchema(ctx, entity)),
 				...errorResponses(ctx, [400, 401, 403, 404]),
 			},
 			summary: `Get ${entity.name}`,
 			tags: [title],
-			"x-entity": { action: "read", identity: entity.identity, name: entity.name },
+			"x-entity": { action: "read", identity: entity.identity, name: entity.name, ...located(ctx, entity, "read") },
 			"x-tenant": tenantParam(entity),
 		},
 		[ctx.shape.updateMethod === "PUT" ? "put" : "patch"]: {
@@ -511,7 +580,7 @@ function buildEntityPaths(ctx: SpecContext, entity: EntityDef, dialect: Dialect)
 				required: true,
 			},
 			responses: {
-				[ok(ctx, 200)]: jsonResponse(`Updated ${entity.name}`, itemSchemaRef(ctx, entity)),
+				[ok(ctx, 200)]: jsonResponse(`Updated ${entity.name}`, writtenSchema(ctx, entity)),
 				...errorResponses(ctx, [400, 401, 403, 404, 409, 415]),
 			},
 			summary: `Update ${entity.name}`,

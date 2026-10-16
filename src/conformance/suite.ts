@@ -882,6 +882,7 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	ORDER_IGNORED: "sort.order-is-applied",
 	SEARCH_IGNORED: "search.q-narrows-result",
 	CREATE_DROPS_FIELD: "create.persists-submitted-fields",
+	READ_DROPS_FIELD: ["payload.string-survives", "consistency.projections-agree"],
 	CALLER_UPDATE_DROPPED: "auth.self-is-the-caller",
 	DISPOSABLE_KILLS_CALLER: "auth.destructive-spares-the-caller",
 	ROOT_READ_OPEN: "read.matches-caller-root",
@@ -1406,9 +1407,13 @@ export function passAnswer(
 } {
 	const rendered = renderSuite(results, dialect, backend)
 	const primaryOps: Record<string, string[]> = {}
+	/* Every operation the primary check judged, not the first finding's alone: a defect seen on two
+	 * entities is reported twice in no fixed order, and a targeted run must cover the one it shows on. */
 	for (const result of results) {
-		const finding = result.findings.find((item) => item.check === result.expected)
-		if (result.defect !== null && finding?.operations !== undefined) primaryOps[result.defect] = finding.operations
+		const operations = result.findings
+			.filter((item) => item.check === result.expected)
+			.flatMap((item) => item.operations ?? [])
+		if (result.defect !== null && operations.length > 0) primaryOps[result.defect] = [...new Set(operations)]
 	}
 	return {
 		baselines: { tagged: results[0]?.checksRun ?? [], untagged: results[1]?.checksRun ?? [] },
@@ -1523,6 +1528,7 @@ const DIALECT_INSENSITIVE: ReadonlySet<DefectName> = new Set<DefectName>([
 	"DELETE_MISSING_OK",
 	"CROSS_TENANT_READ",
 	"CREATE_DROPS_FIELD",
+	"READ_DROPS_FIELD",
 	"STRING_PAYLOAD_MANGLED",
 	"ENUM_NOT_VALIDATED",
 	"MAXLENGTH_NOT_VALIDATED",

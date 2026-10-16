@@ -176,6 +176,9 @@ export async function runShapeRecall(backend: Backend, shapes: readonly ShapeCas
 			for (const finding of result.spurious.slice(0, 3)) {
 				problems.push(`spurious [${finding.check}] ${finding.entity}: ${finding.summary}`)
 			}
+			for (const where of (result.missingValues ?? []).slice(0, 3)) {
+				problems.push(`would have sent a value it did not have: ${where}`)
+			}
 			cases.push({ expected: EXPECTED_FAILURES[label], label, problems, why: `${defect} behind ${name}` })
 		}
 	}

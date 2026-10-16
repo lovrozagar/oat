@@ -383,10 +383,37 @@ export async function createReferenceServer(
 	/** A record as it leaves the server: write-only fields never do. */
 	function present(entity: EntityDef, record: Row): Row {
 		const hidden = entity.fields.filter((field) => field.writeOnly === true)
-		if (hidden.length === 0) return decorate(record)
+		if (hidden.length === 0) return withRelated(decorate(record))
 		const out = { ...record }
 		for (const field of hidden) delete out[field.name]
-		return decorate(out)
+		return withRelated(decorate(out))
+	}
+
+	/* Under `relatedRecord`, each record carries a related one with an id of its own. That id is
+	 * 1 — the id of a real record too, so a tester that takes it for the record's own deletes
+	 * somebody else's row, and the bystander check sees it. */
+	function withRelated(record: Row): Row {
+		if (shape.relatedRecord !== true) return record
+		return { ...record, Status: { [shape.identityField ?? "id"]: 1, Name: "open" } }
+	}
+
+	/* Under `recordEnvelope`: what each answer carries. The async job is an action's receipt, not a
+	 * record, and keeps its plain answers. */
+	const wraps = (entity: EntityDef): boolean => shape.recordEnvelope === true && entity.name !== JOB.name
+	function fieldList(entity: EntityDef): Row[] {
+		return entity.fields
+			.filter((field) => field.writeOnly !== true)
+			.map((field) => ({ name: field.name, type: field.type }))
+	}
+	function answerCreated(entity: EntityDef, record: Row): Row {
+		if (!wraps(entity)) return record
+		return { data: record, id: record[entity.identity], message: "created", success: true }
+	}
+	function answerRead(entity: EntityDef, record: Row): Row {
+		return wraps(entity) ? { data: record, fields: fieldList(entity) } : record
+	}
+	function answerWritten(entity: EntityDef, record: Row, message: string): Row {
+		return wraps(entity) ? { id: record[entity.identity], message, success: true } : record
 	}
 
 	const liveTokens = new Set(PRINCIPALS.map((principal) => principal.token))
@@ -1064,7 +1091,12 @@ export async function createReferenceServer(
 						? { ...result, count: 0, hasMore: false, items: [], nextCursor: null }
 						: result
 				const listing = paginated(dialect, entity, url, served)
-				return send(res, 200, listing.body, listing.headers)
+				/* Under `recordEnvelope` the rows travel beside a second array of objects. */
+				const body =
+					wraps(entity) && typeof listing.body === "object" && !Array.isArray(listing.body)
+						? { ...(listing.body as Row), fields: fieldList(entity) }
+						: listing.body
+				return send(res, 200, body as Json, listing.headers)
 			}
 
 			if (method === "POST") {
@@ -1091,7 +1123,9 @@ export async function createReferenceServer(
 							await store.insert(entity, withDefaults(entity, copy, { ...scope, project_id: principal.projectId }))
 						}
 						const replayed =
-							shape.ackCreate === true && entity.name === TABLE.name ? { success: true } : present(entity, previous)
+							shape.ackCreate === true && entity.name === TABLE.name
+								? { success: true }
+								: answerCreated(entity, present(entity, previous))
 						return send(res, defects.has("CREATED_201_AS_200") ? 200 : 201, replayed)
 					}
 				}
@@ -1152,7 +1186,7 @@ export async function createReferenceServer(
 				if (shape.ackCreate === true && entity.name === TABLE.name) {
 					return send(res, defects.has("CREATED_201_AS_200") ? 200 : 201, { success: true })
 				}
-				return send(res, defects.has("CREATED_201_AS_200") ? 200 : 201, present(entity, created))
+				return send(res, defects.has("CREATED_201_AS_200") ? 200 : 201, answerCreated(entity, present(entity, created)))
 			}
 			throw new HttpError(404, "not_found", `method ${method} not supported here`)
 		}
@@ -1164,7 +1198,9 @@ export async function createReferenceServer(
 				throw new HttpError(403, "forbidden", "role cannot read this record")
 			}
 			const record = await findItem(entity, principal, itemId, scope)
-			return send(res, 200, present(entity, record))
+			const shown = present(entity, record)
+			if (defects.has("READ_DROPS_FIELD") && entity.name === TABLE.name) delete shown.description
+			return send(res, 200, answerRead(entity, shown))
 		}
 
 		if (method === updateMethod) {
@@ -1203,7 +1239,7 @@ export async function createReferenceServer(
 			return send(
 				res,
 				defects.has("RESPONSE_STATUS_UNDECLARED") ? 201 : 200,
-				present(entity, updated ?? { ...existing, ...changes }),
+				answerWritten(entity, present(entity, updated ?? { ...existing, ...changes }), "updated"),
 			)
 		}
 
@@ -1220,13 +1256,13 @@ export async function createReferenceServer(
 					[entity.softDeleteField]: now(),
 					updated_at: now(),
 				})
-				return send(res, 200, present(entity, updated ?? record))
+				return send(res, 200, answerWritten(entity, present(entity, updated ?? record), "deleted"))
 			}
 			if (!defects.has("DELETE_KEEPS_ROW")) {
 				await store.remove(entity, itemId)
 				await refreshParentCount(entity, scope)
 			}
-			return send(res, 200, present(entity, record))
+			return send(res, 200, answerWritten(entity, present(entity, record), "deleted"))
 		}
 
 		throw new HttpError(405, "method_not_allowed", `method ${method} not supported`)
@@ -1300,12 +1336,15 @@ export async function createReferenceServer(
 				snapshot: async () => {
 					const out: Record<string, Row[]> = {}
 					for (const entity of entities) {
-						out[entity.name] = await store.select(entity, {
+						const rows = await store.select(entity, {
 							collation: "binary",
 							order: [],
 							shuffleTies: false,
 							where: { kind: "const", value: true },
 						})
+						/* Keyed by `id` whatever the identity is called, so the leak checks read every shape. */
+						out[entity.name] =
+							entity.identity === "id" ? rows : rows.map((row) => ({ ...row, id: row[entity.identity] }))
 					}
 					return out
 				},

@@ -8,7 +8,9 @@
 
 import { validateTags } from "./tag-schema.ts"
 import {
+	ambiguousRows,
 	deriveCollectionShape,
+	rowsKeyOf,
 	deriveIdentity,
 	documentsEventStream,
 	hasRequestBody,
@@ -29,6 +31,7 @@ import {
 	readCleanup,
 	readCost,
 	readCreatedIdFrom,
+	readRecordPath,
 	readEffects,
 	readEntity,
 	readFeatureGate,
@@ -102,6 +105,8 @@ export interface OperationModel {
 	collection: CollectionShape | null
 	/** `x-entity.createdIdFrom`: where a create's answer puts the made record's id. */
 	createdIdFrom: string | null
+	/** `x-entity.recordPath`: where this operation's answer keeps the record, or a list's rows. */
+	recordPath: string | null
 	identity: string | null
 	/** Where `identity` came from: an `x-entity` tag, the item route's parameter, or the schema alone. */
 	identitySource: "declared" | "route" | "schema" | null
@@ -243,7 +248,21 @@ export function buildModel(doc: OpenApiDocument): SpecModel {
 function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapCollector): OperationModel {
 	const { op, method, path, operationId } = endpoint
 	const responseSchema = successSchema(op)
-	const collection = deriveCollectionShape(responseSchema)
+	const recordPath = readRecordPath(endpoint)
+	const collection = deriveCollectionShape(responseSchema, rowsKeyOf(recordPath))
+	/* Only a listing has rows to name: a record that holds several arrays is just a record. */
+	const lastSegment = path.split("/").filter(Boolean).at(-1) ?? ""
+	const listing = method.toUpperCase() === "GET" && !/^\{[^}]+\}$/.test(lastSegment)
+	const ambiguous = recordPath === null && listing ? ambiguousRows(responseSchema) : []
+	if (ambiguous.length > 0) {
+		gaps.record(
+			operationId,
+			"x-entity.recordPath",
+			`the response holds several arrays of objects (${ambiguous.join(", ")}), so oat cannot tell which ` +
+				'are the rows; name them with x-entity.recordPath (e.g. "$.' +
+				`${ambiguous[0]}")`,
+		)
+	}
 	const bodySchema = requestSchema(op)
 	validateTags(op, operationId, gaps)
 	const entity = readEntity(endpoint, gaps)
@@ -269,6 +288,7 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 		cleanup: readCleanup(op),
 		collection,
 		createdIdFrom: readCreatedIdFrom(endpoint),
+		recordPath,
 		cost: readCost(op),
 		featureGate: readFeatureGate(op),
 		unique: readUnique(op, operationId, gaps),

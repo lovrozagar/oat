@@ -20,6 +20,7 @@ import type { UploadContext } from "./upload.ts"
 import { type ProvenId, returnedId } from "./proven-id.ts"
 import { createdRecordOf, resolveCreatedId } from "./created-id.ts"
 import { FencedError } from "./fence.ts"
+import { readPath } from "./path.ts"
 
 export type Record_ = Record<string, unknown>
 
@@ -57,13 +58,14 @@ export async function createdRecord(input: {
 	const body = input.exchange.responseBody ?? {}
 	/* A probe may send the body as JSON text under another media type: compare what it said. */
 	const sent = jsonText(input.sent)
-	const record = createdRecordOf(body, identity, sent)
+	/* A declared record path wins; without one, the envelope is inferred from what was sent. */
+	const record = createOp.recordPath === null ? createdRecordOf(body, identity, sent) : (recordOf(createOp, body) ?? {})
 	const resolved = resolveCreatedId({
 		body,
 		entity: entity ?? "",
 		identity,
 		sent,
-		source: { createdIdFrom: createOp.createdIdFrom, recordPath: null },
+		source: { createdIdFrom: createOp.createdIdFrom, recordPath: createOp.recordPath },
 	})
 	if (resolved?.trusted === true) return { acknowledged: false, record: { ...record, [identity]: resolved.value } }
 	if (entity === null) return null
@@ -79,6 +81,17 @@ export async function createdRecord(input: {
 		...(input.readable === undefined ? {} : { readable: input.readable }),
 	})
 	return confirmed === null ? null : { acknowledged: resolved === undefined, record: confirmed }
+}
+
+/**
+ * The record a single-record answer holds: the object at the operation's declared
+ * `x-entity.recordPath`, or the body itself when nothing is declared. `undefined` when there is
+ * none — an update that answers `{ success, id, message }` holds no record, and comparing against
+ * an empty one would report every field dropped.
+ */
+export function recordOf(op: { recordPath: string | null }, body: unknown): Record_ | undefined {
+	const record = op.recordPath === null ? body : readPath(body, op.recordPath)
+	return isPlainRecord(record) ? record : undefined
 }
 
 /**
@@ -166,8 +179,8 @@ export async function confirmSubmitted(input: {
 		...(input.headers === undefined ? {} : { headers: input.headers }),
 		operationId: readOp.operationId,
 	})
-	if (read.status < 200 || read.status >= 300 || !isPlainRecord(read.responseBody)) return null
-	const record = read.responseBody
+	const record = read.status < 200 || read.status >= 300 ? undefined : recordOf(readOp, read.responseBody)
+	if (record === undefined) return null
 	if (!isScalarId(record[identity]) || String(record[identity]) !== id) return null
 	return fields.every(([key, value]) => JSON.stringify(record[key]) === JSON.stringify(value)) ? record : null
 }

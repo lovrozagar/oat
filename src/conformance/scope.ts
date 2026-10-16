@@ -62,8 +62,9 @@ export async function runScopeSuite(
 		const why = `a run targeted at the operation ${check} judges must still report it`
 		try {
 			const reported = known?.[defect]
+			const fresh = reported === undefined ? (await runOnce([defect])).findings.filter((f) => f.check === check) : []
 			const ops: readonly string[] | undefined =
-				reported ?? (await runOnce([defect])).findings.find((f) => f.check === check)?.operations
+				reported ?? (fresh.length === 0 ? undefined : [...new Set(fresh.flatMap((f) => f.operations ?? []))])
 			if (ops === undefined) {
 				results.push({ detail: "the full run did not report it either", name, ok: false, why })
 				continue

@@ -677,6 +677,20 @@ function doctor(
 		lines.push("")
 	}
 
+	/* Where each operation's answer keeps its record and the id of what it made, as declared. */
+	const located = model.operations.filter((op) => op.recordPath !== null || op.createdIdFrom !== null)
+	if (located.length > 0) {
+		lines.push("  record envelopes (x-entity.recordPath / createdIdFrom)")
+		for (const op of [...located].sort((a, b) => a.operationId.localeCompare(b.operationId))) {
+			const parts = [
+				op.recordPath === null ? null : `record ${op.recordPath}`,
+				op.createdIdFrom === null ? null : `created id ${op.createdIdFrom}`,
+			].filter((part) => part !== null)
+			lines.push(`    ${op.operationId.padEnd(28)} ${parts.join("  ")}`)
+		}
+		lines.push("")
+	}
+
 	if (!model.hasAuthOperations && model.securitySchemes.length > 0) {
 		lines.push("  auth")
 		lines.push(`    document declares ${model.securitySchemes.map((s) => `"${s}"`).join(", ")} but contains no`)

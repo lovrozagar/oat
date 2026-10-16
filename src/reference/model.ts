@@ -287,6 +287,7 @@ export function shapedEntities(shape: {
 	largeRecords?: boolean
 	specLayout?: boolean
 	clientIds?: { min: number; max: number }
+	identityField?: string
 }): EntityDef[] {
 	const idField = (field: FieldDef): FieldDef => {
 		if (shape.ids === "uuid") return { ...field, format: "uuid", type: "string" }
@@ -294,7 +295,40 @@ export function shapedEntities(shape: {
 		return field
 	}
 	const linkParams = new Set(ENTITIES.map((entity) => entity.itemParam))
-	return ENTITIES.map((entity) => {
+	return ENTITIES.map((original) => {
+		/* A renamed identity is renamed everywhere: the document, the query grammar and the store. */
+		/* The async job keeps its own: its receipt and poll route are keyed on `id`. */
+		const renamed = original.name === "job" ? undefined : shape.identityField
+		const entity =
+			renamed === undefined || renamed === original.identity
+				? original
+				: {
+						...original,
+						fields: original.fields.map((field) =>
+							field.name === original.identity ? { ...field, name: renamed } : field,
+						),
+						identity: renamed,
+						...(original.filterCatalog?.opsByField === undefined
+							? {}
+							: {
+									filterCatalog: {
+										...original.filterCatalog,
+										opsByField: Object.fromEntries(
+											Object.entries(original.filterCatalog.opsByField).map(([field, ops]) => [
+												field === original.identity ? renamed : field,
+												ops,
+											]),
+										),
+									},
+								}),
+						...(original.unique === undefined
+							? {}
+							: {
+									unique: original.unique.map((set) =>
+										set.map((name) => (name === original.identity ? renamed : name)),
+									),
+								}),
+					}
 		let unique = entity.unique
 		const fields = entity.fields.map((field) =>
 			field.name === entity.identity || linkParams.has(field.name) ? idField(field) : { ...field },
