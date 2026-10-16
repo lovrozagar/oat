@@ -7595,17 +7595,22 @@ const filterInIsUnionOfEq: Check<{
 	needs: "a field that allows `in` and at least two distinct values",
 	subjects: subjectsOf.list,
 	async run(ctx, { a, b, eqA, eqB, field, inTerm }): Promise<Outcome> {
-		const limit = pageSize(ctx)
-		const together = await collectSet(ctx, limit, inTerm)
-		const onlyA = await collectSet(ctx, limit, eqA)
-		const onlyB = await collectSet(ctx, limit, eqB)
-		if (together === null || onlyA === null || onlyB === null) {
+		const union = (a: SetRead, b: SetRead): Set<string> =>
+			new Set([...ids(a.items, ctx.identity), ...ids(b.items, ctx.identity)])
+		const reads = await readSettled(ctx, [inTerm, eqA, eqB], ([t, a, b]) =>
+			t !== undefined && a !== undefined && b !== undefined
+				? sameSet(union(a, b), setOf(t.items, ctx.identity))
+				: false,
+		)
+		if (reads === "rejected")
 			return ctx.findings.unresolved(this.id, ctx.entityName, "one of the listings needed for in() was rejected")
-		}
-		if (!together.complete || !onlyA.complete || !onlyB.complete) {
+		if (reads === "incomplete") {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the collection is larger than the walk covers")
 		}
-		const expected = new Set([...ids(onlyA.items, ctx.identity), ...ids(onlyB.items, ctx.identity)])
+		if (reads === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_FILTER)
+		const [together, onlyA, onlyB] = reads
+		if (together === undefined || onlyA === undefined || onlyB === undefined) return ASSERTED
+		const expected = union(onlyA, onlyB)
 		const got = setOf(together.items, ctx.identity)
 		if (sameSet(expected, got)) return ASSERTED
 		return ctx.findings.backend(
@@ -7645,16 +7650,30 @@ const filterNinComplementsIn: Check<{
 	needs: "a field that allows both `in` and `nin`",
 	subjects: subjectsOf.list,
 	async run(ctx, { field, inTerm, ninTerm }): Promise<Outcome> {
-		const limit = pageSize(ctx)
-		const all = await collectSet(ctx, limit)
-		const inside = await collectSet(ctx, limit, inTerm)
-		const outside = await collectSet(ctx, limit, ninTerm)
-		if (all === null || inside === null || outside === null) {
-			return ctx.findings.unresolved(this.id, ctx.entityName, "one of the listings needed for nin() was rejected")
+		const judgeNin = (all: SetRead, inside: SetRead, outside: SetRead) => {
+			const inIds = setOf(inside.items, ctx.identity)
+			const ninIds = setOf(outside.items, ctx.identity)
+			const overlap = [...inIds].filter((id) => ninIds.has(id))
+			const union = new Set([...inIds, ...ninIds])
+			const missing = ids(all.items, ctx.identity).filter((id) => {
+				const record = ctx.records.find((row) => idOf(row, ctx.identity) === id)
+				return record !== undefined && record[field] !== null && record[field] !== undefined && !union.has(id)
+			})
+			return { missing, overlap }
 		}
-		if (!all.complete || !inside.complete || !outside.complete) {
+		const reads = await readSettled(ctx, [{}, inTerm, ninTerm], ([a, i, o]) => {
+			if (a === undefined || i === undefined || o === undefined) return false
+			const verdict = judgeNin(a, i, o)
+			return verdict.overlap.length === 0 && verdict.missing.length === 0
+		})
+		if (reads === "rejected")
+			return ctx.findings.unresolved(this.id, ctx.entityName, "one of the listings needed for nin() was rejected")
+		if (reads === "incomplete") {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the collection is larger than the walk covers")
 		}
+		if (reads === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_FILTER)
+		const [all, inside, outside] = reads
+		if (all === undefined || inside === undefined || outside === undefined) return ASSERTED
 		const inIds = setOf(inside.items, ctx.identity)
 		const ninIds = setOf(outside.items, ctx.identity)
 		const overlap = [...inIds].filter((id) => ninIds.has(id))
@@ -7805,17 +7824,29 @@ const filterOrderedTriplePartitions: Check<{
 	needs: "an ordered field that allows `lt`, `eq`, and `gt`",
 	subjects: subjectsOf.list,
 	async run(ctx, { eq, field, gt, lt }): Promise<Outcome> {
-		const limit = pageSize(ctx)
-		const all = await collectSet(ctx, limit)
-		const lower = await collectSet(ctx, limit, lt)
-		const equal = await collectSet(ctx, limit, eq)
-		const higher = await collectSet(ctx, limit, gt)
-		if (all === null || lower === null || equal === null || higher === null) {
-			return ctx.findings.unresolved(this.id, ctx.entityName, "one of the triple listings was rejected")
+		const partitions = ([a, l, e, h]: SetRead[]): boolean => {
+			if (a === undefined || l === undefined || e === undefined || h === undefined) return false
+			const parts = [setOf(l.items, ctx.identity), setOf(e.items, ctx.identity), setOf(h.items, ctx.identity)]
+			const seen = new Set<string>()
+			for (const part of parts)
+				for (const id of part) {
+					if (seen.has(id)) return false
+					seen.add(id)
+				}
+			return ids(a.items, ctx.identity).every((id) => {
+				const record = ctx.records.find((row) => idOf(row, ctx.identity) === id)
+				return record === undefined || typeof record[field] !== "number" || seen.has(id)
+			})
 		}
-		if (!all.complete || !lower.complete || !equal.complete || !higher.complete) {
+		const reads = await readSettled(ctx, [{}, lt, eq, gt], partitions)
+		if (reads === "rejected")
+			return ctx.findings.unresolved(this.id, ctx.entityName, "one of the triple listings was rejected")
+		if (reads === "incomplete") {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the collection is larger than the walk covers")
 		}
+		if (reads === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_FILTER)
+		const [all, lower, equal, higher] = reads
+		if (all === undefined || lower === undefined || equal === undefined || higher === undefined) return ASSERTED
 		const sets = [setOf(lower.items, ctx.identity), setOf(equal.items, ctx.identity), setOf(higher.items, ctx.identity)]
 		for (let i = 0; i < sets.length; i++) {
 			for (let j = i + 1; j < sets.length; j++) {
@@ -7933,16 +7964,25 @@ const filterIsNullSelectsNulls: Check<{
 	needs: "a field that allows `is` and a cohort that contains a null",
 	subjects: subjectsOf.list,
 	async run(ctx, { field, notNullTerm, nullTerm }): Promise<Outcome> {
-		const limit = pageSize(ctx)
-		const all = await collectSet(ctx, limit)
-		const nulls = await collectSet(ctx, limit, nullTerm)
-		const present = await collectSet(ctx, limit, notNullTerm)
-		if (all === null || nulls === null || present === null) {
+		const expectedOf = () =>
+			new Set(
+				ctx.records
+					.filter((row) => row[field.field] === null || row[field.field] === undefined)
+					.flatMap((row) => idOf(row, ctx.identity) ?? []),
+			)
+		const reads = await readSettled(ctx, [{}, nullTerm, notNullTerm], ([, n, p]) => {
+			if (n === undefined || p === undefined) return false
+			const got = knownHits(n.items, ctx)
+			return sameSet(expectedOf(), got) && ![...got].some((id) => knownHits(p.items, ctx).has(id))
+		})
+		if (reads === "rejected")
 			return ctx.findings.unresolved(this.id, ctx.entityName, "an is.null / is.notnull listing was rejected")
-		}
-		if (!all.complete || !nulls.complete || !present.complete) {
+		if (reads === "incomplete") {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the collection is larger than the walk covers")
 		}
+		if (reads === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_FILTER)
+		const [, nulls, present] = reads
+		if (nulls === undefined || present === undefined) return ASSERTED
 		const expectedNulls = new Set(
 			ctx.records
 				.filter((row) => row[field.field] === null || row[field.field] === undefined)
@@ -8065,17 +8105,24 @@ const filterNestedAndOrDistributes: Check<{
 	needs: "a postgrest-shaped grammar and two filterable fields",
 	subjects: subjectsOf.list,
 	async run(ctx, { nested, termA, termB, termC }): Promise<Outcome> {
-		const limit = pageSize(ctx)
-		const onlyA = await collectSet(ctx, limit, termA)
-		const onlyB = await collectSet(ctx, limit, termB)
-		const onlyC = await collectSet(ctx, limit, termC)
-		const combined = await collectSet(ctx, limit, nested)
-		if (onlyA === null || onlyB === null || onlyC === null || combined === null) {
-			return ctx.findings.unresolved(this.id, ctx.entityName, "a nested and/or listing was rejected")
+		const distributed = (a: SetRead, b: SetRead, c: SetRead): Set<string> => {
+			const setB = setOf(b.items, ctx.identity)
+			const setC = setOf(c.items, ctx.identity)
+			return new Set([...setOf(a.items, ctx.identity)].filter((id) => setB.has(id) || setC.has(id)))
 		}
-		if (!onlyA.complete || !onlyB.complete || !onlyC.complete || !combined.complete) {
+		const reads = await readSettled(ctx, [termA, termB, termC, nested], ([a, b, c, n]) =>
+			a !== undefined && b !== undefined && c !== undefined && n !== undefined
+				? sameSet(distributed(a, b, c), setOf(n.items, ctx.identity))
+				: false,
+		)
+		if (reads === "rejected")
+			return ctx.findings.unresolved(this.id, ctx.entityName, "a nested and/or listing was rejected")
+		if (reads === "incomplete") {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the collection is larger than the walk covers")
 		}
+		if (reads === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_FILTER)
+		const [onlyA, onlyB, onlyC, combined] = reads
+		if (onlyA === undefined || onlyB === undefined || onlyC === undefined || combined === undefined) return ASSERTED
 		const setA = setOf(onlyA.items, ctx.identity)
 		const setB = setOf(onlyB.items, ctx.identity)
 		const setC = setOf(onlyC.items, ctx.identity)
@@ -8101,7 +8148,6 @@ const filterAliasMatchesCanonical: Check = {
 	async run(ctx): Promise<Outcome> {
 		const caps = resolvedCaps(ctx)
 		const conventions = conv(ctx)
-		const limit = pageSize(ctx)
 		for (const [alias, target] of Object.entries(caps.aliases)) {
 			if (!isFilterOp(alias) || target === undefined) continue
 			const field = resolvedCaps(ctx).filterable.find((item) => fieldAllows(item, target, caps))
@@ -8112,15 +8158,18 @@ const filterAliasMatchesCanonical: Check = {
 			const aliasTerm = filterTerm(conventions, field.field, alias, value)
 			const targetTerm = filterTerm(conventions, field.field, target, value)
 			if (aliasTerm === null || targetTerm === null) continue
-			const left = await collectSet(ctx, limit, aliasTerm)
-			const right = await collectSet(ctx, limit, targetTerm)
-			if (left === null || right === null) {
+			const agree = ([a, b]: SetRead[]): boolean =>
+				a !== undefined && b !== undefined && sameSet(setOf(a.items, ctx.identity), setOf(b.items, ctx.identity))
+			const reads = await readSettled(ctx, [aliasTerm, targetTerm], agree)
+			if (reads === "rejected") {
 				return ctx.findings.unresolved(this.id, ctx.entityName, `alias ${alias} or ${target} was rejected`)
 			}
-			if (!left.complete || !right.complete) {
+			if (reads === "incomplete") {
 				return ctx.findings.unresolved(this.id, ctx.entityName, "the collection is larger than the walk covers")
 			}
-			if (!sameSet(setOf(left.items, ctx.identity), setOf(right.items, ctx.identity))) {
+			if (reads === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_FILTER)
+			const [left, right] = reads
+			if (left !== undefined && right !== undefined && !agree(reads)) {
 				return ctx.findings.backend(
 					this.id,
 					ctx.entityName,
@@ -9460,22 +9509,32 @@ const queryFilterSearchSortSelectCompose: Check<
 	subjects: subjectsOf.list,
 	async run(ctx, { projection, sortField, term, token }): Promise<Outcome> {
 		const conventions = conv(ctx)
-		const base = await collectSet(ctx, pageSize(ctx), {
-			...term,
-			...(conventions.search === undefined ? {} : { [conventions.search]: token }),
-		})
-		const combined = await collectSet(
-			ctx,
-			pageSize(ctx),
-			{ ...term, ...projection, ...(conventions.search === undefined ? {} : { [conventions.search]: token }) },
-			sortTerm(conventions, sortField, "asc"),
-		)
-		if (base === null || combined === null) {
+		const searched = conventions.search === undefined ? {} : { [conventions.search]: token }
+		const readBase = (fresh = false) => collectSet(ctx, pageSize(ctx), { ...term, ...searched }, undefined, fresh)
+		const readCombined = (fresh = false) =>
+			collectSet(
+				ctx,
+				pageSize(ctx),
+				{ ...term, ...projection, ...searched },
+				sortTerm(conventions, sortField, "asc"),
+				fresh,
+			)
+		const firstBase = await readBase()
+		const firstCombined = await readCombined()
+		if (firstBase === null || firstCombined === null) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "four-axis probe was rejected")
 		}
-		if (!base.complete || !combined.complete) {
+		if (!firstBase.complete || !firstCombined.complete) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "a side of the comparison is larger than the walk covers")
 		}
+		/* A disagreement is read again: a collection another writer moved is no defect of composition. */
+		const pair = await settlePair(ctx.identity, firstBase, firstCombined, {
+			first: () => readBase(true),
+			second: () => readCombined(true),
+		})
+		if (pair === null) return ctx.findings.unresolved(this.id, ctx.entityName, "four-axis probe was rejected")
+		if (pair === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_FILTER)
+		const { first: base, second: combined } = pair
 		if (combined.items.some((item) => item[ctx.identity] === undefined)) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "projection omitted the identity")
 		}
