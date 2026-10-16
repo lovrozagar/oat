@@ -122,14 +122,23 @@ const OPERATION_TAGS: Record<string, Check> = {
 	"x-cleanup": route,
 	"x-cost": oneOf("low", "medium", "high"),
 	"x-destructive": boolean,
-	"x-entity": shape(
-		{
+	"x-entity": (value) => {
+		const problem = shape({
 			action: oneOf("create", "list", "read", "update", "delete", "action"),
+			createdIdFrom: string,
 			identity: string,
 			name: string,
-		},
-		["name", "action"],
-	),
+			recordPath: string,
+		})(value)
+		if (problem !== null) return problem
+		/* Where the answer keeps the record or its id may be declared alone; naming the entity
+		 * still takes both its name and the operation's action. */
+		const tag = value as Record<string, unknown>
+		const located = tag.createdIdFrom !== undefined || tag.recordPath !== undefined
+		if (tag.name === undefined && (tag.action !== undefined || !located)) return 'needs "name"'
+		if (tag.action === undefined && (tag.name !== undefined || !located)) return 'needs "action"'
+		return null
+	},
 	"x-feature-gate": string,
 	"x-fresh-principal": boolean,
 	"x-generated": strings,

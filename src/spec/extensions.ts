@@ -128,7 +128,7 @@ export function singularise(word: string): string {
 	if (/(ches|shes|sses|xes|zes)$/.test(lower)) return lower.slice(0, -2)
 	if (/[^aeiou]ies$/.test(lower)) return `${lower.slice(0, -3)}y`
 	if (NON_PLURAL_ENDINGS.test(lower)) return lower
-	if (/s$/.test(lower)) return lower.slice(0, -1)
+	if (lower.endsWith("s")) return lower.slice(0, -1)
 	return lower
 }
 
@@ -157,6 +157,12 @@ export function readEntity(endpoint: Endpoint, gaps?: GapCollector): EntityRef |
 		return null
 	}
 	return inferred
+}
+
+/** `x-entity.createdIdFrom`: the JSON path where a create's answer puts the made record's id. */
+export function readCreatedIdFrom(endpoint: Endpoint): string | null {
+	const from = ext<{ createdIdFrom?: unknown }>(endpoint.op, "x-entity")?.createdIdFrom
+	return typeof from === "string" && from !== "" ? from : null
 }
 
 /**

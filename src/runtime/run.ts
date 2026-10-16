@@ -82,7 +82,7 @@ import { SchemaValidator } from "./validate.ts"
 import { isOverflowError, overflowFrom } from "./fixture.ts"
 import type { UploadContext } from "./upload.ts"
 import {
-	confirmSubmitted,
+	createdRecord,
 	type Record_,
 	type Scope,
 	SeedError,
@@ -802,6 +802,9 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		(entity: string, id: ProvenId, values: Record<string, string>): void => {
 			ledger.record(entity, id, values, owner)
 		}
+	const unidentified = (entity: string, operationId: string, exchange: Exchange): void => {
+		ledger.unidentified(entity, operationId, exchange)
+	}
 	/**
 	 * Proactive refreshes, before each entity and before the credentials are persisted. A failure
 	 * is reported — the backend would not renew a session — and the run carries on to teardown,
@@ -1017,6 +1020,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					readable,
 					ancestors,
 					onCreate: recorder(alphaOwner),
+					onUnidentified: unidentified,
 					principal: alpha.id,
 					nonce,
 					roots: rootValues,
@@ -1050,6 +1054,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					readable,
 					ancestors,
 					onCreate: recorder(alphaOwner),
+					onUnidentified: unidentified,
 					principal: alpha.id,
 					nonce,
 					roots: rootValues,
@@ -1071,6 +1076,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 						...(options.cohortSize === undefined ? {} : { cohortSize: options.cohortSize }),
 						ancestors,
 						onCreate: recorder(alphaOwner),
+						onUnidentified: unidentified,
 						principal: alpha.id,
 						nonce,
 						roots: rootValues,
@@ -1290,6 +1296,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					/* Created as this principal, so removed as this principal. */
 					ancestors,
 					onCreate: recorder(ownerOf(principal)),
+					onUnidentified: unidentified,
 					principal: principal.id,
 					nonce,
 					roots,
@@ -1379,28 +1386,23 @@ export async function run(options: RunOptions): Promise<RunResult> {
 								 * POST carrying an `id` — an invite, an action — names something else, and
 								 * on an integer-id API deleting by that number removes an unrelated row. */
 								if (path !== createPath) return exchange
-								const body = exchange.responseBody
-								const identity = entity.identity ?? "id"
-								/* An acknowledgement-only create may have ignored the id it was sent: only a read
-								 * under that id proves the record is the one oat made. */
-								let id =
-									body !== null && typeof body === "object" && !Array.isArray(body)
-										? returnedId(body as Record<string, unknown>, identity)
-										: undefined
+								/* The id the answer names, or a candidate a read under it confirms. A create
+								 * with neither is reported: the record may remain, and nothing can remove it. */
+								const made = await createdRecord({
+									client: target,
+									createOp,
+									exchange,
+									headers: options?.headers,
+									model,
+									readable,
+									scope: scope.values,
+									sent: options?.body,
+								})
+								const id = made === null ? undefined : returnedId(made.record, entity.identity ?? "id")
 								if (id === undefined) {
-									const confirmed = await confirmSubmitted({
-										client: target,
-										entity: entity.name,
-										headers: options?.headers,
-										identity: entity.identity ?? "id",
-										model,
-										readable,
-										scope: scope.values,
-										sent: options?.body,
-									})
-									if (confirmed !== null) id = returnedId(confirmed, identity)
+									ledger.unidentified(entity.name, createOp.operationId, exchange)
+									return exchange
 								}
-								if (id === undefined) return exchange
 								takenIdentities.add(id)
 								ledger.record(entity.name, id, scope.values, ownerByHeaders(options?.headers))
 								return exchange
@@ -1466,6 +1468,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			payloads: { policy: options.payloads ?? "per-write-path", ran: payloadPaths },
 			auth: alpha.headers,
 			recordCreated: recorder(alphaOwner),
+			recordUnidentified: unidentified,
 			...(alpha.runtime === undefined ? {} : { refreshIfStale: alpha.runtime.refreshIfStale }),
 			client: tracked(client.view({ purpose: "assertion", subject: entity.name })),
 			collectionKey: listOp.collection?.key ?? null,
@@ -1832,6 +1835,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 				failed: [...(teardown?.failed ?? []), ...report.failed],
 				records: [...(teardown?.records ?? []), ...report.records],
 				removed: (teardown?.removed ?? 0) + report.removed,
+				unidentified: [],
 				unsupported: [...new Set([...(teardown?.unsupported ?? []), ...report.unsupported])],
 			}
 		} catch (error) {
@@ -2001,7 +2005,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		profile: profile.name,
 		profileExclusions,
 		scope: coverage,
-		teardown,
+		teardown: withUnidentified(teardown, ledger.unidentifiedCreates),
 		...fencedResult(),
 		...(interrupted ? { interrupted } : {}),
 		...(journal === null ? {} : { exchanges: { count: journal.count } }),
@@ -2174,4 +2178,13 @@ export function entityLanes(model: SpecModel, entities: readonly EntityModel[]):
 		lanes.set(root, [...(lanes.get(root) ?? []), entity])
 	}
 	return [...lanes.values()]
+}
+
+/* Creates oat could not identify belong in the teardown report even when nothing else was ledgered. */
+function withUnidentified(
+	teardown: TeardownReport | null,
+	unidentified: TeardownReport["unidentified"],
+): TeardownReport | null {
+	if (unidentified.length === 0) return teardown
+	return { ...(teardown ?? { failed: [], records: [], removed: 0, unidentified: [], unsupported: [] }), unidentified }
 }

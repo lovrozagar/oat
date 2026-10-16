@@ -57,9 +57,12 @@ x-entity:
   name: table
   action: create # create | list | read | update | delete | action
   identity: id
+  createdIdFrom: $.data.ID # create only: where the answer puts the made record's id
 ```
 
 Overrides path-segment inference. `identity` is required when the item schema has no `id` (or `uuid` / `slug` / `key` / `name`).
+
+`createdIdFrom` names, as a JSON path, where a create's answer puts the id of the record it made. It may be declared alone, without `name` and `action`. Teardown deletes by the id a create answered, so where that id comes from matters: a declared `createdIdFrom` and the identity at the top of the answer are trusted; the record under an envelope (`data`, `item`, `result`, `record`) or a conventional id key found deeper in the answer is only a candidate, and counts once a read under it shows what was sent — a related record nested in the answer (`Status: { ID }`) carries an id too. A create that answers 2xx with no id oat can read or confirm is a leftover: the report lists it under **Leftovers** and the run exits `4`.
 
 `identity: self` means the signed-up caller is the record. The entity needs a read or an update and does not need a list or a create. The read returns 200. An update is still there on the next read. No token returns 401.
 

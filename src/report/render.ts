@@ -200,6 +200,21 @@ export function renderMarkdown(input: ReportInput): string {
 	}
 	lines.push("")
 
+	/* Records oat made and cannot remove: first, since someone has to clean them up by hand. */
+	const unidentified = input.teardown?.unidentified ?? []
+	if (unidentified.length > 0) {
+		lines.push("## Leftovers")
+		lines.push("")
+		lines.push("Each create answered 2xx, but no id could be read from its answer or confirmed by a read, so")
+		lines.push("teardown could not remove what it made. Declare `x-entity.createdIdFrom` where the id is.")
+		lines.push("")
+		for (const create of unidentified) {
+			lines.push(
+				`- \`${create.method} ${redactUrl(create.url)}\` · ${create.operationId} · ${create.status} · exchange #${create.seq}`,
+			)
+		}
+		lines.push("")
+	}
 	/* Policies the document leaves open, as the backend showed them. One line per policy: the
 	 * same observation on every entity is said once. */
 	const fenced = input.fenced?.requests ?? []

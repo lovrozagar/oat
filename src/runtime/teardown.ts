@@ -30,12 +30,25 @@ export interface Disposable {
 	owner: Owner
 }
 
+/** A create that answered 2xx without an id oat could read: what it made may remain. */
+export interface UnidentifiedCreate {
+	entity: string
+	operationId: string
+	method: string
+	url: string
+	status: number
+	/** The exchange's sequence number in the run's transcript. */
+	seq: number
+}
+
 export interface TeardownReport {
 	removed: number
 	failed: Array<{ entity: string; id: string; reason: string }>
 	unsupported: string[]
 	/** Every record the unwind was given, in creation order, and whether it is gone now. */
 	records: Array<{ entity: string; id: string; removed: boolean }>
+	/** Creates whose record oat could not identify, so could not remove. Each fails the run. */
+	unidentified: UnidentifiedCreate[]
 }
 
 /**
@@ -50,6 +63,8 @@ export interface TeardownReport {
 export class Ledger {
 	private readonly items: Disposable[] = []
 	private readonly seen = new Set<string>()
+	/* By exchange: one create is reported once, whichever path saw it. */
+	private readonly unknown = new Map<number, UnidentifiedCreate>()
 
 	record(entity: string, id: ProvenId, scope: Record<string, string>, owner: Owner): void {
 		if (id === "" || id === "undefined") return
@@ -57,6 +72,24 @@ export class Ledger {
 		if (this.seen.has(key)) return
 		this.seen.add(key)
 		this.items.push({ entity, id, owner, scope: { ...scope } })
+	}
+
+	/** A create that answered 2xx without an id oat could read: nothing can remove its record. */
+	unidentified(entity: string, operationId: string, exchange: Exchange): void {
+		if (this.unknown.has(exchange.seq)) return
+		this.unknown.set(exchange.seq, {
+			entity,
+			method: exchange.method,
+			operationId,
+			seq: exchange.seq,
+			status: exchange.status,
+			url: exchange.url,
+		})
+	}
+
+	/** Every create reported unidentified so far, in the order oat sent them. */
+	get unidentifiedCreates(): UnidentifiedCreate[] {
+		return [...this.unknown.values()].sort((a, b) => a.seq - b.seq)
 	}
 
 	/** Records waiting to be removed. */
@@ -83,7 +116,7 @@ export class Ledger {
 		/* Read each list again afterwards, so a 2xx delete that kept its record is not counted gone. */
 		verify = true,
 	): Promise<TeardownReport> {
-		const report: TeardownReport = { failed: [], records: [], removed: 0, unsupported: [] }
+		const report: TeardownReport = { failed: [], records: [], removed: 0, unidentified: [], unsupported: [] }
 		const unsupported = new Set<string>()
 
 		/*
@@ -266,8 +299,8 @@ function deleteOperationFor(entityName: string, model: SpecModel): OperationMode
 }
 
 export function renderTeardown(report: TeardownReport, created: number): string[] {
-	if (created === 0) return []
-	const lines: string[] = []
+	const lines = renderUnidentified(report.unidentified)
+	if (created === 0) return lines
 
 	if (report.failed.length === 0 && report.unsupported.length === 0) {
 		lines.push(`  cleaned up ${report.removed}/${created} created record(s)`)
@@ -285,5 +318,18 @@ export function renderTeardown(report: TeardownReport, created: number): string[
 		lines.push(`    ${failure.entity} ${failure.id}: ${failure.reason}`)
 	}
 	if (report.failed.length > 5) lines.push(`    … and ${report.failed.length - 5} more`)
+	return lines
+}
+
+/* Each one a record oat made and cannot remove: listed by the request that made it. */
+function renderUnidentified(unidentified: readonly UnidentifiedCreate[]): string[] {
+	if (unidentified.length === 0) return []
+	const lines = [
+		`  leftovers: ${unidentified.length} create(s) answered 2xx but no id could be read; the record may remain`,
+	]
+	for (const create of unidentified.slice(0, 5)) {
+		lines.push(`    ${create.operationId} ${create.method} ${create.url} → ${create.status} (#${create.seq})`)
+	}
+	if (unidentified.length > 5) lines.push(`    … and ${unidentified.length - 5} more`)
 	return lines
 }

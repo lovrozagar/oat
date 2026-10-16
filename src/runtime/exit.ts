@@ -13,9 +13,13 @@ export const EXIT = {
 	/** oat could not do what it was asked: the network went away, nothing was graded, a target
 	 * was never judged, or oat itself threw. */
 	failed: 3,
+	/** The run may have left records behind: a create answered 2xx with no id oat could read, so
+	 * nothing could remove what it made. Someone has to look, whatever else the run found. A
+	 * delete teardown could not complete keeps today's verdict on purpose: it is listed, not fatal. */
+	leftovers: 4,
 } as const
 
-export type RunOutcome = "clean" | "defects" | "failed"
+export type RunOutcome = "clean" | "defects" | "failed" | "leftovers"
 
 /**
  * The verdict on a finished run, and why. Root causes fail it, not raw findings: gaps and blocked
@@ -27,7 +31,15 @@ export function runVerdict(result: {
 	network?: { incomplete: boolean }
 	fenced?: { requests: readonly unknown[]; failRun: boolean }
 	scope?: { mode: string; operations: ReadonlyArray<{ operationId?: string; status: string }> }
+	teardown?: { unidentified: readonly unknown[] } | null
 }): { outcome: RunOutcome; reason: string } {
+	const leftovers = result.teardown?.unidentified.length ?? 0
+	if (leftovers > 0) {
+		return {
+			outcome: "leftovers",
+			reason: `${leftovers} create${leftovers === 1 ? "" : "s"} answered 2xx with no readable id; records may remain`,
+		}
+	}
 	if (result.network?.incomplete === true) {
 		return { outcome: "failed", reason: "the network went away before the run finished" }
 	}

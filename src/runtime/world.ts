@@ -18,6 +18,7 @@ import { isUniqueConflictResponse, uniqueTupleCollides, uniquifyProbeBody } from
 import { describeFeatureGate, isDocumentedFeatureGateDenial } from "./feature-gate.ts"
 import type { UploadContext } from "./upload.ts"
 import { type ProvenId, returnedId } from "./proven-id.ts"
+import { createdRecordOf, resolveCreatedId } from "./created-id.ts"
 import { FencedError } from "./fence.ts"
 
 export type Record_ = Record<string, unknown>
@@ -30,30 +31,63 @@ function isPlainRecord(value: unknown): value is Record_ {
 	return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-/** Keys a create may wrap the record it made in: `{ success, id, data: { ... } }`. */
-const CREATE_ENVELOPE_KEYS = ["data", "item", "result", "record"] as const
+export { createdRecordOf } from "./created-id.ts"
 
 /**
- * The record a create answered with. Some creates wrap it — `{ success, id, data: { ID, ... } }` —
- * and taking the envelope for the record compares the wrong object and loses the id. The record
- * is the top level or the object under an envelope key, whichever holds more of what was sent, so
- * a record that merely has an object field named `data` keeps its top level. When the record
- * lacks its identity, the envelope's identity (or `id`) is the one the create answered.
+ * The record a create made, carrying an id oat may delete by, or `null` when none can be read.
+ *
+ * An id the answer names by contract (a declared `createdIdFrom`, or its own identity) stands. A
+ * candidate — the record under an envelope, an id key found deeper in the answer — stands once a
+ * read under it shows what was sent; so does an id the client chose, for a create that answers
+ * only an acknowledgement. `acknowledged` says the answer named no id at all.
  */
-export function createdRecordOf(response: unknown, identity: string, sent: unknown): Record_ {
-	if (!isPlainRecord(response)) return {}
-	const submitted = isPlainRecord(sent)
-		? Object.entries(sent).filter(([, value]) => isScalarId(value) || typeof value === "boolean")
-		: []
-	const holds = (candidate: Record_): number => submitted.filter(([key, value]) => candidate[key] === value).length
-	let record = response
-	for (const key of CREATE_ENVELOPE_KEYS) {
-		const inner = response[key]
-		if (isPlainRecord(inner) && holds(inner) > holds(record)) record = inner
+export async function createdRecord(input: {
+	client: Pick<Client, "get">
+	model: SpecModel
+	createOp: OperationModel
+	exchange: Exchange
+	sent: unknown
+	scope: Record<string, string>
+	headers: RequestOptions["headers"]
+	readable?: (op: OperationModel) => boolean
+}): Promise<{ record: Record_; acknowledged: boolean } | null> {
+	const { createOp, model } = input
+	const entity = createOp.entity
+	const identity = (entity === null ? undefined : model.entities.get(entity))?.identity ?? "id"
+	const body = input.exchange.responseBody ?? {}
+	/* A probe may send the body as JSON text under another media type: compare what it said. */
+	const sent = jsonText(input.sent)
+	const record = createdRecordOf(body, identity, sent)
+	const resolved = resolveCreatedId({
+		body,
+		entity: entity ?? "",
+		identity,
+		sent,
+		source: { createdIdFrom: createOp.createdIdFrom, recordPath: null },
+	})
+	if (resolved?.trusted === true) return { acknowledged: false, record: { ...record, [identity]: resolved.value } }
+	if (entity === null) return null
+	const confirmed = await confirmSubmitted({
+		client: input.client,
+		entity,
+		headers: input.headers,
+		identity,
+		model,
+		scope: input.scope,
+		sent,
+		...(resolved === undefined ? {} : { id: resolved.id }),
+		...(input.readable === undefined ? {} : { readable: input.readable }),
+	})
+	return confirmed === null ? null : { acknowledged: resolved === undefined, record: confirmed }
+}
+
+function jsonText(sent: unknown): unknown {
+	if (typeof sent !== "string") return sent
+	try {
+		return JSON.parse(sent) as unknown
+	} catch {
+		return sent
 	}
-	if (record === response || isScalarId(record[identity])) return record
-	const answered = isScalarId(response[identity]) ? response[identity] : response.id
-	return isScalarId(answered) ? { ...record, [identity]: answered } : record
 }
 
 export interface Scope {
@@ -91,14 +125,17 @@ export async function confirmSubmitted(input: {
 	entity: string
 	identity: string
 	sent: unknown
+	/** The id to read under, when the answer suggested one; otherwise the identity oat sent. */
+	id?: string
 	scope: Record<string, string>
 	headers: RequestOptions["headers"]
 	ignore?: readonly string[]
 	readable?: (op: OperationModel) => boolean
 }): Promise<Record_ | null> {
 	const { identity, sent } = input
-	if (!isPlainRecord(sent) || !isScalarId(sent[identity])) return null
-	const id = String(sent[identity])
+	if (!isPlainRecord(sent)) return null
+	const id = input.id ?? (isScalarId(sent[identity]) ? String(sent[identity]) : undefined)
+	if (id === undefined) return null
 	const ignored = new Set([identity, ...(input.ignore ?? [])])
 	const fields = Object.entries(sent).filter(
 		([key, value]) =>
@@ -216,6 +253,8 @@ export interface WorldOptions {
 	 * only after the step that made it returns is dropped whenever a later step throws.
 	 */
 	onCreate?: (entity: string, id: ProvenId, scope: Record<string, string>) => void
+	/** Called for a create that answered 2xx with no id oat could read: the record may remain. */
+	onUnidentified?: (entity: string, operationId: string, exchange: Exchange) => void
 	/** Whether oat may call an operation (a profile can exclude one); omitted means every one. */
 	readable?: (op: OperationModel) => boolean
 	/** Who is creating — keys the ancestor cache, since one principal's parent is not another's. */
@@ -371,23 +410,20 @@ async function createOne(
 			exchange,
 		)
 	}
-	const answered = (exchange.responseBody ?? {}) as Record_
-	const identity = (createOp.entity === null ? undefined : model.entities.get(createOp.entity))?.identity ?? "id"
-	/* An acknowledgement-only create: the ancestor is the one the client named, once a read shows it. */
-	if (!isScalarId(answered[identity]) && createOp.entity !== null) {
-		const confirmed = await confirmSubmitted({
-			client,
-			entity: createOp.entity,
-			headers: options.authHeaders,
-			identity,
-			model,
-			scope: { ...options.roots, ...scope.values },
-			sent: body,
-			...(options.readable === undefined ? {} : { readable: options.readable }),
-		})
-		if (confirmed !== null) return { adopted: false, record: confirmed }
-	}
-	return { adopted: false, record: answered }
+	const made = await createdRecord({
+		client,
+		createOp,
+		exchange,
+		headers: options.authHeaders,
+		model,
+		scope: { ...options.roots, ...scope.values },
+		sent: body,
+		...(options.readable === undefined ? {} : { readable: options.readable }),
+	})
+	if (made !== null) return { adopted: false, record: made.record }
+	/* Made, but by no id oat can read: the caller cannot use it, and teardown cannot remove it. */
+	options.onUnidentified?.(createOp.entity ?? createOp.operationId, createOp.operationId, exchange)
+	return { adopted: false, record: {} }
 }
 
 /** First listed record with a usable identity, or null — never synthesises a row. */
@@ -539,32 +575,26 @@ export async function seedCohort(
 	let acknowledged = false
 	/* `null` for an acknowledgement oat could not confirm: it names no record, so it joins no cohort. */
 	const created = async (exchange: Exchange, sent: unknown): Promise<Record_ | null> => {
-		const response = createdRecordOf(exchange.responseBody ?? {}, identity, sent)
-		let record = response
-		/* A create that answers an acknowledgement and not the record (`{ success: true }`) may have
-		 * made the record under the id the client chose — or ignored it. Only a read under that id
-		 * says which; until one does, the record is not oat's to track or remove. */
-		if (!isScalarId(response[identity]) && createOp.entity !== null) {
-			const confirmed = await confirmSubmitted({
-				client,
-				entity: createOp.entity,
-				headers: options.authHeaders,
-				identity,
-				model,
-				scope: { ...options.roots, ...scope.values },
-				sent,
-				...(options.readable === undefined ? {} : { readable: options.readable }),
-			})
-			if (confirmed !== null) {
-				acknowledged = true
-				record = confirmed
-			} else if (isPlainRecord(sent) && isScalarId(sent[identity])) {
-				return null
-			}
+		/* A create's id is the one its answer names, or one a read under it confirms. A record
+		 * with neither is not oat's to track or remove: it joins no cohort and is reported. */
+		const made = await createdRecord({
+			client,
+			createOp,
+			exchange,
+			headers: options.authHeaders,
+			model,
+			scope: { ...options.roots, ...scope.values },
+			sent,
+			...(options.readable === undefined ? {} : { readable: options.readable }),
+		})
+		if (made === null) {
+			options.onUnidentified?.(createOp.entity ?? createOp.operationId, createOp.operationId, exchange)
+			return null
 		}
-		const id = returnedId(record, identity)
+		if (made.acknowledged) acknowledged = true
+		const id = returnedId(made.record, identity)
 		if (createOp.entity !== null && id !== undefined) options.onCreate?.(createOp.entity, id, { ...scope.values })
-		return record
+		return made.record
 	}
 
 	const postMember = async (member: CohortMember, nextUploads: typeof uploads): Promise<Exchange> => {

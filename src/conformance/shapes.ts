@@ -61,6 +61,9 @@ async function judge(
 		for (const item of result.inconclusive) {
 			problems.push(`inconclusive [${item.check}] ${item.entity}: ${item.reason}`)
 		}
+		for (const create of result.teardown?.unidentified ?? []) {
+			problems.push(`left a record it could not identify: ${create.operationId} → ${create.status} (#${create.seq})`)
+		}
 		const after = await server.snapshot()
 		const leaked = leftBehind(before, after)
 		if (leaked.length > 0) {

@@ -81,7 +81,14 @@ import type { UploadContext } from "./upload.ts"
 import { forEachInvocation } from "./upload-each.ts"
 import type { SchemaValidator } from "./validate.ts"
 import { driveWait } from "./wait.ts"
-import { type Record_, confirmSubmitted, createdRecordOf, fillPath, isPlanLimitResponse } from "./world.ts"
+import {
+	type Record_,
+	confirmSubmitted,
+	createdRecord,
+	createdRecordOf,
+	fillPath,
+	isPlanLimitResponse,
+} from "./world.ts"
 import {
 	bodyPropertyNames,
 	collisionCreateBody,
@@ -204,6 +211,8 @@ export interface CheckContext<C extends ReadClient = ReadClient> {
 	 * teardown. Records made through the entity's own create are tracked without it.
 	 */
 	recordCreated?: (entity: string, id: ProvenId, scope: Record<string, string>) => void
+	/** A create that answered 2xx with no id oat could read: the record may remain. */
+	recordUnidentified?: (entity: string, operationId: string, exchange: Exchange) => void
 	/**
 	 * Narrows what this check graded to the operations it actually judged. A check that judges
 	 * after the fact — from whatever the transcript happens to hold — calls it, so an operation
@@ -337,7 +346,6 @@ function asProbe<C extends ReadClient>(ctx: CheckContext<C>): CheckContext<C> {
 	/* A probe sends what should be refused. When the server accepts it anyway, the record it made is
 	 * the run's to remove like any other: the finding says what went wrong, the teardown cleans up. */
 	const createPath = fillPath(createOp.path, ctx.scope)
-	const keys = createdIdKeys(ctx.entityName, ctx.identity)
 	const client = new Proxy(view, {
 		get(target, property) {
 			const value = Reflect.get(target, property, target) as unknown
@@ -348,8 +356,19 @@ function asProbe<C extends ReadClient>(ctx: CheckContext<C>): CheckContext<C> {
 				const exchange = (await value.call(target, method, path, options)) as Exchange
 				const created = method.toUpperCase() === createOp.method.toUpperCase() && path === createPath
 				if (created && exchange.status >= 200 && exchange.status < 300) {
-					const id = answeredId(exchange, keys) ?? (await confirmedIdentity(ctx, target, exchange.requestBody))?.id
-					if (id !== undefined) record(ctx.entityName, id, { ...ctx.scope })
+					const made = await createdRecord({
+						client: target,
+						createOp,
+						exchange,
+						headers: ctx.auth(),
+						model: ctx.model,
+						readable: (op) => op.operationId === ctx.readOp?.operationId,
+						scope: ctx.scope,
+						sent: exchange.requestBody,
+					})
+					const id = made === null ? undefined : returnedId(made.record, ctx.identity)
+					if (id === undefined) ctx.recordUnidentified?.(ctx.entityName, createOp.operationId, exchange)
+					else record(ctx.entityName, id, { ...ctx.scope })
 				}
 				return exchange
 			}
@@ -5894,20 +5913,30 @@ async function scratchRecord(ctx: WriteContext, check: string): Promise<{ scratc
 	if (standDownForFeatureGate(ctx, createOp, exchange, check)) {
 		return { outcome: standDown("a documented feature gate refused the request") }
 	}
-	const answered = (exchange.responseBody ?? {}) as Record_
-	/* An acknowledgement-only create counts only once the read under the id it was sent shows it. */
-	const record =
-		answered[ctx.identity] === undefined && exchange.status >= 200 && exchange.status < 300
-			? ((await confirmedIdentity(ctx, ctx.client, sent))?.record ?? answered)
-			: answered
+	/* The id the answer names, or one a read under it confirms: a nested related record's id is
+	 * never taken for this one, since the check is about to change and delete what it names. */
+	const made =
+		exchange.status >= 300
+			? null
+			: await createdRecord({
+					client: ctx.client,
+					createOp,
+					exchange,
+					headers: ctx.auth(),
+					model: ctx.model,
+					readable: (op) => op.operationId === ctx.readOp?.operationId,
+					scope: ctx.scope,
+					sent,
+				})
+	const record = made?.record ?? {}
 	const id = record[ctx.identity]
-	if (exchange.status >= 300 || (typeof id !== "string" && typeof id !== "number")) {
+	if (made === null || (typeof id !== "string" && typeof id !== "number")) {
 		return {
 			outcome: ctx.findings.unresolved(
 				check,
 				ctx.entityName,
 				`a record for this check could not be made: the create answered ${exchange.status}` +
-					(exchange.status < 300 ? ` without "${ctx.identity}"` : ""),
+					(exchange.status < 300 ? ` without an id oat could read` : ""),
 			),
 		}
 	}
@@ -6442,9 +6471,19 @@ const declaredEffectsOccur: Check = {
 					/* A prelude that creates is the run's to remove. One through the entity's own create is
 					 * already tracked; an invite is not, since an invite POST is never an entity's create. */
 					const made = beforeOp.action === "create" ? ctx.model.entities.get(beforeOp.entity ?? "") : undefined
-					if (made !== undefined && made.delete !== undefined) {
-						const id = answeredId(beforeInvoked, createdIdKeys(made.name, made.identity))
-						if (id !== undefined) ctx.recordCreated?.(made.name, id, { ...beforeScope })
+					if (made !== undefined && made.delete !== undefined && beforeInvoked.status < 300) {
+						const created = await createdRecord({
+							client: ctx.client,
+							createOp: beforeOp,
+							exchange: beforeInvoked,
+							headers: ctx.auth(),
+							model: ctx.model,
+							scope: beforeScope,
+							sent: beforeInvoked.requestBody,
+						})
+						const id = created === null ? undefined : returnedId(created.record, made.identity ?? "id")
+						if (id === undefined) ctx.recordUnidentified?.(made.name, beforeOp.operationId, beforeInvoked)
+						else ctx.recordCreated?.(made.name, id, { ...beforeScope })
 					}
 				}
 				const current = await currentRecords(ctx, scope)

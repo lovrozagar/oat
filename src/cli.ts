@@ -425,7 +425,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 
 	process.stdout.write(renderConsole(input))
 	for (const line of renderTeardown(
-		result.teardown ?? { failed: [], records: [], removed: 0, unsupported: [] },
+		result.teardown ?? { failed: [], records: [], removed: 0, unidentified: [], unsupported: [] },
 		result.created,
 	)) {
 		process.stdout.write(`${line}\n`)

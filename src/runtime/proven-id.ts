@@ -30,6 +30,14 @@ export function returnedId(record: Record<string, unknown>, identity: string): P
 	return scalar(record[identity])
 }
 
+/**
+ * An id a create's answer carried, where `resolveCreatedId` looked for it. Only a declared or
+ * top-level one is trusted as it stands; any other is confirmed by a read before it is recorded.
+ */
+export function createdId(value: unknown): ProvenId | undefined {
+	return scalar(value)
+}
+
 /** Ids a listing returned. */
 export function listedIds(ids: readonly string[]): ProvenId[] {
 	return ids.map((id) => id as ProvenId)

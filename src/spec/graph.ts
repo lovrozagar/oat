@@ -28,6 +28,7 @@ import {
 	readAsync,
 	readCleanup,
 	readCost,
+	readCreatedIdFrom,
 	readEffects,
 	readEntity,
 	readFeatureGate,
@@ -99,6 +100,8 @@ export interface OperationModel {
 	statuses: DocumentedStatuses
 	securitySchemes: string[]
 	collection: CollectionShape | null
+	/** `x-entity.createdIdFrom`: where a create's answer puts the made record's id. */
+	createdIdFrom: string | null
 	identity: string | null
 	/** Where `identity` came from: an `x-entity` tag, the item route's parameter, or the schema alone. */
 	identitySource: "declared" | "route" | "schema" | null
@@ -265,6 +268,7 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 		eventStream: documentsEventStream(op),
 		cleanup: readCleanup(op),
 		collection,
+		createdIdFrom: readCreatedIdFrom(endpoint),
 		cost: readCost(op),
 		featureGate: readFeatureGate(op),
 		unique: readUnique(op, operationId, gaps),

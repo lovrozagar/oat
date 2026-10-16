@@ -56,6 +56,10 @@ Calling a route and getting a documented answer is not the same as proving it wo
 
 Operations that did not pass are **Failed** (a check found a defect) or **Blocked** (no verdict: a dependency failed, or no check could reach it), each with its reason. `report.html` shows the five groups worst first, with counts, the reason per row, and links to the call and the observing request in `exchanges/`. `oat-report.md` opens its Operations table with the same counts under **Confidence**.
 
+### Leftovers
+
+A create that answered 2xx but named no id oat could read or confirm left a record teardown cannot remove. `oat-report.md` lists each under **Leftovers** (method, URL, operation, status and exchange number), the console prints `leftovers: N create(s) answered 2xx but no id could be read`, `oat-report.json` holds them as `"teardown": { "unidentified": [...] }`, and the run exits `4`. Declare `x-entity.createdIdFrom` where the answer keeps the id.
+
 ### Known, fixed and the target version
 
 With a `baseline`, `oat-report.md` lists the findings it names under **Known** (each with its reason) and the entries nothing matched under **Fixed**; the console prints `baseline: N known · M fixed`. Known findings carry `"known": { "reason": … }` in `oat-report.json`, which also holds `"baseline": { "fixed": [...] }`. Only findings no entry names count toward the result and the exit code.
