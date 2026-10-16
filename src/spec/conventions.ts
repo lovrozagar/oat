@@ -25,7 +25,14 @@ import {
 	renderTerm,
 } from "./filter-render.ts"
 import type { FilterOp } from "./query-capabilities.ts"
-import { parseSortGrammar, renderSortKey, renderSortKeys, SORT_PRESETS, type SortGrammarSpec } from "./sort-render.ts"
+import {
+	parseSortGrammar,
+	renderSortKey,
+	renderSortKeys,
+	SORT_PRESETS,
+	type SortGrammarSpec,
+	type SortValue,
+} from "./sort-render.ts"
 import type { ParameterObject, SchemaObject } from "./types.ts"
 
 export type { FilterTermValue } from "./filter-render.ts"
@@ -467,11 +474,11 @@ export function sortTermWithNulls(
 	return spec.nulls === undefined ? null : renderSortKey(spec, field, direction, nulls)
 }
 
-/** Several sort keys as one order value; `null` when the grammar sorts by one key only. */
+/** Several sort keys as one order value (a list, for a repeated grammar); `null` when it sorts by one key only. */
 export function sortKeys(
 	conventions: QueryConventions,
 	keys: readonly (readonly [string, "asc" | "desc"])[],
-): string | null {
+): SortValue | null {
 	return renderSortKeys(sortSpec(conventions), keys)
 }
 

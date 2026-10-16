@@ -64,7 +64,7 @@ import {
 	renderMalformed,
 	renderUnknownOp,
 } from "../spec/filter-render.ts"
-import { renderUnknownDirection } from "../spec/sort-render.ts"
+import { renderUnknownDirection, type SortValue } from "../spec/sort-render.ts"
 import type { Client, Exchange, ReadClient, RequestOptions } from "./client.ts"
 import { FencedError } from "./fence.ts"
 import { REQUIRED_IDS, STRING_PAYLOADS, type StringPayload, payloadFits } from "./payloads.ts"
@@ -582,14 +582,14 @@ function q(
 		limit?: number | undefined
 		page?: number | undefined
 		cursor?: string | undefined
-		order?: string | undefined
+		order?: SortValue | undefined
 		search?: string | undefined
 		searchMode?: string | undefined
 		filter?: string | undefined
 	},
-): Record<string, string | number | undefined> {
+): Query {
 	const c = conv(ctx)
-	const out: Record<string, string | number | undefined> = {}
+	const out: Record<string, string | number | readonly (string | number)[] | undefined> = {}
 	/* Never above the documented maximum: a backend is right to refuse a request that breaks the
 	 * contract, and reading that refusal as anything about the backend would be oat's own fault.
 	 * The one check that probes past the cap on purpose sets the parameter itself. */
@@ -824,7 +824,7 @@ interface SetRead {
 interface ReadOptions {
 	/** Page size to ask for; never above the documented maximum. */
 	size?: number
-	order?: string | undefined
+	order?: SortValue | undefined
 	/** Bypass the memo: for checks that compare two reads of the same set. */
 	fresh?: boolean
 	/** Stop after this many pages even if the set continues. */
@@ -1025,7 +1025,7 @@ async function collectSet(
 	ctx: CheckContext,
 	requested: number,
 	extra: FilterQuery = {},
-	order?: string,
+	order?: SortValue,
 	/* A repeat read that must see the collection as it is now, not as an earlier read saw it. */
 	fresh = false,
 ): Promise<SetRead | null> {
@@ -1153,7 +1153,7 @@ async function readComposed(
 async function walkPages(
 	ctx: CheckContext,
 	pageSize: number,
-	order?: string,
+	order?: SortValue,
 	maxPages = MAX_WALK_PAGES,
 ): Promise<Walk> {
 	const read = await readSet(ctx, {}, { fresh: true, keepRepeats: true, maxPages, order, size: pageSize })
@@ -1168,7 +1168,7 @@ async function walkPages(
 async function walkCursor(
 	ctx: CheckContext,
 	pageSize: number,
-	order?: string,
+	order?: SortValue,
 	maxPages = MAX_WALK_PAGES,
 ): Promise<Walk> {
 	const read = await readSet(

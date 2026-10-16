@@ -12,7 +12,10 @@ export interface SortGrammarSpec {
 	/** The direction tokens. Ascending may be empty: JSON:API writes it as the bare field. */
 	asc: string
 	desc: string
-	/** What separates several keys; `null` when the grammar sorts by one key only. */
+	/**
+	 * What separates several keys; `null` when the grammar sorts by one key only; `"repeat"` when
+	 * each key is the sort parameter again (`?sort=A_descending&sort=B_ascending`).
+	 */
 	join: string | null
 	/** Appended to a key to place nulls, when the grammar has such a token. */
 	nulls?: { first: string; last: string }
@@ -46,13 +49,20 @@ export function renderSortKey(
 	return nulls === undefined || spec.nulls === undefined ? key : `${key}${spec.nulls[nulls]}`
 }
 
+/** `join` for keys sent as the sort parameter repeated, one key each, in order. */
+export const REPEATED_KEYS = "repeat"
+
+/** A sort value: one parameter value, or — for a repeated grammar — one per key, in order. */
+export type SortValue = string | readonly string[]
+
 /** Several keys in order; `null` when the grammar sorts by one key only. */
 export function renderSortKeys(
 	spec: SortGrammarSpec,
 	keys: readonly (readonly [string, SortDirection])[],
-): string | null {
+): SortValue | null {
 	const rendered = keys.map(([field, direction]) => renderSortKey(spec, field, direction))
 	if (rendered.length <= 1) return rendered[0] ?? null
+	if (spec.join === REPEATED_KEYS) return rendered
 	return spec.join === null ? null : rendered.join(spec.join)
 }
 
@@ -81,7 +91,9 @@ export function parseSortGrammar(raw: unknown): ParsedSortGrammar {
 	if (typeof raw.asc !== "string") return fail("asc must be the ascending token")
 	if (!nonEmpty(raw.desc) || raw.desc === raw.asc) return fail("desc must be a non-empty token unlike asc")
 	const join = raw.join === undefined ? "," : raw.join
-	if (join !== null && !nonEmpty(join)) return fail("join must separate several keys, or be null for one key only")
+	if (join !== null && !nonEmpty(join)) {
+		return fail('join must separate several keys, be "repeat" to repeat the parameter, or be null for one key only')
+	}
 	let nulls: SortGrammarSpec["nulls"]
 	if (raw.nulls !== undefined) {
 		if (!isRecord(raw.nulls) || !nonEmpty(raw.nulls.first) || !nonEmpty(raw.nulls.last)) {
@@ -101,7 +113,11 @@ export function describeSortGrammar(spec: SortGrammarSpec): string {
 		`template ${spec.term}`,
 		`asc ${spec.asc === "" ? "(bare)" : spec.asc}`,
 		`desc ${spec.desc}`,
-		spec.join === null ? "one key only" : `join "${spec.join}"`,
+		spec.join === null
+			? "one key only"
+			: spec.join === REPEATED_KEYS
+				? "several keys as the parameter repeated"
+				: `join "${spec.join}"`,
 		spec.nulls === undefined ? "" : `nulls ${spec.nulls.first} / ${spec.nulls.last}`,
 	]
 		.filter(Boolean)

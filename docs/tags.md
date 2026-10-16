@@ -186,12 +186,13 @@ x-query:
     term: "{field}_{direction}"
     asc: ascending
     desc: descending
-    join: "," # null: one key only, multi-key checks do not apply
+    join: "," # "repeat": the sort parameter once per key; null: one key only, multi-key checks do not apply
     nulls: { first: _nf, last: _nl } # optional suffixes; absent, nulls checks do not apply
 ```
 
 - An operator absent from `ops` cannot be written, so a check that needs it does not apply. Null tests need `null`; `in` / `nin` need `list`.
 - `combine: repeat` sends two terms as the filter parameter repeated (`?where=and_Qty_eq_2&where=and_Name_eq_x`).
+- `join: "repeat"` on the sort grammar sends several keys the same way, in order (`?sort=Qty_descending&sort=Name_ascending`); one key is one parameter.
 - A value holding a character the template writes around its placeholders (`_` above), the list or combine joiner, or an escape replacement, cannot be written unambiguously: the check it belongs to does not apply. `escape` maps a character to a replacement so it can be.
 - `or: terms` writes each term with the `or` conjunction. `and(a, or(b, c))` is never composed from a template.
 - `likeMatches: contains` sends a `like` value as a bare substring. Under `pattern`, `%` is a wildcard, so the like-escaping check does not apply.

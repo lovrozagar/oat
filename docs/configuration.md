@@ -151,7 +151,7 @@ export default defineConfig({
 		row: {
 			query: {
 				// an entity's grammar outranks the run's
-				sortGrammar: { term: "{field}_{direction}", asc: "ascending", desc: "descending", join: "," },
+				sortGrammar: { term: "{field}_{direction}", asc: "ascending", desc: "descending", join: "," }, // join: "repeat" sends one sort parameter per key
 				identityFilter: "_id",
 				filterable: [{ field: "_id", type: "string", ops: ["eq", "neq", "in"] }],
 			},

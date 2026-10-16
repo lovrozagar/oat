@@ -3,7 +3,7 @@ import { sortKeys, sortTerm, sortTermWithNulls, type QueryConventions } from "..
 import { applyGrammarOverrides } from "../src/spec/grammar-overrides.ts"
 import { buildModel } from "../src/spec/graph.ts"
 import { dereference } from "../src/spec/load.ts"
-import { parseSortGrammar } from "../src/spec/sort-render.ts"
+import { describeSortGrammar, parseSortGrammar } from "../src/spec/sort-render.ts"
 import type { OpenApiDocument } from "../src/spec/types.ts"
 
 /*
@@ -122,5 +122,40 @@ describe("a declared sort grammar", () => {
 			.gaps.gaps.filter((gap) => gap.tag === "x-query")
 			.map((gap) => gap.detail)
 		expect(details.some((detail) => detail.includes('"sortGrammar"') && detail.includes("term"))).toBe(true)
+	})
+})
+
+/*
+ * Some APIs take several sort keys only as the sort parameter repeated, in order:
+ * `?sort=A_descending&sort=B_ascending`. `join: "repeat"` declares it; the keys then travel as a
+ * list the client sends one parameter each, never joined into one value.
+ */
+describe("join: repeat", () => {
+	const repeated = parseSortGrammar({
+		asc: "ascending",
+		desc: "descending",
+		join: "repeat",
+		term: "{field}_{direction}",
+	})
+
+	it("parses", () => {
+		expect(repeated.ok).toBe(true)
+	})
+
+	it("renders several keys as a list, in order, and one key as a value", () => {
+		if (!repeated.ok) throw new Error("did not parse")
+		const conventions = { sortGrammar: "template", sortSpec: repeated.spec } as unknown as QueryConventions
+		expect(
+			sortKeys(conventions, [
+				["A", "desc"],
+				["B", "asc"],
+			]),
+		).toEqual(["A_descending", "B_ascending"])
+		expect(sortKeys(conventions, [["A", "desc"]])).toBe("A_descending")
+	})
+
+	it("is described as repeated", () => {
+		if (!repeated.ok) throw new Error("did not parse")
+		expect(describeSortGrammar(repeated.spec)).toContain("repeated")
 	})
 })

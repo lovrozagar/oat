@@ -55,6 +55,11 @@ export interface ReferenceShape {
 	recordEnvelope?: boolean
 	/** Each record carries a read-only related record with an id of its own: `Status: { ID, Name }`. */
 	relatedRecord?: boolean
+	/**
+	 * Sort keys are `name_ascending` / `name_descending`, several only as the sort parameter
+	 * repeated (`?sort=A_descending&sort=B_ascending`), declared as a template with `join: "repeat"`.
+	 */
+	repeatedSort?: boolean
 }
 
 export interface NamedShape {
@@ -125,8 +130,17 @@ export const SHAPES: readonly NamedShape[] = [
 		cannotRun: {
 			"pagination.cursor-agrees-with-page": "there is no cursor",
 			"pagination.has-more-is-accurate": "there is no more-pages flag to judge",
+			"sort.nulls-first-last": "the sort template has no token that places nulls",
+			"spec.declared-sortable-nulls-accepted": "the sort template has no token that places nulls",
 		},
-		cannotExhibit: ["CURSOR_DRIFT", "COLLATION_INCONSISTENT", "HASMORE_ALWAYS_FALSE", "PAGE_PAST_END_REPEATS"],
+		cannotExhibit: [
+			"CURSOR_DRIFT",
+			"COLLATION_INCONSISTENT",
+			"HASMORE_ALWAYS_FALSE",
+			"PAGE_PAST_END_REPEATS",
+			/* No nulls token to ignore. */
+			"SORT_NULLS_MODIFIER_IGNORED",
+		],
 		name: "wrapped-records",
 		shape: {
 			identityField: "ID",
@@ -135,8 +149,9 @@ export const SHAPES: readonly NamedShape[] = [
 			prepopulate: 6,
 			recordEnvelope: true,
 			relatedRecord: true,
+			repeatedSort: true,
 		},
-		why: "an upper-case integer ID, records wrapped on create and read, writes answered without the record, rows beside a fields sidecar, and a related record nested in each",
+		why: "an upper-case integer ID, records wrapped on create and read, writes answered without the record, rows beside a fields sidecar, a related record nested in each, and several sort keys as the parameter repeated",
 	},
 	{
 		/* It clamps a page size rather than refusing it, and its document says so. */
@@ -228,8 +243,19 @@ export function shapeNamed(name: string): NamedShape {
 	return found
 }
 
-/** The dialect as this shape serves it: the pagination model replaces the dialect's own. */
+/** The dialect as this shape serves it: its pagination model and sort spelling replace the dialect's own. */
 export function shapedDialect(dialect: Dialect, shape: ReferenceShape): Dialect {
+	const paged = pagedDialect(dialect, shape)
+	if (shape.repeatedSort !== true) return paged
+	return {
+		...paged,
+		params: { ...paged.params, order: "sort" },
+		sortGrammar: "template",
+		sortTemplate: { asc: "ascending", desc: "descending", join: "repeat", term: "{field}_{direction}" },
+	}
+}
+
+function pagedDialect(dialect: Dialect, shape: ReferenceShape): Dialect {
 	if (shape.pagination === undefined) return dialect
 	const params = { ...dialect.params }
 	const envelope = dialect.envelope === null ? null : { ...dialect.envelope }

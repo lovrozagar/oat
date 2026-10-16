@@ -1049,7 +1049,13 @@ export async function createReferenceServer(
 					filter,
 					limit: param(dialect.params.limit),
 					offset: param(dialect.params.offset),
-					order: toCanonicalOrder(param(dialect.params.order), dialect),
+					/* A repeated grammar sends one key per parameter: read them all, in order. */
+					order: toCanonicalOrder(
+						dialect.sortTemplate?.join === "repeat" && dialect.params.order !== undefined
+							? url.searchParams.getAll(dialect.params.order).join(",") || undefined
+							: param(dialect.params.order),
+						dialect,
+					),
 					page: param(dialect.params.page),
 					q: param(dialect.params.search),
 					searchMode: param(dialect.params.searchMode),
