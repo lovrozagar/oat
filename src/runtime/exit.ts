@@ -13,9 +13,10 @@ export const EXIT = {
 	/** oat could not do what it was asked: the network went away, nothing was graded, a target
 	 * was never judged, or oat itself threw. */
 	failed: 3,
-	/** The run may have left records behind: a create answered 2xx with no id oat could read, so
-	 * nothing could remove what it made. Someone has to look, whatever else the run found. A
-	 * delete teardown could not complete keeps today's verdict on purpose: it is listed, not fatal. */
+	/** The run may have left records behind, whatever else it found, and someone has to look: a
+	 * record teardown could not show gone — its delete refused, still listed, never seen by its
+	 * creator, or present by `hooks.verifyRemoved` — or a create that answered 2xx with no id oat
+	 * could read. An entity with no delete operation alone is a gap, not this. */
 	leftovers: 4,
 } as const
 
@@ -31,14 +32,19 @@ export function runVerdict(result: {
 	network?: { incomplete: boolean }
 	fenced?: { requests: readonly unknown[]; failRun: boolean }
 	scope?: { mode: string; operations: ReadonlyArray<{ operationId?: string; status: string }> }
-	teardown?: { unidentified: readonly unknown[] } | null
+	/* `unsupported`, an entity with no delete operation, is a gap the run reports; it is not counted here. */
+	teardown?: { unidentified: readonly unknown[]; failed?: readonly unknown[]; unsupported?: readonly unknown[] } | null
 }): { outcome: RunOutcome; reason: string } {
-	const leftovers = result.teardown?.unidentified.length ?? 0
-	if (leftovers > 0) {
-		return {
-			outcome: "leftovers",
-			reason: `${leftovers} create${leftovers === 1 ? "" : "s"} answered 2xx with no readable id; records may remain`,
-		}
+	const unremoved = result.teardown?.failed?.length ?? 0
+	const unidentified = result.teardown?.unidentified.length ?? 0
+	if (unremoved + unidentified > 0) {
+		const kinds = [
+			...(unremoved === 0 ? [] : [`${unremoved} teardown could not show gone`]),
+			...(unidentified === 0
+				? []
+				: [`${unidentified} create${unidentified === 1 ? "" : "s"} answered 2xx with no readable id`]),
+		]
+		return { outcome: "leftovers", reason: `records may remain: ${kinds.join(", ")}` }
 	}
 	if (result.network?.incomplete === true) {
 		return { outcome: "failed", reason: "the network went away before the run finished" }

@@ -57,7 +57,8 @@ describe("a run with a fence", () => {
 		expect(result.fenced?.requests.length ?? 0).toBeGreaterThan(0)
 		expect(result.fenced?.requests.every((request) => request.reason === "no deletes on the shared backend")).toBe(true)
 		expect(result.teardown?.failed.some((leftover) => leftover.reason.startsWith("fenced"))).toBe(true)
-		expect(exitCode(result)).toBe(EXIT.failed)
+		/* Every delete was fenced, so the records remain: leftovers outrank a fenced run. */
+		expect(exitCode(result)).toBe(EXIT.leftovers)
 	}, 240_000)
 
 	it("leaves the exit code alone when told the fence does not fail the run", async () => {

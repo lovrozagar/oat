@@ -7,6 +7,8 @@ const full = (findings: string[], ...statuses: string[]) => ({
 	scope: { mode: "full", operations: ops(...statuses) },
 })
 
+const listed = (id: string) => ({ entity: "row", id, principal: "alpha", reason: "still listed" })
+
 describe("exitCode", () => {
 	it("is clean when every graded operation passed", () => {
 		expect(exitCode(full([], "passed", "passed"))).toBe(EXIT.clean)
@@ -49,5 +51,29 @@ describe("exitCode", () => {
 			reason: "2 root-cause findings",
 		})
 		expect(runVerdict(full([], "passed")).outcome).toBe("clean")
+	})
+
+	it("reports leftovers when teardown could not show a record gone, as for an unidentified create", () => {
+		const failed = { entity: "row", id: "r1", principal: "beta", reason: "DELETE /rows/r1 returned beta: 403" }
+		const teardown = { failed: [failed], unidentified: [], unsupported: [] }
+		expect(exitCode({ ...full([], "passed"), teardown })).toBe(EXIT.leftovers)
+		expect(exitCode({ ...full(["BACKEND_BUG"], "failed"), teardown })).toBe(EXIT.leftovers)
+	})
+
+	it("does not count an entity with no delete operation as a leftover on its own", () => {
+		const teardown = { failed: [], unidentified: [], unsupported: ["note"] }
+		expect(exitCode({ ...full([], "passed"), teardown })).toBe(EXIT.clean)
+	})
+
+	it("counts both kinds of leftover in its reason", () => {
+		const unidentified = [{ entity: "row", method: "POST", operationId: "row.create", seq: 4, status: 201, url: "x" }]
+		const verdict = runVerdict({
+			...full([], "passed"),
+			teardown: { failed: [listed("r1"), listed("r2")], unidentified, unsupported: [] },
+		})
+		expect(verdict).toEqual({
+			outcome: "leftovers",
+			reason: "records may remain: 2 teardown could not show gone, 1 create answered 2xx with no readable id",
+		})
 	})
 })
