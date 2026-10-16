@@ -212,9 +212,12 @@ export interface CheckContext<C extends ReadClient = ReadClient> {
 	 * Registers a record this check caused to exist — a declared effect, a started job — for
 	 * teardown. Records made through the entity's own create are tracked without it.
 	 */
-	recordCreated?: (entity: string, id: ProvenId, scope: Record<string, string>) => void
+	/** Ledgers a record made other than by its create, as the principal that sent the request. */
+	recordCreated?: (entity: string, id: ProvenId, scope: Record<string, string>, principal?: string) => void
 	/** A create that answered 2xx with no id oat could read: the record may remain. */
 	recordUnidentified?: (entity: string, operationId: string, exchange: Exchange) => void
+	/** A ledgered record an accepted write moved, so its creator's 404 no longer shows it gone. */
+	recordMoved?: (entity: string, id: string, reason: string) => void
 	/**
 	 * Narrows what this check graded to the operations it actually judged. A check that judges
 	 * after the fact — from whatever the transcript happens to hold — calls it, so an operation
@@ -368,42 +371,8 @@ async function confirmedIdentity(
  * from what ordinary traffic got.
  */
 function asProbe<C extends ReadClient>(ctx: CheckContext<C>): CheckContext<C> {
-	const view = ctx.client.view({ purpose: "probe" }) as C
-	const createOp = ctx.createOp
-	const record = ctx.recordCreated
-	if (createOp === undefined || record === undefined || !("request" in view)) return { ...ctx, client: view }
-	/* A probe sends what should be refused. When the server accepts it anyway, the record it made is
-	 * the run's to remove like any other: the finding says what went wrong, the teardown cleans up. */
-	const createPath = fillPath(createOp.path, ctx.scope)
-	const client = new Proxy(view, {
-		get(target, property) {
-			const value = Reflect.get(target, property, target) as unknown
-			if (property !== "request" || typeof value !== "function") {
-				return typeof value === "function" ? value.bind(target) : value
-			}
-			return async (method: string, path: string, options?: unknown) => {
-				const exchange = (await value.call(target, method, path, options)) as Exchange
-				const created = method.toUpperCase() === createOp.method.toUpperCase() && path === createPath
-				if (created && exchange.status >= 200 && exchange.status < 300) {
-					const made = await createdRecord({
-						client: target,
-						createOp,
-						exchange,
-						headers: ctx.auth(),
-						model: ctx.model,
-						readable: (op) => op.operationId === ctx.readOp?.operationId,
-						scope: ctx.scope,
-						sent: exchange.requestBody,
-					})
-					const id = made === null ? undefined : returnedId(made.record, ctx.identity)
-					if (id === undefined) ctx.recordUnidentified?.(ctx.entityName, createOp.operationId, exchange)
-					else record(ctx.entityName, id, { ...ctx.scope })
-				}
-				return exchange
-			}
-		},
-	})
-	return { ...ctx, client }
+	/* What a probe the server accepts anyway creates is ledgered like any other create. */
+	return { ...ctx, client: ctx.client.view({ purpose: "probe" }) as C }
 }
 
 /** A valid value for `field` that differs from `current` — what a write probe changes it to. */
@@ -2402,6 +2371,13 @@ const immutableRejected: Check<{ field: string; updateOp: OperationModel; readOp
 			return standDown("a documented feature gate refused the request")
 		const refused = judgeRefusal(ctx, this.id, ["validation", "conflict"], patched)
 		if (refused !== null) return refused
+		/* An accepted write to a key — a tenant, a parent — can move the record outside every scope oat
+		 * can reach, whether or not the echo shows it. */
+		ctx.recordMoved?.(
+			ctx.entityName,
+			id,
+			`moved by a write to "${field}" the backend accepted (${updateOp.operationId})`,
+		)
 
 		/* Read the echoed record first. Re-reading can itself fail once the write lands — writing
 		 * a tenant key, for instance, moves the record out of the caller's scope — and that
@@ -2812,6 +2788,10 @@ const idempotentReplay: Check<{ createOp: OperationModel; header: string; schema
 				)
 			}
 			if (after.items.length <= before.items.length) return ASSERTED
+			/* The twin the replay made is named only by the listing: it is the run's to remove. */
+			const existed = new Set(ids(before.items, ctx.identity))
+			const twins = ids(after.items, ctx.identity).filter((id) => !existed.has(id))
+			for (const id of listedIds(twins)) ctx.recordCreated?.(ctx.entityName, id, { ...ctx.scope }, second.principal)
 			return ctx.findings.backend(
 				this.id,
 				ctx.entityName,
@@ -6526,7 +6506,7 @@ const declaredEffectsOccur: Check = {
 						})
 						const id = created === null ? undefined : returnedId(created.record, made.identity ?? "id")
 						if (id === undefined) ctx.recordUnidentified?.(made.name, beforeOp.operationId, beforeInvoked)
-						else ctx.recordCreated?.(made.name, id, { ...beforeScope })
+						else ctx.recordCreated?.(made.name, id, { ...beforeScope }, beforeInvoked.principal)
 					}
 				}
 				const current = await currentRecords(ctx, scope)
@@ -6665,7 +6645,7 @@ const declaredEffectsOccur: Check = {
 					const removed = prior.filter((id) => !after.ids.includes(id))
 					/* Records the operation made on oat's behalf are oat's to remove. */
 					if (effect.op === "create" || effect.op === "append") {
-						for (const id of listedIds(added)) ctx.recordCreated?.(effect.entity, id, { ...scope })
+						for (const id of listedIds(added)) ctx.recordCreated?.(effect.entity, id, { ...scope }, invoked.principal)
 					}
 
 					if (effectHolds(effect, delta, added.length, removed.length)) {
@@ -6933,8 +6913,10 @@ const asyncReachesTerminalState: Check = {
 				/* The job this start created is a record like any other, and oat's to remove. */
 				const jobId = spec.idFrom === undefined ? undefined : receiptId(receipt, spec.idFrom)
 				const polled = (ctx.model.byRoute.get(spec.poll) ?? ctx.model.byOperationId.get(spec.poll))?.entity
-				if (jobId !== undefined && polled !== null && polled !== undefined) {
-					ctx.recordCreated?.(polled, jobId, { ...ctx.scope })
+				if (polled !== null && polled !== undefined) {
+					/* A receipt that names no id still made a job, and nothing can remove it. */
+					if (jobId === undefined) ctx.recordUnidentified?.(polled, op.operationId, start)
+					else ctx.recordCreated?.(polled, jobId, { ...ctx.scope }, start.principal)
 				}
 
 				if (outcome.timedOut) {

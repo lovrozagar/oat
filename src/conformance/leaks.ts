@@ -6,6 +6,8 @@
  * live record present after the run and absent before it was left behind, whoever made it.
  */
 
+import type { TeardownReport } from "../runtime/teardown.ts"
+
 export type StoreSnapshot = Record<string, Array<Record<string, unknown>>>
 
 export function leftBehind(before: StoreSnapshot, after: StoreSnapshot): string[] {
@@ -56,4 +58,28 @@ export function ledgeredNotCreated(
 	return records
 		.filter((record) => !(created[record.entity] ?? []).includes(record.id))
 		.map((record) => `${record.entity} ${record.id}`)
+}
+
+/**
+ * Rows left behind that oat did not report. A row counts as reported when teardown names it as
+ * failed, by entity and id, or when a create of its entity that oat could not identify accounts
+ * for it, one row per such create. What remains is litter oat never told anyone about.
+ */
+export function unreportedLeftovers(
+	leaked: readonly string[],
+	teardown: Pick<TeardownReport, "failed" | "unidentified"> | null | undefined,
+): string[] {
+	const named = new Set((teardown?.failed ?? []).map((failure) => `${failure.entity} ${failure.id}`))
+	const unidentified = new Map<string, number>()
+	for (const create of teardown?.unidentified ?? []) {
+		unidentified.set(create.entity, (unidentified.get(create.entity) ?? 0) + 1)
+	}
+	return leaked.filter((row) => {
+		if (named.has(row)) return false
+		const entity = row.slice(0, row.indexOf(" "))
+		const left = unidentified.get(entity) ?? 0
+		if (left === 0) return true
+		unidentified.set(entity, left - 1)
+		return false
+	})
 }

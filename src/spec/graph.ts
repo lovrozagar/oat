@@ -52,7 +52,7 @@ import {
 	singularise,
 } from "./extensions.ts"
 import { deriveQueryConventions, type QueryConventions } from "./conventions.ts"
-import { documentDefs, parseRouteRef, pathTemplateMatches } from "./load.ts"
+import { documentDefs, parseRouteRef, pathTemplateParams } from "./load.ts"
 import {
 	type Endpoint,
 	MUTATING_METHODS,
@@ -804,24 +804,31 @@ export function operationResolver(model: SpecModel): (
 	entity: string | null
 	redirects: boolean
 	requiredQuery: Record<string, string>
+	pathParams: Record<string, string>
 } | null {
 	const candidates = [...model.operations].sort(
 		(a, b) => (a.path.match(/\{/g)?.length ?? 0) - (b.path.match(/\{/g)?.length ?? 0),
 	)
 	return (method, relativePath) => {
 		const verb = method.toUpperCase()
-		const op = candidates.find(
-			(candidate) => candidate.method.toUpperCase() === verb && pathTemplateMatches(candidate.path, relativePath),
-		)
-		if (op === undefined) return null
-		/* A documented 3xx is the answer to grade, not a hop to follow. */
-		const redirects = op.statuses.exact.some((code) => code >= 300 && code < 400) || op.statuses.ranges.includes(3)
-		return {
-			entity: op.entity,
-			operationId: op.operationId,
-			redirects,
-			requiredQuery: op.requiredQuery,
-			template: op.path,
+		for (const op of candidates) {
+			if (op.method.toUpperCase() !== verb) continue
+			const pathParams = pathTemplateParams(op.path, relativePath)
+			if (pathParams !== null) return resolvedTo(op, pathParams)
 		}
+		return null
+	}
+}
+
+function resolvedTo(op: OperationModel, pathParams: Record<string, string>) {
+	/* A documented 3xx is the answer to grade, not a hop to follow. */
+	const redirects = op.statuses.exact.some((code) => code >= 300 && code < 400) || op.statuses.ranges.includes(3)
+	return {
+		entity: op.entity,
+		operationId: op.operationId,
+		pathParams,
+		redirects,
+		requiredQuery: op.requiredQuery,
+		template: op.path,
 	}
 }

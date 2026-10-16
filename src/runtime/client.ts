@@ -97,6 +97,8 @@ export interface Exchange {
 	cookies?: Record<string, string>
 	/** The documented path template this request resolved to, e.g. `/v1/tables/{table_id}`. */
 	template?: string
+	/** The value each of the template's path parameters took in this request, URI-decoded. */
+	pathParams?: Record<string, string>
 	/** The principal whose credential the request carried, when one did. */
 	principal?: string
 	/** Why oat sent it — see `Purpose`. */
@@ -147,6 +149,7 @@ export type OperationResolver = (
 	entity?: string | null
 	redirects?: boolean
 	requiredQuery?: Record<string, string>
+	pathParams?: Record<string, string>
 } | null
 
 /** A principal bound so every dispatch can refresh and retry a 401 without call-site ceremony. */
@@ -240,6 +243,7 @@ export class Client {
 	private readonly byEntity = new Map<string, Exchange[]>()
 	private readonly entityOf = new Map<number, string>()
 	private operationResolver: OperationResolver | undefined
+	private afterExchange: ((exchange: Exchange) => Promise<void>) | undefined
 	private fence: Fence | undefined
 	private principalResolver: ((headers: Record<string, string>) => string | undefined) | undefined
 	private seq = 0
@@ -283,7 +287,15 @@ export class Client {
 		this.operationResolver = resolve
 	}
 
-	/** Names the principal a set of request headers belongs to. */
+	/**
+	 * Awaited with every answer before `request` returns it, from whichever view sent it, once the
+	 * request's in-flight slot is free: a callback that sends its own request never waits on it.
+	 */
+	setAfterExchange(fn: (exchange: Exchange) => Promise<void>): void {
+		this.afterExchange = fn
+	}
+
+	/** Names the principal a request's own headers — the caller's, its credential included — belong to. */
 	setPrincipalResolver(resolve: (headers: Record<string, string>) => string | undefined): void {
 		this.principalResolver = resolve
 	}
@@ -377,14 +389,17 @@ export class Client {
 		}
 		/* A value oat did not have, written as text: nothing goes out (`MissingValueError`). */
 		if (carriesMissingValue(url)) throw new MissingValueError(`${method.toUpperCase()} ${this.relativePath(url)}`)
-		const stamp = (headers: Record<string, string>): Partial<Exchange> => {
+		/* `caller` is what the request was given, its credential included: the principal is named by
+		 * the credential the caller chose, never by headers every request carries. */
+		const stamp = (caller: Record<string, string>): Partial<Exchange> => {
 			if (resolved?.entity !== undefined && resolved.entity !== null) pendingEntity = resolved.entity
 			const operationId = options.operationId ?? resolved?.operationId
-			const principal = this.principalResolver?.(headers)
+			const principal = this.principalResolver?.(caller)
 			const context = options.context ?? {}
 			return {
 				...(operationId === undefined ? {} : { operationId }),
 				...(resolved === null ? {} : { template: resolved.template }),
+				...(resolved?.pathParams === undefined ? {} : { pathParams: resolved.pathParams }),
 				...(principal === undefined ? {} : { principal }),
 				...(context.purpose === undefined ? {} : { purpose: context.purpose }),
 				...(context.check === undefined ? {} : { check: context.check }),
@@ -556,7 +571,7 @@ export class Client {
 						seq: this.seq,
 						status: 0,
 						url: url.toString(),
-						...stamp(headers),
+						...stamp(userHeaders),
 						...(options.fixture === undefined ? {} : { fixture: options.fixture }),
 					}
 					await this.onExchange?.(failed)
@@ -597,7 +612,7 @@ export class Client {
 				url: url.toString(),
 				...(rule === undefined ? {} : { rateLimitCategory: rule.category, rateLimitSource: rule.source }),
 				...(rateLimitHadRoom === undefined ? {} : { rateLimitHadRoom }),
-				...stamp(headers),
+				...stamp(userHeaders),
 				...(options.fixture === undefined ? {} : { fixture: options.fixture }),
 				...(hops.length === 0 ? {} : { redirects: hops }),
 				...(landing === url.toString() ? {} : { finalUrl: landing }),
@@ -701,6 +716,7 @@ export class Client {
 			this.supersede(exchange)
 			exchange = await resilient()
 		}
+		await this.afterExchange?.(exchange)
 		return exchange
 	}
 

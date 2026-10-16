@@ -301,12 +301,35 @@ export function parseRouteRef(ref: string): { method: string; path: string } | n
 
 /** `{param}` and `:param` segments match one path component. */
 export function pathTemplateMatches(template: string, pathname: string): boolean {
+	return pathTemplateParams(template, pathname) !== null
+}
+
+/**
+ * The value each `{param}` (or `:param`) segment of `template` takes in `pathname`, URI-decoded;
+ * `null` when the path is not an instance of the template.
+ */
+export function pathTemplateParams(template: string, pathname: string): Record<string, string> | null {
+	const names: string[] = []
 	const compiled = normalisePath(template)
 		.split("/")
 		.map((segment) => {
-			if (segment.startsWith("{") && segment.endsWith("}")) return "[^/]+"
+			if (segment.startsWith("{") && segment.endsWith("}")) {
+				names.push(segment.slice(1, -1))
+				return "([^/]+)"
+			}
 			return segment.replace(/[.+^${}()|[\]\\]/g, "\\$&")
 		})
 		.join("/")
-	return new RegExp(`^${compiled}$`).test(pathname)
+	const match = new RegExp(`^${compiled}$`).exec(pathname)
+	if (match === null) return null
+	return Object.fromEntries(names.map((name, index) => [name, decodePathValue(match[index + 1] ?? "")]))
+}
+
+/** A path segment as it was meant: percent-decoded, or as sent when it is not valid encoding. */
+function decodePathValue(segment: string): string {
+	try {
+		return decodeURIComponent(segment)
+	} catch {
+		return segment
+	}
 }

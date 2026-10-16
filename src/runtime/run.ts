@@ -7,6 +7,7 @@
  */
 
 import { randomBytes } from "node:crypto"
+import { CREDENTIAL_HEADERS } from "./cookies.ts"
 import { isSecretHeaderName, registerSecret, registerSecretHeader } from "./redact.ts"
 import { buildModel, type EntityModel, type OperationModel, type SpecModel, operationResolver } from "../spec/graph.ts"
 import { applyGrammarOverrides } from "../spec/grammar-overrides.ts"
@@ -52,14 +53,7 @@ import { confirmDeletes, runContractCalls } from "./contract.ts"
 import { proveFromTranscript } from "./evidence.ts"
 import { rootReadIds, ROOT_READ_CHECK_ID, runRootRead } from "./root-read.ts"
 import { entityIsSelf, runSelfIdentity, SELF_CHECK_ID, selfOperationIds } from "./self.ts"
-import {
-	AuthRefreshError,
-	Client,
-	type Exchange,
-	type HttpHooks,
-	type RequestOptions,
-	type RequestStart,
-} from "./client.ts"
+import { AuthRefreshError, Client, type Exchange, type HttpHooks, type RequestStart } from "./client.ts"
 import type { ProgressHandler, ProgressInflight, ProgressLast, ProgressSnapshot } from "./progress.ts"
 import { type Finding, FindingCollector, type Inconclusive, isRootCause, type Outcome } from "./finding.ts"
 import { formatUniqueSets } from "../spec/extensions.ts"
@@ -78,21 +72,20 @@ import { buildRateLimitRules, RateLimiter } from "./rate-limit.ts"
 import { reportServerErrors } from "./server-errors.ts"
 import { resolveEntityCapabilities } from "./query-capabilities.ts"
 import { Ledger, type Owner, type TeardownReport } from "./teardown.ts"
+import { createTracker } from "./create-tracker.ts"
 import { SchemaValidator } from "./validate.ts"
 import { isOverflowError, overflowFrom } from "./fixture.ts"
 import type { UploadContext } from "./upload.ts"
 import {
-	createdRecord,
 	type Record_,
 	type Scope,
 	SeedError,
-	fillPath,
 	listExisting,
 	probeCreateFixtures,
 	resolvePathScope,
 	seedCohort,
 } from "./world.ts"
-import { type ProvenId, returnedId } from "./proven-id.ts"
+import type { ProvenId } from "./proven-id.ts"
 import { MissingValueError } from "./missing-value.ts"
 
 /* The principal shape is the public config's — one definition, checked in both places. */
@@ -763,14 +756,21 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		phase: "auth",
 		requests: client.transcript.length,
 	})
-	/* Every exchange names the principal whose credential it carried. */
-	client.setPrincipalResolver(
-		(sent) =>
-			resolved.find((principal) => {
-				const own = principal.headers()
-				return Object.keys(own).length > 0 && Object.entries(own).every(([key, value]) => sent[key] === value)
-			})?.id,
-	)
+	/* Every exchange names the principal whose credential it carried. A principal configured with
+	 * no credential — an API without auth — sent whatever carries none. */
+	client.setPrincipalResolver((sent) => {
+		const holder = resolved.find((principal) => {
+			const own = principal.headers()
+			return Object.keys(own).length > 0 && Object.entries(own).every(([key, value]) => sent[key] === value)
+		})
+		if (holder !== undefined) return holder.id
+		const credentials = new Set([
+			...CREDENTIAL_HEADERS,
+			...resolved.flatMap((principal) => Object.keys(principal.headers()).map((name) => name.toLowerCase())),
+		])
+		const carries = Object.keys(sent).some((name) => credentials.has(name.toLowerCase()) || isSecretHeaderName(name))
+		return carries ? undefined : resolved.find((principal) => Object.keys(principal.headers()).length === 0)?.id
+	})
 	const alpha = resolved[0] as ResolvedPrincipal
 	/* Which build this run tested, read once before anything is created. Never part of the verdict. */
 	const targetVersion =
@@ -803,6 +803,12 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		(entity: string, id: ProvenId, values: Record<string, string>): void => {
 			ledger.record(entity, id, values, owner)
 		}
+	/* A record a check learned of some other way than its create — an effect, a job — belongs to
+	 * whoever sent the request that made it. */
+	const recordCreated = (entity: string, id: ProvenId, values: Record<string, string>, principal?: string): void => {
+		const sender = principal === undefined ? undefined : resolved.find((candidate) => candidate.id === principal)
+		ledger.record(entity, id, values, sender === undefined ? alphaOwner : ownerOf(sender))
+	}
 	const unidentified = (entity: string, operationId: string, exchange: Exchange): void => {
 		ledger.unidentified(entity, operationId, exchange)
 	}
@@ -844,6 +850,23 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	const scenarioOwned = new Set(ownScenarios.flatMap((scenario) => scenario.covers))
 	/* What oat may call at all under the profile: a read that confirms a create is still a call. */
 	const readable = (op: OperationModel): boolean => excludedByProfile(op, profile.spec) === null
+	/* Identities each entity's collection is known to hold, filled as its records are ledgered. */
+	const takenByEntity = new Map<string, Set<string>>()
+	/* Every create a configured principal sends is ledgered as it, whichever view sent it. */
+	const tracker = createTracker({
+		client,
+		ledger,
+		model,
+		onRecorded: (entity, id) => takenByEntity.get(entity)?.add(id),
+		owners: new Map(
+			resolved.map((principal) => [
+				principal.id,
+				{ owner: ownerOf(principal), roots: { ...options.roots, ...principal.roots } },
+			]),
+		),
+		readable,
+	})
+	client.setAfterExchange(tracker.observe)
 	const excludeOp = (entity: EntityModel, op: OperationModel | undefined): boolean => {
 		if (op === undefined) return false
 		const reason = excludedByProfile(op, profile.spec)
@@ -977,6 +1000,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		let createAcknowledged = false
 		/* Identities this entity's collection is known to hold; no create oat sends may reuse one. */
 		const takenIdentities = new Set<string>()
+		takenByEntity.set(entity.name, takenIdentities)
 		if (createOp !== undefined && scenarioOwned.has(createOp.operationId)) {
 			/* A scenario owns this create: it holds what the create needs (a mailed token, a paid
 			 * session), and a generated body would only be refused. The matrix reads what exists;
@@ -1349,68 +1373,6 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		const altScope = isolation?.scope
 		const altAuth = isolation?.headers
 
-		/*
-		 * Anything a check creates is registered for teardown automatically.
-		 *
-		 * Several checks POST directly — replaying an idempotency key, probing a declared
-		 * invalidation, sending a body that validation should have rejected — and those records
-		 * were invisible to the ledger, so oat left them behind in the backend under test while
-		 * reporting that it had cleaned up everything it made. Recording centrally rather than at
-		 * each call site means a new check cannot forget: the wrapper sees every request.
-		 */
-		let createPath: string | undefined
-		try {
-			createPath = createOp === undefined ? undefined : fillPath(createOp.path, scope.values)
-		} catch {
-			createPath = undefined
-		}
-		/* Whoever sent the request owns what it created: matched on the credential it carried. */
-		const ownerByHeaders = (sent: RequestOptions["headers"]): Owner => {
-			const rendered = JSON.stringify(typeof sent === "function" ? sent() : (sent ?? {}))
-			const match = resolved.find((principal) => JSON.stringify(principal.headers()) === rendered)
-			return match === undefined ? alphaOwner : ownerOf(match)
-		}
-		const tracked = (base: Client): Client =>
-			createOp === undefined || degraded
-				? base
-				: new Proxy(base, {
-						get(target, property, receiver) {
-							if (property !== "request") return Reflect.get(target, property, receiver)
-							return async (
-								method: string,
-								path: string,
-								options?: Parameters<Client["request"]>[2],
-							): Promise<Exchange> => {
-								const exchange = await target.request(method, path, options ?? {})
-								if (method.toUpperCase() !== "POST" || exchange.status >= 300) return exchange
-								/* Only this entity's own create makes one of its records. Any other 2xx
-								 * POST carrying an `id` — an invite, an action — names something else, and
-								 * on an integer-id API deleting by that number removes an unrelated row. */
-								if (path !== createPath) return exchange
-								/* The id the answer names, or a candidate a read under it confirms. A create
-								 * with neither is reported: the record may remain, and nothing can remove it. */
-								const made = await createdRecord({
-									client: target,
-									createOp,
-									exchange,
-									headers: options?.headers,
-									model,
-									readable,
-									scope: scope.values,
-									sent: options?.body,
-								})
-								const id = made === null ? undefined : returnedId(made.record, entity.identity ?? "id")
-								if (id === undefined) {
-									ledger.unidentified(entity.name, createOp.operationId, exchange)
-									return exchange
-								}
-								takenIdentities.add(id)
-								ledger.record(entity.name, id, scope.values, ownerByHeaders(options?.headers))
-								return exchange
-							}
-						},
-					})
-
 		const readOpModel = model.byOperationId.get(entity.read ?? "")
 		const updateOpModel = model.byOperationId.get(entity.update ?? "")
 		const deleteOpModel = model.byOperationId.get(entity.delete ?? "")
@@ -1468,10 +1430,11 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			outOfBand,
 			payloads: { policy: options.payloads ?? "per-write-path", ran: payloadPaths },
 			auth: alpha.headers,
-			recordCreated: recorder(alphaOwner),
+			recordCreated,
+			recordMoved: (name, id, reason) => ledger.moved(name, id, reason),
 			recordUnidentified: unidentified,
 			...(alpha.runtime === undefined ? {} : { refreshIfStale: alpha.runtime.refreshIfStale }),
-			client: tracked(client.view({ purpose: "assertion", subject: entity.name })),
+			client: client.view({ purpose: "assertion", subject: entity.name }),
 			collectionKey: listOp.collection?.key ?? null,
 			/* In degraded mode oat did not write these records, so it has no oracle for them —
 			 * every write-path check must sit out rather than assert against data it did not
@@ -1533,7 +1496,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			const attributed = graded.length === 0 ? findings : findings.attributed(graded)
 			const view: WriteContext = {
 				...ctx,
-				client: tracked(check.mutates === true ? client.view(stamp) : (client.readOnlyView(stamp) as Client)),
+				client: check.mutates === true ? client.view(stamp) : (client.readOnlyView(stamp) as Client),
 				findings: attributed.ownedBy(check.id),
 				judged: (operationIds) => {
 					judged ??= new Set()

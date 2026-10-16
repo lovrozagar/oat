@@ -13,6 +13,7 @@ import { parseRouteRef } from "../spec/load.ts"
 import { FencedError } from "./fence.ts"
 import { isNetworkError } from "./network.ts"
 import { fillPath, idOf, recordsFromList } from "./world.ts"
+import { readPath } from "./path.ts"
 import type { ProvenId } from "./proven-id.ts"
 
 /** The principal a record belongs to, as far as removing it goes. */
@@ -43,10 +44,11 @@ export interface UnidentifiedCreate {
 
 export interface TeardownReport {
 	removed: number
-	failed: Array<{ entity: string; id: string; reason: string }>
+	/** Records still in place, each with the principal that created it. */
+	failed: Array<{ entity: string; id: string; principal: string; reason: string }>
 	unsupported: string[]
-	/** Every record the unwind was given, in creation order, and whether it is gone now. */
-	records: Array<{ entity: string; id: string; removed: boolean }>
+	/** Every record the unwind was given, in creation order, its creator, and whether it is gone now. */
+	records: Array<{ entity: string; id: string; principal: string; removed: boolean }>
 	/** Creates whose record oat could not identify, so could not remove. Each fails the run. */
 	unidentified: UnidentifiedCreate[]
 }
@@ -65,6 +67,8 @@ export class Ledger {
 	private readonly seen = new Set<string>()
 	/* By exchange: one create is reported once, whichever path saw it. */
 	private readonly unknown = new Map<number, UnidentifiedCreate>()
+	/* Records an accepted write moved, by entity and id, with what moved them. */
+	private readonly movedAway = new Map<string, string>()
 
 	record(entity: string, id: ProvenId, scope: Record<string, string>, owner: Owner): void {
 		if (id === "" || id === "undefined") return
@@ -85,6 +89,14 @@ export class Ledger {
 			status: exchange.status,
 			url: exchange.url,
 		})
+	}
+
+	/**
+	 * A write the backend accepted moved a ledgered record — changed a tenant or parent key, say —
+	 * so its creator's 404 no longer shows it gone: it may sit on wherever the write put it.
+	 */
+	moved(entity: string, id: string, reason: string): void {
+		this.movedAway.set(`${entity}\u0000${id}`, reason)
 	}
 
 	/** Every create reported unidentified so far, in the order oat sent them. */
@@ -127,7 +139,9 @@ export class Ledger {
 		 */
 		/* Takes what is ledgered now; a later unwind removes only what was recorded after this one. */
 		const queue = this.items.splice(0).reverse()
-		const records = new Map(queue.map((item) => [item, { entity: item.entity, id: item.id, removed: false }]))
+		const records = new Map(
+			queue.map((item) => [item, { entity: item.entity, id: item.id, principal: item.owner.id, removed: false }]),
+		)
 		const earlierDeletes = new Set(
 			client.transcript
 				.filter((exchange) => exchange.method === "DELETE" && exchange.status >= 200 && exchange.status < 300)
@@ -158,12 +172,14 @@ export class Ledger {
 				report.failed.push({
 					entity: item.entity,
 					id: item.id,
+					principal: item.owner.id,
 					reason: error instanceof Error ? error.message : String(error),
 				})
 				done += 1
 				return
 			}
 
+			const moved = this.movedAway.get(`${item.entity}\u0000${item.id}`)
 			try {
 				const attempts: string[] = []
 				let removed = false
@@ -172,7 +188,10 @@ export class Ledger {
 					attempts.push(`${deleter.id}: ${exchange.status}`)
 					/* Gone is the goal, not a successful call — but only the creator's 404 says the
 					 * record is gone. Anyone else's may just mean they cannot see it. */
-					if (exchange.status < 300 || (index === 0 && (exchange.status === 404 || exchange.status === 410))) {
+					if (
+						exchange.status < 300 ||
+						(index === 0 && moved === undefined && (exchange.status === 404 || exchange.status === 410))
+					) {
 						removed = true
 						break
 					}
@@ -191,13 +210,15 @@ export class Ledger {
 					report.failed.push({
 						entity: item.entity,
 						id: item.id,
-						reason: `DELETE ${path} returned ${attempts.join(", ")}`,
+						principal: item.owner.id,
+						reason: `${moved === undefined ? "" : `${moved}; `}DELETE ${path} returned ${attempts.join(", ")}`,
 					})
 				}
 			} catch (error) {
 				report.failed.push({
 					entity: item.entity,
 					id: item.id,
+					principal: item.owner.id,
 					reason: error instanceof Error ? error.message : String(error),
 				})
 			}
@@ -205,10 +226,11 @@ export class Ledger {
 			onItem?.(done, queue.length, item)
 		}
 		for (const level of levels) {
-			await Promise.all(queue.filter((item) => depthOf(item) === level).map(remove))
+			const removing = queue.filter((item) => depthOf(item) === level)
+			await Promise.all(removing.map(remove))
+			/* Before the parents go: a removed parent takes with it the list its children are read in. */
+			if (verify) await verifyGone(model, client, removing, records, report)
 		}
-
-		if (verify) await verifyGone(model, client, queue, records, report)
 		report.unsupported = [...unsupported]
 		report.records = [...records.values()].toReversed()
 		return report
@@ -217,22 +239,30 @@ export class Ledger {
 
 export const STILL_LISTED = "delete answered 2xx but the record is still listed"
 
+/* The most pages one re-list reads: teardown looks for its own records, it does not crawl. */
+const VERIFY_PAGES = 50
+
+interface ListGroup {
+	identity: string
+	listOp: OperationModel
+	owner: Owner
+	path: string
+	items: Disposable[]
+}
+
 /**
- * One read of each list a removed record lived in, with its creator's credential: a record still
+ * The list a removed record lived in, read again with its creator's credential: a record still
  * listed is a leftover, whatever its delete answered. A read that cannot be sent — fenced, or the
- * network gone — verifies nothing and claims nothing. A record past the largest page is not seen.
+ * network gone — verifies nothing and claims nothing.
  */
 async function verifyGone(
 	model: SpecModel,
 	client: Client,
 	queue: readonly Disposable[],
-	records: ReadonlyMap<Disposable, { entity: string; id: string; removed: boolean }>,
+	records: ReadonlyMap<Disposable, { removed: boolean }>,
 	report: TeardownReport,
 ): Promise<void> {
-	const groups = new Map<
-		string,
-		{ identity: string; listOp: OperationModel; owner: Owner; path: string; items: Disposable[] }
-	>()
+	const groups = new Map<string, ListGroup>()
 	for (const item of queue) {
 		if (records.get(item)?.removed !== true) continue
 		const entity = model.entities.get(item.entity)
@@ -250,31 +280,68 @@ async function verifyGone(
 		groups.set(key, group)
 	}
 	for (const group of groups.values()) {
-		let exchange: Exchange
-		try {
-			exchange = await client.get(group.path, {
-				headers: group.owner.headers(),
-				operationId: group.listOp.operationId,
-				query: largestPageQuery(model, group.listOp),
-			})
-		} catch (error) {
-			if (error instanceof FencedError || isNetworkError(error)) continue
-			throw error
-		}
-		if (exchange.status >= 300) continue
-		const listed = new Set(
-			recordsFromList(exchange.responseBody, group.listOp.collection?.key ?? null).flatMap(
-				(row) => idOf(row, group.identity) ?? [],
-			),
-		)
+		const listed = await stillListed(model, client, group)
+		if (listed === null) continue
 		for (const item of group.items) {
 			const record = records.get(item)
 			if (record === undefined || !listed.has(item.id)) continue
 			record.removed = false
 			report.removed -= 1
-			report.failed.push({ entity: item.entity, id: item.id, reason: STILL_LISTED })
+			report.failed.push({ entity: item.entity, id: item.id, principal: item.owner.id, reason: STILL_LISTED })
 		}
 	}
+}
+
+/**
+ * Which of the group's records its list still holds, read page by page as the list declares its
+ * paging, until the list ends or every one of them has been seen. `null` when the first page could
+ * not be read: nothing is claimed either way.
+ */
+async function stillListed(model: SpecModel, client: Client, group: ListGroup): Promise<Set<string> | null> {
+	const paging = group.listOp.conventions
+	const first = largestPageQuery(model, group.listOp)
+	const wanted = new Set(group.items.map((item) => item.id))
+	const listed = new Set<string>()
+	const seen = new Set<string>()
+	/* The longest page served: a server may cap the size asked for without saying so. */
+	let fullPage = 0
+	let cursor: string | undefined
+	for (let index = 0; index < VERIFY_PAGES; index++) {
+		const query: Record<string, string | number> = { ...first }
+		if (index > 0) {
+			if (paging.page !== undefined) query[paging.page] = index + 1
+			else if (paging.offset !== undefined) query[paging.offset] = seen.size
+			else if (paging.cursor !== undefined && cursor !== undefined) query[paging.cursor] = cursor
+			else break
+		}
+		let exchange: Exchange
+		try {
+			exchange = await client.get(group.path, {
+				headers: group.owner.headers(),
+				operationId: group.listOp.operationId,
+				query,
+			})
+		} catch (error) {
+			if (!(error instanceof FencedError) && !isNetworkError(error)) throw error
+			return index === 0 ? null : listed
+		}
+		if (exchange.status >= 300) return index === 0 ? null : listed
+		const rows = recordsFromList(exchange.responseBody, group.listOp.collection?.key ?? null)
+		const ids = rows.flatMap((row) => idOf(row, group.identity) ?? [])
+		const fresh = ids.filter((id) => !seen.has(id))
+		for (const id of ids) {
+			seen.add(id)
+			if (wanted.has(id)) listed.add(id)
+		}
+		/* An empty page, the same page again, or one shorter than a full page already served ends it. */
+		if (fresh.length === 0 || listed.size === wanted.size) break
+		if (fullPage > 0 && rows.length < fullPage) break
+		fullPage = Math.max(fullPage, rows.length)
+		const next =
+			paging.envelope.nextCursor === undefined ? undefined : readPath(exchange.responseBody, paging.envelope.nextCursor)
+		cursor = typeof next === "string" && next !== "" ? next : undefined
+	}
+	return listed
 }
 
 /**
@@ -315,7 +382,7 @@ export function renderTeardown(report: TeardownReport, created: number): string[
 		)
 	}
 	for (const failure of report.failed.slice(0, 5)) {
-		lines.push(`    ${failure.entity} ${failure.id}: ${failure.reason}`)
+		lines.push(`    ${failure.entity} ${failure.id} (as ${failure.principal}): ${failure.reason}`)
 	}
 	if (report.failed.length > 5) lines.push(`    … and ${report.failed.length - 5} more`)
 	return lines

@@ -26,7 +26,7 @@ import { buildModel } from "../spec/graph.ts"
 import { dereference, loadSpec } from "../spec/load.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
 import { EXPECTED_INCONCLUSIVE } from "./expected-failures.ts"
-import { damagedBystanders, leftBehind, ledgeredNotCreated } from "./leaks.ts"
+import { damagedBystanders, leftBehind, ledgeredNotCreated, unreportedLeftovers } from "./leaks.ts"
 import { SPEC_FIXTURES } from "./specs.ts"
 
 export interface ParserResult {
@@ -1306,6 +1306,8 @@ export interface CaseResult {
 	bystanders?: string[]
 	/** Ids oat ledgered for teardown that the backend never created. */
 	strayLedger?: string[]
+	/** Records left behind that teardown neither named as failed nor counted as unidentified. */
+	unreported?: string[]
 	/** Checks that would have sent a value oat did not have (the text "undefined"), as `check@entity`. */
 	missingValues?: string[]
 	/** Checks that ran and could not reach a verdict, as `check@entity: reason`. */
@@ -1331,6 +1333,7 @@ async function runAgainst(
 	bystanders: string[]
 	strayLedger: string[]
 	missingValues: string[]
+	unreported: string[]
 }> {
 	/* One HTTP implementation, one store per engine — see reference/http.ts. Imported lazily so
 	 * an optional runtime such as node:sqlite cannot take down paths that never touch it. */
@@ -1360,6 +1363,8 @@ async function runAgainst(
 		/* oat changes only what it made, and ledgers only what the backend made for it. */
 		const bystanders = damagedBystanders(before, after)
 		const strayLedger = ledgeredNotCreated(result.teardown?.records ?? [], server.createdIds())
+		/* Whatever the defect let through, a record oat leaves behind is one it must name. */
+		const unreported = unreportedLeftovers(leakedRecords, result.teardown)
 		/* A request made from a value oat did not have is refused before it leaves; any such check
 		 * is a hole in oat, whatever the backend did. */
 		const missingValues = result.inconclusive
@@ -1375,6 +1380,7 @@ async function runAgainst(
 			leakedRecords,
 			bystanders,
 			strayLedger,
+			unreported,
 		}
 	} finally {
 		await server.close()
@@ -1439,12 +1445,22 @@ export async function runBaselines(backend: Backend = "memory", dialect = "postg
 
 	/* Baseline first — everything downstream is meaningless if this is not clean. */
 	try {
-		const { findings, entitiesTested, checksRun, leaked, inconclusive, bystanders, strayLedger, missingValues } =
-			await runAgainst([], false, backend, dialect)
+		const {
+			findings,
+			entitiesTested,
+			checksRun,
+			leaked,
+			inconclusive,
+			bystanders,
+			strayLedger,
+			missingValues,
+			unreported,
+		} = await runAgainst([], false, backend, dialect)
 		const real = findings.filter((f) => f.verdict !== "COVERAGE_GAP")
 		results.push({
 			bystanders,
 			strayLedger,
+			unreported,
 			missingValues,
 			checksRun,
 			inconclusive: inconclusive.map((item) => `${item.check}@${item.entity}: ${item.reason}`),
@@ -1476,12 +1492,13 @@ export async function runBaselines(backend: Backend = "memory", dialect = "postg
 	 * backend when it is running on heuristics alone — a fallback that invents findings would
 	 * make the tool unusable on any spec that has not been annotated yet. */
 	try {
-		const { findings, entitiesTested, checksRun, inconclusive, bystanders, strayLedger, missingValues } =
+		const { findings, entitiesTested, checksRun, inconclusive, bystanders, strayLedger, missingValues, unreported } =
 			await runAgainst([], true, backend, dialect)
 		const real = findings.filter((f) => f.verdict !== "COVERAGE_GAP")
 		results.push({
 			bystanders,
 			strayLedger,
+			unreported,
 			missingValues,
 			checksRun,
 			defect: null,
@@ -1603,17 +1620,12 @@ export async function judgeDefect(
 	const expected = EXPECTED[defect]
 	const acceptable = acceptableOf(expected)
 	try {
-		const { findings, entitiesTested, checksRun, bystanders, strayLedger, missingValues } = await runAgainst(
-			[defect],
-			false,
-			backend,
-			dialect,
-			shape,
-		)
+		const { findings, entitiesTested, checksRun, bystanders, strayLedger, missingValues, unreported } =
+			await runAgainst([defect], false, backend, dialect, shape)
 		/* A defect that by design rewrites other rows is the backend's doing, not oat's. */
 		const touched = DAMAGES_BYSTANDERS.has(defect)
-			? { bystanders: [], missingValues, strayLedger }
-			: { bystanders, missingValues, strayLedger }
+			? { bystanders: [], missingValues, strayLedger, unreported }
+			: { bystanders, missingValues, strayLedger, unreported }
 		const reproFailures = await checkReproSyntax(findings)
 		if (reproFailures.length > 0) {
 			return {
@@ -1694,10 +1706,12 @@ export function renderSuite(
 		const bystanders = result.bystanders ?? []
 		const strayLedger = result.strayLedger ?? []
 		const missingValues = result.missingValues ?? []
+		const unreported = result.unreported ?? []
 		const ok =
 			bystanders.length === 0 &&
 			strayLedger.length === 0 &&
 			missingValues.length === 0 &&
+			unreported.length === 0 &&
 			(isBaseline
 				? result.spurious.length === 0 &&
 					!vacuous &&
@@ -1733,6 +1747,11 @@ export function renderSuite(
 		}
 		if (missingValues.length > 0) {
 			lines.push(`      would have sent a value it did not have: ${missingValues.slice(0, 4).join("; ")}`)
+		}
+		if (unreported.length > 0) {
+			lines.push(
+				`      left ${unreported.length} record(s) behind without reporting them: ${unreported.slice(0, 4).join("; ")}`,
+			)
 		}
 		if (leaked > 0) {
 			lines.push(

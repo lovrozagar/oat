@@ -33,7 +33,12 @@ describe("teardown verification", () => {
 		const kept = result.teardown?.failed.filter((leftover) => leftover.reason === STILL_LISTED) ?? []
 		expect(kept.length).toBeGreaterThan(0)
 		for (const leftover of kept) {
-			expect(result.teardown?.records).toContainEqual({ entity: leftover.entity, id: leftover.id, removed: false })
+			expect(result.teardown?.records).toContainEqual({
+				entity: leftover.entity,
+				id: leftover.id,
+				principal: leftover.principal,
+				removed: false,
+			})
 		}
 	}, 240_000)
 

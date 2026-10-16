@@ -202,9 +202,9 @@ export function renderMarkdown(input: ReportInput): string {
 
 	/* Records oat made and cannot remove: first, since someone has to clean them up by hand. */
 	const unidentified = input.teardown?.unidentified ?? []
+	const unremoved = input.teardown?.failed ?? []
+	if (unidentified.length > 0 || unremoved.length > 0) lines.push("## Leftovers", "")
 	if (unidentified.length > 0) {
-		lines.push("## Leftovers")
-		lines.push("")
 		lines.push("Each create answered 2xx, but no id could be read from its answer or confirmed by a read, so")
 		lines.push("teardown could not remove what it made. Declare `x-entity.createdIdFrom` where the id is.")
 		lines.push("")
@@ -212,6 +212,14 @@ export function renderMarkdown(input: ReportInput): string {
 			lines.push(
 				`- \`${create.method} ${redactUrl(create.url)}\` · ${create.operationId} · ${create.status} · exchange #${create.seq}`,
 			)
+		}
+		lines.push("")
+	}
+	if (unremoved.length > 0) {
+		lines.push("Records teardown could not show gone, each with the principal that created it:")
+		lines.push("")
+		for (const record of unremoved) {
+			lines.push(`- ${record.entity} \`${record.id}\` · as ${record.principal} · ${record.reason}`)
 		}
 		lines.push("")
 	}

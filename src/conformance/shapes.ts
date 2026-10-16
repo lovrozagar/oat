@@ -179,6 +179,12 @@ export async function runShapeRecall(backend: Backend, shapes: readonly ShapeCas
 			for (const where of (result.missingValues ?? []).slice(0, 3)) {
 				problems.push(`would have sent a value it did not have: ${where}`)
 			}
+			const unreported = result.unreported ?? []
+			if (unreported.length > 0) {
+				problems.push(
+					`left ${unreported.length} record(s) behind without reporting them: ${unreported.slice(0, 4).join("; ")}`,
+				)
+			}
 			cases.push({ expected: EXPECTED_FAILURES[label], label, problems, why: `${defect} behind ${name}` })
 		}
 	}
