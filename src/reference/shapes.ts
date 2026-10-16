@@ -60,6 +60,8 @@ export interface ReferenceShape {
 	 * repeated (`?sort=A_descending&sort=B_ascending`), declared as a template with `join: "repeat"`.
 	 */
 	repeatedSort?: boolean
+	/** Route parameters are documented as bare strings, whatever the identity is: some frameworks emit them so. */
+	bareIdParams?: boolean
 }
 
 export interface NamedShape {
@@ -150,6 +152,7 @@ export const SHAPES: readonly NamedShape[] = [
 			recordEnvelope: true,
 			relatedRecord: true,
 			repeatedSort: true,
+			bareIdParams: true,
 		},
 		why: "an upper-case integer ID, records wrapped on create and read, writes answered without the record, rows beside a fields sidecar, a related record nested in each, and several sort keys as the parameter repeated",
 	},

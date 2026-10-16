@@ -232,6 +232,8 @@ const graded = (ctx: CheckContext, op: OperationModel): boolean => ctx.inScope?.
 
 /** This entity's identifier as its item route takes it: the path parameter's schema, else the record's. */
 function identifierSchema(ctx: CheckContext): Record<string, unknown> {
+	const properties = (ctx.listOp.collection?.itemSchema?.properties ?? {}) as Record<string, Record<string, unknown>>
+	const recordIdentity = properties[ctx.identity]
 	for (const op of [ctx.readOp, ctx.deleteOp, ctx.updateOp]) {
 		if (op === undefined) continue
 		const name = op.pathParams.at(-1)
@@ -239,10 +241,23 @@ function identifierSchema(ctx: CheckContext): Record<string, unknown> {
 		const declared = (raw?.parameters ?? []).find(
 			(parameter) => "name" in parameter && parameter.in === "path" && parameter.name === name,
 		) as { schema?: Record<string, unknown> } | undefined
-		if (declared?.schema !== undefined) return declared.schema
+		if (declared?.schema === undefined) continue
+		/* A route parameter documented as a bare string says nothing; the record's own identity
+		 * (an integer, a uuid) says what an identifier looks like. */
+		if (bareString(declared.schema) && recordIdentity !== undefined && !bareString(recordIdentity)) {
+			return recordIdentity
+		}
+		return declared.schema
 	}
-	const properties = (ctx.listOp.collection?.itemSchema?.properties ?? {}) as Record<string, Record<string, unknown>>
-	return properties[ctx.identity] ?? { type: "string" }
+	return recordIdentity ?? { type: "string" }
+}
+
+/* A string schema with nothing that narrows it: no format, pattern, enum or length. */
+function bareString(schema: Record<string, unknown>): boolean {
+	return (
+		schema.type === "string" &&
+		["format", "pattern", "enum", "minLength", "maxLength", "const"].every((key) => schema[key] === undefined)
+	)
 }
 
 /**
@@ -250,7 +265,7 @@ function identifierSchema(ctx: CheckContext): Record<string, unknown> {
  * with a 400 before existence is ever considered, and comparing that with a real 404 reads as a
  * leak that is not there.
  */
-function absentId(ctx: CheckContext): string | null {
+export function absentId(ctx: CheckContext): string | null {
 	return constructedAbsentId(ctx)
 }
 

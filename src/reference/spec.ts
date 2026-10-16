@@ -44,6 +44,7 @@ function fieldSchema(field: FieldDef): Json {
 
 /** The schema of an identifier in a path, matching the identity it names. */
 function idSchema(ctx: SpecContext, param: string): Json {
+	if (ctx.shape.bareIdParams === true) return { type: "string" }
 	const owner = ctx.entities.find((entity) => entity.itemParam === param)
 	const identity = owner?.fields.find((field) => field.name === owner.identity)
 	if (identity?.type === "integer") return { minimum: 1, type: "integer" }
