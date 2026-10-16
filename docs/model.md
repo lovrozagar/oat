@@ -143,7 +143,7 @@ Otherwise oat concatenates the filter/order/select parameter's `example`, `examp
 - Sort: `name.asc` → dotted; `name:desc` → colon; `name desc` → spaced; leading `-field` → prefixed; else dotted.
 - Select: parameter name or description contains `fields[…]` → bracketed; else csv.
 
-Without `x-query`, if a filter/order/select/search role resolves, oat assumes **every scalar** is filterable/sortable/selectable (`string` / `number` / `integer` / `boolean`, including nullable unions). Searchable-without-tag is further narrowed to names matching `name|title|slug|label|description|email`. `doctor` warns. Pagination-only lists stay uncovered.
+Without `x-query`, if a filter/order/select/search role resolves, oat assumes **every scalar** is filterable/sortable/selectable (`string` / `number` / `integer` / `boolean`, including nullable unions). Sortable-without-tag leaves out the list's own path parameters (`project_id` under `/projects/{project_id}/tables`): every listed record holds the same value, so ordering by it shows nothing. Searchable-without-tag is further narrowed to names matching `name|title|slug|label|description|email`. `doctor` warns. Pagination-only lists stay uncovered.
 
 That heuristic runs **only** for an axis that was not tagged and not set in config. An explicit empty claim — `filterable: []`, `searchable: null`, `selectable: []`, `sortable: []` — is a claim of none. oat will not infer scalars over it.
 

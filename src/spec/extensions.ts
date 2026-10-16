@@ -283,7 +283,8 @@ export function readQueryCapability(
 		filterable: scalars,
 		searchable: scalars.filter((f) => /name|title|slug|label|description|email/i.test(f)),
 		selectable: scalars,
-		sortable: scalars,
+		/* A parameter of the list's own path holds one value across the listing: ordering by it shows nothing. */
+		sortable: scalars.filter((field) => !endpoint.path.includes(`{${field}}`)),
 		source: "heuristic",
 	}
 	if (conventions.limit !== undefined) {
