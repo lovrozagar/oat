@@ -8786,7 +8786,10 @@ function computePickMultiKeyPair(ctx: CheckContext): { primary: string; secondar
 		for (const secondary of fields) {
 			if (secondary === primary || secondary === ctx.identity) continue
 			const groups = new Map<string, Record_[]>()
-			for (const row of ctx.records) {
+			/* A field a row does not carry is no value to tie on, and no value to order by. */
+			for (const row of ctx.records.filter(
+				(record) => record[primary] !== undefined && record[secondary] !== undefined,
+			)) {
 				const key = JSON.stringify(row[primary])
 				const group = groups.get(key) ?? []
 				group.push(row)
@@ -8830,7 +8833,13 @@ const sortMultiKeyTiebreak: Check<{ primary: string; secondary: string; tied: Re
 		if (order === null) return ctx.findings.unresolved(this.id, ctx.entityName, "the grammar sorts by one key only")
 		const result = await collectSet(ctx, pageSize(ctx), {}, order)
 		if (result === null) return ctx.findings.unresolved(this.id, ctx.entityName, "multi-key order was rejected")
-		const slice = result.items.filter((item) => JSON.stringify(item[primary]) === JSON.stringify(tied[0]?.[primary]))
+		const slice = result.items.filter(
+			(item) => item[secondary] !== undefined && JSON.stringify(item[primary]) === JSON.stringify(tied[0]?.[primary]),
+		)
+		/* The listing must show the tie it is judged on: rows without the keys say nothing. */
+		if (slice.length < 2) {
+			return ctx.findings.unresolved(this.id, ctx.entityName, `the listing does not show rows tied on ${primary}`)
+		}
 		const seconds = slice.map((item) => item[secondary]).reverse()
 		if (sortedUnder(ctx, secondary, seconds) !== null) return ASSERTED
 		return ctx.findings.backend(
