@@ -96,6 +96,11 @@ const FIELD_LIST: Json = {
 	},
 	type: "array",
 }
+/** The identity the document declares: under `tableKey`, a table is known by its slug. */
+function declaredIdentity(ctx: SpecContext, entity: EntityDef): string {
+	return ctx.shape.tableKey === "slug" && entity.name === "table" ? "slug" : entity.identity
+}
+
 function identitySchema(entity: EntityDef): Json {
 	const field = entity.fields.find((candidate) => candidate.name === entity.identity)
 	return field === undefined ? { type: "string" } : fieldSchema(field)
@@ -485,7 +490,12 @@ function buildEntityPaths(ctx: SpecContext, entity: EntityDef, dialect: Dialect)
 			},
 			summary: `List ${entity.plural}`,
 			tags: [title],
-			"x-entity": { action: "list", identity: entity.identity, name: entity.name, ...located(ctx, entity, "list") },
+			"x-entity": {
+				action: "list",
+				identity: declaredIdentity(ctx, entity),
+				name: entity.name,
+				...located(ctx, entity, "list"),
+			},
 			"x-query": query,
 			/* Generous enough never to slow a run; declared so a stricter real limit is testable. */
 			"x-rate-limit": { category: `${entity.name}.list`, rps: 500 },
@@ -530,7 +540,12 @@ function buildEntityPaths(ctx: SpecContext, entity: EntityDef, dialect: Dialect)
 			},
 			summary: `Create ${entity.name}`,
 			tags: [title],
-			"x-entity": { action: "create", identity: entity.identity, name: entity.name, ...located(ctx, entity, "create") },
+			"x-entity": {
+				action: "create",
+				identity: declaredIdentity(ctx, entity),
+				name: entity.name,
+				...located(ctx, entity, "create"),
+			},
 			"x-generated": fieldsWhere(entity, "generated"),
 			...(entity.unique === undefined || entity.unique.length === 0 ? {} : { "x-unique": entity.unique }),
 			/*
@@ -553,7 +568,7 @@ function buildEntityPaths(ctx: SpecContext, entity: EntityDef, dialect: Dialect)
 			},
 			summary: `Delete ${entity.name}`,
 			tags: [title],
-			"x-entity": { action: "delete", identity: entity.identity, name: entity.name },
+			"x-entity": { action: "delete", identity: declaredIdentity(ctx, entity), name: entity.name },
 			/* A delete changes the parent's derived count just as a create does. */
 			"x-invalidate": [...surface, ...parentReadRoutes(ctx, entity)],
 			"x-tenant": tenantParam(entity),
@@ -568,7 +583,12 @@ function buildEntityPaths(ctx: SpecContext, entity: EntityDef, dialect: Dialect)
 			},
 			summary: `Get ${entity.name}`,
 			tags: [title],
-			"x-entity": { action: "read", identity: entity.identity, name: entity.name, ...located(ctx, entity, "read") },
+			"x-entity": {
+				action: "read",
+				identity: declaredIdentity(ctx, entity),
+				name: entity.name,
+				...located(ctx, entity, "read"),
+			},
 			"x-tenant": tenantParam(entity),
 		},
 		[ctx.shape.updateMethod === "PUT" ? "put" : "patch"]: {
@@ -586,7 +606,7 @@ function buildEntityPaths(ctx: SpecContext, entity: EntityDef, dialect: Dialect)
 			},
 			summary: `Update ${entity.name}`,
 			tags: [title],
-			"x-entity": { action: "update", identity: entity.identity, name: entity.name },
+			"x-entity": { action: "update", identity: declaredIdentity(ctx, entity), name: entity.name },
 			/* Declared here as well as on create. Real documents often list server-owned fields
 			 * only where they are conspicuous — the fields a caller may not supply — and a tool
 			 * that reads just one operation then treats a generated field as client-owned. */
@@ -635,7 +655,7 @@ export function buildSpec(dialect: Dialect = POSTGREST, ctx: SpecContext = DEFAU
 			},
 			summary: "Invite another principal to read this table",
 			tags: ["Table"],
-			"x-entity": { action: "action", identity: TABLE.identity, name: TABLE.name },
+			"x-entity": { action: "action", identity: declaredIdentity(ctx, TABLE), name: TABLE.name },
 			"x-invite": {
 				accept: "invite.accept",
 				grantPointer: "$.grant_id",
@@ -662,7 +682,7 @@ export function buildSpec(dialect: Dialect = POSTGREST, ctx: SpecContext = DEFAU
 			},
 			summary: "Accept an invite",
 			tags: ["Table"],
-			"x-entity": { action: "action", identity: TABLE.identity, name: TABLE.name },
+			"x-entity": { action: "action", identity: declaredIdentity(ctx, TABLE), name: TABLE.name },
 		},
 	}
 	paths[`${TABLE.itemPath}/grants/{grant_id}`] = {
@@ -683,7 +703,7 @@ export function buildSpec(dialect: Dialect = POSTGREST, ctx: SpecContext = DEFAU
 			},
 			summary: "Revoke a grant",
 			tags: ["Table"],
-			"x-entity": { action: "action", identity: TABLE.identity, name: TABLE.name },
+			"x-entity": { action: "action", identity: declaredIdentity(ctx, TABLE), name: TABLE.name },
 			"x-tenant": tenantParam(TABLE),
 		},
 	}

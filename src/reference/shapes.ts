@@ -62,6 +62,11 @@ export interface ReferenceShape {
 	repeatedSort?: boolean
 	/** Route parameters are documented as bare strings, whatever the identity is: some frameworks emit them so. */
 	bareIdParams?: boolean
+	/**
+	 * A table is named in paths by a slug the server derives from its name, unique only within its
+	 * project: two tenants can each hold `quarterly-report-0`. Rows keep the table's internal id.
+	 */
+	tableKey?: "slug"
 }
 
 export interface NamedShape {
@@ -186,6 +191,17 @@ export const SHAPES: readonly NamedShape[] = [
 		name: "client-ids",
 		shape: { ackCreate: true, clientIds: { max: 999, min: 1 }, ids: "integer", prepopulate: 5 },
 		why: "the client picks a table's integer id and the create only acknowledges, with tables already present",
+	},
+	{
+		cannotRun: {
+			"create.unique-conflict-rejected": "the document declares nothing unique",
+			"update.unique-conflict-rejected": "the document declares nothing unique",
+		},
+		/* Nothing is declared unique, so there is no declared uniqueness to stop enforcing. */
+		cannotExhibit: ["UNIQUE_NOT_ENFORCED"],
+		name: "tenant-slugs",
+		shape: { tableKey: "slug" },
+		why: "a table is named by a slug derived from its name, unique only within its project",
 	},
 	{
 		name: "strict-filter-types",

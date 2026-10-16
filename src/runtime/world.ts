@@ -372,6 +372,17 @@ export async function resolvePathScope(
 	return scope
 }
 
+/** Top-level properties of a request schema that hold text. */
+export function stringProperties(schema: Record<string, unknown> | null): string[] {
+	const properties = (schema?.properties ?? {}) as Record<string, unknown>
+	return Object.entries(properties)
+		.filter(([, property]) => {
+			const type = isPlainRecord(property) ? property.type : undefined
+			return type === "string" || (Array.isArray(type) && type.includes("string"))
+		})
+		.map(([name]) => name)
+}
+
 /** Ancestor creates under way, per ancestor cache. */
 const INFLIGHT = new WeakMap<Map<string, string>, Map<string, Promise<string>>>()
 
@@ -396,7 +407,10 @@ async function createOne(
 	try {
 		;[member] = buildCohort(schema ?? {}, options.seed, ["baseline"], createOp.operationId, {
 			defs: model.defs,
-			distinct: new Set((createOp.unique ?? []).flat()),
+			/* A parent made as scaffolding carries the nonce in every string, not only the unique ones:
+			 * a server that derives an undeclared key from a name (a slug) must never see the name the
+			 * entity's own cohort, another tenant's parent, existing data or a later run takes. */
+			distinct: new Set([...(createOp.unique ?? []).flat(), ...stringProperties(schema)]),
 			...(options.nonce === undefined ? {} : { nonce: options.nonce }),
 		})
 	} catch (error) {

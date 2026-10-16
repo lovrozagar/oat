@@ -356,6 +356,29 @@ export async function createReferenceServer(
 		return id
 	}
 	const now = (): number => 1_700_000_000_000 + sequence * 1000
+	/* Under `tableKey: "slug"`, each table's slug by its internal id: the identity a client knows. */
+	const slugOf = new Map<string, string>()
+
+	/**
+	 * The internal id of the table a path's `{table_id}` names. Under `tableKey: "slug"` that is the
+	 * slug, looked up in the path's project — two projects may each hold one — and, under
+	 * FOREIGN_PARENT_ACCEPTED, in any project when the path's has none. Elsewhere it is the id.
+	 */
+	async function tableByKey(projectId: string, raw: string): Promise<string | number> {
+		if (shape.tableKey !== "slug") return pathId(TABLE.itemParam, raw)
+		const named = await store.select(TABLE, {
+			collation: "binary",
+			order: [],
+			shuffleTies: false,
+			where: { field: "slug", kind: "cmp", asText: false, nullsMatch: false, op: "eq", value: raw },
+		})
+		/* A live table before a deleted one: a slug is free again once its table is gone. */
+		const live = named.toSorted((a, b) => Number(tombstoned(TABLE, a)) - Number(tombstoned(TABLE, b)))
+		const table =
+			live.find((row) => row[TENANT_FIELD] === projectId) ??
+			(defects.has("FOREIGN_PARENT_ACCEPTED") ? live[0] : undefined)
+		return table === undefined ? `${TABLE.name}:missing:${raw}` : (table[TABLE.identity] as string | number)
+	}
 
 	/**
 	 * Reads one path identifier as the type its entity declares. A malformed one is a 400 — the
@@ -579,7 +602,11 @@ export async function createReferenceServer(
 
 	async function assertUnique(entity: EntityDef, record: Row, exceptId: string | undefined): Promise<void> {
 		if (defects.has("UNIQUE_NOT_ENFORCED")) return
-		const sets = entity.unique ?? []
+		/* A slug names a table within its project, so it is unique there; the document does not say so. */
+		const sets = [
+			...(entity.unique ?? []),
+			...(shape.tableKey === "slug" && entity.name === TABLE.name ? [["slug"]] : []),
+		]
 		if (sets.length === 0) return
 		const scope: Row = {}
 		for (const parent of entity.parents) scope[parent] = record[parent]
@@ -605,6 +632,10 @@ export async function createReferenceServer(
 		if (entity.softDeleteField !== undefined) record[entity.softDeleteField] = null
 		/* A server-generated field large enough that one page of records exceeds 256 KiB. */
 		if (entity.fields.some((field) => field.name === "padding")) record.padding = PADDING
+		if (shape.tableKey === "slug" && entity.name === TABLE.name) {
+			record.slug = slugify(String(record.name ?? ""))
+			slugOf.set(String(record[entity.identity]), record.slug as string)
+		}
 		for (const field of entity.fields) {
 			if (record[field.name] !== undefined) continue
 			record[field.name] = emptyValue(field)
@@ -872,7 +903,7 @@ export async function createReferenceServer(
 		if (inviteMatch !== null && method === "POST") {
 			const principal = authenticate(req)
 			const projectId = inviteMatch[1] ?? ""
-			const tableId = pathId(TABLE.itemParam, inviteMatch[2] ?? "")
+			const tableId = await tableByKey(projectId, inviteMatch[2] ?? "")
 			if (projectId !== principal.projectId) {
 				throw new HttpError(403, "forbidden", "resource belongs to another tenant")
 			}
@@ -915,7 +946,7 @@ export async function createReferenceServer(
 		if (revokeMatch !== null && method === "DELETE") {
 			const principal = authenticate(req)
 			const projectId = revokeMatch[1] ?? ""
-			const tableId = String(pathId(TABLE.itemParam, revokeMatch[2] ?? ""))
+			const tableId = String(await tableByKey(projectId, revokeMatch[2] ?? ""))
 			const grantId = revokeMatch[3] ?? ""
 			if (projectId !== principal.projectId) {
 				throw new HttpError(403, "forbidden", "resource belongs to another tenant")
@@ -987,6 +1018,9 @@ export async function createReferenceServer(
 		const principal = authenticate(req)
 		const { entity } = match
 		const scope = typedScope(match.scope)
+		if (shape.tableKey === "slug" && match.scope.table_id !== undefined) {
+			scope.table_id = await tableByKey(String(scope.project_id ?? ""), match.scope.table_id)
+		}
 		const itemId = match.itemId === null ? null : (scope[entity.itemParam] ?? null)
 		/* Item GET may be a delegated read — assertTenant would 403 a valid grant before
 		 * findItem can honour it. Collection GET and mutations stay tenant-bound. */
@@ -1234,6 +1268,8 @@ export async function createReferenceServer(
 					: { ...patch }
 			changes.updated_at = now()
 			delete changes[entity.identity]
+			/* Under `tableKey: "slug"` the slug is the identity a client knows: no write changes it. */
+			if (shape.tableKey === "slug" && entity.name === TABLE.name) delete changes.slug
 			delete changes.created_at
 			if (!defects.has("IMMUTABLE_WRITABLE")) {
 				for (const parent of entity.parents) delete changes[parent]
@@ -1335,7 +1371,14 @@ export async function createReferenceServer(
 						/* Teardown must not turn a completed run into a failed one. */
 					}
 				},
-				createdIds: () => Object.fromEntries(Object.entries(caused).map(([name, ids]) => [name, [...new Set(ids)]])),
+				/* A table's id, under `tableKey: "slug"`, is its slug: what a client could have ledgered. */
+				createdIds: () =>
+					Object.fromEntries(
+						Object.entries(caused).map(([name, ids]) => [
+							name,
+							[...new Set(name === TABLE.name ? ids.map((id) => slugOf.get(id) ?? id) : ids)],
+						]),
+					),
 				defects,
 				principals: PRINCIPALS,
 				server,
@@ -1349,8 +1392,8 @@ export async function createReferenceServer(
 							where: { kind: "const", value: true },
 						})
 						/* Keyed by `id` whatever the identity is called, so the leak checks read every shape. */
-						out[entity.name] =
-							entity.identity === "id" ? rows : rows.map((row) => ({ ...row, id: row[entity.identity] }))
+						const known = shape.tableKey === "slug" && entity.name === TABLE.name ? "slug" : entity.identity
+						out[entity.name] = known === "id" ? rows : rows.map((row) => ({ ...row, id: row[known] }))
 					}
 					return out
 				},
@@ -1361,6 +1404,11 @@ export async function createReferenceServer(
 }
 
 type Json = Record<string, unknown>
+
+/* `Quarterly Report 0` → `quarterly-report-0`. */
+function slugify(name: string): string {
+	return name.toLowerCase().replace(/[^a-z0-9]+/g, "-")
+}
 
 function send(res: ServerResponse, status: number, body: Json, extraHeaders: Record<string, string> = {}): void {
 	const payload = JSON.stringify(body)

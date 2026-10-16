@@ -49,6 +49,7 @@ import {
 	documentedPage,
 	documentsStatus,
 	largestPageQuery,
+	owningEntityOf,
 	readStatuses,
 } from "../spec/graph.ts"
 import type { OperationObject } from "../spec/types.ts"
@@ -90,6 +91,7 @@ import {
 	idOf,
 	isPlanLimitResponse,
 	recordOf,
+	stringProperties,
 } from "./world.ts"
 import {
 	bodyPropertyNames,
@@ -4561,6 +4563,9 @@ const foreignParentRejected: Check<{
 		if (altScope[tenantParam] === ctx.scope[tenantParam]) return cannot()
 		const parents = ctx.listOp.pathParams.filter((param) => param !== tenantParam && ctx.scope[param] !== undefined)
 		if (parents.length === 0) return cannot("a parent below the tenant in the collection's path")
+		/* Both tenants configured with the same parent: under the other root it is that tenant's own. */
+		const same = parents.find((param) => altScope[param] === ctx.scope[param])
+		if (same !== undefined) return cannot(`the other tenant's ${same} has the same identity as the owner's`)
 		/* The owner's parents, under the other tenant's root. */
 		const mixed = { ...ctx.scope, [tenantParam]: altScope[tenantParam] as string }
 		return ready({ altAuth, mixed, parents, tenantParam })
@@ -4583,6 +4588,10 @@ const foreignParentRejected: Check<{
 						summary,
 						verdict: "AMBIGUITY",
 					})
+		/* The other tenant may hold a parent of its own under the owner's parent's identity — a slug
+		 * derived from a shared name. Reaching it is the backend being right, not a boundary crossed. */
+		const collision = await ownParentOfTheOther(ctx, altAuth, mixed, parents)
+		if (collision !== null) return ctx.findings.unresolved(this.id, ctx.entityName, collision)
 		const owned = setOf(ctx.records, ctx.identity)
 
 		const listed = await list(ctx, q(ctx, { limit: pageSize(ctx) }), altAuth, mixed)
@@ -4625,6 +4634,51 @@ const foreignParentRejected: Check<{
 		}
 		return ASSERTED
 	},
+}
+
+/**
+ * Why the owner's parents, placed under the other tenant's root, may name the other tenant's own
+ * records — or `null` when they do not. Parents are walked top-down, each one's collection read
+ * whole under the other root. The walk stops at the first level holding nothing named like the
+ * owner's: from there down the path names the owner's records, and the probe tests a real
+ * boundary. A path whose every parent the other tenant also holds tests none.
+ */
+async function ownParentOfTheOther(
+	ctx: WriteContext,
+	altAuth: () => Record<string, string>,
+	mixed: Record<string, string>,
+	parents: readonly string[],
+): Promise<string | null> {
+	let collision: string | null = null
+	for (const param of parents) {
+		const value = mixed[param] as string
+		const name = owningEntityOf(ctx.model.operations, ctx.listOp.path, param)
+		const entity = name === null ? undefined : ctx.model.entities.get(name)
+		if (entity === undefined) return null
+		const listOp = entity.list === undefined ? undefined : ctx.model.byOperationId.get(entity.list)
+		if (listOp === undefined) {
+			const readOp = entity.read === undefined ? undefined : ctx.model.byOperationId.get(entity.read)
+			if (readOp === undefined || !canFillPath(readOp.path, mixed)) return null
+			const read = await ctx.client.get(fillPath(readOp.path, mixed), {
+				headers: altAuth(),
+				operationId: readOp.operationId,
+			})
+			if (read.status >= 300) return null
+			return `cannot tell whether the other tenant holds its own ${entity.name} ${value}`
+		}
+		const identity = entity.identity ?? "id"
+		const read = await readSet(
+			{ ...ctx, identity, listOp, scope: mixed },
+			{},
+			{ auth: altAuth, fresh: true, scope: mixed },
+		)
+		if (read.status !== "ok" || !read.complete) {
+			return `the other tenant's ${entity.name} list could not be read whole, so a ${entity.name} ${value} of its own is not ruled out`
+		}
+		if (!ids(read.items, identity).includes(value)) return null
+		collision ??= `the other tenant holds a ${entity.name} ${value} of its own, so the owner's ${param} under its root names that ${entity.name}`
+	}
+	return collision
 }
 
 const crossTenantFilterBypass: Check<{
@@ -5804,7 +5858,9 @@ export function validBody(ctx: CheckContext, schema: Record<string, unknown>): R
 	const salt = `${ctx.nonce}b${saltOf(ctx)}`
 	const [member] = buildCohort(schema, ctx.seed, ["baseline"], ctx.createOp?.operationId ?? ctx.entityName, {
 		defs: ctx.model.defs,
-		distinct: new Set((ctx.uniqueSets ?? []).flat()),
+		/* Every string carries the body's own salt, not only the unique ones: a server that derives an
+		 * undeclared key from a name (a slug) refuses a record named like one the cohort holds. */
+		distinct: new Set([...(ctx.uniqueSets ?? []).flat(), ...stringProperties(schema)]),
 		nonce: salt,
 	})
 	let body = member?.body ?? {}

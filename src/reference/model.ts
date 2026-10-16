@@ -288,6 +288,7 @@ export function shapedEntities(shape: {
 	specLayout?: boolean
 	clientIds?: { min: number; max: number }
 	identityField?: string
+	tableKey?: "slug"
 }): EntityDef[] {
 	const idField = (field: FieldDef): FieldDef => {
 		if (shape.ids === "uuid") return { ...field, format: "uuid", type: "string" }
@@ -350,6 +351,15 @@ export function shapedEntities(shape: {
 					}
 				}
 				unique = [...(entity.unique ?? []), [entity.identity]]
+			}
+			if (shape.tableKey === "slug") {
+				/* The server derives it from the name; it is as long as a name may be. */
+				const at = fields.findIndex((field) => field.name === "slug")
+				const slug = fields[at]
+				if (slug !== undefined) fields[at] = { ...slug, generated: true, maxLength: 128, required: true }
+				/* Names may repeat across projects and the document declares nothing unique: the
+				 * server refuses only a slug its project already holds. */
+				unique = []
 			}
 			if (shape.writeOnlyField === true) {
 				fields.push({ maxLength: 64, name: "secret", required: true, type: "string", writeOnly: true })

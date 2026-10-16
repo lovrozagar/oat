@@ -1323,7 +1323,9 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					onCreate: recorder(ownerOf(principal)),
 					onUnidentified: unidentified,
 					principal: principal.id,
-					nonce,
+					/* Its own nonce: its parents must not share the first principal's names, or a server
+					 * deriving a key from them gives both tenants the same one. */
+					nonce: `${nonce}-${seedOffset}`,
 					roots,
 					seed: seed + seedOffset,
 					uploads: worldUploads(seedOffset),
