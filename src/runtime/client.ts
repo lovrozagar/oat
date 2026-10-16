@@ -17,6 +17,7 @@ import {
 import {
 	headerValue,
 	MAX_429_RETRIES,
+	GATEWAY_RETRY_MS,
 	MAX_UNAVAILABLE_RETRIES,
 	parseRetryAfter,
 	retryWaitMs,
@@ -692,6 +693,14 @@ export class Client {
 			this.supersede(exchange)
 			exchange = await resilient()
 		}
+		/* A gateway in front of the API answers 502, 503 or 504 now and then without the request
+		 * reaching it. A read is safe to ask again: once, after a pause. A status that persists
+		 * stands, and a write is never repeated. */
+		if (GATEWAY_STATUSES.has(exchange.status) && READ_METHODS.has(method.toUpperCase())) {
+			await new Promise<void>((resolve) => setTimeout(resolve, GATEWAY_RETRY_MS))
+			this.supersede(exchange)
+			exchange = await resilient()
+		}
 		return exchange
 	}
 
@@ -1060,3 +1069,7 @@ function carriesMissingValue(url: URL): boolean {
 		[...url.searchParams.values()].includes("undefined")
 	)
 }
+
+/* Statuses a gateway answers on its own; a read that met one is asked once more. */
+const GATEWAY_STATUSES = new Set([502, 503, 504])
+const READ_METHODS = new Set(["GET", "HEAD"])

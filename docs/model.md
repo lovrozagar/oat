@@ -81,7 +81,7 @@ A create that returns `>= 300` on the first variant fails the entity (downstream
 
 HTTP 429 is retried first — `Retry-After` or exponential backoff, up to five times — on seed, checks, and teardown, whether or not the operation declared `x-rate-limit`. The first 429 is never a seed failure. A leftover 429 after those retries is a gap, not a backend defect.
 
-A 503 with `Retry-After` is waited out and asked again, up to three times and 60s of waiting, as a well-behaved client would. A 503 that outlasts that, or names no wait, stands. Every server error left standing fails its operation (`response.no-server-error`); a lasting 503 is reported as the operation being unavailable, any other 5xx as a crash.
+A 503 with `Retry-After` is waited out and asked again, up to three times and 60s of waiting, as a well-behaved client would. A 503 that outlasts that, or names no wait, stands. A read (`GET`, `HEAD`) that meets a 502, 503 or 504 — what a gateway answers on its own, without the request reaching the API — is asked once more after a second; a write never is. Every server error left standing fails its operation (`response.no-server-error`); a lasting 503 is reported as the operation being unavailable, any other 5xx as a crash.
 
 A request that times out is a network outcome only when the host has stopped answering. When the origin still answers a probe, the timeout fails that one operation and the run goes on.
 

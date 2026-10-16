@@ -139,6 +139,8 @@ export const RETRY_BACKOFF_INITIAL_MS = 1_000
 export const RETRY_BACKOFF_CAP_MS = 30_000
 /** A 503 that names when to come back is asked again this many times, within this much waiting. */
 export const MAX_UNAVAILABLE_RETRIES = 3
+/** The pause before a read that met a gateway status (502, 503, 504) is asked once more. */
+export const GATEWAY_RETRY_MS = 1_000
 export const UNAVAILABLE_WAIT_BUDGET_MS = 60_000
 
 /**
