@@ -174,6 +174,11 @@ export interface CheckContext<C extends ReadClient = ReadClient> {
 	seed: number
 	/** Per-run token for values that must not collide across runs: unique columns, idempotency keys. */
 	nonce: string
+	/**
+	 * A salt for the next body this check makes: distinct within the run, and the same in every run
+	 * with the same inputs — never drawn from what other checks did meanwhile.
+	 */
+	nextSalt?: () => string
 	/** Effective unique column sets for this entity (`[]` when the tag is absent or empty). */
 	uniqueSets: string[][]
 	/** First-variant create 409 adopted a same-tenant row; unique probes still run. */
@@ -5784,14 +5789,19 @@ const successSchemaHonoured: Check<{ createOp: OperationModel; validator: Schema
 	},
 }
 
-/** Builds a body that should be accepted, for use as the base of a negative probe. */
-/* Bodies made so far in this process. Checks run side by side: two can make a body before either
- * request goes out, so the transcript's length cannot tell their bodies apart. */
+/* Bodies made in this process by a context that carries no salt of its own (one built outside a run). */
 let bodiesMade = 0
 
-export function validBody(ctx: CheckContext, schema: Record<string, unknown>): Record<string, unknown> {
+/** The check's next salt; a context built outside a run counts bodies process-wide instead. */
+function saltOf(ctx: CheckContext): string {
+	if (ctx.nextSalt !== undefined) return ctx.nextSalt()
 	bodiesMade += 1
-	const salt = `${ctx.nonce}b${bodiesMade}`
+	return `p${bodiesMade}`
+}
+
+/** Builds a body that should be accepted, for use as the base of a negative probe. */
+export function validBody(ctx: CheckContext, schema: Record<string, unknown>): Record<string, unknown> {
+	const salt = `${ctx.nonce}b${saltOf(ctx)}`
 	const [member] = buildCohort(schema, ctx.seed, ["baseline"], ctx.createOp?.operationId ?? ctx.entityName, {
 		defs: ctx.model.defs,
 		distinct: new Set((ctx.uniqueSets ?? []).flat()),
@@ -9602,7 +9612,7 @@ const uniqueConflictCreate: Check<{ createOp: OperationModel; sets: string[][] }
 		}
 
 		for (const [index, set] of sets.entries()) {
-			const salt = `u${ctx.nonce}${index}${ctx.client.transcript.length}`
+			const salt = `u${ctx.nonce}${index}${saltOf(ctx)}`
 			/* Distinct unique columns, then an identity no record holds: only `set` may collide. */
 			const base = reserveClientIdentity(
 				ctx,

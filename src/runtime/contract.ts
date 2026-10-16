@@ -189,7 +189,8 @@ export async function runContractCalls(input: {
 			}
 			const [member] = buildCohort(requestSchemaOf(op, model) ?? {}, input.seed, ["baseline"], op.operationId, {
 				defs: model.defs,
-				nonce: `${input.nonce}c${input.client.transcript.length}`,
+				/* By operation, not by how many requests came before: the same run sends the same body. */
+				nonce: `${input.nonce}c${op.operationId}`,
 			})
 			const built = member?.body ?? {}
 			body =

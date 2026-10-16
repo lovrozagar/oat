@@ -1030,7 +1030,9 @@ export const EXPECTED: Record<DefectName, string | string[]> = {
 	TIEBREAK_NOT_APPLIED: "sort.stable-tiebreak",
 	CROSS_TENANT_WRITE: "tenant.item-not-writable-cross-tenant",
 	/* A table stored under an id the client was never told cannot parent the rows seeded under it. */
-	CLIENT_ID_IGNORED: ["create.keeps-submitted-identity", "world.seed"],
+	/* A server that ignores the client's id accepts a create repeating an existing id: the unique
+	 * check on the identity is that same loss, seen from the other side. */
+	CLIENT_ID_IGNORED: ["create.keeps-submitted-identity", "world.seed", "create.unique-conflict-rejected"],
 	CLIENT_ID_OVERWRITES: "create.unique-conflict-rejected",
 	ROLE_WRITE_INVERTED: "auth.rank-is-monotonic-on-writes",
 	UNKNOWN_PARAM_EMPTIES_LIST: "query.unknown-parameter-consistent",
