@@ -319,6 +319,15 @@ export async function resolvePathScope(
 		}
 		const createOp = model.byOperationId.get(entity.create)
 		if (createOp === undefined) throw new SeedError(param, `missing operation ${entity.create}`)
+		/* A create whose own path names the record it makes (`PUT /things/{thing_id}`): resolving
+		 * the parameter through it would resolve the same create again, without end. */
+		if (createOp.pathParams.includes(param)) {
+			throw new SeedError(
+				param,
+				`{${param}} names the "${owner}" ${createOp.operationId} makes, so oat cannot seed it; ` +
+					"supply it as a root or create it in a scenario",
+			)
+		}
 
 		await resolvePathScope(createOp, model, client, options, scope)
 		/* One ancestor per principal and parent path: a row and its siblings share the table oat
