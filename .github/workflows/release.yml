@@ -31,7 +31,7 @@ jobs:
     # `bun run test` includes the Postgres leg, and a missing backend fails it, as in ci.yml.
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:17 # Docker Hub rate-limits anonymous pulls
+        image: mirror.gcr.io/library/postgres:17 # the official image; Docker Hub and ECR Public run out of anonymous quota
         env:
           POSTGRES_USER: runner
           POSTGRES_PASSWORD: postgres
