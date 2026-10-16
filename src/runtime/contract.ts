@@ -295,7 +295,19 @@ export async function confirmDeletes(input: {
 			grades.prove(op.operationId, { call: call.seq, observation: { seq: after.seq, status: after.status } })
 			continue
 		}
-		if (after.status < 200 || after.status >= 300) continue
+		if (after.status < 200 || after.status >= 300) {
+			/* A refused read (the caller's session ended, a role it lost) shows nothing about the
+			 * record. Say so: going quiet would pass a delete nobody saw through. */
+			input.findings
+				.attributed([op.operationId])
+				.ownedBy(DELETE_CHECK_ID)
+				.unresolved(
+					DELETE_CHECK_ID,
+					op.entity ?? op.operationId,
+					`${read.operationId} answered ${after.status} when reading ${path} back after ${op.operationId}, so whether the record is gone was not seen`,
+				)
+			continue
+		}
 		/* A delete of the whole collection has no item to read back: the read on its path is the
 		 * list, and the empty list it leaves is the proof. */
 		if (read.collection !== null) {
