@@ -5717,20 +5717,36 @@ export function validBody(ctx: CheckContext, schema: Record<string, unknown>): R
 	let body = member?.body ?? {}
 	const sets = ctx.uniqueSets ?? []
 	if (sets.length > 0) body = uniquifyProbeBody(body, sets, schema, `p${salt}`)
+	return reserveClientIdentity(ctx, body, schema, salt)
+}
+
+/**
+ * The body with a client-chosen identity no record holds, reserved before the request goes out.
+ * Anything that rewrites a body after `validBody` — making unique columns distinct — can move the
+ * identity onto one a record already holds; this is the step to run again afterwards, or a create
+ * meant to test something else collides on the identity instead.
+ */
+export function reserveClientIdentity(
+	ctx: CheckContext,
+	body: Record<string, unknown>,
+	schema: Record<string, unknown>,
+	salt: string,
+): Record<string, unknown> {
 	/* A client-chosen identity a record already holds would overwrite or collide with that record. */
 	const taken = ctx.takenIdentities
 	if (taken === undefined || !Object.hasOwn((schema.properties ?? {}) as Record<string, unknown>, ctx.identity)) {
 		return body
 	}
-	for (let token = 0; token < 16 && taken.has(String(body[ctx.identity])); token++) {
-		body = uniquifyProbeBody(body, [[ctx.identity]], schema, `i${salt}t${token}`)
+	let reserved = body
+	for (let token = 0; token < 16 && taken.has(String(reserved[ctx.identity])); token++) {
+		reserved = uniquifyProbeBody(reserved, [[ctx.identity]], schema, `i${salt}t${token}`)
 	}
-	if (taken.has(String(body[ctx.identity]))) {
+	if (taken.has(String(reserved[ctx.identity]))) {
 		throw new Error(`no "${ctx.identity}" is left that names no existing record`)
 	}
 	/* Reserved now, before the request goes out, so a body made meanwhile picks another. */
-	taken.add(String(body[ctx.identity]))
-	return body
+	taken.add(String(reserved[ctx.identity]))
+	return reserved
 }
 
 /** Invite bodies must carry the peer's `inviteAs`, never a generated email. */
@@ -9233,11 +9249,13 @@ const uniqueConflictCreate: Check<{ createOp: OperationModel; sets: string[][] }
 		}
 
 		for (const [index, set] of sets.entries()) {
-			const base = uniquifyProbeBody(
-				validBody(ctx, schema ?? {}),
-				ctx.uniqueSets,
-				schema,
-				`u${ctx.nonce}${index}${ctx.client.transcript.length}`,
+			const salt = `u${ctx.nonce}${index}${ctx.client.transcript.length}`
+			/* Distinct unique columns, then an identity no record holds: only `set` may collide. */
+			const base = reserveClientIdentity(
+				ctx,
+				uniquifyProbeBody(validBody(ctx, schema ?? {}), ctx.uniqueSets, schema, salt),
+				schema ?? {},
+				salt,
 			)
 			const body = collisionCreateBody(base, known, set, ctx.scope, bodyCols, createOp.generated)
 			if (body === null) continue

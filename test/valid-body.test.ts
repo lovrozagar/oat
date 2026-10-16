@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { validBody } from "../src/runtime/checks.ts"
+import { reserveClientIdentity, validBody } from "../src/runtime/checks.ts"
 import { Client } from "../src/runtime/client.ts"
 import { FindingCollector } from "../src/runtime/finding.ts"
 import { buildModel } from "../src/spec/graph.ts"
@@ -57,5 +57,21 @@ describe("validBody", () => {
 		const ctx = context()
 		const first = String(validBody(ctx, NOTE).id)
 		expect(ctx.takenIdentities?.has(first)).toBe(true)
+	})
+})
+
+describe("reserveClientIdentity", () => {
+	it("moves a body off an identity a record already holds, and reserves the one it lands on", () => {
+		const ctx = context()
+		ctx.takenIdentities?.add("999")
+		const body = reserveClientIdentity(ctx, { id: 999, name: "x" }, NOTE, "probe")
+		expect(String(body.id)).not.toBe("999")
+		expect(body.name).toBe("x")
+		expect(ctx.takenIdentities?.has(String(body.id))).toBe(true)
+	})
+
+	it("leaves a free identity as it is", () => {
+		const ctx = context()
+		expect(reserveClientIdentity(ctx, { id: 7, name: "x" }, NOTE, "probe").id).toBe(7)
 	})
 })
