@@ -2864,10 +2864,7 @@ const declaredInvalidationHappens: Check<{
 			)
 		}
 
-		const created = await ctx.client.request("POST", fillPath(createOp.path, ctx.scope), {
-			...(await encodeOpBody(ctx, createOp, validBody(ctx, schema))),
-			headers: ctx.auth(),
-		})
+		const { exchange: created } = await createFresh(ctx, createOp, schema, ctx.auth())
 		if (standDownForFeatureGate(ctx, createOp, created, this.id))
 			return standDown("a documented feature gate refused the request")
 		if (created.status >= 300) {
@@ -4295,11 +4292,7 @@ const rankIsMonotonicOnWrites: Check<{ home: Actor[] }> = {
 		const schema = requestSchemaOf(ctx, createOp)
 		for (const actor of home) {
 			if (schema !== null) {
-				const created = await ctx.client.request("POST", fillPath(createOp.path, ctx.scope), {
-					...(await encodeOpBody(ctx, createOp, validBody(ctx, schema))),
-					headers: actor.headers(),
-					operationId: createOp.operationId,
-				})
+				const { exchange: created } = await createFresh(ctx, createOp, schema, actor.headers())
 				note("create", actor, judge(created))
 			}
 			const updateOp = ctx.updateOp
@@ -5743,9 +5736,7 @@ export function reserveClientIdentity(
 ): Record<string, unknown> {
 	/* A client-chosen identity a record already holds would overwrite or collide with that record. */
 	const taken = ctx.takenIdentities
-	if (taken === undefined || !Object.hasOwn((schema.properties ?? {}) as Record<string, unknown>, ctx.identity)) {
-		return body
-	}
+	if (taken === undefined || !choosesIdentity(ctx, schema)) return body
 	let reserved = body
 	for (let token = 0; token < 16 && taken.has(String(reserved[ctx.identity])); token++) {
 		reserved = uniquifyProbeBody(reserved, [[ctx.identity]], schema, `i${salt}t${token}`)
@@ -5756,6 +5747,42 @@ export function reserveClientIdentity(
 	/* Reserved now, before the request goes out, so a body made meanwhile picks another. */
 	taken.add(String(reserved[ctx.identity]))
 	return reserved
+}
+
+/** Whether a create body carries an identity oat chooses and reserves. */
+function choosesIdentity(ctx: CheckContext, schema: Record<string, unknown>): boolean {
+	return (
+		ctx.takenIdentities !== undefined &&
+		Object.hasOwn((schema.properties ?? {}) as Record<string, unknown>, ctx.identity)
+	)
+}
+
+/* Identities a create tries before its 409 is the answer. */
+const FRESH_IDENTITY_TRIES = 3
+
+/**
+ * A create meant to succeed, from `validBody`. A client-chosen identity oat never saw can still be
+ * taken, by another tenant's record in an id space that spans tenants, so a 409 on such a body is
+ * sent again under another identity, a few times. A body with no identity of its own gets its 409
+ * back: that conflict is about something else, and another body would not cure it.
+ */
+export async function createFresh(
+	ctx: WriteContext,
+	createOp: OperationModel,
+	schema: Record<string, unknown>,
+	headers: Record<string, string>,
+): Promise<{ exchange: Exchange; sent: Record<string, unknown> }> {
+	for (let attempt = 1; ; attempt++) {
+		const sent = validBody(ctx, schema)
+		const exchange = await ctx.client.request("POST", fillPath(createOp.path, ctx.scope), {
+			...(await encodeOpBody(ctx, createOp, sent)),
+			headers,
+			operationId: createOp.operationId,
+		})
+		if (exchange.status !== 409 || !choosesIdentity(ctx, schema) || attempt >= FRESH_IDENTITY_TRIES) {
+			return { exchange, sent }
+		}
+	}
 }
 
 /** Invite bodies must carry the peer's `inviteAs`, never a generated email. */
@@ -5822,12 +5849,7 @@ async function scratchRecord(ctx: WriteContext, check: string): Promise<{ scratc
 	if (createOp === undefined || schema === null) {
 		return { outcome: standDown("a create operation with a request body, to make a record this check may change") }
 	}
-	const sent = validBody(ctx, schema)
-	const exchange = await ctx.client.request("POST", fillPath(createOp.path, ctx.scope), {
-		...(await encodeOpBody(ctx, createOp, sent)),
-		headers: ctx.auth(),
-		operationId: createOp.operationId,
-	})
+	const { exchange, sent } = await createFresh(ctx, createOp, schema, ctx.auth())
 	if (standDownForFeatureGate(ctx, createOp, exchange, check)) {
 		return { outcome: standDown("a documented feature gate refused the request") }
 	}
