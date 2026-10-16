@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process"
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
+import { createServer, type ServerResponse } from "node:http"
+import type { AddressInfo } from "node:net"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { afterAll, describe, expect, it } from "vitest"
@@ -15,9 +17,11 @@ import { createMemoryServer, type ReferenceServer } from "../src/reference/http.
 
 const CLI = resolve(import.meta.dirname, "..", "dist", "cli.js")
 const servers: ReferenceServer[] = []
+const proxies: Array<{ close: () => Promise<void> }> = []
 const dirs: string[] = []
 
 afterAll(async () => {
+	await Promise.all(proxies.map((proxy) => proxy.close()))
 	await Promise.all(servers.map((server) => server.close()))
 	await Promise.all(dirs.map((dir) => rm(dir, { force: true, recursive: true })))
 })
@@ -35,20 +39,76 @@ const SCENARIO = {
 	],
 }
 
+/*
+ * In front of the backend. Once told to hold, a DELETE is kept waiting and `held` settles: the run
+ * is then still removing what it made, the moment a second signal must cut short. A timer cannot
+ * find that moment: on a fast machine the stop was over within 50 ms, and a signal sent as the
+ * process exits kills it before any handler can run.
+ */
+async function holdingProxy(target: string) {
+	let holding = false
+	let onHeld = (): void => undefined
+	const held = new Promise<void>((resolve) => {
+		onHeld = resolve
+	})
+	const waiting: ServerResponse[] = []
+	const server = createServer((req, res) => {
+		const chunks: Buffer[] = []
+		req.on("data", (chunk: Buffer) => chunks.push(chunk))
+		req.on("end", async () => {
+			if (holding && req.method === "DELETE") {
+				waiting.push(res)
+				onHeld()
+				return
+			}
+			const headers = Object.fromEntries(
+				Object.entries(req.headers).filter(([name]) => name !== "host" && name !== "content-length"),
+			) as Record<string, string>
+			const upstream = await fetch(`${target}${req.url ?? "/"}`, {
+				...(chunks.length === 0 ? {} : { body: Buffer.concat(chunks) }),
+				headers,
+				...(req.method === undefined ? {} : { method: req.method }),
+			})
+			const text = await upstream.text()
+			res.writeHead(upstream.status, { "content-type": upstream.headers.get("content-type") ?? "text/plain" })
+			res.end(text)
+		})
+	})
+	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+	const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+	const close = (): Promise<void> => {
+		for (const res of waiting) res.destroy()
+		server.closeAllConnections()
+		return new Promise<void>((resolve) => server.close(() => resolve()))
+	}
+	return {
+		close,
+		held,
+		hold: () => {
+			holding = true
+		},
+		url,
+	}
+}
+
 async function interrupted(signal: NodeJS.Signals, phase: string, twice = false) {
 	const server = await createMemoryServer({})
 	servers.push(server)
+	/* A second signal goes out while the run is provably stopping: with a teardown delete held. */
+	const proxy = twice ? await holdingProxy(server.url) : undefined
+	if (proxy !== undefined) proxies.push(proxy)
+	const base = proxy?.url ?? server.url
 	const dir = await mkdtemp(join(tmpdir(), "oat-signal-"))
 	dirs.push(dir)
 	const config = join(dir, "oat.config.json")
 	await writeFile(
 		config,
 		JSON.stringify({
-			baseUrl: server.url,
+			baseUrl: base,
 			principals: PRINCIPALS,
 			scenarios: [SCENARIO],
 			seed: 42,
-			spec: `${server.url}/v1/openapi/spec`,
+			spec: `${base}/v1/openapi/spec`,
 		}),
 	)
 	const before = await server.snapshot()
@@ -62,8 +122,9 @@ async function interrupted(signal: NodeJS.Signals, phase: string, twice = false)
 		stderr += chunk
 		if (!sent && stderr.includes(`phase=${phase}`)) {
 			sent = true
+			proxy?.hold()
 			child.kill(signal)
-			if (twice) setTimeout(() => child.kill(signal), 50)
+			void proxy?.held.then(() => child.kill(signal))
 		}
 	})
 	const code = await new Promise<number | null>((done) => child.on("close", (exit) => done(exit)))
@@ -100,5 +161,6 @@ describe("a second signal", () => {
 	it("exits at once, without teardown", async () => {
 		const run = await interrupted("SIGINT", "test", true)
 		expect(run.code).toBe(130)
+		expect(leftBehind(run.before, run.after)).not.toEqual([])
 	}, 120_000)
 })
