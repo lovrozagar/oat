@@ -91,7 +91,8 @@ export class Ledger {
 
 	record(entity: string, id: ProvenId, scope: Record<string, string>, owner: Owner): void {
 		if (id === "" || id === "undefined") return
-		const key = `${entity}\u0000${id}`
+		/* By principal too: ids are often unique only within a tenant, and each tenant's is its own. */
+		const key = recordKey(entity, id, owner.id)
 		if (this.seen.has(key)) return
 		this.seen.add(key)
 		this.items.push({ entity, id, owner, scope: { ...scope } })
@@ -123,11 +124,11 @@ export class Ledger {
 	 * creator's sighting counts toward showing it gone; a create's own answer is not one.
 	 */
 	sighted(entity: string, id: string, principal: string): void {
-		this.sightings.add(`${entity}\u0000${id}\u0000${principal}`)
+		this.sightings.add(recordKey(entity, id, principal))
 	}
 
 	private seenByCreator(item: Disposable): boolean {
-		return this.sightings.has(`${item.entity}\u0000${item.id}\u0000${item.owner.id}`)
+		return this.sightings.has(keyOf(item))
 	}
 
 	/** Every create reported unidentified so far, in the order oat sent them. */
@@ -307,6 +308,15 @@ export class Ledger {
 	}
 }
 
+/** A record as each principal holds it: two tenants may each have their own `row 1`. */
+function recordKey(entity: string, id: string, principal: string): string {
+	return `${entity}\u0000${id}\u0000${principal}`
+}
+
+function keyOf(item: Disposable): string {
+	return recordKey(item.entity, item.id, item.owner.id)
+}
+
 /** Path segments, decoded, without empty ones. */
 function segmentsOf(pathname: string): string[] {
 	return pathname
@@ -375,7 +385,7 @@ async function askVerifyHook(
 			const record = records.get(item)
 			if (record === undefined || verdict === "unknown") return
 			const failure = report.failed.findIndex(
-				(entry) => entry.entity === item.entity && entry.id === item.id && entry.reason === NEVER_SEEN,
+				(entry) => recordKey(entry.entity, entry.id, entry.principal) === keyOf(item) && entry.reason === NEVER_SEEN,
 			)
 			if (verdict === "absent") {
 				if (failure < 0) return

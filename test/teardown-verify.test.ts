@@ -7,7 +7,11 @@ import { leftBehind } from "../src/conformance/leaks.ts"
 import { PRINCIPALS } from "../src/conformance/suite.ts"
 import { createMemoryServer } from "../src/reference/http.ts"
 import { run } from "../src/runtime/run.ts"
-import { NEVER_SEEN, VERIFY_HOOK_PRESENT } from "../src/runtime/teardown.ts"
+import { Client } from "../src/runtime/client.ts"
+import { listedIds } from "../src/runtime/proven-id.ts"
+import { Ledger, NEVER_SEEN, type Owner, VERIFY_HOOK_PRESENT } from "../src/runtime/teardown.ts"
+import { buildModel } from "../src/spec/graph.ts"
+import { dereference } from "../src/spec/load.ts"
 import type { OpenApiDocument } from "../src/spec/types.ts"
 
 /*
@@ -335,5 +339,65 @@ describe("hooks.verifyRemoved", () => {
 		expect(configProblems({ hooks: { verifyRemoved: "present" } })).toContain(
 			"config.hooks.verifyRemoved must be a function",
 		)
+	})
+})
+
+/* A per-tenant id sequence: each project's first row is `1`. Reads find nothing; deletes answer 204. */
+const TENANT_ROWS = {
+	info: { title: "tenant-rows", version: "1" },
+	openapi: "3.1.0",
+	paths: {
+		"/projects/{project_id}/rows/{row_id}": {
+			delete: tagged("row", "delete", {
+				parameters: [param("project_id"), param("row_id")],
+				responses: { "204": { description: "gone" } },
+			}),
+			get: tagged("row", "read", {
+				parameters: [param("project_id"), param("row_id")],
+				responses: { "200": { ...json(ITEM), description: "ok" }, "404": { description: "missing" } },
+			}),
+		},
+	},
+} as unknown as OpenApiDocument
+
+const owner = (id: string): Owner => ({ headers: () => ({ authorization: `Bearer ${id}` }), id })
+
+/* Both tenants hold `row 1`; only `seer`'s read of it answers. */
+async function twoRowOnes(seer: string | null, verdicts: Record<string, "present" | "absent">) {
+	const server = createServer((req, res) => {
+		if (req.method === "DELETE") return reply(res, 204)
+		return req.headers.authorization === `Bearer ${seer}`
+			? reply(res, 200, { id: "1", text: "x" })
+			: reply(res, 404, {})
+	})
+	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+	closers.push(() => new Promise((resolve) => server.close(() => resolve())))
+	const client = new Client(`http://127.0.0.1:${(server.address() as AddressInfo).port}`)
+	const ledger = new Ledger()
+	const [one] = listedIds(["1"])
+	if (one === undefined) throw new Error("listedIds gave nothing back")
+	ledger.record("row", one, { project_id: "a", row_id: "1" }, owner("alpha"))
+	ledger.record("row", one, { project_id: "b", row_id: "1" }, owner("beta"))
+	return ledger.unwind(buildModel(dereference(TENANT_ROWS).doc), client, () => [], {
+		verify: false,
+		verifyRemoved: (record) => verdicts[record.principal] ?? "unknown",
+	})
+}
+
+const removedBy = (report: Awaited<ReturnType<typeof twoRowOnes>>) =>
+	report.records.map((record) => `${record.principal} ${record.removed}`).toSorted()
+
+describe("hooks.verifyRemoved, when two tenants hold the same id", () => {
+	it("keeps each principal's record, and settles each one by its own answer", async () => {
+		const report = await twoRowOnes(null, { alpha: "present", beta: "absent" })
+		expect(removedBy(report)).toEqual(["alpha false", "beta true"])
+		expect(report.failed).toEqual([{ entity: "row", id: "1", principal: "alpha", reason: VERIFY_HOOK_PRESENT }])
+	})
+
+	it("clears only the never-seen record its own answer clears", async () => {
+		/* Beta saw its row; alpha never did. The hook finds beta's still there and alpha's gone. */
+		const report = await twoRowOnes("beta", { alpha: "absent", beta: "present" })
+		expect(removedBy(report)).toEqual(["alpha true", "beta false"])
+		expect(report.failed).toEqual([{ entity: "row", id: "1", principal: "beta", reason: VERIFY_HOOK_PRESENT }])
 	})
 })
