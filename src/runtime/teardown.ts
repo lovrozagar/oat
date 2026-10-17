@@ -7,13 +7,14 @@
  * reports exactly what it could not remove.
  */
 
-import type { RemovalVerdict, RemovedRecord } from "../config/define-config.ts"
+import type { RemovalVerdict, RemovedRecord } from "../config/types/hooks.ts"
 import { largestPageQuery, type OperationModel, type SpecModel } from "../spec/graph.ts"
 import type { Client, Exchange } from "./client.ts"
 import { parseRouteRef } from "../spec/load.ts"
 import { FencedError } from "./fence.ts"
 import { isNetworkError } from "./network.ts"
-import { fillPath, idOf, recordsFromList } from "./world.ts"
+import { idOf, recordsFromList } from "./world.ts"
+import { fillPath } from "./fill-path.ts"
 import { readPath } from "./path.ts"
 import type { ProvenId } from "./proven-id.ts"
 

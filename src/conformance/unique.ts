@@ -11,7 +11,7 @@ import { formatUniqueSets, readUnique } from "../spec/extensions.ts"
 import { buildModel } from "../spec/graph.ts"
 import { dereference } from "../spec/load.ts"
 import type { OpenApiDocument, OperationObject } from "../spec/types.ts"
-import type { ParserResult } from "./suite.ts"
+import type { ParserResult } from "./harness/result.ts"
 
 const ITEM = {
 	properties: { email: { type: "string" }, id: { type: "string" }, name: { type: "string" }, slug: { type: "string" } },

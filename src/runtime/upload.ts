@@ -5,7 +5,7 @@
 
 import { readdir, readFile, stat } from "node:fs/promises"
 import { basename, dirname, join, relative, resolve, sep } from "node:path"
-import type { Hooks, UploadFile, UploadRequest, UploadResolution, Uploads } from "../config/define-config.ts"
+import type { Hooks, UploadFile, UploadRequest, UploadResolution, Uploads } from "../config/types/hooks.ts"
 import { dummyFile, mediaTypeOfExtension, mediaTypesCompatible, sniffMediaType } from "./dummy.ts"
 import { mulberry32 } from "./fixture.ts"
 
@@ -292,9 +292,5 @@ function hash32(text: string): number {
 function warnOnce(message: string, warn?: (message: string) => void): void {
 	if (warned.has(message)) return
 	warned.add(message)
-	;(warn ?? defaultWarn)(message)
-}
-
-function defaultWarn(message: string): void {
-	console.warn(`oat: ${message}`)
+	warn?.(message)
 }

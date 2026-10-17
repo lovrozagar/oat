@@ -1,4 +1,5 @@
-export { defineConfig, isAuthFlow, isHookAuth } from "./config/define-config.ts"
+export { defineConfig } from "./config/define-config.ts"
+
 export type {
 	AuthFlow,
 	AuthRefresh,
@@ -39,39 +40,27 @@ export type {
 	UploadResolution,
 	Uploads,
 } from "./config/define-config.ts"
-export { interpolate, loadConfig } from "./config/load.ts"
-export { configProblems } from "./config/validate.ts"
+
 export type { PayloadPolicy } from "./config/define-config.ts"
-export { EXIT, exitCode, type RunOutcome, runVerdict } from "./runtime/exit.ts"
-export { isRootCause } from "./runtime/finding.ts"
+export { EXIT } from "./runtime/exit.ts"
+
 export type { ReportInput } from "./report/render.ts"
-export { loadPersistedPrincipals, parsePersistedPrincipals } from "./runtime/principals.ts"
-export type { PersistedPrincipal } from "./runtime/principals.ts"
-export { allocateRunDir, DEFAULT_RUNS_ROOT, formatRunStamp, publishLatest } from "./runtime/runs.ts"
-export type { AllocatedRunDir } from "./runtime/runs.ts"
-export { worstCaseWaitMs, resolveBackoff, DEFAULT_OUT_OF_BAND } from "./runtime/poll.ts"
-export { deriveCollectionShape, deriveIdentity } from "./spec/collection.ts"
-export type { CollectionShape } from "./spec/collection.ts"
-export { buildModel } from "./spec/graph.ts"
+export { loadPersistedPrincipals } from "./runtime/principals.ts"
+
+export { allocateRunDir, DEFAULT_RUNS_ROOT } from "./runtime/runs.ts"
+
+export { worstCaseWaitMs } from "./runtime/poll.ts"
+
 export type { EntityModel, OperationModel, SpecModel } from "./spec/graph.ts"
-export { dereference, loadSpec, normalisePath, parseRouteRef } from "./spec/load.ts"
+
 export type { OpenApiDocument } from "./spec/types.ts"
 export { AuthRefreshRequiredError } from "./runtime/auth.ts"
-export { NetworkError, classifyNetworkError, isNetworkError } from "./runtime/network.ts"
-export type { NetworkKind } from "./runtime/network.ts"
+
 export { run } from "./runtime/run.ts"
-export type { CheckTiming, RunOptions, RunResult } from "./runtime/run.ts"
-export { planScope, resolveTargetScope, ScopeError } from "./runtime/scope.ts"
-export type {
-	OperationCoverage,
-	OperationStatus,
-	ScopePlan,
-	ScopeReport,
-	SupportUse,
-	TargetScope,
-} from "./runtime/scope.ts"
+export type { RunOptions, RunResult } from "./runtime/run.ts"
+
 export type { Actor } from "./runtime/checks.ts"
 export type { Finding, Verdict } from "./runtime/finding.ts"
-export { buildMatrixGraph, matrixViewFromReport, renderMatrixGraph, renderMatrixHtml } from "./report/matrix.ts"
-export type { EntityMatrix, InvalidateLink, MatrixGraph, MatrixGraphEdge, MatrixGraphNode } from "./report/matrix.ts"
-export { coverageByCheck, renderConsole, renderJson, renderMarkdown, renderRepros } from "./report/render.ts"
+export { renderMatrixGraph, renderMatrixHtml } from "./report/matrix.ts"
+
+export { renderJson, renderMarkdown, renderRepros } from "./report/render.ts"

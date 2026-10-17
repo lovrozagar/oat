@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { UsageError } from "../../src/config/usage-error.ts"
+import { UsageError } from "../../src/errors/usage-error.ts"
 import { PRINCIPALS } from "../../src/conformance/suite.ts"
 import { createMemoryServer } from "../../src/reference/http.ts"
 import { run } from "../../src/runtime/run.ts"

@@ -27,19 +27,14 @@ import type { OpenApiDocument } from "../spec/types.ts"
 import { EXPECTED_INCONCLUSIVE } from "./expected-failures.ts"
 import { damagedBystanders, leftBehind, ledgeredNotCreated, unreportedLeftovers } from "./leaks.ts"
 import { SPEC_FIXTURES } from "./specs.ts"
-export interface ParserResult {
-	name: string
-	why: string
-	ok: boolean
-	detail: string
-}
+import type { ParserResult } from "./harness/result.ts"
+
+export type { ParserResult } from "./harness/result.ts"
 
 /**
  * Parser robustness. These fixtures are shapes real published documents contain; the bar is that
  * oat never throws and never hangs on them, not that it models them well.
  */
-export { runSeedContractSuite } from "./seed-contract.ts"
-export { runEffectsSuite } from "./effects.ts"
 
 export function runParserSuite(): ParserResult[] {
 	return SPEC_FIXTURES.map((fixture) => {

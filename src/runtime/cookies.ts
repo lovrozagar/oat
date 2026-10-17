@@ -289,14 +289,4 @@ export function applyJarToHeaders(
 	if (merged !== undefined && merged !== "") headers.cookie = merged
 }
 
-/** Headers that carry a credential, by name. A redirect to another origin must not receive them. */
-export const CREDENTIAL_HEADERS: ReadonlySet<string> = new Set([
-	"authorization",
-	"proxy-authorization",
-	"cookie",
-	"x-api-key",
-	"api-key",
-	"x-auth-token",
-])
-
 export { headerValue }

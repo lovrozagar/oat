@@ -10,7 +10,7 @@
  */
 
 import { headerValue } from "./headers.ts"
-import type { RateLimitSpec } from "../config/define-config.ts"
+import type { RateLimitSpec } from "../config/types/config.ts"
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
 
 export interface CompiledRateLimitRule {

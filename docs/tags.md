@@ -462,7 +462,7 @@ export default defineConfig({
 	rateLimits: [
 		{ match: "POST /v1/auth/login", rps: 2 },
 		{ match: "auth.login", rps: 2 }, // operationId works too
-		{ match: "category:ai", rps: 1 }, // overrides every x-rate-limit-tagged "ai" operation at once
+		{ match: "category:ai", rps: 1 }, // overrides every operation whose x-rate-limit category is "ai", at once
 	],
 })
 ```

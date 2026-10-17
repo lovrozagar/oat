@@ -7,7 +7,7 @@
  * check could read a status from. Every refusal is kept, so the report can list them all.
  */
 
-import type { FenceDecision, FenceRequest } from "../config/define-config.ts"
+import type { FenceDecision, FenceRequest } from "../config/types/hooks.ts"
 
 export interface FencedRequest {
 	method: string

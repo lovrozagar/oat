@@ -14,9 +14,6 @@ const ROOT = join(import.meta.dirname, "..", "..")
 
 const UNTESTED: readonly string[] = [
 	"src/cli.ts",
-	"src/config/define-config.ts",
-	"src/config/usage-error.ts",
-	"src/conformance/effects.ts",
 	"src/conformance/expected-failures.ts",
 	"src/conformance/feature-gate.ts",
 	"src/conformance/fuzz.ts",
@@ -58,7 +55,6 @@ const UNTESTED: readonly string[] = [
 	"src/runtime/feature-gate.ts",
 	"src/runtime/fence.ts",
 	"src/runtime/headers.ts",
-	"src/runtime/missing-value.ts",
 	"src/runtime/network.ts",
 	"src/runtime/one-shot.ts",
 	"src/runtime/payloads.ts",
@@ -67,7 +63,6 @@ const UNTESTED: readonly string[] = [
 	"src/runtime/proven-id.ts",
 	"src/runtime/query.ts",
 	"src/runtime/rate-limit.ts",
-	"src/runtime/redact.ts",
 	"src/runtime/root-read.ts",
 	"src/runtime/run.ts",
 	"src/runtime/self.ts",
@@ -83,7 +78,6 @@ const UNTESTED: readonly string[] = [
 	"src/spec/allow.ts",
 	"src/spec/conventions.ts",
 	"src/spec/grammar-overrides.ts",
-	"src/spec/load.ts",
 	"src/spec/overlay.ts",
 	"src/spec/prepare.ts",
 	"src/spec/query-capabilities.ts",

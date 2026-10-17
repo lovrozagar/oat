@@ -10,7 +10,7 @@ import { parseRetryAfter, retryWaitMs, RETRY_BACKOFF_CAP_MS } from "../runtime/r
 import { run } from "../runtime/run.ts"
 import { isPlanLimitResponse } from "../runtime/world.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
-import type { ParserResult } from "./suite.ts"
+import type { ParserResult } from "./harness/result.ts"
 
 function send(res: ServerResponse, status: number, body?: unknown, extra?: Record<string, string>): void {
 	if (body === undefined) {

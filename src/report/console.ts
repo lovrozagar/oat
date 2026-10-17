@@ -7,7 +7,8 @@
  */
 
 import { estimateRequests } from "../runtime/check-costs.ts"
-import type { EntityConfig, OatConfig, QueryCapabilities } from "../config/define-config.ts"
+import type { EntityConfig, OatConfig } from "../config/types/config.ts"
+import type { QueryCapabilities } from "../config/types/query.ts"
 import { formatUniqueSets } from "../spec/extensions.ts"
 import type { EntityModel, SpecModel } from "../spec/graph.ts"
 import { describeRequested, type ScopePlan } from "../runtime/scope.ts"

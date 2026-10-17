@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { Scenario } from "../config/define-config.ts"
+import type { Scenario } from "../config/types/steps.ts"
 import { assertScenarios } from "./scenario.ts"
 
 /*

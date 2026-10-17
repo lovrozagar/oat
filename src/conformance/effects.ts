@@ -11,7 +11,7 @@ import { run } from "../runtime/run.ts"
 import { buildModel } from "../spec/graph.ts"
 import { GapCollector, readEffects } from "../spec/extensions.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
-import type { ParserResult } from "./suite.ts"
+import type { ParserResult } from "./harness/result.ts"
 
 const TABLE = {
 	properties: { id: { type: "string" }, name: { type: "string" }, table_id: { type: "string" } },
@@ -25,7 +25,7 @@ const ROW = {
 	type: "object",
 }
 
-function extractSpec(): OpenApiDocument {
+export function extractSpec(): OpenApiDocument {
 	return {
 		info: { title: "extract-effects", version: "1" },
 		openapi: "3.1.0",

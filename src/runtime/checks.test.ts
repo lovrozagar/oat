@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { type Check, CHECKS, payloadLanes, validateRegistry } from "./checks.ts"
+import { CHECKS, payloadLanes, validateRegistry } from "./checks.ts"
 import { CHECK_IDS, familyOf } from "./check-ids.ts"
 import { Client } from "./client.ts"
 import { FindingCollector } from "./finding.ts"
@@ -24,31 +24,10 @@ describe("payloadLanes", () => {
 	})
 })
 
-const stub = (id: string, dependsOn?: string[]): Check =>
-	({
-		applicable: () => true,
-		id,
-		run: async () => {},
-		subjects: () => [],
-		...(dependsOn === undefined ? {} : { dependsOn }),
-	}) as unknown as Check
-
 describe("the check registry", () => {
 	it("holds every id it names, once, with each dependency registered earlier", () => {
 		expect(() => validateRegistry(CHECKS)).not.toThrow()
 		expect(new Set(CHECKS.map((check) => check.id))).toEqual(new Set(CHECK_IDS))
-	})
-
-	it("refuses a dependency registered after the check that names it", () => {
-		const [first, second] = CHECKS
-		if (first === undefined || second === undefined) throw new Error("empty registry")
-		const reordered = [stub(first.id, [second.id]), stub(second.id), ...CHECKS.slice(2)]
-		expect(() => validateRegistry(reordered)).toThrow(/registered after it/)
-	})
-
-	it("refuses a duplicate id and an unregistered one", () => {
-		expect(() => validateRegistry([...CHECKS, stub(CHECKS[0]?.id ?? "")])).toThrow(/registered twice/)
-		expect(() => validateRegistry(CHECKS.slice(1))).toThrow(/never registered/)
 	})
 
 	it("puts every check in a family", () => {

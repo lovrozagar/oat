@@ -4,13 +4,13 @@
  * A generated body is not sent: a 400 on a body the check invented would not be the server.
  */
 
-import type { Check } from "./checks.ts"
+import type { Check } from "./checks/core/check.ts"
 import type { Client } from "./client.ts"
 import { ASSERTED, type FindingCollector, type Outcome } from "./finding.ts"
 import type { CheckId } from "./check-ids.ts"
 import { describeSuccess, type OperationModel, type SpecModel } from "../spec/graph.ts"
-import type { GradeLedger } from "./scope.ts"
-import { fillPath } from "./world.ts"
+import type { GradeLedger } from "./grades.ts"
+import { fillPath } from "./fill-path.ts"
 
 export const PUBLIC_GET_CHECK_ID = "response.public-get-returns-success" as const satisfies CheckId
 

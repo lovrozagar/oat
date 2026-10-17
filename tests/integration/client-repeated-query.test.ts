@@ -3,7 +3,6 @@ import type { AddressInfo } from "node:net"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { Client, toCurl } from "../../src/runtime/client.ts"
 import { mergeQuery } from "../../src/runtime/query.ts"
-import { REDACTED, redactUrl } from "../../src/runtime/redact.ts"
 
 /*
  * Some grammars write one filter term per parameter and repeat the parameter for each term:
@@ -49,15 +48,6 @@ describe("repeated query parameters", () => {
 		}))
 		await client.get("/notes", { query: { f: ["a", "b"] } })
 		expect(seen.at(-1)).toBe("/notes?f=a&f=b&tenant=t1")
-	})
-})
-
-describe("redactUrl", () => {
-	it("redacts every occurrence of a secret parameter in place", () => {
-		const params = new URL(redactUrl("https://x.test/a?token=one&q=1&token=two")).searchParams
-		expect([...params.keys()]).toEqual(["token", "q", "token"])
-		expect(params.getAll("token")).toEqual([REDACTED, REDACTED])
-		expect(params.get("q")).toBe("1")
 	})
 })
 

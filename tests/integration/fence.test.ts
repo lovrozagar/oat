@@ -86,7 +86,7 @@ describe("the report of a fenced run", () => {
 	const input = {
 		baseUrl: "http://x.test",
 		checksRun: [],
-		client: { transcript: [] },
+		client: new Client("http://x.test"),
 		durationMs: 1,
 		entitiesTested: [],
 		fenced: {

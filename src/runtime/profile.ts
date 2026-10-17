@@ -8,7 +8,7 @@
  * create already takes. An excluded operation must never look like a passed check.
  */
 
-import type { ProfileSpec } from "../config/define-config.ts"
+import type { ProfileSpec } from "../config/types/config.ts"
 import type { OperationModel } from "../spec/graph.ts"
 
 export const BUILTIN_PROFILES: Record<string, ProfileSpec> = {

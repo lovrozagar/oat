@@ -8,7 +8,7 @@
  */
 
 import { FILTER_OPS, type FilterOp } from "./query-capabilities.ts"
-import { MissingValueError } from "../runtime/missing-value.ts"
+import { MissingValueError } from "../errors/missing-value.ts"
 
 export type FilterTermValue = string | number | boolean | null | readonly (string | number | boolean | null)[]
 

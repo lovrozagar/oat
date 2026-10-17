@@ -11,49 +11,13 @@ import { createHash } from "node:crypto"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { Exchange } from "./client.ts"
-import {
-	INLINE_BODY_LIMIT,
-	isBinaryMediaType,
-	isSecretJsonKey,
-	primaryMediaType,
-	redactJson,
-	REDACTED,
-} from "./exchanges.ts"
+import { type BodyRef, type Exchange, type FormPart, isBodyRef, isFormSnapshot } from "./exchange.ts"
+
+export { type BodyRef, type FormPart, type FormSnapshot, isBodyRef, isFormSnapshot } from "./exchange.ts"
+import { isSecretJsonKey } from "../security/credential-names.ts"
+import { REDACTED, Redactor } from "../security/redact.ts"
+import { INLINE_BODY_LIMIT, isBinaryMediaType, primaryMediaType } from "./exchanges.ts"
 import { parseSse, SseParser, sseEvents, sseFramesOf, type SseFrame } from "./sse.ts"
-
-export interface BodyRef {
-	sha256: string
-	bytes: number
-	mediaType: string
-}
-
-export type FormPart =
-	| { field: string; value: string }
-	| { field: string; filename: string; mediaType: string; bytes: number; sha256: string }
-
-export interface FormSnapshot {
-	parts: FormPart[]
-}
-
-export function isBodyRef(value: unknown): value is BodyRef {
-	if (value === null || typeof value !== "object" || Array.isArray(value)) return false
-	const rec = value as Record<string, unknown>
-	if (typeof rec.sha256 !== "string" || typeof rec.bytes !== "number" || typeof rec.mediaType !== "string") {
-		return false
-	}
-	for (const key of Object.keys(rec)) {
-		if (key !== "sha256" && key !== "bytes" && key !== "mediaType") return false
-	}
-	return true
-}
-
-export function isFormSnapshot(value: unknown): value is FormSnapshot {
-	if (value === null || typeof value !== "object" || Array.isArray(value)) return false
-	const rec = value as { parts?: unknown }
-	if (!Array.isArray(rec.parts)) return false
-	return Object.keys(rec).every((key) => key === "parts")
-}
 
 /** True when `value` is a live multipart/binary object or an oversized string still on the heap. */
 export function holdsLiveBody(value: unknown): boolean {
@@ -74,7 +38,12 @@ export function bodyRef(bytes: Uint8Array, mediaType: string): BodyRef {
 	return { bytes: bytes.byteLength, mediaType, sha256: sha256Hex(bytes) }
 }
 
-export async function compactRequestBody(body: unknown, knownBytes?: number, digest?: BodyDigest): Promise<unknown> {
+export async function compactRequestBody(
+	body: unknown,
+	knownBytes?: number,
+	digest?: BodyDigest,
+	redactor: Redactor = new Redactor(),
+): Promise<unknown> {
 	if (body === undefined) return undefined
 	if (isFormSnapshot(body) || isBodyRef(body)) return body
 	if (isFormData(body)) {
@@ -102,7 +71,7 @@ export async function compactRequestBody(body: unknown, knownBytes?: number, dig
 			const prior = fields[key]
 			fields[key] = prior === undefined ? value : [...[prior].flat(), value]
 		}
-		return redactJson(fields)
+		return redactor.json(fields)
 	}
 	const raw = await bytesOf(body)
 	if (raw !== undefined) return bodyRef(raw, "application/octet-stream")
@@ -182,8 +151,13 @@ export async function compactResponseBody(
 }
 
 /** Drop live request/response payloads on an exchange already pushed to the transcript. */
-export async function releaseTranscriptBodies(exchange: Exchange): Promise<void> {
-	exchange.requestBody = await compactRequestBody(exchange.requestBody, exchange.requestBytes, exchange.requestDigest)
+export async function releaseTranscriptBodies(exchange: Exchange, redactor: Redactor): Promise<void> {
+	exchange.requestBody = await compactRequestBody(
+		exchange.requestBody,
+		exchange.requestBytes,
+		exchange.requestDigest,
+		redactor,
+	)
 	exchange.responseBody = await compactResponseBody(
 		exchange.responseBody,
 		exchange.responseHeaders,

@@ -1,10 +1,11 @@
 #!/usr/bin/env node
+import { processWriter as writer } from "./cli/writer.ts"
 import { EXIT, exitCode } from "./runtime/exit.ts"
 import { createWriteStream, existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs"
 import { mkdir, readFile, realpath, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
-import type { OatConfig } from "./config/define-config.ts"
+import type { OatConfig } from "./config/types/config.ts"
 import { interpolate, loadConfig } from "./config/load.ts"
 import { configProblems } from "./config/validate.ts"
 import { exchangeFilesFromIndex, renderConfidenceHtml } from "./report/confidence.ts"
@@ -13,7 +14,7 @@ import { renderMatrixGraph, renderMatrixHtml } from "./report/matrix.ts"
 import { ISSUE_REPRO_DIR, renderConsole, renderJson, renderMarkdown, renderRepros } from "./report/render.ts"
 import {
 	createProgressPump,
-	createStderrProgress,
+	createProgressPrinter,
 	formatProgressJsonl,
 	formatProgressLine,
 	formatProgressTsv,
@@ -25,12 +26,13 @@ import { allocateRunDir, DEFAULT_RUNS_ROOT, publishLatest } from "./runtime/runs
 import { authStepOperationIds, planScope, resolveTargetScope, ScopeError } from "./runtime/scope.ts"
 import { renderTeardown } from "./runtime/teardown.ts"
 import { buildModel, type SpecModel } from "./spec/graph.ts"
-import { UsageError } from "./config/usage-error.ts"
+import { UsageError } from "./errors/usage-error.ts"
 import { type BaselineFile, baselineFrom, parseBaseline } from "./runtime/baseline.ts"
 import { diffReports, renderDiff, type SavedReport } from "./report/diff.ts"
 import { FencedError } from "./runtime/fence.ts"
 import { applyGrammarOverrides } from "./spec/grammar-overrides.ts"
 import { prepareDocument } from "./spec/prepare.ts"
+import { fetchSpecText } from "./runtime/network.ts"
 import { dereference, loadSpec } from "./spec/load.ts"
 
 interface Args {
@@ -223,14 +225,14 @@ export { EXIT, exitCode } from "./runtime/exit.ts"
 async function commandRun(flags: Args["flags"]): Promise<number> {
 	const configPath = str(flags, "config")
 	if (configPath === undefined) {
-		process.stderr.write("oat: run requires --config\n\n" + USAGE)
+		writer.err("oat: run requires --config\n\n" + USAGE)
 		return 2
 	}
 
 	const { run } = await import("./runtime/run.ts")
 	const read = await readConfig(configPath, true)
 	if ("problem" in read) {
-		process.stderr.write(`oat: ${read.problem}\n`)
+		writer.err(`oat: ${read.problem}\n`)
 		return EXIT.usage
 	}
 	const config = read.config
@@ -249,7 +251,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	 * error in the user's own config rather than a surprise mid-run. */
 	const principals = config.principals ?? []
 	if (principals.length === 0) {
-		process.stderr.write(
+		writer.err(
 			"oat: config declares no principals. At least one is required so oat can authenticate; " +
 				"a second in a different tenant enables the isolation checks.\n",
 		)
@@ -260,7 +262,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	const began = performance.now()
 	const allocated = await allocateRunDir(str(flags, "out") ?? config.outDir ?? DEFAULT_RUNS_ROOT, startedAt)
 	const outDir = allocated.runDir
-	const stderrProgress = flags.quiet === true ? undefined : createStderrProgress(startedAt.getTime())
+	const stderrProgress = flags.quiet === true ? undefined : createProgressPrinter(writer.err, startedAt.getTime())
 	const progressLog = createWriteStream(resolve(outDir, "progress.log"))
 	const progressTsv = createWriteStream(resolve(outDir, "progress.tsv"))
 	const progressJsonl = createWriteStream(resolve(outDir, "progress.jsonl"))
@@ -294,10 +296,10 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 	let firstSignal: NodeJS.Signals | undefined
 	const onSignal = (signal: NodeJS.Signals): void => {
 		if (stop.signal.aborted) {
-			process.stderr.write(`\noat: ${signal} again — exiting without teardown\n`)
+			writer.err(`\noat: ${signal} again — exiting without teardown\n`)
 			process.exit(130)
 		}
-		process.stderr.write(`\noat: ${signal} — stopping, removing what this run created (again to exit now)\n`)
+		writer.err(`\noat: ${signal} — stopping, removing what this run created (again to exit now)\n`)
 		firstSignal = signal
 		stop.abort()
 	}
@@ -311,7 +313,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		try {
 			baseline = parseBaseline(JSON.parse(await readFile(path, "utf8")), path)
 		} catch (error) {
-			process.stderr.write(
+			writer.err(
 				`oat: ${error instanceof UsageError ? error.message : `cannot read baseline ${path}: ${errorMessage(error)}`}\n`,
 			)
 			return EXIT.usage
@@ -353,17 +355,18 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 			maxInFlight: Number.parseInt(str(flags, "max-in-flight") ?? "", 10) || config.maxInFlight || 4,
 			seed: seedFlag === undefined ? (config.seed ?? 1) : Number.parseInt(seedFlag, 10),
 			onProgress,
+			warn: (message: string) => writer.err(`oat: ${message}\n`),
 			...(saveExchanges ? { exchangeDir: outDir } : {}),
 			...(config.network === undefined ? {} : { network: config.network }),
 		})
 	} catch (error) {
 		/* Refused before the run could start — the document, or a principal's sign-in. */
 		if (error instanceof FencedError) {
-			process.stderr.write(`oat: ${error.message}\n`)
+			writer.err(`oat: ${error.message}\n`)
 			return EXIT.failed
 		}
 		if (!(error instanceof UsageError)) throw error
-		process.stderr.write(`${error.message}\n`)
+		writer.err(`${error.message}\n`)
 		return 2
 	} finally {
 		process.off("SIGINT", onSignal)
@@ -414,7 +417,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		resolve(outDir, "report.html"),
 		renderConfidenceHtml({ baseUrl, generatedAt: startedAt.toISOString(), scope: result.scope }, files),
 	)
-	const scripts = renderRepros(result.findings, baseUrl)
+	const scripts = renderRepros(result.findings, baseUrl, result.client.redactor)
 	if (scripts.length > 0) {
 		const dir = resolve(outDir, ISSUE_REPRO_DIR)
 		await mkdir(dir, { recursive: true })
@@ -423,26 +426,26 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		}
 	}
 
-	process.stdout.write(renderConsole(input))
+	writer.out(renderConsole(input))
 	for (const line of renderTeardown(
 		result.teardown ?? { failed: [], records: [], removed: 0, unidentified: [], unsupported: [] },
 		result.created,
 	)) {
-		process.stdout.write(`${line}\n`)
+		writer.out(`${line}\n`)
 	}
-	process.stdout.write(`  confidence: ${resolve(outDir, "report.html")}\n`)
-	process.stdout.write(`  report: ${resolve(outDir, "oat-report.md")}\n`)
-	process.stdout.write(`  matrix: ${resolve(outDir, "matrix.html")}\n`)
-	process.stdout.write(`  graph:  ${resolve(outDir, "matrix.json")}\n`)
-	process.stdout.write(`  progress: ${resolve(outDir, "progress.log")} · ${resolve(outDir, "progress.jsonl")}\n`)
+	writer.out(`  confidence: ${resolve(outDir, "report.html")}\n`)
+	writer.out(`  report: ${resolve(outDir, "oat-report.md")}\n`)
+	writer.out(`  matrix: ${resolve(outDir, "matrix.html")}\n`)
+	writer.out(`  graph:  ${resolve(outDir, "matrix.json")}\n`)
+	writer.out(`  progress: ${resolve(outDir, "progress.log")} · ${resolve(outDir, "progress.jsonl")}\n`)
 	if (result.exchanges !== undefined) {
-		process.stdout.write(`  exchanges: ${result.exchanges.count} → ${resolve(outDir, "exchanges")}\n`)
+		writer.out(`  exchanges: ${result.exchanges.count} → ${resolve(outDir, "exchanges")}\n`)
 	}
 	if (result.network?.incomplete === true) {
-		process.stdout.write(`  network: ${result.network.kind} — run incomplete\n`)
+		writer.out(`  network: ${result.network.kind} — run incomplete\n`)
 	}
 	await publishLatest(allocated)
-	process.stdout.write(`  latest: ${allocated.latest}\n\n`)
+	writer.out(`  latest: ${allocated.latest}\n\n`)
 
 	/* Stopped by a signal: the shell's convention, once teardown and the report are done. */
 	if (firstSignal !== undefined) return firstSignal === "SIGINT" ? 130 : 143
@@ -454,16 +457,16 @@ export async function main(): Promise<number> {
 
 	const unknown = unknownFlag(flags)
 	if (unknown !== undefined) {
-		process.stderr.write(`oat: unknown flag "--${unknown}"\n\n${USAGE}`)
+		writer.err(`oat: unknown flag "--${unknown}"\n\n${USAGE}`)
 		return 2
 	}
 	if (flagError !== undefined) {
-		process.stderr.write(`oat: ${flagError}\n\n${USAGE}`)
+		writer.err(`oat: ${flagError}\n\n${USAGE}`)
 		return EXIT.usage
 	}
 
 	if (command === "help" || flags.help === true) {
-		process.stdout.write(USAGE)
+		writer.out(USAGE)
 		return 0
 	}
 
@@ -479,8 +482,6 @@ export async function main(): Promise<number> {
 			runParserSuite,
 			runPayloadCatalogSuite,
 			runCoverageReportSuite,
-			runSeedContractSuite,
-			runEffectsSuite,
 			runTenantScopeSuite,
 			sqliteAvailable,
 			d1Available,
@@ -492,67 +493,69 @@ export async function main(): Promise<number> {
 		const backendFlag = str(flags, "backend")
 		const backendNames = ["memory", "sqlite", "postgres", "d1"]
 		if (backendFlag !== undefined && !backendNames.includes(backendFlag)) {
-			process.stderr.write(`oat: unknown --backend "${backendFlag}" — expected ${backendNames.join(", ")}\n`)
+			writer.err(`oat: unknown --backend "${backendFlag}" — expected ${backendNames.join(", ")}\n`)
 			return 2
 		}
 		const dialectFlag = str(flags, "dialect")
 		if (dialectFlag !== undefined && !Object.hasOwn(DIALECTS, dialectFlag)) {
-			process.stderr.write(`oat: unknown --dialect "${dialectFlag}" — expected ${Object.keys(DIALECTS).join(", ")}\n`)
+			writer.err(`oat: unknown --dialect "${dialectFlag}" — expected ${Object.keys(DIALECTS).join(", ")}\n`)
 			return 2
 		}
 		const onlyFlag = str(flags, "only")?.split(",").filter(Boolean)
 		const unknownDefects = (onlyFlag ?? []).filter((name) => !isDefectName(name))
 		if (flags.only === true || (onlyFlag !== undefined && onlyFlag.length === 0)) {
-			process.stderr.write("oat: --only needs a comma-separated list of defect names\n")
+			writer.err("oat: --only needs a comma-separated list of defect names\n")
 			return 2
 		}
 		if (unknownDefects.length > 0) {
-			process.stderr.write(`oat: --only names no defect: ${unknownDefects.join(", ")}\n`)
+			writer.err(`oat: --only names no defect: ${unknownDefects.join(", ")}\n`)
 			return 2
 		}
 		const { createPool, defaultJobs } = await import("./conformance/pool.ts")
+		const { runSeedContractSuite } = await import("./conformance/seed-contract.ts")
+		const { runEffectsSuite } = await import("./conformance/effects.ts")
 		const { runFeatureGateSuite } = await import("./conformance/feature-gate.ts")
 		const { runRateLimitSuite } = await import("./conformance/rate-limit.ts")
 		const { runUniqueSuite } = await import("./conformance/unique.ts")
 		const parser = renderParserSuite(runParserSuite())
-		process.stdout.write(parser.text)
+		writer.out(parser.text)
 		/* The documented example is checked in the same breath: it is the only place a reader
 		 * sees where each tag goes, and documentation that drifts teaches a shape that no longer
 		 * works. */
 		const example = renderParserSuite(await runExampleSpecSuite())
-		process.stdout.write(example.text)
+		writer.out(example.text)
 		parser.failures += example.failures
 		/* The defect matrix makes the two runs the tag-unlock claims are judged from; only a run
 		 * that stops before the matrix makes them here. */
 		const beforeMatrix = flags.parser === true || flags.precision !== undefined || flags.fuzz !== undefined
 		if (beforeMatrix) {
 			const unlocks = renderParserSuite(await runTagUnlockSuite())
-			process.stdout.write(unlocks.text)
+			writer.out(unlocks.text)
 			parser.failures += unlocks.failures
 		}
 		const coverage = renderParserSuite(runCoverageReportSuite())
-		process.stdout.write(coverage.text)
+		writer.out(coverage.text)
 		parser.failures += coverage.failures
 		const tenant = renderParserSuite(await runTenantScopeSuite())
-		process.stdout.write(tenant.text)
+		writer.out(tenant.text)
 		parser.failures += tenant.failures
 		const featureGate = renderParserSuite(await runFeatureGateSuite())
-		process.stdout.write(featureGate.text)
+		writer.out(featureGate.text)
 		parser.failures += featureGate.failures
 		const rateLimit = renderParserSuite(await runRateLimitSuite())
-		process.stdout.write(rateLimit.text)
+		writer.out(rateLimit.text)
 		parser.failures += rateLimit.failures
 		const unique = renderParserSuite(await runUniqueSuite())
-		process.stdout.write(unique.text)
+		writer.out(unique.text)
 		parser.failures += unique.failures
 		const seedContract = renderParserSuite(await runSeedContractSuite())
-		process.stdout.write(seedContract.text)
+		writer.out(seedContract.text)
 		parser.failures += seedContract.failures
 		const effects = renderParserSuite(await runEffectsSuite())
-		process.stdout.write(effects.text)
+		writer.out(effects.text)
 		parser.failures += effects.failures
 		const payloads = renderParserSuite(runPayloadCatalogSuite())
-		process.stdout.write(payloads.text)
+		writer.out(payloads.text)
 		parser.failures += payloads.failures
 		if (flags.parser === true) return parser.failures > 0 ? 1 : 0
 
@@ -569,7 +572,7 @@ export async function main(): Promise<number> {
 					seed: Number.parseInt(str(flags, "seed") ?? "1", 10) || 1,
 				}),
 			)
-			process.stdout.write(rendered.text)
+			writer.out(rendered.text)
 			return parser.failures + rendered.failures > 0 ? 1 : 0
 		}
 
@@ -587,7 +590,7 @@ export async function main(): Promise<number> {
 				seed: Number.parseInt(str(flags, "seed") ?? "1", 10) || 1,
 			})
 			const rendered = renderFuzz(results)
-			process.stdout.write(rendered.text)
+			writer.out(rendered.text)
 			return parser.failures + rendered.failures > 0 ? 1 : 0
 		}
 
@@ -635,7 +638,7 @@ export async function main(): Promise<number> {
 		const jobsFlag = str(flags, "jobs")
 		const jobs = jobsFlag === undefined ? defaultJobs() : Number.parseInt(jobsFlag, 10)
 		if (!Number.isSafeInteger(jobs) || jobs < 1) {
-			process.stderr.write("oat: --jobs must be a positive integer\n")
+			writer.err("oat: --jobs must be a positive integer\n")
 			return 2
 		}
 		/* Every leg is queued at once and printed in order as its turn comes. */
@@ -687,10 +690,10 @@ export async function main(): Promise<number> {
 					)
 		try {
 			for (const [index, pass] of passes.entries()) {
-				process.stdout.write(`\n  ── ${pass.backend} · ${pass.dialect} ${"─".repeat(46)}\n`)
+				writer.out(`\n  ── ${pass.backend} · ${pass.dialect} ${"─".repeat(46)}\n`)
 				const result = await passAnswers[index]
 				if (result?.kind !== "pass") continue
-				process.stdout.write(result.text)
+				writer.out(result.text)
 				failures += result.failures
 				for (const id of result.proven) proven.add(id)
 			}
@@ -698,12 +701,12 @@ export async function main(): Promise<number> {
 			const unlocks = renderParserSuite(
 				await runTagUnlockSuite(defaultAnswer?.kind === "pass" ? defaultAnswer.baselines : undefined),
 			)
-			process.stdout.write(unlocks.text)
+			writer.out(unlocks.text)
 			failures += unlocks.failures
 			if (scopeAnswers !== undefined) {
 				const scopeResults = (await scopeAnswers).flatMap((answer) => (answer.kind === "results" ? answer.results : []))
 				const scope = renderParserSuite(scopeResults)
-				process.stdout.write(scope.text)
+				writer.out(scope.text)
 				failures += scope.failures
 			}
 			/* The opposite question to the defect matrix: whether oat stays quiet on a correct backend
@@ -711,16 +714,16 @@ export async function main(): Promise<number> {
 			 * API, not the storage. */
 			if (shapeAnswer !== undefined) {
 				const { renderShapeSuite } = await import("./conformance/shapes.ts")
-				process.stdout.write(`\n  ── shapes · memory ${"─".repeat(46)}\n`)
+				writer.out(`\n  ── shapes · memory ${"─".repeat(46)}\n`)
 				const shapeCases = await shapeAnswer
 				const shapes = renderShapeSuite(shapeCases.kind === "cases" ? shapeCases.cases : [])
-				process.stdout.write(shapes.text)
+				writer.out(shapes.text)
 				failures += shapes.failures
 				if (recallAnswers !== undefined) {
-					process.stdout.write(`\n  ── recall behind shapes · memory ${"─".repeat(32)}\n`)
+					writer.out(`\n  ── recall behind shapes · memory ${"─".repeat(32)}\n`)
 					const recallCases = (await recallAnswers).flatMap((answer) => (answer.kind === "cases" ? answer.cases : []))
 					const recall = renderShapeSuite(recallCases, true)
-					process.stdout.write(recall.text)
+					writer.out(recall.text)
 					failures += recall.failures
 					/* A defect only a shape can show proves its check there. */
 					const { EXPECTED } = await import("./conformance/suite.ts")
@@ -735,7 +738,7 @@ export async function main(): Promise<number> {
 			/* Only a complete run can say a check was never proven; a filtered one never tried. */
 			if (fullRun) {
 				const unproven = renderUnproven(proven)
-				process.stdout.write(unproven.text)
+				writer.out(unproven.text)
 				failures += unproven.failures
 			}
 		} finally {
@@ -751,15 +754,13 @@ export async function main(): Promise<number> {
 						? "node:sqlite unavailable (Node 22 needs --experimental-sqlite)"
 						: "no Postgres server reachable on the default connection"
 				if (allowed.has(backend)) {
-					process.stdout.write(`  note: ${backend} backend skipped as asked — ${why}\n`)
+					writer.out(`  note: ${backend} backend skipped as asked — ${why}\n`)
 				} else {
 					failures += 1
-					process.stdout.write(
-						`  ✗ ${backend} backend unavailable — ${why}. Start it, or pass --skip-backend ${backend}\n`,
-					)
+					writer.out(`  ✗ ${backend} backend unavailable — ${why}. Start it, or pass --skip-backend ${backend}\n`)
 				}
 			}
-			process.stdout.write("\n")
+			writer.out("\n")
 		}
 		if (requested === undefined && only === undefined) {
 			/* A short combination pass runs as part of the standard self-test. Single-defect recall
@@ -767,22 +768,22 @@ export async function main(): Promise<number> {
 			 * bug the fuzzer has found so far — silent bail-outs, non-transitive suppression, a
 			 * probe writing into a constrained field — was invisible to the one-at-a-time matrix. */
 			const { renderFuzz, runFuzz } = await import("./conformance/fuzz.ts")
-			process.stdout.write(`\n  ── combinations ${"─".repeat(46)}\n`)
+			writer.out(`\n  ── combinations ${"─".repeat(46)}\n`)
 			/* A fixed seed tests the same 40 combinations forever. CI passes a fresh one per run and
 			 * the seed is printed, so any failure it finds replays exactly. */
 			const fuzzSeed = Number.parseInt(str(flags, "fuzz-seed") ?? "1", 10)
 			if (!Number.isSafeInteger(fuzzSeed) || fuzzSeed < 1) {
-				process.stderr.write("oat: --fuzz-seed must be a positive integer\n")
+				writer.err("oat: --fuzz-seed must be a positive integer\n")
 				return 2
 			}
-			process.stdout.write(`  fuzz seed ${fuzzSeed} — replay with --fuzz 40 --max-defects 6 --seed ${fuzzSeed}\n`)
+			writer.out(`  fuzz seed ${fuzzSeed} — replay with --fuzz 40 --max-defects 6 --seed ${fuzzSeed}\n`)
 			const smoke = renderFuzz(await runFuzz({ backend: "memory", cases: 40, maxDefects: 6, seed: fuzzSeed }))
-			process.stdout.write(smoke.text)
+			writer.out(smoke.text)
 			failures += smoke.failures
 		}
 
 		if (requested === undefined) {
-			process.stdout.write(
+			writer.out(
 				d1Ready
 					? "  note: d1 backend available — run with --backend d1 (remote, ~2min per defect)\n\n"
 					: "  note: d1 backend needs CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_D1_DATABASE_ID, CLOUDFLARE_API_TOKEN\n\n",
@@ -809,7 +810,7 @@ export async function main(): Promise<number> {
 			untagged,
 			...(dialect === undefined ? {} : { dialect }),
 		})
-		process.stdout.write(
+		writer.out(
 			`\n  oat demo API — ${backend}${untagged ? " (untagged spec)" : ""}\n` +
 				`  url      ${server.url}\n` +
 				`  spec     ${server.url}/v1/openapi/spec\n` +
@@ -822,7 +823,7 @@ export async function main(): Promise<number> {
 		)
 		/* Node buffers stdout when it is not a TTY, so a piped `oat serve` would print nothing
 		 * until exit — indistinguishable from a hang. */
-		if (typeof process.stdout.write === "function") process.stdout.uncork?.()
+		writer.flush()
 
 		/* Resolves only on signal — the process should stay up serving. */
 		await new Promise<void>((stop) => {
@@ -841,19 +842,22 @@ export async function main(): Promise<number> {
 	const configPath = str(flags, "config")
 	const read = configPath === undefined ? undefined : await readConfig(configPath, false)
 	if (read !== undefined && "problem" in read) {
-		process.stderr.write(`oat: ${read.problem}\n`)
+		writer.err(`oat: ${read.problem}\n`)
 		return EXIT.usage
 	}
 	const loaded = read?.config
 	const specSource = specFlag ?? loaded?.spec
 
 	if (specSource === undefined) {
-		process.stderr.write("oat: --spec (or --config) is required\n\n" + USAGE)
+		writer.err("oat: --spec (or --config) is required\n\n" + USAGE)
 		return 2
 	}
 
 	/* A relative spec resolves against the config's base URL, as it does for `run`. */
-	const raw = await loadSpec(specSource, str(flags, "base-url") ?? loaded?.baseUrl)
+	const raw = await loadSpec(specSource, {
+		baseUrl: str(flags, "base-url") ?? loaded?.baseUrl,
+		fetchText: (url) => fetchSpecText(url),
+	})
 	let built: { externalRefs: string[]; model: SpecModel }
 	let removed: string[] = []
 	try {
@@ -863,7 +867,7 @@ export async function main(): Promise<number> {
 		built = { externalRefs, model }
 	} catch (error) {
 		if (!(error instanceof UsageError)) throw error
-		process.stderr.write(`${error.message}\n`)
+		writer.err(`${error.message}\n`)
 		return EXIT.usage
 	}
 	const { externalRefs, model } = built
@@ -891,10 +895,10 @@ export async function main(): Promise<number> {
 				)
 			} catch (error) {
 				if (!(error instanceof ScopeError)) throw error
-				process.stderr.write(`${error.message}\n`)
+				writer.err(`${error.message}\n`)
 				return 2
 			}
-			process.stdout.write(report.plan(model, flags.json === true, scope.mode === "targeted" ? scope : undefined))
+			writer.out(report.plan(model, flags.json === true, scope.mode === "targeted" ? scope : undefined))
 			return 0
 		}
 		case "doctor": {
@@ -912,18 +916,18 @@ export async function main(): Promise<number> {
 							...(config.allow === undefined ? {} : { allowRemoved: removed }),
 						},
 			)
-			process.stdout.write(output.text)
+			writer.out(output.text)
 			/* A baseline that is not there makes every known finding fail the next run. */
 			if (config?.baseline !== undefined && configPath !== undefined) {
 				const path = resolve(dirname(resolve(configPath)), config.baseline)
 				if (!existsSync(path)) {
-					process.stdout.write(`  baseline   ${path} does not exist; \`oat baseline --from <run>\` writes one\n`)
+					writer.out(`  baseline   ${path} does not exist; \`oat baseline --from <run>\` writes one\n`)
 				}
 			}
 			return output.blocking > 0 ? 1 : 0
 		}
 		default:
-			process.stderr.write(`oat: unknown command "${command}"\n\n${USAGE}`)
+			writer.err(`oat: unknown command "${command}"\n\n${USAGE}`)
 			return 2
 	}
 }
@@ -934,7 +938,7 @@ export function start(): void {
 			process.exitCode = code
 		},
 		(error: unknown) => {
-			process.stderr.write(`oat: ${error instanceof Error ? error.message : String(error)}\n`)
+			writer.err(`oat: ${error instanceof Error ? error.message : String(error)}\n`)
 			process.exitCode = EXIT.failed
 		},
 	)
@@ -964,7 +968,7 @@ if (invokedDirectly(process.argv[1])) {
 async function commandBaseline(flags: Args["flags"]): Promise<number> {
 	const from = str(flags, "from")
 	if (from === undefined) {
-		process.stderr.write("oat: baseline needs --from <run folder | latest>\n")
+		writer.err("oat: baseline needs --from <run folder | latest>\n")
 		return EXIT.usage
 	}
 	const out = resolve(str(flags, "out") ?? "oat.baseline.json")
@@ -974,22 +978,20 @@ async function commandBaseline(flags: Args["flags"]): Promise<number> {
 		const folder = await realpath(resolve(from))
 		saved = JSON.parse(await readFile(resolve(folder, "oat-report.json"), "utf8")) as { findings?: unknown }
 	} catch (error) {
-		process.stderr.write(`oat: cannot read ${resolve(from, "oat-report.json")}: ${errorMessage(error)}\n`)
+		writer.err(`oat: cannot read ${resolve(from, "oat-report.json")}: ${errorMessage(error)}\n`)
 		return EXIT.usage
 	}
 	if (!Array.isArray(saved.findings)) {
-		process.stderr.write(`oat: ${resolve(from, "oat-report.json")} holds no findings list\n`)
+		writer.err(`oat: ${resolve(from, "oat-report.json")} holds no findings list\n`)
 		return EXIT.usage
 	}
 	if (flags.force !== true && existsSync(out)) {
-		process.stderr.write(`oat: ${out} exists; --force overwrites it\n`)
+		writer.err(`oat: ${out} exists; --force overwrites it\n`)
 		return EXIT.usage
 	}
 	const baseline = baselineFrom(saved.findings as Parameters<typeof baselineFrom>[0])
 	await writeFile(out, `${JSON.stringify(baseline, null, "\t")}\n`)
-	process.stdout.write(
-		`  ${baseline.entries.length} known finding${baseline.entries.length === 1 ? "" : "s"} → ${out}\n`,
-	)
+	writer.out(`  ${baseline.entries.length} known finding${baseline.entries.length === 1 ? "" : "s"} → ${out}\n`)
 	return 0
 }
 
@@ -1001,7 +1003,7 @@ function errorMessage(error: unknown): string {
 async function commandDiff(positionals: readonly string[], flags: Args["flags"]): Promise<number> {
 	const [a, b] = positionals
 	if (a === undefined || b === undefined) {
-		process.stderr.write("oat: diff needs two run folders: oat diff <runA> <runB>\n")
+		writer.err("oat: diff needs two run folders: oat diff <runA> <runB>\n")
 		return EXIT.usage
 	}
 	const reports: SavedReport[] = []
@@ -1014,12 +1016,12 @@ async function commandDiff(positionals: readonly string[], flags: Args["flags"])
 			if (!Array.isArray(saved.findings)) throw new Error("it holds no findings list")
 			reports.push(saved as SavedReport)
 		} catch (error) {
-			process.stderr.write(`oat: cannot read ${path}: ${errorMessage(error)}\n`)
+			writer.err(`oat: cannot read ${path}: ${errorMessage(error)}\n`)
 			return EXIT.usage
 		}
 	}
 	const [before, after] = reports as [SavedReport, SavedReport]
 	const diff = diffReports(before, after)
-	process.stdout.write(flags.json === true ? `${JSON.stringify(diff, null, 2)}\n` : renderDiff(diff))
+	writer.out(flags.json === true ? `${JSON.stringify(diff, null, 2)}\n` : renderDiff(diff))
 	return 0
 }

@@ -7,8 +7,9 @@
  * an auth step, a scenario step — is told so before anything is sent.
  */
 
-import type { Principal, Scenario } from "../config/define-config.ts"
-import { UsageError } from "../config/usage-error.ts"
+import type { Principal } from "../config/types/principals.ts"
+import type { Scenario } from "../config/types/steps.ts"
+import { UsageError } from "../errors/usage-error.ts"
 import type { OpenApiDocument } from "./types.ts"
 
 const METHODS = ["get", "put", "post", "delete", "options", "head", "patch", "trace"]

@@ -21,7 +21,7 @@ import { run } from "../runtime/run.ts"
 import { buildModel } from "../spec/graph.ts"
 import { dereference, documentDefs } from "../spec/load.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
-import type { ParserResult } from "./suite.ts"
+import type { ParserResult } from "./harness/result.ts"
 
 function push(results: ParserResult[], name: string, why: string, ok: boolean, detail: string): void {
 	results.push({ detail, name, ok, why })

@@ -5,13 +5,13 @@
  * coverage gap — the document claimed the side effect would appear.
  */
 
-import type { Hooks } from "../config/define-config.ts"
+import type { Hooks } from "../config/types/hooks.ts"
 import type { WaitSpec } from "../spec/extensions.ts"
 import type { OperationModel } from "../spec/graph.ts"
 import type { Client, Exchange } from "./client.ts"
 import { readPath as readPointer } from "./path.ts"
 import { sleep } from "./poll.ts"
-import { fillPath } from "./world.ts"
+import { fillPath } from "./fill-path.ts"
 
 /** Present enough to stop polling: not null, not "", not []. */
 export function pointerIsOccupied(value: unknown): boolean {

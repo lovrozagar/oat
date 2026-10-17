@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { chmod, mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { encodeRequest } from "../../src/runtime/body.ts"
 import { run } from "../../src/runtime/run.ts"
 import { resetUploadPool } from "../../src/runtime/upload.ts"
@@ -189,14 +189,17 @@ describe("resolveEachInvocations", () => {
 		expect(slots).toEqual([])
 	})
 
-	it("uses console.warn when no warn hook is set", async () => {
+	it("prints nothing itself when no warn hook is set", async () => {
 		const dir = await scratch()
+		const warn = vi.spyOn(console, "warn")
 		const slots = await resolveEachInvocations("extract.once", {
 			configDir: dir,
 			seed: 1,
 			uploads: { each: { "extract.once": ["./gone/*.pdf"] } },
 		})
 		expect(slots).toEqual([])
+		expect(warn).not.toHaveBeenCalled()
+		warn.mockRestore()
 	})
 })
 

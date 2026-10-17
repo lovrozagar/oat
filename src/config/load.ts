@@ -7,7 +7,7 @@
 import { readFile } from "node:fs/promises"
 import { isAbsolute, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
-import type { OatConfig } from "./define-config.ts"
+import type { OatConfig } from "./types/config.ts"
 
 export async function loadConfig(path: string): Promise<OatConfig> {
 	const absolute = isAbsolute(path) ? path : resolve(process.cwd(), path)

@@ -1,8 +1,7 @@
 /** HTTP client with a full transcript, so every finding can cite the exchange that produced it. */
 
-import type { HeaderRequest } from "../config/define-config.ts"
+import type { HeaderRequest } from "../config/types/hooks.ts"
 import {
-	CREDENTIAL_HEADERS,
 	CookieJar,
 	MAX_REDIRECTS,
 	applyJarToHeaders,
@@ -36,90 +35,27 @@ import {
 	type NetworkKind,
 } from "./network.ts"
 import { sleep } from "./poll.ts"
-import { REDACTED, isSecretHeaderName, isSecretJsonKey, redactJson, redactText, redactUrl } from "./redact.ts"
+import { isSecretJsonKey } from "../security/credential-names.ts"
+import { REDACTED, Redactor } from "../security/redact.ts"
+import { credentialHeaderNames, stripCredentials } from "../security/strip.ts"
 import { INLINE_BODY_LIMIT } from "./exchanges.ts"
+import { BodySpool, readResponsePayload, releaseTranscriptBodies, sha256Hex } from "./transcript.ts"
 import {
-	BodySpool,
+	bodyByteLength,
+	type Exchange,
+	formDataBytes,
 	isBodyRef,
+	isFormData,
 	isFormSnapshot,
-	readResponsePayload,
-	releaseTranscriptBodies,
-	sha256Hex,
-} from "./transcript.ts"
+	isRawBytes,
+	isURLSearchParams,
+	type Purpose,
+	utf8Bytes,
+} from "./exchange.ts"
+
+export { describeRequestBody, type Exchange, type Purpose } from "./exchange.ts"
 import type { Fence } from "./fence.ts"
-import { MissingValueError } from "./missing-value.ts"
-
-export interface Exchange {
-	seq: number
-	method: string
-	url: string
-	requestHeaders: Record<string, string>
-	requestBody: unknown
-	status: number
-	responseHeaders: Record<string, string>
-	responseBody: unknown
-	durationMs: number
-	/** Wall clock when the response finished, unix ms. */
-	at: number
-	/** Reconstructed HTTP/1.1 request size: start line, headers, body. */
-	requestBytes: number
-	/** Reconstructed HTTP/1.1 response size: start line, headers, body. */
-	responseBytes: number
-	/**
-	 * `x-request-id` / `request-id` / `x-correlation-id` / `correlation-id`.
-	 * Response header wins; otherwise what oat sent. Empty when neither side passed one.
-	 */
-	requestId: string
-	/** Rate-limit category this request was paced against, when one matched. */
-	rateLimitCategory?: string
-	/** Where that category came from — a `spec.*` finding only ever cites a `"tag"` rejection. */
-	rateLimitSource?: "tag" | "config" | "implicit"
-	/** Whether the bucket had a token without waiting — oat believes it was under its own pace. */
-	rateLimitHadRoom?: boolean
-	/** Size and hash of a large request body as sent; what a stored reference names. */
-	requestDigest?: { bytes: number; sha256: string }
-	/** Size and hash of a large response body as received; what a stored reference names. */
-	responseDigest?: { bytes: number; sha256: string }
-	/** Named operation, when the caller passed one. */
-	operationId?: string
-	/** `uploads.each` filename, when this request is one cell of that matrix. */
-	fixture?: string
-	/** Set when `fetch` threw — there was no HTTP status. */
-	network?: { kind: NetworkKind; attempt: number; message: string }
-	/**
-	 * Intermediate 3xx hops when this request followed redirects with a cookie jar.
-	 * The exchange itself is the original URL + the final status/headers/body.
-	 */
-	redirects?: RedirectHop[]
-	/** Landing URL when a followed redirect chain ended somewhere other than `url`. */
-	finalUrl?: string
-	/** Cookie jar after this hop (this response + followed hops). */
-	cookies?: Record<string, string>
-	/** The documented path template this request resolved to, e.g. `/v1/tables/{table_id}`. */
-	template?: string
-	/** The value each of the template's path parameters took in this request, URI-decoded. */
-	pathParams?: Record<string, string>
-	/** The principal whose credential the request carried, when one did. */
-	principal?: string
-	/** Why oat sent it — see `Purpose`. */
-	purpose?: Purpose
-	/** The check that issued it, when a check did. */
-	check?: string
-	/** The entity under test when it was issued. */
-	subject?: string
-	/**
-	 * Set when this response was answered again: a 401 refreshed and retried, or a 429 waited out.
-	 * Only the final answer is the backend's verdict on the request.
-	 */
-	superseded?: true
-}
-
-/**
- * Why an exchange happened. Normal traffic — seeding, a check's assertions, auth, teardown — is
- * what the document has to describe. A deliberate negative probe is oat sending something it
- * expects to be refused, and what a backend answers it with is judged separately.
- */
-export type Purpose = "seed" | "assertion" | "probe" | "auth" | "teardown"
+import { MissingValueError } from "../errors/missing-value.ts"
 
 /** Who is asking, and why: carried onto every exchange a view sends. */
 /** Methods that cannot change server state. */
@@ -249,6 +185,8 @@ export class Client {
 	private inFlight = 0
 	private readonly waiting: Array<() => void> = []
 	private readonly boundAuth: BoundAuth[] = []
+	/* Not `#private`: a view is a Proxy, and a private field does not read through one. */
+	private scrubber = new Redactor()
 
 	constructor(
 		private readonly baseUrl: string,
@@ -276,7 +214,15 @@ export class Client {
 		this.resolveHeaders = fn
 	}
 
-	/** Resolves each request to its documented operation, so nothing downstream parses URLs. */
+	/** What this client's transcript is scrubbed with: one per run, shared by its origin clients. */
+	get redactor(): Redactor {
+		return this.scrubber
+	}
+
+	setRedactor(redactor: Redactor): void {
+		this.scrubber = redactor
+	}
+
 	/** Every request, redirect hops included, asks this first; a refused one is never sent. */
 	setFence(fence: Fence): void {
 		this.fence = fence
@@ -442,10 +388,7 @@ export class Client {
 			const callerCookie = headerValue(headers, "cookie")
 			/* Every header that carries a credential: the known names, and whatever the bound
 			 * principal injects — an API key under a custom name is still a key. */
-			const credentialNames = new Set([
-				...CREDENTIAL_HEADERS,
-				...Object.keys(bound?.headers() ?? {}).map((name) => name.toLowerCase()),
-			])
+			const credentialNames = credentialHeaderNames(Object.keys(bound?.headers() ?? {}))
 			const hops: RedirectHop[] = []
 			let hopUrl = url
 			let hopMethod = method
@@ -523,11 +466,7 @@ export class Client {
 							})
 							/* Another origin — scheme, host or port — gets no credential of ours. */
 							const crossOrigin = next.url.origin !== url.origin
-							if (crossOrigin) {
-								for (const name of Object.keys(hopHeaders)) {
-									if (credentialNames.has(name.toLowerCase())) delete hopHeaders[name]
-								}
-							}
+							if (crossOrigin) stripCredentials(hopHeaders, credentialNames)
 							hopUrl = next.url
 							hopMethod = next.method
 							if (next.dropBody) {
@@ -729,7 +668,7 @@ export class Client {
 	 */
 	private async record(exchange: Exchange, entity?: string): Promise<void> {
 		const stored: Exchange = { ...exchange }
-		await releaseTranscriptBodies(stored)
+		await releaseTranscriptBodies(stored, this.scrubber)
 		this.transcript.push(stored)
 		this.stored.set(exchange.seq, stored)
 		await this.spool.keep(stored)
@@ -777,6 +716,8 @@ export interface CurlOptions {
 	redact?: readonly string[]
 	/** Origin to replace with `"$BASE"`, so a script can be pointed at another environment. */
 	origin?: string
+	/** The run's redactor, so values it was issued are scrubbed too. Default: names only. */
+	redactor?: Redactor
 }
 
 /**
@@ -804,13 +745,14 @@ function shellQuote(text: string): string {
 
 export function toCurl(exchange: Exchange, options: CurlOptions = {}): string {
 	const redact = options.redact
-	const target = redactUrl(exchange.url)
+	const redactor = options.redactor ?? new Redactor()
+	const target = redactor.url(exchange.url)
 	const below = options.origin === undefined ? undefined : belowBase(target, options.origin)
 	const url = below === undefined ? shellQuote(target) : `"$BASE${shellEscapeDouble(below)}"`
 
 	const parts = [`curl -i -X ${exchange.method} ${url}`]
 	for (const [key, value] of Object.entries(exchange.requestHeaders)) {
-		if (redact === undefined ? isSecretHeaderName(key) : redact.includes(key.toLowerCase())) {
+		if (redact === undefined ? redactor.isSecretHeader(key) : redact.includes(key.toLowerCase())) {
 			/* Preserve the scheme prefix ("Bearer ", "ApiKey ") so the variable holds only the
 			 * secret and the script stays copy-pasteable. */
 			const scheme = /^(\w+)\s+/.exec(value)?.[1]
@@ -818,26 +760,26 @@ export function toCurl(exchange: Exchange, options: CurlOptions = {}): string {
 			parts.push(`  -H "${shellEscapeDouble(key)}: ${rendered}"`)
 			continue
 		}
-		parts.push(`  -H ${shellQuote(`${key}: ${redactText(value)}`)}`)
+		parts.push(`  -H ${shellQuote(`${key}: ${redactor.text(value)}`)}`)
 	}
 	if (exchange.requestBody !== undefined) {
-		for (const flag of curlBodyFlags(redactBody(exchange.requestBody))) parts.push(flag)
+		for (const flag of curlBodyFlags(redactBody(exchange.requestBody, redactor))) parts.push(flag)
 	}
 	return parts.join(" \\\n")
 }
 
 /** A request body with secrets removed, keeping the shape `curlBodyFlags` understands. */
-function redactBody(body: unknown): unknown {
-	if (typeof body === "string") return redactText(body)
+function redactBody(body: unknown, redactor: Redactor): unknown {
+	if (typeof body === "string") return redactor.text(body)
 	if (isURLSearchParams(body)) {
 		const out = new URLSearchParams()
-		for (const [key, value] of body) out.append(key, isSecretJsonKey(key) ? REDACTED : redactText(value))
+		for (const [key, value] of body) out.append(key, isSecretJsonKey(key) ? REDACTED : redactor.text(value))
 		return out
 	}
 	if (isFormData(body) || isFormSnapshot(body) || isRawBytes(body) || isBodyRef(body)) {
 		return body
 	}
-	return redactJson(body)
+	return redactor.json(body)
 }
 
 function curlBodyFlags(body: unknown): string[] {
@@ -931,46 +873,6 @@ function asBodyInit(body: unknown): FetchBody | undefined {
 	return undefined
 }
 
-function isFormData(body: unknown): body is FormData {
-	return typeof FormData !== "undefined" && body instanceof FormData
-}
-
-function isURLSearchParams(body: unknown): body is URLSearchParams {
-	return typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams
-}
-
-function isRawBytes(body: unknown): body is ArrayBuffer | ArrayBufferView | Blob {
-	if (typeof ArrayBuffer !== "undefined" && body instanceof ArrayBuffer) return true
-	if (ArrayBuffer.isView(body)) return true
-	if (typeof Blob !== "undefined" && body instanceof Blob) return true
-	return false
-}
-
-function bodyByteLength(body: unknown): number {
-	if (typeof body === "string") return utf8Bytes(body)
-	if (isFormData(body)) return formDataBytes(body)
-	if (isURLSearchParams(body)) return utf8Bytes(body.toString())
-	if (typeof Blob !== "undefined" && body instanceof Blob) return body.size
-	if (typeof ArrayBuffer !== "undefined" && body instanceof ArrayBuffer) return body.byteLength
-	if (ArrayBuffer.isView(body)) return body.byteLength
-	return 0
-}
-
-function formDataBytes(form: FormData): number {
-	let total = 0
-	for (const [name, value] of form.entries()) {
-		total += utf8Bytes(name) + 80
-		if (typeof value === "string") total += utf8Bytes(value)
-		else total += value.size + utf8Bytes(value.name)
-	}
-	return total
-}
-
-function utf8Bytes(text: string | undefined): number {
-	/* Counted, not encoded: a copy of every body just to measure it is the cost to avoid. */
-	return text === undefined || text === "" ? 0 : Buffer.byteLength(text, "utf8")
-}
-
 function hasHeader(headers: Record<string, string>, name: string): boolean {
 	const want = name.toLowerCase()
 	return Object.keys(headers).some((key) => key.toLowerCase() === want)
@@ -1026,30 +928,6 @@ function httpMessageBytes(
 const REQUEST_ID_HEADERS = ["x-request-id", "request-id", "x-correlation-id", "correlation-id"] as const
 
 /** Response header first, then the request. Empty when neither side sent one of the known names. */
-/** Plain snapshot of a request body for reports — FormData is not JSON. */
-export function describeRequestBody(body: unknown): unknown {
-	if (body === undefined) return undefined
-	if (isFormData(body)) {
-		const parts: Record<string, unknown> = {}
-		for (const [name, value] of body.entries()) {
-			if (typeof value === "string") parts[name] = value
-			else parts[name] = { filename: value.name, mediaType: value.type, bytes: value.size }
-		}
-		return parts
-	}
-	if (isFormSnapshot(body)) {
-		const parts: Record<string, unknown> = {}
-		for (const part of body.parts) {
-			if ("value" in part) parts[part.field] = part.value
-			else parts[part.field] = { bytes: part.bytes, filename: part.filename, mediaType: part.mediaType }
-		}
-		return parts
-	}
-	if (isURLSearchParams(body)) return body.toString()
-	if (isRawBytes(body)) return { bytes: bodyByteLength(body) }
-	if (isBodyRef(body)) return { bytes: body.bytes, mediaType: body.mediaType, sha256: body.sha256 }
-	return body
-}
 
 export function requestIdOf(requestHeaders: Record<string, string>, responseHeaders: Record<string, string>): string {
 	return headerOf(responseHeaders, REQUEST_ID_HEADERS) ?? headerOf(requestHeaders, REQUEST_ID_HEADERS) ?? ""

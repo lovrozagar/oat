@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest"
 import { buildSpec } from "../reference/spec.ts"
-import { buildScopeReport, GradeLedger, resolveTargetScope, ScopeError, staticSubjects } from "./scope.ts"
+import {
+	buildScopeReport,
+	describeRequested,
+	GradeLedger,
+	operationFor,
+	planScope,
+	resolveTargetScope,
+	ScopeError,
+	staticSubjects,
+} from "./scope.ts"
 import { buildModel, type SpecModel } from "../spec/graph.ts"
 import { dereference } from "../spec/load.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
@@ -165,5 +174,31 @@ describe("a pass needs a call", () => {
 		ledger.graded(["pay.start"], "spec.declared-rate-limit-is-honoured")
 		const call = { method: "POST", operationId: "pay.start", seq: 1, status: 200, url: "http://api.test/v1/pay" }
 		expect(report(ledger, [call])?.status).toBe("passed")
+	})
+})
+
+describe("planning a scope without a network", () => {
+	it("says what was asked, as typed", () => {
+		expect(describeRequested({ only: ["row"], ops: ["table.get", "table.list"] })).toBe(
+			"--ops table.get,table.list --only row",
+		)
+		expect(describeRequested({ only: [], ops: [] })).toBe("")
+	})
+
+	it("finds the operation an exchange hit, below the base path, or none", () => {
+		const model = referenceModel()
+		const table = operationFor(model, "GET", "http://h.test/api/v1/projects/p1/tables/t1", "http://h.test/api")
+		expect(table?.operationId).toBe("table.get")
+		expect(operationFor(model, "GET", "http://h.test/api/nowhere", "http://h.test/api")).toBeNull()
+		expect(operationFor(model, "GET", "not a url", "http://h.test")).toBeNull()
+	})
+
+	it("names each target's grading checks and the entities a targeted run queues", () => {
+		const model = referenceModel()
+		const plan = planScope(model, resolveTargetScope(model, { ops: ["table.get"] }))
+		expect(plan.mode).toBe("targeted")
+		expect(plan.targets.map((target) => target.operationId)).toEqual(["table.get"])
+		expect(plan.targets[0]?.checks.length).toBeGreaterThan(0)
+		expect(plan.entities).toContain("table")
 	})
 })

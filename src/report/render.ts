@@ -10,7 +10,7 @@
 import { renderConfidenceMarkdown } from "./confidence.ts"
 import { describeRequestBody, toCurl } from "../runtime/client.ts"
 import type { FencedRequest } from "../runtime/fence.ts"
-import { redactJson, redactUrl } from "../runtime/redact.ts"
+import { Redactor } from "../security/redact.ts"
 import type { Client, Exchange } from "../runtime/client.ts"
 import { describeRequested, type OperationCoverage, type OperationStatus, type ScopeReport } from "../runtime/scope.ts"
 import { EXIT, runVerdict } from "../runtime/exit.ts"
@@ -102,18 +102,18 @@ function truncate(value: unknown, max = 600): string {
 	return text.length > max ? `${text.slice(0, max)}\n… ${text.length - max} more characters` : text
 }
 
-function exchangeBlock(exchange: Exchange): string[] {
+function exchangeBlock(exchange: Exchange, redactor: Redactor): string[] {
 	const lines: string[] = []
 	lines.push("")
 	lines.push(
-		`\`${exchange.method} ${new URL(redactUrl(exchange.url)).pathname}${new URL(redactUrl(exchange.url)).search}\` → **${exchange.status}** (${new Date(exchange.at).toISOString()} · ${exchange.durationMs}ms · ${formatBytes(exchange.requestBytes)} → ${formatBytes(exchange.responseBytes)}${exchange.requestId === "" ? "" : ` · ${exchange.requestId}`})`,
+		`\`${exchange.method} ${new URL(redactor.url(exchange.url)).pathname}${new URL(redactor.url(exchange.url)).search}\` → **${exchange.status}** (${new Date(exchange.at).toISOString()} · ${exchange.durationMs}ms · ${formatBytes(exchange.requestBytes)} → ${formatBytes(exchange.responseBytes)}${exchange.requestId === "" ? "" : ` · ${exchange.requestId}`})`,
 	)
 	if (exchange.requestBody !== undefined) {
 		lines.push("")
 		lines.push("<details><summary>request body</summary>")
 		lines.push("")
 		lines.push("```json")
-		lines.push(truncate(redactJson(describeRequestBody(exchange.requestBody))))
+		lines.push(truncate(redactor.json(describeRequestBody(exchange.requestBody))))
 		lines.push("```")
 		lines.push("")
 		lines.push("</details>")
@@ -123,7 +123,7 @@ function exchangeBlock(exchange: Exchange): string[] {
 		lines.push("<details><summary>response body</summary>")
 		lines.push("")
 		lines.push("```json")
-		lines.push(truncate(redactJson(exchange.responseBody)))
+		lines.push(truncate(redactor.json(exchange.responseBody)))
 		lines.push("```")
 		lines.push("")
 		lines.push("</details>")
@@ -132,6 +132,7 @@ function exchangeBlock(exchange: Exchange): string[] {
 }
 
 export function renderMarkdown(input: ReportInput): string {
+	const redactor = input.client.redactor
 	/* Known findings have a section of their own; everything else reads as it always has. */
 	const findings = input.findings.filter((finding) => finding.known === undefined)
 	const known = input.findings.filter((finding) => finding.known !== undefined)
@@ -210,7 +211,7 @@ export function renderMarkdown(input: ReportInput): string {
 		lines.push("")
 		for (const create of unidentified) {
 			lines.push(
-				`- \`${create.method} ${redactUrl(create.url)}\` · ${create.operationId} · ${create.status} · exchange #${create.seq}`,
+				`- \`${create.method} ${redactor.url(create.url)}\` · ${create.operationId} · ${create.status} · exchange #${create.seq}`,
 			)
 		}
 		lines.push("")
@@ -232,7 +233,7 @@ export function renderMarkdown(input: ReportInput): string {
 		lines.push("")
 		for (const request of fenced) {
 			lines.push(
-				`- \`${request.method} ${redactUrl(request.url)}\` · ${request.operationId ?? "—"} · ${request.phase} · ${request.reason}`,
+				`- \`${request.method} ${redactor.url(request.url)}\` · ${request.operationId ?? "—"} · ${request.phase} · ${request.reason}`,
 			)
 		}
 		lines.push("")
@@ -316,7 +317,7 @@ export function renderMarkdown(input: ReportInput): string {
 			lines.push("")
 			lines.push(finding.detail)
 			for (const exchange of finding.evidence.slice(0, 3)) {
-				lines.push(...exchangeBlock(exchange))
+				lines.push(...exchangeBlock(exchange, redactor))
 			}
 			if (finding.evidence.length > 0) {
 				lines.push("")
@@ -355,7 +356,7 @@ export interface ReproScript {
 export const ISSUE_REPRO_DIR = "issue-repro"
 
 /** One runnable script per finding — the artifact a backend developer actually opens. */
-export function renderRepros(findings: Finding[], baseUrl: string): ReproScript[] {
+export function renderRepros(findings: Finding[], baseUrl: string, redactor = new Redactor()): ReproScript[] {
 	/* `BASE` stands for the whole base URL, path prefix and all, so it replaces exactly that. */
 	const base = baseUrl.replace(/\/+$/, "")
 	const taken = new Set<string>()
@@ -376,7 +377,7 @@ export function renderRepros(findings: Finding[], baseUrl: string): ReproScript[
 
 			finding.evidence.forEach((exchange, index) => {
 				lines.push(`# step ${index + 1} — observed ${exchange.status}`)
-				lines.push(toCurl(exchange, { origin: base }))
+				lines.push(toCurl(exchange, { origin: base, redactor }))
 				lines.push("")
 			})
 
@@ -753,6 +754,7 @@ function latency(
 }
 
 export function renderJson(input: ReportInput): string {
+	const redactor = input.client.redactor
 	const coverage = coverageByCheck(input)
 	return `${JSON.stringify(
 		{
@@ -781,13 +783,13 @@ export function renderJson(input: ReportInput): string {
 					at: new Date(exchange.at).toISOString(),
 					durationMs: exchange.durationMs,
 					method: exchange.method,
-					requestBody: redactJson(describeRequestBody(exchange.requestBody)),
+					requestBody: redactor.json(describeRequestBody(exchange.requestBody)),
 					requestBytes: exchange.requestBytes,
 					requestId: exchange.requestId,
-					responseBody: redactJson(exchange.responseBody),
+					responseBody: redactor.json(exchange.responseBody),
 					responseBytes: exchange.responseBytes,
 					status: exchange.status,
-					url: redactUrl(exchange.url),
+					url: redactor.url(exchange.url),
 				})),
 				summary: finding.summary,
 				verdict: finding.verdict,
@@ -803,7 +805,7 @@ export function renderJson(input: ReportInput): string {
 				: {
 						fenced: {
 							failRun: input.fenced.failRun,
-							requests: input.fenced.requests.map((request) => ({ ...request, url: redactUrl(request.url) })),
+							requests: input.fenced.requests.map((request) => ({ ...request, url: redactor.url(request.url) })),
 						},
 					}),
 			requestBytes: utf8Total(input.client.transcript, "request"),

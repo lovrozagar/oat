@@ -42,7 +42,15 @@
 			}
 		},
 		{
-			"files": ["lint/**"],
+			"files": [
+				"lint/**",
+				"src/cli/**",
+				"src/config/types/**",
+				"src/conformance/harness/**",
+				"src/errors/**",
+				"src/runtime/checks/core/**",
+				"src/security/**"
+			],
 			"plugins": ["typescript", "unicorn", "oxc", "vitest"],
 			"rules": {
 				"complexity": ["error", 15],
@@ -65,7 +73,20 @@
 			}
 		},
 		{
-			"files": ["lint/**/*.test.ts"],
+			"files": ["src/**"],
+			"rules": {
+				"oat/boundaries": "error",
+				"oat/index-purity": "error"
+			}
+		},
+		{
+			"files": [
+				"lint/**/*.test.ts",
+				"src/cli/**/*.test.ts",
+				"src/errors/**/*.test.ts",
+				"src/runtime/checks/core/**/*.test.ts",
+				"src/security/**/*.test.ts"
+			],
 			"rules": {
 				"max-lines": ["error", 500]
 			}

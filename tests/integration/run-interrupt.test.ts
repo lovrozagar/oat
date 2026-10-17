@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest"
 import { leftBehind } from "../../src/conformance/leaks.ts"
 import { PRINCIPALS } from "../../src/conformance/suite.ts"
 import { createMemoryServer } from "../../src/reference/http.ts"
-import { redactText } from "../../src/runtime/redact.ts"
 import { run } from "../../src/runtime/run.ts"
 import { Ledger } from "../../src/runtime/teardown.ts"
 
@@ -59,7 +58,7 @@ describe("principals that authenticate with a static key", () => {
 	it("have their keys redacted from everything oat writes", async () => {
 		const server = await createMemoryServer()
 		try {
-			await run({
+			const result = await run({
 				baseUrl: server.url,
 				only: ["job"],
 				principals: [
@@ -69,7 +68,8 @@ describe("principals that authenticate with a static key", () => {
 				seed: 42,
 				spec: `${server.url}/v1/openapi/spec`,
 			})
-			expect(redactText("sent Bearer tok_alpha and tok_beta")).not.toMatch(/tok_(alpha|beta)/)
+			const scrubbed = result.client.redactor.text("sent Bearer tok_alpha and tok_beta")
+			expect(scrubbed).not.toMatch(/tok_(alpha|beta)/)
 		} finally {
 			await server.close()
 		}

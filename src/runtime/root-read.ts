@@ -3,12 +3,12 @@
  * No list and no create. No token is a 401. The authed read uses that root.
  */
 
-import type { Check } from "./checks.ts"
+import type { Check } from "./checks/core/check.ts"
 import type { Client } from "./client.ts"
 import { ASSERTED, type FindingCollector, type Outcome } from "./finding.ts"
 import type { CheckId } from "./check-ids.ts"
 import type { EntityModel, SpecModel } from "../spec/graph.ts"
-import { fillPath } from "./world.ts"
+import { fillPath } from "./fill-path.ts"
 
 export const ROOT_READ_CHECK_ID = "read.matches-caller-root" as const satisfies CheckId
 

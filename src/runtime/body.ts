@@ -5,7 +5,7 @@
  * FormData — file parts are resolved (hook → pool → dummy), never JSON.stringified.
  */
 
-import type { UploadFile, UploadRequest } from "../config/define-config.ts"
+import type { UploadFile, UploadRequest } from "../config/types/hooks.ts"
 import { requestContent } from "../spec/collection.ts"
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
 import { applyResolveInput } from "./input.ts"

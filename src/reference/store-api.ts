@@ -14,7 +14,7 @@
  */
 
 import type { EntityDef } from "./model.ts"
-import type { SelectPlan } from "./query.ts"
+import type { SelectPlan } from "./query-types.ts"
 
 export type Row = Record<string, unknown>
 

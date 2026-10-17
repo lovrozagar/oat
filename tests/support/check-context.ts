@@ -1,4 +1,4 @@
-import type { CheckContext } from "../../src/runtime/checks.ts"
+import { type CheckContext, checkMemo } from "../../src/runtime/checks.ts"
 import { SchemaValidator } from "../../src/runtime/validate.ts"
 
 /*
@@ -26,6 +26,7 @@ export function checkContext<C extends CheckContext["client"]>(
 		hooks: {},
 		identity: "id",
 		invite: null,
+		memo: checkMemo(),
 		nonce: "test",
 		outOfBand: { attempts: 6, initialMs: 200, maxMs: 3000 },
 		query: null,

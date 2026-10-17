@@ -23,63 +23,20 @@ import type { EntityDef, FieldDef } from "./model.ts"
 import { OVERCLAIMED_FIELD, fieldsWhere } from "./model.ts"
 import { SqlError } from "./store-api.ts"
 
-export type Scalar = string | number | boolean | null
+import type { Collation, FilterNode, LikeSegment, OrderTerm, Scalar, SearchMode } from "./query-types.ts"
 
-export type LikeSegment = { kind: "text"; text: string } | { kind: "any" } | { kind: "one" }
+export type {
+	Collation,
+	ComparisonOp,
+	FilterNode,
+	LikeSegment,
+	OrderTerm,
+	Scalar,
+	SearchMode,
+	SelectPlan,
+} from "./query-types.ts"
 
-export type ComparisonOp = "eq" | "neq" | "gt" | "gte" | "lt" | "lte"
-
-export type FilterNode =
-	| { kind: "const"; value: boolean }
-	| { kind: "and" | "or"; children: FilterNode[] }
-	| {
-			kind: "cmp"
-			field: string
-			op: ComparisonOp
-			value: Scalar
-			/** Compare the textual form of both sides — the numeric-as-text defect. */
-			asText: boolean
-			/** Whether a null value satisfies the predicate. True only for a correct `neq`. */
-			nullsMatch: boolean
-	  }
-	| { kind: "in"; field: string; values: Scalar[]; negate: boolean; asText: boolean }
-	| { kind: "isnull"; field: string; negate: boolean }
-	| { kind: "like"; field: string; pattern: LikeSegment[]; insensitive: boolean }
-	/** Array membership. `substring` is the defect: the serialised array matched as text. */
-	| { kind: "contains"; field: string; value: string; substring: boolean }
-	| {
-			kind: "search"
-			fields: string[]
-			token: string
-			/** `prefix`: some field starts with the token; `contains`: some field contains it. */
-			mode: SearchMode
-			caseSensitive: boolean
-	  }
-
-export interface OrderTerm {
-	field: string
-	descending: boolean
-	nullsFirst: boolean
-	asText: boolean
-}
-
-export type Collation = "binary" | "insensitive"
-
-export const SEARCH_MODES = ["contains", "prefix"] as const
-export type SearchMode = (typeof SEARCH_MODES)[number]
-
-/** Everything a store needs to answer a listing: which rows, in what order. */
-export interface SelectPlan {
-	where: FilterNode
-	order: OrderTerm[]
-	/** Text ordering. Filters always compare binary; only ordering follows the collation. */
-	collation: Collation
-	/**
-	 * Tied rows come back in an arbitrary, varying order — what a database does when the sort
-	 * has no total order. Set only under UNSTABLE_SORT; otherwise the identity breaks every tie.
-	 */
-	shuffleTies: boolean
-}
+export const SEARCH_MODES = ["contains", "prefix"] as const satisfies readonly SearchMode[]
 
 /** Behaviour of a correct backend that varies between real APIs — see `ReferenceShape`. */
 export interface QueryConventions {

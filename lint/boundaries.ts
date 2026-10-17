@@ -5,23 +5,25 @@ import { isTestCode, repoPath } from "./paths.ts"
 
 /*
  * oat's dependency arrows, low to high:
- *   errors, config/types → spec, security → runtime, client, credentials, reference → runtime/run
- *   → config, report, conformance → cli, index
- * A module imports its own layer group or any lower layer. Only cli and index import report or
- * conformance (conformance renders through report). The reference backend is a separate program:
- * it never imports the runtime, and only conformance, cli and index import it.
+ *   errors, config/types → security → spec → client, credentials, reference → runtime (checks
+ *   included) → runtime/run → config, report, conformance → cli, index
+ * A module imports its own layer group or any lower layer. security is a leaf above the errors:
+ * it imports nothing else. client and credentials sit below the runtime, so the runtime calls them
+ * and never the reverse. Only cli and index import report or conformance (conformance renders
+ * through report). The reference backend is a separate program: it never imports the client or
+ * the runtime, and only conformance, cli and index import it.
  */
 const MESSAGE = "import is outside oat's module boundaries (see AGENTS.md: dependency arrows)"
 
 type Bucket =
 	| "errors"
 	| "config-types"
-	| "spec"
 	| "security"
-	| "runtime"
+	| "spec"
 	| "client"
 	| "credentials"
 	| "reference"
+	| "runtime"
 	| "run"
 	| "config"
 	| "report"
@@ -32,31 +34,31 @@ type Bucket =
 const LAYER: Readonly<Record<Bucket, number>> = {
 	errors: 0,
 	"config-types": 0,
-	spec: 1,
 	security: 1,
-	runtime: 2,
-	client: 2,
-	credentials: 2,
-	reference: 2,
-	run: 3,
-	config: 4,
-	report: 4,
-	conformance: 4,
-	cli: 5,
-	index: 5,
+	spec: 2,
+	client: 3,
+	credentials: 3,
+	reference: 3,
+	runtime: 4,
+	run: 5,
+	config: 6,
+	report: 6,
+	conformance: 6,
+	cli: 7,
+	index: 7,
 }
 
 /* Buckets on one layer that may import each other. */
 const GROUPS: ReadonlyArray<ReadonlySet<Bucket>> = [
-	new Set(["runtime", "client", "credentials"]),
+	new Set(["client", "credentials"]),
 	new Set(["errors", "config-types"]),
-	new Set(["spec", "security"]),
 	new Set(["conformance", "report"]),
 ]
 const TOP_ONLY: ReadonlySet<string> = new Set(["report", "conformance"])
 const REFERENCE_USERS: ReadonlySet<string> = new Set(["reference", "conformance", "cli", "index"])
-/* A driver the reference backend loads for one engine; oat itself never needs it. */
+/* A driver the reference backend loads for one engine, and conformance probes for; oat itself never needs it. */
 const REFERENCE_DRIVERS = new Set(["postgres"])
+const DRIVER_USERS: ReadonlySet<string> = new Set(["reference", "conformance"])
 
 /* Top-level directories that are a bucket by themselves. */
 const DIRECTORIES: ReadonlySet<string> = new Set([
@@ -72,11 +74,29 @@ const DIRECTORIES: ReadonlySet<string> = new Set([
 	"conformance",
 ])
 
+/* The HTTP client and its transport still live in runtime/ until they move to client/: bucketed by file. */
+const CLIENT_FILES: ReadonlySet<string> = new Set(
+	[
+		"client",
+		"cookies",
+		"exchange",
+		"exchanges",
+		"fence",
+		"headers",
+		"network",
+		"poll",
+		"rate-limit",
+		"sse",
+		"transcript",
+	].map((name) => `runtime/${name}.ts`),
+)
+
 function bucket(rel: string): Bucket | "unknown" {
 	if (rel === "cli.ts" || rel.startsWith("cli/")) return "cli"
 	if (rel === "index.ts") return "index"
 	if (rel === "runtime/run.ts" || rel.startsWith("runtime/run/")) return "run"
 	if (rel.startsWith("config/types/")) return "config-types"
+	if (CLIENT_FILES.has(rel)) return "client"
 	const top = rel.split("/", 1).join("")
 	return rel.includes("/") && DIRECTORIES.has(top) ? (top as Bucket) : "unknown"
 }
@@ -117,7 +137,7 @@ function allowed(fromRel: string, spec: string, packages: () => Set<string>): bo
 	const from = bucket(fromRel)
 	if (!spec.startsWith(".")) {
 		const name = packageName(spec)
-		return packages().has(name) || (from === "reference" && REFERENCE_DRIVERS.has(name))
+		return packages().has(name) || (DRIVER_USERS.has(from) && REFERENCE_DRIVERS.has(name))
 	}
 	return allowedBetween(from, bucket(resolveRel(fromRel, spec)))
 }

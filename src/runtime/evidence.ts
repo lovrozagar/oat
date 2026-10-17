@@ -6,7 +6,7 @@
 
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
 import type { Client, Exchange } from "./client.ts"
-import type { GradeLedger, PassEvidence } from "./scope.ts"
+import type { GradeLedger, PassEvidence } from "./grades.ts"
 
 const READS = new Set(["GET", "HEAD"])
 /* How far either side of a call to look. Bounded, so a long run does not reread its whole journal. */

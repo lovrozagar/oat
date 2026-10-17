@@ -6,6 +6,30 @@
  * Missing capability → the check does not apply. New surface is never inferred.
  */
 
+import type {
+	FieldType,
+	FilterableField,
+	FilterableFrom,
+	FilterOp,
+	Nulls,
+	QueryCapabilities,
+	SearchMode,
+	SelectRelation,
+	SortableField,
+} from "../config/types/query.ts"
+
+export type {
+	FieldType,
+	FilterOp,
+	FilterableField,
+	FilterableFrom,
+	Nulls,
+	QueryCapabilities,
+	SearchMode,
+	SelectRelation,
+	SortableField,
+} from "../config/types/query.ts"
+
 export const FILTER_OPS = [
 	"eq",
 	"ne",
@@ -20,81 +44,20 @@ export const FILTER_OPS = [
 	"ilike",
 	"is",
 	"contains",
-] as const
+] as const satisfies readonly FilterOp[]
 
-export type FilterOp = (typeof FILTER_OPS)[number]
-export const FIELD_TYPES = ["string", "number", "boolean", "date", "enum", "array"] as const
-export type FieldType = (typeof FIELD_TYPES)[number]
-export type SearchMode = string
-export type Nulls = "first" | "last"
+export const FIELD_TYPES = [
+	"string",
+	"number",
+	"boolean",
+	"date",
+	"enum",
+	"array",
+] as const satisfies readonly FieldType[]
 
 /** Ops oat already wrote in 0.7.0. Implicit only when nothing declared a closed list. */
 export const IMPLICIT_OPS: readonly FilterOp[] = ["eq", "neq", "gt", "gte", "lt", "lte", "like"]
 export const ORDERED_TYPES: ReadonlySet<FieldType> = new Set(["number", "date"])
-
-export interface FilterableField {
-	field: string
-	type?: FieldType
-	ops?: FilterOp[]
-}
-
-export interface SortableField {
-	field: string
-	type?: FieldType
-	nulls?: Nulls[]
-}
-
-export interface SelectRelation {
-	name: string
-	fields: string[]
-}
-
-export interface FilterableFrom {
-	operationId?: string
-	route?: string
-	path: string
-	typePath?: string
-	typeMap?: Record<string, FieldType>
-}
-
-export interface QueryCapabilities {
-	filterable?: FilterableField[]
-	sortable?: SortableField[]
-	/** `null` is an explicit claim of none. */
-	searchable?: string[] | null
-	selectable?: string[]
-	operators?: FilterOp[]
-	operatorsByType?: Partial<Record<FieldType, FilterOp[]>>
-	aliases?: Partial<Record<FilterOp, FilterOp>>
-	identityFilter?: string
-	emptyIn?: "reject" | "match-none"
-	/** What a page size of 0 or past the maximum gets: refused, or served clamped. Undeclared, either. */
-	limitOutOfRange?: "reject" | "clamp"
-	maxInValues?: number
-	maxFilterConditions?: number
-	searchModes?: SearchMode[]
-	searchEmpty?: "ignore" | "match-all" | "reject"
-	searchCase?: "sensitive" | "insensitive"
-	sort?: {
-		defaultOrder?: string
-		stableTiebreak?: string
-		nulls?: Nulls[]
-		maxKeys?: number
-		/** How text compares in an order. Undeclared, oat accepts any consistent one. */
-		collation?: "binary" | "case-insensitive" | "locale"
-		/** Where nulls go in an ascending order with no modifier. Undeclared, either end, consistently. */
-		defaultNulls?: Nulls
-	}
-	select?: {
-		nested?: boolean
-		unknown?: "reject" | "ignore"
-		relations?: SelectRelation[]
-	}
-	filterableFrom?: FilterableFrom
-	sortableFrom?: FilterableFrom
-	searchableFrom?: FilterableFrom
-	selectableFrom?: FilterableFrom
-}
 
 export interface EffectiveFilterField {
 	field: string

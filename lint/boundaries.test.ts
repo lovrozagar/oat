@@ -23,7 +23,10 @@ const ALLOWED: Array<[string, string]> = [
 	["src/runtime/run/stages/load.ts", "../../checks/registry.ts"],
 	["src/runtime/checks.ts", "../client/request.ts"],
 	["src/client/request.ts", "../credentials/store.ts"],
-	["src/credentials/store.ts", "../runtime/body.ts"],
+	["src/runtime/checks.ts", "./client.ts"],
+	["src/runtime/client.ts", "./cookies.ts"],
+	["src/security/redact.ts", "./credential-names.ts"],
+	["src/security/strip.ts", "../errors/network.ts"],
 	["src/runtime/world.ts", "../spec/graph.ts"],
 	["src/spec/graph.ts", "../security/redact.ts"],
 	["src/spec/graph.ts", "../errors/usage-error.ts"],
@@ -35,6 +38,7 @@ const ALLOWED: Array<[string, string]> = [
 	["src/spec/schema.ts", "ajv/dist/2020.js"],
 	["src/spec/load.ts", "yaml"],
 	["src/reference/stores/postgres.ts", "postgres"],
+	["src/conformance/suite.ts", "postgres"],
 	["src/cli.ts", "@lovrozagar/oat"],
 ]
 
@@ -56,6 +60,14 @@ const REFUSED: Array<[string, string]> = [
 	["src/runtime/client.ts", "lodash"],
 	["src/misc/thing.ts", "../spec/graph.ts"],
 	["src/runtime/world.ts", "../misc/thing.ts"],
+	/* security is a leaf: it reaches only the errors and config types. */
+	["src/security/redact.ts", "../spec/graph.ts"],
+	["src/security/redact.ts", "../runtime/world.ts"],
+	/* client and credentials sit below the runtime: never the reverse arrow. */
+	["src/credentials/store.ts", "../runtime/body.ts"],
+	["src/client/request.ts", "../runtime/checks.ts"],
+	["src/runtime/client.ts", "./checks.ts"],
+	["src/runtime/client.ts", "./world.ts"],
 ]
 
 describe("oat/boundaries", () => {

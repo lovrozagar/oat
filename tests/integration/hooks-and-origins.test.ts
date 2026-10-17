@@ -7,7 +7,7 @@ import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { createPrincipal, resolveOutOfBandValue, resolvePrincipalAuthValue } from "../../src/runtime/auth.ts"
 import { Client } from "../../src/runtime/client.ts"
 import { run } from "../../src/runtime/run.ts"
-import { isAuthFlow, isHookAuth } from "../../src/config/define-config.ts"
+import { isAuthFlow, isHookAuth } from "../../src/runtime/auth-kind.ts"
 
 const closers: Array<() => Promise<void>> = []
 

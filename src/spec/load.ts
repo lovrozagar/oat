@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises"
 import { resolve } from "node:path"
 import { fileURLToPath } from "node:url"
-import { DEFAULT_NETWORK_RETRIES, type NetworkFetchOptions, fetchWithNetworkRetry } from "../runtime/network.ts"
 import type { OpenApiDocument } from "./types.ts"
 
 /**
@@ -18,13 +17,9 @@ import type { OpenApiDocument } from "./types.ts"
  * When none apply the error names every location that was tried, rather than reporting the last
  * failure as though it were the only attempt.
  */
-export async function loadSpec(
-	source: string,
-	baseUrl?: string,
-	network?: NetworkFetchOptions,
-): Promise<OpenApiDocument> {
+export async function loadSpec(source: string, options: SpecSourceOptions = {}): Promise<OpenApiDocument> {
 	/* A byte-order mark is not part of the document; JSON.parse rejects it outright. */
-	const text = (await readSpecSource(source, baseUrl, network)).replace(/^\uFEFF/, "")
+	const text = (await readSpecSource(source, options)).replace(/^\uFEFF/, "")
 
 	if (text.trim() === "") {
 		throw new Error(`oat: ${source} is empty`)
@@ -104,8 +99,22 @@ function diagnoseJson(text: string): string {
 	return "The document appears complete, so this is a syntax error rather than truncation."
 }
 
-async function readSpecSource(source: string, baseUrl?: string, network?: NetworkFetchOptions): Promise<string> {
-	if (/^https?:\/\//.test(source)) return fetchText(source, network)
+/** Where a document is read from, and how a URL is fetched; the caller owns the network. */
+export interface SpecSourceOptions {
+	baseUrl?: string | undefined
+	fetchText?: (url: string) => Promise<string>
+}
+
+/* A URL with nothing to fetch it is a caller's mistake: oat's network policy lives in the runtime. */
+function fetcher(options: SpecSourceOptions): (url: string) => Promise<string> {
+	return (
+		options.fetchText ?? ((url) => Promise.reject(new Error(`oat: ${url} is a URL, and this caller reads only files`)))
+	)
+}
+
+async function readSpecSource(source: string, options: SpecSourceOptions): Promise<string> {
+	const { baseUrl } = options
+	if (/^https?:\/\//.test(source)) return fetcher(options)(source)
 	if (source.startsWith("file://")) return readFile(fileURLToPath(source), "utf8")
 
 	const attempted: string[] = []
@@ -123,7 +132,7 @@ async function readSpecSource(source: string, baseUrl?: string, network?: Networ
 	if (baseUrl !== undefined && baseUrl !== "") {
 		const resolved = new URL(source, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`).toString()
 		attempted.push(resolved)
-		return fetchText(resolved, network)
+		return fetcher(options)(resolved)
 	}
 
 	throw new Error(
@@ -131,16 +140,6 @@ async function readSpecSource(source: string, baseUrl?: string, network?: Networ
 			attempted.map((a) => `  ${a}`).join("\n") +
 			(baseUrl === undefined ? "\nPass --base-url (or set baseUrl in the config) to resolve it as a route." : ""),
 	)
-}
-
-async function fetchText(url: string, network?: NetworkFetchOptions): Promise<string> {
-	const res = await fetchWithNetworkRetry(
-		url,
-		{ headers: { accept: "application/json" } },
-		{ retries: DEFAULT_NETWORK_RETRIES, waitMs: 0, ...network },
-	)
-	if (!res.ok) throw new Error(`oat: fetching ${url} returned ${res.status} ${res.statusText}`)
-	return res.text()
 }
 
 /** Where recursive schemas live after dereferencing: `$ref: "oat-defs#/$defs/<name>"`. */

@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest"
 import type { Exchange } from "../runtime/client.ts"
 import type { Finding } from "../runtime/finding.ts"
-import { renderRepros } from "./render.ts"
+import { buildSpec } from "../reference/spec.ts"
+import { Client } from "../runtime/client.ts"
+import { buildModel } from "../spec/graph.ts"
+import { dereference } from "../spec/load.ts"
+import type { OpenApiDocument } from "../spec/types.ts"
+import { renderJson, renderRepros, type ReportInput } from "./render.ts"
 
 const exchange = (url: string, headers: Record<string, string> = {}): Exchange => ({
 	at: 0,
@@ -59,5 +64,26 @@ describe("repro scripts", () => {
 			"row-sort-order-is-applied.sh",
 			"row-sort-order-is-applied-2.sh",
 		])
+	})
+})
+
+const reportOf = (client: Client): ReportInput => ({
+	baseUrl: "http://h.test",
+	checksRun: ["sort.order-is-applied"],
+	client,
+	durationMs: 1,
+	entitiesTested: ["row"],
+	findings: [finding([exchange("http://h.test/v1/rows?next=issued-secret-value", { authorization: "Bearer x" })])],
+	model: buildModel(dereference(buildSpec() as OpenApiDocument).doc),
+	startedAt: new Date(0),
+})
+
+describe("the JSON report", () => {
+	it("scrubs what the run's redactor learned, as well as secret names", () => {
+		const client = new Client("http://h.test")
+		client.redactor.registerSecret("issued-secret-value")
+		const text = renderJson(reportOf(client))
+		expect(text).not.toContain("issued-secret-value")
+		expect(text).toContain("<redacted>")
 	})
 })

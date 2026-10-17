@@ -12,11 +12,12 @@ describe("oat/no-header-branching", () => {
 				'export const h = header ?? "authorization"',
 				"export const v = `Bearer ${token}`",
 				'export const w = "Basic " + encoded',
+				'export const t = "Bearer {credential}"',
 				'export const x = headers["Authorization"]',
 				'export const y = name.toLowerCase() === "x-api-key"',
 			].join("\n"),
 		}
-		expect(reportsOf(rule, fixture).map(({ line }) => line)).toEqual([1, 2, 3, 4, 5])
+		expect(reportsOf(rule, fixture).map(({ line }) => line)).toEqual([1, 2, 3, 4, 5, 6])
 		expect(reportsOf(rule, fixture)[0]?.message).toBe(MESSAGE)
 	})
 

@@ -4,59 +4,34 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { formPairs } from "../../src/runtime/body.ts"
 import { compactResponseBody } from "../../src/runtime/transcript.ts"
 import { AuthRefreshError, Client, toCurl } from "../../src/runtime/client.ts"
-import {
-	REDACTED,
-	redactHeaders,
-	redactJson,
-	redactUrl,
-	registerSecret,
-	registerSecretHeader,
-} from "../../src/runtime/redact.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
-describe("one redactor", () => {
-	it("scrubs an issued credential wherever it appears", () => {
-		registerSecret("Bearer tok_live_123456")
-		expect(redactJson({ message: "rejected tok_live_123456", nested: ["tok_live_123456"] })).toEqual({
-			message: `rejected ${REDACTED}`,
-			nested: [REDACTED],
-		})
-		expect(redactUrl("https://x.test/a?next=tok_live_123456")).not.toContain("tok_live_123456")
-	})
-
-	it("matches secret keys by family and a principal's own header name", () => {
-		registerSecretHeader("X-Tenant-Credential")
-		expect(redactJson({ client_secret: "s", refreshToken: "r", sessionId: "q", total: 3 })).toEqual({
-			client_secret: REDACTED,
-			refreshToken: REDACTED,
-			sessionId: REDACTED,
-			total: 3,
-		})
-		expect(redactHeaders({ "x-tenant-credential": "v", accept: "json" })).toEqual({
-			accept: "json",
-			"x-tenant-credential": REDACTED,
-		})
-	})
-
+describe("repro scripts", () => {
 	it("keeps secrets out of repro scripts, and sends a form field by field", () => {
-		registerSecret("hunter2-password")
-		const curl = toCurl({
-			at: 0,
-			durationMs: 0,
-			method: "POST",
-			requestBody: new URLSearchParams([
-				["username", "oat"],
-				["password", "hunter2-password"],
-			]),
-			requestBytes: 0,
-			requestHeaders: { authorization: "Bearer tok_live_123456" },
-			requestId: "",
-			responseBody: null,
-			responseBytes: 0,
-			responseHeaders: {},
-			seq: 1,
-			status: 200,
-			url: "https://x.test/login",
-		})
+		const redactor = new Redactor()
+		redactor.registerSecret("hunter2-password")
+		redactor.registerSecret("Bearer tok_live_123456")
+		const curl = toCurl(
+			{
+				at: 0,
+				durationMs: 0,
+				method: "POST",
+				requestBody: new URLSearchParams([
+					["username", "oat"],
+					["password", "hunter2-password"],
+				]),
+				requestBytes: 0,
+				requestHeaders: { authorization: "Bearer tok_live_123456" },
+				requestId: "",
+				responseBody: null,
+				responseBytes: 0,
+				responseHeaders: {},
+				seq: 1,
+				status: 200,
+				url: "https://x.test/login",
+			},
+			{ redactor },
+		)
 		expect(curl).not.toContain("hunter2-password")
 		expect(curl).not.toContain("tok_live_123456")
 		expect(curl).toContain("--data-urlencode 'username=oat'")

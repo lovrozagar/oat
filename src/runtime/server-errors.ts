@@ -8,11 +8,11 @@
  */
 
 import type { CheckId } from "./check-ids.ts"
-import type { Check } from "./checks.ts"
+import type { Check } from "./checks/core/check.ts"
 import type { Exchange } from "./client.ts"
 import { ASSERTED, type FindingCollector, type Outcome } from "./finding.ts"
 import { describeServerError, headerValue } from "./rate-limit.ts"
-import type { GradeLedger } from "./scope.ts"
+import type { GradeLedger } from "./grades.ts"
 import type { SpecModel } from "../spec/graph.ts"
 import { TARGET_VERSION_READ } from "./target-version.ts"
 

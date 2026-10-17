@@ -14,11 +14,7 @@ export interface FixtureSlot {
 }
 
 function warnEach(message: string, warn?: (message: string) => void): void {
-	;(warn ?? defaultWarn)(message)
-}
-
-function defaultWarn(message: string): void {
-	console.warn(`oat: ${message}`)
+	warn?.(message)
 }
 
 /** `null` = op is not in `each`. `[]` = declared but no usable files (caller stays pick-one). */

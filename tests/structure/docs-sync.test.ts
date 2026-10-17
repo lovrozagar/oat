@@ -127,30 +127,16 @@ const SURFACES: Readonly<Record<string, Surface>> = {
 		names: publicExports,
 		written: code,
 		undocumented: [
-			"AllocatedRunDir",
-			"CheckTiming",
-			"CollectionShape",
-			"DEFAULT_OUT_OF_BAND",
 			"EntityConfig",
-			"EntityMatrix",
 			"ExternalStep",
 			"FieldType",
 			"FilterOp",
 			"FilterableField",
 			"FilterableFrom",
-			"InvalidateLink",
-			"MatrixGraph",
-			"MatrixGraphEdge",
-			"MatrixGraphNode",
-			"NetworkError",
-			"NetworkKind",
-			"OperationCoverage",
-			"OperationStatus",
 			"OperationStep",
 			"OutOfBandStep",
 			"PathValueRequest",
 			"PayloadPolicy",
-			"PersistedPrincipal",
 			"PrincipalAuth",
 			"PrincipalAuthResult",
 			"ProfileSpec",
@@ -158,45 +144,12 @@ const SURFACES: Readonly<Record<string, Surface>> = {
 			"QueryCapabilitiesRequest",
 			"RateLimitSpec",
 			"RequestStep",
-			"RunOutcome",
 			"Scenario",
 			"ScenarioAssert",
 			"ScenarioRequestStep",
 			"ScenarioStep",
-			"ScopeError",
-			"ScopePlan",
-			"ScopeReport",
 			"SideEffectRequest",
-			"SupportUse",
-			"TargetScope",
 			"UploadResolution",
-			"buildMatrixGraph",
-			"buildModel",
-			"classifyNetworkError",
-			"configProblems",
-			"coverageByCheck",
-			"dereference",
-			"deriveCollectionShape",
-			"deriveIdentity",
-			"exitCode",
-			"formatRunStamp",
-			"interpolate",
-			"isAuthFlow",
-			"isHookAuth",
-			"isNetworkError",
-			"isRootCause",
-			"loadConfig",
-			"loadSpec",
-			"matrixViewFromReport",
-			"normalisePath",
-			"parsePersistedPrincipals",
-			"parseRouteRef",
-			"planScope",
-			"publishLatest",
-			"renderConsole",
-			"resolveBackoff",
-			"resolveTargetScope",
-			"runVerdict",
 		],
 	},
 }
@@ -206,5 +159,23 @@ describe("docs stay in sync with the code", () => {
 		const text = doc(surface.doc)
 		const missing = surface.names().filter((name) => !text.includes(surface.written(name)))
 		expect(missing.toSorted()).toEqual([...surface.undocumented].toSorted())
+	})
+})
+
+/* The reverse: a doc that names a check or a tag the code no longer has teaches a shape that does nothing. */
+describe("docs name nothing the code lacks", () => {
+	it("every check id in the checks.md table is registered", () => {
+		const ids = new Set<string>(CHECKS.map((check) => check.id))
+		const listed = [...doc("checks.md").matchAll(/^\|\s*`([a-z]+\.[a-z0-9.-]+)`/gm)].map((m) => m[1] ?? "")
+		expect(listed.length).toBeGreaterThan(0)
+		expect(listed.filter((id) => !ids.has(id))).toEqual([])
+	})
+
+	it("every x-* name tags.md mentions is one oat reads", () => {
+		const read = new Set(tagsRead())
+		const mentioned = new Set(
+			[...doc("tags.md").matchAll(/(?<![\w-])(x-[a-z0-9]+(?:-[a-z0-9]+)*)/g)].map((m) => m[1] ?? ""),
+		)
+		expect([...mentioned].filter((tag) => !read.has(tag))).toEqual([])
 	})
 })

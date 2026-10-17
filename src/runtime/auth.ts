@@ -10,18 +10,10 @@
 import { readPath } from "./path.ts"
 import { headerValue } from "./headers.ts"
 import { AsyncLocalStorage } from "node:async_hooks"
-import { registerSecret, registerSecretHeader } from "./redact.ts"
-import type {
-	AuthFlow,
-	AuthStep,
-	HookAuth,
-	Hooks,
-	OperationStep,
-	PrincipalAuth,
-	PrincipalAuthResult,
-	RequestStep,
-} from "../config/define-config.ts"
-import { isHookAuth } from "../config/define-config.ts"
+import type { Hooks } from "../config/types/hooks.ts"
+import type { AuthFlow, HookAuth, PrincipalAuth, PrincipalAuthResult } from "../config/types/principals.ts"
+import type { AuthStep, OperationStep, RequestStep } from "../config/types/steps.ts"
+import { isHookAuth } from "./auth-kind.ts"
 import { requestContent } from "../spec/collection.ts"
 import type { SpecModel } from "../spec/graph.ts"
 import { encodeRequest } from "./body.ts"
@@ -526,9 +518,9 @@ async function createHookPrincipal(id: string, spec: HookAuth, context: AcquireC
 		credential = token
 		runtime.expiresAt = jwtExpiryMs(token)
 		issued.add(authValue(credential))
-		registerSecretHeader(header)
-		registerSecret(credential)
-		registerSecret(authValue(credential))
+		ctx.client.redactor.registerHeader(header)
+		ctx.client.redactor.registerSecret(credential)
+		ctx.client.redactor.registerSecret(authValue(credential))
 	}
 
 	const runtime: PrincipalRuntime = {
@@ -558,9 +550,9 @@ async function createHookPrincipal(id: string, spec: HookAuth, context: AcquireC
 					: jwtExpiryMs(credential)
 		issued.add(authValue(credential))
 		/* Known to the redactor the moment it exists, under every name it travels by. */
-		registerSecretHeader(header)
-		registerSecret(credential)
-		registerSecret(authValue(credential))
+		ctx.client.redactor.registerHeader(header)
+		ctx.client.redactor.registerSecret(credential)
+		ctx.client.redactor.registerSecret(authValue(credential))
 	}
 
 	const harvest = async (): Promise<void> => {
@@ -610,9 +602,9 @@ async function createFlowPrincipal(id: string, spec: AuthFlow, context: AcquireC
 		credential = token
 		runtime.expiresAt = jwtExpiryMs(token)
 		issued.add(authValue(credential))
-		registerSecretHeader(header)
-		registerSecret(credential)
-		registerSecret(authValue(credential))
+		ctx.client.redactor.registerHeader(header)
+		ctx.client.redactor.registerSecret(credential)
+		ctx.client.redactor.registerSecret(authValue(credential))
 	}
 
 	const runtime: PrincipalRuntime = {
@@ -638,9 +630,9 @@ async function createFlowPrincipal(id: string, spec: AuthFlow, context: AcquireC
 		runtime.address = result.scope.address ?? result.scope.email ?? runtime.address
 		issued.add(authValue(credential))
 		/* Known to the redactor the moment it exists, under every name it travels by. */
-		registerSecretHeader(header)
-		registerSecret(credential)
-		registerSecret(authValue(credential))
+		ctx.client.redactor.registerHeader(header)
+		ctx.client.redactor.registerSecret(credential)
+		ctx.client.redactor.registerSecret(authValue(credential))
 	}
 
 	apply(await runAuthSteps(spec.steps, spec, ctx))

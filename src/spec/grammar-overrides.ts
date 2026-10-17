@@ -7,16 +7,15 @@
  * with another grammar would test something they did not ask for.
  */
 
-import { UsageError } from "../config/usage-error.ts"
+import { UsageError } from "../errors/usage-error.ts"
 import type { QueryConventions } from "./conventions.ts"
 import { type FilterGrammarSpec, parseFilterGrammar } from "./filter-render.ts"
 import type { SpecModel } from "./graph.ts"
 import { parseSortGrammar, SORT_PRESETS, type SortGrammarSpec } from "./sort-render.ts"
 
-/** A filter grammar as config declares it: a preset name or a template object. */
-export type DeclaredFilterGrammar = "postgrest" | "colon" | "equality" | Record<string, unknown>
-/** A sort grammar as config declares it: a preset name or a template object. */
-export type DeclaredSortGrammar = "dotted" | "prefixed" | "colon" | "spaced" | Record<string, unknown>
+import type { DeclaredFilterGrammar, DeclaredSortGrammar } from "../config/types/query.ts"
+
+export type { DeclaredFilterGrammar, DeclaredSortGrammar } from "../config/types/query.ts"
 
 interface DeclaredGrammars {
 	grammar?: DeclaredFilterGrammar

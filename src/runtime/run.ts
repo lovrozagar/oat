@@ -7,8 +7,9 @@
  */
 
 import { randomBytes } from "node:crypto"
-import { CREDENTIAL_HEADERS } from "./cookies.ts"
-import { isSecretHeaderName, registerSecret, registerSecretHeader } from "./redact.ts"
+import { isSecretHeaderName } from "../security/credential-names.ts"
+import { Redactor } from "../security/redact.ts"
+import { credentialHeaderNames } from "../security/strip.ts"
 import { buildModel, type EntityModel, type OperationModel, type SpecModel, operationResolver } from "../spec/graph.ts"
 import { applyGrammarOverrides } from "../spec/grammar-overrides.ts"
 import { prepareDocument } from "../spec/prepare.ts"
@@ -19,17 +20,15 @@ import { applyOverlay, type SpecOverlay } from "../spec/overlay.ts"
 import { dereference, loadSpec } from "../spec/load.ts"
 import type {
 	EntityConfig,
-	Hooks,
 	OriginSpec,
-	OutOfBandConfig,
 	PayloadPolicy,
-	Principal,
 	ProfileSpec,
 	QueryConfig,
 	RateLimitSpec,
-	Scenario,
-	Uploads,
-} from "../config/define-config.ts"
+} from "../config/types/config.ts"
+import type { Hooks, OutOfBandConfig, Uploads } from "../config/types/hooks.ts"
+import type { Principal } from "../config/types/principals.ts"
+import type { Scenario } from "../config/types/steps.ts"
 import { type OriginClient, createPrincipal, type PrincipalRuntime } from "./auth.ts"
 import { createExchangeJournal } from "./exchanges.ts"
 import {
@@ -39,13 +38,15 @@ import {
 	type NetworkKind,
 	createNetworkGate,
 	describeNetworkFailure,
+	fetchSpecText,
 	isNetworkError,
+	type NetworkFetchOptions,
 	probeOrigin,
 	resolveRequestTimeoutMs,
 } from "./network.ts"
 import { type BackoffConfig, resolveBackoff } from "./poll.ts"
 import { type PersistedPrincipal, persistedToPrincipal, snapshotPrincipal } from "./principals.ts"
-import { CHECKS, type Actor, checkSalts, type WriteContext } from "./checks.ts"
+import { CHECKS, type Actor, checkMemo, checkSalts, validateRegistry, type WriteContext } from "./checks.ts"
 import { runPublicGets } from "./one-shot.ts"
 import { runDisposableOps, signupOperationId } from "./disposable.ts"
 import { assertScenarios, runScenarios } from "./scenario.ts"
@@ -86,7 +87,7 @@ import {
 	seedCohort,
 } from "./world.ts"
 import type { ProvenId } from "./proven-id.ts"
-import { MissingValueError } from "./missing-value.ts"
+import { MissingValueError } from "../errors/missing-value.ts"
 
 /* The principal shape is the public config's — one definition, checked in both places. */
 export type PrincipalSpec = Principal
@@ -127,6 +128,8 @@ export interface RunOptions {
 	/** Requests per second to `baseUrl` in all; see `OatConfig.maxRps`. */
 	maxRps?: number
 	/** Live status. Called on phase/entity/check/request; the CLI prints a heartbeat from this. */
+	/** Non-fatal notes, such as an upload path that matched no file. The CLI prints them; unset, they are dropped. */
+	warn?: (message: string) => void
 	onProgress?: ProgressHandler
 	/** Extra hosts with their own OpenAPI. Auth stays on the primary. */
 	origins?: OriginSpec[]
@@ -249,7 +252,10 @@ interface ResolvedPrincipal {
  * does not mutate the config object, and keep a `Bearer ` prefix when that is how the header
  * was already written.
  */
-function holdHeaders(initial: Record<string, string> | undefined): {
+function holdHeaders(
+	initial: Record<string, string> | undefined,
+	redactor: Redactor,
+): {
 	headers: () => Record<string, string>
 	adoptCredential: (token: string) => void
 } {
@@ -261,9 +267,9 @@ function holdHeaders(initial: Record<string, string> | undefined): {
 			const previous = current[key]
 			const value = previous === undefined || /^bearer\s+/i.test(previous) ? `Bearer ${token}` : token
 			current = { ...current, [key]: value }
-			registerSecretHeader(key)
-			registerSecret(token)
-			registerSecret(value)
+			redactor.registerHeader(key)
+			redactor.registerSecret(token)
+			redactor.registerSecret(value)
 		},
 		headers: () => current,
 	}
@@ -348,10 +354,10 @@ async function resolvePrincipal(
 		/* A static key is a credential like any other: never written down in clear. */
 		for (const [name, value] of Object.entries(principal.headers ?? {})) {
 			if (!isSecretHeaderName(name) && !/key|token|secret|auth/i.test(name)) continue
-			registerSecretHeader(name)
-			registerSecret(value)
+			client.redactor.registerHeader(name)
+			client.redactor.registerSecret(value)
 		}
-		const held = holdHeaders(principal.headers)
+		const held = holdHeaders(principal.headers, client.redactor)
 		return {
 			adoptCredential: held.adoptCredential,
 			headers: held.headers,
@@ -419,6 +425,8 @@ async function readExisting(
 }
 
 export async function run(options: RunOptions): Promise<RunResult> {
+	/* A registry with a duplicate id or a dependency out of order would grade nothing correctly. */
+	validateRegistry(CHECKS)
 	const startedAt = Date.now()
 	const findings = new FindingCollector()
 	const profile = resolveProfile(options.profile, options.profiles)
@@ -502,7 +510,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	if (/^https?:\/\//i.test(options.spec)) {
 		await fence?.check({ body: undefined, headers: {}, method: "GET", phase: "load", url: options.spec })
 	}
-	const raw = await loadSpec(options.spec, options.baseUrl, {
+	const specNetwork: NetworkFetchOptions = {
 		onWait: (info) => {
 			tick({
 				message: `waiting for network (${info.kind}, ${Math.ceil(info.remainingMs / 1000)}s left)`,
@@ -513,7 +521,12 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		...(options.network?.retries === undefined ? {} : { retries: options.network.retries }),
 		...(options.network?.waitMs === undefined ? {} : { waitMs: options.network.waitMs }),
 		...requestTimeoutOpt(options.network?.requestTimeoutMs),
+	}
+	const raw = await loadSpec(options.spec, {
+		baseUrl: options.baseUrl,
+		fetchText: (url) => fetchSpecText(url, specNetwork),
 	})
+
 	const { doc } = dereference(prepareDocument(raw, options))
 	const model = buildModel(doc)
 	applyGrammarOverrides(model, options)
@@ -541,7 +554,9 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			...(exchange.network === undefined ? {} : { network: exchange.network.kind }),
 		}
 	}
-	const journal = options.exchangeDir === undefined ? null : createExchangeJournal(options.exchangeDir)
+	/* One redactor for the run: every client, the journal and the report scrub with what it learns. */
+	const redactor = new Redactor()
+	const journal = options.exchangeDir === undefined ? null : createExchangeJournal(options.exchangeDir, redactor)
 	const onExchange = async (exchange: Exchange): Promise<void> => {
 		remember(exchange)
 		if (journal !== null) {
@@ -634,6 +649,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		httpHooks,
 		networkClient,
 	)
+	client.setRedactor(redactor)
 	if (hooks.resolveHeaders !== undefined) client.setResolveHeaders(hooks.resolveHeaders)
 	client.setOperationResolver(operationResolver(model))
 	if (fence !== undefined) client.setFence(fence)
@@ -658,6 +674,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		networkClient,
 		fence,
 	)
+	for (const origin of originClients.values()) origin.client.setRedactor(redactor)
 	/* Resolved before any principal signs up: a typo in --ops must cost nothing. */
 	const runScope: TargetScope = resolveTargetScope(model, {
 		...(options.ops === undefined ? {} : { ops: options.ops }),
@@ -707,6 +724,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		...(options.configDir === undefined ? {} : { configDir: options.configDir }),
 		...(hooks.resolveUpload === undefined ? {} : { resolveUpload: hooks.resolveUpload }),
 		...(hooks.resolveInput === undefined ? {} : { resolveInput: hooks.resolveInput }),
+		...(options.warn === undefined ? {} : { warn: options.warn }),
 	}
 	const worldUploads = (seedOffset = 0): UploadContext =>
 		seedOffset === 0 ? uploads : { ...uploads, seed: seed + seedOffset }
@@ -764,10 +782,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			return Object.keys(own).length > 0 && Object.entries(own).every(([key, value]) => sent[key] === value)
 		})
 		if (holder !== undefined) return holder.id
-		const credentials = new Set([
-			...CREDENTIAL_HEADERS,
-			...resolved.flatMap((principal) => Object.keys(principal.headers()).map((name) => name.toLowerCase())),
-		])
+		const credentials = credentialHeaderNames(resolved.flatMap((principal) => Object.keys(principal.headers())))
 		const carries = Object.keys(sent).some((name) => credentials.has(name.toLowerCase()) || isSecretHeaderName(name))
 		return carries ? undefined : resolved.find((principal) => Object.keys(principal.headers()).length === 0)?.id
 	})
@@ -888,6 +903,8 @@ export async function run(options: RunOptions): Promise<RunResult> {
 
 	/* Each entity's place in the model: half of what keeps one check run's salts its own. */
 	const entityIndexes = new Map([...model.entities.keys()].map((name, index) => [name, index]))
+	/* What checks compute once is shared run-wide; facts about a cohort, per entity. */
+	const runMemo = new Map<string, unknown>()
 	const testEntity = async (entity: EntityModel): Promise<void> => {
 		const entityIndex = entityIndexes.get(entity.name) ?? entityIndexes.size
 		const listOp = model.byOperationId.get(entity.list ?? "")
@@ -1416,6 +1433,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					}
 
 		const ctx: WriteContext = {
+			memo: checkMemo(runMemo),
 			actors,
 			altAuth,
 			altScope,
@@ -2015,7 +2033,7 @@ async function loadOriginClients(
 ): Promise<Map<string, OriginClient>> {
 	const map = new Map<string, OriginClient>()
 	for (const origin of origins) {
-		const raw = await loadSpec(origin.spec, origin.baseUrl)
+		const raw = await loadSpec(origin.spec, { baseUrl: origin.baseUrl, fetchText: (url) => fetchSpecText(url) })
 		const { doc } = dereference(origin.overlay === undefined ? raw : applyOverlay(raw, origin.overlay))
 		const originModel = buildModel(doc)
 		const originClient = new Client(

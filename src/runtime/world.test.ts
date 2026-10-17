@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest"
 import { Client, type Exchange, type RequestOptions } from "./client.ts"
-import { confirmSubmitted, resolvePathScope, SeedError } from "./world.ts"
+import {
+	confirmSubmitted,
+	idOf,
+	isPlanLimitResponse,
+	recordsFromList,
+	resolvePathScope,
+	SeedError,
+	seedCohort,
+} from "./world.ts"
 import { buildModel, type OperationModel } from "../spec/graph.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
 import { dereference } from "../spec/load.ts"
@@ -241,5 +249,56 @@ describe("seeding a create whose path names its own record", () => {
 			'{thing_id} names the "thing" thing.create makes, so oat cannot seed it; supply it as a root or create it in a scenario',
 		)
 		expect(client.transcript).toEqual([])
+	})
+})
+
+describe("reading what a backend answered", () => {
+	it("knows a plan-limit refusal by status or by a named error", () => {
+		expect(isPlanLimitResponse(402, null)).toBe(true)
+		expect(isPlanLimitResponse(403, { error: "payment_required" })).toBe(true)
+		expect(isPlanLimitResponse(403, { error: "forbidden" })).toBe(false)
+		expect(isPlanLimitResponse(429, { error: "payment_required" })).toBe(false)
+		expect(isPlanLimitResponse(200, null)).toBe(false)
+	})
+
+	it("reads a list's rows from a bare array or under its collection key", () => {
+		expect(recordsFromList([{ id: 1 }], null)).toEqual([{ id: 1 }])
+		expect(recordsFromList({ items: [{ id: 2 }] }, "items")).toEqual([{ id: 2 }])
+		expect(recordsFromList({ items: "x" }, "items")).toEqual([])
+	})
+
+	it("reads an identity only when the record has one", () => {
+		expect(idOf({ id: 7 }, "id")).toBe("7")
+		expect(idOf({ name: "x" }, "id")).toBeUndefined()
+		expect(idOf(undefined, "id")).toBeUndefined()
+	})
+})
+
+describe("seeding under a plan limit", () => {
+	it("adopts a listed record instead of inventing one", async () => {
+		const model = buildModel(spec({ withRead: true }))
+		const createOp = model.byOperationId.get("note.create") as OperationModel
+		const sent: string[] = []
+		const client = {
+			get: async (path: string) => {
+				sent.push(`GET ${path}`)
+				return exchange(200, [{ id: 7 }, { id: "n1", name: "kept" }])
+			},
+			request: async (method: string, path: string) => {
+				sent.push(`${method} ${path}`)
+				return exchange(402, { error: "payment_required" })
+			},
+		} as unknown as Client
+		const seeded = await seedCohort(
+			createOp,
+			model,
+			client,
+			{ authHeaders: () => headers, roots: scope, seed: 1 },
+			{ created: [], values: scope },
+		)
+		expect(seeded.adopted).toBe(true)
+		expect(seeded.records).toEqual([{ id: 7 }])
+		expect(sent).toContain("POST /projects/p1/notes")
+		expect(sent).toContain("GET /projects/p1/notes")
 	})
 })

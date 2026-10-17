@@ -4,15 +4,15 @@
  * second user. oat runs the steps and grades what they observed. It never learns the product.
  */
 
+import type { Hooks } from "../config/types/hooks.ts"
 import type {
 	ExternalStep,
-	Hooks,
 	OutOfBandStep,
 	Scenario,
 	ScenarioAssert,
 	ScenarioRequestStep,
 	ScenarioStep,
-} from "../config/define-config.ts"
+} from "../config/types/steps.ts"
 import type { SpecModel } from "../spec/graph.ts"
 import {
 	type AcquireContext,
@@ -29,7 +29,7 @@ import { cookiesFromRecordedHeaders, describeSaveAs, readSaveAs } from "./cookie
 import type { FindingCollector } from "./finding.ts"
 import { readAll, readPath } from "./path.ts"
 import type { BackoffConfig } from "./poll.ts"
-import type { GradeLedger, PassEvidence } from "./scope.ts"
+import type { GradeLedger, PassEvidence } from "./grades.ts"
 
 export function scenarioCheckId(scenario: Scenario): string {
 	return `scenario.${scenario.id}`

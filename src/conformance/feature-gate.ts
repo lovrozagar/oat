@@ -10,7 +10,7 @@ import { run } from "../runtime/run.ts"
 import { buildModel } from "../spec/graph.ts"
 import { dereference } from "../spec/load.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
-import type { ParserResult } from "./suite.ts"
+import type { ParserResult } from "./harness/result.ts"
 
 const FORBIDDEN_SCHEMA = {
 	properties: {

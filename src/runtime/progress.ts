@@ -228,7 +228,11 @@ export function createProgressPump(
 	}
 }
 
-export function createStderrProgress(startedAt = Date.now()): {
+/** Progress lines for a terminal, glossary first, each handed to `write` with its newline. */
+export function createProgressPrinter(
+	write: (text: string) => void,
+	startedAt = Date.now(),
+): {
 	emit: ProgressHandler
 	stop: () => void
 } {
@@ -236,9 +240,9 @@ export function createStderrProgress(startedAt = Date.now()): {
 	return createProgressPump(startedAt, (snap, now) => {
 		if (!headed) {
 			headed = true
-			process.stderr.write(`${PROGRESS_GLOSSARY}\n`)
+			write(`${PROGRESS_GLOSSARY}\n`)
 		}
-		process.stderr.write(`${formatProgressLine(snap, now)}\n`)
+		write(`${formatProgressLine(snap, now)}\n`)
 	})
 }
 

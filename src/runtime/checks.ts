@@ -6,7 +6,6 @@
  * the oracle of what oat just wrote. Check ids are stable: the conformance suite asserts on them.
  */
 
-import type { Hooks, PayloadPolicy } from "../config/define-config.ts"
 import {
 	andTerm,
 	canWriteFilterOp,
@@ -20,14 +19,12 @@ import {
 	sortTermWithNulls,
 } from "../spec/conventions.ts"
 import type { InviteSpec } from "../spec/extensions.ts"
-import { CHECK_IDS, type CheckId } from "./check-ids.ts"
 import { publicGetCheck } from "./one-shot.ts"
 import { contractCallCheck } from "./contract.ts"
 import { serverErrorCheck } from "./server-errors.ts"
 import { disposableCheck } from "./disposable.ts"
 import { rootReadCheck } from "./root-read.ts"
 import { selfIdentityCheck } from "./self.ts"
-import type { QueryCapability } from "../spec/extensions.ts"
 import {
 	type EffectiveFilterField,
 	type EffectiveQueryCapabilities,
@@ -72,12 +69,11 @@ import { REQUIRED_IDS, STRING_PAYLOADS, type StringPayload, payloadFits } from "
 import { describeFeatureGate, isDocumentedFeatureGateDenial } from "./feature-gate.ts"
 import { headerValue } from "./headers.ts"
 import { readPath } from "./path.ts"
-import { ASSERTED, asserted, type FindingCollector, type Outcome, standDown } from "./finding.ts"
+import { ASSERTED, asserted, type Outcome, standDown } from "./finding.ts"
 import { driveAsync, inspectStreamAsync, matchesPredicate, resolveAsyncId } from "./async.ts"
 import { resolveOutOfBandValue, sentAt } from "./auth.ts"
 import { isAbsoluteHttpUrl } from "./cookies.ts"
 import { buildCohort } from "./fixture.ts"
-import type { BackoffConfig } from "./poll.ts"
 import type { UploadContext } from "./upload.ts"
 import { forEachInvocation } from "./upload-each.ts"
 import type { SchemaValidator } from "./validate.ts"
@@ -87,12 +83,12 @@ import {
 	confirmSubmitted,
 	createdRecord,
 	createdRecordOf,
-	fillPath,
 	idOf,
 	isPlanLimitResponse,
 	recordOf,
 	stringProperties,
 } from "./world.ts"
+import { fillPath } from "./fill-path.ts"
 import {
 	bodyPropertyNames,
 	collisionCreateBody,
@@ -117,123 +113,14 @@ import {
 	identityPathParam,
 } from "./effects.ts"
 import { type ProvenId, listedIds, receiptId, returnedId } from "./proven-id.ts"
+import type { Check } from "./checks/core/check.ts"
+import type { Actor, CheckContext, WriteContext } from "./checks/core/context.ts"
+import { andThen, cannot, type Plan, ready, when } from "./checks/core/plan.ts"
 
-/** A resolved principal as checks see it — identity, lattice position, and how to speak as it. */
-export interface Actor {
-	id: string
-	role: string | undefined
-	/** Higher can do everything a lower rank can. Same rank = peers. */
-	rank: number
-	headers: () => Record<string, string>
-	/**
-	 * Replace this actor's credential after a response issues a new one.
-	 * Static principals and auth flows both implement it. Absent means the actor cannot.
-	 */
-	adoptCredential?: (token: string) => void
-	/** Tenant identity from config / the auth flow — not the full path scope. */
-	roots: Record<string, string>
-	scope: Record<string, string>
-	/** Value the owner puts in an invite body for this principal. */
-	inviteAs: string | undefined
-}
-
-/**
- * What a check runs against. A check that does not mutate gets a client that cannot write; a
- * helper that writes asks for a `WriteContext`, so a read-only check calling it does not compile.
- */
-export interface CheckContext<C extends ReadClient = ReadClient> {
-	entityName: string
-	identity: string
-	model: SpecModel
-	client: C
-	findings: FindingCollector
-	scope: Record<string, string>
-	listOp: OperationModel
-	readOp: OperationModel | undefined
-	createOp: OperationModel | undefined
-	updateOp: OperationModel | undefined
-	deleteOp: OperationModel | undefined
-	collectionKey: string | null
-	records: Record_[]
-	query: QueryCapability | null
-	/** Merged filter catalog. Optional so a hand-built context still works. */
-	capabilities?: EffectiveQueryCapabilities
-	softDelete: string | null
-	invite: InviteSpec | null
-	auth: () => Record<string, string>
-	/** Countdown / 401 refresh for the writer principal. Bound onto the client as well. */
-	refreshIfStale?: (force?: boolean) => Promise<void>
-	/**
-	 * Every configured principal, primary first. Isolation checks still use `altAuth` (the first
-	 * actor whose scope is a different tenant). Lattice checks walk this list by `rank`.
-	 */
-	actors: Actor[]
-	/** Principal in a different tenant, when one is configured. Derived, not `principals[1]`. */
-	altAuth: (() => Record<string, string>) | undefined
-	altScope: Record<string, string> | undefined
-	validator: SchemaValidator | undefined
-	seed: number
-	/** Per-run token for values that must not collide across runs: unique columns, idempotency keys. */
-	nonce: string
-	/**
-	 * A salt for the next body this check makes: distinct within the run, and the same in every run
-	 * with the same inputs — never drawn from what other checks did meanwhile.
-	 */
-	nextSalt?: () => string
-	/** Effective unique column sets for this entity (`[]` when the tag is absent or empty). */
-	uniqueSets: string[][]
-	/** First-variant create 409 adopted a same-tenant row; unique probes still run. */
-	uniqueAdopted: boolean
-	/** The create acknowledged without the record; the records are the bodies oat submitted. */
-	createAcknowledged: boolean
-	/** Identities the collection is known to hold: a body oat generates never names one. */
-	takenIdentities?: Set<string>
-	/** Create operation for unique probes — still set after unique-409 adopt. */
-	uniqueCreateOp: OperationModel | undefined
-	/** Update operation for unique probes — still set after unique-409 adopt. */
-	uniqueUpdateOp: OperationModel | undefined
-	/** File pool / dummy resolution for multipart parts. */
-	uploads: UploadContext
-	/** Operations on this entity declared async via `x-async`. */
-	asyncOps: OperationModel[]
-	/** Operations on this entity that declare `x-effects`. */
-	effectOps: OperationModel[]
-	/** Operations on this entity that declare `x-wait`. */
-	waitOps: OperationModel[]
-	hooks: Hooks
-	outOfBand: BackoffConfig
-	/**
-	 * The payload policy, and the write paths that have had the whole catalog this run — keyed
-	 * by media type and field type, naming the entity that ran it. Optional so a hand-built
-	 * context still works; absent means the whole catalog.
-	 */
-	payloads?: { policy: PayloadPolicy; ran: Map<string, string> }
-	/**
-	 * Whether an operation is graded by this run. Always true on a full run. Checks that judge
-	 * several operations consult it before invoking or judging one. Optional so a hand-built
-	 * context still works.
-	 */
-	inScope?: (op: OperationModel) => boolean
-	/**
-	 * Registers a record this check caused to exist — a declared effect, a started job — for
-	 * teardown. Records made through the entity's own create are tracked without it.
-	 */
-	/** Ledgers a record made other than by its create, as the principal that sent the request. */
-	recordCreated?: (entity: string, id: ProvenId, scope: Record<string, string>, principal?: string) => void
-	/** A create that answered 2xx with no id oat could read: the record may remain. */
-	recordUnidentified?: (entity: string, operationId: string, exchange: Exchange) => void
-	/** A ledgered record an accepted write moved, so its creator's 404 no longer shows it gone. */
-	recordMoved?: (entity: string, id: string, reason: string) => void
-	/**
-	 * Narrows what this check graded to the operations it actually judged. A check that judges
-	 * after the fact — from whatever the transcript happens to hold — calls it, so an operation
-	 * nothing ever exercised is not reported as passed. Checks that invoke their subjects need not.
-	 */
-	judged?: (operationIds: readonly string[]) => void
-}
-
-/** The context of a check that changes server state. */
-export type WriteContext = CheckContext<Client>
+export type { Check, CheckBase } from "./checks/core/check.ts"
+export { type Actor, type CheckContext, type CheckMemo, checkMemo, type WriteContext } from "./checks/core/context.ts"
+export { andThen, cannot, type Plan, ready, when } from "./checks/core/plan.ts"
+export { validateRegistry } from "./checks/core/registry.ts"
 
 const graded = (ctx: CheckContext, op: OperationModel): boolean => ctx.inScope?.(op) ?? true
 
@@ -393,80 +280,6 @@ function changedValue(ctx: CheckContext, field: string, current: unknown, op?: O
 function forOperation<C extends ReadClient>(ctx: CheckContext<C>, op: OperationModel): CheckContext<C> {
 	return { ...ctx, findings: ctx.findings.attributed([op.operationId]) }
 }
-
-/**
- * What a check's planning step decided: it can run, with what it needs to — or it cannot, and why.
- *
- * Planning is the only place a check decides whether it applies, and `run` receives what the plan
- * found instead of looking again. A check that applies but then finds nothing to test cannot
- * happen by construction: the two questions are one.
- */
-export type Plan<T> = { ok: true; value: T } | { ok: false; needs?: string }
-
-export function ready<T>(value: T): Plan<T> {
-	return { ok: true, value }
-}
-
-/** The check cannot run here; `needs` says what is missing, else the check's own `needs` does. */
-export function cannot(needs?: string): Plan<never> {
-	return needs === undefined ? { ok: false } : { ok: false, needs }
-}
-
-/** `next`, once `gate` holds — a plan built in stages, stopping at the first thing missing. */
-export function andThen<A, T>(gate: Plan<A>, next: (value: A) => Plan<T>): Plan<T> {
-	return gate.ok ? next(gate.value) : gate
-}
-
-/** A plan that carries nothing: the check applies exactly when `condition` holds. */
-export function when(condition: boolean, needs?: string): Plan<undefined> {
-	return condition ? { ok: true, value: undefined } : cannot(needs)
-}
-
-interface CheckBase<T> {
-	id: CheckId
-	/** Decides whether the check applies to this entity, and gathers what `run` needs if it does. */
-	plan(ctx: CheckContext): Plan<T>
-	/**
-	 * Check ids whose failure makes this one's result meaningless. When any has already fired for
-	 * this entity, the check is skipped rather than reporting a consequence as a separate defect —
-	 * one root cause should produce one finding, not a page of them.
-	 */
-	dependsOn?: CheckId[]
-	/**
-	 * Whether the check judges traffic other checks sent. It runs after every check before it has
-	 * finished, never alongside them, so it cannot miss what its batch-mates were still sending.
-	 */
-	judgesTranscript?: boolean
-	/**
-	 * What this check needs in order to run at all, in the reader's terms.
-	 *
-	 * Reported when the plan cannot run. Skipping silently would leave someone on an API
-	 * shaped differently from the fixture believing a quiet run meant a clean one, when in truth
-	 * half the suite never fired.
-	 */
-	needs?: string
-	/**
-	 * Operations whose contract this check judges, decided from the entity graph alone.
-	 *
-	 * Static so `oat plan --ops` can show a scope without a network, and so a targeted run can
-	 * queue only the entities whose checks grade a target. Every other operation a check calls is
-	 * support: needed to reach or observe a subject, never graded itself. Required, so a new check
-	 * cannot run invisibly under `--ops`.
-	 */
-	subjects: (entity: EntityModel, model: SpecModel) => string[]
-}
-
-/**
- * Whether the check changes server state. Mutating checks run alone and in order, with a client
- * that can write; read-only checks batch together, with one that cannot. Two writers racing on
- * the same cohort would make each other's observations wrong, and the resulting finding would
- * describe the interference rather than the backend.
- */
-export type Check<T = unknown> = CheckBase<T> &
-	(
-		| { mutates: true; run(ctx: WriteContext, plan: T): Promise<Outcome> }
-		| { mutates?: false; run(ctx: CheckContext, plan: T): Promise<Outcome> }
-	)
 
 const declared = (...operationIds: Array<string | undefined>): string[] =>
 	operationIds.filter((id): id is string => id !== undefined && id !== "")
@@ -827,8 +640,14 @@ interface ReadOptions {
 	scope?: Record<string, string>
 }
 
-/** Identical set reads within one run, keyed by request and by how many writes came before. */
-const setReads = new WeakMap<SpecModel, Map<string, Promise<SetRead>>>()
+/** One named table in a memo map, made on first use. */
+function memoTable<V>(store: Map<string, unknown>, name: string): Map<string, V> {
+	const known = store.get(name) as Map<string, V> | undefined
+	if (known !== undefined) return known
+	const table = new Map<string, V>()
+	store.set(name, table)
+	return table
+}
 /** Page-number pages requested together once a walk is known to go past its first page. */
 const PAGES_AHEAD = 4
 
@@ -852,8 +671,8 @@ const SET_RECORD_CAP = 500
  */
 async function readSet(ctx: CheckContext, extra: Query = {}, options: ReadOptions = {}): Promise<SetRead> {
 	const size = Math.min(options.size ?? pageSize(ctx), pageSize(ctx))
-	const memo = setReads.get(ctx.model) ?? new Map<string, Promise<SetRead>>()
-	setReads.set(ctx.model, memo)
+	/* Identical set reads within one run, keyed by request and by how many writes came before. */
+	const memo = memoTable<Promise<SetRead>>(ctx.memo.run, "setReads")
 	const key = JSON.stringify([
 		ctx.listOp.operationId,
 		fillPath(ctx.listOp.path, options.scope ?? ctx.scope),
@@ -3728,17 +3547,13 @@ function createBodyPlan(ctx: CheckContext): Plan<CreateBody> {
 	return schema === null ? cannot("a create operation with a request schema") : ready({ createOp, schema })
 }
 
-/** Facts about one entity's cohort, computed once and shared by every check that asks. */
-const cohortFacts = new WeakMap<readonly Record_[], Map<string, unknown>>()
-
 /**
  * A fact about the seeded cohort — a tied sort field, a proper-subset filter, an overlapping
  * search token. The cohort is never written after seeding, so the answer cannot go stale; keyed
  * by list operation too, because a fact about one listing's capabilities is not one about another.
  */
 function cohortFact<T>(ctx: CheckContext, name: string, compute: () => T): T {
-	const facts = cohortFacts.get(ctx.records) ?? new Map<string, unknown>()
-	cohortFacts.set(ctx.records, facts)
+	const facts = memoTable<unknown>(ctx.memo.entity, "cohortFacts")
 	const key = `${ctx.listOp.operationId}:${name}`
 	if (facts.has(key)) return facts.get(key) as T
 	const value = compute()
@@ -5304,9 +5119,6 @@ interface ObservedOrder {
 	nulls?: "first" | "last"
 }
 
-/** Orders each entity's backend has shown, by sort field. */
-const observedTextOrders = new WeakMap<readonly Record_[], Map<string, ObservedOrder>>()
-
 const isNull = (value: unknown): boolean => value === null || value === undefined
 
 /**
@@ -5321,7 +5133,7 @@ function sortedUnder(ctx: CheckContext, field: string, values: readonly unknown[
 	const present = values.filter((value) => !isNull(value))
 	const nulls = values.length - present.length
 	const sortCaps = resolvedCaps(ctx).sort
-	const observed = observedTextOrders.get(ctx.records)?.get(field)
+	const observed = memoTable<ObservedOrder>(ctx.memo.entity, "textOrders").get(field)
 	const known: ObservedOrder | undefined =
 		sortCaps?.collation === undefined && sortCaps?.defaultNulls === undefined
 			? observed
@@ -5357,8 +5169,7 @@ function sortedUnder(ctx: CheckContext, field: string, values: readonly unknown[
 
 /** Records how the backend ordered `field`, so later checks hold it to the same order. */
 function observeTextOrder(ctx: CheckContext, field: string, text: TextOrder, values: readonly unknown[]): void {
-	const orders = observedTextOrders.get(ctx.records) ?? new Map<string, ObservedOrder>()
-	observedTextOrders.set(ctx.records, orders)
+	const orders = memoTable<ObservedOrder>(ctx.memo.entity, "textOrders")
 	if (orders.has(field)) return
 	const nulls =
 		values.some(isNull) && values.some((value) => !isNull(value))
@@ -5844,9 +5655,6 @@ const successSchemaHonoured: Check<{ createOp: OperationModel; validator: Schema
 	},
 }
 
-/* Bodies made in this process by a context that carries no salt of its own (one built outside a run). */
-let bodiesMade = 0
-
 /**
  * The salts one check draws on one entity: the check's place in the registry, the entity's in the
  * model, and a count. Two check runs never share one, by construction, and a run draws the same
@@ -5857,11 +5665,12 @@ export function checkSalts(checkIndex: number, entityIndex: number): () => strin
 	return () => `${checkIndex}.${entityIndex}.${(drawn++).toString(36)}`
 }
 
-/** The check's next salt; a context built outside a run counts bodies process-wide instead. */
+/** The check's next salt; a context built outside a run counts the bodies its entity made instead. */
 function saltOf(ctx: CheckContext): string {
 	if (ctx.nextSalt !== undefined) return ctx.nextSalt()
-	bodiesMade += 1
-	return `p${bodiesMade}`
+	const made = ((ctx.memo.entity.get("bodiesMade") as number | undefined) ?? 0) + 1
+	ctx.memo.entity.set("bodiesMade", made)
+	return `p${made}`
 }
 
 /** Builds a body that should be accepted, for use as the base of a negative probe. */
@@ -10030,30 +9839,3 @@ export async function runCheck(check: Check, ctx: WriteContext): Promise<Outcome
 	if (!planned.ok) return standDown(planned.needs ?? check.needs ?? "an unstated precondition")
 	return check.run(ctx, planned.value)
 }
-
-/**
- * The registry checks itself as it loads: ids are unique, every id is one `CheckId` names, and
- * every dependency is registered earlier. A dependency registered later can never suppress
- * anything — it has not run yet when the scheduler consults it.
- */
-export function validateRegistry(checks: readonly Check[]): void {
-	const position = new Map<string, number>()
-	for (const [index, check] of checks.entries()) {
-		if (position.has(check.id)) throw new Error(`check "${check.id}" is registered twice`)
-		position.set(check.id, index)
-	}
-	for (const id of CHECK_IDS) {
-		if (!position.has(id)) throw new Error(`check "${id}" is named in CHECK_IDS but never registered`)
-	}
-	for (const [index, check] of checks.entries()) {
-		for (const dependency of check.dependsOn ?? []) {
-			const at = position.get(dependency)
-			if (at === undefined) throw new Error(`check "${check.id}" depends on "${dependency}", which is not registered`)
-			if (at >= index) {
-				throw new Error(`check "${check.id}" depends on "${dependency}", which is registered after it`)
-			}
-		}
-	}
-}
-
-validateRegistry(CHECKS)

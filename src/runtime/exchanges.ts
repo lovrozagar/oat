@@ -14,20 +14,10 @@ import { createHash } from "node:crypto"
 import { existsSync } from "node:fs"
 import { appendFile, mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
-import { describeRequestBody, type Exchange } from "./client.ts"
-import {
-	REDACTED,
-	isSecretHeaderName,
-	isSecretJsonKey,
-	redactHeaders,
-	redactJson,
-	redactText,
-	redactUrl,
-} from "./redact.ts"
+import { describeRequestBody, type Exchange, isFormData, isURLSearchParams } from "./exchange.ts"
+import { isSecretJsonKey } from "../security/credential-names.ts"
+import { REDACTED, Redactor } from "../security/redact.ts"
 import { sseEvents } from "./sse.ts"
-
-/* One redactor for every sink; these names stay importable from here. */
-export { REDACTED, isSecretHeaderName, isSecretJsonKey, redactHeaders, redactJson, redactText, redactUrl }
 
 export const INLINE_BODY_LIMIT = 256 * 1024
 
@@ -111,15 +101,7 @@ async function bytesOf(value: unknown): Promise<Uint8Array | undefined> {
 	return undefined
 }
 
-function isFormData(body: unknown): body is FormData {
-	return typeof FormData !== "undefined" && body instanceof FormData
-}
-
-function isURLSearchParams(body: unknown): body is URLSearchParams {
-	return typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams
-}
-
-export function createExchangeJournal(dir: string): ExchangeJournal {
+export function createExchangeJournal(dir: string, redactor: Redactor = new Redactor()): ExchangeJournal {
 	const taken = new Set<string>()
 	const writtenBlobs = new Set<string>()
 	let count = 0
@@ -170,7 +152,7 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 	}
 
 	const persistJson = async (value: unknown, mediaType: string): Promise<unknown> => {
-		const redacted = redactJson(value)
+		const redacted = redactor.json(value)
 		const bytes = utf8Bytes(JSON.stringify(redacted))
 		if (bytes.byteLength <= INLINE_BODY_LIMIT) return redacted
 		const blob = await putBlob(bytes)
@@ -202,7 +184,7 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 			}
 			return { parts }
 		}
-		if (isURLSearchParams(body)) return redactJson(Object.fromEntries(body.entries()))
+		if (isURLSearchParams(body)) return redactor.json(Object.fromEntries(body.entries()))
 		const raw = await bytesOf(body)
 		if (raw !== undefined) {
 			const blob = await putBlob(raw)
@@ -220,7 +202,7 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 		if (mediaType.toLowerCase().includes("text/event-stream")) {
 			const frames = sseEvents(body)
 			if (frames !== null) {
-				return frames.map((frame) => ({ data: redactJson(frame.data), event: frame.event }))
+				return frames.map((frame) => ({ data: redactor.json(frame.data), event: frame.event }))
 			}
 			if (typeof body === "string") return spillText(body, primaryMediaType(mediaType, "text/event-stream"))
 		}
@@ -234,7 +216,7 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 		if (typeof body === "string") {
 			const asFrames = sseEvents(body)
 			if (asFrames !== null) {
-				return asFrames.map((frame) => ({ data: redactJson(frame.data), event: frame.event }))
+				return asFrames.map((frame) => ({ data: redactor.json(frame.data), event: frame.event }))
 			}
 			return spillText(body, primaryMediaType(mediaType, "text/plain"))
 		}
@@ -272,22 +254,22 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 				method: exchange.method,
 				...(exchange.operationId === undefined ? {} : { operationId: exchange.operationId }),
 				requestBody,
-				requestHeaders: redactHeaders(exchange.requestHeaders),
+				requestHeaders: redactor.headers(exchange.requestHeaders),
 				requestId: exchange.requestId,
 				responseBody,
-				responseHeaders: redactHeaders(exchange.responseHeaders),
+				responseHeaders: redactor.headers(exchange.responseHeaders),
 				...(exchange.redirects === undefined
 					? {}
 					: {
 							redirects: exchange.redirects.map((hop) => ({
-								responseHeaders: redactHeaders(hop.responseHeaders),
+								responseHeaders: redactor.headers(hop.responseHeaders),
 								status: hop.status,
-								url: redactUrl(hop.url),
+								url: redactor.url(hop.url),
 							})),
 						}),
 				seq: exchange.seq,
 				status: exchange.status,
-				url: redactUrl(exchange.url),
+				url: redactor.url(exchange.url),
 			}
 			pendingFiles.push({ content: `${JSON.stringify(file, null, 2)}\n`, path: join(dir, rel) })
 			const line: Record<string, unknown> = {
@@ -300,7 +282,7 @@ export function createExchangeJournal(dir: string): ExchangeJournal {
 				responseBytes: exchange.responseBytes,
 				seq: exchange.seq,
 				status: exchange.status,
-				url: redactUrl(exchange.url),
+				url: redactor.url(exchange.url),
 			}
 			if (exchange.operationId !== undefined) line.operationId = exchange.operationId
 			if (exchange.fixture !== undefined) line.fixture = exchange.fixture

@@ -2,7 +2,7 @@ import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { Client } from "../../src/runtime/client.ts"
-import { MissingValueError } from "../../src/runtime/missing-value.ts"
+import { MissingValueError } from "../../src/errors/missing-value.ts"
 import { idOf } from "../../src/runtime/world.ts"
 import { FILTER_PRESETS, renderTerm } from "../../src/spec/filter-render.ts"
 

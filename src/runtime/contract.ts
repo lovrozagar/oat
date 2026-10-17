@@ -7,20 +7,21 @@
  * guessed is not proof the backend is wrong; that operation needs a scenario.
  */
 
-import type { Hooks } from "../config/define-config.ts"
+import type { Hooks } from "../config/types/hooks.ts"
 import type { OperationObject } from "../spec/types.ts"
 import { documentsStatus, type OperationModel, type SpecModel } from "../spec/graph.ts"
 import { requestContent } from "../spec/collection.ts"
 import type { CheckId } from "./check-ids.ts"
 import type { Client, Exchange } from "./client.ts"
 import { buildCohort } from "./fixture.ts"
-import type { Check } from "./checks.ts"
+import type { Check } from "./checks/core/check.ts"
 import { ASSERTED, type FindingCollector, type Outcome } from "./finding.ts"
 import { applyActionBind, readActionBind } from "./effects.ts"
 import { describeServerError, headerValue } from "./rate-limit.ts"
-import type { GradeLedger } from "./scope.ts"
+import type { GradeLedger } from "./grades.ts"
 import type { SchemaValidator } from "./validate.ts"
-import { fillPath, requestSchemaOf } from "./world.ts"
+import { requestSchemaOf } from "./world.ts"
+import { fillPath } from "./fill-path.ts"
 
 export const CONTRACT_CHECK_ID = "response.contract-call" as const satisfies CheckId
 

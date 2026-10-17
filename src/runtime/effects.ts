@@ -8,7 +8,7 @@
 
 import type { EffectSpec } from "../spec/extensions.ts"
 import type { SpecModel } from "../spec/graph.ts"
-import { fillPath } from "./world.ts"
+import { fillPath } from "./fill-path.ts"
 
 export type EffectCardinality = { mode: "exact"; count: number } | { mode: "min"; min: number }
 

@@ -7,7 +7,9 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { Client, describeRequestBody, toCurl } from "../../src/runtime/client.ts"
-import { INLINE_BODY_LIMIT, createExchangeJournal, isSecretJsonKey } from "../../src/runtime/exchanges.ts"
+import { INLINE_BODY_LIMIT, createExchangeJournal } from "../../src/runtime/exchanges.ts"
+import { isSecretJsonKey } from "../../src/security/credential-names.ts"
+import { Redactor } from "../../src/security/redact.ts"
 import { isNetworkError } from "../../src/runtime/network.ts"
 import { run } from "../../src/runtime/run.ts"
 import {
@@ -404,7 +406,7 @@ describe("Client transcript lifecycle", () => {
 			fixture: "a.bin",
 			operationId: "upload.once",
 		}
-		await releaseTranscriptBodies(exchange)
+		await releaseTranscriptBodies(exchange, new Redactor())
 		expect(exchange.method).toBe("POST")
 		expect(exchange.url).toBe("http://x.test/v1/x")
 		expect(exchange.status).toBe(200)
@@ -675,7 +677,7 @@ describe("a large body stored by reference", () => {
 		const body = { rows: Array.from({ length: 4000 }, (_, i) => ({ id: i, name: "n".repeat(60) })) }
 		const exchange = await client.request("POST", "/rows", { body })
 		const stored = { ...exchange }
-		await releaseTranscriptBodies(stored)
+		await releaseTranscriptBodies(stored, new Redactor())
 		expect(received.byteLength).toBeGreaterThan(INLINE_BODY_LIMIT)
 		expect(stored.requestBody).toEqual({
 			bytes: received.byteLength,
@@ -695,7 +697,7 @@ describe("a large body stored by reference", () => {
 		const client = new Client(server.url)
 		const exchange = await client.request("GET", "/rows")
 		const stored = { ...exchange }
-		await releaseTranscriptBodies(stored)
+		await releaseTranscriptBodies(stored, new Redactor())
 		const raw = Buffer.from(sent)
 		expect(stored.responseBody).toEqual({
 			bytes: raw.byteLength,

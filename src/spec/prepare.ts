@@ -3,7 +3,8 @@
  * removed. One function, so `run`, `plan` and `doctor` cannot disagree about what oat may call.
  */
 
-import type { Principal, Scenario } from "../config/define-config.ts"
+import type { Principal } from "../config/types/principals.ts"
+import type { Scenario } from "../config/types/steps.ts"
 import { assertAllowedReferences, pruneToAllow } from "./allow.ts"
 import { applyOverlay, type SpecOverlay } from "./overlay.ts"
 import type { OpenApiDocument } from "./types.ts"

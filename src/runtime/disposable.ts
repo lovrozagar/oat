@@ -10,20 +10,22 @@
  * operation stays untested and a scenario sets the scene.
  */
 
-import type { AuthFlow, Hooks, PrincipalAuth } from "../config/define-config.ts"
-import { isHookAuth } from "../config/define-config.ts"
+import type { Hooks } from "../config/types/hooks.ts"
+import type { AuthFlow, PrincipalAuth } from "../config/types/principals.ts"
+import { isHookAuth } from "./auth-kind.ts"
 import { deriveCollectionShape, deriveIdentity, effective, successSchema } from "../spec/collection.ts"
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
 import { createPrincipal, readPath, runAuthSteps } from "./auth.ts"
 import type { CheckId } from "./check-ids.ts"
-import type { Check } from "./checks.ts"
+import type { Check } from "./checks/core/check.ts"
 import type { Client, Exchange } from "./client.ts"
 import { ASSERTED, type FindingCollector, type Outcome } from "./finding.ts"
 import { buildCohort, isOverflowError } from "./fixture.ts"
 import { applyResolveInput } from "./input.ts"
 import type { BackoffConfig } from "./poll.ts"
-import type { GradeLedger, PassEvidence } from "./scope.ts"
-import { fillPath, requestSchemaOf } from "./world.ts"
+import type { GradeLedger, PassEvidence } from "./grades.ts"
+import { requestSchemaOf } from "./world.ts"
+import { fillPath } from "./fill-path.ts"
 
 export const DISPOSABLE_CHECK_ID = "auth.destructive-spares-the-caller" as const satisfies CheckId
 

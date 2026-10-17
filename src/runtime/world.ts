@@ -21,6 +21,11 @@ import { type ProvenId, returnedId } from "./proven-id.ts"
 import { createdRecordOf, resolveCreatedId } from "./created-id.ts"
 import { FencedError } from "./fence.ts"
 import { readPath } from "./path.ts"
+import { fillPath } from "./fill-path.ts"
+import { SeedError } from "./seed-error.ts"
+
+export { fillPath } from "./fill-path.ts"
+export { SeedError } from "./seed-error.ts"
 
 export type Record_ = Record<string, unknown>
 
@@ -119,21 +124,6 @@ export interface Scope {
 	created: Array<{ entity: string; path: string; id: string }>
 }
 
-export class SeedError extends Error {
-	constructor(
-		/** The path parameter or operation the seed failed on. */
-		readonly culprit: string,
-		message: string,
-		/** Status the failing request returned, when the failure was an HTTP response. */
-		readonly status?: number,
-		/** The create that failed, when the failure was one — a parent's, not always the entity's own. */
-		readonly operationId?: string,
-		readonly exchange?: Exchange,
-	) {
-		super(message)
-	}
-}
-
 /**
  * Reads back a record an acknowledgement-only create made under a client-chosen identity.
  *
@@ -184,14 +174,6 @@ export async function confirmSubmitted(input: {
 	if (record === undefined) return null
 	if (!isScalarId(record[identity]) || String(record[identity]) !== id) return null
 	return fields.every(([key, value]) => JSON.stringify(record[key]) === JSON.stringify(value)) ? record : null
-}
-
-export function fillPath(template: string, values: Record<string, string>): string {
-	return template.replace(/\{([^}]+)\}/g, (_, name: string) => {
-		const value = values[name]
-		if (value === undefined) throw new SeedError(name, `no value for path parameter {${name}}`)
-		return encodeURIComponent(value)
-	})
 }
 
 /**

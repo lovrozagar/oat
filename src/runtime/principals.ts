@@ -4,7 +4,7 @@
  */
 
 import { readFileSync } from "node:fs"
-import type { Principal } from "../config/define-config.ts"
+import type { Principal } from "../config/types/principals.ts"
 
 export interface PersistedPrincipal {
 	id: string

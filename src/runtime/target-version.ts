@@ -10,16 +10,11 @@
 import type { SpecModel } from "../spec/graph.ts"
 import type { Client } from "./client.ts"
 import { readPath } from "./path.ts"
-import { fillPath } from "./world.ts"
+import { fillPath } from "./fill-path.ts"
 
-export interface TargetVersionSpec {
-	/** The operation to read it from. Its path parameters come from the first principal's roots. */
-	operationId?: string
-	/** A path below the base URL, when no operation in the document serves it. */
-	path?: string
-	/** `$.json.path` into the body, or `header:<name>`. */
-	from: string
-}
+import type { TargetVersionSpec } from "../config/types/config.ts"
+
+export type { TargetVersionSpec } from "../config/types/config.ts"
 
 export type TargetVersion = { value: string } | { error: string }
 

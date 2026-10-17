@@ -7,7 +7,7 @@
  * an entry that matched nothing is reported as fixed, never as a failure.
  */
 
-import { UsageError } from "../config/usage-error.ts"
+import { UsageError } from "../errors/usage-error.ts"
 import { type Finding, isRootCause } from "./finding.ts"
 
 export interface BaselineEntry {

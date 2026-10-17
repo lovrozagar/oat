@@ -6,14 +6,15 @@
  */
 
 import type { EntityModel, OperationModel, SpecModel } from "../spec/graph.ts"
-import type { Hooks } from "../config/define-config.ts"
-import type { CheckContext, WriteContext } from "./checks.ts"
+import type { Hooks } from "../config/types/hooks.ts"
+import type { CheckContext, WriteContext } from "./checks/core/context.ts"
 import { requestContentOf } from "./body.ts"
 import type { Client, Exchange } from "./client.ts"
 import { ASSERTED, type FindingCollector, type Outcome } from "./finding.ts"
 import { buildCohort, isOverflowError } from "./fixture.ts"
 import { applyResolveInput } from "./input.ts"
-import { fillPath, requestSchemaOf } from "./world.ts"
+import { requestSchemaOf } from "./world.ts"
+import { fillPath } from "./fill-path.ts"
 import type { CheckId } from "./check-ids.ts"
 
 export const SELF_IDENTITY = "self"

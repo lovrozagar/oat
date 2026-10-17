@@ -7,15 +7,11 @@
  * names nothing is a mistake in the config, and stops the run before it starts.
  */
 
-import { UsageError } from "../config/usage-error.ts"
+import { UsageError } from "../errors/usage-error.ts"
+import type { SpecOverlay } from "../config/types/config.ts"
 import type { OpenApiDocument } from "./types.ts"
 
-export interface SpecOverlay {
-	/** Patches by `operationId`. A patch's own `operationId` renames the operation. */
-	operations?: Record<string, Record<string, unknown>>
-	/** Patches by component schema name. */
-	schemas?: Record<string, Record<string, unknown>>
-}
+export type { SpecOverlay } from "../config/types/config.ts"
 
 const METHODS = ["get", "put", "post", "delete", "options", "head", "patch", "trace"]
 

@@ -4,7 +4,7 @@
  * Merge of tag + config is pure and lives in `spec/query-capabilities`. This file talks HTTP.
  */
 
-import type { QueryCapabilitiesRequest } from "../config/define-config.ts"
+import type { QueryCapabilitiesRequest } from "../config/types/hooks.ts"
 import type { QueryCapability } from "../spec/extensions.ts"
 import { parseRouteRef } from "../spec/load.ts"
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
@@ -19,7 +19,7 @@ import {
 	readJsonPathList,
 } from "../spec/query-capabilities.ts"
 import type { Client } from "./client.ts"
-import { fillPath } from "./world.ts"
+import { fillPath } from "./fill-path.ts"
 
 export async function resolveEntityCapabilities(input: {
 	tag: QueryCapability | null

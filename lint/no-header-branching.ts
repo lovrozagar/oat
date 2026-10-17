@@ -15,7 +15,9 @@ const HOMES = [
 	"/src/reference/",
 ]
 const HEADERS = new Set(["authorization", "proxy-authorization", "x-api-key"])
-const PREFIX = /^(?:bearer|basic) /i
+/* A credential template: the scheme, a space, then the credential's slot (`{credential}`, `$TOKEN`,
+ * a `${}` slot, or the end of a literal another value is joined onto). Prose such as "Basic usage" is not one. */
+const PREFIX = /^(?:Bearer|Basic) (?:[{$]|$)/
 const MESSAGE =
 	"credential placement comes from the operation's OpenAPI security (src/spec/security/); do not name an auth header or scheme prefix here"
 

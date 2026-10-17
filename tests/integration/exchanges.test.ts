@@ -6,15 +6,14 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { Client, type Exchange } from "../../src/runtime/client.ts"
+import { isSecretHeaderName } from "../../src/security/credential-names.ts"
+import { Redactor } from "../../src/security/redact.ts"
 import {
 	INLINE_BODY_LIMIT,
 	createExchangeJournal,
 	exchangeFileStem,
 	isBinaryMediaType,
-	isSecretHeaderName,
 	primaryMediaType,
-	redactHeaders,
-	redactJson,
 	resolveSaveExchanges,
 	sanitizeExchangeId,
 } from "../../src/runtime/exchanges.ts"
@@ -73,12 +72,12 @@ describe("redaction helpers", () => {
 		expect(isSecretHeaderName("x-api-key")).toBe(true)
 		expect(isSecretHeaderName("X-Client-Secret")).toBe(true)
 		expect(isSecretHeaderName("content-type")).toBe(false)
-		expect(redactHeaders({ Authorization: "Bearer secret", Accept: "application/json" })).toEqual({
+		expect(new Redactor().headers({ Authorization: "Bearer secret", Accept: "application/json" })).toEqual({
 			Accept: "application/json",
 			Authorization: "<redacted>",
 		})
 		expect(
-			redactJson({
+			new Redactor().json({
 				access_token: "aaa.bbb.ccc",
 				nested: { refresh_token: "r", keep: 1 },
 				items: [{ password: "p", id_token: "i", token: "t", secret: "s", api_key: "k" }],
@@ -96,7 +95,7 @@ describe("redaction helpers", () => {
 			],
 			nested: { keep: 1, refresh_token: "<redacted>" },
 		})
-		expect(redactJson("plain")).toBe("plain")
+		expect(new Redactor().json("plain")).toBe("plain")
 	})
 })
 

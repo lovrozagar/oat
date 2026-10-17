@@ -3,7 +3,7 @@
  * is encoded. `null` keeps the generator's value, same contract as `resolveUpload`.
  */
 
-import type { Hooks, InputRequest } from "../config/define-config.ts"
+import type { Hooks, InputRequest } from "../config/types/hooks.ts"
 
 export async function applyResolveInput(
 	fields: Record<string, unknown>,

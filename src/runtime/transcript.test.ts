@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { Exchange } from "./client.ts"
-import { BodySpool, isSpooledBody } from "./transcript.ts"
+import { REDACTED, Redactor } from "../security/redact.ts"
+import { BodySpool, bodyRef, compactRequestBody, holdsLiveBody, isSpooledBody, sha256Hex } from "./transcript.ts"
 
 const exchange = (seq: number, body: unknown): Exchange => ({
 	at: 0,
@@ -72,12 +73,50 @@ describe("spooled bodies, at the edges", () => {
 	})
 
 	it("keeps a form field sent several times as every value", async () => {
-		const { compactRequestBody } = await import("./transcript.ts")
 		const form = new URLSearchParams([
 			["tag", "a"],
 			["tag", "b"],
 			["tag", "c"],
 		])
 		expect(await compactRequestBody(form)).toEqual({ tag: ["a", "b", "c"] })
+	})
+})
+
+describe("request bodies, compacted for the transcript", () => {
+	it("keeps a form field by field, scrubbing secret fields and what the run was issued", async () => {
+		const redactor = new Redactor()
+		redactor.registerSecret("issued-token-value")
+		const form = new URLSearchParams([
+			["note", "sent issued-token-value"],
+			["tag", "a"],
+			["tag", "b"],
+		])
+		expect(await compactRequestBody(form, undefined, undefined, redactor)).toEqual({
+			note: `sent ${REDACTED}`,
+			tag: ["a", "b"],
+		})
+		const multipart = new FormData()
+		multipart.append("password", "hunter2")
+		multipart.append("file", new Blob(["abc"], { type: "text/plain" }), "a.txt")
+		expect(await compactRequestBody(multipart)).toEqual({
+			parts: [
+				{ field: "password", value: REDACTED },
+				{
+					bytes: 3,
+					field: "file",
+					filename: "a.txt",
+					mediaType: "text/plain",
+					sha256: sha256Hex(new TextEncoder().encode("abc")),
+				},
+			],
+		})
+	})
+
+	it("stores raw bytes as a reference and knows a live body when it holds one", async () => {
+		const bytes = new Uint8Array([1, 2])
+		expect(await compactRequestBody(bytes)).toEqual(bodyRef(bytes, "application/octet-stream"))
+		expect(
+			[new FormData(), new URLSearchParams(), new Blob([]), new ArrayBuffer(1), bytes, "x", 1].map(holdsLiveBody),
+		).toEqual([true, true, true, true, true, false, false])
 	})
 })
