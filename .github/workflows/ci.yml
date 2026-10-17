@@ -51,10 +51,40 @@ jobs:
       - run: bun run lint
       - run: bun run check
 
+  # Three jobs side by side; they share only the checkout and the install. Timeouts are about 1.5
+  # times what each took on d58aae1: build + unit 2m23s, conformance 36m06s, precision 47s.
+  unit:
+    name: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: bun install --frozen-lockfile
+      - run: bun run build && bun run test:unit
+      - name: CLI smoke
+        run: |
+          node dist/cli.js help
+          # annotated spec has roots and missing tags — doctor exit 1 is advisory/blocking, not a crash
+          set +e
+          node dist/cli.js doctor --spec labs/annotated-openapi.yaml
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ] && [ "$code" -ne 1 ]; then
+            echo "doctor exited $code"
+            exit "$code"
+          fi
+          node dist/cli.js plan --spec labs/annotated-openapi.yaml --json > /tmp/oat-plan.json
+
   test:
     name: conformance
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 55
     # The Postgres leg is part of the self-test, not an extra: without it the SQL-only defects and
     # every engine difference go untested, and the suite fails rather than skip it silently.
     services:
@@ -85,23 +115,26 @@ jobs:
         with:
           node-version: "22"
       - run: bun install --frozen-lockfile
-      - run: bun run build && bun run test:unit
+      - run: bun run build
       # A fresh seed per run, printed in the output, so the combination pass explores new ground
       # and any failure it finds replays exactly.
       - name: Conformance
         run: node --experimental-sqlite dist/cli.js conformance --fuzz-seed ${{ github.run_id }}
+
+  precision:
+    name: precision
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      # Varies the data against a correct backend (memory): any finding is a false positive.
       - name: Precision
         run: node --experimental-sqlite dist/cli.js conformance --precision 20 --seed ${{ github.run_id }}
-      - name: CLI smoke
-        run: |
-          node dist/cli.js help
-          # annotated spec has roots and missing tags — doctor exit 1 is advisory/blocking, not a crash
-          set +e
-          node dist/cli.js doctor --spec labs/annotated-openapi.yaml
-          code=$?
-          set -e
-          if [ "$code" -ne 0 ] && [ "$code" -ne 1 ]; then
-            echo "doctor exited $code"
-            exit "$code"
-          fi
-          node dist/cli.js plan --spec labs/annotated-openapi.yaml --json > /tmp/oat-plan.json
