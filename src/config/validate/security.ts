@@ -2,7 +2,10 @@ import type { RecipeKind } from "../types/security.ts"
 import { nearest } from "../../errors/suggest.ts"
 import type { ResolvedSecurity } from "../../spec/security/requirements.ts"
 import type { SecurityScheme } from "../../spec/security/schemes.ts"
+import { effectiveRecipe } from "../../credentials/effective.ts"
+import type { Recipe } from "../types/security.ts"
 import { principalProblems, removedProblems } from "./principals.ts"
+import { kindShapeProblems } from "./recipe-shape.ts"
 
 /*
  * The 0.25.0 credentials config, checked against the documents it runs on: one recipe of one kind
@@ -91,17 +94,32 @@ function mintChain(start: string, security: Raw): string[] {
 	}
 }
 
-function mintProblems(path: string, name: string, mint: Raw, against: { security: Raw; spec: SpecView }): string[] {
+/** What a recipe is checked against: the base recipes, the document, and whether a credential hook exists. */
+interface Against {
+	security: Raw
+	spec: SpecView
+	hasHook: boolean
+}
+
+const names = (spec: SpecView, operationId: string): boolean =>
+	spec.operations.some((op) => op.operationId === operationId)
+
+/* References a mint makes, once its fields are strings: the shape check reports them otherwise. */
+function mintProblems(path: string, name: string, mint: Raw, against: Against): string[] {
 	const { security, spec } = against
 	const problems: string[] = []
-	if (!isRecord(security[String(mint.with)])) {
-		problems.push(`${path}.mint.with names "${String(mint.with)}", which has no recipe`)
-	} else {
+	if (typeof mint.with === "string" && !isRecord(security[mint.with])) {
+		problems.push(`${path}.mint.with names "${mint.with}", which has no recipe`)
+	} else if (typeof mint.with === "string") {
 		const chain = mintChain(name, security)
 		if (chain.at(-1) === name) problems.push(`${path}.mint.with forms a loop: ${chain.join(" → ")}`)
 	}
-	if (!spec.operations.some((op) => op.operationId === mint.operationId)) {
-		problems.push(`${path}.mint.operationId "${String(mint.operationId)}" names no operation`)
+	if (typeof mint.revoke === "string" && !names(spec, mint.revoke)) {
+		problems.push(`${path}.mint.revoke "${mint.revoke}" names no operation`)
+	}
+	if (typeof mint.operationId !== "string") return problems
+	if (!names(spec, mint.operationId)) {
+		problems.push(`${path}.mint.operationId "${mint.operationId}" names no operation`)
 	} else if (JSON.stringify(mint.body ?? null).includes("{scopes}")) {
 		const scoped = spec.operations.some((op) =>
 			op.security.alternatives.flat().some((need) => need.scheme === name && need.scopes.length > 0),
@@ -111,8 +129,8 @@ function mintProblems(path: string, name: string, mint: Raw, against: { security
 	return problems
 }
 
-function recipeProblems(name: string, recipe: unknown, security: Raw, spec: SpecView): string[] {
-	const path = `security.${name}`
+function recipeProblems(path: string, name: string, recipe: unknown, against: Against): string[] {
+	const { spec } = against
 	const scheme = spec.schemes.get(name)
 	if (scheme === undefined) {
 		const close = nearest(name, spec.schemes.keys())[0]
@@ -126,9 +144,25 @@ function recipeProblems(name: string, recipe: unknown, security: Raw, spec: Spec
 	if (kind.length > 0) return kind
 	return [
 		...optionProblems(path, recipe),
+		...kindShapeProblems(path, recipe, scheme, against.hasHook),
 		...(isRecord(recipe.oauth2) ? oauth2Problems(path, recipe.oauth2, scheme) : []),
-		...(isRecord(recipe.mint) ? mintProblems(path, name, recipe.mint, { security, spec }) : []),
+		...(isRecord(recipe.mint) ? mintProblems(path, name, recipe.mint, against) : []),
 	]
+}
+
+/* Each principal's override, checked as the recipe that principal will actually use. */
+function overrideProblems(config: Raw, against: Against): string[] {
+	const principals = isRecord(config.principals) ? config.principals : {}
+	return Object.entries(principals).flatMap(([id, entry]) => {
+		const overrides = isRecord(entry) && isRecord(entry.security) ? entry.security : {}
+		return Object.entries(overrides)
+			.filter(([scheme]) => against.spec.schemes.has(scheme))
+			.flatMap(([scheme, override]) => {
+				const base = against.security[scheme] as Partial<Recipe> | undefined
+				const effective = effectiveRecipe(base, override as Partial<Recipe>)
+				return recipeProblems(`principals.${id}.security.${scheme}`, scheme, effective, against)
+			})
+	})
 }
 
 function originProblems(
@@ -156,11 +190,14 @@ export function securityProblems(
 	origins: Readonly<Record<string, SpecView>> = {},
 ): string[] {
 	const security = isRecord(config.security) ? config.security : {}
+	const hooks = isRecord(config.hooks) ? config.hooks : {}
+	const against: Against = { hasHook: typeof hooks.resolveCredential === "function", security, spec }
 	const shape =
 		config.security === undefined || isRecord(config.security) ? [] : ["security must be a map of scheme → recipe"]
 	return [
 		...shape,
-		...Object.entries(security).flatMap(([name, recipe]) => recipeProblems(name, recipe, security, spec)),
+		...Object.entries(security).flatMap(([name, recipe]) => recipeProblems(`security.${name}`, name, recipe, against)),
+		...overrideProblems(config, against),
 		...principalProblems(config, new Set(spec.schemes.keys())),
 		...removedProblems(config),
 		...(spec.authFlows

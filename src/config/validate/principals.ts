@@ -3,6 +3,9 @@
  * removed. Each problem names the path and, for a removed field, what replaces it.
  */
 
+import { effectiveRecipe } from "../../credentials/effective.ts"
+import type { Recipe } from "../types/security.ts"
+
 type Raw = Record<string, unknown>
 
 const isRecord = (value: unknown): value is Raw => value !== null && typeof value === "object" && !Array.isArray(value)
@@ -49,15 +52,16 @@ function entryProblems(id: string, entry: Raw, schemes: ReadonlySet<string>, dec
 	return problems
 }
 
+/* Placeholders of the recipe this principal will use for each scheme: an override replaces only what it names. */
 function placeholderProblems(id: string, entry: Raw, security: Raw): string[] {
-	const overridden = isRecord(entry.security) ? entry.security : {}
-	return Object.entries(security).flatMap(([scheme, recipe]) =>
-		scheme in overridden
-			? []
-			: [...placeholders(recipe)]
-					.filter((key) => !(key in entry))
-					.map((key) => `principals.${id} has no "${key}", which security.${scheme} uses as {principal.${key}}`),
-	)
+	const overrides = isRecord(entry.security) ? entry.security : {}
+	const schemes = new Set([...Object.keys(security), ...Object.keys(overrides)])
+	return [...schemes].flatMap((scheme) => {
+		const recipe = effectiveRecipe(security[scheme] as Partial<Recipe>, overrides[scheme] as Partial<Recipe>)
+		return [...placeholders(recipe)]
+			.filter((key) => !(key in entry))
+			.map((key) => `principals.${id} has no "${key}", which security.${scheme} uses as {principal.${key}}`)
+	})
 }
 
 /** What is wrong with `config.principals`, against the declared schemes and the recipes. */

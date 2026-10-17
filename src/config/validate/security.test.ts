@@ -96,9 +96,12 @@ describe("security recipe options", () => {
 		expect(problems({ security: { o: { holds: ["a"], oauth2 } } }, oauthDoc)).toEqual([
 			"security.o.holds is not for an oauth2 recipe: it holds the oauth2.scopes it asks for",
 		])
-		expect(problems({ security: { o: { oauth2: { ...oauth2, flow: "password" } } } }, oauthDoc)).toEqual([
-			'security.o.oauth2.flow "password" is not a flow scheme o declares with a tokenUrl',
-		])
+		expect(
+			problems(
+				{ security: { o: { oauth2: { ...oauth2, flow: "password", password: "p", username: "u" } } } },
+				oauthDoc,
+			),
+		).toEqual(['security.o.oauth2.flow "password" is not a flow scheme o declares with a tokenUrl'])
 		expect(problems({ security: { jwt: { oauth2 } } })).toEqual([
 			"security.jwt.oauth2 needs an oauth2 scheme; jwt is bearer",
 		])
@@ -189,5 +192,36 @@ describe("security, at the edges", () => {
 		])
 		expect(problems({ security: { jwt: "token" } })).toEqual(["security.jwt must be a recipe object"])
 		expect(problems({ security: "jwt" })).toEqual(["security must be a map of scheme → recipe"])
+	})
+})
+
+const beta = (security: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({
+	principals: { alpha, beta: { tenant: "t2", ...extra, security } },
+})
+
+describe("principal overrides, on the effective recipe", () => {
+	it("check an override that only merges options, and the placeholders it inherits", () => {
+		expect(problems(beta({ jwt: { format: "Token {credential}" } }))).toEqual([
+			'principals.beta has no "email", which security.jwt uses as {principal.email}',
+		])
+		expect(problems(beta({ jwt: { expiresIn: 0 } }, { email: "b@x.test" }))).toEqual([
+			"principals.beta.security.jwt.expiresIn must be seconds above 0 or { from: <json path> }",
+		])
+	})
+
+	it("let an override that names a kind replace the base kind, and check what it becomes", () => {
+		expect(problems(beta({ jwt: { static: "token" } }))).toEqual([])
+		expect(problems(beta({ jwt: { hook: true, static: "token" } }))).toEqual([
+			"principals.beta.security.jwt has static and hook; keep exactly one",
+		])
+		expect(problems(beta({ jwt: { static: { password: "p", username: "u" } } }))).toEqual([
+			"principals.beta.security.jwt.static must be a string for a bearer scheme",
+		])
+	})
+
+	it("check an override for a scheme with no base recipe as a whole recipe", () => {
+		expect(problems(beta({ apiKey: { format: "ApiKey {credential}" } }, { email: "b@x.test" }))).toEqual([
+			"principals.beta.security.apiKey needs exactly one of login, mint, static, hook, oauth2",
+		])
 	})
 })
