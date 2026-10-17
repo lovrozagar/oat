@@ -25,12 +25,34 @@ const LEGS: ReadonlyArray<{ leg: string; target: GoldenTarget; defects: readonly
 	{ defects: [...DECLARED_SORT_ONLY], leg: "clean.template", target: { dialect: "template" } },
 ]
 
-const CASES: ReadonlyArray<[string, string, GoldenTarget]> = LEGS.flatMap(({ defects, leg, target }) => [
-	[leg, leg, target] as [string, string, GoldenTarget],
-	...defects.map((name): [string, string, GoldenTarget] => [name, leg, { ...target, defects: [name] }]),
+/* [case, its leg's clean target, the case's own target] */
+type Case = [string, { leg: string; target: GoldenTarget }, GoldenTarget]
+const CASES: readonly Case[] = LEGS.flatMap(({ defects, leg, target }) => [
+	[leg, { leg, target }, target] as Case,
+	...defects.map((name): Case => [name, { leg, target }, { ...target, defects: [name] }]),
 ])
 
-const cleanReports = new Map<string, unknown>()
+/* One run, normalized, with its exit code. */
+async function goldenReport(target: GoldenTarget): Promise<{ code: number; report: unknown }> {
+	const run = await goldenRun(target)
+	try {
+		return { code: run.code, report: normalize(JSON.parse(await run.read("oat-report.json"))) }
+	} finally {
+		await removeRun(run)
+	}
+}
+
+/* A leg's clean run, made once per process on first use, so a defect case filtered on its own
+ * still diffs against its leg's clean report. */
+const cleanRuns = new Map<string, Promise<{ code: number; report: unknown }>>()
+function cleanFor(leg: string, target: GoldenTarget): Promise<{ code: number; report: unknown }> {
+	let clean = cleanRuns.get(leg)
+	if (clean === undefined) {
+		clean = goldenReport(target)
+		cleanRuns.set(leg, clean)
+	}
+	return clean
+}
 
 describe("golden reports", () => {
 	it("covers every defect", () => {
@@ -40,17 +62,14 @@ describe("golden reports", () => {
 	})
 
 	it.each(CASES)("%s", async (name, leg, target) => {
-		const run = await goldenRun(target)
-		try {
-			const report = normalize(JSON.parse(await run.read("oat-report.json")))
-			if (name === leg) cleanReports.set(leg, report)
-			const golden = {
-				exitCode: run.code,
-				report: name === leg ? report : (delta(cleanReports.get(leg), report) ?? {}),
-			}
-			await expect(`${JSON.stringify(golden, null, 2)}\n`).toMatchFileSnapshot(`__snapshots__/golden/${name}.snap`)
-		} finally {
-			await removeRun(run)
-		}
+		const clean = await cleanFor(leg.leg, leg.target)
+		const golden =
+			name === leg.leg
+				? { exitCode: clean.code, report: clean.report }
+				: await goldenReport(target).then(({ code, report }) => ({
+						exitCode: code,
+						report: delta(clean.report, report) ?? {},
+					}))
+		await expect(`${JSON.stringify(golden, null, 2)}\n`).toMatchFileSnapshot(`__snapshots__/golden/${name}.snap`)
 	})
 })
