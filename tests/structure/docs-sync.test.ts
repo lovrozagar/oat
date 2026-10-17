@@ -18,6 +18,7 @@ const doc = (name: string): string => readFileSync(join(ROOT, "docs", name), "ut
 function sourcesUnder(dir: string): string[] {
 	return readdirSync(join(ROOT, dir), { recursive: true, withFileTypes: true })
 		.filter((entry) => entry.isFile() && entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts"))
+		.filter((entry) => !entry.parentPath.includes("__fixtures__"))
 		.map((entry) => readFileSync(join(entry.parentPath, entry.name), "utf8"))
 }
 
@@ -52,6 +53,10 @@ interface Surface {
 }
 
 const code = (name: string): string => `\`${name}\``
+
+/* `token` as a whole word: `env` is not found inside "environment". */
+const mentions = (text: string, token: string): boolean =>
+	new RegExp(`(?<![\\w-])${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w-])`).test(text)
 
 const SURFACES: Readonly<Record<string, Surface>> = {
 	"check ids": {
@@ -125,7 +130,8 @@ const SURFACES: Readonly<Record<string, Surface>> = {
 	"public exports": {
 		doc: "api.md",
 		names: publicExports,
-		written: code,
+		/* An export may be named in prose or in an example's code. */
+		written: (name) => name,
 		undocumented: [
 			"EntityConfig",
 			"ExternalStep",
@@ -157,7 +163,7 @@ const SURFACES: Readonly<Record<string, Surface>> = {
 describe("docs stay in sync with the code", () => {
 	it.each(Object.entries(SURFACES))("%s", (_name, surface) => {
 		const text = doc(surface.doc)
-		const missing = surface.names().filter((name) => !text.includes(surface.written(name)))
+		const missing = surface.names().filter((name) => !mentions(text, surface.written(name)))
 		expect(missing.toSorted()).toEqual([...surface.undocumented].toSorted())
 	})
 })

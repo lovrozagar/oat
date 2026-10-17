@@ -66,6 +66,11 @@ describe("operation scope", () => {
 		expect(() => resolveTargetScope(referenceModel(), { only: ["tabel"] })).toThrow(/table/)
 	})
 
+	it("suggests a secondary origin's entities too when --only names nothing", () => {
+		const origins = new Map([["cdn", referenceModel()]])
+		expect(() => resolveTargetScope(referenceModel(), { only: ["jbo"], origins })).toThrow(/Did you mean: job/)
+	})
+
 	it("names why a target can never be graded", () => {
 		const scope = resolveTargetScope(referenceModel(), { ops: ["auth.token", "table.get"] })
 		expect(scope.untestable.get("auth.token")).toMatch(/^unmodeled:/)

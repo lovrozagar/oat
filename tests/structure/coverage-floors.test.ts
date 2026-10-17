@@ -35,6 +35,8 @@ function repo(commits: ReadonlyArray<Record<string, string>>): string {
 	return dir
 }
 
+const two = (a: number, b: number): string =>
+	`${JSON.stringify({ "src/a.ts": { lines: a }, "src/b.ts": { lines: b } })}\n`
 const floors = (lines: number): string => `${JSON.stringify({ "src/a.ts": { lines } })}\n`
 
 describe("coverage floors", () => {
@@ -46,6 +48,15 @@ describe("coverage floors", () => {
 		const dir = repo([
 			{ "coverage-floors.json": floors(90), "src/a.ts": "export const a = 1\n" },
 			{ "coverage-floors.json": floors(80) },
+		])
+		expect(floorProblems(dir)).toEqual(["src/a.ts: lines 90 → 80"])
+	})
+
+	it("catch a lowered floor even after a later commit raises another", () => {
+		const dir = repo([
+			{ "coverage-floors.json": two(90, 50), "src/a.ts": "", "src/b.ts": "" },
+			{ "coverage-floors.json": two(80, 50) },
+			{ "coverage-floors.json": two(80, 60) },
 		])
 		expect(floorProblems(dir)).toEqual(["src/a.ts: lines 90 → 80"])
 	})

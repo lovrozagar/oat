@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { buildModel } from "./graph.ts"
+import { anyrow } from "./security/__fixtures__/documents.ts"
 import { dereference } from "./load.ts"
 import type { OpenApiDocument } from "./types.ts"
 
@@ -195,5 +196,18 @@ describe("tag validation", () => {
 				sortCollation: "case-insensitive",
 			}),
 		).toEqual([])
+	})
+})
+
+describe("security on the model", () => {
+	it("carries each operation's resolved requirement and every declared scheme", () => {
+		const model = buildModel(anyrow)
+		expect(model.byOperationId.get("auth.login")?.security.alternatives).toEqual([[]])
+		expect(model.byOperationId.get("row.list")?.security.alternatives).toEqual([
+			[{ scheme: "jwt", scopes: [] }],
+			[{ scheme: "apiKey", scopes: ["rows:read"] }],
+		])
+		expect(model.byOperationId.get("row.list")?.securitySchemes).toEqual(["jwt", "apiKey"])
+		expect([...model.schemes.keys()].toSorted()).toEqual(["apiKey", "jwt"])
 	})
 })

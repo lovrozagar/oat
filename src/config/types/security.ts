@@ -1,0 +1,95 @@
+/*
+ * 0.25.0 credentials: one recipe per security scheme the document declares, and principals as
+ * identity data. Where each credential goes comes from the scheme; a recipe says only how to get
+ * the value. The runtime reads these from phase 8 on; until then they are validated, not used.
+ */
+
+import type { AuthStep } from "./steps.ts"
+
+/** Where a credential's lifetime comes from: seconds, or a JSON path into the answer that issued it. */
+export type ExpiresIn = number | { from: string }
+
+/** An extra place a credential is sent, beside the one its scheme declares. */
+export interface ExtraPlacement {
+	in: "header" | "query" | "cookie"
+	name: string
+	/** The value, with `{credential}` where the credential goes. Default: `{credential}`. */
+	template?: string
+}
+
+/** Sign in by running steps; `from` is where the credential is in the last answer. */
+export interface LoginRecipe {
+	steps: [AuthStep, ...AuthStep[]]
+	from: string
+	/** JWT claims bound into the principal, e.g. `{ tenant: "org_id" }`. */
+	claims?: Record<string, string>
+}
+
+/** Make the credential by calling an operation with another scheme's credential. */
+export interface MintRecipe {
+	/** The scheme whose credential calls `operationId`. */
+	with: string
+	operationId: string
+	/** The request body; `{scopes}` becomes the scope set an operation needs. */
+	body?: unknown
+	/** Where the minted credential is in the answer. */
+	from: string
+	/** The operation that revokes a minted credential, when the run is done with it. */
+	revoke?: string
+}
+
+/** A value fixed in config: a token, or a basic pair. */
+export type StaticRecipe = string | { username: string; password: string }
+
+/** An OAuth 2 grant oat performs itself, at the token URL the document declares. */
+export interface OAuth2Recipe {
+	flow: "clientCredentials" | "password"
+	clientId: string
+	clientSecret?: string
+	username?: string
+	password?: string
+	scopes?: string[]
+}
+
+interface RecipeOptions {
+	/** Renew the credential before it lapses, by the same steps a login runs. */
+	refresh?: { steps: [AuthStep, ...AuthStep[]]; from: string }
+	/** The value written into the scheme's place, e.g. `ApiKey {credential}`. */
+	format?: string
+	expiresIn?: ExpiresIn
+	/** The scopes a static or hooked credential carries, so scope-gated operations know it suffices. */
+	holds?: string[]
+	placements?: ExtraPlacement[]
+}
+
+/** How one scheme's credential is obtained: exactly one kind. */
+export type Recipe = RecipeOptions &
+	(
+		| { login: LoginRecipe; mint?: never; static?: never; hook?: never; oauth2?: never }
+		| { mint: MintRecipe; login?: never; static?: never; hook?: never; oauth2?: never }
+		| { static: StaticRecipe; login?: never; mint?: never; hook?: never; oauth2?: never }
+		/* `hooks.resolveCredential(scheme, principal)` returns it. */
+		| { hook: true; login?: never; mint?: never; static?: never; oauth2?: never }
+		| { oauth2: OAuth2Recipe; login?: never; mint?: never; static?: never; hook?: never }
+	)
+
+/** The recipe kinds, by the key that names each. */
+export type RecipeKind = "login" | "mint" | "static" | "hook" | "oauth2"
+
+/** A principal: identity data recipes interpolate as `{principal.<key>}`, plus how it is graded. */
+export interface PrincipalEntry {
+	[identity: string]: unknown
+	/** The tenant it belongs to; principals in different tenants enable the isolation checks. */
+	tenant?: string
+	/** Higher can do everything a lower rank can. */
+	rank?: number
+	/** What an owner puts in an invite body for this principal. */
+	inviteAs?: string
+	/** Made fresh for the run, by the operation the document marks `x-fresh-principal`. */
+	fresh?: boolean
+	/** Per-scheme recipe overrides for this principal alone. */
+	security?: Record<string, Partial<Recipe>>
+}
+
+export type SecurityConfig = Record<string, Recipe>
+export type PrincipalsConfig = Record<string, PrincipalEntry>

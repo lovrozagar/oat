@@ -7,6 +7,8 @@
  */
 
 import { validateTags } from "./tag-schema.ts"
+import { resolveSecurity, type ResolvedSecurity } from "./security/requirements.ts"
+import { readSchemes, type SecurityScheme } from "./security/schemes.ts"
 import {
 	ambiguousRows,
 	deriveCollectionShape,
@@ -102,6 +104,8 @@ export interface OperationModel {
 	documentedStatuses: number[]
 	statuses: DocumentedStatuses
 	securitySchemes: string[]
+	/** The credentials this operation needs: any one alternative, every scheme in it. */
+	security: ResolvedSecurity
 	collection: CollectionShape | null
 	/** `x-entity.createdIdFrom`: where a create's answer puts the made record's id. */
 	createdIdFrom: string | null
@@ -168,6 +172,8 @@ export interface SpecModel {
 	roots: string[]
 	gaps: GapCollector
 	securitySchemes: string[]
+	/** Every declared security scheme, read: where its credential goes, or why oat cannot send it. */
+	schemes: ReadonlyMap<string, SecurityScheme>
 	hasAuthOperations: boolean
 }
 
@@ -242,6 +248,7 @@ export function buildModel(doc: OpenApiDocument): SpecModel {
 		defs: documentDefs(doc),
 		roots,
 		securitySchemes: Object.keys(doc.components?.securitySchemes ?? {}),
+		schemes: readSchemes(doc),
 	}
 }
 
@@ -275,8 +282,8 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 	const identitySource: OperationModel["identitySource"] =
 		entity?.identity !== undefined ? "declared" : identity === null ? null : itemRoute ? "route" : "schema"
 
-	const security = op.security ?? doc.security ?? []
-	const securitySchemes = [...new Set(security.flatMap((group) => Object.keys(group)))]
+	const security = resolveSecurity(op, doc)
+	const securitySchemes = [...new Set(security.alternatives.flat().map((requirement) => requirement.scheme))]
 
 	const statuses = readStatuses(op.responses)
 	const documentedStatuses = statuses.exact
@@ -332,6 +339,7 @@ function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapColle
 		rootParams: readRootParams(op),
 		route: `${method.toUpperCase()} ${path}`,
 		securitySchemes,
+		security,
 		softDelete: readSoftDelete(op),
 		invite: readInvite(op),
 		wait: readWait(op),

@@ -1,4 +1,6 @@
 export { defineConfig } from "./config/define-config.ts"
+export { env } from "./config/env.ts"
+export { loadConfig } from "./config/load.ts"
 
 export type {
 	AuthFlow,
@@ -42,7 +44,7 @@ export type {
 } from "./config/define-config.ts"
 
 export type { PayloadPolicy } from "./config/define-config.ts"
-export { EXIT } from "./runtime/exit.ts"
+export { EXIT, exitCode, runVerdict } from "./runtime/exit.ts"
 
 export type { ReportInput } from "./report/render.ts"
 export { loadPersistedPrincipals } from "./runtime/principals.ts"
@@ -51,7 +53,10 @@ export { allocateRunDir, DEFAULT_RUNS_ROOT } from "./runtime/runs.ts"
 
 export { worstCaseWaitMs } from "./runtime/poll.ts"
 
+export { buildModel } from "./spec/graph.ts"
 export type { EntityModel, OperationModel, SpecModel } from "./spec/graph.ts"
+export { dereference, loadSpec } from "./spec/load.ts"
+export { ScopeError } from "./runtime/scope.ts"
 
 export type { OpenApiDocument } from "./spec/types.ts"
 export { AuthRefreshRequiredError } from "./runtime/auth.ts"

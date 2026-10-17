@@ -7,6 +7,7 @@
 import { readFile } from "node:fs/promises"
 import { isAbsolute, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
+import { MissingEnvError } from "./env.ts"
 import type { OatConfig } from "./types/config.ts"
 
 export async function loadConfig(path: string): Promise<OatConfig> {
@@ -26,6 +27,7 @@ export async function loadConfig(path: string): Promise<OatConfig> {
 		}
 		return config
 	} catch (error) {
+		if (error instanceof MissingEnvError) throw new Error(`${error.message} (${path})`, { cause: error })
 		const message = error instanceof Error ? error.message : String(error)
 		if (absolute.endsWith(".ts") && /Unknown file extension|strip-types/.test(message)) {
 			throw new Error(

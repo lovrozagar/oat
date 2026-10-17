@@ -45,11 +45,14 @@
 			"files": [
 				"lint/**",
 				"src/cli/**",
+				"src/config/env.ts",
 				"src/config/types/**",
+				"src/config/validate/**",
 				"src/conformance/harness/**",
 				"src/errors/**",
 				"src/runtime/checks/core/**",
-				"src/security/**"
+				"src/security/**",
+				"src/spec/security/**"
 			],
 			"plugins": ["typescript", "unicorn", "oxc", "vitest"],
 			"rules": {
@@ -84,8 +87,10 @@
 				"lint/**/*.test.ts",
 				"src/cli/**/*.test.ts",
 				"src/errors/**/*.test.ts",
+				"src/config/validate/**/*.test.ts",
 				"src/runtime/checks/core/**/*.test.ts",
-				"src/security/**/*.test.ts"
+				"src/security/**/*.test.ts",
+				"src/spec/security/**/*.test.ts"
 			],
 			"rules": {
 				"max-lines": ["error", 500]
