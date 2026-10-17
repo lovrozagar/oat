@@ -87,8 +87,7 @@ interface D1Response {
  * runs share one database.
  */
 export function d1Driver(config: D1Config): SqliteDriver {
-	const endpoint =
-		`https://api.cloudflare.com/client/v4/accounts/${config.accountId}` + `/d1/database/${config.databaseId}/query`
+	const endpoint = `https://api.cloudflare.com/client/v4/accounts/${config.accountId}/d1/database/${config.databaseId}/query`
 
 	async function send(sql: string, params: SqlValue[]): Promise<SqlRow[]> {
 		const response = await fetch(endpoint, {

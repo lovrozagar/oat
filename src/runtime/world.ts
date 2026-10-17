@@ -121,7 +121,8 @@ export interface Scope {
 
 export class SeedError extends Error {
 	constructor(
-		readonly cause_: string,
+		/** The path parameter or operation the seed failed on. */
+		readonly culprit: string,
 		message: string,
 		/** Status the failing request returned, when the failure was an HTTP response. */
 		readonly status?: number,

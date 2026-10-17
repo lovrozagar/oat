@@ -294,6 +294,55 @@ function resolveDialect(name: string | undefined): Dialect {
 	return dialect
 }
 
+function fieldList(entity: EntityDef): Row[] {
+	return entity.fields
+		.filter((field) => field.writeOnly !== true)
+		.map((field) => ({ name: field.name, type: field.type }))
+}
+
+function assertTenant(principal: Principal, scope: Scope): void {
+	const projectId = scope.project_id
+	if (projectId !== undefined && projectId !== principal.projectId) {
+		throw new HttpError(403, "forbidden", "resource belongs to another tenant")
+	}
+}
+
+function tombstoned(entity: EntityDef, record: Row): boolean {
+	return entity.softDeleteField !== undefined && record[entity.softDeleteField] !== null
+}
+
+/** Defaults for a replacing update: every writable field the body leaves out is reset. */
+function replacementDefaults(entity: EntityDef): Row {
+	const out: Row = {}
+	for (const field of writableFields(entity, "update")) out[field.name] = emptyValue(field)
+	return out
+}
+
+/** The page a plain listing asks for, or `null` when a paging value is not a valid one. */
+function staleWindow(
+	url: URL,
+	dialect: Dialect,
+	entity: EntityDef,
+): { limit: number; offset: number; page: number } | null {
+	const read = (name: string | undefined, min: number): number | undefined | null => {
+		const raw = name === undefined ? null : url.searchParams.get(name)
+		if (raw === null) return undefined
+		const value = Number(raw)
+		return raw.trim() !== "" && Number.isInteger(value) && value >= min ? value : null
+	}
+	const limit = read(dialect.params.limit, 1)
+	const page = read(dialect.params.page, 1)
+	const offset = read(dialect.params.offset, 0)
+	if (limit === null || page === null || offset === null) return null
+	const size = Math.min(limit ?? entity.defaultLimit, entity.maxLimit)
+	const start = offset ?? ((page ?? 1) - 1) * size
+	return { limit: size, offset: start, page: page ?? Math.floor(start / size) + 1 }
+}
+
+function snapshotKey(entity: EntityDef, scope: Scope): string {
+	return `${entity.name}:${scope.project_id ?? ""}:${scope.table_id ?? ""}`
+}
+
 /**
  * One server, any store. Defining a defect once and exercising it on every engine is what makes
  * a disagreement between engines meaningful rather than an artefact of two implementations.
@@ -423,11 +472,6 @@ export async function createReferenceServer(
 	/* Under `recordEnvelope`: what each answer carries. The async job is an action's receipt, not a
 	 * record, and keeps its plain answers. */
 	const wraps = (entity: EntityDef): boolean => shape.recordEnvelope === true && entity.name !== JOB.name
-	function fieldList(entity: EntityDef): Row[] {
-		return entity.fields
-			.filter((field) => field.writeOnly !== true)
-			.map((field) => ({ name: field.name, type: field.type }))
-	}
 	function answerCreated(entity: EntityDef, record: Row): Row {
 		if (!wraps(entity)) return record
 		return { data: record, id: record[entity.identity], message: "created", success: true }
@@ -468,13 +512,6 @@ export async function createReferenceServer(
 		}
 	}
 
-	function assertTenant(principal: Principal, scope: Scope): void {
-		const projectId = scope.project_id
-		if (projectId !== undefined && projectId !== principal.projectId) {
-			throw new HttpError(403, "forbidden", "resource belongs to another tenant")
-		}
-	}
-
 	/* Under HIDDEN_FROM_CREATOR: a row holding the payload probe's control value, served to nobody. */
 	const hiddenFromCreator = (entity: EntityDef, record: Row): boolean =>
 		defects.has("HIDDEN_FROM_CREATOR") &&
@@ -493,8 +530,6 @@ export async function createReferenceServer(
 				},
 			})
 		: store
-	const tombstoned = (entity: EntityDef, record: Row): boolean =>
-		entity.softDeleteField !== undefined && record[entity.softDeleteField] !== null
 
 	/** Walks a record up its parent chain to the owning tenant, driven by the descriptors. */
 	async function ownedByTenant(entity: EntityDef, record: Row, principal: Principal): Promise<boolean> {
@@ -553,7 +588,7 @@ export async function createReferenceServer(
 		for (const param of entity.parents) {
 			if (stored(param) && scope[param] !== undefined && record[param] !== scope[param]) return false
 		}
-		const parentParam = [...entity.parents].reverse().find((param) => entities.some((e) => e.itemParam === param))
+		const parentParam = entity.parents.toReversed().find((param) => entities.some((e) => e.itemParam === param))
 		if (parentParam === undefined || !stored(parentParam)) return true
 		const parentEntity = entities.find((e) => e.itemParam === parentParam) as EntityDef
 		const parent = await store.byId(parentEntity, record[parentParam] as string)
@@ -659,38 +694,6 @@ export async function createReferenceServer(
 			record[field.name] = emptyValue(field)
 		}
 		return record
-	}
-
-	/** Defaults for a replacing update: every writable field the body leaves out is reset. */
-	function replacementDefaults(entity: EntityDef): Row {
-		const out: Row = {}
-		for (const field of writableFields(entity, "update")) out[field.name] = emptyValue(field)
-		return out
-	}
-
-	/** The page a plain listing asks for, or `null` when a paging value is not a valid one. */
-	function staleWindow(
-		url: URL,
-		dialect: Dialect,
-		entity: EntityDef,
-	): { limit: number; offset: number; page: number } | null {
-		const read = (name: string | undefined, min: number): number | undefined | null => {
-			const raw = name === undefined ? null : url.searchParams.get(name)
-			if (raw === null) return undefined
-			const value = Number(raw)
-			return raw.trim() !== "" && Number.isInteger(value) && value >= min ? value : null
-		}
-		const limit = read(dialect.params.limit, 1)
-		const page = read(dialect.params.page, 1)
-		const offset = read(dialect.params.offset, 0)
-		if (limit === null || page === null || offset === null) return null
-		const size = Math.min(limit ?? entity.defaultLimit, entity.maxLimit)
-		const start = offset ?? ((page ?? 1) - 1) * size
-		return { limit: size, offset: start, page: page ?? Math.floor(start / size) + 1 }
-	}
-
-	function snapshotKey(entity: EntityDef, scope: Scope): string {
-		return `${entity.name}:${scope.project_id ?? ""}:${scope.table_id ?? ""}`
 	}
 
 	/**
@@ -1145,7 +1148,7 @@ export async function createReferenceServer(
 					dialect.selectGrammar === "bracketed" ? `${dialect.params.select}[${entity.name}]` : "",
 					...(dialect.grammar === "equality" ? fieldsWhere(entity, "filterable") : []),
 				])
-				const unknownGiven = [...url.searchParams.keys()].some((key) => !known.has(key))
+				const unknownGiven = [...url.searchParams.keys()].some((queryKey) => !known.has(queryKey))
 				const served =
 					defects.has("UNKNOWN_PARAM_EMPTIES_LIST") && unknownGiven
 						? { ...result, count: 0, hasMore: false, items: [], nextCursor: null }

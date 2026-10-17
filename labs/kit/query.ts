@@ -182,7 +182,4 @@ function join(parts: Compiled[], op: "AND" | "OR"): Compiled {
 
 export class QueryError extends Error {
 	status = 400
-	constructor(message: string) {
-		super(message)
-	}
 }

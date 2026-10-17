@@ -1,51 +1,30 @@
 import { defineConfig } from "vitest/config"
+import floors from "./coverage-floors.json" with { type: "json" }
 
+/*
+ * Two projects. `unit`: colocated tests beside their module, socket-free, the only source of
+ * coverage. `integration`: servers, the CLI end to end, regression goldens and structure checks,
+ * which exercise whole runs and so would inflate any module's coverage without testing it.
+ */
 export default defineConfig({
 	test: {
-		include: ["test/**/*.test.ts", "tests/**/*.test.ts"],
-		globalSetup: ["test/temp-root.ts"],
+		globalSetup: ["tests/support/temp-root.ts"],
 		testTimeout: 20_000,
 		execArgv: ["--expose-gc"],
+		projects: [
+			{ extends: true, test: { name: "unit", include: ["src/**/*.test.ts", "lint/**/*.test.ts"] } },
+			{
+				extends: true,
+				test: { name: "integration", include: ["tests/{integration,regression,structure}/**/*.test.ts"] },
+			},
+		],
 		coverage: {
 			provider: "v8",
-			include: [
-				"src/runtime/poll.ts",
-				"src/runtime/input.ts",
-				"src/runtime/principals.ts",
-				"src/runtime/wait.ts",
-				"src/spec/query-capabilities.ts",
-				"src/runtime/query-capabilities.ts",
-				"src/runtime/upload-each.ts",
-				"src/runtime/effects.ts",
-				"src/runtime/exchanges.ts",
-				"src/runtime/network.ts",
-				"src/runtime/cookies.ts",
-				"src/runtime/sse.ts",
-				"src/runtime/transcript.ts",
-				/* The files that carry the logic. Held to today's level as a floor — raise it as
-				 * tests land, never lower it. The files above are held at 100%. */
-				"src/runtime/checks.ts",
-				"src/runtime/run.ts",
-				"src/runtime/world.ts",
-				"src/runtime/client.ts",
-				"src/runtime/auth.ts",
-				"src/runtime/fixture.ts",
-				"src/runtime/teardown.ts",
-			],
-			thresholds: {
-				"src/{runtime/poll,runtime/input,runtime/principals,runtime/wait,spec/query-capabilities,runtime/query-capabilities,runtime/upload-each,runtime/effects,runtime/exchanges,runtime/network,runtime/cookies,runtime/sse,runtime/transcript}.ts":
-					{ branches: 100, functions: 100, lines: 100, statements: 100 },
-				/* Lowered when `--ops` recall moved into the conformance suite, which reuses the defect
-				 * matrix's runs: unit tests no longer make a full run per defect. Every check is proven
-				 * there instead — the suite fails if any registered check never fires on its defect. */
-				"src/runtime/checks.ts": { branches: 68, functions: 93, lines: 83, statements: 80 },
-				"src/runtime/run.ts": { branches: 78, functions: 90, lines: 87, statements: 85 },
-				"src/runtime/world.ts": { branches: 65, functions: 100, lines: 86, statements: 81 },
-				"src/runtime/client.ts": { branches: 71, functions: 97, lines: 88, statements: 83 },
-				"src/runtime/auth.ts": { branches: 80, functions: 84, lines: 91, statements: 87 },
-				"src/runtime/fixture.ts": { branches: 55, functions: 81, lines: 69, statements: 61 },
-				"src/runtime/teardown.ts": { branches: 60, functions: 83, lines: 74, statements: 71 },
-			},
+			include: ["src/**/*.ts", "lint/**/*.ts"],
+			exclude: ["**/*.test.ts", "**/__fixtures__/**", "**/*.d.ts", "**/index.ts", "lint/rule-harness.ts"],
+			/* Per file, measured from unit tests alone: a floor is raised as tests land, never lowered,
+			 * and reaches 100 for a directory when it joins the ratchet. */
+			thresholds: floors,
 		},
 	},
 })

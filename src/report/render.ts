@@ -260,10 +260,10 @@ export function renderMarkdown(input: ReportInput): string {
 		lines.push("")
 		lines.push("| severity | count |")
 		lines.push("| --- | --- |")
-		for (const verdict of VERDICT_ORDER) {
-			const group = findings.filter((f) => f.verdict === verdict)
+		for (const findingVerdict of VERDICT_ORDER) {
+			const group = findings.filter((f) => f.verdict === findingVerdict)
 			if (group.length === 0) continue
-			lines.push(`| ${VERDICT_LABEL[verdict]} | ${group.length} |`)
+			lines.push(`| ${VERDICT_LABEL[findingVerdict]} | ${group.length} |`)
 		}
 		lines.push("")
 	}
@@ -294,13 +294,13 @@ export function renderMarkdown(input: ReportInput): string {
 		lines.push("")
 	}
 
-	for (const verdict of VERDICT_ORDER) {
-		const group = findings.filter((f) => f.verdict === verdict)
+	for (const findingVerdict of VERDICT_ORDER) {
+		const group = findings.filter((f) => f.verdict === findingVerdict)
 		if (group.length === 0) continue
 
-		lines.push(`## ${VERDICT_LABEL[verdict]}`)
+		lines.push(`## ${VERDICT_LABEL[findingVerdict]}`)
 		lines.push("")
-		lines.push(`> ${VERDICT_NOTE[verdict]}`)
+		lines.push(`> ${VERDICT_NOTE[findingVerdict]}`)
 		lines.push("")
 
 		for (const finding of group) {
@@ -685,10 +685,10 @@ export function renderConsole(input: ReportInput): string {
 		return lines.join("\n")
 	}
 
-	for (const verdict of VERDICT_ORDER) {
-		const group = findings.filter((f) => f.verdict === verdict)
+	for (const findingVerdict of VERDICT_ORDER) {
+		const group = findings.filter((f) => f.verdict === findingVerdict)
 		if (group.length === 0) continue
-		lines.push(`  ${VERDICT_LABEL[verdict].toUpperCase()} (${group.length})`)
+		lines.push(`  ${VERDICT_LABEL[findingVerdict].toUpperCase()} (${group.length})`)
 		for (const finding of group) {
 			const entityLabel =
 				finding.origin === undefined || finding.origin === "" ? finding.entity : `${finding.origin}/${finding.entity}`

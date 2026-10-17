@@ -2,7 +2,7 @@
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"extends": ["./oxlint.base.json"],
 	"plugins": ["typescript", "unicorn", "oxc"],
-	"jsPlugins": ["./lint/oat.oxlint-plugin.ts"],
+	"jsPlugins": [{ "name": "oat", "specifier": "./lint/index.ts" }],
 	"env": {
 		"node": true
 	},
@@ -39,6 +39,35 @@
 			"files": ["labs/**/*.{ts,mjs,js}"],
 			"rules": {
 				"typescript/no-explicit-any": "off"
+			}
+		},
+		{
+			"files": ["lint/**"],
+			"plugins": ["typescript", "unicorn", "oxc", "vitest"],
+			"rules": {
+				"complexity": ["error", 15],
+				"max-depth": ["error", 4],
+				"max-lines": ["error", 300],
+				"max-lines-per-function": ["error", 60],
+				"max-params": ["error", 4],
+				"unicorn/consistent-function-scoping": "error",
+				"vitest/expect-expect": "error",
+				"vitest/no-conditional-expect": "error",
+				"vitest/no-disabled-tests": "error",
+				"vitest/no-focused-tests": "error",
+				"oat/boundaries": "error",
+				"oat/index-purity": "error",
+				"oat/no-console": "error",
+				"oat/no-header-branching": "error",
+				"oat/no-module-side-effects": "error",
+				"oat/no-module-state": "error",
+				"oat/no-v8-ignore": "error"
+			}
+		},
+		{
+			"files": ["lint/**/*.test.ts"],
+			"rules": {
+				"max-lines": ["error", 500]
 			}
 		}
 	]

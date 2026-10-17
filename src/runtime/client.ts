@@ -241,7 +241,6 @@ export class Client {
 	readonly transcript: Exchange[] = []
 	private readonly byOperationId = new Map<string, Exchange[]>()
 	private readonly byEntity = new Map<string, Exchange[]>()
-	private readonly entityOf = new Map<number, string>()
 	private operationResolver: OperationResolver | undefined
 	private afterExchange: ((exchange: Exchange) => Promise<void>) | undefined
 	private fence: Fence | undefined

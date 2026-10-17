@@ -497,13 +497,13 @@ function assembleGraph(
 	for (const entity of entities) {
 		for (const status of Object.keys(counts) as CellStatus[]) counts[status] += entity.counts[status]
 	}
-	const cross = invalidate.filter((link) => link.cross)
+	const cross = invalidate.filter((invalidation) => invalidation.cross)
 	const names = entities.map((e) => e.name)
 	const thesis = thesisFor(entities, cross)
 	const rootList = entities.flatMap((e) => e.roots.map((id) => `${e.name}:${id}`))
 	const who = names.length > 12 ? `${names.length} entities` : names.join(", ")
 	const inbound: Record<string, number> = {}
-	for (const link of cross) inbound[link.toEntity] = (inbound[link.toEntity] ?? 0) + 1
+	for (const invalidation of cross) inbound[invalidation.toEntity] = (inbound[invalidation.toEntity] ?? 0) + 1
 	const summary =
 		`${who}: ${counts.failed} failed, ${counts.blocked} blocked, ${counts.passed} passed, ${counts.skipped} skipped` +
 		(counts["out-of-scope"] > 0 ? `, ${counts["out-of-scope"]} out of scope.` : ".") +
@@ -603,13 +603,16 @@ function unique(values: string[]): string[] {
 	return [...new Set(values)]
 }
 
+function mid(id: string): string {
+	return id.replaceAll(/[^A-Za-z0-9_]/g, "_")
+}
+
 function mermaidFromGraph(entities: EntityMatrix[], invalidate: InvalidateLink[]): string {
-	const mid = (id: string): string => id.replaceAll(/[^A-Za-z0-9_]/g, "_")
 	const lines = ["flowchart LR"]
 	if (entities.length > 24) {
 		const inbound = new Map<string, number>()
-		for (const link of invalidate) {
-			if (link.cross) inbound.set(link.toEntity, (inbound.get(link.toEntity) ?? 0) + 1)
+		for (const invalidation of invalidate) {
+			if (invalidation.cross) inbound.set(invalidation.toEntity, (inbound.get(invalidation.toEntity) ?? 0) + 1)
 		}
 		for (const [parent, n] of [...inbound.entries()].sort((a, b) => b[1] - a[1]).slice(0, 24)) {
 			lines.push(`  ${mid(parent)}(("${parent} ← ${n}"))`)
@@ -620,8 +623,8 @@ function mermaidFromGraph(entities: EntityMatrix[], invalidate: InvalidateLink[]
 	for (const entity of entities) {
 		lines.push(`  ${mid(entity.name)}((${esc(entity.name)}))`)
 	}
-	for (const link of invalidate.filter((l) => l.cross)) {
-		lines.push(`  ${mid(link.fromEntity)} -->|invalidates| ${mid(link.toEntity)}`)
+	for (const invalidation of invalidate.filter((l) => l.cross)) {
+		lines.push(`  ${mid(invalidation.fromEntity)} -->|invalidates| ${mid(invalidation.toEntity)}`)
 	}
 	const focus = entities.find((e) => invalidate.some((l) => l.cross && l.fromEntity === e.name)) ?? entities[0]
 	if (focus !== undefined) {
@@ -868,20 +871,23 @@ function entityBand(graph: MatrixGraph): string {
 	})
 
 	const pairs = new Map<string, { from: string; to: string }>()
-	for (const link of graph.invalidate) {
-		if (!link.cross) continue
-		pairs.set(`${link.fromEntity}\0${link.toEntity}`, { from: link.fromEntity, to: link.toEntity })
+	for (const invalidation of graph.invalidate) {
+		if (!invalidation.cross) continue
+		pairs.set(`${invalidation.fromEntity}\0${invalidation.toEntity}`, {
+			from: invalidation.fromEntity,
+			to: invalidation.toEntity,
+		})
 	}
 	const labelArrows = names.length <= 8
-	const arrows = [...pairs.values()].map((link) => {
-		const from = pos.get(link.from)
-		const to = pos.get(link.to)
+	const arrows = [...pairs.values()].map((pair) => {
+		const from = pos.get(pair.from)
+		const to = pos.get(pair.to)
 		if (from === undefined || to === undefined) return ""
 		const midX = (from.x + to.x) / 2
 		const lift = from.y === to.y ? 36 : Math.abs(to.y - from.y) / 2 + 16
 		const midY = Math.min(from.y, to.y) - lift
 		const label = labelArrows
-			? `<text x="${midX}" y="${midY - 4}" text-anchor="middle" fill="#ff6b3d" font-size="11" font-family="IBM Plex Mono, monospace">${esc(`${link.from} → ${link.to}`)}</text>`
+			? `<text x="${midX}" y="${midY - 4}" text-anchor="middle" fill="#ff6b3d" font-size="11" font-family="IBM Plex Mono, monospace">${esc(`${pair.from} → ${pair.to}`)}</text>`
 			: ""
 		return `<path d="M ${from.x} ${from.y - 16} Q ${midX} ${midY}, ${to.x} ${to.y - 16}" fill="none" stroke="#ff6b3d" stroke-width="1.6" marker-end="url(#arrow-cross)"/>${label}`
 	})
@@ -909,11 +915,11 @@ function entityBand(graph: MatrixGraph): string {
 
 function crowdedBand(graph: MatrixGraph): string {
 	const inbound = new Map<string, string[]>()
-	for (const link of graph.invalidate) {
-		if (!link.cross) continue
-		const list = inbound.get(link.toEntity) ?? []
-		if (!list.includes(link.fromEntity)) list.push(link.fromEntity)
-		inbound.set(link.toEntity, list)
+	for (const invalidation of graph.invalidate) {
+		if (!invalidation.cross) continue
+		const list = inbound.get(invalidation.toEntity) ?? []
+		if (!list.includes(invalidation.fromEntity)) list.push(invalidation.fromEntity)
+		inbound.set(invalidation.toEntity, list)
 	}
 	const parents = [...inbound.entries()].sort((a, b) => b[1].length - a[1].length)
 	const max = Math.max(1, ...parents.map(([, w]) => w.length))
@@ -981,13 +987,13 @@ function entityCards(graph: MatrixGraph): string {
 }
 
 function stripHtml(focus: EntityMatrix, multi: boolean): string {
-	const interesting = (id: string, status: CellStatus): boolean => !multi || status === "failed" || status === "blocked"
+	const interesting = (status: CellStatus): boolean => !multi || status === "failed" || status === "blocked"
 	return STRIPS.map((strip) => {
 		const chips = strip.ids
 			.map((id) => {
 				const node = focus.nodes.find((n) => n.id === id)
 				const status = node?.status ?? "skipped"
-				if (!interesting(id, status)) return ""
+				if (!interesting(status)) return ""
 				const short = id.split(".").slice(1).join(".")
 				const extra = node?.because
 				const title = extra !== undefined ? `${id} — waiting on ${extra}` : id

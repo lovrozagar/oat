@@ -7,7 +7,6 @@
  *
  * Adding a check to oat means adding a defect here and expecting it. That keeps "smart" honest.
  */
-
 import { execFile } from "node:child_process"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
@@ -28,7 +27,6 @@ import type { OpenApiDocument } from "../spec/types.ts"
 import { EXPECTED_INCONCLUSIVE } from "./expected-failures.ts"
 import { damagedBystanders, leftBehind, ledgeredNotCreated, unreportedLeftovers } from "./leaks.ts"
 import { SPEC_FIXTURES } from "./specs.ts"
-
 export interface ParserResult {
 	name: string
 	why: string
@@ -341,24 +339,6 @@ export async function runTenantScopeSuite(): Promise<ParserResult[]> {
 		})
 	}
 
-	const leak = async (untagged: boolean): Promise<{ verdict: string | null; check: string | null }> => {
-		const { createMemoryServer } = await import("../reference/http.ts")
-		const backend = await createMemoryServer({ defects: ["CROSS_TENANT_READ"], untagged })
-		try {
-			const result = await run({
-				baseUrl: backend.url,
-				only: ["table"],
-				principals: PRINCIPALS,
-				seed: 42,
-				spec: `${backend.url}/v1/openapi/spec`,
-			})
-			const hit = result.findings.find((f) => f.check === "tenant.item-not-readable-cross-tenant")
-			return { check: hit?.check ?? null, verdict: hit?.verdict ?? null }
-		} finally {
-			await backend.close()
-		}
-	}
-
 	try {
 		const tagged = await leak(false)
 		const ok = tagged.verdict === "SECURITY"
@@ -432,24 +412,6 @@ export async function runTenantScopeSuite(): Promise<ParserResult[]> {
 		})
 	}
 
-	const leakFilter = async (untagged: boolean): Promise<{ verdict: string | null; check: string | null }> => {
-		const { createMemoryServer } = await import("../reference/http.ts")
-		const backend = await createMemoryServer({ defects: ["TENANT_LEAK_VIA_FILTER"], untagged })
-		try {
-			const result = await run({
-				baseUrl: backend.url,
-				only: ["table"],
-				principals: PRINCIPALS,
-				seed: 42,
-				spec: `${backend.url}/v1/openapi/spec`,
-			})
-			const hit = result.findings.find((f) => f.check === "tenant.filter-does-not-bypass-scope")
-			return { check: hit?.check ?? null, verdict: hit?.verdict ?? null }
-		} finally {
-			await backend.close()
-		}
-	}
-
 	try {
 		const tagged = await leakFilter(false)
 		const ok = tagged.verdict === "SECURITY"
@@ -487,6 +449,42 @@ export async function runTenantScopeSuite(): Promise<ParserResult[]> {
 	}
 
 	return results
+}
+
+async function leak(untagged: boolean): Promise<{ verdict: string | null; check: string | null }> {
+	const { createMemoryServer } = await import("../reference/http.ts")
+	const backend = await createMemoryServer({ defects: ["CROSS_TENANT_READ"], untagged })
+	try {
+		const result = await run({
+			baseUrl: backend.url,
+			only: ["table"],
+			principals: PRINCIPALS,
+			seed: 42,
+			spec: `${backend.url}/v1/openapi/spec`,
+		})
+		const hit = result.findings.find((f) => f.check === "tenant.item-not-readable-cross-tenant")
+		return { check: hit?.check ?? null, verdict: hit?.verdict ?? null }
+	} finally {
+		await backend.close()
+	}
+}
+
+async function leakFilter(untagged: boolean): Promise<{ verdict: string | null; check: string | null }> {
+	const { createMemoryServer } = await import("../reference/http.ts")
+	const backend = await createMemoryServer({ defects: ["TENANT_LEAK_VIA_FILTER"], untagged })
+	try {
+		const result = await run({
+			baseUrl: backend.url,
+			only: ["table"],
+			principals: PRINCIPALS,
+			seed: 42,
+			spec: `${backend.url}/v1/openapi/spec`,
+		})
+		const hit = result.findings.find((f) => f.check === "tenant.filter-does-not-bypass-scope")
+		return { check: hit?.check ?? null, verdict: hit?.verdict ?? null }
+	} finally {
+		await backend.close()
+	}
 }
 
 const PUBLIC_CATALOGUE_SPEC = {
@@ -580,42 +578,43 @@ const PUBLIC_CATALOGUE_SPEC = {
 	},
 }
 
+function readJson(req: IncomingMessage): Promise<unknown> {
+	return new Promise((resolve, reject) => {
+		const chunks: Buffer[] = []
+		req.on("data", (chunk: Buffer) => {
+			chunks.push(chunk)
+		})
+		req.on("end", () => {
+			const text = Buffer.concat(chunks).toString("utf8")
+			if (text === "") {
+				resolve(undefined)
+				return
+			}
+			try {
+				resolve(JSON.parse(text) as unknown)
+			} catch (error) {
+				reject(error)
+			}
+		})
+		req.on("error", reject)
+	})
+}
+
+function send(res: ServerResponse, status: number, body?: unknown): void {
+	if (body === undefined) {
+		res.writeHead(status)
+		res.end()
+		return
+	}
+	const text = JSON.stringify(body)
+	res.writeHead(status, { "content-type": "application/json", "content-length": String(Buffer.byteLength(text)) })
+	res.end(text)
+}
+
 async function servePublicCatalogue(): Promise<{ close: () => Promise<void>; url: string }> {
 	const rows = new Map<string, { id: string; name: string }>()
 	let seq = 0
 	const tokens = new Set(["tok_alpha", "tok_beta"])
-
-	const readJson = (req: IncomingMessage): Promise<unknown> =>
-		new Promise((resolve, reject) => {
-			const chunks: Buffer[] = []
-			req.on("data", (chunk: Buffer) => {
-				chunks.push(chunk)
-			})
-			req.on("end", () => {
-				const text = Buffer.concat(chunks).toString("utf8")
-				if (text === "") {
-					resolve(undefined)
-					return
-				}
-				try {
-					resolve(JSON.parse(text) as unknown)
-				} catch (error) {
-					reject(error)
-				}
-			})
-			req.on("error", reject)
-		})
-
-	const send = (res: ServerResponse, status: number, body?: unknown): void => {
-		if (body === undefined) {
-			res.writeHead(status)
-			res.end()
-			return
-		}
-		const text = JSON.stringify(body)
-		res.writeHead(status, { "content-type": "application/json", "content-length": String(Buffer.byteLength(text)) })
-		res.end(text)
-	}
 
 	const server = createServer((req, res) => {
 		void (async () => {
@@ -1434,12 +1433,16 @@ export function passAnswer(
 	}
 }
 
+/** A finding without the exchanges it cites. */
+function strip(finding: Finding): Finding {
+	return { ...finding, evidence: [] }
+}
+
 /**
  * A case's result as it can cross to another thread: findings keep everything the verdicts read,
  * and drop the exchanges they cite, which hold live bodies.
  */
 export function portableResult(result: CaseResult): CaseResult {
-	const strip = (finding: Finding): Finding => ({ ...finding, evidence: [] })
 	return { ...result, findings: result.findings.map(strip), spurious: result.spurious.map(strip) }
 }
 
@@ -1758,9 +1761,7 @@ export function renderSuite(
 			)
 		}
 		if (leaked > 0) {
-			lines.push(
-				`      left ${leaked} record(s) behind after teardown — a run must not litter the ` + "system under test",
-			)
+			lines.push(`      left ${leaked} record(s) behind after teardown — a run must not litter the system under test`)
 		}
 		for (const entry of isBaseline ? undecided : []) {
 			lines.push(`      inconclusive on a correct backend: ${entry}`)

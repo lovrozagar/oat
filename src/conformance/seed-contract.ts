@@ -327,37 +327,6 @@ async function serveProject(): Promise<{ close: () => Promise<void>; url: string
 	const rows = new Map<string, { id: string; name: string }>()
 	let seq = 0
 	let extractHits = 0
-	const send = (res: ServerResponse, status: number, body?: unknown): void => {
-		if (body === undefined) {
-			res.writeHead(status)
-			res.end()
-			return
-		}
-		const text = JSON.stringify(body)
-		res.writeHead(status, { "content-length": String(Buffer.byteLength(text)), "content-type": "application/json" })
-		res.end(text)
-	}
-	const readJson = (req: IncomingMessage): Promise<unknown> =>
-		new Promise((resolve, reject) => {
-			const chunks: Buffer[] = []
-			req.on("data", (chunk: Buffer) => {
-				chunks.push(chunk)
-			})
-			req.on("end", () => {
-				const text = Buffer.concat(chunks).toString("utf8")
-				if (text === "") {
-					resolve(undefined)
-					return
-				}
-				try {
-					resolve(JSON.parse(text) as unknown)
-				} catch (error) {
-					reject(error)
-				}
-			})
-			req.on("error", reject)
-		})
-
 	const server = createServer((req, res) => {
 		void (async () => {
 			const url = new URL(req.url ?? "/", "http://127.0.0.1")

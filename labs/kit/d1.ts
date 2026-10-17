@@ -20,8 +20,7 @@ interface D1HttpResponse {
 }
 
 export function httpDriver(config: { accountId: string; databaseId: string; apiToken: string }): Driver {
-	const endpoint =
-		`https://api.cloudflare.com/client/v4/accounts/${config.accountId}` + `/d1/database/${config.databaseId}/query`
+	const endpoint = `https://api.cloudflare.com/client/v4/accounts/${config.accountId}/d1/database/${config.databaseId}/query`
 
 	async function send(sql: string, params: SqlValue[]): Promise<Record<string, unknown>[]> {
 		const response = await fetch(endpoint, {

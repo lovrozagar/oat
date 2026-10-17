@@ -30,6 +30,10 @@ export interface FieldEncoding {
 	explode?: boolean
 }
 
+function scalar(item: unknown): string {
+	return item !== null && typeof item === "object" ? JSON.stringify(item) : String(item)
+}
+
 /**
  * One form field as the key/value pairs the operation's `encoding` says it becomes.
  *
@@ -38,8 +42,6 @@ export interface FieldEncoding {
  * `explode: false` joins with the style's delimiter; a JSON `contentType` sends the value as JSON.
  */
 export function formPairs(name: string, value: unknown, encoding: FieldEncoding | undefined): Array<[string, string]> {
-	const scalar = (item: unknown): string =>
-		item !== null && typeof item === "object" ? JSON.stringify(item) : String(item)
 	if (value === undefined || value === null) return []
 	if (encoding?.contentType?.includes("json") === true) return [[name, JSON.stringify(value)]]
 	const explode = encoding?.explode ?? true
@@ -251,12 +253,15 @@ function appendFile(form: FormData, name: string, file: UploadFile): void {
 	form.append(name, blob, file.filename)
 }
 
+function json(item: unknown): Blob {
+	return new Blob([JSON.stringify(item)], { type: "application/json" })
+}
+
 /**
  * One multipart field: a part per array item, and an object as one JSON part (the OpenAPI
  * default content type for an object in multipart) unless the encoding says otherwise.
  */
 function appendValue(form: FormData, name: string, value: unknown, encoding: FieldEncoding | undefined): void {
-	const json = (item: unknown): Blob => new Blob([JSON.stringify(item)], { type: "application/json" })
 	if (encoding?.contentType?.includes("json") === true) {
 		form.append(name, json(value))
 		return

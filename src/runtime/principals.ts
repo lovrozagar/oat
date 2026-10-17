@@ -55,7 +55,7 @@ export function parsePersistedPrincipals(raw: string, source = "principals.json"
 	try {
 		parsed = JSON.parse(raw) as unknown
 	} catch (error) {
-		throw new Error(`oat: ${source} is not valid JSON: ${String(error)}`)
+		throw new Error(`oat: ${source} is not valid JSON: ${String(error)}`, { cause: error })
 	}
 	const list = Array.isArray(parsed)
 		? parsed
@@ -101,7 +101,7 @@ export function loadPersistedPrincipals(path: string): [Principal, ...Principal[
 	try {
 		raw = readFileSync(path, "utf8")
 	} catch (error) {
-		throw new Error(`oat: cannot read persisted principals from ${path}: ${String(error)}`)
+		throw new Error(`oat: cannot read persisted principals from ${path}: ${String(error)}`, { cause: error })
 	}
 	const principals = parsePersistedPrincipals(raw, path)
 	return principals as [Principal, ...Principal[]]

@@ -181,7 +181,7 @@ export class Ledger {
 		 * Newest first within a level keeps the order the creation sequence implies.
 		 */
 		/* Takes what is ledgered now; a later unwind removes only what was recorded after this one. */
-		const queue = this.items.splice(0).reverse()
+		const queue = this.items.splice(0).toReversed()
 		const records = new Map(
 			queue.map((item) => [item, { entity: item.entity, id: item.id, principal: item.owner.id, removed: false }]),
 		)

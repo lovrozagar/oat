@@ -825,9 +825,9 @@ export async function main(): Promise<number> {
 		if (typeof process.stdout.write === "function") process.stdout.uncork?.()
 
 		/* Resolves only on signal — the process should stay up serving. */
-		await new Promise<void>((resolve) => {
-			process.on("SIGINT", () => resolve())
-			process.on("SIGTERM", () => resolve())
+		await new Promise<void>((stop) => {
+			process.on("SIGINT", () => stop())
+			process.on("SIGTERM", () => stop())
 		})
 		await server.close()
 		return 0

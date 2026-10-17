@@ -81,7 +81,7 @@ const principal = shape(
 /** Patches by operationId and by schema name; each patch is an object merged into the document. */
 const overlay = shape({ operations: recordOf(object), schemas: recordOf(object) })
 
-const CONFIG = {
+export const CONFIG = {
 	baseUrl: string,
 	cohortSize: integer(1),
 	entities: recordOf(object),

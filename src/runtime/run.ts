@@ -1202,7 +1202,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 							"world.seed",
 							entity.name,
 							`could not test "${entity.name}"`,
-							`${cohort.featureGate.detail} and the list route returned no existing ` + "records to fall back on.",
+							`${cohort.featureGate.detail} and the list route returned no existing records to fall back on.`,
 						)
 						return
 					}
@@ -1249,7 +1249,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 					records = existing.records
 					degraded = true
 				} else {
-					const cause = error instanceof SeedError ? error.cause_ : "unknown"
+					const cause = error instanceof SeedError ? error.culprit : "unknown"
 					const status = error instanceof SeedError ? error.status : undefined
 					const message = error instanceof Error ? error.message : String(error)
 					const failedOp = (error instanceof SeedError ? error.operationId : undefined) ?? createOp.operationId

@@ -112,12 +112,11 @@ import {
 	readActionBind,
 	readBefore,
 	canFillPath,
-	createdIdKeys,
 	describeEffectHold,
 	effectHolds,
 	identityPathParam,
 } from "./effects.ts"
-import { type ProvenId, answeredId, listedIds, receiptId, returnedId } from "./proven-id.ts"
+import { type ProvenId, listedIds, receiptId, returnedId } from "./proven-id.ts"
 
 /** A resolved principal as checks see it — identity, lattice position, and how to speak as it. */
 export interface Actor {
@@ -1143,11 +1142,11 @@ async function readComposed(
 /** Walks pages in order, returning ids as encountered — repeats kept, since they are the finding. */
 async function walkPages(
 	ctx: CheckContext,
-	pageSize: number,
+	perPage: number,
 	order?: SortValue,
 	maxPages = MAX_WALK_PAGES,
 ): Promise<Walk> {
-	const read = await readSet(ctx, {}, { fresh: true, keepRepeats: true, maxPages, order, size: pageSize })
+	const read = await readSet(ctx, {}, { fresh: true, keepRepeats: true, maxPages, order, size: perPage })
 	return {
 		exchanges: read.pages.map((page) => page.exchange),
 		ids: ids(read.items, ctx.identity),
@@ -1158,14 +1157,14 @@ async function walkPages(
 
 async function walkCursor(
 	ctx: CheckContext,
-	pageSize: number,
+	perPage: number,
 	order?: SortValue,
 	maxPages = MAX_WALK_PAGES,
 ): Promise<Walk> {
 	const read = await readSet(
 		ctx,
 		{},
-		{ byCursor: true, fresh: true, keepRepeats: true, maxPages, order, size: pageSize },
+		{ byCursor: true, fresh: true, keepRepeats: true, maxPages, order, size: perPage },
 	)
 	return {
 		exchanges: read.pages.map((page) => page.exchange),
@@ -1509,7 +1508,7 @@ const unknownFilterRejected: Check<{ unknownField: Record<string, string> }> = {
 				this.id,
 				ctx.entityName,
 				"unknown filter field produces a server error",
-				`filtering on an undeclared field returned ${result.exchange.status}; a rejected input ` + "should be a 4xx",
+				`filtering on an undeclared field returned ${result.exchange.status}; a rejected input should be a 4xx`,
 				[result.exchange],
 			)
 		}
@@ -1647,7 +1646,7 @@ const negationPartitions: Check<{
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
-				"the collection is larger than the walk covers, so the union cannot be compared " + "against the whole set",
+				"the collection is larger than the walk covers, so the union cannot be compared against the whole set",
 			)
 		}
 
@@ -1882,12 +1881,12 @@ const sortReverseSymmetry: Check<{ field: string }> = {
 				[ascending.last.exchange, descending.last.exchange],
 			)
 		}
-		if (forward.join(",") === [...backward].reverse().join(",")) return ASSERTED
+		if (forward.join(",") === backward.toReversed().join(",")) return ASSERTED
 
 		/* Values may legitimately tie; only flag when the multisets differ or a strict field
 		 * ordering is violated, not when equal keys land in a different arrangement. */
-		const sameSet = [...forward].sort().join(",") === [...backward].sort().join(",")
-		if (!sameSet) {
+		const sameMembers = [...forward].sort().join(",") === [...backward].sort().join(",")
+		if (!sameMembers) {
 			const onlyAsc = forward.filter((id) => !backward.includes(id))
 			const onlyDesc = backward.filter((id) => !forward.includes(id))
 			ctx.findings.backend(
@@ -1912,13 +1911,13 @@ const sortReverseSymmetry: Check<{ field: string }> = {
 				.map((value) => JSON.stringify(value))
 		const up = present(ascending.items)
 		const down = present(descending.items)
-		if (up.join("\u0000") === [...down].reverse().join("\u0000")) return ASSERTED
+		if (up.join("\u0000") === down.toReversed().join("\u0000")) return ASSERTED
 		return ctx.findings.backend(
 			this.id,
 			ctx.entityName,
 			"descending order is not ascending order reversed",
 			`order=${field}.asc gives ${up.slice(0, 4).join(", ")}…, but order=${field}.desc reversed gives ` +
-				`${[...down].reverse().slice(0, 4).join(", ")}…. One direction applies a different ordering than the other.`,
+				`${down.toReversed().slice(0, 4).join(", ")}…. One direction applies a different ordering than the other.`,
 			[ascending.last.exchange, descending.last.exchange],
 		)
 	},
@@ -1987,16 +1986,16 @@ const pageWalkCoversSet: Check = {
 		 * for a dropped row to happen to appear. */
 		const second = (await walkPages(ctx, walkSize, orderParam)).ids
 		if (second.join(",") === walked.join(",")) return ASSERTED
-		const sameSet = [...second].sort().join(",") === [...walked].sort().join(",")
+		const sameMembers = [...second].sort().join(",") === [...walked].sort().join(",")
 		return ctx.findings.backend(
 			this.id,
 			ctx.entityName,
-			sameSet
+			sameMembers
 				? "identical page walks return records in different orders"
 				: "identical page walks return different records",
 			`walking the collection twice with the same parameters` +
 				(orderParam === undefined ? "" : ` (order=${orderParam})`) +
-				` produced ${sameSet ? "the same records in a different order" : "different sets"}. ` +
+				` produced ${sameMembers ? "the same records in a different order" : "different sets"}. ` +
 				"Pagination requires a total order; without a tiebreak the page boundary moves between " +
 				"requests and callers silently miss or repeat rows.",
 			[single.exchange],
@@ -3162,7 +3161,7 @@ const queryAxesCompose: Check<Subset & { sortField: string }> = {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
-				"the filtered set is larger than the walk covers, so the two runs cannot be compared " + "as whole sets",
+				"the filtered set is larger than the walk covers, so the two runs cannot be compared as whole sets",
 			)
 		}
 
@@ -3225,19 +3224,19 @@ const filterAndPagingCompose: Check<Subset & { value: unknown }> = {
 		/* One row per page, deliberately: the bug only shows once a window excludes matching rows,
 		 * and a one-row window that does not match comes back empty and ends the walk, so every
 		 * later match is lost. Any larger page leaves detection to how matches happen to fall. */
-		const pageSize = 1
+		const rowsPerPage = 1
 
 		const tiebreak = (ctx.query?.sortable ?? []).includes(ctx.identity) ? ctx.identity : undefined
 		const walkOrder = tiebreak === undefined ? undefined : sortTerm(conventions, tiebreak, "asc")
 		const matches = (row: Record_): boolean => JSON.stringify(row[field]) === JSON.stringify(value)
-		let everything = await collectSet(ctx, pageSize, {}, walkOrder)
-		let serverSide = await collectSet(ctx, pageSize, term, walkOrder)
+		let everything = await collectSet(ctx, rowsPerPage, {}, walkOrder)
+		let serverSide = await collectSet(ctx, rowsPerPage, term, walkOrder)
 		/* Rows that do not match mean the filter was not applied to this walk. A backend that
 		 * drops the filter once a sort is present does exactly that to the sorted walk, and every
 		 * row it skipped would hide among the extras — so walk again without the sort. */
 		if (walkOrder !== undefined && serverSide !== null && !serverSide.items.every(matches)) {
-			everything = await collectSet(ctx, pageSize, {})
-			serverSide = await collectSet(ctx, pageSize, term)
+			everything = await collectSet(ctx, rowsPerPage, {})
+			serverSide = await collectSet(ctx, rowsPerPage, term)
 		}
 		if (everything === null || serverSide === null) {
 			return ctx.findings.unresolved(
@@ -3272,7 +3271,7 @@ const filterAndPagingCompose: Check<Subset & { value: unknown }> = {
 			this.id,
 			ctx.entityName,
 			"paging a filtered query skips records that match the filter",
-			`walking the collection at ${pageSize} per page and filtering client-side on ` +
+			`walking the collection at ${rowsPerPage} per page and filtering client-side on ` +
 				`"${field}" = ${JSON.stringify(value)} finds ${clientSide.size} record(s); asking the ` +
 				`backend for the same filter returns ${returned.size}. Never returned: ` +
 				`${skipped.slice(0, 3).join(", ")}. The page window is being computed before the ` +
@@ -3336,7 +3335,7 @@ const filterAndSelectCompose: Check<Subset & { extra: string; projection: Record
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
-				"the filtered set is larger than the walk covers, so the two runs cannot be compared " + "as whole sets",
+				"the filtered set is larger than the walk covers, so the two runs cannot be compared as whole sets",
 			)
 		}
 
@@ -4170,12 +4169,12 @@ const crossTenantItemRead: Check<{ id: string; readOp: OperationModel; altAuth: 
 		/* Only assert a breach when the document says the route is tenant-scoped. Where oat merely
 		 * guessed scoping from a path parameter, a shared catalogue and a data leak are the same
 		 * observation, and claiming the worse one erodes trust in every other finding. */
-		const declared = readOp.tenantSource === "tag"
+		const tenantDeclared = readOp.tenantSource === "tag"
 		const detail =
 			`${ctx.entityName} ${id} was created by one principal and read successfully ` +
 			`(${exchange.status}) by a principal in a different tenant.`
 
-		if (declared) {
+		if (tenantDeclared) {
 			return ctx.findings.security(
 				this.id,
 				ctx.entityName,
@@ -4303,6 +4302,13 @@ const crossTenantItemWrite: Check<{
 	},
 }
 
+type WriteVerdict = { allowed: boolean | null; exchange: Exchange }
+
+const judgeWrite = (exchange: Exchange): WriteVerdict => ({
+	allowed: exchange.status < 300 ? true : exchange.status === 401 || exchange.status === 403 ? false : null,
+	exchange,
+})
+
 /**
  * The rank lattice holds for writes as it does for reads: a role that may create, update or
  * delete implies every higher role may too. A viewer that can edit what a member cannot is the
@@ -4325,11 +4331,6 @@ const rankIsMonotonicOnWrites: Check<{ home: Actor[] }> = {
 	needs: "two same-tenant principals at different ranks, and a create",
 	subjects: (entity) => declared(entity.create, entity.update, entity.delete),
 	async run(ctx, { home }): Promise<Outcome> {
-		type WriteVerdict = { allowed: boolean | null; exchange: Exchange }
-		const judge = (exchange: Exchange): WriteVerdict => ({
-			allowed: exchange.status < 300 ? true : exchange.status === 401 || exchange.status === 403 ? false : null,
-			exchange,
-		})
 		const writes = new Map<string, Map<string, WriteVerdict>>()
 		const note = (kind: string, actor: Actor, verdict: WriteVerdict): void => {
 			writes.set(kind, (writes.get(kind) ?? new Map<string, WriteVerdict>()).set(actor.id, verdict))
@@ -4339,7 +4340,7 @@ const rankIsMonotonicOnWrites: Check<{ home: Actor[] }> = {
 		for (const actor of home) {
 			if (schema !== null) {
 				const { exchange: created } = await createFresh(ctx, createOp, schema, actor.headers())
-				note("create", actor, judge(created))
+				note("create", actor, judgeWrite(created))
 			}
 			const updateOp = ctx.updateOp
 			if (updateOp !== undefined) {
@@ -4355,7 +4356,7 @@ const rankIsMonotonicOnWrites: Check<{ home: Actor[] }> = {
 						headers: actor.headers(),
 						operationId: updateOp.operationId,
 					})
-					note("update", actor, judge(updated))
+					note("update", actor, judgeWrite(updated))
 				}
 			}
 			const deleteOp = ctx.deleteOp
@@ -4367,7 +4368,7 @@ const rankIsMonotonicOnWrites: Check<{ home: Actor[] }> = {
 					headers: actor.headers(),
 					operationId: deleteOp.operationId,
 				})
-				note("delete", actor, judge(deleted))
+				note("delete", actor, judgeWrite(deleted))
 			}
 		}
 
@@ -4712,13 +4713,13 @@ const crossTenantFilterBypass: Check<{
 
 		/* Same split as the item check. A public catalogue has no tenant at all — a 200 for
 		 * `id.eq.<someone else's public row>` is the contract, not a leak. */
-		const declared = ctx.listOp.tenantSource === "tag"
+		const tenantDeclared = ctx.listOp.tenantSource === "tag"
 		const detail =
 			`a principal in another tenant filtered on ${ctx.identity}.eq.${id} and received the ` +
 			"record. The tenant predicate is applied to the base listing but not re-applied to " +
 			"filter matches, so any caller who can guess an id can read it."
 
-		if (declared) {
+		if (tenantDeclared) {
 			return ctx.findings.security(
 				this.id,
 				ctx.entityName,
@@ -4879,7 +4880,7 @@ const inviteGrantsThenRevokes: Check<{
 				: ctx.readOp === undefined || id === undefined
 					? undefined
 					: { operationId: ctx.readOp.operationId, path: ctx.readOp.path }
-		const subject =
+		const subjectLabel =
 			grantsOp === undefined ? `${ctx.entityName} ${id}` : `${grantsOp.operationId} on the inviter's scope`
 
 		const canRead = async (): Promise<boolean | null> => {
@@ -4945,7 +4946,7 @@ const inviteGrantsThenRevokes: Check<{
 					this.id,
 					ctx.entityName,
 					"an invite grants access before it is accepted",
-					`inviting ${delegate.id} made ${subject} readable immediately. The accept ` +
+					`inviting ${delegate.id} made ${subjectLabel} readable immediately. The accept ` +
 						"step is then theatre — anyone who can be named in an invite body is already in.",
 					[invited],
 				)
@@ -5017,7 +5018,7 @@ const inviteGrantsThenRevokes: Check<{
 					this.id,
 					ctx.entityName,
 					"accepting an invite does not grant access",
-					`${delegate.id} accepted an invite and still cannot read ${subject}. ` +
+					`${delegate.id} accepted an invite and still cannot read ${subjectLabel}. ` +
 						"The invite flow completed; the grant did not.",
 					[invited, accepted],
 				)
@@ -5041,7 +5042,7 @@ const inviteGrantsThenRevokes: Check<{
 					this.id,
 					ctx.entityName,
 					"revoking an invite does not remove access",
-					`${delegate.id} can still read ${subject} after the grant was revoked. ` +
+					`${delegate.id} can still read ${subjectLabel} after the grant was revoked. ` +
 						"A share that cannot be taken back is a standing leak.",
 					[invited, accepted, revoked],
 				)
@@ -5306,6 +5307,8 @@ interface ObservedOrder {
 /** Orders each entity's backend has shown, by sort field. */
 const observedTextOrders = new WeakMap<readonly Record_[], Map<string, ObservedOrder>>()
 
+const isNull = (value: unknown): boolean => value === null || value === undefined
+
 /**
  * The text order under which `values` — one sort field, in the order the backend returned them,
  * ascending — are sorted, or `null` when they are sorted under none.
@@ -5315,18 +5318,17 @@ const observedTextOrders = new WeakMap<readonly Record_[], Map<string, ObservedO
  * order the backend already showed for this field when there is one, else to any of them.
  */
 function sortedUnder(ctx: CheckContext, field: string, values: readonly unknown[]): TextOrder | null {
-	const isNull = (value: unknown): boolean => value === null || value === undefined
 	const present = values.filter((value) => !isNull(value))
 	const nulls = values.length - present.length
-	const declared = resolvedCaps(ctx).sort
+	const sortCaps = resolvedCaps(ctx).sort
 	const observed = observedTextOrders.get(ctx.records)?.get(field)
 	const known: ObservedOrder | undefined =
-		declared?.collation === undefined && declared?.defaultNulls === undefined
+		sortCaps?.collation === undefined && sortCaps?.defaultNulls === undefined
 			? observed
 			: {
 					text:
-						declared.collation === undefined ? (observed?.text ?? "binary") : DECLARED_TEXT_ORDER[declared.collation],
-					...(declared.defaultNulls === undefined ? {} : { nulls: declared.defaultNulls }),
+						sortCaps.collation === undefined ? (observed?.text ?? "binary") : DECLARED_TEXT_ORDER[sortCaps.collation],
+					...(sortCaps.defaultNulls === undefined ? {} : { nulls: sortCaps.defaultNulls }),
 				}
 	if (nulls > 0 && present.length > 0) {
 		/* Nulls together at one end — and the same end every time once one has been seen. */
@@ -5337,7 +5339,7 @@ function sortedUnder(ctx: CheckContext, field: string, values: readonly unknown[
 		if (known?.nulls === "last" && !last) return null
 	}
 	const candidates: TextOrder[] =
-		known === undefined || (declared?.collation === undefined && observed === undefined)
+		known === undefined || (sortCaps?.collation === undefined && observed === undefined)
 			? ["binary", "folded", "locale"]
 			: [known.text]
 	for (const order of candidates) {
@@ -5358,7 +5360,6 @@ function observeTextOrder(ctx: CheckContext, field: string, text: TextOrder, val
 	const orders = observedTextOrders.get(ctx.records) ?? new Map<string, ObservedOrder>()
 	observedTextOrders.set(ctx.records, orders)
 	if (orders.has(field)) return
-	const isNull = (value: unknown): boolean => value === null || value === undefined
 	const nulls =
 		values.some(isNull) && values.some((value) => !isNull(value))
 			? isNull(values[0])
@@ -5549,12 +5550,12 @@ const enumValidated: Check<CreateBody & { target: ConstrainedField }> = {
 		const refused = judgeRefusal(ctx, this.id, ["validation"], exchange)
 		if (refused !== null) return refused
 
-		const declared = (target.schema.enum as unknown[]).map((v) => JSON.stringify(v)).join(", ")
+		const declaredValues = (target.schema.enum as unknown[]).map((v) => JSON.stringify(v)).join(", ")
 		return ctx.findings.backend(
 			this.id,
 			ctx.entityName,
 			"a value outside the declared enum was accepted",
-			`"${target.name}" declares [${declared}] but the backend accepted ${JSON.stringify(outside.value)} ` +
+			`"${target.name}" declares [${declaredValues}] but the backend accepted ${JSON.stringify(outside.value)} ` +
 				`with ${exchange.status}. Clients generated from this document will assume the field ` +
 				"only ever holds a declared member.",
 			[exchange],
@@ -5647,7 +5648,7 @@ const contentTypeEnforced: Check<CreateBody> = {
 		 * the check must then process it, rather than refuse it for some unrelated reason. */
 		const encoded = await encodeOpBody(ctx, createOp, validBody(ctx, schema))
 		const raw = ctx.model.rawOperations.get(createOp.operationId)
-		const declared =
+		const declaredMediaType =
 			raw === undefined ? "a declared media type" : (requestContent(raw)?.mediaType ?? "a declared media type")
 		const text =
 			encoded.body instanceof URLSearchParams
@@ -5669,7 +5670,7 @@ const contentTypeEnforced: Check<CreateBody> = {
 			this.id,
 			ctx.entityName,
 			"a request labelled with an undeclared content type was processed",
-			`the operation documents 415 and declares ${declared}, but the same body sent as ` +
+			`the operation documents 415 and declares ${declaredMediaType}, but the same body sent as ` +
 				`text/plain was processed (${exchange.status}). Content negotiation is documented ` +
 				"but not implemented.",
 			[exchange],
@@ -6093,6 +6094,16 @@ function formValues(body: unknown, contentType?: string): Map<string, string[]> 
 	return out
 }
 
+function coerceFormScalar(value: string, of: Record<string, unknown> | undefined): unknown {
+	const kinds = [of?.type].flat()
+	if (kinds.includes("integer") || kinds.includes("number")) {
+		const number = Number(value)
+		return value.trim() !== "" && Number.isFinite(number) ? number : value
+	}
+	if (kinds.includes("boolean") && (value === "true" || value === "false")) return value === "true"
+	return value
+}
+
 /**
  * What a form-submitted field means once the property type is applied: the record stores
  * `1.5`, not `"1.5"`, and a field sent three times is an array of three. Comparing the raw form
@@ -6100,20 +6111,11 @@ function formValues(body: unknown, contentType?: string): Map<string, string[]> 
  */
 function coerceFormValue(values: string[], schema: Record<string, unknown> | undefined): unknown {
 	const types = [schema?.type].flat()
-	const scalar = (value: string, of: Record<string, unknown> | undefined): unknown => {
-		const kinds = [of?.type].flat()
-		if (kinds.includes("integer") || kinds.includes("number")) {
-			const number = Number(value)
-			return value.trim() !== "" && Number.isFinite(number) ? number : value
-		}
-		if (kinds.includes("boolean") && (value === "true" || value === "false")) return value === "true"
-		return value
-	}
 	if (types.includes("array")) {
 		const items = schema?.items as Record<string, unknown> | undefined
-		return values.map((value) => scalar(value, items))
+		return values.map((value) => coerceFormScalar(value, items))
 	}
-	return scalar(values.at(-1) ?? "", schema)
+	return coerceFormScalar(values.at(-1) ?? "", schema)
 }
 
 function submittedFields(body: unknown): Record_ {
@@ -6361,7 +6363,7 @@ const noLostUpdate: Check<{ updateOp: OperationModel; readOp: OperationModel }> 
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
-				`reading the record back returned ${before.status}, so there was no baseline to race ` + "against",
+				`reading the record back returned ${before.status}, so there was no baseline to race against`,
 			)
 		}
 		const original = readRecord(readOp, before)
@@ -6464,15 +6466,15 @@ function writableStringFields(ctx: CheckContext, record: Record_): string[] {
 		if (/_at$|_id$/.test(key)) continue
 		if (typeof value !== "string") continue
 
-		const declared = properties[key]
-		if (enumerated && declared === undefined) continue
-		if (declared !== undefined) {
-			if (Array.isArray(declared.enum)) continue
-			if (typeof declared.pattern === "string") continue
-			if (typeof declared.format === "string") continue
+		const propertySchema = properties[key]
+		if (enumerated && propertySchema === undefined) continue
+		if (propertySchema !== undefined) {
+			if (Array.isArray(propertySchema.enum)) continue
+			if (typeof propertySchema.pattern === "string") continue
+			if (typeof propertySchema.format === "string") continue
 			/* The probe values are short, but a cap tight enough to reject them would make the
 			 * write fail for a reason that has nothing to do with concurrency. */
-			if (typeof declared.maxLength === "number" && declared.maxLength < 32) continue
+			if (typeof propertySchema.maxLength === "number" && propertySchema.maxLength < 32) continue
 		}
 		out.push(key)
 	}
@@ -7119,18 +7121,18 @@ function pickPayloadField(ctx: CheckContext, op: OperationModel): PayloadField |
 		ctx.identity,
 	])
 	let best: (PayloadField & { score: number }) | null = null
-	for (const [name, declared] of Object.entries(properties)) {
+	for (const [name, propertySchema] of Object.entries(properties)) {
 		if (immutable.has(name) || /_at$|_id$/.test(name)) continue
-		if (declared === null || typeof declared !== "object") continue
-		if (declared.readOnly === true) continue
-		const union = declared.oneOf ?? declared.anyOf
+		if (propertySchema === null || typeof propertySchema !== "object") continue
+		if (propertySchema.readOnly === true) continue
+		const union = propertySchema.oneOf ?? propertySchema.anyOf
 		const branch = Array.isArray(union)
 			? (union.find(
 					(candidate) =>
 						candidate !== null && typeof candidate === "object" && (candidate as { type?: unknown }).type === "string",
 				) as Record<string, unknown> | undefined)
 			: undefined
-		const stringSchema = branch ?? declared
+		const stringSchema = branch ?? propertySchema
 		const type = stringSchema.type
 		const isString = type === "string" || (Array.isArray(type) && type.includes("string"))
 		if (!isString && type !== undefined) continue
@@ -7141,8 +7143,8 @@ function pickPayloadField(ctx: CheckContext, op: OperationModel): PayloadField |
 		const minLength = typeof stringSchema.minLength === "number" ? stringSchema.minLength : undefined
 		if (maxLength !== undefined && maxLength < 8) continue
 		const nullable =
-			declared.nullable === true ||
-			(Array.isArray(declared.type) && declared.type.includes("null")) ||
+			propertySchema.nullable === true ||
+			(Array.isArray(propertySchema.type) && propertySchema.type.includes("null")) ||
 			(Array.isArray(union) &&
 				union.some(
 					(candidate) =>
@@ -7456,12 +7458,14 @@ function describeUndeclared(
 	const evidence: Exchange[] = []
 	for (const [operationId, exchanges] of byOp) {
 		const raw = ctx.model.rawOperations.get(operationId)
-		const declared = Object.keys(raw?.responses ?? {})
+		const declaredStatuses = Object.keys(raw?.responses ?? {})
 			.filter((key) => key !== "default")
 			.sort()
 			.join(", ")
 		const seen = [...new Set(exchanges.map((item) => item.status))].sort((a, b) => a - b)
-		lines.push(`${operationId} returned ${seen.join(", ")}; the document declares ${declared || "no concrete status"}`)
+		lines.push(
+			`${operationId} returned ${seen.join(", ")}; the document declares ${declaredStatuses || "no concrete status"}`,
+		)
 		const first = exchanges[0]
 		if (first !== undefined && evidence.length < 6) evidence.push(first)
 	}
@@ -7653,11 +7657,11 @@ const filterInIsUnionOfEq: Check<{
 	needs: "a field that allows `in` and at least two distinct values",
 	subjects: subjectsOf.list,
 	async run(ctx, { a, b, eqA, eqB, field, inTerm }): Promise<Outcome> {
-		const union = (a: SetRead, b: SetRead): Set<string> =>
-			new Set([...ids(a.items, ctx.identity), ...ids(b.items, ctx.identity)])
-		const reads = await readSettled(ctx, [inTerm, eqA, eqB], ([t, a, b]) =>
-			t !== undefined && a !== undefined && b !== undefined
-				? sameSet(union(a, b), setOf(t.items, ctx.identity))
+		const union = (left: SetRead, right: SetRead): Set<string> =>
+			new Set([...ids(left.items, ctx.identity), ...ids(right.items, ctx.identity)])
+		const reads = await readSettled(ctx, [inTerm, eqA, eqB], ([inRead, eqARead, eqBRead]) =>
+			inRead !== undefined && eqARead !== undefined && eqBRead !== undefined
+				? sameSet(union(eqARead, eqBRead), setOf(inRead.items, ctx.identity))
 				: false,
 		)
 		if (reads === "rejected")
@@ -8458,9 +8462,12 @@ const filterConditionCapRejected: Check<{ max: number; overCap: FilterQuery }> =
 /** The JSON type the item schema gives a property, looking through a nullable union. */
 function schemaType(ctx: CheckContext, field: string): string | undefined {
 	const properties = (ctx.listOp.collection?.itemSchema?.properties ?? {}) as Record<string, Record<string, unknown>>
-	const declared = properties[field]
-	if (declared === undefined) return undefined
-	const branches = [declared, ...((declared.oneOf ?? declared.anyOf ?? []) as Array<Record<string, unknown>>)]
+	const propertySchema = properties[field]
+	if (propertySchema === undefined) return undefined
+	const branches = [
+		propertySchema,
+		...((propertySchema.oneOf ?? propertySchema.anyOf ?? []) as Array<Record<string, unknown>>),
+	]
 	for (const branch of branches) {
 		const type = branch.type
 		if (typeof type === "string" && type !== "null") return type
@@ -8496,8 +8503,8 @@ function capabilityProbe(
 	}
 	if (!canUseOp(ctx, field, "eq")) return null
 	if (sample !== undefined && typeof sample !== "object") return { op: "eq", value: asTermValue(sample) }
-	const declared = (ctx.listOp.collection?.itemSchema?.properties as Record<string, unknown> | undefined)?.[name]
-	const sentinel = filterSentinel(declared ?? { type: type ?? "string" }, ctx.nonce ?? "oat")
+	const propertySchema = (ctx.listOp.collection?.itemSchema?.properties as Record<string, unknown> | undefined)?.[name]
+	const sentinel = filterSentinel(propertySchema ?? { type: type ?? "string" }, ctx.nonce ?? "oat")
 	if (
 		sentinel.ok &&
 		(typeof sentinel.value === "string" || typeof sentinel.value === "number" || typeof sentinel.value === "boolean")
@@ -8528,8 +8535,13 @@ function probeValueForOp(
 
 /** A well-formed value of `field`'s declared type that no record holds, for probing a capability. */
 function typedSentinel(ctx: CheckContext, field: EffectiveFilterField): string | number | null {
-	const declared = (ctx.listOp.collection?.itemSchema?.properties as Record<string, unknown> | undefined)?.[field.field]
-	const made = filterSentinel(declared ?? { type: field.type ?? schemaType(ctx, field.field) ?? "string" }, ctx.nonce)
+	const propertySchema = (ctx.listOp.collection?.itemSchema?.properties as Record<string, unknown> | undefined)?.[
+		field.field
+	]
+	const made = filterSentinel(
+		propertySchema ?? { type: field.type ?? schemaType(ctx, field.field) ?? "string" },
+		ctx.nonce,
+	)
 	return made.ok && (typeof made.value === "string" || typeof made.value === "number") ? made.value : null
 }
 
@@ -8898,7 +8910,7 @@ const sortMultiKeyTiebreak: Check<{ primary: string; secondary: string; tied: Re
 		if (slice.length < 2) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, `the listing does not show rows tied on ${primary}`)
 		}
-		const seconds = slice.map((item) => item[secondary]).reverse()
+		const seconds = slice.map((item) => item[secondary]).toReversed()
 		if (sortedUnder(ctx, secondary, seconds) !== null) return ASSERTED
 		return ctx.findings.backend(
 			this.id,
@@ -8910,25 +8922,25 @@ const sortMultiKeyTiebreak: Check<{ primary: string; secondary: string; tied: Re
 	},
 }
 
-const sortDefaultOrderApplied: Check<{ declared: string }> = {
+const sortDefaultOrderApplied: Check<{ defaultOrder: string }> = {
 	plan: (ctx) => {
-		const declared = resolvedCaps(ctx).sort?.defaultOrder ?? ctx.query?.defaultOrder
-		return declared === undefined || ctx.records.length <= 1 ? cannot() : ready({ declared })
+		const defaultOrder = resolvedCaps(ctx).sort?.defaultOrder ?? ctx.query?.defaultOrder
+		return defaultOrder === undefined || ctx.records.length <= 1 ? cannot() : ready({ defaultOrder })
 	},
 	dependsOn: ["sort.order-is-applied", "pagination.page-walk-covers-set"],
 	id: "sort.default-order-applied",
 	needs: "a declared defaultOrder and a complete walk",
 	subjects: subjectsOf.list,
-	async run(ctx, { declared }): Promise<Outcome> {
+	async run(ctx, { defaultOrder }): Promise<Outcome> {
 		const limit = pageSize(ctx)
 		let implicit = await collectSet(ctx, limit)
-		let explicit = await collectSet(ctx, limit, {}, declared)
+		let explicit = await collectSet(ctx, limit, {}, defaultOrder)
 		if (implicit === null || explicit === null) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "default-order walk was rejected")
 		}
 		const settled = await settlePair(ctx.identity, implicit, explicit, {
 			first: () => collectSet(ctx, limit, {}, undefined, true),
-			second: () => collectSet(ctx, limit, {}, declared, true),
+			second: () => collectSet(ctx, limit, {}, defaultOrder, true),
 		})
 		if (settled === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING)
 		if (settled === null) return ctx.findings.unresolved(this.id, ctx.entityName, "default-order walk was rejected")
@@ -8946,7 +8958,7 @@ const sortDefaultOrderApplied: Check<{ declared: string }> = {
 			this.id,
 			ctx.entityName,
 			"omitting order does not match defaultOrder",
-			`defaultOrder=${declared} produced a different sequence than the implicit listing.`,
+			`defaultOrder=${defaultOrder} produced a different sequence than the implicit listing.`,
 			[implicit.last.exchange, explicit.last.exchange],
 		)
 	},

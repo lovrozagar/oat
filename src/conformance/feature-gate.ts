@@ -234,6 +234,39 @@ function gateBody(feature: string): Record<string, unknown> {
 	}
 }
 
+function readJson(req: IncomingMessage): Promise<unknown> {
+	return new Promise((resolve, reject) => {
+		const chunks: Buffer[] = []
+		req.on("data", (chunk: Buffer) => {
+			chunks.push(chunk)
+		})
+		req.on("end", () => {
+			const text = Buffer.concat(chunks).toString("utf8")
+			if (text === "") {
+				resolve(undefined)
+				return
+			}
+			try {
+				resolve(JSON.parse(text) as unknown)
+			} catch (error) {
+				reject(error)
+			}
+		})
+		req.on("error", reject)
+	})
+}
+
+function send(res: ServerResponse, status: number, body?: unknown): void {
+	if (body === undefined) {
+		res.writeHead(status)
+		res.end()
+		return
+	}
+	const text = JSON.stringify(body)
+	res.writeHead(status, { "content-length": String(Buffer.byteLength(text)), "content-type": "application/json" })
+	res.end(text)
+}
+
 async function serveHarness(options: HarnessOptions): Promise<{ close: () => Promise<void>; url: string }> {
 	const spec = webhookSpec(options.specTag)
 	const webhooks = new Map<string, { id: string; url: string }>()
@@ -241,38 +274,6 @@ async function serveHarness(options: HarnessOptions): Promise<{ close: () => Pro
 	let seq = 0
 	if (options.listSeeded === true) {
 		webhooks.set("wh_existing", { id: "wh_existing", url: "https://example.test/hook" })
-	}
-
-	const readJson = (req: IncomingMessage): Promise<unknown> =>
-		new Promise((resolve, reject) => {
-			const chunks: Buffer[] = []
-			req.on("data", (chunk: Buffer) => {
-				chunks.push(chunk)
-			})
-			req.on("end", () => {
-				const text = Buffer.concat(chunks).toString("utf8")
-				if (text === "") {
-					resolve(undefined)
-					return
-				}
-				try {
-					resolve(JSON.parse(text) as unknown)
-				} catch (error) {
-					reject(error)
-				}
-			})
-			req.on("error", reject)
-		})
-
-	const send = (res: ServerResponse, status: number, body?: unknown): void => {
-		if (body === undefined) {
-			res.writeHead(status)
-			res.end()
-			return
-		}
-		const text = JSON.stringify(body)
-		res.writeHead(status, { "content-length": String(Buffer.byteLength(text)), "content-type": "application/json" })
-		res.end(text)
 	}
 
 	const server = createServer((req, res) => {

@@ -63,6 +63,11 @@ export interface CreatedId {
 	trusted: boolean
 }
 
+function asCreatedId(value: unknown, trusted: boolean): CreatedId | undefined {
+	const id = createdId(value)
+	return id === undefined || !isScalarId(value) ? undefined : { id, trusted, value }
+}
+
 /** The created record's id: declared, then the answer's own identity, then candidates. */
 export function resolveCreatedId(input: {
 	body: unknown
@@ -72,25 +77,21 @@ export function resolveCreatedId(input: {
 	source: CreatedIdSource
 }): CreatedId | undefined {
 	const { body, identity, source } = input
-	const found = (value: unknown, trusted: boolean): CreatedId | undefined => {
-		const id = createdId(value)
-		return id === undefined || !isScalarId(value) ? undefined : { id, trusted, value }
-	}
 	if (source.createdIdFrom !== null) {
-		const declared = found(readPath(body, source.createdIdFrom), true)
+		const declared = asCreatedId(readPath(body, source.createdIdFrom), true)
 		if (declared !== undefined) return declared
 	}
 	if (isPlainRecord(body)) {
-		const own = found(body[identity], true)
+		const own = asCreatedId(body[identity], true)
 		if (own !== undefined) return own
 	}
 	if (source.recordPath !== null) {
 		const record = readPath(body, source.recordPath)
-		const inRecord = isPlainRecord(record) ? found(record[identity], false) : undefined
+		const inRecord = isPlainRecord(record) ? asCreatedId(record[identity], false) : undefined
 		if (inRecord !== undefined) return inRecord
 	}
 	return (
-		found(createdRecordOf(body, identity, input.sent)[identity], false) ??
-		found(findCreatedId(body, createdIdKeys(input.entity, identity)), false)
+		asCreatedId(createdRecordOf(body, identity, input.sent)[identity], false) ??
+		asCreatedId(findCreatedId(body, createdIdKeys(input.entity, identity)), false)
 	)
 }

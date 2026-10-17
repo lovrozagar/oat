@@ -320,9 +320,7 @@ export async function resolveRequest(
 	if (isOperationStep(step)) {
 		const op = target.model.byOperationId.get(step.operationId)
 		if (op === undefined) {
-			throw new Error(
-				`oat: auth step ${index + 1} names operation "${step.operationId}", which is not in the ` + "document",
-			)
+			throw new Error(`oat: auth step ${index + 1} names operation "${step.operationId}", which is not in the document`)
 		}
 		const raw = target.model.rawOperations.get(step.operationId)
 		const interpolated = step.body === undefined ? undefined : interpolate(step.body, scope)
@@ -487,7 +485,7 @@ export async function resolvePrincipalAuthValue(
 	}
 	const backoff = resolveBackoff(options.outOfBand)
 	const value = await pollWithBackoff(
-		(_) => hook(fromHook),
+		() => hook(fromHook),
 		backoff,
 		(result) => {
 			if (result === null) return true

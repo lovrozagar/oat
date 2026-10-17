@@ -76,6 +76,10 @@ export function listEndpoints(doc: OpenApiDocument): Endpoint[] {
 	return out
 }
 
+function key(p: { name?: unknown; in?: unknown }): string {
+	return `${String(p.in)}:${String(p.name)}`
+}
+
 /**
  * An operation with its path item's `parameters` folded in.
  *
@@ -86,7 +90,6 @@ export function listEndpoints(doc: OpenApiDocument): Endpoint[] {
 function withPathParameters(op: OperationObject, shared: unknown): OperationObject {
 	if (!Array.isArray(shared) || shared.length === 0) return op
 	const own = op.parameters ?? []
-	const key = (p: { name?: unknown; in?: unknown }): string => `${String(p.in)}:${String(p.name)}`
 	const overridden = new Set(own.map(key))
 	const inherited = (shared as ParameterObject[]).filter(
 		(parameter) => parameter !== null && typeof parameter === "object" && !overridden.has(key(parameter)),

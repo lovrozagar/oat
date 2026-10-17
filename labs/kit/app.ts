@@ -29,6 +29,18 @@ interface Variables {
 	role: Role
 }
 
+const authenticate = async (
+	c: { req: { header: (n: string) => string | undefined }; set: (k: "orgId" | "role", v: string) => void },
+	next: () => Promise<void>,
+): Promise<void> => {
+	const token = (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "")
+	const principal = TOKENS.get(token)
+	if (principal === undefined) throw new HttpError(401, "unauthorized", "missing or unknown token")
+	c.set("orgId", principal.orgId)
+	c.set("role", principal.role)
+	await next()
+}
+
 export function createWorldApp(world: World, store: WorldStore): Hono<{ Variables: Variables }> {
 	const app = new Hono<{ Variables: Variables }>()
 	const spec = buildSpec(world)
@@ -62,18 +74,6 @@ export function createWorldApp(world: World, store: WorldStore): Hono<{ Variable
 		if (principal === undefined) throw new HttpError(401, "unauthorized", "unknown key")
 		return c.json({ access_token: principal.token, org_id: principal.orgId })
 	})
-
-	const authenticate = async (
-		c: { req: { header: (n: string) => string | undefined }; set: (k: "orgId" | "role", v: string) => void },
-		next: () => Promise<void>,
-	) => {
-		const token = (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "")
-		const principal = TOKENS.get(token)
-		if (principal === undefined) throw new HttpError(401, "unauthorized", "missing or unknown token")
-		c.set("orgId", principal.orgId)
-		c.set("role", principal.role)
-		await next()
-	}
 
 	app.use("/v1/orgs/*", authenticate)
 	app.use("/v1/invites/*", authenticate)

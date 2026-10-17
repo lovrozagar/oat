@@ -214,7 +214,7 @@ export function parseSortable(value: unknown): { declared: boolean; fields: Sort
 		const field: SortableField = { field: rec.field }
 		if (typeof rec.type === "string" && isFieldType(rec.type)) field.type = rec.type
 		if (Array.isArray(rec.nulls)) {
-			const nulls = rec.nulls.filter((item): item is Nulls => typeof item === "string" && isNulls(item))
+			const nulls = rec.nulls.filter((entry): entry is Nulls => typeof entry === "string" && isNulls(entry))
 			if (nulls.length > 0) field.nulls = nulls
 		}
 		fields.push(field)

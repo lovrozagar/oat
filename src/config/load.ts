@@ -31,9 +31,10 @@ export async function loadConfig(path: string): Promise<OatConfig> {
 			throw new Error(
 				`oat: cannot load ${path} — this Node build will not import TypeScript directly. ` +
 					"Run with `node --experimental-strip-types`, or use a .js/.mjs config.",
+				{ cause: error },
 			)
 		}
-		throw new Error(`oat: failed to load config ${path}: ${message}`)
+		throw new Error(`oat: failed to load config ${path}: ${message}`, { cause: error })
 	}
 }
 
@@ -45,7 +46,7 @@ function isPlainObject(value: object): boolean {
 /** Env-var interpolation so configs can carry `${API_TOKEN}` without embedding secrets. */
 export function interpolate<T>(value: T, env: Record<string, string | undefined> = process.env): T {
 	if (typeof value === "string") {
-		return value.replace(/\$\{([A-Z0-9_]+)\}/gi, (match, name: string) => {
+		return value.replace(/\$\{([A-Z0-9_]+)\}/gi, (_match, name: string) => {
 			const resolved = env[name]
 			if (resolved === undefined) {
 				throw new Error(`oat: config references \${${name}}, which is not set in the environment`)

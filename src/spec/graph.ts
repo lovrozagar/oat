@@ -238,7 +238,7 @@ export function buildModel(doc: OpenApiDocument): SpecModel {
 		hasAuthOperations: operations.some((o) => /auth|login|token|session/i.test(o.path)),
 		operations,
 		/* First wins, like `byOperationId`. */
-		rawOperations: new Map([...endpoints].reverse().map((e) => [e.operationId, e.op])),
+		rawOperations: new Map(endpoints.toReversed().map((e) => [e.operationId, e.op])),
 		defs: documentDefs(doc),
 		roots,
 		securitySchemes: Object.keys(doc.components?.securitySchemes ?? {}),
@@ -388,6 +388,10 @@ const PARAM_SEGMENT = /^\{[^}]+\}$/
  * Everything else is an action on the nearest enclosing entity. Without this pass a spec with
  * 5 entities models as 24, and every spurious one drags a full lifecycle plan behind it.
  */
+function templateKey(segments: string[]): string {
+	return segments.map((s) => (PARAM_SEGMENT.test(s) ? "{}" : s)).join("/")
+}
+
 /**
  * One inferred name, two collections: `/projects/{id}/members` and `/orgs/{id}/members` both
  * read as `member`, and fusing them would seed one through the other's routes. An entity is its
@@ -405,14 +409,13 @@ function separateSameNamedCollections(operations: OperationModel[]): void {
 		}
 		return null
 	}
-	const key = (segments: string[]): string => segments.map((s) => (PARAM_SEGMENT.test(s) ? "{}" : s)).join("/")
 	const templates = new Map<string, Map<string, string[]>>()
 	for (const op of operations) {
 		if (op.entity === null || op.entitySource !== "heuristic") continue
 		const segments = templateOf(op)
 		if (segments === null) continue
 		const byName = templates.get(op.entity) ?? new Map<string, string[]>()
-		byName.set(key(segments), segments)
+		byName.set(templateKey(segments), segments)
 		templates.set(op.entity, byName)
 	}
 	const renamed = new Map<string, string>()
@@ -443,7 +446,7 @@ function separateSameNamedCollections(operations: OperationModel[]): void {
 		if (op.entity === null || op.entitySource !== "heuristic") continue
 		const segments = templateOf(op)
 		if (segments === null) continue
-		const to = renamed.get(`${op.entity}\u0000${key(segments)}`)
+		const to = renamed.get(`${op.entity}\u0000${templateKey(segments)}`)
 		if (to !== undefined) op.entity = to
 	}
 }
@@ -680,6 +683,14 @@ function collectRoots(operations: OperationModel[], entities: Map<string, Entity
 	return [...roots].sort()
 }
 
+function pathShape(template: string): string {
+	return template
+		.split("/")
+		.filter(Boolean)
+		.map((segment) => (PARAM_SEGMENT.test(segment) ? "{}" : segment))
+		.join("/")
+}
+
 /**
  * The entity `{param}` identifies: whatever the document tags the collection before it as — its
  * create, else its item read. Names can carry a parent (`organization-webhook`, when another
@@ -694,16 +705,10 @@ export function owningEntityOf(
 	const segments = path.split("/").filter(Boolean)
 	const index = segments.indexOf(`{${param}}`)
 	if (index <= 0) return null
-	const shape = (template: string): string =>
-		template
-			.split("/")
-			.filter(Boolean)
-			.map((segment) => (PARAM_SEGMENT.test(segment) ? "{}" : segment))
-			.join("/")
-	const collection = shape(segments.slice(0, index).join("/"))
-	const item = shape(segments.slice(0, index + 1).join("/"))
+	const collection = pathShape(segments.slice(0, index).join("/"))
+	const item = pathShape(segments.slice(0, index + 1).join("/"))
 	const tagged = (method: string, at: string) =>
-		operations.find((op) => op.entity !== null && op.method === method && shape(op.path) === at)?.entity
+		operations.find((op) => op.entity !== null && op.method === method && pathShape(op.path) === at)?.entity
 	return tagged("POST", collection) ?? tagged("GET", item) ?? owningEntityName(path, param)
 }
 

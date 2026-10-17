@@ -14,6 +14,9 @@
 		"exactOptionalPropertyTypes": true,
 		"noImplicitOverride": true,
 		"noFallthroughCasesInSwitch": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
 		"verbatimModuleSyntax": true,
 		"allowImportingTsExtensions": true,
 		"rewriteRelativeImportExtensions": true,
@@ -21,5 +24,5 @@
 		"types": ["node"]
 	},
 	"include": ["src/**/*.ts"],
-	"exclude": ["dist", "node_modules", "examples", "lab"]
+	"exclude": ["dist", "node_modules", "examples", "lab", "src/**/*.test.ts", "src/**/__fixtures__/**"]
 }

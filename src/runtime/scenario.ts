@@ -237,7 +237,7 @@ export async function runScenarios(input: {
 		const calls = new Map<string, Exchange>()
 		/* What this scenario sent, so a value delivered outside HTTP finds the request it answers. */
 		const sent: Exchange[] = []
-		const observed = new Map<string, PassEvidence["observation"]>()
+		const observations = new Map<string, PassEvidence["observation"]>()
 		let stoppedAt: { index: number; failure: StepFailure } | null = null
 		let cutShort = false
 
@@ -265,7 +265,7 @@ export async function runScenarios(input: {
 				const call = calls.get(id)
 				if (call === undefined) continue
 				input.grades.graded([id], check)
-				const observation = observed.get(id)
+				const observation = observations.get(id)
 				input.grades.prove(id, observation === undefined ? { call: call.seq } : { call: call.seq, observation })
 			}
 			return
@@ -281,7 +281,7 @@ export async function runScenarios(input: {
 			const call = calls.get(id)
 			if (call === undefined) continue
 			input.grades.graded([id], check)
-			const observation = observed.get(id)
+			const observation = observations.get(id)
 			input.grades.prove(id, observation === undefined ? { call: call.seq } : { call: call.seq, observation })
 		}
 		if (stoppedAt === null) continue
@@ -351,7 +351,7 @@ export async function runScenarios(input: {
 				return
 			}
 
-			const own = stepOperation(step)
+			const stepOp = stepOperation(step)
 			const deadline = step.poll === undefined ? 0 : Date.now() + durationMs(step.poll.within)
 			let waitMs = step.poll?.everyMs ?? 500
 			for (;;) {
@@ -373,7 +373,7 @@ export async function runScenarios(input: {
 						...request.headers,
 					},
 					...(request.query === undefined ? {} : { query: request.query }),
-					...(own === undefined ? {} : { operationId: own }),
+					...(stepOp === undefined ? {} : { operationId: stepOp }),
 					...(request.redirect === undefined ? {} : { redirect: request.redirect }),
 				})
 				sent.push(exchange)
@@ -381,7 +381,7 @@ export async function runScenarios(input: {
 				const wants = wantsOf(step, scope)
 				const unmet = wants.find(({ want }) => !holds(exchange, want.from, want))?.want
 				if (ok && unmet === undefined) {
-					record(step, exchange, own, wants)
+					record(step, exchange, stepOp, wants)
 					return
 				}
 				if (Date.now() < deadline) {
@@ -391,7 +391,10 @@ export async function runScenarios(input: {
 					waitMs = nextPollWait(waitMs, step.poll?.everyMs ?? 500)
 					continue
 				}
-				const proves = [...wants.flatMap(({ assert }) => assert.observes ?? []), ...(own === undefined ? [] : [own])]
+				const proves = [
+					...wants.flatMap(({ assert }) => assert.observes ?? []),
+					...(stepOp === undefined ? [] : [stepOp]),
+				]
 				const earlier = proves
 					.map((id) => calls.get(id))
 					.filter((call): call is Exchange => call !== undefined && call !== exchange)
@@ -399,7 +402,7 @@ export async function runScenarios(input: {
 					throw new StepFailure(
 						`${request.method} ${request.path} returned ${exchange.status}`,
 						[...earlier, exchange],
-						own === undefined ? [] : [own],
+						stepOp === undefined ? [] : [stepOp],
 					)
 				}
 				throw new StepFailure(
@@ -413,11 +416,11 @@ export async function runScenarios(input: {
 		function record(
 			step: ScenarioRequestStep,
 			exchange: Exchange,
-			own: string | undefined,
+			stepOp: string | undefined,
 			wants: Array<{ assert: ScenarioAssert; want: Want }>,
 		): void {
 			/* An observed call keeps its pair; a later repeat of the operation proves nothing new. */
-			if (own !== undefined && !observed.has(own)) calls.set(own, exchange)
+			if (stepOp !== undefined && !observations.has(stepOp)) calls.set(stepOp, exchange)
 			const cookies = exchange.cookies ?? cookiesFromRecordedHeaders(exchange.responseHeaders)
 			for (const [name, template] of Object.entries(step.saveAs ?? {})) {
 				const path = String(interpolate(template, scope))
@@ -431,7 +434,7 @@ export async function runScenarios(input: {
 					throw new StepFailure(
 						`saveAs.${name} = "${path}" is not in the response`,
 						[exchange],
-						own === undefined ? [] : [own],
+						stepOp === undefined ? [] : [stepOp],
 					)
 				}
 				if (typeof value === "object") {
@@ -449,7 +452,7 @@ export async function runScenarios(input: {
 					!from.startsWith("$") && scope[from] !== undefined ? scope[from] : readPath(exchange.responseBody, from)
 				const claims = typeof token === "string" ? jwtClaims(token) : null
 				if (claims === null) {
-					throw new StepFailure(`saveClaimsFrom: no JWT at ${from}`, [exchange], own === undefined ? [] : [own])
+					throw new StepFailure(`saveClaimsFrom: no JWT at ${from}`, [exchange], stepOp === undefined ? [] : [stepOp])
 				}
 				for (const [name, claim] of Object.entries(step.saveClaimsFrom.bind)) {
 					const value = readPath(claims, claim)
@@ -457,7 +460,7 @@ export async function runScenarios(input: {
 						throw new StepFailure(
 							`saveClaimsFrom: the token carries no "${claim}"`,
 							[exchange],
-							own === undefined ? [] : [own],
+							stepOp === undefined ? [] : [stepOp],
 						)
 					}
 					scope[name] = String(value)
@@ -478,14 +481,14 @@ export async function runScenarios(input: {
 			const prove = (id: string, want: Want): void => {
 				if (!calls.has(id)) return
 				if (calls.get(id) === exchange && !reads) return
-				observed.set(id, observationOf(want))
+				observations.set(id, observationOf(want))
 			}
 			for (const { assert, want } of wants) {
 				for (const id of assert.observes ?? []) prove(id, want)
 			}
 			/* The step's own operation is shown by the first thing the step asserts. */
 			const first = wants[0]
-			if (own !== undefined && first !== undefined) prove(own, first.want)
+			if (stepOp !== undefined && first !== undefined) prove(stepOp, first.want)
 		}
 	}
 }
