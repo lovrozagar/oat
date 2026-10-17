@@ -81,6 +81,25 @@ jobs:
           fi
           node dist/cli.js plan --spec labs/annotated-openapi.yaml --json > /tmp/oat-plan.json
 
+  # Servers, the CLI end to end, the goldens and the structure tests. Full history: the coverage
+  # floors guard compares against the last committed floors that differ from the tree's.
+  integration:
+    name: integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: bun install --frozen-lockfile
+      - run: bun run build && bun run test:integration
+
   test:
     name: conformance
     runs-on: ubuntu-latest

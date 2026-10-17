@@ -1,5 +1,6 @@
 import { defineConfig } from "vitest/config"
 import floors from "./coverage-floors.json" with { type: "json" }
+import { COVERAGE_EXCLUDE, COVERAGE_INCLUDE } from "./tests/support/coverage-scope.ts"
 
 /*
  * Two projects. `unit`: colocated tests beside their module, socket-free, the only source of
@@ -20,8 +21,8 @@ export default defineConfig({
 		],
 		coverage: {
 			provider: "v8",
-			include: ["src/**/*.ts", "lint/**/*.ts"],
-			exclude: ["**/*.test.ts", "**/__fixtures__/**", "**/*.d.ts", "**/index.ts", "lint/rule-harness.ts"],
+			include: [...COVERAGE_INCLUDE],
+			exclude: [...COVERAGE_EXCLUDE],
 			/* Per file, measured from unit tests alone: a floor is raised as tests land, never lowered,
 			 * and reaches 100 for a directory when it joins the ratchet. */
 			thresholds: floors,
