@@ -1,0 +1,311 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "3 root-cause findings",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "idempotency.replay-does-not-duplicate"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "create.unique-conflict-rejected",
+                "list.read-after-write",
+                "schema.error-response-matches-document",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 1,
+            "operationId": "table.create",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "idempotency.replay-does-not-duplicate"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "invalidation.declared-route-changes",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "tenant.parent-not-reachable-from-another-root",
+                "validation.content-type-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 1,
+            "operationId": "row.create",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "idempotency.replay-does-not-duplicate"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 1,
+            "operationId": "job.create",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "create.unique-conflict-rejected",
+                "idempotency.replay-does-not-duplicate",
+                "list.read-after-write",
+                "schema.error-response-matches-document",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "idempotency.replay-does-not-duplicate",
+                "invalidation.declared-route-changes",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "tenant.parent-not-reachable-from-another-root",
+                "validation.content-type-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "idempotency.replay-does-not-duplicate",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "teardown": {
+      "records": {},
+      "removed": {
+        "now": 83,
+        "was": 80
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "idempotency.replay-does-not-duplicate",
+          "detail": "the replay carrying Idempotency-Key: \"oat-idem-NONCE-job\" answered with the original job job_ID, yet the collection went from 14 to 15 records. The response hides a duplicate the retry still made.",
+          "entity": "job",
+          "operations": [
+            "job.create"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&page=1"
+            },
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&page=1"
+            },
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs"
+            },
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs"
+            }
+          ],
+          "summary": "replaying a request with the same idempotency key grew the collection",
+          "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "idempotency.replay-does-not-duplicate",
+          "detail": "the replay carrying Idempotency-Key: \"oat-idem-NONCE-row\" answered with the original row row_ID, yet the collection went from 14 to 15 records. The response hides a duplicate the retry still made.",
+          "entity": "row",
+          "operations": [
+            "row.create"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&page=3"
+            },
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&page=4"
+            },
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows"
+            },
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows"
+            }
+          ],
+          "summary": "replaying a request with the same idempotency key grew the collection",
+          "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "idempotency.replay-does-not-duplicate",
+          "detail": "the replay carrying Idempotency-Key: \"oat-idem-NONCE-table\" answered with the original table table_ID, yet the collection went from 17 to 18 records. The response hides a duplicate the retry still made.",
+          "entity": "table",
+          "operations": [
+            "table.create"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&page=1"
+            },
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&page=1"
+            },
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables"
+            },
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables"
+            }
+          ],
+          "summary": "replaying a request with the same idempotency key grew the collection",
+          "verdict": "BACKEND_BUG"
+        }
+      ]
+    },
+    "summary": {
+      "BACKEND_BUG": {
+        "now": 3,
+        "was": null
+      }
+    }
+  }
+}

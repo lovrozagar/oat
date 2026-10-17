@@ -1,0 +1,258 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "3 root-cause findings",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "tenant.denial-does-not-reveal-existence"
+              ],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "consistency.projections-agree",
+                "invalidation.declared-route-changes",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 1,
+            "operationId": "table.get",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "tenant.denial-does-not-reveal-existence"
+              ],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "consistency.projections-agree",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.item-not-readable-cross-tenant",
+                "tenant.parent-not-reachable-from-another-root"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 1,
+            "operationId": "row.get",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "tenant.denial-does-not-reveal-existence"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "consistency.projections-agree",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 1,
+            "operationId": "job.get",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "consistency.projections-agree",
+                "invalidation.declared-route-changes",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "consistency.projections-agree",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant",
+                "tenant.parent-not-reachable-from-another-root"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "consistency.projections-agree",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "tenant.denial-does-not-reveal-existence",
+          "detail": "a record belonging to another tenant was refused with 403, while an id that does not exist was refused with 404. The difference is an oracle: anyone able to guess or enumerate identifiers can learn which ones are real without ever reading one. Both cases must answer identically — conventionally 404.",
+          "entity": "job",
+          "operations": [
+            "job.get"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 403,
+              "url": "http://reference.test/v1/projects/proj_beta/jobs/job_ID"
+            },
+            {
+              "method": "GET",
+              "status": 404,
+              "url": "http://reference.test/v1/projects/proj_beta/jobs/oat-absent-NONCE"
+            }
+          ],
+          "summary": "the denial status reveals whether a record exists",
+          "verdict": "SECURITY"
+        },
+        {
+          "check": "tenant.denial-does-not-reveal-existence",
+          "detail": "a record belonging to another tenant was refused with 403, while an id that does not exist was refused with 404. The difference is an oracle: anyone able to guess or enumerate identifiers can learn which ones are real without ever reading one. Both cases must answer identically — conventionally 404.",
+          "entity": "row",
+          "operations": [
+            "row.get"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 403,
+              "url": "http://reference.test/v1/projects/proj_beta/tables/table_ID/rows/row_ID"
+            },
+            {
+              "method": "GET",
+              "status": 404,
+              "url": "http://reference.test/v1/projects/proj_beta/tables/table_ID/rows/oat-absent-NONCE"
+            }
+          ],
+          "summary": "the denial status reveals whether a record exists",
+          "verdict": "SECURITY"
+        },
+        {
+          "check": "tenant.denial-does-not-reveal-existence",
+          "detail": "a record belonging to another tenant was refused with 403, while an id that does not exist was refused with 404. The difference is an oracle: anyone able to guess or enumerate identifiers can learn which ones are real without ever reading one. Both cases must answer identically — conventionally 404.",
+          "entity": "table",
+          "operations": [
+            "table.get"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 403,
+              "url": "http://reference.test/v1/projects/proj_beta/tables/table_ID"
+            },
+            {
+              "method": "GET",
+              "status": 404,
+              "url": "http://reference.test/v1/projects/proj_beta/tables/oat-absent-NONCE"
+            }
+          ],
+          "summary": "the denial status reveals whether a record exists",
+          "verdict": "SECURITY"
+        }
+      ]
+    },
+    "summary": {
+      "SECURITY": {
+        "now": 3,
+        "was": null
+      }
+    }
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "1 root-cause finding",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "read.matches-caller-root"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [],
+              "suppressed": []
+            },
+            "entity": "overview",
+            "findings": 1,
+            "operationId": "project.overview",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "read.matches-caller-root"
+              ],
+              "suppressed": []
+            },
+            "entity": "overview",
+            "findings": 0,
+            "operationId": "project.overview",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "read.matches-caller-root",
+          "detail": "project.overview returned 200 with no credential.",
+          "entity": "overview",
+          "operations": [
+            "project.overview"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/overview"
+            }
+          ],
+          "summary": "the parent read answered without a token",
+          "verdict": "SECURITY"
+        }
+      ]
+    },
+    "summary": {
+      "SECURITY": {
+        "now": 1,
+        "was": null
+      }
+    }
+  }
+}

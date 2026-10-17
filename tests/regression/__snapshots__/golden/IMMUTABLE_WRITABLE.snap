@@ -1,0 +1,306 @@
+{
+  "exitCode": 4,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 4,
+        "was": 0
+      },
+      "reason": {
+        "now": "records may remain: 3 teardown could not show gone",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "leftovers",
+        "was": "clean"
+      }
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "patch.immutable-field-rejected"
+              ],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "concurrency.no-lost-update",
+                "patch.minimality",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant",
+                "update.unique-conflict-rejected"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 1,
+            "operationId": "table.update",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "patch.immutable-field-rejected"
+              ],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "concurrency.no-lost-update",
+                "patch.minimality",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 1,
+            "operationId": "row.update",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "patch.immutable-field-rejected"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "concurrency.no-lost-update",
+                "patch.minimality",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 1,
+            "operationId": "job.update",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant",
+                "update.unique-conflict-rejected"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "teardown": {
+      "failed": {
+        "added": [
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "moved by a write to \"project_id\" the backend accepted (job.update); DELETE /v1/projects/proj_alpha/jobs/job_ID returned alpha: 404"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "moved by a write to \"table_id\" the backend accepted (row.update); DELETE /v1/projects/proj_alpha/tables/table_ID/rows/row_ID returned alpha: 404"
+          },
+          {
+            "entity": "table",
+            "id": "table_ID",
+            "principal": "alpha",
+            "reason": "moved by a write to \"project_id\" the backend accepted (table.update); DELETE /v1/projects/proj_alpha/tables/table_ID returned alpha: 404"
+          }
+        ]
+      },
+      "records": {
+        "added": [
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "table",
+            "id": "table_ID",
+            "principal": "alpha",
+            "removed": false
+          }
+        ]
+      },
+      "removed": {
+        "now": 77,
+        "was": 80
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "patch.immutable-field-rejected",
+          "detail": "PATCH set \"project_id\" to a client-supplied value and the change persisted. Server-owned fields must reject writes, not absorb them.",
+          "entity": "job",
+          "operations": [
+            "job.update"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 404,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs/job_ID"
+            },
+            {
+              "method": "PATCH",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs/job_ID"
+            }
+          ],
+          "summary": "a field declared immutable accepted a write",
+          "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "patch.immutable-field-rejected",
+          "detail": "PATCH set \"project_id\" to a client-supplied value and the change persisted. Server-owned fields must reject writes, not absorb them.",
+          "entity": "table",
+          "operations": [
+            "table.update"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 404,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID"
+            },
+            {
+              "method": "PATCH",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID"
+            }
+          ],
+          "summary": "a field declared immutable accepted a write",
+          "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "patch.immutable-field-rejected",
+          "detail": "PATCH set \"table_id\" to a client-supplied value and the change persisted. Server-owned fields must reject writes, not absorb them.",
+          "entity": "row",
+          "operations": [
+            "row.update"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 404,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows/row_ID"
+            },
+            {
+              "method": "PATCH",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows/row_ID"
+            }
+          ],
+          "summary": "a field declared immutable accepted a write",
+          "verdict": "BACKEND_BUG"
+        }
+      ]
+    },
+    "summary": {
+      "BACKEND_BUG": {
+        "now": 3,
+        "was": null
+      }
+    }
+  }
+}

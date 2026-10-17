@@ -1,0 +1,1347 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "2 root-cause findings",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "checksRun": {
+      "removed": [
+        "filter.alias-matches-canonical",
+        "filter.condition-cap-rejected",
+        "filter.empty-in",
+        "filter.ilike-is-case-insensitive",
+        "filter.in-is-union-of-eq",
+        "filter.in-over-limit-rejected",
+        "filter.is-null-selects-nulls",
+        "filter.nin-complements-in",
+        "sort.nulls-first-last"
+      ]
+    },
+    "checksSkipped": {
+      "added": [
+        {
+          "check": "search.tokens-and",
+          "entity": "job",
+          "needs": "two discriminating search tokens in the cohort"
+        },
+        {
+          "check": "search.tokens-and",
+          "entity": "table",
+          "needs": "two discriminating search tokens in the cohort"
+        }
+      ]
+    },
+    "checksSuppressed": {
+      "added": [
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "concurrency.no-lost-update",
+          "entity": "job"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "concurrency.no-lost-update",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "consistency.projections-agree",
+          "entity": "job"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "consistency.projections-agree",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "filter.alias-matches-canonical",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "filter.and-composes-as-intersection",
+          "entity": "job"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "filter.and-composes-as-intersection",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "filter.condition-cap-rejected",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "filter.empty-in",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "filter.gte-is-gt-or-eq",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "filter.ilike-is-case-insensitive",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "filter.in-is-union-of-eq",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "filter.in-over-limit-rejected",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "filter.is-null-selects-nulls",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "filter.lte-is-lt-or-eq",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "filter.negation-partitions-the-set",
+          "entity": "job"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "filter.negation-partitions-the-set",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "filter.nested-and-or-distributes",
+          "entity": "job"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "filter.nested-and-or-distributes",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "filter.nin-complements-in",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "filter.or-composes-as-union",
+          "entity": "job"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "filter.or-composes-as-union",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "filter.ordered-triple-partitions",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "idempotency.replay-does-not-duplicate",
+          "entity": "job"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "idempotency.replay-does-not-duplicate",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "pagination.cursor-agrees-with-page",
+          "entity": "job"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "pagination.cursor-agrees-with-page",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "query.filter-and-select-compose",
+          "entity": "job"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "query.filter-and-select-compose",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "query.filter-search-select-compose",
+          "entity": "job"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "query.filter-search-select-compose",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "query.filter-search-sort-compose",
+          "entity": "job"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "query.filter-search-sort-compose",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "query.filter-search-sort-select-compose",
+          "entity": "job"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "query.filter-search-sort-select-compose",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "query.filter-sort-select-compose",
+          "entity": "job"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "query.filter-sort-select-compose",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "query.search-and-filter-compose",
+          "entity": "job"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "query.search-and-filter-compose",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "sort.multi-key-tiebreak",
+          "entity": "job"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "sort.multi-key-tiebreak",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "sort.nulls-first-last",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "sort.reverse-symmetry",
+          "entity": "job"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "sort.reverse-symmetry",
+          "entity": "table"
+        }
+      ]
+    },
+    "inconclusive": {
+      "added": [
+        {
+          "check": "payload.string-survives",
+          "entity": "table",
+          "reason": "the ASCII control write was rejected with 409, so the field refuses ordinary strings",
+          "operations": [
+            "table.get",
+            "table.update"
+          ]
+        }
+      ]
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "create.persists-submitted-fields"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.status-matches-document",
+                "create.unique-conflict-rejected",
+                "list.read-after-write",
+                "schema.error-response-matches-document",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": [
+                "idempotency.replay-does-not-duplicate"
+              ]
+            },
+            "entity": "table",
+            "findings": 1,
+            "operationId": "table.create",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "create.persists-submitted-fields"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.status-matches-document",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": [
+                "idempotency.replay-does-not-duplicate"
+              ]
+            },
+            "entity": "job",
+            "findings": 1,
+            "operationId": "job.create",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [
+                "payload.string-survives"
+              ],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "invalidation.declared-route-changes",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": [
+                "consistency.projections-agree"
+              ]
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [
+                "payload.string-survives"
+              ],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant",
+                "update.unique-conflict-rejected"
+              ],
+              "suppressed": [
+                "concurrency.no-lost-update"
+              ]
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": [
+                "consistency.projections-agree"
+              ]
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": [
+                "concurrency.no-lost-update"
+              ]
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "count.consistent-with-returned-page",
+                "count.matches-filtered-set",
+                "error.malformed-filter-not-5xx",
+                "filter.equality-selects-exactly-one",
+                "filter.illegal-op-rejected",
+                "filter.like-metacharacters-escaped",
+                "filter.malformed-term-rejected",
+                "filter.numeric-comparison-is-numeric",
+                "filter.unknown-field-rejected",
+                "filter.zero-match-returns-none",
+                "invalidation.declared-route-changes",
+                "list.read-after-write",
+                "pagination.bounds-handled",
+                "pagination.has-more-is-accurate",
+                "pagination.limit-bounds-enforced",
+                "pagination.limit-bounds-page-size",
+                "pagination.page-walk-covers-set",
+                "query.axes-compose",
+                "query.filter-selects-from-whole-set",
+                "query.search-and-select-compose",
+                "query.search-and-sort-compose",
+                "query.sort-and-select-compose",
+                "query.unknown-parameter-consistent",
+                "response.status-is-documented",
+                "search.case-insensitive",
+                "search.empty-q",
+                "search.mode-accepted",
+                "search.q-narrows-result",
+                "select.projection-honoured",
+                "select.requested-fields-present",
+                "select.unknown-field-rejected",
+                "softdelete.absent-from-default-list",
+                "sort.default-order-applied",
+                "sort.numeric-order-is-numeric",
+                "sort.order-is-applied",
+                "sort.stable-tiebreak",
+                "sort.unknown-field-rejected",
+                "spec.declared-filterable-is-filterable",
+                "spec.declared-filterable-ops-accepted",
+                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-selectable-is-selectable",
+                "spec.declared-sortable-is-sortable",
+                "spec.declared-sortable-nulls-accepted",
+                "tenant.filter-does-not-bypass-scope"
+              ],
+              "suppressed": [
+                "consistency.projections-agree",
+                "filter.alias-matches-canonical",
+                "filter.and-composes-as-intersection",
+                "filter.condition-cap-rejected",
+                "filter.empty-in",
+                "filter.gte-is-gt-or-eq",
+                "filter.ilike-is-case-insensitive",
+                "filter.in-is-union-of-eq",
+                "filter.in-over-limit-rejected",
+                "filter.is-null-selects-nulls",
+                "filter.lte-is-lt-or-eq",
+                "filter.negation-partitions-the-set",
+                "filter.nested-and-or-distributes",
+                "filter.nin-complements-in",
+                "filter.or-composes-as-union",
+                "filter.ordered-triple-partitions",
+                "pagination.cursor-agrees-with-page",
+                "query.filter-and-select-compose",
+                "query.filter-search-select-compose",
+                "query.filter-search-sort-compose",
+                "query.filter-search-sort-select-compose",
+                "query.filter-sort-select-compose",
+                "query.search-and-filter-compose",
+                "sort.multi-key-tiebreak",
+                "sort.nulls-first-last",
+                "sort.reverse-symmetry"
+              ]
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.list",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "count.consistent-with-returned-page",
+                "count.matches-filtered-set",
+                "error.malformed-filter-not-5xx",
+                "filter.equality-selects-exactly-one",
+                "filter.illegal-op-rejected",
+                "filter.like-metacharacters-escaped",
+                "filter.malformed-term-rejected",
+                "filter.unknown-field-rejected",
+                "filter.zero-match-returns-none",
+                "list.read-after-write",
+                "pagination.bounds-handled",
+                "pagination.has-more-is-accurate",
+                "pagination.limit-bounds-enforced",
+                "pagination.limit-bounds-page-size",
+                "pagination.page-walk-covers-set",
+                "query.axes-compose",
+                "query.filter-selects-from-whole-set",
+                "query.search-and-select-compose",
+                "query.search-and-sort-compose",
+                "query.sort-and-select-compose",
+                "query.unknown-parameter-consistent",
+                "response.status-is-documented",
+                "search.case-insensitive",
+                "search.empty-q",
+                "search.mode-accepted",
+                "search.q-narrows-result",
+                "select.projection-honoured",
+                "select.requested-fields-present",
+                "sort.default-order-applied",
+                "sort.order-is-applied",
+                "sort.stable-tiebreak",
+                "sort.unknown-field-rejected",
+                "spec.declared-filterable-is-filterable",
+                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-selectable-is-selectable",
+                "spec.declared-sortable-is-sortable",
+                "tenant.filter-does-not-bypass-scope"
+              ],
+              "suppressed": [
+                "consistency.projections-agree",
+                "filter.and-composes-as-intersection",
+                "filter.negation-partitions-the-set",
+                "filter.nested-and-or-distributes",
+                "filter.or-composes-as-union",
+                "pagination.cursor-agrees-with-page",
+                "query.filter-and-select-compose",
+                "query.filter-search-select-compose",
+                "query.filter-search-sort-compose",
+                "query.filter-search-sort-select-compose",
+                "query.filter-sort-select-compose",
+                "query.search-and-filter-compose",
+                "sort.multi-key-tiebreak",
+                "sort.reverse-symmetry"
+              ]
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.list",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "consistency.projections-agree",
+                "invalidation.declared-route-changes",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant",
+                "update.unique-conflict-rejected"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "consistency.projections-agree",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "create.unique-conflict-rejected",
+                "idempotency.replay-does-not-duplicate",
+                "list.read-after-write",
+                "schema.error-response-matches-document",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "idempotency.replay-does-not-duplicate",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "consistency.projections-agree",
+                "count.consistent-with-returned-page",
+                "count.matches-filtered-set",
+                "error.malformed-filter-not-5xx",
+                "filter.alias-matches-canonical",
+                "filter.and-composes-as-intersection",
+                "filter.condition-cap-rejected",
+                "filter.empty-in",
+                "filter.equality-selects-exactly-one",
+                "filter.gte-is-gt-or-eq",
+                "filter.ilike-is-case-insensitive",
+                "filter.illegal-op-rejected",
+                "filter.in-is-union-of-eq",
+                "filter.in-over-limit-rejected",
+                "filter.is-null-selects-nulls",
+                "filter.like-metacharacters-escaped",
+                "filter.lte-is-lt-or-eq",
+                "filter.malformed-term-rejected",
+                "filter.negation-partitions-the-set",
+                "filter.nested-and-or-distributes",
+                "filter.nin-complements-in",
+                "filter.numeric-comparison-is-numeric",
+                "filter.or-composes-as-union",
+                "filter.ordered-triple-partitions",
+                "filter.unknown-field-rejected",
+                "filter.zero-match-returns-none",
+                "invalidation.declared-route-changes",
+                "list.read-after-write",
+                "pagination.bounds-handled",
+                "pagination.cursor-agrees-with-page",
+                "pagination.has-more-is-accurate",
+                "pagination.limit-bounds-enforced",
+                "pagination.limit-bounds-page-size",
+                "pagination.page-walk-covers-set",
+                "query.axes-compose",
+                "query.filter-and-select-compose",
+                "query.filter-search-select-compose",
+                "query.filter-search-sort-compose",
+                "query.filter-search-sort-select-compose",
+                "query.filter-selects-from-whole-set",
+                "query.filter-sort-select-compose",
+                "query.search-and-filter-compose",
+                "query.search-and-select-compose",
+                "query.search-and-sort-compose",
+                "query.sort-and-select-compose",
+                "query.unknown-parameter-consistent",
+                "response.status-is-documented",
+                "search.case-insensitive",
+                "search.empty-q",
+                "search.mode-accepted",
+                "search.q-narrows-result",
+                "search.tokens-and",
+                "select.projection-honoured",
+                "select.requested-fields-present",
+                "select.unknown-field-rejected",
+                "softdelete.absent-from-default-list",
+                "sort.default-order-applied",
+                "sort.multi-key-tiebreak",
+                "sort.nulls-first-last",
+                "sort.numeric-order-is-numeric",
+                "sort.order-is-applied",
+                "sort.reverse-symmetry",
+                "sort.stable-tiebreak",
+                "sort.unknown-field-rejected",
+                "spec.declared-filterable-is-filterable",
+                "spec.declared-filterable-ops-accepted",
+                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-selectable-is-selectable",
+                "spec.declared-sortable-is-sortable",
+                "spec.declared-sortable-nulls-accepted",
+                "tenant.filter-does-not-bypass-scope"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.list",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "consistency.projections-agree",
+                "count.consistent-with-returned-page",
+                "count.matches-filtered-set",
+                "error.malformed-filter-not-5xx",
+                "filter.and-composes-as-intersection",
+                "filter.equality-selects-exactly-one",
+                "filter.illegal-op-rejected",
+                "filter.like-metacharacters-escaped",
+                "filter.malformed-term-rejected",
+                "filter.negation-partitions-the-set",
+                "filter.nested-and-or-distributes",
+                "filter.or-composes-as-union",
+                "filter.unknown-field-rejected",
+                "filter.zero-match-returns-none",
+                "list.read-after-write",
+                "pagination.bounds-handled",
+                "pagination.cursor-agrees-with-page",
+                "pagination.has-more-is-accurate",
+                "pagination.limit-bounds-enforced",
+                "pagination.limit-bounds-page-size",
+                "pagination.page-walk-covers-set",
+                "query.axes-compose",
+                "query.filter-and-select-compose",
+                "query.filter-search-select-compose",
+                "query.filter-search-sort-compose",
+                "query.filter-search-sort-select-compose",
+                "query.filter-selects-from-whole-set",
+                "query.filter-sort-select-compose",
+                "query.search-and-filter-compose",
+                "query.search-and-select-compose",
+                "query.search-and-sort-compose",
+                "query.sort-and-select-compose",
+                "query.unknown-parameter-consistent",
+                "response.status-is-documented",
+                "search.case-insensitive",
+                "search.empty-q",
+                "search.mode-accepted",
+                "search.q-narrows-result",
+                "search.tokens-and",
+                "select.projection-honoured",
+                "select.requested-fields-present",
+                "sort.default-order-applied",
+                "sort.multi-key-tiebreak",
+                "sort.order-is-applied",
+                "sort.reverse-symmetry",
+                "sort.stable-tiebreak",
+                "sort.unknown-field-rejected",
+                "spec.declared-filterable-is-filterable",
+                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-selectable-is-selectable",
+                "spec.declared-sortable-is-sortable",
+                "tenant.filter-does-not-bypass-scope"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.list",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "teardown": {
+      "records": {},
+      "removed": {
+        "now": 73,
+        "was": 80
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "create.persists-submitted-fields",
+          "detail": "the create response does not carry back 1 submitted field(s): name sent \"Quarterly Report 0\", got \"name\". A write that reports success and drops data is worse than one that fails.",
+          "entity": "job",
+          "operations": [
+            "job.create"
+          ],
+          "evidence": [
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs"
+            }
+          ],
+          "summary": "create silently discards submitted fields",
+          "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "create.persists-submitted-fields",
+          "detail": "the create response does not carry back 1 submitted field(s): name sent \"Quarterly Report 297 anc42-a7a7a7a7\", got \"name\". A write that reports success and drops data is worse than one that fails.",
+          "entity": "table",
+          "operations": [
+            "table.create"
+          ],
+          "evidence": [
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables"
+            }
+          ],
+          "summary": "create silently discards submitted fields",
+          "verdict": "BACKEND_BUG"
+        }
+      ],
+      "removed": [
+        {
+          "check": "payload.string-survives",
+          "detail": "the whole catalog already ran against this write path on job, so this field got one case of each family. Set `payloads: \"full\"` to send every case to every field.",
+          "entity": "table",
+          "operations": [
+            "table.get",
+            "table.update"
+          ],
+          "evidence": [],
+          "summary": "12 of 159 payload cases sent to \"description\"",
+          "verdict": "COVERAGE_GAP"
+        }
+      ]
+    },
+    "costByCheck": {
+      "removed": [
+        {
+          "check": "filter.alias-matches-canonical"
+        },
+        {
+          "check": "filter.condition-cap-rejected"
+        },
+        {
+          "check": "filter.empty-in"
+        },
+        {
+          "check": "filter.ilike-is-case-insensitive"
+        },
+        {
+          "check": "filter.in-is-union-of-eq"
+        },
+        {
+          "check": "filter.in-over-limit-rejected"
+        },
+        {
+          "check": "filter.is-null-selects-nulls"
+        },
+        {
+          "check": "filter.nin-complements-in"
+        },
+        {
+          "check": "sort.nulls-first-last"
+        }
+      ]
+    },
+    "summary": {
+      "COVERAGE_GAP": {
+        "now": 1,
+        "was": 2
+      },
+      "BACKEND_BUG": {
+        "now": 2,
+        "was": null
+      }
+    },
+    "coverage": {
+      "partial": {
+        "added": [
+          {
+            "check": "concurrency.no-lost-update",
+            "ran": 3,
+            "skipped": 1
+          },
+          {
+            "check": "consistency.projections-agree",
+            "ran": 3,
+            "skipped": 1
+          },
+          {
+            "check": "filter.alias-matches-canonical",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "filter.and-composes-as-intersection",
+            "ran": 3,
+            "skipped": 1
+          },
+          {
+            "check": "filter.condition-cap-rejected",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "filter.empty-in",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "filter.gte-is-gt-or-eq",
+            "ran": 3,
+            "skipped": 2
+          },
+          {
+            "check": "filter.ilike-is-case-insensitive",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "filter.in-is-union-of-eq",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "filter.in-over-limit-rejected",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "filter.is-null-selects-nulls",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "filter.lte-is-lt-or-eq",
+            "ran": 3,
+            "skipped": 2
+          },
+          {
+            "check": "filter.negation-partitions-the-set",
+            "ran": 3,
+            "skipped": 1
+          },
+          {
+            "check": "filter.nested-and-or-distributes",
+            "ran": 3,
+            "skipped": 1
+          },
+          {
+            "check": "filter.nin-complements-in",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "filter.or-composes-as-union",
+            "ran": 3,
+            "skipped": 1
+          },
+          {
+            "check": "filter.ordered-triple-partitions",
+            "ran": 3,
+            "skipped": 2
+          },
+          {
+            "check": "idempotency.replay-does-not-duplicate",
+            "ran": 3,
+            "skipped": 1
+          },
+          {
+            "check": "pagination.cursor-agrees-with-page",
+            "ran": 3,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-and-select-compose",
+            "ran": 3,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-search-select-compose",
+            "ran": 3,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-search-sort-compose",
+            "ran": 3,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-search-sort-select-compose",
+            "ran": 3,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-sort-select-compose",
+            "ran": 3,
+            "skipped": 1
+          },
+          {
+            "check": "query.search-and-filter-compose",
+            "ran": 3,
+            "skipped": 1
+          },
+          {
+            "check": "search.tokens-and",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "sort.multi-key-tiebreak",
+            "ran": 3,
+            "skipped": 1
+          },
+          {
+            "check": "sort.nulls-first-last",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "sort.reverse-symmetry",
+            "ran": 3,
+            "skipped": 1
+          }
+        ],
+        "removed": [
+          {
+            "check": "concurrency.no-lost-update",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "consistency.projections-agree",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "filter.alias-matches-canonical",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "filter.and-composes-as-intersection",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "filter.condition-cap-rejected",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "filter.empty-in",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "filter.gte-is-gt-or-eq",
+            "ran": 4,
+            "skipped": 2
+          },
+          {
+            "check": "filter.ilike-is-case-insensitive",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "filter.in-is-union-of-eq",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "filter.in-over-limit-rejected",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "filter.is-null-selects-nulls",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "filter.lte-is-lt-or-eq",
+            "ran": 4,
+            "skipped": 2
+          },
+          {
+            "check": "filter.negation-partitions-the-set",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "filter.nested-and-or-distributes",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "filter.nin-complements-in",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "filter.or-composes-as-union",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "filter.ordered-triple-partitions",
+            "ran": 4,
+            "skipped": 2
+          },
+          {
+            "check": "idempotency.replay-does-not-duplicate",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "pagination.cursor-agrees-with-page",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-and-select-compose",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-search-select-compose",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-search-sort-compose",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-search-sort-select-compose",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-sort-select-compose",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "query.search-and-filter-compose",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "search.tokens-and",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "sort.multi-key-tiebreak",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "sort.nulls-first-last",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "sort.reverse-symmetry",
+            "ran": 5,
+            "skipped": 1
+          }
+        ]
+      }
+    }
+  }
+}

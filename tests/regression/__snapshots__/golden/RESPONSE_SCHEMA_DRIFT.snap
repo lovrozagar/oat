@@ -1,0 +1,259 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "3 root-cause findings",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "schema.success-response-matches-document"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "create.unique-conflict-rejected",
+                "idempotency.replay-does-not-duplicate",
+                "list.read-after-write",
+                "schema.error-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 1,
+            "operationId": "table.create",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "schema.success-response-matches-document"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "idempotency.replay-does-not-duplicate",
+                "invalidation.declared-route-changes",
+                "list.read-after-write",
+                "tenant.parent-not-reachable-from-another-root",
+                "validation.content-type-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 1,
+            "operationId": "row.create",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "schema.success-response-matches-document"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "idempotency.replay-does-not-duplicate",
+                "list.read-after-write",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 1,
+            "operationId": "job.create",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "create.unique-conflict-rejected",
+                "idempotency.replay-does-not-duplicate",
+                "list.read-after-write",
+                "schema.error-response-matches-document",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "idempotency.replay-does-not-duplicate",
+                "invalidation.declared-route-changes",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "tenant.parent-not-reachable-from-another-root",
+                "validation.content-type-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "idempotency.replay-does-not-duplicate",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "schema.success-response-matches-document",
+          "detail": "job.create returned 201 with a body that fails the declared schema: (root) must NOT have additional properties. Either the handler returns more than it promises or the document is out of date — both break generated clients.",
+          "entity": "job",
+          "operations": [
+            "job.create"
+          ],
+          "evidence": [
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs"
+            }
+          ],
+          "summary": "success response does not match its documented schema",
+          "verdict": "SPEC_BUG"
+        },
+        {
+          "check": "schema.success-response-matches-document",
+          "detail": "row.create returned 201 with a body that fails the declared schema: (root) must NOT have additional properties. Either the handler returns more than it promises or the document is out of date — both break generated clients.",
+          "entity": "row",
+          "operations": [
+            "row.create"
+          ],
+          "evidence": [
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows"
+            }
+          ],
+          "summary": "success response does not match its documented schema",
+          "verdict": "SPEC_BUG"
+        },
+        {
+          "check": "schema.success-response-matches-document",
+          "detail": "table.create returned 201 with a body that fails the declared schema: (root) must NOT have additional properties. Either the handler returns more than it promises or the document is out of date — both break generated clients.",
+          "entity": "table",
+          "operations": [
+            "table.create"
+          ],
+          "evidence": [
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables"
+            }
+          ],
+          "summary": "success response does not match its documented schema",
+          "verdict": "SPEC_BUG"
+        }
+      ]
+    },
+    "summary": {
+      "SPEC_BUG": {
+        "now": 3,
+        "was": null
+      }
+    }
+  }
+}

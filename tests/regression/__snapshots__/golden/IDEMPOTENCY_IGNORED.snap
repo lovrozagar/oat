@@ -1,0 +1,275 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "2 root-cause findings",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "inconclusive": {
+      "added": [
+        {
+          "check": "idempotency.replay-does-not-duplicate",
+          "entity": "table",
+          "reason": "the replay returned 409; a repeated key must be answered, not refused",
+          "operations": [
+            "table.create"
+          ]
+        }
+      ]
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "idempotency.replay-does-not-duplicate"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "invalidation.declared-route-changes",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "tenant.parent-not-reachable-from-another-root",
+                "validation.content-type-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 1,
+            "operationId": "row.create",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "idempotency.replay-does-not-duplicate"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 1,
+            "operationId": "job.create",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [
+                "idempotency.replay-does-not-duplicate"
+              ],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "create.unique-conflict-rejected",
+                "list.read-after-write",
+                "schema.error-response-matches-document",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "create.unique-conflict-rejected",
+                "idempotency.replay-does-not-duplicate",
+                "list.read-after-write",
+                "schema.error-response-matches-document",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "idempotency.replay-does-not-duplicate",
+                "invalidation.declared-route-changes",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "tenant.parent-not-reachable-from-another-root",
+                "validation.content-type-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "idempotency.replay-does-not-duplicate",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "teardown": {
+      "records": {},
+      "removed": {
+        "now": 82,
+        "was": 80
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "idempotency.replay-does-not-duplicate",
+          "detail": "two identical POSTs carrying Idempotency-Key: \"oat-idem-NONCE-job\" produced job job_ID and job_ID. The header is declared, so clients will retry on timeouts assuming it protects them; every such retry silently duplicates the record.",
+          "entity": "job",
+          "operations": [
+            "job.create"
+          ],
+          "evidence": [
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs"
+            },
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs"
+            }
+          ],
+          "summary": "replaying a request with the same idempotency key created a second record",
+          "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "idempotency.replay-does-not-duplicate",
+          "detail": "two identical POSTs carrying Idempotency-Key: \"oat-idem-NONCE-row\" produced row row_ID and row_ID. The header is declared, so clients will retry on timeouts assuming it protects them; every such retry silently duplicates the record.",
+          "entity": "row",
+          "operations": [
+            "row.create"
+          ],
+          "evidence": [
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows"
+            },
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows"
+            }
+          ],
+          "summary": "replaying a request with the same idempotency key created a second record",
+          "verdict": "BACKEND_BUG"
+        }
+      ]
+    },
+    "summary": {
+      "BACKEND_BUG": {
+        "now": 2,
+        "was": null
+      }
+    }
+  }
+}

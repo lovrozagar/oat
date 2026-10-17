@@ -1,0 +1,1115 @@
+[
+  {
+    "id": "create.keeps-submitted-identity",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a create that takes the record's identity from the client, and an item read"
+  },
+  {
+    "id": "list.read-after-write",
+    "dependsOn": [
+      "create.keeps-submitted-identity"
+    ],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a create operation and at least one seeded record"
+  },
+  {
+    "id": "list.item-matches-listed-row",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a list with no create and one listed row"
+  },
+  {
+    "id": "create.persists-submitted-fields",
+    "dependsOn": [
+      "list.read-after-write"
+    ],
+    "mutates": false,
+    "judgesTranscript": true,
+    "needs": "a create operation that echoes the record back"
+  },
+  {
+    "id": "create.status-matches-document",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": true,
+    "needs": "a create operation"
+  },
+  {
+    "id": "schema.success-response-matches-document",
+    "dependsOn": [
+      "create.status-matches-document"
+    ],
+    "mutates": false,
+    "judgesTranscript": true,
+    "needs": "a documented success schema on create"
+  },
+  {
+    "id": "pagination.limit-bounds-page-size",
+    "dependsOn": [
+      "list.read-after-write"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a page-size query parameter named `limit`"
+  },
+  {
+    "id": "pagination.limit-respects-documented-max",
+    "dependsOn": [
+      "pagination.limit-bounds-page-size"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a declared maxLimit, and more records than it"
+  },
+  {
+    "id": "pagination.has-more-is-accurate",
+    "dependsOn": [
+      "pagination.limit-bounds-page-size"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a way to page forward, and a more-pages signal in the body or a Link header"
+  },
+  {
+    "id": "sort.order-is-applied",
+    "dependsOn": [
+      "pagination.limit-bounds-page-size"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "an `order` parameter and a sortable field"
+  },
+  {
+    "id": "pagination.page-walk-covers-set",
+    "dependsOn": [
+      "list.read-after-write",
+      "pagination.limit-bounds-page-size",
+      "pagination.has-more-is-accurate",
+      "sort.order-is-applied"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a way to page forward — a page number, a row offset or a cursor — and at least three records"
+  },
+  {
+    "id": "pagination.cursor-agrees-with-page",
+    "dependsOn": [
+      "pagination.page-walk-covers-set",
+      "create.persists-submitted-fields",
+      "pagination.limit-respects-documented-max"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "both `cursor` and `page` parameters"
+  },
+  {
+    "id": "query.filter-selects-from-whole-set",
+    "dependsOn": [
+      "list.read-after-write",
+      "pagination.page-walk-covers-set"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a filterable field and more than two records"
+  },
+  {
+    "id": "pagination.bounds-handled",
+    "dependsOn": [
+      "list.read-after-write",
+      "pagination.page-walk-covers-set"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a page-size or page-number parameter, and at least one record"
+  },
+  {
+    "id": "sort.numeric-order-is-numeric",
+    "dependsOn": [
+      "sort.order-is-applied",
+      "pagination.page-walk-covers-set"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a numeric sortable field whose lexical order disagrees with numeric order"
+  },
+  {
+    "id": "sort.stable-tiebreak",
+    "dependsOn": [
+      "pagination.page-walk-covers-set",
+      "sort.order-is-applied"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a declared stableTiebreak and a tie on the primary key"
+  },
+  {
+    "id": "sort.reverse-symmetry",
+    "dependsOn": [
+      "create.persists-submitted-fields",
+      "sort.order-is-applied",
+      "pagination.page-walk-covers-set"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "an `order` parameter supporting asc and desc"
+  },
+  {
+    "id": "sort.nulls-first-last",
+    "dependsOn": [
+      "sort.order-is-applied",
+      "sort.reverse-symmetry"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a declared nulls token, a dotted sort grammar, and a null in the cohort"
+  },
+  {
+    "id": "sort.multi-key-tiebreak",
+    "dependsOn": [
+      "sort.order-is-applied",
+      "sort.reverse-symmetry"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "two sortable fields and rows that tie on the first and differ on the second"
+  },
+  {
+    "id": "sort.default-order-applied",
+    "dependsOn": [
+      "sort.order-is-applied",
+      "pagination.page-walk-covers-set"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a declared defaultOrder and a complete walk"
+  },
+  {
+    "id": "filter.unknown-field-rejected",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a way to express a filter — a filter expression parameter, or filterable fields"
+  },
+  {
+    "id": "error.malformed-filter-not-5xx",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a way to express a filter — a filter expression parameter, or filterable fields"
+  },
+  {
+    "id": "sort.unknown-field-rejected",
+    "dependsOn": [
+      "error.malformed-filter-not-5xx"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "an order parameter"
+  },
+  {
+    "id": "sort.invalid-direction-rejected",
+    "dependsOn": [
+      "sort.order-is-applied"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a declared sort grammar with a token for each direction"
+  },
+  {
+    "id": "filter.equality-selects-exactly-one",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "list.read-after-write"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a `filter` parameter that accepts the identity field"
+  },
+  {
+    "id": "filter.zero-match-returns-none",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "list.read-after-write"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a `filter` parameter that accepts the identity field"
+  },
+  {
+    "id": "filter.negation-partitions-the-set",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "pagination.page-walk-covers-set"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a `filter` parameter supporting eq and neq"
+  },
+  {
+    "id": "filter.and-composes-as-intersection",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "filter.equality-selects-exactly-one",
+      "pagination.page-walk-covers-set"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "two filterable fields and a filter parameter or grammar supporting eq"
+  },
+  {
+    "id": "filter.or-composes-as-union",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "filter.equality-selects-exactly-one",
+      "pagination.page-walk-covers-set"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "two filterable fields and an or() combinator (postgrest-shaped filter grammar)"
+  },
+  {
+    "id": "filter.in-is-union-of-eq",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "pagination.page-walk-covers-set",
+      "filter.equality-selects-exactly-one"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a field that allows `in` and at least two distinct values"
+  },
+  {
+    "id": "filter.nin-complements-in",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "pagination.page-walk-covers-set",
+      "filter.in-is-union-of-eq"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a field that allows both `in` and `nin`"
+  },
+  {
+    "id": "filter.nested-and-or-distributes",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "pagination.page-walk-covers-set",
+      "filter.and-composes-as-intersection",
+      "filter.or-composes-as-union"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a postgrest-shaped grammar and two filterable fields"
+  },
+  {
+    "id": "filter.like-metacharacters-escaped",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "pagination.page-walk-covers-set",
+      "list.read-after-write"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a `filter` parameter supporting a like operator"
+  },
+  {
+    "id": "filter.ilike-is-case-insensitive",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "pagination.page-walk-covers-set",
+      "filter.like-metacharacters-escaped"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a field that allows both `ilike` and `like`, and a string with a letter"
+  },
+  {
+    "id": "filter.is-null-selects-nulls",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "pagination.page-walk-covers-set"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a field that allows `is` and a cohort that contains a null"
+  },
+  {
+    "id": "filter.contains-membership",
+    "dependsOn": [
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "pagination.page-walk-covers-set",
+      "query.filter-selects-from-whole-set"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "an array field that allows `contains` and a known element"
+  },
+  {
+    "id": "search.q-narrows-result",
+    "dependsOn": [
+      "list.read-after-write"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a free-text `q` parameter and declared searchable fields"
+  },
+  {
+    "id": "search.tokens-and",
+    "dependsOn": [
+      "pagination.page-walk-covers-set",
+      "search.q-narrows-result"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "searchable fields and two tokens that split the cohort"
+  },
+  {
+    "id": "search.case-insensitive",
+    "dependsOn": [
+      "pagination.page-walk-covers-set",
+      "search.q-narrows-result"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a searchable string with a letter"
+  },
+  {
+    "id": "search.empty-q",
+    "dependsOn": [
+      "pagination.page-walk-covers-set",
+      "search.q-narrows-result"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "`searchEmpty` declared"
+  },
+  {
+    "id": "search.mode-accepted",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "declared searchModes and a search-mode parameter"
+  },
+  {
+    "id": "select.projection-honoured",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a `select` sparse-fieldset parameter"
+  },
+  {
+    "id": "select.requested-fields-present",
+    "dependsOn": [
+      "select.projection-honoured"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a select parameter and at least one selectable field"
+  },
+  {
+    "id": "select.unknown-field-rejected",
+    "dependsOn": [
+      "select.projection-honoured",
+      "error.malformed-filter-not-5xx"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "`select.unknown` declared"
+  },
+  {
+    "id": "query.unknown-parameter-consistent",
+    "dependsOn": [
+      "list.read-after-write",
+      "pagination.page-walk-covers-set"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a listing and at least one record"
+  },
+  {
+    "id": "select.nested-honoured",
+    "dependsOn": [
+      "select.projection-honoured"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "select.nested and a named relation"
+  },
+  {
+    "id": "count.consistent-with-returned-page",
+    "dependsOn": [
+      "list.read-after-write"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a total-count field in the list envelope"
+  },
+  {
+    "id": "count.matches-filtered-set",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "list.read-after-write",
+      "filter.equality-selects-exactly-one"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a total-count field and a `filter` parameter"
+  },
+  {
+    "id": "filter.numeric-comparison-is-numeric",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "pagination.page-walk-covers-set",
+      "list.read-after-write",
+      "filter.unknown-field-rejected"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a `filter` parameter and a numeric field"
+  },
+  {
+    "id": "filter.gte-is-gt-or-eq",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "pagination.page-walk-covers-set",
+      "filter.equality-selects-exactly-one",
+      "filter.numeric-comparison-is-numeric"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "an ordered field that allows `gte` and `gt`"
+  },
+  {
+    "id": "filter.lte-is-lt-or-eq",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "pagination.page-walk-covers-set",
+      "filter.equality-selects-exactly-one",
+      "filter.numeric-comparison-is-numeric"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "an ordered field that allows `lte` and `lt`"
+  },
+  {
+    "id": "filter.ordered-triple-partitions",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "pagination.page-walk-covers-set",
+      "filter.equality-selects-exactly-one",
+      "filter.numeric-comparison-is-numeric"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "an ordered field that allows `lt`, `eq`, and `gt`"
+  },
+  {
+    "id": "create.unique-conflict-rejected",
+    "dependsOn": [
+      "pagination.page-walk-covers-set"
+    ],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "x-unique on create with at least one probeable column set, and a known row"
+  },
+  {
+    "id": "update.unique-conflict-rejected",
+    "dependsOn": [
+      "pagination.page-walk-covers-set"
+    ],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "x-unique, an update operation with a probeable set, a create, and a known row"
+  },
+  {
+    "id": "patch.minimality",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a create, a PATCH update and an item route"
+  },
+  {
+    "id": "patch.immutable-field-rejected",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "fields declared immutable via x-immutable"
+  },
+  {
+    "id": "payload.string-survives",
+    "dependsOn": [
+      "list.read-after-write"
+    ],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "an update or create+delete, an item route, and a writable unconstrained string"
+  },
+  {
+    "id": "idempotency.replay-does-not-duplicate",
+    "dependsOn": [
+      "pagination.page-walk-covers-set",
+      "list.read-after-write",
+      "create.persists-submitted-fields"
+    ],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a create operation declaring an idempotency-key header"
+  },
+  {
+    "id": "invalidation.declared-route-changes",
+    "dependsOn": [
+      "pagination.page-walk-covers-set",
+      "list.read-after-write",
+      "create.persists-submitted-fields"
+    ],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a create operation whose x-invalidate names another entity's read route"
+  },
+  {
+    "id": "consistency.projections-agree",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "pagination.page-walk-covers-set",
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "filter.equality-selects-exactly-one",
+      "select.projection-honoured",
+      "select.requested-fields-present",
+      "sort.order-is-applied"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "an item route and a record with a comparable field"
+  },
+  {
+    "id": "query.axes-compose",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "list.read-after-write",
+      "filter.equality-selects-exactly-one",
+      "sort.order-is-applied",
+      "select.projection-honoured",
+      "pagination.page-walk-covers-set"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a filterable field, a sortable field, and more than two records"
+  },
+  {
+    "id": "query.filter-and-select-compose",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "filter.equality-selects-exactly-one",
+      "select.projection-honoured",
+      "pagination.page-walk-covers-set"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a filterable field, a select parameter, and more than two records"
+  },
+  {
+    "id": "query.search-and-filter-compose",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "filter.equality-selects-exactly-one",
+      "search.q-narrows-result",
+      "pagination.page-walk-covers-set"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a filterable field, a free-text search parameter, and more than two records"
+  },
+  {
+    "id": "query.filter-sort-select-compose",
+    "dependsOn": [
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "filter.equality-selects-exactly-one",
+      "sort.order-is-applied",
+      "select.projection-honoured",
+      "pagination.page-walk-covers-set",
+      "query.axes-compose",
+      "query.filter-and-select-compose",
+      "query.filter-selects-from-whole-set"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a filterable field, a sortable field, a select parameter, and more than two records"
+  },
+  {
+    "id": "query.filter-search-sort-compose",
+    "dependsOn": [
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "filter.equality-selects-exactly-one",
+      "search.q-narrows-result",
+      "sort.order-is-applied",
+      "pagination.page-walk-covers-set",
+      "query.search-and-filter-compose",
+      "query.axes-compose",
+      "query.filter-selects-from-whole-set"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a filterable field, a search parameter, a sortable field, and more than two records"
+  },
+  {
+    "id": "query.filter-search-select-compose",
+    "dependsOn": [
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "filter.equality-selects-exactly-one",
+      "search.q-narrows-result",
+      "select.projection-honoured",
+      "pagination.page-walk-covers-set",
+      "query.search-and-filter-compose",
+      "query.filter-and-select-compose",
+      "query.filter-selects-from-whole-set"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a filterable field, a search parameter, a select parameter, and more than two records"
+  },
+  {
+    "id": "query.sort-and-select-compose",
+    "dependsOn": [
+      "sort.order-is-applied",
+      "select.projection-honoured",
+      "select.requested-fields-present"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "sortable and selectable fields"
+  },
+  {
+    "id": "query.search-and-select-compose",
+    "dependsOn": [
+      "pagination.page-walk-covers-set",
+      "search.q-narrows-result",
+      "select.projection-honoured"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "searchable and selectable fields"
+  },
+  {
+    "id": "query.search-and-sort-compose",
+    "dependsOn": [
+      "pagination.page-walk-covers-set",
+      "search.q-narrows-result",
+      "sort.order-is-applied"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "searchable and sortable fields"
+  },
+  {
+    "id": "query.filter-search-sort-select-compose",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "query.search-and-filter-compose",
+      "query.axes-compose",
+      "query.filter-and-select-compose",
+      "query.sort-and-select-compose",
+      "query.filter-sort-select-compose",
+      "query.filter-search-sort-compose",
+      "query.filter-search-select-compose",
+      "pagination.page-walk-covers-set"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "all four list axes declared and at least three records"
+  },
+  {
+    "id": "spec.declared-filterable-is-filterable",
+    "dependsOn": [
+      "list.read-after-write",
+      "filter.unknown-field-rejected",
+      "error.malformed-filter-not-5xx"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "x-query naming filterable fields"
+  },
+  {
+    "id": "spec.declared-filterable-ops-accepted",
+    "dependsOn": [
+      "list.read-after-write",
+      "spec.declared-filterable-is-filterable",
+      "error.malformed-filter-not-5xx"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a closed operator list on at least one declared field"
+  },
+  {
+    "id": "spec.declared-sortable-is-sortable",
+    "dependsOn": [
+      "list.read-after-write",
+      "error.malformed-filter-not-5xx",
+      "sort.order-is-applied"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "x-query naming sortable fields"
+  },
+  {
+    "id": "spec.declared-sortable-nulls-accepted",
+    "dependsOn": [
+      "sort.order-is-applied"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a declared nulls token on a sortable field"
+  },
+  {
+    "id": "spec.declared-selectable-is-selectable",
+    "dependsOn": [
+      "list.read-after-write",
+      "error.malformed-filter-not-5xx",
+      "select.projection-honoured"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "x-query naming selectable fields"
+  },
+  {
+    "id": "filter.alias-matches-canonical",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "pagination.page-walk-covers-set",
+      "filter.equality-selects-exactly-one"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a declared filter operator alias"
+  },
+  {
+    "id": "filter.illegal-op-rejected",
+    "dependsOn": [
+      "list.read-after-write",
+      "filter.unknown-field-rejected",
+      "error.malformed-filter-not-5xx"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a field with a closed operator list, or a declared filter grammar"
+  },
+  {
+    "id": "pagination.limit-bounds-enforced",
+    "dependsOn": [
+      "pagination.limit-bounds-page-size"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a declared limitOutOfRange: reject, and a page size with a maximum"
+  },
+  {
+    "id": "filter.malformed-term-rejected",
+    "dependsOn": [
+      "list.read-after-write",
+      "filter.unknown-field-rejected",
+      "error.malformed-filter-not-5xx"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a declared filter grammar whose terms carry a conjunction or an operator"
+  },
+  {
+    "id": "filter.empty-in",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set",
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "pagination.page-walk-covers-set",
+      "filter.in-is-union-of-eq"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "`emptyIn` declared and a field that allows `in`"
+  },
+  {
+    "id": "filter.in-over-limit-rejected",
+    "dependsOn": [
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "pagination.page-walk-covers-set",
+      "error.malformed-filter-not-5xx"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "`maxInValues` declared and a field that allows `in`"
+  },
+  {
+    "id": "filter.condition-cap-rejected",
+    "dependsOn": [
+      "list.read-after-write",
+      "create.persists-submitted-fields",
+      "pagination.page-walk-covers-set",
+      "error.malformed-filter-not-5xx"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "`maxFilterConditions` declared and a grammar that can group eq terms"
+  },
+  {
+    "id": "concurrency.no-lost-update",
+    "dependsOn": [
+      "list.read-after-write",
+      "patch.minimality",
+      "create.persists-submitted-fields"
+    ],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a create, a PATCH update and two writable string fields"
+  },
+  {
+    "id": "delete.absent-record-returns-404",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a delete operation"
+  },
+  {
+    "id": "softdelete.absent-from-default-list",
+    "dependsOn": [
+      "pagination.page-walk-covers-set",
+      "list.read-after-write"
+    ],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a create, a delete operation and x-soft-delete"
+  },
+  {
+    "id": "validation.enum-enforced",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a request schema with an enum field"
+  },
+  {
+    "id": "validation.max-length-enforced",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a request schema with a maxLength constraint"
+  },
+  {
+    "id": "validation.required-enforced",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a request schema with a required field"
+  },
+  {
+    "id": "validation.content-type-enforced",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a documented 415 response"
+  },
+  {
+    "id": "tenant.item-not-readable-cross-tenant",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a second principal in a different tenant, and a tenant tagged or inferred from the path"
+  },
+  {
+    "id": "tenant.item-not-writable-cross-tenant",
+    "dependsOn": [
+      "list.read-after-write",
+      "tenant.item-not-readable-cross-tenant"
+    ],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a second principal in a different tenant, a create, and a tenant-scoped update or delete"
+  },
+  {
+    "id": "tenant.parent-not-reachable-from-another-root",
+    "dependsOn": [
+      "list.read-after-write",
+      "tenant.item-not-readable-cross-tenant"
+    ],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a second tenant, and a collection nested under a parent below the tenant"
+  },
+  {
+    "id": "tenant.denial-does-not-reveal-existence",
+    "dependsOn": [
+      "tenant.item-not-readable-cross-tenant"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a second principal in a different tenant, and a tenant tagged or inferred from the path"
+  },
+  {
+    "id": "tenant.filter-does-not-bypass-scope",
+    "dependsOn": [
+      "query.filter-selects-from-whole-set"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a second principal, a filter, and a tenant tagged or inferred from the path"
+  },
+  {
+    "id": "auth.rank-is-monotonic",
+    "dependsOn": [
+      "list.read-after-write"
+    ],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "two same-tenant principals at different ranks, and an item route"
+  },
+  {
+    "id": "auth.rank-is-monotonic-on-writes",
+    "dependsOn": [
+      "list.read-after-write",
+      "auth.rank-is-monotonic"
+    ],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "two same-tenant principals at different ranks, and a create"
+  },
+  {
+    "id": "auth.invite-grants-then-revokes",
+    "dependsOn": [
+      "list.read-after-write",
+      "tenant.item-not-readable-cross-tenant"
+    ],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "x-invite naming invite/accept/revoke, a peer principal with inviteAs, and an item or list route"
+  },
+  {
+    "id": "auth.self-is-the-caller",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "x-entity.identity: self, and a read or an update"
+  },
+  {
+    "id": "read.matches-caller-root",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "x-entity.identity: root and a read"
+  },
+  {
+    "id": "auth.destructive-spares-the-caller",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "x-destructive, a way to sign up a second user, and a caller read"
+  },
+  {
+    "id": "response.public-get-returns-success",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a public GET or HEAD with no id, no query, and a documented success status"
+  },
+  {
+    "id": "response.contract-call",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "an operation nothing else graded, with every path parameter resolvable"
+  },
+  {
+    "id": "response.no-server-error",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a response from the backend"
+  },
+  {
+    "id": "effects.declared-effect-occurs",
+    "dependsOn": [
+      "list.read-after-write",
+      "pagination.page-walk-covers-set"
+    ],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "an operation declaring x-effects"
+  },
+  {
+    "id": "effects.side-effect-arrives",
+    "dependsOn": [
+      "list.read-after-write"
+    ],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "an operation declaring x-wait"
+  },
+  {
+    "id": "async.reaches-terminal-state",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "an operation declaring x-async"
+  },
+  {
+    "id": "async.receipt-identifies-the-job",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": true,
+    "needs": "x-async with an idFrom pointer"
+  },
+  {
+    "id": "response.status-is-documented",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": true,
+    "needs": "a modeled non-create operation on this entity"
+  },
+  {
+    "id": "schema.error-response-matches-document",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": true,
+    "needs": "a documented error schema on the item route"
+  },
+  {
+    "id": "spec.declared-rate-limit-is-honoured",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": true,
+    "needs": "an operation on this entity with a rate declared by x-rate-limit"
+  }
+]

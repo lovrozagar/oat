@@ -1,0 +1,211 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "1 root-cause finding",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "select.nested-honoured"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "consistency.projections-agree",
+                "count.consistent-with-returned-page",
+                "count.matches-filtered-set",
+                "error.malformed-filter-not-5xx",
+                "filter.and-composes-as-intersection",
+                "filter.contains-membership",
+                "filter.equality-selects-exactly-one",
+                "filter.gte-is-gt-or-eq",
+                "filter.illegal-op-rejected",
+                "filter.like-metacharacters-escaped",
+                "filter.lte-is-lt-or-eq",
+                "filter.malformed-term-rejected",
+                "filter.negation-partitions-the-set",
+                "filter.nested-and-or-distributes",
+                "filter.numeric-comparison-is-numeric",
+                "filter.or-composes-as-union",
+                "filter.ordered-triple-partitions",
+                "filter.unknown-field-rejected",
+                "filter.zero-match-returns-none",
+                "list.read-after-write",
+                "pagination.bounds-handled",
+                "pagination.cursor-agrees-with-page",
+                "pagination.has-more-is-accurate",
+                "pagination.limit-bounds-enforced",
+                "pagination.limit-bounds-page-size",
+                "pagination.limit-respects-documented-max",
+                "pagination.page-walk-covers-set",
+                "query.axes-compose",
+                "query.filter-and-select-compose",
+                "query.filter-search-select-compose",
+                "query.filter-search-sort-compose",
+                "query.filter-search-sort-select-compose",
+                "query.filter-selects-from-whole-set",
+                "query.filter-sort-select-compose",
+                "query.search-and-filter-compose",
+                "query.search-and-select-compose",
+                "query.search-and-sort-compose",
+                "query.sort-and-select-compose",
+                "query.unknown-parameter-consistent",
+                "response.status-is-documented",
+                "search.case-insensitive",
+                "search.empty-q",
+                "search.mode-accepted",
+                "search.q-narrows-result",
+                "search.tokens-and",
+                "select.projection-honoured",
+                "select.requested-fields-present",
+                "sort.default-order-applied",
+                "sort.multi-key-tiebreak",
+                "sort.numeric-order-is-numeric",
+                "sort.order-is-applied",
+                "sort.reverse-symmetry",
+                "sort.stable-tiebreak",
+                "sort.unknown-field-rejected",
+                "spec.declared-filterable-is-filterable",
+                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-selectable-is-selectable",
+                "spec.declared-sortable-is-sortable",
+                "tenant.filter-does-not-bypass-scope",
+                "tenant.parent-not-reachable-from-another-root"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 1,
+            "operationId": "row.list",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "consistency.projections-agree",
+                "count.consistent-with-returned-page",
+                "count.matches-filtered-set",
+                "error.malformed-filter-not-5xx",
+                "filter.and-composes-as-intersection",
+                "filter.contains-membership",
+                "filter.equality-selects-exactly-one",
+                "filter.gte-is-gt-or-eq",
+                "filter.illegal-op-rejected",
+                "filter.like-metacharacters-escaped",
+                "filter.lte-is-lt-or-eq",
+                "filter.malformed-term-rejected",
+                "filter.negation-partitions-the-set",
+                "filter.nested-and-or-distributes",
+                "filter.numeric-comparison-is-numeric",
+                "filter.or-composes-as-union",
+                "filter.ordered-triple-partitions",
+                "filter.unknown-field-rejected",
+                "filter.zero-match-returns-none",
+                "list.read-after-write",
+                "pagination.bounds-handled",
+                "pagination.cursor-agrees-with-page",
+                "pagination.has-more-is-accurate",
+                "pagination.limit-bounds-enforced",
+                "pagination.limit-bounds-page-size",
+                "pagination.limit-respects-documented-max",
+                "pagination.page-walk-covers-set",
+                "query.axes-compose",
+                "query.filter-and-select-compose",
+                "query.filter-search-select-compose",
+                "query.filter-search-sort-compose",
+                "query.filter-search-sort-select-compose",
+                "query.filter-selects-from-whole-set",
+                "query.filter-sort-select-compose",
+                "query.search-and-filter-compose",
+                "query.search-and-select-compose",
+                "query.search-and-sort-compose",
+                "query.sort-and-select-compose",
+                "query.unknown-parameter-consistent",
+                "response.status-is-documented",
+                "search.case-insensitive",
+                "search.empty-q",
+                "search.mode-accepted",
+                "search.q-narrows-result",
+                "search.tokens-and",
+                "select.nested-honoured",
+                "select.projection-honoured",
+                "select.requested-fields-present",
+                "sort.default-order-applied",
+                "sort.multi-key-tiebreak",
+                "sort.numeric-order-is-numeric",
+                "sort.order-is-applied",
+                "sort.reverse-symmetry",
+                "sort.stable-tiebreak",
+                "sort.unknown-field-rejected",
+                "spec.declared-filterable-is-filterable",
+                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-selectable-is-selectable",
+                "spec.declared-sortable-is-sortable",
+                "tenant.filter-does-not-bypass-scope",
+                "tenant.parent-not-reachable-from-another-root"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.list",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "select.nested-honoured",
+          "detail": "select=table(name) returned name, slug, status, position, description, id, project_id, created_at, updated_at, deleted_at, row_count.",
+          "entity": "row",
+          "operations": [
+            "row.list"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&select=id%2Ctable%28name%29"
+            }
+          ],
+          "summary": "nested select did not restrict the relation to the requested field",
+          "verdict": "BACKEND_BUG"
+        }
+      ]
+    },
+    "summary": {
+      "BACKEND_BUG": {
+        "now": 1,
+        "was": null
+      }
+    }
+  }
+}

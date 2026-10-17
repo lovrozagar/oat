@@ -1,0 +1,745 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`CLI golden > --help 1`] = `
+{
+  "code": 0,
+  "output": "oat — OpenAPI Tester
+
+  oat run     --config <file>              test a live backend and write a report
+  oat plan    --spec <url|file>            derive and print the test model (offline)
+  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
+  oat serve   [--defects A,B]              run a demo API to point oat at
+  oat conformance                          self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+
+Flags
+  --config     oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec       OpenAPI document, http(s) URL or filesystem path
+  --base-url   backend under test, overriding the config
+  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only       comma-separated entity names; each grades every operation it owns
+  --profile    named profile gating which operations run (built-in: full, cheap)
+  --seed       integer seed for fixture generation (default 1)
+  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
+  --keep-fixtures  leave created records in place instead of tearing them down
+  --max-in-flight  requests allowed in flight at once (default 4)
+  --quiet          no live progress on stderr (progress.log still written)
+  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges  skip the exchange journal (cheap CI)
+  --untagged       serve (or test) a document with every x-* tag stripped
+  --backend        conformance storage: memory | sqlite | postgres | d1
+                   (default: all local; d1 is remote and opt-in)
+  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --fuzz [n]       inject random defect *combinations* instead of one at a time
+  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
+  --max-defects    most defects per combination (default: 4)
+  --seed           fuzz seed, so a failing combination replays exactly
+  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
+  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
+  --json       machine-readable output, for plan and doctor
+  --from       baseline: the run folder (or latest) whose findings become known
+  --force      baseline: overwrite an existing --out file
+",
+}
+`;
+
+exports[`CLI golden > baseline from a missing run 1`] = `
+{
+  "code": 2,
+  "output": "oat: cannot read <dir>/no-run/oat-report.json: ENOENT: no such file or directory, realpath '<dir>/no-run'
+",
+}
+`;
+
+exports[`CLI golden > baseline from a report with no findings 1`] = `
+{
+  "code": 2,
+  "output": "oat: <dir>/empty-run/oat-report.json holds no findings list
+",
+}
+`;
+
+exports[`CLI golden > baseline over an existing file 1`] = `
+{
+  "code": 2,
+  "output": "oat: <dir>/existing.json exists; --force overwrites it
+",
+}
+`;
+
+exports[`CLI golden > baseline without --from 1`] = `
+{
+  "code": 2,
+  "output": "oat: baseline needs --from <run folder | latest>
+",
+}
+`;
+
+exports[`CLI golden > boolean flag given a value 1`] = `
+{
+  "code": 2,
+  "output": "oat: --quiet takes no value
+
+oat — OpenAPI Tester
+
+  oat run     --config <file>              test a live backend and write a report
+  oat plan    --spec <url|file>            derive and print the test model (offline)
+  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
+  oat serve   [--defects A,B]              run a demo API to point oat at
+  oat conformance                          self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+
+Flags
+  --config     oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec       OpenAPI document, http(s) URL or filesystem path
+  --base-url   backend under test, overriding the config
+  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only       comma-separated entity names; each grades every operation it owns
+  --profile    named profile gating which operations run (built-in: full, cheap)
+  --seed       integer seed for fixture generation (default 1)
+  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
+  --keep-fixtures  leave created records in place instead of tearing them down
+  --max-in-flight  requests allowed in flight at once (default 4)
+  --quiet          no live progress on stderr (progress.log still written)
+  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges  skip the exchange journal (cheap CI)
+  --untagged       serve (or test) a document with every x-* tag stripped
+  --backend        conformance storage: memory | sqlite | postgres | d1
+                   (default: all local; d1 is remote and opt-in)
+  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --fuzz [n]       inject random defect *combinations* instead of one at a time
+  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
+  --max-defects    most defects per combination (default: 4)
+  --seed           fuzz seed, so a failing combination replays exactly
+  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
+  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
+  --json       machine-readable output, for plan and doctor
+  --from       baseline: the run folder (or latest) whose findings become known
+  --force      baseline: overwrite an existing --out file
+",
+}
+`;
+
+exports[`CLI golden > conformance --only with an unknown defect 1`] = `
+{
+  "code": 2,
+  "output": "oat: --only names no defect: NOT_A_DEFECT
+",
+}
+`;
+
+exports[`CLI golden > conformance --only with no list 1`] = `
+{
+  "code": 2,
+  "output": "oat: --only needs a value
+
+oat — OpenAPI Tester
+
+  oat run     --config <file>              test a live backend and write a report
+  oat plan    --spec <url|file>            derive and print the test model (offline)
+  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
+  oat serve   [--defects A,B]              run a demo API to point oat at
+  oat conformance                          self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+
+Flags
+  --config     oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec       OpenAPI document, http(s) URL or filesystem path
+  --base-url   backend under test, overriding the config
+  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only       comma-separated entity names; each grades every operation it owns
+  --profile    named profile gating which operations run (built-in: full, cheap)
+  --seed       integer seed for fixture generation (default 1)
+  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
+  --keep-fixtures  leave created records in place instead of tearing them down
+  --max-in-flight  requests allowed in flight at once (default 4)
+  --quiet          no live progress on stderr (progress.log still written)
+  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges  skip the exchange journal (cheap CI)
+  --untagged       serve (or test) a document with every x-* tag stripped
+  --backend        conformance storage: memory | sqlite | postgres | d1
+                   (default: all local; d1 is remote and opt-in)
+  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --fuzz [n]       inject random defect *combinations* instead of one at a time
+  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
+  --max-defects    most defects per combination (default: 4)
+  --seed           fuzz seed, so a failing combination replays exactly
+  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
+  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
+  --json       machine-readable output, for plan and doctor
+  --from       baseline: the run folder (or latest) whose findings become known
+  --force      baseline: overwrite an existing --out file
+",
+}
+`;
+
+exports[`CLI golden > conformance with an unknown backend 1`] = `
+{
+  "code": 2,
+  "output": "oat: unknown --backend "oracle" — expected memory, sqlite, postgres, d1
+",
+}
+`;
+
+exports[`CLI golden > conformance with an unknown dialect 1`] = `
+{
+  "code": 2,
+  "output": "oat: unknown --dialect "graphql" — expected jsonapi, plain, classic, linked, postgrest, template
+",
+}
+`;
+
+exports[`CLI golden > diff with a missing run 1`] = `
+{
+  "code": 2,
+  "output": "oat: cannot read <dir>/no-run/oat-report.json: ENOENT: no such file or directory, realpath '<dir>/no-run'
+",
+}
+`;
+
+exports[`CLI golden > diff with one run 1`] = `
+{
+  "code": 2,
+  "output": "oat: diff needs two run folders: oat diff <runA> <runB>
+",
+}
+`;
+
+exports[`CLI golden > flag needs a value 1`] = `
+{
+  "code": 2,
+  "output": "oat: --config needs a value
+
+oat — OpenAPI Tester
+
+  oat run     --config <file>              test a live backend and write a report
+  oat plan    --spec <url|file>            derive and print the test model (offline)
+  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
+  oat serve   [--defects A,B]              run a demo API to point oat at
+  oat conformance                          self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+
+Flags
+  --config     oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec       OpenAPI document, http(s) URL or filesystem path
+  --base-url   backend under test, overriding the config
+  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only       comma-separated entity names; each grades every operation it owns
+  --profile    named profile gating which operations run (built-in: full, cheap)
+  --seed       integer seed for fixture generation (default 1)
+  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
+  --keep-fixtures  leave created records in place instead of tearing them down
+  --max-in-flight  requests allowed in flight at once (default 4)
+  --quiet          no live progress on stderr (progress.log still written)
+  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges  skip the exchange journal (cheap CI)
+  --untagged       serve (or test) a document with every x-* tag stripped
+  --backend        conformance storage: memory | sqlite | postgres | d1
+                   (default: all local; d1 is remote and opt-in)
+  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --fuzz [n]       inject random defect *combinations* instead of one at a time
+  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
+  --max-defects    most defects per combination (default: 4)
+  --seed           fuzz seed, so a failing combination replays exactly
+  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
+  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
+  --json       machine-readable output, for plan and doctor
+  --from       baseline: the run folder (or latest) whose findings become known
+  --force      baseline: overwrite an existing --out file
+",
+}
+`;
+
+exports[`CLI golden > help 1`] = `
+{
+  "code": 0,
+  "output": "oat — OpenAPI Tester
+
+  oat run     --config <file>              test a live backend and write a report
+  oat plan    --spec <url|file>            derive and print the test model (offline)
+  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
+  oat serve   [--defects A,B]              run a demo API to point oat at
+  oat conformance                          self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+
+Flags
+  --config     oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec       OpenAPI document, http(s) URL or filesystem path
+  --base-url   backend under test, overriding the config
+  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only       comma-separated entity names; each grades every operation it owns
+  --profile    named profile gating which operations run (built-in: full, cheap)
+  --seed       integer seed for fixture generation (default 1)
+  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
+  --keep-fixtures  leave created records in place instead of tearing them down
+  --max-in-flight  requests allowed in flight at once (default 4)
+  --quiet          no live progress on stderr (progress.log still written)
+  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges  skip the exchange journal (cheap CI)
+  --untagged       serve (or test) a document with every x-* tag stripped
+  --backend        conformance storage: memory | sqlite | postgres | d1
+                   (default: all local; d1 is remote and opt-in)
+  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --fuzz [n]       inject random defect *combinations* instead of one at a time
+  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
+  --max-defects    most defects per combination (default: 4)
+  --seed           fuzz seed, so a failing combination replays exactly
+  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
+  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
+  --json       machine-readable output, for plan and doctor
+  --from       baseline: the run folder (or latest) whose findings become known
+  --force      baseline: overwrite an existing --out file
+",
+}
+`;
+
+exports[`CLI golden > integer flag given text 1`] = `
+{
+  "code": 2,
+  "output": "oat: --seed must be an integer, got "abc"
+
+oat — OpenAPI Tester
+
+  oat run     --config <file>              test a live backend and write a report
+  oat plan    --spec <url|file>            derive and print the test model (offline)
+  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
+  oat serve   [--defects A,B]              run a demo API to point oat at
+  oat conformance                          self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+
+Flags
+  --config     oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec       OpenAPI document, http(s) URL or filesystem path
+  --base-url   backend under test, overriding the config
+  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only       comma-separated entity names; each grades every operation it owns
+  --profile    named profile gating which operations run (built-in: full, cheap)
+  --seed       integer seed for fixture generation (default 1)
+  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
+  --keep-fixtures  leave created records in place instead of tearing them down
+  --max-in-flight  requests allowed in flight at once (default 4)
+  --quiet          no live progress on stderr (progress.log still written)
+  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges  skip the exchange journal (cheap CI)
+  --untagged       serve (or test) a document with every x-* tag stripped
+  --backend        conformance storage: memory | sqlite | postgres | d1
+                   (default: all local; d1 is remote and opt-in)
+  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --fuzz [n]       inject random defect *combinations* instead of one at a time
+  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
+  --max-defects    most defects per combination (default: 4)
+  --seed           fuzz seed, so a failing combination replays exactly
+  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
+  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
+  --json       machine-readable output, for plan and doctor
+  --from       baseline: the run folder (or latest) whose findings become known
+  --force      baseline: overwrite an existing --out file
+",
+}
+`;
+
+exports[`CLI golden > no arguments 1`] = `
+{
+  "code": 0,
+  "output": "oat — OpenAPI Tester
+
+  oat run     --config <file>              test a live backend and write a report
+  oat plan    --spec <url|file>            derive and print the test model (offline)
+  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
+  oat serve   [--defects A,B]              run a demo API to point oat at
+  oat conformance                          self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+
+Flags
+  --config     oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec       OpenAPI document, http(s) URL or filesystem path
+  --base-url   backend under test, overriding the config
+  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only       comma-separated entity names; each grades every operation it owns
+  --profile    named profile gating which operations run (built-in: full, cheap)
+  --seed       integer seed for fixture generation (default 1)
+  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
+  --keep-fixtures  leave created records in place instead of tearing them down
+  --max-in-flight  requests allowed in flight at once (default 4)
+  --quiet          no live progress on stderr (progress.log still written)
+  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges  skip the exchange journal (cheap CI)
+  --untagged       serve (or test) a document with every x-* tag stripped
+  --backend        conformance storage: memory | sqlite | postgres | d1
+                   (default: all local; d1 is remote and opt-in)
+  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --fuzz [n]       inject random defect *combinations* instead of one at a time
+  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
+  --max-defects    most defects per combination (default: 4)
+  --seed           fuzz seed, so a failing combination replays exactly
+  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
+  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
+  --json       machine-readable output, for plan and doctor
+  --from       baseline: the run folder (or latest) whose findings become known
+  --force      baseline: overwrite an existing --out file
+",
+}
+`;
+
+exports[`CLI golden > plan with allow naming no operation 1`] = `
+{
+  "code": 2,
+  "output": "allow names "nothing.here", which the document does not have
+",
+}
+`;
+
+exports[`CLI golden > plan with an invalid config 1`] = `
+{
+  "code": 2,
+  "output": "oat: --spec (or --config) is required
+
+oat — OpenAPI Tester
+
+  oat run     --config <file>              test a live backend and write a report
+  oat plan    --spec <url|file>            derive and print the test model (offline)
+  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
+  oat serve   [--defects A,B]              run a demo API to point oat at
+  oat conformance                          self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+
+Flags
+  --config     oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec       OpenAPI document, http(s) URL or filesystem path
+  --base-url   backend under test, overriding the config
+  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only       comma-separated entity names; each grades every operation it owns
+  --profile    named profile gating which operations run (built-in: full, cheap)
+  --seed       integer seed for fixture generation (default 1)
+  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
+  --keep-fixtures  leave created records in place instead of tearing them down
+  --max-in-flight  requests allowed in flight at once (default 4)
+  --quiet          no live progress on stderr (progress.log still written)
+  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges  skip the exchange journal (cheap CI)
+  --untagged       serve (or test) a document with every x-* tag stripped
+  --backend        conformance storage: memory | sqlite | postgres | d1
+                   (default: all local; d1 is remote and opt-in)
+  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --fuzz [n]       inject random defect *combinations* instead of one at a time
+  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
+  --max-defects    most defects per combination (default: 4)
+  --seed           fuzz seed, so a failing combination replays exactly
+  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
+  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
+  --json       machine-readable output, for plan and doctor
+  --from       baseline: the run folder (or latest) whose findings become known
+  --force      baseline: overwrite an existing --out file
+",
+}
+`;
+
+exports[`CLI golden > plan with an overlay naming no operation 1`] = `
+{
+  "code": 2,
+  "output": "overlay.operations["nothing.here"] names no operation in the document
+",
+}
+`;
+
+exports[`CLI golden > plan with an unknown --ops target 1`] = `
+{
+  "code": 2,
+  "output": "oat: --ops "table.craete" matches no operation. Did you mean: table.create, table.delete, table.get?
+",
+}
+`;
+
+exports[`CLI golden > plan without a spec 1`] = `
+{
+  "code": 2,
+  "output": "oat: --spec (or --config) is required
+
+oat — OpenAPI Tester
+
+  oat run     --config <file>              test a live backend and write a report
+  oat plan    --spec <url|file>            derive and print the test model (offline)
+  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
+  oat serve   [--defects A,B]              run a demo API to point oat at
+  oat conformance                          self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+
+Flags
+  --config     oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec       OpenAPI document, http(s) URL or filesystem path
+  --base-url   backend under test, overriding the config
+  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only       comma-separated entity names; each grades every operation it owns
+  --profile    named profile gating which operations run (built-in: full, cheap)
+  --seed       integer seed for fixture generation (default 1)
+  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
+  --keep-fixtures  leave created records in place instead of tearing them down
+  --max-in-flight  requests allowed in flight at once (default 4)
+  --quiet          no live progress on stderr (progress.log still written)
+  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges  skip the exchange journal (cheap CI)
+  --untagged       serve (or test) a document with every x-* tag stripped
+  --backend        conformance storage: memory | sqlite | postgres | d1
+                   (default: all local; d1 is remote and opt-in)
+  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --fuzz [n]       inject random defect *combinations* instead of one at a time
+  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
+  --max-defects    most defects per combination (default: 4)
+  --seed           fuzz seed, so a failing combination replays exactly
+  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
+  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
+  --json       machine-readable output, for plan and doctor
+  --from       baseline: the run folder (or latest) whose findings become known
+  --force      baseline: overwrite an existing --out file
+",
+}
+`;
+
+exports[`CLI golden > positive flag given zero 1`] = `
+{
+  "code": 2,
+  "output": "oat: --jobs must be a positive integer, got "0"
+
+oat — OpenAPI Tester
+
+  oat run     --config <file>              test a live backend and write a report
+  oat plan    --spec <url|file>            derive and print the test model (offline)
+  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
+  oat serve   [--defects A,B]              run a demo API to point oat at
+  oat conformance                          self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+
+Flags
+  --config     oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec       OpenAPI document, http(s) URL or filesystem path
+  --base-url   backend under test, overriding the config
+  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only       comma-separated entity names; each grades every operation it owns
+  --profile    named profile gating which operations run (built-in: full, cheap)
+  --seed       integer seed for fixture generation (default 1)
+  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
+  --keep-fixtures  leave created records in place instead of tearing them down
+  --max-in-flight  requests allowed in flight at once (default 4)
+  --quiet          no live progress on stderr (progress.log still written)
+  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges  skip the exchange journal (cheap CI)
+  --untagged       serve (or test) a document with every x-* tag stripped
+  --backend        conformance storage: memory | sqlite | postgres | d1
+                   (default: all local; d1 is remote and opt-in)
+  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --fuzz [n]       inject random defect *combinations* instead of one at a time
+  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
+  --max-defects    most defects per combination (default: 4)
+  --seed           fuzz seed, so a failing combination replays exactly
+  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
+  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
+  --json       machine-readable output, for plan and doctor
+  --from       baseline: the run folder (or latest) whose findings become known
+  --force      baseline: overwrite an existing --out file
+",
+}
+`;
+
+exports[`CLI golden > run with a missing TypeScript config 1`] = `
+{
+  "code": 2,
+  "output": "oat: failed to load config <dir>/absent.config.ts: Cannot find module 'file://<dir>/absent.config.ts' imported from <cwd>/src/config/load.ts
+",
+}
+`;
+
+exports[`CLI golden > run with a missing config 1`] = `
+{
+  "code": 2,
+  "output": "oat: ENOENT: no such file or directory, open '<dir>/absent.json'
+",
+}
+`;
+
+exports[`CLI golden > run with an invalid config 1`] = `
+{
+  "code": 2,
+  "output": "oat: <dir>/invalid.json is not a valid config:
+  config.spec is required
+  config.baseUrl is required
+",
+}
+`;
+
+exports[`CLI golden > run with an unreadable baseline 1`] = `
+{
+  "code": 2,
+  "output": "oat: cannot read baseline <dir>/nowhere.json: ENOENT: no such file or directory, open '<dir>/nowhere.json'
+",
+}
+`;
+
+exports[`CLI golden > run with no principals 1`] = `
+{
+  "code": 2,
+  "output": "oat: <dir>/no-principals.json is not a valid config:
+  config.principals is empty
+",
+}
+`;
+
+exports[`CLI golden > run without --config 1`] = `
+{
+  "code": 2,
+  "output": "oat: run requires --config
+
+oat — OpenAPI Tester
+
+  oat run     --config <file>              test a live backend and write a report
+  oat plan    --spec <url|file>            derive and print the test model (offline)
+  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
+  oat serve   [--defects A,B]              run a demo API to point oat at
+  oat conformance                          self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+
+Flags
+  --config     oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec       OpenAPI document, http(s) URL or filesystem path
+  --base-url   backend under test, overriding the config
+  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only       comma-separated entity names; each grades every operation it owns
+  --profile    named profile gating which operations run (built-in: full, cheap)
+  --seed       integer seed for fixture generation (default 1)
+  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
+  --keep-fixtures  leave created records in place instead of tearing them down
+  --max-in-flight  requests allowed in flight at once (default 4)
+  --quiet          no live progress on stderr (progress.log still written)
+  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges  skip the exchange journal (cheap CI)
+  --untagged       serve (or test) a document with every x-* tag stripped
+  --backend        conformance storage: memory | sqlite | postgres | d1
+                   (default: all local; d1 is remote and opt-in)
+  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --fuzz [n]       inject random defect *combinations* instead of one at a time
+  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
+  --max-defects    most defects per combination (default: 4)
+  --seed           fuzz seed, so a failing combination replays exactly
+  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
+  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
+  --json       machine-readable output, for plan and doctor
+  --from       baseline: the run folder (or latest) whose findings become known
+  --force      baseline: overwrite an existing --out file
+",
+}
+`;
+
+exports[`CLI golden > unknown command 1`] = `
+{
+  "code": 2,
+  "output": "oat: unknown command "frobnicate"
+
+oat — OpenAPI Tester
+
+  oat run     --config <file>              test a live backend and write a report
+  oat plan    --spec <url|file>            derive and print the test model (offline)
+  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
+  oat serve   [--defects A,B]              run a demo API to point oat at
+  oat conformance                          self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+
+Flags
+  --config     oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec       OpenAPI document, http(s) URL or filesystem path
+  --base-url   backend under test, overriding the config
+  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only       comma-separated entity names; each grades every operation it owns
+  --profile    named profile gating which operations run (built-in: full, cheap)
+  --seed       integer seed for fixture generation (default 1)
+  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
+  --keep-fixtures  leave created records in place instead of tearing them down
+  --max-in-flight  requests allowed in flight at once (default 4)
+  --quiet          no live progress on stderr (progress.log still written)
+  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges  skip the exchange journal (cheap CI)
+  --untagged       serve (or test) a document with every x-* tag stripped
+  --backend        conformance storage: memory | sqlite | postgres | d1
+                   (default: all local; d1 is remote and opt-in)
+  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --fuzz [n]       inject random defect *combinations* instead of one at a time
+  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
+  --max-defects    most defects per combination (default: 4)
+  --seed           fuzz seed, so a failing combination replays exactly
+  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
+  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
+  --json       machine-readable output, for plan and doctor
+  --from       baseline: the run folder (or latest) whose findings become known
+  --force      baseline: overwrite an existing --out file
+",
+}
+`;
+
+exports[`CLI golden > unknown flag 1`] = `
+{
+  "code": 2,
+  "output": "oat: unknown flag "--bogus"
+
+oat — OpenAPI Tester
+
+  oat run     --config <file>              test a live backend and write a report
+  oat plan    --spec <url|file>            derive and print the test model (offline)
+  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
+  oat serve   [--defects A,B]              run a demo API to point oat at
+  oat conformance                          self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+
+Flags
+  --config     oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec       OpenAPI document, http(s) URL or filesystem path
+  --base-url   backend under test, overriding the config
+  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only       comma-separated entity names; each grades every operation it owns
+  --profile    named profile gating which operations run (built-in: full, cheap)
+  --seed       integer seed for fixture generation (default 1)
+  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
+  --keep-fixtures  leave created records in place instead of tearing them down
+  --max-in-flight  requests allowed in flight at once (default 4)
+  --quiet          no live progress on stderr (progress.log still written)
+  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges  skip the exchange journal (cheap CI)
+  --untagged       serve (or test) a document with every x-* tag stripped
+  --backend        conformance storage: memory | sqlite | postgres | d1
+                   (default: all local; d1 is remote and opt-in)
+  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --fuzz [n]       inject random defect *combinations* instead of one at a time
+  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
+  --max-defects    most defects per combination (default: 4)
+  --seed           fuzz seed, so a failing combination replays exactly
+  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
+  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
+  --json       machine-readable output, for plan and doctor
+  --from       baseline: the run folder (or latest) whose findings become known
+  --force      baseline: overwrite an existing --out file
+",
+}
+`;

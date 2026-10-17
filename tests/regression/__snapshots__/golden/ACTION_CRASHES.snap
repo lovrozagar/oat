@@ -1,0 +1,176 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "2 root-cause findings",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "inconclusive": {
+      "added": [
+        {
+          "check": "async.reaches-terminal-state",
+          "entity": "job",
+          "reason": "job.start answered 500, so no job was started to watch",
+          "operations": [
+            "job.start"
+          ]
+        },
+        {
+          "check": "async.receipt-identifies-the-job",
+          "entity": "job",
+          "reason": "job.start answered 500, so there was no receipt to read",
+          "operations": [
+            "job.start"
+          ]
+        },
+        {
+          "check": "effects.declared-effect-occurs",
+          "entity": "job",
+          "reason": "job.start returned 500, so its declared effects were never observed",
+          "operations": [
+            "job.start"
+          ]
+        }
+      ]
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "response.no-server-error",
+                "response.status-is-documented"
+              ],
+              "gaps": [
+                "effects.declared-effect-occurs"
+              ],
+              "inconclusive": [
+                "async.reaches-terminal-state",
+                "async.receipt-identifies-the-job",
+                "effects.declared-effect-occurs"
+              ],
+              "passed": [],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 2,
+            "operationId": "job.start",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "async.reaches-terminal-state",
+                "async.receipt-identifies-the-job",
+                "effects.declared-effect-occurs",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.start",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "teardown": {
+      "records": {},
+      "removed": {
+        "now": 78,
+        "was": 80
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "effects.declared-effect-occurs",
+          "detail": "returned 500; its declared effects are unverified",
+          "entity": "job",
+          "operations": [
+            "job.start"
+          ],
+          "evidence": [],
+          "summary": "job.start could not be invoked",
+          "verdict": "COVERAGE_GAP"
+        },
+        {
+          "check": "response.no-server-error",
+          "detail": "2 request(s) to job.start returned 500. A server error is a failure even where the document lists it, and even when the check that sent the request could only report what it was then unable to verify.",
+          "entity": "job",
+          "operations": [
+            "job.start"
+          ],
+          "evidence": [
+            {
+              "method": "POST",
+              "status": 500,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs/start"
+            },
+            {
+              "method": "POST",
+              "status": 500,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs/start"
+            }
+          ],
+          "summary": "job.start answered with a server error (500)",
+          "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "response.status-is-documented",
+          "detail": "job.start returned 500; the document declares 202, 400, 401, 403, 404, 415. Clients generated from this document will not recognise the response.",
+          "entity": "job",
+          "operations": [
+            "job.start"
+          ],
+          "evidence": [
+            {
+              "method": "POST",
+              "status": 500,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs/start"
+            }
+          ],
+          "summary": "an operation returned a status the document does not declare",
+          "verdict": "SPEC_BUG"
+        }
+      ]
+    },
+    "summary": {
+      "COVERAGE_GAP": {
+        "now": 3,
+        "was": 2
+      },
+      "BACKEND_BUG": {
+        "now": 1,
+        "was": null
+      },
+      "SPEC_BUG": {
+        "now": 1,
+        "was": null
+      }
+    }
+  }
+}

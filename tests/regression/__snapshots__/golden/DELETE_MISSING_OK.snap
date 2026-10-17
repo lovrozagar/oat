@@ -1,0 +1,219 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "3 root-cause findings",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "delete.absent-record-returns-404"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "response.status-is-documented",
+                "softdelete.absent-from-default-list",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 1,
+            "operationId": "table.delete",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "delete.absent-record-returns-404"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 1,
+            "operationId": "job.delete",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "delete.absent-record-returns-404"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 1,
+            "operationId": "row.delete",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "softdelete.absent-from-default-list",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.delete",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.delete",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.delete",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "delete.absent-record-returns-404",
+          "detail": "DELETE of an id that was never created returned 200. Callers cannot distinguish a real deletion from a no-op, which hides broken client state.",
+          "entity": "job",
+          "operations": [
+            "job.delete"
+          ],
+          "evidence": [
+            {
+              "method": "DELETE",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs/oat-absent-NONCE"
+            }
+          ],
+          "summary": "deleting a nonexistent record reports success",
+          "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "delete.absent-record-returns-404",
+          "detail": "DELETE of an id that was never created returned 200. Callers cannot distinguish a real deletion from a no-op, which hides broken client state.",
+          "entity": "row",
+          "operations": [
+            "row.delete"
+          ],
+          "evidence": [
+            {
+              "method": "DELETE",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows/oat-absent-NONCE"
+            }
+          ],
+          "summary": "deleting a nonexistent record reports success",
+          "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "delete.absent-record-returns-404",
+          "detail": "DELETE of an id that was never created returned 200. Callers cannot distinguish a real deletion from a no-op, which hides broken client state.",
+          "entity": "table",
+          "operations": [
+            "table.delete"
+          ],
+          "evidence": [
+            {
+              "method": "DELETE",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/oat-absent-NONCE"
+            }
+          ],
+          "summary": "deleting a nonexistent record reports success",
+          "verdict": "BACKEND_BUG"
+        }
+      ]
+    },
+    "summary": {
+      "BACKEND_BUG": {
+        "now": 3,
+        "was": null
+      }
+    }
+  }
+}

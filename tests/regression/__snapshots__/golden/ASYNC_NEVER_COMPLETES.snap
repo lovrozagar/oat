@@ -1,0 +1,107 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "1 root-cause finding",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "async.reaches-terminal-state"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "async.receipt-identifies-the-job",
+                "effects.declared-effect-occurs",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 1,
+            "operationId": "job.start",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "async.reaches-terminal-state",
+                "async.receipt-identifies-the-job",
+                "effects.declared-effect-occurs",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.start",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "async.reaches-terminal-state",
+          "detail": "polled GET /v1/projects/{project_id}/jobs/{job_id} N time(s) over Nms without satisfying \"status.in.(complete,failed)\". A job that neither completes nor fails leaves callers polling forever.",
+          "entity": "job",
+          "operations": [
+            "job.start"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs/job_ID"
+            },
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs/job_ID"
+            },
+            {
+              "method": "POST",
+              "status": 202,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs/start"
+            }
+          ],
+          "summary": "job.start never reached a terminal state",
+          "verdict": "BACKEND_BUG"
+        }
+      ]
+    },
+    "summary": {
+      "BACKEND_BUG": {
+        "now": 1,
+        "was": null
+      }
+    }
+  }
+}

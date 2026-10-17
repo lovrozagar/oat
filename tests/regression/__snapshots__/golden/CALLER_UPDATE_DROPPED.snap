@@ -1,0 +1,132 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "1 root-cause finding",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "auth.self-is-the-caller"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [],
+              "suppressed": []
+            },
+            "entity": "profile",
+            "findings": 1,
+            "operationId": "profile.get",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "auth.self-is-the-caller"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [],
+              "suppressed": []
+            },
+            "entity": "profile",
+            "findings": 1,
+            "operationId": "profile.update",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.self-is-the-caller"
+              ],
+              "suppressed": []
+            },
+            "entity": "profile",
+            "findings": 0,
+            "operationId": "profile.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "complete",
+            "tier": "contract",
+            "why": "a read with no declared effects: its contract is the whole promise"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.self-is-the-caller"
+              ],
+              "suppressed": []
+            },
+            "entity": "profile",
+            "findings": 0,
+            "operationId": "profile.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "unproven",
+            "tier": "contract",
+            "why": "met its contract, but no later read observed what it changed"
+          }
+        ]
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "auth.self-is-the-caller",
+          "detail": "profile.update set first_name to \"Oat\", and the next profile.get returned 200 with \"Ada\".",
+          "entity": "profile",
+          "operations": [
+            "profile.get",
+            "profile.update"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/me"
+            },
+            {
+              "method": "PATCH",
+              "status": 200,
+              "url": "http://reference.test/v1/me"
+            }
+          ],
+          "summary": "an update to the caller did not stick",
+          "verdict": "BACKEND_BUG"
+        }
+      ]
+    },
+    "summary": {
+      "BACKEND_BUG": {
+        "now": 1,
+        "was": null
+      }
+    }
+  }
+}

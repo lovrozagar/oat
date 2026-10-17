@@ -1,0 +1,365 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "3 root-cause findings",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "checksSkipped": {
+      "added": [
+        {
+          "check": "create.keeps-submitted-identity",
+          "entity": "job",
+          "needs": "a create that takes the record's identity from the client, and an item read (the cohort is missing its \"unicode\" variant, which failed to seed)"
+        },
+        {
+          "check": "create.keeps-submitted-identity",
+          "entity": "row",
+          "needs": "a create that takes the record's identity from the client, and an item read (the cohort is missing its \"unicode\" variant, which failed to seed)"
+        },
+        {
+          "check": "create.keeps-submitted-identity",
+          "entity": "table",
+          "needs": "a create that takes the record's identity from the client, and an item read (the cohort is missing its \"unicode\" variant, which failed to seed)"
+        },
+        {
+          "check": "filter.is-null-selects-nulls",
+          "entity": "job",
+          "needs": "a field that allows `is` and a cohort that contains a null (the cohort is missing its \"unicode\" variant, which failed to seed)"
+        },
+        {
+          "check": "filter.is-null-selects-nulls",
+          "entity": "row",
+          "needs": "a field that allows `is` and a cohort that contains a null (the cohort is missing its \"unicode\" variant, which failed to seed)"
+        },
+        {
+          "check": "pagination.limit-respects-documented-max",
+          "entity": "job",
+          "needs": "a declared maxLimit, and more records than it (the cohort is missing its \"unicode\" variant, which failed to seed)"
+        },
+        {
+          "check": "pagination.limit-respects-documented-max",
+          "entity": "table",
+          "needs": "a declared maxLimit, and more records than it (the cohort is missing its \"unicode\" variant, which failed to seed)"
+        },
+        {
+          "check": "sort.nulls-first-last",
+          "entity": "job",
+          "needs": "a declared nulls token, a dotted sort grammar, and a null in the cohort (the cohort is missing its \"unicode\" variant, which failed to seed)"
+        },
+        {
+          "check": "sort.nulls-first-last",
+          "entity": "row",
+          "needs": "a declared nulls token, a dotted sort grammar, and a null in the cohort (the cohort is missing its \"unicode\" variant, which failed to seed)"
+        }
+      ],
+      "removed": [
+        {
+          "check": "create.keeps-submitted-identity",
+          "entity": "job",
+          "needs": "a create that takes the record's identity from the client, and an item read"
+        },
+        {
+          "check": "create.keeps-submitted-identity",
+          "entity": "row",
+          "needs": "a create that takes the record's identity from the client, and an item read"
+        },
+        {
+          "check": "create.keeps-submitted-identity",
+          "entity": "table",
+          "needs": "a create that takes the record's identity from the client, and an item read"
+        },
+        {
+          "check": "filter.is-null-selects-nulls",
+          "entity": "job",
+          "needs": "a field that allows `is` and a cohort that contains a null"
+        },
+        {
+          "check": "filter.is-null-selects-nulls",
+          "entity": "row",
+          "needs": "a field that allows `is` and a cohort that contains a null"
+        },
+        {
+          "check": "pagination.limit-respects-documented-max",
+          "entity": "job",
+          "needs": "a declared maxLimit, and more records than it"
+        },
+        {
+          "check": "pagination.limit-respects-documented-max",
+          "entity": "table",
+          "needs": "a declared maxLimit, and more records than it"
+        },
+        {
+          "check": "sort.nulls-first-last",
+          "entity": "job",
+          "needs": "a declared nulls token, a dotted sort grammar, and a null in the cohort"
+        },
+        {
+          "check": "sort.nulls-first-last",
+          "entity": "row",
+          "needs": "a declared nulls token, a dotted sort grammar, and a null in the cohort"
+        }
+      ]
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "create.does-not-error"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "create.unique-conflict-rejected",
+                "idempotency.replay-does-not-duplicate",
+                "list.read-after-write",
+                "schema.error-response-matches-document",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 1,
+            "operationId": "table.create",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "create.does-not-error"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "idempotency.replay-does-not-duplicate",
+                "invalidation.declared-route-changes",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "tenant.parent-not-reachable-from-another-root",
+                "validation.content-type-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 1,
+            "operationId": "row.create",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "create.does-not-error"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "idempotency.replay-does-not-duplicate",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 1,
+            "operationId": "job.create",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "create.unique-conflict-rejected",
+                "idempotency.replay-does-not-duplicate",
+                "list.read-after-write",
+                "schema.error-response-matches-document",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "idempotency.replay-does-not-duplicate",
+                "invalidation.declared-route-changes",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "tenant.parent-not-reachable-from-another-root",
+                "validation.content-type-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "idempotency.replay-does-not-duplicate",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "teardown": {
+      "records": {},
+      "removed": {
+        "now": 77,
+        "was": 80
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "create.does-not-error",
+          "detail": "job.create returned 500 for a body generated from the documented schema ({\"error_key\":\"internal_error\",\"message\":\"encoding error: could not write row\",\"status\":500,\"success\":false}). The other variants were created, so this input is what breaks the handler. Checks that need this variant's data run without it.",
+          "entity": "job",
+          "operations": [
+            "job.create"
+          ],
+          "evidence": [
+            {
+              "method": "POST",
+              "status": 500,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs"
+            }
+          ],
+          "summary": "creating the \"unicode\" variant of a \"job\" fails with a server error",
+          "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "create.does-not-error",
+          "detail": "row.create returned 500 for a body generated from the documented schema ({\"error_key\":\"internal_error\",\"message\":\"encoding error: could not write row\",\"status\":500,\"success\":false}). The other variants were created, so this input is what breaks the handler. Checks that need this variant's data run without it.",
+          "entity": "row",
+          "operations": [
+            "row.create"
+          ],
+          "evidence": [
+            {
+              "method": "POST",
+              "status": 500,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows"
+            }
+          ],
+          "summary": "creating the \"unicode\" variant of a \"row\" fails with a server error",
+          "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "create.does-not-error",
+          "detail": "table.create returned 500 for a body generated from the documented schema ({\"error_key\":\"internal_error\",\"message\":\"encoding error: could not write row\",\"status\":500,\"success\":false}). The other variants were created, so this input is what breaks the handler. Checks that need this variant's data run without it.",
+          "entity": "table",
+          "operations": [
+            "table.create"
+          ],
+          "evidence": [
+            {
+              "method": "POST",
+              "status": 500,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables"
+            }
+          ],
+          "summary": "creating the \"unicode\" variant of a \"table\" fails with a server error",
+          "verdict": "BACKEND_BUG"
+        }
+      ]
+    },
+    "summary": {
+      "BACKEND_BUG": {
+        "now": 3,
+        "was": null
+      }
+    }
+  }
+}

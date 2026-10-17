@@ -1,0 +1,2461 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "3 root-cause findings",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "checksRun": {
+      "removed": [
+        "consistency.projections-agree",
+        "count.matches-filtered-set",
+        "create.unique-conflict-rejected",
+        "effects.declared-effect-occurs",
+        "filter.alias-matches-canonical",
+        "filter.and-composes-as-intersection",
+        "filter.condition-cap-rejected",
+        "filter.contains-membership",
+        "filter.empty-in",
+        "filter.equality-selects-exactly-one",
+        "filter.gte-is-gt-or-eq",
+        "filter.ilike-is-case-insensitive",
+        "filter.in-is-union-of-eq",
+        "filter.in-over-limit-rejected",
+        "filter.is-null-selects-nulls",
+        "filter.like-metacharacters-escaped",
+        "filter.lte-is-lt-or-eq",
+        "filter.negation-partitions-the-set",
+        "filter.nested-and-or-distributes",
+        "filter.nin-complements-in",
+        "filter.numeric-comparison-is-numeric",
+        "filter.or-composes-as-union",
+        "filter.ordered-triple-partitions",
+        "filter.zero-match-returns-none",
+        "idempotency.replay-does-not-duplicate",
+        "invalidation.declared-route-changes",
+        "pagination.bounds-handled",
+        "pagination.cursor-agrees-with-page",
+        "pagination.page-walk-covers-set",
+        "query.axes-compose",
+        "query.filter-and-select-compose",
+        "query.filter-search-select-compose",
+        "query.filter-search-sort-compose",
+        "query.filter-search-sort-select-compose",
+        "query.filter-selects-from-whole-set",
+        "query.filter-sort-select-compose",
+        "query.search-and-filter-compose",
+        "query.search-and-select-compose",
+        "query.search-and-sort-compose",
+        "search.case-insensitive",
+        "search.empty-q",
+        "search.tokens-and",
+        "softdelete.absent-from-default-list",
+        "sort.default-order-applied",
+        "sort.multi-key-tiebreak",
+        "sort.nulls-first-last",
+        "sort.numeric-order-is-numeric",
+        "sort.reverse-symmetry",
+        "sort.stable-tiebreak",
+        "tenant.filter-does-not-bypass-scope",
+        "update.unique-conflict-rejected"
+      ]
+    },
+    "checksSuppressed": {
+      "added": [
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "consistency.projections-agree",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "consistency.projections-agree",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "consistency.projections-agree",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "count.matches-filtered-set",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "count.matches-filtered-set",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "count.matches-filtered-set",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "create.unique-conflict-rejected",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "effects.declared-effect-occurs",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.alias-matches-canonical",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.and-composes-as-intersection",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.and-composes-as-intersection",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.and-composes-as-intersection",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.condition-cap-rejected",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.contains-membership",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.empty-in",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.equality-selects-exactly-one",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.equality-selects-exactly-one",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.equality-selects-exactly-one",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.gte-is-gt-or-eq",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.gte-is-gt-or-eq",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.ilike-is-case-insensitive",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.in-is-union-of-eq",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.in-over-limit-rejected",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.is-null-selects-nulls",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.like-metacharacters-escaped",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.like-metacharacters-escaped",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.like-metacharacters-escaped",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.lte-is-lt-or-eq",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.lte-is-lt-or-eq",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.negation-partitions-the-set",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.negation-partitions-the-set",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.negation-partitions-the-set",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.nested-and-or-distributes",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.nested-and-or-distributes",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.nested-and-or-distributes",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.nin-complements-in",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.numeric-comparison-is-numeric",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.numeric-comparison-is-numeric",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.or-composes-as-union",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.or-composes-as-union",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.or-composes-as-union",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.ordered-triple-partitions",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.ordered-triple-partitions",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.zero-match-returns-none",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.zero-match-returns-none",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "filter.zero-match-returns-none",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "idempotency.replay-does-not-duplicate",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "idempotency.replay-does-not-duplicate",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "idempotency.replay-does-not-duplicate",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "invalidation.declared-route-changes",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "pagination.bounds-handled",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "pagination.bounds-handled",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "pagination.bounds-handled",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "pagination.cursor-agrees-with-page",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "pagination.cursor-agrees-with-page",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "pagination.cursor-agrees-with-page",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "pagination.page-walk-covers-set",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "pagination.page-walk-covers-set",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "pagination.page-walk-covers-set",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.axes-compose",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.axes-compose",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.axes-compose",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.filter-and-select-compose",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.filter-and-select-compose",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.filter-and-select-compose",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.filter-search-select-compose",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.filter-search-select-compose",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.filter-search-select-compose",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.filter-search-sort-compose",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.filter-search-sort-compose",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.filter-search-sort-compose",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.filter-search-sort-select-compose",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.filter-search-sort-select-compose",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.filter-search-sort-select-compose",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.filter-selects-from-whole-set",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.filter-selects-from-whole-set",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.filter-selects-from-whole-set",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.filter-sort-select-compose",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.filter-sort-select-compose",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.filter-sort-select-compose",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.search-and-filter-compose",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.search-and-filter-compose",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.search-and-filter-compose",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.search-and-select-compose",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.search-and-select-compose",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.search-and-select-compose",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.search-and-sort-compose",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.search-and-sort-compose",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.search-and-sort-compose",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.unknown-parameter-consistent",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.unknown-parameter-consistent",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "query.unknown-parameter-consistent",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "search.case-insensitive",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "search.case-insensitive",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "search.case-insensitive",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "search.empty-q",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "search.empty-q",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "search.empty-q",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "search.tokens-and",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "search.tokens-and",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "search.tokens-and",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "softdelete.absent-from-default-list",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "sort.default-order-applied",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "sort.default-order-applied",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "sort.default-order-applied",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "sort.multi-key-tiebreak",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "sort.multi-key-tiebreak",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "sort.multi-key-tiebreak",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "sort.nulls-first-last",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "sort.numeric-order-is-numeric",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "sort.numeric-order-is-numeric",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "sort.reverse-symmetry",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "sort.reverse-symmetry",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "sort.reverse-symmetry",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "sort.stable-tiebreak",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "sort.stable-tiebreak",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "sort.stable-tiebreak",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "tenant.filter-does-not-bypass-scope",
+          "entity": "job"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "tenant.filter-does-not-bypass-scope",
+          "entity": "row"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "tenant.filter-does-not-bypass-scope",
+          "entity": "table"
+        },
+        {
+          "because": "pagination.has-more-is-accurate",
+          "check": "update.unique-conflict-rejected",
+          "entity": "table"
+        }
+      ]
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "pagination.has-more-is-accurate"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "count.consistent-with-returned-page",
+                "error.malformed-filter-not-5xx",
+                "filter.illegal-op-rejected",
+                "filter.malformed-term-rejected",
+                "filter.unknown-field-rejected",
+                "list.read-after-write",
+                "pagination.limit-bounds-enforced",
+                "pagination.limit-bounds-page-size",
+                "pagination.limit-respects-documented-max",
+                "query.sort-and-select-compose",
+                "response.status-is-documented",
+                "search.mode-accepted",
+                "search.q-narrows-result",
+                "select.nested-honoured",
+                "select.projection-honoured",
+                "select.requested-fields-present",
+                "sort.order-is-applied",
+                "sort.unknown-field-rejected",
+                "spec.declared-filterable-is-filterable",
+                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-selectable-is-selectable",
+                "spec.declared-sortable-is-sortable",
+                "tenant.parent-not-reachable-from-another-root"
+              ],
+              "suppressed": [
+                "consistency.projections-agree",
+                "count.matches-filtered-set",
+                "filter.and-composes-as-intersection",
+                "filter.contains-membership",
+                "filter.equality-selects-exactly-one",
+                "filter.gte-is-gt-or-eq",
+                "filter.like-metacharacters-escaped",
+                "filter.lte-is-lt-or-eq",
+                "filter.negation-partitions-the-set",
+                "filter.nested-and-or-distributes",
+                "filter.numeric-comparison-is-numeric",
+                "filter.or-composes-as-union",
+                "filter.ordered-triple-partitions",
+                "filter.zero-match-returns-none",
+                "pagination.bounds-handled",
+                "pagination.cursor-agrees-with-page",
+                "pagination.page-walk-covers-set",
+                "query.axes-compose",
+                "query.filter-and-select-compose",
+                "query.filter-search-select-compose",
+                "query.filter-search-sort-compose",
+                "query.filter-search-sort-select-compose",
+                "query.filter-selects-from-whole-set",
+                "query.filter-sort-select-compose",
+                "query.search-and-filter-compose",
+                "query.search-and-select-compose",
+                "query.search-and-sort-compose",
+                "query.unknown-parameter-consistent",
+                "search.case-insensitive",
+                "search.empty-q",
+                "search.tokens-and",
+                "sort.default-order-applied",
+                "sort.multi-key-tiebreak",
+                "sort.numeric-order-is-numeric",
+                "sort.reverse-symmetry",
+                "sort.stable-tiebreak",
+                "tenant.filter-does-not-bypass-scope"
+              ]
+            },
+            "entity": "row",
+            "findings": 1,
+            "operationId": "row.list",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "pagination.has-more-is-accurate"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "count.consistent-with-returned-page",
+                "error.malformed-filter-not-5xx",
+                "filter.illegal-op-rejected",
+                "filter.malformed-term-rejected",
+                "filter.unknown-field-rejected",
+                "list.read-after-write",
+                "pagination.limit-bounds-enforced",
+                "pagination.limit-bounds-page-size",
+                "query.sort-and-select-compose",
+                "response.status-is-documented",
+                "search.mode-accepted",
+                "search.q-narrows-result",
+                "select.projection-honoured",
+                "select.requested-fields-present",
+                "select.unknown-field-rejected",
+                "sort.order-is-applied",
+                "sort.unknown-field-rejected",
+                "spec.declared-filterable-is-filterable",
+                "spec.declared-filterable-ops-accepted",
+                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-selectable-is-selectable",
+                "spec.declared-sortable-is-sortable",
+                "spec.declared-sortable-nulls-accepted"
+              ],
+              "suppressed": [
+                "consistency.projections-agree",
+                "count.matches-filtered-set",
+                "filter.alias-matches-canonical",
+                "filter.and-composes-as-intersection",
+                "filter.condition-cap-rejected",
+                "filter.empty-in",
+                "filter.equality-selects-exactly-one",
+                "filter.gte-is-gt-or-eq",
+                "filter.ilike-is-case-insensitive",
+                "filter.in-is-union-of-eq",
+                "filter.in-over-limit-rejected",
+                "filter.is-null-selects-nulls",
+                "filter.like-metacharacters-escaped",
+                "filter.lte-is-lt-or-eq",
+                "filter.negation-partitions-the-set",
+                "filter.nested-and-or-distributes",
+                "filter.nin-complements-in",
+                "filter.numeric-comparison-is-numeric",
+                "filter.or-composes-as-union",
+                "filter.ordered-triple-partitions",
+                "filter.zero-match-returns-none",
+                "invalidation.declared-route-changes",
+                "pagination.bounds-handled",
+                "pagination.cursor-agrees-with-page",
+                "pagination.page-walk-covers-set",
+                "query.axes-compose",
+                "query.filter-and-select-compose",
+                "query.filter-search-select-compose",
+                "query.filter-search-sort-compose",
+                "query.filter-search-sort-select-compose",
+                "query.filter-selects-from-whole-set",
+                "query.filter-sort-select-compose",
+                "query.search-and-filter-compose",
+                "query.search-and-select-compose",
+                "query.search-and-sort-compose",
+                "query.unknown-parameter-consistent",
+                "search.case-insensitive",
+                "search.empty-q",
+                "search.tokens-and",
+                "softdelete.absent-from-default-list",
+                "sort.default-order-applied",
+                "sort.multi-key-tiebreak",
+                "sort.nulls-first-last",
+                "sort.numeric-order-is-numeric",
+                "sort.reverse-symmetry",
+                "sort.stable-tiebreak",
+                "tenant.filter-does-not-bypass-scope"
+              ]
+            },
+            "entity": "table",
+            "findings": 1,
+            "operationId": "table.list",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "pagination.has-more-is-accurate"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "count.consistent-with-returned-page",
+                "error.malformed-filter-not-5xx",
+                "filter.illegal-op-rejected",
+                "filter.malformed-term-rejected",
+                "filter.unknown-field-rejected",
+                "list.read-after-write",
+                "pagination.limit-bounds-enforced",
+                "pagination.limit-bounds-page-size",
+                "query.sort-and-select-compose",
+                "response.status-is-documented",
+                "search.mode-accepted",
+                "search.q-narrows-result",
+                "select.projection-honoured",
+                "select.requested-fields-present",
+                "sort.order-is-applied",
+                "sort.unknown-field-rejected",
+                "spec.declared-filterable-is-filterable",
+                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-selectable-is-selectable",
+                "spec.declared-sortable-is-sortable"
+              ],
+              "suppressed": [
+                "consistency.projections-agree",
+                "count.matches-filtered-set",
+                "filter.and-composes-as-intersection",
+                "filter.equality-selects-exactly-one",
+                "filter.like-metacharacters-escaped",
+                "filter.negation-partitions-the-set",
+                "filter.nested-and-or-distributes",
+                "filter.or-composes-as-union",
+                "filter.zero-match-returns-none",
+                "pagination.bounds-handled",
+                "pagination.cursor-agrees-with-page",
+                "pagination.page-walk-covers-set",
+                "query.axes-compose",
+                "query.filter-and-select-compose",
+                "query.filter-search-select-compose",
+                "query.filter-search-sort-compose",
+                "query.filter-search-sort-select-compose",
+                "query.filter-selects-from-whole-set",
+                "query.filter-sort-select-compose",
+                "query.search-and-filter-compose",
+                "query.search-and-select-compose",
+                "query.search-and-sort-compose",
+                "query.unknown-parameter-consistent",
+                "search.case-insensitive",
+                "search.empty-q",
+                "search.tokens-and",
+                "sort.default-order-applied",
+                "sort.multi-key-tiebreak",
+                "sort.reverse-symmetry",
+                "sort.stable-tiebreak",
+                "tenant.filter-does-not-bypass-scope"
+              ]
+            },
+            "entity": "job",
+            "findings": 1,
+            "operationId": "job.list",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant",
+                "tenant.parent-not-reachable-from-another-root"
+              ],
+              "suppressed": [
+                "consistency.projections-agree"
+              ]
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": [
+                "consistency.projections-agree",
+                "invalidation.declared-route-changes"
+              ]
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": [
+                "update.unique-conflict-rejected"
+              ]
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "async.reaches-terminal-state",
+                "async.receipt-identifies-the-job",
+                "response.status-is-documented"
+              ],
+              "suppressed": [
+                "effects.declared-effect-occurs"
+              ]
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.start",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": [
+                "consistency.projections-agree"
+              ]
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "tenant.parent-not-reachable-from-another-root",
+                "validation.content-type-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": [
+                "idempotency.replay-does-not-duplicate",
+                "invalidation.declared-route-changes"
+              ]
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": [
+                "create.unique-conflict-rejected",
+                "idempotency.replay-does-not-duplicate"
+              ]
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": [
+                "idempotency.replay-does-not-duplicate"
+              ]
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": [
+                "softdelete.absent-from-default-list"
+              ]
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.delete",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "consistency.projections-agree",
+                "invalidation.declared-route-changes",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "consistency.projections-agree",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant",
+                "tenant.parent-not-reachable-from-another-root"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant",
+                "update.unique-conflict-rejected"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "async.reaches-terminal-state",
+                "async.receipt-identifies-the-job",
+                "effects.declared-effect-occurs",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.start",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "consistency.projections-agree",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "create.unique-conflict-rejected",
+                "idempotency.replay-does-not-duplicate",
+                "list.read-after-write",
+                "schema.error-response-matches-document",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "idempotency.replay-does-not-duplicate",
+                "invalidation.declared-route-changes",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "tenant.parent-not-reachable-from-another-root",
+                "validation.content-type-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "idempotency.replay-does-not-duplicate",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "softdelete.absent-from-default-list",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.delete",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "consistency.projections-agree",
+                "count.consistent-with-returned-page",
+                "count.matches-filtered-set",
+                "error.malformed-filter-not-5xx",
+                "filter.alias-matches-canonical",
+                "filter.and-composes-as-intersection",
+                "filter.condition-cap-rejected",
+                "filter.empty-in",
+                "filter.equality-selects-exactly-one",
+                "filter.gte-is-gt-or-eq",
+                "filter.ilike-is-case-insensitive",
+                "filter.illegal-op-rejected",
+                "filter.in-is-union-of-eq",
+                "filter.in-over-limit-rejected",
+                "filter.is-null-selects-nulls",
+                "filter.like-metacharacters-escaped",
+                "filter.lte-is-lt-or-eq",
+                "filter.malformed-term-rejected",
+                "filter.negation-partitions-the-set",
+                "filter.nested-and-or-distributes",
+                "filter.nin-complements-in",
+                "filter.numeric-comparison-is-numeric",
+                "filter.or-composes-as-union",
+                "filter.ordered-triple-partitions",
+                "filter.unknown-field-rejected",
+                "filter.zero-match-returns-none",
+                "invalidation.declared-route-changes",
+                "list.read-after-write",
+                "pagination.bounds-handled",
+                "pagination.cursor-agrees-with-page",
+                "pagination.has-more-is-accurate",
+                "pagination.limit-bounds-enforced",
+                "pagination.limit-bounds-page-size",
+                "pagination.page-walk-covers-set",
+                "query.axes-compose",
+                "query.filter-and-select-compose",
+                "query.filter-search-select-compose",
+                "query.filter-search-sort-compose",
+                "query.filter-search-sort-select-compose",
+                "query.filter-selects-from-whole-set",
+                "query.filter-sort-select-compose",
+                "query.search-and-filter-compose",
+                "query.search-and-select-compose",
+                "query.search-and-sort-compose",
+                "query.sort-and-select-compose",
+                "query.unknown-parameter-consistent",
+                "response.status-is-documented",
+                "search.case-insensitive",
+                "search.empty-q",
+                "search.mode-accepted",
+                "search.q-narrows-result",
+                "search.tokens-and",
+                "select.projection-honoured",
+                "select.requested-fields-present",
+                "select.unknown-field-rejected",
+                "softdelete.absent-from-default-list",
+                "sort.default-order-applied",
+                "sort.multi-key-tiebreak",
+                "sort.nulls-first-last",
+                "sort.numeric-order-is-numeric",
+                "sort.order-is-applied",
+                "sort.reverse-symmetry",
+                "sort.stable-tiebreak",
+                "sort.unknown-field-rejected",
+                "spec.declared-filterable-is-filterable",
+                "spec.declared-filterable-ops-accepted",
+                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-selectable-is-selectable",
+                "spec.declared-sortable-is-sortable",
+                "spec.declared-sortable-nulls-accepted",
+                "tenant.filter-does-not-bypass-scope"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.list",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "consistency.projections-agree",
+                "count.consistent-with-returned-page",
+                "count.matches-filtered-set",
+                "error.malformed-filter-not-5xx",
+                "filter.and-composes-as-intersection",
+                "filter.contains-membership",
+                "filter.equality-selects-exactly-one",
+                "filter.gte-is-gt-or-eq",
+                "filter.illegal-op-rejected",
+                "filter.like-metacharacters-escaped",
+                "filter.lte-is-lt-or-eq",
+                "filter.malformed-term-rejected",
+                "filter.negation-partitions-the-set",
+                "filter.nested-and-or-distributes",
+                "filter.numeric-comparison-is-numeric",
+                "filter.or-composes-as-union",
+                "filter.ordered-triple-partitions",
+                "filter.unknown-field-rejected",
+                "filter.zero-match-returns-none",
+                "list.read-after-write",
+                "pagination.bounds-handled",
+                "pagination.cursor-agrees-with-page",
+                "pagination.has-more-is-accurate",
+                "pagination.limit-bounds-enforced",
+                "pagination.limit-bounds-page-size",
+                "pagination.limit-respects-documented-max",
+                "pagination.page-walk-covers-set",
+                "query.axes-compose",
+                "query.filter-and-select-compose",
+                "query.filter-search-select-compose",
+                "query.filter-search-sort-compose",
+                "query.filter-search-sort-select-compose",
+                "query.filter-selects-from-whole-set",
+                "query.filter-sort-select-compose",
+                "query.search-and-filter-compose",
+                "query.search-and-select-compose",
+                "query.search-and-sort-compose",
+                "query.sort-and-select-compose",
+                "query.unknown-parameter-consistent",
+                "response.status-is-documented",
+                "search.case-insensitive",
+                "search.empty-q",
+                "search.mode-accepted",
+                "search.q-narrows-result",
+                "search.tokens-and",
+                "select.nested-honoured",
+                "select.projection-honoured",
+                "select.requested-fields-present",
+                "sort.default-order-applied",
+                "sort.multi-key-tiebreak",
+                "sort.numeric-order-is-numeric",
+                "sort.order-is-applied",
+                "sort.reverse-symmetry",
+                "sort.stable-tiebreak",
+                "sort.unknown-field-rejected",
+                "spec.declared-filterable-is-filterable",
+                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-selectable-is-selectable",
+                "spec.declared-sortable-is-sortable",
+                "tenant.filter-does-not-bypass-scope",
+                "tenant.parent-not-reachable-from-another-root"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.list",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "consistency.projections-agree",
+                "count.consistent-with-returned-page",
+                "count.matches-filtered-set",
+                "error.malformed-filter-not-5xx",
+                "filter.and-composes-as-intersection",
+                "filter.equality-selects-exactly-one",
+                "filter.illegal-op-rejected",
+                "filter.like-metacharacters-escaped",
+                "filter.malformed-term-rejected",
+                "filter.negation-partitions-the-set",
+                "filter.nested-and-or-distributes",
+                "filter.or-composes-as-union",
+                "filter.unknown-field-rejected",
+                "filter.zero-match-returns-none",
+                "list.read-after-write",
+                "pagination.bounds-handled",
+                "pagination.cursor-agrees-with-page",
+                "pagination.has-more-is-accurate",
+                "pagination.limit-bounds-enforced",
+                "pagination.limit-bounds-page-size",
+                "pagination.page-walk-covers-set",
+                "query.axes-compose",
+                "query.filter-and-select-compose",
+                "query.filter-search-select-compose",
+                "query.filter-search-sort-compose",
+                "query.filter-search-sort-select-compose",
+                "query.filter-selects-from-whole-set",
+                "query.filter-sort-select-compose",
+                "query.search-and-filter-compose",
+                "query.search-and-select-compose",
+                "query.search-and-sort-compose",
+                "query.sort-and-select-compose",
+                "query.unknown-parameter-consistent",
+                "response.status-is-documented",
+                "search.case-insensitive",
+                "search.empty-q",
+                "search.mode-accepted",
+                "search.q-narrows-result",
+                "search.tokens-and",
+                "select.projection-honoured",
+                "select.requested-fields-present",
+                "sort.default-order-applied",
+                "sort.multi-key-tiebreak",
+                "sort.order-is-applied",
+                "sort.reverse-symmetry",
+                "sort.stable-tiebreak",
+                "sort.unknown-field-rejected",
+                "spec.declared-filterable-is-filterable",
+                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-selectable-is-selectable",
+                "spec.declared-sortable-is-sortable",
+                "tenant.filter-does-not-bypass-scope"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.list",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "teardown": {
+      "records": {},
+      "removed": {
+        "now": 73,
+        "was": 80
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "pagination.has-more-is-accurate",
+          "detail": "page 1 at limit=1 reported hasMore=false, but page 2 returned 1 record(s). Callers that trust the flag will silently stop after the first page",
+          "entity": "job",
+          "operations": [
+            "job.list"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=1&page=1"
+            },
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=1&page=2"
+            }
+          ],
+          "summary": "hasMore claims no further pages while the next page returns records",
+          "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "pagination.has-more-is-accurate",
+          "detail": "page 1 at limit=1 reported hasMore=false, but page 2 returned 1 record(s). Callers that trust the flag will silently stop after the first page",
+          "entity": "row",
+          "operations": [
+            "row.list"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=1&page=1"
+            },
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=1&page=2"
+            }
+          ],
+          "summary": "hasMore claims no further pages while the next page returns records",
+          "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "pagination.has-more-is-accurate",
+          "detail": "page 1 at limit=1 reported hasMore=false, but page 2 returned 1 record(s). Callers that trust the flag will silently stop after the first page",
+          "entity": "table",
+          "operations": [
+            "table.list"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=1&page=1"
+            },
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=1&page=2"
+            }
+          ],
+          "summary": "hasMore claims no further pages while the next page returns records",
+          "verdict": "BACKEND_BUG"
+        }
+      ]
+    },
+    "costByCheck": {
+      "removed": [
+        {
+          "check": "consistency.projections-agree"
+        },
+        {
+          "check": "count.matches-filtered-set"
+        },
+        {
+          "check": "create.unique-conflict-rejected"
+        },
+        {
+          "check": "effects.declared-effect-occurs"
+        },
+        {
+          "check": "filter.alias-matches-canonical"
+        },
+        {
+          "check": "filter.and-composes-as-intersection"
+        },
+        {
+          "check": "filter.condition-cap-rejected"
+        },
+        {
+          "check": "filter.contains-membership"
+        },
+        {
+          "check": "filter.empty-in"
+        },
+        {
+          "check": "filter.equality-selects-exactly-one"
+        },
+        {
+          "check": "filter.gte-is-gt-or-eq"
+        },
+        {
+          "check": "filter.ilike-is-case-insensitive"
+        },
+        {
+          "check": "filter.in-is-union-of-eq"
+        },
+        {
+          "check": "filter.in-over-limit-rejected"
+        },
+        {
+          "check": "filter.is-null-selects-nulls"
+        },
+        {
+          "check": "filter.like-metacharacters-escaped"
+        },
+        {
+          "check": "filter.lte-is-lt-or-eq"
+        },
+        {
+          "check": "filter.negation-partitions-the-set"
+        },
+        {
+          "check": "filter.nested-and-or-distributes"
+        },
+        {
+          "check": "filter.nin-complements-in"
+        },
+        {
+          "check": "filter.numeric-comparison-is-numeric"
+        },
+        {
+          "check": "filter.or-composes-as-union"
+        },
+        {
+          "check": "filter.ordered-triple-partitions"
+        },
+        {
+          "check": "filter.zero-match-returns-none"
+        },
+        {
+          "check": "idempotency.replay-does-not-duplicate"
+        },
+        {
+          "check": "invalidation.declared-route-changes"
+        },
+        {
+          "check": "pagination.bounds-handled"
+        },
+        {
+          "check": "pagination.cursor-agrees-with-page"
+        },
+        {
+          "check": "pagination.page-walk-covers-set"
+        },
+        {
+          "check": "query.axes-compose"
+        },
+        {
+          "check": "query.filter-and-select-compose"
+        },
+        {
+          "check": "query.filter-search-select-compose"
+        },
+        {
+          "check": "query.filter-search-sort-compose"
+        },
+        {
+          "check": "query.filter-search-sort-select-compose"
+        },
+        {
+          "check": "query.filter-selects-from-whole-set"
+        },
+        {
+          "check": "query.filter-sort-select-compose"
+        },
+        {
+          "check": "query.search-and-filter-compose"
+        },
+        {
+          "check": "query.search-and-select-compose"
+        },
+        {
+          "check": "query.search-and-sort-compose"
+        },
+        {
+          "check": "search.case-insensitive"
+        },
+        {
+          "check": "search.empty-q"
+        },
+        {
+          "check": "search.tokens-and"
+        },
+        {
+          "check": "softdelete.absent-from-default-list"
+        },
+        {
+          "check": "sort.default-order-applied"
+        },
+        {
+          "check": "sort.multi-key-tiebreak"
+        },
+        {
+          "check": "sort.nulls-first-last"
+        },
+        {
+          "check": "sort.numeric-order-is-numeric"
+        },
+        {
+          "check": "sort.reverse-symmetry"
+        },
+        {
+          "check": "sort.stable-tiebreak"
+        },
+        {
+          "check": "tenant.filter-does-not-bypass-scope"
+        },
+        {
+          "check": "update.unique-conflict-rejected"
+        }
+      ]
+    },
+    "observed": {
+      "removed": [
+        {
+          "check": "pagination.bounds-handled",
+          "entity": "job",
+          "note": "a page past the end is served empty"
+        },
+        {
+          "check": "pagination.bounds-handled",
+          "entity": "row",
+          "note": "a page past the end is served empty"
+        },
+        {
+          "check": "pagination.bounds-handled",
+          "entity": "table",
+          "note": "a page past the end is served empty"
+        },
+        {
+          "check": "query.unknown-parameter-consistent",
+          "entity": "job",
+          "note": "unknown query parameters are ignored on the listing"
+        },
+        {
+          "check": "query.unknown-parameter-consistent",
+          "entity": "row",
+          "note": "unknown query parameters are ignored on the listing"
+        },
+        {
+          "check": "query.unknown-parameter-consistent",
+          "entity": "table",
+          "note": "unknown query parameters are ignored on the listing"
+        }
+      ]
+    },
+    "summary": {
+      "BACKEND_BUG": {
+        "now": 3,
+        "was": null
+      }
+    },
+    "coverage": {
+      "partial": {
+        "added": [
+          {
+            "check": "consistency.projections-agree",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "count.matches-filtered-set",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "create.unique-conflict-rejected",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "effects.declared-effect-occurs",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "filter.alias-matches-canonical",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "filter.and-composes-as-intersection",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "filter.condition-cap-rejected",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "filter.contains-membership",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "filter.empty-in",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "filter.equality-selects-exactly-one",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "filter.gte-is-gt-or-eq",
+            "ran": 2,
+            "skipped": 2
+          },
+          {
+            "check": "filter.ilike-is-case-insensitive",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "filter.in-is-union-of-eq",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "filter.in-over-limit-rejected",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "filter.is-null-selects-nulls",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "filter.like-metacharacters-escaped",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "filter.lte-is-lt-or-eq",
+            "ran": 2,
+            "skipped": 2
+          },
+          {
+            "check": "filter.negation-partitions-the-set",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "filter.nested-and-or-distributes",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "filter.nin-complements-in",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "filter.numeric-comparison-is-numeric",
+            "ran": 2,
+            "skipped": 2
+          },
+          {
+            "check": "filter.or-composes-as-union",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "filter.ordered-triple-partitions",
+            "ran": 2,
+            "skipped": 2
+          },
+          {
+            "check": "filter.zero-match-returns-none",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "idempotency.replay-does-not-duplicate",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "invalidation.declared-route-changes",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "pagination.bounds-handled",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "pagination.cursor-agrees-with-page",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "pagination.page-walk-covers-set",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "query.axes-compose",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-and-select-compose",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-search-select-compose",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-search-sort-compose",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-search-sort-select-compose",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-selects-from-whole-set",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-sort-select-compose",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "query.search-and-filter-compose",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "query.search-and-select-compose",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "query.search-and-sort-compose",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "search.case-insensitive",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "search.empty-q",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "search.tokens-and",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "softdelete.absent-from-default-list",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "sort.default-order-applied",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "sort.multi-key-tiebreak",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "sort.nulls-first-last",
+            "ran": 2,
+            "skipped": 3
+          },
+          {
+            "check": "sort.numeric-order-is-numeric",
+            "ran": 2,
+            "skipped": 2
+          },
+          {
+            "check": "sort.reverse-symmetry",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "sort.stable-tiebreak",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "tenant.filter-does-not-bypass-scope",
+            "ran": 2,
+            "skipped": 1
+          },
+          {
+            "check": "update.unique-conflict-rejected",
+            "ran": 2,
+            "skipped": 3
+          }
+        ],
+        "removed": [
+          {
+            "check": "consistency.projections-agree",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "count.matches-filtered-set",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "create.unique-conflict-rejected",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "effects.declared-effect-occurs",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "filter.alias-matches-canonical",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "filter.and-composes-as-intersection",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "filter.condition-cap-rejected",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "filter.contains-membership",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "filter.empty-in",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "filter.equality-selects-exactly-one",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "filter.gte-is-gt-or-eq",
+            "ran": 4,
+            "skipped": 2
+          },
+          {
+            "check": "filter.ilike-is-case-insensitive",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "filter.in-is-union-of-eq",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "filter.in-over-limit-rejected",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "filter.is-null-selects-nulls",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "filter.like-metacharacters-escaped",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "filter.lte-is-lt-or-eq",
+            "ran": 4,
+            "skipped": 2
+          },
+          {
+            "check": "filter.negation-partitions-the-set",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "filter.nested-and-or-distributes",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "filter.nin-complements-in",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "filter.numeric-comparison-is-numeric",
+            "ran": 4,
+            "skipped": 2
+          },
+          {
+            "check": "filter.or-composes-as-union",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "filter.ordered-triple-partitions",
+            "ran": 4,
+            "skipped": 2
+          },
+          {
+            "check": "filter.zero-match-returns-none",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "idempotency.replay-does-not-duplicate",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "invalidation.declared-route-changes",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "pagination.bounds-handled",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "pagination.cursor-agrees-with-page",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "pagination.page-walk-covers-set",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "query.axes-compose",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-and-select-compose",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-search-select-compose",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-search-sort-compose",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-search-sort-select-compose",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-selects-from-whole-set",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "query.filter-sort-select-compose",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "query.search-and-filter-compose",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "query.search-and-select-compose",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "query.search-and-sort-compose",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "search.case-insensitive",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "search.empty-q",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "search.tokens-and",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "softdelete.absent-from-default-list",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "sort.default-order-applied",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "sort.multi-key-tiebreak",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "sort.nulls-first-last",
+            "ran": 3,
+            "skipped": 3
+          },
+          {
+            "check": "sort.numeric-order-is-numeric",
+            "ran": 4,
+            "skipped": 2
+          },
+          {
+            "check": "sort.reverse-symmetry",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "sort.stable-tiebreak",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "tenant.filter-does-not-bypass-scope",
+            "ran": 5,
+            "skipped": 1
+          },
+          {
+            "check": "update.unique-conflict-rejected",
+            "ran": 3,
+            "skipped": 3
+          }
+        ]
+      }
+    }
+  }
+}

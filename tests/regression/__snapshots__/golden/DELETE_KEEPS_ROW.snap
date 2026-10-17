@@ -1,0 +1,1101 @@
+{
+  "exitCode": 4,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 4,
+        "was": 0
+      },
+      "reason": {
+        "now": "records may remain: 51 teardown could not show gone",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "leftovers",
+        "was": "clean"
+      }
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "delete.absent-record-returns-404"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 1,
+            "operationId": "job.delete",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "delete.absent-record-returns-404"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 1,
+            "operationId": "row.delete",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.delete",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.delete",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "teardown": {
+      "failed": {
+        "added": [
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha_member",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha_member",
+            "reason": "delete answered 2xx but the record is still listed"
+          }
+        ]
+      },
+      "records": {
+        "added": [
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha_member",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha_member",
+            "removed": false
+          }
+        ],
+        "removed": [
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha_member",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha_member",
+            "removed": true
+          }
+        ]
+      },
+      "removed": {
+        "now": 29,
+        "was": 80
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "delete.absent-record-returns-404",
+          "detail": "job.delete returned 200, and job.get on the same path then returned 200 with no deletion marker.",
+          "entity": "job",
+          "operations": [
+            "job.delete"
+          ],
+          "evidence": [
+            {
+              "method": "DELETE",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs/job_ID"
+            },
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs/job_ID"
+            }
+          ],
+          "summary": "a deleted record is still readable",
+          "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "delete.absent-record-returns-404",
+          "detail": "row.delete returned 200, and row.get on the same path then returned 200 with no deletion marker.",
+          "entity": "row",
+          "operations": [
+            "row.delete"
+          ],
+          "evidence": [
+            {
+              "method": "DELETE",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows/row_ID"
+            },
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows/row_ID"
+            }
+          ],
+          "summary": "a deleted record is still readable",
+          "verdict": "BACKEND_BUG"
+        }
+      ]
+    },
+    "summary": {
+      "BACKEND_BUG": {
+        "now": 2,
+        "was": null
+      }
+    }
+  }
+}

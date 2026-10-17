@@ -1,0 +1,90 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "1 root-cause finding",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "response.contract-call"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 1,
+            "operationId": "auth.token",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "response.contract-call"
+              ],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 0,
+            "operationId": "auth.token",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "unproven",
+            "tier": "contract",
+            "why": "met its contract, but no later read observed what it changed"
+          }
+        ]
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "response.contract-call",
+          "detail": "auth.token returned 200 with a body that fails the declared schema: /expires_in must be integer",
+          "entity": "auth.token",
+          "operations": [
+            "auth.token"
+          ],
+          "evidence": [
+            {
+              "method": "POST",
+              "status": 200,
+              "url": "http://reference.test/v1/auth/token"
+            }
+          ],
+          "summary": "success response does not match its documented schema",
+          "verdict": "SPEC_BUG"
+        }
+      ]
+    },
+    "summary": {
+      "SPEC_BUG": {
+        "now": 1,
+        "was": null
+      }
+    }
+  }
+}

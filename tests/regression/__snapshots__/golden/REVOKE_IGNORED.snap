@@ -1,0 +1,183 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "1 root-cause finding",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "auth.invite-grants-then-revokes"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 1,
+            "operationId": "invite.accept",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "auth.invite-grants-then-revokes"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 1,
+            "operationId": "table.invite",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "auth.invite-grants-then-revokes"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 1,
+            "operationId": "table.revoke",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invite-grants-then-revokes",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "invite.accept",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "unproven",
+            "tier": "contract",
+            "why": "met its contract, but no later read observed what it changed"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invite-grants-then-revokes",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.invite",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "unproven",
+            "tier": "contract",
+            "why": "met its contract, but no later read observed what it changed"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invite-grants-then-revokes",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.revoke",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "unproven",
+            "tier": "contract",
+            "why": "met its contract, but no later read observed what it changed"
+          }
+        ]
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "auth.invite-grants-then-revokes",
+          "detail": "beta can still read table table_ID after the grant was revoked. A share that cannot be taken back is a standing leak.",
+          "entity": "table",
+          "operations": [
+            "invite.accept",
+            "table.invite",
+            "table.revoke"
+          ],
+          "evidence": [
+            {
+              "method": "DELETE",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/grants/grn_ID"
+            },
+            {
+              "method": "POST",
+              "status": 200,
+              "url": "http://reference.test/v1/invites/inv_TOKEN/accept"
+            },
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/invites"
+            }
+          ],
+          "summary": "revoking an invite does not remove access",
+          "verdict": "BACKEND_BUG"
+        }
+      ]
+    },
+    "summary": {
+      "BACKEND_BUG": {
+        "now": 1,
+        "was": null
+      }
+    }
+  }
+}

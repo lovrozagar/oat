@@ -1,0 +1,97 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "1 root-cause finding",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "list.item-matches-listed-row"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "response.status-is-documented",
+                "schema.error-response-matches-document"
+              ],
+              "suppressed": []
+            },
+            "entity": "notice",
+            "findings": 1,
+            "operationId": "notice.get",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "list.item-matches-listed-row",
+                "response.status-is-documented",
+                "schema.error-response-matches-document"
+              ],
+              "suppressed": []
+            },
+            "entity": "notice",
+            "findings": 0,
+            "operationId": "notice.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "complete",
+            "tier": "contract",
+            "why": "a read with no declared effects: its contract is the whole promise"
+          }
+        ]
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "list.item-matches-listed-row",
+          "detail": "notice.get returned a body that does not contain the row notice.list already returned for note_1",
+          "entity": "notice",
+          "operations": [
+            "notice.get"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/notices/note_1"
+            }
+          ],
+          "summary": "the get body is not the listed row",
+          "verdict": "BACKEND_BUG"
+        }
+      ]
+    },
+    "summary": {
+      "BACKEND_BUG": {
+        "now": 1,
+        "was": null
+      }
+    }
+  }
+}

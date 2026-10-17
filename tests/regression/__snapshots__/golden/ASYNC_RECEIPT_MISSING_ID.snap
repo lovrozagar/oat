@@ -1,0 +1,128 @@
+{
+  "exitCode": 4,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 4,
+        "was": 0
+      },
+      "reason": {
+        "now": "records may remain: 1 create answered 2xx with no readable id",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "leftovers",
+        "was": "clean"
+      }
+    },
+    "inconclusive": {
+      "added": [
+        {
+          "check": "async.reaches-terminal-state",
+          "entity": "job",
+          "reason": "the poll route GET /v1/projects/{project_id}/jobs/{job_id} could not be filled from the receipt: no value for path parameter {job_id}",
+          "operations": [
+            "job.start"
+          ]
+        }
+      ]
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "async.receipt-identifies-the-job"
+              ],
+              "gaps": [],
+              "inconclusive": [
+                "async.reaches-terminal-state"
+              ],
+              "passed": [
+                "effects.declared-effect-occurs",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 1,
+            "operationId": "job.start",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "async.reaches-terminal-state",
+                "async.receipt-identifies-the-job",
+                "effects.declared-effect-occurs",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.start",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "teardown": {
+      "records": {},
+      "removed": {
+        "now": 79,
+        "was": 80
+      },
+      "unidentified": {
+        "added": [
+          {
+            "entity": "job",
+            "method": "POST",
+            "operationId": "job.start",
+            "status": 202,
+            "url": "http://reference.test/v1/projects/proj_alpha/jobs/start"
+          }
+        ]
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "async.receipt-identifies-the-job",
+          "detail": "x-async names \"$.job_id\" as the job id, but the response has no such value. Callers cannot poll for a job they cannot name.",
+          "entity": "job",
+          "operations": [
+            "job.start"
+          ],
+          "evidence": [
+            {
+              "method": "POST",
+              "status": 202,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs/start"
+            }
+          ],
+          "summary": "job.start response does not carry the job identifier it declares",
+          "verdict": "SPEC_BUG"
+        }
+      ]
+    },
+    "summary": {
+      "SPEC_BUG": {
+        "now": 1,
+        "was": null
+      }
+    }
+  }
+}

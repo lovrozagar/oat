@@ -1,0 +1,155 @@
+{
+  "exitCode": 4,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 4,
+        "was": 0
+      },
+      "reason": {
+        "now": "records may remain: 1 teardown could not show gone",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "leftovers",
+        "was": "clean"
+      }
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "async.reaches-terminal-state",
+                "effects.declared-effect-occurs"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "async.receipt-identifies-the-job",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 2,
+            "operationId": "job.start",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "async.reaches-terminal-state",
+                "async.receipt-identifies-the-job",
+                "effects.declared-effect-occurs",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.start",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "teardown": {
+      "failed": {
+        "added": [
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "its creator could never read it back, so teardown cannot tell whether it is gone"
+          }
+        ]
+      },
+      "records": {
+        "added": [
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          }
+        ]
+      },
+      "removed": {
+        "now": 78,
+        "was": 80
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "async.reaches-terminal-state",
+          "detail": "polled GET /v1/projects/{project_id}/jobs/{job_id} N time(s) over Nms without satisfying \"status.in.(complete,failed)\". A job that neither completes nor fails leaves callers polling forever.",
+          "entity": "job",
+          "operations": [
+            "job.start"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 404,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs/job_ID"
+            },
+            {
+              "method": "GET",
+              "status": 404,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs/job_ID"
+            },
+            {
+              "method": "POST",
+              "status": 202,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs/start"
+            }
+          ],
+          "summary": "job.start never reached a terminal state",
+          "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "effects.declared-effect-occurs",
+          "detail": "x-effects declares create × 1 on \"job\", but the collection went from 23 to 23 (0 added, 0 removed). A declared effect that does not occur means callers cannot rely on the operation having done anything.",
+          "entity": "job",
+          "operations": [
+            "job.start"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&page=1"
+            },
+            {
+              "method": "POST",
+              "status": 202,
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs/start"
+            }
+          ],
+          "summary": "job.start did not produce the \"job\" records it declares",
+          "verdict": "BACKEND_BUG"
+        }
+      ]
+    },
+    "summary": {
+      "BACKEND_BUG": {
+        "now": 2,
+        "was": null
+      }
+    }
+  }
+}
