@@ -637,6 +637,24 @@ export async function seedCohort(
 		})
 	}
 
+	/* A client-chosen identity is unique across every tenant, and this principal lists only its own:
+	 * one another tenant holds comes back 409. That identity is drawn again, from its own schema,
+	 * a few times before the 409 is taken as the answer. */
+	const postFresh = async (
+		member: CohortMember,
+		nextUploads: typeof uploads,
+	): Promise<{ exchange: Exchange; sent: CohortMember }> => {
+		let sent = member
+		let exchange = await postMember(sent, nextUploads)
+		for (let attempt = 0; attempt < 3 && exchange.status === 409; attempt++) {
+			if (ownIdentity === null || !Object.hasOwn(sent.body, ownIdentity)) break
+			const token = `id${attempt}-${sent.variant}-${options.nonce ?? ""}`
+			sent = { ...sent, body: uniquifyProbeBody(sent.body, [[ownIdentity]], schema, token) }
+			exchange = await postMember(sent, nextUploads)
+		}
+		return { exchange, sent }
+	}
+
 	const failedVariants: Array<{ variant: string; exchange: Exchange }> = []
 	const withGap = (cohort: SeededCohort): SeededCohort => ({
 		...cohort,
@@ -708,8 +726,8 @@ export async function seedCohort(
 			records.push(record)
 			return null
 		}
-		for (const member of members) {
-			const exchange = await postMember(member, nextUploads)
+		for (const planned of members) {
+			const { exchange, sent: member } = await postFresh(planned, nextUploads)
 			if (exchange.status >= 300) {
 				/* The first create decides whether there is a cohort at all; a later one failing
 				 * is a variant lost, reported rather than ending the cohort in silence. */

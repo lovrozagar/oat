@@ -302,3 +302,30 @@ describe("seeding under a plan limit", () => {
 		expect(sent).toContain("GET /projects/p1/notes")
 	})
 })
+
+describe("seeding with a client-chosen identity another tenant holds", () => {
+	it("draws the identity again and keeps the record the second create made", async () => {
+		const model = buildModel(spec({ withRead: true }))
+		const createOp = model.byOperationId.get("note.create") as OperationModel
+		const sent: unknown[] = []
+		const client = {
+			get: async () => exchange(200, []),
+			request: async (_method: string, _path: string, options: RequestOptions) => {
+				const raw = options.body
+				const body = (typeof raw === "string" ? JSON.parse(raw) : raw) as Record<string, unknown>
+				sent.push(body.id)
+				return sent.length === 1 ? exchange(409, { error: "taken" }) : exchange(200, body)
+			},
+		} as unknown as Client
+		const seeded = await seedCohort(
+			createOp,
+			model,
+			client,
+			{ authHeaders: () => headers, cohortSize: 1, roots: scope, seed: 1 },
+			{ created: [], values: scope },
+		)
+		expect(sent).toHaveLength(2)
+		expect(sent[1]).not.toEqual(sent[0])
+		expect(seeded.records.map((record) => record.id)).toEqual([sent[1]])
+	})
+})
