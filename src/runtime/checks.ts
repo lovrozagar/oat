@@ -5846,6 +5846,16 @@ const successSchemaHonoured: Check<{ createOp: OperationModel; validator: Schema
 /* Bodies made in this process by a context that carries no salt of its own (one built outside a run). */
 let bodiesMade = 0
 
+/**
+ * The salts one check draws on one entity: the check's place in the registry, the entity's in the
+ * model, and a count. Two check runs never share one, by construction, and a run draws the same
+ * sequence every time.
+ */
+export function checkSalts(checkIndex: number, entityIndex: number): () => string {
+	let drawn = 0
+	return () => `${checkIndex}.${entityIndex}.${(drawn++).toString(36)}`
+}
+
 /** The check's next salt; a context built outside a run counts bodies process-wide instead. */
 function saltOf(ctx: CheckContext): string {
 	if (ctx.nextSalt !== undefined) return ctx.nextSalt()

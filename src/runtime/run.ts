@@ -6,7 +6,7 @@
  * per case — which is what made prior attempts produce dozens of failures from one broken fixture.
  */
 
-import { createHash, randomBytes } from "node:crypto"
+import { randomBytes } from "node:crypto"
 import { CREDENTIAL_HEADERS } from "./cookies.ts"
 import { isSecretHeaderName, registerSecret, registerSecretHeader } from "./redact.ts"
 import { buildModel, type EntityModel, type OperationModel, type SpecModel, operationResolver } from "../spec/graph.ts"
@@ -45,7 +45,7 @@ import {
 } from "./network.ts"
 import { type BackoffConfig, resolveBackoff } from "./poll.ts"
 import { type PersistedPrincipal, persistedToPrincipal, snapshotPrincipal } from "./principals.ts"
-import { CHECKS, type Actor, type WriteContext } from "./checks.ts"
+import { CHECKS, type Actor, checkSalts, type WriteContext } from "./checks.ts"
 import { runPublicGets } from "./one-shot.ts"
 import { runDisposableOps, signupOperationId } from "./disposable.ts"
 import { assertScenarios, runScenarios } from "./scenario.ts"
@@ -886,7 +886,10 @@ export async function run(options: RunOptions): Promise<RunResult> {
 		return true
 	}
 
+	/* Each entity's place in the model: half of what keeps one check run's salts its own. */
+	const entityIndexes = new Map([...model.entities.keys()].map((name, index) => [name, index]))
 	const testEntity = async (entity: EntityModel): Promise<void> => {
+		const entityIndex = entityIndexes.get(entity.name) ?? entityIndexes.size
 		const listOp = model.byOperationId.get(entity.list ?? "")
 		const createOp = model.byOperationId.get(entity.create ?? "")
 		/* The path id is the caller's root. Nothing to create. */
@@ -1496,14 +1499,12 @@ export async function run(options: RunOptions): Promise<RunResult> {
 			 * A check that does not mutate gets one that refuses to write. */
 			const stamp = { check: check.id, purpose: "assertion", subject: entity.name } as const
 			const attributed = graded.length === 0 ? findings : findings.attributed(graded)
-			/* Salts of this check on this entity alone: what it sends never depends on what ran beside it. */
-			const saltTag = createHash("sha256").update(`${check.id}\u0000${entity.name}`).digest("hex").slice(0, 6)
-			let salts = 0
 			const view: WriteContext = {
 				...ctx,
 				client: check.mutates === true ? client.view(stamp) : (client.readOnlyView(stamp) as Client),
 				findings: attributed.ownedBy(check.id),
-				nextSalt: () => `${saltTag}${(salts++).toString(36)}`,
+				/* Salts of this check on this entity alone: what it sends never depends on what ran beside it. */
+				nextSalt: checkSalts(CHECKS.indexOf(check), entityIndex),
 				judged: (operationIds) => {
 					judged ??= new Set()
 					for (const id of operationIds) judged.add(id)

@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { judgeDefect, PRINCIPALS } from "../src/conformance/suite.ts"
 import { createMemoryServer } from "../src/reference/http.ts"
+import { CHECKS, checkSalts } from "../src/runtime/checks.ts"
 import { run } from "../src/runtime/run.ts"
+import { buildModel } from "../src/spec/graph.ts"
+import { dereference } from "../src/spec/load.ts"
+import type { OpenApiDocument } from "../src/spec/types.ts"
 
 /*
  * What oat sends is a function of its inputs: the same seed and nonce give the same bodies. A salt
@@ -54,4 +58,29 @@ describe("recall behind the client-ids shape, under load", () => {
 			}
 		}
 	}, 600_000)
+})
+
+describe("the salts a check run draws", () => {
+	it("are never shared by two checks on the same entity", async () => {
+		const server = await createMemoryServer({ shape: "client-ids" })
+		let entities: string[]
+		try {
+			const spec = (await (await fetch(`${server.url}/v1/openapi/spec`)).json()) as OpenApiDocument
+			entities = [...buildModel(dereference(spec).doc).entities.keys()]
+		} finally {
+			await server.close()
+		}
+		const seen = new Map<string, string>()
+		for (const [entityIndex, entity] of entities.entries()) {
+			for (const [checkIndex, check] of CHECKS.entries()) {
+				const next = checkSalts(checkIndex, entityIndex)
+				for (let draw = 0; draw < 40; draw++) {
+					const salt = next()
+					expect(seen.get(salt), `${check.id}@${entity} draws ${salt}`).toBeUndefined()
+					seen.set(salt, `${check.id}@${entity}`)
+				}
+			}
+		}
+		expect(seen.size).toBe(entities.length * CHECKS.length * 40)
+	})
 })
