@@ -71,7 +71,7 @@ describe("createOne", () => {
 		expect(await createOne(bare.createOp, bare.seeding, scope)).toEqual({ adopted: false, record: { id: "t2" } })
 	})
 
-	it("names the operation when no body can be generated, and lets another failure through", async () => {
+	it("names the operation when no body can be generated, a malformed schema included", async () => {
 		const impossible = {
 			properties: { n: { maximum: 1, minimum: 5, type: "integer" } },
 			required: ["n"],
@@ -86,7 +86,9 @@ describe("createOne", () => {
 		const broken = seeding(() => ({ status: 201 }), {
 			requestBody: { content: { "application/json": { schema: malformed } } },
 		})
-		await expect(createOne(broken.createOp, broken.seeding, scope)).rejects.toThrow(TypeError)
+		await expect(createOne(broken.createOp, broken.seeding, scope)).rejects.toThrow(
+			/table\.create.*allOf\/0\/allOf is not a list of schemas/,
+		)
 	})
 })
 

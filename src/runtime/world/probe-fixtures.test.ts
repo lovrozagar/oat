@@ -15,15 +15,20 @@ describe("probeCreateFixtures", () => {
 		expect(model.gaps.gaps.map((gap) => `${gap.operationId} ${gap.tag}`)).toContain("note.create fixture")
 	})
 
-	it("passes over entities without a create, creates without a body, and failures that are not overflows", () => {
+	it("passes over entities without a create and creates without a body", () => {
 		const fine = modelOf(tables(null))
 		probeCreateFixtures(fine)
 		expect(fine.gaps.gaps.filter((gap) => gap.tag === "fixture")).toEqual([])
 		const bare = modelOf(notes({ body: null }))
 		probeCreateFixtures(bare)
 		expect(bare.gaps.gaps.filter((gap) => gap.tag === "fixture")).toEqual([])
+	})
+
+	it("records a malformed schema as a gap naming what is wrong, never silence", () => {
 		const malformed = modelOf(notes({ body: { allOf: [{ allOf: 5 }] } }))
-		expect(() => probeCreateFixtures(malformed)).not.toThrow()
-		expect(malformed.gaps.gaps.filter((gap) => gap.tag === "fixture")).toEqual([])
+		probeCreateFixtures(malformed)
+		expect(malformed.gaps.gaps.filter((gap) => gap.tag === "fixture").map((gap) => gap.detail)).toEqual([
+			expect.stringContaining("allOf/0/allOf is not a list of schemas"),
+		])
 	})
 })

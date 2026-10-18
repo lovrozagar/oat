@@ -5,7 +5,7 @@ import type { Hooks } from "../../config/types/hooks.ts"
 import type { EntityModel, SpecModel } from "../../spec/graph/types.ts"
 import type { Exchange } from "../exchange.ts"
 import type { FindingCollector, Outcome } from "../finding.ts"
-import { buildCohort, type CohortMember, isOverflowError } from "../fixture.ts"
+import { buildCohort, type CohortMember } from "../fixture.ts"
 import { applyResolveInput } from "../input.ts"
 import { requestSchemaOf } from "../world/schema.ts"
 import { SELF_CHECK_ID } from "./operations.ts"
@@ -72,8 +72,7 @@ function callerBody(
 		})[0] as CohortMember
 		return { body: member.body }
 	} catch (error) {
-		if (!isOverflowError(error)) throw error
-		/* A fixture overflow and a stack overflow are both errors with a message. */
+		/* buildCohort reports every failure as an overflow naming why. */
 		return { outcome: findings.unresolved(SELF_CHECK_ID, input.entity.name, (error as Error).message) }
 	}
 }

@@ -295,7 +295,34 @@ describe("generate", () => {
 		expect(generate(schema)).toEqual({ ok: false, pointer: "/", reason: "the schema nests too deeply to generate" })
 	})
 
-	it("lets an error that is not about the schema through", () => {
-		expect(() => generate({ type: "number" }, { rand: noRandomness })).toThrow("no randomness")
+	it("reports any other failure with its text instead of throwing it", () => {
+		expect(generate({ type: "number" }, { rand: noRandomness })).toEqual({
+			ok: false,
+			pointer: "/",
+			reason: "generation failed: no randomness",
+		})
+	})
+})
+
+const refused = (reason: string, pointer = "/") => ({ ok: false, pointer, reason })
+
+describe("generate refuses an allOf that is not a list", () => {
+	it("names the allOf that is not a list of schemas, at the top or nested, instead of crashing", () => {
+		expect(generate({ allOf: 5 })).toEqual(refused("allOf is not a list of schemas"))
+		expect(generate({ allOf: [{ allOf: 5 }] })).toEqual(refused("allOf/0/allOf is not a list of schemas"))
+		const property = { properties: { a: { allOf: [{}, { allOf: "x" }] } }, required: ["a"], type: "object" }
+		expect(generate(property)).toEqual(refused("allOf/1/allOf is not a list of schemas", "/a"))
+	})
+})
+
+describe("generate on a schema whose reading fails", () => {
+	it("refuses with the error instead of throwing it", () => {
+		const schema = Object.defineProperty({ type: "object" }, "required", {
+			enumerable: true,
+			get() {
+				throw new Error("boom")
+			},
+		})
+		expect(generate(schema)).toEqual({ ok: false, pointer: "/", reason: "generation failed: boom" })
 	})
 })

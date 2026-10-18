@@ -216,3 +216,20 @@ describe("fixture walk", () => {
 		expect(isOverflowError(overflow)).toBe(true)
 	})
 })
+
+/* A schema whose reading throws: what a hook-built or proxied document can hand over. */
+function throwing(key: string): Record<string, unknown> {
+	return Object.defineProperty({ type: "object" }, key, {
+		enumerable: true,
+		get() {
+			throw new Error("boom")
+		},
+	})
+}
+
+describe("buildCohort on a schema that cannot be read", () => {
+	it("reports it as an overflow with the error, never a crash", () => {
+		expect(() => buildCohort(throwing("properties"), 1, ["baseline"], "note.create")).toThrow(FixtureOverflow)
+		expect(() => buildCohort(throwing("properties"), 1, ["baseline"], "note.create")).toThrow(/boom/)
+	})
+})

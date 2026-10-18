@@ -85,14 +85,16 @@ describe("seedCohort", () => {
 		expect(cohort.records).toHaveLength(7)
 	})
 
-	it("names the operation when no body can be generated, and lets another failure through", async () => {
+	it("names the operation when no body can be generated, a malformed schema included", async () => {
 		const impossible = {
 			properties: { n: { maximum: 1, minimum: 5, type: "integer" } },
 			required: ["n"],
 			type: "object",
 		}
 		await expect(seed(echo, { body: impossible }).result).rejects.toThrow(FixtureOverflow)
-		await expect(seed(echo, { body: { allOf: [{ allOf: 5 }] } }).result).rejects.toThrow(TypeError)
+		await expect(seed(echo, { body: { allOf: [{ allOf: 5 }] } }).result).rejects.toThrow(
+			/note\.create.*allOf\/0\/allOf is not a list of schemas/,
+		)
 	})
 })
 

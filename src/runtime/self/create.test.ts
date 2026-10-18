@@ -62,7 +62,7 @@ describe("createCaller, when it cannot", () => {
 		})
 	})
 
-	it("says why no body can be made, and lets another failure through", async () => {
+	it("says why no body can be made, a malformed schema included", async () => {
 		const impossible = {
 			properties: { n: { maximum: 1, minimum: 5, type: "integer" } },
 			required: ["n"],
@@ -74,7 +74,10 @@ describe("createCaller, when it cannot", () => {
 			reason: expect.stringContaining("me.create"),
 		})
 		const malformed = selfInput(() => undefined, me({ create: { allOf: [{ allOf: 5 }] } }))
-		await expect(createCaller(malformed.input, malformed.findings)).rejects.toThrow(TypeError)
+		expect(await createCaller(malformed.input, malformed.findings)).toMatchObject({
+			kind: "unresolved",
+			reason: expect.stringContaining("allOf/0/allOf is not a list of schemas"),
+		})
 	})
 
 	it("reports a create the backend refused", async () => {

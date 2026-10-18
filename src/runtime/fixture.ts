@@ -17,6 +17,7 @@ import { type Variant } from "./generate/types.ts"
 import { generate } from "./generate/generate.ts"
 import { isVacuous } from "./generate/algebra.ts"
 import { instanceErrors } from "./validate.ts"
+import { messageOf } from "../errors/message.ts"
 
 export type { Variant } from "./generate/types.ts"
 export { isVacuous } from "./generate/algebra.ts"
@@ -93,6 +94,15 @@ function requestSchema(schema: Schema | boolean): Schema | boolean {
 	return typeof schema === "object" && schema !== null ? normalizeSchema(schema, { direction: "request" }) : schema
 }
 
+/* The request schema as generation reads it; one that cannot even be read is an overflow naming why. */
+function readable(schema: Schema | boolean, operationId: string): Schema | boolean {
+	try {
+		return requestSchema(schema)
+	} catch (error) {
+		throw new FixtureOverflow(operationId, "/", `the schema could not be read: ${messageOf(error)}`)
+	}
+}
+
 /** One body per variant, each valid for the schema — or a `FixtureOverflow` naming what is not. */
 export function buildCohort(
 	bodySchema: Schema | boolean,
@@ -101,7 +111,7 @@ export function buildCohort(
 	operationId = "unknown",
 	options: CohortOptions = {},
 ): CohortMember[] {
-	const schema = requestSchema(bodySchema)
+	const schema = readable(bodySchema, operationId)
 	return variants.map((variant, index) => {
 		const result = generate(schema, {
 			...(options.defs === undefined ? {} : { defs: options.defs }),

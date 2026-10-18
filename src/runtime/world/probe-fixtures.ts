@@ -1,10 +1,10 @@
 import type { OperationModel, SpecModel } from "../../spec/graph/types.ts"
-import { buildCohort, isOverflowError, overflowFrom } from "../fixture.ts"
+import { buildCohort, overflowFrom } from "../fixture.ts"
 import { requestSchemaOf } from "./schema.ts"
 
 /**
- * Walk each create schema the way seed will. A cycle that still overflows is a named gap on
- * that operation — plan and doctor must not throw `RangeError` either.
+ * Walk each create schema the way seed will. A body that cannot be generated, for whatever reason,
+ * is a named gap on that operation — plan and doctor must not throw, and must not stay silent.
  */
 export function probeCreateFixtures(model: SpecModel): void {
 	for (const entity of model.entities.values()) {
@@ -15,10 +15,8 @@ export function probeCreateFixtures(model: SpecModel): void {
 		try {
 			buildCohort(schema, 1, ["baseline"], op.operationId, { defs: model.defs })
 		} catch (error) {
-			if (isOverflowError(error)) {
-				const overflow = overflowFrom(error, op.operationId)
-				model.gaps.record(op.operationId, "fixture", overflow.message)
-			}
+			/* Generation reports every failure as an overflow naming why: never silence. */
+			model.gaps.record(op.operationId, "fixture", overflowFrom(error, op.operationId).message)
 		}
 	}
 }

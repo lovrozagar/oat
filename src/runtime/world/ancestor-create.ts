@@ -1,6 +1,6 @@
 import type { OperationModel } from "../../spec/graph/types.ts"
 import { encodeForOperation } from "../body.ts"
-import { type CohortMember, buildCohort, isOverflowError, overflowFrom } from "../fixture.ts"
+import { type CohortMember, buildCohort, overflowFrom } from "../fixture.ts"
 import { fillPath } from "../fill-path.ts"
 import { SeedError } from "../seed-error.ts"
 import { isUniqueConflictResponse, uniquifyProbeBody } from "../unique.ts"
@@ -31,8 +31,8 @@ function ancestorBody(
 			...(options.nonce === undefined ? {} : { nonce: options.nonce }),
 		})[0] as CohortMember
 	} catch (error) {
-		if (isOverflowError(error)) throw overflowFrom(error, createOp.operationId)
-		throw error
+		/* buildCohort reports every failure as an overflow; it is named after this operation. */
+		throw overflowFrom(error, createOp.operationId)
 	}
 	let body = member.body
 	const unique = createOp.unique ?? []

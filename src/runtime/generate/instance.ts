@@ -46,7 +46,7 @@ export function instance(raw: unknown, ctx: Context, pointer: string, distinct: 
 	const at: At = { ctx, distinct, pointer }
 	if (typeof raw.$ref === "string") return viaRef(raw, raw.$ref, at, instance)
 
-	const schema = Array.isArray(raw.allOf) ? mergeAll(raw, raw.allOf) : raw
+	const schema = raw.allOf === undefined ? raw : mergeAll(raw, raw.allOf, pointer)
 	if ("const" in schema) return schema.const
 
 	const union = (schema.oneOf ?? schema.anyOf) as unknown[] | undefined

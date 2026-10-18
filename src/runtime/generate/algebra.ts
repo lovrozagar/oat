@@ -1,6 +1,7 @@
 /** Schema algebra: what a schema admits at a glance, and `allOf` folded into one schema. */
 
 import type { Schema } from "./types.ts"
+import { Unconstructible } from "./unconstructible.ts"
 
 export function isObject(value: unknown): value is Schema {
 	return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -29,13 +30,20 @@ export function isVacuous(schema: unknown): boolean {
 	return Object.keys(schema).every((key) => ANNOTATIONS.has(key) || key.startsWith("x-"))
 }
 
-/** Folds `allOf` branches into one schema: properties merged, bounds intersected. */
-export function mergeAll(base: Schema, branches: unknown[]): Schema {
+/**
+ * Folds `allOf` branches into one schema: properties merged, bounds intersected. `pointer` is the
+ * value being generated, `path` the `allOf` within its schema; one that is not a list of schemas
+ * admits nothing anyone could construct.
+ */
+export function mergeAll(base: Schema, branches: unknown, pointer: string, path = "allOf"): Schema {
+	if (!Array.isArray(branches)) throw new Unconstructible(`${path} is not a list of schemas`, pointer)
 	let out: Schema = { ...base }
 	delete out.allOf
-	for (const branch of branches) {
+	for (const [index, branch] of branches.entries()) {
 		if (!isObject(branch)) continue
-		out = merge(out, branch.allOf === undefined ? branch : mergeAll(branch, branch.allOf as unknown[]))
+		const nested =
+			branch.allOf === undefined ? branch : mergeAll(branch, branch.allOf, pointer, `${path}/${index}/allOf`)
+		out = merge(out, nested)
 	}
 	return out
 }

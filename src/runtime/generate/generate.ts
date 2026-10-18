@@ -16,6 +16,7 @@
 import { instance } from "./instance.ts"
 import type { Context, GenerateOptions, Generated } from "./types.ts"
 import { Unconstructible } from "./unconstructible.ts"
+import { messageOf } from "../../errors/message.ts"
 
 /** One value valid for `schema`, or why none can be made. */
 export function generate(schema: unknown, options: GenerateOptions = {}): Generated {
@@ -36,6 +37,7 @@ export function generate(schema: unknown, options: GenerateOptions = {}): Genera
 		if (error instanceof Unconstructible) return { ok: false, pointer: error.pointer || "/", reason: error.reason }
 		if (error instanceof RangeError)
 			return { ok: false, pointer: "/", reason: "the schema nests too deeply to generate" }
-		throw error
+		/* Anything else is a schema generation could not even read: a reason, never a crash. */
+		return { ok: false, pointer: "/", reason: `generation failed: ${messageOf(error)}` }
 	}
 }
