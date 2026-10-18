@@ -1,5 +1,6 @@
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph.ts"
+import { pathParameterNames } from "../../../../spec/extensions.ts"
 import type { Exchange } from "../../../client.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
@@ -111,15 +112,11 @@ interface Probe {
 }
 
 /* Only routes whose path can be filled from this entity's scope are probed: a route
- * needing an identifier oat does not hold would 404 for a reason unrelated to staleness. */
+ * needing an identifier oat does not hold cannot be read at all. */
 function fillableProbes(ctx: CheckContext, foreign: readonly OperationModel[]): Probe[] {
-	const probes: Probe[] = []
-	for (const op of foreign) {
-		const path = fillPath(op.path, ctx.scope)
-		if (path.includes("{")) continue
-		probes.push({ op, path })
-	}
-	return probes
+	return foreign
+		.filter((op) => pathParameterNames(op.path).every((name) => ctx.scope[name] !== undefined))
+		.map((op) => ({ op, path: fillPath(op.path, ctx.scope) }))
 }
 
 /* What a route serves, as a comparable snapshot: a collection read whole, since the record

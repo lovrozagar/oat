@@ -141,11 +141,7 @@ describe("invalidation.declared-route-changes stale routes", () => {
 
 describe("invalidation.declared-route-changes unreadable routes", () => {
 	it("is unresolved when no declared route can be filled from this entity's scope", async () => {
-		/* A brace `fillPath` cannot fill: the template has no `{name}` it recognises. */
-		const doc = declaring(["GET /feed{"])
-		doc.paths = { ...doc.paths }
-		doc.paths["/feed{"] = { get: { operationId: "feed.get", responses: { "200": { description: "ok" } } } }
-		const staged = stage(derived(), {}, doc)
+		const staged = stage(derived(), {}, declaring(["GET /orgs/{org_id}/summary"]))
 		expect(await drive(staged)).toEqual({
 			kind: "unresolved",
 			reason: "the declared routes need identifiers outside this entity's scope, so they cannot be read",
@@ -153,13 +149,7 @@ describe("invalidation.declared-route-changes unreadable routes", () => {
 		expect(staged.sent).toEqual([])
 	})
 
-	/*
-	 * Bug: `fillPath` throws a SeedError for a parameter the scope lacks rather than leaving the
-	 * brace, so a declared route needing an identifier oat does not hold aborts the whole check —
-	 * the scheduler records it as "could not complete" — instead of being skipped, and the stale
-	 * route declared beside it is never read.
-	 */
-	it.todo("skips a declared route needing an identifier outside the scope and judges the rest", async () => {
+	it("skips a declared route needing an identifier outside the scope and judges the rest", async () => {
 		const staged = stage(derived({ stale: "/stats" }), {}, declaring(["GET /orgs/{org_id}/summary", "GET /stats"]))
 		expect(await drive(staged)).toEqual({ kind: "finding", verdict: "BACKEND_BUG" })
 	})
