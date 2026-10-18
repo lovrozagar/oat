@@ -8,7 +8,7 @@ import type { ReportInput } from "../../src/report/render/input.ts"
 import { renderJson } from "../../src/report/render/json.ts"
 import { renderMarkdown } from "../../src/report/render/markdown.ts"
 import { renderConsole } from "../../src/report/render/summary.ts"
-import type { ProgressSnapshot } from "../../src/runtime/progress.ts"
+import type { ProgressSnapshot } from "../../src/runtime/progress/types.ts"
 import { run } from "../../src/runtime/run/index.ts"
 
 let server: ReferenceServer

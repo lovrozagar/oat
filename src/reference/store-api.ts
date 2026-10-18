@@ -3,7 +3,7 @@
  *
  * A store is deliberately dumb: it persists rows and answers "which rows match this predicate, in
  * this order". Parsing, validation, paging, projection and every defect that is not a property of
- * the engine itself live above it (see `query.ts` and `listing.ts`), so they are written once and
+ * the engine itself live above it (see `query/` and `listing/`), so they are written once and
  * every engine exhibits them identically.
  *
  * What the engines are still free to disagree on is what engines genuinely disagree on: how they
@@ -13,7 +13,7 @@
  * Async throughout, because a real database is: SQLite implementations resolve immediately.
  */
 
-import type { EntityDef } from "./model.ts"
+import type { EntityDef } from "./model/types.ts"
 import type { SelectPlan } from "./query-types.ts"
 
 export type Row = Record<string, unknown>

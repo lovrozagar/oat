@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { ENTITIES } from "../model.ts"
+import { ENTITIES } from "../model/entities.ts"
 import { noticePaths, publicReadPaths } from "./public.ts"
 import type { Json } from "./types.ts"
 

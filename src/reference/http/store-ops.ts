@@ -1,7 +1,8 @@
 /** What the server reads and writes on its own account: identities, uniqueness, derived counts, jobs. */
 
-import type { EntityDef } from "../model.ts"
-import { and, type FilterNode } from "../query.ts"
+import type { EntityDef } from "../model/types.ts"
+import { and } from "../query/tree.ts"
+import type { FilterNode } from "../query-types.ts"
 import type { Row } from "../store-api.ts"
 import { HttpError } from "./errors.ts"
 import { tombstoned, withDefaults } from "./records.ts"

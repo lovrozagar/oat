@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { Exchange } from "../runtime/exchange.ts"
-import { RateLimiter } from "../runtime/rate-limit.ts"
+import { RateLimiter } from "../runtime/rate-limit/limiter.ts"
 import { Redactor } from "../security/redact.ts"
 import { type Answer, json, refused, sequence, transport } from "./__fixtures__/transport.ts"
 import { Client } from "./client.ts"

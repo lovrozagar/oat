@@ -1,6 +1,6 @@
 /** A request as it goes on the wire: its URL with the query, and its body encoded for `fetch`. */
 
-import { isAbsoluteHttpUrl } from "../runtime/cookies.ts"
+import { isAbsoluteHttpUrl } from "../runtime/cookies/redirect.ts"
 import {
 	bodyByteLength,
 	formDataBytes,

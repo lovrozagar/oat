@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest"
-import { CLASSIC, type Dialect, JSONAPI, LINKED, PLAIN, POSTGREST, TEMPLATE } from "../dialect.ts"
-import { ENTITIES, JOB, ROW, shapedEntities, TABLE } from "../model.ts"
-import type { ReferenceShape } from "../shapes.ts"
+import { CLASSIC, JSONAPI, LINKED, PLAIN, POSTGREST, TEMPLATE } from "../dialect/presets.ts"
+import type { Dialect } from "../dialect/types.ts"
+import { ENTITIES } from "../model/entities.ts"
+import { JOB } from "../model/job.ts"
+import { ROW } from "../model/row.ts"
+import { shapedEntities } from "../model/shaped.ts"
+import { TABLE } from "../model/table.ts"
+import type { ReferenceShape } from "../shapes/types.ts"
 import { listQueryParams, pathParams, renderOrder, tenantParam } from "./params.ts"
 
 const SPACED: Dialect = { ...POSTGREST, sortGrammar: "spaced" }

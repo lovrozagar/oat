@@ -1,7 +1,8 @@
 /** The `x-query` declaration on a listing: what may be filtered, sorted, searched and selected. */
 
-import type { Dialect } from "../dialect.ts"
-import { type EntityDef, type FieldDef, fieldsWhere } from "../model.ts"
+import type { Dialect } from "../dialect/types.ts"
+import type { EntityDef, FieldDef } from "../model/types.ts"
+import { fieldsWhere } from "../model/fields.ts"
 import { renderOrder } from "./params.ts"
 import type { Json, SpecContext } from "./types.ts"
 

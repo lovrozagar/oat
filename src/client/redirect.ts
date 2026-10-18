@@ -1,17 +1,10 @@
 /** One attempt on the wire, following redirects itself when asked so every hop's cookies are kept. */
 
-import {
-	applyJarToHeaders,
-	CookieJar,
-	isRedirectStatus,
-	MAX_REDIRECTS,
-	omitHeader,
-	type RedirectHop,
-	recordResponseHeaders,
-	redirectTarget,
-	setCookieHeadersFrom,
-} from "../runtime/cookies.ts"
-import { readResponsePayload, type ResponsePayload } from "../runtime/transcript.ts"
+import { applyJarToHeaders, CookieJar } from "../runtime/cookies/jar.ts"
+import { isRedirectStatus, MAX_REDIRECTS, type RedirectHop, redirectTarget } from "../runtime/cookies/redirect.ts"
+import { omitHeader, recordResponseHeaders, setCookieHeadersFrom } from "../runtime/cookies/set-cookie.ts"
+import { readResponsePayload } from "../runtime/transcript/payload.ts"
+import type { ResponsePayload } from "../runtime/transcript/types.ts"
 import { stripCredentials } from "../security/strip.ts"
 import type { FenceAsk } from "./fence.ts"
 

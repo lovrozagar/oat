@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { ProgressSnapshot } from "../progress.ts"
+import type { ProgressSnapshot } from "../progress/types.ts"
 import { connected, notesApi, notesDoc, optionsFor } from "./__fixtures__/api.ts"
 import { planScope } from "./scope-plan.ts"
 import type { RunOptions } from "./types.ts"

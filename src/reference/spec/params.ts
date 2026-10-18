@@ -1,7 +1,8 @@
 /** Path and query parameters, and the sort spellings each dialect's parameters expect. */
 
-import type { Dialect } from "../dialect.ts"
-import { type EntityDef, fieldsWhere } from "../model.ts"
+import type { Dialect } from "../dialect/types.ts"
+import type { EntityDef } from "../model/types.ts"
+import { fieldsWhere } from "../model/fields.ts"
 import type { Json, SpecContext } from "./types.ts"
 
 /** A query parameter as `[name, schema, description]`. */

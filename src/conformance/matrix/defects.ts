@@ -1,5 +1,5 @@
-import { type DefectName, DEFECTS } from "../../reference/defects.ts"
-import { DIALECTS } from "../../reference/dialect.ts"
+import { type DefectName, DEFECTS } from "../../reference/defects/table.ts"
+import { DIALECTS } from "../../reference/dialect/presets.ts"
 import type { Backend } from "./engines.ts"
 
 /**

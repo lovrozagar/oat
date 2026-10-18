@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { DEFECTS, type DefectName } from "../../reference/defects.ts"
-import { DIALECTS } from "../../reference/dialect.ts"
+import { DEFECTS, type DefectName } from "../../reference/defects/table.ts"
+import { DIALECTS } from "../../reference/dialect/presets.ts"
 import {
 	CLIENT_ID_ONLY,
 	COUNT_ONLY,

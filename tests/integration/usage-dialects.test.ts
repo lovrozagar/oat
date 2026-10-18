@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { USAGE } from "../../src/cli/flags.ts"
-import { DIALECTS } from "../../src/reference/dialect.ts"
+import { DIALECTS } from "../../src/reference/dialect/presets.ts"
 
 /* A dialect `--dialect` accepts but the help does not name is one nobody finds. */
 

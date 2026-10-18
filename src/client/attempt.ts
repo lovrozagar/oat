@@ -2,7 +2,8 @@
 
 import type { Exchange } from "../runtime/exchange.ts"
 import type { Fence } from "../runtime/fence.ts"
-import type { CompiledRateLimitRule, RateLimiter } from "../runtime/rate-limit.ts"
+import type { CompiledRateLimitRule } from "../runtime/rate-limit/rules.ts"
+import type { RateLimiter } from "../runtime/rate-limit/limiter.ts"
 import type { Credential, CredentialSource } from "./credential-source.ts"
 import type { Landed } from "./redirect.ts"
 import type { EncodedBody } from "./serialize.ts"

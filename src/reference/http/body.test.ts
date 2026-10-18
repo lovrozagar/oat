@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { DefectSet } from "../defects.ts"
+import { DefectSet } from "../defects/defect-set.ts"
 import { readJson, requireForm, requireJson } from "./body.ts"
 import { HttpError } from "./errors.ts"
 import { referenceRequest } from "./wire.ts"

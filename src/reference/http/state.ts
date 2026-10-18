@@ -1,10 +1,10 @@
 /** Everything one reference server holds between requests. */
 
-import type { DefectSet } from "../defects.ts"
-import type { Dialect } from "../dialect.ts"
-import type { EntityDef } from "../model.ts"
-import type { QueryConventions } from "../query.ts"
-import type { ReferenceShape } from "../shapes.ts"
+import type { DefectSet } from "../defects/defect-set.ts"
+import type { Dialect } from "../dialect/types.ts"
+import type { EntityDef } from "../model/types.ts"
+import type { QueryConventions } from "../query/conventions.ts"
+import type { ReferenceShape } from "../shapes/types.ts"
 import type { Row, Store } from "../store-api.ts"
 import type { Ids } from "./ids.ts"
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { MAX_REDIRECTS } from "../runtime/cookies.ts"
+import { MAX_REDIRECTS } from "../runtime/cookies/redirect.ts"
 import { credentialHeaderNames } from "../security/strip.ts"
 import { type Answer, json, transport } from "./__fixtures__/transport.ts"
 import type { FenceAsk } from "./fence.ts"

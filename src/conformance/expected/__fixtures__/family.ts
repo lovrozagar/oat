@@ -1,5 +1,5 @@
 import { expect } from "vitest"
-import { isDefectName } from "../../../reference/defects.ts"
+import { isDefectName } from "../../../reference/defects/table.ts"
 import { RUN_FINDING_IDS } from "../../../runtime/check-ids.ts"
 import { CHECKS } from "../../../runtime/checks/registry.ts"
 import { EXPECTED } from "../table.ts"

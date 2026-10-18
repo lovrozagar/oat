@@ -1,6 +1,6 @@
 /** Which entity route a path names, and the path parameters it carries. */
 
-import type { EntityDef } from "../model.ts"
+import type { EntityDef } from "../model/types.ts"
 
 export interface Match {
 	entity: EntityDef

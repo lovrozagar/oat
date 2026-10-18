@@ -1,7 +1,7 @@
 import { dirname, resolve } from "node:path"
 import type { OatConfig } from "../../config/types/config.ts"
 import type { BaselineFile } from "../../runtime/baseline.ts"
-import type { ProgressHandler } from "../../runtime/progress.ts"
+import type { ProgressHandler } from "../../runtime/progress/types.ts"
 import type { RunOptions } from "../../runtime/run/index.ts"
 import { type Args, list, str } from "../flags.ts"
 

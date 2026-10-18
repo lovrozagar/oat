@@ -18,8 +18,8 @@ import { damagedBystanders, leftBehind, ledgeredNotCreated } from "./leaks.ts"
 import { judgeDefect } from "./matrix/cases.ts"
 import { defectsFor } from "./matrix/defects.ts"
 import { PRINCIPALS } from "./matrix/principals.ts"
-import { type DefectName, isDefectName } from "../reference/defects.ts"
-import { SHAPES } from "../reference/shapes.ts"
+import { type DefectName, isDefectName } from "../reference/defects/table.ts"
+import { SHAPES } from "../reference/shapes/catalog.ts"
 import { run } from "../runtime/run/index.ts"
 
 export interface ShapeCase {

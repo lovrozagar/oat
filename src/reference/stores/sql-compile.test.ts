@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { EntityDef } from "../model.ts"
+import type { EntityDef } from "../model/types.ts"
 import { compileOrder, type SqlFlavour } from "./sql-compile.ts"
 
 const entity = {

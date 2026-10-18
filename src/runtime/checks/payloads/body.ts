@@ -1,7 +1,7 @@
 import { requestContent } from "../../../spec/collection/request.ts"
 import type { OperationModel } from "../../../spec/graph/types.ts"
 import { normalizeSchema } from "../../../spec/schema.ts"
-import { encodeForOperation } from "../../body.ts"
+import { encodeForOperation } from "../../body/encode.ts"
 import type { RequestOptions } from "../../../client/types.ts"
 import type { Exchange } from "../../exchange.ts"
 import { fillPath } from "../../fill-path.ts"
@@ -95,7 +95,7 @@ export async function encodeOpBody(
 		uploads = ctx.uploads,
 	}: { variant?: string | undefined; index?: number | undefined; uploads?: UploadContext | undefined } = {},
 ): Promise<Pick<RequestOptions, "body" | "contentType">> {
-	const encoded = await encodeForOperation(op, ctx.model, fields, uploads, variant, index)
+	const encoded = await encodeForOperation(op, ctx.model, fields, { index, uploads, variant })
 	return encoded.contentType === undefined
 		? { body: encoded.body }
 		: { body: encoded.body, contentType: encoded.contentType }

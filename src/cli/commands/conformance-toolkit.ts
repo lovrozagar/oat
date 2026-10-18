@@ -24,8 +24,8 @@ export interface Toolkit {
 	featureGate: typeof import("../../conformance/feature-gate.ts")
 	rateLimit: typeof import("../../conformance/rate-limit.ts")
 	unique: typeof import("../../conformance/unique.ts")
-	dialect: typeof import("../../reference/dialect.ts")
-	defects: typeof import("../../reference/defects.ts")
+	dialect: typeof import("../../reference/dialect/presets.ts")
+	defects: typeof import("../../reference/defects/table.ts")
 }
 
 /** Every module of the self-test, loaded at once. */
@@ -57,8 +57,8 @@ export async function loadToolkit(): Promise<Toolkit> {
 			import("../../conformance/feature-gate.ts"),
 			import("../../conformance/rate-limit.ts"),
 			import("../../conformance/unique.ts"),
-			import("../../reference/dialect.ts"),
-			import("../../reference/defects.ts"),
+			import("../../reference/dialect/presets.ts"),
+			import("../../reference/defects/table.ts"),
 		])
 	return { defects, dialect, effects, featureGate, fuzz, pool, rateLimit, seedContract, shapes, suite, unique }
 }

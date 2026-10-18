@@ -1,7 +1,7 @@
 /** What each answer on the caller's routes means, decided without another request. */
 
 import type { EntityModel, OperationModel, SpecModel } from "../../spec/graph/types.ts"
-import { requestContentOf } from "../body.ts"
+import { requestContentOf } from "../body/encode.ts"
 import type { Exchange } from "../exchange.ts"
 import { ASSERTED, type FindingCollector, type Outcome } from "../finding.ts"
 import type { CreatedCaller } from "./create.ts"

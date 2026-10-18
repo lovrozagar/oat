@@ -1,10 +1,10 @@
 /** One request, prepared once and sent per attempt: headers, fence, pacing and the wire. */
 
 import { MissingValueError } from "../errors/missing-value.ts"
-import { isAbsoluteHttpUrl } from "../runtime/cookies.ts"
+import { isAbsoluteHttpUrl } from "../runtime/cookies/redirect.ts"
 import type { Exchange } from "../runtime/exchange.ts"
 import { headerValue } from "../runtime/headers.ts"
-import type { RateLimiter } from "../runtime/rate-limit.ts"
+import type { RateLimiter } from "../runtime/rate-limit/limiter.ts"
 import { credentialHeaderNames } from "../security/strip.ts"
 import { answered, failed } from "./answer.ts"
 import type { Pacing, Prepared, Sent, Timed, Wire } from "./attempt.ts"

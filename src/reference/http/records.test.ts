@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
-import { DefectSet } from "../defects.ts"
-import { JOB, ROW, TABLE } from "../model.ts"
+import { DefectSet } from "../defects/defect-set.ts"
+import { JOB } from "../model/job.ts"
+import { ROW } from "../model/row.ts"
+import { TABLE } from "../model/table.ts"
 import { api } from "./__fixtures__/api.ts"
 import {
 	answerCreated,

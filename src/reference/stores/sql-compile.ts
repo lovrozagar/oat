@@ -7,8 +7,8 @@
  * the predicate is not.
  */
 
-import type { EntityDef } from "../model.ts"
-import type { Collation, FilterNode, LikeSegment, OrderTerm, Scalar, SearchMode } from "../query.ts"
+import type { EntityDef } from "../model/types.ts"
+import type { Collation, FilterNode, LikeSegment, OrderTerm, Scalar, SearchMode } from "../query-types.ts"
 
 export type SqlParam = string | number | boolean | null
 

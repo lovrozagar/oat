@@ -117,4 +117,4 @@ Besides its defect, every case — clean baseline or injected defect — fails w
 - deletes or changes a record that existed before the run (`touched N record(s) it did not create`), or
 - ledgers for teardown an id the server never issued or stored (`ledgered N id(s) the server never created`) — an id oat only sent, say. An id a defective server handed back without storing the record counts as issued.
 
-A defect that by design rewrites other rows would be listed in `DAMAGES_BYSTANDERS` (`src/reference/defects.ts`) with its reason; none is today.
+A defect that by design rewrites other rows would be listed in `DAMAGES_BYSTANDERS` (`src/reference/defects/bystanders.ts`) with its reason; none is today.

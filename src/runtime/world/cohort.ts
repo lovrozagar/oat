@@ -1,7 +1,7 @@
 /** One cohort's seeding as it goes: the records made so far, and how each create is sent and read. */
 
 import type { OperationModel } from "../../spec/graph/types.ts"
-import { encodeForOperation } from "../body.ts"
+import { encodeForOperation } from "../body/encode.ts"
 import type { Exchange } from "../exchange.ts"
 import { describeFeatureGate, isDocumentedFeatureGateDenial } from "../feature-gate.ts"
 import type { CohortMember } from "../fixture.ts"
@@ -62,14 +62,11 @@ export async function recordCreated(run: CohortRun, exchange: Exchange, sent: un
 
 export async function postMember(run: CohortRun, member: CohortMember, nextUploads: UploadContext): Promise<Exchange> {
 	const { createOp, seeding } = run
-	const encoded = await encodeForOperation(
-		createOp,
-		seeding.model,
-		member.body,
-		nextUploads,
-		member.variant,
-		run.records.length,
-	)
+	const encoded = await encodeForOperation(createOp, seeding.model, member.body, {
+		index: run.records.length,
+		uploads: nextUploads,
+		variant: member.variant,
+	})
 	return seeding.client.request("POST", run.path, {
 		body: encoded.body,
 		...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),

@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
-import type { Hooks, Scenario } from "../../src/config/define-config.ts"
+import type { Hooks, Scenario } from "../../src/config/define/types.ts"
 import { configProblems } from "../../src/config/validate.ts"
 import { leftBehind } from "../../src/conformance/leaks.ts"
 import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"

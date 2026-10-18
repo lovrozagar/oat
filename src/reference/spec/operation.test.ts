@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
-import { LINKED, POSTGREST } from "../dialect.ts"
-import { ENTITIES, ROW, TABLE } from "../model.ts"
+import { LINKED, POSTGREST } from "../dialect/presets.ts"
+import { ENTITIES } from "../model/entities.ts"
+import { ROW } from "../model/row.ts"
+import { TABLE } from "../model/table.ts"
 import { declaredIdentity, entityTag, jsonResponse, listResponseHeaders, ok } from "./operation.ts"
 
 describe("ok", () => {

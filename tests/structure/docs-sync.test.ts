@@ -3,7 +3,7 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { FLAGS } from "../../src/cli/flags.ts"
 import { CONFIG } from "../../src/config/validate.ts"
-import { DEFECTS } from "../../src/reference/defects.ts"
+import { DEFECTS } from "../../src/reference/defects/table.ts"
 import { RUN_FINDING_IDS } from "../../src/runtime/check-ids.ts"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"
 

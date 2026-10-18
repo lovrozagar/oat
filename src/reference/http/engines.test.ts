@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { DefectSet } from "../defects.ts"
-import { ENTITIES } from "../model.ts"
+import { DefectSet } from "../defects/defect-set.ts"
+import { ENTITIES } from "../model/entities.ts"
 import { MemoryStore } from "../stores/memory.ts"
 import { SqlStore } from "../stores/sqlite.ts"
 import { type FakeServer, serve } from "./__fixtures__/fake-http.ts"

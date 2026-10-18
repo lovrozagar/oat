@@ -2,16 +2,10 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { Client } from "../../src/client/client.ts"
-import {
-	createProgressPump,
-	formatProgressJsonl,
-	formatProgressLine,
-	formatProgressTsv,
-	HEARTBEAT_MS,
-	PROGRESS_TSV_HEADER,
-	progressEventKey,
-	type ProgressSnapshot,
-} from "../../src/runtime/progress.ts"
+import { createProgressPump, HEARTBEAT_MS, progressEventKey } from "../../src/runtime/progress/pump.ts"
+import { formatProgressJsonl, formatProgressLine, formatProgressTsv } from "../../src/runtime/progress/format.ts"
+import { PROGRESS_TSV_HEADER } from "../../src/runtime/progress/columns.ts"
+import type { ProgressSnapshot } from "../../src/runtime/progress/types.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { Redactor } from "../../src/security/redact.ts"

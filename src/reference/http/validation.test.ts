@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
-import { DefectSet } from "../defects.ts"
-import { ENTITIES, type FieldDef, JOB, ROW, shapedEntities, TABLE } from "../model.ts"
+import { DefectSet } from "../defects/defect-set.ts"
+import { ENTITIES } from "../model/entities.ts"
+import type { FieldDef } from "../model/types.ts"
+import { JOB } from "../model/job.ts"
+import { ROW } from "../model/row.ts"
+import { shapedEntities } from "../model/shaped.ts"
+import { TABLE } from "../model/table.ts"
 import { coerceField, emptyValue, formFields, pathId, validateBody } from "./validation.ts"
 
 const CLEAN = new DefectSet()

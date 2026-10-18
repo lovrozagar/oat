@@ -9,15 +9,9 @@ import { Client } from "../../src/client/client.ts"
 import type { Exchange } from "../../src/runtime/exchange.ts"
 import { isSecretHeaderName } from "../../src/security/credential-names.ts"
 import { Redactor } from "../../src/security/redact.ts"
-import {
-	INLINE_BODY_LIMIT,
-	createExchangeJournal,
-	exchangeFileStem,
-	isBinaryMediaType,
-	primaryMediaType,
-	resolveSaveExchanges,
-	sanitizeExchangeId,
-} from "../../src/runtime/exchanges.ts"
+import { INLINE_BODY_LIMIT, isBinaryMediaType, primaryMediaType } from "../../src/runtime/exchanges/media.ts"
+import { createExchangeJournal } from "../../src/runtime/exchanges/journal.ts"
+import { exchangeFileStem, resolveSaveExchanges, sanitizeExchangeId } from "../../src/runtime/exchanges/files.ts"
 import type { ReportInput } from "../../src/report/render/input.ts"
 import { renderMarkdown } from "../../src/report/render/markdown.ts"
 import { run } from "../../src/runtime/run/index.ts"

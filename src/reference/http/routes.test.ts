@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest"
-import { ENTITIES, JOB, ROW, TABLE } from "../model.ts"
+import { ENTITIES } from "../model/entities.ts"
+import { JOB } from "../model/job.ts"
+import { ROW } from "../model/row.ts"
+import { TABLE } from "../model/table.ts"
 import { matchRoute } from "./routes.ts"
 
 describe("matchRoute", () => {

@@ -18,7 +18,7 @@
  * rather than assumed.
  */
 
-import type { DefectName } from "../reference/defects.ts"
+import type { DefectName } from "../reference/defects/table.ts"
 import { CHECKS } from "../runtime/checks/registry.ts"
 import { type PrincipalSpec, run } from "../runtime/run/index.ts"
 import { EXPECTED } from "./expected/table.ts"

@@ -2,17 +2,11 @@
 
 import { networkInterfaces } from "node:os"
 import type { Exchange } from "../runtime/exchange.ts"
-import { INLINE_BODY_LIMIT } from "../runtime/exchanges.ts"
-import { recordResponseHeaders } from "../runtime/cookies.ts"
-import {
-	classifyNetworkError,
-	describeNetworkKind,
-	hasUsableInterface,
-	NetworkError,
-	type NetworkKind,
-	refineNetworkKind,
-} from "../runtime/network.ts"
-import { sha256Hex } from "../runtime/transcript.ts"
+import { INLINE_BODY_LIMIT } from "../runtime/exchanges/media.ts"
+import { recordResponseHeaders } from "../runtime/cookies/set-cookie.ts"
+import { classifyNetworkError, describeNetworkKind, NetworkError, type NetworkKind } from "../errors/network.ts"
+import { hasUsableInterface, refineNetworkKind } from "../runtime/network/interfaces.ts"
+import { sha256Hex } from "../runtime/exchanges/bytes.ts"
 import type { Pacing, Sent, Timed, Wire } from "./attempt.ts"
 import { requestIdOf, requestMessageBytes, responseMessageBytes } from "./message.ts"
 import type { EncodedBody } from "./serialize.ts"

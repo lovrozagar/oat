@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest"
-import { CLASSIC, type Dialect, JSONAPI, LINKED, PLAIN, POSTGREST, TEMPLATE } from "../dialect.ts"
-import type { ListingResult } from "../listing.ts"
-import { JOB, ROW, TABLE } from "../model.ts"
+import { CLASSIC, JSONAPI, LINKED, PLAIN, POSTGREST, TEMPLATE } from "../dialect/presets.ts"
+import type { Dialect } from "../dialect/types.ts"
+import type { ListingResult } from "../listing/types.ts"
+import { JOB } from "../model/job.ts"
+import { ROW } from "../model/row.ts"
+import { TABLE } from "../model/table.ts"
 import { equalityFilter, paginated, selectParam, staleWindow, toCanonicalOrder } from "./listing-query.ts"
 
 const url = (search: string): URL => new URL(`http://reference.test/v1/projects/p/tables${search}`)

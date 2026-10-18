@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { Client } from "../../src/client/client.ts"
-import { isBodyRef } from "../../src/runtime/transcript.ts"
+import { isBodyRef } from "../../src/runtime/exchange.ts"
 import { Redactor } from "../../src/security/redact.ts"
 
 let url = ""

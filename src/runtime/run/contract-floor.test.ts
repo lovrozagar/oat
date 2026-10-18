@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { ProgressSnapshot } from "../progress.ts"
+import type { ProgressSnapshot } from "../progress/types.ts"
 import { contextOf, notesApi, optionsFor } from "./__fixtures__/api.ts"
 import { contractFloor } from "./contract-floor.ts"
 

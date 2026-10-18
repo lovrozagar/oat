@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { RequestStart } from "../../client/types.ts"
 import type { Exchange } from "../exchange.ts"
-import type { ProgressSnapshot } from "../progress.ts"
+import type { ProgressSnapshot } from "../progress/types.ts"
 import { RunProgress } from "./progress.ts"
 
 /*

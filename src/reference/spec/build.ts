@@ -5,8 +5,10 @@
  * heuristic fallbacks. The conformance suite also serves stripped variants to test the fallbacks.
  */
 
-import { type Dialect, POSTGREST } from "../dialect.ts"
-import { ENTITIES, type EntityDef } from "../model.ts"
+import type { Dialect } from "../dialect/types.ts"
+import { POSTGREST } from "../dialect/presets.ts"
+import { ENTITIES } from "../model/entities.ts"
+import type { EntityDef } from "../model/types.ts"
 import { authTokenPaths, callerProfilePaths, callerRootPaths } from "./caller.ts"
 import { collectionPathItem } from "./collection.ts"
 import { components } from "./components.ts"

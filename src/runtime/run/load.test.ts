@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
-import type { ProgressSnapshot } from "../progress.ts"
+import type { ProgressSnapshot } from "../progress/types.ts"
 import { fetchOf, notesApi, notesDoc, optionsFor, unreachable } from "./__fixtures__/api.ts"
 import { load } from "./load.ts"
 

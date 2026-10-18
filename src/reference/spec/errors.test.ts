@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { ENTITIES } from "../model.ts"
+import { ENTITIES } from "../model/entities.ts"
 import { errorResponses, errorSchemas } from "./errors.ts"
 
 describe("errorResponses", () => {

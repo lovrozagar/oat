@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { EntityDef } from "../../model.ts"
+import type { EntityDef } from "../../model/types.ts"
 import { api, rowsOf, TABLES } from "../__fixtures__/api.ts"
 
 describe("a listing", () => {

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { ENTITIES, shapedEntities, TABLE } from "../model.ts"
+import { ENTITIES } from "../model/entities.ts"
+import { shapedEntities } from "../model/shaped.ts"
+import { TABLE } from "../model/table.ts"
 import { components } from "./components.ts"
 import { itemSchema } from "./schemas.ts"
 

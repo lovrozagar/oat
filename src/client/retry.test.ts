@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { Exchange } from "../runtime/exchange.ts"
-import { DEFAULT_NETWORK_RETRIES, NetworkError, type NetworkKind } from "../runtime/network.ts"
-import { MAX_429_RETRIES } from "../runtime/rate-limit.ts"
+import { DEFAULT_NETWORK_RETRIES } from "../runtime/network/policy.ts"
+import { NetworkError, type NetworkKind } from "../errors/network.ts"
+import { MAX_429_RETRIES } from "../runtime/rate-limit/retry-after.ts"
 import { type Resending, resilient, type StatusRetry, untilAnswered } from "./retry.ts"
 
 const answer = (status: number, headers: Record<string, string> = {}): Exchange =>

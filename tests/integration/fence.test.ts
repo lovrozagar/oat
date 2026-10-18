@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
-import type { FenceDecision, FenceRequest } from "../../src/config/define-config.ts"
+import type { FenceDecision, FenceRequest } from "../../src/config/define/types.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import type { ReportInput } from "../../src/report/render/input.ts"
 import { renderJson } from "../../src/report/render/json.ts"

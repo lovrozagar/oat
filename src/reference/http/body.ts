@@ -1,6 +1,6 @@
 /** Reading a request body, refused when its type is not the one the route takes. */
 
-import type { DefectSet } from "../defects.ts"
+import type { DefectSet } from "../defects/defect-set.ts"
 import { HttpError } from "./errors.ts"
 import type { ReferenceRequest } from "./wire.ts"
 

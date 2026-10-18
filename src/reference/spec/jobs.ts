@@ -1,6 +1,6 @@
 /** Writes whose effect arrives later: an async job, and a notification delivered to an inbox. */
 
-import type { EntityDef } from "../model.ts"
+import type { EntityDef } from "../model/types.ts"
 import { errorResponses } from "./errors.ts"
 import { jsonResponse, ok } from "./operation.ts"
 import { pathParams, tenantParam } from "./params.ts"

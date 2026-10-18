@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
-import { CLASSIC, POSTGREST, TEMPLATE } from "../dialect.ts"
-import { ENTITIES, type EntityDef, JOB, ROW, TABLE } from "../model.ts"
+import { CLASSIC, POSTGREST, TEMPLATE } from "../dialect/presets.ts"
+import { ENTITIES } from "../model/entities.ts"
+import type { EntityDef } from "../model/types.ts"
+import { JOB } from "../model/job.ts"
+import { ROW } from "../model/row.ts"
+import { TABLE } from "../model/table.ts"
 import { queryDeclaration } from "./query.ts"
 
 const CTX = { entities: ENTITIES, shape: {} }

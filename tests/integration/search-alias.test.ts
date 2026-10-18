@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
-import { DIALECTS } from "../../src/reference/dialect.ts"
+import { DIALECTS } from "../../src/reference/dialect/presets.ts"
 import { deriveQueryConventions } from "../../src/spec/conventions/derive.ts"
 import { buildModel } from "../../src/spec/graph/build.ts"
 import { dereference } from "../../src/spec/load/dereference.ts"

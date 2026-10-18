@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { DEFECTS } from "../../reference/defects.ts"
+import { DEFECTS } from "../../reference/defects/table.ts"
 import { COMPOSITION_EXPECTED } from "./composition.ts"
 import { CONFORMANCE_EXPECTED } from "./conformance.ts"
 import { CONSISTENCY_EXPECTED } from "./consistency.ts"

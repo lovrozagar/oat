@@ -74,11 +74,12 @@ const DIRECTORIES: ReadonlySet<string> = new Set([
 	"conformance",
 ])
 
-/* The HTTP client and its transport still live in runtime/ until they move to client/: bucketed by file. */
+/* The HTTP client and its transport still live in runtime/ until they move to client/: bucketed by file or directory. */
 const CLIENT_FILES: ReadonlySet<string> = new Set(
-	["cookies", "exchange", "exchanges", "fence", "headers", "network", "poll", "rate-limit", "sse", "transcript"].map(
-		(name) => `runtime/${name}.ts`,
-	),
+	["exchange", "fence", "headers", "poll", "sse"].map((name) => `runtime/${name}.ts`),
+)
+const CLIENT_DIRECTORIES: readonly string[] = ["cookies", "exchanges", "network", "rate-limit", "transcript"].map(
+	(name) => `runtime/${name}/`,
 )
 
 function bucket(rel: string): Bucket | "unknown" {
@@ -86,7 +87,7 @@ function bucket(rel: string): Bucket | "unknown" {
 	if (rel === "index.ts") return "index"
 	if (rel.startsWith("runtime/run/")) return "run"
 	if (rel.startsWith("config/types/")) return "config-types"
-	if (CLIENT_FILES.has(rel)) return "client"
+	if (CLIENT_FILES.has(rel) || CLIENT_DIRECTORIES.some((dir) => rel.startsWith(dir))) return "client"
 	const top = rel.split("/", 1).join("")
 	return rel.includes("/") && DIRECTORIES.has(top) ? (top as Bucket) : "unknown"
 }

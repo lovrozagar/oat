@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
-import type { Scenario } from "../../src/config/define-config.ts"
+import type { Scenario } from "../../src/config/define/types.ts"
 import { renderJson } from "../../src/report/render/json.ts"
 import { renderMarkdown } from "../../src/report/render/markdown.ts"
 import { run } from "../../src/runtime/run/index.ts"

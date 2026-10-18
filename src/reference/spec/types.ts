@@ -1,5 +1,5 @@
-import type { EntityDef } from "../model.ts"
-import type { ReferenceShape } from "../shapes.ts"
+import type { EntityDef } from "../model/types.ts"
+import type { ReferenceShape } from "../shapes/types.ts"
 
 export type Json = Record<string, unknown>
 

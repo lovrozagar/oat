@@ -1,23 +1,18 @@
 /** When a request is asked again: after a network failure, a 429, a 503 that names a wait, or a gateway's 5xx. */
 
 import type { Exchange } from "../runtime/exchange.ts"
-import {
-	DEFAULT_NETWORK_RETRIES,
-	isNetworkError,
-	type NetworkError,
-	type NetworkKind,
-	networkRetryWaitMs,
-} from "../runtime/network.ts"
+import { DEFAULT_NETWORK_RETRIES, networkRetryWaitMs } from "../runtime/network/policy.ts"
+import { isNetworkError, type NetworkError, type NetworkKind } from "../errors/network.ts"
 import { sleep } from "../runtime/poll.ts"
 import {
 	GATEWAY_RETRY_MS,
-	headerValue,
 	MAX_429_RETRIES,
 	MAX_UNAVAILABLE_RETRIES,
 	parseRetryAfter,
 	retryWaitMs,
 	UNAVAILABLE_WAIT_BUDGET_MS,
-} from "../runtime/rate-limit.ts"
+} from "../runtime/rate-limit/retry-after.ts"
+import { headerValue } from "../runtime/headers.ts"
 import type { NetworkClientOptions } from "./types.ts"
 
 /** How long one request may take across every attempt and wait, unless configured. */

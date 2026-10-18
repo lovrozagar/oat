@@ -1,6 +1,7 @@
 /** An entity's item route: the read, the update and the delete. */
 
-import { type EntityDef, fieldsWhere } from "../model.ts"
+import type { EntityDef } from "../model/types.ts"
+import { fieldsWhere } from "../model/fields.ts"
 import { parentReadRoutes } from "./collection.ts"
 import { errorResponses } from "./errors.ts"
 import { declaredIdentity, entityTag, jsonResponse, ok } from "./operation.ts"

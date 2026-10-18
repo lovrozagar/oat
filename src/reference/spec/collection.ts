@@ -1,7 +1,8 @@
 /** An entity's collection route: the listing and the create. */
 
-import type { Dialect } from "../dialect.ts"
-import { type EntityDef, fieldsWhere } from "../model.ts"
+import type { Dialect } from "../dialect/types.ts"
+import type { EntityDef } from "../model/types.ts"
+import { fieldsWhere } from "../model/fields.ts"
 import { errorResponses } from "./errors.ts"
 import { declaredIdentity, entityTag, jsonResponse, listResponseHeaders, ok } from "./operation.ts"
 import { listQueryParams, pathParams, tenantParam } from "./params.ts"

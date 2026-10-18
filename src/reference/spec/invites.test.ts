@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { ENTITIES, TABLE } from "../model.ts"
-import type { ReferenceShape } from "../shapes.ts"
+import { ENTITIES } from "../model/entities.ts"
+import { TABLE } from "../model/table.ts"
+import type { ReferenceShape } from "../shapes/types.ts"
 import { invitePaths } from "./invites.ts"
 import type { Json } from "./types.ts"
 

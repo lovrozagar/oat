@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
-import { ENTITIES, JOB, ROW, TABLE } from "../model.ts"
-import type { ReferenceShape } from "../shapes.ts"
+import { ENTITIES } from "../model/entities.ts"
+import { JOB } from "../model/job.ts"
+import { ROW } from "../model/row.ts"
+import { TABLE } from "../model/table.ts"
+import type { ReferenceShape } from "../shapes/types.ts"
 import { itemPathItem } from "./item.ts"
 import type { Json } from "./types.ts"
 

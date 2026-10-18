@@ -1,7 +1,8 @@
 /** What a write body may carry, coerced to the types the schema declares. */
 
-import type { DefectSet } from "../defects.ts"
-import { type EntityDef, type FieldDef, writableFields } from "../model.ts"
+import type { DefectSet } from "../defects/defect-set.ts"
+import type { EntityDef, FieldDef } from "../model/types.ts"
+import { writableFields } from "../model/fields.ts"
 import type { Row } from "../store-api.ts"
 import { HttpError } from "./errors.ts"
 

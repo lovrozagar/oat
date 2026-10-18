@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest"
-import { CLASSIC, LINKED, POSTGREST } from "../dialect.ts"
-import { type EntityDef, ENTITIES, JOB, ROW, shapedEntities, TABLE } from "../model.ts"
-import type { ReferenceShape } from "../shapes.ts"
+import { CLASSIC, LINKED, POSTGREST } from "../dialect/presets.ts"
+import type { EntityDef } from "../model/types.ts"
+import { ENTITIES } from "../model/entities.ts"
+import { JOB } from "../model/job.ts"
+import { ROW } from "../model/row.ts"
+import { shapedEntities } from "../model/shaped.ts"
+import { TABLE } from "../model/table.ts"
+import type { ReferenceShape } from "../shapes/types.ts"
 import {
 	bodySchema,
 	createdSchema,

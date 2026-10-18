@@ -5,8 +5,8 @@ import type { HeaderRequest } from "../config/types/hooks.ts"
 import type { Redactor } from "../security/redact.ts"
 import type { Exchange, Purpose } from "../runtime/exchange.ts"
 import type { Fence } from "../runtime/fence.ts"
-import type { NetworkError } from "../runtime/network.ts"
-import type { RateLimiter } from "../runtime/rate-limit.ts"
+import type { NetworkError } from "../errors/network.ts"
+import type { RateLimiter } from "../runtime/rate-limit/limiter.ts"
 import type { CredentialSource } from "./credential-source.ts"
 
 /** Methods that cannot change server state. */

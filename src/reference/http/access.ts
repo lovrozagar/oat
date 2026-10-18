@@ -1,6 +1,6 @@
 /** Who is asking, and what they may reach: credentials, roles, tenancy and the path's parents. */
 
-import type { EntityDef } from "../model.ts"
+import type { EntityDef } from "../model/types.ts"
 import type { Row } from "../store-api.ts"
 import { HttpError } from "./errors.ts"
 import { hiddenFromCreator, tombstoned } from "./records.ts"

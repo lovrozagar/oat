@@ -1,4 +1,4 @@
-import type { DefectName } from "../../reference/defects.ts"
+import type { DefectName } from "../../reference/defects/table.ts"
 import type { FindingId } from "../../runtime/check-ids.ts"
 import { COMPOSITION_EXPECTED } from "./composition.ts"
 import { CONFORMANCE_EXPECTED } from "./conformance.ts"

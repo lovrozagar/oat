@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { judgeDefect } from "../../src/conformance/matrix/cases.ts"
-import { TEMPLATE, toCanonicalFilter } from "../../src/reference/dialect.ts"
+import { TEMPLATE } from "../../src/reference/dialect/presets.ts"
+import { toCanonicalFilter } from "../../src/reference/dialect/canonical.ts"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"
 import { Client } from "../../src/client/client.ts"
 import { FindingCollector } from "../../src/runtime/finding.ts"

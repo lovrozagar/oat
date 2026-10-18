@@ -2,7 +2,8 @@
 
 import type { Redactor } from "../security/redact.ts"
 import type { Exchange } from "../runtime/exchange.ts"
-import { BodySpool, releaseTranscriptBodies } from "../runtime/transcript.ts"
+import { BodySpool } from "../runtime/transcript/spool.ts"
+import { releaseTranscriptBodies } from "../runtime/transcript/release.ts"
 
 export class Journal {
 	/**

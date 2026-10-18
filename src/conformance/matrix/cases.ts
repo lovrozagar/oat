@@ -1,5 +1,6 @@
 import { messageOf } from "../../errors/message.ts"
-import { DAMAGES_BYSTANDERS, type DefectName } from "../../reference/defects.ts"
+import { DAMAGES_BYSTANDERS } from "../../reference/defects/bystanders.ts"
+import type { DefectName } from "../../reference/defects/table.ts"
 import type { Finding, Inconclusive } from "../../runtime/finding.ts"
 import { run } from "../../runtime/run/index.ts"
 import { EXPECTED } from "../expected/table.ts"

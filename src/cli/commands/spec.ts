@@ -1,6 +1,6 @@
 import type { OatConfig } from "../../config/types/config.ts"
 import { UsageError } from "../../errors/usage-error.ts"
-import { fetchSpecText } from "../../runtime/network.ts"
+import { fetchSpecText } from "../../runtime/network/fetch.ts"
 import { probeCreateFixtures } from "../../runtime/world/probe-fixtures.ts"
 import { applyGrammarOverrides } from "../../spec/grammar-overrides.ts"
 import { buildModel } from "../../spec/graph/build.ts"

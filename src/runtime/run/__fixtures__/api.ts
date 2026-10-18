@@ -1,7 +1,7 @@
 import type { Principal } from "../../../config/types/principals.ts"
 import type { OpenApiDocument } from "../../../spec/types.ts"
 import type { RequestOptions } from "../../../client/types.ts"
-import { NetworkError } from "../../network.ts"
+import { NetworkError } from "../../../errors/network.ts"
 import type { Record_ } from "../../world/records.ts"
 import type { Answer, Responder } from "../../checks/__fixtures__/harness.ts"
 import { connect } from "../client-setup.ts"

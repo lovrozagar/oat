@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
-import { LINKED, POSTGREST } from "../dialect.ts"
-import { ENTITIES, JOB, ROW, shapedEntities, TABLE } from "../model.ts"
+import { LINKED, POSTGREST } from "../dialect/presets.ts"
+import { ENTITIES } from "../model/entities.ts"
+import { JOB } from "../model/job.ts"
+import { ROW } from "../model/row.ts"
+import { shapedEntities } from "../model/shaped.ts"
+import { TABLE } from "../model/table.ts"
 import { buildSpec, buildUntaggedSpec } from "./build.ts"
 import type { Json } from "./types.ts"
 

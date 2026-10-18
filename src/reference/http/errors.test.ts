@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { DefectSet } from "../defects.ts"
+import { DefectSet } from "../defects/defect-set.ts"
 import { SqlError } from "../store-api.ts"
 import { errorResponse, HttpError } from "./errors.ts"
 

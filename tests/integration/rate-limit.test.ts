@@ -2,16 +2,15 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { Client } from "../../src/client/client.ts"
+import { buildRateLimitRules } from "../../src/runtime/rate-limit/rules.ts"
 import {
-	buildRateLimitRules,
 	MAX_429_RETRIES,
 	parseRetryAfter,
-	RateLimiter,
 	RETRY_BACKOFF_CAP_MS,
 	RETRY_BACKOFF_INITIAL_MS,
 	retryWaitMs,
-	UNTAGGED_WRITE_CATEGORY,
-} from "../../src/runtime/rate-limit.ts"
+} from "../../src/runtime/rate-limit/retry-after.ts"
+import { RateLimiter, UNTAGGED_WRITE_CATEGORY } from "../../src/runtime/rate-limit/limiter.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { buildModel } from "../../src/spec/graph/build.ts"
 import { dereference } from "../../src/spec/load/dereference.ts"

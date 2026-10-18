@@ -1,7 +1,8 @@
 /** A record as the server makes it and as it leaves the server. */
 
-import type { DefectSet } from "../defects.ts"
-import { type EntityDef, writableFields } from "../model.ts"
+import type { DefectSet } from "../defects/defect-set.ts"
+import type { EntityDef } from "../model/types.ts"
+import { writableFields } from "../model/fields.ts"
 import type { Row } from "../store-api.ts"
 import type { ReferenceState, Scope } from "./state.ts"
 import { emptyValue } from "./validation.ts"

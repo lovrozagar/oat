@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { applyResolveInput } from "./input.ts"
-import { encodeRequest } from "./body.ts"
+import { encodeRequest } from "./body/encode.ts"
 
 describe("resolveInput", () => {
 	it("leaves the generator alone when the hook is omitted", async () => {

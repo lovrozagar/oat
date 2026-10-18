@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import type { RequestOptions } from "../../client/types.ts"
 import type { OperationModel } from "../../spec/graph/types.ts"
 import { FencedError } from "../fence.ts"
-import { NetworkError } from "../network.ts"
+import { NetworkError } from "../../errors/network.ts"
 import { disposable, notesClient, notesModel, owner, type Paging, type Store, store } from "./__fixtures__/notes.ts"
 import { type ListGroup, stillListed } from "./still-listed.ts"
 

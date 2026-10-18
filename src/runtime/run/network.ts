@@ -1,16 +1,10 @@
 import type { NetworkClientOptions } from "../../client/types.ts"
 import { type Fence, FencedError } from "../fence.ts"
 import type { FindingCollector } from "../finding.ts"
-import {
-	createNetworkGate,
-	DEFAULT_NETWORK_RETRIES,
-	DEFAULT_NETWORK_WAIT_MS,
-	describeNetworkFailure,
-	type NetworkError,
-	type NetworkGate,
-	probeOrigin,
-	resolveRequestTimeoutMs,
-} from "../network.ts"
+import { createNetworkGate, type NetworkGate } from "../network/gate.ts"
+import { DEFAULT_NETWORK_RETRIES, DEFAULT_NETWORK_WAIT_MS, resolveRequestTimeoutMs } from "../network/policy.ts"
+import { describeNetworkFailure, type NetworkError } from "../../errors/network.ts"
+import { probeOrigin } from "../network/probe.ts"
 import type { RunProgress } from "./progress.ts"
 import type { RunOptions, RunResult } from "./types.ts"
 import type { RunFindingId } from "../check-ids.ts"

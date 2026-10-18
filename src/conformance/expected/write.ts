@@ -1,4 +1,4 @@
-import type { DefectName } from "../../reference/defects.ts"
+import type { DefectName } from "../../reference/defects/table.ts"
 import type { FindingId } from "../../runtime/check-ids.ts"
 
 /** The defects whose primary check is in the write family, and the check each must trip. */

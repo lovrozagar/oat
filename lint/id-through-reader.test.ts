@@ -27,7 +27,7 @@ describe("oat/id-through-reader", () => {
 	})
 
 	it("leaves the reference backend's own rows alone", () => {
-		expect(lines("src/reference/listing.ts")).toEqual([])
+		expect(lines("src/reference/listing/run.ts")).toEqual([])
 	})
 
 	it("fails oxlint through the oat plugin entry", () => {

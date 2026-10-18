@@ -1,4 +1,4 @@
-export { defineConfig } from "./config/define-config.ts"
+export { defineConfig } from "./config/define/define-config.ts"
 export { env } from "./config/env.ts"
 export { loadConfig } from "./config/load.ts"
 
@@ -41,9 +41,9 @@ export type {
 	UploadRequest,
 	UploadResolution,
 	Uploads,
-} from "./config/define-config.ts"
+} from "./config/define/types.ts"
 
-export type { PayloadPolicy } from "./config/define-config.ts"
+export type { PayloadPolicy } from "./config/define/types.ts"
 export { EXIT, exitCode, runVerdict } from "./runtime/exit.ts"
 
 export type { ReportInput } from "./report/render/input.ts"

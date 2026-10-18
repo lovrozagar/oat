@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
-import type { ProgressSnapshot } from "../../src/runtime/progress.ts"
+import type { ProgressSnapshot } from "../../src/runtime/progress/types.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 

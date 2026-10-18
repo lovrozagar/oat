@@ -8,7 +8,7 @@
  */
 
 import { messageOf } from "../errors/message.ts"
-import type { DefectName } from "../reference/defects.ts"
+import type { DefectName } from "../reference/defects/table.ts"
 import type { Finding } from "../runtime/finding.ts"
 import { run } from "../runtime/run/index.ts"
 import { EXPECTED } from "./expected/table.ts"

@@ -16,11 +16,12 @@ import type { AuthStep, OperationStep, RequestStep } from "../config/types/steps
 import { isHookAuth } from "./auth-kind.ts"
 import { requestContent } from "../spec/collection/request.ts"
 import type { SpecModel } from "../spec/graph/types.ts"
-import { encodeRequest } from "./body.ts"
+import { encodeRequest } from "./body/encode.ts"
 import type { Client } from "../client/client.ts"
 import type { Exchange } from "./exchange.ts"
 import type { Redactor } from "../security/redact.ts"
-import { cookiesFromRecordedHeaders, readSaveAs } from "./cookies.ts"
+import { cookiesFromRecordedHeaders } from "./cookies/set-cookie.ts"
+import { readSaveAs } from "./cookies/save-as.ts"
 import { type BackoffConfig, isAbsentValue, pollWithBackoff, resolveBackoff, worstCaseWaitMs } from "./poll.ts"
 
 /* The flow shape is defined once, in the public config — the runtime consumes it rather than

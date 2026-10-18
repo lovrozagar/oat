@@ -17,7 +17,7 @@
 import { mkdir, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
-import { DEFECTS } from "../dist/reference/defects.js"
+import { DEFECTS } from "../dist/reference/defects/table.js"
 import { createMemoryServer, createPostgresServer, createSqliteServer } from "../dist/reference/http.js"
 import { renderConsole, renderJson, renderMarkdown, renderRepros } from "../dist/report/render.js"
 import { run } from "../dist/runtime/run.js"

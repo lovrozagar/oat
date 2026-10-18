@@ -4,7 +4,8 @@
 
 import type { ScenarioAssert, ScenarioRequestStep } from "../../config/types/steps.ts"
 import { interpolate } from "../auth.ts"
-import { cookiesFromRecordedHeaders, describeSaveAs, readSaveAs } from "../cookies.ts"
+import { cookiesFromRecordedHeaders } from "../cookies/set-cookie.ts"
+import { describeSaveAs, readSaveAs } from "../cookies/save-as.ts"
 import type { Exchange } from "../exchange.ts"
 import { readAll, readPath } from "../path.ts"
 

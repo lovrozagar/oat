@@ -1,7 +1,7 @@
 /** How a self-test reaches what it runs oat against: behind a socket, or in process. */
 
 import type { createServer } from "node:http"
-import type { DefectSet } from "../../reference/defects.ts"
+import type { DefectSet } from "../../reference/defects/defect-set.ts"
 import { d1Store, memoryStore, postgresStore, sqliteStore } from "../../reference/http/engines.ts"
 import { asFetch } from "../../reference/http/fetch.ts"
 import { type Handle, listen } from "../../reference/http/node.ts"

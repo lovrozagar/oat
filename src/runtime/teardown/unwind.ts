@@ -8,7 +8,7 @@
 import type { SpecModel } from "../../spec/graph/types.ts"
 import type { Client } from "../../client/client.ts"
 import { FencedError } from "../fence.ts"
-import { isNetworkError } from "../network.ts"
+import { isNetworkError } from "../../errors/network.ts"
 import { markNeverSeen } from "./never-seen.ts"
 import { removeOne, type Unwind } from "./remove.ts"
 import { deletedEarlierIn, deleteOperationFor, readPathOf } from "./routes.ts"

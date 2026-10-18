@@ -1,8 +1,9 @@
 /** How a listing request is read in the dialect's spelling, and how its answer is shaped. */
 
-import type { Dialect } from "../dialect.ts"
-import type { ListingResult } from "../listing.ts"
-import { type EntityDef, fieldsWhere } from "../model.ts"
+import type { Dialect } from "../dialect/types.ts"
+import type { ListingResult } from "../listing/types.ts"
+import type { EntityDef } from "../model/types.ts"
+import { fieldsWhere } from "../model/fields.ts"
 import type { Row } from "../store-api.ts"
 import type { Json } from "./wire.ts"
 

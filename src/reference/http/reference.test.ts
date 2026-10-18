@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
-import { DefectSet } from "../defects.ts"
-import type { EntityDef } from "../model.ts"
+import { DefectSet } from "../defects/defect-set.ts"
+import type { EntityDef } from "../model/types.ts"
 import type { SelectPlan } from "../query-types.ts"
 import { MemoryStore } from "../stores/memory.ts"
 import { BETA, rowsOf, TABLES } from "./__fixtures__/api.ts"

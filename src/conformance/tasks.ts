@@ -6,7 +6,7 @@
 
 import { writeHeapSnapshot } from "node:v8"
 import { join } from "node:path"
-import type { DefectName } from "../reference/defects.ts"
+import type { DefectName } from "../reference/defects/table.ts"
 import { runScopeSuite } from "./scope.ts"
 import { judgeShape, recallBehind, type ShapeCase, shapeReference, shapeTarget } from "./shapes.ts"
 import type { Via } from "./harness/launch.ts"

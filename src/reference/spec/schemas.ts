@@ -1,7 +1,8 @@
 /** The record, body and listing schemas a document declares for each entity. */
 
-import type { Dialect } from "../dialect.ts"
-import { type EntityDef, type FieldDef, writableFields } from "../model.ts"
+import type { Dialect } from "../dialect/types.ts"
+import type { EntityDef, FieldDef } from "../model/types.ts"
+import { writableFields } from "../model/fields.ts"
 import type { Json, SpecContext } from "./types.ts"
 
 export function fieldSchema(field: FieldDef): Json {

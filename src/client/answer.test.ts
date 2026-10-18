@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { INLINE_BODY_LIMIT } from "../runtime/exchanges.ts"
-import { NetworkError } from "../runtime/network.ts"
+import { INLINE_BODY_LIMIT } from "../runtime/exchanges/media.ts"
+import { NetworkError } from "../errors/network.ts"
 import { json, refused, transport } from "./__fixtures__/transport.ts"
 import { BASE, wireOf } from "./__fixtures__/wire.ts"
 import { prepare, sendAttempt } from "./request.ts"

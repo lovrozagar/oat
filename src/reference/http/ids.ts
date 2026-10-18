@@ -5,7 +5,7 @@
  */
 
 import { createHash } from "node:crypto"
-import type { EntityDef } from "../model.ts"
+import type { EntityDef } from "../model/types.ts"
 
 export class Ids {
 	/** Every id issued or stored once the server is serving, per entity: what a client's run caused. */

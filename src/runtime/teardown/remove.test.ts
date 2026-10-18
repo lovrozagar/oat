@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { NetworkError } from "../network.ts"
+import { NetworkError } from "../../errors/network.ts"
 import { disposable, notesModel, owner, store, unwindOf } from "./__fixtures__/notes.ts"
 import { leftover, removeOne } from "./remove.ts"
 

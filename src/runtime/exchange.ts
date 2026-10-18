@@ -5,7 +5,7 @@
  */
 
 import type { NetworkKind } from "../errors/network.ts"
-import type { RedirectHop } from "./cookies.ts"
+import type { RedirectHop } from "./cookies/redirect.ts"
 
 export interface Exchange {
 	seq: number

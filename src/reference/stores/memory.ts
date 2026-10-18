@@ -7,8 +7,10 @@
  * not been proven against anything a real backend does.
  */
 
-import type { EntityDef } from "../model.ts"
-import { type SelectPlan, compareRows, evaluate } from "../query.ts"
+import type { EntityDef } from "../model/types.ts"
+import type { SelectPlan } from "../query-types.ts"
+import { compareRows } from "../query/compare.ts"
+import { evaluate } from "../query/evaluate.ts"
 import type { Row, Store } from "../store-api.ts"
 
 export class MemoryStore implements Store {

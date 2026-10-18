@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { ENTITIES, JOB } from "../model.ts"
+import { ENTITIES } from "../model/entities.ts"
+import { JOB } from "../model/job.ts"
 import { jobPaths } from "./jobs.ts"
 import type { Json } from "./types.ts"
 

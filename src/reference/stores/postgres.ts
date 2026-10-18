@@ -12,9 +12,10 @@
  */
 
 import postgres from "postgres"
-import type { DefectSet } from "../defects.ts"
-import { ENTITIES, type EntityDef, type FieldDef } from "../model.ts"
-import type { SelectPlan } from "../query.ts"
+import type { DefectSet } from "../defects/defect-set.ts"
+import { ENTITIES } from "../model/entities.ts"
+import type { EntityDef, FieldDef } from "../model/types.ts"
+import type { SelectPlan } from "../query-types.ts"
 import type { Row, Store } from "../store-api.ts"
 import { type SqlFlavour, type SqlParam, compileOrder, compileWhere, likeText } from "./sql-compile.ts"
 

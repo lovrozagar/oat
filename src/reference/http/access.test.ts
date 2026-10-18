@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { ROW } from "../model.ts"
+import { ROW } from "../model/row.ts"
 import { api, BETA, rowsOf, TABLES } from "./__fixtures__/api.ts"
 import {
 	assertParents,

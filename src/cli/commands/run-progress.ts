@@ -1,15 +1,9 @@
 import { createWriteStream, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
-import {
-	createProgressPrinter,
-	createProgressPump,
-	formatProgressJsonl,
-	formatProgressLine,
-	formatProgressTsv,
-	PROGRESS_GLOSSARY,
-	PROGRESS_TSV_HEADER,
-	type ProgressSnapshot,
-} from "../../runtime/progress.ts"
+import { createProgressPrinter, createProgressPump } from "../../runtime/progress/pump.ts"
+import { formatProgressJsonl, formatProgressLine, formatProgressTsv } from "../../runtime/progress/format.ts"
+import { PROGRESS_GLOSSARY, PROGRESS_TSV_HEADER } from "../../runtime/progress/columns.ts"
+import type { ProgressSnapshot } from "../../runtime/progress/types.ts"
 import type { Writer } from "../writer.ts"
 
 /** Where a run's live status goes, and how it is closed once the run ends. */

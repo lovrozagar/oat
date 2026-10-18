@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import { CLIENT_ID_ONLY, DECLARED_SORT_ONLY, defectsFor, SQL_ONLY } from "../../src/conformance/matrix/defects.ts"
-import { DEFECTS } from "../../src/reference/defects.ts"
+import { DEFECTS } from "../../src/reference/defects/table.ts"
 import { delta, type GoldenTarget, goldenRun, normalize, removeRun } from "../support/golden.ts"
 
 /* The run nonce keeps two runs' records apart on a shared backend. Each golden run has a server

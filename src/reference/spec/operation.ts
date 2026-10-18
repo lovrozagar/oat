@@ -1,7 +1,7 @@
 /** Pieces every operation is assembled from: its success status, its responses, its tag and identity. */
 
-import type { Dialect } from "../dialect.ts"
-import type { EntityDef } from "../model.ts"
+import type { Dialect } from "../dialect/types.ts"
+import type { EntityDef } from "../model/types.ts"
 import type { Json, SpecContext } from "./types.ts"
 
 /** A success status as the document spells it — exactly, or as the `2XX` range. */

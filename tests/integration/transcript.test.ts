@@ -9,21 +9,19 @@ import { afterEach, describe, expect, it } from "vitest"
 import { Client } from "../../src/client/client.ts"
 import { toCurl } from "../../src/client/curl.ts"
 import { describeRequestBody } from "../../src/runtime/exchange.ts"
-import { INLINE_BODY_LIMIT, createExchangeJournal } from "../../src/runtime/exchanges.ts"
+import { INLINE_BODY_LIMIT } from "../../src/runtime/exchanges/media.ts"
+import { createExchangeJournal } from "../../src/runtime/exchanges/journal.ts"
 import { isSecretJsonKey } from "../../src/security/credential-names.ts"
 import { Redactor } from "../../src/security/redact.ts"
-import { isNetworkError } from "../../src/runtime/network.ts"
+import { isNetworkError } from "../../src/errors/network.ts"
 import { run } from "../../src/runtime/run/index.ts"
-import {
-	compactRequestBody,
-	compactResponseBody,
-	holdsLiveBody,
-	isBodyRef,
-	isFormSnapshot,
-	readResponsePayload,
-	releaseTranscriptBodies,
-	sha256Hex,
-} from "../../src/runtime/transcript.ts"
+import { compactRequestBody } from "../../src/runtime/transcript/compact-request.ts"
+import { compactResponseBody } from "../../src/runtime/transcript/compact-response.ts"
+import { holdsLiveBody } from "../../src/runtime/transcript/live.ts"
+import { isBodyRef, isFormSnapshot } from "../../src/runtime/exchange.ts"
+import { readResponsePayload } from "../../src/runtime/transcript/payload.ts"
+import { releaseTranscriptBodies } from "../../src/runtime/transcript/release.ts"
+import { sha256Hex } from "../../src/runtime/exchanges/bytes.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 
 const closers: Array<() => Promise<void>> = []

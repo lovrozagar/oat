@@ -10,11 +10,15 @@
  * database.
  */
 
-import { type DefectSet, DefectSet as Defects } from "../defects.ts"
-import { DIALECTS, type Dialect } from "../dialect.ts"
-import { type EntityDef, shapedEntities } from "../model.ts"
-import { DEFAULT_CONVENTIONS } from "../query.ts"
-import { type ReferenceShape, shapedDialect, shapeNamed } from "../shapes.ts"
+import { type DefectSet, DefectSet as Defects } from "../defects/defect-set.ts"
+import { DIALECTS } from "../dialect/presets.ts"
+import type { Dialect } from "../dialect/types.ts"
+import type { EntityDef } from "../model/types.ts"
+import { shapedEntities } from "../model/shaped.ts"
+import { DEFAULT_CONVENTIONS } from "../query/conventions.ts"
+import type { ReferenceShape } from "../shapes/types.ts"
+import { shapedDialect } from "../shapes/dialect.ts"
+import { shapeNamed } from "../shapes/named.ts"
 import type { Row, Store } from "../store-api.ts"
 import { asFetch } from "./fetch.ts"
 import { Ids } from "./ids.ts"

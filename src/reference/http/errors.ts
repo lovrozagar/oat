@@ -1,7 +1,7 @@
 /** How the reference refuses a request, and the answer every failure becomes. */
 
 import { messageOf } from "../../errors/message.ts"
-import type { DefectSet } from "../defects.ts"
+import type { DefectSet } from "../defects/defect-set.ts"
 import { SqlError } from "../store-api.ts"
 import { type ReferenceResponse, respond } from "./wire.ts"
 

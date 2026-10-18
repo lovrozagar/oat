@@ -5,20 +5,22 @@ import { describe, expect, it } from "vitest"
 import { Client } from "../../src/client/client.ts"
 import {
 	DEFAULT_REQUEST_TIMEOUT_MS,
+	networkRetryWaitMs,
+	resolveRequestTimeoutMs,
+} from "../../src/runtime/network/policy.ts"
+import {
 	NetworkError,
 	classifyNetworkError,
-	createNetworkGate,
 	describeNetworkFailure,
 	describeNetworkKind,
-	fetchWithNetworkRetry,
-	hasUsableInterface,
 	isNetworkError,
-	networkRetryWaitMs,
-	probeOrigin,
-	refineNetworkKind,
-	resolveRequestTimeoutMs,
-} from "../../src/runtime/network.ts"
-import { formatProgressLine, type ProgressSnapshot } from "../../src/runtime/progress.ts"
+} from "../../src/errors/network.ts"
+import { createNetworkGate } from "../../src/runtime/network/gate.ts"
+import { fetchWithNetworkRetry } from "../../src/runtime/network/fetch.ts"
+import { hasUsableInterface, refineNetworkKind } from "../../src/runtime/network/interfaces.ts"
+import { probeOrigin } from "../../src/runtime/network/probe.ts"
+import { formatProgressLine } from "../../src/runtime/progress/format.ts"
+import type { ProgressSnapshot } from "../../src/runtime/progress/types.ts"
 import type { ReportInput } from "../../src/report/render/input.ts"
 import { renderMarkdown } from "../../src/report/render/markdown.ts"
 import { run } from "../../src/runtime/run/index.ts"

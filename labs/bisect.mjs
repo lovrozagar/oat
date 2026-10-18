@@ -15,7 +15,7 @@ const dist = (name) => new URL(`../dist/${name}`, import.meta.url).href
 const { createMemoryServer } = await import(dist("reference/http.js"))
 const { run } = await import(dist("runtime/run.js"))
 const { PRINCIPALS, EXPECTED } = await import(dist("conformance/suite.js"))
-const { DEFECTS } = await import(dist("reference/defects.js"))
+const { DEFECTS } = await import(dist("reference/defects/table.js"))
 
 const target = process.argv[2]
 if (target === undefined || DEFECTS[target] === undefined) {

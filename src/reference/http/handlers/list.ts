@@ -1,8 +1,9 @@
 /** A collection's listing, in the dialect's spelling, with the defects that live above storage. */
 
-import { toCanonicalFilter } from "../../dialect.ts"
-import { type ListingRequest, runListing } from "../../listing.ts"
-import { fieldsWhere } from "../../model.ts"
+import { toCanonicalFilter } from "../../dialect/canonical.ts"
+import type { ListingRequest } from "../../listing/types.ts"
+import { runListing } from "../../listing/run.ts"
+import { fieldsWhere } from "../../model/fields.ts"
 import { type Row, SqlError } from "../../store-api.ts"
 import { equalityFilter, paginated, selectParam, staleWindow, toCanonicalOrder } from "../listing-query.ts"
 import { fieldList, present, skewForList, snapshotKey, wraps } from "../records.ts"
@@ -23,11 +24,10 @@ export async function list(
 	}
 	const stale = staleListing(state, request.url, call)
 	if (stale !== undefined) return stale
-	const result = await runListing(
-		state.listingStore,
+	const result = await runListing(state.listingStore, {
 		entity,
-		listingRequest(state, request.url, call),
-		{
+		request: listingRequest(state, request.url, call),
+		options: {
 			clampLimit: state.shape.clampLimit,
 			conventions: state.conventions,
 			/* A row embeds the table it belongs to: `select=id,table(name)`. */
@@ -39,7 +39,7 @@ export async function list(
 			transform: (record) => skewForList(defects, record),
 		},
 		defects,
-	)
+	})
 	/* An unknown parameter read as a filter nothing matches. */
 	const served =
 		defects.has("UNKNOWN_PARAM_EMPTIES_LIST") && unknownGiven(state, request.url, call)

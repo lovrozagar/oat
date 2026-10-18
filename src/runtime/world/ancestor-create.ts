@@ -1,5 +1,5 @@
 import type { OperationModel } from "../../spec/graph/types.ts"
-import { encodeForOperation } from "../body.ts"
+import { encodeForOperation } from "../body/encode.ts"
 import { type CohortMember, buildCohort, overflowFrom } from "../fixture.ts"
 import { fillPath } from "../fill-path.ts"
 import { SeedError } from "../seed-error.ts"
@@ -52,7 +52,11 @@ export async function createOne(
 ): Promise<{ record: Record_; adopted: boolean }> {
 	const { model, client, options } = seeding
 	const { body, member } = ancestorBody(createOp, seeding)
-	const encoded = await encodeForOperation(createOp, model, body, uploadContext(options), member.variant, 0)
+	const encoded = await encodeForOperation(createOp, model, body, {
+		index: 0,
+		uploads: uploadContext(options),
+		variant: member.variant,
+	})
 	const exchange = await client.request("POST", fillPath(createOp.path, scope.values), {
 		body: encoded.body,
 		...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),

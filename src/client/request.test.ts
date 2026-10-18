@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 import { MissingValueError } from "../errors/missing-value.ts"
 import { Fence } from "../runtime/fence.ts"
-import { RateLimiter } from "../runtime/rate-limit.ts"
+import { RateLimiter } from "../runtime/rate-limit/limiter.ts"
 import { json, transport } from "./__fixtures__/transport.ts"
 import { BASE, wireOf } from "./__fixtures__/wire.ts"
 import { prepare, sendAttempt } from "./request.ts"
