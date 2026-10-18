@@ -6,7 +6,7 @@ import { isNetworkError } from "../../network.ts"
 import { SeedError } from "../../world.ts"
 import { existingOrBlocked } from "./fallback.ts"
 import type { EntityRun, World } from "./state.ts"
-import { messageOf } from "../errors.ts"
+import { messageOf } from "../../../errors/message.ts"
 
 /**
  * A seed that threw: the network went away, a request was fenced, the fixtures overflowed, or the

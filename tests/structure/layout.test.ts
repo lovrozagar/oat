@@ -13,7 +13,6 @@ import { describe, expect, it } from "vitest"
 const ROOT = join(import.meta.dirname, "..", "..")
 
 const UNTESTED: readonly string[] = [
-	"src/cli.ts",
 	"src/conformance/expected-failures.ts",
 	"src/conformance/feature-gate.ts",
 	"src/conformance/fuzz.ts",

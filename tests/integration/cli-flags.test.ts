@@ -4,7 +4,8 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
-import { KNOWN_FLAGS, main, parseArgs, unknownFlag, USAGE } from "../../src/cli.ts"
+import { main } from "../../src/cli/main.ts"
+import { isKnownFlag, parseArgs, unknownFlag, USAGE } from "../../src/cli/flags.ts"
 import { PRINCIPALS } from "../../src/conformance/suite.ts"
 import { createMemoryServer, type ReferenceServer } from "../../src/reference/http.ts"
 
@@ -18,7 +19,7 @@ describe("CLI flags", () => {
 	it("treats --concurrency as unknown (exit 2)", async () => {
 		const { flags } = parseArgs(["run", "--config", "oat.config.ts", "--concurrency", "1"])
 		expect(unknownFlag(flags)).toBe("concurrency")
-		expect(KNOWN_FLAGS.has("concurrency")).toBe(false)
+		expect(isKnownFlag("concurrency")).toBe(false)
 		const argv = process.argv
 		process.argv = ["node", "oat", "run", "--concurrency", "1"]
 		try {
@@ -94,7 +95,7 @@ describe("--ops on the CLI", () => {
 	}
 
 	it("advertises --ops", () => {
-		expect(KNOWN_FLAGS.has("ops")).toBe(true)
+		expect(isKnownFlag("ops")).toBe(true)
 		expect(USAGE).toContain("--ops")
 	})
 
@@ -214,6 +215,6 @@ describe("one flag table", () => {
 		expect(parseArgs(["conformance", "--fuzz"]).flags.fuzz).toBe(true)
 		expect(parseArgs(["run", "--quiet=yes"]).error).toBe("--quiet takes no value")
 		expect(parseArgs(["--help"])).toEqual({ command: "help", flags: { help: true } })
-		expect(KNOWN_FLAGS.has("defects")).toBe(true)
+		expect(isKnownFlag("defects")).toBe(true)
 	})
 })

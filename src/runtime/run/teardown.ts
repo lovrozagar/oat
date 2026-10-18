@@ -1,7 +1,8 @@
 import { createTracker } from "../create-tracker.ts"
 import type { TeardownReport } from "../teardown.ts"
 import type { RunContext } from "./context.ts"
-import { errorText, messageOf } from "./errors.ts"
+import { errorText } from "./errors.ts"
+import { messageOf } from "../../errors/message.ts"
 
 /** Every create a configured principal sends is ledgered as it, whichever view sent it. */
 export function trackCreates(ctx: RunContext): void {

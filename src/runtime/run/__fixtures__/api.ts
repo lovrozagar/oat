@@ -80,6 +80,9 @@ const note = {
 }
 
 const json = (schema: unknown) => ({ content: { "application/json": { schema } } })
+const problem = { properties: { error: { type: "string" } }, type: "object" }
+/* What a correct notes API also answers, documented: an invalid body, and a note that is not there. */
+const refusals = { "404": { description: "no such note" }, "422": { description: "invalid note", ...json(problem) } }
 const itemParam = { in: "path", name: "note_id", required: true, schema: { type: "string" } }
 
 /** The notes document: a list, create, read, update and delete of notes. */
@@ -91,26 +94,30 @@ export function notesDoc(extra: Record<string, unknown> = {}): OpenApiDocument {
 			"/notes": {
 				get: {
 					operationId: "notes.list",
-					responses: { "200": { description: "ok", ...json({ items: note, type: "array" }) } },
+					responses: { "200": { description: "ok", ...json({ items: note, type: "array" }) }, ...refusals },
 				},
 				post: {
 					operationId: "notes.create",
 					requestBody: { required: true, ...json(note) },
-					responses: { "201": { description: "made", ...json(note) } },
+					responses: { "201": { description: "made", ...json(note) }, ...refusals },
 				},
 			},
 			"/notes/{note_id}": {
-				delete: { operationId: "notes.delete", parameters: [itemParam], responses: { "204": { description: "gone" } } },
+				delete: {
+					operationId: "notes.delete",
+					parameters: [itemParam],
+					responses: { "204": { description: "gone" }, ...refusals },
+				},
 				get: {
 					operationId: "notes.get",
 					parameters: [itemParam],
-					responses: { "200": { description: "ok", ...json(note) } },
+					responses: { "200": { description: "ok", ...json(note) }, ...refusals },
 				},
 				patch: {
 					operationId: "notes.update",
 					parameters: [itemParam],
 					requestBody: json(note),
-					responses: { "200": { description: "ok", ...json(note) } },
+					responses: { "200": { description: "ok", ...json(note) }, ...refusals },
 				},
 			},
 			...extra,

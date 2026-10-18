@@ -28,8 +28,15 @@ export type ConformanceAnswer =
 	| { kind: "leg"; results: CaseResult[] }
 	| { kind: "results"; results: ParserResult[] }
 
+/** The answer a task gets: a leg's results, a shape's cases, or the scope suite's results. */
+export type AnswerFor<T extends ConformanceTask> = T extends { kind: "shapes" | "recall" }
+	? Extract<ConformanceAnswer, { kind: "cases" }>
+	: T extends { kind: "scope" }
+		? Extract<ConformanceAnswer, { kind: "results" }>
+		: Extract<ConformanceAnswer, { kind: "leg" }>
+
 export interface ConformancePool {
-	run(task: ConformanceTask): Promise<ConformanceAnswer>
+	run<T extends ConformanceTask>(task: T): Promise<AnswerFor<T>>
 	close(): Promise<void>
 }
 
@@ -98,9 +105,10 @@ export function createPool(jobs: number): ConformancePool {
 				),
 			)
 		},
-		run: (task) =>
-			new Promise((resolve, reject) => {
-				queue.push({ reject, resolve, task })
+		/* A worker answers each task with its own kind of answer: the IPC boundary is where that is trusted. */
+		run: <T extends ConformanceTask>(task: T) =>
+			new Promise<AnswerFor<T>>((resolve, reject) => {
+				queue.push({ reject, resolve: resolve as (answer: ConformanceAnswer) => void, task })
 				const worker = idle.shift()
 				if (worker !== undefined) next(worker)
 			}),

@@ -6,7 +6,7 @@ import type { Client } from "../client.ts"
 import { isNetworkError } from "../network.ts"
 import type { Owner } from "../teardown.ts"
 import type { Planned, ResolvedPrincipal, RunPrincipals } from "./context.ts"
-import { messageOf } from "./errors.ts"
+import { messageOf } from "../../errors/message.ts"
 
 /**
  * Resolves every configured principal. `null` when the network went away while doing it: the

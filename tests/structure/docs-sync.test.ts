@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
-import { FLAGS } from "../../src/cli.ts"
+import { FLAGS } from "../../src/cli/flags.ts"
 import { CONFIG } from "../../src/config/validate.ts"
 import { DEFECTS } from "../../src/reference/defects.ts"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"

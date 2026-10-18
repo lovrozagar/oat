@@ -14,33 +14,34 @@ exports[`CLI golden > --help 1`] = `
   oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
 
 Flags
-  --config     oat config module (.ts/.js/.mjs/.json) with a default export
-  --spec       OpenAPI document, http(s) URL or filesystem path
-  --base-url   backend under test, overriding the config
-  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
-  --only       comma-separated entity names; each grades every operation it owns
-  --profile    named profile gating which operations run (built-in: full, cheap)
-  --seed       integer seed for fixture generation (default 1)
-  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
-  --keep-fixtures  leave created records in place instead of tearing them down
-  --max-in-flight  requests allowed in flight at once (default 4)
-  --quiet          no live progress on stderr (progress.log still written)
-  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
-  --no-save-exchanges  skip the exchange journal (cheap CI)
-  --untagged       serve (or test) a document with every x-* tag stripped
-  --backend        conformance storage: memory | sqlite | postgres | d1
-                   (default: all local; d1 is remote and opt-in)
-  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
-  --fuzz [n]       inject random defect *combinations* instead of one at a time
-  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
-  --max-defects    most defects per combination (default: 4)
-  --seed           fuzz seed, so a failing combination replays exactly
-  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
-  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
-  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
-  --json       machine-readable output, for plan and doctor
-  --from       baseline: the run folder (or latest) whose findings become known
-  --force      baseline: overwrite an existing --out file
+  --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec <url|file>       OpenAPI document, http(s) URL or filesystem path
+  --base-url <url>        backend under test, overriding the config
+  --ops <ids>             comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
+  --profile <name>        named profile gating which operations run (built-in: full, cheap)
+  --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --keep-fixtures         leave created records in place instead of tearing them down
+  --max-in-flight <n>     requests allowed in flight at once (default 4)
+  --quiet                 no live progress on stderr (progress.log still written)
+  --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges     skip the exchange journal (cheap CI)
+  --untagged              serve (or test) a document with every x-* tag stripped
+  --defects <names>       serve: comma-separated defects the demo API injects
+  --backend <name>        conformance and serve storage: memory | sqlite | postgres | d1 (default: all local; d1 is remote and opt-in)
+  --dialect <name>        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --parser                conformance: the document and suite checks only, without the defect matrix
+  --fuzz [n]              conformance: inject random defect combinations instead of one at a time
+  --precision [n]         conformance: vary cohort data against a correct backend; any finding is a false positive
+  --max-defects <n>       conformance: most defects per combination (default 4)
+  --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
+  --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --json                  machine-readable output, for plan, doctor and diff
+  --from <run>            baseline: the run folder (or latest) whose findings become known
+  --force                 baseline: overwrite an existing --out file
+  --help                  print this help
 ",
 }
 `;
@@ -93,33 +94,34 @@ oat — OpenAPI Tester
   oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
 
 Flags
-  --config     oat config module (.ts/.js/.mjs/.json) with a default export
-  --spec       OpenAPI document, http(s) URL or filesystem path
-  --base-url   backend under test, overriding the config
-  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
-  --only       comma-separated entity names; each grades every operation it owns
-  --profile    named profile gating which operations run (built-in: full, cheap)
-  --seed       integer seed for fixture generation (default 1)
-  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
-  --keep-fixtures  leave created records in place instead of tearing them down
-  --max-in-flight  requests allowed in flight at once (default 4)
-  --quiet          no live progress on stderr (progress.log still written)
-  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
-  --no-save-exchanges  skip the exchange journal (cheap CI)
-  --untagged       serve (or test) a document with every x-* tag stripped
-  --backend        conformance storage: memory | sqlite | postgres | d1
-                   (default: all local; d1 is remote and opt-in)
-  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
-  --fuzz [n]       inject random defect *combinations* instead of one at a time
-  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
-  --max-defects    most defects per combination (default: 4)
-  --seed           fuzz seed, so a failing combination replays exactly
-  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
-  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
-  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
-  --json       machine-readable output, for plan and doctor
-  --from       baseline: the run folder (or latest) whose findings become known
-  --force      baseline: overwrite an existing --out file
+  --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec <url|file>       OpenAPI document, http(s) URL or filesystem path
+  --base-url <url>        backend under test, overriding the config
+  --ops <ids>             comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
+  --profile <name>        named profile gating which operations run (built-in: full, cheap)
+  --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --keep-fixtures         leave created records in place instead of tearing them down
+  --max-in-flight <n>     requests allowed in flight at once (default 4)
+  --quiet                 no live progress on stderr (progress.log still written)
+  --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges     skip the exchange journal (cheap CI)
+  --untagged              serve (or test) a document with every x-* tag stripped
+  --defects <names>       serve: comma-separated defects the demo API injects
+  --backend <name>        conformance and serve storage: memory | sqlite | postgres | d1 (default: all local; d1 is remote and opt-in)
+  --dialect <name>        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --parser                conformance: the document and suite checks only, without the defect matrix
+  --fuzz [n]              conformance: inject random defect combinations instead of one at a time
+  --precision [n]         conformance: vary cohort data against a correct backend; any finding is a false positive
+  --max-defects <n>       conformance: most defects per combination (default 4)
+  --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
+  --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --json                  machine-readable output, for plan, doctor and diff
+  --from <run>            baseline: the run folder (or latest) whose findings become known
+  --force                 baseline: overwrite an existing --out file
+  --help                  print this help
 ",
 }
 `;
@@ -148,33 +150,34 @@ oat — OpenAPI Tester
   oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
 
 Flags
-  --config     oat config module (.ts/.js/.mjs/.json) with a default export
-  --spec       OpenAPI document, http(s) URL or filesystem path
-  --base-url   backend under test, overriding the config
-  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
-  --only       comma-separated entity names; each grades every operation it owns
-  --profile    named profile gating which operations run (built-in: full, cheap)
-  --seed       integer seed for fixture generation (default 1)
-  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
-  --keep-fixtures  leave created records in place instead of tearing them down
-  --max-in-flight  requests allowed in flight at once (default 4)
-  --quiet          no live progress on stderr (progress.log still written)
-  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
-  --no-save-exchanges  skip the exchange journal (cheap CI)
-  --untagged       serve (or test) a document with every x-* tag stripped
-  --backend        conformance storage: memory | sqlite | postgres | d1
-                   (default: all local; d1 is remote and opt-in)
-  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
-  --fuzz [n]       inject random defect *combinations* instead of one at a time
-  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
-  --max-defects    most defects per combination (default: 4)
-  --seed           fuzz seed, so a failing combination replays exactly
-  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
-  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
-  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
-  --json       machine-readable output, for plan and doctor
-  --from       baseline: the run folder (or latest) whose findings become known
-  --force      baseline: overwrite an existing --out file
+  --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec <url|file>       OpenAPI document, http(s) URL or filesystem path
+  --base-url <url>        backend under test, overriding the config
+  --ops <ids>             comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
+  --profile <name>        named profile gating which operations run (built-in: full, cheap)
+  --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --keep-fixtures         leave created records in place instead of tearing them down
+  --max-in-flight <n>     requests allowed in flight at once (default 4)
+  --quiet                 no live progress on stderr (progress.log still written)
+  --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges     skip the exchange journal (cheap CI)
+  --untagged              serve (or test) a document with every x-* tag stripped
+  --defects <names>       serve: comma-separated defects the demo API injects
+  --backend <name>        conformance and serve storage: memory | sqlite | postgres | d1 (default: all local; d1 is remote and opt-in)
+  --dialect <name>        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --parser                conformance: the document and suite checks only, without the defect matrix
+  --fuzz [n]              conformance: inject random defect combinations instead of one at a time
+  --precision [n]         conformance: vary cohort data against a correct backend; any finding is a false positive
+  --max-defects <n>       conformance: most defects per combination (default 4)
+  --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
+  --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --json                  machine-readable output, for plan, doctor and diff
+  --from <run>            baseline: the run folder (or latest) whose findings become known
+  --force                 baseline: overwrite an existing --out file
+  --help                  print this help
 ",
 }
 `;
@@ -227,33 +230,34 @@ oat — OpenAPI Tester
   oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
 
 Flags
-  --config     oat config module (.ts/.js/.mjs/.json) with a default export
-  --spec       OpenAPI document, http(s) URL or filesystem path
-  --base-url   backend under test, overriding the config
-  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
-  --only       comma-separated entity names; each grades every operation it owns
-  --profile    named profile gating which operations run (built-in: full, cheap)
-  --seed       integer seed for fixture generation (default 1)
-  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
-  --keep-fixtures  leave created records in place instead of tearing them down
-  --max-in-flight  requests allowed in flight at once (default 4)
-  --quiet          no live progress on stderr (progress.log still written)
-  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
-  --no-save-exchanges  skip the exchange journal (cheap CI)
-  --untagged       serve (or test) a document with every x-* tag stripped
-  --backend        conformance storage: memory | sqlite | postgres | d1
-                   (default: all local; d1 is remote and opt-in)
-  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
-  --fuzz [n]       inject random defect *combinations* instead of one at a time
-  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
-  --max-defects    most defects per combination (default: 4)
-  --seed           fuzz seed, so a failing combination replays exactly
-  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
-  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
-  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
-  --json       machine-readable output, for plan and doctor
-  --from       baseline: the run folder (or latest) whose findings become known
-  --force      baseline: overwrite an existing --out file
+  --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec <url|file>       OpenAPI document, http(s) URL or filesystem path
+  --base-url <url>        backend under test, overriding the config
+  --ops <ids>             comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
+  --profile <name>        named profile gating which operations run (built-in: full, cheap)
+  --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --keep-fixtures         leave created records in place instead of tearing them down
+  --max-in-flight <n>     requests allowed in flight at once (default 4)
+  --quiet                 no live progress on stderr (progress.log still written)
+  --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges     skip the exchange journal (cheap CI)
+  --untagged              serve (or test) a document with every x-* tag stripped
+  --defects <names>       serve: comma-separated defects the demo API injects
+  --backend <name>        conformance and serve storage: memory | sqlite | postgres | d1 (default: all local; d1 is remote and opt-in)
+  --dialect <name>        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --parser                conformance: the document and suite checks only, without the defect matrix
+  --fuzz [n]              conformance: inject random defect combinations instead of one at a time
+  --precision [n]         conformance: vary cohort data against a correct backend; any finding is a false positive
+  --max-defects <n>       conformance: most defects per combination (default 4)
+  --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
+  --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --json                  machine-readable output, for plan, doctor and diff
+  --from <run>            baseline: the run folder (or latest) whose findings become known
+  --force                 baseline: overwrite an existing --out file
+  --help                  print this help
 ",
 }
 `;
@@ -272,33 +276,34 @@ exports[`CLI golden > help 1`] = `
   oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
 
 Flags
-  --config     oat config module (.ts/.js/.mjs/.json) with a default export
-  --spec       OpenAPI document, http(s) URL or filesystem path
-  --base-url   backend under test, overriding the config
-  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
-  --only       comma-separated entity names; each grades every operation it owns
-  --profile    named profile gating which operations run (built-in: full, cheap)
-  --seed       integer seed for fixture generation (default 1)
-  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
-  --keep-fixtures  leave created records in place instead of tearing them down
-  --max-in-flight  requests allowed in flight at once (default 4)
-  --quiet          no live progress on stderr (progress.log still written)
-  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
-  --no-save-exchanges  skip the exchange journal (cheap CI)
-  --untagged       serve (or test) a document with every x-* tag stripped
-  --backend        conformance storage: memory | sqlite | postgres | d1
-                   (default: all local; d1 is remote and opt-in)
-  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
-  --fuzz [n]       inject random defect *combinations* instead of one at a time
-  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
-  --max-defects    most defects per combination (default: 4)
-  --seed           fuzz seed, so a failing combination replays exactly
-  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
-  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
-  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
-  --json       machine-readable output, for plan and doctor
-  --from       baseline: the run folder (or latest) whose findings become known
-  --force      baseline: overwrite an existing --out file
+  --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec <url|file>       OpenAPI document, http(s) URL or filesystem path
+  --base-url <url>        backend under test, overriding the config
+  --ops <ids>             comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
+  --profile <name>        named profile gating which operations run (built-in: full, cheap)
+  --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --keep-fixtures         leave created records in place instead of tearing them down
+  --max-in-flight <n>     requests allowed in flight at once (default 4)
+  --quiet                 no live progress on stderr (progress.log still written)
+  --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges     skip the exchange journal (cheap CI)
+  --untagged              serve (or test) a document with every x-* tag stripped
+  --defects <names>       serve: comma-separated defects the demo API injects
+  --backend <name>        conformance and serve storage: memory | sqlite | postgres | d1 (default: all local; d1 is remote and opt-in)
+  --dialect <name>        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --parser                conformance: the document and suite checks only, without the defect matrix
+  --fuzz [n]              conformance: inject random defect combinations instead of one at a time
+  --precision [n]         conformance: vary cohort data against a correct backend; any finding is a false positive
+  --max-defects <n>       conformance: most defects per combination (default 4)
+  --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
+  --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --json                  machine-readable output, for plan, doctor and diff
+  --from <run>            baseline: the run folder (or latest) whose findings become known
+  --force                 baseline: overwrite an existing --out file
+  --help                  print this help
 ",
 }
 `;
@@ -319,33 +324,34 @@ oat — OpenAPI Tester
   oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
 
 Flags
-  --config     oat config module (.ts/.js/.mjs/.json) with a default export
-  --spec       OpenAPI document, http(s) URL or filesystem path
-  --base-url   backend under test, overriding the config
-  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
-  --only       comma-separated entity names; each grades every operation it owns
-  --profile    named profile gating which operations run (built-in: full, cheap)
-  --seed       integer seed for fixture generation (default 1)
-  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
-  --keep-fixtures  leave created records in place instead of tearing them down
-  --max-in-flight  requests allowed in flight at once (default 4)
-  --quiet          no live progress on stderr (progress.log still written)
-  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
-  --no-save-exchanges  skip the exchange journal (cheap CI)
-  --untagged       serve (or test) a document with every x-* tag stripped
-  --backend        conformance storage: memory | sqlite | postgres | d1
-                   (default: all local; d1 is remote and opt-in)
-  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
-  --fuzz [n]       inject random defect *combinations* instead of one at a time
-  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
-  --max-defects    most defects per combination (default: 4)
-  --seed           fuzz seed, so a failing combination replays exactly
-  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
-  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
-  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
-  --json       machine-readable output, for plan and doctor
-  --from       baseline: the run folder (or latest) whose findings become known
-  --force      baseline: overwrite an existing --out file
+  --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec <url|file>       OpenAPI document, http(s) URL or filesystem path
+  --base-url <url>        backend under test, overriding the config
+  --ops <ids>             comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
+  --profile <name>        named profile gating which operations run (built-in: full, cheap)
+  --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --keep-fixtures         leave created records in place instead of tearing them down
+  --max-in-flight <n>     requests allowed in flight at once (default 4)
+  --quiet                 no live progress on stderr (progress.log still written)
+  --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges     skip the exchange journal (cheap CI)
+  --untagged              serve (or test) a document with every x-* tag stripped
+  --defects <names>       serve: comma-separated defects the demo API injects
+  --backend <name>        conformance and serve storage: memory | sqlite | postgres | d1 (default: all local; d1 is remote and opt-in)
+  --dialect <name>        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --parser                conformance: the document and suite checks only, without the defect matrix
+  --fuzz [n]              conformance: inject random defect combinations instead of one at a time
+  --precision [n]         conformance: vary cohort data against a correct backend; any finding is a false positive
+  --max-defects <n>       conformance: most defects per combination (default 4)
+  --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
+  --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --json                  machine-readable output, for plan, doctor and diff
+  --from <run>            baseline: the run folder (or latest) whose findings become known
+  --force                 baseline: overwrite an existing --out file
+  --help                  print this help
 ",
 }
 `;
@@ -364,33 +370,34 @@ exports[`CLI golden > no arguments 1`] = `
   oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
 
 Flags
-  --config     oat config module (.ts/.js/.mjs/.json) with a default export
-  --spec       OpenAPI document, http(s) URL or filesystem path
-  --base-url   backend under test, overriding the config
-  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
-  --only       comma-separated entity names; each grades every operation it owns
-  --profile    named profile gating which operations run (built-in: full, cheap)
-  --seed       integer seed for fixture generation (default 1)
-  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
-  --keep-fixtures  leave created records in place instead of tearing them down
-  --max-in-flight  requests allowed in flight at once (default 4)
-  --quiet          no live progress on stderr (progress.log still written)
-  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
-  --no-save-exchanges  skip the exchange journal (cheap CI)
-  --untagged       serve (or test) a document with every x-* tag stripped
-  --backend        conformance storage: memory | sqlite | postgres | d1
-                   (default: all local; d1 is remote and opt-in)
-  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
-  --fuzz [n]       inject random defect *combinations* instead of one at a time
-  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
-  --max-defects    most defects per combination (default: 4)
-  --seed           fuzz seed, so a failing combination replays exactly
-  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
-  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
-  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
-  --json       machine-readable output, for plan and doctor
-  --from       baseline: the run folder (or latest) whose findings become known
-  --force      baseline: overwrite an existing --out file
+  --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec <url|file>       OpenAPI document, http(s) URL or filesystem path
+  --base-url <url>        backend under test, overriding the config
+  --ops <ids>             comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
+  --profile <name>        named profile gating which operations run (built-in: full, cheap)
+  --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --keep-fixtures         leave created records in place instead of tearing them down
+  --max-in-flight <n>     requests allowed in flight at once (default 4)
+  --quiet                 no live progress on stderr (progress.log still written)
+  --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges     skip the exchange journal (cheap CI)
+  --untagged              serve (or test) a document with every x-* tag stripped
+  --defects <names>       serve: comma-separated defects the demo API injects
+  --backend <name>        conformance and serve storage: memory | sqlite | postgres | d1 (default: all local; d1 is remote and opt-in)
+  --dialect <name>        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --parser                conformance: the document and suite checks only, without the defect matrix
+  --fuzz [n]              conformance: inject random defect combinations instead of one at a time
+  --precision [n]         conformance: vary cohort data against a correct backend; any finding is a false positive
+  --max-defects <n>       conformance: most defects per combination (default 4)
+  --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
+  --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --json                  machine-readable output, for plan, doctor and diff
+  --from <run>            baseline: the run folder (or latest) whose findings become known
+  --force                 baseline: overwrite an existing --out file
+  --help                  print this help
 ",
 }
 `;
@@ -419,33 +426,34 @@ oat — OpenAPI Tester
   oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
 
 Flags
-  --config     oat config module (.ts/.js/.mjs/.json) with a default export
-  --spec       OpenAPI document, http(s) URL or filesystem path
-  --base-url   backend under test, overriding the config
-  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
-  --only       comma-separated entity names; each grades every operation it owns
-  --profile    named profile gating which operations run (built-in: full, cheap)
-  --seed       integer seed for fixture generation (default 1)
-  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
-  --keep-fixtures  leave created records in place instead of tearing them down
-  --max-in-flight  requests allowed in flight at once (default 4)
-  --quiet          no live progress on stderr (progress.log still written)
-  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
-  --no-save-exchanges  skip the exchange journal (cheap CI)
-  --untagged       serve (or test) a document with every x-* tag stripped
-  --backend        conformance storage: memory | sqlite | postgres | d1
-                   (default: all local; d1 is remote and opt-in)
-  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
-  --fuzz [n]       inject random defect *combinations* instead of one at a time
-  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
-  --max-defects    most defects per combination (default: 4)
-  --seed           fuzz seed, so a failing combination replays exactly
-  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
-  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
-  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
-  --json       machine-readable output, for plan and doctor
-  --from       baseline: the run folder (or latest) whose findings become known
-  --force      baseline: overwrite an existing --out file
+  --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec <url|file>       OpenAPI document, http(s) URL or filesystem path
+  --base-url <url>        backend under test, overriding the config
+  --ops <ids>             comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
+  --profile <name>        named profile gating which operations run (built-in: full, cheap)
+  --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --keep-fixtures         leave created records in place instead of tearing them down
+  --max-in-flight <n>     requests allowed in flight at once (default 4)
+  --quiet                 no live progress on stderr (progress.log still written)
+  --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges     skip the exchange journal (cheap CI)
+  --untagged              serve (or test) a document with every x-* tag stripped
+  --defects <names>       serve: comma-separated defects the demo API injects
+  --backend <name>        conformance and serve storage: memory | sqlite | postgres | d1 (default: all local; d1 is remote and opt-in)
+  --dialect <name>        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --parser                conformance: the document and suite checks only, without the defect matrix
+  --fuzz [n]              conformance: inject random defect combinations instead of one at a time
+  --precision [n]         conformance: vary cohort data against a correct backend; any finding is a false positive
+  --max-defects <n>       conformance: most defects per combination (default 4)
+  --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
+  --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --json                  machine-readable output, for plan, doctor and diff
+  --from <run>            baseline: the run folder (or latest) whose findings become known
+  --force                 baseline: overwrite an existing --out file
+  --help                  print this help
 ",
 }
 `;
@@ -482,33 +490,34 @@ oat — OpenAPI Tester
   oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
 
 Flags
-  --config     oat config module (.ts/.js/.mjs/.json) with a default export
-  --spec       OpenAPI document, http(s) URL or filesystem path
-  --base-url   backend under test, overriding the config
-  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
-  --only       comma-separated entity names; each grades every operation it owns
-  --profile    named profile gating which operations run (built-in: full, cheap)
-  --seed       integer seed for fixture generation (default 1)
-  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
-  --keep-fixtures  leave created records in place instead of tearing them down
-  --max-in-flight  requests allowed in flight at once (default 4)
-  --quiet          no live progress on stderr (progress.log still written)
-  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
-  --no-save-exchanges  skip the exchange journal (cheap CI)
-  --untagged       serve (or test) a document with every x-* tag stripped
-  --backend        conformance storage: memory | sqlite | postgres | d1
-                   (default: all local; d1 is remote and opt-in)
-  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
-  --fuzz [n]       inject random defect *combinations* instead of one at a time
-  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
-  --max-defects    most defects per combination (default: 4)
-  --seed           fuzz seed, so a failing combination replays exactly
-  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
-  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
-  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
-  --json       machine-readable output, for plan and doctor
-  --from       baseline: the run folder (or latest) whose findings become known
-  --force      baseline: overwrite an existing --out file
+  --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec <url|file>       OpenAPI document, http(s) URL or filesystem path
+  --base-url <url>        backend under test, overriding the config
+  --ops <ids>             comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
+  --profile <name>        named profile gating which operations run (built-in: full, cheap)
+  --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --keep-fixtures         leave created records in place instead of tearing them down
+  --max-in-flight <n>     requests allowed in flight at once (default 4)
+  --quiet                 no live progress on stderr (progress.log still written)
+  --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges     skip the exchange journal (cheap CI)
+  --untagged              serve (or test) a document with every x-* tag stripped
+  --defects <names>       serve: comma-separated defects the demo API injects
+  --backend <name>        conformance and serve storage: memory | sqlite | postgres | d1 (default: all local; d1 is remote and opt-in)
+  --dialect <name>        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --parser                conformance: the document and suite checks only, without the defect matrix
+  --fuzz [n]              conformance: inject random defect combinations instead of one at a time
+  --precision [n]         conformance: vary cohort data against a correct backend; any finding is a false positive
+  --max-defects <n>       conformance: most defects per combination (default 4)
+  --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
+  --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --json                  machine-readable output, for plan, doctor and diff
+  --from <run>            baseline: the run folder (or latest) whose findings become known
+  --force                 baseline: overwrite an existing --out file
+  --help                  print this help
 ",
 }
 `;
@@ -529,33 +538,34 @@ oat — OpenAPI Tester
   oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
 
 Flags
-  --config     oat config module (.ts/.js/.mjs/.json) with a default export
-  --spec       OpenAPI document, http(s) URL or filesystem path
-  --base-url   backend under test, overriding the config
-  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
-  --only       comma-separated entity names; each grades every operation it owns
-  --profile    named profile gating which operations run (built-in: full, cheap)
-  --seed       integer seed for fixture generation (default 1)
-  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
-  --keep-fixtures  leave created records in place instead of tearing them down
-  --max-in-flight  requests allowed in flight at once (default 4)
-  --quiet          no live progress on stderr (progress.log still written)
-  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
-  --no-save-exchanges  skip the exchange journal (cheap CI)
-  --untagged       serve (or test) a document with every x-* tag stripped
-  --backend        conformance storage: memory | sqlite | postgres | d1
-                   (default: all local; d1 is remote and opt-in)
-  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
-  --fuzz [n]       inject random defect *combinations* instead of one at a time
-  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
-  --max-defects    most defects per combination (default: 4)
-  --seed           fuzz seed, so a failing combination replays exactly
-  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
-  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
-  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
-  --json       machine-readable output, for plan and doctor
-  --from       baseline: the run folder (or latest) whose findings become known
-  --force      baseline: overwrite an existing --out file
+  --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec <url|file>       OpenAPI document, http(s) URL or filesystem path
+  --base-url <url>        backend under test, overriding the config
+  --ops <ids>             comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
+  --profile <name>        named profile gating which operations run (built-in: full, cheap)
+  --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --keep-fixtures         leave created records in place instead of tearing them down
+  --max-in-flight <n>     requests allowed in flight at once (default 4)
+  --quiet                 no live progress on stderr (progress.log still written)
+  --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges     skip the exchange journal (cheap CI)
+  --untagged              serve (or test) a document with every x-* tag stripped
+  --defects <names>       serve: comma-separated defects the demo API injects
+  --backend <name>        conformance and serve storage: memory | sqlite | postgres | d1 (default: all local; d1 is remote and opt-in)
+  --dialect <name>        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --parser                conformance: the document and suite checks only, without the defect matrix
+  --fuzz [n]              conformance: inject random defect combinations instead of one at a time
+  --precision [n]         conformance: vary cohort data against a correct backend; any finding is a false positive
+  --max-defects <n>       conformance: most defects per combination (default 4)
+  --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
+  --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --json                  machine-readable output, for plan, doctor and diff
+  --from <run>            baseline: the run folder (or latest) whose findings become known
+  --force                 baseline: overwrite an existing --out file
+  --help                  print this help
 ",
 }
 `;
@@ -563,7 +573,7 @@ Flags
 exports[`CLI golden > run with a missing TypeScript config 1`] = `
 {
   "code": 2,
-  "output": "oat: failed to load config <dir>/absent.config.ts: Cannot find module 'file://<dir>/absent.config.ts' imported from <cwd>/src/config/load.ts
+  "output": "oat: config not found: <dir>/absent.config.ts
 ",
 }
 `;
@@ -571,7 +581,7 @@ exports[`CLI golden > run with a missing TypeScript config 1`] = `
 exports[`CLI golden > run with a missing config 1`] = `
 {
   "code": 2,
-  "output": "oat: ENOENT: no such file or directory, open '<dir>/absent.json'
+  "output": "oat: config not found: <dir>/absent.json
 ",
 }
 `;
@@ -619,33 +629,34 @@ oat — OpenAPI Tester
   oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
 
 Flags
-  --config     oat config module (.ts/.js/.mjs/.json) with a default export
-  --spec       OpenAPI document, http(s) URL or filesystem path
-  --base-url   backend under test, overriding the config
-  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
-  --only       comma-separated entity names; each grades every operation it owns
-  --profile    named profile gating which operations run (built-in: full, cheap)
-  --seed       integer seed for fixture generation (default 1)
-  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
-  --keep-fixtures  leave created records in place instead of tearing them down
-  --max-in-flight  requests allowed in flight at once (default 4)
-  --quiet          no live progress on stderr (progress.log still written)
-  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
-  --no-save-exchanges  skip the exchange journal (cheap CI)
-  --untagged       serve (or test) a document with every x-* tag stripped
-  --backend        conformance storage: memory | sqlite | postgres | d1
-                   (default: all local; d1 is remote and opt-in)
-  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
-  --fuzz [n]       inject random defect *combinations* instead of one at a time
-  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
-  --max-defects    most defects per combination (default: 4)
-  --seed           fuzz seed, so a failing combination replays exactly
-  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
-  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
-  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
-  --json       machine-readable output, for plan and doctor
-  --from       baseline: the run folder (or latest) whose findings become known
-  --force      baseline: overwrite an existing --out file
+  --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec <url|file>       OpenAPI document, http(s) URL or filesystem path
+  --base-url <url>        backend under test, overriding the config
+  --ops <ids>             comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
+  --profile <name>        named profile gating which operations run (built-in: full, cheap)
+  --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --keep-fixtures         leave created records in place instead of tearing them down
+  --max-in-flight <n>     requests allowed in flight at once (default 4)
+  --quiet                 no live progress on stderr (progress.log still written)
+  --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges     skip the exchange journal (cheap CI)
+  --untagged              serve (or test) a document with every x-* tag stripped
+  --defects <names>       serve: comma-separated defects the demo API injects
+  --backend <name>        conformance and serve storage: memory | sqlite | postgres | d1 (default: all local; d1 is remote and opt-in)
+  --dialect <name>        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --parser                conformance: the document and suite checks only, without the defect matrix
+  --fuzz [n]              conformance: inject random defect combinations instead of one at a time
+  --precision [n]         conformance: vary cohort data against a correct backend; any finding is a false positive
+  --max-defects <n>       conformance: most defects per combination (default 4)
+  --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
+  --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --json                  machine-readable output, for plan, doctor and diff
+  --from <run>            baseline: the run folder (or latest) whose findings become known
+  --force                 baseline: overwrite an existing --out file
+  --help                  print this help
 ",
 }
 `;
@@ -666,33 +677,34 @@ oat — OpenAPI Tester
   oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
 
 Flags
-  --config     oat config module (.ts/.js/.mjs/.json) with a default export
-  --spec       OpenAPI document, http(s) URL or filesystem path
-  --base-url   backend under test, overriding the config
-  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
-  --only       comma-separated entity names; each grades every operation it owns
-  --profile    named profile gating which operations run (built-in: full, cheap)
-  --seed       integer seed for fixture generation (default 1)
-  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
-  --keep-fixtures  leave created records in place instead of tearing them down
-  --max-in-flight  requests allowed in flight at once (default 4)
-  --quiet          no live progress on stderr (progress.log still written)
-  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
-  --no-save-exchanges  skip the exchange journal (cheap CI)
-  --untagged       serve (or test) a document with every x-* tag stripped
-  --backend        conformance storage: memory | sqlite | postgres | d1
-                   (default: all local; d1 is remote and opt-in)
-  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
-  --fuzz [n]       inject random defect *combinations* instead of one at a time
-  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
-  --max-defects    most defects per combination (default: 4)
-  --seed           fuzz seed, so a failing combination replays exactly
-  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
-  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
-  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
-  --json       machine-readable output, for plan and doctor
-  --from       baseline: the run folder (or latest) whose findings become known
-  --force      baseline: overwrite an existing --out file
+  --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec <url|file>       OpenAPI document, http(s) URL or filesystem path
+  --base-url <url>        backend under test, overriding the config
+  --ops <ids>             comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
+  --profile <name>        named profile gating which operations run (built-in: full, cheap)
+  --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --keep-fixtures         leave created records in place instead of tearing them down
+  --max-in-flight <n>     requests allowed in flight at once (default 4)
+  --quiet                 no live progress on stderr (progress.log still written)
+  --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges     skip the exchange journal (cheap CI)
+  --untagged              serve (or test) a document with every x-* tag stripped
+  --defects <names>       serve: comma-separated defects the demo API injects
+  --backend <name>        conformance and serve storage: memory | sqlite | postgres | d1 (default: all local; d1 is remote and opt-in)
+  --dialect <name>        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --parser                conformance: the document and suite checks only, without the defect matrix
+  --fuzz [n]              conformance: inject random defect combinations instead of one at a time
+  --precision [n]         conformance: vary cohort data against a correct backend; any finding is a false positive
+  --max-defects <n>       conformance: most defects per combination (default 4)
+  --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
+  --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --json                  machine-readable output, for plan, doctor and diff
+  --from <run>            baseline: the run folder (or latest) whose findings become known
+  --force                 baseline: overwrite an existing --out file
+  --help                  print this help
 ",
 }
 `;
@@ -713,33 +725,34 @@ oat — OpenAPI Tester
   oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
 
 Flags
-  --config     oat config module (.ts/.js/.mjs/.json) with a default export
-  --spec       OpenAPI document, http(s) URL or filesystem path
-  --base-url   backend under test, overriding the config
-  --ops        comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
-  --only       comma-separated entity names; each grades every operation it owns
-  --profile    named profile gating which operations run (built-in: full, cheap)
-  --seed       integer seed for fixture generation (default 1)
-  --out        history root; each run is <out>/<datetime>/ (default ./.oat/runs)
-  --keep-fixtures  leave created records in place instead of tearing them down
-  --max-in-flight  requests allowed in flight at once (default 4)
-  --quiet          no live progress on stderr (progress.log still written)
-  --save-exchanges     persist every HTTP exchange under the run dir (default unless --profile cheap)
-  --no-save-exchanges  skip the exchange journal (cheap CI)
-  --untagged       serve (or test) a document with every x-* tag stripped
-  --backend        conformance storage: memory | sqlite | postgres | d1
-                   (default: all local; d1 is remote and opt-in)
-  --dialect        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
-  --fuzz [n]       inject random defect *combinations* instead of one at a time
-  --precision [n]  vary cohort data against a correct backend; any finding is a false positive
-  --max-defects    most defects per combination (default: 4)
-  --seed           fuzz seed, so a failing combination replays exactly
-  --fuzz-seed      seed for the combination smoke pass of a full conformance run (default: 1)
-  --jobs           conformance legs run at once, each on its own thread (default: CPUs − 1, at most 4)
-  --skip-backend   comma-separated backends a full conformance run may leave out when unreachable
-  --json       machine-readable output, for plan and doctor
-  --from       baseline: the run folder (or latest) whose findings become known
-  --force      baseline: overwrite an existing --out file
+  --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
+  --spec <url|file>       OpenAPI document, http(s) URL or filesystem path
+  --base-url <url>        backend under test, overriding the config
+  --ops <ids>             comma-separated operationIds to grade (row.*, cdn:asset.get); the rest is support
+  --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
+  --profile <name>        named profile gating which operations run (built-in: full, cheap)
+  --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --keep-fixtures         leave created records in place instead of tearing them down
+  --max-in-flight <n>     requests allowed in flight at once (default 4)
+  --quiet                 no live progress on stderr (progress.log still written)
+  --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
+  --no-save-exchanges     skip the exchange journal (cheap CI)
+  --untagged              serve (or test) a document with every x-* tag stripped
+  --defects <names>       serve: comma-separated defects the demo API injects
+  --backend <name>        conformance and serve storage: memory | sqlite | postgres | d1 (default: all local; d1 is remote and opt-in)
+  --dialect <name>        API shape: postgrest | classic | linked | jsonapi | plain | template (default: all)
+  --parser                conformance: the document and suite checks only, without the defect matrix
+  --fuzz [n]              conformance: inject random defect combinations instead of one at a time
+  --precision [n]         conformance: vary cohort data against a correct backend; any finding is a false positive
+  --max-defects <n>       conformance: most defects per combination (default 4)
+  --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
+  --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
+  --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --json                  machine-readable output, for plan, doctor and diff
+  --from <run>            baseline: the run folder (or latest) whose findings become known
+  --force                 baseline: overwrite an existing --out file
+  --help                  print this help
 ",
 }
 `;

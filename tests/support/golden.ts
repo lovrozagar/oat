@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { vi } from "vitest"
-import { main } from "../../src/cli.ts"
+import { main } from "../../src/cli/main.ts"
 import { PRINCIPALS } from "../../src/conformance/suite.ts"
 import { createMemoryServer, createSqliteServer, type ReferenceOptions } from "../../src/reference/http.ts"
 

@@ -1,0 +1,66 @@
+import { createWriteStream, writeFileSync } from "node:fs"
+import { resolve } from "node:path"
+import {
+	createProgressPrinter,
+	createProgressPump,
+	formatProgressJsonl,
+	formatProgressLine,
+	formatProgressTsv,
+	PROGRESS_GLOSSARY,
+	PROGRESS_TSV_HEADER,
+	type ProgressSnapshot,
+} from "../../runtime/progress.ts"
+import type { Writer } from "../writer.ts"
+
+/** Where a run's live status goes, and how it is closed once the run ends. */
+export interface RunProgressOut {
+	onProgress(snap: ProgressSnapshot): void
+	close(): void
+}
+
+/** How often `progress.json`, the one file read while the run goes on, is rewritten. */
+const JSON_EVERY_MS = 1_000
+
+/**
+ * The run's status: a line on stderr unless `quiet`, and in the run folder `progress.log` (with
+ * its glossary), `progress.tsv`, `progress.jsonl`, and `progress.json` for what is happening now.
+ */
+export function runProgress(writer: Writer, outDir: string, startedAt: number, quiet: boolean): RunProgressOut {
+	const stderr = quiet ? undefined : createProgressPrinter(writer.err, startedAt)
+	const log = createWriteStream(resolve(outDir, "progress.log"))
+	const tsv = createWriteStream(resolve(outDir, "progress.tsv"))
+	const jsonl = createWriteStream(resolve(outDir, "progress.jsonl"))
+	log.write(`${PROGRESS_GLOSSARY}\n`)
+	tsv.write(`${PROGRESS_TSV_HEADER}\n`)
+	let lastJsonAt = 0
+	const files = createProgressPump(startedAt, (snap, now) => {
+		log.write(`${formatProgressLine(snap, now)}\n`)
+		tsv.write(`${formatProgressTsv(snap, now)}\n`)
+		jsonl.write(`${formatProgressJsonl(snap, now)}\n`)
+		if (now - lastJsonAt < JSON_EVERY_MS && snap.phase !== "done") return
+		lastJsonAt = now
+		writeFileSync(resolve(outDir, "progress.json"), `${JSON.stringify(current(snap, now), null, 2)}\n`)
+	})
+	return {
+		close: () => {
+			stderr?.stop()
+			files.stop()
+			log.end()
+			tsv.end()
+			jsonl.end()
+		},
+		onProgress: (snap) => {
+			stderr?.emit(snap)
+			files.emit(snap)
+		},
+	}
+}
+
+/** The status as `progress.json` states it: how long since the run last heard anything, and when. */
+function current(
+	snap: ProgressSnapshot,
+	now: number,
+): ProgressSnapshot & { lastAgoMs: number | null; updatedAt: string } {
+	const ageFrom = snap.inflight?.at ?? snap.last?.at
+	return { ...snap, lastAgoMs: ageFrom === undefined ? null : now - ageFrom, updatedAt: new Date(now).toISOString() }
+}

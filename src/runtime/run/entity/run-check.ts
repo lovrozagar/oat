@@ -7,7 +7,7 @@ import { FencedError } from "../../fence.ts"
 import { type FindingCollector, isRootCause, type Outcome } from "../../finding.ts"
 import { isNetworkError } from "../../network.ts"
 import type { EntityRun } from "./state.ts"
-import { messageOf } from "../errors.ts"
+import { messageOf } from "../../../errors/message.ts"
 
 export type Check = (typeof CHECKS)[number]
 
