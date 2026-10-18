@@ -147,11 +147,20 @@ export function generateBody(
 	const schema = requestSchema(bodySchema)
 	const result = generate(schema, { index, rand, variant })
 	if (result.ok) return { body: isObject(result.value) ? result.value : {}, missingRequired: [] }
-	/* Without the failing field, the rest may still be made: drop it from `required` and retry. */
+	/*
+	 * Without the failing field, the rest may still be made: drop it from `required` and retry. Only a
+	 * field this level declares can be dropped; one required through `allOf` would fail the same way
+	 * on every retry. (A required field nothing declares is always made, so it never fails here.)
+	 */
 	const field = result.pointer.split("/")[1]
-	if (field !== undefined && field !== "" && typeof schema === "object") {
+	if (
+		field !== undefined &&
+		typeof schema === "object" &&
+		isObject(schema.properties) &&
+		Object.hasOwn(schema.properties, field)
+	) {
 		const required = Array.isArray(schema.required) ? schema.required.filter((name) => name !== field) : []
-		const properties = { ...(schema.properties as Schema) }
+		const properties = { ...schema.properties }
 		delete properties[field]
 		const rest = generateBody({ ...schema, properties, required }, variant, rand, index, operationId)
 		return { body: rest.body, missingRequired: [result.pointer, ...rest.missingRequired] }

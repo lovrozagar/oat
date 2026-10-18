@@ -233,3 +233,12 @@ describe("buildCohort on a schema that cannot be read", () => {
 		expect(() => buildCohort(throwing("properties"), 1, ["baseline"], "note.create")).toThrow(/boom/)
 	})
 })
+
+describe("generateBody on a field required through allOf", () => {
+	it("reports a field it cannot make, and stops", () => {
+		const schema = {
+			allOf: [{ properties: { a: { maxLength: 1, minLength: 5, type: "string" } }, required: ["a"], type: "object" }],
+		}
+		expect(generateBody(schema, "baseline", () => 0.5, 0).missingRequired).toEqual(["/a"])
+	})
+})
