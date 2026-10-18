@@ -33,14 +33,13 @@ export const paginationBoundsHandled = defineCheck<{
 			for (const value of ["0", "-1", "2.5", "abc"]) {
 				const result = await list(asProbe(ctx), { [limit]: value })
 				if (result.exchange.status >= 500) {
-					return ctx.findings.backend(
-						this.id,
-						ctx.entityName,
-						`a page size of ${value} crashes the listing`,
-						`?${limit}=${value} returned ${result.exchange.status}; an out-of-range page size must be ` +
+					return ctx.findings.backend(this.id, ctx.entityName, {
+						summary: `a page size of ${value} crashes the listing`,
+						detail:
+							`?${limit}=${value} returned ${result.exchange.status}; an out-of-range page size must be ` +
 							"refused with a 4xx, or served as a sane size.",
-						[result.exchange],
-					)
+						evidence: [result.exchange],
+					})
 				}
 			}
 		}
@@ -56,23 +55,20 @@ export const paginationBoundsHandled = defineCheck<{
 		const result = await list(asProbe(ctx), { ...q(ctx, { limit: size }), [page]: beyond })
 		const status = result.exchange.status
 		if (status >= 500) {
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"a page past the end crashes the listing",
-				`?${page}=${beyond}, past the last of ${whole.items.length} record(s), returned ${status}.`,
-				[result.exchange],
-			)
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "a page past the end crashes the listing",
+				detail: `?${page}=${beyond}, past the last of ${whole.items.length} record(s), returned ${status}.`,
+				evidence: [result.exchange],
+			})
 		}
 		if (status >= 400) return asserted(`a page past the end is refused (${status})`)
 		if (result.items.length === 0) return asserted("a page past the end is served empty")
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"a page past the end of the collection returns records",
-			`?${page}=${beyond} lies past the last of ${whole.items.length} record(s) at ${size} per page, ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "a page past the end of the collection returns records",
+			detail:
+				`?${page}=${beyond} lies past the last of ${whole.items.length} record(s) at ${size} per page, ` +
 				`yet returned ${result.items.length}. A client that pages until an empty page never stops.`,
-			[whole.last.exchange, result.exchange],
-		)
+			evidence: [whole.last.exchange, result.exchange],
+		})
 	},
 })

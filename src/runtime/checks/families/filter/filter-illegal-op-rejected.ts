@@ -94,28 +94,25 @@ export const filterIllegalOpRejected = defineCheck<{ probes: IllegalOpProbe[] }>
 		const baseline = await list(ctx, q(ctx, { limit: pageSize(ctx) }))
 		const result = await list(ctx, { ...q(ctx, { limit: pageSize(ctx) }), ...term })
 		if (result.exchange.status >= 500) {
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"an illegal filter operator produces a server error",
-				`${field.field}.${op} returned ${result.exchange.status}; a rejected operator should be 4xx.`,
-				[result.exchange],
-			)
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "an illegal filter operator produces a server error",
+				detail: `${field.field}.${op} returned ${result.exchange.status}; a rejected operator should be 4xx.`,
+				evidence: [result.exchange],
+			})
 		}
 		const refused = judgeRefusal(ctx, this.id, ["validation"], result.exchange)
 		if (refused !== null) return refused
 		const same = ids(result.items, ctx.identity).join(",") === ids(baseline.items, ctx.identity).join(",")
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"an illegal filter operator is accepted",
-			`${field.field}.${op} returned ${result.exchange.status}` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "an illegal filter operator is accepted",
+			detail:
+				`${field.field}.${op} returned ${result.exchange.status}` +
 				(same ? " with the unfiltered set, so the operator was ignored" : "") +
 				(kind === "closed"
 					? ". A closed operator list is a contract: anything outside it must be rejected."
 					: ". The declared grammar has no such operator, so the term must be rejected, not dropped."),
-			[baseline.exchange, result.exchange],
-		)
+			evidence: [baseline.exchange, result.exchange],
+		})
 	},
 })
 

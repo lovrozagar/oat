@@ -102,44 +102,61 @@ function hasControlCharacter(text: string): boolean {
 	return [...text].some((ch) => (ch.codePointAt(0) ?? 0) < 0x20)
 }
 
+type World = { nextId: number; rows: Map<number, Row>; withUpdate: boolean }
+
+async function createNote(world: World, req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const body = (await readJson(req)) as Partial<Row> | undefined
+	if (typeof body?.name !== "string" || body.name === "" || hasControlCharacter(body.name)) {
+		return send(res, 400, { success: false })
+	}
+	const id = world.nextId++
+	world.rows.set(id, { id, name: body.name, owner: CALLER })
+	send(res, 200, { success: true })
+}
+
+async function updateNote(world: World, id: number, req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const row = world.rows.get(id)
+	const body = (await readJson(req)) as Partial<Row> | undefined
+	if (row === undefined) return send(res, 404, {})
+	if (typeof body?.name !== "string" || body.name === "") return send(res, 400, { success: false })
+	world.rows.set(id, { ...row, name: body.name })
+	send(res, 200, { success: true })
+}
+
+/* Any row answers by id, whoever owns it: the weak item isolation the header describes. */
+async function noteItem(world: World, id: number, req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const method = (req.method ?? "GET").toUpperCase()
+	const row = world.rows.get(id)
+	if (method === "GET") return row === undefined ? send(res, 404, {}) : send(res, 200, row)
+	if (method === "PUT" && world.withUpdate) return updateNote(world, id, req, res)
+	if (method === "DELETE") return world.rows.delete(id) ? send(res, 200, { success: true }) : send(res, 404, {})
+	send(res, 405, {})
+}
+
+async function route(world: World, req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const url = new URL(req.url ?? "/", "http://127.0.0.1")
+	const method = (req.method ?? "GET").toUpperCase()
+	if (url.pathname === "/notes" && method === "GET") {
+		return send(
+			res,
+			200,
+			[...world.rows.values()].filter((row) => row.owner === CALLER),
+		)
+	}
+	if (url.pathname === "/notes" && method === "POST") return createNote(world, req, res)
+	const item = url.pathname.match(/^\/notes\/([^/]+)$/)
+	if (item === null) return send(res, 404, {})
+	return noteItem(world, Number(decodeURIComponent(item[1] ?? "")), req, res)
+}
+
 async function serve(rows: Map<number, Row>, options: { withUpdate: boolean }): Promise<string> {
 	const document = spec(options.withUpdate)
-	let nextId = OWN_IDS_FROM
+	const world: World = { nextId: OWN_IDS_FROM, rows, withUpdate: options.withUpdate }
 	const server = createServer((req, res) => {
 		void (async () => {
 			const url = new URL(req.url ?? "/", "http://127.0.0.1")
-			const method = (req.method ?? "GET").toUpperCase()
 			if (url.pathname === "/openapi.json") return send(res, 200, document)
-			if (url.pathname === "/notes" && method === "GET") {
-				return send(
-					res,
-					200,
-					[...rows.values()].filter((row) => row.owner === CALLER),
-				)
-			}
-			if (url.pathname === "/notes" && method === "POST") {
-				const body = (await readJson(req)) as Partial<Row> | undefined
-				if (typeof body?.name !== "string" || body.name === "" || hasControlCharacter(body.name)) {
-					return send(res, 400, { success: false })
-				}
-				const id = nextId++
-				rows.set(id, { id, name: body.name, owner: CALLER })
-				return send(res, 200, { success: true })
-			}
-			const item = url.pathname.match(/^\/notes\/([^/]+)$/)
-			if (item === null) return send(res, 404, {})
-			const id = Number(decodeURIComponent(item[1] ?? ""))
-			const row = rows.get(id)
-			if (method === "GET") return row === undefined ? send(res, 404, {}) : send(res, 200, row)
-			if (method === "PUT" && options.withUpdate) {
-				const body = (await readJson(req)) as Partial<Row> | undefined
-				if (row === undefined) return send(res, 404, {})
-				if (typeof body?.name !== "string" || body.name === "") return send(res, 400, { success: false })
-				rows.set(id, { ...row, name: body.name })
-				return send(res, 200, { success: true })
-			}
-			if (method === "DELETE") return rows.delete(id) ? send(res, 200, { success: true }) : send(res, 404, {})
-			return send(res, 405, {})
+			await route(world, req, res)
 		})().catch(() => {
 			if (!res.headersSent) res.writeHead(500)
 			res.end()

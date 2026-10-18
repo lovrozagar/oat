@@ -49,16 +49,8 @@ describe("writeReports and printSummary", () => {
 		const finished = await finishedRun(await run(optionsFor(crashing)))
 		const input = reportInput(finished)
 		await writeReports(finished, input)
-		for (const name of [
-			"principals.json",
-			"oat-report.md",
-			"oat-report.json",
-			"matrix.html",
-			"matrix.json",
-			"report.html",
-		]) {
-			expect(existsSync(join(finished.outDir, name)), name).toBe(true)
-		}
+		const written = ["principals.json", "oat-report.md", "oat-report.json", "matrix.html", "matrix.json", "report.html"]
+		expect(written.filter((name) => !existsSync(join(finished.outDir, name)))).toEqual([])
 		const repros = readdirSync(finished.outDir).filter((name) => !name.includes("."))
 		expect(repros).toHaveLength(1)
 		const writer = bufferWriter()

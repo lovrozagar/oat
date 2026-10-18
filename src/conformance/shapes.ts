@@ -14,13 +14,13 @@ import { messageOf } from "../errors/message.ts"
 import { launch, reach, type Target, type Via } from "./harness/launch.ts"
 import type { Backend } from "./matrix/engines.ts"
 import { EXPECTED_FAILURES } from "./expected-failures.ts"
-import { damagedBystanders, leftBehind, ledgeredNotCreated } from "./leaks.ts"
-import { judgeDefect } from "./matrix/cases.ts"
+import { damagedBystanders, leftBehind, ledgeredNotCreated, type StoreSnapshot } from "./leaks.ts"
+import { type CaseResult, judgeDefect } from "./matrix/cases.ts"
 import { defectsFor } from "./matrix/defects.ts"
 import { PRINCIPALS } from "./matrix/principals.ts"
 import { type DefectName, isDefectName } from "../reference/defects/table.ts"
 import { SHAPES } from "../reference/shapes/catalog.ts"
-import { run } from "../runtime/run/index.ts"
+import { run, type RunResult } from "../runtime/run/index.ts"
 
 export interface ShapeCase {
 	label: string
@@ -34,6 +34,15 @@ export interface ShapeCase {
 /** The default shape's target on `backend`: what every shape case starts from. */
 export function shapeTarget(backend: Backend, via: Via): Target {
 	return { backend, dialect: "postgrest", via }
+}
+
+/** What a clean run showed: its result, and the reference's records either side of it. */
+export interface CleanRun {
+	result: Pick<RunResult, "checksRun" | "findings" | "inconclusive" | "teardown">
+	before: StoreSnapshot
+	after: StoreSnapshot
+	/** The ids the reference created, per entity. */
+	created: Readonly<Record<string, readonly string[]>>
 }
 
 /** One clean run behind the target's shape, reduced to what it got wrong. */
@@ -52,44 +61,64 @@ async function judge(
 			spec: `${server.url}/v1/openapi/spec`,
 			...reach(server),
 		})
-		const problems: string[] = []
-		for (const finding of result.findings) {
-			if (finding.verdict === "COVERAGE_GAP") continue
-			problems.push(`${finding.verdict} [${finding.check}] ${finding.entity}: ${finding.summary}`)
-		}
-		for (const item of result.inconclusive) {
-			problems.push(`inconclusive [${item.check}] ${item.entity}: ${item.reason}`)
-		}
-		for (const create of result.teardown?.unidentified ?? []) {
-			problems.push(`left a record it could not identify: ${create.operationId} → ${create.status} (#${create.seq})`)
-		}
 		const after = await server.snapshot()
-		const leaked = leftBehind(before, after)
-		if (leaked.length > 0) {
-			problems.push(`left ${leaked.length} record(s) behind: ${leaked.slice(0, 4).join(", ")}`)
-		}
-		const bystanders = damagedBystanders(before, after)
-		if (bystanders.length > 0) {
-			problems.push(`touched ${bystanders.length} record(s) it did not create: ${bystanders.slice(0, 4).join("; ")}`)
-		}
-		const stray = ledgeredNotCreated(result.teardown?.records ?? [], server.createdIds())
-		if (stray.length > 0) {
-			problems.push(`ledgered ${stray.length} id(s) the server never created: ${stray.slice(0, 4).join("; ")}`)
-		}
-		if (reference !== undefined) {
-			const missing = [...reference].filter((id) => !result.checksRun.includes(id) && !Object.hasOwn(cannotRun, id))
-			if (missing.length > 0) {
-				problems.push(`${missing.length} check(s) stopped applying: ${missing.join(", ")}`)
-			}
-		}
-		return { checksRun: result.checksRun, problems }
+		const clean = { after, before, created: server.createdIds(), result }
+		return { checksRun: result.checksRun, problems: cleanRunProblems(clean, reference, cannotRun) }
 	} finally {
 		await server.close()
 	}
 }
 
+/**
+ * Everything a run against a correct backend got wrong: what it reported, what it did to the
+ * records, and any of the `reference` checks it no longer ran that the shape does not excuse.
+ */
+export function cleanRunProblems(
+	clean: CleanRun,
+	reference: ReadonlySet<string> | undefined,
+	cannotRun: Readonly<Record<string, string>>,
+): string[] {
+	const missing = [...(reference ?? [])].filter(
+		(id) => !clean.result.checksRun.includes(id) && !Object.hasOwn(cannotRun, id),
+	)
+	return [
+		...reportedProblems(clean.result),
+		...recordProblems(clean),
+		...(missing.length > 0 ? [`${missing.length} check(s) stopped applying: ${missing.join(", ")}`] : []),
+	]
+}
+
+/** What the run itself reported against a backend with nothing wrong with it. */
+function reportedProblems(result: CleanRun["result"]): string[] {
+	return [
+		...result.findings
+			.filter((finding) => finding.verdict !== "COVERAGE_GAP")
+			.map((finding) => `${finding.verdict} [${finding.check}] ${finding.entity}: ${finding.summary}`),
+		...result.inconclusive.map((item) => `inconclusive [${item.check}] ${item.entity}: ${item.reason}`),
+		...(result.teardown?.unidentified ?? []).map(
+			(create) => `left a record it could not identify: ${create.operationId} → ${create.status} (#${create.seq})`,
+		),
+	]
+}
+
+/** What the run did to the backend's records: left them, touched others, or ledgered ones never made. */
+function recordProblems({ after, before, created, result }: CleanRun): string[] {
+	const leaked = leftBehind(before, after)
+	const bystanders = damagedBystanders(before, after)
+	const stray = ledgeredNotCreated(result.teardown?.records ?? [], created)
+	return [
+		...(leaked.length > 0 ? [`left ${leaked.length} record(s) behind: ${leaked.slice(0, 4).join(", ")}`] : []),
+		...(bystanders.length > 0
+			? [`touched ${bystanders.length} record(s) it did not create: ${bystanders.slice(0, 4).join("; ")}`]
+			: []),
+		...(stray.length > 0
+			? [`ledgered ${stray.length} id(s) the server never created: ${stray.slice(0, 4).join("; ")}`]
+			: []),
+	]
+}
+
 /** Every shape the reference serves, by name, in order. */
-export const SHAPE_NAMES: readonly string[] = SHAPES.map((named) => named.name)
+export const SHAPE_NAMES: readonly string[] = /* @__PURE__ */ SHAPES.map((named) => named.name)
 
 /**
  * The checks a clean run behind the default shape runs: what every other shape must also run.
@@ -193,12 +222,12 @@ export async function recallBehind(target: Target, name: string, defects: readon
 }
 
 /** What a recall run got wrong: a miss, a spurious finding, a value it lacked, a record it left. */
-function recallProblems(result: Awaited<ReturnType<typeof judgeDefect>>): string[] {
+export function recallProblems(result: CaseResult): string[] {
 	const problems: string[] = []
 	if (result.error !== undefined) problems.push(`error: ${result.error}`)
 	else if (!result.detected) {
 		const fired = result.findings.filter((f) => f.verdict !== "COVERAGE_GAP").map((f) => f.check)
-		problems.push(`missed ${result.expected ?? ""} — reported instead: ${fired.join(", ") || "nothing"}`)
+		problems.push(`missed ${String(result.expected)} — reported instead: ${fired.join(", ") || "nothing"}`)
 	}
 	for (const finding of result.spurious.slice(0, 3))
 		problems.push(`spurious [${finding.check}] ${finding.entity}: ${finding.summary}`)

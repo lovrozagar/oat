@@ -1,8 +1,18 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
-import type { AddressInfo } from "node:net"
+import type { IncomingMessage, ServerResponse } from "node:http"
 import { afterEach, describe, expect, it } from "vitest"
+import type { Exchange } from "../../src/runtime/exchange.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
+import {
+	dispatch,
+	type Handler,
+	inviteSpec,
+	inviteSpecWith,
+	listen,
+	readJson,
+	type Route,
+	send,
+} from "../support/invite-accept-fixtures.ts"
 
 const closers: Array<() => Promise<void>> = []
 
@@ -10,214 +20,33 @@ afterEach(async () => {
 	await Promise.all(closers.splice(0).map((close) => close()))
 })
 
-const MEMBER = {
-	properties: { email: { format: "email", type: "string" }, id: { type: "string" } },
-	required: ["id", "email"],
-	type: "object",
-}
-
-function inviteSpec(accept: "body" | "path", revoke: "body" | "path" = "path"): OpenApiDocument {
-	const acceptPath =
-		accept === "body"
-			? {
-					"/v1/invites/accept": {
-						post: {
-							operationId: "invite.accept",
-							requestBody: {
-								content: {
-									"application/json": {
-										schema: {
-											properties: { token: { type: "string" } },
-											required: ["token"],
-											type: "object",
-										},
-									},
-								},
-								required: true,
-							},
-							responses: { "200": { description: "ok" } },
-							"x-entity": { action: "action", identity: "id", name: "member" },
-						},
-					},
-				}
-			: {
-					"/v1/invites/{token}": {
-						post: {
-							operationId: "invite.accept",
-							parameters: [{ in: "path", name: "token", required: true, schema: { type: "string" } }],
-							responses: { "200": { description: "ok" } },
-							"x-entity": { action: "action", identity: "id", name: "member" },
-						},
-					},
-				}
-	const revokePath =
-		revoke === "body"
-			? {
-					"/v1/invites/revoke": {
-						post: {
-							operationId: "invite.revoke",
-							requestBody: {
-								content: {
-									"application/json": {
-										schema: {
-											properties: { grant_id: { type: "string" } },
-											required: ["grant_id"],
-											type: "object",
-										},
-									},
-								},
-								required: true,
-							},
-							responses: { "200": { description: "ok" } },
-							"x-entity": { action: "action", identity: "id", name: "member" },
-						},
-					},
-				}
-			: {
-					"/v1/orgs/{org_id}/grants/{grant_id}": {
-						delete: {
-							operationId: "invite.revoke",
-							parameters: [
-								{ in: "path", name: "org_id", required: true, schema: { type: "string" } },
-								{ in: "path", name: "grant_id", required: true, schema: { type: "string" } },
-							],
-							responses: { "200": { description: "ok" } },
-							"x-entity": { action: "action", identity: "id", name: "member" },
-						},
-					},
-				}
-
-	return {
-		info: { title: "invite-accept", version: "1" },
-		openapi: "3.1.0",
-		paths: {
-			"/v1/orgs/{org_id}/members": {
-				get: {
-					operationId: "member.list",
-					parameters: [{ in: "path", name: "org_id", required: true, schema: { type: "string" } }],
-					responses: {
-						"200": {
-							content: {
-								"application/json": {
-									schema: {
-										properties: { members: { items: MEMBER, type: "array" } },
-										required: ["members"],
-										type: "object",
-									},
-								},
-							},
-							description: "ok",
-						},
-					},
-					"x-entity": { action: "list", identity: "id", name: "member" },
-				},
-				post: {
-					operationId: "org.inviteMember",
-					parameters: [{ in: "path", name: "org_id", required: true, schema: { type: "string" } }],
-					requestBody: {
-						content: {
-							"application/json": {
-								schema: {
-									properties: { invite_email: { format: "email", type: "string" } },
-									required: ["invite_email"],
-									type: "object",
-								},
-							},
-						},
-						required: true,
-					},
-					responses: {
-						"201": {
-							content: {
-								"application/json": {
-									schema: {
-										properties: { grant_id: { type: "string" }, token: { type: "string" } },
-										required: ["grant_id", "token"],
-										type: "object",
-									},
-								},
-							},
-							description: "invited",
-						},
-					},
-					"x-entity": { action: "create", identity: "id", name: "member" },
-					"x-invite": {
-						accept: "invite.accept",
-						grantPointer: "$.grant_id",
-						granteeField: "invite_email",
-						invite: "org.inviteMember",
-						revoke: "invite.revoke",
-						tokenPointer: "$.token",
-					},
-				},
-			},
-			"/v1/orgs/{org_id}/members/{member_id}": {
-				get: {
-					operationId: "member.read",
-					parameters: [
-						{ in: "path", name: "org_id", required: true, schema: { type: "string" } },
-						{ in: "path", name: "member_id", required: true, schema: { type: "string" } },
-					],
-					responses: { "200": { content: { "application/json": { schema: MEMBER } }, description: "ok" } },
-					"x-entity": { action: "read", identity: "id", name: "member" },
-				},
-			},
-			...acceptPath,
-			...revokePath,
-		},
-	} as OpenApiDocument
-}
-
-function readJson(req: IncomingMessage): Promise<unknown> {
-	return new Promise((resolve, reject) => {
-		const chunks: Buffer[] = []
-		req.on("data", (chunk: Buffer) => {
-			chunks.push(chunk)
+/** Serves `routes` (anything else is 404, a throw is 500) and closes the server after the test. */
+async function serve(routes: readonly Route[]): Promise<{ url: string }> {
+	const server = await listen((req, res) => {
+		dispatch(routes, req, res).catch(() => {
+			if (!res.headersSent) send(res, 500)
 		})
-		req.on("end", () => {
-			const text = Buffer.concat(chunks).toString("utf8")
-			if (text === "") {
-				resolve(undefined)
-				return
-			}
-			try {
-				resolve(JSON.parse(text) as unknown)
-			} catch (error) {
-				reject(error)
-			}
-		})
-		req.on("error", reject)
 	})
+	closers.push(server.close)
+	return server
 }
 
-function send(res: ServerResponse, status: number, body?: unknown): void {
-	if (body === undefined) {
-		res.writeHead(status)
-		res.end()
-		return
-	}
-	const text = JSON.stringify(body)
-	res.writeHead(status, { "content-length": String(Buffer.byteLength(text)), "content-type": "application/json" })
-	res.end(text)
+const OWNER_LIST = { members: [{ email: "owner@x.test", id: "m1" }] }
+
+/** The spec, the member list and the invite every world answers the same way. */
+function baseRoutes(spec: OpenApiDocument, list: unknown, invited: unknown): Route[] {
+	return [
+		["GET", "/v1/openapi/spec", (_req, res) => send(res, 200, spec)],
+		["GET", "/v1/orgs/org_1/members", (_req, res) => send(res, 200, list)],
+		["POST", "/v1/orgs/org_1/members", (_req, res) => send(res, 201, invited)],
+	]
 }
 
-async function listen(handler: (req: IncomingMessage, res: ServerResponse) => void): Promise<{
-	close: () => Promise<void>
-	url: string
-}> {
-	const server = createServer(handler)
-	await new Promise<void>((resolve) => {
-		server.listen(0, "127.0.0.1", resolve)
-	})
-	const addr = server.address() as AddressInfo
-	return {
-		close: () =>
-			new Promise((resolve, reject) => {
-				server.close((error) => (error ? reject(error) : resolve()))
-			}),
-		url: `http://127.0.0.1:${addr.port}`,
-	}
-}
+const okRoute = (method: string, path: string, body?: unknown): Route => [
+	method,
+	path,
+	(_req, res) => send(res, 200, body),
+]
 
 const principals = [
 	{ headers: { authorization: "Bearer a" }, id: "alpha", roots: { org_id: "org_1" } },
@@ -229,489 +58,323 @@ const principals = [
 	},
 ]
 
-describe("invite accept request", () => {
-	it("sends the documented JSON { token } body with application/json", async () => {
-		const spec = inviteSpec("body")
-		const server = await listen((req, res) => {
-			void (async () => {
-				const url = new URL(req.url ?? "/", "http://127.0.0.1")
-				const method = (req.method ?? "GET").toUpperCase()
-				if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, spec)
-				if (url.pathname === "/v1/orgs/org_1/members" && method === "GET") return send(res, 200, { members: [] })
-				if (url.pathname === "/v1/orgs/org_1/members" && method === "POST") {
-					return send(res, 201, { grant_id: "g1", token: "tok-from-invite" })
-				}
-				if (url.pathname === "/v1/invites/accept" && method === "POST") {
-					const type = req.headers["content-type"] ?? ""
-					const body = await readJson(req)
-					if (!type.includes("application/json")) return send(res, 415, { error: "unsupported_media_type" })
-					if (body === null || typeof body !== "object" || (body as { token?: unknown }).token !== "tok-from-invite") {
-						return send(res, 400, { error: "missing_token" })
-					}
-					return send(res, 200, { ok: true })
-				}
-				if (url.pathname === "/v1/orgs/org_1/grants/g1" && method === "DELETE") return send(res, 200, { ok: true })
-				if (/^\/v1\/orgs\/org_1\/members\/[^/]+$/.test(url.pathname) && method === "GET") return send(res, 404)
-				return send(res, 404)
-			})().catch(() => {
-				if (!res.headersSent) send(res, 500)
-			})
-		})
-		closers.push(server.close)
+type RunOptions = Parameters<typeof run>[0]
 
-		const result = await run({
-			baseUrl: server.url,
-			only: ["member"],
-			principals,
-			seed: 1,
-			spec: `${server.url}/v1/openapi/spec`,
-		})
-		const accept = result.client.transcript.find(
-			(e) => e.method === "POST" && new URL(e.url).pathname === "/v1/invites/accept",
-		)
-		expect(accept).toBeDefined()
-		expect(accept?.status).toBe(200)
-		expect(accept?.requestHeaders["content-type"]).toMatch(/application\/json/)
-		expect(accept?.requestBody).toEqual({ token: "tok-from-invite" })
-		expect(result.checksRun).toContain("auth.invite-grants-then-revokes")
-	})
+function runMember(url: string, extra: Partial<RunOptions> = {}): ReturnType<typeof run> {
+	return run({ baseUrl: url, only: ["member"], principals, seed: 1, spec: `${url}/v1/openapi/spec`, ...extra })
+}
 
-	it("keeps a path-only accept on the path and does not invent a body", async () => {
-		const spec = inviteSpec("path")
-		const server = await listen((req, res) => {
-			void (async () => {
-				const url = new URL(req.url ?? "/", "http://127.0.0.1")
-				const method = (req.method ?? "GET").toUpperCase()
-				if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, spec)
-				if (url.pathname === "/v1/orgs/org_1/members" && method === "GET") return send(res, 200, { members: [] })
-				if (url.pathname === "/v1/orgs/org_1/members" && method === "POST") {
-					return send(res, 201, { grant_id: "g1", token: "tok-from-invite" })
-				}
-				if (url.pathname === "/v1/invites/tok-from-invite" && method === "POST") {
-					const chunks: Buffer[] = []
-					for await (const chunk of req) chunks.push(chunk as Buffer)
-					if (Buffer.concat(chunks).length > 0) return send(res, 400, { error: "unexpected_body" })
-					return send(res, 200, { ok: true })
-				}
-				if (url.pathname === "/v1/orgs/org_1/grants/g1" && method === "DELETE") return send(res, 200, { ok: true })
-				if (/^\/v1\/orgs\/org_1\/members\/[^/]+$/.test(url.pathname) && method === "GET") return send(res, 404)
-				return send(res, 404)
-			})().catch(() => {
-				if (!res.headersSent) send(res, 500)
-			})
-		})
-		closers.push(server.close)
+const OOB = { attempts: 2, initialMs: 1, maxMs: 1 }
 
-		const result = await run({
-			baseUrl: server.url,
-			only: ["member"],
-			principals,
-			seed: 1,
-			spec: `${server.url}/v1/openapi/spec`,
-		})
-		const accept = result.client.transcript.find(
-			(e) => e.method === "POST" && new URL(e.url).pathname === "/v1/invites/tok-from-invite",
-		)
-		expect(accept).toBeDefined()
-		expect(accept?.status).toBe(200)
-		expect(accept?.requestBody).toBeUndefined()
-		expect(result.checksRun).toContain("auth.invite-grants-then-revokes")
-	})
+function sent(transcript: readonly Exchange[], method: string, path: string): Exchange | undefined {
+	return transcript.find((e) => e.method === method && new URL(e.url).pathname === path)
+}
 
-	it("sends the documented JSON revoke body when revoke declares one", async () => {
-		const spec = inviteSpec("body", "body")
-		const server = await listen((req, res) => {
-			void (async () => {
-				const url = new URL(req.url ?? "/", "http://127.0.0.1")
-				const method = (req.method ?? "GET").toUpperCase()
-				if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, spec)
-				if (url.pathname === "/v1/orgs/org_1/members" && method === "GET") return send(res, 200, { members: [] })
-				if (url.pathname === "/v1/orgs/org_1/members" && method === "POST") {
-					return send(res, 201, { grant_id: "g1", token: "tok-from-invite" })
-				}
-				if (url.pathname === "/v1/invites/accept" && method === "POST") {
-					const body = await readJson(req)
-					if ((body as { token?: unknown })?.token !== "tok-from-invite") return send(res, 400)
-					return send(res, 200, { ok: true })
-				}
-				if (url.pathname === "/v1/invites/revoke" && method === "POST") {
-					const type = req.headers["content-type"] ?? ""
-					const body = await readJson(req)
-					if (!type.includes("application/json")) return send(res, 415)
-					if ((body as { grant_id?: unknown })?.grant_id !== "g1") return send(res, 400)
-					return send(res, 200, { ok: true })
-				}
-				if (/^\/v1\/orgs\/org_1\/members\/[^/]+$/.test(url.pathname) && method === "GET") return send(res, 404)
-				return send(res, 404)
-			})().catch(() => {
-				if (!res.headersSent) send(res, 500)
-			})
-		})
-		closers.push(server.close)
+/** A member read: the owner always sees m1, the grantee only while `granted()` holds. */
+function memberRead(granted: () => boolean, grantee: string, denied: number): Route {
+	return [
+		"GET",
+		"/v1/orgs/org_1/members/m1",
+		(req, res) => {
+			const auth = req.headers.authorization ?? ""
+			if (auth === grantee && granted()) return send(res, 200, { email: "beta@x.test", id: "m1" })
+			if (auth === "Bearer a") return send(res, 200, { email: "owner@x.test", id: "m1" })
+			return send(res, denied)
+		},
+	]
+}
 
-		const result = await run({
-			baseUrl: server.url,
-			only: ["member"],
-			principals,
-			seed: 1,
-			spec: `${server.url}/v1/openapi/spec`,
-		})
-		const revoke = result.client.transcript.find(
-			(e) => e.method === "POST" && new URL(e.url).pathname === "/v1/invites/revoke",
-		)
-		expect(revoke).toBeDefined()
-		expect(revoke?.status).toBe(200)
-		expect(revoke?.requestHeaders["content-type"]).toMatch(/application\/json/)
-		expect(revoke?.requestBody).toEqual({ grant_id: "g1" })
-		expect(new URL(revoke?.url ?? "http://x").pathname).toBe("/v1/invites/revoke")
-	})
+/** A member read only the owner sees, with a terse body. */
+const ownerOnlyRead: Route = [
+	"GET",
+	"/v1/orgs/org_1/members/m1",
+	(req, res) => (req.headers.authorization === "Bearer a" ? send(res, 200, { email: "o", id: "m1" }) : send(res, 404)),
+]
 
-	it("accepts with the mailed token when tokenFrom is outOfBand", async () => {
-		const spec = inviteSpec("body")
-		const invite = spec.paths?.["/v1/orgs/{org_id}/members"]?.post as Record<string, unknown>
-		invite["x-invite"] = {
-			...(invite["x-invite"] as Record<string, unknown>),
-			tokenFrom: "outOfBand",
-			tokenKind: "org-invite",
-		}
-		const kinds: string[] = []
-		const server = await listen((req, res) => {
-			void (async () => {
-				const url = new URL(req.url ?? "/", "http://127.0.0.1")
-				const method = (req.method ?? "GET").toUpperCase()
-				if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, spec)
-				if (url.pathname === "/v1/orgs/org_1/members" && method === "GET") return send(res, 200, { members: [] })
-				if (url.pathname === "/v1/orgs/org_1/members" && method === "POST") {
-					return send(res, 201, { grant_id: "g1", token: "tok-from-json-ignored" })
-				}
-				if (url.pathname === "/v1/invites/accept" && method === "POST") {
-					const body = await readJson(req)
-					if ((body as { token?: unknown })?.token !== "tok-from-mail") return send(res, 400, { error: "wrong" })
-					return send(res, 200, { ok: true })
-				}
-				if (url.pathname === "/v1/orgs/org_1/grants/g1" && method === "DELETE") return send(res, 200, { ok: true })
-				if (/^\/v1\/orgs\/org_1\/members\/[^/]+$/.test(url.pathname) && method === "GET") return send(res, 404)
-				return send(res, 404)
-			})().catch(() => {
-				if (!res.headersSent) send(res, 500)
-			})
-		})
-		closers.push(server.close)
+async function acceptJsonToken(req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const type = req.headers["content-type"] ?? ""
+	const body = await readJson(req)
+	if (!type.includes("application/json")) return send(res, 415, { error: "unsupported_media_type" })
+	if (body === null || typeof body !== "object" || (body as { token?: unknown }).token !== "tok-from-invite") {
+		return send(res, 400, { error: "missing_token" })
+	}
+	return send(res, 200, { ok: true })
+}
 
-		const result = await run({
-			baseUrl: server.url,
-			hooks: {
-				resolveOutOfBand: async ({ address, kind }) => {
-					kinds.push(kind)
-					expect(address).toBe("beta@x.test")
-					return "tok-from-mail"
-				},
+async function acceptEmptyBody(req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const chunks: Buffer[] = []
+	for await (const chunk of req) chunks.push(chunk as Buffer)
+	if (Buffer.concat(chunks).length > 0) return send(res, 400, { error: "unexpected_body" })
+	return send(res, 200, { ok: true })
+}
+
+async function revokeJsonGrant(req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const type = req.headers["content-type"] ?? ""
+	const body = await readJson(req)
+	if (!type.includes("application/json")) return send(res, 415)
+	if ((body as { grant_id?: unknown })?.grant_id !== "g1") return send(res, 400)
+	return send(res, 200, { ok: true })
+}
+
+/** Accepts only the expected token; `then` answers the 200 once it matches. */
+function acceptToken(expected: string, then: (res: ServerResponse) => void, wrong?: unknown): Handler {
+	return async (req, res) => {
+		const body = await readJson(req)
+		if ((body as { token?: unknown })?.token !== expected) return send(res, 400, wrong)
+		return then(res)
+	}
+}
+
+const INVITED = { grant_id: "g1", token: "tok-from-invite" }
+
+async function sendsJsonTokenBody(): Promise<void> {
+	const server = await serve([
+		...baseRoutes(inviteSpec("body"), { members: [] }, INVITED),
+		["POST", "/v1/invites/accept", acceptJsonToken],
+		okRoute("DELETE", "/v1/orgs/org_1/grants/g1", { ok: true }),
+	])
+
+	const result = await runMember(server.url)
+	const accept = sent(result.client.transcript, "POST", "/v1/invites/accept")
+	expect(accept).toBeDefined()
+	expect(accept?.status).toBe(200)
+	expect(accept?.requestHeaders["content-type"]).toMatch(/application\/json/)
+	expect(accept?.requestBody).toEqual({ token: "tok-from-invite" })
+	expect(result.checksRun).toContain("auth.invite-grants-then-revokes")
+}
+
+async function keepsPathOnlyAccept(): Promise<void> {
+	const server = await serve([
+		...baseRoutes(inviteSpec("path"), { members: [] }, INVITED),
+		["POST", "/v1/invites/tok-from-invite", acceptEmptyBody],
+		okRoute("DELETE", "/v1/orgs/org_1/grants/g1", { ok: true }),
+	])
+
+	const result = await runMember(server.url)
+	const accept = sent(result.client.transcript, "POST", "/v1/invites/tok-from-invite")
+	expect(accept).toBeDefined()
+	expect(accept?.status).toBe(200)
+	expect(accept?.requestBody).toBeUndefined()
+	expect(result.checksRun).toContain("auth.invite-grants-then-revokes")
+}
+
+async function sendsJsonRevokeBody(): Promise<void> {
+	const server = await serve([
+		...baseRoutes(inviteSpec("body", "body"), { members: [] }, INVITED),
+		["POST", "/v1/invites/accept", acceptToken("tok-from-invite", (res) => send(res, 200, { ok: true }))],
+		["POST", "/v1/invites/revoke", revokeJsonGrant],
+	])
+
+	const result = await runMember(server.url)
+	const revoke = sent(result.client.transcript, "POST", "/v1/invites/revoke")
+	expect(revoke).toBeDefined()
+	expect(revoke?.status).toBe(200)
+	expect(revoke?.requestHeaders["content-type"]).toMatch(/application\/json/)
+	expect(revoke?.requestBody).toEqual({ grant_id: "g1" })
+	expect(new URL(revoke?.url ?? "http://x").pathname).toBe("/v1/invites/revoke")
+}
+
+async function acceptsMailedToken(): Promise<void> {
+	const spec = inviteSpecWith({ tokenFrom: "outOfBand", tokenKind: "org-invite" })
+	const kinds: string[] = []
+	const server = await serve([
+		...baseRoutes(spec, { members: [] }, { grant_id: "g1", token: "tok-from-json-ignored" }),
+		[
+			"POST",
+			"/v1/invites/accept",
+			acceptToken("tok-from-mail", (res) => send(res, 200, { ok: true }), { error: "wrong" }),
+		],
+		okRoute("DELETE", "/v1/orgs/org_1/grants/g1", { ok: true }),
+	])
+
+	const result = await runMember(server.url, {
+		hooks: {
+			resolveOutOfBand: async ({ address, kind }) => {
+				kinds.push(kind)
+				expect(address).toBe("beta@x.test")
+				return "tok-from-mail"
 			},
-			only: ["member"],
-			outOfBand: { attempts: 2, initialMs: 1, maxMs: 1 },
-			principals,
-			seed: 1,
-			spec: `${server.url}/v1/openapi/spec`,
-		})
-		const accept = result.client.transcript.find(
-			(e) => e.method === "POST" && new URL(e.url).pathname === "/v1/invites/accept",
-		)
-		expect(accept?.requestBody).toEqual({ token: "tok-from-mail" })
-		expect(kinds).toContain("org-invite")
-		expect(result.checksRun).toContain("auth.invite-grants-then-revokes")
+		},
+		outOfBand: OOB,
 	})
+	const accept = sent(result.client.transcript, "POST", "/v1/invites/accept")
+	expect(accept?.requestBody).toEqual({ token: "tok-from-mail" })
+	expect(kinds).toContain("org-invite")
+	expect(result.checksRun).toContain("auth.invite-grants-then-revokes")
+}
 
-	it("GETs the mailed URL when acceptFrom is link and does not POST accept JSON", async () => {
-		const spec = inviteSpec("body")
-		const invite = spec.paths?.["/v1/orgs/{org_id}/members"]?.post as Record<string, unknown>
-		invite["x-invite"] = {
-			...(invite["x-invite"] as Record<string, unknown>),
-			acceptFrom: "link",
-			tokenFrom: "outOfBand",
-			tokenKind: "org-invite",
-		}
-		let granted = false
-		const oob: Array<{ kind: string; scope: Record<string, string>; headers: Record<string, string> }> = []
-		const server = await listen((req, res) => {
-			void (async () => {
-				const url = new URL(req.url ?? "/", "http://127.0.0.1")
-				const method = (req.method ?? "GET").toUpperCase()
-				const auth = req.headers.authorization ?? ""
-				if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, spec)
-				if (url.pathname === "/v1/orgs/org_1/members" && method === "GET") {
-					return send(res, 200, { members: [{ email: "owner@x.test", id: "m1" }] })
-				}
-				if (url.pathname === "/v1/orgs/org_1/members" && method === "POST") {
-					return send(res, 201, { grant_id: "g1", token: "ignored-json" })
-				}
-				if (url.pathname === "/v1/invites/accept" && method === "POST") {
-					return send(res, 200, { ok: "json-token-accept-must-not-grant" })
-				}
-				if (url.pathname === "/consume" && method === "GET") {
-					if (url.searchParams.get("token") !== "mailed-link") return send(res, 404)
-					granted = true
-					res.writeHead(303, { location: "/app", "set-cookie": "session=from-consume; Path=/" })
-					res.end()
-					return
-				}
-				if (url.pathname === "/app" && method === "GET") return send(res, 200, { ok: true })
-				if (url.pathname === "/v1/orgs/org_1/grants/g1" && method === "DELETE") {
-					granted = false
-					return send(res, 200, { ok: true })
-				}
-				if (url.pathname === "/v1/orgs/org_1/members/m1" && method === "GET") {
-					if (auth === "Bearer b" && granted) return send(res, 200, { email: "beta@x.test", id: "m1" })
-					if (auth === "Bearer a") return send(res, 200, { email: "owner@x.test", id: "m1" })
-					return send(res, 404)
-				}
-				return send(res, 404)
-			})().catch(() => {
-				if (!res.headersSent) send(res, 500)
-			})
-		})
-		closers.push(server.close)
-
-		const result = await run({
-			baseUrl: server.url,
-			hooks: {
-				resolveOutOfBand: async (request) => {
-					oob.push({ headers: request.headers, kind: request.kind, scope: request.scope })
-					return `${server.url}/consume?token=mailed-link`
-				},
+async function readsGrantWithAcceptToken(): Promise<void> {
+	let granted = false
+	const server = await serve([
+		...baseRoutes(inviteSpec("body"), OWNER_LIST, INVITED),
+		[
+			"POST",
+			"/v1/invites/accept",
+			acceptToken("tok-from-invite", (res) => {
+				granted = true
+				send(res, 200, { access_token: "fresh", id: "g1" })
+			}),
+		],
+		[
+			"DELETE",
+			"/v1/orgs/org_1/grants/g1",
+			(_req, res) => {
+				granted = false
+				send(res, 200, { ok: true })
 			},
-			only: ["member"],
-			outOfBand: { attempts: 2, initialMs: 1, maxMs: 1 },
-			principals,
-			seed: 1,
-			spec: `${server.url}/v1/openapi/spec`,
-		})
-		const getAccept = result.client.transcript.find((e) => e.method === "GET" && new URL(e.url).pathname === "/consume")
-		const postAccept = result.client.transcript.find(
-			(e) => e.method === "POST" && new URL(e.url).pathname === "/v1/invites/accept",
-		)
-		expect(getAccept).toBeDefined()
-		expect(getAccept?.status).toBe(200)
-		expect(getAccept?.redirects?.[0]?.status).toBe(303)
-		expect(postAccept).toBeUndefined()
-		expect(oob[0]?.kind).toBe("org-invite")
-		expect(oob[0]?.headers.authorization).toBe("Bearer b")
-		expect(result.checksRun).toContain("auth.invite-grants-then-revokes")
-		expect(result.findings.filter((f) => f.check === "auth.invite-grants-then-revokes")).toEqual([])
+		],
+		memberRead(() => granted, "Bearer fresh", 403),
+	])
+
+	const result = await runMember(server.url)
+	const acceptAt = result.client.transcript.findIndex(
+		(exchange) => exchange.method === "POST" && new URL(exchange.url).pathname === "/v1/invites/accept",
+	)
+	const grantRead = sent(result.client.transcript.slice(acceptAt + 1), "GET", "/v1/orgs/org_1/members/m1")
+	expect(acceptAt).toBeGreaterThanOrEqual(0)
+	expect(grantRead?.requestHeaders.authorization).toBe("Bearer fresh")
+	expect(grantRead?.status).toBe(200)
+	expect(result.findings.filter((finding) => finding.check === "auth.invite-grants-then-revokes")).toEqual([])
+}
+
+/** A /consume link that grants and redirects to /app with a session cookie. */
+function consumeLink(grant: () => void): Route {
+	return [
+		"GET",
+		"/consume",
+		(_req, res, url) => {
+			if (url.searchParams.get("token") !== "mailed-link") return send(res, 404)
+			grant()
+			res.writeHead(303, { location: "/app", "set-cookie": "session=from-consume; Path=/" })
+			res.end()
+		},
+	]
+}
+
+async function getsMailedLink(): Promise<void> {
+	const spec = inviteSpecWith({ acceptFrom: "link", tokenFrom: "outOfBand", tokenKind: "org-invite" })
+	let granted = false
+	const oob: Array<{ kind: string; scope: Record<string, string>; headers: Record<string, string> }> = []
+	const server = await serve([
+		...baseRoutes(spec, OWNER_LIST, { grant_id: "g1", token: "ignored-json" }),
+		okRoute("POST", "/v1/invites/accept", { ok: "json-token-accept-must-not-grant" }),
+		consumeLink(() => {
+			granted = true
+		}),
+		okRoute("GET", "/app", { ok: true }),
+		[
+			"DELETE",
+			"/v1/orgs/org_1/grants/g1",
+			(_req, res) => {
+				granted = false
+				send(res, 200, { ok: true })
+			},
+		],
+		memberRead(() => granted, "Bearer b", 404),
+	])
+
+	const result = await runMember(server.url, {
+		hooks: {
+			resolveOutOfBand: async (request) => {
+				oob.push({ headers: request.headers, kind: request.kind, scope: request.scope })
+				return `${server.url}/consume?token=mailed-link`
+			},
+		},
+		outOfBand: OOB,
 	})
+	const getAccept = sent(result.client.transcript, "GET", "/consume")
+	const postAccept = sent(result.client.transcript, "POST", "/v1/invites/accept")
+	expect(getAccept).toBeDefined()
+	expect(getAccept?.status).toBe(200)
+	expect(getAccept?.redirects?.[0]?.status).toBe(303)
+	expect(postAccept).toBeUndefined()
+	expect(oob[0]?.kind).toBe("org-invite")
+	expect(oob[0]?.headers.authorization).toBe("Bearer b")
+	expect(result.checksRun).toContain("auth.invite-grants-then-revokes")
+	expect(result.findings.filter((f) => f.check === "auth.invite-grants-then-revokes")).toEqual([])
+}
 
-	it("fails when acceptFrom is link and the GET 404s even if POST-token would work", async () => {
-		const spec = inviteSpec("body")
-		const invite = spec.paths?.["/v1/orgs/{org_id}/members"]?.post as Record<string, unknown>
-		invite["x-invite"] = {
-			...(invite["x-invite"] as Record<string, unknown>),
-			acceptFrom: "link",
-			tokenFrom: "outOfBand",
-		}
-		const server = await listen((req, res) => {
-			void (async () => {
-				const url = new URL(req.url ?? "/", "http://127.0.0.1")
-				const method = (req.method ?? "GET").toUpperCase()
-				if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, spec)
-				if (url.pathname === "/v1/orgs/org_1/members" && method === "GET") {
-					return send(res, 200, { members: [{ email: "owner@x.test", id: "m1" }] })
-				}
-				if (url.pathname === "/v1/orgs/org_1/members" && method === "POST") {
-					return send(res, 201, { grant_id: "g1", token: "tok" })
-				}
-				if (url.pathname === "/v1/invites/accept" && method === "POST") return send(res, 200, { ok: true })
-				if (url.pathname === "/missing-consume" && method === "GET") return send(res, 404)
-				if (url.pathname === "/v1/orgs/org_1/members/m1" && method === "GET") {
-					if (req.headers.authorization === "Bearer a") return send(res, 200, { email: "o", id: "m1" })
-					return send(res, 404)
-				}
-				return send(res, 404)
-			})().catch(() => {
-				if (!res.headersSent) send(res, 500)
-			})
-		})
-		closers.push(server.close)
+async function failsOnMissingLink(): Promise<void> {
+	const spec = inviteSpecWith({ acceptFrom: "link", tokenFrom: "outOfBand" })
+	const server = await serve([
+		...baseRoutes(spec, OWNER_LIST, { grant_id: "g1", token: "tok" }),
+		okRoute("POST", "/v1/invites/accept", { ok: true }),
+		["GET", "/missing-consume", (_req, res) => send(res, 404)],
+		ownerOnlyRead,
+	])
 
-		const result = await run({
-			baseUrl: server.url,
-			hooks: { resolveOutOfBand: async () => `${server.url}/missing-consume?token=x` },
-			only: ["member"],
-			outOfBand: { attempts: 2, initialMs: 1, maxMs: 1 },
-			principals,
-			seed: 1,
-			spec: `${server.url}/v1/openapi/spec`,
-		})
-		expect(
-			result.inconclusive.some(
-				(row) => row.check === "auth.invite-grants-then-revokes" && /accept returned 404/.test(row.reason),
-			),
-		).toBe(true)
-		expect(
-			result.client.transcript.some((e) => e.method === "POST" && new URL(e.url).pathname === "/v1/invites/accept"),
-		).toBe(false)
+	const result = await runMember(server.url, {
+		hooks: { resolveOutOfBand: async () => `${server.url}/missing-consume?token=x` },
+		outOfBand: OOB,
 	})
+	expect(
+		result.inconclusive.some(
+			(row) => row.check === "auth.invite-grants-then-revokes" && /accept returned 404/.test(row.reason),
+		),
+	).toBe(true)
+	expect(sent(result.client.transcript, "POST", "/v1/invites/accept") !== undefined).toBe(false)
+}
 
-	it("fails when the suite POSTs accept JSON against a world that only grants on GET-link", async () => {
-		const spec = inviteSpec("body")
-		const invite = spec.paths?.["/v1/orgs/{org_id}/members"]?.post as Record<string, unknown>
-		invite["x-invite"] = {
-			...(invite["x-invite"] as Record<string, unknown>),
-			tokenFrom: "outOfBand",
-		}
-		let granted = false
-		const server = await listen((req, res) => {
-			void (async () => {
-				const url = new URL(req.url ?? "/", "http://127.0.0.1")
-				const method = (req.method ?? "GET").toUpperCase()
-				const auth = req.headers.authorization ?? ""
-				if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, spec)
-				if (url.pathname === "/v1/orgs/org_1/members" && method === "GET") {
-					return send(res, 200, { members: [{ email: "owner@x.test", id: "m1" }] })
-				}
-				if (url.pathname === "/v1/orgs/org_1/members" && method === "POST") {
-					return send(res, 201, { grant_id: "g1", token: "tok" })
-				}
-				if (url.pathname === "/v1/invites/accept" && method === "POST") return send(res, 200, { ok: true })
-				if (url.pathname === "/consume" && method === "GET") {
-					granted = true
-					return send(res, 200, { ok: true })
-				}
-				if (url.pathname === "/v1/orgs/org_1/members/m1" && method === "GET") {
-					if (auth === "Bearer b" && granted) return send(res, 200, { email: "beta@x.test", id: "m1" })
-					if (auth === "Bearer a") return send(res, 200, { email: "owner@x.test", id: "m1" })
-					return send(res, 404)
-				}
-				if (url.pathname === "/v1/orgs/org_1/grants/g1" && method === "DELETE") return send(res, 200)
-				return send(res, 404)
-			})().catch(() => {
-				if (!res.headersSent) send(res, 500)
-			})
-		})
-		closers.push(server.close)
+async function failsOnPostAgainstLinkWorld(): Promise<void> {
+	const spec = inviteSpecWith({ tokenFrom: "outOfBand" })
+	let granted = false
+	const server = await serve([
+		...baseRoutes(spec, OWNER_LIST, { grant_id: "g1", token: "tok" }),
+		okRoute("POST", "/v1/invites/accept", { ok: true }),
+		[
+			"GET",
+			"/consume",
+			(_req, res) => {
+				granted = true
+				send(res, 200, { ok: true })
+			},
+		],
+		memberRead(() => granted, "Bearer b", 404),
+		okRoute("DELETE", "/v1/orgs/org_1/grants/g1"),
+	])
 
-		const result = await run({
-			baseUrl: server.url,
-			hooks: { resolveOutOfBand: async () => `${server.url}/consume?token=mailed` },
-			only: ["member"],
-			outOfBand: { attempts: 2, initialMs: 1, maxMs: 1 },
-			principals,
-			seed: 1,
-			spec: `${server.url}/v1/openapi/spec`,
-		})
-		expect(
-			result.findings.some(
-				(f) =>
-					f.check === "auth.invite-grants-then-revokes" &&
-					f.verdict === "BACKEND_BUG" &&
-					/does not grant/.test(f.summary),
-			),
-		).toBe(true)
-		expect(
-			result.client.transcript.some((e) => e.method === "POST" && new URL(e.url).pathname === "/v1/invites/accept"),
-		).toBe(true)
-		expect(result.client.transcript.some((e) => e.method === "GET" && new URL(e.url).pathname === "/consume")).toBe(
-			false,
-		)
+	const result = await runMember(server.url, {
+		hooks: { resolveOutOfBand: async () => `${server.url}/consume?token=mailed` },
+		outOfBand: OOB,
 	})
+	expect(
+		result.findings.some(
+			(f) =>
+				f.check === "auth.invite-grants-then-revokes" &&
+				f.verdict === "BACKEND_BUG" &&
+				/does not grant/.test(f.summary),
+		),
+	).toBe(true)
+	expect(sent(result.client.transcript, "POST", "/v1/invites/accept") !== undefined).toBe(true)
+	expect(sent(result.client.transcript, "GET", "/consume") !== undefined).toBe(false)
+}
 
-	it("rejects a non-URL out-of-band value when acceptFrom is link", async () => {
-		const spec = inviteSpec("body")
-		const invite = spec.paths?.["/v1/orgs/{org_id}/members"]?.post as Record<string, unknown>
-		invite["x-invite"] = {
-			...(invite["x-invite"] as Record<string, unknown>),
-			acceptFrom: "link",
-			tokenFrom: "outOfBand",
-		}
-		const server = await listen((req, res) => {
-			void (async () => {
-				const url = new URL(req.url ?? "/", "http://127.0.0.1")
-				const method = (req.method ?? "GET").toUpperCase()
-				if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, spec)
-				if (url.pathname === "/v1/orgs/org_1/members" && method === "GET") {
-					return send(res, 200, { members: [{ email: "owner@x.test", id: "m1" }] })
-				}
-				if (url.pathname === "/v1/orgs/org_1/members" && method === "POST") {
-					return send(res, 201, { grant_id: "g1", token: "tok" })
-				}
-				if (url.pathname === "/v1/orgs/org_1/members/m1" && method === "GET") {
-					if (req.headers.authorization === "Bearer a") return send(res, 200, { email: "o", id: "m1" })
-					return send(res, 404)
-				}
-				return send(res, 404)
-			})().catch(() => {
-				if (!res.headersSent) send(res, 500)
-			})
-		})
-		closers.push(server.close)
+async function rejectsNonUrlLink(): Promise<void> {
+	const spec = inviteSpecWith({ acceptFrom: "link", tokenFrom: "outOfBand" })
+	const server = await serve([...baseRoutes(spec, OWNER_LIST, { grant_id: "g1", token: "tok" }), ownerOnlyRead])
 
-		const result = await run({
-			baseUrl: server.url,
-			hooks: { resolveOutOfBand: async () => "not-a-url" },
-			only: ["member"],
-			outOfBand: { attempts: 2, initialMs: 1, maxMs: 1 },
-			principals,
-			seed: 1,
-			spec: `${server.url}/v1/openapi/spec`,
-		})
-		expect(
-			result.inconclusive.some(
-				(row) => row.check === "auth.invite-grants-then-revokes" && /absolute http\(s\) URL/.test(row.reason),
-			),
-		).toBe(true)
+	const result = await runMember(server.url, {
+		hooks: { resolveOutOfBand: async () => "not-a-url" },
+		outOfBand: OOB,
 	})
+	expect(
+		result.inconclusive.some(
+			(row) => row.check === "auth.invite-grants-then-revokes" && /absolute http\(s\) URL/.test(row.reason),
+		),
+	).toBe(true)
+}
 
-	it("reads the grant with the access token the accept response returns", async () => {
-		const spec = inviteSpec("body")
-		let granted = false
-		const server = await listen((req, res) => {
-			void (async () => {
-				const url = new URL(req.url ?? "/", "http://127.0.0.1")
-				const method = (req.method ?? "GET").toUpperCase()
-				const auth = req.headers.authorization ?? ""
-				if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, spec)
-				if (url.pathname === "/v1/orgs/org_1/members" && method === "GET") {
-					return send(res, 200, { members: [{ email: "owner@x.test", id: "m1" }] })
-				}
-				if (url.pathname === "/v1/orgs/org_1/members" && method === "POST") {
-					return send(res, 201, { grant_id: "g1", token: "tok-from-invite" })
-				}
-				if (url.pathname === "/v1/invites/accept" && method === "POST") {
-					const body = await readJson(req)
-					if ((body as { token?: unknown })?.token !== "tok-from-invite") return send(res, 400)
-					granted = true
-					return send(res, 200, { access_token: "fresh", id: "g1" })
-				}
-				if (url.pathname === "/v1/orgs/org_1/grants/g1" && method === "DELETE") {
-					granted = false
-					return send(res, 200, { ok: true })
-				}
-				if (url.pathname === "/v1/orgs/org_1/members/m1" && method === "GET") {
-					if (auth === "Bearer a") return send(res, 200, { email: "owner@x.test", id: "m1" })
-					if (auth === "Bearer fresh" && granted) return send(res, 200, { email: "beta@x.test", id: "m1" })
-					return send(res, 403, { error: "forbidden" })
-				}
-				return send(res, 404)
-			})().catch(() => {
-				if (!res.headersSent) send(res, 500)
-			})
-		})
-		closers.push(server.close)
+describe("invite accept request: token transport", () => {
+	it("sends the documented JSON { token } body with application/json", sendsJsonTokenBody)
+	it("keeps a path-only accept on the path and does not invent a body", keepsPathOnlyAccept)
+	it("sends the documented JSON revoke body when revoke declares one", sendsJsonRevokeBody)
+	it("accepts with the mailed token when tokenFrom is outOfBand", acceptsMailedToken)
+	it("reads the grant with the access token the accept response returns", readsGrantWithAcceptToken)
+})
 
-		const result = await run({
-			baseUrl: server.url,
-			only: ["member"],
-			principals,
-			seed: 1,
-			spec: `${server.url}/v1/openapi/spec`,
-		})
-		const acceptAt = result.client.transcript.findIndex(
-			(exchange) => exchange.method === "POST" && new URL(exchange.url).pathname === "/v1/invites/accept",
-		)
-		const grantRead = result.client.transcript
-			.slice(acceptAt + 1)
-			.find((exchange) => exchange.method === "GET" && new URL(exchange.url).pathname === "/v1/orgs/org_1/members/m1")
-		expect(acceptAt).toBeGreaterThanOrEqual(0)
-		expect(grantRead?.requestHeaders.authorization).toBe("Bearer fresh")
-		expect(grantRead?.status).toBe(200)
-		expect(result.findings.filter((finding) => finding.check === "auth.invite-grants-then-revokes")).toEqual([])
-	})
+describe("invite accept request: mailed link", () => {
+	it("GETs the mailed URL when acceptFrom is link and does not POST accept JSON", getsMailedLink)
+	it("fails when acceptFrom is link and the GET 404s even if POST-token would work", failsOnMissingLink)
+	it("fails when the suite POSTs accept JSON against a world that only grants on GET-link", failsOnPostAgainstLinkWorld)
+	it("rejects a non-URL out-of-band value when acceptFrom is link", rejectsNonUrlLink)
 })

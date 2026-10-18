@@ -89,36 +89,43 @@ function send(res: ServerResponse, status: number, body?: unknown): void {
 	res.end(body === undefined ? "" : JSON.stringify(body))
 }
 
+type World = { mode: Mode; next: number; notes: Map<string, Note> }
+
+async function createNote(world: World, req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const body = (await readJson(req)) as Partial<Note> | undefined
+	if (typeof body?.name !== "string" || body.name === "") return send(res, 400, { error: "name" })
+	if (world.mode === "assigns") {
+		const note = { id: `srv-${world.next++}`, name: body.name }
+		world.notes.set(note.id, note)
+		return send(res, 201, note)
+	}
+	if (typeof body.id !== "string" || body.id === "") return send(res, 400, { error: "id" })
+	if (world.notes.has(body.id)) return send(res, 409, { error: "taken" })
+	/* "ignores" stores the record under an id of its own and still acknowledges. */
+	const id = world.mode === "ignores" ? `srv-${world.next++}` : body.id
+	world.notes.set(id, { id, name: body.name })
+	send(res, 201, { success: true })
+}
+
+function noteItem(notes: Map<string, Note>, pathname: string, method: string, res: ServerResponse): void {
+	const id = decodeURIComponent(pathname.match(/^\/notes\/([^/]+)$/)?.[1] ?? "")
+	const note = notes.get(id)
+	if (method === "GET") return note === undefined ? send(res, 404, { error: "missing" }) : send(res, 200, note)
+	if (method === "DELETE") return notes.delete(id) ? send(res, 204) : send(res, 404, { error: "missing" })
+	send(res, 405, {})
+}
+
 async function serve(mode: Mode): Promise<string> {
 	const document = spec(mode)
-	const notes = new Map<string, Note>()
-	let next = 1
+	const world: World = { mode, next: 1, notes: new Map() }
 	const server = createServer((req, res) => {
 		void (async () => {
 			const url = new URL(req.url ?? "/", "http://127.0.0.1")
 			const method = (req.method ?? "GET").toUpperCase()
 			if (url.pathname === "/openapi.json") return send(res, 200, document)
-			if (url.pathname === "/notes" && method === "GET") return send(res, 200, [...notes.values()])
-			if (url.pathname === "/notes" && method === "POST") {
-				const body = (await readJson(req)) as Partial<Note> | undefined
-				if (typeof body?.name !== "string" || body.name === "") return send(res, 400, { error: "name" })
-				if (mode === "assigns") {
-					const note = { id: `srv-${next++}`, name: body.name }
-					notes.set(note.id, note)
-					return send(res, 201, note)
-				}
-				if (typeof body.id !== "string" || body.id === "") return send(res, 400, { error: "id" })
-				if (notes.has(body.id)) return send(res, 409, { error: "taken" })
-				/* "ignores" stores the record under an id of its own and still acknowledges. */
-				const id = mode === "ignores" ? `srv-${next++}` : body.id
-				notes.set(id, { id, name: body.name })
-				return send(res, 201, { success: true })
-			}
-			const id = decodeURIComponent(url.pathname.match(/^\/notes\/([^/]+)$/)?.[1] ?? "")
-			const note = notes.get(id)
-			if (method === "GET") return note === undefined ? send(res, 404, { error: "missing" }) : send(res, 200, note)
-			if (method === "DELETE") return notes.delete(id) ? send(res, 204) : send(res, 404, { error: "missing" })
-			return send(res, 405, {})
+			if (url.pathname === "/notes" && method === "GET") return send(res, 200, [...world.notes.values()])
+			if (url.pathname === "/notes" && method === "POST") return createNote(world, req, res)
+			noteItem(world.notes, url.pathname, method, res)
 		})().catch(() => {
 			if (!res.headersSent) res.writeHead(500)
 			res.end()
@@ -141,7 +148,7 @@ async function runAgainst(mode: Mode): Promise<Awaited<ReturnType<typeof run>>> 
 	})
 }
 
-describe(CHECK, () => {
+describe("create.keeps-submitted-identity", () => {
 	it("passes a create that stored the record under the id the client chose", async () => {
 		const result = await runAgainst("keeps")
 		const create = result.scope.operations.find((op) => op.operationId === "note.create")

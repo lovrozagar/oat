@@ -18,42 +18,36 @@
  * rather than assumed.
  */
 
+import { messageOf } from "../errors/message.ts"
 import type { DefectName } from "../reference/defects/table.ts"
-import { CHECKS } from "../runtime/checks/registry.ts"
-import { type PrincipalSpec, run } from "../runtime/run/index.ts"
-import { EXPECTED } from "./expected/table.ts"
+import { type PrincipalSpec, run, type RunResult } from "../runtime/run/index.ts"
+import { type FuzzCase, diagnose, falsePositives, type PrecisionCase } from "./fuzz/diagnose.ts"
+import { launch, listening, reach, type Target, type Via } from "./harness/launch.ts"
 import { defectsFor } from "./matrix/defects.ts"
 import type { Backend } from "./matrix/engines.ts"
-import { acceptableOf, primaryOf } from "./matrix/expected.ts"
 import { PRINCIPALS } from "./matrix/principals.ts"
 
-export interface FuzzCase {
-	seed: number
-	injected: DefectName[]
-	/** Injected defects whose primary check neither fired nor was justifiably suppressed. */
-	missed: Array<{ defect: DefectName; primary: string }>
-	/**
-	 * Findings no injected defect accounts for.
-	 *
-	 * Carries the summary and evidence, not just the check id. A failure here is often rare —
-	 * timing-sensitive cases surface once in several hundred runs — and re-running to find out
-	 * what happened may simply not reproduce it. The report has to be enough on its own.
-	 */
-	spurious: Array<{ check: string; entity: string; summary: string; detail: string }>
-	/** Injected defects whose check was suppressed by a broken dependency — expected, not a miss. */
-	cascaded: Array<{ defect: DefectName; because: string }>
-	/**
-	 * Injected defects whose check ran, could not reach a verdict, and said so.
-	 *
-	 * Not a pass and not a miss. The defect went unreported, but the report names the check and
-	 * the reason, which is what lets a reader re-run it once the blocking condition is gone. The
-	 * failure this separates it from — a check that gives up in silence — is indistinguishable
-	 * from a clean result, and that is the one worth failing the suite over.
-	 */
-	unresolved: Array<{ defect: DefectName; reason: string }>
-	findings: number
-	ok: boolean
-	error?: string
+export type { FuzzCase, PrecisionCase } from "./fuzz/diagnose.ts"
+export { renderFuzz, renderPrecision } from "./fuzz/render.ts"
+
+/** Where fuzzing runs: an engine and dialect, reached behind a socket unless `via` says otherwise. */
+interface FuzzTarget {
+	/** A local engine; D1 is not fuzzed. */
+	backend?: Exclude<Backend, "d1">
+	dialect?: string
+	via?: Via
+}
+
+export interface FuzzOptions extends FuzzTarget {
+	cases?: number
+	maxDefects?: number
+	seed?: number
+	onCase?: (result: FuzzCase) => void
+}
+
+export interface PrecisionOptions extends FuzzTarget {
+	cases?: number
+	seed?: number
 }
 
 /** Deterministic PRNG so a failing case can be replayed from its seed alone. */
@@ -65,52 +59,24 @@ function rng(seed: number): () => number {
 	}
 }
 
-/** Every check id reachable from `id` by following `dependsOn`, transitively. */
-function ancestorsOf(id: string, seen = new Set<string>()): Set<string> {
-	const check = CHECKS.find((candidate) => candidate.id === id)
-	for (const parent of check?.dependsOn ?? []) {
-		if (seen.has(parent)) continue
-		seen.add(parent)
-		ancestorsOf(parent, seen)
-	}
-	return seen
-}
-
-export interface FuzzOptions {
-	cases?: number
-	maxDefects?: number
-	backend?: Backend
-	dialect?: string
-	seed?: number
-	onCase?: (result: FuzzCase) => void
+function targetOf({ backend = "memory", dialect = "postgrest", via = listening }: FuzzTarget): Target {
+	return { backend, dialect, via }
 }
 
 export async function runFuzz(options: FuzzOptions = {}): Promise<FuzzCase[]> {
-	const { backend = "memory", cases = 25, dialect = "postgrest", maxDefects = 4, seed: rootSeed = 1 } = options
-
-	const { createMemoryServer, createPostgresServer, createSqliteServer } = await import("../reference/http/engines.ts")
-	const factory =
-		backend === "memory" ? createMemoryServer : backend === "sqlite" ? createSqliteServer : createPostgresServer
+	const { cases = 25, maxDefects = 4, seed: rootSeed = 1 } = options
+	const target = targetOf(options)
 
 	/* Defects the chosen backend or dialect cannot express are excluded from the draw rather than
 	 * excused afterwards — a case that cannot fail teaches nothing and still costs a run. */
-	const pool = defectsFor(backend, dialect)
+	const pool = defectsFor(target.backend, target.dialect)
 
 	const results: FuzzCase[] = []
 	const random = rng(rootSeed)
 
 	for (let index = 0; index < cases; index++) {
 		const caseSeed = Math.floor(random() * 1_000_000)
-		const draw = rng(caseSeed)
-		const count = 1 + Math.floor(draw() * maxDefects)
-
-		const injected: DefectName[] = []
-		while (injected.length < count) {
-			const pick = pool[Math.floor(draw() * pool.length)] as DefectName
-			if (!injected.includes(pick)) injected.push(pick)
-		}
-
-		const result = await runOneCase(factory, injected, caseSeed, dialect)
+		const result = await runOneCase(target, drawDefects(pool, caseSeed, maxDefects), caseSeed)
 		results.push(result)
 		options.onCase?.(result)
 	}
@@ -118,121 +84,52 @@ export async function runFuzz(options: FuzzOptions = {}): Promise<FuzzCase[]> {
 	return results
 }
 
-type Factory = (options: {
-	defects?: string[]
-	dialect?: string
-}) => Promise<{ url: string; close: () => Promise<void> }>
-
-async function runOneCase(factory: Factory, injected: DefectName[], seed: number, dialect: string): Promise<FuzzCase> {
-	const base: FuzzCase = {
-		cascaded: [],
-		findings: 0,
-		unresolved: [],
-		injected,
-		missed: [],
-		ok: false,
-		seed,
-		spurious: [],
+/** Between one and `maxDefects` distinct defects from `pool`, as `seed` draws them. */
+function drawDefects(pool: readonly DefectName[], seed: number, maxDefects: number): DefectName[] {
+	const draw = rng(seed)
+	const count = 1 + Math.floor(draw() * maxDefects)
+	const injected: DefectName[] = []
+	while (injected.length < count) {
+		const pick = pool[Math.floor(draw() * pool.length)] as DefectName
+		if (!injected.includes(pick)) injected.push(pick)
 	}
+	return injected
+}
 
-	const server = await factory({ defects: injected, dialect })
+/**
+ * oat run once against the target's reference with `defects` injected, `seed` shaping its data.
+ * A reference that will not start fails the whole pass; a run that fails is the case's own result.
+ */
+async function runAgainst(
+	target: Target,
+	defects: DefectName[],
+	seed: number,
+): Promise<{ result: RunResult } | { error: string }> {
+	const server = await launch(target, { defects })
 	try {
-		const result = await run({
-			baseUrl: server.url,
-			principals: PRINCIPALS as PrincipalSpec[],
-			seed: 42,
-			spec: `${server.url}/v1/openapi/spec`,
-		})
-
-		/* Coverage gaps describe what oat could not test, not what the backend got wrong. */
-		const real = result.findings.filter((finding) => finding.verdict !== "COVERAGE_GAP")
-		const fired = new Set(real.map((finding) => finding.check))
-		base.findings = real.length
-
-		/* Anything the injected set can justify — the primaries plus their documented
-		 * consequences. A finding outside this union is oat inventing a defect. */
-		const justified = new Set(injected.flatMap((defect) => acceptableOf(EXPECTED[defect])))
-
-		const stated = new Map(result.inconclusive.map((entry) => [entry.check, entry.reason] as const))
-
-		for (const defect of injected) {
-			const want = primaryOf(EXPECTED[defect])
-			if (fired.has(want)) continue
-			/* Not fired. Acceptable in exactly two cases: something `want` depends on is itself
-			 * broken — cascade suppression working — or the check ran and reported *why* it could
-			 * not conclude. Anything else is oat going quiet, which is the real failure. */
-			const broken = [...ancestorsOf(want)].find((ancestor) => fired.has(ancestor))
-			if (broken !== undefined) {
-				base.cascaded.push({ because: broken, defect })
-				continue
-			}
-			const reason = stated.get(want)
-			if (reason !== undefined) {
-				base.unresolved.push({ defect, reason })
-				continue
-			}
-			base.missed.push({ defect, primary: want })
+		return {
+			result: await run({
+				baseUrl: server.url,
+				principals: PRINCIPALS as PrincipalSpec[],
+				seed,
+				spec: `${server.url}/v1/openapi/spec`,
+				...reach(server),
+			}),
 		}
-
-		for (const finding of real) {
-			if (justified.has(finding.check)) continue
-			base.spurious.push({
-				check: finding.check,
-				detail: finding.detail,
-				entity: finding.entity ?? "",
-				summary: finding.summary,
-			})
-		}
-
-		base.ok = base.missed.length === 0 && base.spurious.length === 0
-		return base
 	} catch (error) {
-		base.error = error instanceof Error ? error.message : String(error)
-		return base
+		return { error: messageOf(error) }
 	} finally {
 		await server.close()
 	}
 }
 
-export function renderFuzz(results: FuzzCase[]): { text: string; failures: number } {
-	const lines: string[] = []
-	const failed = results.filter((result) => !result.ok)
-	lines.push("")
-	lines.push("  combination fuzzing — random defect sets, one run each")
-	lines.push("  ─────────────────────────────────────────────────────────────────────────")
-
-	for (const result of failed) {
-		lines.push(`  ✗ seed ${result.seed}  [${result.injected.join(" + ")}]`)
-		if (result.error !== undefined) lines.push(`      run failed: ${result.error}`)
-		for (const miss of result.missed) {
-			lines.push(`      missed   ${miss.defect} — expected ${miss.primary}, nothing fired`)
-		}
-		for (const extra of result.spurious) {
-			lines.push(`      spurious ${extra.check}${extra.entity === "" ? "" : ` (${extra.entity})`}`)
-			lines.push(`               ${extra.summary}`)
-			/* Truncated, not omitted: the evidence is what distinguishes a real regression from a
-			 * timing artefact, and a rare case may never reproduce on demand. */
-			lines.push(`               ${extra.detail.replace(/\s+/g, " ").slice(0, 200)}`)
-		}
+async function runOneCase(target: Target, injected: DefectName[], seed: number): Promise<FuzzCase> {
+	const outcome = await runAgainst(target, injected, 42)
+	if ("error" in outcome) {
+		const { error } = outcome
+		return { cascaded: [], error, findings: 0, injected, missed: [], ok: false, seed, spurious: [], unresolved: [] }
 	}
-
-	const cascaded = results.reduce((sum, result) => sum + result.cascaded.length, 0)
-	const unresolved = results.reduce((sum, result) => sum + result.unresolved.length, 0)
-	lines.push("")
-	lines.push(
-		`  ${results.length - failed.length}/${results.length} combinations diagnosed correctly` +
-			` · ${cascaded} suppressed as cascades` +
-			` · ${unresolved} reported as inconclusive`,
-	)
-	lines.push("")
-	return { failures: failed.length, text: lines.join("\n") }
-}
-
-export interface PrecisionCase {
-	seed: number
-	findings: Array<{ check: string; entity: string; summary: string }>
-	inconclusive: number
-	error?: string
+	return { injected, seed, ...diagnose(injected, outcome.result) }
 }
 
 /**
@@ -246,73 +143,21 @@ export interface PrecisionCase {
  * Here the backend is correct by construction, so the bar is absolute: any finding at all is a
  * false positive, and false positives are what make a tool get switched off.
  */
-export async function runPrecision(
-	options: { cases?: number; backend?: Backend; dialect?: string; seed?: number } = {},
-): Promise<PrecisionCase[]> {
-	const { backend = "memory", cases = 50, dialect = "postgrest", seed: rootSeed = 1 } = options
-
-	const { createMemoryServer, createPostgresServer, createSqliteServer } = await import("../reference/http/engines.ts")
-	const factory =
-		backend === "memory" ? createMemoryServer : backend === "sqlite" ? createSqliteServer : createPostgresServer
-
+export async function runPrecision(options: PrecisionOptions = {}): Promise<PrecisionCase[]> {
+	const { cases = 50, seed: rootSeed = 1 } = options
+	const target = targetOf(options)
 	const results: PrecisionCase[] = []
 	const random = rng(rootSeed)
 
 	for (let index = 0; index < cases; index++) {
 		const seed = Math.floor(random() * 1_000_000)
-		const server = await factory({ defects: [], dialect })
-		try {
-			const result = await run({
-				baseUrl: server.url,
-				principals: PRINCIPALS as PrincipalSpec[],
-				seed,
-				spec: `${server.url}/v1/openapi/spec`,
-			})
-			results.push({
-				findings: result.findings
-					.filter((finding) => finding.verdict !== "COVERAGE_GAP")
-					.map((finding) => ({
-						check: finding.check,
-						entity: finding.entity ?? "",
-						summary: finding.summary,
-					})),
-				inconclusive: result.inconclusive.length,
-				seed,
-			})
-		} catch (error) {
-			results.push({
-				error: error instanceof Error ? error.message : String(error),
-				findings: [],
-				inconclusive: 0,
-				seed,
-			})
-		} finally {
-			await server.close()
-		}
+		const outcome = await runAgainst(target, [], seed)
+		results.push(
+			"error" in outcome
+				? { error: outcome.error, findings: [], inconclusive: 0, seed }
+				: { findings: falsePositives(outcome.result), inconclusive: outcome.result.inconclusive.length, seed },
+		)
 	}
 
 	return results
-}
-
-export function renderPrecision(results: PrecisionCase[]): { text: string; failures: number } {
-	const lines: string[] = []
-	const bad = results.filter((r) => r.findings.length > 0 || r.error !== undefined)
-	lines.push("")
-	lines.push("  precision stress — correct backend, varied cohort data")
-	lines.push("  ─────────────────────────────────────────────────────────────────────────")
-	for (const result of bad) {
-		lines.push(`  ✗ seed ${result.seed}`)
-		if (result.error !== undefined) lines.push(`      run failed: ${result.error}`)
-		for (const finding of result.findings) {
-			lines.push(`      false positive ${finding.check} (${finding.entity}) — ${finding.summary}`)
-		}
-	}
-	const unresolved = results.reduce((sum, r) => sum + r.inconclusive, 0)
-	lines.push("")
-	lines.push(
-		`  ${results.length - bad.length}/${results.length} cohorts produced no false positives` +
-			` · ${unresolved} check(s) reported as inconclusive`,
-	)
-	lines.push("")
-	return { failures: bad.length, text: lines.join("\n") }
 }

@@ -83,6 +83,24 @@ function send(res: ServerResponse, status: number, body: unknown): void {
 	res.end(JSON.stringify(body))
 }
 
+async function createNote(rows: Map<number, Row>, req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const body = (await readJson(req)) as Partial<Row> | undefined
+	if (typeof body?.id !== "number" || typeof body.name !== "string" || body.name === "") {
+		return send(res, 400, { success: false })
+	}
+	/* An existing id is overwritten, not refused. */
+	rows.set(body.id, { id: body.id, name: body.name })
+	send(res, 200, { success: true })
+}
+
+function noteItem(rows: Map<number, Row>, pathname: string, method: string, res: ServerResponse): void {
+	const id = Number(decodeURIComponent(pathname.match(/^\/notes\/([^/]+)$/)?.[1] ?? ""))
+	const row = rows.get(id)
+	if (method === "GET") return row === undefined ? send(res, 404, {}) : send(res, 200, row)
+	if (method === "DELETE") return rows.delete(id) ? send(res, 200, { success: true }) : send(res, 404, {})
+	send(res, 405, {})
+}
+
 async function serve(rows: Map<number, Row>): Promise<string> {
 	const document = spec()
 	const server = createServer((req, res) => {
@@ -91,20 +109,8 @@ async function serve(rows: Map<number, Row>): Promise<string> {
 			const method = (req.method ?? "GET").toUpperCase()
 			if (url.pathname === "/openapi.json") return send(res, 200, document)
 			if (url.pathname === "/notes" && method === "GET") return send(res, 200, [...rows.values()])
-			if (url.pathname === "/notes" && method === "POST") {
-				const body = (await readJson(req)) as Partial<Row> | undefined
-				if (typeof body?.id !== "number" || typeof body.name !== "string" || body.name === "") {
-					return send(res, 400, { success: false })
-				}
-				/* An existing id is overwritten, not refused. */
-				rows.set(body.id, { id: body.id, name: body.name })
-				return send(res, 200, { success: true })
-			}
-			const id = Number(decodeURIComponent(url.pathname.match(/^\/notes\/([^/]+)$/)?.[1] ?? ""))
-			const row = rows.get(id)
-			if (method === "GET") return row === undefined ? send(res, 404, {}) : send(res, 200, row)
-			if (method === "DELETE") return rows.delete(id) ? send(res, 200, { success: true }) : send(res, 404, {})
-			return send(res, 405, {})
+			if (url.pathname === "/notes" && method === "POST") return createNote(rows, req, res)
+			noteItem(rows, url.pathname, method, res)
 		})().catch(() => {
 			if (!res.headersSent) res.writeHead(500)
 			res.end()

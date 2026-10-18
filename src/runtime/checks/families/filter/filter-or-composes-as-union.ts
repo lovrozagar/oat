@@ -51,17 +51,16 @@ export const filterOrComposesAsUnion = defineCheck<Compound>({
 		const { expected, extra, got, missing, onlyA, onlyB, setA, setB } = composed
 		if (missing.length === 0 && extra.length === 0) return ASSERTED
 
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"or() does not compose as the union of its terms",
-			`or(${fieldA}.eq.${valueA},${fieldB}.eq.${valueB}) returned ${got.size} record(s); ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "or() does not compose as the union of its terms",
+			detail:
+				`or(${fieldA}.eq.${valueA},${fieldB}.eq.${valueB}) returned ${got.size} record(s); ` +
 				`${fieldA}.eq.${valueA} alone returned ${setA.size}, ${fieldB}.eq.${valueB} alone returned ` +
 				`${setB.size}, whose union is ${expected.size}. ` +
 				(missing.length > 0 ? `Missing from the combined result: ${missing.slice(0, 3).join(", ")}. ` : "") +
 				(extra.length > 0 ? `Present but matches neither term individually: ${extra.slice(0, 3).join(", ")}. ` : "") +
 				"A disjunction must select exactly the records either term matches alone.",
-			[onlyA.last.exchange, onlyB.last.exchange, composed.combined.last.exchange],
-		)
+			evidence: [onlyA.last.exchange, onlyB.last.exchange, composed.combined.last.exchange],
+		})
 	},
 })

@@ -53,7 +53,7 @@ export const foreignParentRejected = defineCheck<{
 		const path = `${ctx.listOp.path} with another tenant's ${parents.join(", ")} under its own ${tenantParam}`
 		const breach = (summary: string, detail: string, evidence: Exchange[]): Outcome =>
 			ctx.listOp.tenantSource === "tag"
-				? ctx.findings.security(this.id, ctx.entityName, summary, detail, evidence)
+				? ctx.findings.security(this.id, ctx.entityName, { summary, detail, evidence })
 				: ctx.findings.report({
 						check: this.id,
 						detail: `${detail} oat inferred the tenant from "${tenantParam}"; declare x-tenant to make this SECURITY.`,

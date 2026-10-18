@@ -24,6 +24,70 @@ const BACKENDS: readonly Backend[] = ["memory", "sqlite", "postgres", "d1"]
 const ALL = Object.keys(DEFECTS) as DefectName[]
 const none = (names: DefectName[], set: ReadonlySet<DefectName>): DefectName[] => names.filter((n) => set.has(n))
 
+/** What a store or shape cannot show: where each rule applies, and which defects it leaves out. */
+interface Exclusion {
+	why: string
+	applies: (backend: Backend, dialect: string) => boolean
+	excludes: (name: DefectName) => boolean
+}
+
+const among =
+	(set: ReadonlySet<DefectName>) =>
+	(name: DefectName): boolean =>
+		set.has(name)
+
+const EXCLUSIONS: readonly Exclusion[] = [
+	{ applies: () => true, excludes: among(CLIENT_ID_ONLY), why: "client-id shape only" },
+	{ applies: (backend) => backend === "memory", excludes: among(SQL_ONLY), why: "SQL only" },
+	{
+		applies: (backend) => backend === "d1",
+		excludes: (name) => !ENGINE_SENSITIVE.has(name),
+		why: "D1 runs engine-sensitive only",
+	},
+	{
+		applies: (backend) => backend !== "memory",
+		excludes: (name) => name === "CONCURRENT_WRITE_LOST",
+		why: "one engine",
+	},
+	{ applies: (_, dialect) => !DIALECTS_WITH_CURSOR.has(dialect), excludes: among(CURSOR_ONLY), why: "no cursor" },
+	{ applies: (_, dialect) => !DIALECTS_WITH_TOTAL.has(dialect), excludes: among(COUNT_ONLY), why: "no total" },
+	{
+		applies: (_, dialect) => !DIALECTS_WITH_FILTER_EXPRESSION.has(dialect),
+		excludes: among(EXPRESSION_ONLY),
+		why: "no filter expression",
+	},
+	{
+		applies: (_, dialect) => !DIALECTS_WITH_POSTGREST_FILTER.has(dialect),
+		excludes: among(POSTGREST_OP_ONLY),
+		why: "no postgrest operators",
+	},
+	{
+		applies: (_, dialect) => DIALECTS[dialect]?.params.searchMode === undefined,
+		excludes: among(SEARCH_MODE_ONLY),
+		why: "no search mode",
+	},
+	{
+		applies: (_, dialect) => DIALECTS[dialect]?.sortTemplate === undefined,
+		excludes: among(DECLARED_SORT_ONLY),
+		why: "no declared sort",
+	},
+	{
+		applies: (_, dialect) => DIALECTS[dialect]?.params.page === undefined,
+		excludes: (name) => name === "PAGE_PAST_END_REPEATS",
+		why: "no page number",
+	},
+	{
+		applies: (_, dialect) => (DIALECTS[dialect]?.sortGrammar ?? "dotted") !== "dotted",
+		excludes: among(NULLS_TOKEN_ONLY),
+		why: "no nulls token",
+	},
+	{
+		applies: (_, dialect) => dialect !== "postgrest",
+		excludes: (name) => name === "PATCH_REPLACES",
+		why: "dialect-insensitive",
+	},
+]
+
 describe("defectsFor", () => {
 	it("runs every defect but the client-id shape's on SQLite under PostgREST", () => {
 		expect(defectsFor("sqlite", "postgrest").length).toBeGreaterThan(ALL.length - 12)
@@ -36,25 +100,15 @@ describe("defectsFor", () => {
 	})
 
 	it("leaves out what a store or shape structurally cannot show", () => {
-		for (const backend of BACKENDS) {
-			for (const dialect of [...Object.keys(DIALECTS), "unknown"]) {
+		const leaks = BACKENDS.flatMap((backend) =>
+			[...Object.keys(DIALECTS), "unknown"].flatMap((dialect) => {
 				const names = defectsFor(backend, dialect)
-				const shape = DIALECTS[dialect]
-				expect(none(names, CLIENT_ID_ONLY)).toEqual([])
-				if (backend === "memory") expect(none(names, SQL_ONLY)).toEqual([])
-				if (backend === "d1") expect(names.filter((n) => !ENGINE_SENSITIVE.has(n))).toEqual([])
-				if (backend !== "memory") expect(names).not.toContain("CONCURRENT_WRITE_LOST")
-				if (!DIALECTS_WITH_CURSOR.has(dialect)) expect(none(names, CURSOR_ONLY)).toEqual([])
-				if (!DIALECTS_WITH_TOTAL.has(dialect)) expect(none(names, COUNT_ONLY)).toEqual([])
-				if (!DIALECTS_WITH_FILTER_EXPRESSION.has(dialect)) expect(none(names, EXPRESSION_ONLY)).toEqual([])
-				if (!DIALECTS_WITH_POSTGREST_FILTER.has(dialect)) expect(none(names, POSTGREST_OP_ONLY)).toEqual([])
-				if (shape?.params.searchMode === undefined) expect(none(names, SEARCH_MODE_ONLY)).toEqual([])
-				if (shape?.sortTemplate === undefined) expect(none(names, DECLARED_SORT_ONLY)).toEqual([])
-				if (shape?.params.page === undefined) expect(names).not.toContain("PAGE_PAST_END_REPEATS")
-				if ((shape?.sortGrammar ?? "dotted") !== "dotted") expect(none(names, NULLS_TOKEN_ONLY)).toEqual([])
-				if (dialect !== "postgrest") expect(names).not.toContain("PATCH_REPLACES")
-			}
-		}
+				return EXCLUSIONS.filter((rule) => rule.applies(backend, dialect)).flatMap((rule) =>
+					names.filter(rule.excludes).map((name) => `${backend}/${dialect} ${rule.why}: ${name}`),
+				)
+			}),
+		)
+		expect(leaks).toEqual([])
 	})
 
 	it("keeps each shape-bound defect where its shape has the feature", () => {

@@ -52,15 +52,14 @@ export const rankIsMonotonicOnWrites = defineCheck<{ home: Actor[] }>({
 			const inverted = inversion(home, verdicts)
 			if (inverted === null) continue
 			const { hi, higher, lo, lower } = inverted
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				`a lower-ranked role can ${kind} where a higher-ranked role cannot`,
-				`${lower.role ?? lower.id} (rank ${lower.rank}) was allowed to ${kind} ${ctx.entityName} ` +
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: `a lower-ranked role can ${kind} where a higher-ranked role cannot`,
+				detail:
+					`${lower.role ?? lower.id} (rank ${lower.rank}) was allowed to ${kind} ${ctx.entityName} ` +
 					`(${lo.exchange.status}); ${higher.role ?? higher.id} (rank ${higher.rank}) was refused ` +
 					`(${hi.exchange.status}). Privilege must be monotonic on writes as on reads.`,
-				[lo.exchange, hi.exchange],
-			)
+				evidence: [lo.exchange, hi.exchange],
+			})
 		}
 		return ASSERTED
 	},

@@ -54,10 +54,11 @@ function plannedMembers(
 	plan: CohortPlan,
 ): { members: CohortMember[]; gap: string | null } {
 	const { model, options } = seeding
-	const generated = buildCohort(plan.schema, options.seed, undefined, createOp.operationId, {
+	const generated = buildCohort(plan.schema, options.seed, undefined, {
 		defs: model.defs,
 		distinct: new Set(plan.avoid.flat()),
 		...(options.nonce === undefined ? {} : { nonce: options.nonce }),
+		operationId: createOp.operationId,
 	}).slice(0, options.cohortSize ?? 7)
 	return ensureDistinctUniqueValues(generated, createOp.unique ?? [], plan.schema, {
 		defs: model.defs,

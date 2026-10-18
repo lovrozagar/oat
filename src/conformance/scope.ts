@@ -15,10 +15,10 @@ import { EXPECTED } from "./expected/table.ts"
 import type { ParserResult } from "./harness/result.ts"
 import { launch, reach, type Via } from "./harness/launch.ts"
 import { defectsFor } from "./matrix/defects.ts"
-import { primaryOf } from "./matrix/expected.ts"
+import { judgedOperations, primaryOf } from "./matrix/expected.ts"
 import { PRINCIPALS } from "./matrix/principals.ts"
 
-const NOT_DEFECTS = new Set(["COVERAGE_GAP", "BLOCKED"])
+const NOT_DEFECTS: ReadonlySet<string> = /* @__PURE__ */ new Set(["COVERAGE_GAP", "BLOCKED"])
 
 async function runOnce(
 	defects: DefectName[],
@@ -71,7 +71,7 @@ export async function runScopeSuite(
 					? (await runOnce([defect], undefined, via)).findings.filter((f) => f.check === check)
 					: []
 			const ops: readonly string[] | undefined =
-				reported ?? (fresh.length === 0 ? undefined : [...new Set(fresh.flatMap((f) => f.operations ?? []))])
+				reported ?? (fresh.length === 0 ? undefined : judgedOperations(fresh, check))
 			if (ops === undefined) {
 				results.push({ detail: "the full run did not report it either", name, ok: false, why })
 				continue

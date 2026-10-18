@@ -116,22 +116,19 @@ function judgeErrorBody(judge: ErrorJudge, subject: ErrorSubject, exchange: Exch
 	const { operationId } = subject
 	const result = validator.validate(operationId, subject.raw, exchange.status, exchange.responseBody)
 	if (result.unchecked !== undefined) {
-		subject.gaps.gap(
-			check,
-			ctx.entityName,
-			`${operationId} ${exchange.status} has a schema that cannot be compiled`,
-			`AJV refused the documented schema, so the body was not validated: ${result.unchecked}`,
-		)
+		subject.gaps.gap(check, ctx.entityName, {
+			summary: `${operationId} ${exchange.status} has a schema that cannot be compiled`,
+			detail: `AJV refused the documented schema, so the body was not validated: ${result.unchecked}`,
+		})
 		return
 	}
 	if (result.ok) return
-	subject.drift.spec(
-		check,
-		ctx.entityName,
-		`${exchange.status} error body does not match its documented schema`,
-		`${operationId} returned ${exchange.status} with a body that fails the schema the ` +
+	subject.drift.spec(check, ctx.entityName, {
+		summary: `${exchange.status} error body does not match its documented schema`,
+		detail:
+			`${operationId} returned ${exchange.status} with a body that fails the schema the ` +
 			`document declares for it: ${result.errors.join("; ")}. Clients that parse errors ` +
 			"from the spec will not understand this response.",
-		[exchange],
-	)
+		evidence: [exchange],
+	})
 }

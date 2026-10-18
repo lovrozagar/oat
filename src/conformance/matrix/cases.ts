@@ -52,6 +52,17 @@ interface Observed {
 	unreported: string[]
 }
 
+/**
+ * Checks that would have sent a value oat did not have, as `check@entity`. A request made from a
+ * value oat did not have is refused before it leaves; any such check is a hole in oat, whatever
+ * the backend did.
+ */
+export function missingValuesOf(inconclusive: readonly Inconclusive[]): string[] {
+	return inconclusive
+		.filter((item) => item.reason.startsWith("oat had no value"))
+		.map((item) => `${item.check}@${item.entity}`)
+}
+
 /** oat run once against the reference with `defects` injected, and what it left in the backend. */
 async function observe(defects: DefectName[], target: Target, untagged: boolean): Promise<Observed> {
 	const server = await launch(target, { defects, untagged })
@@ -76,11 +87,7 @@ async function observe(defects: DefectName[], target: Target, untagged: boolean)
 			findings: result.findings,
 			inconclusive: result.inconclusive,
 			leaked: leakedRecords.length,
-			/* A request made from a value oat did not have is refused before it leaves; any such check
-			 * is a hole in oat, whatever the backend did. */
-			missingValues: result.inconclusive
-				.filter((item) => item.reason.startsWith("oat had no value"))
-				.map((item) => `${item.check}@${item.entity}`),
+			missingValues: missingValuesOf(result.inconclusive),
 			strayLedger: ledgeredNotCreated(result.teardown?.records ?? [], server.createdIds()),
 			/* Whatever the defect let through, a record oat leaves behind is one it must name. */
 			unreported: unreportedLeftovers(leakedRecords, result.teardown),
@@ -151,8 +158,21 @@ async function baseline(target: Target, untagged: boolean): Promise<CaseResult> 
 	}
 }
 
+/** What a defect case is judged by beyond its run; the defaults are the suite's own. */
+export interface Judging {
+	/** Defects that damage bystanders by design. */
+	excused?: ReadonlySet<DefectName>
+	/** Each generated reproducer's problems; none when every one is runnable. */
+	checkRepros?: (findings: Finding[]) => Promise<string[]>
+}
+
 /** One defect, injected alone: detected, and nothing reported that it does not explain. */
-export async function judgeDefect(defect: DefectName, target: Target, label: string = defect): Promise<CaseResult> {
+export async function judgeDefect(
+	defect: DefectName,
+	target: Target,
+	label: string = defect,
+	{ checkRepros = checkReproSyntax, excused = DAMAGES_BYSTANDERS }: Judging = {},
+): Promise<CaseResult> {
 	const expected = EXPECTED[defect]
 	const acceptable = acceptableOf(expected)
 	const verdict = { acceptable, defect, expected: primaryOf(expected), label }
@@ -162,7 +182,7 @@ export async function judgeDefect(defect: DefectName, target: Target, label: str
 			target,
 			false,
 		)
-		const reproFailures = await checkReproSyntax(findings)
+		const reproFailures = await checkRepros(findings)
 		if (reproFailures.length > 0) {
 			const error = `generated reproducer is not runnable — ${reproFailures[0]}`
 			return { ...verdict, checksRun, detected: false, entitiesTested, error, findings, spurious: [] }
@@ -171,7 +191,7 @@ export async function judgeDefect(defect: DefectName, target: Target, label: str
 		return {
 			...verdict,
 			/* A defect that by design rewrites other rows is the backend's doing, not oat's. */
-			bystanders: DAMAGES_BYSTANDERS.has(defect) ? [] : bystanders,
+			bystanders: excused.has(defect) ? [] : bystanders,
 			checksRun,
 			detected: real.some((f) => f.check === verdict.expected),
 			entitiesTested,

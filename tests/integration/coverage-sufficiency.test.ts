@@ -98,12 +98,9 @@ async function serve(): Promise<string> {
 			}
 			if (path === "/v1/notes") return send(200, { notes: [...notes.values()] })
 			const id = /^\/v1\/notes\/(.+)$/.exec(path)?.[1]
-			if (id !== undefined && method === "DELETE") {
-				if (!notes.delete(id)) return send(404, {})
-				return send(204)
-			}
-			if (id !== undefined) return notes.has(id) ? send(200, notes.get(id)) : send(404, {})
-			return send(200, { ok: true })
+			if (id === undefined) return send(200, { ok: true })
+			if (method !== "DELETE") return notes.has(id) ? send(200, notes.get(id)) : send(404, {})
+			return notes.delete(id) ? send(204) : send(404, {})
 		})()
 	})
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))

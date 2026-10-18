@@ -105,78 +105,91 @@ async function listen(handler: (req: IncomingMessage, res: ServerResponse) => vo
 	}
 }
 
-async function startAuthServer(options?: {
+interface AuthOptions {
 	expiresIn?: number
 	refreshExpiresIn?: number
 	plainToken?: boolean
-}): Promise<Harness> {
-	const registerHits: string[] = []
-	const refreshHits: string[] = []
-	const resourceAuth: string[] = []
-	let tokenN = 0
-	let getN = 0
-	let getStatus: number | ((n: number) => number) = 200
-	const expiresIn = options?.expiresIn ?? 90
-	const refreshExpiresIn = options?.refreshExpiresIn ?? 90
-	const harness: Harness = {
-		close: async () => undefined,
-		delayRefreshMs: 0,
-		refreshHits,
-		registerHits,
-		resourceAuth,
-		tokenBodies: [],
-		tokenWho: [],
-		setGetStatus: (status) => {
-			getStatus = status
-		},
-		url: "",
-	}
+}
 
-	const issue = (kind: "acquire" | "refresh"): Record<string, unknown> => {
-		tokenN += 1
-		const token = options?.plainToken === true ? `plain-${tokenN}` : `${kind}-${tokenN}`
-		return {
-			access_token: token,
-			access_token_expires_in: kind === "refresh" ? refreshExpiresIn : expiresIn,
-			refresh_token: `rt-${tokenN}`,
+type Route = (req: IncomingMessage, res: ServerResponse) => Promise<void> | void
+
+/* The token, refresh and resource endpoints, recording each hit on the harness. */
+class AuthBackend {
+	readonly harness: Harness
+	#tokenN = 0
+	#getN = 0
+	#getStatus: number | ((n: number) => number) = 200
+	readonly #options: AuthOptions | undefined
+
+	constructor(options: AuthOptions | undefined) {
+		this.#options = options
+		this.harness = {
+			close: async () => undefined,
+			delayRefreshMs: 0,
+			refreshHits: [],
+			registerHits: [],
+			resourceAuth: [],
+			tokenBodies: [],
+			tokenWho: [],
+			setGetStatus: (status) => {
+				this.#getStatus = status
+			},
+			url: "",
 		}
 	}
 
+	#issue(kind: "acquire" | "refresh"): Record<string, unknown> {
+		this.#tokenN += 1
+		const token = this.#options?.plainToken === true ? `plain-${this.#tokenN}` : `${kind}-${this.#tokenN}`
+		return {
+			access_token: token,
+			access_token_expires_in:
+				kind === "refresh" ? (this.#options?.refreshExpiresIn ?? 90) : (this.#options?.expiresIn ?? 90),
+			refresh_token: `rt-${this.#tokenN}`,
+		}
+	}
+
+	readonly routes: Record<string, Route> = {
+		"GET /v1/items": (req, res) => {
+			this.harness.resourceAuth.push(req.headers.authorization ?? "")
+			this.#getN += 1
+			const status = typeof this.#getStatus === "function" ? this.#getStatus(this.#getN) : this.#getStatus
+			if (status === 401) return send(res, 401, { error: "expired" })
+			return send(res, 200, { items: [] })
+		},
+		"GET /v1/openapi/spec": (_req, res) => send(res, 200, SPEC),
+		"POST /v1/auth/refresh": async (req, res) => {
+			const delay = this.harness.delayRefreshMs
+			if (delay > 0) await new Promise((done) => setTimeout(done, delay))
+			const body = (await readJson(req)) as { refresh_token?: string }
+			this.harness.refreshHits.push(body.refresh_token ?? "")
+			return send(res, 200, this.#issue("refresh"))
+		},
+		"POST /v1/auth/register": (_req, res) => {
+			this.harness.registerHits.push("register")
+			return send(res, 200, this.#issue("acquire"))
+		},
+		"POST /v1/auth/token": async (req, res) => {
+			this.harness.registerHits.push("token")
+			this.harness.tokenBodies.push(await readJson(req))
+			const who = req.headers["x-who"]
+			this.harness.tokenWho.push(typeof who === "string" ? who : "")
+			return send(res, 200, this.#issue("acquire"))
+		},
+	}
+}
+
+async function startAuthServer(options?: AuthOptions): Promise<Harness> {
+	const backend = new AuthBackend(options)
 	const server = await listen((req, res) => {
-		void (async () => {
-			const url = new URL(req.url ?? "/", "http://127.0.0.1")
-			const method = (req.method ?? "GET").toUpperCase()
-			if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, SPEC)
-			if (url.pathname === "/v1/auth/register" && method === "POST") {
-				registerHits.push("register")
-				return send(res, 200, issue("acquire"))
-			}
-			if (url.pathname === "/v1/auth/token" && method === "POST") {
-				registerHits.push("token")
-				harness.tokenBodies.push(await readJson(req))
-				const who = req.headers["x-who"]
-				harness.tokenWho.push(typeof who === "string" ? who : "")
-				return send(res, 200, issue("acquire"))
-			}
-			if (url.pathname === "/v1/auth/refresh" && method === "POST") {
-				if (harness.delayRefreshMs > 0) await new Promise((done) => setTimeout(done, harness.delayRefreshMs))
-				const body = (await readJson(req)) as { refresh_token?: string }
-				refreshHits.push(body.refresh_token ?? "")
-				return send(res, 200, issue("refresh"))
-			}
-			if (url.pathname === "/v1/items" && method === "GET") {
-				resourceAuth.push(req.headers.authorization ?? "")
-				getN += 1
-				const status = typeof getStatus === "function" ? getStatus(getN) : getStatus
-				if (status === 401) return send(res, 401, { error: "expired" })
-				return send(res, 200, { items: [] })
-			}
-			return send(res, 404, { error: "missing" })
-		})()
+		const url = new URL(req.url ?? "/", "http://127.0.0.1")
+		const route = backend.routes[`${(req.method ?? "GET").toUpperCase()} ${url.pathname}`]
+		if (route === undefined) return send(res, 404, { error: "missing" })
+		void route(req, res)
 	})
-	harness.url = server.url
-	harness.close = server.close
-	return harness
+	backend.harness.url = server.url
+	backend.harness.close = server.close
+	return backend.harness
 }
 
 const model = buildModel(dereference(SPEC).doc)
@@ -235,36 +248,42 @@ async function principalOf(harness: Harness, spec: AcquireSpec) {
 	return { client, runtime }
 }
 
+/* A started auth server, closed after the test. */
+async function harnessed(options?: AuthOptions): Promise<Harness> {
+	const harness = await startAuthServer(options)
+	servers.push(harness)
+	return harness
+}
+
+/* One resource read as the principal, refreshing first when its credential is stale. */
+function getItems(client: Client, runtime: Awaited<ReturnType<typeof principalOf>>["runtime"]) {
+	return client.request("GET", "/v1/items", {
+		headers: runtime.headers,
+		refreshIfStale: runtime.refreshIfStale,
+	})
+}
+
 describe("countdown refresh", () => {
 	it("does not refresh when expiresAt is 90s out and buffer is 30s", async () => {
-		const harness = await startAuthServer({ expiresIn: 90 })
-		servers.push(harness)
+		const harness = await harnessed({ expiresIn: 90 })
 		const { client, runtime } = await principalOf(harness, signupFlow(true))
 		expect(harness.registerHits).toEqual(["register"])
-		await client.request("GET", "/v1/items", {
-			headers: runtime.headers,
-			refreshIfStale: runtime.refreshIfStale,
-		})
+		await getItems(client, runtime)
 		expect(harness.refreshHits).toEqual([])
 		expect(harness.resourceAuth).toEqual(["Bearer acquire-1"])
 	})
 
 	it("refreshes before dispatch when expiresAt is 20s out", async () => {
-		const harness = await startAuthServer({ expiresIn: 20 })
-		servers.push(harness)
+		const harness = await harnessed({ expiresIn: 20 })
 		const { client, runtime } = await principalOf(harness, signupFlow(true))
-		await client.request("GET", "/v1/items", {
-			headers: runtime.headers,
-			refreshIfStale: runtime.refreshIfStale,
-		})
+		await getItems(client, runtime)
 		expect(harness.registerHits).toEqual(["register"])
 		expect(harness.refreshHits).toEqual(["rt-1"])
 		expect(harness.resourceAuth).toEqual(["Bearer refresh-2"])
 	})
 
 	it("signup with refresh hits auth.refreshToken, never register again", async () => {
-		const harness = await startAuthServer({ expiresIn: 20 })
-		servers.push(harness)
+		const harness = await harnessed({ expiresIn: 20 })
 		const { runtime } = await principalOf(harness, signupFlow(true))
 		await runtime.refreshIfStale()
 		expect(harness.registerHits).toEqual(["register"])
@@ -272,8 +291,7 @@ describe("countdown refresh", () => {
 	})
 
 	it("signup without refresh fails closed with AUTH_REFRESH_REQUIRED", async () => {
-		const harness = await startAuthServer({ expiresIn: 20 })
-		servers.push(harness)
+		const harness = await harnessed({ expiresIn: 20 })
 		const { runtime } = await principalOf(harness, signupFlow(false))
 		await expect(runtime.refreshIfStale()).rejects.toBeInstanceOf(AuthRefreshRequiredError)
 		await expect(runtime.refreshIfStale()).rejects.toMatchObject({ code: "AUTH_REFRESH_REQUIRED" })
@@ -282,24 +300,21 @@ describe("countdown refresh", () => {
 	})
 
 	it("single-flights overlapping refreshIfStale on one principal", async () => {
-		const harness = await startAuthServer({ expiresIn: 20 })
-		servers.push(harness)
+		const harness = await harnessed({ expiresIn: 20 })
 		harness.delayRefreshMs = 40
 		const { runtime } = await principalOf(harness, signupFlow(true))
 		await Promise.all([runtime.refreshIfStale(), runtime.refreshIfStale()])
 		expect(harness.refreshHits).toHaveLength(1)
 		expect(runtime.headers().authorization).toBe("Bearer refresh-2")
 	})
+})
 
+describe("countdown refresh", () => {
 	it("retries a 401 once after a forced refresh", async () => {
-		const harness = await startAuthServer({ expiresIn: 90 })
-		servers.push(harness)
+		const harness = await harnessed({ expiresIn: 90 })
 		const { client, runtime } = await principalOf(harness, signupFlow(true))
 		harness.setGetStatus((n) => (n === 1 ? 401 : 200))
-		const exchange = await client.request("GET", "/v1/items", {
-			headers: runtime.headers,
-			refreshIfStale: runtime.refreshIfStale,
-		})
+		const exchange = await getItems(client, runtime)
 		expect(exchange.status).toBe(200)
 		expect(harness.refreshHits).toEqual(["rt-1"])
 		expect(harness.resourceAuth).toEqual(["Bearer acquire-1", "Bearer refresh-2"])
@@ -307,14 +322,10 @@ describe("countdown refresh", () => {
 	})
 
 	it("records a second 401 and does not attempt a third request", async () => {
-		const harness = await startAuthServer({ expiresIn: 90 })
-		servers.push(harness)
+		const harness = await harnessed({ expiresIn: 90 })
 		const { client, runtime } = await principalOf(harness, signupFlow(true))
 		harness.setGetStatus(401)
-		const exchange = await client.request("GET", "/v1/items", {
-			headers: runtime.headers,
-			refreshIfStale: runtime.refreshIfStale,
-		})
+		const exchange = await getItems(client, runtime)
 		expect(exchange.status).toBe(401)
 		expect(harness.refreshHits).toEqual(["rt-1"])
 		expect(harness.resourceAuth).toHaveLength(2)
@@ -322,8 +333,7 @@ describe("countdown refresh", () => {
 	})
 
 	it("never proactive-refreshes a principal with expiresAt === null", async () => {
-		const harness = await startAuthServer({ expiresIn: 90, plainToken: true })
-		servers.push(harness)
+		const harness = await harnessed({ expiresIn: 90, plainToken: true })
 		const spec: AcquireSpec = {
 			credentialFrom: "$.access_token",
 			refresh: {
@@ -345,17 +355,15 @@ describe("countdown refresh", () => {
 		}
 		const { client, runtime } = await principalOf(harness, spec)
 		expect(runtime.expiresAt).toBeNull()
-		await client.request("GET", "/v1/items", {
-			headers: runtime.headers,
-			refreshIfStale: runtime.refreshIfStale,
-		})
+		await getItems(client, runtime)
 		expect(harness.refreshHits).toEqual([])
 		expect(harness.resourceAuth).toEqual(["Bearer plain-1"])
 	})
+})
 
+describe("countdown refresh", () => {
 	it("token-exchange without refresh re-runs steps instead of failing closed", async () => {
-		const harness = await startAuthServer({ expiresIn: 20 })
-		servers.push(harness)
+		const harness = await harnessed({ expiresIn: 20 })
 		const { runtime } = await principalOf(harness, tokenExchangeFlow())
 		await runtime.refreshIfStale()
 		expect(harness.registerHits).toEqual(["token", "token"])
@@ -363,8 +371,7 @@ describe("countdown refresh", () => {
 	})
 
 	it("adopts a credential issued outside the auth flow without refreshing it away", async () => {
-		const harness = await startAuthServer({ expiresIn: 20 })
-		servers.push(harness)
+		const harness = await harnessed({ expiresIn: 20 })
 		const { runtime } = await principalOf(harness, tokenExchangeFlow())
 		const scope = { ...runtime.scope }
 		expect(runtime.headers().authorization).toBe("Bearer acquire-1")
@@ -393,8 +400,7 @@ describe("countdown refresh", () => {
 	})
 
 	it("interpolates nested bodies, arrays, and non-strings", async () => {
-		const harness = await startAuthServer()
-		servers.push(harness)
+		const harness = await harnessed()
 		const spec: AcquireSpec = {
 			credentialFrom: "$.access_token",
 			steps: [

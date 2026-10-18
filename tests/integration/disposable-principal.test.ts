@@ -12,12 +12,75 @@ afterEach(async () => {
 	open = []
 })
 
-function spec(): OpenApiDocument {
-	const profile = {
-		properties: { first_name: { type: "string" } },
-		required: ["first_name"],
-		type: "object",
+const PROFILE = {
+	properties: { first_name: { type: "string" } },
+	required: ["first_name"],
+	type: "object",
+}
+
+function profilePaths(): Record<string, unknown> {
+	return {
+		"/v1/me": {
+			get: {
+				operationId: "profile.read",
+				responses: {
+					"200": { content: { "application/json": { schema: PROFILE } }, description: "ok" },
+					"401": { description: "unauthorized" },
+				},
+				"x-entity": { action: "read", identity: "self", name: "profile" },
+			},
+			patch: {
+				operationId: "profile.update",
+				requestBody: {
+					content: { "application/json": { schema: PROFILE } },
+					required: true,
+				},
+				responses: {
+					"200": { content: { "application/json": { schema: PROFILE } }, description: "ok" },
+					"401": { description: "unauthorized" },
+				},
+				"x-entity": { action: "update", identity: "self", name: "profile" },
+			},
+		},
 	}
+}
+
+function registerPath(): Record<string, unknown> {
+	return {
+		post: {
+			operationId: "auth.register",
+			requestBody: {
+				content: {
+					"application/json": {
+						schema: {
+							properties: { email: { format: "email", type: "string" } },
+							required: ["email"],
+							type: "object",
+						},
+					},
+				},
+				required: true,
+			},
+			responses: {
+				"201": {
+					content: {
+						"application/json": {
+							schema: {
+								properties: { access_token: { type: "string" } },
+								required: ["access_token"],
+								type: "object",
+							},
+						},
+					},
+					description: "created",
+				},
+			},
+			"x-fresh-principal": true,
+		},
+	}
+}
+
+function spec(): OpenApiDocument {
 	return {
 		info: { title: "disposable", version: "1" },
 		openapi: "3.1.0",
@@ -40,28 +103,7 @@ function spec(): OpenApiDocument {
 					"x-invalidate": ["GET /v1/me"],
 				},
 			},
-			"/v1/me": {
-				get: {
-					operationId: "profile.read",
-					responses: {
-						"200": { content: { "application/json": { schema: profile } }, description: "ok" },
-						"401": { description: "unauthorized" },
-					},
-					"x-entity": { action: "read", identity: "self", name: "profile" },
-				},
-				patch: {
-					operationId: "profile.update",
-					requestBody: {
-						content: { "application/json": { schema: profile } },
-						required: true,
-					},
-					responses: {
-						"200": { content: { "application/json": { schema: profile } }, description: "ok" },
-						"401": { description: "unauthorized" },
-					},
-					"x-entity": { action: "update", identity: "self", name: "profile" },
-				},
-			},
+			...profilePaths(),
 			"/v1/passkeys/register/options": {
 				post: {
 					operationId: "auth.passkeyRegisterOptions",
@@ -71,98 +113,104 @@ function spec(): OpenApiDocument {
 					},
 				},
 			},
-			"/v1/register": {
-				post: {
-					operationId: "auth.register",
-					requestBody: {
-						content: {
-							"application/json": {
-								schema: {
-									properties: { email: { format: "email", type: "string" } },
-									required: ["email"],
-									type: "object",
-								},
-							},
-						},
-						required: true,
-					},
-					responses: {
-						"201": {
-							content: {
-								"application/json": {
-									schema: {
-										properties: { access_token: { type: "string" } },
-										required: ["access_token"],
-										type: "object",
-									},
-								},
-							},
-							description: "created",
-						},
-					},
-					"x-fresh-principal": true,
-				},
-			},
+			"/v1/register": registerPath(),
 		},
 	} as OpenApiDocument
 }
 
-async function serve(killCaller: boolean): Promise<string> {
-	const document = spec()
-	const names = new Map<string, string>([["alpha", "Ada"]])
+interface Hit {
+	body: Record<string, unknown>
+	method: string
+	path: string
+	token: string
+}
+
+/** A JSON answer; without a body the response is a bare status. */
+interface Reply {
+	body?: unknown
+	status: number
+}
+
+type Route = (hit: Hit) => Reply | undefined
+
+const UNAUTHORIZED: Reply = { body: { error: "unauthorized" }, status: 401 }
+
+function write(res: ServerResponse, reply: Reply): void {
+	if (reply.body === undefined) {
+		res.writeHead(reply.status)
+		res.end()
+		return
+	}
+	res.writeHead(reply.status, { "content-type": "application/json" })
+	res.end(JSON.stringify(reply.body))
+}
+
+async function readHit(req: IncomingMessage, url: URL, method: string): Promise<Hit> {
+	const chunks: Buffer[] = []
+	for await (const chunk of req) chunks.push(chunk as Buffer)
+	const raw = Buffer.concat(chunks).toString("utf8")
+	const body = raw === "" ? {} : (JSON.parse(raw) as Record<string, unknown>)
+	const token = typeof req.headers.authorization === "string" ? req.headers.authorization.slice(7).trim() : ""
+	return { body, method, path: url.pathname, token }
+}
+
+/** Serves `document` at /openapi.json and answers every other request by the first route that does, else `notFound`. */
+async function listenRoutes(document: OpenApiDocument, routes: Route[], notFound: Reply): Promise<string> {
 	const server = createServer((req: IncomingMessage, res: ServerResponse) => {
 		void (async () => {
 			const url = new URL(req.url ?? "/", "http://127.0.0.1")
 			const method = (req.method ?? "GET").toUpperCase()
-			if (url.pathname === "/openapi.json" && method === "GET") {
-				res.writeHead(200, { "content-type": "application/json" })
-				res.end(JSON.stringify(document))
-				return
+			if (url.pathname === "/openapi.json" && method === "GET") return write(res, { body: document, status: 200 })
+			const hit = await readHit(req, url, method)
+			for (const route of routes) {
+				const reply = route(hit)
+				if (reply !== undefined) return write(res, reply)
 			}
-			const token = typeof req.headers.authorization === "string" ? req.headers.authorization.slice(7).trim() : ""
-			if (url.pathname === "/v1/passkeys/register/options") {
-				res.writeHead(401, { "content-type": "application/json" })
-				res.end(JSON.stringify({ error: "unauthorized" }))
-				return
-			}
-			if (url.pathname === "/v1/register" && method === "POST") {
-				const tokenId = `disp-${names.size}`
-				names.set(tokenId, "Ada")
-				res.writeHead(201, { "content-type": "application/json" })
-				res.end(JSON.stringify({ access_token: tokenId }))
-				return
-			}
-			if (url.pathname === "/v1/logout" && method === "POST") {
-				if (killCaller) names.clear()
-				else names.delete(token)
-				res.writeHead(200, { "content-type": "application/json" })
-				res.end(JSON.stringify({ ok: true }))
-				return
-			}
-			if (url.pathname === "/v1/me" && (method === "GET" || method === "PATCH")) {
-				if (!names.has(token)) {
-					res.writeHead(401, { "content-type": "application/json" })
-					res.end(JSON.stringify({ error: "unauthorized" }))
-					return
-				}
-				if (method === "PATCH") {
-					const chunks: Buffer[] = []
-					for await (const chunk of req) chunks.push(chunk as Buffer)
-					const body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as { first_name?: unknown }
-					if (typeof body.first_name === "string") names.set(token, body.first_name)
-				}
-				res.writeHead(200, { "content-type": "application/json" })
-				res.end(JSON.stringify({ first_name: names.get(token) }))
-				return
-			}
-			res.writeHead(404)
-			res.end()
+			write(res, notFound)
 		})()
 	})
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
 	const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
 	open.push({ close: () => new Promise<void>((resolve) => server.close(() => resolve())) })
 	return url
+}
+
+/** GET and PATCH /v1/me for a token `names` knows; any other token is refused. */
+function profileRoute(names: Map<string, string>): Route {
+	return ({ body, method, path, token }) => {
+		if (path !== "/v1/me" || (method !== "GET" && method !== "PATCH")) return undefined
+		if (!names.has(token)) return UNAUTHORIZED
+		if (method === "PATCH" && typeof body["first_name"] === "string") names.set(token, body["first_name"])
+		return { body: { first_name: names.get(token) }, status: 200 }
+	}
+}
+
+/** Registers a fresh `disp-<n>` session; `refresh` also issues its refresh token. */
+function disposableRegister(names: Map<string, string>, refresh: boolean): Route {
+	return ({ method, path }) => {
+		if (path !== "/v1/register" || method !== "POST") return undefined
+		const tokenId = `disp-${names.size}`
+		names.set(tokenId, "Ada")
+		return {
+			body: refresh ? { access_token: tokenId, refresh_token: `rf-${tokenId}` } : { access_token: tokenId },
+			status: 201,
+		}
+	}
+}
+
+const passkeys: Route = ({ path }) => (path === "/v1/passkeys/register/options" ? UNAUTHORIZED : undefined)
+
+async function serve(killCaller: boolean): Promise<string> {
+	const names = new Map<string, string>([["alpha", "Ada"]])
+	const logout: Route = ({ method, path, token }) => {
+		if (path !== "/v1/logout" || method !== "POST") return undefined
+		if (killCaller) names.clear()
+		else names.delete(token)
+		return { body: { ok: true }, status: 200 }
+	}
+	return listenRoutes(spec(), [passkeys, disposableRegister(names, false), logout, profileRoute(names)], {
+		status: 404,
+	})
 }
 
 function refreshSpec(): OpenApiDocument {
@@ -216,64 +264,21 @@ function refreshSpec(): OpenApiDocument {
 }
 
 async function serveRefresh(refreshLives: boolean): Promise<string> {
-	const document = refreshSpec()
 	const names = new Map<string, string>([["alpha", "Ada"]])
 	const dead = new Set<string>()
-	const server = createServer((req: IncomingMessage, res: ServerResponse) => {
-		void (async () => {
-			const url = new URL(req.url ?? "/", "http://127.0.0.1")
-			const method = (req.method ?? "GET").toUpperCase()
-			if (url.pathname === "/openapi.json" && method === "GET") {
-				res.writeHead(200, { "content-type": "application/json" })
-				res.end(JSON.stringify(document))
-				return
-			}
-			const chunks: Buffer[] = []
-			for await (const chunk of req) chunks.push(chunk as Buffer)
-			const raw = Buffer.concat(chunks).toString("utf8")
-			const body = raw === "" ? {} : (JSON.parse(raw) as { refresh_token?: unknown })
-			const token = typeof req.headers.authorization === "string" ? req.headers.authorization.slice(7).trim() : ""
-			if (url.pathname === "/v1/register" && method === "POST") {
-				const tokenId = `disp-${names.size}`
-				names.set(tokenId, "Ada")
-				res.writeHead(201, { "content-type": "application/json" })
-				res.end(JSON.stringify({ access_token: tokenId, refresh_token: `rf-${tokenId}` }))
-				return
-			}
-			if (url.pathname === "/v1/logout" && method === "POST") {
-				if (typeof body.refresh_token === "string") dead.add(body.refresh_token)
-				res.writeHead(200, { "content-type": "application/json" })
-				res.end(JSON.stringify({ ok: true }))
-				return
-			}
-			if (url.pathname === "/v1/refresh" && method === "POST") {
-				const alive = typeof body.refresh_token === "string" && !dead.has(body.refresh_token)
-				const status = refreshLives || alive ? 200 : 401
-				res.writeHead(status, { "content-type": "application/json" })
-				res.end(JSON.stringify(status === 200 ? { ok: true } : { error: "unauthorized" }))
-				return
-			}
-			if (url.pathname === "/v1/me" && (method === "GET" || method === "PATCH")) {
-				if (!names.has(token)) {
-					res.writeHead(401, { "content-type": "application/json" })
-					res.end(JSON.stringify({ error: "unauthorized" }))
-					return
-				}
-				if (method === "PATCH" && typeof (body as { first_name?: unknown }).first_name === "string") {
-					names.set(token, (body as { first_name: string }).first_name)
-				}
-				res.writeHead(200, { "content-type": "application/json" })
-				res.end(JSON.stringify({ first_name: names.get(token) }))
-				return
-			}
-			res.writeHead(404)
-			res.end()
-		})()
-	})
-	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
-	const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
-	open.push({ close: () => new Promise<void>((resolve) => server.close(() => resolve())) })
-	return url
+	const logout: Route = ({ body, method, path }) => {
+		if (path !== "/v1/logout" || method !== "POST") return undefined
+		if (typeof body["refresh_token"] === "string") dead.add(body["refresh_token"])
+		return { body: { ok: true }, status: 200 }
+	}
+	const refresh: Route = ({ body, method, path }) => {
+		if (path !== "/v1/refresh" || method !== "POST") return undefined
+		const token = body["refresh_token"]
+		const alive = typeof token === "string" && !dead.has(token)
+		return refreshLives || alive ? { body: { ok: true }, status: 200 } : UNAUTHORIZED
+	}
+	const routes = [disposableRegister(names, true), logout, refresh, profileRoute(names)]
+	return listenRoutes(refreshSpec(), routes, { status: 404 })
 }
 
 async function runDisposable(baseUrl: string) {
@@ -303,64 +308,17 @@ function ok(properties: Record<string, unknown>, required: string[]) {
 	}
 }
 
-async function startServer(
-	document: OpenApiDocument,
-	handle: (hit: {
-		method: string
-		path: string
-		body: Record<string, unknown>
-		token: string
-	}) => { status: number; body: unknown } | undefined,
-): Promise<string> {
+async function startServer(document: OpenApiDocument, handle: Route): Promise<string> {
 	const names = new Map<string, string>([
 		["alpha", "Ada"],
 		["t1", "Ada"],
 	])
-	const server = createServer((req: IncomingMessage, res: ServerResponse) => {
-		void (async () => {
-			const url = new URL(req.url ?? "/", "http://127.0.0.1")
-			const method = (req.method ?? "GET").toUpperCase()
-			if (url.pathname === "/openapi.json" && method === "GET") {
-				res.writeHead(200, { "content-type": "application/json" })
-				res.end(JSON.stringify(document))
-				return
-			}
-			const chunks: Buffer[] = []
-			for await (const chunk of req) chunks.push(chunk as Buffer)
-			const raw = Buffer.concat(chunks).toString("utf8")
-			const body = raw === "" ? {} : (JSON.parse(raw) as Record<string, unknown>)
-			const token = typeof req.headers.authorization === "string" ? req.headers.authorization.slice(7).trim() : ""
-			if (url.pathname === "/v1/register" && method === "POST") {
-				names.set("t1", "Ada")
-				res.writeHead(201, { "content-type": "application/json" })
-				res.end(JSON.stringify({ access_token: "t1", refresh_token: "r1" }))
-				return
-			}
-			const hit = handle({ body, method, path: url.pathname, token })
-			if (hit !== undefined) {
-				res.writeHead(hit.status, { "content-type": "application/json" })
-				res.end(JSON.stringify(hit.body))
-				return
-			}
-			if (url.pathname === "/v1/me" && (method === "GET" || method === "PATCH")) {
-				if (!names.has(token)) {
-					res.writeHead(401, { "content-type": "application/json" })
-					res.end(JSON.stringify({ error: "unauthorized" }))
-					return
-				}
-				if (method === "PATCH" && typeof body.first_name === "string") names.set(token, body.first_name)
-				res.writeHead(200, { "content-type": "application/json" })
-				res.end(JSON.stringify({ first_name: names.get(token) }))
-				return
-			}
-			res.writeHead(404, { "content-type": "application/json" })
-			res.end(JSON.stringify({ error: "missing" }))
-		})()
-	})
-	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
-	const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
-	open.push({ close: () => new Promise<void>((resolve) => server.close(() => resolve())) })
-	return url
+	const register: Route = ({ method, path }) => {
+		if (path !== "/v1/register" || method !== "POST") return undefined
+		names.set("t1", "Ada")
+		return { body: { access_token: "t1", refresh_token: "r1" }, status: 201 }
+	}
+	return listenRoutes(document, [register, handle, profileRoute(names)], { body: { error: "missing" }, status: 404 })
 }
 
 /* The refresh a principal declares in its flow — oat never guesses a refresh route by field name. */
@@ -391,141 +349,149 @@ async function runRefreshFlow(baseUrl: string) {
 	})
 }
 
+async function logsOutSecondUser(): Promise<void> {
+	const url = await serve(false)
+	const result = await runDisposable(url)
+	const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
+	expect(defects).toEqual([])
+	const logout = result.scope.operations.find((op) => op.operationId === "auth.logout")
+	expect(logout?.status).toBe("passed")
+	expect(logout?.tier).toBe("verified")
+	const logoutAt = result.client.transcript.findIndex(
+		(exchange) => exchange.method === "POST" && exchange.url.endsWith("/v1/logout"),
+	)
+	expect(logoutAt).toBeGreaterThanOrEqual(0)
+	expect(result.client.transcript[logoutAt]?.requestHeaders.authorization).not.toBe("Bearer alpha")
+	const after = result.client.transcript.slice(logoutAt + 1)
+	expect(
+		after.some(
+			(exchange) =>
+				exchange.url.endsWith("/v1/me") &&
+				exchange.requestHeaders.authorization === "Bearer alpha" &&
+				exchange.status === 200,
+		),
+	).toBe(true)
+	const refused = result.client.transcript.find((exchange) => exchange.seq === logout?.evidence?.observation?.seq)
+	expect(refused?.url.endsWith("/v1/me")).toBe(true)
+	expect(refused?.status).toBe(401)
+}
+
+async function acceptsRefreshKillingLogout(): Promise<void> {
+	const url = await serveRefresh(false)
+	const result = await runRefreshFlow(url)
+	const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
+	expect(defects.map((finding) => finding.summary)).toEqual([])
+	expect(result.scope.operations.find((op) => op.operationId === "auth.logout")?.status).toBe("passed")
+	const logoutAt = result.client.transcript.findIndex((exchange) => exchange.url.endsWith("/v1/logout"))
+	const after = result.client.transcript.slice(logoutAt + 1)
+	expect(after.some((exchange) => exchange.url.endsWith("/v1/refresh") && exchange.status === 401)).toBe(true)
+}
+
+async function reportsLogoutWhoseRefreshRenews(): Promise<void> {
+	const url = await serveRefresh(true)
+	const result = await runRefreshFlow(url)
+	const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
+	expect(defects.map((finding) => finding.summary)).toContain("the disposable session was still accepted")
+}
+
+async function acceptsAccountDelete(): Promise<void> {
+	const document = withoutLogout()
+	const paths = document.paths as Record<string, Record<string, unknown>>
+	paths["/v1/account/delete"] = {
+		post: {
+			operationId: "auth.deleteAccount",
+			responses: ok({ ok: { type: "boolean" } }, ["ok"]),
+			"x-destructive": true,
+			"x-invalidate": ["GET /v1/me"],
+		},
+	}
+	let deleted = false
+	const url = await startServer(document, ({ method, path, token }) => {
+		if (path === "/v1/me" && method === "GET" && token === "t1" && deleted) {
+			return { body: { error_key: "not_found" }, status: 404 }
+		}
+		if (path === "/v1/account/delete" && method === "POST") {
+			deleted = true
+			return { body: { ok: true }, status: 200 }
+		}
+		return undefined
+	})
+	const result = await runDisposable(url)
+	const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
+	expect(defects).toEqual([])
+	expect(result.scope.operations.find((op) => op.operationId === "auth.deleteAccount")?.status).toBe("passed")
+}
+
+async function reportsLogoutKillingSuiteSession(): Promise<void> {
+	const url = await serve(true)
+	const result = await runDisposable(url)
+	const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
+	expect(defects.map((finding) => finding.check)).toContain("auth.destructive-spares-the-caller")
+	expect(result.scope.operations.find((op) => op.operationId === "profile.read")?.status).not.toBe("failed")
+}
+
+async function provesRemovedItem(): Promise<void> {
+	const document = withoutLogout()
+	const paths = document.paths as Record<string, Record<string, unknown>>
+	const device = { properties: { id: { type: "string" } }, required: ["id"], type: "object" }
+	paths["/v1/devices"] = {
+		get: {
+			operationId: "device.list",
+			responses: ok({ devices: { items: device, type: "array" } }, ["devices"]),
+		},
+	}
+	paths["/v1/devices/{id}"] = {
+		delete: {
+			operationId: "device.forget",
+			parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
+			responses: ok({ ok: { type: "boolean" } }, ["ok"]),
+			"x-destructive": true,
+		},
+	}
+	const devices = new Set(["dev_1", "dev_2"])
+	const url = await startServer(document, ({ method, path }) => {
+		if (path === "/v1/devices" && method === "GET") {
+			return { body: { devices: [...devices].map((id) => ({ id })) }, status: 200 }
+		}
+		const one = /^\/v1\/devices\/([^/]+)$/.exec(path)
+		if (one !== null && method === "DELETE") {
+			devices.delete(one[1] ?? "")
+			return { body: { ok: true }, status: 200 }
+		}
+		return undefined
+	})
+	const result = await runDisposable(url)
+	const forget = result.scope.operations.find((op) => op.operationId === "device.forget")
+	expect(forget?.status).toBe("passed")
+	expect(forget?.tier).toBe("verified")
+	expect(forget?.evidence?.observation).toMatchObject({ absent: true, value: "dev_1" })
+}
+
+async function leavesRefusedDestructiveUntested(): Promise<void> {
+	const document = withoutLogout()
+	const paths = document.paths as Record<string, Record<string, unknown>>
+	paths["/v1/two-factor/disable"] = {
+		post: {
+			operationId: "auth.disable2fa",
+			responses: { ...ok({ ok: { type: "boolean" } }, ["ok"]), "409": { description: "not enabled" } },
+			"x-destructive": true,
+		},
+	}
+	const url = await startServer(document, ({ path }) =>
+		path === "/v1/two-factor/disable" ? { body: { error: "two_factor_not_enabled" }, status: 409 } : undefined,
+	)
+	const result = await runDisposable(url)
+	const disable = result.scope.operations.find((op) => op.operationId === "auth.disable2fa")
+	expect(disable?.status).toBe("untested")
+	expect(disable?.reason).toContain("destructive call returned 409; a scenario must set the scene")
+}
+
 describe("disposable principal", () => {
-	it("logs out a second registered user and leaves the suite session able to read", async () => {
-		const url = await serve(false)
-		const result = await runDisposable(url)
-		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
-		expect(defects).toEqual([])
-		const logout = result.scope.operations.find((op) => op.operationId === "auth.logout")
-		expect(logout?.status).toBe("passed")
-		expect(logout?.tier).toBe("verified")
-		const logoutAt = result.client.transcript.findIndex(
-			(exchange) => exchange.method === "POST" && exchange.url.endsWith("/v1/logout"),
-		)
-		expect(logoutAt).toBeGreaterThanOrEqual(0)
-		expect(result.client.transcript[logoutAt]?.requestHeaders.authorization).not.toBe("Bearer alpha")
-		const after = result.client.transcript.slice(logoutAt + 1)
-		expect(
-			after.some(
-				(exchange) =>
-					exchange.url.endsWith("/v1/me") &&
-					exchange.requestHeaders.authorization === "Bearer alpha" &&
-					exchange.status === 200,
-			),
-		).toBe(true)
-		const refused = result.client.transcript.find((exchange) => exchange.seq === logout?.evidence?.observation?.seq)
-		expect(refused?.url.endsWith("/v1/me")).toBe(true)
-		expect(refused?.status).toBe(401)
-	})
-
-	it("accepts a logout that kills the refresh token and leaves the access token alive", async () => {
-		const url = await serveRefresh(false)
-		const result = await runRefreshFlow(url)
-		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
-		expect(defects.map((finding) => finding.summary)).toEqual([])
-		expect(result.scope.operations.find((op) => op.operationId === "auth.logout")?.status).toBe("passed")
-		const logoutAt = result.client.transcript.findIndex((exchange) => exchange.url.endsWith("/v1/logout"))
-		const after = result.client.transcript.slice(logoutAt + 1)
-		expect(after.some((exchange) => exchange.url.endsWith("/v1/refresh") && exchange.status === 401)).toBe(true)
-	})
-
-	it("reports a logout whose refresh token still renews", async () => {
-		const url = await serveRefresh(true)
-		const result = await runRefreshFlow(url)
-		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
-		expect(defects.map((finding) => finding.summary)).toContain("the disposable session was still accepted")
-	})
-
-	it("accepts an account delete whose caller read is gone", async () => {
-		const document = withoutLogout()
-		const paths = document.paths as Record<string, Record<string, unknown>>
-		paths["/v1/account/delete"] = {
-			post: {
-				operationId: "auth.deleteAccount",
-				responses: ok({ ok: { type: "boolean" } }, ["ok"]),
-				"x-destructive": true,
-				"x-invalidate": ["GET /v1/me"],
-			},
-		}
-		let deleted = false
-		const url = await startServer(document, ({ method, path, token }) => {
-			if (path === "/v1/me" && method === "GET" && token === "t1" && deleted) {
-				return { body: { error_key: "not_found" }, status: 404 }
-			}
-			if (path === "/v1/account/delete" && method === "POST") {
-				deleted = true
-				return { body: { ok: true }, status: 200 }
-			}
-			return undefined
-		})
-		const result = await runDisposable(url)
-		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
-		expect(defects).toEqual([])
-		expect(result.scope.operations.find((op) => op.operationId === "auth.deleteAccount")?.status).toBe("passed")
-	})
-
-	it("reports a logout that also kills the suite session", async () => {
-		const url = await serve(true)
-		const result = await runDisposable(url)
-		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
-		expect(defects.map((finding) => finding.check)).toContain("auth.destructive-spares-the-caller")
-		expect(result.scope.operations.find((op) => op.operationId === "profile.read")?.status).not.toBe("failed")
-	})
-
-	it("proves a removed item by the list that no longer holds it", async () => {
-		const document = withoutLogout()
-		const paths = document.paths as Record<string, Record<string, unknown>>
-		const device = { properties: { id: { type: "string" } }, required: ["id"], type: "object" }
-		paths["/v1/devices"] = {
-			get: {
-				operationId: "device.list",
-				responses: ok({ devices: { items: device, type: "array" } }, ["devices"]),
-			},
-		}
-		paths["/v1/devices/{id}"] = {
-			delete: {
-				operationId: "device.forget",
-				parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
-				responses: ok({ ok: { type: "boolean" } }, ["ok"]),
-				"x-destructive": true,
-			},
-		}
-		const devices = new Set(["dev_1", "dev_2"])
-		const url = await startServer(document, ({ method, path }) => {
-			if (path === "/v1/devices" && method === "GET") {
-				return { body: { devices: [...devices].map((id) => ({ id })) }, status: 200 }
-			}
-			const one = /^\/v1\/devices\/([^/]+)$/.exec(path)
-			if (one !== null && method === "DELETE") {
-				devices.delete(one[1] ?? "")
-				return { body: { ok: true }, status: 200 }
-			}
-			return undefined
-		})
-		const result = await runDisposable(url)
-		const forget = result.scope.operations.find((op) => op.operationId === "device.forget")
-		expect(forget?.status).toBe("passed")
-		expect(forget?.tier).toBe("verified")
-		expect(forget?.evidence?.observation).toMatchObject({ absent: true, value: "dev_1" })
-	})
-
-	it("leaves a refused destructive call untested, for a scenario to set up", async () => {
-		const document = withoutLogout()
-		const paths = document.paths as Record<string, Record<string, unknown>>
-		paths["/v1/two-factor/disable"] = {
-			post: {
-				operationId: "auth.disable2fa",
-				responses: { ...ok({ ok: { type: "boolean" } }, ["ok"]), "409": { description: "not enabled" } },
-				"x-destructive": true,
-			},
-		}
-		const url = await startServer(document, ({ path }) =>
-			path === "/v1/two-factor/disable" ? { body: { error: "two_factor_not_enabled" }, status: 409 } : undefined,
-		)
-		const result = await runDisposable(url)
-		const disable = result.scope.operations.find((op) => op.operationId === "auth.disable2fa")
-		expect(disable?.status).toBe("untested")
-		expect(disable?.reason).toContain("destructive call returned 409; a scenario must set the scene")
-	})
+	it("logs out a second registered user and leaves the suite session able to read", logsOutSecondUser)
+	it("accepts a logout that kills the refresh token and leaves the access token alive", acceptsRefreshKillingLogout)
+	it("reports a logout whose refresh token still renews", reportsLogoutWhoseRefreshRenews)
+	it("accepts an account delete whose caller read is gone", acceptsAccountDelete)
+	it("reports a logout that also kills the suite session", reportsLogoutKillingSuiteSession)
+	it("proves a removed item by the list that no longer holds it", provesRemovedItem)
+	it("leaves a refused destructive call untested, for a scenario to set up", leavesRefusedDestructiveUntested)
 })

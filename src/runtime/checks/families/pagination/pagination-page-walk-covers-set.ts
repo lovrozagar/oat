@@ -22,19 +22,18 @@ function reportUnstableWalks(
 ): Outcome {
 	const { orderParam, second, walked } = walks
 	const sameMembers = [...second].sort().join(",") === [...walked].sort().join(",")
-	return ctx.findings.backend(
-		check,
-		ctx.entityName,
-		sameMembers
+	return ctx.findings.backend(check, ctx.entityName, {
+		summary: sameMembers
 			? "identical page walks return records in different orders"
 			: "identical page walks return different records",
-		`walking the collection twice with the same parameters` +
+		detail:
+			`walking the collection twice with the same parameters` +
 			(orderParam === undefined ? "" : ` (order=${orderParam})`) +
 			` produced ${sameMembers ? "the same records in a different order" : "different sets"}. ` +
 			"Pagination requires a total order; without a tiebreak the page boundary moves between " +
 			"requests and callers silently miss or repeat rows.",
-		[evidence],
-	)
+		evidence: [evidence],
+	})
 }
 
 export const pageWalkCoversSet = defineCheck({
@@ -72,27 +71,25 @@ export const pageWalkCoversSet = defineCheck({
 
 		const repeated = duplicates(walked)
 		if (repeated.length > 0) {
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"paging returns the same record on more than one page",
-				`walking at limit=${walkSize} returned ${repeated.length} duplicated id(s): ${repeated.slice(0, 3).join(", ")}. ` +
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "paging returns the same record on more than one page",
+				detail:
+					`walking at limit=${walkSize} returned ${repeated.length} duplicated id(s): ${repeated.slice(0, 3).join(", ")}. ` +
 					"This is the signature of a sort without a total order — the page boundary is not stable.",
-				[single.exchange],
-			)
+				evidence: [single.exchange],
+			})
 		}
 		/* A capped walk saw only a prefix of the collection, so "missing" would just mean "beyond
 		 * the cap". Duplicates above are still meaningful; absence is not. */
 		const missing = walk.truncated || !whole.complete ? [] : expected.filter((id) => !walked.includes(id))
 		if (missing.length > 0) {
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"paging skips records that a single large page returns",
-				`a single page at limit=${limit} returned ${expected.length} records, but walking at ` +
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "paging skips records that a single large page returns",
+				detail:
+					`a single page at limit=${limit} returned ${expected.length} records, but walking at ` +
 					`limit=${walkSize} yielded ${walked.length} and missed ${missing.length}: ${missing.slice(0, 3).join(", ")}`,
-				[single.exchange],
-			)
+				evidence: [single.exchange],
+			})
 		}
 
 		/* Instability is probabilistic: one walk can come out intact by luck. Two identical walks

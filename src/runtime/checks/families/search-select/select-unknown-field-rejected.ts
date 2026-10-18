@@ -29,25 +29,21 @@ export const selectUnknownFieldRejected = defineCheck<{
 		if (policy === "reject") {
 			const refused = judgeRefusal(ctx, this.id, ["validation"], result.exchange)
 			if (refused !== null) return refused
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"unknown select field was not rejected",
-				`select.unknown=reject but the probe returned ${result.exchange.status}.`,
-				[result.exchange],
-			)
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "unknown select field was not rejected",
+				detail: `select.unknown=reject but the probe returned ${result.exchange.status}.`,
+				evidence: [result.exchange],
+			})
 		}
 		if (result.exchange.status >= 400) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "unknown select field was rejected under ignore")
 		}
 		const extras = Object.keys(result.items[0] ?? {}).filter((key) => key === "oat_no_such_select_xyz")
 		if (extras.length === 0) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"unknown select field was honoured under ignore",
-			"select.unknown=ignore should drop the undeclared name, not return it.",
-			[result.exchange],
-		)
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "unknown select field was honoured under ignore",
+			detail: "select.unknown=ignore should drop the undeclared name, not return it.",
+			evidence: [result.exchange],
+		})
 	},
 })

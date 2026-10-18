@@ -66,9 +66,10 @@ function callerBody(
 	const required = requiredSchema(schema)
 	try {
 		/* One variant asked for, one member made: buildCohort maps the variants it is given. */
-		const member = buildCohort(required, input.seed ?? 1, ["baseline"], operationId, {
+		const member = buildCohort(required, input.seed ?? 1, ["baseline"], {
 			distinct: propertyNames(required),
 			...(input.nonce === undefined ? {} : { nonce: input.nonce }),
+			operationId,
 		})[0] as CohortMember
 		return { body: member.body }
 	} catch (error) {
@@ -109,13 +110,11 @@ export async function createCaller(
 		operationId: createOp.operationId,
 	})
 	if (exchange.status < 200 || exchange.status >= 300) {
-		return findings.backend(
-			SELF_CHECK_ID,
-			input.entity.name,
-			"creating the caller failed",
-			`${createOp.operationId} returned ${exchange.status} for the signed-up caller.`,
-			[exchange],
-		)
+		return findings.backend(SELF_CHECK_ID, input.entity.name, {
+			summary: "creating the caller failed",
+			detail: `${createOp.operationId} returned ${exchange.status} for the signed-up caller.`,
+			evidence: [exchange],
+		})
 	}
 	return { body, exchange }
 }

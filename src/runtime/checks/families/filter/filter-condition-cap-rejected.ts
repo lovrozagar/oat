@@ -32,12 +32,10 @@ export const filterConditionCapRejected = defineCheck<{ max: number; overCap: Fi
 		const result = await list(asProbe(ctx), { ...q(ctx, { limit: 5 }), ...overCap })
 		const refused = judgeRefusal(ctx, this.id, ["validation"], result.exchange)
 		if (refused !== null) return refused
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"an over-limit filter expression was accepted",
-			`maxFilterConditions=${max} but ${max + 1} eq terms returned ${result.exchange.status}.`,
-			[result.exchange],
-		)
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "an over-limit filter expression was accepted",
+			detail: `maxFilterConditions=${max} but ${max + 1} eq terms returned ${result.exchange.status}.`,
+			evidence: [result.exchange],
+		})
 	},
 })

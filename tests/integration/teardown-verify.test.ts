@@ -172,54 +172,84 @@ afterEach(async () => {
 	await Promise.all(closers.splice(0).map((close) => close()))
 })
 
+interface HiddenBackend {
+	folders: Map<string, { id: string; text: string }>
+	notes: Map<string, Note>
+	seq: number
+}
+
 /* A note whose text holds HIDE is never served and outlives its delete; UNLISTED is never listed. */
+const hidden = (note: Note) => note.text.includes("HIDE")
+
+async function hiddenFolders(backend: HiddenBackend, req: IncomingMessage, res: ServerResponse) {
+	if ((req.method ?? "GET") === "GET") return reply(res, 200, { items: [...backend.folders.values()] })
+	const folder = { id: `f${++backend.seq}`, text: String((await bodyOf(req)).text ?? "") }
+	backend.folders.set(folder.id, folder)
+	return reply(res, 201, folder)
+}
+
+function hiddenFolder(
+	backend: HiddenBackend,
+	folder: { id: string; text: string },
+	req: IncomingMessage,
+	res: ServerResponse,
+) {
+	if ((req.method ?? "GET") === "GET") return reply(res, 200, folder)
+	backend.folders.delete(folder.id)
+	/* A hidden note outlives its folder too: nothing a client does reaches it. */
+	for (const note of backend.notes.values())
+		if (note.folder === folder.id && !hidden(note)) backend.notes.delete(note.id)
+	return reply(res, 204)
+}
+
+async function hiddenNotes(backend: HiddenBackend, folder: { id: string }, req: IncomingMessage, res: ServerResponse) {
+	if ((req.method ?? "GET") === "GET") {
+		const shown = [...backend.notes.values()].filter(
+			(note) => note.folder === folder.id && !hidden(note) && !note.text.includes("UNLISTED"),
+		)
+		return reply(res, 200, { items: shown.map(({ id, text }) => ({ id, text })) })
+	}
+	const note = { folder: folder.id, id: `n${++backend.seq}`, text: String((await bodyOf(req)).text ?? "") }
+	backend.notes.set(note.id, note)
+	return reply(res, 201, { id: note.id, text: note.text })
+}
+
+function hiddenNote(backend: HiddenBackend, note: Note | undefined, req: IncomingMessage, res: ServerResponse) {
+	const method = req.method ?? "GET"
+	if (note === undefined || (method === "GET" && hidden(note))) return reply(res, 404, {})
+	if (method === "GET") return reply(res, 200, { id: note.id, text: note.text })
+	/* Answers success, and keeps a hidden note. */
+	if (!hidden(note)) backend.notes.delete(note.id)
+	return reply(res, 200, { id: note.id })
+}
+
+async function routeHidden(backend: HiddenBackend, req: IncomingMessage, res: ServerResponse) {
+	const parts = new URL(req.url ?? "/", "http://x").pathname.split("/").filter(Boolean)
+	if (parts[0] === "openapi.json") return reply(res, 200, HIDDEN_SPEC)
+	if (parts[0] !== "folders") return reply(res, 404, {})
+	if (parts.length === 1) return hiddenFolders(backend, req, res)
+	const folder = backend.folders.get(parts[1] ?? "")
+	if (folder === undefined) return reply(res, 404, {})
+	if (parts.length === 2) return hiddenFolder(backend, folder, req, res)
+	if (parts.length === 3) return hiddenNotes(backend, folder, req, res)
+	const note = [...backend.notes.values()].find(
+		(candidate) => candidate.folder === folder.id && candidate.id === parts[3],
+	)
+	return hiddenNote(backend, note, req, res)
+}
+
 async function serveHidden() {
-	const folders = new Map<string, { id: string; text: string }>()
-	const notes = new Map<string, Note>()
-	let seq = 0
-	const hidden = (note: Note) => note.text.includes("HIDE")
+	const backend: HiddenBackend = { folders: new Map(), notes: new Map(), seq: 0 }
 	const server = createServer((req, res) => {
-		void (async () => {
-			const parts = new URL(req.url ?? "/", "http://x").pathname.split("/").filter(Boolean)
-			const method = req.method ?? "GET"
-			if (parts[0] === "openapi.json") return reply(res, 200, HIDDEN_SPEC)
-			if (parts[0] !== "folders") return reply(res, 404, {})
-			if (parts.length === 1) {
-				if (method === "GET") return reply(res, 200, { items: [...folders.values()] })
-				const folder = { id: `f${++seq}`, text: String((await bodyOf(req)).text ?? "") }
-				folders.set(folder.id, folder)
-				return reply(res, 201, folder)
-			}
-			const folder = folders.get(parts[1] ?? "")
-			if (folder === undefined) return reply(res, 404, {})
-			if (parts.length === 2) {
-				if (method === "GET") return reply(res, 200, folder)
-				folders.delete(folder.id)
-				/* A hidden note outlives its folder too: nothing a client does reaches it. */
-				for (const note of notes.values()) if (note.folder === folder.id && !hidden(note)) notes.delete(note.id)
-				return reply(res, 204)
-			}
-			const inFolder = [...notes.values()].filter((note) => note.folder === folder.id)
-			if (parts.length === 3) {
-				if (method === "GET") {
-					const shown = inFolder.filter((note) => !hidden(note) && !note.text.includes("UNLISTED"))
-					return reply(res, 200, { items: shown.map(({ id, text }) => ({ id, text })) })
-				}
-				const note = { folder: folder.id, id: `n${++seq}`, text: String((await bodyOf(req)).text ?? "") }
-				notes.set(note.id, note)
-				return reply(res, 201, { id: note.id, text: note.text })
-			}
-			const note = inFolder.find((candidate) => candidate.id === parts[3])
-			if (note === undefined || (method === "GET" && hidden(note))) return reply(res, 404, {})
-			if (method === "GET") return reply(res, 200, { id: note.id, text: note.text })
-			/* Answers success, and keeps a hidden note. */
-			if (!hidden(note)) notes.delete(note.id)
-			return reply(res, 200, { id: note.id })
-		})()
+		void routeHidden(backend, req, res)
 	})
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
 	closers.push(() => new Promise((resolve) => server.close(() => resolve())))
-	return { folders, notes, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }
+	return {
+		folders: backend.folders,
+		notes: backend.notes,
+		url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+	}
 }
 
 /* A folder, and in it one note with `text`, made by a scenario; `drop` removes the folder too. */

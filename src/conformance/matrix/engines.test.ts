@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest"
-import { d1Available, postgresAvailable, sqliteAvailable } from "./engines.ts"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { connectProbe, d1Available, postgresAvailable, sqliteAvailable } from "./engines.ts"
 
 const D1 = ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_D1_DATABASE_ID", "CLOUDFLARE_API_TOKEN"] as const
 const saved = { ...process.env }
@@ -13,6 +13,10 @@ describe("engines", () => {
 		expect(await sqliteAvailable()).toBe(true)
 	})
 
+	it("calls SQLite unavailable on a runtime that cannot load it", async () => {
+		expect(await sqliteAvailable(() => Promise.reject(new Error("needs --experimental-sqlite")))).toBe(false)
+	})
+
 	it("calls D1 available only with all three credentials", () => {
 		for (const name of D1) process.env[name] = "x"
 		expect(d1Available()).toBe(true)
@@ -24,5 +28,27 @@ describe("engines", () => {
 		process.env.PGHOST = "127.0.0.1"
 		process.env.PGPORT = "1"
 		expect(await postgresAvailable()).toBe(false)
+	})
+
+	it("calls Postgres available when a server answers, and closes the session either way", async () => {
+		const ended: number[] = []
+		const answering = {
+			end: async ({ timeout }: { timeout: number }) => void ended.push(timeout),
+			unsafe: async () => [],
+		}
+		expect(await postgresAvailable(async () => answering)).toBe(true)
+		const refusing = { ...answering, unsafe: () => Promise.reject(new Error("refused")) }
+		expect(await postgresAvailable(async () => refusing)).toBe(false)
+		expect(ended).toEqual([3, 3])
+	})
+
+	it("probes with one short-lived postgres.js session, its notices silenced", async () => {
+		const log = vi.spyOn(console, "log").mockImplementation(() => {})
+		const sql = await connectProbe()
+		expect(sql.options).toMatchObject({ connect_timeout: 3, database: "postgres", max: 1 })
+		sql.options.onnotice({ message: "probe" } as never)
+		expect(log).not.toHaveBeenCalled()
+		await sql.end({ timeout: 0 })
+		log.mockRestore()
 	})
 })

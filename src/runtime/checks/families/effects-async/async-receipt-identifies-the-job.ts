@@ -46,14 +46,13 @@ export const asyncReceiptIsResolvable = defineCheck({
 			const node = resolveAsyncId((await ctx.client.hydrate(started)).responseBody, spec.idFrom)
 			if (node !== undefined && node !== null) continue
 
-			ctx.findings.spec(
-				this.id,
-				ctx.entityName,
-				`${op.operationId} response does not carry the job identifier it declares`,
-				`x-async names "${spec.idFrom}" as the job id, but the response has no such value. ` +
+			ctx.findings.spec(this.id, ctx.entityName, {
+				summary: `${op.operationId} response does not carry the job identifier it declares`,
+				detail:
+					`x-async names "${spec.idFrom}" as the job id, but the response has no such value. ` +
 					"Callers cannot poll for a job they cannot name.",
-				[started],
-			)
+				evidence: [started],
+			})
 		}
 		return ASSERTED
 	},

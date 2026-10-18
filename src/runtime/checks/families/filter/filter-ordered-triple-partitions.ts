@@ -66,13 +66,11 @@ export const filterOrderedTriplePartitions = defineCheck<{
 		const sets = [setOf(lower.items, ctx.identity), setOf(equal.items, ctx.identity), setOf(higher.items, ctx.identity)]
 		const overlap = firstOverlap(sets)
 		if (overlap.length > 0) {
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"lt / eq / gt are not pairwise disjoint",
-				`${overlap.length} record(s) appear in more than one of ${field} lt/eq/gt.`,
-				[lower.last.exchange, equal.last.exchange, higher.last.exchange],
-			)
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "lt / eq / gt are not pairwise disjoint",
+				detail: `${overlap.length} record(s) appear in more than one of ${field} lt/eq/gt.`,
+				evidence: [lower.last.exchange, equal.last.exchange, higher.last.exchange],
+			})
 		}
 		const union = new Set(sets.flatMap((set) => [...set]))
 		const expected = ids(all.items, ctx.identity).filter((id) => {
@@ -81,13 +79,11 @@ export const filterOrderedTriplePartitions = defineCheck<{
 		})
 		const missing = expected.filter((id) => !union.has(id))
 		if (missing.length === 0) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"lt ∪ eq ∪ gt does not cover the numeric set",
-			`${missing.length} numeric record(s) match none of the three predicates.`,
-			[all.last.exchange, lower.last.exchange, equal.last.exchange, higher.last.exchange],
-		)
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "lt ∪ eq ∪ gt does not cover the numeric set",
+			detail: `${missing.length} numeric record(s) match none of the three predicates.`,
+			evidence: [all.last.exchange, lower.last.exchange, equal.last.exchange, higher.last.exchange],
+		})
 	},
 })
 

@@ -6,11 +6,11 @@ export async function readVersion(ctx: Planned & { principals: RunPrincipals }):
 	const { options, model, client, principals } = ctx
 	if (options.targetVersion === undefined) return undefined
 	const { alpha } = principals
-	return readTargetVersion(
-		options.targetVersion,
+	return readTargetVersion({
+		client: client.view({ check: TARGET_VERSION_READ, purpose: "probe" }),
+		headers: alpha.headers,
 		model,
-		client.view({ check: TARGET_VERSION_READ, purpose: "probe" }),
-		alpha.headers,
-		{ ...options.roots, ...alpha.roots },
-	)
+		roots: { ...options.roots, ...alpha.roots },
+		spec: options.targetVersion,
+	})
 }

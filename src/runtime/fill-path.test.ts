@@ -11,10 +11,6 @@ describe("fillPath", () => {
 
 	it("is a seed failure naming the parameter it had no value for", () => {
 		expect(() => fillPath("/v1/tables/{table_id}", {})).toThrow(SeedError)
-		try {
-			fillPath("/v1/tables/{table_id}", {})
-		} catch (error) {
-			expect((error as SeedError).culprit).toBe("table_id")
-		}
+		expect(() => fillPath("/v1/tables/{table_id}", {})).toThrow(expect.objectContaining({ culprit: "table_id" }))
 	})
 })

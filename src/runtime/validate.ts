@@ -8,14 +8,19 @@
 
 import ajvModule from "ajv/dist/2020.js"
 import formatsModule from "ajv-formats"
+import { messageOf } from "../errors/message.ts"
 import { DEFS_ID } from "../spec/load/defs.ts"
 import { normalizeSchema } from "../spec/schema.ts"
 import type { OperationObject, SchemaObject } from "../spec/types.ts"
 
-/** Minimal surface oat uses — avoids depending on AJV's CJS/ESM type shape. */
-export interface ValidateFunction {
+/**
+ * Minimal surface oat uses — avoids depending on AJV's CJS/ESM type shape. `errors` is read only
+ * after a call returned false, when AJV has set it, and with `messages` left on (the default)
+ * every error carries its message.
+ */
+interface ValidateFunction {
 	(data: unknown): boolean
-	errors?: Array<{ instancePath?: string; message?: string }> | null
+	errors: Array<{ instancePath: string; message: string }>
 }
 
 interface AjvLike {
@@ -37,10 +42,10 @@ export interface ValidationResult {
 
 const OK: ValidationResult = { errors: [], ok: true }
 
-/* Both packages ship CJS with an interop default, so the callable lives on `.default` under
- * NodeNext resolution — but only at runtime, hence the cast. */
-const Ajv2020 = ((ajvModule as { default?: unknown }).default ?? ajvModule) as AjvConstructor
-const addFormats = ((formatsModule as { default?: unknown }).default ?? formatsModule) as (ajv: AjvLike) => void
+/* Both packages ship CJS whose `module.exports` is the callable itself, while their types put it on
+ * `.default` under NodeNext resolution — hence the cast. */
+const Ajv2020 = ajvModule as unknown as AjvConstructor
+const addFormats = formatsModule as unknown as (ajv: AjvLike) => void
 
 export class SchemaValidator {
 	private readonly ajv: AjvLike
@@ -80,7 +85,7 @@ export class SchemaValidator {
 		} catch (error) {
 			/* An uncompilable schema is a spec defect, surfaced by the caller as a gap rather than
 			 * crashing the run — and never as a pass. */
-			const failed = { failed: error instanceof Error ? error.message : String(error) }
+			const failed = { failed: messageOf(error) }
 			this.cache.set(key, failed)
 			return failed
 		}
@@ -91,10 +96,7 @@ export class SchemaValidator {
 		if (validate === null) return OK
 		if ("failed" in validate) return { errors: [], ok: true, unchecked: validate.failed }
 		if (validate(body) === true) return OK
-		const errors = (validate.errors ?? []).map((error) => {
-			const at = error.instancePath === undefined || error.instancePath === "" ? "(root)" : error.instancePath
-			return `${at} ${error.message ?? "is invalid"}`
-		})
+		const errors = validate.errors.map((error) => `${error.instancePath || "(root)"} ${error.message}`)
 		return { errors: [...new Set(errors)].slice(0, 12), ok: false }
 	}
 
@@ -118,9 +120,11 @@ function schemaFor(op: OperationObject, status: number): SchemaObject | null {
 }
 
 /* One AJV per set of definitions: each registers them under `oat-defs`, as the document names them. */
-const instanceAjvs = new WeakMap<object, AjvLike>()
+// per-process-constant: compiled-schema
+const instanceAjvs = /* @__PURE__ */ new WeakMap<object, AjvLike>()
 const NO_DEFS: Record<string, SchemaObject> = {}
-const instanceCache = new WeakMap<object, ValidateFunction | { failed: string }>()
+// per-process-constant: compiled-schema
+const instanceCache = /* @__PURE__ */ new WeakMap<object, ValidateFunction | { failed: string }>()
 
 function ajvFor(defs: Record<string, SchemaObject>): AjvLike {
 	const existing = instanceAjvs.get(defs)
@@ -148,11 +152,11 @@ export function instanceErrors(
 		try {
 			compiled = ajvFor(defs).compile(schema)
 		} catch (error) {
-			compiled = { failed: error instanceof Error ? error.message : String(error) }
+			compiled = { failed: messageOf(error) }
 		}
 		instanceCache.set(schema, compiled)
 	}
 	if ("failed" in compiled) return [`schema cannot be compiled: ${compiled.failed}`]
 	if (compiled(value) === true) return []
-	return (compiled.errors ?? []).map((error) => `${error.instancePath || "(root)"} ${error.message ?? "is invalid"}`)
+	return compiled.errors.map((error) => `${error.instancePath || "(root)"} ${error.message}`)
 }

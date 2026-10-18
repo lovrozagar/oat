@@ -11,7 +11,7 @@ const QUICK = { attempts: 1, initialMs: 0, maxMs: 0 }
 
 describe("the invite token", () => {
 	it("is asked of the out-of-band hook, by grantee and kind, when the tag says so", async () => {
-		const resolveOutOfBand = vi.fn(async () => "t9")
+		const resolveOutOfBand = vi.fn<() => Promise<string>>(async () => "t9")
 		const doc = inviteDocument({ tag: { tokenFrom: "outOfBand", tokenKind: "share" } })
 		const { ctx, sent } = inviteContext(doc, inviteBackend({ invited: { grant_id: "g1" } }), {
 			hooks: { resolveOutOfBand },
@@ -40,7 +40,7 @@ describe("the invite token", () => {
 	})
 
 	it("reports a hook's failure as the reason, whatever it threw", async () => {
-		const resolveOutOfBand = vi.fn(async () => {
+		const resolveOutOfBand = vi.fn<() => Promise<string>>(async () => {
 			throw "mailbox offline"
 		})
 		const doc = inviteDocument({ tag: { tokenFrom: "outOfBand" } })
@@ -88,7 +88,7 @@ describe("accepting by link", () => {
 
 describe("the credential an accept issues", () => {
 	it("is adopted by a delegate that can take one, and ignored by one that cannot", async () => {
-		const adoptCredential = vi.fn()
+		const adoptCredential = vi.fn<(token: string) => void>()
 		const adopting = actor("delegate", 1, { org_id: "o2" }, { adoptCredential, inviteAs: "bob" })
 		const issuing = inviteBackend({ accepted: { access_token: "fresh" } })
 		await runCheck(inviteGrantsThenRevokes, inviteContext(inviteDocument(), issuing, { actors: [owner, adopting] }).ctx)

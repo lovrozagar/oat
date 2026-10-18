@@ -52,7 +52,7 @@ export type Outcome =
 	| { kind: "stood-down"; reason: string }
 
 /** The property was tested and passed — or, if the check reported along the way, did not. */
-export const ASSERTED: Outcome = Object.freeze({ kind: "asserted" })
+export const ASSERTED: Outcome = /* @__PURE__ */ Object.freeze({ kind: "asserted" })
 
 /**
  * The property passed, and how the backend behaved is worth saying — a policy the document leaves
@@ -84,9 +84,23 @@ export interface Inconclusive {
 	operations?: string[]
 }
 
-function withFixture(finding: Finding, fixture?: string): Finding {
-	if (fixture === undefined || fixture === "") return finding
-	return { ...finding, fixture }
+/** What a check states about a defect: the line a reader scans, the detail behind it, what proves it. */
+export interface Claim {
+	summary: string
+	detail: string
+	evidence: Exchange[]
+	/** Fixture filename when `uploads.each` drove the invocation. */
+	fixture?: string | undefined
+}
+
+/** A gap proves nothing by exchange: it is what oat could not look at. */
+export type GapClaim = Omit<Claim, "evidence">
+
+/** A check that could not run because `cause` failed first. */
+export interface BlockedClaim {
+	summary: string
+	cause: string
+	evidence?: Exchange[] | undefined
 }
 
 /* A stack frame line as V8 prints it: a newline, indentation, then "at ...". */
@@ -204,56 +218,31 @@ export class FindingCollector {
 		return { kind: "finding", verdict: recorded.verdict }
 	}
 
-	backend(
-		check: string,
-		entity: string,
-		summary: string,
-		detail: string,
-		evidence: Exchange[],
-		fixture?: string,
-	): Outcome {
-		return this.report(withFixture({ check, detail, entity, evidence, summary, verdict: "BACKEND_BUG" }, fixture))
+	#claim(check: string, entity: string, verdict: Verdict, claim: Claim): Outcome {
+		const { detail, evidence, fixture, summary } = claim
+		const finding: Finding = { check, detail, entity, evidence, summary, verdict }
+		return this.report(fixture === undefined || fixture === "" ? finding : { ...finding, fixture })
 	}
 
-	security(
-		check: string,
-		entity: string,
-		summary: string,
-		detail: string,
-		evidence: Exchange[],
-		fixture?: string,
-	): Outcome {
-		return this.report(withFixture({ check, detail, entity, evidence, summary, verdict: "SECURITY" }, fixture))
+	backend(check: string, entity: string, claim: Claim): Outcome {
+		return this.#claim(check, entity, "BACKEND_BUG", claim)
 	}
 
-	spec(
-		check: string,
-		entity: string,
-		summary: string,
-		detail: string,
-		evidence: Exchange[],
-		fixture?: string,
-	): Outcome {
-		return this.report(withFixture({ check, detail, entity, evidence, summary, verdict: "SPEC_BUG" }, fixture))
+	security(check: string, entity: string, claim: Claim): Outcome {
+		return this.#claim(check, entity, "SECURITY", claim)
 	}
 
-	gap(check: string, entity: string, summary: string, detail: string, fixture?: string): Outcome {
-		return this.report(withFixture({ check, detail, entity, evidence: [], summary, verdict: "COVERAGE_GAP" }, fixture))
+	spec(check: string, entity: string, claim: Claim): Outcome {
+		return this.#claim(check, entity, "SPEC_BUG", claim)
 	}
 
-	blocked(check: string, entity: string, summary: string, cause: string, evidence: Exchange[] = []): Outcome {
-		return this.report({
-			check,
-			detail: `blocked by ${cause}`,
-			entity,
-			evidence,
-			summary,
-			verdict: "BLOCKED",
-		})
+	gap(check: string, entity: string, claim: GapClaim): Outcome {
+		return this.#claim(check, entity, "COVERAGE_GAP", { ...claim, evidence: [] })
 	}
 
-	checks(): string[] {
-		return [...new Set(this.findings.map((f) => f.check))].sort()
+	blocked(check: string, entity: string, claim: BlockedClaim): Outcome {
+		const { cause, evidence = [], summary } = claim
+		return this.report({ check, detail: `blocked by ${cause}`, entity, evidence, summary, verdict: "BLOCKED" })
 	}
 
 	byVerdict(verdict: Verdict): Finding[] {

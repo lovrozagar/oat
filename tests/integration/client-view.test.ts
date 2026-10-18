@@ -33,20 +33,25 @@ beforeAll(async () => {
 })
 afterAll(() => close())
 
+/* A client below the base path that names alpha's token and resolves the table read. */
+function resolvingClient(): Client {
+	return new Client({
+		baseUrl: url,
+		credentials: {
+			credentialFor: () => undefined,
+			principalOf: (headers) => (headers.authorization === "Bearer a" ? "alpha" : undefined),
+		},
+		operationResolver: (method, path) =>
+			method === "GET" && /^\/v1\/tables\/[^/]+$/.test(path)
+				? { operationId: "table.get", template: "/v1/tables/{table_id}" }
+				: null,
+		redactor: new Redactor(),
+	})
+}
+
 describe("exchange model", () => {
 	it("resolves operations below the base path and stamps who asked and why", async () => {
-		const client = new Client({
-			baseUrl: url,
-			credentials: {
-				credentialFor: () => undefined,
-				principalOf: (headers) => (headers.authorization === "Bearer a" ? "alpha" : undefined),
-			},
-			operationResolver: (method, path) =>
-				method === "GET" && /^\/v1\/tables\/[^/]+$/.test(path)
-					? { operationId: "table.get", template: "/v1/tables/{table_id}" }
-					: null,
-			redactor: new Redactor(),
-		})
+		const client = resolvingClient()
 		expect(client.relativePath(`${url}/v1/tables/1`)).toBe("/v1/tables/1")
 		/* A sibling path that merely starts with the same letters is not below the base. */
 		const sibling = new URL(url)

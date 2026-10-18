@@ -78,13 +78,32 @@ const spec = {
 	},
 } as unknown as OpenApiDocument
 
+type Table = { id: string; name: string }
+type Send = (status: number, value?: unknown) => void
+
+/* The child list answers only under a table that exists, sorted by created_at if at all. */
+function listExports(parentExists: boolean, sort: string | null, send: Send): void {
+	if (!parentExists) return send(404, { error: "not_found" })
+	if (sort !== null && !/^created_at\.(asc|desc)/.test(sort)) return send(400, { error: "bad_sort" })
+	send(200, { items: [{ created_at: "2026-01-01T00:00:00Z", id: "e1" }] })
+}
+
+function tableItem(tables: Map<string, Table>, id: string, method: string | undefined, send: Send): void {
+	const table = tables.get(id)
+	if (method === "DELETE") {
+		tables.delete(id)
+		return send(204)
+	}
+	return table === undefined ? send(404, { error: "not_found" }) : send(200, table)
+}
+
 async function serve(): Promise<string> {
-	const tables = new Map<string, { id: string; name: string }>()
+	const tables = new Map<string, Table>()
 	const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
 		const url = new URL(req.url ?? "/", "http://127.0.0.1")
 		let raw = ""
 		for await (const chunk of req) raw += chunk
-		const send = (status: number, value?: unknown) => {
+		const send: Send = (status, value) => {
 			res.writeHead(status, value === undefined ? {} : { "content-type": "application/json" })
 			res.end(value === undefined ? undefined : JSON.stringify(value))
 		}
@@ -97,21 +116,9 @@ async function serve(): Promise<string> {
 		}
 		if (url.pathname === "/v1/tables") return send(200, { items: [...tables.values()] })
 		const exports = /^\/v1\/tables\/([^/]+)\/exports$/.exec(url.pathname)
-		if (exports !== null) {
-			if (!tables.has(exports[1] ?? "")) return send(404, { error: "not_found" })
-			const sort = url.searchParams.get("order")
-			if (sort !== null && !/^created_at\.(asc|desc)/.test(sort)) return send(400, { error: "bad_sort" })
-			return send(200, { items: [{ created_at: "2026-01-01T00:00:00Z", id: "e1" }] })
-		}
+		if (exports !== null) return listExports(tables.has(exports[1] ?? ""), url.searchParams.get("order"), send)
 		const item = /^\/v1\/tables\/([^/]+)$/.exec(url.pathname)
-		if (item !== null) {
-			const table = tables.get(item[1] ?? "")
-			if (req.method === "DELETE") {
-				tables.delete(item[1] ?? "")
-				return send(204)
-			}
-			return table === undefined ? send(404, { error: "not_found" }) : send(200, table)
-		}
+		if (item !== null) return tableItem(tables, item[1] ?? "", req.method, send)
 		send(404, { error: "not_found" })
 	})
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
@@ -209,7 +216,7 @@ async function serveHooks(): Promise<string> {
 	const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
 		const url = new URL(req.url ?? "/", "http://127.0.0.1")
 		for await (const chunk of req) void chunk
-		const send = (status: number, value?: unknown) => {
+		const send: Send = (status, value) => {
 			res.writeHead(status, value === undefined ? {} : { "content-type": "application/json" })
 			res.end(value === undefined ? undefined : JSON.stringify(value))
 		}

@@ -88,37 +88,44 @@ let close: () => Promise<void> = async () => {}
 
 afterAll(() => close())
 
+type World = { seq: number; stores: Record<"apple" | "banana", Map<string, unknown>> }
+
+async function createFruit(world: World, entity: "apple" | "banana", req: IncomingMessage, res: ServerResponse) {
+	const body = await readJson(req)
+	world.seq += 1
+	const row = { id: `${entity}_${world.seq}`, name: String(body.name ?? "n") }
+	world.stores[entity].set(row.id, row)
+	send(res, 201, row)
+}
+
+function fruitItem(store: Map<string, unknown>, id: string, method: string, res: ServerResponse): void {
+	if (method === "GET") return store.has(id) ? send(res, 200, store.get(id)) : send(res, 404, {})
+	if (method !== "DELETE") return send(res, 405)
+	store.delete(id)
+	send(res, 204)
+}
+
+async function route(world: World, req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const at = new URL(req.url ?? "/", "http://x")
+	const method = req.method ?? "GET"
+	if (at.pathname === "/v1/openapi/spec") return send(res, 200, SPEC)
+	const match = /^\/v1\/(apples|bananas)(?:\/([^/]+))?$/.exec(at.pathname)
+	if (match === null) return send(res, 404, { error: "missing" })
+	const entity = match[1] === "apples" ? "apple" : "banana"
+	const store = world.stores[entity]
+	const id = match[2]
+	hits.push({ at: Date.now(), entity })
+	/* The entity planned first answers slowly, so it finishes last. */
+	if (entity === "apple") await new Promise((resolve) => setTimeout(resolve, 60))
+	if (id === undefined && method === "GET") return send(res, 200, { items: [...store.values()] })
+	if (id === undefined && method === "POST") return createFruit(world, entity, req, res)
+	fruitItem(store, id ?? "", method, res)
+}
+
 async function start(): Promise<void> {
-	const stores = { apple: new Map<string, unknown>(), banana: new Map<string, unknown>() }
-	let seq = 0
+	const world: World = { seq: 0, stores: { apple: new Map(), banana: new Map() } }
 	const server = createServer((req, res) => {
-		void (async () => {
-			const at = new URL(req.url ?? "/", "http://x")
-			const method = req.method ?? "GET"
-			if (at.pathname === "/v1/openapi/spec") return send(res, 200, SPEC)
-			const match = /^\/v1\/(apples|bananas)(?:\/([^/]+))?$/.exec(at.pathname)
-			if (match === null) return send(res, 404, { error: "missing" })
-			const entity = match[1] === "apples" ? "apple" : "banana"
-			const store = stores[entity]
-			const id = match[2]
-			hits.push({ at: Date.now(), entity })
-			/* The entity planned first answers slowly, so it finishes last. */
-			if (entity === "apple") await new Promise((resolve) => setTimeout(resolve, 60))
-			if (id === undefined && method === "GET") return send(res, 200, { items: [...store.values()] })
-			if (id === undefined && method === "POST") {
-				const body = await readJson(req)
-				seq += 1
-				const row = { id: `${entity}_${seq}`, name: String(body.name ?? "n") }
-				store.set(row.id, row)
-				return send(res, 201, row)
-			}
-			if (method === "GET") return store.has(id ?? "") ? send(res, 200, store.get(id ?? "")) : send(res, 404, {})
-			if (method === "DELETE") {
-				store.delete(id ?? "")
-				return send(res, 204)
-			}
-			return send(res, 405)
-		})()
+		void route(world, req, res)
 	})
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
 	url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`

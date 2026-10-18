@@ -133,18 +133,17 @@ async function raceAndJudge(race: Race, path: string, [first, second]: [string, 
 		return ASSERTED
 	}
 
-	return ctx.findings.backend(
-		check,
-		ctx.entityName,
-		"a concurrent write to a different field was silently lost",
-		`two simultaneous patches set "${first}" and "${second}" — different fields, so neither ` +
+	return ctx.findings.backend(check, ctx.entityName, {
+		summary: "a concurrent write to a different field was silently lost",
+		detail:
+			`two simultaneous patches set "${first}" and "${second}" — different fields, so neither ` +
 			`conflicts with the other — and both returned success, but ${lost.join(" and ")} ` +
 			`read back as ${lost.map((f) => JSON.stringify(current[f])).join(", ")} afterwards. ` +
 			"The update path reads the record and writes every column back, so whichever request " +
 			"commits second reinstates the values it read before the first had committed. Callers " +
 			"are told the write succeeded.",
-		[firstWrite, secondWrite, after.exchange],
-	)
+		evidence: [firstWrite, secondWrite, after.exchange],
+	})
 }
 
 /**

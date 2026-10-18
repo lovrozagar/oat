@@ -13,10 +13,6 @@ export interface FixtureSlot {
 	total: number
 }
 
-function warnEach(message: string, warn?: (message: string) => void): void {
-	warn?.(message)
-}
-
 /** `null` = op is not in `each`. `[]` = declared but no usable files (caller stays pick-one). */
 export async function resolveEachInvocations(
 	operationId: string,
@@ -25,28 +21,15 @@ export async function resolveEachInvocations(
 	const patterns = context.uploads?.each?.[operationId]
 	if (patterns === undefined) return null
 
-	const root = context.configDir ?? process.cwd()
-	const seen = new Set<string>()
-	const readable: string[] = []
-	for (const pattern of patterns) {
-		const matches = await expandPattern(pattern, root, warnOnce(context), "uploads.each")
-		for (const path of matches) {
-			if (seen.has(path)) continue
-			seen.add(path)
-			if (await eachFileReadable(path, context.warn)) readable.push(path)
-		}
-	}
-
-	readable.sort()
+	const readable = await readableFiles(patterns, context.configDir ?? process.cwd(), context)
 	if (readable.length === 0) {
-		warnEach(`uploads.each matched 0 files for ${operationId}`, context.warn)
+		context.warn?.(`uploads.each matched 0 files for ${operationId}`)
 		return []
 	}
 
-	const cap = context.uploads?.eachMax
-	const limited = typeof cap === "number" && cap >= 0 && cap < readable.length ? readable.slice(0, cap) : readable
+	const limited = capped(readable, context.uploads?.eachMax)
 	if (limited.length < readable.length) {
-		warnEach(`uploads.each capped ${operationId} at ${limited.length} of ${readable.length}`, context.warn)
+		context.warn?.(`uploads.each capped ${operationId} at ${limited.length} of ${readable.length}`)
 	}
 
 	return limited.map((path, index) => ({
@@ -55,6 +38,27 @@ export async function resolveEachInvocations(
 		path,
 		total: limited.length,
 	}))
+}
+
+/** Every distinct file the patterns match that can be read, sorted. */
+async function readableFiles(patterns: string[], root: string, context: UploadContext): Promise<string[]> {
+	const seen = new Set<string>()
+	const readable: string[] = []
+	const warnMissing = warnOnce(context)
+	for (const pattern of patterns) {
+		const matches = await expandPattern(pattern, root, warnMissing, "uploads.each")
+		for (const path of matches) {
+			if (seen.has(path)) continue
+			seen.add(path)
+			if (await eachFileReadable(path, context.warn)) readable.push(path)
+		}
+	}
+	return readable.sort()
+}
+
+/** The first `cap` files when `cap` is a usable limit below their count; otherwise all of them. */
+function capped(files: string[], cap: number | undefined): string[] {
+	return typeof cap === "number" && cap >= 0 && cap < files.length ? files.slice(0, cap) : files
 }
 
 export async function forEachInvocation<T>(
@@ -76,7 +80,7 @@ async function eachFileReadable(path: string, warn?: (message: string) => void):
 		await readFile(path)
 		return true
 	} catch {
-		warnEach(`uploads.each could not read ${path}`, warn)
+		warn?.(`uploads.each could not read ${path}`)
 		return false
 	}
 }

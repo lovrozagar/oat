@@ -226,38 +226,50 @@ export const REQUIRED_IDS = [
 	"html-script",
 ] as const
 
-/** Catalog invariants. Failures are strings so the conformance parser suite can print them. */
-export function catalogProblems(): string[] {
+/* A sample of each script the unicode cohort member must carry, and the script's name. */
+const COHORT_SCRIPTS: readonly (readonly [sample: string, script: string])[] = [
+	["äöüß", "German"],
+	["čćžšđ", "Croatian"],
+	["привет", "Russian"],
+	["日本語", "Japanese"],
+	["🙂", "emoji"],
+]
+
+/*
+ * A surrogate standing alone. Under the `u` flag a well-formed pair reads as one astral code point,
+ * so only an unpaired half matches.
+ */
+const LONE_SURROGATE = /[\uD800-\uDFFF]/u
+
+/** What is wrong with one payload: what the JSON wire or a column could not carry. */
+function payloadProblems({ id, value }: StringPayload): string[] {
+	const problems: string[] = []
+	if (value.includes("\u0000")) problems.push(`${id} contains NUL`)
+	if (codePointCount(value) > 128) problems.push(`${id} exceeds 128 code points`)
+	if (LONE_SURROGATE.test(value)) problems.push(`${id} contains a lone surrogate`)
+	return problems
+}
+
+/**
+ * Catalog invariants, over the shipped catalog and cohort string unless given others. Failures are
+ * strings so the conformance parser suite can print them.
+ */
+export function catalogProblems(
+	payloads: readonly StringPayload[] = STRING_PAYLOADS,
+	cohort: string = UNICODE_COHORT_STRING,
+): string[] {
 	const problems: string[] = []
 	const seen = new Set<string>()
-	for (const payload of STRING_PAYLOADS) {
+	for (const payload of payloads) {
 		if (seen.has(payload.id)) problems.push(`duplicate id ${payload.id}`)
 		seen.add(payload.id)
-		if (payload.value.includes("\u0000")) problems.push(`${payload.id} contains NUL`)
-		if (codePointCount(payload.value) > 128) problems.push(`${payload.id} exceeds 128 code points`)
-		try {
-			const round = JSON.parse(JSON.stringify(payload.value)) as string
-			if (round !== payload.value) problems.push(`${payload.id} is not JSON-stable`)
-		} catch {
-			problems.push(`${payload.id} is not JSON-serialisable`)
-		}
-		for (let i = 0; i < payload.value.length; i++) {
-			const code = payload.value.charCodeAt(i)
-			const loneHigh = code >= 0xd800 && code <= 0xdbff && (payload.value.charCodeAt(i + 1) & 0xfc00) !== 0xdc00
-			const loneLow = code >= 0xdc00 && code <= 0xdfff && (payload.value.charCodeAt(i - 1) & 0xfc00) !== 0xd800
-			if (loneHigh || loneLow) {
-				problems.push(`${payload.id} contains a lone surrogate`)
-				break
-			}
-		}
+		problems.push(...payloadProblems(payload))
 	}
 	for (const id of REQUIRED_IDS) {
 		if (!seen.has(id)) problems.push(`missing required family ${id}`)
 	}
-	if (!UNICODE_COHORT_STRING.includes("äöüß")) problems.push("cohort missing German")
-	if (!UNICODE_COHORT_STRING.includes("čćžšđ")) problems.push("cohort missing Croatian")
-	if (!UNICODE_COHORT_STRING.includes("привет")) problems.push("cohort missing Russian")
-	if (!UNICODE_COHORT_STRING.includes("日本語")) problems.push("cohort missing Japanese")
-	if (!UNICODE_COHORT_STRING.includes("🙂")) problems.push("cohort missing emoji")
+	for (const [sample, script] of COHORT_SCRIPTS) {
+		if (!cohort.includes(sample)) problems.push(`cohort missing ${script}`)
+	}
 	return problems
 }

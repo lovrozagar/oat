@@ -70,95 +70,158 @@ const noteSchema = {
 
 const json = (schema: unknown) => ({ "application/json": { schema } })
 
-function document(names: Names): OpenApiDocument {
-	const ok = (schema: unknown, code = "200") => ({
+function ok(schema: unknown, code = "200"): Record<string, unknown> {
+	return {
 		[code]: { content: json(schema), description: "ok" },
 		"401": { description: "unauthorized" },
 		"404": { description: "missing" },
-	})
-	const textBody = {
-		content: json({ properties: { text: { type: "string" } }, required: ["text"], type: "object" }),
-		required: true,
 	}
-	const idParam = [{ in: "path", name: "note_id", required: true, schema: { type: "string" } }]
+}
+
+const textBody = {
+	content: json({ properties: { text: { type: "string" } }, required: ["text"], type: "object" }),
+	required: true,
+}
+const idParam = [{ in: "path", name: "note_id", required: true, schema: { type: "string" } }]
+
+function notePaths(names: Names): Record<string, unknown> {
+	return {
+		[`/v1/${names.notes}`]: {
+			get: {
+				operationId: names.ops.list,
+				responses: ok({
+					properties: { items: { items: noteSchema, type: "array" } },
+					required: ["items"],
+					type: "object",
+				}),
+			},
+			post: { operationId: names.ops.create, requestBody: textBody, responses: ok(noteSchema, "201") },
+		},
+		[`/v1/${names.notes}/{note_id}`]: {
+			delete: {
+				operationId: names.ops.delete,
+				parameters: idParam,
+				responses: {
+					"204": { description: "gone" },
+					"401": { description: "unauthorized" },
+					"404": { description: "missing" },
+				},
+			},
+			get: { operationId: names.ops.get, parameters: idParam, responses: ok(noteSchema) },
+		},
+	}
+}
+
+function accountPaths(names: Names): Record<string, unknown> {
+	return {
+		[`/v1/${names.self}`]: {
+			get: {
+				operationId: names.ops.me,
+				responses: ok({ properties: { email: { type: "string" } }, required: ["email"], type: "object" }),
+				"x-entity": { action: "read", identity: "self", name: "caller" },
+			},
+		},
+		[`/v1/${names.session}`]: {
+			post: {
+				operationId: names.ops.logout,
+				responses: ok({ properties: { ok: { type: "boolean" } }, required: ["ok"], type: "object" }),
+				"x-destructive": true,
+				"x-invalidate": [`GET /v1/${names.self}`],
+			},
+		},
+		[`/v1/${names.signUp}`]: {
+			post: {
+				operationId: names.ops.register,
+				requestBody: {
+					content: json({
+						properties: { email: { format: "email", type: "string" } },
+						required: ["email"],
+						type: "object",
+					}),
+					required: true,
+				},
+				responses: ok(
+					{ properties: { access_token: { type: "string" } }, required: ["access_token"], type: "object" },
+					"201",
+				),
+				security: [],
+				"x-fresh-principal": true,
+			},
+		},
+		[`/v1/${names.version}`]: {
+			get: {
+				operationId: names.ops.version,
+				responses: ok({ properties: { version: { type: "string" } }, required: ["version"], type: "object" }),
+			},
+		},
+	}
+}
+
+function document(names: Names): OpenApiDocument {
 	return {
 		components: { securitySchemes: { bearer: { scheme: "bearer", type: "http" } } },
 		info: { title: "invariance", version: "1" },
 		openapi: "3.1.0",
-		paths: {
-			[`/v1/${names.notes}`]: {
-				get: {
-					operationId: names.ops.list,
-					responses: ok({
-						properties: { items: { items: noteSchema, type: "array" } },
-						required: ["items"],
-						type: "object",
-					}),
-				},
-				post: { operationId: names.ops.create, requestBody: textBody, responses: ok(noteSchema, "201") },
-			},
-			[`/v1/${names.notes}/{note_id}`]: {
-				delete: {
-					operationId: names.ops.delete,
-					parameters: idParam,
-					responses: {
-						"204": { description: "gone" },
-						"401": { description: "unauthorized" },
-						"404": { description: "missing" },
-					},
-				},
-				get: { operationId: names.ops.get, parameters: idParam, responses: ok(noteSchema) },
-			},
-			[`/v1/${names.self}`]: {
-				get: {
-					operationId: names.ops.me,
-					responses: ok({ properties: { email: { type: "string" } }, required: ["email"], type: "object" }),
-					"x-entity": { action: "read", identity: "self", name: "caller" },
-				},
-			},
-			[`/v1/${names.session}`]: {
-				post: {
-					operationId: names.ops.logout,
-					responses: ok({ properties: { ok: { type: "boolean" } }, required: ["ok"], type: "object" }),
-					"x-destructive": true,
-					"x-invalidate": [`GET /v1/${names.self}`],
-				},
-			},
-			[`/v1/${names.signUp}`]: {
-				post: {
-					operationId: names.ops.register,
-					requestBody: {
-						content: json({
-							properties: { email: { format: "email", type: "string" } },
-							required: ["email"],
-							type: "object",
-						}),
-						required: true,
-					},
-					responses: ok(
-						{ properties: { access_token: { type: "string" } }, required: ["access_token"], type: "object" },
-						"201",
-					),
-					security: [],
-					"x-fresh-principal": true,
-				},
-			},
-			[`/v1/${names.version}`]: {
-				get: {
-					operationId: names.ops.version,
-					responses: ok({ properties: { version: { type: "string" } }, required: ["version"], type: "object" }),
-				},
-			},
-		},
+		paths: { ...notePaths(names), ...accountPaths(names) },
 		security: [{ bearer: [] }],
 	} as unknown as OpenApiDocument
 }
 
+type Note = { id: string; text: string }
+type World = { created: number; names: Names; notes: Map<string, Note>; tokens: Set<string> }
+type Exchange = {
+	body: Record<string, unknown>
+	method: string
+	pathname: string
+	send: (status: number, value?: unknown) => void
+	token: string
+}
+
+function signUp(world: World, { body, send }: Exchange): void {
+	if (typeof body["email"] !== "string") return send(400, { error: "email" })
+	const token = `t${world.tokens.size}`
+	world.tokens.add(token)
+	send(201, { access_token: token })
+}
+
+function noteCollection(world: World, { body, method, send }: Exchange): void {
+	if (method === "GET") return send(200, { items: [...world.notes.values()] })
+	if (typeof body["text"] !== "string") return send(400, { error: "text" })
+	world.created += 1
+	const note = { id: `n${world.created}`, text: body["text"] }
+	world.notes.set(note.id, note)
+	send(201, note)
+}
+
+function noteItem(world: World, id: string, { method, send }: Exchange): void {
+	const note = world.notes.get(id)
+	if (note === undefined) return send(404, { error: "missing" })
+	if (method === "GET") return send(200, note)
+	if (method !== "DELETE") return send(404, { error: "missing" })
+	world.notes.delete(note.id)
+	send(204)
+}
+
+/* Everything past sign-up needs a live token; the session end revokes it. */
+function authed(world: World, exchange: Exchange): void {
+	const { method, pathname, send, token } = exchange
+	const { names } = world
+	if (!world.tokens.has(token)) return send(401, { error: "unauthorized" })
+	if (pathname === `/v1/${names.self}`) return send(200, { email: `${token}@example.test` })
+	if (pathname === `/v1/${names.session}` && method === "POST") {
+		world.tokens.delete(token)
+		return send(200, { ok: true })
+	}
+	if (pathname === `/v1/${names.version}`) return send(200, { version: "1.0.0" })
+	if (pathname === `/v1/${names.notes}`) return noteCollection(world, exchange)
+	const item = new RegExp(`^/v1/${names.notes}/([^/]+)$`).exec(pathname)
+	if (item !== null) return noteItem(world, item[1] ?? "", exchange)
+	send(404, { error: "missing" })
+}
+
 async function serve(names: Names): Promise<string> {
 	const doc = document(names)
-	const notes = new Map<string, { id: string; text: string }>()
-	const tokens = new Set(["alpha"])
-	let created = 0
+	const world: World = { created: 0, names, notes: new Map(), tokens: new Set(["alpha"]) }
 	const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
 		const url = new URL(req.url ?? "/", "http://127.0.0.1")
 		const method = (req.method ?? "GET").toUpperCase()
@@ -170,39 +233,10 @@ async function serve(names: Names): Promise<string> {
 			res.end(value === undefined ? "" : JSON.stringify(value))
 		}
 		if (url.pathname === "/openapi.json") return send(200, doc)
-		if (url.pathname === `/v1/${names.signUp}` && method === "POST") {
-			if (typeof body["email"] !== "string") return send(400, { error: "email" })
-			const token = `t${tokens.size}`
-			tokens.add(token)
-			return send(201, { access_token: token })
-		}
 		const token = (req.headers.authorization ?? "").replace(/^Bearer /, "")
-		if (!tokens.has(token)) return send(401, { error: "unauthorized" })
-		if (url.pathname === `/v1/${names.self}`) return send(200, { email: `${token}@example.test` })
-		if (url.pathname === `/v1/${names.session}` && method === "POST") {
-			tokens.delete(token)
-			return send(200, { ok: true })
-		}
-		if (url.pathname === `/v1/${names.version}`) return send(200, { version: "1.0.0" })
-		if (url.pathname === `/v1/${names.notes}`) {
-			if (method === "GET") return send(200, { items: [...notes.values()] })
-			if (typeof body["text"] !== "string") return send(400, { error: "text" })
-			created += 1
-			const note = { id: `n${created}`, text: body["text"] }
-			notes.set(note.id, note)
-			return send(201, note)
-		}
-		const item = new RegExp(`^/v1/${names.notes}/([^/]+)$`).exec(url.pathname)
-		if (item !== null) {
-			const note = notes.get(item[1] ?? "")
-			if (note === undefined) return send(404, { error: "missing" })
-			if (method === "GET") return send(200, note)
-			if (method === "DELETE") {
-				notes.delete(note.id)
-				return send(204)
-			}
-		}
-		send(404, { error: "missing" })
+		const exchange = { body, method, pathname: url.pathname, send, token }
+		if (url.pathname === `/v1/${names.signUp}` && method === "POST") return signUp(world, exchange)
+		authed(world, exchange)
 	})
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
 	open.push({ close: () => new Promise<void>((resolve) => server.close(() => resolve())) })

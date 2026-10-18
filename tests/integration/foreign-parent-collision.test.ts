@@ -48,15 +48,17 @@ const write = (schema: { properties: Record<string, unknown> }, field: string) =
 	required: true,
 })
 
-function spec(): OpenApiDocument {
-	const resource = (
-		entity: string,
-		identity: string,
-		item: unknown,
-		field: string,
-		parents: unknown[],
-		id: string,
-	) => ({
+interface Resource {
+	entity: string
+	identity: string
+	item: unknown
+	field: string
+	parents: unknown[]
+	id: string
+}
+
+function resource({ entity, identity, item, field, parents, id }: Resource) {
+	return {
 		collection: {
 			get: op(entity, identity, "list", {
 				parameters: parents,
@@ -84,9 +86,26 @@ function spec(): OpenApiDocument {
 				responses: { "200": { ...json(item), description: "ok" }, ...REFUSED },
 			}),
 		},
+	}
+}
+
+function spec(): OpenApiDocument {
+	const tables = resource({
+		entity: "table",
+		field: "name",
+		id: "table_id",
+		identity: "slug",
+		item: TABLE,
+		parents: [PROJECT],
 	})
-	const tables = resource("table", "slug", TABLE, "name", [PROJECT], "table_id")
-	const rows = resource("row", "id", ROW, "label", [PROJECT, param("table_id")], "row_id")
+	const rows = resource({
+		entity: "row",
+		field: "label",
+		id: "row_id",
+		identity: "id",
+		item: ROW,
+		parents: [PROJECT, param("table_id")],
+	})
 	return {
 		info: { title: "foreign-parent-collision", version: "1" },
 		openapi: "3.1.0",
@@ -144,85 +163,125 @@ afterEach(async () => {
 	await Promise.all(servers.splice(0).map((close) => close()))
 })
 
-async function serve(options: Options = {}) {
-	/* Keyed internally; reached by (project, slug). */
-	const tables = new Map<string, Table>()
-	const rows = new Map<string, Row>()
-	let seq = 0
-	const addTable = (project: string, name: string): Table => {
-		const table = { key: `k${++seq}`, name, project, slug: slugOf(name) }
-		tables.set(table.key, table)
+const shownTable = (table: Table) => ({ name: table.name, slug: table.slug })
+const shownRow = (row: Row) => ({ id: row.id, label: row.label })
+
+/* Tables keyed internally and reached by (project, slug); rows under them. */
+class TableBackend {
+	readonly tables = new Map<string, Table>()
+	readonly rows = new Map<string, Row>()
+	#seq = 0
+	readonly #options: Options
+
+	constructor(options: Options) {
+		this.#options = options
+		for (const [project, names] of Object.entries(options.existing ?? {})) {
+			for (const name of names) this.addTable(project, name)
+		}
+	}
+
+	nextId(prefix: string): string {
+		return `${prefix}${++this.#seq}`
+	}
+
+	addTable(project: string, name: string): Table {
+		const table = { key: this.nextId("k"), name, project, slug: slugOf(name) }
+		this.tables.set(table.key, table)
 		return table
 	}
-	for (const [project, names] of Object.entries(options.existing ?? {})) {
-		for (const name of names) addTable(project, name)
+
+	tableAt(project: string, slug: string): Table | undefined {
+		const own = [...this.tables.values()].find((table) => table.project === project && table.slug === slug)
+		if (own !== undefined || this.#options.crossResolve !== true) return own
+		return [...this.tables.values()].find((table) => table.slug === slug)
 	}
-	const tableAt = (project: string, slug: string): Table | undefined => {
-		const own = [...tables.values()].find((table) => table.project === project && table.slug === slug)
-		if (own !== undefined || options.crossResolve !== true) return own
-		return [...tables.values()].find((table) => table.slug === slug)
+}
+
+interface At {
+	backend: TableBackend
+	project: string
+	method: string
+	req: IncomingMessage
+	res: ServerResponse
+}
+
+async function onTables({ backend, project, method, req, res }: At) {
+	if (method === "GET") {
+		const own = [...backend.tables.values()].filter((table) => table.project === project)
+		return send(res, 200, { items: own.map(shownTable) })
 	}
-	const shownTable = (table: Table) => ({ name: table.name, slug: table.slug })
-	const shownRow = (row: Row) => ({ id: row.id, label: row.label })
+	if (method !== "POST") return send(res, 405)
+	const body = await readJson(req)
+	if (body === null || typeof body.name !== "string") return send(res, 400, { error: "name is required" })
+	const slug = slugOf(body.name)
+	if (slug === "") return send(res, 400, { error: "name has no letters" })
+	if ([...backend.tables.values()].some((table) => table.project === project && table.slug === slug)) {
+		return send(res, 409, { error: "slug taken" })
+	}
+	return send(res, 201, shownTable(backend.addTable(project, body.name)))
+}
+
+function onTable({ backend, project, method, res }: At, table: Table) {
+	if (table.project !== project) return send(res, 404, { error: "missing" })
+	if (method === "GET") return send(res, 200, shownTable(table))
+	if (method === "DELETE") {
+		backend.tables.delete(table.key)
+		for (const row of backend.rows.values()) if (row.table === table.key) backend.rows.delete(row.id)
+		return send(res, 204)
+	}
+	return send(res, 405)
+}
+
+async function onRows({ backend, project, method, req, res }: At, table: Table, inTable: (row: Row) => boolean) {
+	if (method === "GET") return send(res, 200, { items: [...backend.rows.values()].filter(inTable).map(shownRow) })
+	if (method !== "POST") return send(res, 405)
+	const body = await readJson(req)
+	if (body === null || typeof body.label !== "string") return send(res, 400, { error: "label is required" })
+	const row = { id: backend.nextId("r"), label: body.label, project, table: table.key }
+	backend.rows.set(row.id, row)
+	return send(res, 201, shownRow(row))
+}
+
+function onRow({ backend, method, res }: At, row: Row) {
+	if (method === "GET") return send(res, 200, shownRow(row))
+	if (method === "DELETE") {
+		backend.rows.delete(row.id)
+		return send(res, 204)
+	}
+	return send(res, 405)
+}
+
+/* Below a known table: the table itself, its rows, or one row. */
+function underTable(at: At, parts: string[], table: Table) {
+	if (parts.length === 5) return onTable(at, table)
+	if (parts[5] !== "rows") return send(at.res, 404, { error: "missing" })
+	const inTable = (row: Row) => row.table === table.key && row.project === at.project
+	if (parts.length === 6) return onRows(at, table, inTable)
+	const row = at.backend.rows.get(parts[6] ?? "")
+	if (row === undefined || !inTable(row)) return send(at.res, 404, { error: "missing" })
+	return onRow(at, row)
+}
+
+async function route(backend: TableBackend, req: IncomingMessage, res: ServerResponse) {
+	const url = new URL(req.url ?? "/", "http://x")
+	if (url.pathname === "/v1/openapi/spec") return send(res, 200, spec())
+	const caller = TOKENS[req.headers.authorization ?? ""]
+	if (caller === undefined) return send(res, 401, { error: "unauthenticated" })
+	const parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent)
+	if (parts[0] !== "v1" || parts[1] !== "projects" || parts[2] !== caller || parts[3] !== "tables") {
+		return send(res, 404, { error: "missing" })
+	}
+	const at: At = { backend, method: req.method ?? "GET", project: parts[2], req, res }
+	if (parts.length === 4) return onTables(at)
+	const table = backend.tableAt(at.project, parts[4] ?? "")
+	if (table === undefined) return send(res, 404, { error: "missing" })
+	return underTable(at, parts, table)
+}
+
+async function serve(options: Options = {}) {
+	const backend = new TableBackend(options)
 	const server = createServer((req, res) => {
-		void (async () => {
-			const at = new URL(req.url ?? "/", "http://x")
-			const method = req.method ?? "GET"
-			if (at.pathname === "/v1/openapi/spec") return send(res, 200, spec())
-			const caller = TOKENS[req.headers.authorization ?? ""]
-			if (caller === undefined) return send(res, 401, { error: "unauthenticated" })
-			const parts = at.pathname.split("/").filter(Boolean).map(decodeURIComponent)
-			if (parts[0] !== "v1" || parts[1] !== "projects" || parts[2] !== caller || parts[3] !== "tables") {
-				return send(res, 404, { error: "missing" })
-			}
-			const project = parts[2]
-			if (parts.length === 4) {
-				if (method === "GET") {
-					const own = [...tables.values()].filter((table) => table.project === project)
-					return send(res, 200, { items: own.map(shownTable) })
-				}
-				if (method !== "POST") return send(res, 405)
-				const body = await readJson(req)
-				if (body === null || typeof body.name !== "string") return send(res, 400, { error: "name is required" })
-				const slug = slugOf(body.name)
-				if (slug === "") return send(res, 400, { error: "name has no letters" })
-				if ([...tables.values()].some((table) => table.project === project && table.slug === slug)) {
-					return send(res, 409, { error: "slug taken" })
-				}
-				return send(res, 201, shownTable(addTable(project, body.name)))
-			}
-			const table = tableAt(project, parts[4] ?? "")
-			if (table === undefined) return send(res, 404, { error: "missing" })
-			if (parts.length === 5) {
-				if (table.project !== project) return send(res, 404, { error: "missing" })
-				if (method === "GET") return send(res, 200, shownTable(table))
-				if (method === "DELETE") {
-					tables.delete(table.key)
-					for (const row of rows.values()) if (row.table === table.key) rows.delete(row.id)
-					return send(res, 204)
-				}
-				return send(res, 405)
-			}
-			if (parts[5] !== "rows") return send(res, 404, { error: "missing" })
-			const inTable = (row: Row) => row.table === table.key && row.project === project
-			if (parts.length === 6) {
-				if (method === "GET") return send(res, 200, { items: [...rows.values()].filter(inTable).map(shownRow) })
-				if (method !== "POST") return send(res, 405)
-				const body = await readJson(req)
-				if (body === null || typeof body.label !== "string") return send(res, 400, { error: "label is required" })
-				const row = { id: `r${++seq}`, label: body.label, project, table: table.key }
-				rows.set(row.id, row)
-				return send(res, 201, shownRow(row))
-			}
-			const row = rows.get(parts[6] ?? "")
-			if (row === undefined || !inTable(row)) return send(res, 404, { error: "missing" })
-			if (method === "GET") return send(res, 200, shownRow(row))
-			if (method === "DELETE") {
-				rows.delete(row.id)
-				return send(res, 204)
-			}
-			return send(res, 405)
-		})()
+		void route(backend, req, res)
 	})
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
 	servers.push(() => new Promise((resolve) => server.close(() => resolve())))

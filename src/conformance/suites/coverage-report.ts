@@ -41,11 +41,11 @@ export function runCoverageReportSuite(): ParserResult[] {
 			"console does not put a ran check under DID NOT APPLY",
 			"the invalidate line lives in APPLIED ONLY ON SOME ENTITIES",
 			text.includes("APPLIED ONLY ON SOME ENTITIES") &&
-				(text.split("APPLIED ONLY ON SOME ENTITIES")[0] ?? "").includes("invalidation") === false,
+				text.slice(0, text.indexOf("APPLIED ONLY ON SOME ENTITIES")).includes("invalidation") === false,
 		],
 	]
 	return cases.map(([name, why, ok]) => ({
-		detail: ok ? "true" : "false",
+		detail: String(ok),
 		name,
 		ok,
 		why,

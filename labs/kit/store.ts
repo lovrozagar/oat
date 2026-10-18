@@ -1,6 +1,6 @@
-import { compileFilter, compileOrder, project, QueryError } from "./query.ts"
+import { listEntity, type ListPage, type ListParams } from "./list.ts"
 import { schemaStatements } from "./schema.ts"
-import { allColumns, entityByName, hasDefect, numericFields, parentIdField, type Entity, type World } from "./types.ts"
+import { entityByName, hasDefect, type Entity, type World } from "./types.ts"
 
 export type Row = Record<string, unknown>
 
@@ -18,16 +18,6 @@ export interface Driver {
 	exec(sql: string): Promise<void>
 	run(sql: string, args: Array<string | number | null>): Promise<void>
 	all(sql: string, args: Array<string | number | null>): Promise<Row[]>
-}
-
-export interface ListParams {
-	filter?: string
-	order?: string
-	select?: string
-	q?: string
-	limit?: number
-	page?: number
-	cursor?: string
 }
 
 export class WorldStore {
@@ -69,139 +59,8 @@ export class WorldStore {
 		return rows.length > 0
 	}
 
-	async list(
-		entity: Entity,
-		scope: Record<string, string>,
-		params: ListParams,
-	): Promise<{
-		items: Row[]
-		count: number
-		hasMore: boolean
-		nextCursor: string | null
-		page: number
-		limit: number
-	}> {
-		const columns = new Set(allColumns(entity))
-		const numeric = new Set(numericFields(entity))
-		const filterable = [
-			"id",
-			"org_id",
-			...entity.fields.filter((f) => f.filterable === true).map((f) => f.name),
-			"created_at",
-			"updated_at",
-		]
-		const sortable = [
-			"id",
-			...entity.fields.filter((f) => f.sortable === true).map((f) => f.name),
-			"created_at",
-			"updated_at",
-		]
-		const searchable = entity.fields.filter((f) => f.searchable === true).map((f) => f.name)
-		const selectable = allColumns(entity)
-		const maxLimit = entity.maxLimit ?? 100
-
-		const dropFilter = hasDefect(this.world, "drop-filter")
-		const filterAfterPage = hasDefect(this.world, "filter-after-page")
-		const bypassTenant =
-			hasDefect(this.world, "filter-bypass-tenant") && params.filter !== undefined && params.filter !== ""
-		const filterOpts = {
-			acceptUnknown: hasDefect(this.world, "accept-unknown-filter"),
-			andAsOr: hasDefect(this.world, "and-as-or"),
-			ignoreNeq: hasDefect(this.world, "ignore-neq"),
-			orAsAnd: hasDefect(this.world, "or-as-and"),
-			textCompare: hasDefect(this.world, "text-compare"),
-			unescapeLike: hasDefect(this.world, "unescape-like"),
-		}
-
-		const where: string[] = []
-		const args: Array<string | number | null> = []
-		if (!bypassTenant) {
-			where.push(`org_id = ?`)
-			args.push(scope.org_id ?? "")
-		}
-		if (entity.softDelete === true && !hasDefect(this.world, "list-tombstone")) {
-			where.push(`deleted_at IS NULL`)
-		}
-		const parent = parentIdField(entity)
-		if (parent !== null && scope[parent] !== undefined) {
-			where.push(`"${parent}" = ?`)
-			args.push(scope[parent] as string)
-		}
-
-		if (params.filter !== undefined && params.filter !== "" && !dropFilter && !filterAfterPage) {
-			const compiled = compileFilter(params.filter, filterable, columns, numeric, filterOpts)
-			where.push(compiled.sql)
-			args.push(...compiled.args)
-		} else if (params.filter !== undefined && params.filter !== "") {
-			/* Parse so unknown fields still 400; apply later or not at all. */
-			compileFilter(params.filter, filterable, columns, numeric, filterOpts)
-		}
-		if (params.q !== undefined && params.q !== "" && searchable.length > 0 && !hasDefect(this.world, "drop-search")) {
-			const needle = `%${params.q.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`
-			where.push(`(${searchable.map((f) => `LOWER("${f}") LIKE LOWER(?) ESCAPE '\\'`).join(" OR ")})`)
-			for (const _ of searchable) args.push(needle)
-		}
-
-		if (where.length === 0) where.push("1 = 1")
-		const whereSql = `WHERE ${where.join(" AND ")}`
-		const counted = await this.db.all(`SELECT COUNT(*) AS n FROM "${entity.plural}" ${whereSql}`, args)
-		const count = Number(counted[0]?.n ?? 0)
-		const compiledOrder = compileOrder(params.order ?? "created_at.desc", sortable, columns, "id")
-		const order = hasDefect(this.world, "drop-sort")
-			? { args: [] as Array<string | number | null>, sql: `"created_at" DESC, "id" ASC` }
-			: compiledOrder
-		const requested = params.limit ?? 20
-		const limit = hasDefect(this.world, "ignore-limit")
-			? 100_000
-			: hasDefect(this.world, "ignore-max-limit")
-				? Math.max(1, requested)
-				: Math.max(1, Math.min(requested, maxLimit))
-		const page = Math.max(params.page ?? 1, 1)
-		let offset = 0
-		if (!hasDefect(this.world, "ignore-page")) {
-			offset = (page - 1) * limit
-			if (params.cursor !== undefined && params.cursor !== "" && !hasDefect(this.world, "ignore-cursor")) {
-				const after = decodeCursor(params.cursor)
-				const idx = await this.db.all(`SELECT id FROM "${entity.plural}" ${whereSql} ORDER BY ${order.sql}`, args)
-				const at = idx.findIndex((row) => String(row.id) === after)
-				offset = at === -1 ? 0 : at + 1
-			}
-		}
-		const rows = await this.db.all(
-			`SELECT * FROM "${entity.plural}" ${whereSql} ORDER BY ${order.sql} LIMIT ? OFFSET ?`,
-			[...args, limit, offset],
-		)
-		let sliced = rows
-		if (filterAfterPage && params.filter !== undefined && params.filter !== "") {
-			const compiled = compileFilter(params.filter, filterable, columns, numeric)
-			const ids = rows.map((row) => row.id).filter((id): id is string => typeof id === "string")
-			if (ids.length === 0) sliced = []
-			else {
-				const filtered = await this.db.all(
-					`SELECT * FROM "${entity.plural}" WHERE id IN (${ids.map(() => "?").join(", ")}) AND (${compiled.sql})`,
-					[...ids, ...compiled.args],
-				)
-				const keep = new Set(filtered.map((row) => String(row.id)))
-				sliced = rows.filter((row) => keep.has(String(row.id)))
-			}
-		}
-		if (params.select !== undefined && params.select !== "" && hasDefect(this.world, "drop-select")) {
-			/* Validate the projection so unknown fields still 400, then ignore it. */
-			project({}, params.select, selectable, columns)
-		}
-		const items = hasDefect(this.world, "drop-select")
-			? sliced.map((row) => ({ ...row }))
-			: sliced.map((row) => project(row, params.select, selectable, columns))
-		const hasMore = hasDefect(this.world, "lie-has-more") ? false : offset + items.length < count
-		const last = items.at(-1)
-		return {
-			count: hasDefect(this.world, "lie-count") ? 0 : count,
-			hasMore,
-			items,
-			limit,
-			nextCursor: hasMore && last !== undefined ? encodeCursor(String(last.id)) : null,
-			page,
-		}
+	list(entity: Entity, scope: Record<string, string>, params: ListParams): Promise<ListPage> {
+		return listEntity(this, entity, scope, params)
 	}
 
 	async insert(entity: Entity, row: Row): Promise<Row> {
@@ -217,7 +76,7 @@ export class WorldStore {
 	async update(entity: Entity, orgId: string, id: string, patch: Row): Promise<Row | null> {
 		const current = await this.get(entity, orgId, id)
 		if (current === null) return null
-		const next = { ...current, ...patch, updated_at: Date.now() }
+		const next: Row = { ...current, ...patch, updated_at: Date.now() }
 		const extra: string[] = []
 		if (hasDefect(this.world, "widen-patch") && !Object.hasOwn(patch, "kind") && Object.hasOwn(current, "kind")) {
 			next.kind = current.kind === "red" ? "blue" : "red"
@@ -341,27 +200,5 @@ function grantFromRow(row: Row): Grant {
 		itemId: String(row.item_id),
 		ownerOrg: String(row.owner_org),
 		token: String(row.token),
-	}
-}
-
-function encodeCursor(id: string): string {
-	const json = JSON.stringify({ id })
-	const bytes = new TextEncoder().encode(json)
-	let bin = ""
-	for (const byte of bytes) bin += String.fromCharCode(byte)
-	return btoa(bin).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "")
-}
-
-function decodeCursor(cursor: string): string {
-	try {
-		const pad = cursor.replaceAll("-", "+").replaceAll("_", "/")
-		const padded = pad + "=".repeat((4 - (pad.length % 4)) % 4)
-		const bin = atob(padded)
-		const bytes = Uint8Array.from(bin, (ch) => ch.charCodeAt(0))
-		const parsed = JSON.parse(new TextDecoder().decode(bytes)) as { id?: string }
-		if (typeof parsed.id !== "string") throw new Error("missing")
-		return parsed.id
-	} catch {
-		throw new QueryError("cursor is not a value produced by this API")
 	}
 }

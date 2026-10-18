@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { DefectSet } from "../defects/defect-set.ts"
 import { ENTITIES } from "../model/entities.ts"
 import { MemoryStore } from "../stores/memory.ts"
+import { fakePostgres } from "../stores/__fixtures__/postgres.ts"
+import { PgStore } from "../stores/postgres.ts"
 import { SqlStore } from "../stores/sqlite.ts"
 import { type FakeServer, serve } from "./__fixtures__/fake-http.ts"
 import {
@@ -16,24 +18,12 @@ import {
 	sqliteStore,
 } from "./engines.ts"
 
-/* Every server the engines make binds nothing, and Postgres is a memory store standing in for one. */
-const fakes = vi.hoisted(() => ({ pg: [] as unknown[][], servers: [] as FakeServer[] }))
+/* Every server the engines make binds nothing; Postgres is reached through a fake connection. */
+const fakes = vi.hoisted(() => ({ servers: [] as FakeServer[] }))
 
 vi.mock("node:http", async () => {
 	const { fakeCreate } = await import("./__fixtures__/fake-http.ts")
 	return { createServer: fakeCreate(fakes.servers) }
-})
-
-vi.mock("../stores/postgres.ts", async () => {
-	const { MemoryStore: Stand } = await import("../stores/memory.ts")
-	return {
-		PgStore: {
-			create: async (...args: unknown[]) => {
-				fakes.pg.push(args)
-				return new Stand()
-			},
-		},
-	}
 })
 
 const CREDENTIALS = { accountId: "acct", apiToken: "secret", databaseId: "db" }
@@ -62,7 +52,6 @@ afterEach(() => {
 	vi.unstubAllEnvs()
 	vi.unstubAllGlobals()
 	fakes.servers.length = 0
-	fakes.pg.length = 0
 })
 
 describe("memoryStore and sqliteStore", () => {
@@ -75,10 +64,13 @@ describe("memoryStore and sqliteStore", () => {
 })
 
 describe("postgresStore", () => {
-	it("hands the defects and entities to the Postgres store", async () => {
-		const defects = new DefectSet(["FILTER_IGNORED"])
-		expect(await postgresStore(defects, ENTITIES)).toBeInstanceOf(MemoryStore)
-		expect(fakes.pg).toEqual([[defects, ENTITIES]])
+	it("builds a Postgres store for the defects and entities, over the connection it is given", async () => {
+		const pg = fakePostgres()
+		const store = await postgresStore(new DefectSet(["COLUMN_NAME_MISMATCH"]), ENTITIES, pg.connect)
+		expect(store).toBeInstanceOf(PgStore)
+		const tables = pg.statements.filter(({ query }) => query.startsWith("CREATE TABLE"))
+		expect(tables).toHaveLength(ENTITIES.length)
+		expect(tables.some(({ query }) => query.includes('"mislabelled_name" text'))).toBe(true)
 	})
 })
 
@@ -119,10 +111,11 @@ describe("d1Store", () => {
 describe("the servers", () => {
 	it("serve the reference on each engine, behind Node's server", async () => {
 		const d1 = stubD1()
+		const pg = fakePostgres()
 		const servers = [
 			await createMemoryServer(),
 			await createSqliteServer({ shape: "path-prefix" }),
-			await createPostgresServer(),
+			await createPostgresServer({ connect: pg.connect }),
 			await createD1Server({ ...CREDENTIALS, dialect: "classic" }),
 		]
 		expect(servers.map((server) => server.url)).toEqual([
@@ -140,9 +133,9 @@ describe("the servers", () => {
 			url: "/api/v1/projects/proj_alpha/tables",
 		})
 		expect(JSON.parse(listed.body)).toMatchObject({ count: 0, tables: [] })
-		expect(fakes.pg).toHaveLength(1)
 		expect(d1.length).toBeGreaterThan(0)
 		for (const server of servers) await server.close()
+		expect(pg.statements.at(-1)?.query).toMatch(/^DROP DATABASE IF EXISTS "oat_ref_/)
 	})
 
 	it("default to no options", async () => {

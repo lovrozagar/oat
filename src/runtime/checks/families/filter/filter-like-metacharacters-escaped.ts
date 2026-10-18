@@ -50,14 +50,13 @@ export const likeEscaping = defineCheck<{ field: string; likeTerm: Record<string
 			)
 		}
 		if (probe.items.length < total.items.length) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"LIKE metacharacters in a filter value are not escaped",
-			`filter=${field}.like.%25 matched all ${probe.items.length} records. "%" is a literal in ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "LIKE metacharacters in a filter value are not escaped",
+			detail:
+				`filter=${field}.like.%25 matched all ${probe.items.length} records. "%" is a literal in ` +
 				"this grammar; treating it as a wildcard means user input is being interpolated into a " +
 				"pattern unescaped.",
-			[total.last.exchange, probe.last.exchange],
-		)
+			evidence: [total.last.exchange, probe.last.exchange],
+		})
 	},
 })

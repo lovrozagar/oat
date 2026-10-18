@@ -57,6 +57,10 @@ export interface Blocked {
 export async function existingOrBlocked(run: EntityRun, blocked: Blocked): Promise<World | null> {
 	const existing = await readExisting(run, run.roots)
 	if (existing.records.length > 0) return degradedWorld(existing)
-	run.findings.blocked(blocked.check, run.entity.name, blocked.summary, blocked.detail, blocked.evidence)
+	run.findings.blocked(blocked.check, run.entity.name, {
+		summary: blocked.summary,
+		cause: blocked.detail,
+		evidence: blocked.evidence,
+	})
 	return null
 }

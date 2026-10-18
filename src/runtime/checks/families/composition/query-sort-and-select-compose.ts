@@ -39,14 +39,13 @@ export const querySortAndSelectCompose = defineCheck<{
 		const extras = Object.keys(first).filter((key) => !requested.includes(key))
 		const values = result.items.map((item) => item[field])
 		if (extras.length === 0 && sortedUnder(ctx, field, values) !== null) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"sort and select do not compose",
-			extras.length > 0
-				? `select leaked ${extras.slice(0, 5).join(", ")}.`
-				: `order=${field}.asc did not hold under the projection.`,
-			[result.exchange],
-		)
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "sort and select do not compose",
+			detail:
+				extras.length > 0
+					? `select leaked ${extras.slice(0, 5).join(", ")}.`
+					: `order=${field}.asc did not hold under the projection.`,
+			evidence: [result.exchange],
+		})
 	},
 })

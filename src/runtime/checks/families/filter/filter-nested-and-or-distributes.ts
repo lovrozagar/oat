@@ -77,12 +77,10 @@ export const filterNestedAndOrDistributes = defineCheck<{
 		const expected = new Set([...setA].filter((id) => setB.has(id) || setC.has(id)))
 		const got = setOf(combined.items, ctx.identity)
 		if (sameSet(expected, got)) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"and(A,or(B,C)) is not (A∩B) ∪ (A∩C)",
-			`nested combinator returned ${got.size}; the distributed form is ${expected.size}.`,
-			[combined.last.exchange, onlyA.last.exchange, onlyB.last.exchange, onlyC.last.exchange],
-		)
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "and(A,or(B,C)) is not (A∩B) ∪ (A∩C)",
+			detail: `nested combinator returned ${got.size}; the distributed form is ${expected.size}.`,
+			evidence: [combined.last.exchange, onlyA.last.exchange, onlyB.last.exchange, onlyC.last.exchange],
+		})
 	},
 })

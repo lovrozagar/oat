@@ -47,22 +47,18 @@ export const querySearchAndSortCompose = defineCheck<{
 		if (settled === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING)
 		const { first: searched, second: combined } = settled
 		if (!sameSet(setOf(searched.items, ctx.identity), setOf(combined.items, ctx.identity))) {
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"adding a sort changes which records a search returns",
-				`q=${JSON.stringify(token)} membership changed when order=${sortField} was added.`,
-				[searched.exchange, combined.exchange],
-			)
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "adding a sort changes which records a search returns",
+				detail: `q=${JSON.stringify(token)} membership changed when order=${sortField} was added.`,
+				evidence: [searched.exchange, combined.exchange],
+			})
 		}
 		const values = combined.items.map((item) => item[sortField])
 		if (sortedUnder(ctx, sortField, values) !== null) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"search results are not ordered",
-			`q + order=${sortField}.asc did not keep ${sortField} ascending.`,
-			[combined.exchange],
-		)
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "search results are not ordered",
+			detail: `q + order=${sortField}.asc did not keep ${sortField} ascending.`,
+			evidence: [combined.exchange],
+		})
 	},
 })

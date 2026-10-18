@@ -63,19 +63,24 @@ const pingSpec = (rateLimit?: Record<string, unknown>): OpenApiDocument =>
 		},
 	}) as OpenApiDocument
 
+/* A client paced by the spec's declared limits under a `maxRps` ceiling. */
+function pacedClient(spec: OpenApiDocument, url: string, maxRps: number): Client {
+	const limiter = new RateLimiter(buildRateLimitRules(buildModel(dereference(spec).doc), []), { maxRps })
+	return new Client({
+		baseUrl: url,
+		headers: {},
+		maxInFlight: 16,
+		onExchange: () => undefined,
+		rateLimiter: limiter,
+		redactor: new Redactor(),
+	})
+}
+
 describe("maxRps", () => {
 	it("paces every request to the origin, whatever route it is", async () => {
 		const spec = pingSpec()
 		const { hits, url } = await serve(spec)
-		const limiter = new RateLimiter(buildRateLimitRules(buildModel(dereference(spec).doc), []), { maxRps: 4 })
-		const client = new Client({
-			baseUrl: url,
-			headers: {},
-			maxInFlight: 16,
-			onExchange: () => undefined,
-			rateLimiter: limiter,
-			redactor: new Redactor(),
-		})
+		const client = pacedClient(spec, url, 4)
 		const started = performance.now()
 		await Promise.all(Array.from({ length: 12 }, () => client.request("GET", "/v1/ping")))
 		/* A burst of 4, then 4 a second: the last of 12 leaves no sooner than two seconds in. */
@@ -86,15 +91,7 @@ describe("maxRps", () => {
 	it("keeps a stricter limit a route declares", async () => {
 		const spec = pingSpec({ category: "ping", rps: 2 })
 		const { url } = await serve(spec)
-		const limiter = new RateLimiter(buildRateLimitRules(buildModel(dereference(spec).doc), []), { maxRps: 100 })
-		const client = new Client({
-			baseUrl: url,
-			headers: {},
-			maxInFlight: 16,
-			onExchange: () => undefined,
-			rateLimiter: limiter,
-			redactor: new Redactor(),
-		})
+		const client = pacedClient(spec, url, 100)
 		const started = performance.now()
 		await Promise.all(Array.from({ length: 6 }, () => client.request("GET", "/v1/ping", { operationId: "ping.get" })))
 		expect(performance.now() - started).toBeGreaterThanOrEqual(1_900)

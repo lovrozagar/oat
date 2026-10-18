@@ -39,13 +39,11 @@ export const sortStableTiebreak = defineCheck<{ primary: string; tiebreak: strin
 		if (settled === null) return ctx.findings.unresolved(this.id, ctx.entityName, "repeat sort was rejected")
 		const { first, second } = settled
 		if (ids(first.items, ctx.identity).join(",") !== ids(second.items, ctx.identity).join(",")) {
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"the same order is not deterministic across two walks",
-				`order=${order} (stableTiebreak=${tiebreak}) returned two different sequences.`,
-				[first.last.exchange, second.last.exchange],
-			)
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "the same order is not deterministic across two walks",
+				detail: `order=${order} (stableTiebreak=${tiebreak}) returned two different sequences.`,
+				evidence: [first.last.exchange, second.last.exchange],
+			})
 		}
 		/* Within a run of equal keys the declared tiebreak decides the order, so its values must
 		 * move one way. Which way is the backend's to choose; moving both ways is no tiebreak. */
@@ -64,14 +62,13 @@ export const sortStableTiebreak = defineCheck<{ primary: string; tiebreak: strin
 		}
 		flush()
 		if (broken.length === 0) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"ties are not broken by the declared tiebreak",
-			`order=${order} returned records tied on ${primary} (${broken.slice(0, 3).join(", ")}) in an ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "ties are not broken by the declared tiebreak",
+			detail:
+				`order=${order} returned records tied on ${primary} (${broken.slice(0, 3).join(", ")}) in an ` +
 				`order the declared stableTiebreak "${tiebreak}" does not explain. Pagination over such an ` +
 				"order can repeat or drop records at a page boundary.",
-			[first.last.exchange],
-		)
+			evidence: [first.last.exchange],
+		})
 	},
 })

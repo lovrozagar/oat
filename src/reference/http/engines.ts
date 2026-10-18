@@ -5,6 +5,10 @@
  * never touch it.
  */
 
+import type { DefectSet } from "../defects/defect-set.ts"
+import type { EntityDef } from "../model/types.ts"
+import type { Store } from "../store-api.ts"
+import type { PgConnect } from "../stores/postgres.ts"
 import { createReference, type Reference, type StoreFactory } from "./reference.ts"
 import { createReferenceServer, type ReferenceServer } from "./server.ts"
 import type { ReferenceOptions } from "./state.ts"
@@ -22,10 +26,22 @@ export const sqliteStore: StoreFactory = async (defects, entities) => {
 	return SqlStore.create(defects, await nodeSqliteDriver(), "", entities)
 }
 
-/** Postgres: needs a reachable server, not just the driver. */
-export const postgresStore: StoreFactory = async (defects, entities) => {
+/**
+ * Postgres: needs a reachable server, not just the driver. `connect` reaches it; left out, the
+ * store opens postgres.js against the server the environment names.
+ */
+export async function postgresStore(
+	defects: DefectSet,
+	entities: readonly EntityDef[],
+	connect?: PgConnect,
+): Promise<Store> {
 	const { PgStore } = await import("../stores/postgres.ts")
-	return PgStore.create(defects, entities)
+	return PgStore.create(defects, entities, connect)
+}
+
+/** What a Postgres-backed server is made from: the reference's options, and how to reach the server. */
+export interface PostgresServerOptions extends ReferenceOptions {
+	connect?: PgConnect
 }
 
 export interface D1Credentials {
@@ -72,8 +88,8 @@ export function createSqliteServer(options: ReferenceOptions = {}): Promise<Refe
 	return createReferenceServer(options, sqliteStore)
 }
 
-export function createPostgresServer(options: ReferenceOptions = {}): Promise<ReferenceServer> {
-	return createReferenceServer(options, postgresStore)
+export function createPostgresServer(options: PostgresServerOptions = {}): Promise<ReferenceServer> {
+	return createReferenceServer(options, (defects, entities) => postgresStore(defects, entities, options.connect))
 }
 
 export async function createD1Server(options: ReferenceOptions & D1Credentials = {}): Promise<ReferenceServer> {

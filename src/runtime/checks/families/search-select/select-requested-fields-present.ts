@@ -39,12 +39,10 @@ export const selectRequestedFieldsPresent = defineCheck<{
 		) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "identity was omitted from select and missing from items")
 		}
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"a requested select field is missing from the projection",
-			`select=${requested.join(",")} omitted ${missing.join(", ")}.`,
-			[result.exchange],
-		)
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "a requested select field is missing from the projection",
+			detail: `select=${requested.join(",")} omitted ${missing.join(", ")}.`,
+			evidence: [result.exchange],
+		})
 	},
 })

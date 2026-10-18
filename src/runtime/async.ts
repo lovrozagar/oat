@@ -126,6 +126,97 @@ export function inspectStreamAsync(receipt: unknown, spec: AsyncSpec): StreamAsy
 	return { events, id, idRecord, terminal }
 }
 
+/** What a job's poll needs: the start's receipt, where to poll, and how each poll authenticates. */
+export interface AsyncDrive {
+	client: Client
+	spec: AsyncSpec
+	receipt: unknown
+	scope: Record<string, string>
+	headers: () => Record<string, string>
+	refreshIfStale?: ((force?: boolean) => Promise<void>) | undefined
+	/** Resolves a `poll` that names an operation rather than spelling `"GET /path"`. */
+	operation?: ((operationId: string) => { method: string; path: string } | undefined) | undefined
+}
+
+/** The polls so far, and when polling began. */
+interface Polling {
+	began: number
+	exchanges: Exchange[]
+	polls: number
+}
+
+/** The caller's scope, plus the job id the receipt names bound to whichever poll-path parameter is unresolved. */
+function pollScopeOf(spec: AsyncSpec, receipt: unknown, scope: Record<string, string>): Record<string, string> {
+	const pollScope = { ...scope }
+	if (spec.idFrom === undefined) return pollScope
+	const id = resolveAsyncId(receipt, spec.idFrom)
+	if (id === undefined || id === null) return pollScope
+	const parameters = (spec.poll.match(/\{[^}]+\}/g) ?? []).map((parameter) => parameter.slice(1, -1))
+	const unbound = parameters.find((name) => pollScope[name] === undefined)
+	pollScope[unbound ?? spec.idFrom.replace(/^\$\./, "")] = String(id)
+	return pollScope
+}
+
+/** The poll's method and path template: spelled `"GET /path"`, or the operation `poll` names. */
+function pollRoute(input: AsyncDrive): { method: string; template: string } {
+	const { spec } = input
+	const named = spec.poll.includes("/") ? undefined : input.operation?.(spec.poll)
+	if (named !== undefined) return { method: named.method.toUpperCase(), template: named.path }
+	const [method, template = spec.poll] = spec.poll.split(" ") as [string, ...string[]]
+	return { method, template }
+}
+
+async function pollOnce(input: AsyncDrive, method: string, path: string): Promise<Exchange> {
+	/* Live headers + countdown refresh per poll: a long POST can outlive remaining TTL,
+	 * and a snapshot taken before the loop would keep sending the dead Bearer. */
+	if (input.refreshIfStale !== undefined) await input.refreshIfStale()
+	return input.client.request(method, path, {
+		headers: input.headers,
+		...(input.refreshIfStale === undefined ? {} : { refreshIfStale: input.refreshIfStale }),
+	})
+}
+
+function terminalOutcome(spec: AsyncSpec, record: Record<string, unknown>, run: Polling): AsyncOutcome {
+	const polled = {
+		elapsedMs: performance.now() - run.began,
+		exchanges: run.exchanges,
+		polls: run.polls,
+		terminal: record,
+		timedOut: false,
+	}
+	return spec.successWhen === undefined || matchesPredicate(record, spec.successWhen)
+		? { ...polled, state: "terminal", succeeded: true }
+		: { ...polled, state: "terminal", succeeded: false, unmet: spec.successWhen }
+}
+
+function unfinished(run: Polling, state: "vanished" | "timed-out"): AsyncOutcome {
+	return {
+		elapsedMs: performance.now() - run.began,
+		exchanges: run.exchanges,
+		polls: run.polls,
+		state,
+		succeeded: false,
+		terminal: null,
+		timedOut: state === "timed-out",
+	}
+}
+
+/** How one answer ends polling, or `undefined` while the job is still running. */
+function settledBy(spec: AsyncSpec, exchange: Exchange, run: Polling): AsyncOutcome | undefined {
+	if (exchange.status < 300) {
+		const body = exchange.responseBody
+		if (body === null || typeof body !== "object") return undefined
+		const record = body as Record<string, unknown>
+		const done = spec.until === undefined || matchesPredicate(record, spec.until)
+		return done ? terminalOutcome(spec, record, run) : undefined
+	}
+	/* The job was served and then was not — a vanished job, and reporting it as a timeout
+	 * would name the wrong problem. */
+	return exchange.status === 404 && run.exchanges.some((prior) => prior.status < 300)
+		? unfinished(run, "vanished")
+		: undefined
+}
+
 /**
  * Polls until `until` matches, the timeout expires, or the poll route stops responding.
  *
@@ -133,100 +224,35 @@ export function inspectStreamAsync(receipt: unknown, spec: AsyncSpec): StreamAsy
  * behave the same way, and the interval is fixed rather than exponential — the point is to
  * observe when the state changes, not to be gentle with an API oat is already hammering.
  */
-export async function driveAsync(
-	client: Client,
-	spec: AsyncSpec,
-	receipt: unknown,
-	scope: Record<string, string>,
-	headers: () => Record<string, string>,
-	refreshIfStale?: (force?: boolean) => Promise<void>,
-	/** Resolves a `poll` that names an operation rather than spelling `"GET /path"`. */
-	operation?: (operationId: string) => { method: string; path: string } | undefined,
-): Promise<AsyncOutcome> {
-	const exchanges: Exchange[] = []
-	const began = performance.now()
-
-	const pollScope = { ...scope }
-	if (spec.idFrom !== undefined) {
-		const id = resolveAsyncId(receipt, spec.idFrom)
-		if (id !== undefined && id !== null) {
-			/* The receipt names the job; bind it to whichever poll-path parameter is unresolved. */
-			const parameters = [...spec.poll.matchAll(/\{([^}]+)\}/g)].map((m) => m[1] ?? "")
-			const unbound = parameters.find((name) => pollScope[name] === undefined)
-			const target = unbound ?? spec.idFrom.replace(/^\$\./, "")
-			pollScope[target] = String(id)
-		}
-	}
-
-	const named = spec.poll.includes("/") ? undefined : operation?.(spec.poll)
-	const [method = "GET", template = spec.poll] =
-		named === undefined ? spec.poll.split(" ") : [named.method.toUpperCase(), named.path]
+export async function driveAsync(input: AsyncDrive): Promise<AsyncOutcome> {
+	const run: Polling = { began: performance.now(), exchanges: [], polls: 0 }
+	const pollScope = pollScopeOf(input.spec, input.receipt, input.scope)
+	const { method, template } = pollRoute(input)
 	let path: string
 	try {
 		path = fillPath(template, pollScope)
 	} catch (error) {
+		/* `fillPath` throws only a `SeedError`, naming the parameter it had no value for. */
 		return {
-			elapsedMs: performance.now() - began,
-			exchanges,
+			elapsedMs: performance.now() - run.began,
+			exchanges: run.exchanges,
 			polls: 0,
 			state: "unfillable",
 			succeeded: false,
 			terminal: null,
 			timedOut: false,
-			unfillable: error instanceof Error ? error.message : String(error),
+			unfillable: (error as Error).message,
 		}
 	}
-
-	let polls = 0
-	while (performance.now() - began < spec.timeoutMs) {
-		/* Live headers + countdown refresh per poll: a long POST can outlive remaining TTL,
-		 * and a snapshot taken before the loop would keep sending the dead Bearer. */
-		if (refreshIfStale !== undefined) await refreshIfStale()
-		const exchange = await client.request(method, path, {
-			headers,
-			...(refreshIfStale === undefined ? {} : { refreshIfStale }),
-		})
-		exchanges.push(exchange)
-		polls += 1
-
-		if (exchange.status < 300) {
-			const body = exchange.responseBody
-			if (body !== null && typeof body === "object") {
-				const record = body as Record<string, unknown>
-				const done = spec.until === undefined || matchesPredicate(record, spec.until)
-				if (done) {
-					const polled = { elapsedMs: performance.now() - began, exchanges, polls, terminal: record, timedOut: false }
-					return spec.successWhen === undefined || matchesPredicate(record, spec.successWhen)
-						? { ...polled, state: "terminal", succeeded: true }
-						: { ...polled, state: "terminal", succeeded: false, unmet: spec.successWhen }
-				}
-			}
-		} else if (exchange.status === 404 && exchanges.some((prior) => prior.status < 300)) {
-			/* The job was served and then was not — a vanished job, and reporting it as a timeout
-			 * would name the wrong problem. */
-			return {
-				elapsedMs: performance.now() - began,
-				exchanges,
-				polls,
-				state: "vanished",
-				succeeded: false,
-				terminal: null,
-				timedOut: false,
-			}
-		}
-
-		await sleep(spec.pollIntervalMs)
+	while (performance.now() - run.began < input.spec.timeoutMs) {
+		const exchange = await pollOnce(input, method, path)
+		run.exchanges.push(exchange)
+		run.polls += 1
+		const outcome = settledBy(input.spec, exchange, run)
+		if (outcome !== undefined) return outcome
+		await sleep(input.spec.pollIntervalMs)
 	}
-
-	return {
-		elapsedMs: performance.now() - began,
-		exchanges,
-		polls,
-		state: "timed-out",
-		succeeded: false,
-		terminal: null,
-		timedOut: true,
-	}
+	return unfinished(run, "timed-out")
 }
 
 function sleep(ms: number): Promise<void> {

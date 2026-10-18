@@ -94,30 +94,27 @@ beforeAll(async () => {
 })
 afterAll(() => close())
 
+/* A client against the local server that retries a failed request up to `retries` times. */
+function retrying(retries: number): Client {
+	return new Client({ baseUrl: url, headers: {}, maxInFlight: 4, network: { retries }, redactor: new Redactor() })
+}
+
 describe("the client", () => {
 	it("never resends a POST whose connection broke mid-request", async () => {
-		const client = new Client({
-			baseUrl: url,
-			headers: {},
-			maxInFlight: 4,
-			network: { retries: 3 },
-			redactor: new Redactor(),
-		})
+		const client = retrying(3)
 		hits = 0
-		await expect(client.request("POST", "/reset", { body: { a: 1 } })).rejects.toThrow()
+		await expect(client.request("POST", "/reset", { body: { a: 1 } })).rejects.toThrow(
+			/^POST http:\/\/127\.0\.0\.1:\d+\/reset failed \(reset: the connection was reset\)$/,
+		)
 		expect(hits).toBe(1)
 	})
 
 	it("resends a GET, which is safe to repeat", async () => {
-		const client = new Client({
-			baseUrl: url,
-			headers: {},
-			maxInFlight: 4,
-			network: { retries: 1 },
-			redactor: new Redactor(),
-		})
+		const client = retrying(1)
 		hits = 0
-		await expect(client.get("/reset")).rejects.toThrow()
+		await expect(client.get("/reset")).rejects.toThrow(
+			/^GET http:\/\/127\.0\.0\.1:\d+\/reset failed \(reset: the connection was reset\)$/,
+		)
 		expect(hits).toBe(2)
 	})
 

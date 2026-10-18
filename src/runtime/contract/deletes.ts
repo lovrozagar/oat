@@ -83,13 +83,11 @@ function judgeReadBack(input: ConfirmInput, op: OperationModel, target: ReadBack
 	input.findings
 		.attributed([op.operationId])
 		.ownedBy(DELETE_CHECK_ID)
-		.backend(
-			DELETE_CHECK_ID,
-			op.entity ?? op.operationId,
-			"a deleted record is still readable",
-			`${op.operationId} returned ${call.status}, and ${read.operationId} on the same path then returned ${after.status} with no deletion marker.`,
-			[call, after],
-		)
+		.backend(DELETE_CHECK_ID, op.entity ?? op.operationId, {
+			summary: "a deleted record is still readable",
+			detail: `${op.operationId} returned ${call.status}, and ${read.operationId} on the same path then returned ${after.status} with no deletion marker.`,
+			evidence: [call, after],
+		})
 }
 
 /**

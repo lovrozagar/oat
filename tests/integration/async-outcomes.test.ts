@@ -32,46 +32,45 @@ const spec = (poll: string, timeoutMs = 2000): AsyncSpec =>
 
 describe("how polling a job ends", () => {
 	it("reaches a terminal state, with poll named by operationId", async () => {
-		const outcome = await driveAsync(
-			new Client({ baseUrl: url, redactor: new Redactor() }),
-			spec("job.get"),
-			{ id: "done" },
-			{},
-			() => ({}),
-			undefined,
-			(id) => (id === "job.get" ? { method: "get", path: "/jobs/{id}" } : undefined),
-		)
+		const outcome = await driveAsync({
+			client: new Client({ baseUrl: url, redactor: new Redactor() }),
+			spec: spec("job.get"),
+			receipt: { id: "done" },
+			scope: {},
+			headers: () => ({}),
+			operation: (id) => (id === "job.get" ? { method: "get", path: "/jobs/{id}" } : undefined),
+		})
 		expect(outcome.state).toBe("terminal")
 	})
 
 	it("tells a job that vanished from one that never finished", async () => {
 		served = 0
-		const vanished = await driveAsync(
-			new Client({ baseUrl: url, redactor: new Redactor() }),
-			spec("GET /jobs/{id}"),
-			{ id: "vanishing" },
-			{},
-			() => ({}),
-		)
+		const vanished = await driveAsync({
+			client: new Client({ baseUrl: url, redactor: new Redactor() }),
+			spec: spec("GET /jobs/{id}"),
+			receipt: { id: "vanishing" },
+			scope: {},
+			headers: () => ({}),
+		})
 		expect(vanished.state).toBe("vanished")
-		const slow = await driveAsync(
-			new Client({ baseUrl: url, redactor: new Redactor() }),
-			spec("GET /jobs/{id}", 60),
-			{ id: "slow" },
-			{},
-			() => ({}),
-		)
+		const slow = await driveAsync({
+			client: new Client({ baseUrl: url, redactor: new Redactor() }),
+			spec: spec("GET /jobs/{id}", 60),
+			receipt: { id: "slow" },
+			scope: {},
+			headers: () => ({}),
+		})
 		expect(slow.state).toBe("timed-out")
 	})
 
 	it("says when the poll route cannot be filled, without asking", async () => {
-		const outcome = await driveAsync(
-			new Client({ baseUrl: url, redactor: new Redactor() }),
-			spec("GET /jobs/{id}/{part}"),
-			{},
-			{},
-			() => ({}),
-		)
+		const outcome = await driveAsync({
+			client: new Client({ baseUrl: url, redactor: new Redactor() }),
+			spec: spec("GET /jobs/{id}/{part}"),
+			receipt: {},
+			scope: {},
+			headers: () => ({}),
+		})
 		expect(outcome.state).toBe("unfillable")
 		expect(outcome.polls).toBe(0)
 	})

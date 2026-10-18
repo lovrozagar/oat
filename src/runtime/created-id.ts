@@ -65,7 +65,8 @@ export interface CreatedId {
 
 function asCreatedId(value: unknown, trusted: boolean): CreatedId | undefined {
 	const id = createdId(value)
-	return id === undefined || !isScalarId(value) ? undefined : { id, trusted, value }
+	/* `createdId` proves only a string or a number. */
+	return id === undefined ? undefined : { id, trusted, value: value as string | number }
 }
 
 /** The created record's id: declared, then the answer's own identity, then candidates. */

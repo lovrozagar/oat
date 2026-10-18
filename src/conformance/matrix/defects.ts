@@ -8,10 +8,10 @@ import type { Backend } from "./engines.ts"
  * The in-memory store has no physical column names, so a DDL/read naming mismatch has nowhere
  * to happen. Every other defect is defined above the stores and runs on every engine.
  */
-export const SQL_ONLY: ReadonlySet<DefectName> = new Set<DefectName>(["COLUMN_NAME_MISMATCH"])
+export const SQL_ONLY: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<DefectName>(["COLUMN_NAME_MISMATCH"])
 
 /* Only a create that takes the client's id can ignore or overwrite it: the client-ids shape runs these. */
-export const CLIENT_ID_ONLY: ReadonlySet<DefectName> = new Set<DefectName>([
+export const CLIENT_ID_ONLY: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<DefectName>([
 	"CLIENT_ID_IGNORED",
 	"CLIENT_ID_OVERWRITES",
 ])
@@ -26,7 +26,7 @@ export const CLIENT_ID_ONLY: ReadonlySet<DefectName> = new Set<DefectName>([
  * The lost update is not among them: the handler holds the write open on purpose, so it is real on
  * any engine and runs on the in-memory one only (`ONE_ENGINE`).
  */
-export const ENGINE_SENSITIVE: ReadonlySet<DefectName> = new Set<DefectName>([
+export const ENGINE_SENSITIVE: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<DefectName>([
 	"COLLATION_INCONSISTENT",
 	"COLUMN_NAME_MISMATCH",
 	"LIKE_UNESCAPED",
@@ -45,14 +45,19 @@ export const ENGINE_SENSITIVE: ReadonlySet<DefectName> = new Set<DefectName>([
  * shape even exhibit" is a property of the fixture, and a new dialect that forgets to declare
  * itself here shows up as missed detections rather than as silent exclusions.
  */
-export const DIALECTS_WITH_CURSOR: ReadonlySet<string> = new Set(["postgrest"])
+export const DIALECTS_WITH_CURSOR: ReadonlySet<string> = /* @__PURE__ */ new Set(["postgrest"])
 
 /**
  * Dialects that report a total. A shape publishing no count cannot publish a wrong one, so the
  * count defects have nowhere to happen — the same reasoning that excuses cursor defects on a
  * cursorless API, and not an excuse for a check that merely failed to fire.
  */
-export const DIALECTS_WITH_TOTAL: ReadonlySet<string> = new Set(["postgrest", "classic", "jsonapi", "template"])
+export const DIALECTS_WITH_TOTAL: ReadonlySet<string> = /* @__PURE__ */ new Set([
+	"postgrest",
+	"classic",
+	"jsonapi",
+	"template",
+])
 
 /**
  * Dialects whose filtering is an expression language rather than one parameter per field.
@@ -61,7 +66,7 @@ export const DIALECTS_WITH_TOTAL: ReadonlySet<string> = new Set(["postgrest", "c
  * query parameter, and no way to write a pattern — so the defects that live inside a filter
  * grammar have nowhere to happen.
  */
-export const DIALECTS_WITH_FILTER_EXPRESSION: ReadonlySet<string> = new Set([
+export const DIALECTS_WITH_FILTER_EXPRESSION: ReadonlySet<string> = /* @__PURE__ */ new Set([
 	"postgrest",
 	"classic",
 	"linked",
@@ -70,7 +75,7 @@ export const DIALECTS_WITH_FILTER_EXPRESSION: ReadonlySet<string> = new Set([
 ])
 
 /** Defects that need a filter expression language to exist at all. */
-export const EXPRESSION_ONLY: ReadonlySet<DefectName> = new Set<DefectName>([
+export const EXPRESSION_ONLY: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<DefectName>([
 	"ERROR_500_ON_BAD_FILTER",
 	/* Per-field equality has no declared filter *expression* to overclaim: an unrecognised
 	 * parameter is simply ignored, which is conventional rather than a broken promise. */
@@ -94,7 +99,7 @@ export const EXPRESSION_ONLY: ReadonlySet<DefectName> = new Set<DefectName>([
  * equality cannot emit those operators, so injecting the lie there is a miss that names the
  * grammar rather than oat.
  */
-export const POSTGREST_OP_ONLY: ReadonlySet<DefectName> = new Set<DefectName>([
+export const POSTGREST_OP_ONLY: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<DefectName>([
 	"FILTER_IN_FIRST_ONLY",
 	"FILTER_ILIKE_IS_LIKE",
 	"FILTER_IS_NULL_MATCHES_ALL",
@@ -113,23 +118,37 @@ export const POSTGREST_OP_ONLY: ReadonlySet<DefectName> = new Set<DefectName>([
  * Defects oat only probes on a declared sort grammar: a direction token is unknown on purpose only
  * when oat knows the grammar's own. The reference declares its sort grammar where it is a template.
  */
-export const DECLARED_SORT_ONLY: ReadonlySet<DefectName> = new Set<DefectName>(["IGNORES_BAD_SORT_DIRECTION"])
+export const DECLARED_SORT_ONLY: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<DefectName>([
+	"IGNORES_BAD_SORT_DIRECTION",
+])
 
 /** Defects that need a search-mode parameter, which only some dialects publish. */
-export const SEARCH_MODE_ONLY: ReadonlySet<DefectName> = new Set<DefectName>(["SEARCH_MODE_REJECTED"])
+export const SEARCH_MODE_ONLY: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<DefectName>(["SEARCH_MODE_REJECTED"])
 
 /** Defects that need a nulls token in the sort grammar — only the dotted grammar writes one. */
-export const NULLS_TOKEN_ONLY: ReadonlySet<DefectName> = new Set<DefectName>(["SORT_NULLS_MODIFIER_IGNORED"])
+export const NULLS_TOKEN_ONLY: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<DefectName>([
+	"SORT_NULLS_MODIFIER_IGNORED",
+])
 
-export const DIALECTS_WITH_POSTGREST_FILTER: ReadonlySet<string> = new Set(["postgrest", "linked", "jsonapi"])
+export const DIALECTS_WITH_POSTGREST_FILTER: ReadonlySet<string> = /* @__PURE__ */ new Set([
+	"postgrest",
+	"linked",
+	"jsonapi",
+])
 
 /** Defects that need a reported total to exist at all. */
-export const COUNT_ONLY: ReadonlySet<DefectName> = new Set<DefectName>(["COUNT_ALWAYS_ZERO", "COUNT_IGNORES_FILTER"])
+export const COUNT_ONLY: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<DefectName>([
+	"COUNT_ALWAYS_ZERO",
+	"COUNT_IGNORES_FILTER",
+])
 
-export const CURSOR_ONLY: ReadonlySet<DefectName> = new Set<DefectName>(["CURSOR_DRIFT", "COLLATION_INCONSISTENT"])
+export const CURSOR_ONLY: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<DefectName>([
+	"CURSOR_DRIFT",
+	"COLLATION_INCONSISTENT",
+])
 
 /** Defects whose symptom does not depend on the API's query or envelope conventions. */
-const DIALECT_INSENSITIVE: ReadonlySet<DefectName> = new Set<DefectName>([
+const DIALECT_INSENSITIVE: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<DefectName>([
 	"PATCH_REPLACES",
 	"CALLER_UPDATE_DROPPED",
 	"PUBLIC_GET_NOT_SUCCESS",
@@ -164,10 +183,10 @@ const DIALECT_INSENSITIVE: ReadonlySet<DefectName> = new Set<DefectName>([
 ])
 
 /** Defects that need a page-number parameter to be seen. */
-const PAGE_NUMBER_ONLY: ReadonlySet<DefectName> = new Set<DefectName>(["PAGE_PAST_END_REPEATS"])
+const PAGE_NUMBER_ONLY: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<DefectName>(["PAGE_PAST_END_REPEATS"])
 
 /** Defects that run on the in-memory engine only: the store plays no part in them. */
-const ONE_ENGINE: ReadonlySet<DefectName> = new Set<DefectName>([
+const ONE_ENGINE: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<DefectName>([
 	"CONCURRENT_WRITE_LOST",
 	"CALLER_UPDATE_DROPPED",
 	"PUBLIC_GET_NOT_SUCCESS",

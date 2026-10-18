@@ -61,7 +61,7 @@ describe("commandRun", () => {
 		const writer = bufferWriter()
 		const run = deps()
 		const code = await commandRun(writer, { config: notesConfig(), out, quiet: true }, run)
-		expect(code, writer.text()).toBe(0)
+		expect({ code, output: writer.text() }).toEqual({ code: 0, output: expect.any(String) })
 		expect(existsSync(join(out, "latest", "oat-report.json"))).toBe(true)
 		expect(writer.text()).toContain(`  latest: ${join(out, "latest")}\n\n`)
 		expect(readFileSync(join(out, "latest", "progress.log"), "utf8").length).toBeGreaterThan(0)

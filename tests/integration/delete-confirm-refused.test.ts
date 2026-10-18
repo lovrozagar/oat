@@ -23,7 +23,7 @@ describe("delete.absent-record-returns-404 when the read-back is refused", () =>
 			const judged = result.findings.some((finding) => finding.check === "delete.absent-record-returns-404")
 			const unjudged = result.inconclusive.filter((entry) => entry.check === "delete.absent-record-returns-404")
 			expect(judged || unjudged.length > 0).toBe(true)
-			if (!judged) expect(unjudged[0]?.reason).toMatch(/answered 40[13]/)
+			expect(judged ? "judged" : unjudged[0]?.reason).toMatch(/^judged$|answered 40[13]/)
 		} finally {
 			await server.close()
 		}

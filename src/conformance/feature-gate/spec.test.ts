@@ -1,0 +1,24 @@
+import { describe, expect, it } from "vitest"
+import { buildModel } from "../../spec/graph/build.ts"
+import { webhookSpec } from "./spec.ts"
+
+describe("webhookSpec", () => {
+	it("tags webhook create and update, and never an invite", () => {
+		const model = buildModel(webhookSpec("webhooks"))
+		const gates = Object.fromEntries([...model.byOperationId].map(([id, op]) => [id, op.featureGate]))
+		expect(gates).toEqual({
+			"invite.create": null,
+			"invite.list": null,
+			"webhook.create": "webhooks",
+			"webhook.list": null,
+			"webhook.read": null,
+			"webhook.update": "webhooks",
+		})
+	})
+
+	it("leaves the tag out when there is none", () => {
+		const model = buildModel(webhookSpec(null))
+		expect([...model.byOperationId.values()].map((op) => op.featureGate)).toEqual(Array(6).fill(null))
+		expect(JSON.stringify(webhookSpec(null))).not.toContain("x-feature-gate")
+	})
+})

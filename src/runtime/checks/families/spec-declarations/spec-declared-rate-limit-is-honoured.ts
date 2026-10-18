@@ -40,17 +40,16 @@ export const declaredRateLimitHonoured = defineCheck({
 			byCategory.set(category, [...(byCategory.get(category) ?? []), exchange])
 		}
 		for (const [category, exchanges] of byCategory) {
-			ctx.findings.spec(
-				this.id,
-				ctx.entityName,
-				`the declared "${category}" rate limit is not honoured`,
-				`${exchanges.length} request(s) to the "${category}" category returned 429 despite oat ` +
+			ctx.findings.spec(this.id, ctx.entityName, {
+				summary: `the declared "${category}" rate limit is not honoured`,
+				detail:
+					`${exchanges.length} request(s) to the "${category}" category returned 429 despite oat ` +
 					"pacing them within the rate x-rate-limit declares — each had a free token in its own " +
 					"bucket at the moment it was sent, so this is not oat outrunning its own model. Either " +
 					`the declared rate is wrong, or the backend enforces a stricter one than "${category}" ` +
 					"documents.",
-				exchanges.slice(0, 3),
-			)
+				evidence: exchanges.slice(0, 3),
+			})
 		}
 		ctx.judged?.([...observed])
 		return ASSERTED

@@ -212,7 +212,7 @@ export class SqlStore implements Store {
 	async select(entity: EntityDef, plan: SelectPlan): Promise<Row[]> {
 		const args: SqlParam[] = []
 		const where = compileWhere(plan.where, entity, this.flavour, args)
-		const order = compileOrder(plan.order, plan.collation, plan.shuffleTies, entity, this.flavour)
+		const order = compileOrder(plan, entity, this.flavour)
 		const rows = await this.db.all(
 			`SELECT ${this.selectList(entity)} FROM ${tableName(entity, this.prefix)} WHERE ${where}${order}`,
 			args.map(toSql),

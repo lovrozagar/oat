@@ -58,16 +58,15 @@ export const rankIsMonotonic = defineCheck<{ id: string; readOp: OperationModel;
 				const lo = outcomes.get(lower.id)
 				const hi = outcomes.get(higher.id)
 				if (lo !== "allow" || hi !== "deny") continue
-				return ctx.findings.backend(
-					this.id,
-					ctx.entityName,
-					"a lower-ranked role can read a record a higher-ranked role cannot",
-					`${lower.role ?? lower.id} (rank ${lower.rank}) was served ${ctx.entityName} ${id}; ` +
+				return ctx.findings.backend(this.id, ctx.entityName, {
+					summary: "a lower-ranked role can read a record a higher-ranked role cannot",
+					detail:
+						`${lower.role ?? lower.id} (rank ${lower.rank}) was served ${ctx.entityName} ${id}; ` +
 						`${higher.role ?? higher.id} (rank ${higher.rank}) was denied. Privilege must be ` +
 						"monotonic — a member who can see what an owner cannot is the lattice inverted, " +
 						"not a finer policy.",
-					[seen.get(lower.id), seen.get(higher.id)].filter((exchange) => exchange !== undefined),
-				)
+					evidence: [seen.get(lower.id), seen.get(higher.id)].filter((exchange) => exchange !== undefined),
+				})
 			}
 		}
 		return ASSERTED

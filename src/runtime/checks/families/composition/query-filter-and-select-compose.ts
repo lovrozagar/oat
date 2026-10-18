@@ -76,18 +76,17 @@ export const filterAndSelectCompose = defineCheck<Subset & { extra: string; proj
 		const extraIds = [...combined].filter((id) => !alone.has(id))
 		if (missing.length === 0 && extraIds.length === 0) return ASSERTED
 
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"adding a select changes which records a filter returns",
-			`filter on "${field}" alone matched ${alone.size} record(s); the same filter with ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "adding a select changes which records a filter returns",
+			detail:
+				`filter on "${field}" alone matched ${alone.size} record(s); the same filter with ` +
 				`select=${[ctx.identity, extra].join(",")} matched ${combined.size}. ` +
 				(missing.length > 0 ? `Dropped: ${missing.slice(0, 3).join(", ")}. ` : "") +
 				(extraIds.length > 0 ? `Appeared: ${extraIds.slice(0, 3).join(", ")}. ` : "") +
 				"A projection must change which columns come back, never which rows — a filter " +
 				"that only holds while every column is selected is one a query plan is dropping " +
 				"once it has to name the columns.",
-			[filtered.last.exchange, both.last.exchange],
-		)
+			evidence: [filtered.last.exchange, both.last.exchange],
+		})
 	},
 })

@@ -38,13 +38,11 @@ export const selectNestedHonoured = defineCheck<{
 			const rows = Array.isArray(nested) ? nested : [nested]
 			const scalar = rows.find((row) => row === null || typeof row !== "object" || Array.isArray(row))
 			if (scalar !== undefined) {
-				return ctx.findings.backend(
-					this.id,
-					ctx.entityName,
-					"nested select did not return the relation as records",
-					`select=${relation.name}(${first}) left "${relation.name}" holding ${JSON.stringify(scalar)}.`,
-					[result.exchange],
-				)
+				return ctx.findings.backend(this.id, ctx.entityName, {
+					summary: "nested select did not return the relation as records",
+					detail: `select=${relation.name}(${first}) left "${relation.name}" holding ${JSON.stringify(scalar)}.`,
+					evidence: [result.exchange],
+				})
 			}
 			related.push(...(rows as Record_[]))
 		}
@@ -53,12 +51,10 @@ export const selectNestedHonoured = defineCheck<{
 		}
 		const keys = [...new Set(related.flatMap((row) => Object.keys(row)))]
 		if (keys.every((key) => key === first)) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"nested select did not restrict the relation to the requested field",
-			`select=${relation.name}(${first}) returned ${keys.join(", ")}.`,
-			[result.exchange],
-		)
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "nested select did not restrict the relation to the requested field",
+			detail: `select=${relation.name}(${first}) returned ${keys.join(", ")}.`,
+			evidence: [result.exchange],
+		})
 	},
 })

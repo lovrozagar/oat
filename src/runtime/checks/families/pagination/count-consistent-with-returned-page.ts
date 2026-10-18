@@ -28,15 +28,14 @@ export const countIsConsistentWithPage = defineCheck({
 		if (returned === 0) return ctx.findings.unresolved(this.id, ctx.entityName, "the listing returned nothing to count")
 		if (reported >= returned) return ASSERTED
 
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"reported count is smaller than the number of records returned",
-			`the response carries count=${reported} while returning ${returned} record(s) in the same ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "reported count is smaller than the number of records returned",
+			detail:
+				`the response carries count=${reported} while returning ${returned} record(s) in the same ` +
 				`body${envelopeValue(ctx, result, "hasMore") === true ? " and hasMore=true" : ""}. The total is being ` +
 				"computed by a query that disagrees with the one producing the rows, so any caller " +
 				"rendering a result count contradicts the list it is labelling.",
-			[result.exchange],
-		)
+			evidence: [result.exchange],
+		})
 	},
 })

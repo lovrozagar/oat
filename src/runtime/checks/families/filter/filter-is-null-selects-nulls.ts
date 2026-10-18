@@ -63,14 +63,13 @@ export const filterIsNullSelectsNulls = defineCheck<{
 		const gotNulls = knownHits(nulls.items, ctx)
 		const overlap = [...gotNulls].filter((id) => knownHits(present.items, ctx).has(id))
 		if (!sameSet(expectedNulls, gotNulls) || overlap.length > 0) {
-			ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"is.null / is.notnull do not partition on nulls",
-				`is.null returned ${gotNulls.size} record(s); ${expectedNulls.size} cohort rows are null. ` +
+			ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "is.null / is.notnull do not partition on nulls",
+				detail:
+					`is.null returned ${gotNulls.size} record(s); ${expectedNulls.size} cohort rows are null. ` +
 					(overlap.length > 0 ? `${overlap.length} appear on both sides.` : ""),
-				[nulls.last.exchange, present.last.exchange],
-			)
+				evidence: [nulls.last.exchange, present.last.exchange],
+			})
 		}
 		return ASSERTED
 	},

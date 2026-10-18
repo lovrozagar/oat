@@ -56,12 +56,10 @@ export async function unwind(ctx: RunContext): Promise<void> {
 		noteHookErrors(ctx, report.verifyHookErrors ?? [])
 		ctx.state.teardown = merged(ctx.state.teardown, report)
 	} catch (error) {
-		findings.blocked(
-			"world.teardown" satisfies RunFindingId,
-			"run",
-			`teardown stopped on an unexpected error with ${ledger.size} record(s) ledgered`,
-			errorText(error),
-		)
+		findings.blocked("world.teardown" satisfies RunFindingId, "run", {
+			summary: `teardown stopped on an unexpected error with ${ledger.size} record(s) ledgered`,
+			cause: errorText(error),
+		})
 	}
 }
 
@@ -69,12 +67,10 @@ export async function unwind(ctx: RunContext): Promise<void> {
 function noteHookErrors({ state, findings }: RunContext, errors: readonly string[]): void {
 	if (errors.length === 0 || state.verifyHookFailed) return
 	state.verifyHookFailed = true
-	findings.gap(
-		"teardown.verify-hook" satisfies RunFindingId,
-		"teardown",
-		"hooks.verifyRemoved threw",
-		`${errors.length} call(s) threw, so those records keep teardown's own verdict: ${errors[0]}`,
-	)
+	findings.gap("teardown.verify-hook" satisfies RunFindingId, "teardown", {
+		summary: "hooks.verifyRemoved threw",
+		detail: `${errors.length} call(s) threw, so those records keep teardown's own verdict: ${errors[0]}`,
+	})
 }
 
 function merged(before: TeardownReport | null, report: TeardownReport): TeardownReport {
@@ -92,13 +88,12 @@ export function reportUnremovable({ state, findings }: RunContext): void {
 	const unremovable = state.teardown?.unsupported ?? []
 	if (unremovable.length === 0) return
 	const names = unremovable.join(", ")
-	findings.gap(
-		"world.teardown" satisfies RunFindingId,
-		names,
-		"records created during the run could not be removed",
-		`no delete operation is reachable for ${names}, so this run left ` +
+	findings.gap("world.teardown" satisfies RunFindingId, names, {
+		summary: "records created during the run could not be removed",
+		detail:
+			`no delete operation is reachable for ${names}, so this run left ` +
 			"fixtures behind. Declare x-cleanup to name the route that removes them.",
-	)
+	})
 }
 
 /**
@@ -121,25 +116,22 @@ export async function teardownPrincipals({ options, hooks, findings, principals 
 	const teardown = hooks.teardownPrincipal
 	if (teardown === undefined) {
 		const addresses = provisioned.map(({ address }) => address)
-		findings.gap(
-			"world.teardown" satisfies RunFindingId,
-			"principal",
-			`${addresses.length} principal(s) provisioned by this run were not removed`,
-			`oat registered ${addresses.join(", ")} to run this test and has no way to delete them. ` +
+		findings.gap("world.teardown" satisfies RunFindingId, "principal", {
+			summary: `${addresses.length} principal(s) provisioned by this run were not removed`,
+			detail:
+				`oat registered ${addresses.join(", ")} to run this test and has no way to delete them. ` +
 				"Supply a teardownPrincipal hook, or these accounts accumulate on every run.",
-		)
+		})
 		return
 	}
 	for (const { address, principal, runtime } of provisioned) {
 		try {
 			await teardown(address, { credential: runtime.credential(), headers: principal.headers() })
 		} catch (error) {
-			findings.gap(
-				"world.teardown" satisfies RunFindingId,
-				"principal",
-				`could not remove provisioned principal ${address}`,
-				messageOf(error),
-			)
+			findings.gap("world.teardown" satisfies RunFindingId, "principal", {
+				summary: `could not remove provisioned principal ${address}`,
+				detail: messageOf(error),
+			})
 		}
 	}
 }

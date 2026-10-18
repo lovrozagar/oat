@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { probeOrigin } from "./probe.ts"
 
-const answering = (response: Response) => vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => response)
+const answering = (response: Response) => vi.fn<typeof fetch>(async () => response)
 const throwing = (error: unknown) =>
-	vi.fn(async (_url: string | URL | Request, _init?: RequestInit): Promise<Response> => {
+	vi.fn<typeof fetch>(async () => {
 		throw error
 	})
 const refused = Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNREFUSED" } })

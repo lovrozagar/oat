@@ -46,8 +46,8 @@ async function watched(
 	asyncOps: OperationModel[] = [startJob],
 	fields: Partial<CheckContext> = {},
 ) {
-	const recordCreated = vi.fn()
-	const recordUnidentified = vi.fn()
+	const recordCreated = vi.fn<NonNullable<CheckContext["recordCreated"]>>()
+	const recordUnidentified = vi.fn<NonNullable<CheckContext["recordUnidentified"]>>()
 	const stage = contextFor(model, "listWidgets", respond, { asyncOps, recordCreated, recordUnidentified, ...fields })
 	const outcome = await check.run(stage.ctx, undefined)
 	return { ...stage, outcome, recordCreated, recordUnidentified }
@@ -132,7 +132,7 @@ describe("a polled job's record", () => {
 	})
 
 	it("refreshes a stale credential before polling", async () => {
-		const refreshIfStale = vi.fn(async () => undefined)
+		const refreshIfStale = vi.fn<NonNullable<CheckContext["refreshIfStale"]>>(async () => undefined)
 		await watched(started(polls(done)), [startJob], { refreshIfStale })
 		expect(refreshIfStale).toHaveBeenCalled()
 	})

@@ -28,13 +28,12 @@ export const searchNarrowsResult = defineCheck<{ field: string }>({
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the search was rejected")
 		if (result.items.length === 0) return ASSERTED
 
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"free-text search returns records that cannot match",
-			`q= a token no record contains returned ${result.items.length} of ${all.items.length} ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "free-text search returns records that cannot match",
+			detail:
+				`q= a token no record contains returned ${result.items.length} of ${all.items.length} ` +
 				"records, so the search term is being ignored rather than applied.",
-			[all.exchange, result.exchange],
-		)
+			evidence: [all.exchange, result.exchange],
+		})
 	},
 })

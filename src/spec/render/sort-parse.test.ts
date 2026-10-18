@@ -32,8 +32,8 @@ describe("parseSortGrammar", () => {
 			[{ ...TEMPLATE, nulls: { first: "", last: "b" } }, "nulls"],
 		] as const) {
 			const result = parseSortGrammar(raw)
-			expect(result.ok, key).toBe(false)
-			expect(result.ok ? "" : result.error, key).toContain(key)
+			expect({ key, ok: result.ok }).toEqual({ key, ok: false })
+			expect(result.ok ? "" : result.error).toContain(key)
 		}
 	})
 })

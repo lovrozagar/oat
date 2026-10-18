@@ -123,71 +123,100 @@ interface Hit {
 	path: string
 }
 
+type Fruit = { id: string; name: string; note: string }
+type FruitName = "apple" | "banana"
+
+/* Records every hit and whether two entities were ever in flight at once. */
+type World = {
+	hits: Hit[]
+	inflight: Set<string>
+	overlap: boolean
+	seq: number
+	stores: Record<FruitName, Map<string, Fruit>>
+}
+
+type Exchange = {
+	entity: FruitName
+	method: string
+	req: IncomingMessage
+	res: ServerResponse
+	store: Map<string, Fruit>
+}
+
+async function createFruit(world: World, { entity, req, res, store }: Exchange): Promise<void> {
+	const body = ((await readJson(req)) ?? {}) as { name?: string; note?: string }
+	world.seq += 1
+	const row = { id: `${entity}_${world.seq}`, name: body.name ?? "n", note: body.note ?? "" }
+	store.set(row.id, row)
+	send(res, 201, row)
+}
+
+async function patchFruit(id: string, { req, res, store }: Exchange): Promise<void> {
+	const row = store.get(id)
+	if (row === undefined) return send(res, 404, { error: "missing" })
+	const body = ((await readJson(req)) ?? {}) as { name?: string; note?: string }
+	const next = { ...row, ...body }
+	store.set(id, next)
+	send(res, 200, next)
+}
+
+async function fruitItem(id: string, exchange: Exchange): Promise<void> {
+	const { method, res, store } = exchange
+	if (method === "GET") {
+		const row = store.get(id)
+		return row === undefined ? send(res, 404, { error: "missing" }) : send(res, 200, row)
+	}
+	if (method === "PATCH") return patchFruit(id, exchange)
+	if (method !== "DELETE") return send(res, 405)
+	store.delete(id)
+	send(res, 204)
+}
+
+async function answer(world: World, id: string | undefined, exchange: Exchange): Promise<void> {
+	const { method, res, store } = exchange
+	if (id !== undefined) return fruitItem(id, exchange)
+	if (method === "GET") return send(res, 200, { items: [...store.values()] })
+	if (method === "POST") return createFruit(world, exchange)
+	send(res, 405)
+}
+
+async function route(world: World, req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const url = new URL(req.url ?? "/", "http://127.0.0.1")
+	const method = (req.method ?? "GET").toUpperCase()
+	if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, SPEC)
+
+	const match = /^\/v1\/(apples|bananas)(?:\/([^/]+))?$/.exec(url.pathname)
+	if (match === null) return send(res, 404, { error: "missing" })
+	const entity: FruitName = match[1] === "apples" ? "apple" : "banana"
+
+	world.inflight.add(entity)
+	for (const other of world.inflight) {
+		if (other !== entity) world.overlap = true
+	}
+	world.hits.push({ at: Date.now(), entity, method, path: url.pathname })
+
+	try {
+		await answer(world, match[2], { entity, method, req, res, store: world.stores[entity] })
+	} finally {
+		world.inflight.delete(entity)
+	}
+}
+
 async function startWorld(): Promise<{
 	close: () => Promise<void>
 	hits: Hit[]
 	overlap: boolean
 	url: string
 }> {
-	const stores = {
-		apple: new Map<string, { id: string; name: string; note: string }>(),
-		banana: new Map<string, { id: string; name: string; note: string }>(),
+	const world: World = {
+		hits: [],
+		inflight: new Set(),
+		overlap: false,
+		seq: 0,
+		stores: { apple: new Map(), banana: new Map() },
 	}
-	const hits: Hit[] = []
-	const inflight = new Set<string>()
-	let overlap = false
-	let seq = 0
-
 	const server = createServer((req, res) => {
-		void (async () => {
-			const url = new URL(req.url ?? "/", "http://127.0.0.1")
-			const method = (req.method ?? "GET").toUpperCase()
-			if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, SPEC)
-
-			const match = /^\/v1\/(apples|bananas)(?:\/([^/]+))?$/.exec(url.pathname)
-			if (match === null) return send(res, 404, { error: "missing" })
-			const entity = match[1] === "apples" ? "apple" : "banana"
-			const id = match[2]
-			const store = stores[entity]
-
-			inflight.add(entity)
-			for (const other of inflight) {
-				if (other !== entity) overlap = true
-			}
-			hits.push({ at: Date.now(), entity, method, path: url.pathname })
-
-			try {
-				if (id === undefined && method === "GET") {
-					return send(res, 200, { items: [...store.values()] })
-				}
-				if (id === undefined && method === "POST") {
-					const body = ((await readJson(req)) ?? {}) as { name?: string; note?: string }
-					seq += 1
-					const row = { id: `${entity}_${seq}`, name: body.name ?? "n", note: body.note ?? "" }
-					store.set(row.id, row)
-					return send(res, 201, row)
-				}
-				if (id !== undefined && method === "GET") {
-					const row = store.get(id)
-					return row === undefined ? send(res, 404, { error: "missing" }) : send(res, 200, row)
-				}
-				if (id !== undefined && method === "PATCH") {
-					const row = store.get(id)
-					if (row === undefined) return send(res, 404, { error: "missing" })
-					const body = ((await readJson(req)) ?? {}) as { name?: string; note?: string }
-					const next = { ...row, ...body }
-					store.set(id, next)
-					return send(res, 200, next)
-				}
-				if (id !== undefined && method === "DELETE") {
-					store.delete(id)
-					return send(res, 204)
-				}
-				return send(res, 405)
-			} finally {
-				inflight.delete(entity)
-			}
-		})()
+		void route(world, req, res)
 	})
 
 	await new Promise<void>((resolve) => {
@@ -199,9 +228,9 @@ async function startWorld(): Promise<{
 			new Promise((resolve, reject) => {
 				server.close((error) => (error ? reject(error) : resolve()))
 			}),
-		hits,
+		hits: world.hits,
 		get overlap() {
-			return overlap
+			return world.overlap
 		},
 		url: `http://127.0.0.1:${addr.port}`,
 	}

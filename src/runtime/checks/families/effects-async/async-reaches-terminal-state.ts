@@ -64,20 +64,24 @@ async function watchJob(run: Invocation, uploads: UploadContext): Promise<void> 
 	const receipt =
 		fromStream?.idRecord !== null && fromStream?.idRecord !== undefined ? fromStream.idRecord : start.responseBody
 	if (streamed && fromStream !== null && (fromStream.id === undefined || fromStream.id === null)) {
-		ctx.findings.backend(
-			run.check,
-			about(run),
-			`${op.operationId} job disappeared before completing`,
-			"the stream ended without a terminal frame and without a job id, so the poll route cannot be named.",
-			[start],
-			run.fixture,
-		)
+		ctx.findings.backend(run.check, about(run), {
+			summary: `${op.operationId} job disappeared before completing`,
+			detail: "the stream ended without a terminal frame and without a job id, so the poll route cannot be named.",
+			evidence: [start],
+			fixture: run.fixture,
+		})
 		return
 	}
 
-	const outcome = await driveAsync(ctx.client, spec, receipt, ctx.scope, ctx.auth, ctx.refreshIfStale, (operationId) =>
-		ctx.model.byOperationId.get(operationId),
-	)
+	const outcome = await driveAsync({
+		client: ctx.client,
+		headers: ctx.auth,
+		operation: (operationId) => ctx.model.byOperationId.get(operationId),
+		receipt,
+		refreshIfStale: ctx.refreshIfStale,
+		scope: ctx.scope,
+		spec,
+	})
 	recordJob(run, receipt, start)
 	judgePolled(run, start, outcome)
 }
@@ -102,13 +106,11 @@ async function startJob(run: Invocation, uploads: UploadContext): Promise<Exchan
 		return undefined
 	}
 	if (start.status >= 400) {
-		ctx.findings.gap(
-			run.check,
-			about(run),
-			`${op.operationId} could not be started`,
-			`returned ${start.status}; the async lifecycle after it is untested`,
-			run.fixture,
-		)
+		ctx.findings.gap(run.check, about(run), {
+			summary: `${op.operationId} could not be started`,
+			detail: `returned ${start.status}; the async lifecycle after it is untested`,
+			fixture: run.fixture,
+		})
 		return undefined
 	}
 	return start
@@ -117,13 +119,11 @@ async function startJob(run: Invocation, uploads: UploadContext): Promise<Exchan
 function judgeStreamedTerminal(run: Invocation, terminal: Record<string, unknown>): void {
 	const { successWhen } = run.spec
 	if (successWhen === undefined || matchesPredicate(terminal, successWhen)) return
-	run.ctx.findings.gap(
-		run.check,
-		about(run),
-		`${run.op.operationId} reached a non-success terminal state`,
-		`terminal state did not satisfy "${successWhen}"; downstream effects of this operation are untested`,
-		run.fixture,
-	)
+	run.ctx.findings.gap(run.check, about(run), {
+		summary: `${run.op.operationId} reached a non-success terminal state`,
+		detail: `terminal state did not satisfy "${successWhen}"; downstream effects of this operation are untested`,
+		fixture: run.fixture,
+	})
 }
 
 /** The job this start created is a record like any other, and oat's to remove. */
@@ -140,16 +140,15 @@ function recordJob(run: Invocation, receipt: unknown, start: Exchange): void {
 function judgePolled(run: Invocation, start: Exchange, outcome: AsyncOutcome): void {
 	const { ctx, op, spec } = run
 	if (outcome.state === "timed-out") {
-		ctx.findings.backend(
-			run.check,
-			about(run),
-			`${op.operationId} never reached a terminal state`,
-			`polled ${spec.poll} ${outcome.polls} time(s) over ${Math.round(outcome.elapsedMs)}ms ` +
+		ctx.findings.backend(run.check, about(run), {
+			summary: `${op.operationId} never reached a terminal state`,
+			detail:
+				`polled ${spec.poll} ${outcome.polls} time(s) over ${Math.round(outcome.elapsedMs)}ms ` +
 				`without satisfying "${spec.until ?? "any terminal state"}". A job that neither ` +
 				"completes nor fails leaves callers polling forever.",
-			[start, ...outcome.exchanges.slice(-2)],
-			run.fixture,
-		)
+			evidence: [start, ...outcome.exchanges.slice(-2)],
+			fixture: run.fixture,
+		})
 		return
 	}
 	if (outcome.state === "unfillable") {
@@ -162,23 +161,20 @@ function judgePolled(run: Invocation, start: Exchange, outcome: AsyncOutcome): v
 		return
 	}
 	if (outcome.state === "vanished") {
-		ctx.findings.backend(
-			run.check,
-			about(run),
-			`${op.operationId} job disappeared before completing`,
-			`the poll route stopped serving the job after ${outcome.polls} poll(s). A job that ` +
+		ctx.findings.backend(run.check, about(run), {
+			summary: `${op.operationId} job disappeared before completing`,
+			detail:
+				`the poll route stopped serving the job after ${outcome.polls} poll(s). A job that ` +
 				"vanishes is indistinguishable from one that never existed.",
-			[start, ...outcome.exchanges.slice(-2)],
-			run.fixture,
-		)
+			evidence: [start, ...outcome.exchanges.slice(-2)],
+			fixture: run.fixture,
+		})
 		return
 	}
 	if (outcome.succeeded) return
-	ctx.findings.gap(
-		run.check,
-		about(run),
-		`${op.operationId} reached a non-success terminal state`,
-		`terminal state did not satisfy "${outcome.unmet}"; downstream effects of this operation are untested`,
-		run.fixture,
-	)
+	ctx.findings.gap(run.check, about(run), {
+		summary: `${op.operationId} reached a non-success terminal state`,
+		detail: `terminal state did not satisfy "${outcome.unmet}"; downstream effects of this operation are untested`,
+		fixture: run.fixture,
+	})
 }

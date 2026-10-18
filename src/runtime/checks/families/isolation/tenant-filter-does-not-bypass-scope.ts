@@ -50,14 +50,13 @@ export const crossTenantFilterBypass = defineCheck<{
 			"filter matches, so any caller who can guess an id can read it."
 
 		if (tenantDeclared) {
-			return ctx.findings.security(
-				this.id,
-				ctx.entityName,
-				"a filter reaches records outside the caller's tenant",
-				`${detail} The list declares x-tenant: "${ctx.listOp.tenantParam}", so this crosses ` +
+			return ctx.findings.security(this.id, ctx.entityName, {
+				summary: "a filter reaches records outside the caller's tenant",
+				detail:
+					`${detail} The list declares x-tenant: "${ctx.listOp.tenantParam}", so this crosses ` +
 					"a boundary the document states exists.",
-				[result.exchange],
-			)
+				evidence: [result.exchange],
+			})
 		}
 
 		ctx.findings.report({

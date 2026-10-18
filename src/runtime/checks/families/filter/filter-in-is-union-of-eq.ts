@@ -51,13 +51,12 @@ export const filterInIsUnionOfEq = defineCheck<{
 		const expected = union(onlyA, onlyB)
 		const got = setOf(together.items, ctx.identity)
 		if (sameSet(expected, got)) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"in() is not the union of the equalities it lists",
-			`${field}.in.(${String(a)},${String(b)}) returned ${got.size} record(s); ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "in() is not the union of the equalities it lists",
+			detail:
+				`${field}.in.(${String(a)},${String(b)}) returned ${got.size} record(s); ` +
 				`eq on each value together match ${expected.size}.`,
-			[together.last.exchange, onlyA.last.exchange, onlyB.last.exchange],
-		)
+			evidence: [together.last.exchange, onlyA.last.exchange, onlyB.last.exchange],
+		})
 	},
 })

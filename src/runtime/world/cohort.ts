@@ -112,9 +112,7 @@ function seedRefused(run: CohortRun, member: CohortMember, exchange: Exchange): 
 	return new SeedError(
 		createOp.operationId,
 		`seeding "${member.variant}" returned ${exchange.status}: ` + JSON.stringify(exchange.responseBody).slice(0, 300),
-		exchange.status,
-		createOp.operationId,
-		exchange,
+		{ exchange, operationId: createOp.operationId, status: exchange.status },
 	)
 }
 

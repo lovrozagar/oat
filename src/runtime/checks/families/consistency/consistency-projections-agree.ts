@@ -104,17 +104,16 @@ export const projectionsAgree = defineCheck<{
 
 		const disagreeing = seen.filter((entry) => JSON.stringify(entry.value) !== JSON.stringify(value))
 		if (disagreeing.length > 0) {
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"the same record carries different values depending on how it is read",
-				`${ctx.entityName} ${id} has "${field}" = ${JSON.stringify(value)} on the record oat ` +
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "the same record carries different values depending on how it is read",
+				detail:
+					`${ctx.entityName} ${id} has "${field}" = ${JSON.stringify(value)} on the record oat ` +
 					`created, but ${disagreeing
 						.map((entry) => `the ${entry.projection} returns ${JSON.stringify(entry.value)}`)
 						.join(", and ")}. At least one read path is serving something the others are not; ` +
 					"a client's view of a record then depends on which route it happened to use.",
-				[detail, plain.exchange],
-			)
+				evidence: [detail, plain.exchange],
+			})
 		}
 		return filterMembership(ctx, this.id, { detail, field, id, value })
 	},
@@ -194,13 +193,12 @@ async function filterMembership(
 		)
 	}
 
-	return ctx.findings.backend(
-		check,
-		ctx.entityName,
-		"a record is missing from a filter matching its own field value",
-		`${ctx.entityName} ${id} carries "${field}" = ${JSON.stringify(value)} on every read path, ` +
+	return ctx.findings.backend(check, ctx.entityName, {
+		summary: "a record is missing from a filter matching its own field value",
+		detail:
+			`${ctx.entityName} ${id} carries "${field}" = ${JSON.stringify(value)} on every read path, ` +
 			`yet filtering for exactly that value does not return it. The record and the predicate ` +
 			"agree; the index or query that answers the filter does not.",
-		[detail, included.last.exchange],
-	)
+		evidence: [detail, included.last.exchange],
+	})
 }

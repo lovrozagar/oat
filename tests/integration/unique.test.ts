@@ -13,7 +13,13 @@ const ITEM = {
 	type: "object",
 }
 
-function widgetDoc(tag: unknown | undefined): OpenApiDocument {
+const CONFLICT = {
+	content: { "application/json": { schema: { properties: { error_key: { type: "string" } }, type: "object" } } },
+	description: "conflict",
+}
+const ID_PARAM = [{ in: "path", name: "id", required: true, schema: { type: "string" } }]
+
+function createOp(tag: unknown | undefined): Record<string, unknown> {
 	const create: Record<string, unknown> = {
 		operationId: "widget.create",
 		requestBody: {
@@ -26,71 +32,70 @@ function widgetDoc(tag: unknown | undefined): OpenApiDocument {
 		},
 		responses: {
 			"201": { content: { "application/json": { schema: ITEM } }, description: "created" },
-			"409": {
-				content: { "application/json": { schema: { properties: { error_key: { type: "string" } }, type: "object" } } },
-				description: "conflict",
-			},
+			"409": CONFLICT,
 		},
 		"x-entity": { action: "create", identity: "id", name: "widget" },
 	}
 	if (tag !== undefined) create["x-unique"] = tag
+	return create
+}
+
+const LIST_OP = {
+	operationId: "widget.list",
+	responses: {
+		"200": {
+			content: {
+				"application/json": {
+					schema: {
+						properties: { widgets: { items: ITEM, type: "array" } },
+						required: ["widgets"],
+						type: "object",
+					},
+				},
+			},
+			description: "ok",
+		},
+	},
+	"x-entity": { action: "list", identity: "id", name: "widget" },
+}
+
+function itemPath(tag: unknown | undefined): Record<string, unknown> {
+	return {
+		delete: {
+			operationId: "widget.delete",
+			parameters: ID_PARAM,
+			responses: { "204": { description: "gone" } },
+			"x-entity": { action: "delete", identity: "id", name: "widget" },
+		},
+		get: {
+			operationId: "widget.read",
+			parameters: ID_PARAM,
+			responses: { "200": { content: { "application/json": { schema: ITEM } }, description: "ok" } },
+			"x-entity": { action: "read", identity: "id", name: "widget" },
+		},
+		patch: {
+			operationId: "widget.update",
+			parameters: ID_PARAM,
+			requestBody: {
+				content: { "application/json": { schema: { properties: { name: { type: "string" } }, type: "object" } } },
+			},
+			responses: {
+				"200": { content: { "application/json": { schema: ITEM } }, description: "ok" },
+				"409": CONFLICT,
+			},
+			"x-entity": { action: "update", identity: "id", name: "widget" },
+			...(tag === undefined ? {} : { "x-unique": tag }),
+		},
+	}
+}
+
+function widgetDoc(tag: unknown | undefined): OpenApiDocument {
 	return {
 		info: { title: "unique", version: "1" },
 		openapi: "3.1.0",
 		paths: {
-			"/v1/widgets": {
-				get: {
-					operationId: "widget.list",
-					responses: {
-						"200": {
-							content: {
-								"application/json": {
-									schema: {
-										properties: { widgets: { items: ITEM, type: "array" } },
-										required: ["widgets"],
-										type: "object",
-									},
-								},
-							},
-							description: "ok",
-						},
-					},
-					"x-entity": { action: "list", identity: "id", name: "widget" },
-				},
-				post: create,
-			},
-			"/v1/widgets/{id}": {
-				delete: {
-					operationId: "widget.delete",
-					parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
-					responses: { "204": { description: "gone" } },
-					"x-entity": { action: "delete", identity: "id", name: "widget" },
-				},
-				get: {
-					operationId: "widget.read",
-					parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
-					responses: { "200": { content: { "application/json": { schema: ITEM } }, description: "ok" } },
-					"x-entity": { action: "read", identity: "id", name: "widget" },
-				},
-				patch: {
-					operationId: "widget.update",
-					parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
-					requestBody: {
-						content: { "application/json": { schema: { properties: { name: { type: "string" } }, type: "object" } } },
-					},
-					responses: {
-						"200": { content: { "application/json": { schema: ITEM } }, description: "ok" },
-						"409": {
-							content: {
-								"application/json": { schema: { properties: { error_key: { type: "string" } }, type: "object" } },
-							},
-							description: "conflict",
-						},
-					},
-					"x-entity": { action: "update", identity: "id", name: "widget" },
-					...(tag === undefined ? {} : { "x-unique": tag }),
-				},
-			},
+			"/v1/widgets": { get: LIST_OP, post: createOp(tag) },
+			"/v1/widgets/{id}": itemPath(tag),
 		},
 	} as OpenApiDocument
 }
@@ -128,61 +133,89 @@ function readJson(req: IncomingMessage): Promise<unknown> {
 	})
 }
 
-async function serve(options: {
+interface ServeOptions {
 	duplicate: "409" | "201"
 	tag?: unknown
 	seed409?: boolean
 	seeded?: boolean
-}): Promise<{ close: () => Promise<void>; url: string }> {
-	const document = widgetDoc(options.tag)
-	const rows = new Map<string, { id: string; name: string }>()
-	let seq = 0
-	let posts = 0
-	if (options.seeded === true) rows.set("w_existing", { id: "w_existing", name: "Existing" })
+}
 
+interface Widget {
+	id: string
+	name: string
+}
+
+/* Widgets by id; a duplicate name is refused with 409 only when `duplicate` says so. */
+class WidgetBackend {
+	readonly rows = new Map<string, Widget>()
+	#seq = 0
+	#posts = 0
+	readonly #options: ServeOptions
+
+	constructor(options: ServeOptions) {
+		this.#options = options
+		if (options.seeded === true) this.rows.set("w_existing", { id: "w_existing", name: "Existing" })
+	}
+
+	#taken(name: string, except?: string): boolean {
+		return [...this.rows.values()].some((row) => row.id !== except && row.name === name)
+	}
+
+	async create(req: IncomingMessage, res: ServerResponse) {
+		const body = ((await readJson(req)) ?? {}) as { name?: string }
+		this.#posts += 1
+		if (this.#options.seed409 === true && this.#posts === 1) return send(res, 409, { error_key: "conflict" })
+		const name = typeof body.name === "string" ? body.name : ""
+		if (this.#taken(name) && this.#options.duplicate === "409") return send(res, 409, { error_key: "conflict" })
+		const id = `w_${String((this.#seq += 1))}`
+		const row = { id, name }
+		this.rows.set(id, row)
+		return send(res, 201, row)
+	}
+
+	async update(id: string, req: IncomingMessage, res: ServerResponse) {
+		const row = this.rows.get(id)
+		if (row === undefined) return send(res, 404)
+		const body = ((await readJson(req)) ?? {}) as { name?: string }
+		if (typeof body.name === "string") {
+			if (this.#taken(body.name, id) && this.#options.duplicate === "409") {
+				return send(res, 409, { error_key: "conflict" })
+			}
+			row.name = body.name
+		}
+		return send(res, 200, row)
+	}
+
+	item(method: string, id: string, req: IncomingMessage, res: ServerResponse) {
+		if (method === "GET") {
+			const row = this.rows.get(id)
+			return row === undefined ? send(res, 404) : send(res, 200, row)
+		}
+		if (method === "PATCH") return this.update(id, req, res)
+		if (method === "DELETE") {
+			this.rows.delete(id)
+			return send(res, 204)
+		}
+		return send(res, 404)
+	}
+}
+
+async function route(backend: WidgetBackend, document: OpenApiDocument, req: IncomingMessage, res: ServerResponse) {
+	const url = new URL(req.url ?? "/", "http://127.0.0.1")
+	const method = (req.method ?? "GET").toUpperCase()
+	if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, document)
+	if (url.pathname === "/v1/widgets" && method === "GET") return send(res, 200, { widgets: [...backend.rows.values()] })
+	if (url.pathname === "/v1/widgets" && method === "POST") return backend.create(req, res)
+	const item = /^\/v1\/widgets\/([^/]+)$/.exec(url.pathname)
+	if (item === null) return send(res, 404)
+	return backend.item(method, decodeURIComponent(item[1] ?? ""), req, res)
+}
+
+async function serve(options: ServeOptions): Promise<{ close: () => Promise<void>; url: string }> {
+	const document = widgetDoc(options.tag)
+	const backend = new WidgetBackend(options)
 	const server = createServer((req, res) => {
-		void (async () => {
-			const url = new URL(req.url ?? "/", "http://127.0.0.1")
-			const method = (req.method ?? "GET").toUpperCase()
-			if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, document)
-			if (url.pathname === "/v1/widgets" && method === "GET") return send(res, 200, { widgets: [...rows.values()] })
-			if (url.pathname === "/v1/widgets" && method === "POST") {
-				const body = ((await readJson(req)) ?? {}) as { name?: string }
-				posts += 1
-				if (options.seed409 === true && posts === 1) return send(res, 409, { error_key: "conflict" })
-				const name = typeof body.name === "string" ? body.name : ""
-				if ([...rows.values()].some((row) => row.name === name)) {
-					if (options.duplicate === "409") return send(res, 409, { error_key: "conflict" })
-				}
-				const id = `w_${String((seq += 1))}`
-				const row = { id, name }
-				rows.set(id, row)
-				return send(res, 201, row)
-			}
-			const item = /^\/v1\/widgets\/([^/]+)$/.exec(url.pathname)
-			if (item !== null && method === "GET") {
-				const row = rows.get(decodeURIComponent(item[1] ?? ""))
-				return row === undefined ? send(res, 404) : send(res, 200, row)
-			}
-			if (item !== null && method === "PATCH") {
-				const id = decodeURIComponent(item[1] ?? "")
-				const row = rows.get(id)
-				if (row === undefined) return send(res, 404)
-				const body = ((await readJson(req)) ?? {}) as { name?: string }
-				if (typeof body.name === "string") {
-					if ([...rows.values()].some((other) => other.id !== id && other.name === body.name)) {
-						if (options.duplicate === "409") return send(res, 409, { error_key: "conflict" })
-					}
-					row.name = body.name
-				}
-				return send(res, 200, row)
-			}
-			if (item !== null && method === "DELETE") {
-				rows.delete(decodeURIComponent(item[1] ?? ""))
-				return send(res, 204)
-			}
-			return send(res, 404)
-		})().catch(() => {
+		route(backend, document, req, res).catch(() => {
 			if (!res.headersSent) send(res, 500)
 		})
 	})
@@ -248,46 +281,37 @@ describe("x-unique", () => {
 		expect(doctor.text).toContain("x-unique:")
 		expect(doctor.text).toContain("[name]")
 	})
+})
 
+/* A run of the widget entity alone against the world `options` serves. */
+async function runWidgets(options: ServeOptions) {
+	const world = await serve(options)
+	worlds.push(world)
+	return run({
+		baseUrl: world.url,
+		only: ["widget"],
+		principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
+		seed: 1,
+		spec: `${world.url}/v1/openapi/spec`,
+	})
+}
+
+describe("x-unique", () => {
 	it("409 duplicate create is not BACKEND_BUG; 201 duplicate is", async () => {
-		const pass = await serve({ duplicate: "409", tag: [["name"]] })
-		worlds.push(pass)
-		const passed = await run({
-			baseUrl: pass.url,
-			only: ["widget"],
-			principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
-			seed: 1,
-			spec: `${pass.url}/v1/openapi/spec`,
-		})
+		const passed = await runWidgets({ duplicate: "409", tag: [["name"]] })
 		expect(passed.checksRun).toContain("create.unique-conflict-rejected")
 		expect(
 			passed.findings.some((f) => f.check === "create.unique-conflict-rejected" && f.verdict === "BACKEND_BUG"),
 		).toBe(false)
 
-		const fail = await serve({ duplicate: "201", tag: [["name"]] })
-		worlds.push(fail)
-		const failed = await run({
-			baseUrl: fail.url,
-			only: ["widget"],
-			principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
-			seed: 1,
-			spec: `${fail.url}/v1/openapi/spec`,
-		})
+		const failed = await runWidgets({ duplicate: "201", tag: [["name"]] })
 		expect(
 			failed.findings.some((f) => f.check === "create.unique-conflict-rejected" && f.verdict === "BACKEND_BUG"),
 		).toBe(true)
 	})
 
 	it("missing tag does not run the check; untagged 409 is a seed failure", async () => {
-		const world = await serve({ duplicate: "409", seed409: true })
-		worlds.push(world)
-		const result = await run({
-			baseUrl: world.url,
-			only: ["widget"],
-			principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
-			seed: 1,
-			spec: `${world.url}/v1/openapi/spec`,
-		})
+		const result = await runWidgets({ duplicate: "409", seed409: true })
 		expect(result.checksRun).not.toContain("create.unique-conflict-rejected")
 		const seed = result.findings.find((f) => f.check === "world.seed")
 		expect(seed?.verdict).toBe("BLOCKED")
@@ -295,15 +319,7 @@ describe("x-unique", () => {
 	})
 
 	it("tagged seed 409 with a nonempty list adopts and still runs the unique check", async () => {
-		const world = await serve({ duplicate: "409", seed409: true, seeded: true, tag: [["name"]] })
-		worlds.push(world)
-		const result = await run({
-			baseUrl: world.url,
-			only: ["widget"],
-			principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
-			seed: 1,
-			spec: `${world.url}/v1/openapi/spec`,
-		})
+		const result = await runWidgets({ duplicate: "409", seed409: true, seeded: true, tag: [["name"]] })
 		const seed = result.findings.find((f) => f.check === "world.seed")
 		expect(seed?.verdict).toBe("COVERAGE_GAP")
 		expect(seed?.detail).toContain("x-unique")

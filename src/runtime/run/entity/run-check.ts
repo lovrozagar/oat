@@ -106,7 +106,7 @@ async function outcomeOf(
 		}
 		const name = loop.run.entity.name
 		const detail = messageOf(error)
-		return view.findings.gap(check.id, name, `check "${check.id}" could not complete`, detail)
+		return view.findings.gap(check.id, name, { summary: `check "${check.id}" could not complete`, detail })
 	}
 }
 
@@ -131,22 +131,18 @@ export async function unresolvedBy(stopped: Stopped, error: unknown): Promise<st
 		return "the network failed"
 	}
 	if (error instanceof FencedError) {
-		attributed.blocked(
-			"fence",
-			name,
-			`${checkId} was fenced: ${error.request.reason}`,
-			`${error.message}. The request was never sent, so ${checkId} could not complete.`,
-		)
+		attributed.blocked("fence", name, {
+			summary: `${checkId} was fenced: ${error.request.reason}`,
+			cause: `${error.message}. The request was never sent, so ${checkId} could not complete.`,
+		})
 		return "a request was fenced"
 	}
 	if (error instanceof MissingValueError) return error.message
 	if (!(error instanceof AuthRefreshError)) return undefined
-	attributed.blocked(
-		"auth.refresh" satisfies RunFindingId,
-		name,
-		`refreshing the credential${error.principal === undefined ? "" : ` of "${error.principal}"`} failed`,
-		`${error.message}. ${checkId} could not complete.`,
-	)
+	attributed.blocked("auth.refresh" satisfies RunFindingId, name, {
+		summary: `refreshing the credential${error.principal === undefined ? "" : ` of "${error.principal}"`} failed`,
+		cause: `${error.message}. ${checkId} could not complete.`,
+	})
 	return "a credential could not be refreshed"
 }
 

@@ -66,16 +66,15 @@ export const filterSearchSortCompose = defineCheck<Subset & { token: string; sor
 		const extraIds = [...got].filter((id) => !expected.has(id))
 		if (missing.length === 0 && extraIds.length === 0) return ASSERTED
 
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"adding a sort changes which records a filter and a search return",
-			`filter on "${field}" with q=${JSON.stringify(token)} matched ${expected.size}; ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "adding a sort changes which records a filter and a search return",
+			detail:
+				`filter on "${field}" with q=${JSON.stringify(token)} matched ${expected.size}; ` +
 				`the same request with order=${sortField} desc matched ${got.size}. ` +
 				(missing.length > 0 ? `Dropped: ${missing.slice(0, 3).join(", ")}. ` : "") +
 				(extraIds.length > 0 ? `Appeared: ${extraIds.slice(0, 3).join(", ")}. ` : "") +
 				"A sort must reorder the intersection, never change it.",
-			[pair.last.exchange, triple.last.exchange],
-		)
+			evidence: [pair.last.exchange, triple.last.exchange],
+		})
 	},
 })

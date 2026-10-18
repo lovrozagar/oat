@@ -42,14 +42,13 @@ export const crossTenantItemRead = defineCheck<{
 			`(${exchange.status}) by a principal in a different tenant.`
 
 		if (tenantDeclared) {
-			return ctx.findings.security(
-				this.id,
-				ctx.entityName,
-				"a record is readable by a principal in another tenant",
-				`${detail} The operation declares x-tenant: "${readOp.tenantParam}", so this ` +
+			return ctx.findings.security(this.id, ctx.entityName, {
+				summary: "a record is readable by a principal in another tenant",
+				detail:
+					`${detail} The operation declares x-tenant: "${readOp.tenantParam}", so this ` +
 					"crosses a boundary the document states exists.",
-				[exchange],
-			)
+				evidence: [exchange],
+			})
 		}
 
 		ctx.findings.report({

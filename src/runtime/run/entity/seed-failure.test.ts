@@ -56,9 +56,12 @@ describe("seedFailed", () => {
 	})
 })
 
+const createCrashed = () =>
+	new SeedError("notes.create", "returned 500", { exchange: crashed, operationId: "notes.create", status: 500 })
+
 describe("seedFailed on a create that failed", () => {
 	it("reports a create that crashed as the defect, and reads what exists", async () => {
-		const error = new SeedError("notes.create", "returned 500", 500, "notes.create", crashed)
+		const error = createCrashed()
 		const { ctx, world } = await failing(ROWS(), error)
 		expect(world).toMatchObject({ degraded: true })
 		expect(ctx.findings.findings.map((finding) => [finding.check, finding.verdict])).toEqual([
@@ -69,7 +72,7 @@ describe("seedFailed on a create that failed", () => {
 	})
 
 	it("blocks, without a defect of its own, on a support create a targeted run did not ask about", async () => {
-		const error = new SeedError("notes.create", "returned 500", 500, "notes.create", crashed)
+		const error = createCrashed()
 		const { ctx, world } = await failing([], error, { ops: ["notes.get"] })
 		expect(world).toBeNull()
 		expect(ctx.findings.findings).toEqual([
@@ -82,7 +85,7 @@ describe("seedFailed on a create that failed", () => {
 	})
 
 	it("blocks on a create that was refused, naming the culprit", async () => {
-		const error = new SeedError("org_id", "no org", 400)
+		const error = new SeedError("org_id", "no org", { status: 400 })
 		const { ctx, world } = await failing([], error)
 		expect(world).toBeNull()
 		expect(ctx.findings.findings[0]).toMatchObject({

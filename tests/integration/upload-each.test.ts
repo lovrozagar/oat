@@ -68,6 +68,18 @@ async function writePdf(dir: string, name: string, marker: string): Promise<stri
 	return path
 }
 
+/* Each-invocation slots for extract.once over `patterns` under `dir`, collecting warnings. */
+async function eachOf(dir: string, patterns: string[], eachMax?: number) {
+	const warnings: string[] = []
+	const slots = await resolveEachInvocations("extract.once", {
+		configDir: dir,
+		seed: 1,
+		uploads: { each: { "extract.once": patterns }, ...(eachMax === undefined ? {} : { eachMax }) },
+		warn: (message) => warnings.push(message),
+	})
+	return { slots, warnings }
+}
+
 describe("resolveEachInvocations", () => {
 	it("returns null when the op is not in each", async () => {
 		expect(await resolveEachInvocations("extract.once", { seed: 1, uploads: { pool: ["./x"] } })).toBeNull()
@@ -79,11 +91,7 @@ describe("resolveEachInvocations", () => {
 		await writePdf(dir, "c.pdf", "c")
 		await writePdf(dir, "a.pdf", "a")
 		await writePdf(dir, "b.pdf", "b")
-		const slots = await resolveEachInvocations("extract.once", {
-			configDir: dir,
-			seed: 1,
-			uploads: { each: { "extract.once": ["./*.pdf"] } },
-		})
+		const { slots } = await eachOf(dir, ["./*.pdf"])
 		expect(slots?.map((s) => s.filename)).toEqual(["a.pdf", "b.pdf", "c.pdf"])
 		expect(slots?.[0]?.total).toBe(3)
 		expect(slots?.[0]?.index).toBe(0)
@@ -91,13 +99,7 @@ describe("resolveEachInvocations", () => {
 
 	it("warns once and returns [] for an empty glob", async () => {
 		const dir = await scratch()
-		const warnings: string[] = []
-		const slots = await resolveEachInvocations("extract.once", {
-			configDir: dir,
-			seed: 1,
-			uploads: { each: { "extract.once": ["./none/*.pdf"] } },
-			warn: (message) => warnings.push(message),
-		})
+		const { slots, warnings } = await eachOf(dir, ["./none/*.pdf"])
 		expect(slots).toEqual([])
 		expect(warnings.some((w) => w.includes("matched 0 files"))).toBe(true)
 	})
@@ -106,13 +108,7 @@ describe("resolveEachInvocations", () => {
 		const dir = await scratch()
 		await writePdf(dir, "keep-a.pdf", "a")
 		await writePdf(dir, "keep-b.pdf", "b")
-		const warnings: string[] = []
-		const slots = await resolveEachInvocations("extract.once", {
-			configDir: dir,
-			seed: 1,
-			uploads: { each: { "extract.once": ["./keep-a.pdf", "./missing.pdf", "./keep-b.pdf"] } },
-			warn: (message) => warnings.push(message),
-		})
+		const { slots, warnings } = await eachOf(dir, ["./keep-a.pdf", "./missing.pdf", "./keep-b.pdf"])
 		expect(slots?.map((s) => s.filename)).toEqual(["keep-a.pdf", "keep-b.pdf"])
 		expect(warnings.some((w) => w.includes("path not found"))).toBe(true)
 		expect(warnings.some((w) => w.includes("BACKEND"))).toBe(false)
@@ -122,24 +118,16 @@ describe("resolveEachInvocations", () => {
 		const dir = await scratch()
 		await writePdf(dir, "a.pdf", "a")
 		await writePdf(dir, "b.pdf", "b")
-		const slots = await resolveEachInvocations("extract.once", {
-			configDir: dir,
-			seed: 1,
-			uploads: { each: { "extract.once": ["./*.pdf"] }, eachMax: -1 },
-		})
+		const { slots } = await eachOf(dir, ["./*.pdf"], -1)
 		expect(slots).toHaveLength(2)
 	})
+})
 
+describe("resolveEachInvocations", () => {
 	it("caps at eachMax and warns", async () => {
 		const dir = await scratch()
 		for (const name of ["a.pdf", "b.pdf", "c.pdf", "d.pdf", "e.pdf"]) await writePdf(dir, name, name)
-		const warnings: string[] = []
-		const slots = await resolveEachInvocations("extract.once", {
-			configDir: dir,
-			seed: 1,
-			uploads: { each: { "extract.once": ["./*.pdf"] }, eachMax: 2 },
-			warn: (message) => warnings.push(message),
-		})
+		const { slots, warnings } = await eachOf(dir, ["./*.pdf"], 2)
 		expect(slots).toHaveLength(2)
 		expect(warnings.some((w) => w.includes("capped") && w.includes("2 of 5"))).toBe(true)
 	})
@@ -150,14 +138,8 @@ describe("resolveEachInvocations", () => {
 		const bad = join(dir, "bad.pdf")
 		await writeFile(bad, "secret")
 		await chmod(bad, 0)
-		const warnings: string[] = []
 		try {
-			const slots = await resolveEachInvocations("extract.once", {
-				configDir: dir,
-				seed: 1,
-				uploads: { each: { "extract.once": ["./ok.pdf", "./bad.pdf"] } },
-				warn: (message) => warnings.push(message),
-			})
+			const { slots, warnings } = await eachOf(dir, ["./ok.pdf", "./bad.pdf"])
 			expect(slots?.map((s) => s.filename)).toEqual(["ok.pdf"])
 			expect(warnings.some((w) => w.includes("could not read"))).toBe(true)
 		} finally {
@@ -168,11 +150,7 @@ describe("resolveEachInvocations", () => {
 	it("dedupes the same file listed twice", async () => {
 		const dir = await scratch()
 		await writePdf(dir, "only.pdf", "one")
-		const slots = await resolveEachInvocations("extract.once", {
-			configDir: dir,
-			seed: 1,
-			uploads: { each: { "extract.once": ["./only.pdf", "./only.pdf"] } },
-		})
+		const { slots } = await eachOf(dir, ["./only.pdf", "./only.pdf"])
 		expect(slots).toHaveLength(1)
 	})
 
@@ -228,31 +206,33 @@ describe("forEachInvocation", () => {
 	})
 })
 
+type EncodeInput = Parameters<typeof encodeRequest>[0]
+
+/* A multipart body for `operationId` with no fields of its own, filled from `uploads`. */
+function encodeFile(operationId: string, uploads: EncodeInput["uploads"], index = 0) {
+	return encodeRequest({
+		fields: {},
+		index,
+		mediaType: "multipart/form-data",
+		operationId,
+		schema: SCHEMA,
+		uploads,
+		variant: "baseline",
+	})
+}
+
 describe("encode fill order", () => {
 	it("sends each fixture bytes when the hook returns scalar fields only", async () => {
 		const dir = await scratch()
 		await writePdf(dir, "invoice.pdf", "each-marker")
-		const [slot] =
-			(await resolveEachInvocations("extract.once", {
-				configDir: dir,
-				seed: 1,
-				uploads: { each: { "extract.once": ["./invoice.pdf"] } },
-			})) ?? []
+		const [slot] = (await eachOf(dir, ["./invoice.pdf"])).slots ?? []
 		expect(slot).toBeDefined()
-		const encoded = await encodeRequest({
-			fields: {},
-			index: 0,
-			mediaType: "multipart/form-data",
-			operationId: "extract.once",
-			schema: SCHEMA,
-			uploads: {
-				configDir: dir,
-				...(slot === undefined ? {} : { fixture: slot }),
-				resolveUpload: async () => ({ fields: { columns: "vendor,date,amount" } }),
-				seed: 1,
-				uploads: { each: { "extract.once": ["./invoice.pdf"] } },
-			},
-			variant: "baseline",
+		const encoded = await encodeFile("extract.once", {
+			configDir: dir,
+			...(slot === undefined ? {} : { fixture: slot }),
+			resolveUpload: async () => ({ fields: { columns: "vendor,date,amount" } }),
+			seed: 1,
+			uploads: { each: { "extract.once": ["./invoice.pdf"] } },
 		})
 		const form = encoded.body as FormData
 		expect(form.get("columns")).toBe("vendor,date,amount")
@@ -266,22 +246,14 @@ describe("encode fill order", () => {
 		await writePdf(dir, "a.pdf", "A")
 		await writePdf(dir, "b.pdf", "B")
 		const hookBytes = new Uint8Array(Buffer.from("%PDF-1.1\nhook-jpeg\n%%EOF\n"))
-		const slots = await resolveEachInvocations("extract.once", {
-			configDir: dir,
-			seed: 1,
-			uploads: { each: { "extract.once": ["./*.pdf"] } },
-		})
+		const { slots } = await eachOf(dir, ["./*.pdf"])
 		expect(slots).toHaveLength(2)
 		const names: string[] = []
 		const markers: string[] = []
 		for (const slot of slots ?? []) {
-			const encoded = await encodeRequest({
-				fields: {},
-				index: slot.index,
-				mediaType: "multipart/form-data",
-				operationId: "extract.once",
-				schema: SCHEMA,
-				uploads: {
+			const encoded = await encodeFile(
+				"extract.once",
+				{
 					configDir: dir,
 					fixture: slot,
 					resolveUpload: async () => ({
@@ -292,8 +264,8 @@ describe("encode fill order", () => {
 					seed: 1,
 					uploads: { each: { "extract.once": ["./*.pdf"] } },
 				},
-				variant: "baseline",
-			})
+				slot.index,
+			)
 			const file = (encoded.body as FormData).get("file") as File
 			names.push(file.name)
 			markers.push(Buffer.from(await file.arrayBuffer()).toString("ascii"))
@@ -301,23 +273,17 @@ describe("encode fill order", () => {
 		expect(names).toEqual(["hardcoded.pdf", "hardcoded.pdf"])
 		expect(markers.every((m) => m.includes("hook-jpeg"))).toBe(true)
 	})
+})
 
+describe("encode fill order", () => {
 	it("uses a single pool pick when the op is not in each", async () => {
 		const dir = await scratch()
 		await writePdf(dir, "pool.pdf", "pool-only")
 		await writePdf(dir, "other.pdf", "other")
-		const encoded = await encodeRequest({
-			fields: {},
-			index: 0,
-			mediaType: "multipart/form-data",
-			operationId: "suggest.schema",
-			schema: SCHEMA,
-			uploads: {
-				configDir: dir,
-				seed: 4,
-				uploads: { each: { "extract.once": ["./*.pdf"] }, pool: ["./pool.pdf"] },
-			},
-			variant: "baseline",
+		const encoded = await encodeFile("suggest.schema", {
+			configDir: dir,
+			seed: 4,
+			uploads: { each: { "extract.once": ["./*.pdf"] }, pool: ["./pool.pdf"] },
 		})
 		const file = (encoded.body as FormData).get("file") as File
 		expect(Buffer.from(await file.arrayBuffer()).toString("ascii")).toContain("pool-only")

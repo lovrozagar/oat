@@ -37,13 +37,12 @@ export const maxLengthValidated = defineCheck<CreateBody & { target: Constrained
 		const refused = judgeRefusal(ctx, this.id, ["validation"], exchange)
 		if (refused !== null) return refused
 
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"a string longer than the declared maxLength was accepted",
-			`"${target.name}" declares maxLength ${max} but a ${value.length}-character value was stored ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "a string longer than the declared maxLength was accepted",
+			detail:
+				`"${target.name}" declares maxLength ${max} but a ${value.length}-character value was stored ` +
 				`(${exchange.status}). The constraint exists in the document only.`,
-			[exchange],
-		)
+			evidence: [exchange],
+		})
 	},
 })

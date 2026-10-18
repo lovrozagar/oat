@@ -42,12 +42,10 @@ export const querySearchAndSelectCompose = defineCheck<{
 			return ctx.findings.unresolved(this.id, ctx.entityName, "projection omitted the identity")
 		}
 		if (sameSet(setOf(searched.items, ctx.identity), setOf(combined.items, ctx.identity))) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"adding a select changes which records a search returns",
-			`q=${JSON.stringify(token)} alone matched ${searched.items.length}; with select it matched ${combined.items.length}.`,
-			[searched.exchange, combined.exchange],
-		)
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "adding a select changes which records a search returns",
+			detail: `q=${JSON.stringify(token)} alone matched ${searched.items.length}; with select it matched ${combined.items.length}.`,
+			evidence: [searched.exchange, combined.exchange],
+		})
 	},
 })

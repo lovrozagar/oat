@@ -88,10 +88,11 @@ export function bodyOf(
 	}
 	/* The schema `requestSchemaOf` reads, from the same raw operation. One variant asked for, one
 	 * member back, and its body is always an object. */
-	const [member] = buildCohort(content.schema, input.seed, ["baseline"], op.operationId, {
+	const [member] = buildCohort(content.schema, input.seed, ["baseline"], {
 		defs: model.defs,
 		/* By operation, not by how many requests came before: the same run sends the same body. */
 		nonce: `${input.nonce}c${op.operationId}`,
+		operationId: op.operationId,
 	}) as [CohortMember]
 	return { body: applyActionBind(bind, [], undefined, member.body).body }
 }

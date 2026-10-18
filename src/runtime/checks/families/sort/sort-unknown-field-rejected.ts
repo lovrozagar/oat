@@ -19,26 +19,23 @@ export const sortUnknownFieldRejected = defineCheck({
 			q(ctx, { limit: 5, order: sortTerm(conv(ctx), "oat_no_such_sort_xyz", "asc") }),
 		)
 		if (result.exchange.status >= 500) {
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"unknown sort field produces a server error",
-				`ordering on an undeclared field returned ${result.exchange.status}; a rejected input should be 4xx.`,
-				[result.exchange],
-			)
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "unknown sort field produces a server error",
+				detail: `ordering on an undeclared field returned ${result.exchange.status}; a rejected input should be 4xx.`,
+				evidence: [result.exchange],
+			})
 		}
 		const refused = judgeRefusal(ctx, this.id, ["validation"], result.exchange)
 		if (refused !== null) return refused
 		const baseline = await list(ctx, q(ctx, { limit: 5 }))
 		const same = ids(result.items, ctx.identity).join(",") === ids(baseline.items, ctx.identity).join(",")
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"unknown sort field is silently ignored",
-			`order on an undeclared field returned ${result.exchange.status}` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "unknown sort field is silently ignored",
+			detail:
+				`order on an undeclared field returned ${result.exchange.status}` +
 				(same ? " with the default order, so the field was dropped" : "") +
 				".",
-			[baseline.exchange, result.exchange],
-		)
+			evidence: [baseline.exchange, result.exchange],
+		})
 	},
 })

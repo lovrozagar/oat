@@ -69,31 +69,93 @@ async function cli(argv: string[]): Promise<{ code: number; out: string }> {
 	}
 }
 
+type PlanScope = {
+	mode: string
+	targets: Array<{ operationId: string; entity: string; checks: string[] }>
+	entities: string[]
+	support: string[]
+}
+
+/* A config file in `dir` against the server at `serverUrl`, with `extra` laid over the defaults. */
+async function writeConfig(dir: string, serverUrl: string, extra: Record<string, unknown>): Promise<string> {
+	const path = join(dir, `config-${Math.random().toString(36).slice(2)}.json`)
+	const body = {
+		baseUrl: serverUrl,
+		principals: PRINCIPALS,
+		seed: 42,
+		spec: `${serverUrl}/v1/openapi/spec`,
+		...extra,
+	}
+	await writeFile(path, JSON.stringify(body))
+	return path
+}
+
+/* One read keyed by an id nothing in the document produces: oat can call nothing for it. */
+async function serveUnreachable(): Promise<{ close: () => Promise<void>; url: string }> {
+	const document = {
+		info: { title: "unreachable", version: "1" },
+		openapi: "3.1.0",
+		paths: {
+			"/v1/things/{thing_id}": {
+				get: {
+					operationId: "thing.get",
+					parameters: [{ in: "path", name: "thing_id", required: true, schema: { type: "string" } }],
+					responses: { "200": { description: "ok" } },
+				},
+			},
+		},
+	}
+	const lone = createServer((_req, res) => {
+		res.writeHead(200, { "content-type": "application/json" })
+		res.end(JSON.stringify(document))
+	})
+	await new Promise<void>((resolve) => lone.listen(0, "127.0.0.1", resolve))
+	return {
+		close: () => new Promise<void>((resolve) => lone.close(() => resolve())),
+		url: `http://127.0.0.1:${(lone.address() as AddressInfo).port}`,
+	}
+}
+
+type OpsWorld = { dir: string; server: ReferenceServer }
+
+/* `oat run --ops <ops>` against the memory server. */
+async function runOps({ dir, server }: OpsWorld, ops: string): Promise<{ code: number; out: string }> {
+	const config = await writeConfig(dir, server.url, {})
+	return cli(["run", "--config", config, "--ops", ops, "--out", dir, "--quiet"])
+}
+
+/* `oat plan --ops <ops>` against the memory server's document. */
+function planOps({ server }: OpsWorld, ops: string, ...extra: string[]): Promise<{ code: number; out: string }> {
+	return cli(["plan", "--spec", `${server.url}/v1/openapi/spec`, "--ops", ops, ...extra])
+}
+
+/* A run whose config names a target nothing can be called for. */
+async function runUngradedTarget({ dir, server }: OpsWorld): Promise<{ code: number; out: string }> {
+	const lone = await serveUnreachable()
+	const { url } = lone
+	try {
+		const path = await writeConfig(dir, server.url, {
+			baseUrl: url,
+			ops: ["thing.get"],
+			principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+			spec: `${url}/openapi.json`,
+		})
+		return await cli(["run", "--config", path, "--out", dir, "--quiet"])
+	} finally {
+		await lone.close()
+	}
+}
+
 describe("--ops on the CLI", () => {
-	let server: ReferenceServer
-	let dir: string
+	let world: OpsWorld
 
 	beforeAll(async () => {
-		server = await createMemoryServer()
-		dir = await mkdtemp(join(tmpdir(), "oat-ops-"))
+		world = { dir: await mkdtemp(join(tmpdir(), "oat-ops-")), server: await createMemoryServer() }
 	})
 	afterAll(async () => {
-		await server.close()
-		await rm(dir, { force: true, recursive: true })
+		await world.server.close()
+		await rm(world.dir, { force: true, recursive: true })
 	})
-
-	async function config(extra: Record<string, unknown> = {}): Promise<string> {
-		const path = join(dir, `config-${Math.random().toString(36).slice(2)}.json`)
-		const body = {
-			baseUrl: server.url,
-			principals: PRINCIPALS,
-			seed: 42,
-			spec: `${server.url}/v1/openapi/spec`,
-			...extra,
-		}
-		await writeFile(path, JSON.stringify(body))
-		return path
-	}
 
 	it("advertises --ops", () => {
 		expect(isKnownFlag("ops")).toBe(true)
@@ -101,76 +163,28 @@ describe("--ops on the CLI", () => {
 	})
 
 	it("exits 2 on a target that matches no operation", async () => {
-		const { code, out } = await cli([
-			"run",
-			"--config",
-			await config(),
-			"--ops",
-			"table.craete",
-			"--out",
-			dir,
-			"--quiet",
-		])
+		const { code, out } = await runOps(world, "table.craete")
 		expect(code).toBe(2)
 		expect(out).toContain("Did you mean: table.create")
 	})
 
 	it("exits 0 when every target passed", async () => {
-		const { code, out } = await cli(["run", "--config", await config(), "--ops", "table.get", "--out", dir, "--quiet"])
+		const { code, out } = await runOps(world, "table.get")
 		expect(code).toBe(0)
 		expect(out).toContain("scope: targeted")
 		expect(out).toMatch(/table\.get\s+passed/)
 	})
 
 	it("exits 3 when a target was not graded, and reads targets from config", async () => {
-		/* One read keyed by an id nothing in the document produces: oat can call nothing for it. */
-		const document = {
-			info: { title: "unreachable", version: "1" },
-			openapi: "3.1.0",
-			paths: {
-				"/v1/things/{thing_id}": {
-					get: {
-						operationId: "thing.get",
-						parameters: [{ in: "path", name: "thing_id", required: true, schema: { type: "string" } }],
-						responses: { "200": { description: "ok" } },
-					},
-				},
-			},
-		}
-		const lone = createServer((_req, res) => {
-			res.writeHead(200, { "content-type": "application/json" })
-			res.end(JSON.stringify(document))
-		})
-		await new Promise<void>((resolve) => lone.listen(0, "127.0.0.1", resolve))
-		const url = `http://127.0.0.1:${(lone.address() as AddressInfo).port}`
-		try {
-			const path = await config({
-				baseUrl: url,
-				ops: ["thing.get"],
-				principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
-				spec: `${url}/openapi.json`,
-			})
-			const { code, out } = await cli(["run", "--config", path, "--out", dir, "--quiet"])
-			expect(code).toBe(3)
-			expect(out).toMatch(/thing\.get\s+untested/)
-		} finally {
-			await new Promise<void>((resolve) => lone.close(() => resolve()))
-		}
+		const { code, out } = await runUngradedTarget(world)
+		expect(code).toBe(3)
+		expect(out).toMatch(/thing\.get\s+untested/)
 	})
 
 	it("plan --ops prints the scope without a run", async () => {
-		const { code, out } = await cli(["plan", "--spec", `${server.url}/v1/openapi/spec`, "--ops", "table.get", "--json"])
+		const { code, out } = await planOps(world, "table.get", "--json")
 		expect(code).toBe(0)
-		const scope = (
-			JSON.parse(out) as {
-				scope: {
-					mode: string
-					targets: Array<{ operationId: string; entity: string; checks: string[] }>
-					entities: string[]
-					support: string[]
-				}
-			}
-		).scope
+		const scope = (JSON.parse(out) as { scope: PlanScope }).scope
 		expect(scope.mode).toBe("targeted")
 		expect(scope.entities).toEqual(["row", "table"])
 		expect(scope.targets[0]?.operationId).toBe("table.get")
@@ -179,13 +193,7 @@ describe("--ops on the CLI", () => {
 	})
 
 	it("plan --ops renders text", async () => {
-		const { code, out } = await cli([
-			"plan",
-			"--spec",
-			`${server.url}/v1/openapi/spec`,
-			"--ops",
-			"table.get,auth.token",
-		])
+		const { code, out } = await planOps(world, "table.get,auth.token")
 		expect(code).toBe(0)
 		expect(out).toContain("scope: targeted (--ops table.get,auth.token)")
 		expect(out).toMatch(/auth\.token\s+unmodeled/)

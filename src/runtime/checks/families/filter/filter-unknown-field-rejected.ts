@@ -29,28 +29,25 @@ export const unknownFilterRejected = defineCheck<{ unknownField: Record<string, 
 		const result = await list(asProbe(ctx), { ...q(ctx, { limit: pageSize(ctx) }), ...unknownField })
 
 		if (result.exchange.status >= 500) {
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"unknown filter field produces a server error",
-				`filtering on an undeclared field returned ${result.exchange.status}; a rejected input should be a 4xx`,
-				[result.exchange],
-			)
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "unknown filter field produces a server error",
+				detail: `filtering on an undeclared field returned ${result.exchange.status}; a rejected input should be a 4xx`,
+				evidence: [result.exchange],
+			})
 		}
 		const refused = judgeRefusal(ctx, this.id, ["validation"], result.exchange)
 		if (refused !== null) return refused
 
 		const same = ids(result.items, ctx.identity).join(",") === ids(baseline.items, ctx.identity).join(",")
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"unknown filter field is silently ignored",
-			`filtering on an undeclared field returned ${result.exchange.status} with ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "unknown filter field is silently ignored",
+			detail:
+				`filtering on an undeclared field returned ${result.exchange.status} with ` +
 				`${result.items.length} of ${baseline.items.length} records` +
 				(same ? " — identical to the unfiltered result, so the filter was dropped entirely" : "") +
 				". A filter the backend does not understand must be rejected, never ignored: silently " +
 				"ignoring it means every caller's filter may be doing nothing.",
-			[baseline.exchange, result.exchange],
-		)
+			evidence: [baseline.exchange, result.exchange],
+		})
 	},
 })

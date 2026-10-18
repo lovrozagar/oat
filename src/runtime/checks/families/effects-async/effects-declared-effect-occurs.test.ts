@@ -65,8 +65,8 @@ function widgets(action: Answer = { body: {}, status: 200 }, adds = true, more: 
 }
 
 async function occurred(respond: Responder, ids: string[], fields: Partial<CheckContext> = {}) {
-	const recordCreated = vi.fn()
-	const recordUnidentified = vi.fn()
+	const recordCreated = vi.fn<NonNullable<CheckContext["recordCreated"]>>()
+	const recordUnidentified = vi.fn<NonNullable<CheckContext["recordUnidentified"]>>()
 	const effectOps = ids.map((id): OperationModel => op(model, id))
 	const stage = contextFor(model, "listWidgets", respond, {
 		effectOps,

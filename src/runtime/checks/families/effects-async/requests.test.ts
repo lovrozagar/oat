@@ -17,7 +17,10 @@ const invite = { granteeField: "email" } as InviteSpec
 describe("forOperation", () => {
 	it("attributes what is reported through it to the operation, into the same collector", () => {
 		const { ctx, findings } = contextFor(model, "listWidgets", () => undefined)
-		forOperation(ctx, create).findings.gap("effects.declared-effect-occurs", "widget", "summary", "detail")
+		forOperation(ctx, create).findings.gap("effects.declared-effect-occurs", "widget", {
+			summary: "summary",
+			detail: "detail",
+		})
 		expect(findings.findings).toHaveLength(1)
 		expect(findings.findings[0]?.operations).toEqual(["createWidget"])
 	})

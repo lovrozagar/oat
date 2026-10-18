@@ -76,15 +76,14 @@ export const denialDoesNotRevealExistence = defineCheck<{
 		}
 		if (existing.status === absent.status) return ASSERTED
 
-		return ctx.findings.security(
-			this.id,
-			ctx.entityName,
-			"the denial status reveals whether a record exists",
-			`a record belonging to another tenant was refused with ${existing.status}, while an id ` +
+		return ctx.findings.security(this.id, ctx.entityName, {
+			summary: "the denial status reveals whether a record exists",
+			detail:
+				`a record belonging to another tenant was refused with ${existing.status}, while an id ` +
 				`that does not exist was refused with ${absent.status}. The difference is an oracle: ` +
 				"anyone able to guess or enumerate identifiers can learn which ones are real without " +
 				"ever reading one. Both cases must answer identically — conventionally 404.",
-			[existing, absent],
-		)
+			evidence: [existing, absent],
+		})
 	},
 })

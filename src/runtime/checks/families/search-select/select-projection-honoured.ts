@@ -31,14 +31,13 @@ export const selectProjection = defineCheck<{
 		const returned = Object.keys(first)
 		const unexpected = returned.filter((key) => !requested.includes(key))
 		if (unexpected.length === 0) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"sparse fieldset is accepted but ignored",
-			`select=${requested.join(",")} returned ${returned.length} fields, including ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "sparse fieldset is accepted but ignored",
+			detail:
+				`select=${requested.join(",")} returned ${returned.length} fields, including ` +
 				`${unexpected.slice(0, 5).join(", ")}. Accepting a projection and ignoring it silently ` +
 				"inflates every response and leaks fields a caller deliberately excluded.",
-			[result.exchange],
-		)
+			evidence: [result.exchange],
+		})
 	},
 })

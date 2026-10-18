@@ -141,7 +141,9 @@ describe("resolvePrincipalAuth / fromHook", () => {
 		)
 		expect(pair.credential).toBe("tok")
 	})
+})
 
+describe("resolvePrincipalAuth / fromHook", () => {
 	it("creates a principal from the hook and refreshes by calling it again", async () => {
 		const model = buildModel(dereference(AUTH_SPEC).doc)
 		let n = 0
@@ -244,6 +246,83 @@ describe("resolveHeaders", () => {
 	})
 })
 
+const CDN_TOKEN_SPEC = {
+	info: { title: "cdn", version: "1" },
+	openapi: "3.1.0",
+	paths: {
+		"/token": {
+			post: {
+				operationId: "cdn.token",
+				requestBody: { content: { "application/json": { schema: { type: "object" } } } },
+				responses: { "200": { description: "ok" } },
+			},
+		},
+	},
+} as OpenApiDocument
+
+/* A server that answers only `/openapi`, with `spec`. */
+async function specServer(spec: OpenApiDocument) {
+	const server = await listen((req, res) => {
+		const url = new URL(req.url ?? "/", "http://127.0.0.1")
+		if (url.pathname === "/openapi") return send(res, 200, spec)
+		send(res, 404)
+	})
+	closers.push(server.close)
+	return server
+}
+
+/* A spec titled `title` with one entity, listed under `key` at `/v1/<key>` and created there. */
+function entitySpec(title: string, entity: string, key: string): OpenApiDocument {
+	const row = { properties: { id: { type: "string" }, name: { type: "string" } }, type: "object" }
+	const list = {
+		properties: { [key]: { items: { properties: { id: { type: "string" } }, type: "object" }, type: "array" } },
+		type: "object",
+	}
+	return {
+		info: { title, version: "1" },
+		openapi: "3.1.0",
+		paths: {
+			[`/v1/${key}`]: {
+				get: {
+					operationId: `${entity}.list`,
+					responses: { "200": { content: { "application/json": { schema: list } }, description: "ok" } },
+					"x-entity": { action: "list", identity: "id", name: entity },
+				},
+				post: {
+					operationId: `${entity}.create`,
+					requestBody: {
+						content: { "application/json": { schema: { properties: { name: { type: "string" } }, type: "object" } } },
+					},
+					responses: { "201": { content: { "application/json": { schema: row } }, description: "ok" } },
+					"x-entity": { action: "create", identity: "id", name: entity },
+				},
+			},
+		},
+	} as OpenApiDocument
+}
+
+/* A backend serving `spec` and one collection at `/v1/<key>`, ids `<prefix><n>`; returns its rows. */
+async function collectionServer(spec: OpenApiDocument, key: string, prefix: string) {
+	const rows: Array<{ id: string; name: string }> = []
+	const server = await listen((req, res) => {
+		void (async () => {
+			const url = new URL(req.url ?? "/", "http://127.0.0.1")
+			const method = (req.method ?? "GET").toUpperCase()
+			if (url.pathname === "/openapi") return send(res, 200, spec)
+			if (url.pathname === `/v1/${key}` && method === "GET") return send(res, 200, { [key]: [...rows] })
+			if (url.pathname === `/v1/${key}` && method === "POST") {
+				const body = (await readJson(req)) as { name?: string }
+				const row = { id: `${prefix}${rows.length + 1}`, name: body.name ?? prefix }
+				rows.push(row)
+				return send(res, 201, row)
+			}
+			return send(res, 404)
+		})()
+	})
+	closers.push(server.close)
+	return { rows, url: server.url }
+}
+
 describe("origins and auth-step origin", () => {
 	it("sends an auth hop to a named origin", async () => {
 		const cdnHits: string[] = []
@@ -252,35 +331,11 @@ describe("origins and auth-step origin", () => {
 			send(res, 200, { access_token: "from-cdn" })
 		})
 		closers.push(cdn.close)
-		const api = await listen((req, res) => {
-			const url = new URL(req.url ?? "/", "http://127.0.0.1")
-			if (url.pathname === "/openapi") return send(res, 200, AUTH_SPEC)
-			send(res, 404)
-		})
-		closers.push(api.close)
-
-		const cdnSpec = {
-			info: { title: "cdn", version: "1" },
-			openapi: "3.1.0",
-			paths: {
-				"/token": {
-					post: {
-						operationId: "cdn.token",
-						requestBody: { content: { "application/json": { schema: { type: "object" } } } },
-						responses: { "200": { description: "ok" } },
-					},
-				},
-			},
-		} as OpenApiDocument
-		const cdnDoc = await listen((req, res) => {
-			const url = new URL(req.url ?? "/", "http://127.0.0.1")
-			if (url.pathname === "/openapi") return send(res, 200, cdnSpec)
-			send(res, 404)
-		})
-		closers.push(cdnDoc.close)
+		const api = await specServer(AUTH_SPEC)
+		await specServer(CDN_TOKEN_SPEC)
 
 		const model = buildModel(dereference(AUTH_SPEC).doc)
-		const originModel = buildModel(dereference(cdnSpec).doc)
+		const originModel = buildModel(dereference(CDN_TOKEN_SPEC).doc)
 		const originClient = new Client({ baseUrl: cdn.url, redactor: new Redactor() })
 		const runtime = await createPrincipal(
 			"alpha",
@@ -310,133 +365,12 @@ describe("origins and auth-step origin", () => {
 			),
 		).rejects.toThrow(/not in config.origins/)
 	})
+})
 
+describe("origins and auth-step origin", () => {
 	it("runs a secondary origin after primary auth and stamps findings", async () => {
-		const primarySpec = {
-			info: { title: "api", version: "1" },
-			openapi: "3.1.0",
-			paths: {
-				"/v1/notes": {
-					get: {
-						operationId: "note.list",
-						responses: {
-							"200": {
-								content: {
-									"application/json": {
-										schema: {
-											properties: {
-												notes: { items: { properties: { id: { type: "string" } }, type: "object" }, type: "array" },
-											},
-											type: "object",
-										},
-									},
-								},
-								description: "ok",
-							},
-						},
-						"x-entity": { action: "list", identity: "id", name: "note" },
-					},
-					post: {
-						operationId: "note.create",
-						requestBody: {
-							content: { "application/json": { schema: { properties: { name: { type: "string" } }, type: "object" } } },
-						},
-						responses: {
-							"201": {
-								content: {
-									"application/json": {
-										schema: { properties: { id: { type: "string" }, name: { type: "string" } }, type: "object" },
-									},
-								},
-								description: "ok",
-							},
-						},
-						"x-entity": { action: "create", identity: "id", name: "note" },
-					},
-				},
-			},
-		} as OpenApiDocument
-
-		const cdnSpec = {
-			info: { title: "cdn", version: "1" },
-			openapi: "3.1.0",
-			paths: {
-				"/v1/files": {
-					get: {
-						operationId: "file.list",
-						responses: {
-							"200": {
-								content: {
-									"application/json": {
-										schema: {
-											properties: {
-												files: { items: { properties: { id: { type: "string" } }, type: "object" }, type: "array" },
-											},
-											type: "object",
-										},
-									},
-								},
-								description: "ok",
-							},
-						},
-						"x-entity": { action: "list", identity: "id", name: "file" },
-					},
-					post: {
-						operationId: "file.create",
-						requestBody: {
-							content: { "application/json": { schema: { properties: { name: { type: "string" } }, type: "object" } } },
-						},
-						responses: {
-							"201": {
-								content: {
-									"application/json": {
-										schema: { properties: { id: { type: "string" }, name: { type: "string" } }, type: "object" },
-									},
-								},
-								description: "ok",
-							},
-						},
-						"x-entity": { action: "create", identity: "id", name: "file" },
-					},
-				},
-			},
-		} as OpenApiDocument
-
-		let notes: Array<{ id: string; name: string }> = []
-		const api = await listen((req, res) => {
-			void (async () => {
-				const url = new URL(req.url ?? "/", "http://127.0.0.1")
-				const method = (req.method ?? "GET").toUpperCase()
-				if (url.pathname === "/openapi") return send(res, 200, primarySpec)
-				if (url.pathname === "/v1/notes" && method === "GET") return send(res, 200, { notes })
-				if (url.pathname === "/v1/notes" && method === "POST") {
-					const body = (await readJson(req)) as { name?: string }
-					const row = { id: `n${notes.length + 1}`, name: body.name ?? "n" }
-					notes = [...notes, row]
-					return send(res, 201, row)
-				}
-				return send(res, 404)
-			})()
-		})
-		closers.push(api.close)
-
-		let files: Array<{ id: string; name: string }> = []
-		const cdn = await listen((req, res) => {
-			void (async () => {
-				const url = new URL(req.url ?? "/", "http://127.0.0.1")
-				const method = (req.method ?? "GET").toUpperCase()
-				if (url.pathname === "/openapi") return send(res, 200, cdnSpec)
-				if (url.pathname === "/v1/files" && method === "GET") return send(res, 200, { files })
-				if (url.pathname === "/v1/files" && method === "POST") {
-					const body = (await readJson(req)) as { name?: string }
-					const row = { id: `f${files.length + 1}`, name: body.name ?? "f" }
-					files = [...files, row]
-					return send(res, 201, row)
-				}
-				return send(res, 404)
-			})()
-		})
-		closers.push(cdn.close)
+		const api = await collectionServer(entitySpec("api", "note", "notes"), "notes", "n")
+		const cdn = await collectionServer(entitySpec("cdn", "file", "files"), "files", "f")
 
 		const result = await run({
 			baseUrl: api.url,
@@ -449,6 +383,6 @@ describe("origins and auth-step origin", () => {
 			true,
 		)
 		expect(result.principals[0]?.headers.authorization).toBe("Bearer t")
-		expect(files.length).toBeGreaterThan(0)
+		expect(cdn.rows.length).toBeGreaterThan(0)
 	})
 })

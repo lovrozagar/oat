@@ -127,15 +127,14 @@ function judgeReplay(replay: Replay): Promise<Outcome> | Outcome {
 		)
 	}
 	if (firstId === secondId) return judgeGrowth(replay)
-	return ctx.findings.backend(
-		check,
-		ctx.entityName,
-		"replaying a request with the same idempotency key created a second record",
-		`two identical POSTs carrying ${header}: "${key}" produced ${ctx.entityName} ${firstId} ` +
+	return ctx.findings.backend(check, ctx.entityName, {
+		summary: "replaying a request with the same idempotency key created a second record",
+		detail:
+			`two identical POSTs carrying ${header}: "${key}" produced ${ctx.entityName} ${firstId} ` +
 			`and ${secondId}. The header is declared, so clients will retry on timeouts assuming ` +
 			"it protects them; every such retry silently duplicates the record.",
-		[first, second],
-	)
+		evidence: [first, second],
+	})
 }
 
 /** The other half: answering with the original record while still inserting a second. */
@@ -154,13 +153,12 @@ async function judgeGrowth(replay: Replay): Promise<Outcome> {
 	const existed = new Set(ids(before.items, ctx.identity))
 	const twins = ids(after.items, ctx.identity).filter((id) => !existed.has(id))
 	for (const id of listedIds(twins)) ctx.recordCreated?.(ctx.entityName, id, { ...ctx.scope }, second.principal)
-	return ctx.findings.backend(
-		check,
-		ctx.entityName,
-		"replaying a request with the same idempotency key grew the collection",
-		`the replay carrying ${header}: "${key}" answered with the original ${ctx.entityName} ${firstId}, ` +
+	return ctx.findings.backend(check, ctx.entityName, {
+		summary: "replaying a request with the same idempotency key grew the collection",
+		detail:
+			`the replay carrying ${header}: "${key}" answered with the original ${ctx.entityName} ${firstId}, ` +
 			`yet the collection went from ${before.items.length} to ${after.items.length} records. The ` +
 			"response hides a duplicate the retry still made.",
-		[first, second, before.last.exchange, after.last.exchange],
-	)
+		evidence: [first, second, before.last.exchange, after.last.exchange],
+	})
 }

@@ -68,7 +68,9 @@ describe("coverage floors", () => {
 		writeFileSync(join(dir, "coverage-floors.json"), floors(95))
 		expect(floorProblems(dir)).toEqual([])
 	})
+})
 
+describe("coverage floors for modules that come and go", () => {
 	it("catch an instrumented module with no floor, and a floor dropped for a module that exists", () => {
 		const dir = repo([
 			{ "coverage-floors.json": floors(90), "src/a.ts": "export const a = 1\n" },
@@ -79,6 +81,12 @@ describe("coverage floors", () => {
 			"src/a.ts: instrumented, with no floor",
 			"src/b.ts: instrumented, with no floor",
 		])
+	})
+
+	it("let an entry point's floor go, since entries.test.ts proves it thin instead", () => {
+		const entry = `${JSON.stringify({ "src/cli.ts": { lines: 100 } })}\n`
+		const dir = repo([{ "coverage-floors.json": entry, "src/cli.ts": "start()\n" }, { "coverage-floors.json": "{}\n" }])
+		expect(floorProblems(dir)).toEqual([])
 	})
 
 	it("let a moved module's old floor go once the new path has its own", () => {

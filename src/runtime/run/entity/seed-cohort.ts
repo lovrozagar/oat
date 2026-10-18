@@ -40,29 +40,30 @@ export async function seedCreated(run: EntityRun, createOp: OperationModel): Pro
 function reportVariants(run: EntityRun, createOp: OperationModel, cohort: SeededCohort): void {
 	const { entity, findings } = run
 	if (cohort.uniqueGap !== undefined)
-		findings.gap("world.seed" satisfies RunFindingId, entity.name, cohort.uniqueGap, cohort.uniqueGap)
+		findings.gap("world.seed" satisfies RunFindingId, entity.name, {
+			summary: cohort.uniqueGap,
+			detail: cohort.uniqueGap,
+		})
 	run.lostVariants = (cohort.failedVariants ?? []).map((failed) => failed.variant)
 	for (const failed of cohort.failedVariants ?? []) {
 		const said = JSON.stringify(failed.exchange.responseBody).slice(0, 300)
 		if (failed.exchange.status >= 500) {
-			findings.backend(
-				"create.does-not-error" satisfies RunFindingId,
-				entity.name,
-				`creating the "${failed.variant}" variant of a "${entity.name}" fails with a server error`,
-				`${createOp.operationId} returned ${failed.exchange.status} for a body generated from the ` +
+			findings.backend("create.does-not-error" satisfies RunFindingId, entity.name, {
+				summary: `creating the "${failed.variant}" variant of a "${entity.name}" fails with a server error`,
+				detail:
+					`${createOp.operationId} returned ${failed.exchange.status} for a body generated from the ` +
 					`documented schema (${said}). The other variants were created, so this input is what ` +
 					"breaks the handler. Checks that need this variant's data run without it.",
-				[failed.exchange],
-			)
+				evidence: [failed.exchange],
+			})
 			continue
 		}
-		findings.gap(
-			"world.seed" satisfies RunFindingId,
-			entity.name,
-			`the "${failed.variant}" variant of "${entity.name}" was refused with ${failed.exchange.status}`,
-			`${createOp.operationId} refused a body the document permits (${said}). Checks that ` +
+		findings.gap("world.seed" satisfies RunFindingId, entity.name, {
+			summary: `the "${failed.variant}" variant of "${entity.name}" was refused with ${failed.exchange.status}`,
+			detail:
+				`${createOp.operationId} refused a body the document permits (${said}). Checks that ` +
 				"rely on this variant's values run without them.",
-		)
+		})
 	}
 }
 
@@ -78,29 +79,27 @@ async function worldOf(
 		/* Plan limit after an effect already created the row: keep the id so children (row after
 		 * extract→table) can seed, but do not assert write-path oracles against a body oat never
 		 * submitted. Adopted, not created: this record is somebody else's to keep. */
-		findings.gap(
-			"world.seed" satisfies RunFindingId,
-			entity.name,
-			`seeding "${entity.name}" hit a plan limit; using an existing same-tenant record`,
-			`${createOp.operationId} returned a plan-limit refusal and the list already ` +
+		findings.gap("world.seed" satisfies RunFindingId, entity.name, {
+			summary: `seeding "${entity.name}" hit a plan limit; using an existing same-tenant record`,
+			detail:
+				`${createOp.operationId} returned a plan-limit refusal and the list already ` +
 				"had a record — likely an earlier x-effects create. Write-path checks stand " +
 				"down rather than treat payment_required as a backend defect.",
-		)
+		})
 		return { ...owned(run, cohort, scope), degraded: true }
 	}
 	if (cohort.uniqueAdopted === true) {
 		/* Unique 409 on the first variant with a same-tenant list: adopt like 402, but
 		 * unique-conflict checks still run against that row. The seed 409 is not the unique check
 		 * passing — that check is the explicit second POST. */
-		findings.gap(
-			"world.seed" satisfies RunFindingId,
-			entity.name,
-			`seeding "${entity.name}" could not insert because of x-unique`,
-			`${createOp.operationId} returned 409 and the list already had a record. ` +
+		findings.gap("world.seed" satisfies RunFindingId, entity.name, {
+			summary: `seeding "${entity.name}" could not insert because of x-unique`,
+			detail:
+				`${createOp.operationId} returned 409 and the list already had a record. ` +
 				`x-unique: ${formatUniqueSets(createOp.unique)}. The create could not insert; ` +
 				"unique-conflict checks still run against that row. Write-path oracles that " +
 				"need a body oat submitted stand down.",
-		)
+		})
 		return { ...owned(run, cohort, scope), degraded: true, uniqueAdopted: true }
 	}
 	if (cohort.featureGate !== null) return gatedWorld(run, cohort.featureGate.detail)
@@ -122,12 +121,10 @@ function owned(run: EntityRun, cohort: SeededCohort, scope: Scope): World {
  * still judges its body.
  */
 function gatedWorld(run: EntityRun, detail: string): Promise<World | null> {
-	run.findings.gap(
-		"world.seed" satisfies RunFindingId,
-		run.entity.name,
-		`seeding "${run.entity.name}" is gated by ${detail}`,
-		`${detail}. Checks that need a row oat created stand down rather than treat the documented 403 as a defect.`,
-	)
+	run.findings.gap("world.seed" satisfies RunFindingId, run.entity.name, {
+		summary: `seeding "${run.entity.name}" is gated by ${detail}`,
+		detail: `${detail}. Checks that need a row oat created stand down rather than treat the documented 403 as a defect.`,
+	})
 	return existingOrBlocked(run, {
 		check: "world.seed" satisfies RunFindingId,
 		detail: `${detail} and the list route returned no existing records to fall back on.`,

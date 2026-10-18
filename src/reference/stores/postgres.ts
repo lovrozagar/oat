@@ -19,7 +19,19 @@ import type { SelectPlan } from "../query-types.ts"
 import type { Row, Store } from "../store-api.ts"
 import { type SqlFlavour, type SqlParam, compileOrder, compileWhere, likeText } from "./sql-compile.ts"
 
-type Sql = ReturnType<typeof postgres>
+/** What the store needs of a Postgres connection. postgres.js's client is one; a test passes its own. */
+export interface PgConnection {
+	unsafe(query: string, args?: SqlParam[]): PromiseLike<readonly Row[]>
+	end(options: { timeout: number }): Promise<void>
+}
+
+/** Opens a connection pool of at most `max` sessions to one database. */
+export type PgConnect = (database: string, max: number) => PgConnection
+
+/** The real driver: postgres.js against the server the environment names, its notices silenced. */
+export function connectPostgres(database: string, max: number): ReturnType<typeof postgres> {
+	return postgres({ database, max, onnotice: () => {} })
+}
 
 const PG_TYPE: Record<FieldDef["type"], string> = {
 	boolean: "boolean",
@@ -34,51 +46,72 @@ function ident(name: string): string {
 	return `"${name.replace(/"/g, '""')}"`
 }
 
-export class PgStore implements Store {
-	private readonly flavour: SqlFlavour
+/* How Postgres spells what the shared compiler leaves to the engine. */
+function pgFlavour(): SqlFlavour {
+	return {
+		binary: (expr) => `${expr} COLLATE "C"`,
+		bind: (args, value) => {
+			args.push(value)
+			return `$${args.length}`
+		},
+		bool: (value) => value,
+		/* Reads name the declared column. Under COLUMN_NAME_MISMATCH DDL named it otherwise,
+		 * and Postgres refuses the read outright where SQLite might silently answer. */
+		column: (_entity, field) => ident(field),
+		hasElement: (expr, element, args) => {
+			args.push(element)
+			return `jsonb_exists(${expr}::jsonb, $${args.length})`
+		},
+		like: (expr, segments, insensitive, args) => {
+			args.push(likeText(segments))
+			return `${expr} ${insensitive ? "ILIKE" : "LIKE"} $${args.length} ESCAPE '\\'`
+		},
+		position: (expr, needle, caseSensitive, args) => {
+			args.push(needle)
+			return caseSensitive
+				? `strpos(${expr}, $${args.length}::text)`
+				: `strpos(lower(${expr}), lower($${args.length}::text))`
+		},
+		random: "random()",
+		toText: (expr) => `${expr}::text`,
+	}
+}
 
-	private constructor(
-		private readonly sql: Sql,
-		private readonly admin: Sql,
-		private readonly dbName: string,
-		private readonly defects: DefectSet,
-		private readonly entities: readonly EntityDef[],
-	) {
-		this.flavour = {
-			binary: (expr) => `${expr} COLLATE "C"`,
-			bind: (args, value) => {
-				args.push(value)
-				return `$${args.length}`
-			},
-			bool: (value) => value,
-			/* Reads name the declared column. Under COLUMN_NAME_MISMATCH DDL named it otherwise,
-			 * and Postgres refuses the read outright where SQLite might silently answer. */
-			column: (_entity, field) => ident(field),
-			hasElement: (expr, element, args) => {
-				args.push(element)
-				return `jsonb_exists(${expr}::jsonb, $${args.length})`
-			},
-			like: (expr, segments, insensitive, args) => {
-				args.push(likeText(segments))
-				return `${expr} ${insensitive ? "ILIKE" : "LIKE"} $${args.length} ESCAPE '\\'`
-			},
-			position: (expr, needle, caseSensitive, args) => {
-				args.push(needle)
-				return caseSensitive
-					? `strpos(${expr}, $${args.length}::text)`
-					: `strpos(lower(${expr}), lower($${args.length}::text))`
-			},
-			random: "random()",
-			toText: (expr) => `${expr}::text`,
-		}
+/* The store's working parts: its database, the admin session that made it, and what it models. */
+interface PgParts {
+	sql: PgConnection
+	admin: PgConnection
+	dbName: string
+	defects: DefectSet
+	entities: readonly EntityDef[]
+}
+
+export class PgStore implements Store {
+	private readonly flavour: SqlFlavour = pgFlavour()
+	private readonly sql: PgConnection
+	private readonly admin: PgConnection
+	private readonly dbName: string
+	private readonly defects: DefectSet
+	private readonly entities: readonly EntityDef[]
+
+	private constructor(parts: PgParts) {
+		this.sql = parts.sql
+		this.admin = parts.admin
+		this.dbName = parts.dbName
+		this.defects = parts.defects
+		this.entities = parts.entities
 	}
 
-	static async create(defects: DefectSet, entities: readonly EntityDef[] = ENTITIES): Promise<PgStore> {
+	static async create(
+		defects: DefectSet,
+		entities: readonly EntityDef[] = ENTITIES,
+		connect: PgConnect = connectPostgres,
+	): Promise<PgStore> {
 		const dbName = `oat_ref_${process.pid}_${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`
-		const admin = postgres({ database: "postgres", max: 1, onnotice: () => {} })
+		const admin = connect("postgres", 1)
 		await admin.unsafe(`CREATE DATABASE ${ident(dbName)}`)
-		const sql = postgres({ database: dbName, max: 4, onnotice: () => {} })
-		const store = new PgStore(sql, admin, dbName, defects, entities)
+		const sql = connect(dbName, 4)
+		const store = new PgStore({ admin, dbName, defects, entities, sql })
 		await store.migrate()
 		return store
 	}
@@ -170,11 +203,11 @@ export class PgStore implements Store {
 	async select(entity: EntityDef, plan: SelectPlan): Promise<Row[]> {
 		const args: SqlParam[] = []
 		const where = compileWhere(plan.where, entity, this.flavour, args)
-		const order = compileOrder(plan.order, plan.collation, plan.shuffleTies, entity, this.flavour)
-		const rows = (await this.sql.unsafe(
+		const order = compileOrder(plan, entity, this.flavour)
+		const rows = await this.sql.unsafe(
 			`SELECT ${this.selectList(entity)} FROM ${ident(entity.plural)} WHERE ${where}${order}`,
 			args,
-		)) as unknown as Row[]
+		)
 		return rows.map((row) => this.decode(entity, row))
 	}
 

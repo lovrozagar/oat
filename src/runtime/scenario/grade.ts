@@ -50,13 +50,17 @@ export function gradeScenario(run: ScenarioRun, graded: readonly string[], stopp
 		input.findings
 			.attributed([...failedOps])
 			.ownedBy(check)
-			.backend(check, scenario.id, `${where}: ${failure.message}`, failure.message, failure.evidence)
+			.backend(check, scenario.id, {
+				summary: `${where}: ${failure.message}`,
+				detail: failure.message,
+				evidence: failure.evidence,
+			})
 	}
 	const unreached = graded.filter((id) => !failedOps.has(id) && !run.calls.has(id))
 	if (unreached.length > 0) {
 		input.findings
 			.attributed(unreached)
 			.ownedBy(check)
-			.blocked(check, scenario.id, `${where} before calling it`, `${where}: ${failure.message}`)
+			.blocked(check, scenario.id, { summary: `${where} before calling it`, cause: `${where}: ${failure.message}` })
 	}
 }

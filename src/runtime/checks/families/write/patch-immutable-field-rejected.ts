@@ -63,13 +63,12 @@ export const immutableRejected = defineCheck<{
 		const accepted = echoed[field] === probe || current[field] === probe
 		if (!accepted) return ASSERTED
 
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"a field declared immutable accepted a write",
-			`${update.method} set "${field}" to a client-supplied value and the change persisted. ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "a field declared immutable accepted a write",
+			detail:
+				`${update.method} set "${field}" to a client-supplied value and the change persisted. ` +
 				"Server-owned fields must reject writes, not absorb them.",
-			[patched, after],
-		)
+			evidence: [patched, after],
+		})
 	},
 })

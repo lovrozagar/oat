@@ -16,20 +16,14 @@ import {
 	isNetworkError,
 } from "../../src/errors/network.ts"
 import { createNetworkGate } from "../../src/runtime/network/gate.ts"
-import { fetchWithNetworkRetry } from "../../src/runtime/network/fetch.ts"
 import { hasUsableInterface, refineNetworkKind } from "../../src/runtime/network/interfaces.ts"
-import { probeOrigin } from "../../src/runtime/network/probe.ts"
 import { formatProgressLine } from "../../src/runtime/progress/format.ts"
 import type { ProgressSnapshot } from "../../src/runtime/progress/types.ts"
 import type { ReportInput } from "../../src/report/render/input.ts"
 import { renderMarkdown } from "../../src/report/render/markdown.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { Redactor } from "../../src/security/redact.ts"
-
-function net(code: string, message = "fetch failed"): TypeError {
-	const cause = Object.assign(new Error(message), { code })
-	return Object.assign(new TypeError("fetch failed"), { cause })
-}
+import { failing, net, networkError } from "../support/network-fixtures.ts"
 
 describe("classifyNetworkError", () => {
 	it("maps nested Node / undici codes and fetch-failed text", () => {
@@ -140,13 +134,7 @@ describe("createNetworkGate", () => {
 			},
 			waitBudgetMs: 1_000,
 		})
-		const err = new NetworkError({
-			attempts: 1,
-			kind: "reset",
-			message: "reset",
-			method: "GET",
-			url: "http://x.test/",
-		})
+		const err = networkError("reset", "reset")
 		const [a, b] = await Promise.all([gate.awaitRecovery(err), gate.awaitRecovery(err)])
 		expect(a).toBe(true)
 		expect(b).toBe(true)
@@ -170,13 +158,7 @@ describe("createNetworkGate", () => {
 			},
 			waitBudgetMs: 120,
 		})
-		const err = new NetworkError({
-			attempts: 1,
-			kind: "offline",
-			message: "off",
-			method: "GET",
-			url: "http://x.test/",
-		})
+		const err = networkError("offline", "off")
 		expect(await gate.awaitRecovery(err)).toBe(false)
 		expect(gate.exhausted).toBe(true)
 		expect(await gate.awaitRecovery(err)).toBe(false)
@@ -184,261 +166,51 @@ describe("createNetworkGate", () => {
 		expect(waits.some((row) => row.remainingMs === 120)).toBe(true)
 	})
 
-	it("uses default wait budget and probe interval", async () => {
-		let clock = 0
-		const gate = createNetworkGate({
-			now: () => clock,
-			probe: async () => true,
-			sleep: async (ms) => {
-				clock += ms
-			},
-		})
-		const err = new NetworkError({
-			attempts: 1,
-			kind: "reset",
-			message: "reset",
-			method: "GET",
-			url: "http://x.test/",
-		})
-		expect(await gate.awaitRecovery(err)).toBe(true)
-		expect(clock).toBe(2_000)
-	})
-
-	it("skips the wait when the budget is 0", async () => {
-		const gate = createNetworkGate({
-			probe: async () => true,
-			waitBudgetMs: 0,
-		})
-		const err = new NetworkError({
-			attempts: 1,
-			kind: "dns",
-			message: "dns",
-			method: "GET",
-			url: "http://x.test/",
-		})
-		expect(await gate.awaitRecovery(err)).toBe(false)
-		expect(gate.exhausted).toBe(true)
-		expect(gate.lastKind).toBe("dns")
-	})
+	it("uses default wait budget and probe interval", usesDefaultBudget)
+	it("skips the wait when the budget is 0", skipsZeroBudget)
 })
 
-describe("probeOrigin / fetchWithNetworkRetry", () => {
-	it("probeOrigin treats a reachable host as up and a refused port as down", async () => {
-		expect(await probeOrigin("http://x.test", { online: () => false })).toBe(false)
-		expect(await probeOrigin("not a url")).toBe(false)
-		expect(await probeOrigin("http://x.test", { fetchImpl: async () => new Response(null, { status: 404 }) })).toBe(
-			true,
-		)
-		expect(
-			await probeOrigin("http://x.test", {
-				fetchImpl: async () => {
-					throw net("ECONNREFUSED")
-				},
-			}),
-		).toBe(false)
-		expect(
-			await probeOrigin("http://x.test", {
-				fetchImpl: async () => {
-					throw new SyntaxError("bug")
-				},
-			}),
-		).toBe(true)
-		expect(await probeOrigin("http://x.test", { fetchImpl: async () => new Response(null, { status: 204 }) })).toBe(
-			true,
-		)
+async function usesDefaultBudget(): Promise<void> {
+	let clock = 0
+	const gate = createNetworkGate({
+		now: () => clock,
+		probe: async () => true,
+		sleep: async (ms) => {
+			clock += ms
+		},
 	})
+	expect(await gate.awaitRecovery(networkError("reset", "reset"))).toBe(true)
+	expect(clock).toBe(2_000)
+}
 
-	it("uses default retries, fetch, sleep, and wait budget", async () => {
-		const original = globalThis.fetch
-		globalThis.fetch = (async () => new Response("ok")) as typeof fetch
-		try {
-			const res = await fetchWithNetworkRetry("http://x.test/spec")
-			expect(await res.text()).toBe("ok")
-		} finally {
-			globalThis.fetch = original
-		}
+async function skipsZeroBudget(): Promise<void> {
+	const gate = createNetworkGate({ probe: async () => true, waitBudgetMs: 0 })
+	expect(await gate.awaitRecovery(networkError("dns", "dns"))).toBe(false)
+	expect(gate.exhausted).toBe(true)
+	expect(gate.lastKind).toBe("dns")
+}
 
-		let clock = 0
-		const waits: string[] = []
-		await expect(
-			fetchWithNetworkRetry(
-				"http://x.test/spec",
-				{},
-				{
-					fetchImpl: async () => {
-						throw net("ECONNRESET")
-					},
-					now: () => clock,
-					onWait: (info) => waits.push(info.kind),
-					retries: 0,
-					sleep: async (ms) => {
-						clock += ms
-					},
-				},
-			),
-		).rejects.toSatisfy((error: unknown) => isNetworkError(error) && error.kind === "reset")
-		expect(waits.length).toBeGreaterThan(0)
-	})
-
-	it("retries a blip and then succeeds", async () => {
-		let hits = 0
-		const sleeps: number[] = []
-		const res = await fetchWithNetworkRetry(
-			"http://x.test/spec",
-			{ method: "GET" },
-			{
-				fetchImpl: async () => {
-					hits += 1
-					if (hits < 3) throw net("ECONNRESET")
-					return new Response("ok", { status: 200 })
-				},
-				retries: 4,
-				sleep: async (ms) => {
-					sleeps.push(ms)
-				},
-				waitMs: 0,
-			},
-		)
-		expect(await res.text()).toBe("ok")
-		expect(hits).toBe(3)
-		expect(sleeps).toEqual([250, 500])
-	})
-
-	it("waits for the link after retries, then fails with a named NetworkError", async () => {
-		let clock = 0
-		await expect(
-			fetchWithNetworkRetry(
-				"http://x.test/spec",
-				{},
-				{
-					fetchImpl: async () => {
-						throw net("ENETUNREACH")
-					},
-					probe: async () => false,
-					retries: 0,
-					sleep: async (ms) => {
-						clock += ms
-					},
-					waitMs: 80,
-				},
-			),
-		).rejects.toSatisfy((error: unknown) => {
-			return (
-				isNetworkError(error) &&
-				error.kind === "unreachable" &&
-				error.message.includes("never") === false &&
-				error.message.includes("not a backend")
-			)
-		})
-		void clock
-	})
-
-	it("recovers after the wait budget probe succeeds", async () => {
-		let hits = 0
-		const res = await fetchWithNetworkRetry(
-			"http://x.test/spec",
-			{ method: "POST" },
-			{
-				fetchImpl: async () => {
-					hits += 1
-					if (hits === 1) throw net("ENOTFOUND")
-					return new Response("{}", { status: 200 })
-				},
-				probe: async () => true,
-				retries: 0,
-				sleep: async () => undefined,
-				waitMs: 200,
-			},
-		)
-		expect(res.status).toBe(200)
-	})
-
-	it("passes AbortSignal when requestTimeoutMs is set", async () => {
-		let sawSignal = false
-		const res = await fetchWithNetworkRetry(
-			"http://x.test/spec",
-			{},
-			{
-				fetchImpl: async (_url, init) => {
-					sawSignal = init?.signal !== undefined
-					return new Response("ok")
-				},
-				requestTimeoutMs: 1_000,
-				retries: 0,
-				waitMs: 0,
-			},
-		)
-		expect(res.status).toBe(200)
-		expect(sawSignal).toBe(true)
-	})
-
-	it("uses the default origin probe after retries", async () => {
-		let clock = 0
-		await expect(
-			fetchWithNetworkRetry(
-				"http://x.test/spec",
-				{},
-				{
-					fetchImpl: async () => {
-						throw net("ECONNREFUSED")
-					},
-					now: () => clock,
-					retries: 0,
-					sleep: async (ms) => {
-						clock += ms
-					},
-					waitMs: 80,
-				},
-			),
-		).rejects.toSatisfy((error: unknown) => isNetworkError(error) && error.kind === "refused")
-	})
-
-	it("propagates a post-recovery failure", async () => {
-		await expect(
-			fetchWithNetworkRetry(
-				"http://x.test/spec",
-				{},
-				{
-					fetchImpl: async () => {
-						throw net("ECONNRESET")
-					},
-					probe: async () => true,
-					retries: 0,
-					sleep: async () => undefined,
-					waitMs: 100,
-				},
-			),
-		).rejects.toSatisfy((error: unknown) => isNetworkError(error) && error.kind === "reset")
-	})
-
-	it("does not swallow a TLS / programming error", async () => {
-		await expect(
-			fetchWithNetworkRetry(
-				"http://x.test/spec",
-				{},
-				{
-					fetchImpl: async () => {
-						throw net("UNABLE_TO_VERIFY_LEAF_SIGNATURE")
-					},
-					retries: 2,
-					waitMs: 0,
-				},
-			),
-		).rejects.toBeInstanceOf(TypeError)
-	})
-})
+/** Runs `body` with the global fetch replaced by `impl`, restoring it afterwards. */
+async function withFetch(impl: () => Promise<Response>, body: () => Promise<void>): Promise<void> {
+	const original = globalThis.fetch
+	globalThis.fetch = impl as typeof fetch
+	try {
+		await body()
+	} finally {
+		globalThis.fetch = original
+	}
+}
 
 describe("Client records a status-0 network exchange and retries", () => {
 	it("journals the failed attempt and succeeds on retry", async () => {
 		const seen: number[] = []
 		let hits = 0
-		const original = globalThis.fetch
-		globalThis.fetch = (async () => {
+		const impl = async (): Promise<Response> => {
 			hits += 1
 			if (hits === 1) throw net("ECONNRESET")
 			return new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
-		}) as typeof fetch
-		try {
+		}
+		await withFetch(impl, async () => {
 			const client = new Client({
 				baseUrl: "http://x.test",
 				maxInFlight: 1,
@@ -455,58 +227,40 @@ describe("Client records a status-0 network exchange and retries", () => {
 			expect(client.transcript[0]?.network?.kind).toBe("reset")
 			expect(client.transcript[0]?.status).toBe(0)
 			expect(client.transcript[0]?.responseBody).toMatchObject({ error: "network", kind: "reset" })
-		} finally {
-			globalThis.fetch = original
-		}
+		})
 	})
 
 	it("throws NetworkError after retries when recovery says no", async () => {
-		const original = globalThis.fetch
-		globalThis.fetch = (async () => {
-			throw net("ENONET")
-		}) as typeof fetch
-		try {
-			const client = new Client({
-				baseUrl: "http://x.test",
-				maxInFlight: 1,
-				network: {
-					awaitRecovery: async () => false,
-					retries: 0,
-				},
-				redactor: new Redactor(),
-			})
+		await withFetch(failing("ENONET"), async () => {
+			const client = recoveringClient(false)
 			await expect(client.get("/v1/x")).rejects.toSatisfy(
 				(error: unknown) => isNetworkError(error) && error.kind === "offline",
 			)
-		} finally {
-			globalThis.fetch = original
-		}
+		})
 	})
 
 	it("retries once more when recovery succeeds", async () => {
-		const original = globalThis.fetch
 		let hits = 0
-		globalThis.fetch = (async () => {
+		const impl = async (): Promise<Response> => {
 			hits += 1
 			if (hits === 1) throw net("ECONNREFUSED")
 			return new Response("{}", { status: 200 })
-		}) as typeof fetch
-		try {
-			const client = new Client({
-				baseUrl: "http://x.test",
-				maxInFlight: 1,
-				network: {
-					awaitRecovery: async () => true,
-					retries: 0,
-				},
-				redactor: new Redactor(),
-			})
-			expect((await client.get("/v1/x")).status).toBe(200)
-		} finally {
-			globalThis.fetch = original
 		}
+		await withFetch(impl, async () => {
+			expect((await recoveringClient(true).get("/v1/x")).status).toBe(200)
+		})
 	})
 })
+
+/** A one-slot client with no retries whose recovery wait answers `recovered`. */
+function recoveringClient(recovered: boolean): Client {
+	return new Client({
+		baseUrl: "http://x.test",
+		maxInFlight: 1,
+		network: { awaitRecovery: async () => recovered, retries: 0 },
+		redactor: new Redactor(),
+	})
+}
 
 describe("progress and report name the network", () => {
 	it("marks status=network on a failed last call", () => {

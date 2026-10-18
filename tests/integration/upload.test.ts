@@ -104,27 +104,40 @@ describe("dummy files", () => {
 	})
 })
 
+type EncodeInput = Parameters<typeof encodeRequest>[0]
+
+/* The extract operation's multipart body, `fields` defaulting to a text of "x". */
+function encodeExtract(input: Pick<EncodeInput, "uploads"> & Partial<EncodeInput>) {
+	return encodeRequest({
+		fields: { text: "x" },
+		index: 0,
+		mediaType: "multipart/form-data",
+		operationId: "extract.once",
+		schema: MULTIPART_EXTRACT.requestBody?.content?.["multipart/form-data"]?.schema ?? {},
+		variant: "baseline",
+		...input,
+	})
+}
+
+/* One POST of an encoded body to `path` on `url`, by a fresh client. */
+async function postEncoded(url: string, path: string, encoded: Awaited<ReturnType<typeof encodeRequest>>) {
+	const client = new Client({ baseUrl: url, redactor: new Redactor() })
+	const exchange = await client.request("POST", path, {
+		body: encoded.body,
+		...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),
+	})
+	return { client, exchange }
+}
+
 describe("encode + client", () => {
 	it("sends multipart FormData with a dummy PDF and no JSON content-type", async () => {
 		const { close, last, url } = await serveEcho()
 		try {
-			const encoded = await encodeRequest({
-				fields: { text: "invoice text" },
-				index: 0,
-				mediaType: "multipart/form-data",
-				operationId: "extract.once",
-				schema: MULTIPART_EXTRACT.requestBody?.content?.["multipart/form-data"]?.schema ?? {},
-				uploads: { seed: 7 },
-				variant: "baseline",
-			})
+			const encoded = await encodeExtract({ fields: { text: "invoice text" }, uploads: { seed: 7 } })
 			expect(encoded.body).toBeInstanceOf(FormData)
 			expect(encoded.contentType).toBeNull()
 
-			const client = new Client({ baseUrl: url, redactor: new Redactor() })
-			const exchange = await client.request("POST", "/extract", {
-				body: encoded.body,
-				...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),
-			})
+			const { client, exchange } = await postEncoded(url, "/extract", encoded)
 
 			expect(exchange.requestBody).toBeInstanceOf(FormData)
 			expect(client.transcript.at(-1)?.requestBody).toMatchObject({
@@ -150,21 +163,17 @@ describe("encode + client", () => {
 			await close()
 		}
 	})
+})
 
+describe("encode + client", () => {
 	it("sends pool file bytes when the extension matches", async () => {
 		const dir = await mkdtemp(join(tmpdir(), "oat-pool-"))
 		const fixture = join(dir, "fixture.pdf")
 		const poolBytes = Buffer.from("%PDF-1.1\npool-marker\n%%EOF\n")
 		await writeFile(fixture, poolBytes)
 
-		const encoded = await encodeRequest({
-			fields: { text: "x" },
-			index: 0,
-			mediaType: "multipart/form-data",
-			operationId: "extract.once",
-			schema: MULTIPART_EXTRACT.requestBody?.content?.["multipart/form-data"]?.schema ?? {},
+		const encoded = await encodeExtract({
 			uploads: { configDir: dir, seed: 3, uploads: { pool: ["./fixture.pdf"] } },
-			variant: "baseline",
 		})
 		const file = (encoded.body as FormData).get("file") as File
 		const sent = new Uint8Array(await file.arrayBuffer())
@@ -176,12 +185,7 @@ describe("encode + client", () => {
 		await writeFile(join(dir, "fixture.pdf"), "%PDF-1.1\npool\n%%EOF\n")
 		const hookBytes = new Uint8Array(Buffer.from("%PDF-1.1\nhook-wins\n%%EOF\n"))
 
-		const encoded = await encodeRequest({
-			fields: { text: "x" },
-			index: 0,
-			mediaType: "multipart/form-data",
-			operationId: "extract.once",
-			schema: MULTIPART_EXTRACT.requestBody?.content?.["multipart/form-data"]?.schema ?? {},
+		const encoded = await encodeExtract({
 			uploads: {
 				configDir: dir,
 				resolveUpload: async ({ field }) => {
@@ -193,7 +197,6 @@ describe("encode + client", () => {
 				seed: 3,
 				uploads: { pool: ["./fixture.pdf"] },
 			},
-			variant: "baseline",
 		})
 		const file = (encoded.body as FormData).get("file") as File
 		expect(Buffer.from(await file.arrayBuffer()).toString("ascii")).toContain("hook-wins")
@@ -201,12 +204,8 @@ describe("encode + client", () => {
 	})
 
 	it("falls through to a dummy when resolveUpload returns null and the pool is empty", async () => {
-		const encoded = await encodeRequest({
-			fields: { text: "x" },
+		const encoded = await encodeExtract({
 			index: 2,
-			mediaType: "multipart/form-data",
-			operationId: "extract.once",
-			schema: MULTIPART_EXTRACT.requestBody?.content?.["multipart/form-data"]?.schema ?? {},
 			uploads: {
 				resolveUpload: async () => null,
 				seed: 11,
@@ -224,7 +223,9 @@ describe("encode + client", () => {
 				.startsWith("%PDF-"),
 		).toBe(true)
 	})
+})
 
+describe("encode + client", () => {
 	it("keeps a JSON-only create as JSON", async () => {
 		const { close, last, url } = await serveEcho()
 		try {
@@ -240,11 +241,7 @@ describe("encode + client", () => {
 			expect(encoded.body).toEqual({ name: "Quarterly Report 0" })
 			expect(encoded.body).not.toBeInstanceOf(FormData)
 
-			const client = new Client({ baseUrl: url, redactor: new Redactor() })
-			await client.request("POST", "/tables", {
-				body: encoded.body,
-				...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),
-			})
+			await postEncoded(url, "/tables", encoded)
 			expect(last().contentType).toContain("application/json")
 			expect(last().json).toEqual({ name: "Quarterly Report 0" })
 		} finally {
@@ -267,11 +264,7 @@ describe("encode + client", () => {
 			expect(encoded.body).toBeInstanceOf(URLSearchParams)
 			expect(encoded.contentType).toBe("application/x-www-form-urlencoded")
 
-			const client = new Client({ baseUrl: url, redactor: new Redactor() })
-			const exchange = await client.request("POST", "/login", {
-				body: encoded.body,
-				...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),
-			})
+			const { client, exchange } = await postEncoded(url, "/login", encoded)
 			expect(client.transcript.at(-1)?.requestBody).toEqual({ password: "<redacted>", username: "oat" })
 			expect(exchange.requestHeaders["content-type"]).toBe("application/x-www-form-urlencoded")
 			expect(last().contentType).toContain("application/x-www-form-urlencoded")
@@ -281,7 +274,9 @@ describe("encode + client", () => {
 			await close()
 		}
 	})
+})
 
+describe("encode + client", () => {
 	it("marks multipart-only operations as having a request body", () => {
 		const model = buildModel({
 			info: { title: "t", version: "1" },

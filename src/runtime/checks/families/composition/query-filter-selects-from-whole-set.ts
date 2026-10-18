@@ -103,17 +103,16 @@ export const filterAndPagingCompose = defineCheck<Subset & { value: unknown }>({
 		const skipped = [...clientSide].filter((id) => !returned.has(id))
 		if (skipped.length === 0) return ASSERTED
 
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"paging a filtered query skips records that match the filter",
-			`walking the collection at ${ROWS_PER_PAGE} per page and filtering client-side on ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "paging a filtered query skips records that match the filter",
+			detail:
+				`walking the collection at ${ROWS_PER_PAGE} per page and filtering client-side on ` +
 				`"${field}" = ${JSON.stringify(value)} finds ${clientSide.size} record(s); asking the ` +
 				`backend for the same filter returns ${returned.size}. Never returned: ` +
 				`${skipped.slice(0, 3).join(", ")}. The page window is being computed before the ` +
 				"predicate is applied, so matching records fall outside it and are lost — page one " +
 				"looks correct and later pages silently omit data.",
-			[everything.last.exchange, serverSide.last.exchange],
-		)
+			evidence: [everything.last.exchange, serverSide.last.exchange],
+		})
 	},
 })

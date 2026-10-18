@@ -48,13 +48,12 @@ export const softDeleteHidden = defineCheck<{ deleteOp: OperationModel }>({
 			if (after.complete) return ASSERTED
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the listing is larger than a read covers")
 		}
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"soft-deleted record still appears in the default listing",
-			`${ctx.entityName} ${id} was deleted (tombstoned via "${ctx.softDelete}") but the default ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "soft-deleted record still appears in the default listing",
+			detail:
+				`${ctx.entityName} ${id} was deleted (tombstoned via "${ctx.softDelete}") but the default ` +
 				"list still returns it. Tombstones must be excluded unless explicitly requested.",
-			[deleted, after.last.exchange],
-		)
+			evidence: [deleted, after.last.exchange],
+		})
 	},
 })

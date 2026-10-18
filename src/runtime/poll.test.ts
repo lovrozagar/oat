@@ -8,7 +8,7 @@ import {
 	worstCaseWaitMs,
 } from "./poll.ts"
 
-describe("outOfBand backoff", () => {
+describe("outOfBand backoff schedule", () => {
 	it("keeps 0.6.2 defaults and a 9s worst-case wait", () => {
 		expect(resolveBackoff()).toEqual(DEFAULT_OUT_OF_BAND)
 		expect(resolveBackoff({})).toEqual(DEFAULT_OUT_OF_BAND)
@@ -37,7 +37,9 @@ describe("outOfBand backoff", () => {
 		expect(isAbsentValue("tok")).toBe(false)
 		expect(isAbsentValue(0)).toBe(false)
 	})
+})
 
+describe("pollWithBackoff", () => {
 	it("returns on the first occupied value and does not sleep", async () => {
 		const attempts: number[] = []
 		const value = await pollWithBackoff(

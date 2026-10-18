@@ -76,13 +76,11 @@ export const patchMinimality = defineCheck<{
 		/* A ternary, not an early return: after the await above, v8 miscounts an if's implicit else. */
 		return collateral.length === 0
 			? ASSERTED
-			: ctx.findings.backend(
-					this.id,
-					ctx.entityName,
-					"PATCH changed fields the request did not mention",
-					collateralDetail(field, collateral, { after: current, before: baseline }),
-					[before, patched, after],
-				)
+			: ctx.findings.backend(this.id, ctx.entityName, {
+					summary: "PATCH changed fields the request did not mention",
+					detail: collateralDetail(field, collateral, { after: current, before: baseline }),
+					evidence: [before, patched, after],
+				})
 	},
 })
 

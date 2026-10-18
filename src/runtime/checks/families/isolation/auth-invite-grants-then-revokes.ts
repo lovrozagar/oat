@@ -97,14 +97,13 @@ async function acceptInvite(flow: Flow, invited: Exchange): Promise<{ exchange: 
 	const { check, ctx, plan } = flow
 	const { delegate, spec } = plan
 	if ((await canRead(flow)) === true) {
-		const outcome = ctx.findings.backend(
-			check,
-			ctx.entityName,
-			"an invite grants access before it is accepted",
-			`inviting ${delegate.id} made ${flow.subjectLabel} readable immediately. The accept ` +
+		const outcome = ctx.findings.backend(check, ctx.entityName, {
+			summary: "an invite grants access before it is accepted",
+			detail:
+				`inviting ${delegate.id} made ${flow.subjectLabel} readable immediately. The accept ` +
 				"step is then theatre — anyone who can be named in an invite body is already in.",
-			[invited],
-		)
+			evidence: [invited],
+		})
 		return { outcome }
 	}
 	const token = await inviteToken(flow, invited)
@@ -120,14 +119,13 @@ async function acceptInvite(flow: Flow, invited: Exchange): Promise<{ exchange: 
 	const issued = pointerValue(accepted.exchange.responseBody, spec.credentialFrom)
 	if (issued !== undefined) delegate.adoptCredential?.(issued)
 	if ((await canRead(flow)) === false) {
-		const outcome = ctx.findings.backend(
-			check,
-			ctx.entityName,
-			"accepting an invite does not grant access",
-			`${delegate.id} accepted an invite and still cannot read ${flow.subjectLabel}. ` +
+		const outcome = ctx.findings.backend(check, ctx.entityName, {
+			summary: "accepting an invite does not grant access",
+			detail:
+				`${delegate.id} accepted an invite and still cannot read ${flow.subjectLabel}. ` +
 				"The invite flow completed; the grant did not.",
-			[invited, accepted.exchange],
-		)
+			evidence: [invited, accepted.exchange],
+		})
 		return { outcome }
 	}
 	return accepted
@@ -149,14 +147,13 @@ async function revokeGrant(flow: Flow, evidence: [Exchange, Exchange], grantId: 
 		return standDown("a documented feature gate refused the request")
 	if (revoked.status >= 300) return ctx.findings.unresolved(check, ctx.entityName, `revoke returned ${revoked.status}`)
 	if ((await canRead(flow)) === true) {
-		ctx.findings.backend(
-			check,
-			ctx.entityName,
-			"revoking an invite does not remove access",
-			`${plan.delegate.id} can still read ${flow.subjectLabel} after the grant was revoked. ` +
+		ctx.findings.backend(check, ctx.entityName, {
+			summary: "revoking an invite does not remove access",
+			detail:
+				`${plan.delegate.id} can still read ${flow.subjectLabel} after the grant was revoked. ` +
 				"A share that cannot be taken back is a standing leak.",
-			[...evidence, revoked],
-		)
+			evidence: [...evidence, revoked],
+		})
 	}
 	return ASSERTED
 }

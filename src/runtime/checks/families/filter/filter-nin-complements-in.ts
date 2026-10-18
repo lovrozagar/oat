@@ -64,13 +64,11 @@ export const filterNinComplementsIn = defineCheck<{
 		const ninIds = setOf(outside.items, ctx.identity)
 		const overlap = [...inIds].filter((id) => ninIds.has(id))
 		if (overlap.length > 0) {
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"in() and nin() both match the same record",
-				`${overlap.length} record(s) appear in both ${field}.in and .nin.`,
-				[inside.last.exchange, outside.last.exchange],
-			)
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "in() and nin() both match the same record",
+				detail: `${overlap.length} record(s) appear in both ${field}.in and .nin.`,
+				evidence: [inside.last.exchange, outside.last.exchange],
+			})
 		}
 		const expected = ids(all.items, ctx.identity).filter((id) => {
 			const record = ctx.records.find((row) => idOf(row, ctx.identity) === id)
@@ -79,12 +77,10 @@ export const filterNinComplementsIn = defineCheck<{
 		const union = new Set([...inIds, ...ninIds])
 		const missing = expected.filter((id) => !union.has(id))
 		if (missing.length === 0) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"in() and nin() do not cover the non-null set",
-			`${missing.length} non-null record(s) match neither side.`,
-			[all.last.exchange, inside.last.exchange, outside.last.exchange],
-		)
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "in() and nin() do not cover the non-null set",
+			detail: `${missing.length} non-null record(s) match neither side.`,
+			evidence: [all.last.exchange, inside.last.exchange, outside.last.exchange],
+		})
 	},
 })

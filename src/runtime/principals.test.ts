@@ -46,7 +46,9 @@ describe("persisted principals", () => {
 			}),
 		).toEqual({ headers: {}, id: "solo", roots: {} })
 	})
+})
 
+describe("parsing persisted principals", () => {
 	it("parses { principals } and a bare array", () => {
 		const one = parsePersistedPrincipals(
 			JSON.stringify({
@@ -90,6 +92,8 @@ describe("persisted principals", () => {
 
 	it("rejects invalid JSON, the wrong shape, and an empty list", () => {
 		expect(() => parsePersistedPrincipals("{")).toThrow(/not valid JSON/)
+		expect(() => parsePersistedPrincipals("null")).toThrow(/must be/)
+		expect(() => parsePersistedPrincipals("5")).toThrow(/must be/)
 		expect(() => parsePersistedPrincipals("{}")).toThrow(/must be/)
 		expect(() => parsePersistedPrincipals("[]")).toThrow(/no usable principals/)
 	})

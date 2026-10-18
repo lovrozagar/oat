@@ -1,8 +1,13 @@
 {
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"extends": ["./oxlint.base.json"],
-	"plugins": ["typescript", "unicorn", "oxc"],
-	"jsPlugins": [{ "name": "oat", "specifier": "./lint/index.ts" }],
+	"plugins": ["typescript", "unicorn", "oxc", "vitest"],
+	"jsPlugins": [
+		{
+			"name": "oat",
+			"specifier": "./lint/index.ts"
+		}
+	],
 	"env": {
 		"node": true
 	},
@@ -32,7 +37,24 @@
 		"oat/network-through-client": "error",
 		"oat/proven-id-origin": "error",
 		"unicorn/no-array-sort": "off",
-		"unicorn/prefer-string-starts-ends-with": "warn"
+		"unicorn/prefer-string-starts-ends-with": "warn",
+		"complexity": ["error", 15],
+		"max-depth": ["error", 4],
+		"max-lines": ["error", 300],
+		"max-lines-per-function": ["error", 60],
+		"max-params": ["error", 4],
+		"unicorn/consistent-function-scoping": "error",
+		"vitest/expect-expect": "error",
+		"vitest/no-conditional-expect": "error",
+		"vitest/no-disabled-tests": "error",
+		"vitest/no-focused-tests": "error",
+		"oat/boundaries": "error",
+		"oat/index-purity": "error",
+		"oat/no-console": "error",
+		"oat/no-header-branching": "error",
+		"oat/no-module-side-effects": "error",
+		"oat/no-module-state": "error",
+		"oat/no-v8-ignore": "error"
 	},
 	"overrides": [
 		{
@@ -42,115 +64,23 @@
 			}
 		},
 		{
-			"files": [
-				"lint/**",
-				"src/cli/**",
-				"src/client/**",
-				"src/config/env.ts",
-				"src/config/types/**",
-				"src/config/validate/**",
-				"src/conformance/harness/**",
-				"src/credentials/**",
-				"src/errors/**",
-				"src/reference/http/**",
-				"src/reference/spec/**",
-				"src/report/**",
-				"src/runtime/checks/**",
-				"src/runtime/transcript/**",
-				"src/runtime/body/**",
-				"src/runtime/progress/**",
-				"src/runtime/exchanges/**",
-				"src/runtime/network/**",
-				"src/runtime/rate-limit/**",
-				"src/runtime/cookies/**",
-				"src/config/define/**",
-				"src/reference/query/**",
-				"src/reference/defects/**",
-				"src/reference/model/**",
-				"src/reference/listing/**",
-				"src/reference/dialect/**",
-				"src/reference/shapes/**",
-				"src/runtime/world/**",
-				"src/runtime/generate/**",
-				"src/runtime/scope/**",
-				"src/runtime/self/**",
-				"src/runtime/teardown/**",
-				"src/runtime/scenario/**",
-				"src/runtime/disposable/**",
-				"src/runtime/contract/**",
-				"src/runtime/effects/**",
-				"src/runtime/run/**",
-				"src/security/**",
-				"src/spec/**"
-			],
-			"plugins": ["typescript", "unicorn", "oxc", "vitest"],
-			"rules": {
-				"complexity": ["error", 15],
-				"max-depth": ["error", 4],
-				"max-lines": ["error", 300],
-				"max-lines-per-function": ["error", 60],
-				"max-params": ["error", 4],
-				"unicorn/consistent-function-scoping": "error",
-				"vitest/expect-expect": "error",
-				"vitest/no-conditional-expect": "error",
-				"vitest/no-disabled-tests": "error",
-				"vitest/no-focused-tests": "error",
-				"oat/boundaries": "error",
-				"oat/index-purity": "error",
-				"oat/no-console": "error",
-				"oat/no-header-branching": "error",
-				"oat/no-module-side-effects": "error",
-				"oat/no-module-state": "error",
-				"oat/no-v8-ignore": "error"
-			}
-		},
-		{
-			"files": ["src/**"],
-			"rules": {
-				"oat/boundaries": "error",
-				"oat/index-purity": "error"
-			}
-		},
-		{
-			"files": [
-				"lint/**/*.test.ts",
-				"src/cli/**/*.test.ts",
-				"src/client/**/*.test.ts",
-				"src/errors/**/*.test.ts",
-				"src/reference/http/**/*.test.ts",
-				"src/reference/spec/**/*.test.ts",
-				"src/report/**/*.test.ts",
-				"src/config/validate/**/*.test.ts",
-				"src/credentials/**/*.test.ts",
-				"src/runtime/checks/**/*.test.ts",
-				"src/runtime/transcript/**/*.test.ts",
-				"src/runtime/body/**/*.test.ts",
-				"src/runtime/progress/**/*.test.ts",
-				"src/runtime/exchanges/**/*.test.ts",
-				"src/runtime/network/**/*.test.ts",
-				"src/runtime/rate-limit/**/*.test.ts",
-				"src/runtime/cookies/**/*.test.ts",
-				"src/config/define/**/*.test.ts",
-				"src/reference/query/**/*.test.ts",
-				"src/reference/defects/**/*.test.ts",
-				"src/reference/model/**/*.test.ts",
-				"src/reference/listing/**/*.test.ts",
-				"src/reference/dialect/**/*.test.ts",
-				"src/reference/shapes/**/*.test.ts",
-				"src/runtime/world/**/*.test.ts",
-				"src/runtime/generate/**/*.test.ts",
-				"src/runtime/scope/**/*.test.ts",
-				"src/runtime/self/**/*.test.ts",
-				"src/runtime/teardown/**/*.test.ts",
-				"src/runtime/scenario/**/*.test.ts",
-				"src/runtime/disposable/**/*.test.ts",
-				"src/runtime/contract/**/*.test.ts",
-				"src/runtime/effects/**/*.test.ts",
-				"src/security/**/*.test.ts",
-				"src/spec/**/*.test.ts"
-			],
+			"files": ["**/*.test.ts", "tests/**", "**/__fixtures__/**"],
 			"rules": {
 				"max-lines": ["error", 500]
+			}
+		},
+		{
+			"files": ["src/runtime/auth.ts"],
+			"rules": {
+				"complexity": "off",
+				"max-depth": "off",
+				"max-lines": "off",
+				"max-lines-per-function": "off",
+				"max-params": "off",
+				"unicorn/consistent-function-scoping": "off",
+				"oat/no-header-branching": "off",
+				"oat/no-module-side-effects": "off",
+				"oat/no-module-state": "off"
 			}
 		}
 	]

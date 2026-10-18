@@ -52,7 +52,9 @@ describe("referenceState", () => {
 	})
 
 	it("hands the store the defects and the shape's entities", async () => {
-		const factory = vi.fn(async (_defects: DefectSet, _entities: readonly EntityDef[]) => new MemoryStore())
+		const factory = vi.fn<(defects: DefectSet, entities: readonly EntityDef[]) => Promise<MemoryStore>>(
+			async () => new MemoryStore(),
+		)
 		const state = await referenceState({ defects: ["FILTER_IGNORED"], shape: "uuid-ids", untagged: true }, factory)
 		expect(factory).toHaveBeenCalledWith(state.defects, state.entities)
 		expect(state.table.fields.find((field) => field.name === "id")?.format).toBe("uuid")

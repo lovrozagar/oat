@@ -22,7 +22,7 @@ export async function loadConfig(path: string): Promise<OatConfig> {
 			default?: OatConfig
 		} & OatConfig
 		const config = module.default ?? module
-		if (typeof config !== "object" || config === null) {
+		if (typeof config !== "object") {
 			throw new Error("config module has no default export")
 		}
 		return config

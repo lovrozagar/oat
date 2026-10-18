@@ -82,15 +82,13 @@ async function probeUpdateSet(
 	/* Read once the record exists, so its own create is not mistaken for growth. A growth
 	 * is only visible when both reads cover the whole collection. */
 	const before = await listAll(ctx, q(ctx, { limit: probe.listLimit }))
-	const patch = collisionUpdatePatch(
-		source,
-		target,
+	const patch = collisionUpdatePatch(source, target, {
+		bodyColumns: probe.bodyCols,
+		generated: updateOp.generated,
+		immutable: updateOp.immutable,
+		scope: ctx.scope,
 		set,
-		ctx.scope,
-		probe.bodyCols,
-		updateOp.immutable,
-		updateOp.generated,
-	)
+	})
 	if (patch === null) return undefined
 	const headers = uniqueProbeHeaders(
 		ctx.auth(),
@@ -117,27 +115,25 @@ async function judgeUpdateProbe(
 	const { check, updateOp } = probe
 	if (standDownForFeatureGate(ctx, updateOp, sent, check)) return
 	if (isPlanLimitResponse(sent.status, sent.responseBody)) {
-		ctx.findings.gap(
-			check,
-			ctx.entityName,
-			`${updateOp.operationId} did not apply`,
-			`${updateOp.operationId} returned ${sent.status} (plan limit) on a unique-conflict ` +
+		ctx.findings.gap(check, ctx.entityName, {
+			summary: `${updateOp.operationId} did not apply`,
+			detail:
+				`${updateOp.operationId} returned ${sent.status} (plan limit) on a unique-conflict ` +
 				"probe, so uniqueness was not observed.",
-		)
+		})
 		return
 	}
 	const after = await listAll(ctx, q(ctx, { limit: probe.listLimit }))
 	const listResolved = before.exchange.status < 400 && before.complete
 	if (sent.status === 409) {
 		if (listResolved && after.exchange.status < 400 && after.complete && after.items.length > before.items.length) {
-			ctx.findings.backend(
-				check,
-				ctx.entityName,
-				"a unique-conflict 409 still grew the collection",
-				`PATCH colliding ${set.join(", ")} returned 409 but the list grew from ` +
+			ctx.findings.backend(check, ctx.entityName, {
+				summary: "a unique-conflict 409 still grew the collection",
+				detail:
+					`PATCH colliding ${set.join(", ")} returned 409 but the list grew from ` +
 					`${before.items.length} to ${after.items.length}.`,
-				[before.exchange, sent, after.exchange],
-			)
+				evidence: [before.exchange, sent, after.exchange],
+			})
 		}
 		return
 	}
@@ -154,23 +150,19 @@ function reportUpdateAnswer(
 		`${updateOp.operationId} returned ${sent.status} when ${method} moved a different row ` +
 		`onto ${set.join(", ")} values already held by another row. A documented unique `
 	if (sent.status >= 200 && sent.status < 300) {
-		ctx.findings.backend(
-			check,
-			ctx.entityName,
-			"a duplicate unique-set update was accepted",
-			`${moved}constraint must be 409, not 2xx.`,
-			[sent],
-		)
+		ctx.findings.backend(check, ctx.entityName, {
+			summary: "a duplicate unique-set update was accepted",
+			detail: `${moved}constraint must be 409, not 2xx.`,
+			evidence: [sent],
+		})
 		return
 	}
 	if (sent.status >= 500) {
-		ctx.findings.backend(
-			check,
-			ctx.entityName,
-			"a duplicate unique-set update drew a server error",
-			`${moved}constraint must be refused with 409, not crash.`,
-			[sent],
-		)
+		ctx.findings.backend(check, ctx.entityName, {
+			summary: "a duplicate unique-set update drew a server error",
+			detail: `${moved}constraint must be refused with 409, not crash.`,
+			evidence: [sent],
+		})
 		return
 	}
 	ctx.findings.unresolved(

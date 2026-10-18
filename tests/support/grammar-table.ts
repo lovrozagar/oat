@@ -33,13 +33,14 @@ const VALUES: readonly (readonly [string, FilterTermValue])[] = [
 	["mixed-list", [1, null, true]],
 ]
 
-function conventions(
-	grammar: FilterGrammar,
-	filter: string | undefined,
-	sortGrammar: SortGrammar = "dotted",
-	selectGrammar: SelectGrammar = "csv",
-	select?: string,
-): QueryConventions {
+type Rendering = {
+	readonly sortGrammar?: SortGrammar
+	readonly selectGrammar?: SelectGrammar
+	readonly select?: string | undefined
+}
+
+function conventions(grammar: FilterGrammar, filter: string | undefined, rendering: Rendering = {}): QueryConventions {
+	const { sortGrammar = "dotted", selectGrammar = "csv", select } = rendering
 	return {
 		envelope: {},
 		grammar,
@@ -72,7 +73,7 @@ export function grammarTable(): Record<string, unknown> {
 		}
 	}
 	for (const grammar of SORT_GRAMMARS) {
-		const at = conventions("postgrest", "filter", grammar)
+		const at = conventions("postgrest", "filter", { sortGrammar: grammar })
 		for (const direction of ["asc", "desc"] as const) {
 			table[`sortTerm|${grammar}|${direction}`] = sortTerm(at, "qty", direction)
 			for (const nulls of ["first", "last"] as const) {
@@ -83,7 +84,7 @@ export function grammarTable(): Record<string, unknown> {
 	}
 	for (const grammar of SELECT_GRAMMARS) {
 		for (const select of ["select", "fields", "fields[articles]", undefined]) {
-			const at = conventions("postgrest", "filter", "dotted", grammar, select)
+			const at = conventions("postgrest", "filter", { selectGrammar: grammar, select })
 			table[`selectTerm|${grammar}|${select ?? "no-select-param"}`] = selectTerm(at, ["id", "name"], "articles")
 		}
 	}

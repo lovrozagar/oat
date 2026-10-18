@@ -29,7 +29,8 @@ export interface WaitOutcome {
 	matched: unknown
 }
 
-export async function driveWait(options: {
+/** What waiting on a side effect needs: the write that should cause it, and where it shows up. */
+export interface WaitDrive {
 	client: Client
 	pollOp: OperationModel
 	spec: WaitSpec
@@ -39,77 +40,85 @@ export async function driveWait(options: {
 	record: unknown
 	awaitSideEffect?: Hooks["awaitSideEffect"]
 	refreshIfStale?: (force?: boolean) => Promise<void>
-}): Promise<WaitOutcome> {
-	const exchanges: Exchange[] = []
-	const began = performance.now()
-	let polls = 0
+}
+
+/** The polls so far, and when waiting began. */
+interface Waiting {
+	began: number
+	exchanges: Exchange[]
+	polls: number
+}
+
+/** A poll that showed the side effect, with what it matched. */
+interface Seen {
+	matched: unknown
+}
+
+function waited(run: Waiting, seen: Seen | undefined): WaitOutcome {
+	return {
+		elapsedMs: performance.now() - run.began,
+		exchanges: run.exchanges,
+		matched: seen?.matched,
+		polls: run.polls,
+		timedOut: seen === undefined,
+	}
+}
+
+async function pollOnce(options: WaitDrive, path: string): Promise<Exchange> {
+	if (options.refreshIfStale !== undefined) await options.refreshIfStale()
+	return options.client.request(options.pollOp.method, path, {
+		headers: options.headers,
+		operationId: options.pollOp.operationId,
+		...(options.refreshIfStale === undefined ? {} : { refreshIfStale: options.refreshIfStale }),
+	})
+}
+
+/** Whether the hook says the side effect has happened, asked on every poll when there is one. */
+async function hookSaw(options: WaitDrive, body: unknown, attempt: number): Promise<boolean> {
+	if (options.awaitSideEffect === undefined) return false
+	const verdict = await options.awaitSideEffect({
+		attempt,
+		operationId: options.writeOpId,
+		record: body ?? options.record,
+	})
+	return verdict === true
+}
+
+/**
+ * Whether one poll showed the side effect: `until` occupied or the hook saying so, or, with
+ * neither declared, any occupied success body.
+ */
+async function sawEffect(options: WaitDrive, exchange: Exchange, attempt: number): Promise<Seen | undefined> {
+	const body = exchange.status < 300 ? exchange.responseBody : undefined
+	const { until } = options.spec
+	if (until === undefined && options.awaitSideEffect === undefined) {
+		return pointerIsOccupied(body) ? { matched: body } : undefined
+	}
+	const hookHit = await hookSaw(options, body, attempt)
+	if (until === undefined) return hookHit ? { matched: body } : undefined
+	const found = readPointer(body, until)
+	return pointerIsOccupied(found) || hookHit ? { matched: found } : undefined
+}
+
+export async function driveWait(options: WaitDrive): Promise<WaitOutcome> {
+	const run: Waiting = { began: performance.now(), exchanges: [], polls: 0 }
 	let path: string
 	try {
 		path = fillPath(options.pollOp.path, options.scope)
 	} catch {
-		return {
-			elapsedMs: performance.now() - began,
-			exchanges,
-			matched: undefined,
-			polls: 0,
-			timedOut: true,
-		}
+		return waited(run, undefined)
 	}
-
-	while (performance.now() - began < options.spec.timeoutMs) {
-		if (options.refreshIfStale !== undefined) await options.refreshIfStale()
-		const exchange = await options.client.request(options.pollOp.method, path, {
-			headers: options.headers,
-			operationId: options.pollOp.operationId,
-			...(options.refreshIfStale === undefined ? {} : { refreshIfStale: options.refreshIfStale }),
-		})
-		exchanges.push(exchange)
-		polls += 1
-
-		const body = exchange.status < 300 ? exchange.responseBody : undefined
-		const untilHit = options.spec.until === undefined ? false : pointerIsOccupied(readPointer(body, options.spec.until))
-		let hookHit = false
-		if (options.awaitSideEffect !== undefined) {
-			const verdict = await options.awaitSideEffect({
-				attempt: polls,
-				operationId: options.writeOpId,
-				record: body ?? options.record,
-			})
-			hookHit = verdict === true
-		}
-		const matched = options.spec.until === undefined ? hookHit : untilHit || hookHit
-		if (options.spec.until === undefined && options.awaitSideEffect === undefined) {
-			if (exchange.status < 300 && pointerIsOccupied(body)) {
-				return {
-					elapsedMs: performance.now() - began,
-					exchanges,
-					matched: body,
-					polls,
-					timedOut: false,
-				}
-			}
-		} else if (matched) {
-			return {
-				elapsedMs: performance.now() - began,
-				exchanges,
-				matched: options.spec.until === undefined ? body : readPointer(body, options.spec.until),
-				polls,
-				timedOut: false,
-			}
-		}
-
-		const remaining = options.spec.timeoutMs - (performance.now() - began)
+	while (performance.now() - run.began < options.spec.timeoutMs) {
+		const exchange = await pollOnce(options, path)
+		run.exchanges.push(exchange)
+		run.polls += 1
+		const seen = await sawEffect(options, exchange, run.polls)
+		if (seen !== undefined) return waited(run, seen)
+		const remaining = options.spec.timeoutMs - (performance.now() - run.began)
 		if (remaining <= 0) break
 		await sleep(Math.min(options.spec.pollIntervalMs, remaining))
 	}
-
-	return {
-		elapsedMs: performance.now() - began,
-		exchanges,
-		matched: undefined,
-		polls,
-		timedOut: true,
-	}
+	return waited(run, undefined)
 }
 
 export { readPointer }

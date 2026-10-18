@@ -26,38 +26,32 @@ export interface SelfRun {
 const isOk = (status: number): boolean => status >= 200 && status < 300
 
 export function answeredWithoutToken(run: SelfRun, anonymous: Exchange): Outcome {
-	return run.findings.security(
-		SELF_CHECK_ID,
-		run.entity.name,
-		"the caller route answered without a token",
-		`${run.probe.operationId} returned ${anonymous.status} with no credential. The signed-up caller is the record, so no token is a 401.`,
-		[anonymous],
-	)
+	return run.findings.security(SELF_CHECK_ID, run.entity.name, {
+		summary: "the caller route answered without a token",
+		detail: `${run.probe.operationId} returned ${anonymous.status} with no credential. The signed-up caller is the record, so no token is a 401.`,
+		evidence: [anonymous],
+	})
 }
 
 /** With no read, the update alone is the check. */
 export function updatedAlone(run: SelfRun, anonymous: Exchange, wrote: Exchange): Outcome {
 	if (wrote.status === 429) return throttled(run.findings, run.entity.name)
 	if (isOk(wrote.status)) return ASSERTED
-	return run.findings.backend(
-		SELF_CHECK_ID,
-		run.entity.name,
-		"updating the caller failed",
-		`${run.probe.operationId} returned ${wrote.status} for the signed-up caller.`,
-		[anonymous, wrote],
-	)
+	return run.findings.backend(SELF_CHECK_ID, run.entity.name, {
+		summary: "updating the caller failed",
+		detail: `${run.probe.operationId} returned ${wrote.status} for the signed-up caller.`,
+		evidence: [anonymous, wrote],
+	})
 }
 
 export function readRefused(run: SelfRun, op: OperationModel, anonymous: Exchange, read: Exchange): Outcome | null {
 	if (read.status === 429) return throttled(run.findings, run.entity.name)
 	if (read.status === 200) return null
-	return run.findings.backend(
-		SELF_CHECK_ID,
-		run.entity.name,
-		"reading the caller failed",
-		`${op.operationId} returned ${read.status} for the signed-up caller. The read is that caller and returns 200.`,
-		[anonymous, read],
-	)
+	return run.findings.backend(SELF_CHECK_ID, run.entity.name, {
+		summary: "reading the caller failed",
+		detail: `${op.operationId} returned ${read.status} for the signed-up caller. The read is that caller and returns 200.`,
+		evidence: [anonymous, read],
+	})
 }
 
 export function echoMissed(
@@ -67,13 +61,11 @@ export function echoMissed(
 	read: Exchange,
 ): Outcome | null {
 	if (created === null || callerEchoed(created.body, read.responseBody)) return null
-	return run.findings.backend(
-		SELF_CHECK_ID,
-		run.entity.name,
-		"the create did not show up on the next read",
-		`${created.exchange.operationId} sent ${JSON.stringify(created.body)}, and the next ${readOp.operationId} returned ${JSON.stringify(read.responseBody)}.`,
-		[created.exchange, read],
-	)
+	return run.findings.backend(SELF_CHECK_ID, run.entity.name, {
+		summary: "the create did not show up on the next read",
+		detail: `${created.exchange.operationId} sent ${JSON.stringify(created.body)}, and the next ${readOp.operationId} returned ${JSON.stringify(read.responseBody)}.`,
+		evidence: [created.exchange, read],
+	})
 }
 
 /** The update the check sends: the field it changes, to what, and what it held before. */
@@ -106,13 +98,11 @@ export function updateProbe(run: SelfRun, model: SpecModel, read: Exchange): Upd
 export function writeRefused(run: SelfRun, update: UpdateProbe, read: Exchange, wrote: Exchange): Outcome | null {
 	if (wrote.status === 429) return throttled(run.findings, run.entity.name)
 	if (isOk(wrote.status)) return null
-	return run.findings.backend(
-		SELF_CHECK_ID,
-		run.entity.name,
-		"updating the caller failed",
-		`${update.op.operationId} returned ${wrote.status} when setting ${update.field.name}.`,
-		[read, wrote],
-	)
+	return run.findings.backend(SELF_CHECK_ID, run.entity.name, {
+		summary: "updating the caller failed",
+		detail: `${update.op.operationId} returned ${wrote.status} when setting ${update.field.name}.`,
+		evidence: [read, wrote],
+	})
 }
 
 export function notStuck(run: SelfRun, update: UpdateProbe, wrote: Exchange, again: Exchange): Outcome | null {
@@ -121,13 +111,11 @@ export function notStuck(run: SelfRun, update: UpdateProbe, wrote: Exchange, aga
 	if (again.status === 200 && probeStuck(update.before, after, update.value)) return null
 	/* The read is the probe: the anonymous request went to it. */
 	const readOp = run.probe
-	return run.findings.backend(
-		SELF_CHECK_ID,
-		run.entity.name,
-		"an update to the caller did not stick",
-		`${update.op.operationId} set ${update.field.name} to ${JSON.stringify(update.value)}, and the next ${readOp.operationId} returned ${again.status} with ${JSON.stringify(after.where === "top" ? after.current : after.values)}.`,
-		[wrote, again],
-	)
+	return run.findings.backend(SELF_CHECK_ID, run.entity.name, {
+		summary: "an update to the caller did not stick",
+		detail: `${update.op.operationId} set ${update.field.name} to ${JSON.stringify(update.value)}, and the next ${readOp.operationId} returned ${again.status} with ${JSON.stringify(after.where === "top" ? after.current : after.values)}.`,
+		evidence: [wrote, again],
+	})
 }
 
 /** A value the update can put back: what the field held, when it was a plain one. */

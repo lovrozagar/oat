@@ -9,7 +9,7 @@ import type { Client } from "../client/client.ts"
 import type { Exchange } from "./exchange.ts"
 import type { GradeLedger, PassEvidence } from "./grades.ts"
 
-const READS = new Set(["GET", "HEAD"])
+const READS: ReadonlySet<string> = /* @__PURE__ */ new Set(["GET", "HEAD"])
 /* How far either side of a call to look. Bounded, so a long run does not reread its whole journal. */
 const WINDOW = 400
 
@@ -67,81 +67,158 @@ function isAncestor(ancestor: string, path: string): boolean {
 	return ancestor === path || path.startsWith(`${ancestor}/`)
 }
 
-async function infer(op: OperationModel, client: Client): Promise<PassEvidence | undefined> {
-	/* Teardown reads check that cleanup worked; they are not evidence for what a check graded. */
-	const transcript = client.transcript.filter(
-		(exchange) => exchange.purpose !== "teardown" || !READS.has(exchange.method.toUpperCase()),
-	)
-	const at = new Map(transcript.map((exchange, index) => [exchange.seq, index]))
-	const cache = new Map<number, Exchange>()
-	const whole = async (exchange: Exchange): Promise<Exchange> => {
-		const known = cache.get(exchange.seq)
+function isRead(exchange: Exchange): boolean {
+	return READS.has(exchange.method.toUpperCase())
+}
+
+/** A successful read: what can show a value is (or no longer is) in the world. */
+function isOkRead(exchange: Exchange): boolean {
+	return isRead(exchange) && ok(exchange)
+}
+
+/** The run's exchanges, with bodies read back through the client once each. */
+class Journal {
+	readonly transcript: Exchange[]
+	readonly #client: Client
+	readonly #cache = new Map<number, Exchange>()
+
+	constructor(client: Client) {
+		this.#client = client
+		/* Teardown reads check that cleanup worked; they are not evidence for what a check graded. */
+		this.transcript = client.transcript.filter((exchange) => exchange.purpose !== "teardown" || !isRead(exchange))
+	}
+
+	async whole(exchange: Exchange): Promise<Exchange> {
+		const known = this.#cache.get(exchange.seq)
 		if (known !== undefined) return known
-		const hydrated = await client.hydrate(exchange)
-		cache.set(exchange.seq, hydrated)
+		const hydrated = await this.#client.hydrate(exchange)
+		this.#cache.set(exchange.seq, hydrated)
 		return hydrated
 	}
-	const calls = transcript.filter((exchange) => exchange.operationId === op.operationId && ok(exchange))
-	const last = calls.at(-1)
-	if (last === undefined) return undefined
-	const method = op.method.toUpperCase()
-	for (const stored of calls.toReversed()) {
-		const index = at.get(stored.seq) ?? 0
-		const call = await whole(stored)
-		if (method === "DELETE") {
-			const segments = pathOf(call.url).split("/")
-			const id = decodeURIComponent(segments.pop() ?? "")
-			const collection = segments.join("/")
-			for (const read of transcript.slice(index + 1, index + 1 + WINDOW)) {
-				if (!READS.has(read.method.toUpperCase())) continue
-				if ((read.status === 404 || read.status === 410) && pathOf(read.url) === pathOf(call.url)) {
-					return { call: call.seq, observation: { seq: read.seq, status: read.status } }
-				}
-				if (ok(read) && id !== "" && pathOf(read.url) === collection) {
-					if (pathTo((await whole(read)).responseBody, id) === null) {
-						return { call: call.seq, observation: { absent: true, path: "$", seq: read.seq, value: id } }
-					}
-				}
-			}
-			/* A nested item with no read of its own (a column inside its table) shows through an
-			 * ancestor: the same ancestor read held the id before the call and lacks it after. */
-			const before = transcript.slice(Math.max(0, index - WINDOW), index)
-			for (const read of transcript.slice(index + 1, index + 1 + WINDOW)) {
-				if (id === "" || !READS.has(read.method.toUpperCase()) || !ok(read)) continue
-				const path = pathOf(read.url)
-				if (!isAncestor(path, collection)) continue
-				if (pathTo((await whole(read)).responseBody, id) !== null) continue
-				for (const prior of before) {
-					if (!READS.has(prior.method.toUpperCase()) || !ok(prior) || pathOf(prior.url) !== path) continue
-					if (pathTo((await whole(prior)).responseBody, id) !== null) {
-						return { call: call.seq, observation: { absent: true, path: "$", seq: read.seq, value: id } }
-					}
-				}
-			}
-			continue
+
+	/** Up to `WINDOW` exchanges before the one at `index`. */
+	before(index: number): Exchange[] {
+		return this.transcript.slice(Math.max(0, index - WINDOW), index)
+	}
+
+	/** Up to `WINDOW` exchanges after the one at `index`. */
+	after(index: number): Exchange[] {
+		return this.transcript.slice(index + 1, index + 1 + WINDOW)
+	}
+
+	async holds(exchange: Exchange, value: string): Promise<boolean> {
+		return pathTo((await this.whole(exchange)).responseBody, value) !== null
+	}
+}
+
+/** A delete as its path states it: the collection it was made on, and the id it removed. */
+interface Removal {
+	call: Exchange
+	index: number
+	path: string
+	collection: string
+	id: string
+}
+
+function removalOf(call: Exchange, index: number): Removal {
+	const path = pathOf(call.url)
+	const cut = path.lastIndexOf("/")
+	return { call, collection: path.slice(0, Math.max(cut, 0)), id: decodeURIComponent(path.slice(cut + 1)), index, path }
+}
+
+function absent(removal: Removal, read: Exchange): PassEvidence {
+	return { call: removal.call.seq, observation: { absent: true, path: "$", seq: read.seq, value: removal.id } }
+}
+
+/** A later read of the item that is gone, or of its collection that no longer lists it. */
+async function shownByOwnRead(journal: Journal, removal: Removal): Promise<PassEvidence | undefined> {
+	for (const read of journal.after(removal.index)) {
+		if (!isRead(read)) continue
+		if ((read.status === 404 || read.status === 410) && pathOf(read.url) === removal.path) {
+			return { call: removal.call.seq, observation: { seq: read.seq, status: read.status } }
 		}
-		if (READS.has(method)) {
-			for (const write of transcript.slice(Math.max(0, index - WINDOW), index)) {
-				if (READS.has(write.method.toUpperCase()) || !ok(write)) continue
-				for (const value of tokensOf(await whole(write))) {
-					const path = pathTo(call.responseBody, value)
-					if (path !== null) return { call: call.seq, observation: { path, seq: call.seq, value } }
-				}
-			}
-			continue
-		}
-		const values = tokensOf(call)
-		if (values.length === 0) continue
-		for (const read of transcript.slice(index + 1, index + 1 + WINDOW)) {
-			if (!READS.has(read.method.toUpperCase()) || !ok(read)) continue
-			const body = (await whole(read)).responseBody
-			for (const value of values) {
-				const path = pathTo(body, value)
-				if (path !== null) return { call: call.seq, observation: { path, seq: read.seq, value } }
-			}
+		if (ok(read) && removal.id !== "" && pathOf(read.url) === removal.collection) {
+			if (!(await journal.holds(read, removal.id))) return absent(removal, read)
 		}
 	}
-	return { call: last.seq }
+	return undefined
+}
+
+/** Whether an earlier read of `path` held the id. */
+async function heldBefore(journal: Journal, removal: Removal, path: string): Promise<boolean> {
+	for (const prior of journal.before(removal.index)) {
+		if (isOkRead(prior) && pathOf(prior.url) === path && (await journal.holds(prior, removal.id))) return true
+	}
+	return false
+}
+
+/**
+ * A nested item with no read of its own (a column inside its table) shows through an ancestor:
+ * the same ancestor read held the id before the call and lacks it after.
+ */
+async function shownByAncestor(journal: Journal, removal: Removal): Promise<PassEvidence | undefined> {
+	if (removal.id === "") return undefined
+	for (const read of journal.after(removal.index)) {
+		if (!isOkRead(read)) continue
+		const path = pathOf(read.url)
+		if (!isAncestor(path, removal.collection) || (await journal.holds(read, removal.id))) continue
+		if (await heldBefore(journal, removal, path)) return absent(removal, read)
+	}
+	return undefined
+}
+
+async function deleteShown(journal: Journal, call: Exchange, index: number): Promise<PassEvidence | undefined> {
+	const removal = removalOf(call, index)
+	return (await shownByOwnRead(journal, removal)) ?? (await shownByAncestor(journal, removal))
+}
+
+/** A read shows a value an earlier write put into the world. */
+async function readShown(journal: Journal, call: Exchange, index: number): Promise<PassEvidence | undefined> {
+	for (const write of journal.before(index)) {
+		if (isRead(write) || !ok(write)) continue
+		for (const value of tokensOf(await journal.whole(write))) {
+			const path = pathTo(call.responseBody, value)
+			if (path !== null) return { call: call.seq, observation: { path, seq: call.seq, value } }
+		}
+	}
+	return undefined
+}
+
+/** A later read shows a value the write put into the world. */
+async function writeShown(journal: Journal, call: Exchange, index: number): Promise<PassEvidence | undefined> {
+	const values = tokensOf(call)
+	if (values.length === 0) return undefined
+	for (const read of journal.after(index)) {
+		if (!isOkRead(read)) continue
+		const body = (await journal.whole(read)).responseBody
+		for (const value of values) {
+			const path = pathTo(body, value)
+			if (path !== null) return { call: call.seq, observation: { path, seq: read.seq, value } }
+		}
+	}
+	return undefined
+}
+
+type Shown = (journal: Journal, call: Exchange, index: number) => Promise<PassEvidence | undefined>
+
+function shownFor(method: string): Shown {
+	if (method === "DELETE") return deleteShown
+	return READS.has(method) ? readShown : writeShown
+}
+
+async function infer(op: OperationModel, client: Client): Promise<PassEvidence | undefined> {
+	const journal = new Journal(client)
+	const calls = journal.transcript.flatMap((exchange, index) =>
+		exchange.operationId === op.operationId && ok(exchange) ? [{ exchange, index }] : [],
+	)
+	const last = calls.at(-1)
+	if (last === undefined) return undefined
+	const shown = shownFor(op.method.toUpperCase())
+	for (const { exchange, index } of calls.toReversed()) {
+		const evidence = await shown(journal, await journal.whole(exchange), index)
+		if (evidence !== undefined) return evidence
+	}
+	return { call: last.exchange.seq }
 }
 
 /**

@@ -68,12 +68,10 @@ export const filterContainsMembership = defineCheck<{
 		)
 		const got = knownHits(result.items, ctx)
 		if (sameSet(expected, got)) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"contains does not select membership of the given element",
-			`${field.field}.contains.${String(element)} returned ${got.size}; ${expected.size} records hold that element.`,
-			[result.last.exchange],
-		)
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "contains does not select membership of the given element",
+			detail: `${field.field}.contains.${String(element)} returned ${got.size}; ${expected.size} records hold that element.`,
+			evidence: [result.last.exchange],
+		})
 	},
 })

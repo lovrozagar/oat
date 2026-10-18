@@ -33,27 +33,24 @@ export const filterEmptyIn = defineCheck<{
 		if (policy === "reject") {
 			const refused = judgeRefusal(ctx, this.id, ["validation"], result.exchange)
 			if (refused !== null) return refused
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"empty in() was not rejected",
-				`emptyIn=reject but ${field}.in.() returned ${result.exchange.status}.`,
-				[result.exchange],
-			)
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "empty in() was not rejected",
+				detail: `emptyIn=reject but ${field}.in.() returned ${result.exchange.status}.`,
+				evidence: [result.exchange],
+			})
 		}
 		if (result.exchange.status >= 400) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "empty in() was rejected under match-none")
 		}
 		if (result.items.length === 0) return ASSERTED
 		const same = ids(result.items, ctx.identity).join(",") === ids(baseline.items, ctx.identity).join(",")
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"empty in() did not match none",
-			`emptyIn=match-none but ${field}.in.() returned ${result.items.length} record(s)` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "empty in() did not match none",
+			detail:
+				`emptyIn=match-none but ${field}.in.() returned ${result.items.length} record(s)` +
 				(same ? " — the unfiltered set, so the filter was ignored" : "") +
 				".",
-			[baseline.exchange, result.exchange],
-		)
+			evidence: [baseline.exchange, result.exchange],
+		})
 	},
 })

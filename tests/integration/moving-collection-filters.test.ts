@@ -35,36 +35,29 @@ function send(res: ServerResponse, body: unknown): void {
 	res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body))
 }
 
+/* One filter term against one field: the stored value, the raw operand, its list and number forms. */
+type Term = { list: string[]; number: number; raw: string; value: unknown }
+
+const OPERATORS: Readonly<Record<string, (term: Term) => boolean>> = {
+	eq: ({ raw, value }) => String(value) === raw,
+	gt: ({ number, value }) => typeof value === "number" && value > number,
+	gte: ({ number, value }) => typeof value === "number" && value >= number,
+	in: ({ list, value }) => list.includes(String(value)),
+	is: ({ raw, value }) => (raw === "null" ? value === null : value !== null),
+	lt: ({ number, value }) => typeof value === "number" && value < number,
+	lte: ({ number, value }) => typeof value === "number" && value <= number,
+	ne: ({ raw, value }) => value !== null && String(value) !== raw,
+	neq: ({ raw, value }) => value !== null && String(value) !== raw,
+	nin: ({ list, value }) => value !== null && !list.includes(String(value)),
+}
+
 function matches(row: Record_, term: string): boolean {
 	const match = /^([a-z]+)\.([a-z]+)\.(.*)$/.exec(term)
 	if (match === null) return true
-	const [, field = "", op, raw = ""] = match
-	const value = row[field]
-	const list = raw.replace(/^\(|\)$/g, "").split(",")
-	const number = Number(raw)
-	switch (op) {
-		case "eq":
-			return String(value) === raw
-		case "ne":
-		case "neq":
-			return value !== null && String(value) !== raw
-		case "in":
-			return list.includes(String(value))
-		case "nin":
-			return value !== null && !list.includes(String(value))
-		case "gt":
-			return typeof value === "number" && value > number
-		case "lt":
-			return typeof value === "number" && value < number
-		case "gte":
-			return typeof value === "number" && value >= number
-		case "lte":
-			return typeof value === "number" && value <= number
-		case "is":
-			return raw === "null" ? value === null : value !== null
-		default:
-			return false
-	}
+	const [, field = "", op = "", raw = ""] = match
+	const operator = Object.hasOwn(OPERATORS, op) ? OPERATORS[op] : undefined
+	if (operator === undefined) return false
+	return operator({ list: raw.replace(/^\(|\)$/g, "").split(","), number: Number(raw), raw, value: row[field] })
 }
 
 /* A record another check made for itself, outside the cohort, that it is about to change. */

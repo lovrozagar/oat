@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 import {
 	COHORT,
 	buildCohort,
+	ensureDistinctUniqueValues,
+	type CohortMember,
 	FixtureOverflow,
 	generateBody,
 	isOverflowError,
@@ -13,7 +15,14 @@ import { dereference } from "../spec/load/dereference.ts"
 import { documentDefs } from "../spec/load/defs.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
 
-describe("fixture walk", () => {
+const length = (value: unknown) => codePointCount(String(value ?? ""))
+
+/* The variants whose `field` fails `ok`: empty when every member passes. */
+function failing(members: CohortMember[], field: string, ok: (value: unknown) => boolean): string[] {
+	return members.filter((member) => !ok(member.body[field])).map((member) => member.variant)
+}
+
+describe("buildCohort on nested and cyclic schemas", () => {
 	it("seeds a column object whose schema has default: {}", () => {
 		const members = buildCohort(
 			{
@@ -34,7 +43,7 @@ describe("fixture walk", () => {
 			},
 			1,
 			["baseline"],
-			"table.create",
+			{ operationId: "table.create" },
 		)
 		expect(members[0]?.body).toBeDefined()
 		expect(Array.isArray(members[0]?.body.columns)).toBe(true)
@@ -62,9 +71,13 @@ describe("fixture walk", () => {
 		const schema = (
 			doc.paths?.["/tables"] as { post?: { requestBody?: { content?: Record<string, { schema?: unknown }> } } }
 		)?.post?.requestBody?.content?.["application/json"]?.schema as Record<string, unknown>
-		expect(() => buildCohort(schema ?? {}, 1, ["baseline"], "table.create", { defs: documentDefs(doc) })).not.toThrow()
+		expect(() =>
+			buildCohort(schema ?? {}, 1, ["baseline"], { defs: documentDefs(doc), operationId: "table.create" }),
+		).not.toThrow()
 	})
+})
 
+describe("buildCohort strings", () => {
 	it("puts several scripts on the unicode cohort member", () => {
 		const [member] = buildCohort(
 			{
@@ -74,7 +87,7 @@ describe("fixture walk", () => {
 			},
 			1,
 			["unicode"],
-			"table.create",
+			{ operationId: "table.create" },
 		)
 		const name = String(member?.body.name ?? "")
 		expect(name).toContain("äöüß")
@@ -83,7 +96,9 @@ describe("fixture walk", () => {
 		expect(name).toContain("日本語")
 		expect(name).toContain("🙂")
 	})
+})
 
+describe("buildCohort string formats", () => {
 	it("generates format: email that passes a conservative regex", () => {
 		const [member] = buildCohort(
 			{
@@ -93,7 +108,7 @@ describe("fixture walk", () => {
 			},
 			1,
 			["baseline"],
-			"user.create",
+			{ operationId: "user.create" },
 		)
 		expect(member?.body.email).toMatch(/^[^@]+@[^@]+\.[^@]+$/)
 	})
@@ -107,15 +122,10 @@ describe("fixture walk", () => {
 			},
 			1,
 			COHORT,
-			"thing.create",
+			{ operationId: "thing.create" },
 		)
 		expect(members).toHaveLength(COHORT.length)
-		for (const member of members) {
-			const value = String(member.body.name ?? "")
-			const n = codePointCount(value)
-			expect(n, member.variant).toBeGreaterThanOrEqual(3)
-			expect(n, member.variant).toBeLessThanOrEqual(32)
-		}
+		expect(failing(members, "name", (value) => length(value) >= 3 && length(value) <= 32)).toEqual([])
 	})
 
 	it("pads a handle pattern to minLength instead of emitting a", () => {
@@ -128,18 +138,15 @@ describe("fixture walk", () => {
 			},
 			1,
 			COHORT,
-			"user.create",
+			{ operationId: "user.create" },
 		)
 		const re = new RegExp(pattern)
-		for (const member of members) {
-			const value = member.body.handle
-			expect(value, member.variant).not.toBe("a")
-			expect(typeof value).toBe("string")
-			expect(String(value), member.variant).toMatch(re)
-			expect(codePointCount(String(value)), member.variant).toBeGreaterThanOrEqual(3)
-		}
+		const handle = (value: unknown) => typeof value === "string" && re.test(value) && codePointCount(value) >= 3
+		expect(failing(members, "handle", handle)).toEqual([])
 	})
+})
 
+describe("generateBody", () => {
 	it("omits optional and records missingRequired when minLength exceeds maxLength", () => {
 		const { body, missingRequired } = generateBody(
 			{
@@ -153,13 +160,14 @@ describe("fixture walk", () => {
 			"baseline",
 			mulberry32(1),
 			0,
-			"thing.create",
 		)
 		expect(body.opt).toBeUndefined()
 		expect(body.req).toBeUndefined()
 		expect(missingRequired).toContain("/req")
 	})
+})
 
+describe("buildCohort padding", () => {
 	it("pads format: email to minLength without breaking the address", () => {
 		const [member] = buildCohort(
 			{
@@ -169,7 +177,7 @@ describe("fixture walk", () => {
 			},
 			1,
 			["baseline"],
-			"user.create",
+			{ operationId: "user.create" },
 		)
 		const email = String(member?.body.email ?? "")
 		expect(codePointCount(email)).toBeGreaterThanOrEqual(40)
@@ -185,11 +193,9 @@ describe("fixture walk", () => {
 			},
 			1,
 			COHORT,
-			"thing.create",
+			{ operationId: "thing.create" },
 		)
-		for (const member of members) {
-			expect(codePointCount(String(member.body.name ?? "")), member.variant).toBeGreaterThanOrEqual(5)
-		}
+		expect(failing(members, "name", (value) => codePointCount(String(value ?? "")) >= 5)).toEqual([])
 	})
 
 	it("does not invent a slug when padding a pattern would break it", () => {
@@ -202,12 +208,13 @@ describe("fixture walk", () => {
 			"baseline",
 			mulberry32(1),
 			0,
-			"thing.create",
 		)
 		expect(body.code).toBeUndefined()
 		expect(missingRequired).toContain("/code")
 	})
+})
 
+describe("overflow", () => {
 	it("names table.create when generation still overflows", () => {
 		const overflow = overflowFrom(new RangeError("Maximum call stack size exceeded"), "table.create")
 		expect(overflow).toBeInstanceOf(FixtureOverflow)
@@ -229,8 +236,133 @@ function throwing(key: string): Record<string, unknown> {
 
 describe("buildCohort on a schema that cannot be read", () => {
 	it("reports it as an overflow with the error, never a crash", () => {
-		expect(() => buildCohort(throwing("properties"), 1, ["baseline"], "note.create")).toThrow(FixtureOverflow)
-		expect(() => buildCohort(throwing("properties"), 1, ["baseline"], "note.create")).toThrow(/boom/)
+		expect(() => buildCohort(throwing("properties"), 1, ["baseline"], { operationId: "note.create" })).toThrow(
+			FixtureOverflow,
+		)
+		expect(() => buildCohort(throwing("properties"), 1, ["baseline"], { operationId: "note.create" })).toThrow(/boom/)
+	})
+})
+
+describe("mulberry32", () => {
+	it("is the same sequence for the same seed, in [0, 1)", () => {
+		const a = mulberry32(42)
+		const b = mulberry32(42)
+		const draws = [a(), a(), a()]
+		expect([b(), b(), b()]).toEqual(draws)
+		expect(draws.every((n) => n >= 0 && n < 1)).toBe(true)
+		expect(mulberry32(43)()).not.toBe(draws[0])
+	})
+})
+
+describe("overflow errors", () => {
+	it("keeps the field an overflow names, or the caller's pointer when it named none", () => {
+		const named = overflowFrom(new FixtureOverflow("a.create", "/name", "too long"), "b.create")
+		expect([named.operationId, named.pointer, named.reason]).toEqual(["b.create", "/name", "too long"])
+		expect(named.message).toBe(
+			"cannot generate a valid body for b.create at /name: too long — supply one with hooks.resolveInput",
+		)
+		const root = overflowFrom(new FixtureOverflow("a.create", "/"), "b.create", "/body")
+		expect([root.pointer, root.message]).toEqual(["/body", "fixture generation overflow on b.create (/body)"])
+		expect(overflowFrom(new Error("x"), "c.create").pointer).toBe("/")
+	})
+
+	it("counts a FixtureOverflow and a RangeError as an overflow, nothing else", () => {
+		expect(isOverflowError(new FixtureOverflow("a", "/"))).toBe(true)
+		expect(isOverflowError(new RangeError("deep"))).toBe(true)
+		expect(isOverflowError(new Error("other"))).toBe(false)
+	})
+})
+
+describe("buildCohort's self-check", () => {
+	const impossible = { maxLength: 1, minLength: 5, type: "string" }
+
+	it("names the operation and field it cannot make, defaulting the operation to unknown", () => {
+		const schema = { properties: { a: impossible }, required: ["a"], type: "object" }
+		expect(() => buildCohort(schema, 1, ["baseline"])).toThrow(
+			"cannot generate a valid body for unknown at /a: minLength 5 exceeds maxLength 1",
+		)
+	})
+
+	it("refuses a body the schema rejects, and accepts anything for a vacuous one", () => {
+		expect(() => buildCohort({ not: {}, type: "object" }, 1, ["baseline"], { operationId: "x.create" })).toThrow(
+			"cannot generate a valid body for x.create at /: (root) must NOT be valid",
+		)
+		expect(() => buildCohort({ type: "string" }, 1, ["baseline"])).toThrow(/\(root\) must be string/)
+		expect(buildCohort(true, 1)).toHaveLength(COHORT.length)
+	})
+
+	it("passes definitions and the nonce through, salting distinct fields", () => {
+		const schema = { properties: { name: { $ref: "oat-defs#/$defs/Name" } }, required: ["name"], type: "object" }
+		const options = { defs: { Name: { type: "string" } }, distinct: new Set(["name"]), nonce: "n1" }
+		const [member] = buildCohort(schema, 1, ["baseline"], options)
+		expect(String(member?.body.name)).toContain("n1")
+	})
+})
+
+describe("generateBody's partial bodies", () => {
+	const impossible = { maxLength: 1, minLength: 5, type: "string" }
+
+	it("is the value as made when it is not an object, and the root when the root cannot be made", () => {
+		expect(generateBody({ type: "string" }, "baseline", mulberry32(1), 0)).toEqual({ body: {}, missingRequired: [] })
+		expect(generateBody(impossible, "baseline", mulberry32(1), 0)).toEqual({ body: {}, missingRequired: ["/"] })
+		expect(generateBody(false, "baseline", mulberry32(1), 0)).toEqual({ body: {}, missingRequired: ["/"] })
+	})
+
+	it("drops a field required only through allOf and makes the rest", () => {
+		const schema = {
+			allOf: [{ required: ["a"] }],
+			properties: { a: impossible, b: { type: "string" } },
+			type: "object",
+		}
+		const { body, missingRequired } = generateBody(schema, "baseline", mulberry32(1), 0)
+		expect(missingRequired).toEqual(["/a"])
+		expect(Object.keys(body).toSorted()).toEqual(["a", "b"])
+	})
+})
+
+const cohort = (...bodies: Record<string, unknown>[]): CohortMember[] =>
+	bodies.map((body, index) => ({ body, variant: COHORT[index] ?? "baseline" }))
+
+describe("ensureDistinctUniqueValues", () => {
+	const schema = {
+		properties: { code: { type: "string" }, kind: { enum: ["only"], type: "string" }, n: { type: "integer" } },
+		type: "object",
+	}
+
+	it("leaves a cohort alone when there is no set, or nothing to collide with", () => {
+		const members = cohort({ code: "a" }, { code: "a" })
+		expect(ensureDistinctUniqueValues(members, [], schema)).toEqual({ gap: null, members })
+		expect(ensureDistinctUniqueValues(members.slice(0, 1), [["code"]], schema).members).toHaveLength(1)
+	})
+
+	it("redraws a colliding column until every tuple differs", () => {
+		const members = cohort({ code: "a", n: 1 }, { code: "a", n: 1 }, { code: "b", n: 1 })
+		const result = ensureDistinctUniqueValues(members, [["code"], ["n", "code"]], schema, { nonce: "r" })
+		expect(result.gap).toBeNull()
+		expect(new Set(result.members.map((member) => member.body.code)).size).toBe(3)
+		expect(result.members.map((member) => member.variant)).toEqual(COHORT.slice(0, 3))
+	})
+
+	it("drops the members a schema cannot tell apart, and says so", () => {
+		const members = cohort({ kind: "only" }, { kind: "only" }, { other: 1 }, { other: 1 })
+		const result = ensureDistinctUniqueValues(members, [["kind"], ["other"]], schema, { defs: {} })
+		expect(result.members.map((member) => member.body)).toEqual([{ kind: "only" }, { other: 1 }])
+		expect(result.gap).toBe(
+			"x-unique cannot express distinct values for [kind]; [other] within the schema; extra variants skipped",
+		)
+	})
+
+	it("stops redrawing a column its schema cannot make", () => {
+		const unmakeable = { properties: { code: { maxLength: 1, minLength: 5, type: "string" } }, type: "object" }
+		const result = ensureDistinctUniqueValues(cohort({ code: "a" }, { code: "a" }), [["code"]], unmakeable)
+		expect(result.members).toHaveLength(1)
+		expect(result.gap).not.toBeNull()
+	})
+
+	it("treats a set no body fills as never colliding, and a boolean schema as having no columns", () => {
+		const members = cohort({ code: "a" }, { code: "a" })
+		expect(ensureDistinctUniqueValues(members, [["absent"]], schema).gap).toBeNull()
+		expect(ensureDistinctUniqueValues(members, [["code"]], true).members).toHaveLength(1)
 	})
 })
 

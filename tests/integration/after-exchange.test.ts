@@ -60,7 +60,9 @@ describe("Client.setAfterExchange", () => {
 		client.setAfterExchange(async () => {
 			calls += 1
 		})
-		await expect(client.request("POST", "/broken", { body: {} })).rejects.toThrow()
+		await expect(client.request("POST", "/broken", { body: {} })).rejects.toThrow(
+			/^POST http:\/\/127\.0\.0\.1:\d+\/broken failed \(/,
+		)
 		expect(calls).toBe(0)
 	})
 })

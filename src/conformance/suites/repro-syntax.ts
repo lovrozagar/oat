@@ -8,7 +8,7 @@ import { promisify } from "node:util"
 import { messageOf } from "../../errors/message.ts"
 import { Redactor } from "../../security/redact.ts"
 
-const exec = promisify(execFile)
+const exec = /* @__PURE__ */ promisify(execFile)
 
 /**
  * Generated reproducers are shell scripts, so a quoting mistake turns them into scripts that run

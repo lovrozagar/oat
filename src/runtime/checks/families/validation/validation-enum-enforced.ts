@@ -33,14 +33,13 @@ export const enumValidated = defineCheck<CreateBody & { target: ConstrainedField
 		if (refused !== null) return refused
 
 		const declaredValues = (target.schema.enum as unknown[]).map((v) => JSON.stringify(v)).join(", ")
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"a value outside the declared enum was accepted",
-			`"${target.name}" declares [${declaredValues}] but the backend accepted ${JSON.stringify(outside.value)} ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "a value outside the declared enum was accepted",
+			detail:
+				`"${target.name}" declares [${declaredValues}] but the backend accepted ${JSON.stringify(outside.value)} ` +
 				`with ${exchange.status}. Clients generated from this document will assume the field ` +
 				"only ever holds a declared member.",
-			[exchange],
-		)
+			evidence: [exchange],
+		})
 	},
 })

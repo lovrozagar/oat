@@ -12,7 +12,7 @@ import { run } from "../../src/runtime/run/index.ts"
 
 const CHECK = "effects.declared-effect-occurs"
 
-describe(CHECK, () => {
+describe("effects.declared-effect-occurs", () => {
 	it("is unresolved, naming the failed action, when the action that causes the effect crashes", async () => {
 		const server = await createMemoryServer({ defects: ["ACTION_CRASHES", "EFFECT_NOT_APPLIED"] })
 		try {
@@ -25,7 +25,7 @@ describe(CHECK, () => {
 			const fired = result.findings.some((finding) => finding.check === CHECK && finding.verdict !== "COVERAGE_GAP")
 			const unresolved = result.inconclusive.filter((entry) => entry.check === CHECK)
 			expect(fired || unresolved.length > 0).toBe(true)
-			if (!fired) expect(unresolved.map((entry) => entry.reason).join(" ")).toMatch(/5\d\d/)
+			expect(fired ? "fired" : unresolved.map((entry) => entry.reason).join(" ")).toMatch(/^fired$|5\d\d/)
 		} finally {
 			await server.close()
 		}

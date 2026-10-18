@@ -66,12 +66,13 @@ export async function createExchange(ctx: CheckContext): Promise<Exchange | unde
 export function validBody(ctx: CheckContext, schema: Record<string, unknown>): Record<string, unknown> {
 	const salt = `${ctx.nonce}b${saltOf(ctx)}`
 	/* One variant asked for, one member made. */
-	const [member] = buildCohort(schema, ctx.seed, ["baseline"], ctx.createOp?.operationId ?? ctx.entityName, {
+	const [member] = buildCohort(schema, ctx.seed, ["baseline"], {
 		defs: ctx.model.defs,
 		/* Every string carries the body's own salt, not only the unique ones: a server that derives an
 		 * undeclared key from a name (a slug) refuses a record named like one the cohort holds. */
 		distinct: new Set([...(ctx.uniqueSets ?? []).flat(), ...stringProperties(schema)]),
 		nonce: salt,
+		operationId: ctx.createOp?.operationId ?? ctx.entityName,
 	}) as [CohortMember]
 	let body = member.body
 	const sets = ctx.uniqueSets ?? []

@@ -13,7 +13,7 @@ export function probeCreateFixtures(model: SpecModel): void {
 		const op = model.byOperationId.get(entity.create) as OperationModel
 		const schema = requestSchemaOf(op, model) ?? {}
 		try {
-			buildCohort(schema, 1, ["baseline"], op.operationId, { defs: model.defs })
+			buildCohort(schema, 1, ["baseline"], { defs: model.defs, operationId: op.operationId })
 		} catch (error) {
 			/* Generation reports every failure as an overflow naming why: never silence. */
 			model.gaps.record(op.operationId, "fixture", overflowFrom(error, op.operationId).message)

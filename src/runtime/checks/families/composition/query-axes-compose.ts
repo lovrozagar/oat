@@ -74,17 +74,16 @@ export const queryAxesCompose = defineCheck<Subset & { sortField: string }>({
 		const extra = [...combined].filter((id) => !alone.has(id))
 		if (missing.length === 0 && extra.length === 0) return ASSERTED
 
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"adding a sort changes which records a filter returns",
-			`filter on "${field}" alone matched ${alone.size} record(s); the same filter with ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "adding a sort changes which records a filter returns",
+			detail:
+				`filter on "${field}" alone matched ${alone.size} record(s); the same filter with ` +
 				`order=${sortField} desc matched ${combined.size}. ` +
 				(missing.length > 0 ? `Dropped: ${missing.slice(0, 3).join(", ")}. ` : "") +
 				(extra.length > 0 ? `Appeared: ${extra.slice(0, 3).join(", ")}. ` : "") +
 				"Ordering must reorder a result, never change its membership — a filter that only " +
 				"holds while unsorted is one an index or query plan is silently dropping.",
-			[filtered.last.exchange, both.last.exchange],
-		)
+			evidence: [filtered.last.exchange, both.last.exchange],
+		})
 	},
 })

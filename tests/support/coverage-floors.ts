@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
-import { instrumentedModules } from "./coverage-scope.ts"
+import { ENTRY_POINTS, instrumentedModules } from "./coverage-scope.ts"
 
 /*
  * The coverage ratchet. Every version of the floors file, committed or in the tree, must hold each
@@ -33,13 +33,17 @@ function versions(root: string, working: string): Floors[] {
 	return texts.map((text) => JSON.parse(text) as Floors)
 }
 
-/** Each way `now` lowers `before`: a metric that fell, or a floor dropped for a module that still exists. */
+/**
+ * Each way `now` lowers `before`: a metric that fell, or a floor dropped for a module that still
+ * exists. An entry point's floor may go: coverage skips it, and entries.test.ts proves it thin.
+ */
 function lowered(before: Floors, now: Floors, root: string): string[] {
 	const problems: string[] = []
 	for (const [file, metrics] of Object.entries(before)) {
 		const current = now[file]
 		if (current === undefined) {
-			if (existsSync(join(root, file))) problems.push(`${file}: floor removed while the module exists`)
+			if (existsSync(join(root, file)) && !ENTRY_POINTS.includes(file))
+				problems.push(`${file}: floor removed while the module exists`)
 			continue
 		}
 		for (const [metric, value] of Object.entries(metrics)) {

@@ -157,7 +157,7 @@ describe("seedWorld for an entity read as listed", () => {
 
 	it("passes on an error that is not a parent oat could not make", async () => {
 		const { run } = await runFor(brokenBoards, "card")
-		await expect(seedWorld(run, SEEDS)).rejects.toThrow()
+		await expect(seedWorld(run, SEEDS)).rejects.toThrow("transport broke")
 	})
 })
 

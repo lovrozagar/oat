@@ -82,6 +82,8 @@ export function isOverflowError(error: unknown): boolean {
 }
 
 export interface CohortOptions {
+	/** The operation an overflow names; default "unknown". */
+	operationId?: string
 	/** Recursive schemas the document refers to as `oat-defs#/$defs/<name>`. */
 	defs?: Record<string, Schema>
 	/** Per-run token for values that must not collide with an earlier run's. */
@@ -108,9 +110,9 @@ export function buildCohort(
 	bodySchema: Schema | boolean,
 	seed: number,
 	variants: readonly Variant[] = COHORT,
-	operationId = "unknown",
 	options: CohortOptions = {},
 ): CohortMember[] {
+	const { operationId = "unknown" } = options
 	const schema = readable(bodySchema, operationId)
 	return variants.map((variant, index) => {
 		const result = generate(schema, {
@@ -141,9 +143,7 @@ export function generateBody(
 	variant: Variant,
 	rand: () => number,
 	index: number,
-	operationId = "unknown",
 ): { body: Record<string, unknown>; missingRequired: string[] } {
-	void operationId
 	const schema = requestSchema(bodySchema)
 	const result = generate(schema, { index, rand, variant })
 	if (result.ok) return { body: isObject(result.value) ? result.value : {}, missingRequired: [] }
@@ -162,7 +162,7 @@ export function generateBody(
 		const required = Array.isArray(schema.required) ? schema.required.filter((name) => name !== field) : []
 		const properties = { ...schema.properties }
 		delete properties[field]
-		const rest = generateBody({ ...schema, properties, required }, variant, rand, index, operationId)
+		const rest = generateBody({ ...schema, properties, required }, variant, rand, index)
 		return { body: rest.body, missingRequired: [result.pointer, ...rest.missingRequired] }
 	}
 	return { body: {}, missingRequired: [result.pointer] }
@@ -188,32 +188,52 @@ export function ensureDistinctUniqueValues(
 	const properties = typeof normalized === "object" && isObject(normalized.properties) ? normalized.properties : {}
 	const kept: CohortMember[] = []
 	for (const member of members) {
-		const body = { ...member.body }
-		let ok = true
-		for (const set of sets) {
-			for (let attempt = 0; kept.some((prior) => sameUniqueTuple(prior.body, body, set)) && attempt < 16; attempt++) {
-				const col = set.find((name) => Object.hasOwn(body, name) && isObject(properties[name]))
-				if (col === undefined) break
-				const redrawn = generate(
-					{ properties: { [col]: properties[col] }, required: [col], type: "object" },
-					{
-						...(options.defs === undefined ? {} : { defs: options.defs }),
-						distinct: new Set([col]),
-						index: kept.length * 17 + attempt + 1,
-						nonce: `${options.nonce ?? ""}${attempt}`,
-					},
-				)
-				if (!redrawn.ok) break
-				body[col] = (redrawn.value as Record<string, unknown>)[col]
-			}
-			if (kept.some((prior) => sameUniqueTuple(prior.body, body, set))) ok = false
-			if (!ok) break
-		}
-		if (ok) kept.push({ body, variant: member.variant })
+		const body = distinctBody(member, sets, { kept, options, properties })
+		if (body !== undefined) kept.push({ body, variant: member.variant })
 	}
+	/* The first member is always kept: there is nothing before it to collide with. */
 	if (kept.length === members.length) return { gap: null, members: kept }
-	if (kept.length === 0) return { gap: uniqueDistinctGap(sets), members: members.slice(0, 1) }
 	return { gap: uniqueDistinctGap(sets), members: kept }
+}
+
+/** What redrawing a member's unique columns needs: the members kept so far and the column schemas. */
+interface Redraw {
+	kept: readonly CohortMember[]
+	options: CohortOptions
+	properties: Record<string, unknown>
+}
+
+/** `member`'s body made distinct from every kept member on every set, or `undefined` if it cannot be. */
+function distinctBody(member: CohortMember, sets: string[][], redraw: Redraw): Record<string, unknown> | undefined {
+	const body = { ...member.body }
+	for (const set of sets) {
+		redrawSet(body, set, redraw)
+		if (collides(redraw.kept, body, set)) return undefined
+	}
+	return body
+}
+
+/** Redraws one column of `set` in `body`, at most 16 times, until no kept member shares its tuple. */
+function redrawSet(body: Record<string, unknown>, set: string[], { kept, options, properties }: Redraw): void {
+	for (let attempt = 0; collides(kept, body, set) && attempt < 16; attempt++) {
+		const col = set.find((name) => Object.hasOwn(body, name) && isObject(properties[name]))
+		if (col === undefined) return
+		const redrawn = generate(
+			{ properties: { [col]: properties[col] }, required: [col], type: "object" },
+			{
+				...(options.defs === undefined ? {} : { defs: options.defs }),
+				distinct: new Set([col]),
+				index: kept.length * 17 + attempt + 1,
+				nonce: `${options.nonce ?? ""}${attempt}`,
+			},
+		)
+		if (!redrawn.ok) return
+		body[col] = (redrawn.value as Record<string, unknown>)[col]
+	}
+}
+
+function collides(kept: readonly CohortMember[], body: Record<string, unknown>, set: string[]): boolean {
+	return kept.some((prior) => sameUniqueTuple(prior.body, body, set))
 }
 
 function uniqueDistinctGap(sets: string[][]): string {

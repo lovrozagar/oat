@@ -58,24 +58,20 @@ export async function runSelfActions(
 			query,
 		})
 		if (response.status !== 200) {
-			return findings.backend(
-				SELF_CHECK_ID,
-				input.entity.name,
-				"the caller query failed",
-				`${op.operationId} returned ${response.status} for ${JSON.stringify(query)}.`,
-				[response],
-			)
+			return findings.backend(SELF_CHECK_ID, input.entity.name, {
+				summary: "the caller query failed",
+				detail: `${op.operationId} returned ${response.status} for ${JSON.stringify(query)}.`,
+				evidence: [response],
+			})
 		}
 		const other = answeredOther(response, query)
 		if (other !== null) {
 			const record = response.responseBody as Record<string, unknown>
-			return findings.backend(
-				SELF_CHECK_ID,
-				input.entity.name,
-				"the caller query answered about a different value",
-				`${op.operationId} was asked for ${other}=${query[other]} and returned ${JSON.stringify(record[other])}.`,
-				[response],
-			)
+			return findings.backend(SELF_CHECK_ID, input.entity.name, {
+				summary: "the caller query answered about a different value",
+				detail: `${op.operationId} was asked for ${other}=${query[other]} and returned ${JSON.stringify(record[other])}.`,
+				evidence: [response],
+			})
 		}
 	}
 	return null

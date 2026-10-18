@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { inProcess } from "./harness/launch.ts"
+import { inProcess, type Via } from "./harness/launch.ts"
 import { runScopeSuite } from "./scope.ts"
 
 /* Every defect runs in the conformance suite, reusing the defect matrix's full runs; these keep
@@ -24,6 +24,19 @@ describe("--ops recall", () => {
 		expect(results.map((r) => [r.ok, r.detail])).toEqual([
 			[false, "list.read-after-write finding carries no operation"],
 			[false, expect.stringMatching(/^--ops job\.list: MISSED, status /)],
+		])
+	}, 600_000)
+
+	it("fails a defect the full run did not report, and names a selector no operation answers to by name", async () => {
+		/* The reference launches without the defect it was asked for: there is nothing to find. */
+		const unbroken: Via = {
+			...inProcess,
+			launch: (backend, options) => inProcess.launch(backend, { ...options, defects: [] }),
+		}
+		const results = await runScopeSuite(unbroken, ["STALE_LIST", "PATCH_REPLACES"], { PATCH_REPLACES: ["table.*"] })
+		expect(results.map((r) => [r.ok, r.detail])).toEqual([
+			[false, "the full run did not report it either"],
+			[false, "--ops table.*: MISSED, status absent"],
 		])
 	}, 600_000)
 

@@ -42,23 +42,20 @@ export const successSchemaHonoured = defineCheck<{
 
 		const result = validator.validate(createOp.operationId, raw, exchange.status, exchange.responseBody)
 		if (result.unchecked !== undefined) {
-			return ctx.findings.gap(
-				this.id,
-				ctx.entityName,
-				`${createOp.operationId} ${exchange.status} has a schema that cannot be compiled`,
-				`AJV refused the documented schema, so the body was not validated: ${result.unchecked}`,
-			)
+			return ctx.findings.gap(this.id, ctx.entityName, {
+				summary: `${createOp.operationId} ${exchange.status} has a schema that cannot be compiled`,
+				detail: `AJV refused the documented schema, so the body was not validated: ${result.unchecked}`,
+			})
 		}
 		if (result.ok) return ASSERTED
 
-		return ctx.findings.spec(
-			this.id,
-			ctx.entityName,
-			"success response does not match its documented schema",
-			`${createOp.operationId} returned ${exchange.status} with a body that fails the declared ` +
+		return ctx.findings.spec(this.id, ctx.entityName, {
+			summary: "success response does not match its documented schema",
+			detail:
+				`${createOp.operationId} returned ${exchange.status} with a body that fails the declared ` +
 				`schema: ${result.errors.join("; ")}. Either the handler returns more than it promises ` +
 				"or the document is out of date — both break generated clients.",
-			[exchange],
-		)
+			evidence: [exchange],
+		})
 	},
 })

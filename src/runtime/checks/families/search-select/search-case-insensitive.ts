@@ -46,13 +46,11 @@ export const searchCaseInsensitive = defineCheck<{ token: string; flipped: strin
 		const b = setOf(other.items, ctx.identity)
 		if (sameSet(a, b)) return ASSERTED
 		if (resolvedCaps(ctx).searchCase === "insensitive") {
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"search is not case-insensitive",
-				`q=${JSON.stringify(token)} and q=${JSON.stringify(flipped)} selected different sets.`,
-				[original.exchange, other.exchange],
-			)
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "search is not case-insensitive",
+				detail: `q=${JSON.stringify(token)} and q=${JSON.stringify(flipped)} selected different sets.`,
+				evidence: [original.exchange, other.exchange],
+			})
 		}
 		return ctx.findings.unresolved(
 			this.id,

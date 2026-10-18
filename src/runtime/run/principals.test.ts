@@ -93,7 +93,9 @@ describe("resolvePrincipals failing", () => {
 	it("rethrows a sign-in that fails for any other reason", async () => {
 		const state = { failing: true, issued: 0 }
 		const run = await planned(optionsFor(withLogin(state), { principals: [flow] }))
-		await expect(resolvePrincipals(run)).rejects.toThrow()
+		await expect(resolvePrincipals(run)).rejects.toThrow(
+			/failed at auth step 1 \(POST \/login\): expected 2xx, got 500/,
+		)
 	})
 })
 

@@ -30,14 +30,13 @@ export const requiredValidated = defineCheck<CreateBody & { field: string }>({
 		const refused = judgeRefusal(ctx, this.id, ["validation"], exchange)
 		if (refused !== null) return refused
 
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"create succeeded without a required field",
-			`"${field}" is listed in the schema's required array, but omitting it returned ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "create succeeded without a required field",
+			detail:
+				`"${field}" is listed in the schema's required array, but omitting it returned ` +
 				`${exchange.status}. Either the handler does not validate it or the document ` +
 				"overstates the requirement.",
-			[exchange],
-		)
+			evidence: [exchange],
+		})
 	},
 })

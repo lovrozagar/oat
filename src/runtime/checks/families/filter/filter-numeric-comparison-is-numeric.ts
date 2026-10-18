@@ -92,21 +92,20 @@ export const numericComparisonIsNumeric = defineCheck<{
 		})
 		const comparedAsText = missing.length > 0 && missing.every((id) => lexical.includes(id))
 
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			comparedAsText
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: comparedAsText
 				? `"${field}" is compared as text rather than as a number`
 				: `"${field}" comparison does not agree with numeric ordering`,
-			`filter=${field}.gt.${threshold} returned ${got.length} record(s); ${expected.length} known ` +
+			detail:
+				`filter=${field}.gt.${threshold} returned ${got.length} record(s); ${expected.length} known ` +
 				`records hold a greater numeric value. Missing: ${missing.slice(0, 4).join(", ") || "none"}. ` +
 				`Unexpected: ${extra.slice(0, 4).join(", ") || "none"}. ` +
 				(comparedAsText
 					? "Every missing record is one whose value sorts below the threshold as a string, " +
 						"so the comparison is lexical: the query value was never coerced from text."
 					: "The comparison does not agree with numeric ordering."),
-			[result.exchange],
-		)
+			evidence: [result.exchange],
+		})
 	},
 })
 

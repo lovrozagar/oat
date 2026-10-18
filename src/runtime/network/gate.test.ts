@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { NetworkError } from "../../errors/network.ts"
-import { createNetworkGate, type NetworkWaitInfo } from "./gate.ts"
+import { createNetworkGate, type NetworkGateOptions, type NetworkWaitInfo } from "./gate.ts"
 
 const failure = new NetworkError({
 	attempts: 5,
@@ -30,7 +30,7 @@ afterEach(() => {
 
 describe("createNetworkGate without a budget", () => {
 	it("gives up at once and stays given up", async () => {
-		const probe = vi.fn(async () => true)
+		const probe = vi.fn<NetworkGateOptions["probe"]>(async () => true)
 		const gate = createNetworkGate({ probe, waitBudgetMs: 0 })
 		expect(await gate.awaitRecovery(failure)).toBe(false)
 		expect([gate.exhausted, gate.lastKind, gate.waitedMs]).toEqual([true, "reset", 0])
@@ -79,7 +79,7 @@ describe("createNetworkGate with a budget", () => {
 
 	it("shares one wait between concurrent callers, and waits again once it settles", async () => {
 		const clock = virtualClock()
-		const probe = vi.fn(async () => true)
+		const probe = vi.fn<NetworkGateOptions["probe"]>(async () => true)
 		const gate = createNetworkGate({ now: clock.now, probe, sleep: clock.sleep, waitBudgetMs: 10_000 })
 		const first = gate.awaitRecovery(failure)
 		expect(gate.awaitRecovery(failure)).toBe(first)
@@ -90,7 +90,7 @@ describe("createNetworkGate with a budget", () => {
 
 	it("waits on the real clock by default: a minute's budget, a probe every two seconds", async () => {
 		vi.useFakeTimers()
-		const probe = vi.fn(async () => true)
+		const probe = vi.fn<NetworkGateOptions["probe"]>(async () => true)
 		const gate = createNetworkGate({ probe })
 		const recovered = gate.awaitRecovery(failure)
 		await vi.advanceTimersByTimeAsync(2_000)

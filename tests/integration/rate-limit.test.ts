@@ -144,22 +144,80 @@ describe("Retry-After parsing", () => {
 	})
 })
 
+/* A thing endpoint that answers the first POST 429 with `headers`, then creates. */
+async function throttledOnce(headers?: Record<string, string>) {
+	let posts = 0
+	const server = await listen((req, res) => {
+		const url = new URL(req.url ?? "/", "http://127.0.0.1")
+		if (url.pathname !== "/v1/things" || req.method !== "POST") return send(res, 404)
+		posts += 1
+		if (posts === 1) return send(res, 429, { error: "too_many_requests" }, headers)
+		return send(res, 201, { id: "t1", name: "n" })
+	})
+	closers.push(server.close)
+	return { posts: () => posts, server }
+}
+
+type ThingWorld = { posts: number; rows: Map<string, { id: string; name: string }>; spec: OpenApiDocument }
+
+/* The first create is throttled with a zero wait; the rest succeed. */
+function createThing(world: ThingWorld, res: ServerResponse): void {
+	world.posts += 1
+	if (world.posts === 1) return send(res, 429, { error: "too_many_requests" }, { "retry-after": "0" })
+	const id = `t_${String(world.posts)}`
+	const row = { id, name: "n" }
+	world.rows.set(id, row)
+	send(res, 201, row)
+}
+
+function thingItem(world: ThingWorld, id: string, method: string, res: ServerResponse): void {
+	if (method === "GET") {
+		const row = world.rows.get(id)
+		return row === undefined ? send(res, 404) : send(res, 200, row)
+	}
+	if (method !== "DELETE") return send(res, 404)
+	world.rows.delete(id)
+	send(res, 204)
+}
+
+/* A full thing backend for a run. */
+async function routeThings(world: ThingWorld, req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const url = new URL(req.url ?? "/", "http://127.0.0.1")
+	const method = (req.method ?? "GET").toUpperCase()
+	if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, world.spec)
+	if (url.pathname === "/v1/things" && method === "GET") return send(res, 200, { items: [...world.rows.values()] })
+	if (url.pathname === "/v1/things" && method === "POST") return createThing(world, res)
+	const item = /^\/v1\/things\/([^/]+)$/.exec(url.pathname)
+	if (item === null) return send(res, 404)
+	thingItem(world, item[1] ?? "", method, res)
+}
+
+/* A run against the thing backend, seeding through its throttled first create. */
+async function runThrottledSeed() {
+	const world: ThingWorld = { posts: 0, rows: new Map(), spec: thingSpec(null) }
+	const server = await listen((req, res) => {
+		void routeThings(world, req, res)
+	})
+	closers.push(server.close)
+	const result = await run({
+		baseUrl: server.url,
+		keepFixtures: true,
+		only: ["thing"],
+		principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
+		seed: 1,
+		spec: `${server.url}/v1/openapi/spec`,
+	})
+	return { result, world }
+}
+
 describe("Client.request 429 retry", () => {
 	it("retries once after Retry-After: 1 and returns the 201, not the 429", async () => {
-		let posts = 0
-		const server = await listen((req, res) => {
-			const url = new URL(req.url ?? "/", "http://127.0.0.1")
-			if (url.pathname !== "/v1/things" || req.method !== "POST") return send(res, 404)
-			posts += 1
-			if (posts === 1) return send(res, 429, { error: "too_many_requests" }, { "retry-after": "1" })
-			return send(res, 201, { id: "t1", name: "n" })
-		})
-		closers.push(server.close)
+		const { posts, server } = await throttledOnce({ "retry-after": "1" })
 		const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 		const started = Date.now()
 		const exchange = await client.request("POST", "/v1/things", { body: { name: "n" } })
 		const elapsed = Date.now() - started
-		expect(posts).toBe(2)
+		expect(posts()).toBe(2)
 		expect(exchange.status).toBe(201)
 		expect(exchange.responseBody).toEqual({ id: "t1", name: "n" })
 		expect(client.transcript.map((e) => e.status)).toEqual([429, 201])
@@ -173,15 +231,7 @@ describe("Client.request 429 retry", () => {
 		const rules = buildRateLimitRules(model, undefined)
 		expect(rules).toEqual([])
 
-		let posts = 0
-		const server = await listen((req, res) => {
-			const url = new URL(req.url ?? "/", "http://127.0.0.1")
-			if (url.pathname !== "/v1/things" || req.method !== "POST") return send(res, 404)
-			posts += 1
-			if (posts === 1) return send(res, 429, { error: "too_many_requests" }, { "retry-after": "1" })
-			return send(res, 201, { id: "t1", name: "n" })
-		})
-		closers.push(server.close)
+		const { posts, server } = await throttledOnce({ "retry-after": "1" })
 		const client = new Client({
 			baseUrl: server.url,
 			maxInFlight: 4,
@@ -189,7 +239,7 @@ describe("Client.request 429 retry", () => {
 			redactor: new Redactor(),
 		})
 		const exchange = await client.request("POST", "/v1/things", { body: { name: "n" } })
-		expect(posts).toBe(2)
+		expect(posts()).toBe(2)
 		expect(exchange.status).toBe(201)
 		expect(client.transcript[0]?.rateLimitCategory).toBeUndefined()
 		expect(client.transcript[1]?.rateLimitCategory).toBe(UNTAGGED_WRITE_CATEGORY)
@@ -197,66 +247,21 @@ describe("Client.request 429 retry", () => {
 	})
 
 	it("waits and retries when 429 has no Retry-After", async () => {
-		let posts = 0
-		const server = await listen((req, res) => {
-			const url = new URL(req.url ?? "/", "http://127.0.0.1")
-			if (url.pathname !== "/v1/things" || req.method !== "POST") return send(res, 404)
-			posts += 1
-			if (posts === 1) return send(res, 429, { error: "too_many_requests" })
-			return send(res, 201, { id: "t1", name: "n" })
-		})
-		closers.push(server.close)
+		const { posts, server } = await throttledOnce()
 		const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 		const started = Date.now()
 		const exchange = await client.request("POST", "/v1/things", { body: { name: "n" } })
-		expect(posts).toBe(2)
+		expect(posts()).toBe(2)
 		expect(exchange.status).toBe(201)
 		expect(Date.now() - started).toBeGreaterThanOrEqual(900)
 	})
 
 	it("does not treat the first 429 as a seed failure", { timeout: 20_000 }, async () => {
-		let posts = 0
-		const spec = thingSpec(null)
-		const rows = new Map<string, { id: string; name: string }>()
-		const server = await listen((req, res) => {
-			void (async () => {
-				const url = new URL(req.url ?? "/", "http://127.0.0.1")
-				const method = (req.method ?? "GET").toUpperCase()
-				if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, spec)
-				if (url.pathname === "/v1/things" && method === "GET") return send(res, 200, { items: [...rows.values()] })
-				if (url.pathname === "/v1/things" && method === "POST") {
-					posts += 1
-					if (posts === 1) return send(res, 429, { error: "too_many_requests" }, { "retry-after": "0" })
-					const id = `t_${String(posts)}`
-					const row = { id, name: "n" }
-					rows.set(id, row)
-					return send(res, 201, row)
-				}
-				const item = /^\/v1\/things\/([^/]+)$/.exec(url.pathname)
-				if (item !== null && method === "GET") {
-					const row = rows.get(item[1] ?? "")
-					return row === undefined ? send(res, 404) : send(res, 200, row)
-				}
-				if (item !== null && method === "DELETE") {
-					rows.delete(item[1] ?? "")
-					return send(res, 204)
-				}
-				return send(res, 404)
-			})()
-		})
-		closers.push(server.close)
-		const result = await run({
-			baseUrl: server.url,
-			keepFixtures: true,
-			only: ["thing"],
-			principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
-			seed: 1,
-			spec: `${server.url}/v1/openapi/spec`,
-		})
+		const { result, world } = await runThrottledSeed()
 		const blocked = result.findings.filter((f) => f.verdict === "BLOCKED" && f.check === "world.seed")
 		expect(blocked).toEqual([])
 		expect(result.entitiesTested).toContain("thing")
-		expect(posts).toBeGreaterThan(1)
+		expect(world.posts).toBeGreaterThan(1)
 		expect(result.client.transcript.some((e) => e.method === "POST" && e.status === 429)).toBe(true)
 		expect(result.client.transcript.some((e) => e.method === "POST" && e.status === 201)).toBe(true)
 	})

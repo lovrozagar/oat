@@ -57,7 +57,9 @@ describe("signUp through the suite principal's flow", () => {
 			accountsApi(accounts({ answers: { "POST /v1/register": { body: { access_token: "" }, status: 201 } } })),
 			{ authFlow: signupFlow(), hooks },
 		)
-		await expect(signUp(empty.input, "s")).rejects.toThrow()
+		await expect(signUp(empty.input, "s")).rejects.toThrow(
+			/declares saveAs.refreshToken = "\$.refresh_token", which is not present/,
+		)
 	})
 })
 

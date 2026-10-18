@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import type { EffectSpec } from "../../../../spec/extensions/effects.ts"
+import type { CheckContext } from "../../core/context.ts"
 import { contextFor, exchange, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
 import { baseDocument, routes, withOperation } from "./__fixtures__/documents.ts"
 import { type ActionRun, judgeEffects, missingParams, reportGap } from "./effect-verdicts.ts"
@@ -26,7 +27,7 @@ interface Setup {
 
 /** Judges `effects` of a succeeded `actOnWidget` against a server answering through `respond`. */
 async function judge(respond: Responder, effects: EffectSpec[], setup: Setup = {}) {
-	const recordCreated = vi.fn()
+	const recordCreated = vi.fn<NonNullable<CheckContext["recordCreated"]>>()
 	const stage = contextFor(model, "listWidgets", respond, setup.tracked === false ? {} : { recordCreated })
 	const action: ActionRun = {
 		befores: new Map(Object.entries(setup.befores ?? {})),

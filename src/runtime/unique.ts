@@ -139,6 +139,17 @@ function distinctUniqueValue(value: unknown, token: string, schema: Record<strin
 	return JSON.stringify(next) === JSON.stringify(value) ? value : next
 }
 
+/** One unique set as a write can reach it: which columns the body sends, and where the rest come from. */
+export interface UniqueSetWrite {
+	set: string[]
+	/** Path and tenant values, for columns the body does not carry. */
+	scope: Record<string, string>
+	/** Columns the write's body declares. */
+	bodyColumns: ReadonlySet<string>
+	/** Columns the server fills, never sent. */
+	generated: readonly string[]
+}
+
 /**
  * Overlays one unique set's values from a known row onto a body that otherwise does not collide.
  *
@@ -147,11 +158,9 @@ function distinctUniqueValue(value: unknown, token: string, schema: Record<strin
 export function collisionCreateBody(
 	base: Record<string, unknown>,
 	known: Record<string, unknown>,
-	set: string[],
-	scope: Record<string, string>,
-	bodyColumns: ReadonlySet<string>,
-	generated: readonly string[],
+	write: UniqueSetWrite,
 ): Record<string, unknown> | null {
+	const { bodyColumns, generated, scope, set } = write
 	const out = { ...base }
 	const skip = new Set(generated)
 	let wrote = false
@@ -169,12 +178,9 @@ export function collisionCreateBody(
 export function collisionUpdatePatch(
 	source: Record<string, unknown>,
 	target: Record<string, unknown>,
-	set: string[],
-	scope: Record<string, string>,
-	bodyColumns: ReadonlySet<string>,
-	immutable: readonly string[],
-	generated: readonly string[],
+	write: UniqueSetWrite & { immutable: readonly string[] },
 ): Record<string, unknown> | null {
+	const { bodyColumns, generated, immutable, scope, set } = write
 	const skip = new Set([...immutable, ...generated])
 	const patch: Record<string, unknown> = {}
 	for (const col of set) {

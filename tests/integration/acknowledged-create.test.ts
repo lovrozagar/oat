@@ -20,22 +20,23 @@ afterEach(async () => {
 	open = []
 })
 
-function spec(): OpenApiDocument {
-	const note = {
-		additionalProperties: false,
-		properties: { id: { minLength: 1, type: "string" }, name: { minLength: 1, type: "string" } },
-		required: ["id", "name"],
-		type: "object",
-	}
-	const ack = {
-		content: {
-			"application/json": {
-				schema: { properties: { success: { type: "boolean" } }, type: "object" },
-			},
+const note = {
+	additionalProperties: false,
+	properties: { id: { minLength: 1, type: "string" }, name: { minLength: 1, type: "string" } },
+	required: ["id", "name"],
+	type: "object",
+}
+const ack = {
+	content: {
+		"application/json": {
+			schema: { properties: { success: { type: "boolean" } }, type: "object" },
 		},
-		description: "ok",
-	}
-	const idParam = [{ in: "path", name: "noteId", required: true, schema: { type: "string" } }]
+	},
+	description: "ok",
+}
+const idParam = [{ in: "path", name: "noteId", required: true, schema: { type: "string" } }]
+
+function spec(): OpenApiDocument {
 	return {
 		info: { title: "acknowledged-create", version: "1" },
 		openapi: "3.1.0",
@@ -95,41 +96,60 @@ function send(res: ServerResponse, status: number, body: unknown): void {
 	res.end(JSON.stringify(body))
 }
 
+function named(value: string | undefined): value is string {
+	return typeof value === "string" && value !== ""
+}
+
+async function createNote(rows: Map<string, Row>, req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const body = (await readJson(req)) as Partial<Row> | undefined
+	if (!named(body?.id) || !named(body.name)) return send(res, 400, { success: false })
+	if (rows.has(body.id)) return send(res, 409, { success: false })
+	rows.set(body.id, { id: body.id, name: body.name })
+	send(res, 200, { success: true })
+}
+
+async function updateNote(
+	rows: Map<string, Row>,
+	id: string,
+	req: IncomingMessage,
+	res: ServerResponse,
+): Promise<void> {
+	const body = (await readJson(req)) as Partial<Row> | undefined
+	if (!rows.has(id)) return send(res, 404, {})
+	if (!named(body?.name)) return send(res, 400, { success: false })
+	if (body.id !== undefined && body.id !== id) return send(res, 400, { success: false })
+	rows.set(id, { id, name: body.name })
+	send(res, 200, { success: true })
+}
+
+async function noteItem(rows: Map<string, Row>, id: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const method = (req.method ?? "GET").toUpperCase()
+	if (method === "GET") {
+		const row = rows.get(id)
+		return row === undefined ? send(res, 404, {}) : send(res, 200, row)
+	}
+	if (method === "PUT") return updateNote(rows, id, req, res)
+	if (method === "DELETE") return rows.delete(id) ? send(res, 200, { success: true }) : send(res, 404, {})
+	send(res, 404, {})
+}
+
+async function route(rows: Map<string, Row>, req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const url = new URL(req.url ?? "/", "http://127.0.0.1")
+	const method = (req.method ?? "GET").toUpperCase()
+	if (url.pathname === "/notes" && method === "GET") return send(res, 200, [...rows.values()])
+	if (url.pathname === "/notes" && method === "POST") return createNote(rows, req, res)
+	const item = url.pathname.match(/^\/notes\/([^/]+)$/)
+	if (item === null) return send(res, 404, {})
+	return noteItem(rows, decodeURIComponent(item[1] ?? ""), req, res)
+}
+
 async function serve(rows: Map<string, Row>): Promise<string> {
 	const document = spec()
 	const server = createServer((req, res) => {
 		void (async () => {
 			const url = new URL(req.url ?? "/", "http://127.0.0.1")
-			const method = (req.method ?? "GET").toUpperCase()
 			if (url.pathname === "/openapi.json") return send(res, 200, document)
-			if (url.pathname === "/notes" && method === "GET") return send(res, 200, [...rows.values()])
-			if (url.pathname === "/notes" && method === "POST") {
-				const body = (await readJson(req)) as Partial<Row> | undefined
-				if (typeof body?.id !== "string" || body.id === "" || typeof body.name !== "string" || body.name === "") {
-					return send(res, 400, { success: false })
-				}
-				if (rows.has(body.id)) return send(res, 409, { success: false })
-				rows.set(body.id, { id: body.id, name: body.name })
-				return send(res, 200, { success: true })
-			}
-			const item = url.pathname.match(/^\/notes\/([^/]+)$/)
-			const id = decodeURIComponent(item?.[1] ?? "")
-			if (item !== null && method === "GET") {
-				const row = rows.get(id)
-				return row === undefined ? send(res, 404, {}) : send(res, 200, row)
-			}
-			if (item !== null && method === "PUT") {
-				const body = (await readJson(req)) as Partial<Row> | undefined
-				if (!rows.has(id)) return send(res, 404, {})
-				if (typeof body?.name !== "string" || body.name === "") return send(res, 400, { success: false })
-				if (body.id !== undefined && body.id !== id) return send(res, 400, { success: false })
-				rows.set(id, { id, name: body.name })
-				return send(res, 200, { success: true })
-			}
-			if (item !== null && method === "DELETE") {
-				return rows.delete(id) ? send(res, 200, { success: true }) : send(res, 404, {})
-			}
-			return send(res, 404, {})
+			await route(rows, req, res)
 		})().catch(() => {
 			if (!res.headersSent) res.writeHead(500)
 			res.end()

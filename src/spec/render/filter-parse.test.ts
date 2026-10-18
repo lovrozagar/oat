@@ -107,8 +107,8 @@ describe("parseFilterGrammar: errors", () => {
 			[{ ...EXAMPLE, null: "x", list: "" }, "null"],
 		] as const) {
 			const result = parseFilterGrammar(raw)
-			expect(result.ok, key).toBe(false)
-			expect(result.ok ? "" : result.error, key).toContain(key)
+			expect({ key, ok: result.ok }).toEqual({ key, ok: false })
+			expect(result.ok ? "" : result.error).toContain(key)
 		}
 	})
 })

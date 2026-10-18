@@ -36,12 +36,10 @@ export const equalityFilterSelectsOne = defineCheck<{
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the equality filter was rejected")
 		const got = ids(result.items, ctx.identity)
 		if (got.length === 1 && got[0] === id) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"equality filter on the identity does not select exactly one record",
-			`filter=${field}.eq.${id} returned ${got.length} records (${got.slice(0, 5).join(", ")})`,
-			[result.exchange],
-		)
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "equality filter on the identity does not select exactly one record",
+			detail: `filter=${field}.eq.${id} returned ${got.length} records (${got.slice(0, 5).join(", ")})`,
+			evidence: [result.exchange],
+		})
 	},
 })

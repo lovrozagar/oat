@@ -39,13 +39,11 @@ export const sortNullsFirstLast = defineCheck<{
 			if (result === null) return ctx.findings.unresolved(this.id, ctx.entityName, "nullsfirst listing was rejected")
 			const first = result.items[0]
 			if (first !== undefined && first[field.field] !== null && first[field.field] !== undefined) {
-				return ctx.findings.backend(
-					this.id,
-					ctx.entityName,
-					"nullsfirst did not put nulls first",
-					`order=${clause} started with ${JSON.stringify(first[field.field])}.`,
-					[result.last.exchange],
-				)
+				return ctx.findings.backend(this.id, ctx.entityName, {
+					summary: "nullsfirst did not put nulls first",
+					detail: `order=${clause} started with ${JSON.stringify(first[field.field])}.`,
+					evidence: [result.last.exchange],
+				})
 			}
 		}
 		if (lastClause !== null) {
@@ -58,13 +56,11 @@ export const sortNullsFirstLast = defineCheck<{
 			}
 			const last = result.items.at(-1)
 			if (last !== undefined && last[field.field] !== null && last[field.field] !== undefined) {
-				ctx.findings.backend(
-					this.id,
-					ctx.entityName,
-					"nullslast did not put nulls last",
-					`order=${clause} ended with ${JSON.stringify(last[field.field])}.`,
-					[result.last.exchange],
-				)
+				ctx.findings.backend(this.id, ctx.entityName, {
+					summary: "nullslast did not put nulls last",
+					detail: `order=${clause} ended with ${JSON.stringify(last[field.field])}.`,
+					evidence: [result.last.exchange],
+				})
 			}
 		}
 		return ASSERTED

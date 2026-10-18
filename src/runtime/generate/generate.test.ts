@@ -270,9 +270,9 @@ describe("every generated value validates against a random schema it came from",
 				for (let index = 0; index < 3; index++) {
 					const result = generate(normalized, { defs, index, nonce: "n0nce", variant })
 					const where = `schema #${n} ${variant} #${index}: ${JSON.stringify(schema)}`
-					expect(result, where).toMatchObject({ ok: true })
+					expect({ result, where }).toMatchObject({ result: { ok: true } })
 					if (!result.ok) continue
-					expect(instanceErrors(normalized, result.value, defs), where).toEqual([])
+					expect({ errors: instanceErrors(normalized, result.value, defs), where }).toEqual({ errors: [], where })
 				}
 			}
 		}

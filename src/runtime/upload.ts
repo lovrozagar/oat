@@ -1,12 +1,12 @@
 /**
- * Resolves a file part: hook, then pool, then a dummy. Missing pool paths warn once a run
+ * Resolves a file part: hook, then pool, then a dummy. Missing pool paths warn once
  * and fall through — a bad glob must not crash a run.
  */
 
 import { readdir, readFile, stat } from "node:fs/promises"
-import { basename, dirname, join, relative, resolve, sep } from "node:path"
+import { basename, join, relative, resolve, sep } from "node:path"
 import type { Hooks, UploadFile, UploadRequest, UploadResolution, Uploads } from "../config/types/hooks.ts"
-import { dummyFile, mediaTypeOfExtension, mediaTypesCompatible, sniffMediaType } from "./dummy.ts"
+import { dummyFile, mediaTypesCompatible, sniffMediaType } from "./dummy.ts"
 import { mulberry32 } from "./fixture.ts"
 
 export interface UploadContext {
@@ -25,6 +25,13 @@ export interface UploadContext {
 	}
 	/** What the run remembers across parts; absent, each call starts fresh. */
 	memory?: UploadMemory
+}
+
+interface PoolEntry {
+	path: string
+	bytes: Uint8Array
+	filename: string
+	mediaType: string
 }
 
 /**
@@ -78,13 +85,7 @@ async function fileFromFixtureSlot(request: UploadRequest, context: UploadContex
 	if (slot === undefined) return undefined
 	try {
 		const bytes = new Uint8Array(await readFile(slot.path))
-		const sniffed = sniffMediaType(bytes, slot.filename)
-		const byExt = mediaTypeOfExtension(extOf(slot.filename))
-		return {
-			bytes,
-			filename: slot.filename,
-			mediaType: sniffed ?? byExt ?? "application/octet-stream",
-		}
+		return { bytes, filename: slot.filename, mediaType: sniffMediaType(bytes, slot.filename) ?? OCTET }
 	} catch {
 		warnOnce(context)(`uploads.each could not read ${slot.path}`)
 		return undefined
@@ -113,12 +114,11 @@ export function isFieldOverride(value: unknown): value is { fields: Record<strin
 	)
 }
 
-interface PoolEntry {
-	path: string
-	bytes: Uint8Array
-	filename: string
-	mediaType: string
-}
+/*
+ * What a file is sent as when neither its bytes nor its name say. The sniffer already falls back to
+ * the name, so its answer is the only one to ask.
+ */
+const OCTET = "application/octet-stream"
 
 async function pickFromPool(request: UploadRequest, context: UploadContext): Promise<UploadFile | undefined> {
 	const patterns = context.uploads?.pool
@@ -130,7 +130,6 @@ async function pickFromPool(request: UploadRequest, context: UploadContext): Pro
 	if (matching.length === 0) return undefined
 
 	const picked = stablePick(matching, context.seed, request.field, request.index)
-	if (picked === undefined) return undefined
 	return { bytes: picked.bytes, filename: picked.filename, mediaType: picked.mediaType }
 }
 
@@ -147,20 +146,19 @@ function matchesPart(entry: PoolEntry, request: UploadRequest): boolean {
 	return false
 }
 
-function stablePick<T>(items: T[], seed: number, field: string, index: number): T | undefined {
-	if (items.length === 0) return undefined
+/** One of `items` (never empty), the same one for the same seed, field and index. */
+function stablePick<T>(items: T[], seed: number, field: string, index: number): T {
 	const rand = mulberry32(hash32(`${seed}\0${field}\0${index}`))
 	/* Fisher–Yates with the seeded RNG so the same seed always picks the same file. */
 	const copy = [...items]
 	for (let i = copy.length - 1; i > 0; i--) {
 		const j = Math.floor(rand() * (i + 1))
-		const a = copy[i]
-		const b = copy[j]
-		if (a === undefined || b === undefined) continue
-		copy[i] = b
+		/* Both indices are in range: j <= i < copy.length. */
+		const a = copy[i] as T
+		copy[i] = copy[j] as T
 		copy[j] = a
 	}
-	return copy[0]
+	return copy[0] as T
 }
 
 async function loadPool(patterns: string[], root: string, warn: (message: string) => void): Promise<PoolEntry[]> {
@@ -175,14 +173,7 @@ async function loadPool(patterns: string[], root: string, warn: (message: string
 		try {
 			const bytes = new Uint8Array(await readFile(path))
 			const filename = basename(path)
-			const sniffed = sniffMediaType(bytes, filename)
-			const byExt = mediaTypeOfExtension(extOf(filename))
-			entries.push({
-				bytes,
-				filename,
-				mediaType: sniffed ?? byExt ?? "application/octet-stream",
-				path,
-			})
+			entries.push({ bytes, filename, mediaType: sniffMediaType(bytes, filename) ?? OCTET, path })
 		} catch {
 			warn(`uploads.pool could not read ${path}`)
 		}
@@ -239,11 +230,10 @@ async function walkFiles(dir: string): Promise<string[]> {
 	return out
 }
 
+/** A glob's literal directory and the pattern under it; `pattern` has a wildcard. */
 function splitGlob(pattern: string): { dir: string; glob: string } {
 	const normalised = pattern.replace(/\\/g, "/")
-	const star = normalised.search(/[*?]/)
-	if (star < 0) return { dir: dirname(pattern), glob: basename(pattern) }
-	const slash = normalised.lastIndexOf("/", star)
+	const slash = normalised.lastIndexOf("/", normalised.search(/[*?]/))
 	if (slash < 0) return { dir: ".", glob: normalised }
 	return { dir: normalised.slice(0, slash), glob: normalised.slice(slash + 1) }
 }
@@ -251,7 +241,7 @@ function splitGlob(pattern: string): { dir: string; glob: string } {
 function globToRegExp(glob: string): RegExp {
 	let source = "^"
 	for (let i = 0; i < glob.length; i++) {
-		const ch = glob[i]
+		const ch = glob.charAt(i)
 		if (ch === "*" && glob[i + 1] === "*") {
 			const next = glob[i + 2]
 			if (next === "/") {
@@ -271,8 +261,7 @@ function globToRegExp(glob: string): RegExp {
 			source += "[^/]"
 			continue
 		}
-		if (ch !== undefined && /[.+^${}()|[\]\\]/.test(ch)) source += `\\${ch}`
-		else if (ch !== undefined) source += ch
+		source += /[.+^${}()|[\]\\]/.test(ch) ? `\\${ch}` : ch
 	}
 	source += "$"
 	return new RegExp(source, "i")

@@ -36,6 +36,14 @@ describe("findingKey", () => {
 		expect(findingKey(finding({ summary: "the list lost a record" }))).toBe(findingKey(finding()))
 	})
 
+	it("keys a run-level finding with no operations, and operations in any order alike", () => {
+		const { operations: _, ...runLevel } = finding()
+		expect(findingKey(runLevel)).toMatch(/^\|[^|]+\|[^|]+\|\|/)
+		expect(findingKey(finding({ operations: ["b.x", "a.x"] }))).toBe(
+			findingKey(finding({ operations: ["a.x", "b.x"] })),
+		)
+	})
+
 	it("tells apart another check, entity, operation or detail", () => {
 		const base = findingKey(finding())
 		expect(findingKey(finding({ check: "list.total-matches" }))).not.toBe(base)

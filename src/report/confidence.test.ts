@@ -98,10 +98,41 @@ describe("confidence groups", () => {
 	})
 })
 
+describe("confidence rows", () => {
+	const many: ScopeReport = {
+		...scope,
+		operations: [
+			row({ entity: "note", operationId: "b.op", origin: "api", status: "passed" }),
+			row({ evidence: { call: 9 }, operationId: "a.op", reason: "skipped by --only", status: "untested" }),
+			row({ findings: 2, operationId: "c.op", status: "failed" }),
+			row({ operationId: "d.op", status: "blocked" }),
+		],
+	}
+
+	it("reads an unclassified pass as unproven, and words each reason it can", () => {
+		const groups = confidenceGroups(many, files)
+		const rows = Object.fromEntries(groups.map((group) => [group.key, group.rows]))
+		expect(rows.unproven).toEqual([{ entity: "note", evidence: [], operation: "api:b.op", why: "no reason recorded" }])
+		expect(rows.failed?.[0]?.why).toBe("failed a check (2 findings)")
+		expect(rows.blocked?.map((r) => [r.operation, r.why, r.evidence])).toEqual([
+			["a.op", "skipped by --only", []],
+			["d.op", "no reason recorded", []],
+		])
+	})
+
+	it("shows an operation's entity and labels its evidence by role", () => {
+		const html = renderConfidenceHtml({ baseUrl: "b", generatedAt: "g", scope }, files)
+		expect(html).toContain('<a href="exchanges/req-2.json">call</a> · <a href="exchanges/req-3.json">observed</a>')
+		const entity = renderConfidenceHtml({ baseUrl: "b", generatedAt: "g", scope: many }, files)
+		expect(entity).toContain('<code>api:b.op</code><span class="entity">note</span>')
+	})
+})
+
 describe("exchange index", () => {
 	it("maps each request's seq to its saved file, skipping lines it cannot read", () => {
 		const index = [
 			JSON.stringify({ file: "exchanges/a.json", seq: 1 }),
+			"",
 			"not json",
 			JSON.stringify({ seq: 2 }),
 			JSON.stringify({ file: "exchanges/c.json", seq: 3 }),

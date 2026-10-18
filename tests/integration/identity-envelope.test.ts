@@ -23,6 +23,51 @@ const entity = (action: string) => ({ "x-entity": { action, identity: "ID", name
 /* Every refusal is documented, so a correct fixture draws no "undeclared status" finding. */
 const REFUSED = { default: { description: "refused" } }
 
+const ID_PARAM = { in: "path", name: "ID", required: true, schema: { type: "string" } }
+
+function json(schema: unknown): Record<string, unknown> {
+	return { "application/json": { schema } }
+}
+
+function collectionPath(created: unknown): Record<string, unknown> {
+	return {
+		get: {
+			operationId: "widget.list",
+			responses: {
+				"200": {
+					content: json({ properties: { items: { items: ITEM, type: "array" } }, required: ["items"], type: "object" }),
+					description: "ok",
+				},
+				...REFUSED,
+			},
+			...entity("list"),
+		},
+		post: {
+			operationId: "widget.create",
+			requestBody: {
+				content: json({
+					properties: { name: { type: "string" }, note: { type: "string" } },
+					required: ["name"],
+					type: "object",
+				}),
+				required: true,
+			},
+			responses: {
+				"201": {
+					content: json({
+						properties: { data: created, id: { type: "string" }, success: { type: "boolean" } },
+						required: ["success", "id", "data"],
+						type: "object",
+					}),
+					description: "created",
+				},
+				...REFUSED,
+			},
+			...entity("create"),
+		},
+	}
+}
+
 function spec(innerHasId: boolean): OpenApiDocument {
 	/* With the id only on the envelope, the record under `data` does not carry it. */
 	const created = innerHasId ? ITEM : { ...ITEM, required: ["name"] }
@@ -30,69 +75,18 @@ function spec(innerHasId: boolean): OpenApiDocument {
 		info: { title: "envelope", version: "1" },
 		openapi: "3.1.0",
 		paths: {
-			"/v1/widgets": {
-				get: {
-					operationId: "widget.list",
-					responses: {
-						"200": {
-							content: {
-								"application/json": {
-									schema: {
-										properties: { items: { items: ITEM, type: "array" } },
-										required: ["items"],
-										type: "object",
-									},
-								},
-							},
-							description: "ok",
-						},
-						...REFUSED,
-					},
-					...entity("list"),
-				},
-				post: {
-					operationId: "widget.create",
-					requestBody: {
-						content: {
-							"application/json": {
-								schema: {
-									properties: { name: { type: "string" }, note: { type: "string" } },
-									required: ["name"],
-									type: "object",
-								},
-							},
-						},
-						required: true,
-					},
-					responses: {
-						"201": {
-							content: {
-								"application/json": {
-									schema: {
-										properties: { data: created, id: { type: "string" }, success: { type: "boolean" } },
-										required: ["success", "id", "data"],
-										type: "object",
-									},
-								},
-							},
-							description: "created",
-						},
-						...REFUSED,
-					},
-					...entity("create"),
-				},
-			},
+			"/v1/widgets": collectionPath(created),
 			"/v1/widgets/{ID}": {
 				delete: {
 					operationId: "widget.delete",
-					parameters: [{ in: "path", name: "ID", required: true, schema: { type: "string" } }],
+					parameters: [ID_PARAM],
 					responses: { "204": { description: "gone" }, ...REFUSED },
 					...entity("delete"),
 				},
 				get: {
 					operationId: "widget.read",
-					parameters: [{ in: "path", name: "ID", required: true, schema: { type: "string" } }],
-					responses: { "200": { content: { "application/json": { schema: ITEM } }, description: "ok" }, ...REFUSED },
+					parameters: [ID_PARAM],
+					responses: { "200": { content: json(ITEM), description: "ok" }, ...REFUSED },
 					...entity("read"),
 				},
 			},
@@ -126,42 +120,49 @@ afterEach(async () => {
 	await Promise.all(servers.splice(0).map((close) => close()))
 })
 
+type World = { innerHasId: boolean; seq: number; store: Map<string, Record<string, unknown>> }
+
+async function createWidget(world: World, req: IncomingMessage, res: ServerResponse): Promise<void> {
+	if (!(req.headers["content-type"] ?? "").startsWith("application/json")) {
+		return send(res, 415, { error: "json only" })
+	}
+	const body = await readJson(req).catch(() => null)
+	if (body === null || typeof body.name !== "string") return send(res, 400, { error: "name is required" })
+	if (body.note !== undefined && typeof body.note !== "string") return send(res, 400, { error: "note is text" })
+	world.seq += 1
+	const row = { ID: `W${world.seq}`, name: String(body.name ?? ""), note: String(body.note ?? "") }
+	world.store.set(row.ID, row)
+	const { ID, ...rest } = row
+	send(res, 201, { data: world.innerHasId ? row : rest, id: ID, success: true })
+}
+
+function widgetItem({ store }: World, id: string, method: string, res: ServerResponse): void {
+	if (method === "GET") return store.has(id) ? send(res, 200, store.get(id)) : send(res, 404, {})
+	if (method !== "DELETE") return send(res, 405)
+	if (!store.delete(id)) return send(res, 404, {})
+	send(res, 204)
+}
+
+async function route(world: World, req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const at = new URL(req.url ?? "/", "http://x")
+	const method = req.method ?? "GET"
+	if (at.pathname === "/v1/openapi/spec") return send(res, 200, spec(world.innerHasId))
+	const match = /^\/v1\/widgets(?:\/([^/]+))?$/.exec(at.pathname)
+	if (match === null) return send(res, 404, { error: "missing" })
+	const id = match[1] === undefined ? undefined : decodeURIComponent(match[1])
+	if (id === undefined && method === "GET") return send(res, 200, { items: [...world.store.values()] })
+	if (id === undefined && method === "POST") return createWidget(world, req, res)
+	widgetItem(world, id ?? "", method, res)
+}
+
 async function serve(innerHasId: boolean) {
-	const store = new Map<string, Record<string, unknown>>()
-	let seq = 0
+	const world: World = { innerHasId, seq: 0, store: new Map() }
 	const server = createServer((req, res) => {
-		void (async () => {
-			const at = new URL(req.url ?? "/", "http://x")
-			const method = req.method ?? "GET"
-			if (at.pathname === "/v1/openapi/spec") return send(res, 200, spec(innerHasId))
-			const match = /^\/v1\/widgets(?:\/([^/]+))?$/.exec(at.pathname)
-			if (match === null) return send(res, 404, { error: "missing" })
-			const id = match[1] === undefined ? undefined : decodeURIComponent(match[1])
-			if (id === undefined && method === "GET") return send(res, 200, { items: [...store.values()] })
-			if (id === undefined && method === "POST") {
-				if (!(req.headers["content-type"] ?? "").startsWith("application/json")) {
-					return send(res, 415, { error: "json only" })
-				}
-				const body = await readJson(req).catch(() => null)
-				if (body === null || typeof body.name !== "string") return send(res, 400, { error: "name is required" })
-				if (body.note !== undefined && typeof body.note !== "string") return send(res, 400, { error: "note is text" })
-				seq += 1
-				const row = { ID: `W${seq}`, name: String(body.name ?? ""), note: String(body.note ?? "") }
-				store.set(row.ID, row)
-				const { ID, ...rest } = row
-				return send(res, 201, { data: innerHasId ? row : rest, id: ID, success: true })
-			}
-			if (method === "GET") return store.has(id ?? "") ? send(res, 200, store.get(id ?? "")) : send(res, 404, {})
-			if (method === "DELETE") {
-				if (!store.delete(id ?? "")) return send(res, 404, {})
-				return send(res, 204)
-			}
-			return send(res, 405)
-		})()
+		void route(world, req, res)
 	})
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
 	servers.push(() => new Promise((resolve) => server.close(() => resolve())))
-	return { store, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }
+	return { store: world.store, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }
 }
 
 async function runAgainst(innerHasId: boolean) {

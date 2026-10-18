@@ -80,18 +80,17 @@ export const searchAndFilterCompose = defineCheck<Subset & { token: string }>({
 		const extraIds = [...got].filter((id) => !expected.has(id))
 		if (missing.length === 0 && extraIds.length === 0) return ASSERTED
 
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"a filter and a search do not compose as their intersection",
-			`filter on "${field}" matched ${filterIds.size}; q=${JSON.stringify(token)} matched ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "a filter and a search do not compose as their intersection",
+			detail:
+				`filter on "${field}" matched ${filterIds.size}; q=${JSON.stringify(token)} matched ` +
 				`${searchIds.size}; both together matched ${got.size} (intersection is ` +
 				`${expected.size}). ` +
 				(missing.length > 0 ? `Missing: ${missing.slice(0, 3).join(", ")}. ` : "") +
 				(extraIds.length > 0 ? `Extra: ${extraIds.slice(0, 3).join(", ")}. ` : "") +
 				"A structured predicate and a free-text search must narrow each other. When they " +
 				"do not, one of them is being dropped the moment the other is present.",
-			[filtered.last.exchange, searched.last.exchange, both.last.exchange],
-		)
+			evidence: [filtered.last.exchange, searched.last.exchange, both.last.exchange],
+		})
 	},
 })

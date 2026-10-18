@@ -142,90 +142,134 @@ afterEach(async () => {
 	await Promise.all(servers.splice(0).map((close) => close()))
 })
 
+/* One request from a known caller in its own project. */
+interface Call {
+	caller: { project: string; who: string }
+	method: string
+	project: string
+	req: IncomingMessage
+	res: ServerResponse
+}
+
+/* Tables with rows under them, and things named by their own path, each scoped to a project. */
+class TenantBackend {
+	readonly tables = new Map<string, Stored>()
+	readonly rows = new Map<string, Stored>()
+	readonly things = new Map<string, Stored>()
+	#seq = 0
+	readonly #switches: Switches
+
+	constructor(switches: Switches) {
+		this.#switches = switches
+	}
+
+	left() {
+		return [
+			...[...this.tables.values()].map((record) => ({ entity: "table", ...record })),
+			...[...this.rows.values()].map((record) => ({ entity: "row", ...record })),
+			...[...this.things.values()].map((record) => ({ entity: "thing", ...record })),
+		]
+	}
+
+	async route(req: IncomingMessage, res: ServerResponse) {
+		const at = new URL(req.url ?? "/", "http://x")
+		if (at.pathname === "/v1/openapi/spec") return send(res, 200, spec())
+		const caller = TOKENS[req.headers.authorization ?? ""]
+		if (caller === undefined) return send(res, 401, { error: "unauthenticated" })
+		const parts = at.pathname.split("/").filter(Boolean).map(decodeURIComponent)
+		/* v1 projects {p} <collection> [{id} [rows [{id}]]] */
+		if (parts[0] !== "v1" || parts[1] !== "projects" || parts[2] !== caller.project) {
+			return send(res, 404, { error: "missing" })
+		}
+		const call: Call = { caller, method: req.method ?? "GET", project: parts[2], req, res }
+		if (call.method === "DELETE" && this.#switches.refuseBetaDelete === true && caller.who === "beta") {
+			return send(res, 403, { error: "forbidden" })
+		}
+		if (parts[3] === "things") return this.#thing(call, parts)
+		if (parts[3] !== "tables") return send(res, 404, { error: "missing" })
+		if (parts.length === 4) return this.#tableList(call)
+		return this.#underTable(call, parts)
+	}
+
+	async #create(call: Call, store: Map<string, Stored>, id: string, extra: Partial<Stored> = {}) {
+		const body = await readJson(call.req)
+		if (body === null || typeof body.name !== "string") return send(call.res, 400, { error: "name is required" })
+		const record: Stored = { by: call.caller.who, id, name: body.name, project: call.project, ...extra }
+		store.set(id, record)
+		return send(call.res, 201, shown(record))
+	}
+
+	#one(call: Call, store: Map<string, Stored>, record: Stored | undefined) {
+		if (record === undefined) return send(call.res, 404, { error: "missing" })
+		if (call.method === "GET") return send(call.res, 200, shown(record))
+		if (call.method === "DELETE") {
+			store.delete(record.id)
+			return send(call.res, 204)
+		}
+		return send(call.res, 405)
+	}
+
+	#listed(call: Call, store: Map<string, Stored>) {
+		return send(call.res, 200, { items: [...store.values()].filter((t) => t.project === call.project).map(shown) })
+	}
+
+	#thing(call: Call, parts: string[]) {
+		if (parts.length === 4 && call.method === "GET") return this.#listed(call, this.things)
+		const id = parts[4] ?? ""
+		const found = this.things.get(id)
+		if (call.method === "PUT") {
+			if (found !== undefined) return send(call.res, 409, { error: "taken" })
+			return this.#create(call, this.things, id)
+		}
+		return this.#one(call, this.things, found?.project === call.project ? found : undefined)
+	}
+
+	#tableList(call: Call) {
+		if (call.method === "GET") return this.#listed(call, this.tables)
+		if (call.method === "POST") return this.#create(call, this.tables, `t${++this.#seq}`)
+		return send(call.res, 405)
+	}
+
+	#underTable(call: Call, parts: string[]) {
+		const candidate = this.tables.get(parts[4] ?? "")
+		/* A correct backend serves a table only under its own project. */
+		const table =
+			candidate !== undefined && (candidate.project === call.project || this.#switches.foreignParent === true)
+				? candidate
+				: undefined
+		if (parts.length === 5)
+			return this.#one(call, this.tables, candidate?.project === call.project ? candidate : undefined)
+		if (table === undefined || parts[5] !== "rows") return send(call.res, 404, { error: "missing" })
+		return this.#rows(call, parts, table)
+	}
+
+	#rows(call: Call, parts: string[], table: Stored) {
+		const inTable = (record: Stored) => record.table === table.id && record.project === call.project
+		if (parts.length === 6) {
+			if (call.method === "GET")
+				return send(call.res, 200, { items: [...this.rows.values()].filter(inTable).map(shown) })
+			if (call.method === "POST") return this.#create(call, this.rows, `r${++this.#seq}`, { table: table.id })
+			return send(call.res, 405)
+		}
+		const row = this.rows.get(parts[6] ?? "")
+		return this.#one(call, this.rows, row !== undefined && inTable(row) ? row : undefined)
+	}
+}
+
 async function serve(switches: Switches = {}) {
-	const tables = new Map<string, Stored>()
-	const rows = new Map<string, Stored>()
-	const things = new Map<string, Stored>()
-	let seq = 0
+	const backend = new TenantBackend(switches)
 	const server = createServer((req, res) => {
-		void (async () => {
-			const at = new URL(req.url ?? "/", "http://x")
-			const method = req.method ?? "GET"
-			if (at.pathname === "/v1/openapi/spec") return send(res, 200, spec())
-			const caller = TOKENS[req.headers.authorization ?? ""]
-			if (caller === undefined) return send(res, 401, { error: "unauthenticated" })
-			const parts = at.pathname.split("/").filter(Boolean).map(decodeURIComponent)
-			/* v1 projects {p} <collection> [{id} [rows [{id}]]] */
-			if (parts[0] !== "v1" || parts[1] !== "projects" || parts[2] !== caller.project) {
-				return send(res, 404, { error: "missing" })
-			}
-			const project = parts[2]
-			if (method === "DELETE" && switches.refuseBetaDelete === true && caller.who === "beta") {
-				return send(res, 403, { error: "forbidden" })
-			}
-			const create = async (store: Map<string, Stored>, id: string, extra: Partial<Stored> = {}) => {
-				const body = await readJson(req)
-				if (body === null || typeof body.name !== "string") return send(res, 400, { error: "name is required" })
-				const record: Stored = { by: caller.who, id, name: body.name, project, ...extra }
-				store.set(id, record)
-				return send(res, 201, shown(record))
-			}
-			const one = (store: Map<string, Stored>, record: Stored | undefined) => {
-				if (record === undefined) return send(res, 404, { error: "missing" })
-				if (method === "GET") return send(res, 200, shown(record))
-				if (method === "DELETE") {
-					store.delete(record.id)
-					return send(res, 204)
-				}
-				return send(res, 405)
-			}
-			if (parts[3] === "things") {
-				if (parts.length === 4 && method === "GET") {
-					return send(res, 200, { items: [...things.values()].filter((t) => t.project === project).map(shown) })
-				}
-				const id = parts[4] ?? ""
-				const found = things.get(id)
-				if (method === "PUT") {
-					if (found !== undefined) return send(res, 409, { error: "taken" })
-					return create(things, id)
-				}
-				return one(things, found?.project === project ? found : undefined)
-			}
-			if (parts[3] !== "tables") return send(res, 404, { error: "missing" })
-			if (parts.length === 4) {
-				if (method === "GET") {
-					return send(res, 200, { items: [...tables.values()].filter((t) => t.project === project).map(shown) })
-				}
-				if (method === "POST") return create(tables, `t${++seq}`)
-				return send(res, 405)
-			}
-			const tableId = parts[4] ?? ""
-			const candidate = tables.get(tableId)
-			/* A correct backend serves a table only under its own project. */
-			const table =
-				candidate !== undefined && (candidate.project === project || switches.foreignParent === true)
-					? candidate
-					: undefined
-			if (parts.length === 5) return one(tables, candidate?.project === project ? candidate : undefined)
-			if (table === undefined || parts[5] !== "rows") return send(res, 404, { error: "missing" })
-			const inTable = (record: Stored) => record.table === table.id && record.project === project
-			if (parts.length === 6) {
-				if (method === "GET") return send(res, 200, { items: [...rows.values()].filter(inTable).map(shown) })
-				if (method === "POST") return create(rows, `r${++seq}`, { table: table.id })
-				return send(res, 405)
-			}
-			const row = rows.get(parts[6] ?? "")
-			return one(rows, row !== undefined && inTable(row) ? row : undefined)
-		})()
+		void backend.route(req, res)
 	})
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
 	servers.push(() => new Promise((resolve) => server.close(() => resolve())))
-	const left = () => [
-		...[...tables.values()].map((record) => ({ entity: "table", ...record })),
-		...[...rows.values()].map((record) => ({ entity: "row", ...record })),
-		...[...things.values()].map((record) => ({ entity: "thing", ...record })),
-	]
-	return { left, rows, tables, things, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }
+	return {
+		left: () => backend.left(),
+		rows: backend.rows,
+		tables: backend.tables,
+		things: backend.things,
+		url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+	}
 }
 
 async function runAgainst(switches: Switches, scenarios: Scenario[] = []) {
@@ -241,6 +285,45 @@ async function runAgainst(switches: Switches, scenarios: Scenario[] = []) {
 }
 
 const pathOf = (url: string) => new URL(url).pathname
+
+type RunResult = Awaited<ReturnType<typeof runAgainst>>["result"]
+
+/* The creates seeding sent, and those of them that are a ledgered record or a reported create. */
+function seedCreates(result: RunResult) {
+	const records = result.teardown?.records ?? []
+	const unidentified = new Set((result.teardown?.unidentified ?? []).map((create) => create.seq))
+	const seeded = result.client.transcript.filter(
+		(exchange) =>
+			exchange.purpose === "seed" &&
+			exchange.method === "POST" &&
+			exchange.status === 201 &&
+			exchange.operationId?.endsWith(".create") === true,
+	)
+	const accounted = seeded.filter(
+		(exchange) =>
+			unidentified.has(exchange.seq) ||
+			records.some(
+				(record) =>
+					record.id === (exchange.responseBody as { id: string }).id && record.principal === exchange.principal,
+			),
+	)
+	return { accounted, seeded }
+}
+
+/* The run as a report renders it. */
+function reportOf(result: RunResult) {
+	return {
+		baseUrl: "http://x",
+		checksRun: result.checksRun,
+		client: result.client,
+		durationMs: 0,
+		entitiesTested: result.entitiesTested,
+		findings: result.findings,
+		model: result.model,
+		startedAt: new Date(0),
+		teardown: result.teardown,
+	}
+}
 
 describe("a create by a configured principal", () => {
 	it("under another tenant's parent is ledgered as the principal that sent it, and removed as it", async () => {
@@ -279,27 +362,13 @@ describe("a create by a configured principal", () => {
 		expect(relisted.every((exchange) => exchange.principal === "beta")).toBe(true)
 
 		/* Seeding ledgers its own creates: each one it sent is a ledgered record or a reported create. */
-		const records = result.teardown?.records ?? []
-		const unidentified = new Set((result.teardown?.unidentified ?? []).map((create) => create.seq))
-		const seeded = transcript.filter(
-			(exchange) =>
-				exchange.purpose === "seed" &&
-				exchange.method === "POST" &&
-				exchange.status === 201 &&
-				exchange.operationId?.endsWith(".create") === true,
-		)
+		const { accounted, seeded } = seedCreates(result)
 		expect(seeded.length).toBeGreaterThan(0)
-		const accounted = seeded.filter(
-			(exchange) =>
-				unidentified.has(exchange.seq) ||
-				records.some(
-					(record) =>
-						record.id === (exchange.responseBody as { id: string }).id && record.principal === exchange.principal,
-				),
-		)
 		expect(accounted.length).toBe(seeded.length)
 	}, 120_000)
+})
 
+describe("a create by a configured principal", () => {
 	it("declared as a PUT to the record's own path is torn down", async () => {
 		const scenario: Scenario = {
 			covers: ["thing.create"],
@@ -329,17 +398,7 @@ describe("a create by a configured principal", () => {
 
 		/* Whoever cleans up by hand needs to know whose tenant each record is in. */
 		const first = failed[0]
-		const report = {
-			baseUrl: "http://x",
-			checksRun: result.checksRun,
-			client: result.client,
-			durationMs: 0,
-			entitiesTested: result.entitiesTested,
-			findings: result.findings,
-			model: result.model,
-			startedAt: new Date(0),
-			teardown: result.teardown,
-		}
+		const report = reportOf(result)
 		expect(renderMarkdown(report)).toContain(`- ${first?.entity} \`${first?.id}\` · as beta · `)
 		expect(JSON.parse(renderJson(report)).teardown.failed[0].principal).toBe("beta")
 		expect(renderTeardown(result.teardown!, result.created).join("\n")).toContain(

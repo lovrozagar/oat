@@ -105,19 +105,27 @@ const CASES: readonly TenantCase[] = [
 		probe: async (via) => standsDown(await catalogueRun(via), ITEM, [ITEM, "tenant.denial-does-not-reveal-existence"]),
 		why: "no x-tenant and template_id is not a tenant name, so isolation does not apply",
 	},
-	leakCase("tagged tenant leak is SECURITY", STATED, { check: ITEM, defect: "CROSS_TENANT_READ", untagged: false }),
-	leakCase("inferred tenant leak is AMBIGUITY", INFERRED, { check: ITEM, defect: "CROSS_TENANT_READ", untagged: true }),
+	/* @__PURE__ */ leakCase("tagged tenant leak is SECURITY", STATED, {
+		check: ITEM,
+		defect: "CROSS_TENANT_READ",
+		untagged: false,
+	}),
+	/* @__PURE__ */ leakCase("inferred tenant leak is AMBIGUITY", INFERRED, {
+		check: ITEM,
+		defect: "CROSS_TENANT_READ",
+		untagged: true,
+	}),
 	{
 		name: "public catalogue filter 200 is not a finding",
 		probe: async (via) => standsDown(await catalogueRun(via), FILTER, [FILTER]),
 		why: "no x-tenant and no tenant-named path param, so a 200 on id.eq.<other row> is the contract",
 	},
-	leakCase(
+	/* @__PURE__ */ leakCase(
 		"tagged tenant filter leak is SECURITY",
 		"x-tenant + filter 200 of the other tenant's row is a stated-boundary breach",
 		{ check: FILTER, defect: "TENANT_LEAK_VIA_FILTER", untagged: false },
 	),
-	leakCase("inferred tenant filter leak is AMBIGUITY", INFERRED, {
+	/* @__PURE__ */ leakCase("inferred tenant filter leak is AMBIGUITY", INFERRED, {
 		check: FILTER,
 		defect: "TENANT_LEAK_VIA_FILTER",
 		untagged: true,

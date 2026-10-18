@@ -77,6 +77,11 @@ function plan(id: string, ctx: ReturnType<typeof context>) {
 	return check.plan(ctx)
 }
 
+/* What a ready plan would send, serialized; a plan that stood down sends nothing. */
+function planned(ready: ReturnType<typeof plan>): string {
+	return ready.ok ? JSON.stringify(ready.value) : ""
+}
+
 const POSTGREST_HINT = "PostgREST-style filter expression: field.op.value"
 
 describe("the reference template dialect", () => {
@@ -90,7 +95,7 @@ describe("filter.illegal-op-rejected", () => {
 	it("probes an operator token outside a declared grammar", () => {
 		const ready = plan("filter.illegal-op-rejected", context({ grammar: FILTER }))
 		expect(ready.ok).toBe(true)
-		if (ready.ok) expect(JSON.stringify(ready.value)).toContain("and_name_zz_")
+		expect(planned(ready)).toContain("and_name_zz_")
 	})
 
 	it("does not probe a grammar oat only inferred", () => {
@@ -102,7 +107,7 @@ describe("sort.invalid-direction-rejected", () => {
 	it("probes a direction token outside a declared grammar", () => {
 		const ready = plan("sort.invalid-direction-rejected", context({ sortGrammar: SORT }))
 		expect(ready.ok).toBe(true)
-		if (ready.ok) expect(JSON.stringify(ready.value)).toContain("name_oatsideways")
+		expect(planned(ready)).toContain("name_oatsideways")
 	})
 
 	it("stands down on an inferred grammar, and where ascending has no token of its own", () => {
@@ -115,10 +120,10 @@ describe("filter.malformed-term-rejected", () => {
 	it("sends a declared term with a required piece missing", () => {
 		const ready = plan("filter.malformed-term-rejected", context({ grammar: FILTER }))
 		expect(ready.ok).toBe(true)
-		if (ready.ok) expect(JSON.stringify(ready.value)).toContain('"name_eq_')
+		expect(planned(ready)).toContain('"name_eq_')
 		const postgrest = plan("filter.malformed-term-rejected", context({ grammar: "postgrest" }))
 		expect(postgrest.ok).toBe(true)
-		if (postgrest.ok) expect(JSON.stringify(postgrest.value)).toMatch(/"name\.[^".]+"/)
+		expect(planned(postgrest)).toMatch(/"name\.[^".]+"/)
 	})
 
 	it("stands down on an inferred grammar", () => {

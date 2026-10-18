@@ -63,12 +63,10 @@ function runPrincipals(planned: Planned, all: ResolvedPrincipal[]): RunPrincipal
 				try {
 					await principal.runtime?.refreshIfStale()
 				} catch (error) {
-					findings.blocked(
-						"auth.refresh" satisfies RunFindingId,
-						where,
-						`refreshing the credential of "${principal.id}" failed`,
-						messageOf(error),
-					)
+					findings.blocked("auth.refresh" satisfies RunFindingId, where, {
+						summary: `refreshing the credential of "${principal.id}" failed`,
+						cause: messageOf(error),
+					})
 					return false
 				}
 			}

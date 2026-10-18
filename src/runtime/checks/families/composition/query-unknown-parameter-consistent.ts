@@ -37,13 +37,11 @@ export const unknownParameterConsistent = defineCheck<{ names: string[] }>({
 			const probe = await readSet(asProbe(ctx), { [name]: "1" }, { fresh: true })
 			const exchange = probe.last.exchange
 			if (exchange.status >= 500) {
-				return ctx.findings.backend(
-					this.id,
-					ctx.entityName,
-					"an unknown query parameter crashes the listing",
-					`adding ?${name}=1, a parameter the document does not declare, returned ${exchange.status}.`,
-					[exchange],
-				)
+				return ctx.findings.backend(this.id, ctx.entityName, {
+					summary: "an unknown query parameter crashes the listing",
+					detail: `adding ?${name}=1, a parameter the document does not declare, returned ${exchange.status}.`,
+					evidence: [exchange],
+				})
 			}
 			if (exchange.status === 400 || exchange.status === 422) {
 				answers.push({ exchange, name, policy: "refused" })
@@ -57,28 +55,26 @@ export const unknownParameterConsistent = defineCheck<{ names: string[] }>({
 				)
 			}
 			if (!sameSet(setOf(probe.items, ctx.identity), expected)) {
-				return ctx.findings.backend(
-					this.id,
-					ctx.entityName,
-					"an unknown query parameter silently changes the result",
-					`adding ?${name}=1, a parameter the document does not declare, returned ${probe.items.length} ` +
+				return ctx.findings.backend(this.id, ctx.entityName, {
+					summary: "an unknown query parameter silently changes the result",
+					detail:
+						`adding ?${name}=1, a parameter the document does not declare, returned ${probe.items.length} ` +
 						`record(s) where the plain listing returns ${expected.size}, with no error. A caller who ` +
 						"misspells a parameter gets a different answer and no way to know.",
-					[baseline.last.exchange, exchange],
-				)
+					evidence: [baseline.last.exchange, exchange],
+				})
 			}
 			answers.push({ exchange, name, policy: "ignored" })
 		}
 		const policies = new Set(answers.map((answer) => answer.policy))
 		if (policies.size > 1) {
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"unknown query parameters are handled inconsistently",
-				answers.map((answer) => `?${answer.name}=1 was ${answer.policy} (${answer.exchange.status})`).join("; ") +
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "unknown query parameters are handled inconsistently",
+				detail:
+					answers.map((answer) => `?${answer.name}=1 was ${answer.policy} (${answer.exchange.status})`).join("; ") +
 					". One unknown name refused and another ignored leaves callers guessing which mistakes are caught.",
-				answers.map((answer) => answer.exchange),
-			)
+				evidence: answers.map((answer) => answer.exchange),
+			})
 		}
 		return asserted(`unknown query parameters are ${answers[0]?.policy ?? "ignored"} on the listing`)
 	},

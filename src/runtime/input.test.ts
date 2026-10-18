@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { applyResolveInput } from "./input.ts"
 import { encodeRequest } from "./body/encode.ts"
+import type { InputRequest } from "../config/types/hooks.ts"
 
 describe("resolveInput", () => {
 	it("leaves the generator alone when the hook is omitted", async () => {
@@ -11,6 +12,7 @@ describe("resolveInput", () => {
 	})
 
 	it("replaces a named field and keeps the rest", async () => {
+		const asked: InputRequest[] = []
 		const out = await applyResolveInput(
 			{ name: "plan", payment_method_id: "generated" },
 			"billing.subscribe",
@@ -20,16 +22,16 @@ describe("resolveInput", () => {
 					payment_method_id: { type: "string" },
 				},
 			},
-			async ({ operationId, field, pointer, value }) => {
-				if (operationId === "billing.subscribe" && field === "payment_method_id") {
-					expect(pointer).toBe("$.payment_method_id")
-					expect(value).toBe("generated")
-					return "pm_test_123"
-				}
-				return null
+			async (request) => {
+				asked.push(request)
+				return request.field === "payment_method_id" ? "pm_test_123" : null
 			},
 		)
 		expect(out).toEqual({ name: "plan", payment_method_id: "pm_test_123" })
+		expect(asked.map(({ field, operationId, pointer, value }) => [field, operationId, pointer, value])).toEqual([
+			["name", "billing.subscribe", "$.name", "plan"],
+			["payment_method_id", "billing.subscribe", "$.payment_method_id", "generated"],
+		])
 	})
 
 	it("walks nested objects and skips arrays", async () => {
@@ -46,7 +48,9 @@ describe("resolveInput", () => {
 		)
 		expect(out).toEqual({ card: { brand: "amex" }, tags: ["a"] })
 	})
+})
 
+describe("resolveInput on fields the body lacks or keeps", () => {
 	it("still visits fields that exist only on the schema", async () => {
 		const out = await applyResolveInput(
 			{},
@@ -72,19 +76,26 @@ describe("resolveInput", () => {
 	})
 
 	it("leaves an omitted field omitted when the hook returns null", async () => {
+		const asked: InputRequest[] = []
 		const out = await applyResolveInput(
 			{ name: "Quarterly Report 0" },
 			"table.create",
 			{ properties: { columns_json: { type: "array" }, name: { type: "string" } } },
-			async ({ field, value }) => {
-				if (field === "columns_json") expect(value).toBeUndefined()
+			async (request) => {
+				asked.push(request)
 				return null
 			},
 		)
 		expect(out).toEqual({ name: "Quarterly Report 0" })
+		expect(asked.map(({ field, value }) => [field, value])).toEqual([
+			["name", "Quarterly Report 0"],
+			["columns_json", undefined],
+		])
 		expect("columns_json" in out).toBe(false)
 	})
+})
 
+describe("resolveInput through encode and odd schemas", () => {
 	it("applies during JSON encode", async () => {
 		const encoded = await encodeRequest({
 			fields: { payment_method_id: "nope" },

@@ -16,13 +16,12 @@ export const limitBoundsPageSize = defineCheck({
 		if (result.exchange.status >= 400)
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the listing was rejected")
 		if (result.items.length <= 2) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"limit does not bound the number of records returned",
-			`limit=2 returned ${result.items.length} records. A page size the backend accepts and ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "limit does not bound the number of records returned",
+			detail:
+				`limit=2 returned ${result.items.length} records. A page size the backend accepts and ` +
 				"ignores means callers cannot bound response size, and every paging loop is wrong.",
-			[result.exchange],
-		)
+			evidence: [result.exchange],
+		})
 	},
 })

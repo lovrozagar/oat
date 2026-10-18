@@ -77,65 +77,57 @@ function spec(): OpenApiDocument {
 	} as OpenApiDocument
 }
 
+type Template = { id: string; name: string }
+
+function sendJson(res: ServerResponse, status: number, body: unknown): void {
+	res.writeHead(status, { "content-type": "application/json" })
+	res.end(JSON.stringify(body))
+}
+
+async function createTemplate(rows: Template[], req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const chunks: Buffer[] = []
+	for await (const chunk of req) chunks.push(chunk as Buffer)
+	const body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as { name?: unknown }
+	if (typeof body.name !== "string" || body.name === "") return sendJson(res, 400, { error: "invalid" })
+	const row = { id: `tpl_${rows.length + 1}`, name: body.name }
+	rows.push(row)
+	sendJson(res, 201, row)
+}
+
+function readTemplate(rows: Template[], id: string | undefined, res: ServerResponse): void {
+	const row = rows.find((template) => template.id === id)
+	if (row === undefined) return sendJson(res, 404, { error: "missing" })
+	sendJson(res, 200, row)
+}
+
+function isTemplateList(parts: string[]): boolean {
+	return parts[0] === "v1" && parts[1] === "projects" && parts[3] === "templates" && parts.length === 4
+}
+
+/* Every token sees the same templates: the catalogue is shared, not a tenant's. */
+async function route(
+	{ document, rows }: { document: OpenApiDocument; rows: Template[] },
+	req: IncomingMessage,
+	res: ServerResponse,
+): Promise<void> {
+	const url = new URL(req.url ?? "/", "http://127.0.0.1")
+	const method = (req.method ?? "GET").toUpperCase()
+	if (url.pathname === "/openapi.json") return sendJson(res, 200, document)
+	const token = typeof req.headers.authorization === "string" ? req.headers.authorization : ""
+	if (token !== "Bearer alpha" && token !== "Bearer beta") return sendJson(res, 401, { error: "unauthorized" })
+	const parts = url.pathname.split("/").filter(Boolean)
+	if (isTemplateList(parts) && method === "GET") return sendJson(res, 200, rows)
+	if (parts.length === 4 && method === "POST") return createTemplate(rows, req, res)
+	if (parts.length === 5 && method === "GET") return readTemplate(rows, parts[4], res)
+	res.writeHead(404)
+	res.end()
+}
+
 async function serve(): Promise<string> {
 	const document = spec()
-	const rows: Array<{ id: string; name: string }> = []
+	const rows: Template[] = []
 	const server = createServer((req: IncomingMessage, res: ServerResponse) => {
-		void (async () => {
-			const url = new URL(req.url ?? "/", "http://127.0.0.1")
-			const method = (req.method ?? "GET").toUpperCase()
-			if (url.pathname === "/openapi.json") {
-				res.writeHead(200, { "content-type": "application/json" })
-				res.end(JSON.stringify(document))
-				return
-			}
-			const token = typeof req.headers.authorization === "string" ? req.headers.authorization : ""
-			if (token !== "Bearer alpha" && token !== "Bearer beta") {
-				res.writeHead(401, { "content-type": "application/json" })
-				res.end(JSON.stringify({ error: "unauthorized" }))
-				return
-			}
-			const parts = url.pathname.split("/").filter(Boolean)
-			if (
-				parts[0] === "v1" &&
-				parts[1] === "projects" &&
-				parts[3] === "templates" &&
-				parts.length === 4 &&
-				method === "GET"
-			) {
-				res.writeHead(200, { "content-type": "application/json" })
-				res.end(JSON.stringify(rows))
-				return
-			}
-			if (parts.length === 4 && method === "POST") {
-				const chunks: Buffer[] = []
-				for await (const chunk of req) chunks.push(chunk as Buffer)
-				const body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as { name?: unknown }
-				if (typeof body.name !== "string" || body.name === "") {
-					res.writeHead(400, { "content-type": "application/json" })
-					res.end(JSON.stringify({ error: "invalid" }))
-					return
-				}
-				const row = { id: `tpl_${rows.length + 1}`, name: body.name }
-				rows.push(row)
-				res.writeHead(201, { "content-type": "application/json" })
-				res.end(JSON.stringify(row))
-				return
-			}
-			if (parts.length === 5 && method === "GET") {
-				const row = rows.find((template) => template.id === parts[4])
-				if (row === undefined) {
-					res.writeHead(404, { "content-type": "application/json" })
-					res.end(JSON.stringify({ error: "missing" }))
-					return
-				}
-				res.writeHead(200, { "content-type": "application/json" })
-				res.end(JSON.stringify(row))
-				return
-			}
-			res.writeHead(404)
-			res.end()
-		})()
+		void route({ document, rows }, req, res)
 	})
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
 	const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`

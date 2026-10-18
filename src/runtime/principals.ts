@@ -50,6 +50,29 @@ export function persistedToPrincipal(snap: PersistedPrincipal): Principal {
 	return principal
 }
 
+/** The principal entries of a parsed file: `{ principals: [...] }` or a bare array. */
+function listOf(parsed: unknown): unknown[] | null {
+	if (Array.isArray(parsed)) return parsed
+	if (parsed === null || typeof parsed !== "object") return null
+	const { principals } = parsed as PersistedPrincipalsFile
+	return Array.isArray(principals) ? principals : null
+}
+
+/** One entry as a principal, or undefined when it has no id to go by. */
+function principalOf(item: unknown): Principal | undefined {
+	if (item === null || typeof item !== "object") return undefined
+	const rec = item as Record<string, unknown>
+	if (typeof rec.id !== "string" || rec.id === "") return undefined
+	return persistedToPrincipal({
+		headers: stringMap(rec.headers),
+		id: rec.id,
+		roots: stringMap(rec.roots),
+		...(typeof rec.role === "string" ? { role: rec.role } : {}),
+		...(typeof rec.rank === "number" ? { rank: rec.rank } : {}),
+		...(typeof rec.inviteAs === "string" ? { inviteAs: rec.inviteAs } : {}),
+	})
+}
+
 export function parsePersistedPrincipals(raw: string, source = "principals.json"): Principal[] {
 	let parsed: unknown
 	try {
@@ -57,38 +80,11 @@ export function parsePersistedPrincipals(raw: string, source = "principals.json"
 	} catch (error) {
 		throw new Error(`oat: ${source} is not valid JSON: ${String(error)}`, { cause: error })
 	}
-	const list = Array.isArray(parsed)
-		? parsed
-		: parsed !== null && typeof parsed === "object" && Array.isArray((parsed as PersistedPrincipalsFile).principals)
-			? (parsed as PersistedPrincipalsFile).principals
-			: null
+	const list = listOf(parsed)
 	if (list === null) {
 		throw new Error(`oat: ${source} must be { principals: [...] } or an array of principals`)
 	}
-	const principals: Principal[] = []
-	for (const item of list) {
-		if (item === null || typeof item !== "object") continue
-		const rec = item as Record<string, unknown>
-		if (typeof rec.id !== "string" || rec.id === "") continue
-		const headers =
-			rec.headers !== null && typeof rec.headers === "object" && !Array.isArray(rec.headers)
-				? stringRecord(rec.headers as Record<string, unknown>)
-				: {}
-		const roots =
-			rec.roots !== null && typeof rec.roots === "object" && !Array.isArray(rec.roots)
-				? stringRecord(rec.roots as Record<string, unknown>)
-				: {}
-		principals.push(
-			persistedToPrincipal({
-				headers,
-				id: rec.id,
-				roots,
-				...(typeof rec.role === "string" ? { role: rec.role } : {}),
-				...(typeof rec.rank === "number" ? { rank: rec.rank } : {}),
-				...(typeof rec.inviteAs === "string" ? { inviteAs: rec.inviteAs } : {}),
-			}),
-		)
-	}
+	const principals = list.map(principalOf).filter((principal) => principal !== undefined)
 	if (principals.length === 0) {
 		throw new Error(`oat: ${source} contains no usable principals`)
 	}
@@ -107,8 +103,10 @@ export function loadPersistedPrincipals(path: string): [Principal, ...Principal[
 	return principals as [Principal, ...Principal[]]
 }
 
-function stringRecord(value: Record<string, unknown>): Record<string, string> {
+/** The string entries of a plain object; anything else holds none. */
+function stringMap(value: unknown): Record<string, string> {
 	const out: Record<string, string> = {}
+	if (value === null || typeof value !== "object" || Array.isArray(value)) return out
 	for (const [key, item] of Object.entries(value)) {
 		if (typeof item === "string") out[key] = item
 	}

@@ -32,26 +32,23 @@ export const sortInvalidDirectionRejected = defineCheck<{ control: string; order
 	async run(ctx, { control, order }): Promise<Outcome> {
 		const result = await list(asProbe(ctx), q(ctx, { limit: pageSize(ctx), order }))
 		if (result.exchange.status >= 500) {
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"an unknown sort direction produces a server error",
-				`order=${order} returned ${result.exchange.status}; a rejected input should be 4xx.`,
-				[result.exchange],
-			)
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "an unknown sort direction produces a server error",
+				detail: `order=${order} returned ${result.exchange.status}; a rejected input should be 4xx.`,
+				evidence: [result.exchange],
+			})
 		}
 		const refused = judgeRefusal(ctx, this.id, ["validation"], result.exchange)
 		if (refused !== null) return refused
 		const ascending = await list(ctx, q(ctx, { limit: pageSize(ctx), order: control }))
 		const same = ids(result.items, ctx.identity).join(",") === ids(ascending.items, ctx.identity).join(",")
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"an unknown sort direction is accepted",
-			`order=${order} returned ${result.exchange.status}` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "an unknown sort direction is accepted",
+			detail:
+				`order=${order} returned ${result.exchange.status}` +
 				(same ? " in ascending order, so the direction was read as ascending" : "") +
 				". A direction the declared grammar does not have must be refused, not guessed.",
-			[ascending.exchange, result.exchange],
-		)
+			evidence: [ascending.exchange, result.exchange],
+		})
 	},
 })

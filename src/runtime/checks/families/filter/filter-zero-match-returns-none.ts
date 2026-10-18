@@ -24,13 +24,12 @@ export const zeroMatchFilter = defineCheck<{ term: Record<string, string> }>({
 		if (result.exchange.status >= 400)
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the zero-match filter was rejected")
 		if (result.items.length === 0) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"filter that cannot match returns records anyway",
-			`a filter on a value no record holds returned ${result.items.length} records, so the ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "filter that cannot match returns records anyway",
+			detail:
+				`a filter on a value no record holds returned ${result.items.length} records, so the ` +
 				"predicate is not being applied",
-			[result.exchange],
-		)
+			evidence: [result.exchange],
+		})
 	},
 })

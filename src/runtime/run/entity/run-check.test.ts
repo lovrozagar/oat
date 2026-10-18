@@ -53,7 +53,7 @@ describe("runCheck outcomes", () => {
 		const { ctx, outcome } = await ran({
 			id: "c.reported",
 			run: async (view) => {
-				view.findings.backend("c.reported", "note", "s", "d", [])
+				view.findings.backend("c.reported", "note", { summary: "s", detail: "d", evidence: [] })
 				return { kind: "asserted" }
 			},
 		})

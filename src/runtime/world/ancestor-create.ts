@@ -22,13 +22,14 @@ function ancestorBody(
 	let member: CohortMember
 	try {
 		/* One variant asked for, one member made: buildCohort maps the variants it is given. */
-		member = buildCohort(schema ?? {}, options.seed, ["baseline"], createOp.operationId, {
+		member = buildCohort(schema ?? {}, options.seed, ["baseline"], {
 			defs: model.defs,
 			/* A parent made as scaffolding carries the nonce in every string, not only the unique ones:
 			 * a server that derives an undeclared key from a name (a slug) must never see the name the
 			 * entity's own cohort, another tenant's parent, existing data or a later run takes. */
 			distinct: new Set([...(createOp.unique ?? []).flat(), ...stringProperties(schema)]),
 			...(options.nonce === undefined ? {} : { nonce: options.nonce }),
+			operationId: createOp.operationId,
 		})[0] as CohortMember
 	} catch (error) {
 		/* buildCohort reports every failure as an overflow; it is named after this operation. */
@@ -77,9 +78,7 @@ export async function createOne(
 		throw new SeedError(
 			createOp.operationId,
 			`${createOp.operationId} returned ${exchange.status}: ${JSON.stringify(exchange.responseBody).slice(0, 300)}`,
-			exchange.status,
-			createOp.operationId,
-			exchange,
+			{ exchange, operationId: createOp.operationId, status: exchange.status },
 		)
 	}
 	const made = await createdRecord({

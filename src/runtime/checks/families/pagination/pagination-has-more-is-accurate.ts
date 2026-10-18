@@ -22,16 +22,15 @@ export const hasMoreIsAccurate = defineCheck({
 		const moreExist = second.items.length > 0
 		if (flag === moreExist) return ASSERTED
 
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			flag
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: flag
 				? "hasMore claims further pages exist when none do"
 				: "hasMore claims no further pages while the next page returns records",
-			`page 1 at limit=1 reported hasMore=${flag}, but page 2 returned ` +
+			detail:
+				`page 1 at limit=1 reported hasMore=${flag}, but page 2 returned ` +
 				`${second.items.length} record(s). Callers that trust the flag will ` +
 				(flag ? "request an empty page" : "silently stop after the first page"),
-			[first.exchange, second.exchange],
-		)
+			evidence: [first.exchange, second.exchange],
+		})
 	},
 })

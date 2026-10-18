@@ -28,7 +28,7 @@ const integer =
 	(value, path) =>
 		Number.isSafeInteger(value) && (value as number) >= min
 			? []
-			: [`${path} must be an integer${min > 0 ? ` of at least ${min}` : min === 0 ? " of at least 0" : ""}`]
+			: [`${path} must be an integer${min >= 0 ? ` of at least ${min}` : ""}`]
 const number: Rule = (value, path) =>
 	typeof value === "number" && Number.isFinite(value) ? [] : [`${path} must be a number`]
 const positive: Rule = (value, path) =>
@@ -64,64 +64,73 @@ const shape =
 		}
 		return problems
 	}
-const principal = shape(
-	{
-		auth: object,
-		headers: recordOf(string),
-		id: string,
-		inviteAs: string,
-		rank: number,
-		role: string,
-		roots: recordOf(string),
-		rootsFromFlow: recordOf(string),
-	},
-	["id"],
-)
+/* The fields of one principal; only `id` is required. */
+function principalRule(): Rule {
+	return shape(
+		{
+			auth: object,
+			headers: recordOf(string),
+			id: string,
+			inviteAs: string,
+			rank: number,
+			role: string,
+			roots: recordOf(string),
+			rootsFromFlow: recordOf(string),
+		},
+		["id"],
+	)
+}
 
 /** Patches by operationId and by schema name; each patch is an object merged into the document. */
-const overlay = shape({ operations: recordOf(object), schemas: recordOf(object) })
+function overlayRule(): Rule {
+	return shape({ operations: recordOf(object), schemas: recordOf(object) })
+}
 
-export const CONFIG = {
-	baseUrl: string,
-	cohortSize: integer(1),
-	entities: recordOf(object),
-	globalHeaders: recordOf(string),
-	hooks: functionsAt("verifyRemoved"),
-	keepFixtures: boolean,
-	maxInFlight: integer(1),
-	maxRps: positive,
-	network: shape({ requestTimeoutMs: integer(0), retries: integer(0), waitMs: integer(0) }),
-	only: arrayOf(string),
-	ops: arrayOf(string),
-	origins: arrayOf(
-		shape({ baseUrl: string, id: string, maxRps: positive, overlay, spec: string }, ["baseUrl", "id", "spec"]),
-	),
-	overlay,
-	allow: arrayOf(string),
-	fence: shape({ failRun: boolean }),
-	teardown: shape({ verify: boolean }),
-	baseline: string,
-	targetVersion: shape({ from: string, operationId: string, path: string }, ["from"]),
-	outDir: string,
-	outOfBand: shape({ attempts: integer(1), initialMs: integer(0), maxMs: integer(0) }),
-	payloads: oneOf("full", "per-write-path"),
-	principals: arrayOf(principal),
-	profile: string,
-	profiles: recordOf(object),
-	query: object,
-	rateLimits: arrayOf(object),
-	roots: recordOf(string),
-	saveExchanges: boolean,
-	scenarios: arrayOf(object),
-	seed: integer(Number.MIN_SAFE_INTEGER),
-	spec: string,
-	uploads: object,
-} satisfies Record<string, Rule>
+/** The rule for each top-level config key; its keys are the config keys oat knows. */
+export function configRules(): Record<string, Rule> {
+	const overlay = overlayRule()
+	return {
+		baseUrl: string,
+		cohortSize: integer(1),
+		entities: recordOf(object),
+		globalHeaders: recordOf(string),
+		hooks: functionsAt("verifyRemoved"),
+		keepFixtures: boolean,
+		maxInFlight: integer(1),
+		maxRps: positive,
+		network: shape({ requestTimeoutMs: integer(0), retries: integer(0), waitMs: integer(0) }),
+		only: arrayOf(string),
+		ops: arrayOf(string),
+		origins: arrayOf(
+			shape({ baseUrl: string, id: string, maxRps: positive, overlay, spec: string }, ["baseUrl", "id", "spec"]),
+		),
+		overlay,
+		allow: arrayOf(string),
+		fence: shape({ failRun: boolean }),
+		teardown: shape({ verify: boolean }),
+		baseline: string,
+		targetVersion: shape({ from: string, operationId: string, path: string }, ["from"]),
+		outDir: string,
+		outOfBand: shape({ attempts: integer(1), initialMs: integer(0), maxMs: integer(0) }),
+		payloads: oneOf("full", "per-write-path"),
+		principals: arrayOf(principalRule()),
+		profile: string,
+		profiles: recordOf(object),
+		query: object,
+		rateLimits: arrayOf(object),
+		roots: recordOf(string),
+		saveExchanges: boolean,
+		scenarios: arrayOf(object),
+		seed: integer(Number.MIN_SAFE_INTEGER),
+		spec: string,
+		uploads: object,
+	}
+}
 
 /** Every problem with `config`, by key path. `run` needs a spec, a base URL and a principal. */
 export function configProblems(config: unknown, options: { forRun?: boolean } = {}): string[] {
 	const required = options.forRun === true ? ["spec", "baseUrl", "principals"] : []
-	const problems = shape(CONFIG, required)(config, "config")
+	const problems = shape(configRules(), required)(config, "config")
 	if (options.forRun === true && Array.isArray((config as { principals?: unknown })?.principals)) {
 		if ((config as { principals: unknown[] }).principals.length === 0) problems.push("config.principals is empty")
 	}

@@ -105,10 +105,16 @@ function check(context: Context, statement: Statement): void {
 	}
 }
 
+/*
+ * A process's entry point is the one module whose import is meant to run: the executable and the
+ * conformance worker each make a single call into tested code at module scope.
+ */
+const ENTRIES = ["/src/cli.ts", "/src/conformance/worker.ts"]
+
 export const rule: Rule = {
 	create(context: Context) {
 		const file = repoPath(context.filename)
-		if (!file.includes("/src/") || isTestCode(file)) return {}
+		if (!file.includes("/src/") || isTestCode(file) || ENTRIES.some((entry) => file.endsWith(entry))) return {}
 		return {
 			Program(program: { body: Statement[] }) {
 				for (const statement of program.body) check(context, statement)

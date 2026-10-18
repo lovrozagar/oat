@@ -37,30 +37,28 @@ export const orderChangesResult = defineCheck<{ field: string }>({
 			const reversed = descending.items.map((item) => item[field])
 			const distinct = new Set(values.map((value) => JSON.stringify(value))).size
 			if (descending.exchange.status < 400 && distinct > 1 && JSON.stringify(reversed) === JSON.stringify(values)) {
-				return ctx.findings.backend(
-					this.id,
-					ctx.entityName,
-					"order is accepted but has no effect",
-					`order=${field}.asc and order=${field}.desc returned the same sequence of "${field}" ` +
+				return ctx.findings.backend(this.id, ctx.entityName, {
+					summary: "order is accepted but has no effect",
+					detail:
+						`order=${field}.asc and order=${field}.desc returned the same sequence of "${field}" ` +
 						"values. The listing comes back in one fixed order whatever is asked for.",
-					[ascending.exchange, descending.exchange],
-				)
+					evidence: [ascending.exchange, descending.exchange],
+				})
 			}
 			observeTextOrder(ctx, field, order, values)
 			return ASSERTED
 		}
 
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"order is accepted but the result is not sorted",
-			`order=${field}.asc returned records whose "${field}" values are not ascending: ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "order is accepted but the result is not sorted",
+			detail:
+				`order=${field}.asc returned records whose "${field}" values are not ascending: ` +
 				`${values
 					.slice(0, 5)
 					.map((v) => JSON.stringify(v))
 					.join(", ")}. A sort parameter the ` +
 				"backend ignores silently gives every caller arbitrary ordering.",
-			[ascending.exchange],
-		)
+			evidence: [ascending.exchange],
+		})
 	},
 })

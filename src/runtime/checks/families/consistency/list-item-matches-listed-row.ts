@@ -32,22 +32,18 @@ export const listedRowIsTheGet = defineCheck<{ id: string; listed: Record<string
 			operationId: op.operationId,
 		})
 		if (item.status >= 300) {
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"the listed row is not returned by its get",
-				`${op.operationId} returned ${item.status} for ${ctx.entityName} ${id}`,
-				[item],
-			)
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "the listed row is not returned by its get",
+				detail: `${op.operationId} returned ${item.status} for ${ctx.entityName} ${id}`,
+				evidence: [item],
+			})
 		}
 		if (!listedRowMatches(listed, item.responseBody)) {
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"the get body is not the listed row",
-				`${op.operationId} returned a body that does not contain the row ${ctx.listOp?.operationId ?? "the list"} already returned for ${id}`,
-				[item],
-			)
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "the get body is not the listed row",
+				detail: `${op.operationId} returned a body that does not contain the row ${ctx.listOp?.operationId ?? "the list"} already returned for ${id}`,
+				evidence: [item],
+			})
 		}
 		return ASSERTED
 	},

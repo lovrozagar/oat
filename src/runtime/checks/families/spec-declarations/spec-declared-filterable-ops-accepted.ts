@@ -98,12 +98,10 @@ export const declaredFilterableOpsAccepted = defineCheck({
 			)
 		}
 		if (rejected.length === 0) return ASSERTED
-		return ctx.findings.spec(
-			this.id,
-			ctx.entityName,
-			"the document declares a filter operator the backend rejects",
-			`declared ops that 4xx: ${rejected.slice(0, 8).join(", ")}.`,
-			refusedBy.slice(0, 3),
-		)
+		return ctx.findings.spec(this.id, ctx.entityName, {
+			summary: "the document declares a filter operator the backend rejects",
+			detail: `declared ops that 4xx: ${rejected.slice(0, 8).join(", ")}.`,
+			evidence: refusedBy.slice(0, 3),
+		})
 	},
 })

@@ -42,18 +42,17 @@ export const createPersistsFields = defineCheck<{
 		})
 		if (dropped.length === 0) return ASSERTED
 
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"create silently discards submitted fields",
-			`the create response does not carry back ${dropped.length} submitted field(s): ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "create silently discards submitted fields",
+			detail:
+				`the create response does not carry back ${dropped.length} submitted field(s): ` +
 				dropped
 					.slice(0, 4)
 					.map(([key, value]) => `${key} sent ${JSON.stringify(value)}, got ${JSON.stringify(response[key])}`)
 					.join("; ") +
 				". A write that reports success and drops data is worse than one that fails.",
-			[sent],
-		)
+			evidence: [sent],
+		})
 	},
 })
 

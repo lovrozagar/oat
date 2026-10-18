@@ -77,7 +77,9 @@ describe("in-flight progress format", () => {
 		expect(field(early, "idle_ms")).toBe("1000")
 		expect(field(later, "idle_ms")).toBe("7000")
 	})
+})
 
+describe("in-flight progress format", () => {
 	it("emits a completed line with http, last_ms, and idle_ms=0", () => {
 		const at = Date.parse("2026-08-18T12:00:10.000Z")
 		const line = formatProgressLine(
@@ -123,7 +125,9 @@ describe("in-flight progress format", () => {
 		expect(field(line, "status")).toBe("stall")
 		expect(field(line, "path")).toBe("/v1/tables")
 	})
+})
 
+describe("in-flight progress format", () => {
 	it("keeps TSV column count and JSONL http=null while in flight", () => {
 		const live = snap({ inflight: { at: 0, method: "POST", url: EXTRACT } })
 		const tsv = formatProgressTsv(live, 1_000)
@@ -350,46 +354,84 @@ const SPEC = {
 	},
 } as OpenApiDocument
 
+type Widget = { id: string; name: string }
+
+/* A read, update or delete of one widget; the update changes nothing. */
+function widgetItem(rows: Map<string, Widget>, method: string, id: string, res: ServerResponse) {
+	if (method === "DELETE") {
+		rows.delete(id)
+		return send(res, 204)
+	}
+	const row = rows.get(id)
+	if (row === undefined || (method !== "GET" && method !== "PATCH")) return send(res, 404)
+	return send(res, 200, row)
+}
+
+interface SlowWidgets {
+	rows: Map<string, Widget>
+	seq: number
+}
+
+const slow = () => new Promise((resolve) => setTimeout(resolve, 80))
+
+async function createWidget(store: SlowWidgets, res: ServerResponse) {
+	await slow()
+	store.seq += 1
+	const row = { id: `w_${store.seq}`, name: "n" }
+	store.rows.set(row.id, row)
+	return send(res, 201, row)
+}
+
+async function extractWidget(store: SlowWidgets, id: string, res: ServerResponse) {
+	await slow()
+	const row = store.rows.get(id)
+	return row === undefined ? send(res, 404) : send(res, 200, row)
+}
+
+/* Widgets whose create and extract each take 80ms to answer. */
+async function routeSlowWidgets(store: SlowWidgets, req: IncomingMessage, res: ServerResponse) {
+	const url = new URL(req.url ?? "/", "http://127.0.0.1")
+	const method = (req.method ?? "GET").toUpperCase()
+	if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, SPEC)
+	if (url.pathname === "/v1/widgets" && method === "GET") return send(res, 200, { items: [...store.rows.values()] })
+	if (url.pathname === "/v1/widgets" && method === "POST") return createWidget(store, res)
+	const item = /^\/v1\/widgets\/([^/]+)$/.exec(url.pathname)
+	if (item !== null && ["GET", "PATCH", "DELETE"].includes(method)) {
+		return widgetItem(store.rows, method, item[1] ?? "", res)
+	}
+	const extract = /^\/v1\/widgets\/([^/]+)\/extract$/.exec(url.pathname)
+	if (extract !== null && method === "POST") return extractWidget(store, extract[1] ?? "", res)
+	return send(res, 404)
+}
+
+/* The first create goes in flight before any create completes, and reads as in flight while it waits. */
+function expectCreateStartsInFlight(events: ProgressSnapshot[]) {
+	const firstCreate = events.findIndex(
+		(event) => event.inflight?.url.endsWith("/v1/widgets") && event.inflight.method === "POST",
+	)
+	expect(firstCreate).toBeGreaterThanOrEqual(0)
+	expect(
+		events
+			.slice(0, firstCreate)
+			.some((event) => event.last?.url.endsWith("/v1/widgets") && event.last.method === "POST"),
+	).toBe(false)
+	const start = events[firstCreate] as ProgressSnapshot
+	const startLine = formatProgressLine(start, (start.inflight?.at ?? 0) + 40)
+	expect(field(startLine, "status")).toBe("in_flight")
+	expect(field(startLine, "path")).toBe("/v1/widgets")
+	expect(field(startLine, "http")).toBe("-")
+	expect(field(startLine, "last_ms")).toBe("-")
+	const later = formatProgressLine(start, (start.inflight?.at ?? 0) + 4_000)
+	expect(field(later, "path")).toBe("/v1/widgets")
+	expect(Number(field(later, "idle_ms"))).toBeGreaterThan(Number(field(startLine, "idle_ms") ?? "0"))
+}
+
 describe("run() in-flight progress", () => {
 	it("publishes a start event before the completed line for a slow POST", { timeout: 30_000 }, async () => {
-		const rows = new Map<string, { id: string; name: string }>()
-		let seq = 0
+		const store: SlowWidgets = { rows: new Map(), seq: 0 }
 		const events: ProgressSnapshot[] = []
 		const server = await listen((req, res) => {
-			void (async () => {
-				const url = new URL(req.url ?? "/", "http://127.0.0.1")
-				const method = (req.method ?? "GET").toUpperCase()
-				if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, SPEC)
-				if (url.pathname === "/v1/widgets" && method === "GET") return send(res, 200, { items: [...rows.values()] })
-				if (url.pathname === "/v1/widgets" && method === "POST") {
-					await new Promise((resolve) => setTimeout(resolve, 80))
-					seq += 1
-					const row = { id: `w_${seq}`, name: "n" }
-					rows.set(row.id, row)
-					return send(res, 201, row)
-				}
-				const item = /^\/v1\/widgets\/([^/]+)$/.exec(url.pathname)
-				if (item !== null && method === "GET") {
-					const row = rows.get(item[1] ?? "")
-					return row === undefined ? send(res, 404) : send(res, 200, row)
-				}
-				if (item !== null && method === "PATCH") {
-					const row = rows.get(item[1] ?? "")
-					if (row === undefined) return send(res, 404)
-					return send(res, 200, row)
-				}
-				if (item !== null && method === "DELETE") {
-					rows.delete(item[1] ?? "")
-					return send(res, 204)
-				}
-				const extract = /^\/v1\/widgets\/([^/]+)\/extract$/.exec(url.pathname)
-				if (extract !== null && method === "POST") {
-					await new Promise((resolve) => setTimeout(resolve, 80))
-					const row = rows.get(extract[1] ?? "")
-					return row === undefined ? send(res, 404) : send(res, 200, row)
-				}
-				return send(res, 404)
-			})()
+			void routeSlowWidgets(store, req, res)
 		})
 
 		const result = await run({
@@ -408,25 +450,7 @@ describe("run() in-flight progress", () => {
 			spec: `${server.url}/v1/openapi/spec`,
 		})
 
-		const firstCreate = events.findIndex(
-			(event) => event.inflight?.url.endsWith("/v1/widgets") && event.inflight.method === "POST",
-		)
-		expect(firstCreate).toBeGreaterThanOrEqual(0)
-		expect(
-			events
-				.slice(0, firstCreate)
-				.some((event) => event.last?.url.endsWith("/v1/widgets") && event.last.method === "POST"),
-		).toBe(false)
-		const start = events[firstCreate] as ProgressSnapshot
-		const startLine = formatProgressLine(start, (start.inflight?.at ?? 0) + 40)
-		expect(field(startLine, "status")).toBe("in_flight")
-		expect(field(startLine, "path")).toBe("/v1/widgets")
-		expect(field(startLine, "http")).toBe("-")
-		expect(field(startLine, "last_ms")).toBe("-")
-		const later = formatProgressLine(start, (start.inflight?.at ?? 0) + 4_000)
-		expect(field(later, "path")).toBe("/v1/widgets")
-		expect(Number(field(later, "idle_ms"))).toBeGreaterThan(Number(field(startLine, "idle_ms") ?? "0"))
-
+		expectCreateStartsInFlight(events)
 		const finished = events.find(
 			(event) =>
 				event.last?.url.endsWith("/v1/widgets") &&

@@ -12,16 +12,16 @@ export async function applyResolveInput(
 	hook: Hooks["resolveInput"],
 ): Promise<Record<string, unknown>> {
 	if (hook === undefined) return fields
-	return (await walk(fields, operationId, schema ?? {}, "$", hook)) as Record<string, unknown>
+	return (await walk(fields, schema ?? {}, "$", { hook, operationId })) as Record<string, unknown>
 }
 
-async function walk(
-	value: unknown,
-	operationId: string,
-	schema: unknown,
-	pointer: string,
-	hook: NonNullable<Hooks["resolveInput"]>,
-): Promise<unknown> {
+/** The hook, and the operation whose fields it is asked about. */
+interface Resolver {
+	operationId: string
+	hook: NonNullable<Hooks["resolveInput"]>
+}
+
+async function walk(value: unknown, schema: unknown, pointer: string, resolver: Resolver): Promise<unknown> {
 	if (value === null || typeof value !== "object" || Array.isArray(value)) return value
 	const record = value as Record<string, unknown>
 	const properties = propertiesOf(schema)
@@ -32,19 +32,19 @@ async function walk(
 		const childSchema = properties[name]
 		const request: InputRequest = {
 			field: name,
-			operationId,
+			operationId: resolver.operationId,
 			pointer: childPointer,
 			schema: childSchema ?? {},
 			value: Object.prototype.hasOwnProperty.call(record, name) ? record[name] : undefined,
 		}
-		const resolved = await hook(request)
+		const resolved = await resolver.hook(request)
 		if (resolved !== null && resolved !== undefined) {
 			out[name] = resolved
 			continue
 		}
 		const current = record[name]
 		if (current !== undefined && childSchema !== undefined) {
-			out[name] = await walk(current, operationId, childSchema, childPointer, hook)
+			out[name] = await walk(current, childSchema, childPointer, resolver)
 		}
 	}
 	return out

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
+import { chmodSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
@@ -7,11 +7,11 @@ import {
 	expandPattern,
 	isFieldOverride,
 	isUploadFile,
-	uploadMemory,
-	warnOnce,
 	resolveUploadFile,
 	resolveUploadOverride,
 	type UploadContext,
+	uploadMemory,
+	warnOnce,
 } from "./upload.ts"
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
@@ -137,6 +137,63 @@ describe("expandPattern", () => {
 			"uploads.each path not found: nowhere/*.pdf",
 			"uploads.pool path not found: a.pdf/*.x",
 		])
+	})
+})
+
+describe("resolveUploadFile edges", () => {
+	it("names a dummy after the requested file, and types an unknown file as octets", async () => {
+		expect((await resolveUploadFile(request({ filename: "scan.pdf" }), { seed: 1 })).filename).toBe("scan.pdf")
+		const root = folder({ "setup.exe": Uint8Array.of(1, 2, 3) })
+		const fixture = { filename: "setup.exe", index: 0, path: join(root, "setup.exe"), total: 1 }
+		expect((await resolveUploadFile(request({ fixture }), { seed: 1 })).mediaType).toBe("application/octet-stream")
+		const pooled = await resolveUploadFile(request(), { seed: 1, uploads: { pool: [join(root, "setup.exe")] } })
+		expect([pooled.filename, pooled.mediaType]).toEqual(["setup.exe", "application/octet-stream"])
+	})
+
+	it("reads the pool once per run, and skips with one warning a file it cannot read", async () => {
+		const root = folder({ "a.pdf": PDF, "locked.pdf": PDF })
+		chmodSync(join(root, "locked.pdf"), 0)
+		const warned: string[] = []
+		const context: UploadContext = {
+			configDir: root,
+			memory: uploadMemory(),
+			seed: 1,
+			uploads: { pool: ["."] },
+			warn: (message) => warned.push(message),
+		}
+		expect((await resolveUploadFile(request({ contentMediaType: "application/pdf" }), context)).filename).toBe("a.pdf")
+		writeFileSync(join(root, "b.png"), PNG)
+		const png = await resolveUploadFile(request({ contentMediaType: "image/png" }), context)
+		expect(png.filename).toBe("doc-baseline-0.png")
+		expect(warned).toEqual([`uploads.pool could not read ${join(root, "locked.pdf")}`])
+	})
+
+	it("matches no file by name when the requested name has no extension", async () => {
+		const root = folder({ noext: "x" })
+		const context: UploadContext = { configDir: root, seed: 1, uploads: { pool: ["."] } }
+		const file = await resolveUploadFile(request({ contentMediaType: "text/csv", filename: "noext" }), context)
+		expect(file.filename).toBe("noext")
+		expect(file.mediaType).toBe("text/csv")
+	})
+})
+
+describe("expandPattern over what is neither a file nor a folder", () => {
+	it("skips a link while walking, and treats a device as not found", async () => {
+		const root = folder({ "a.pdf": PDF })
+		symlinkSync(join(root, "a.pdf"), join(root, "link.pdf"))
+		expect(await expandPattern(".", root)).toEqual([join(root, "a.pdf")])
+		const warned: string[] = []
+		expect(await expandPattern("/dev/null", root, (message) => warned.push(message))).toEqual([])
+		expect(warned).toEqual(["uploads.pool path not found: /dev/null"])
+	})
+
+	it("without a run's memory, forgets what it said between calls", () => {
+		const warned: string[] = []
+		const context = { warn: (message: string) => warned.push(message) }
+		warnOnce(context)("a")
+		warnOnce(context)("a")
+		warnOnce({})("silent")
+		expect(warned).toEqual(["a", "a"])
 	})
 })
 

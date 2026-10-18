@@ -49,26 +49,23 @@ export const filterMalformedTermRejected = defineCheck<{
 		}
 		const result = await list(asProbe(ctx), { ...q(ctx, { limit: pageSize(ctx) }), ...malformed })
 		if (result.exchange.status >= 500) {
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"a malformed filter term produces a server error",
-				`${Object.values(malformed).join("&")} returned ${result.exchange.status}; a rejected input should be 4xx.`,
-				[result.exchange],
-			)
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "a malformed filter term produces a server error",
+				detail: `${Object.values(malformed).join("&")} returned ${result.exchange.status}; a rejected input should be 4xx.`,
+				evidence: [result.exchange],
+			})
 		}
 		const refused = judgeRefusal(ctx, this.id, ["validation"], result.exchange)
 		if (refused !== null) return refused
 		const baseline = await list(ctx, q(ctx, { limit: pageSize(ctx) }))
 		const same = ids(result.items, ctx.identity).join(",") === ids(baseline.items, ctx.identity).join(",")
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"a malformed filter term is accepted",
-			`${Object.values(malformed).join("&")} returned ${result.exchange.status}` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "a malformed filter term is accepted",
+			detail:
+				`${Object.values(malformed).join("&")} returned ${result.exchange.status}` +
 				(same ? " with the unfiltered set, so the term was dropped" : "") +
 				". A term the declared grammar cannot parse must be rejected.",
-			[baseline.exchange, result.exchange],
-		)
+			evidence: [baseline.exchange, result.exchange],
+		})
 	},
 })

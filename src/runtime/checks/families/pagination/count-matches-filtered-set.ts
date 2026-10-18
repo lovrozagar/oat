@@ -30,13 +30,12 @@ export const countMatchesWalk = defineCheck<{ countTerm: Record<string, string> 
 		const reported = envelopeValue(ctx, filtered, "total")
 		if (typeof reported !== "number") return standDown("the listing reports no total")
 		if (reported === filtered.items.length) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"reported count disagrees with the filtered result",
-			`filter selected ${filtered.items.length} record(s) but count reported ${reported}. ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "reported count disagrees with the filtered result",
+			detail:
+				`filter selected ${filtered.items.length} record(s) but count reported ${reported}. ` +
 				"A count that ignores the active filter makes every paginated UI show wrong totals.",
-			[filtered.exchange],
-		)
+			evidence: [filtered.exchange],
+		})
 	},
 })

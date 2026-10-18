@@ -55,6 +55,11 @@ describe("oat/no-module-side-effects", () => {
 		expect(reportsOf(rule, fixture)).toEqual([])
 	})
 
+	it("lets a process entry point run its one call, and nothing else that is named like one", () => {
+		expect(reportsOf(rule, { "src/cli.ts": "await start()\n", "src/conformance/worker.ts": "serve()\n" })).toEqual([])
+		expect(reportsOf(rule, { "src/cli/cli.ts": "await start()\n" })).toHaveLength(1)
+	})
+
 	it("fails oxlint through the oat plugin entry", () => {
 		expect(oxlintReports("no-module-side-effects", { "src/runtime/a.ts": "run()\n" }).length).toBe(1)
 	})

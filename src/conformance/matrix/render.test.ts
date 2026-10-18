@@ -43,7 +43,7 @@ const caught = (extra: Partial<CaseResult> = {}): CaseResult => {
 	})
 }
 
-describe("renderSuite", () => {
+describe("renderSuite on a baseline", () => {
 	it("passes clean baselines and a caught defect, proving what fired", () => {
 		const { failures, proven, text } = renderSuite([tagged(), untagged(), caught()])
 		expect(failures).toBe(0)
@@ -85,6 +85,18 @@ describe("renderSuite", () => {
 		expect(text).not.toContain("x.n5")
 		expect(text).toContain("5 false positive(s) on the correct backend")
 	})
+})
+
+describe("renderSuite on what a baseline leaves behind", () => {
+	it("lets a baseline stay undecided only where its backend and shape allow it", () => {
+		const allowance = { "memory:postgrest": ["c.x"], "memory:postgrest:untagged": ["c.y"] }
+		const undecided = (label: CaseResult["label"], inconclusive: string[]) =>
+			renderSuite([tagged({ inconclusive, label })], "postgrest", "memory", allowance).failures
+		expect(undecided("baseline (correct backend)", ["c.x: why"])).toBe(0)
+		expect(undecided("baseline (correct backend)", ["c.y: why", "c.xx: why"])).toBe(1)
+		expect(undecided("baseline (untagged spec)", ["c.y: why"])).toBe(0)
+		expect(renderSuite([tagged({ inconclusive: ["c.x: why"] })], "postgrest", "sqlite", allowance).failures).toBe(1)
+	})
 
 	it("fails a baseline that litters, touches, ledgers or leaves undecided", () => {
 		const cases: Array<[Partial<CaseResult>, string]> = [
@@ -100,7 +112,9 @@ describe("renderSuite", () => {
 			expect([failures, text.includes(line)]).toEqual([1, true])
 		}
 	})
+})
 
+describe("renderSuite on a defect", () => {
 	it("fails a missed defect, naming what it reported instead", () => {
 		const other = caught({ detected: false, findings: [finding("sort.order-is-applied")] })
 		expect(renderSuite([other]).text).toContain("missed — reported instead: sort.order-is-applied")
@@ -116,6 +130,10 @@ describe("renderSuite", () => {
 		const { failures, text } = renderSuite([caught({ spurious: [finding("x.extra")] })])
 		expect(failures).toBe(1)
 		expect(text).toContain("spurious: [x.extra]")
+	})
+
+	it("names no check for a defect that expects none", () => {
+		expect(renderSuite([caught({ expected: null })]).text).toMatch(/STALE_LIST\s+yes\s+0\s+—/)
 	})
 
 	it("reads precision as zero when no baseline ran", () => {
@@ -134,6 +152,11 @@ describe("passAnswer", () => {
 		expect(answer.baselines).toEqual({ tagged: IDS, untagged: IDS.slice(0, 10) })
 		expect(answer.primaryOps).toEqual({ STALE_LIST: ["note.list", "note.read"] })
 		expect(answer.proven).toEqual(["list.read-after-write"])
+	})
+
+	it("skips a primary finding that names no operation", () => {
+		const bare = caught({ findings: [finding("list.read-after-write")] })
+		expect(passAnswer([bare], "memory", "postgrest").primaryOps).toEqual({})
 	})
 
 	it("has empty baselines when a leg ran none", () => {

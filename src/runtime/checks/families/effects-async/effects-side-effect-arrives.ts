@@ -32,12 +32,10 @@ export const sideEffectArrives = defineCheck({
 			if (spec === null) continue
 			const pollOp = ctx.model.byOperationId.get(spec.operationId)
 			if (pollOp === undefined) {
-				ctx.findings.gap(
-					this.id,
-					ctx.entityName,
-					`${op.operationId} x-wait names "${spec.operationId}", which is not in the document`,
-					"the side effect cannot be observed, so it is not verified",
-				)
+				ctx.findings.gap(this.id, ctx.entityName, {
+					summary: `${op.operationId} x-wait names "${spec.operationId}", which is not in the document`,
+					detail: "the side effect cannot be observed, so it is not verified",
+				})
 				continue
 			}
 
@@ -72,13 +70,11 @@ async function invokeAndWait(run: Invocation, uploads: UploadContext): Promise<v
 	if (standDownForFeatureGate(ctx, op, invoked, run.check)) return
 	if (standDownForRateLimit(ctx, invoked, run.check)) return
 	if (invoked.status >= 400) {
-		ctx.findings.gap(
-			run.check,
-			subject(ctx.entityName, op.operationId, fixture),
-			`${op.operationId} could not be invoked`,
-			`returned ${invoked.status}; its declared x-wait is unverified`,
+		ctx.findings.gap(run.check, subject(ctx.entityName, op.operationId, fixture), {
+			summary: `${op.operationId} could not be invoked`,
+			detail: `returned ${invoked.status}; its declared x-wait is unverified`,
 			fixture,
-		)
+		})
 		return
 	}
 
@@ -95,18 +91,17 @@ async function invokeAndWait(run: Invocation, uploads: UploadContext): Promise<v
 		...(ctx.refreshIfStale === undefined ? {} : { refreshIfStale: ctx.refreshIfStale }),
 	})
 	if (!outcome.timedOut) return
-	ctx.findings.backend(
-		run.check,
-		subject(ctx.entityName, op.operationId, fixture),
-		`${op.operationId} side effect did not appear within ${spec.timeoutMs}ms`,
-		`x-wait polls ${spec.operationId}` +
+	ctx.findings.backend(run.check, subject(ctx.entityName, op.operationId, fixture), {
+		summary: `${op.operationId} side effect did not appear within ${spec.timeoutMs}ms`,
+		detail:
+			`x-wait polls ${spec.operationId}` +
 			(spec.until === undefined ? "" : ` until ${spec.until} is non-empty`) +
 			` and the path was still empty after ${outcome.polls} poll(s) / ${Math.round(outcome.elapsedMs)}ms. ` +
 			"Queue consumers and webhook inboxes are not the same request; a timeout here is a " +
 			"missed delivery, not a coverage gap.",
-		[invoked, ...outcome.exchanges.slice(-2)],
+		evidence: [invoked, ...outcome.exchanges.slice(-2)],
 		fixture,
-	)
+	})
 }
 
 function bindWaitScope(

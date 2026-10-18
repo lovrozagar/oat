@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { damagedBystanders, ledgeredNotCreated, unreportedLeftovers } from "./leaks.ts"
+import { damagedBystanders, ledgeredNotCreated, leftBehind, unreportedLeftovers } from "./leaks.ts"
 import type { TeardownReport } from "../runtime/teardown/types.ts"
 import { DAMAGES_BYSTANDERS } from "../reference/defects/bystanders.ts"
 /*
@@ -51,6 +51,21 @@ describe("unreportedLeftovers", () => {
  * created during the run. The second is what an id oat merely sent breaks.
  */
 
+describe("leftBehind", () => {
+	it("names every live row present after the run and absent before it", () => {
+		const before = { note: [{ id: 1 }] }
+		const after = {
+			note: [{ id: 1 }, { id: 2 }, { deleted_at: "2026-01-01", id: 3 }, { deleted_at: null, id: 4 }],
+			tag: [{ id: "t1" }],
+		}
+		expect(leftBehind(before, after)).toEqual(["note 2", "note 4", "tag t1"])
+	})
+
+	it("is empty when the run removed all it made", () => {
+		expect(leftBehind({ note: [{ id: 1 }] }, { note: [{ id: 1 }] })).toEqual([])
+	})
+})
+
 describe("damagedBystanders", () => {
 	const before = {
 		table: [
@@ -74,6 +89,10 @@ describe("damagedBystanders", () => {
 			"table t3 deleted",
 			"table t4 changed deleted_at",
 		])
+	})
+
+	it("names every record of an entity the backend no longer lists", () => {
+		expect(damagedBystanders({ note: [{ id: 1 }] }, {})).toEqual(["note 1 deleted"])
 	})
 
 	it("is empty when every pre-existing record is untouched, whatever the run added", () => {

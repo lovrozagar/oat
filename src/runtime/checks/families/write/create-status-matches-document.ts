@@ -22,14 +22,13 @@ export const createStatusMatchesSpec = defineCheck<{ createOp: OperationModel; s
 		if (exchange === undefined)
 			return ctx.findings.unresolved(this.id, ctx.entityName, "no successful create of this entity was observed")
 		if (documentsStatus(createOp.statuses, exchange.status)) return ASSERTED
-		return ctx.findings.spec(
-			this.id,
-			ctx.entityName,
-			"create returns a success status the document does not declare",
-			`${createOp.operationId} returned ${exchange.status}; the document declares ` +
+		return ctx.findings.spec(this.id, ctx.entityName, {
+			summary: "create returns a success status the document does not declare",
+			detail:
+				`${createOp.operationId} returned ${exchange.status}; the document declares ` +
 				`${success.join(", ")}. Either the handler or the document is wrong, and clients ` +
 				"generated from the spec will not recognise the response.",
-			[exchange],
-		)
+			evidence: [exchange],
+		})
 	},
 })

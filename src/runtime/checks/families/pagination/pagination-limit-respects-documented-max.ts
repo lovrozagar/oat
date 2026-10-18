@@ -25,13 +25,12 @@ export const limitRespectsMax = defineCheck<{ max: number; limitParam: string }>
 		const refused = judgeRefusal(ctx, this.id, ["validation"], result.exchange)
 		if (refused !== null) return refused
 		if (result.items.length <= max) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"page size exceeds the documented maximum",
-			`limit=${max + 50} returned ${result.items.length} records; the document caps limit at ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "page size exceeds the documented maximum",
+			detail:
+				`limit=${max + 50} returned ${result.items.length} records; the document caps limit at ` +
 				`${max}. Either the cap is not enforced or the document overstates it.`,
-			[result.exchange],
-		)
+			evidence: [result.exchange],
+		})
 	},
 })

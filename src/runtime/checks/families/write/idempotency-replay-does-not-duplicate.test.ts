@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
+import type { CheckContext } from "../../core/context.ts"
 import { type Answer, contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
 import { runCheck } from "../../core/run.ts"
 import { idempotentReplay } from "./idempotency-replay-does-not-duplicate.ts"
@@ -77,7 +78,7 @@ describe("idempotency.replay-does-not-duplicate verdicts", () => {
 			if (method === "POST" && ++posts === 2) rows.set("twin", { id: "twin", name: "copy" })
 			return answer
 		})
-		const recordCreated = vi.fn()
+		const recordCreated = vi.fn<NonNullable<CheckContext["recordCreated"]>>()
 		expect(await runCheck(idempotentReplay, { ...ctx, recordCreated })).toEqual({
 			kind: "finding",
 			verdict: "BACKEND_BUG",

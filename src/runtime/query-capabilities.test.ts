@@ -132,7 +132,9 @@ describe("live harvest and hook", () => {
 		expect(caps.source).toBe("tag")
 		expect(caps.filterable.map((field) => field.field)).toEqual(["id"])
 	})
+})
 
+describe("live harvest of type paths", () => {
 	it("maps a typePath that mixes strings and junk", async () => {
 		const caps = await resolveEntityCapabilities({
 			auth: () => ({}),
@@ -159,7 +161,9 @@ describe("live harvest and hook", () => {
 		})
 		expect(caps.filterable).toEqual([{ field: "id", type: "string" }, { field: "n" }])
 	})
+})
 
+describe("live harvest across every axis", () => {
 	it("harvests every axis and then applies the hook", async () => {
 		const body = {
 			columns: [
@@ -210,7 +214,9 @@ describe("live harvest and hook", () => {
 		expect(caps.selectable).toEqual(["id", "title"])
 		expect(caps.hook).toBe(true)
 	})
+})
 
+describe("live harvest by route", () => {
 	it("resolves harvest by route and skips a harvest with no target", async () => {
 		const caps = await resolveEntityCapabilities({
 			auth: () => ({}),
@@ -235,7 +241,9 @@ describe("live harvest and hook", () => {
 		expect(caps.filterable).toEqual([])
 		expect(caps.sortable.map((field) => field.field)).toEqual(["n"])
 	})
+})
 
+describe("live harvest failures and route ids", () => {
 	it("throws when harvest names an unknown operation", async () => {
 		await expect(
 			resolveEntityCapabilities({

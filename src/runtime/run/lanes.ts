@@ -57,12 +57,10 @@ async function runLane(run: LaneRun, lane: readonly EntityModel[]): Promise<void
 		} catch (error) {
 			/* An error oat did not expect must not skip teardown: it is reported, and the run
 			 * carries on to remove what it made and write its report. */
-			ctx.findings.blocked(
-				"run.error" satisfies RunFindingId,
-				entity.name,
-				`testing "${entity.name}" stopped on an unexpected error`,
-				errorText(error),
-			)
+			ctx.findings.blocked("run.error" satisfies RunFindingId, entity.name, {
+				summary: `testing "${entity.name}" stopped on an unexpected error`,
+				cause: errorText(error),
+			})
 		}
 	}
 }
@@ -75,15 +73,16 @@ function noteStop(run: LaneRun): void {
 	const remaining = `${left} remaining entit${left === 1 ? "y" : "ies"}`
 	if (options.signal?.aborted === true) {
 		state.interrupted = true
-		findings.gap(
-			"run.interrupted" satisfies RunFindingId,
-			"run",
-			`stopped before ${remaining}`,
-			"the run was interrupted; what was tested is reported, and what oat created is removed",
-		)
+		findings.gap("run.interrupted" satisfies RunFindingId, "run", {
+			summary: `stopped before ${remaining}`,
+			detail: "the run was interrupted; what was tested is reported, and what oat created is removed",
+		})
 		return
 	}
-	findings.blocked("net.unreachable" satisfies RunFindingId, "run", `skipped ${remaining}`, "network down")
+	findings.blocked("net.unreachable" satisfies RunFindingId, "run", {
+		summary: `skipped ${remaining}`,
+		cause: "network down",
+	})
 }
 
 /**

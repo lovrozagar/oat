@@ -77,6 +77,15 @@ function send(res: ServerResponse, status: number, body?: unknown): void {
 	res.end(body === undefined ? "" : JSON.stringify(body))
 }
 
+function noteItem(notes: Map<string, Note>, pathname: string, method: string, res: ServerResponse): void {
+	const id = decodeURIComponent(pathname.match(/^\/notes\/([^/]+)$/)?.[1] ?? "")
+	const note = notes.get(id)
+	if (method === "GET") return note === undefined ? send(res, 404, { error: "missing" }) : send(res, 200, note)
+	if (method !== "DELETE") return send(res, 405, {})
+	if (id === REFUSED) return send(res, 403, { error: "kept" })
+	return notes.delete(id) ? send(res, 204) : send(res, 404, { error: "missing" })
+}
+
 /* Creates `note-1`, `note-2`, … in order and refuses to delete `note-1`. */
 async function serve(notes: Map<string, Note>): Promise<string> {
 	const document = spec()
@@ -94,14 +103,7 @@ async function serve(notes: Map<string, Note>): Promise<string> {
 				notes.set(note.id, note)
 				return send(res, 201, note)
 			}
-			const id = decodeURIComponent(url.pathname.match(/^\/notes\/([^/]+)$/)?.[1] ?? "")
-			const note = notes.get(id)
-			if (method === "GET") return note === undefined ? send(res, 404, { error: "missing" }) : send(res, 200, note)
-			if (method === "DELETE") {
-				if (id === REFUSED) return send(res, 403, { error: "kept" })
-				return notes.delete(id) ? send(res, 204) : send(res, 404, { error: "missing" })
-			}
-			return send(res, 405, {})
+			noteItem(notes, url.pathname, method, res)
 		})().catch(() => {
 			if (!res.headersSent) res.writeHead(500)
 			res.end()

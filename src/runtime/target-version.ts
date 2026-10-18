@@ -11,6 +11,9 @@ import type { SpecModel } from "../spec/graph/types.ts"
 import type { Client } from "../client/client.ts"
 import { readPath } from "./path.ts"
 import { fillPath } from "./fill-path.ts"
+import { headerValue } from "./headers.ts"
+import type { Exchange } from "./exchange.ts"
+import { messageOf } from "../errors/message.ts"
 
 import type { TargetVersionSpec } from "../config/types/config.ts"
 
@@ -24,27 +27,21 @@ export type TargetVersion = { value: string } | { error: string }
  */
 export const TARGET_VERSION_READ = "run.target-version"
 
-export async function readTargetVersion(
-	spec: TargetVersionSpec,
-	model: SpecModel,
-	client: Pick<Client, "get">,
-	headers: () => Record<string, string>,
-	roots: Record<string, string>,
-): Promise<TargetVersion> {
-	let path: string
-	if (spec.operationId !== undefined) {
-		const op = model.byOperationId.get(spec.operationId)
-		if (op === undefined) return { error: `targetVersion.operationId "${spec.operationId}" names no operation` }
-		try {
-			path = fillPath(op.path, roots)
-		} catch (error) {
-			return { error: error instanceof Error ? error.message : String(error) }
-		}
-	} else if (spec.path !== undefined) {
-		path = spec.path
-	} else {
-		return { error: "targetVersion needs an operationId or a path" }
-	}
+/** What reading the version needs: where it is, and how to ask as the first principal. */
+export interface TargetVersionRead {
+	spec: TargetVersionSpec
+	model: SpecModel
+	client: Pick<Client, "get">
+	headers: () => Record<string, string>
+	/** Path ids for a version operation's parameters. */
+	roots: Record<string, string>
+}
+
+export async function readTargetVersion(read: TargetVersionRead): Promise<TargetVersion> {
+	const { client, headers, spec } = read
+	const target = versionPath(read)
+	if ("error" in target) return target
+	const { path } = target
 	let exchange: Awaited<ReturnType<Client["get"]>>
 	try {
 		exchange = await client.get(path, {
@@ -52,14 +49,31 @@ export async function readTargetVersion(
 			...(spec.operationId === undefined ? {} : { operationId: spec.operationId }),
 		})
 	} catch (error) {
-		return { error: error instanceof Error ? error.message : String(error) }
+		return { error: messageOf(error) }
 	}
 	if (exchange.status < 200 || exchange.status >= 300) return { error: `GET ${path} returned ${exchange.status}` }
-	const header = /^header:(.+)$/i.exec(spec.from)?.[1]?.trim().toLowerCase()
-	const value =
-		header === undefined
-			? readPath(exchange.responseBody, spec.from)
-			: Object.entries(exchange.responseHeaders).find(([name]) => name.toLowerCase() === header)?.[1]
+	const value = versionIn(exchange, spec.from)
 	if (typeof value === "string" || typeof value === "number") return { value: String(value) }
 	return { error: `${spec.from} is not in the response of GET ${path}` }
+}
+
+/** The path the version is read from: the operation's, filled from the roots, or the configured one. */
+function versionPath(read: TargetVersionRead): { path: string } | { error: string } {
+	const { model, roots, spec } = read
+	if (spec.operationId === undefined) {
+		return spec.path === undefined ? { error: "targetVersion needs an operationId or a path" } : { path: spec.path }
+	}
+	const op = model.byOperationId.get(spec.operationId)
+	if (op === undefined) return { error: `targetVersion.operationId "${spec.operationId}" names no operation` }
+	try {
+		return { path: fillPath(op.path, roots) }
+	} catch (error) {
+		return { error: messageOf(error) }
+	}
+}
+
+/** The value `from` names: a response header (`header:<name>`), or a JSON path into the body. */
+function versionIn(exchange: Exchange, from: string): unknown {
+	const header = /^header:(.+)$/i.exec(from)?.[1]?.trim()
+	return header === undefined ? readPath(exchange.responseBody, from) : headerValue(exchange.responseHeaders, header)
 }

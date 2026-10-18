@@ -69,12 +69,10 @@ export const queryFilterSearchSortSelectCompose = defineCheck<
 			return ctx.findings.unresolved(this.id, ctx.entityName, "projection omitted the identity")
 		}
 		if (sameSet(setOf(base.items, ctx.identity), setOf(combined.items, ctx.identity))) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"filter ∩ search membership changes when sort and select join",
-			`the four-axis listing returned ${combined.items.length}; filter+search alone returned ${base.items.length}.`,
-			[base.last.exchange, combined.last.exchange],
-		)
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "filter ∩ search membership changes when sort and select join",
+			detail: `the four-axis listing returned ${combined.items.length}; filter+search alone returned ${base.items.length}.`,
+			evidence: [base.last.exchange, combined.last.exchange],
+		})
 	},
 })

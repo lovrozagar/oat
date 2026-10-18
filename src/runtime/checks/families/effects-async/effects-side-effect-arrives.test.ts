@@ -99,7 +99,7 @@ describe("a write whose side effect is polled", () => {
 
 describe("polling hooks", () => {
 	it("lets the awaitSideEffect hook decide the effect arrived", async () => {
-		const awaitSideEffect = vi.fn(async (): Promise<true | null> => true)
+		const awaitSideEffect = vi.fn<() => Promise<true | null>>(async () => true)
 		const run = await waited(
 			routes({ "GET /inbox": () => empty, "POST /notes": () => ({ status: 201 }) }),
 			[sendNote],
@@ -112,7 +112,7 @@ describe("polling hooks", () => {
 	})
 
 	it("refreshes a stale credential while it polls", async () => {
-		const refreshIfStale = vi.fn(async () => undefined)
+		const refreshIfStale = vi.fn<NonNullable<CheckContext["refreshIfStale"]>>(async () => undefined)
 		await waited(routes({ "GET /inbox": () => delivered, "POST /notes": () => ({ status: 201 }) }), [sendNote], {
 			refreshIfStale,
 		})

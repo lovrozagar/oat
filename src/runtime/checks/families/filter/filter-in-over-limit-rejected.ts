@@ -31,12 +31,10 @@ export const filterInOverLimitRejected = defineCheck<{
 		const result = await list(asProbe(ctx), { ...q(ctx, { limit: 5 }), ...term })
 		const refused = judgeRefusal(ctx, this.id, ["validation"], result.exchange)
 		if (refused !== null) return refused
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"an over-limit in() list was accepted",
-			`maxInValues=${max} but ${field}.in with ${max + 1} members returned ${result.exchange.status}.`,
-			[result.exchange],
-		)
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "an over-limit in() list was accepted",
+			detail: `maxInValues=${max} but ${field}.in with ${max + 1} members returned ${result.exchange.status}.`,
+			evidence: [result.exchange],
+		})
 	},
 })

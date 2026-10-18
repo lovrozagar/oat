@@ -110,15 +110,14 @@ export const cursorAgreesWithPage = defineCheck({
 		 * previous page's tail, which set comparison alone would hide. */
 		const repeated = duplicates(byCursor).filter((id) => !duplicates(byPage).includes(id))
 		if (repeated.length > 0) {
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"cursor pagination re-serves records the previous page already returned",
-				`walking by cursor returned ${repeated.length} record(s) more than once ` +
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "cursor pagination re-serves records the previous page already returned",
+				detail:
+					`walking by cursor returned ${repeated.length} record(s) more than once ` +
 					`(${repeated.slice(0, 3).join(", ")}) while the offset walk returned each exactly once. ` +
 					"The cursor is resolving to the wrong boundary.",
-				repeatEvidence(ctx, cursorWalk, repeated),
-			)
+				evidence: repeatEvidence(ctx, cursorWalk, repeated),
+			})
 		}
 
 		const prefixes = comparablePrefixes(pageWalk, cursorWalk, sortField)
@@ -132,15 +131,14 @@ export const cursorAgreesWithPage = defineCheck({
 
 		const onlyPage = pageSet.filter((id) => !cursorSet.includes(id))
 		const onlyCursor = cursorSet.filter((id) => !pageSet.includes(id))
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"cursor pagination and offset pagination disagree",
-			`offset walk yielded ${pageSet.length} distinct records, cursor walk yielded ${cursorSet.length}. ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "cursor pagination and offset pagination disagree",
+			detail:
+				`offset walk yielded ${pageSet.length} distinct records, cursor walk yielded ${cursorSet.length}. ` +
 				`Only in offset: ${onlyPage.slice(0, 3).join(", ") || "—"}. ` +
 				`Only in cursor: ${onlyCursor.slice(0, 3).join(", ") || "—"}. ` +
 				"Both traverse the same collection, so one of them is losing or repeating rows.",
-			[...pageWalk.exchanges.slice(0, 2), ...cursorWalk.exchanges.slice(0, 2)],
-		)
+			evidence: [...pageWalk.exchanges.slice(0, 2), ...cursorWalk.exchanges.slice(0, 2)],
+		})
 	},
 })

@@ -86,11 +86,9 @@ function escape(text: string): string {
 	return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;")
 }
 
-const EVIDENCE_LABELS = ["call", "observed"]
-
 function rowHtml(row: ConfidenceRow): string {
 	const links = row.evidence
-		.map((file, i) => `<a href="${escape(file)}">${EVIDENCE_LABELS[i] ?? "evidence"}</a>`)
+		.map((file, i) => `<a href="${escape(file)}">${i === 0 ? "call" : "observed"}</a>`)
 		.join(" · ")
 	return (
 		`<tr><td><code>${escape(row.operation)}</code>${row.entity === null ? "" : `<span class="entity">${escape(row.entity)}</span>`}</td>` +

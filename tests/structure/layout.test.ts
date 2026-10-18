@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process"
 import { importGraph } from "../support/import-graph.ts"
+import { ENTRY_POINTS } from "../support/coverage-scope.ts"
 import { unshipped } from "../support/shipped.ts"
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { join, relative } from "node:path"
@@ -8,52 +9,11 @@ import { describe, expect, it } from "vitest"
 
 /*
  * The flare/honey layout: a unit test sits beside its module and opens no socket; servers and
- * whole runs live under tests/. Every module has a sibling test, except an index (pure re-exports)
- * and a file that declares only types. Modules without one today are listed; the list only shrinks.
+ * whole runs live under tests/. Every module has a sibling test, except an index (pure re-exports),
+ * a file that declares only types, and a process entry point, which entries.test.ts proves thin.
  */
 
 const ROOT = join(import.meta.dirname, "..", "..")
-
-const UNTESTED: readonly string[] = [
-	"src/conformance/expected-failures.ts",
-	"src/conformance/feature-gate.ts",
-	"src/conformance/fuzz.ts",
-	"src/conformance/pool.ts",
-	"src/conformance/rate-limit.ts",
-	"src/conformance/seed-contract.ts",
-	"src/conformance/shapes.ts",
-	"src/conformance/specs.ts",
-	"src/conformance/unique.ts",
-	"src/conformance/worker.ts",
-	"src/reference/store-api.ts",
-	"src/reference/stores/memory.ts",
-	"src/reference/stores/postgres.ts",
-	"src/reference/stores/sqlite-driver.ts",
-	"src/reference/stores/sqlite.ts",
-	"src/report/diff.ts",
-	"src/runtime/async.ts",
-	"src/runtime/baseline.ts",
-	"src/runtime/check-costs.ts",
-	"src/runtime/check-ids.ts",
-	"src/runtime/created-id.ts",
-	"src/runtime/dummy.ts",
-	"src/runtime/feature-gate.ts",
-	"src/runtime/fence.ts",
-	"src/runtime/headers.ts",
-	"src/runtime/one-shot.ts",
-	"src/runtime/payloads.ts",
-	"src/runtime/profile.ts",
-	"src/runtime/proven-id.ts",
-	"src/runtime/query.ts",
-	"src/runtime/root-read.ts",
-	"src/runtime/server-errors.ts",
-	"src/runtime/sse.ts",
-	"src/runtime/target-version.ts",
-	"src/runtime/unique.ts",
-	"src/runtime/upload-each.ts",
-	"src/runtime/validate.ts",
-	"src/runtime/wait.ts",
-]
 
 function filesUnder(dir: string): string[] {
 	return readdirSync(join(ROOT, dir), { recursive: true, withFileTypes: true })
@@ -95,13 +55,13 @@ describe("layout", () => {
 		expect(opening).toEqual([])
 	})
 
-	it("gives every module a sibling test, except an index and a types-only file", () => {
+	it("gives every module a sibling test, except an index, a types-only file and an entry point", () => {
 		const files = new Set(filesUnder("src"))
 		const missing = [...files]
 			.filter(isModule)
 			.filter((file) => !file.endsWith("/index.ts") && !files.has(file.replace(/\.ts$/, ".test.ts")))
-			.filter((file) => !declaresOnlyTypes(file))
-		expect(missing).toEqual([...UNTESTED].toSorted())
+			.filter((file) => !declaresOnlyTypes(file) && !ENTRY_POINTS.includes(file))
+		expect(missing).toEqual([])
 	})
 
 	it("ships every module the entry points reach, and the entry targets themselves", () => {

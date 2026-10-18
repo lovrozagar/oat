@@ -101,8 +101,9 @@ async function signUpByRegister(
 	let body: Record<string, unknown> = {}
 	if (schema !== null) {
 		/* One variant asked for, one member back, and its body is always an object. */
-		const [member] = buildCohort(schema, input.seed ?? 1, ["baseline"], register.operationId, {
+		const [member] = buildCohort(schema, input.seed ?? 1, ["baseline"], {
 			nonce: `${input.nonce ?? "user"}${label}`,
+			operationId: register.operationId,
 		}) as [CohortMember]
 		body = member.body
 		if (input.resolveInput !== undefined) {

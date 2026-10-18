@@ -26,14 +26,13 @@ export function judgeRefusal(
 	if (status > 0 && status < 400) return null
 	if (reasons.some((reason) => (REFUSED_FOR[reason] as readonly number[]).includes(status))) return ASSERTED
 	if (status >= 500) {
-		return ctx.findings.backend(
-			check,
-			ctx.entityName,
-			"a request that should be refused drew a server error",
-			`${exchange.method} ${exchange.url} returned ${status}; invalid input should be refused with ` +
+		return ctx.findings.backend(check, ctx.entityName, {
+			summary: "a request that should be refused drew a server error",
+			detail:
+				`${exchange.method} ${exchange.url} returned ${status}; invalid input should be refused with ` +
 				`${reasons.flatMap((reason) => REFUSED_FOR[reason]).join(" or ")}, not crash the handler.`,
-			[exchange],
-		)
+			evidence: [exchange],
+		})
 	}
 	return ctx.findings.unresolved(
 		check,

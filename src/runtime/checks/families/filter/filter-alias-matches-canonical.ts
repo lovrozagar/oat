@@ -43,13 +43,11 @@ export const filterAliasMatchesCanonical = defineCheck({
 			/* One read per term, in the order the terms were given. */
 			const [left, right] = reads as [SetRead, SetRead]
 			if (!agree(reads)) {
-				return ctx.findings.backend(
-					this.id,
-					ctx.entityName,
-					`alias ${alias} does not select the same set as ${target}`,
-					`${field.field}.${alias} and ${field.field}.${target} disagreed on membership.`,
-					[left.last.exchange, right.last.exchange],
-				)
+				return ctx.findings.backend(this.id, ctx.entityName, {
+					summary: `alias ${alias} does not select the same set as ${target}`,
+					detail: `${field.field}.${alias} and ${field.field}.${target} disagreed on membership.`,
+					evidence: [left.last.exchange, right.last.exchange],
+				})
 			}
 		}
 		return ASSERTED

@@ -38,12 +38,10 @@ export const sortDefaultOrderApplied = defineCheck<{ defaultOrder: string }>({
 			)
 		}
 		if (ids(implicit.items, ctx.identity).join(",") === ids(explicit.items, ctx.identity).join(",")) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"omitting order does not match defaultOrder",
-			`defaultOrder=${defaultOrder} produced a different sequence than the implicit listing.`,
-			[implicit.last.exchange, explicit.last.exchange],
-		)
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "omitting order does not match defaultOrder",
+			detail: `defaultOrder=${defaultOrder} produced a different sequence than the implicit listing.`,
+			evidence: [implicit.last.exchange, explicit.last.exchange],
+		})
 	},
 })

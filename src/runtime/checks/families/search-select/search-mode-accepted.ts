@@ -38,12 +38,10 @@ export const searchModeAccepted = defineCheck({
 			)
 		}
 		if (rejected.length === 0) return ASSERTED
-		return ctx.findings.spec(
-			this.id,
-			ctx.entityName,
-			"a declared search mode is rejected",
-			`rejected: ${rejected.join(", ")}.`,
-			refusedBy.slice(0, 3),
-		)
+		return ctx.findings.spec(this.id, ctx.entityName, {
+			summary: "a declared search mode is rejected",
+			detail: `rejected: ${rejected.join(", ")}.`,
+			evidence: refusedBy.slice(0, 3),
+		})
 	},
 })

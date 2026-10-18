@@ -96,17 +96,16 @@ export const declaredFilterableWorks = defineCheck({
 		}
 		if (rejected.length === 0) return ASSERTED
 
-		return ctx.findings.spec(
-			this.id,
-			ctx.entityName,
-			"the document declares a filter the backend does not accept",
-			`x-query lists ${rejected.length} field(s) as filterable that the backend rejects: ` +
+		return ctx.findings.spec(this.id, ctx.entityName, {
+			summary: "the document declares a filter the backend does not accept",
+			detail:
+				`x-query lists ${rejected.length} field(s) as filterable that the backend rejects: ` +
 				`${rejected.map((r) => `${r.field} (${r.status})`).join(", ")}. ` +
 				"Every client generated from this document will offer a filter that fails at runtime. " +
 				"Either the column needs an index or the declaration needs removing — but the " +
 				"document and the backend currently disagree about what this API can do.",
-			rejected.slice(0, 3).map((item) => item.exchange),
-		)
+			evidence: rejected.slice(0, 3).map((item) => item.exchange),
+		})
 	},
 })
 

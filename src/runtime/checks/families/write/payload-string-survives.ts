@@ -57,13 +57,12 @@ export const stringPayloadSurvives = defineCheck<{
 		const stop = results.find((result) => result?.kind === "stop")
 		if (stop?.kind === "stop") return stop.outcome
 		if (narrowed !== null) {
-			ctx.findings.gap(
-				this.id,
-				ctx.entityName,
-				`${cases.length} of ${STRING_PAYLOADS.length} payload cases sent to "${field.name}"`,
-				`the whole catalog already ran against this write path on ${narrowed}, so this field got one ` +
+			ctx.findings.gap(this.id, ctx.entityName, {
+				summary: `${cases.length} of ${STRING_PAYLOADS.length} payload cases sent to "${field.name}"`,
+				detail:
+					`the whole catalog already ran against this write path on ${narrowed}, so this field got one ` +
 					'case of each family. Set `payloads: "full"` to send every case to every field.',
-			)
+			})
 		}
 		return verdict(probe, results)
 	},
@@ -90,13 +89,11 @@ async function controlRefusal(probe: PayloadProbe, control: Exchange): Promise<O
 		)
 	}
 	if (control.status < 500) return undefined
-	return ctx.findings.backend(
-		check,
-		ctx.entityName,
-		"an ordinary ASCII write returned 5xx",
-		`PATCH/POST of "${ASCII_PAYLOAD_PROBE}" on "${field.name}" returned ${control.status}.`,
-		[control],
-	)
+	return ctx.findings.backend(check, ctx.entityName, {
+		summary: "an ordinary ASCII write returned 5xx",
+		detail: `PATCH/POST of "${ASCII_PAYLOAD_PROBE}" on "${field.name}" returned ${control.status}.`,
+		evidence: [control],
+	})
 }
 
 /** Writes and reads back an ordinary ASCII string first: a field that loses it is not judged on payloads. */
@@ -116,14 +113,13 @@ async function controlFailure(probe: PayloadProbe): Promise<Outcome | undefined>
 	const controlRead = await readField(probe, controlId)
 	if (!viaPatch(probe)) await removeRecord(probe, controlId)
 	if (controlRead.value === ASCII_PAYLOAD_PROBE) return undefined
-	return ctx.findings.backend(
-		check,
-		ctx.entityName,
-		"an ordinary ASCII write did not persist exactly",
-		`"${field.name}" was sent ${JSON.stringify(ASCII_PAYLOAD_PROBE)} and read back ` +
+	return ctx.findings.backend(check, ctx.entityName, {
+		summary: "an ordinary ASCII write did not persist exactly",
+		detail:
+			`"${field.name}" was sent ${JSON.stringify(ASCII_PAYLOAD_PROBE)} and read back ` +
 			`${JSON.stringify(controlRead.value)}.`,
-		[control, controlRead.exchange],
-	)
+		evidence: [control, controlRead.exchange],
+	})
 }
 
 function verdict(probe: PayloadProbe, results: ReadonlyArray<CaseResult | undefined>): Outcome {
@@ -144,14 +140,13 @@ function verdict(probe: PayloadProbe, results: ReadonlyArray<CaseResult | undefi
 		)
 	}
 	if (failed.length === 0) return ASSERTED
-	return ctx.findings.backend(
-		check,
-		ctx.entityName,
-		"a documented-valid string did not survive a write",
-		`"${field.name}" failed ${failed.length} payload case(s): ${failed.slice(0, 6).join("; ")}` +
+	return ctx.findings.backend(check, ctx.entityName, {
+		summary: "a documented-valid string did not survive a write",
+		detail:
+			`"${field.name}" failed ${failed.length} payload case(s): ${failed.slice(0, 6).join("; ")}` +
 			(failed.length > 6 ? `; and ${failed.length - 6} more` : "") +
 			". The document accepts these as strings; refusing or mutating them is silent corruption " +
 			"or an undocumented constraint.",
 		evidence,
-	)
+	})
 }

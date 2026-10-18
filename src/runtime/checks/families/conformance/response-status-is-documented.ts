@@ -100,29 +100,22 @@ export const documentedStatusHonoured = defineCheck({
 		ctx.judged?.([...observed])
 		if (probes.size > 0) {
 			const { lines, evidence } = describeUndeclared(ctx, probes)
-			ctx.findings
-				.attributed([...probes.keys()])
-				.spec(
-					this.id,
-					ctx.entityName,
-					"requests oat sent to be refused drew statuses the document does not declare",
+			ctx.findings.attributed([...probes.keys()]).spec(this.id, ctx.entityName, {
+				summary: "requests oat sent to be refused drew statuses the document does not declare",
+				detail:
 					`${lines.join(". ")}. These were deliberately invalid probes, so the refusal is right; ` +
-						"its status is what the document leaves out.",
-					evidence,
-				)
+					"its status is what the document leaves out.",
+				evidence,
+			})
 		}
 		/* Every operation in the map has a line, so an empty map is the only clean answer. */
 		if (byOp.size === 0) return ASSERTED
 
 		const { lines, evidence } = describeUndeclared(ctx, byOp)
-		return ctx.findings
-			.attributed([...byOp.keys()])
-			.spec(
-				this.id,
-				ctx.entityName,
-				"an operation returned a status the document does not declare",
-				`${lines.join(". ")}. Clients generated from this document will not recognise the response.`,
-				evidence,
-			)
+		return ctx.findings.attributed([...byOp.keys()]).spec(this.id, ctx.entityName, {
+			summary: "an operation returned a status the document does not declare",
+			detail: `${lines.join(". ")}. Clients generated from this document will not recognise the response.`,
+			evidence,
+		})
 	},
 })

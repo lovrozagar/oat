@@ -79,12 +79,10 @@ export const sortMultiKeyTiebreak = defineCheck<{
 		}
 		const seconds = slice.map((item) => item[secondary]).toReversed()
 		if (sortedUnder(ctx, secondary, seconds) !== null) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"the second sort key is not applied on ties",
-			`order=${order} left ties on "${primary}" unordered by "${secondary}".`,
-			[result.last.exchange],
-		)
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "the second sort key is not applied on ties",
+			detail: `order=${order} left ties on "${primary}" unordered by "${secondary}".`,
+			evidence: [result.last.exchange],
+		})
 	},
 })

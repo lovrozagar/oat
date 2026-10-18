@@ -25,7 +25,7 @@ export interface BaselineFile {
 	entries: BaselineEntry[]
 }
 
-const ENTRY_KEYS = new Set(["check", "entity", "operationId", "reason"])
+const ENTRY_KEYS: ReadonlySet<string> = /* @__PURE__ */ new Set(["check", "entity", "operationId", "reason"])
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value)
@@ -86,11 +86,11 @@ export function applyBaseline(findings: readonly Finding[], baseline: BaselineFi
 export function baselineFrom(
 	findings: ReadonlyArray<Pick<Finding, "check" | "entity" | "verdict" | "summary" | "operations">>,
 ): BaselineFile {
-	const entries = new Map<string, BaselineEntry>()
+	const entries = new Map<string, BaselineEntry & { entity: string }>()
 	for (const finding of findings) {
 		if (!isRootCause(finding)) continue
 		const operationId = finding.operations?.[0]
-		const entry: BaselineEntry = {
+		const entry = {
 			check: finding.check,
 			entity: finding.entity,
 			reason: finding.summary,
@@ -102,7 +102,7 @@ export function baselineFrom(
 		entries: [...entries.values()].sort(
 			(a, b) =>
 				a.check.localeCompare(b.check) ||
-				(a.entity ?? "").localeCompare(b.entity ?? "") ||
+				a.entity.localeCompare(b.entity) ||
 				(a.operationId ?? "").localeCompare(b.operationId ?? ""),
 		),
 		version: 1,

@@ -74,12 +74,10 @@ export function createRunNetwork(input: NetworkInput): RunNetwork {
 				url: error.url,
 				waitedMs: gate.waitedMs,
 			}
-			findings.gap(
-				"net.unreachable" satisfies RunFindingId,
-				where,
-				`network down (${error.kind})`,
-				describeNetworkFailure(error, gate.waitedMs),
-			)
+			findings.gap("net.unreachable" satisfies RunFindingId, where, {
+				summary: `network down (${error.kind})`,
+				detail: describeNetworkFailure(error, gate.waitedMs),
+			})
 		},
 		get outcome() {
 			return outcome

@@ -22,7 +22,7 @@ async function looped(checks: readonly Check[], extra: Partial<RunOptions> = {})
 const failing = (id: string) =>
 	checkOf({
 		id,
-		run: async (view) => view.findings.backend(id, "note", "broken", "d", []),
+		run: async (view) => view.findings.backend(id, "note", { summary: "broken", detail: "d", evidence: [] }),
 	})
 
 /** A check that records when it starts and ends, so a test can see what ran alongside it. */
@@ -86,8 +86,8 @@ describe("runChecks suppression", () => {
 	it("suppresses a check whose premise was reported broken before any check ran", async () => {
 		const ctx = await contextOf(optionsFor(notesApi()))
 		const loop = await loopOf(ctx)
-		ctx.findings.backend("create.does-not-error", "note", "crashed", "d", [])
-		ctx.findings.backend("create.does-not-error", "tag", "crashed", "d", [])
+		ctx.findings.backend("create.does-not-error", "note", { summary: "crashed", detail: "d", evidence: [] })
+		ctx.findings.backend("create.does-not-error", "tag", { summary: "crashed", detail: "d", evidence: [] })
 		await runChecks(loop.run, loop.context, [checkOf({ dependsOn: ["create.does-not-error"], id: "after" })])
 		expect(ctx.state.checksSuppressed).toEqual([{ because: "create.does-not-error", check: "after", entity: "note" }])
 	})

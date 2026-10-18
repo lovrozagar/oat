@@ -105,11 +105,9 @@ async function reportLostWrite(ctx: CheckContext, check: string, id: string, las
 				"does not appear in the list route — the two projections disagree"
 		}
 	}
-	return ctx.findings.backend(
-		check,
-		ctx.entityName,
-		"list projection does not reflect a completed write",
+	return ctx.findings.backend(check, ctx.entityName, {
+		summary: "list projection does not reflect a completed write",
 		detail,
 		evidence,
-	)
+	})
 }

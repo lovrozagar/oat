@@ -81,13 +81,11 @@ function breach(
 ): Outcome {
 	const { detail, evidence, summary } = finding
 	if (op.tenantSource === "tag") {
-		return ctx.findings.security(
-			check,
-			ctx.entityName,
+		return ctx.findings.security(check, ctx.entityName, {
 			summary,
-			`${detail} The operation declares x-tenant: "${op.tenantParam}".`,
+			detail: `${detail} The operation declares x-tenant: "${op.tenantParam}".`,
 			evidence,
-		)
+		})
 	}
 	return ctx.findings.report({
 		check,

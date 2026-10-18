@@ -27,26 +27,23 @@ export const limitBoundsEnforced = defineCheck<{ limitParam: string; max: number
 			/* Deliberately out of range: these are the requests that may break the documented bound. */
 			const result = await list(asProbe(ctx), { [limitParam]: size })
 			if (result.exchange.status >= 500) {
-				return ctx.findings.backend(
-					this.id,
-					ctx.entityName,
-					"an out-of-range page size produces a server error",
-					`${limitParam}=${size} returned ${result.exchange.status}; a refused input should be 4xx.`,
-					[result.exchange],
-				)
+				return ctx.findings.backend(this.id, ctx.entityName, {
+					summary: "an out-of-range page size produces a server error",
+					detail: `${limitParam}=${size} returned ${result.exchange.status}; a refused input should be 4xx.`,
+					evidence: [result.exchange],
+				})
 			}
 			const refused = judgeRefusal(ctx, this.id, ["validation"], result.exchange)
 			/* Refused for the bound: try the other side. Turned away for another reason: nothing learned. */
 			if (refused === ASSERTED) continue
 			if (refused !== null) return refused
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"an out-of-range page size is served",
-				`${limitParam}=${size} returned ${result.exchange.status}; the document declares that a page size ` +
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "an out-of-range page size is served",
+				detail:
+					`${limitParam}=${size} returned ${result.exchange.status}; the document declares that a page size ` +
 					`outside 1..${max} is refused.`,
-				[result.exchange],
-			)
+				evidence: [result.exchange],
+			})
 		}
 		return ASSERTED
 	},

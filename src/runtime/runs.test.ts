@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readlink, realpath, rm, writeFile } from "node:fs/promises"
+import { chmod, mkdir, mkdtemp, readlink, realpath, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -69,6 +69,15 @@ describe("allocateRunDir", () => {
 		expect(allocated.stamp).toBe("2026-08-18T12-00-00Z-2")
 	})
 
+	it("throws what is not a name collision", async () => {
+		const root = await scratch()
+		await chmod(root, 0o500)
+		await expect(allocateRunDir(root, new Date("2026-08-18T12:00:00.000Z"))).rejects.toThrow(/EACCES/)
+		await chmod(root, 0o700)
+	})
+})
+
+describe("publishLatest", () => {
 	it("advances latest to the newest run", async () => {
 		const root = await scratch()
 		const older = await allocateRunDir(root, new Date("2026-08-18T12:00:00.000Z"))
@@ -96,6 +105,21 @@ describe("allocateRunDir", () => {
 		expect(await readlink(crashed.latest)).toBe(done.stamp)
 	})
 
+	it("links latest as a junction on Windows, where a plain link needs admin", async () => {
+		const root = await scratch()
+		const allocated = await allocateRunDir(root, new Date("2026-08-18T12:00:00.000Z"))
+		const platform = Object.getOwnPropertyDescriptor(process, "platform") as PropertyDescriptor
+		Object.defineProperty(process, "platform", { value: "win32" })
+		try {
+			await publishLatest(allocated)
+		} finally {
+			Object.defineProperty(process, "platform", platform)
+		}
+		expect(await readlink(allocated.latest)).toBe(allocated.stamp)
+	})
+})
+
+describe("allocateRunDir roots and stamps", () => {
 	it("creates a missing root", async () => {
 		const parent = await scratch()
 		const root = join(parent, "nested", "runs")

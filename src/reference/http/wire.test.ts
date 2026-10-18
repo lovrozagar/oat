@@ -27,7 +27,7 @@ describe("referenceRequest", () => {
 	})
 
 	it("reads the body once, however often it is asked", async () => {
-		const read = vi.fn(async () => "payload")
+		const read = vi.fn<() => Promise<string>>(async () => "payload")
 		const request = referenceRequest("POST", new URL("http://reference.test/"), {}, read)
 		expect(await request.text()).toBe("payload")
 		expect(await request.text()).toBe("payload")

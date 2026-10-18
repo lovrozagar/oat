@@ -38,13 +38,11 @@ export async function runOne(input: DisposableInput, call: DisposableCall): Prom
 	})
 	if (called.status >= 500) {
 		input.grades.graded([op.operationId], DISPOSABLE_CHECK_ID)
-		blame.collector.backend(
-			DISPOSABLE_CHECK_ID,
-			blame.entity,
-			"the disposable call failed",
-			`${op.operationId} returned ${called.status}.`,
-			[called],
-		)
+		blame.collector.backend(DISPOSABLE_CHECK_ID, blame.entity, {
+			summary: "the disposable call failed",
+			detail: `${op.operationId} returned ${called.status}.`,
+			evidence: [called],
+		})
 		return
 	}
 	if (called.status < 200 || called.status >= 300) {
@@ -92,8 +90,9 @@ async function destructiveBody(input: DisposableInput, op: OperationModel, sessi
 	if (schema !== null) {
 		try {
 			/* One variant asked for, one member back, and its body is always an object. */
-			const [member] = buildCohort(schema, input.seed ?? 1, ["baseline"], op.operationId, {
+			const [member] = buildCohort(schema, input.seed ?? 1, ["baseline"], {
 				nonce: `${input.nonce ?? "user"}d`,
+				operationId: op.operationId,
 			}) as [CohortMember]
 			generated = member.body
 		} catch {

@@ -12,7 +12,7 @@ describe("USAGE", () => {
 		for (const [name, spec] of Object.entries(FLAGS)) {
 			const flag = `--${name}${spec.value === undefined ? "" : ` ${spec.value}`}`
 			const line = USAGE.split("\n").find((text) => text.trimStart().startsWith(`${flag} `))
-			expect(line, name).toContain(spec.help)
+			expect({ name, line }).toEqual({ name, line: expect.stringContaining(spec.help) })
 		}
 	})
 

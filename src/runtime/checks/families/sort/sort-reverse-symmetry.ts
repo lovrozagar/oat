@@ -93,13 +93,11 @@ function judgeReversal(
 	const forward = ids(ascending.items, ctx.identity)
 	const backward = ids(descending.items, ctx.identity)
 	if (forward.length !== backward.length) {
-		return ctx.findings.backend(
-			check,
-			ctx.entityName,
-			"ascending and descending sorts return different numbers of records",
-			`order=${field}.asc returned ${forward.length}, order=${field}.desc returned ${backward.length}`,
-			[ascending.last.exchange, descending.last.exchange],
-		)
+		return ctx.findings.backend(check, ctx.entityName, {
+			summary: "ascending and descending sorts return different numbers of records",
+			detail: `order=${field}.asc returned ${forward.length}, order=${field}.desc returned ${backward.length}`,
+			evidence: [ascending.last.exchange, descending.last.exchange],
+		})
 	}
 	if (forward.join(",") === backward.toReversed().join(",")) return ASSERTED
 
@@ -109,16 +107,15 @@ function judgeReversal(
 	if (!sameMembers) {
 		const onlyAsc = forward.filter((id) => !backward.includes(id))
 		const onlyDesc = backward.filter((id) => !forward.includes(id))
-		ctx.findings.backend(
-			check,
-			ctx.entityName,
-			"ascending and descending sorts return different sets",
-			`order=${field}.asc and order=${field}.desc disagree about which records exist. ` +
+		ctx.findings.backend(check, ctx.entityName, {
+			summary: "ascending and descending sorts return different sets",
+			detail:
+				`order=${field}.asc and order=${field}.desc disagree about which records exist. ` +
 				`Only ascending: ${onlyAsc.slice(0, 3).join(", ") || "—"}. ` +
 				`Only descending: ${onlyDesc.slice(0, 3).join(", ") || "—"}. ` +
 				"Sort direction must reorder a collection, never change its membership.",
-			[ascending.last.exchange, descending.last.exchange],
-		)
+			evidence: [ascending.last.exchange, descending.last.exchange],
+		})
 		return ASSERTED
 	}
 	/* Up to ties, descending is ascending reversed — whatever the collation, since both come
@@ -127,12 +124,11 @@ function judgeReversal(
 	const up = presentValues(ascending.items, field)
 	const down = presentValues(descending.items, field)
 	if (up.join("\u0000") === down.toReversed().join("\u0000")) return ASSERTED
-	return ctx.findings.backend(
-		check,
-		ctx.entityName,
-		"descending order is not ascending order reversed",
-		`order=${field}.asc gives ${up.slice(0, 4).join(", ")}…, but order=${field}.desc reversed gives ` +
+	return ctx.findings.backend(check, ctx.entityName, {
+		summary: "descending order is not ascending order reversed",
+		detail:
+			`order=${field}.asc gives ${up.slice(0, 4).join(", ")}…, but order=${field}.desc reversed gives ` +
 			`${down.toReversed().slice(0, 4).join(", ")}…. One direction applies a different ordering than the other.`,
-		[ascending.last.exchange, descending.last.exchange],
-	)
+		evidence: [ascending.last.exchange, descending.last.exchange],
+	})
 }

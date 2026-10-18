@@ -50,120 +50,211 @@ const ROW = {
 	type: "object",
 }
 
+function pathParam(name: string): Record<string, unknown> {
+	return { in: "path", name, required: true, schema: { type: "string" } }
+}
+
+function listOk(item: Record<string, unknown>): Record<string, unknown> {
+	return {
+		"200": {
+			content: {
+				"application/json": {
+					schema: { properties: { items: { items: item, type: "array" } }, required: ["items"], type: "object" },
+				},
+			},
+			description: "ok",
+		},
+	}
+}
+
+const NAME_BODY = {
+	content: {
+		"application/json": {
+			schema: { properties: { name: { type: "string" } }, required: ["name"], type: "object" },
+		},
+	},
+	required: true,
+}
+
+function tablePaths(): Record<string, unknown> {
+	return {
+		"/v1/tables": {
+			get: {
+				operationId: "table.list",
+				responses: listOk(TABLE),
+				"x-entity": { action: "list", identity: "id", name: "table" },
+			},
+			post: {
+				operationId: "table.create",
+				requestBody: NAME_BODY,
+				responses: {
+					"201": { content: { "application/json": { schema: TABLE } }, description: "created" },
+					"402": { description: "payment_required — table plan limit" },
+				},
+				"x-entity": { action: "create", identity: "id", name: "table" },
+			},
+		},
+		"/v1/tables/{table_id}": {
+			delete: {
+				operationId: "table.delete",
+				parameters: [pathParam("table_id")],
+				responses: { "204": { description: "gone" } },
+				"x-entity": { action: "delete", identity: "id", name: "table" },
+			},
+			get: {
+				operationId: "table.read",
+				parameters: [pathParam("table_id")],
+				responses: { "200": { content: { "application/json": { schema: TABLE } }, description: "ok" } },
+				"x-entity": { action: "read", identity: "id", name: "table" },
+			},
+		},
+	}
+}
+
+function rowPaths(): Record<string, unknown> {
+	return {
+		"/v1/tables/{table_id}/rows": {
+			get: {
+				operationId: "row.list",
+				parameters: [pathParam("table_id")],
+				responses: listOk(ROW),
+				"x-entity": { action: "list", identity: "id", name: "row" },
+			},
+			post: {
+				operationId: "row.create",
+				parameters: [pathParam("table_id")],
+				requestBody: NAME_BODY,
+				responses: {
+					"201": { content: { "application/json": { schema: ROW } }, description: "created" },
+				},
+				"x-entity": { action: "create", identity: "id", name: "row" },
+			},
+		},
+		"/v1/tables/{table_id}/rows/{row_id}": {
+			delete: {
+				operationId: "row.delete",
+				parameters: [pathParam("table_id"), pathParam("row_id")],
+				responses: { "204": { description: "gone" } },
+				"x-entity": { action: "delete", identity: "id", name: "row" },
+			},
+			get: {
+				operationId: "row.read",
+				parameters: [pathParam("table_id"), pathParam("row_id")],
+				responses: { "200": { content: { "application/json": { schema: ROW } }, description: "ok" } },
+				"x-entity": { action: "read", identity: "id", name: "row" },
+			},
+		},
+	}
+}
+
 function spec(): OpenApiDocument {
 	return {
 		info: { title: "plan-limit", version: "1" },
 		openapi: "3.1.0",
-		paths: {
-			"/v1/tables": {
-				get: {
-					operationId: "table.list",
-					responses: {
-						"200": {
-							content: {
-								"application/json": {
-									schema: {
-										properties: { items: { items: TABLE, type: "array" } },
-										required: ["items"],
-										type: "object",
-									},
-								},
-							},
-							description: "ok",
-						},
-					},
-					"x-entity": { action: "list", identity: "id", name: "table" },
-				},
-				post: {
-					operationId: "table.create",
-					requestBody: {
-						content: {
-							"application/json": {
-								schema: { properties: { name: { type: "string" } }, required: ["name"], type: "object" },
-							},
-						},
-						required: true,
-					},
-					responses: {
-						"201": { content: { "application/json": { schema: TABLE } }, description: "created" },
-						"402": { description: "payment_required — table plan limit" },
-					},
-					"x-entity": { action: "create", identity: "id", name: "table" },
-				},
-			},
-			"/v1/tables/{table_id}": {
-				delete: {
-					operationId: "table.delete",
-					parameters: [{ in: "path", name: "table_id", required: true, schema: { type: "string" } }],
-					responses: { "204": { description: "gone" } },
-					"x-entity": { action: "delete", identity: "id", name: "table" },
-				},
-				get: {
-					operationId: "table.read",
-					parameters: [{ in: "path", name: "table_id", required: true, schema: { type: "string" } }],
-					responses: { "200": { content: { "application/json": { schema: TABLE } }, description: "ok" } },
-					"x-entity": { action: "read", identity: "id", name: "table" },
-				},
-			},
-			"/v1/tables/{table_id}/rows": {
-				get: {
-					operationId: "row.list",
-					parameters: [{ in: "path", name: "table_id", required: true, schema: { type: "string" } }],
-					responses: {
-						"200": {
-							content: {
-								"application/json": {
-									schema: {
-										properties: { items: { items: ROW, type: "array" } },
-										required: ["items"],
-										type: "object",
-									},
-								},
-							},
-							description: "ok",
-						},
-					},
-					"x-entity": { action: "list", identity: "id", name: "row" },
-				},
-				post: {
-					operationId: "row.create",
-					parameters: [{ in: "path", name: "table_id", required: true, schema: { type: "string" } }],
-					requestBody: {
-						content: {
-							"application/json": {
-								schema: { properties: { name: { type: "string" } }, required: ["name"], type: "object" },
-							},
-						},
-						required: true,
-					},
-					responses: {
-						"201": { content: { "application/json": { schema: ROW } }, description: "created" },
-					},
-					"x-entity": { action: "create", identity: "id", name: "row" },
-				},
-			},
-			"/v1/tables/{table_id}/rows/{row_id}": {
-				delete: {
-					operationId: "row.delete",
-					parameters: [
-						{ in: "path", name: "table_id", required: true, schema: { type: "string" } },
-						{ in: "path", name: "row_id", required: true, schema: { type: "string" } },
-					],
-					responses: { "204": { description: "gone" } },
-					"x-entity": { action: "delete", identity: "id", name: "row" },
-				},
-				get: {
-					operationId: "row.read",
-					parameters: [
-						{ in: "path", name: "table_id", required: true, schema: { type: "string" } },
-						{ in: "path", name: "row_id", required: true, schema: { type: "string" } },
-					],
-					responses: { "200": { content: { "application/json": { schema: ROW } }, description: "ok" } },
-					"x-entity": { action: "read", identity: "id", name: "row" },
-				},
-			},
-		},
+		paths: { ...tablePaths(), ...rowPaths() },
 	} as OpenApiDocument
+}
+
+type Table = { id: string; name: string }
+type Row = { id: string; name: string; table_id: string }
+
+/* The in-memory world behind the server: tables refuse every create with a plan-limit 402. */
+type World = {
+	document: OpenApiDocument
+	rows: Map<string, Row>
+	tables: Map<string, Table>
+	tableCreates: number
+	rowSeq: number
+}
+
+type Route = {
+	method: string
+	path: RegExp
+	handle: (world: World, match: RegExpExecArray, req: IncomingMessage, res: ServerResponse) => unknown
+}
+
+function param(match: RegExpExecArray, index: number): string {
+	return decodeURIComponent(match[index] ?? "")
+}
+
+async function refuseTable(world: World, req: IncomingMessage, res: ServerResponse): Promise<void> {
+	world.tableCreates += 1
+	await readJson(req)
+	send(res, 402, { error_key: "table_plan_limit", status: 402, status_key: "payment_required" })
+}
+
+async function createRow(world: World, tableId: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
+	if (!world.tables.has(tableId)) return send(res, 404, { error: "missing table" })
+	const body = ((await readJson(req)) ?? {}) as { name?: string }
+	world.rowSeq += 1
+	const row = { id: `row_${String(world.rowSeq)}`, name: body.name ?? "n", table_id: tableId }
+	world.rows.set(row.id, row)
+	send(res, 201, row)
+}
+
+function sendFound(res: ServerResponse, value: unknown): void {
+	if (value === undefined) send(res, 404)
+	else send(res, 200, value)
+}
+
+const ROUTES: readonly Route[] = [
+	{ handle: (w, _m, _q, res) => send(res, 200, w.document), method: "GET", path: /^\/v1\/openapi\/spec$/ },
+	{
+		handle: (w, _m, _q, res) => send(res, 200, { items: [...w.tables.values()] }),
+		method: "GET",
+		path: /^\/v1\/tables$/,
+	},
+	{ handle: (w, _m, req, res) => refuseTable(w, req, res), method: "POST", path: /^\/v1\/tables$/ },
+	{
+		handle: (w, m, _q, res) => sendFound(res, w.tables.get(param(m, 1))),
+		method: "GET",
+		path: /^\/v1\/tables\/([^/]+)$/,
+	},
+	{
+		handle: (w, m, _q, res) => {
+			w.tables.delete(param(m, 1))
+			send(res, 204)
+		},
+		method: "DELETE",
+		path: /^\/v1\/tables\/([^/]+)$/,
+	},
+	{
+		handle: (w, m, _q, res) =>
+			send(res, 200, { items: [...w.rows.values()].filter((r) => r.table_id === param(m, 1)) }),
+		method: "GET",
+		path: /^\/v1\/tables\/([^/]+)\/rows$/,
+	},
+	{
+		handle: (w, m, req, res) => createRow(w, param(m, 1), req, res),
+		method: "POST",
+		path: /^\/v1\/tables\/([^/]+)\/rows$/,
+	},
+	{
+		handle: (w, m, _q, res) => sendFound(res, w.rows.get(param(m, 2))),
+		method: "GET",
+		path: /^\/v1\/tables\/([^/]+)\/rows\/([^/]+)$/,
+	},
+	{
+		handle: (w, m, _q, res) => {
+			w.rows.delete(param(m, 2))
+			send(res, 204)
+		},
+		method: "DELETE",
+		path: /^\/v1\/tables\/([^/]+)\/rows\/([^/]+)$/,
+	},
+]
+
+async function dispatch(world: World, req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const url = new URL(req.url ?? "/", "http://127.0.0.1")
+	const method = (req.method ?? "GET").toUpperCase()
+	for (const route of ROUTES) {
+		const match = route.method === method ? route.path.exec(url.pathname) : null
+		if (match !== null) {
+			await route.handle(world, match, req, res)
+			return
+		}
+	}
+	send(res, 404)
 }
 
 async function serve(seedTable: boolean): Promise<{
@@ -171,62 +262,10 @@ async function serve(seedTable: boolean): Promise<{
 	tableCreates: () => number
 	url: string
 }> {
-	const document = spec()
-	const tables = new Map<string, { id: string; name: string }>()
-	const rows = new Map<string, { id: string; name: string; table_id: string }>()
-	if (seedTable) tables.set("tbl_extract", { id: "tbl_extract", name: "from-extract" })
-	let tableCreates = 0
-	let rowSeq = 0
-
+	const world: World = { document: spec(), rowSeq: 0, rows: new Map(), tableCreates: 0, tables: new Map() }
+	if (seedTable) world.tables.set("tbl_extract", { id: "tbl_extract", name: "from-extract" })
 	const server = createServer((req, res) => {
-		void (async () => {
-			const url = new URL(req.url ?? "/", "http://127.0.0.1")
-			const method = (req.method ?? "GET").toUpperCase()
-			if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, document)
-			if (url.pathname === "/v1/tables" && method === "GET") return send(res, 200, { items: [...tables.values()] })
-			if (url.pathname === "/v1/tables" && method === "POST") {
-				tableCreates += 1
-				await readJson(req)
-				return send(res, 402, {
-					error_key: "table_plan_limit",
-					status: 402,
-					status_key: "payment_required",
-				})
-			}
-			const tableItem = /^\/v1\/tables\/([^/]+)$/.exec(url.pathname)
-			if (tableItem !== null && method === "GET") {
-				const row = tables.get(decodeURIComponent(tableItem[1] ?? ""))
-				return row === undefined ? send(res, 404) : send(res, 200, row)
-			}
-			if (tableItem !== null && method === "DELETE") {
-				tables.delete(decodeURIComponent(tableItem[1] ?? ""))
-				return send(res, 204)
-			}
-			const rowCol = /^\/v1\/tables\/([^/]+)\/rows$/.exec(url.pathname)
-			if (rowCol !== null && method === "GET") {
-				const tableId = decodeURIComponent(rowCol[1] ?? "")
-				return send(res, 200, { items: [...rows.values()].filter((r) => r.table_id === tableId) })
-			}
-			if (rowCol !== null && method === "POST") {
-				const tableId = decodeURIComponent(rowCol[1] ?? "")
-				if (!tables.has(tableId)) return send(res, 404, { error: "missing table" })
-				const body = ((await readJson(req)) ?? {}) as { name?: string }
-				rowSeq += 1
-				const row = { id: `row_${String(rowSeq)}`, name: body.name ?? "n", table_id: tableId }
-				rows.set(row.id, row)
-				return send(res, 201, row)
-			}
-			const rowItem = /^\/v1\/tables\/([^/]+)\/rows\/([^/]+)$/.exec(url.pathname)
-			if (rowItem !== null && method === "GET") {
-				const row = rows.get(decodeURIComponent(rowItem[2] ?? ""))
-				return row === undefined ? send(res, 404) : send(res, 200, row)
-			}
-			if (rowItem !== null && method === "DELETE") {
-				rows.delete(decodeURIComponent(rowItem[2] ?? ""))
-				return send(res, 204)
-			}
-			return send(res, 404)
-		})().catch(() => {
+		dispatch(world, req, res).catch(() => {
 			if (!res.headersSent) send(res, 500)
 		})
 	})
@@ -239,7 +278,7 @@ async function serve(seedTable: boolean): Promise<{
 			new Promise((resolve, reject) => {
 				server.close((error) => (error ? reject(error) : resolve()))
 			}),
-		tableCreates: () => tableCreates,
+		tableCreates: () => world.tableCreates,
 		url: `http://127.0.0.1:${addr.port}`,
 	}
 }

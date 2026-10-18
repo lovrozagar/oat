@@ -147,7 +147,8 @@ export function publicCatalogue(): Handle {
 function listed(rows: ReadonlyMap<string, { id: string; name: string }>, filter: string | null): unknown[] {
 	const match = filter === null ? null : /^id\.eq\.(.+)$/.exec(filter)
 	if (match === null) return [...rows.values()]
-	const row = rows.get(match[1] ?? "")
+	/* `(.+)` always captures: the group is there whenever the match is. */
+	const row = rows.get(String(match[1]))
 	return row === undefined ? [] : [row]
 }
 
@@ -155,7 +156,7 @@ function item(rows: Map<string, { id: string; name: string }>, request: Referenc
 	const match = /^\/v1\/templates\/([^/]+)$/.exec(request.url.pathname)
 	if (match === null || (request.method !== "GET" && request.method !== "DELETE"))
 		return send(404, { error: "not_found" })
-	const id = decodeURIComponent(match[1] ?? "")
+	const id = decodeURIComponent(String(match[1]))
 	const row = rows.get(id)
 	if (row === undefined) return send(404, { error: "not_found" })
 	if (request.method === "GET") return send(200, row)

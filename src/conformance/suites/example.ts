@@ -15,42 +15,36 @@ import { messageOf } from "../../errors/message.ts"
  * It also proved its worth immediately. The first version was invalid YAML (`{workspace_id}` inside
  * a flow sequence) and named an `x-invalidate` route that did not exist in the document.
  */
-export async function runExampleSpecSuite(): Promise<ParserResult[]> {
-	const path = new URL("../../../labs/annotated-openapi.yaml", import.meta.url).pathname
-	const results: ParserResult[] = []
-	const fail = (name: string, why: string, detail: string): void => {
-		results.push({ detail, name, ok: false, why })
-	}
 
-	let model: ReturnType<typeof buildModel>
-	try {
-		const { doc } = dereference(await loadSpec(path))
-		model = buildModel(doc)
-	} catch (error) {
-		fail("annotated-openapi.yaml", "the documented example must be a parseable OpenAPI document", messageOf(error))
-		return results
-	}
+type Model = ReturnType<typeof buildModel>
 
+/** A claim the document's comments make: its name, why it matters, what the model says, and what it must. */
+type Expectation = [string, string, unknown, unknown]
+
+/** What the comments claim about the widget listing. */
+function listExpectations(model: Model): Expectation[] {
 	const list = model.byOperationId.get("widget.list")
+	const query = list?.query
+	const conventions = list?.conventions
+	return [
+		["x-query resolves the filter grammar", "the comment claims postgrest", conventions?.grammar, "postgrest"],
+		["x-query declares filterable fields", "not guessed from the schema", query?.source, "tag"],
+		["x-query accepts structured filterable rows", "declared-or-skip catalog", query?.filterFields?.[0]?.field, "id"],
+		["x-query sets maxLimit", "used to bound page-size probes", query?.maxLimit, 100],
+		["limit resolves as page size", "distinguished by maximum + default", conventions?.limit, "limit"],
+		["cursor role resolves", "declared alongside page", conventions?.cursor, "cursor"],
+		["x-tenant is declared, not inferred", "decides SECURITY vs AMBIGUITY", list?.tenantSource, "tag"],
+	]
+}
+
+/** What the comments claim about every other operation. */
+function otherExpectations(model: Model): Expectation[] {
 	const create = model.byOperationId.get("widget.create")
 	const update = model.byOperationId.get("widget.update")
 	const start = model.byOperationId.get("export.start")
 	const widgetRead = model.byOperationId.get("widget.read")
 	const templateRead = model.byOperationId.get("template.read")
-
-	const expectations: Array<[string, string, unknown, unknown]> = [
-		["x-query resolves the filter grammar", "the comment claims postgrest", list?.conventions.grammar, "postgrest"],
-		["x-query declares filterable fields", "not guessed from the schema", list?.query?.source, "tag"],
-		[
-			"x-query accepts structured filterable rows",
-			"declared-or-skip catalog",
-			list?.query?.filterFields?.[0]?.field,
-			"id",
-		],
-		["x-query sets maxLimit", "used to bound page-size probes", list?.query?.maxLimit, 100],
-		["limit resolves as page size", "distinguished by maximum + default", list?.conventions.limit, "limit"],
-		["cursor role resolves", "declared alongside page", list?.conventions.cursor, "cursor"],
-		["x-tenant is declared, not inferred", "decides SECURITY vs AMBIGUITY", list?.tenantSource, "tag"],
+	return [
 		["workspace widget read is tagged", "SECURITY vs AMBIGUITY is unchanged", widgetRead?.tenantSource, "tag"],
 		[
 			"public catalogue is unscoped",
@@ -66,15 +60,28 @@ export async function runExampleSpecSuite(): Promise<ParserResult[]> {
 		["x-feature-gate is read", "a matching 403 is coverage, not a seed defect", create?.featureGate, "widgets"],
 		["x-unique is read", "a 409 duplicate is a pass, 2xx is BACKEND_BUG", create?.unique, [["name"]]],
 	]
+}
 
-	for (const [name, why, actual, expected] of expectations) {
-		const ok = JSON.stringify(actual) === JSON.stringify(expected)
-		results.push({
-			detail: ok ? `${JSON.stringify(actual)}` : `expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
-			name,
-			ok,
-			why,
-		})
+function judged([name, why, actual, expected]: Expectation): ParserResult {
+	const ok = JSON.stringify(actual) === JSON.stringify(expected)
+	return {
+		detail: ok ? `${JSON.stringify(actual)}` : `expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
+		name,
+		ok,
+		why,
 	}
-	return results
+}
+
+/** Checks the document at `path`: the annotated example, unless a test brings another. */
+export async function runExampleSpecSuite(
+	path = new URL("../../../labs/annotated-openapi.yaml", import.meta.url).pathname,
+): Promise<ParserResult[]> {
+	let model: Model
+	try {
+		model = buildModel(dereference(await loadSpec(path)).doc)
+	} catch (error) {
+		const why = "the documented example must be a parseable OpenAPI document"
+		return [{ detail: messageOf(error), name: "annotated-openapi.yaml", ok: false, why }]
+	}
+	return [...listExpectations(model), ...otherExpectations(model)].map(judged)
 }

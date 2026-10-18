@@ -39,12 +39,10 @@ export const sortNumericOrderIsNumeric = defineCheck<{ field: EffectiveFilterFie
 		const numbers = read.items.map((item) => item[field.field]).filter((v): v is number => typeof v === "number")
 		const sorted = [...numbers].sort((a, b) => a - b)
 		if (numbers.join(",") === sorted.join(",")) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			`"${field.field}" is sorted as text rather than as a number`,
-			`order=${field.field}.asc returned ${numbers.slice(0, 8).join(", ")}.`,
-			read.pages.slice(0, 3).map((page) => page.exchange),
-		)
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: `"${field.field}" is sorted as text rather than as a number`,
+			detail: `order=${field.field}.asc returned ${numbers.slice(0, 8).join(", ")}.`,
+			evidence: read.pages.slice(0, 3).map((page) => page.exchange),
+		})
 	},
 })

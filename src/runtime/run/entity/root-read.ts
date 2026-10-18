@@ -33,10 +33,8 @@ async function stoppedBy(ctx: RunContext, entity: string, ids: string[], error: 
 	const stopped = { attributed, checkId: ROOT_READ_CHECK_ID, ctx, entity }
 	const reason = await unresolvedBy(stopped, error)
 	if (reason !== undefined) return { kind: "unresolved", reason }
-	return attributed.gap(
-		ROOT_READ_CHECK_ID,
-		entity,
-		`check "${ROOT_READ_CHECK_ID}" could not complete`,
-		messageOf(error),
-	)
+	return attributed.gap(ROOT_READ_CHECK_ID, entity, {
+		summary: `check "${ROOT_READ_CHECK_ID}" could not complete`,
+		detail: messageOf(error),
+	})
 }

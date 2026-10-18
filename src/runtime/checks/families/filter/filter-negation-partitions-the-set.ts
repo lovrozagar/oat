@@ -80,14 +80,13 @@ export const negationPartitions = defineCheck<{
 		)
 
 		if (overlap.length > 0) {
-			return ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"a predicate and its negation both match the same record",
-				`${overlap.length} record(s) appear in both ${field}.eq and ${field}.neq results: ` +
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "a predicate and its negation both match the same record",
+				detail:
+					`${overlap.length} record(s) appear in both ${field}.eq and ${field}.neq results: ` +
 					overlap.slice(0, 3).join(", "),
-				[matching.last.exchange, complement.last.exchange],
-			)
+				evidence: [matching.last.exchange, complement.last.exchange],
+			})
 		}
 		const missing = [...expected].filter((id) => !union.has(id))
 		if (missing.length > 0) {
@@ -95,19 +94,18 @@ export const negationPartitions = defineCheck<{
 				const record = ctx.records.find((r) => idOf(r, ctx.identity) === id)
 				return record !== undefined && (record[field] === null || record[field] === undefined)
 			})
-			ctx.findings.backend(
-				this.id,
-				ctx.entityName,
-				"a predicate and its negation do not cover the full set",
-				`${missing.length} record(s) match neither ${field}.eq nor ${field}.neq: ` +
+			ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "a predicate and its negation do not cover the full set",
+				detail:
+					`${missing.length} record(s) match neither ${field}.eq nor ${field}.neq: ` +
 					`${missing.slice(0, 3).join(", ")}. ` +
 					(nulls.length === missing.length
 						? `Every one of them has ${field} = null, so the negated predicate is dropping ` +
 							"nulls — SQL evaluates `col <> x` as NULL, not true, unless the query also " +
 							"tests `col IS NULL`."
 						: "A record must satisfy either a predicate or its negation."),
-				[all.last.exchange, matching.last.exchange, complement.last.exchange],
-			)
+				evidence: [all.last.exchange, matching.last.exchange, complement.last.exchange],
+			})
 		}
 		return ASSERTED
 	},

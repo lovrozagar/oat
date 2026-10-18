@@ -120,7 +120,12 @@ async function sendCollision(
 		schema,
 		salt,
 	)
-	const body = collisionCreateBody(base, probe.known, set, ctx.scope, probe.bodyCols, createOp.generated)
+	const body = collisionCreateBody(base, probe.known, {
+		bodyColumns: probe.bodyCols,
+		generated: createOp.generated,
+		scope: ctx.scope,
+		set,
+	})
 	if (body === null) return null
 	const headers = uniqueProbeHeaders(
 		ctx.auth(),
@@ -139,13 +144,12 @@ async function probeCreateSet(ctx: WriteContext, probe: CreateProbe, set: string
 	probe.evidence.push(sent)
 	if (standDownForFeatureGate(ctx, createOp, sent, check)) return
 	if (isPlanLimitResponse(sent.status, sent.responseBody)) {
-		ctx.findings.gap(
-			check,
-			ctx.entityName,
-			`${createOp.operationId} did not apply`,
-			`${createOp.operationId} returned ${sent.status} (plan limit) on a unique-conflict ` +
+		ctx.findings.gap(check, ctx.entityName, {
+			summary: `${createOp.operationId} did not apply`,
+			detail:
+				`${createOp.operationId} returned ${sent.status} (plan limit) on a unique-conflict ` +
 				"probe, so uniqueness was not observed.",
-		)
+		})
 		return
 	}
 	const after = await listAll(ctx, q(ctx, { limit: probe.listLimit }))
@@ -167,39 +171,36 @@ async function judgeCreateProbe(
 			after.complete &&
 			after.items.length > before.items.length
 		) {
-			ctx.findings.backend(
-				check,
-				ctx.entityName,
-				"a unique-conflict 409 still grew the collection",
-				`POST colliding ${set.join(", ")} returned 409 but the list grew from ` +
+			ctx.findings.backend(check, ctx.entityName, {
+				summary: "a unique-conflict 409 still grew the collection",
+				detail:
+					`POST colliding ${set.join(", ")} returned 409 but the list grew from ` +
 					`${before.items.length} to ${after.items.length}.`,
-				[before.exchange, sent, after.exchange],
-			)
+				evidence: [before.exchange, sent, after.exchange],
+			})
 		}
 		return
 	}
 	if (sent.status >= 200 && sent.status < 300) {
 		const id = idOf(ctx.createOp === undefined ? undefined : readRecord(ctx.createOp, sent), ctx.identity)
 		if (id !== undefined) await teardownCreatedId(ctx, id)
-		ctx.findings.backend(
-			check,
-			ctx.entityName,
-			"a duplicate unique-set create was accepted",
-			`${createOp.operationId} returned ${sent.status} for a second create colliding ` +
+		ctx.findings.backend(check, ctx.entityName, {
+			summary: "a duplicate unique-set create was accepted",
+			detail:
+				`${createOp.operationId} returned ${sent.status} for a second create colliding ` +
 				`${set.join(", ")}. A documented unique constraint must be 409, not 2xx.`,
-			probe.evidence.slice(-3),
-		)
+			evidence: probe.evidence.slice(-3),
+		})
 		return
 	}
 	if (sent.status >= 500) {
-		ctx.findings.backend(
-			check,
-			ctx.entityName,
-			"a duplicate unique-set create drew a server error",
-			`${createOp.operationId} returned ${sent.status} for a second create colliding ` +
+		ctx.findings.backend(check, ctx.entityName, {
+			summary: "a duplicate unique-set create drew a server error",
+			detail:
+				`${createOp.operationId} returned ${sent.status} for a second create colliding ` +
 				`${set.join(", ")}. A documented unique constraint must be refused with 409, not crash.`,
-			[sent],
-		)
+			evidence: [sent],
+		})
 		return
 	}
 	ctx.findings.unresolved(

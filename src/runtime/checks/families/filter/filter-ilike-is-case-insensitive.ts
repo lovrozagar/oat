@@ -58,12 +58,10 @@ export const filterIlikeIsCaseInsensitive = defineCheck<{
 				"like also matched the case-flipped value — the store may already be case-insensitive",
 			)
 		}
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"ilike is not case-insensitive relative to like",
-			`ilike on ${JSON.stringify(flipped)} did not select the record whose ${field.field} is ${JSON.stringify(sample)}.`,
-			[like.exchange, ilike.exchange],
-		)
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "ilike is not case-insensitive relative to like",
+			detail: `ilike on ${JSON.stringify(flipped)} did not select the record whose ${field.field} is ${JSON.stringify(sample)}.`,
+			evidence: [like.exchange, ilike.exchange],
+		})
 	},
 })

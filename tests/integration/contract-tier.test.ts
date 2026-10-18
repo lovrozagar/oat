@@ -35,101 +35,189 @@ const noteSchema = {
 
 const ok = (content: unknown, code = "200") => ({ [code]: { content, description: "ok" } })
 
+const notePath = { in: "path", name: "note_id", required: true, schema: { type: "string" } }
+
+/* The operations no entity owns: each is graded by the contract tier alone. */
+function loosePaths(): Record<string, unknown> {
+	return {
+		"/v1/accounts/{account_id}/badge": {
+			get: {
+				operationId: "badge.get",
+				parameters: [{ in: "path", name: "account_id", required: true, schema: { type: "string" } }],
+				responses: ok(versionBody),
+			},
+		},
+		"/v1/broken": { get: { operationId: "broken.get", responses: ok(versionBody) } },
+		"/v1/crash": { get: { operationId: "crash.get", responses: ok(versionBody) } },
+		"/v1/feedback": { post: { operationId: "feedback.send", requestBody: feedback, responses: ok(accepted, "202") } },
+		"/v1/picky": { post: { operationId: "picky.send", requestBody: feedback, responses: ok(accepted, "202") } },
+		"/v1/version": { get: { operationId: "version.get", responses: ok(versionBody) } },
+	}
+}
+
+function noteCollectionPaths(): Record<string, unknown> {
+	return {
+		"/v1/notes": {
+			get: {
+				operationId: "notes.list",
+				responses: ok({
+					"application/json": {
+						schema: {
+							properties: { items: { items: noteSchema, type: "array" } },
+							required: ["items"],
+							type: "object",
+						},
+					},
+				}),
+			},
+			post: {
+				operationId: "notes.write",
+				requestBody: {
+					content: {
+						"application/json": {
+							schema: { properties: { text: { type: "string" } }, required: ["text"], type: "object" },
+						},
+					},
+				},
+				responses: ok({ "application/json": { schema: noteSchema } }, "201"),
+			},
+		},
+		"/v1/notes/{note_id}": {
+			delete: {
+				operationId: "notes.remove",
+				parameters: [notePath],
+				responses: { "204": { description: "gone" }, "404": { description: "missing" } },
+			},
+			get: {
+				operationId: "notes.get",
+				parameters: [notePath],
+				responses: { ...ok({ "application/json": { schema: noteSchema } }), "404": { description: "missing" } },
+			},
+		},
+	}
+}
+
+function noteActionPaths(): Record<string, unknown> {
+	return {
+		"/v1/notes/archive-all": {
+			post: {
+				operationId: "notes.archiveAll",
+				responses: ok(accepted),
+				"x-entity": { action: "action", identity: "id", name: "note" },
+				"x-rate-limit": { category: "archive", rps: 5 },
+			},
+		},
+		"/v1/notes/stats": {
+			get: {
+				operationId: "notes.stats",
+				parameters: [{ in: "query", name: "aggs", required: true, schema: { type: "string" } }],
+				responses: ok(accepted),
+				"x-bind": { query: { aggs: "text.count" } },
+				"x-effects": [],
+			},
+		},
+		"/v1/notes/tag": {
+			post: {
+				operationId: "notes.tag",
+				requestBody: {
+					content: {
+						"application/json": {
+							schema: { properties: { tag: { type: "string" } }, required: ["tag"], type: "object" },
+						},
+					},
+				},
+				responses: ok(accepted),
+				"x-bind": { body: { tag: "pinned" } },
+				"x-effects": [],
+			},
+		},
+	}
+}
+
 function spec(): OpenApiDocument {
 	return {
 		components: { securitySchemes: { bearer: { scheme: "bearer", type: "http" } } },
 		info: { title: "contract", version: "1" },
 		openapi: "3.1.0",
-		paths: {
-			"/v1/accounts/{account_id}/badge": {
-				get: {
-					operationId: "badge.get",
-					parameters: [{ in: "path", name: "account_id", required: true, schema: { type: "string" } }],
-					responses: ok(versionBody),
-				},
-			},
-			"/v1/broken": { get: { operationId: "broken.get", responses: ok(versionBody) } },
-			"/v1/crash": { get: { operationId: "crash.get", responses: ok(versionBody) } },
-			"/v1/feedback": { post: { operationId: "feedback.send", requestBody: feedback, responses: ok(accepted, "202") } },
-			"/v1/notes": {
-				get: {
-					operationId: "notes.list",
-					responses: ok({
-						"application/json": {
-							schema: {
-								properties: { items: { items: noteSchema, type: "array" } },
-								required: ["items"],
-								type: "object",
-							},
-						},
-					}),
-				},
-				post: {
-					operationId: "notes.write",
-					requestBody: {
-						content: {
-							"application/json": {
-								schema: { properties: { text: { type: "string" } }, required: ["text"], type: "object" },
-							},
-						},
-					},
-					responses: ok({ "application/json": { schema: noteSchema } }, "201"),
-				},
-			},
-			"/v1/notes/archive-all": {
-				post: {
-					operationId: "notes.archiveAll",
-					responses: ok(accepted),
-					"x-entity": { action: "action", identity: "id", name: "note" },
-					"x-rate-limit": { category: "archive", rps: 5 },
-				},
-			},
-			"/v1/notes/{note_id}": {
-				delete: {
-					operationId: "notes.remove",
-					parameters: [{ in: "path", name: "note_id", required: true, schema: { type: "string" } }],
-					responses: { "204": { description: "gone" }, "404": { description: "missing" } },
-				},
-				get: {
-					operationId: "notes.get",
-					parameters: [{ in: "path", name: "note_id", required: true, schema: { type: "string" } }],
-					responses: { ...ok({ "application/json": { schema: noteSchema } }), "404": { description: "missing" } },
-				},
-			},
-			"/v1/notes/stats": {
-				get: {
-					operationId: "notes.stats",
-					parameters: [{ in: "query", name: "aggs", required: true, schema: { type: "string" } }],
-					responses: ok(accepted),
-					"x-bind": { query: { aggs: "text.count" } },
-					"x-effects": [],
-				},
-			},
-			"/v1/notes/tag": {
-				post: {
-					operationId: "notes.tag",
-					requestBody: {
-						content: {
-							"application/json": {
-								schema: { properties: { tag: { type: "string" } }, required: ["tag"], type: "object" },
-							},
-						},
-					},
-					responses: ok(accepted),
-					"x-bind": { body: { tag: "pinned" } },
-					"x-effects": [],
-				},
-			},
-			"/v1/picky": { post: { operationId: "picky.send", requestBody: feedback, responses: ok(accepted, "202") } },
-			"/v1/version": { get: { operationId: "version.get", responses: ok(versionBody) } },
-		},
+		paths: { ...loosePaths(), ...noteCollectionPaths(), ...noteActionPaths() },
 		security: [{ bearer: [] }],
 	} as unknown as OpenApiDocument
 }
 
+type Note = { id: string; text: string }
+
+type Exchange = {
+	body: Record<string, unknown>
+	match: RegExpExecArray
+	method: string
+	res: ServerResponse
+	send: (status: number, value: unknown) => void
+	url: URL
+}
+
+type World = { created: number; keepDeleted: boolean; notes: Note[] }
+
+/* Matched in order; a route without a method answers every method. */
+type Route = { handle: (world: World, exchange: Exchange) => void; method?: string; path: RegExp }
+
+function writeNote(world: World, { body, send }: Exchange): void {
+	if (typeof body["text"] !== "string") return send(400, { error: "text_required" })
+	world.created += 1
+	const note = { id: `n${world.created}`, text: body["text"] }
+	world.notes.push(note)
+	send(201, note)
+}
+
+function noteItem(world: World, { match, method, res, send }: Exchange): void {
+	const index = world.notes.findIndex((note) => note.id === match[1])
+	if (index < 0) return send(404, { error: "not_found" })
+	if (method === "GET") return send(200, world.notes[index])
+	if (method !== "DELETE") return send(404, { error: "not_found" })
+	if (!world.keepDeleted) world.notes.splice(index, 1)
+	res.writeHead(204)
+	res.end()
+}
+
+const ROUTES: readonly Route[] = [
+	{ handle: (_w, { send }) => send(200, { version: "1.2.3" }), path: /^\/v1\/version$/ },
+	{ handle: (_w, { send }) => send(200, { version: 5 }), path: /^\/v1\/broken$/ },
+	{ handle: (_w, { send }) => send(500, { error: "boom" }), path: /^\/v1\/crash$/ },
+	{
+		handle: (_w, { body, send }) =>
+			typeof body["message"] === "string" ? send(202, { received: true }) : send(400, { error: "message_required" }),
+		method: "POST",
+		path: /^\/v1\/feedback$/,
+	},
+	{
+		handle: (_w, { send, url }) =>
+			url.searchParams.get("aggs") === "text.count"
+				? send(200, { received: true })
+				: send(400, { error: "invalid_aggregation" }),
+		path: /^\/v1\/notes\/stats$/,
+	},
+	{
+		handle: (_w, { body, send }) =>
+			body["tag"] === "pinned" ? send(200, { received: true }) : send(400, { error: "unknown_tag" }),
+		path: /^\/v1\/notes\/tag$/,
+	},
+	{ handle: (_w, { send }) => send(422, { error: "needs_a_real_order" }), path: /^\/v1\/picky$/ },
+	{ handle: writeNote, method: "POST", path: /^\/v1\/notes$/ },
+	{ handle: (w, { send }) => send(200, { items: w.notes }), method: "GET", path: /^\/v1\/notes$/ },
+	{ handle: (_w, { send }) => send(200, { received: true }), method: "POST", path: /^\/v1\/notes\/archive-all$/ },
+	{ handle: noteItem, path: /^\/v1\/notes\/([^/]+)$/ },
+]
+
+function route(world: World, exchange: Omit<Exchange, "match">): void {
+	for (const candidate of ROUTES) {
+		if (candidate.method !== undefined && candidate.method !== exchange.method) continue
+		const match = candidate.path.exec(exchange.url.pathname)
+		if (match !== null) return candidate.handle(world, { ...exchange, match })
+	}
+	exchange.send(404, { error: "not_found" })
+}
+
 async function serve(options: { keepDeleted?: boolean } = {}): Promise<string> {
-	const notes: Array<{ id: string; text: string }> = []
-	let created = 0
+	const world: World = { created: 0, keepDeleted: options.keepDeleted === true, notes: [] }
 	const document = spec()
 	const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
 		const url = new URL(req.url ?? "/", "http://127.0.0.1")
@@ -143,44 +231,7 @@ async function serve(options: { keepDeleted?: boolean } = {}): Promise<string> {
 		}
 		if (url.pathname === "/openapi.json") return send(200, document)
 		if (req.headers.authorization !== "Bearer alpha") return send(401, { error: "unauthorized" })
-		if (url.pathname === "/v1/version") return send(200, { version: "1.2.3" })
-		if (url.pathname === "/v1/broken") return send(200, { version: 5 })
-		if (url.pathname === "/v1/crash") return send(500, { error: "boom" })
-		if (url.pathname === "/v1/feedback" && method === "POST") {
-			if (typeof body["message"] !== "string") return send(400, { error: "message_required" })
-			return send(202, { received: true })
-		}
-		if (url.pathname === "/v1/notes/stats") {
-			if (url.searchParams.get("aggs") !== "text.count") return send(400, { error: "invalid_aggregation" })
-			return send(200, { received: true })
-		}
-		if (url.pathname === "/v1/notes/tag") {
-			if (body["tag"] !== "pinned") return send(400, { error: "unknown_tag" })
-			return send(200, { received: true })
-		}
-		if (url.pathname === "/v1/picky") return send(422, { error: "needs_a_real_order" })
-		if (url.pathname === "/v1/notes" && method === "POST") {
-			if (typeof body["text"] !== "string") return send(400, { error: "text_required" })
-			created += 1
-			const note = { id: `n${created}`, text: body["text"] }
-			notes.push(note)
-			return send(201, note)
-		}
-		if (url.pathname === "/v1/notes" && method === "GET") return send(200, { items: notes })
-		if (url.pathname === "/v1/notes/archive-all" && method === "POST") return send(200, { received: true })
-		const item = /^\/v1\/notes\/([^/]+)$/.exec(url.pathname)
-		if (item !== null) {
-			const index = notes.findIndex((note) => note.id === item[1])
-			if (index < 0) return send(404, { error: "not_found" })
-			if (method === "GET") return send(200, notes[index])
-			if (method === "DELETE") {
-				if (options.keepDeleted !== true) notes.splice(index, 1)
-				res.writeHead(204)
-				res.end()
-				return
-			}
-		}
-		send(404, { error: "not_found" })
+		route(world, { body, method, res, send, url })
 	})
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
 	open.push({ close: () => new Promise<void>((resolve) => server.close(() => resolve())) })

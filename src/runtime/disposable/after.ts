@@ -42,13 +42,11 @@ export async function afterCall(input: DisposableInput, call: Accepted): Promise
 		operationId: read.operationId,
 	})
 	if (caller.status !== 200) {
-		blame.collector.backend(
-			DISPOSABLE_CHECK_ID,
-			read.entity ?? "caller",
-			"the suite caller was logged out",
-			`${op.operationId} ran as the second user, and the suite ${read.operationId} then returned ${caller.status}.`,
-			[called, caller],
-		)
+		blame.collector.backend(DISPOSABLE_CHECK_ID, read.entity ?? "caller", {
+			summary: "the suite caller was logged out",
+			detail: `${op.operationId} ran as the second user, and the suite ${read.operationId} then returned ${caller.status}.`,
+			evidence: [called, caller],
+		})
 		return
 	}
 	let observation = await listedGone(input, call)
@@ -78,13 +76,11 @@ async function listedGone(input: DisposableInput, call: Accepted): Promise<Obser
 	const value = values[param] as string
 	if (listed.status < 200 || listed.status >= 300) return undefined
 	if (recordsOf(listed.responseBody, list, input.model).some((row) => row[field] === value)) {
-		blame.collector.backend(
-			DISPOSABLE_CHECK_ID,
-			blame.entity,
-			"the credential was still listed",
-			`${op.operationId} returned ${called.status}, and the follow-up list still contained ${value}.`,
-			[called, listed],
-		)
+		blame.collector.backend(DISPOSABLE_CHECK_ID, blame.entity, {
+			summary: "the credential was still listed",
+			detail: `${op.operationId} returned ${called.status}, and the follow-up list still contained ${value}.`,
+			evidence: [called, listed],
+		})
 		return BLAMED
 	}
 	return { absent: true, path: "$", seq: listed.seq, value }
@@ -104,23 +100,19 @@ async function sessionEnded(input: DisposableInput, call: Accepted): Promise<Obs
 	/* A read still answered proves the session ended only beside a refresh that was refused. With
 	 * no refresh declared, or one that sent nothing, nothing shows the session ended. */
 	if (!refused && (renewed === undefined || renews)) {
-		blame.collector.backend(
-			DISPOSABLE_CHECK_ID,
-			blame.entity,
-			"the disposable session was still accepted",
-			`${op.operationId} invalidates ${read.operationId}, and that read then returned ${gone.status} with the second user's credential.`,
-			renewed === undefined ? [called, gone] : [called, gone, renewed],
-		)
+		blame.collector.backend(DISPOSABLE_CHECK_ID, blame.entity, {
+			summary: "the disposable session was still accepted",
+			detail: `${op.operationId} invalidates ${read.operationId}, and that read then returned ${gone.status} with the second user's credential.`,
+			evidence: renewed === undefined ? [called, gone] : [called, gone, renewed],
+		})
 		return BLAMED
 	}
 	if (refused && renews) {
-		blame.collector.backend(
-			DISPOSABLE_CHECK_ID,
-			blame.entity,
-			"the refresh token still renews after the session ended",
-			`${op.operationId} ended the session, and the declared refresh then returned ${renewed.status}.`,
-			[called, gone, renewed],
-		)
+		blame.collector.backend(DISPOSABLE_CHECK_ID, blame.entity, {
+			summary: "the refresh token still renews after the session ended",
+			detail: `${op.operationId} ended the session, and the declared refresh then returned ${renewed.status}.`,
+			evidence: [called, gone, renewed],
+		})
 		return BLAMED
 	}
 	/* Not refused here means the refresh was: the branch above took every other case. */

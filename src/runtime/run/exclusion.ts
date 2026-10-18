@@ -11,15 +11,12 @@ export function createExclusion({ model, profile, state, findings }: Loaded): Ex
 			if (state.excludedIds.has(op.operationId)) return true
 			state.excludedIds.add(op.operationId)
 			state.profileExclusions.push({ entity: entity.name, operationId: op.operationId, reason })
-			findings
-				.attributed([op.operationId])
-				.gap(
-					"profile.skip" satisfies RunFindingId,
-					entity.name,
-					`${op.operationId} excluded by profile "${profile.name}"`,
+			findings.attributed([op.operationId]).gap("profile.skip" satisfies RunFindingId, entity.name, {
+				summary: `${op.operationId} excluded by profile "${profile.name}"`,
+				detail:
 					`${reason}, under --profile ${profile.name}. Checks that depend on this operation stand ` +
-						"down rather than run against data oat did not create through it.",
-				)
+					"down rather than run against data oat did not create through it.",
+			})
 			return true
 		},
 		excludes(operationId) {

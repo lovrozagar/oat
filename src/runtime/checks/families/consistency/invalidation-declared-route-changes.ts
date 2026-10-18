@@ -91,17 +91,16 @@ export const declaredInvalidationHappens = defineCheck<{
 				...(graded(ctx, createOp) ? [createOp.operationId] : []),
 				...(graded(ctx, stale.probe.op) ? [stale.probe.op.operationId] : []),
 			])
-			.backend(
-				this.id,
-				ctx.entityName,
-				"a route the document says is invalidated by this write did not change",
-				`creating a ${ctx.entityName} declares x-invalidate on "${stale.probe.op.route}", but that ` +
+			.backend(this.id, ctx.entityName, {
+				summary: "a route the document says is invalidated by this write did not change",
+				detail:
+					`creating a ${ctx.entityName} declares x-invalidate on "${stale.probe.op.route}", but that ` +
 					"route returned a byte-identical body before and after the write. Either it serves " +
 					"a value derived from this entity and that value is stale — a denormalised counter " +
 					"or a cached projection nobody refreshed — or the declaration is wrong and every " +
 					"client following it is invalidating the wrong cache key.",
-				[created, stale.after],
-			)
+				evidence: [created, stale.after],
+			})
 	},
 })
 

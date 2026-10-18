@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { FLAGS } from "../../src/cli/flags.ts"
-import { CONFIG } from "../../src/config/validate.ts"
+import { configRules } from "../../src/config/validate.ts"
 import { DEFECTS } from "../../src/reference/defects/table.ts"
 import { RUN_FINDING_IDS } from "../../src/runtime/check-ids.ts"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"
@@ -124,7 +124,7 @@ const SURFACES: Readonly<Record<string, Surface>> = {
 	},
 	"top-level config fields": {
 		doc: "configuration.md",
-		names: () => Object.keys(CONFIG),
+		names: () => Object.keys(configRules()),
 		written: code,
 		undocumented: ["ops", "profiles"],
 	},

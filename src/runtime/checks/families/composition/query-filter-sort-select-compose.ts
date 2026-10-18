@@ -87,18 +87,17 @@ export const filterSortSelectCompose = defineCheck<
 		const extraIds = [...combined].filter((id) => !alone.has(id))
 		if (missing.length === 0 && extraIds.length === 0) return ASSERTED
 
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"adding a sort and a select together changes which records a filter returns",
-			`filter on "${field}" alone matched ${alone.size}; the same filter with ` +
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "adding a sort and a select together changes which records a filter returns",
+			detail:
+				`filter on "${field}" alone matched ${alone.size}; the same filter with ` +
 				`order=${sortField} desc and select=${[ctx.identity, extra].join(",")} matched ` +
 				`${combined.size}. ` +
 				(missing.length > 0 ? `Dropped: ${missing.slice(0, 3).join(", ")}. ` : "") +
 				(extraIds.length > 0 ? `Appeared: ${extraIds.slice(0, 3).join(", ")}. ` : "") +
 				"Each pair composes; the triple must too. A filter that only holds until both a " +
 				"sort and a projection are present is one a three-axis query plan is dropping.",
-			[filtered.last.exchange, triple.last.exchange],
-		)
+			evidence: [filtered.last.exchange, triple.last.exchange],
+		})
 	},
 })

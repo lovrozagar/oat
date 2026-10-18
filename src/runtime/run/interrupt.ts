@@ -10,10 +10,8 @@ export function stopped({ options, network }: RunContext): boolean {
 export function noteLateStop({ options, state, findings, progress }: RunContext): void {
 	if (options.signal?.aborted !== true || state.interrupted) return
 	state.interrupted = true
-	findings.gap(
-		"run.interrupted" satisfies RunFindingId,
-		"run",
-		`stopped during the ${progress.phase} phase`,
-		"the run was interrupted; what was tested is reported, and what oat created is removed",
-	)
+	findings.gap("run.interrupted" satisfies RunFindingId, "run", {
+		summary: `stopped during the ${progress.phase} phase`,
+		detail: "the run was interrupted; what was tested is reported, and what oat created is removed",
+	})
 }

@@ -25,13 +25,11 @@ export function judge(
 	const entity = op.entity ?? op.operationId
 	if (exchange.status >= 500) {
 		grades.graded([op.operationId], CONTRACT_CHECK_ID)
-		blame.backend(
-			CONTRACT_CHECK_ID,
-			entity,
-			`a schema-built request ${describeServerError(exchange.status, headerValue(exchange.responseHeaders, "retry-after"))}`,
-			`${op.operationId} returned ${exchange.status}: ${snippet(exchange.responseBody)}`,
-			[exchange],
-		)
+		blame.backend(CONTRACT_CHECK_ID, entity, {
+			summary: `a schema-built request ${describeServerError(exchange.status, headerValue(exchange.responseHeaders, "retry-after"))}`,
+			detail: `${op.operationId} returned ${exchange.status}: ${snippet(exchange.responseBody)}`,
+			evidence: [exchange],
+		})
 		return
 	}
 	if (exchange.status >= 400) {
@@ -52,13 +50,11 @@ export function judge(
 		? input.validator.validate(op.operationId, raw, exchange.status, exchange.responseBody)
 		: { ok: true, errors: [] as string[], unchecked: undefined }
 	if (result.unchecked === undefined && !result.ok) {
-		blame.spec(
-			CONTRACT_CHECK_ID,
-			entity,
-			"success response does not match its documented schema",
-			`${op.operationId} returned ${exchange.status} with a body that fails the declared schema: ${result.errors.join("; ")}`,
-			[exchange],
-		)
+		blame.spec(CONTRACT_CHECK_ID, entity, {
+			summary: "success response does not match its documented schema",
+			detail: `${op.operationId} returned ${exchange.status} with a body that fails the declared schema: ${result.errors.join("; ")}`,
+			evidence: [exchange],
+		})
 		return
 	}
 	grades.prove(op.operationId, { call: exchange.seq })

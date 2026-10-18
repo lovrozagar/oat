@@ -50,12 +50,10 @@ export const searchTokensAnd = defineCheck<{ a: string; b: string }>({
 		const expected = new Set([...setA].filter((id) => setB.has(id)))
 		const got = setOf(both.items, ctx.identity)
 		if (sameSet(expected, got) || sameSet(got, new Set([...setA, ...setB]))) return ASSERTED
-		return ctx.findings.backend(
-			this.id,
-			ctx.entityName,
-			"two search tokens are not applied as AND",
-			`q="${a} ${b}" returned ${got.size}; the intersection of each token is ${expected.size}.`,
-			[onlyA.exchange, onlyB.exchange, both.exchange],
-		)
+		return ctx.findings.backend(this.id, ctx.entityName, {
+			summary: "two search tokens are not applied as AND",
+			detail: `q="${a} ${b}" returned ${got.size}; the intersection of each token is ${expected.size}.`,
+			evidence: [onlyA.exchange, onlyB.exchange, both.exchange],
+		})
 	},
 })

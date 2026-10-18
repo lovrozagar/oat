@@ -45,13 +45,11 @@ export async function runRootRead(input: {
 			skipAuthRefresh: true,
 		})
 		if (anonymous.status !== 401) {
-			return findings.security(
-				ROOT_READ_CHECK_ID,
-				input.entity.name,
-				"the parent read answered without a token",
-				`${op.operationId} returned ${anonymous.status} with no credential.`,
-				[anonymous],
-			)
+			return findings.security(ROOT_READ_CHECK_ID, input.entity.name, {
+				summary: "the parent read answered without a token",
+				detail: `${op.operationId} returned ${anonymous.status} with no credential.`,
+				evidence: [anonymous],
+			})
 		}
 		const read = await input.client.request(op.method, path, {
 			headers: input.auth,
@@ -59,13 +57,11 @@ export async function runRootRead(input: {
 			...(query === undefined ? {} : { query }),
 		})
 		if (read.status !== 200) {
-			return findings.backend(
-				ROOT_READ_CHECK_ID,
-				input.entity.name,
-				"the parent read failed",
-				`${op.operationId} returned ${read.status} for ${path}.`,
-				[anonymous, read],
-			)
+			return findings.backend(ROOT_READ_CHECK_ID, input.entity.name, {
+				summary: "the parent read failed",
+				detail: `${op.operationId} returned ${read.status} for ${path}.`,
+				evidence: [anonymous, read],
+			})
 		}
 	}
 	return ASSERTED

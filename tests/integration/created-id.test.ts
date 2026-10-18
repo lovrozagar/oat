@@ -47,20 +47,22 @@ const entityTag = (action: string, extra: Record<string, unknown> = {}) => ({
 	"x-entity": { action, identity: "ID", name: "note", ...extra },
 })
 
+function createdSchema(mode: Mode): Record<string, unknown> {
+	if (mode === "ack") return { properties: { success: { type: "boolean" } }, type: "object" }
+	return {
+		properties: {
+			ID: { type: "integer" },
+			data: mode === "nested-only" ? { ...ITEM, required: ["name"] } : ITEM,
+			id: { type: "integer" },
+			message: { type: "string" },
+			success: { type: "boolean" },
+		},
+		type: "object",
+	}
+}
+
 function spec(mode: Mode): OpenApiDocument {
-	const created =
-		mode === "ack"
-			? { properties: { success: { type: "boolean" } }, type: "object" }
-			: {
-					properties: {
-						ID: { type: "integer" },
-						data: mode === "nested-only" ? { ...ITEM, required: ["name"] } : ITEM,
-						id: { type: "integer" },
-						message: { type: "string" },
-						success: { type: "boolean" },
-					},
-					type: "object",
-				}
+	const created = createdSchema(mode)
 	return {
 		info: { title: "created-id", version: "1" },
 		openapi: "3.1.0",
@@ -134,60 +136,87 @@ afterEach(async () => {
 	await Promise.all(servers.splice(0).map((close) => close()))
 })
 
+type Store = Map<number, Record<string, unknown>>
+type World = { deleted: string[]; mode: Mode; seq: number; store: Store }
+
+/* What each mode's create answers for the row it just stored. */
+function createdAnswer(mode: Mode, row: Record<string, unknown> & { ID: number }, seq: number): unknown {
+	if (mode === "ack") return { success: true }
+	const { ID: _id, ...withoutId } = row
+	if (mode === "nested-only") return { data: withoutId, message: "created", success: true }
+	const answer = { data: row, id: row.ID, message: "created", success: true }
+	return mode === "decoy" ? { ...answer, ID: 9000 + seq, id: 9000 + seq } : answer
+}
+
+async function createNote(world: World, req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const body = await readJson(req)
+	if (body === null || typeof body.name !== "string") return send(res, 400, { error: "name is required" })
+	if (body.note !== undefined && typeof body.note !== "string") return send(res, 400, { error: "note is text" })
+	world.seq += 1
+	const row = { ID: world.seq, Status: { ID: STATUS_ID, Name: "open" }, name: body.name, note: String(body.note ?? "") }
+	world.store.set(row.ID, row)
+	send(res, 201, createdAnswer(world.mode, row, world.seq))
+}
+
+async function patchNote(world: World, id: number, req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const row = world.store.get(id)
+	if (row === undefined) return send(res, 404, {})
+	const body = await readJson(req)
+	if (body === null) return send(res, 400, { error: "json" })
+	if (body.name !== undefined && typeof body.name !== "string") return send(res, 400, { error: "name is text" })
+	if (body.note !== undefined && typeof body.note !== "string") return send(res, 400, { error: "note is text" })
+	const next = {
+		...row,
+		...(body.name === undefined ? {} : { name: body.name }),
+		...(body.note === undefined ? {} : { note: body.note }),
+	}
+	world.store.set(id, next)
+	send(res, 200, next)
+}
+
+async function noteItem(
+	world: World,
+	raw: string | undefined,
+	req: IncomingMessage,
+	res: ServerResponse,
+): Promise<void> {
+	const method = req.method ?? "GET"
+	const id = Number(raw)
+	if (!Number.isInteger(id)) return send(res, 400, { error: "ID is an integer" })
+	if (method === "GET") {
+		const row = world.store.get(id)
+		return row === undefined ? send(res, 404, {}) : send(res, 200, row)
+	}
+	if (method === "PATCH") return patchNote(world, id, req, res)
+	if (method !== "DELETE") return send(res, 405)
+	world.deleted.push(raw ?? "")
+	return world.store.delete(id) ? send(res, 204) : send(res, 404, {})
+}
+
+async function route(world: World, req: IncomingMessage, res: ServerResponse): Promise<void> {
+	const at = new URL(req.url ?? "/", "http://x")
+	const method = req.method ?? "GET"
+	if (at.pathname === "/v1/openapi/spec") return send(res, 200, spec(world.mode))
+	const match = /^\/v1\/notes(?:\/([^/]+))?$/.exec(at.pathname)
+	if (match === null) return send(res, 404, { error: "missing" })
+	const raw = match[1] === undefined ? undefined : decodeURIComponent(match[1])
+	if (raw === undefined && method === "GET") return send(res, 200, { items: [...world.store.values()] })
+	if (raw === undefined && method === "POST") return createNote(world, req, res)
+	return noteItem(world, raw, req, res)
+}
+
 async function serve(mode: Mode) {
-	const store = new Map<number, Record<string, unknown>>()
-	const deleted: string[] = []
-	let seq = 0
+	const world: World = { deleted: [], mode, seq: 0, store: new Map() }
 	const server = createServer((req, res) => {
-		void (async () => {
-			const at = new URL(req.url ?? "/", "http://x")
-			const method = req.method ?? "GET"
-			if (at.pathname === "/v1/openapi/spec") return send(res, 200, spec(mode))
-			const match = /^\/v1\/notes(?:\/([^/]+))?$/.exec(at.pathname)
-			if (match === null) return send(res, 404, { error: "missing" })
-			const raw = match[1] === undefined ? undefined : decodeURIComponent(match[1])
-			if (raw === undefined && method === "GET") return send(res, 200, { items: [...store.values()] })
-			if (raw === undefined && method === "POST") {
-				const body = await readJson(req)
-				if (body === null || typeof body.name !== "string") return send(res, 400, { error: "name is required" })
-				if (body.note !== undefined && typeof body.note !== "string") return send(res, 400, { error: "note is text" })
-				seq += 1
-				const row = { ID: seq, Status: { ID: STATUS_ID, Name: "open" }, name: body.name, note: String(body.note ?? "") }
-				store.set(row.ID, row)
-				if (mode === "ack") return send(res, 201, { success: true })
-				const { ID: _id, ...withoutId } = row
-				if (mode === "nested-only") return send(res, 201, { data: withoutId, message: "created", success: true })
-				const answer = { data: row, id: row.ID, message: "created", success: true }
-				return send(res, 201, mode === "decoy" ? { ...answer, ID: 9000 + seq, id: 9000 + seq } : answer)
-			}
-			const id = Number(raw)
-			if (!Number.isInteger(id)) return send(res, 400, { error: "ID is an integer" })
-			const row = store.get(id)
-			if (method === "GET") return row === undefined ? send(res, 404, {}) : send(res, 200, row)
-			if (method === "PATCH") {
-				if (row === undefined) return send(res, 404, {})
-				const body = await readJson(req)
-				if (body === null) return send(res, 400, { error: "json" })
-				if (body.name !== undefined && typeof body.name !== "string") return send(res, 400, { error: "name is text" })
-				if (body.note !== undefined && typeof body.note !== "string") return send(res, 400, { error: "note is text" })
-				const next = {
-					...row,
-					...(body.name === undefined ? {} : { name: body.name }),
-					...(body.note === undefined ? {} : { note: body.note }),
-				}
-				store.set(id, next)
-				return send(res, 200, next)
-			}
-			if (method === "DELETE") {
-				deleted.push(raw ?? "")
-				return store.delete(id) ? send(res, 204) : send(res, 404, {})
-			}
-			return send(res, 405)
-		})()
+		void route(world, req, res)
 	})
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
 	servers.push(() => new Promise((resolve) => server.close(() => resolve())))
-	return { deleted, store, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }
+	return {
+		deleted: world.deleted,
+		store: world.store,
+		url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+	}
 }
 
 async function runAgainst(mode: Mode) {

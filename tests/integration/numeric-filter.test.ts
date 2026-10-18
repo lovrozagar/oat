@@ -9,6 +9,7 @@ import type { Record_ } from "../../src/runtime/world/records.ts"
 import { SchemaValidator } from "../../src/runtime/validate.ts"
 import { buildModel } from "../../src/spec/graph/build.ts"
 import { dereference } from "../../src/spec/load/dereference.ts"
+import type { OperationModel, SpecModel } from "../../src/spec/graph/types.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { checkContext } from "../support/check-context.ts"
 import { Redactor } from "../../src/security/redact.ts"
@@ -180,6 +181,40 @@ function filterStore(opts: HandlerOpts, filter: string | null): Record_[] {
 	return rows
 }
 
+/* The check context for the widget list against the server at `url`. */
+function widgetContext(opts: { findings: FindingCollector; listOp: OperationModel; model: SpecModel; url: string }) {
+	return checkContext({
+		actors: [],
+		altAuth: undefined,
+		altScope: undefined,
+		asyncOps: [],
+		auth: () => ({}),
+		client: new Client({ baseUrl: opts.url, redactor: new Redactor() }),
+		collectionKey: opts.listOp.collection?.key ?? "widgets",
+		createOp: undefined,
+		deleteOp: undefined,
+		effectOps: [],
+		entityName: "widget",
+		findings: opts.findings,
+		hooks: {},
+		identity: "id",
+		invite: null,
+		listOp: opts.listOp,
+		model: opts.model,
+		outOfBand: { attempts: 6, initialMs: 200, maxMs: 3000 },
+		query: opts.listOp.query,
+		readOp: undefined,
+		records: COHORT,
+		scope: {},
+		seed: 1,
+		softDelete: null,
+		updateOp: undefined,
+		uploads: { seed: 1 },
+		validator: new SchemaValidator(),
+		waitOps: [],
+	})
+}
+
 async function runCheck(
 	checkId: string,
 	opts: HandlerOpts,
@@ -207,36 +242,7 @@ async function runCheck(
 	closers.push(server.close)
 
 	const findings = new FindingCollector()
-	const ctx = checkContext({
-		actors: [],
-		altAuth: undefined,
-		altScope: undefined,
-		asyncOps: [],
-		auth: () => ({}),
-		client: new Client({ baseUrl: server.url, redactor: new Redactor() }),
-		collectionKey: listOp.collection?.key ?? "widgets",
-		createOp: undefined,
-		deleteOp: undefined,
-		effectOps: [],
-		entityName: "widget",
-		findings,
-		hooks: {},
-		identity: "id",
-		invite: null,
-		listOp,
-		model,
-		outOfBand: { attempts: 6, initialMs: 200, maxMs: 3000 },
-		query: listOp.query,
-		readOp: undefined,
-		records: COHORT,
-		scope: {},
-		seed: 1,
-		softDelete: null,
-		updateOp: undefined,
-		uploads: { seed: 1 },
-		validator: new SchemaValidator(),
-		waitOps: [],
-	})
+	const ctx = widgetContext({ findings, listOp, model, url: server.url })
 	expect(check?.plan(ctx).ok).toBe(true)
 	if (check !== undefined) await planAndRun(check, ctx)
 	return { findings, requests }

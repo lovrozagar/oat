@@ -60,7 +60,8 @@ const defects = (result: RunResult) => result.findings.filter((f) => DEFECT_VERD
 const coverage = (result: RunResult, operationId: string) =>
 	result.scope.operations.find((op) => op.operationId === operationId)
 
-describe("targeted runs", () => {
+/* What a target grades, and what it leaves alone. */
+function scopeTests(): void {
 	it("a full run reports coverage for every operation", async () => {
 		const server = await reference()
 		const result = await runAt(server.url)
@@ -111,7 +112,10 @@ describe("targeted runs", () => {
 		const calls = result.client.transcript.filter((exchange) => exchange.operationId === "auth.token")
 		expect(calls.map((exchange) => exchange.seq)).toContain(row?.evidence?.call)
 	})
+}
 
+/* A support operation that fails blocks its target; a target that fails is still a defect. */
+function supportFailureTests(): void {
 	it("blocks a target whose support operation fails, without calling it a defect", async () => {
 		const server = await reference()
 		const url = await failing(server, (method, path) => method === "POST" && path.endsWith("/tables"))
@@ -130,18 +134,26 @@ describe("targeted runs", () => {
 		expect(defects(result).map((f) => f.check)).toContain("create.does-not-error")
 		expect(coverage(result, "table.create")?.status).toBe("failed")
 	})
+}
 
+/* A primary reference and a second one at origin `cdn`, run with `ops`. */
+async function runWithCdn(seeded: string[], ops: string[]): Promise<RunResult> {
+	const primary = await reference(seeded)
+	const cdn = await reference(seeded)
+	return run({
+		baseUrl: primary.url,
+		ops,
+		origins: [{ baseUrl: cdn.url, id: "cdn", spec: `${cdn.url}/v1/openapi/spec` }],
+		principals: PRINCIPALS,
+		seed: 42,
+		spec: `${primary.url}/v1/openapi/spec`,
+	})
+}
+
+/* An origin-prefixed target runs at that origin; an origin no target names does not run. */
+function originTests(): void {
 	it("routes an origin-prefixed target to that origin only", async () => {
-		const primary = await reference(["PATCH_REPLACES"])
-		const cdn = await reference(["PATCH_REPLACES"])
-		const result = await run({
-			baseUrl: primary.url,
-			ops: ["cdn:table.update"],
-			origins: [{ baseUrl: cdn.url, id: "cdn", spec: `${cdn.url}/v1/openapi/spec` }],
-			principals: PRINCIPALS,
-			seed: 42,
-			spec: `${primary.url}/v1/openapi/spec`,
-		})
+		const result = await runWithCdn(["PATCH_REPLACES"], ["cdn:table.update"])
 		expect(result.entitiesTested).toEqual(["cdn:table"])
 		expect(result.scope.operations.map((op) => [op.origin, op.operationId, op.status])).toEqual([
 			["cdn", "table.update", "failed"],
@@ -150,20 +162,14 @@ describe("targeted runs", () => {
 	})
 
 	it("does not run an origin no target names", async () => {
-		const primary = await reference()
-		const cdn = await reference()
-		const result = await run({
-			baseUrl: primary.url,
-			ops: ["table.get"],
-			origins: [{ baseUrl: cdn.url, id: "cdn", spec: `${cdn.url}/v1/openapi/spec` }],
-			principals: PRINCIPALS,
-			seed: 42,
-			spec: `${primary.url}/v1/openapi/spec`,
-		})
+		const result = await runWithCdn([], ["table.get"])
 		expect(result.scope.originsSkipped).toEqual(["cdn"])
 		expect(result.entitiesTested.some((name) => name.startsWith("cdn:"))).toBe(false)
 	})
+}
 
+/* A target nothing exercised stays ungraded; one that names nothing is refused. */
+function ungradedTests(): void {
 	it("does not count an operation as graded when no check exercised it", async () => {
 		const server = await reference()
 		/* One principal: the invite flow needs a peer, so nothing ever calls table.revoke. The
@@ -184,4 +190,11 @@ describe("targeted runs", () => {
 		const server = await reference()
 		await expect(runAt(server.url, ["table.craete"])).rejects.toThrow(/Did you mean: table\.create/)
 	})
+}
+
+describe("targeted runs", () => {
+	scopeTests()
+	supportFailureTests()
+	originTests()
+	ungradedTests()
 })

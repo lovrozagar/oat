@@ -46,6 +46,20 @@ describe("pruneToAllow", () => {
 	})
 })
 
+/* Every operation the run sent a request to on the server, or the method and path it could not name. */
+async function calledOperations(result: Awaited<ReturnType<typeof run>>, serverUrl: string): Promise<Set<string>> {
+	const resolve = operationResolver(await fullModel(serverUrl))
+	const base = new URL(serverUrl)
+	const called = new Set<string>()
+	for (const exchange of result.client.transcript) {
+		const url = new URL(exchange.url)
+		if (url.origin !== base.origin) continue
+		const op = resolve(exchange.method, url.pathname)
+		called.add(op === null ? `${exchange.method} ${url.pathname}` : op.operationId)
+	}
+	return called
+}
+
 describe("a run under allow", () => {
 	it("sends no request to an operation outside it", async () => {
 		const server = await createMemoryServer({})
@@ -57,15 +71,7 @@ describe("a run under allow", () => {
 				seed: 42,
 				spec: `${server.url}/v1/openapi/spec`,
 			})
-			const resolve = operationResolver(await fullModel(server.url))
-			const base = new URL(server.url)
-			const called = new Set<string>()
-			for (const exchange of result.client.transcript) {
-				const url = new URL(exchange.url)
-				if (url.origin !== base.origin) continue
-				const op = resolve(exchange.method, url.pathname)
-				called.add(op === null ? `${exchange.method} ${url.pathname}` : op.operationId)
-			}
+			const called = await calledOperations(result, server.url)
 			expect([...called].filter((id) => !ALLOW.includes(id))).toEqual([])
 			expect(called.has("table.create")).toBe(true)
 		} finally {
