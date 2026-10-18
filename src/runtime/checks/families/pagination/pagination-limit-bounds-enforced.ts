@@ -36,7 +36,9 @@ export const limitBoundsEnforced = /* @__PURE__ */ defineCheck<{ limitParam: str
 				)
 			}
 			const refused = judgeRefusal(ctx, this.id, ["validation"], result.exchange)
-			if (refused !== null) continue
+			/* Refused for the bound: try the other side. Turned away for another reason: nothing learned. */
+			if (refused === ASSERTED) continue
+			if (refused !== null) return refused
 			return ctx.findings.backend(
 				this.id,
 				ctx.entityName,

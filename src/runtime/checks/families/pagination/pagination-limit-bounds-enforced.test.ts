@@ -55,16 +55,16 @@ describe("pagination.limit-bounds-enforced", () => {
 		expect(findings.findings[0]?.detail).toMatch(/^limit=4 returned 200; .* outside 1\.\.3 is refused\.$/)
 	})
 
-	it("records a probe turned away for another reason as inconclusive", async () => {
-		const { ctx, findings } = stage(doc, () => ({ status: 401 }), rows)
+	it("records the first probe turned away for another reason as inconclusive, and stops", async () => {
+		const { ctx, findings, sent } = stage(doc, () => ({ status: 401 }), rows)
 		await runCheck(limitBoundsEnforced, ctx)
-		expect(findings.inconclusive).toHaveLength(2)
+		expect(findings.inconclusive).toHaveLength(1)
+		expect(sent).toHaveLength(1)
 		expect(findings.findings).toEqual([])
 	})
 
-	/* A 401 or 403 tells nothing about the bound, yet the loop treats every non-null judgement as
-	 * a refusal and goes on to assert. limit-respects-documented-max returns the judgement instead. */
-	it.todo("does not assert the bound when every probe was turned away for another reason", async () => {
+	/* A 401 or 403 tells nothing about the bound: the check must not go on to assert it. */
+	it("does not assert the bound when every probe was turned away for another reason", async () => {
 		const { ctx } = stage(doc, () => ({ status: 401 }), rows)
 		expect((await runCheck(limitBoundsEnforced, ctx)).kind).toBe("unresolved")
 	})
