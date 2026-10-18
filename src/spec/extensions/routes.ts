@@ -1,15 +1,13 @@
 /** `x-invalidate` and `x-cleanup`: tags that name other routes, read as `METHOD /path`. */
 
-import { normalisePath } from "../routes.ts"
+import { parseRouteRef } from "../routes.ts"
 import type { OperationObject } from "../types.ts"
 import { ext } from "./tag.ts"
 
-/** `method /path` with the method upper-cased and the path normalised; anything else trimmed as it is. */
+/** `METHOD /path` as the route parser reads it, upper-cased and normalised; anything else trimmed as it is. */
 function normaliseRouteRef(ref: string): string {
-	const match = /^\s*([A-Za-z]+)\s+(\S+)\s*$/.exec(ref)
-	if (match === null) return ref.trim()
-	/* Both groups are required by the pattern. */
-	return `${(match[1] as string).toUpperCase()} ${normalisePath(match[2] as string)}`
+	const route = parseRouteRef(ref)
+	return route === null ? ref.trim() : `${route.method} ${route.path}`
 }
 
 export function readInvalidate(op: OperationObject): string[] {

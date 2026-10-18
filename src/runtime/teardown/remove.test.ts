@@ -97,7 +97,7 @@ describe("removeOne: other ways a record goes or stays", () => {
 })
 
 describe("removeOne: other routes and throws", () => {
-	it("removes through a cleanup route that names no id", async () => {
+	it("removes through a cleanup route that names no id, with the method the route names", async () => {
 		const widgets = notesModel("none", {
 			"/admin/purge": { post: { operationId: "widgets.purge", responses: { "204": { description: "gone" } } } },
 			"/widgets": {
@@ -110,9 +110,10 @@ describe("removeOne: other routes and throws", () => {
 			},
 		})
 		const widget = disposable("widget", "w1")
-		const state = unwindOf(widgets, store({}, { answers: { "DELETE /admin/purge": { status: 204 } } }), [widget])
+		const state = unwindOf(widgets, store({}, { answers: { "POST /admin/purge": { status: 204 } } }), [widget])
 		await removeOne(state, widget)
 		expect(state.paths.get(widget)).toBe("/admin/purge")
+		expect(state.client.transcript.map((exchange) => exchange.method)).toEqual(["POST"])
 		expect(state.report.removed).toBe(1)
 	})
 

@@ -146,3 +146,25 @@ describe("security on the model", () => {
 		expect([...model.schemes.keys()].toSorted()).toEqual(["apiKey", "jwt"])
 	})
 })
+
+describe("x-cleanup routes", () => {
+	it("reports a cleanup route the document does not have, and not one it has", () => {
+		const purge = { post: { operationId: "notes.purge", responses: { "204": { description: "gone" } } } }
+		const model = modelOf({
+			"/v1/admin/purge": purge,
+			"/v1/notes": {
+				post: { operationId: "notes.create", responses: ok(member), "x-cleanup": "post /v1/admin/purge" },
+			},
+			"/v1/tags": {
+				post: { operationId: "tags.create", responses: ok(member), "x-cleanup": "DELETE /v1/tags/{tag_id}" },
+			},
+		})
+		expect(model.gaps.gaps.filter((gap) => gap.tag === "x-cleanup")).toEqual([
+			{
+				detail: 'names "DELETE /v1/tags/{tag_id}", which is not an operation in this document',
+				operationId: "tags.create",
+				tag: "x-cleanup",
+			},
+		])
+	})
+})

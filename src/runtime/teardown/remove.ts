@@ -71,7 +71,8 @@ export async function removeOne(state: Unwind, item: Disposable): Promise<void> 
 		const attempts: string[] = []
 		let removed = false
 		for (const [index, deleter] of [item.owner, ...state.fallbacks(item.owner)].entries()) {
-			const exchange = await state.client.request("DELETE", path, { headers: deleter.headers })
+			/* An x-cleanup route may remove with another method than DELETE: its own is sent. */
+			const exchange = await state.client.request(deleteOp.method, path, { headers: deleter.headers })
 			attempts.push(`${deleter.id}: ${exchange.status}`)
 			if (shownGone(exchange, index === 0, moved)) {
 				removed = true

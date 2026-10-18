@@ -18,6 +18,7 @@ import { modelOperation } from "./operation.ts"
 import { collectRoots } from "./roots.ts"
 import { fallBackToSiblings, invertInvalidate, markTrackable } from "./surface.ts"
 import type { EntityModel, OperationModel, SpecModel } from "./types.ts"
+import { parseRouteRef } from "../routes.ts"
 
 export function buildModel(doc: OpenApiDocument): SpecModel {
 	const gaps = new GapCollector()
@@ -39,6 +40,7 @@ export function buildModel(doc: OpenApiDocument): SpecModel {
 	const byOperationId = indexByOperationId(operations, gaps)
 	const byRoute = new Map(operations.map((o) => [o.route, o]))
 	const entities = buildEntities(operations, byRoute, gaps)
+	reportMissingCleanup(operations, byRoute, gaps)
 
 	return {
 		byOperationId,
@@ -53,6 +55,19 @@ export function buildModel(doc: OpenApiDocument): SpecModel {
 		roots: collectRoots(operations, entities),
 		securitySchemes: Object.keys(doc.components?.securitySchemes ?? {}),
 		schemes: readSchemes(doc),
+	}
+}
+
+/* An `x-cleanup` naming a route the document lacks removes nothing: teardown would leave its records. */
+function reportMissingCleanup(
+	operations: readonly OperationModel[],
+	byRoute: ReadonlyMap<string, OperationModel>,
+	gaps: GapCollector,
+): void {
+	for (const op of operations) {
+		const route = op.cleanup === null ? null : parseRouteRef(op.cleanup)
+		if (route === null || byRoute.has(`${route.method} ${route.path}`)) continue
+		gaps.record(op.operationId, "x-cleanup", `names "${op.cleanup}", which is not an operation in this document`)
 	}
 }
 

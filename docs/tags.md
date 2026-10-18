@@ -331,7 +331,7 @@ This resource has no create endpoint; supply it in config `roots` / principal `r
 x-cleanup: "DELETE /v1/projects/{project_id}/tables/{table_id}"
 ```
 
-Teardown route when the entity has no discoverable delete. Without it, leftover records are reported at end of run.
+Teardown route when the entity has no discoverable delete, sent with the method it names (`POST /v1/admin/purge` is a POST). It must name an operation in the document; `doctor` reports one that does not. Without it, leftover records are reported at end of run.
 
 ### `x-cost` / `x-destructive` / `x-idempotent` / `x-fresh-principal`
 
