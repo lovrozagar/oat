@@ -52,6 +52,7 @@
 				"src/credentials/**",
 				"src/errors/**",
 				"src/runtime/checks/**",
+				"src/runtime/run/**",
 				"src/security/**",
 				"src/spec/security/**"
 			],

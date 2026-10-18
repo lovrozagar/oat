@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { Client } from "../../src/runtime/client.ts"
-import { run } from "../../src/runtime/run.ts"
+import { run } from "../../src/runtime/run/index.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 
 /*

@@ -167,6 +167,8 @@ export interface NetworkClientOptions {
 	/** Total time one request may take across every attempt and wait. */
 	deadlineMs?: number
 	awaitRecovery?: (error: NetworkError) => Promise<boolean>
+	/** The transport. The global `fetch` unless a caller supplies its own. */
+	fetchImpl?: typeof fetch
 }
 
 export class Client {
@@ -450,7 +452,7 @@ export class Client {
 					const timeoutMs = this.network?.requestTimeoutMs
 					const signal = timeoutMs === undefined ? undefined : AbortSignal.timeout(timeoutMs)
 					const once = async (target: URL, hopInit: RequestInit): Promise<Response> =>
-						fetch(target, signal === undefined ? hopInit : { ...hopInit, signal })
+						(this.network?.fetchImpl ?? fetch)(target, signal === undefined ? hopInit : { ...hopInit, signal })
 					applyJarToHeaders(hopHeaders, jar, hopUrl, callerCookie)
 					response = await once(hopUrl, { ...init, headers: hopHeaders, method: hopMethod })
 					;({ parsed, bodyBytes, digest } = await readResponsePayload(response))

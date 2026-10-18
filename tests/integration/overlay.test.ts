@@ -6,7 +6,7 @@ import { main } from "../../src/cli.ts"
 import { PRINCIPALS } from "../../src/conformance/suite.ts"
 import { UsageError } from "../../src/errors/usage-error.ts"
 import { createMemoryServer } from "../../src/reference/http.ts"
-import { run } from "../../src/runtime/run.ts"
+import { run } from "../../src/runtime/run/index.ts"
 import { applyOverlay } from "../../src/spec/overlay.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 

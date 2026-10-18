@@ -18,7 +18,7 @@ import {
 	sanitizeExchangeId,
 } from "../../src/runtime/exchanges.ts"
 import { renderMarkdown, type ReportInput } from "../../src/report/render.ts"
-import { run } from "../../src/runtime/run.ts"
+import { run } from "../../src/runtime/run/index.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 
 const closers: Array<() => Promise<void>> = []

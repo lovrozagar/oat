@@ -18,6 +18,7 @@ import { requestContent } from "../spec/collection.ts"
 import type { SpecModel } from "../spec/graph.ts"
 import { encodeRequest } from "./body.ts"
 import type { Client, Exchange } from "./client.ts"
+import type { Redactor } from "../security/redact.ts"
 import { cookiesFromRecordedHeaders, readSaveAs } from "./cookies.ts"
 import { type BackoffConfig, isAbsentValue, pollWithBackoff, resolveBackoff, worstCaseWaitMs } from "./poll.ts"
 
@@ -675,3 +676,27 @@ async function createFlowPrincipal(id: string, spec: AuthFlow, context: AcquireC
 }
 
 export { readPath }
+
+/**
+ * A principal's static headers, held for it. Copied so adopting a credential does not mutate the
+ * config object; a `Bearer ` prefix is kept when that is how the header was already written.
+ */
+export function holdHeaders(
+	initial: Record<string, string> | undefined,
+	redactor: Redactor,
+): { headers: () => Record<string, string>; adoptCredential: (token: string) => void } {
+	let current: Record<string, string> = initial === undefined ? {} : { ...initial }
+	return {
+		adoptCredential: (token: string) => {
+			if (token === "") return
+			const key = Object.keys(current).find((name) => name.toLowerCase() === "authorization") ?? "authorization"
+			const previous = current[key]
+			const value = previous === undefined || /^bearer\s+/i.test(previous) ? `Bearer ${token}` : token
+			current = { ...current, [key]: value }
+			redactor.registerHeader(key)
+			redactor.registerSecret(token)
+			redactor.registerSecret(value)
+		},
+		headers: () => current,
+	}
+}

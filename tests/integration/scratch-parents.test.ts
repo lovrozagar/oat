@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { describe, expect, it } from "vitest"
-import { run } from "../../src/runtime/run.ts"
+import { run } from "../../src/runtime/run/index.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 
 /* Two collections nested under one parent kind, the parent itself not under test: each should get

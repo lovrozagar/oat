@@ -11,7 +11,7 @@ import { INLINE_BODY_LIMIT, createExchangeJournal } from "../../src/runtime/exch
 import { isSecretJsonKey } from "../../src/security/credential-names.ts"
 import { Redactor } from "../../src/security/redact.ts"
 import { isNetworkError } from "../../src/runtime/network.ts"
-import { run } from "../../src/runtime/run.ts"
+import { run } from "../../src/runtime/run/index.ts"
 import {
 	compactRequestBody,
 	compactResponseBody,

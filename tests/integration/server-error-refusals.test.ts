@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net"
 import { describe, expect, it } from "vitest"
 import { PRINCIPALS } from "../../src/conformance/suite.ts"
 import { createMemoryServer } from "../../src/reference/http.ts"
-import { run } from "../../src/runtime/run.ts"
+import { run } from "../../src/runtime/run/index.ts"
 
 /* A refusal the backend should answer with 409 or 404 that crashes instead is a defect, not an
  * unanswered question. A proxy turns the reference backend's refusals into 500s. */

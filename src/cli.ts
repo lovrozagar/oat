@@ -229,7 +229,7 @@ async function commandRun(flags: Args["flags"]): Promise<number> {
 		return 2
 	}
 
-	const { run } = await import("./runtime/run.ts")
+	const { run } = await import("./runtime/run/index.ts")
 	const read = await readConfig(configPath, true)
 	if ("problem" in read) {
 		writer.err(`oat: ${read.problem}\n`)

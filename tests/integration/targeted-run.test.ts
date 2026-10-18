@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { PRINCIPALS } from "../../src/conformance/suite.ts"
 import { createMemoryServer, type ReferenceServer } from "../../src/reference/http.ts"
-import { run, type RunResult } from "../../src/runtime/run.ts"
+import { run, type RunResult } from "../../src/runtime/run/index.ts"
 
 const DEFECT_VERDICTS = new Set(["BACKEND_BUG", "SECURITY", "SPEC_BUG"])
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { PRINCIPALS } from "../../src/conformance/suite.ts"
 import { createMemoryServer } from "../../src/reference/http.ts"
-import { run } from "../../src/runtime/run.ts"
+import { run } from "../../src/runtime/run/index.ts"
 
 /*
  * An effect is judged by calling the action that should cause it. When that call itself fails,

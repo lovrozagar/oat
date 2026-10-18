@@ -6,7 +6,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { report } from "../report/console.ts"
-import { run } from "../runtime/run.ts"
+import { run } from "../runtime/run/index.ts"
 import { formatUniqueSets, readUnique } from "../spec/extensions.ts"
 import { buildModel } from "../spec/graph.ts"
 import { dereference } from "../spec/load.ts"

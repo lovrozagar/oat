@@ -2,7 +2,7 @@ import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import type { Scenario } from "../../src/config/define-config.ts"
-import { run } from "../../src/runtime/run.ts"
+import { run } from "../../src/runtime/run/index.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 
 /* A number a response returned goes back as a number: a body field that is exactly `{name}`

@@ -18,7 +18,7 @@ import type { BaselineEntry } from "../runtime/baseline.ts"
 import type { TargetVersion } from "../runtime/target-version.ts"
 import { type Finding, isFailingRootCause, type Verdict } from "../runtime/finding.ts"
 import type { SpecModel } from "../spec/graph.ts"
-import type { CheckTiming } from "../runtime/run.ts"
+import type { CheckTiming } from "../runtime/run/index.ts"
 import type { TeardownReport } from "../runtime/teardown.ts"
 
 export interface ReportInput {

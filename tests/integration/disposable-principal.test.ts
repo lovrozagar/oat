@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { disposableAddress, freshSignupFlow } from "../../src/runtime/disposable.ts"
-import { run } from "../../src/runtime/run.ts"
+import { run } from "../../src/runtime/run/index.ts"
 
 const DEFECT_VERDICTS = new Set(["BACKEND_BUG", "SECURITY", "SPEC_BUG"])
 

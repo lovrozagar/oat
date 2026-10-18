@@ -6,8 +6,8 @@ describe("oat/index-purity", () => {
 	it("allows only named re-exports in an index", () => {
 		const fixture = {
 			"src/index.ts": [
-				'export { run } from "./runtime/run.ts"',
-				'export type { RunOptions } from "./runtime/run.ts"',
+				'export { run } from "./runtime/run/index.ts"',
+				'export type { RunOptions } from "./runtime/run/index.ts"',
 				'export { type A, b } from "./a.ts"',
 			].join("\n"),
 		}

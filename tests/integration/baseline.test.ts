@@ -8,7 +8,7 @@ import { PRINCIPALS } from "../../src/conformance/suite.ts"
 import { createMemoryServer } from "../../src/reference/http.ts"
 import { baselineFrom, parseBaseline } from "../../src/runtime/baseline.ts"
 import { EXIT, exitCode } from "../../src/runtime/exit.ts"
-import { run } from "../../src/runtime/run.ts"
+import { run } from "../../src/runtime/run/index.ts"
 
 /*
  * A backend with defects nobody will fix this week still needs a gate that fails on the next one.

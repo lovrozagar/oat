@@ -63,7 +63,6 @@ const UNTESTED: readonly string[] = [
 	"src/runtime/query.ts",
 	"src/runtime/rate-limit.ts",
 	"src/runtime/root-read.ts",
-	"src/runtime/run.ts",
 	"src/runtime/self.ts",
 	"src/runtime/server-errors.ts",
 	"src/runtime/sse.ts",

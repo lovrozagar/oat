@@ -7,7 +7,7 @@ import { buildModel } from "../../src/spec/graph.ts"
 import { dereference } from "../../src/spec/load.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { readWait } from "../../src/spec/extensions.ts"
-import { run } from "../../src/runtime/run.ts"
+import { run } from "../../src/runtime/run/index.ts"
 
 const closers: Array<() => Promise<void>> = []
 

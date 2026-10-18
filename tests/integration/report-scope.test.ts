@@ -10,7 +10,7 @@ import {
 	type ReportInput,
 } from "../../src/report/render.ts"
 import type { ProgressSnapshot } from "../../src/runtime/progress.ts"
-import { run } from "../../src/runtime/run.ts"
+import { run } from "../../src/runtime/run/index.ts"
 
 let server: ReferenceServer
 beforeAll(async () => {

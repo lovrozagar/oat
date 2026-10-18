@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { PRINCIPALS } from "../../src/conformance/suite.ts"
 import { createMemoryServer } from "../../src/reference/http.ts"
-import { run } from "../../src/runtime/run.ts"
+import { run } from "../../src/runtime/run/index.ts"
 
 /*
  * A delete is confirmed by reading its path again. When that read is refused — the caller's

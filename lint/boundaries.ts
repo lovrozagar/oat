@@ -94,7 +94,7 @@ const CLIENT_FILES: ReadonlySet<string> = new Set(
 function bucket(rel: string): Bucket | "unknown" {
 	if (rel === "cli.ts" || rel.startsWith("cli/")) return "cli"
 	if (rel === "index.ts") return "index"
-	if (rel === "runtime/run.ts" || rel.startsWith("runtime/run/")) return "run"
+	if (rel.startsWith("runtime/run/")) return "run"
 	if (rel.startsWith("config/types/")) return "config-types"
 	if (CLIENT_FILES.has(rel)) return "client"
 	const top = rel.split("/", 1).join("")

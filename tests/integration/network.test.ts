@@ -20,7 +20,7 @@ import {
 } from "../../src/runtime/network.ts"
 import { formatProgressLine, type ProgressSnapshot } from "../../src/runtime/progress.ts"
 import { renderMarkdown, type ReportInput } from "../../src/report/render.ts"
-import { run } from "../../src/runtime/run.ts"
+import { run } from "../../src/runtime/run/index.ts"
 
 function net(code: string, message = "fetch failed"): TypeError {
 	const cause = Object.assign(new Error(message), { code })

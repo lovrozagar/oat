@@ -22,7 +22,7 @@ import {
 	mergeScope,
 	scalarId,
 } from "../../src/runtime/effects.ts"
-import { run } from "../../src/runtime/run.ts"
+import { run } from "../../src/runtime/run/index.ts"
 import { driveWait } from "../../src/runtime/wait.ts"
 import { Client } from "../../src/runtime/client.ts"
 import { GapCollector, readEffects } from "../../src/spec/extensions.ts"

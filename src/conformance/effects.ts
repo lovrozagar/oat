@@ -7,7 +7,7 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
-import { run } from "../runtime/run.ts"
+import { run } from "../runtime/run/index.ts"
 import { buildModel } from "../spec/graph.ts"
 import { GapCollector, readEffects } from "../spec/extensions.ts"
 import type { OpenApiDocument } from "../spec/types.ts"

@@ -6,7 +6,7 @@ import { renderJson, renderMarkdown, type ReportInput } from "../../src/report/r
 import { Client } from "../../src/runtime/client.ts"
 import { EXIT, exitCode } from "../../src/runtime/exit.ts"
 import { Fence, FencedError } from "../../src/runtime/fence.ts"
-import { run } from "../../src/runtime/run.ts"
+import { run } from "../../src/runtime/run/index.ts"
 
 /*
  * A hook that sees every request before it leaves the process and may refuse it. A refused

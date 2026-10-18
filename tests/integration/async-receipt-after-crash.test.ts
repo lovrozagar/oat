@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { PRINCIPALS } from "../../src/conformance/suite.ts"
 import { createMemoryServer } from "../../src/reference/http.ts"
-import { type PrincipalSpec, run } from "../../src/runtime/run.ts"
+import { type PrincipalSpec, run } from "../../src/runtime/run/index.ts"
 
 /*
  * An action that crashes never hands back a receipt, so the receipt check cannot judge it. It

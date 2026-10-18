@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { renderJson, renderMarkdown, type ReportInput } from "../../src/report/render.ts"
 import { EXIT, exitCode } from "../../src/runtime/exit.ts"
-import { run } from "../../src/runtime/run.ts"
+import { run } from "../../src/runtime/run/index.ts"
 
 /*
  * A finding is about a build. A run records which one it tested — read from a version route by a

@@ -7,7 +7,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { Client } from "../runtime/client.ts"
 import { parseRetryAfter, retryWaitMs, RETRY_BACKOFF_CAP_MS } from "../runtime/rate-limit.ts"
-import { run } from "../runtime/run.ts"
+import { run } from "../runtime/run/index.ts"
 import { isPlanLimitResponse } from "../runtime/world.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
 import type { ParserResult } from "./harness/result.ts"

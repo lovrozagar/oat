@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { PRINCIPALS } from "../../src/conformance/suite.ts"
 import { createMemoryServer } from "../../src/reference/http.ts"
-import { run } from "../../src/runtime/run.ts"
+import { run } from "../../src/runtime/run/index.ts"
 
 /* The checks Phase 6 added, each against the defect built for it and against a correct backend. */
 const CASES = [

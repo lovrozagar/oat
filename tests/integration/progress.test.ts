@@ -12,7 +12,7 @@ import {
 	progressEventKey,
 	type ProgressSnapshot,
 } from "../../src/runtime/progress.ts"
-import { run } from "../../src/runtime/run.ts"
+import { run } from "../../src/runtime/run/index.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 
 const EXTRACT = "http://127.0.0.1/v1/projects/p1/extract"

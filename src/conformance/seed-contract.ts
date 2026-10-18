@@ -17,7 +17,7 @@ import {
 	overflowFrom,
 } from "../runtime/fixture.ts"
 import { codePointCount } from "../runtime/payloads.ts"
-import { run } from "../runtime/run.ts"
+import { run } from "../runtime/run/index.ts"
 import { buildModel } from "../spec/graph.ts"
 import { dereference, documentDefs } from "../spec/load.ts"
 import type { OpenApiDocument } from "../spec/types.ts"

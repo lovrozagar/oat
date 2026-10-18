@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import type { Scenario } from "../../src/config/define-config.ts"
 import { renderJson, renderMarkdown } from "../../src/report/render.ts"
-import { run } from "../../src/runtime/run.ts"
+import { run } from "../../src/runtime/run/index.ts"
 import { renderTeardown } from "../../src/runtime/teardown.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 

@@ -61,8 +61,8 @@ export { ScopeError } from "./runtime/scope.ts"
 export type { OpenApiDocument } from "./spec/types.ts"
 export { AuthRefreshRequiredError } from "./runtime/auth.ts"
 
-export { run } from "./runtime/run.ts"
-export type { RunOptions, RunResult } from "./runtime/run.ts"
+export { run } from "./runtime/run/index.ts"
+export type { RunOptions, RunResult } from "./runtime/run/index.ts"
 
 export type { Actor } from "./runtime/checks/core/context.ts"
 export type { Finding, Verdict } from "./runtime/finding.ts"

@@ -16,7 +16,7 @@ import { damagedBystanders, leftBehind, ledgeredNotCreated } from "./leaks.ts"
 import { PRINCIPALS, defectsFor, judgeDefect } from "./suite.ts"
 import { type DefectName, isDefectName } from "../reference/defects.ts"
 import { SHAPES } from "../reference/shapes.ts"
-import { run } from "../runtime/run.ts"
+import { run } from "../runtime/run/index.ts"
 
 export interface ShapeCase {
 	label: string
