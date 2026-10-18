@@ -15,7 +15,7 @@ import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { parseArgs } from "node:util"
 import { SHAPE_NAMES } from "../src/conformance/shapes.ts"
-import { postgresAvailable, sqliteAvailable } from "../src/conformance/suite.ts"
+import { postgresAvailable, sqliteAvailable } from "../src/conformance/matrix/engines.ts"
 
 const { values } = parseArgs({
 	options: { jobs: { type: "string" }, out: { type: "string" }, "skip-backend": { type: "string" } },

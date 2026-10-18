@@ -6,7 +6,7 @@ import { join } from "node:path"
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 import { main } from "../../src/cli/main.ts"
 import { isKnownFlag, parseArgs, unknownFlag, USAGE } from "../../src/cli/flags.ts"
-import { PRINCIPALS } from "../../src/conformance/suite.ts"
+import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer, type ReferenceServer } from "../../src/reference/http.ts"
 
 describe("CLI flags", () => {

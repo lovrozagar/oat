@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { judgeDefect } from "../../src/conformance/suite.ts"
+import { judgeDefect } from "../../src/conformance/matrix/cases.ts"
 
 /*
  * Behind the client-ids shape the create answers only `{ success: true }`. A record oat could not

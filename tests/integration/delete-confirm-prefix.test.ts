@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { judgeDefect } from "../../src/conformance/suite.ts"
+import { judgeDefect } from "../../src/conformance/matrix/cases.ts"
 
 /*
  * A delete is confirmed by reading its path again. Under an API mounted below a prefix

@@ -21,7 +21,11 @@
 import type { DefectName } from "../reference/defects.ts"
 import { CHECKS } from "../runtime/checks/registry.ts"
 import { type PrincipalSpec, run } from "../runtime/run/index.ts"
-import { type Backend, EXPECTED, PRINCIPALS, defectsFor } from "./suite.ts"
+import { EXPECTED } from "./expected/table.ts"
+import { defectsFor } from "./matrix/defects.ts"
+import type { Backend } from "./matrix/engines.ts"
+import { acceptableOf, primaryOf } from "./matrix/expected.ts"
+import { PRINCIPALS } from "./matrix/principals.ts"
 
 export interface FuzzCase {
 	seed: number
@@ -59,16 +63,6 @@ function rng(seed: number): () => number {
 		state = (state * 1_664_525 + 1_013_904_223) >>> 0
 		return state / 0x1_00_00_00_00
 	}
-}
-
-function primary(defect: DefectName): string {
-	const expected = EXPECTED[defect]
-	return Array.isArray(expected) ? (expected[0] ?? "") : expected
-}
-
-function acceptable(defect: DefectName): string[] {
-	const expected = EXPECTED[defect]
-	return Array.isArray(expected) ? expected : [expected]
 }
 
 /** Every check id reachable from `id` by following `dependsOn`, transitively. */
@@ -157,12 +151,12 @@ async function runOneCase(factory: Factory, injected: DefectName[], seed: number
 
 		/* Anything the injected set can justify — the primaries plus their documented
 		 * consequences. A finding outside this union is oat inventing a defect. */
-		const justified = new Set(injected.flatMap(acceptable))
+		const justified = new Set(injected.flatMap((defect) => acceptableOf(EXPECTED[defect])))
 
 		const stated = new Map(result.inconclusive.map((entry) => [entry.check, entry.reason] as const))
 
 		for (const defect of injected) {
-			const want = primary(defect)
+			const want = primaryOf(EXPECTED[defect])
 			if (fired.has(want)) continue
 			/* Not fired. Acceptable in exactly two cases: something `want` depends on is itself
 			 * broken — cascade suppression working — or the check ran and reported *why* it could

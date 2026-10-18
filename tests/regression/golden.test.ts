@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { CLIENT_ID_ONLY, DECLARED_SORT_ONLY, defectsFor, SQL_ONLY } from "../../src/conformance/suite.ts"
+import { CLIENT_ID_ONLY, DECLARED_SORT_ONLY, defectsFor, SQL_ONLY } from "../../src/conformance/matrix/defects.ts"
 import { DEFECTS } from "../../src/reference/defects.ts"
 import { delta, type GoldenTarget, goldenRun, normalize, removeRun } from "../support/golden.ts"
 

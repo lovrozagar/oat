@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { vi } from "vitest"
 import { main } from "../../src/cli/main.ts"
-import { PRINCIPALS } from "../../src/conformance/suite.ts"
+import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer, createSqliteServer, type ReferenceOptions } from "../../src/reference/http.ts"
 
 /* What a concurrent run cannot hold still: wall-clock times, call order and counts, request ids,

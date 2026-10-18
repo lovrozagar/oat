@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { PRINCIPALS } from "../../src/conformance/suite.ts"
+import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
 import type { FenceDecision, FenceRequest } from "../../src/config/define-config.ts"
 import { createMemoryServer } from "../../src/reference/http.ts"
 import { renderJson, renderMarkdown, type ReportInput } from "../../src/report/render.ts"

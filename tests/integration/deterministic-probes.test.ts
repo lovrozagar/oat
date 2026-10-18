@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { judgeDefect, PRINCIPALS } from "../../src/conformance/suite.ts"
+import { judgeDefect } from "../../src/conformance/matrix/cases.ts"
+import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http.ts"
 import { checkSalts } from "../../src/runtime/checks/core/run.ts"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"

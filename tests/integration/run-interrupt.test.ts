@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import { leftBehind } from "../../src/conformance/leaks.ts"
-import { PRINCIPALS } from "../../src/conformance/suite.ts"
+import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { Ledger } from "../../src/runtime/teardown.ts"

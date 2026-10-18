@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { UsageError } from "../../src/errors/usage-error.ts"
-import { PRINCIPALS } from "../../src/conformance/suite.ts"
+import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { pruneToAllow } from "../../src/spec/allow.ts"

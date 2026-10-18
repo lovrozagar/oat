@@ -10,7 +10,10 @@
 import type { DefectName } from "../reference/defects.ts"
 import type { Finding } from "../runtime/finding.ts"
 import { run } from "../runtime/run/index.ts"
-import { defectsFor, EXPECTED, PRINCIPALS, type ParserResult } from "./suite.ts"
+import { EXPECTED } from "./expected/table.ts"
+import type { ParserResult } from "./harness/result.ts"
+import { defectsFor } from "./matrix/defects.ts"
+import { PRINCIPALS } from "./matrix/principals.ts"
 
 const NOT_DEFECTS = new Set(["COVERAGE_GAP", "BLOCKED"])
 

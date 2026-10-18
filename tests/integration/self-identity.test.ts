@@ -2,7 +2,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
-import { PRINCIPALS, judgeDefect } from "../../src/conformance/suite.ts"
+import { judgeDefect } from "../../src/conformance/matrix/cases.ts"
+import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http.ts"
 import { run } from "../../src/runtime/run/index.ts"
 

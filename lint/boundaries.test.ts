@@ -11,14 +11,14 @@ function verdict(from: string, spec: string): boolean {
 
 /* Down the layers, and within a layer's own group. */
 const ALLOWED: Array<[string, string]> = [
-	["src/cli.ts", "./conformance/suite.ts"],
+	["src/cli.ts", "./conformance/matrix/cases.ts"],
 	["src/cli/commands/run.ts", "../../report/render.ts"],
 	["src/cli.ts", "./runtime/run/index.ts"],
 	["src/index.ts", "./report/render.ts"],
 	["src/config/define-config.ts", "../runtime/run/index.ts"],
 	["src/report/render.ts", "../runtime/run/index.ts"],
-	["src/conformance/suite.ts", "../reference/http.ts"],
-	["src/conformance/suite.ts", "../report/render.ts"],
+	["src/conformance/matrix/cases.ts", "../../reference/http.ts"],
+	["src/conformance/suites/render.ts", "../../report/render.ts"],
 	["src/runtime/run/pipeline.ts", "../checks/registry.ts"],
 	["src/runtime/run/stages/load.ts", "../../checks/registry.ts"],
 	["src/runtime/checks.ts", "../client/request.ts"],
@@ -38,7 +38,7 @@ const ALLOWED: Array<[string, string]> = [
 	["src/spec/schema.ts", "ajv/dist/2020.js"],
 	["src/spec/load.ts", "yaml"],
 	["src/reference/stores/postgres.ts", "postgres"],
-	["src/conformance/suite.ts", "postgres"],
+	["src/conformance/matrix/engines.ts", "postgres"],
 	["src/cli.ts", "@lovrozagar/oat"],
 ]
 
@@ -51,7 +51,7 @@ const REFUSED: Array<[string, string]> = [
 	["src/runtime/world.ts", "../reference/http.ts"],
 	["src/runtime/run/pipeline.ts", "../../reference/http.ts"],
 	["src/runtime/checks.ts", "../report/render.ts"],
-	["src/runtime/run/pipeline.ts", "../../conformance/suite.ts"],
+	["src/runtime/run/pipeline.ts", "../../conformance/matrix/cases.ts"],
 	["src/report/render.ts", "../cli.ts"],
 	["src/report/render.ts", "../config/define-config.ts"],
 	["src/runtime/checks.ts", "./run/index.ts"],

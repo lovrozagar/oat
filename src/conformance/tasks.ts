@@ -9,7 +9,9 @@ import { join } from "node:path"
 import type { DefectName } from "../reference/defects.ts"
 import { runScopeSuite } from "./scope.ts"
 import { judgeShape, recallBehind, type ShapeCase, shapeReference } from "./shapes.ts"
-import { type Backend, type CaseResult, judgeDefect, type ParserResult, portableResult, runBaselines } from "./suite.ts"
+import type { ParserResult } from "./harness/result.ts"
+import { type CaseResult, judgeDefect, portableResult, runBaselines } from "./matrix/cases.ts"
+import type { Backend } from "./matrix/engines.ts"
 
 export type ConformanceTask =
 	/* One leg in pieces: its baselines, and its defects a chunk at a time, so the longest leg no

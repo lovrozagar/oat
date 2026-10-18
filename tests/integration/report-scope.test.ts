@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { PRINCIPALS } from "../../src/conformance/suite.ts"
+import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer, type ReferenceServer } from "../../src/reference/http.ts"
 import { buildMatrixGraphFromReport } from "../../src/report/matrix.ts"
 import {

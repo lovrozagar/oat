@@ -10,10 +10,12 @@
  * Cases oat still gets wrong are listed in `expected-failures.ts`, which may only shrink.
  */
 
-import type { Backend } from "./suite.ts"
+import type { Backend } from "./matrix/engines.ts"
 import { EXPECTED_FAILURES } from "./expected-failures.ts"
 import { damagedBystanders, leftBehind, ledgeredNotCreated } from "./leaks.ts"
-import { PRINCIPALS, defectsFor, judgeDefect } from "./suite.ts"
+import { judgeDefect } from "./matrix/cases.ts"
+import { defectsFor } from "./matrix/defects.ts"
+import { PRINCIPALS } from "./matrix/principals.ts"
 import { type DefectName, isDefectName } from "../reference/defects.ts"
 import { SHAPES } from "../reference/shapes.ts"
 import { run } from "../runtime/run/index.ts"
