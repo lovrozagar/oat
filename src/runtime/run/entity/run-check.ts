@@ -7,6 +7,7 @@ import { AuthRefreshError } from "../../../client/refresh.ts"
 import { FencedError } from "../../fence.ts"
 import { type FindingCollector, isRootCause, type Outcome } from "../../finding.ts"
 import { isNetworkError } from "../../../errors/network.ts"
+import type { RunContext } from "../context.ts"
 import type { EntityRun } from "./state.ts"
 import { messageOf } from "../../../errors/message.ts"
 import type { RunFindingId } from "../../check-ids.ts"
@@ -95,7 +96,10 @@ async function outcomeOf(
 	try {
 		return await check.run(view, loop.plans.get(check.id))
 	} catch (error) {
-		const unresolved = await unresolvedBy(loop, check, error, attributed)
+		const unresolved = await unresolvedBy(
+			{ attributed, checkId: check.id, ctx: loop.run.ctx, entity: loop.run.entity.name },
+			error,
+		)
 		if (unresolved !== undefined) {
 			loop.outcomes.set(check.id, { kind: "unresolved", reason: unresolved })
 			return undefined
@@ -106,24 +110,32 @@ async function outcomeOf(
 	}
 }
 
-/** Why an error left the check unresolved, reported where it is a cause; `undefined` for any other error. */
-async function unresolvedBy(
-	loop: CheckLoop,
-	check: Check,
-	error: unknown,
-	attributed: FindingCollector,
-): Promise<string | undefined> {
-	const name = loop.run.entity.name
+/** Where an error met a check: which check, on which entity, reported under whose attribution. */
+export interface Stopped {
+	ctx: RunContext
+	checkId: string
+	entity: string
+	attributed: FindingCollector
+}
+
+/**
+ * Why an error left a check unresolved, reported where it is a cause: the network down, a fenced
+ * request, a value oat did not have, a credential that would not refresh. `undefined` for any other
+ * error, which the caller reports as a check that could not complete.
+ */
+export async function unresolvedBy(stopped: Stopped, error: unknown): Promise<string | undefined> {
+	const { attributed, checkId, ctx } = stopped
+	const name = stopped.entity
 	if (isNetworkError(error)) {
-		await loop.run.ctx.network.note(error, name)
+		await ctx.network.note(error, name)
 		return "the network failed"
 	}
 	if (error instanceof FencedError) {
 		attributed.blocked(
 			"fence",
 			name,
-			`${check.id} was fenced: ${error.request.reason}`,
-			`${error.message}. The request was never sent, so ${check.id} could not complete.`,
+			`${checkId} was fenced: ${error.request.reason}`,
+			`${error.message}. The request was never sent, so ${checkId} could not complete.`,
 		)
 		return "a request was fenced"
 	}
@@ -133,7 +145,7 @@ async function unresolvedBy(
 		"auth.refresh" satisfies RunFindingId,
 		name,
 		`refreshing the credential${error.principal === undefined ? "" : ` of "${error.principal}"`} failed`,
-		`${error.message}. ${check.id} could not complete.`,
+		`${error.message}. ${checkId} could not complete.`,
 	)
 	return "a credential could not be refreshed"
 }
