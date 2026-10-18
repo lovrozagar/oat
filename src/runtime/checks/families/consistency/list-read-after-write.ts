@@ -31,7 +31,7 @@ export const readAfterWrite = /* @__PURE__ */ defineCheck<{ id: string }>({
 		 * reporting it here as a lost write would name the wrong cause. This check is about
 		 * records the list *never* shows. */
 		for (let attempt = 0; attempt < 2 && located.status === "missing"; attempt++) {
-			located = await locate(ctx, id, walkSize)
+			located = await locate(ctx, id, walkSize, { fresh: true })
 		}
 		if (located.status === "missing" && (await foundAtOtherPageSize(ctx, id, walkSize))) return ASSERTED
 		if (located.status === "found") return ASSERTED
@@ -57,8 +57,14 @@ type Located = { status: "found" | "missing"; last: ListResult } | { status: "un
  * takes a live path and the defect vanishes. An unstable default order can hide a
  * record for one walk; a repeat that finds it was never a lost write.
  */
-async function locate(ctx: CheckContext, id: string, walkSize: number): Promise<Located> {
-	const gathered = await collectSet(ctx, walkSize)
+async function locate(
+	ctx: CheckContext,
+	id: string,
+	walkSize: number,
+	/* A repeat walk reads the list again; an earlier walk's memoized pages would hide it. */
+	{ fresh = false }: { fresh?: boolean } = {},
+): Promise<Located> {
+	const gathered = await collectSet(ctx, walkSize, {}, { fresh })
 	if (gathered === null) return { reason: "the list was rejected", status: "unresolved" }
 	if (gathered.items.some((item) => idOf(item, ctx.identity) === id)) {
 		return { last: gathered.last, status: "found" }

@@ -164,7 +164,7 @@ describe("list.read-after-write unresolved walks", () => {
 	 * them, so `readSet`'s memo hands back the first walk instead of reading the list again. A
 	 * record an unstable default order hid from one walk is then reported as a lost write.
 	 */
-	it.todo("asserts when a repeat walk of the default listing finds the record", async () => {
+	it("asserts when a repeat walk of the default listing finds the record", async () => {
 		let walks = 0
 		const respond: Responder = (method, path, options) => {
 			if (path !== "/notes") return notesBackend([created])(method, path, options)
