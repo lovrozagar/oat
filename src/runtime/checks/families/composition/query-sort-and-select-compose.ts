@@ -31,10 +31,11 @@ export const querySortAndSelectCompose = /* @__PURE__ */ defineCheck<{
 			...q(ctx, { limit: 20, order: sortTerm(conv(ctx), field, "asc") }),
 			...projection,
 		})
-		if (result.exchange.status >= 400 || result.items.length < 2) {
+		const [first, second] = result.items
+		if (result.exchange.status >= 400 || first === undefined || second === undefined) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "sort+select probe was rejected")
 		}
-		const extras = Object.keys(result.items[0] ?? {}).filter((key) => !requested.includes(key))
+		const extras = Object.keys(first).filter((key) => !requested.includes(key))
 		const values = result.items.map((item) => item[field])
 		if (extras.length === 0 && sortedUnder(ctx, field, values) !== null) return ASSERTED
 		return ctx.findings.backend(

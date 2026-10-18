@@ -86,14 +86,18 @@ export function forList<C extends ReadClient>(ctx: CheckContext<C>, op: Operatio
 	}
 }
 
+/**
+ * The records a list body holds: a bare array, or the array under the collection key. A row that
+ * is not an object is no record; the response-schema checks report it, and no check reads a field
+ * off it.
+ */
 export function extractItems(body: unknown, key: string | null): Record_[] {
-	if (Array.isArray(body)) return body as Record_[]
-	if (body === null || typeof body !== "object") return []
-	if (key !== null) {
-		const value = (body as Record<string, unknown>)[key]
-		return Array.isArray(value) ? (value as Record_[]) : []
-	}
-	return []
+	const rows = Array.isArray(body) ? body : key === null || !isObject(body) ? undefined : body[key]
+	return Array.isArray(rows) ? rows.filter(isObject) : []
+}
+
+function isObject(value: unknown): value is Record_ {
+	return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 export function ids(records: Record_[], identity: string): string[] {

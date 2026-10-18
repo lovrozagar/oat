@@ -45,14 +45,7 @@ describe("query.sort-and-select-compose gives up", () => {
 })
 
 describe("query.sort-and-select-compose on a null record", () => {
-	/* Pins today's behavior: the leak test reads a null first record as no fields, then the order
-	 * test reads a field off it and throws. */
-	it("throws on a listing whose first record is null", async () => {
-		await expect(stage(querySortAndSelectCompose, { respond: nullFirst }).run()).rejects.toThrow(TypeError)
-	})
-
-	/* Bug: a null record in the listing crashes the check instead of being reported. */
-	it.todo("reports a listing that holds a null record instead of throwing", async () => {
+	it("reports a listing that holds a null record instead of throwing", async () => {
 		await expect(stage(querySortAndSelectCompose, { respond: nullFirst }).run()).resolves.toMatchObject({
 			kind: "unresolved",
 		})

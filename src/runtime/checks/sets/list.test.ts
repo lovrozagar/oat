@@ -151,6 +151,11 @@ describe("extractItems", () => {
 		expect(extractItems({ rows: [{ id: "1" }] }, "rows")).toEqual([{ id: "1" }])
 	})
 
+	it("keeps only the rows that are records", () => {
+		expect(extractItems([null, { id: "1" }, 7, [{ id: "2" }], "x"], null)).toEqual([{ id: "1" }])
+		expect(extractItems({ rows: [null, { id: "1" }] }, "rows")).toEqual([{ id: "1" }])
+	})
+
 	it("finds nothing in anything else", () => {
 		expect(extractItems(null, "rows")).toEqual([])
 		expect(extractItems("text", "rows")).toEqual([])
