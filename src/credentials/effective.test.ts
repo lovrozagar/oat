@@ -29,3 +29,26 @@ describe("effectiveRecipe", () => {
 		expect(effectiveRecipe(undefined, { static: "t" })).toEqual({ static: "t" })
 	})
 })
+
+describe("effectiveRecipe, options that belong to the kind", () => {
+	const base = {
+		expiresIn: { from: "$.expires_in" },
+		format: "A {credential}",
+		holds: ["x"],
+		login,
+		placements: [{ in: "query", name: "k" }],
+		refresh: login,
+	} as unknown as Recipe
+
+	it("drops refresh, expiresIn and holds when the override replaces the kind", () => {
+		expect(effectiveRecipe(base, { static: "t" })).toEqual({
+			format: "A {credential}",
+			placements: [{ in: "query", name: "k" }],
+			static: "t",
+		})
+	})
+
+	it("keeps what the override restates", () => {
+		expect(effectiveRecipe(base, { expiresIn: 60, static: "t" })).toMatchObject({ expiresIn: 60, static: "t" })
+	})
+})

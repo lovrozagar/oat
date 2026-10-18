@@ -109,3 +109,29 @@ describe("format and hook", () => {
 		expect(problems({ jwt: { hook: true } }, ANYROW, { hooks: { resolveCredential: () => "" } })).toEqual([])
 	})
 })
+
+describe("options and the kinds they fit", () => {
+	const login = { from: "$.t", steps }
+
+	it("keep refresh for a login, expiresIn.from for what answers with a credential, holds for static and hook", () => {
+		expect(problems({ jwt: { refresh: login, static: "t" } })).toEqual([
+			"security.jwt.refresh is for a login recipe only",
+		])
+		expect(problems({ jwt: { expiresIn: { from: "$.e" }, static: "t" } })).toEqual([
+			"security.jwt.expiresIn.from reads the answer that issued the credential; a static recipe has none",
+		])
+		expect(problems({ jwt: { holds: ["a"], login } })).toEqual(["security.jwt.holds is for a static or hook recipe"])
+		expect(problems({ jwt: { expiresIn: 60, static: "t" } })).toEqual([])
+		expect(problems({ jwt: { expiresIn: { from: "$.e" }, login, refresh: login } })).toEqual([])
+	})
+
+	it("catch the same mistake made through a principal's override", () => {
+		const base = { jwt: { expiresIn: { from: "$.expires_in" }, login, refresh: login } }
+		const override = (security: Record<string, unknown>) =>
+			securityProblems({ principals: { alpha: { security, tenant: "t" } }, security: base }, ANYROW)
+		expect(override({ jwt: { static: "t" } })).toEqual([])
+		expect(override({ jwt: { expiresIn: { from: "$.x" }, static: "t" } })).toEqual([
+			"principals.alpha.security.jwt.expiresIn.from reads the answer that issued the credential; a static recipe has none",
+		])
+	})
+})

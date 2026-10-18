@@ -55,9 +55,33 @@ function hookShape(path: string, hook: unknown, hasHook: boolean): string[] {
 	return hasHook ? [] : [`${path}.hook needs hooks.resolveCredential in the config`]
 }
 
+const KINDS = ["login", "mint", "static", "hook", "oauth2"] as const
+type Kind = (typeof KINDS)[number]
+
+/* Why `holds` does not fit a kind whose credential's scopes come from elsewhere. */
+const HOLDS_ELSEWHERE: Readonly<Record<string, string>> = {
+	login: "holds is for a static or hook recipe",
+	mint: "holds is not for a mint recipe: it holds the scopes its body asks for",
+	oauth2: "holds is not for an oauth2 recipe: it holds the oauth2.scopes it asks for",
+}
+
+/** Options that describe one kind's credential, on a recipe of another kind. */
+function fitProblems(path: string, recipe: Raw): string[] {
+	const kind = KINDS.find((name) => recipe[name] !== undefined) as Kind
+	const problems: string[] = []
+	if (recipe.refresh !== undefined && kind !== "login") problems.push(`${path}.refresh is for a login recipe only`)
+	if (isRecord(recipe.expiresIn) && (kind === "static" || kind === "hook")) {
+		problems.push(`${path}.expiresIn.from reads the answer that issued the credential; a ${kind} recipe has none`)
+	}
+	const elsewhere = HOLDS_ELSEWHERE[kind]
+	if (stringList(recipe.holds) && elsewhere !== undefined) problems.push(`${path}.${elsewhere}`)
+	return problems
+}
+
 /** What is wrong with the shape of a recipe of exactly one kind, for its scheme. */
 export function kindShapeProblems(path: string, recipe: Raw, scheme: SecurityScheme, hasHook: boolean): string[] {
 	return [
+		...fitProblems(path, recipe),
 		...(recipe.login === undefined ? [] : stepsShape(`${path}.login`, recipe.login)),
 		...(recipe.refresh === undefined ? [] : stepsShape(`${path}.refresh`, recipe.refresh)),
 		...(isRecord(recipe.mint) ? mintShape(path, recipe.mint) : []),

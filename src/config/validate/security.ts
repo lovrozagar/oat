@@ -54,10 +54,6 @@ function optionProblems(path: string, recipe: Raw): string[] {
 	const holds = recipe.holds
 	if (holds !== undefined && !(Array.isArray(holds) && holds.every((scope) => typeof scope === "string"))) {
 		problems.push(`${path}.holds must be a list of scope names`)
-	} else if (holds !== undefined && recipe.oauth2 !== undefined) {
-		problems.push(`${path}.holds is not for an oauth2 recipe: it holds the oauth2.scopes it asks for`)
-	} else if (holds !== undefined && recipe.mint !== undefined) {
-		problems.push(`${path}.holds is not for a mint recipe: it holds the scopes its body asks for`)
 	}
 	if (recipe.placements !== undefined && !Array.isArray(recipe.placements)) {
 		problems.push(`${path}.placements must be a list`)
