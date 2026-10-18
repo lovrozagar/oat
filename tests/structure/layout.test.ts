@@ -1,4 +1,6 @@
 import { spawnSync } from "node:child_process"
+import { importGraph } from "../support/import-graph.ts"
+import { unshipped } from "../support/shipped.ts"
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { join, relative } from "node:path"
 import { parseSync } from "oxc-parser"
@@ -130,6 +132,29 @@ describe("layout", () => {
 			.filter((file) => !file.endsWith("/index.ts") && !files.has(file.replace(/\.ts$/, ".test.ts")))
 			.filter((file) => !declaresOnlyTypes(file))
 		expect(missing).toEqual([...UNTESTED].toSorted())
+	})
+
+	it("ships every module the entry points reach, and the entry targets themselves", () => {
+		const manifest = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"))
+		const graph = importGraph(ROOT, "src")
+		expect(unshipped(ROOT, manifest, graph)).toEqual([])
+		/* The list phases 3 to 7.1 shipped with: the check names what it left out. */
+		const narrow = [
+			"bin/oat.js",
+			"dist/cli.js",
+			"dist/index.js",
+			"dist/index.d.ts",
+			"dist/config",
+			"dist/conformance",
+			"dist/reference",
+			"dist/report",
+			"dist/runtime",
+			"dist/spec",
+		]
+		const missing = unshipped(ROOT, { ...manifest, files: narrow }, graph)
+		expect(missing).toEqual(
+			expect.arrayContaining(["dist/cli/main.js", "dist/errors/message.js", "dist/security/redact.js"]),
+		)
 	})
 
 	it("ships no test, fixture or tests/ file in the package", () => {
