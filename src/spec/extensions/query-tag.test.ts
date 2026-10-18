@@ -115,16 +115,16 @@ describe("a guessed capability", () => {
 			gaps,
 		)
 		expect(capability).toEqual({
-			filterable: ["id", "name", "project_id"],
+			filterable: ["id", "name", "nick", "project_id"],
 			searchable: ["name"],
-			selectable: ["id", "name", "project_id"],
-			sortable: ["id", "name"],
+			selectable: ["id", "name", "nick", "project_id"],
+			sortable: ["id", "name", "nick"],
 			source: "heuristic",
 		})
 		expect(gaps.gaps).toEqual([
 			{
 				detail:
-					"endpoint accepts filter/order but does not declare which fields support them. Assuming all 3 scalar " +
+					"endpoint accepts filter/order but does not declare which fields support them. Assuming all 4 scalar " +
 					"properties, which will produce false failures on unindexed fields",
 				operationId: "row.list",
 				tag: "x-query",
@@ -151,5 +151,24 @@ describe("a guessed capability", () => {
 	it("is null for a list that takes no query grammar", () => {
 		expect(readQueryCapability(listing({ parameters: [query("page"), query("limit")] }), null)).toBeNull()
 		expect(readQueryCapability({ ...listing({}), op: { responses: {} } }, null)).toBeNull()
+	})
+})
+
+describe("a guessed capability's scalar fields", () => {
+	it("counts the nullable, untyped and wrapped scalars, and nothing that is only null or empty", () => {
+		const record = {
+			properties: {
+				both: { type: ["string", "integer"] },
+				code: { enum: ["a", "b"] },
+				empty: { type: [] },
+				legacy: { nullable: true, type: "string" },
+				nobody: { oneOf: [{ type: "null" }] },
+				note: { oneOf: [{ type: "string" }, { type: "null" }] },
+				titled: { allOf: [{ type: "string" }, { description: "a title" }] },
+			},
+			type: "object",
+		}
+		const capability = readQueryCapability(listing({ parameters: [query("filter")] }), record)
+		expect(capability?.filterable).toEqual(["both", "code", "legacy", "note", "titled"])
 	})
 })

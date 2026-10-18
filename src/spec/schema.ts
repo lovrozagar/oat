@@ -146,3 +146,74 @@ function nullable(schema: SchemaObject): SchemaObject {
 	}
 	return { anyOf: [schema, { type: "null" }] }
 }
+
+export type ScalarKind = "string" | "number" | "integer" | "boolean"
+
+const SCALAR_KINDS: ReadonlySet<string> = /* @__PURE__ */ new Set(["string", "number", "integer", "boolean"])
+
+/* What makes an allOf branch say something about the type, rather than annotate it. */
+const TYPING_KEYS = ["type", "oneOf", "anyOf", "allOf", "enum", "const", "properties", "items"] as const
+
+/**
+ * The scalar kinds a property's schema admits, nulls aside, or `undefined` when it is not a scalar
+ * field: an object, an array, a schema that admits only null, or one that says nothing.
+ *
+ * Every spelling of a nullable scalar reads the same: a 3.1 type list (`["string", "null"]`), 3.0
+ * `nullable: true` beside the type, and a `oneOf` or `anyOf` with a `{type: "null"}` branch. An
+ * untyped `enum` or `const` is read by its values, and an `allOf` with one typed branch — a `$ref`
+ * with a description beside it, once dereferenced — by that branch.
+ */
+export function scalarKinds(schema: unknown): ScalarKind[] | undefined {
+	if (!isSchema(schema)) return undefined
+	const kinds = kindsOf(schema)
+	return kinds === undefined || kinds.length === 0 ? undefined : [...new Set(kinds)]
+}
+
+/* The scalar kinds of `schema`; empty when it admits only null, `undefined` when not a scalar. */
+function kindsOf(schema: SchemaObject): ScalarKind[] | undefined {
+	const { type } = schema
+	if (typeof type === "string") return type === "null" ? [] : kindsOfTypes([type])
+	if (Array.isArray(type)) return type.length === 0 ? undefined : kindsOfTypes(type)
+	const branches = schema.oneOf ?? schema.anyOf
+	if (Array.isArray(branches)) return kindsOfBranches(branches)
+	if (Array.isArray(schema.allOf)) return kindsOfAll(schema.allOf)
+	if (Array.isArray(schema.enum)) return kindsOfValues(schema.enum)
+	return "const" in schema ? kindsOfValues([schema.const]) : undefined
+}
+
+function kindsOfTypes(types: readonly unknown[]): ScalarKind[] | undefined {
+	const kinds: ScalarKind[] = []
+	for (const type of types) {
+		if (type === "null") continue
+		if (typeof type !== "string" || !SCALAR_KINDS.has(type)) return undefined
+		kinds.push(type as ScalarKind)
+	}
+	return kinds
+}
+
+/* Every branch a scalar or null; the kinds of them all. */
+function kindsOfBranches(branches: readonly unknown[]): ScalarKind[] | undefined {
+	const kinds: ScalarKind[] = []
+	for (const branch of branches) {
+		const branchKinds = isSchema(branch) ? kindsOf(branch) : undefined
+		if (branchKinds === undefined) return undefined
+		kinds.push(...branchKinds)
+	}
+	return kinds
+}
+
+function kindsOfAll(branches: readonly unknown[]): ScalarKind[] | undefined {
+	const typed = branches.filter((branch) => isSchema(branch) && TYPING_KEYS.some((key) => key in branch))
+	return typed.length === 1 ? kindsOf(typed[0] as SchemaObject) : undefined
+}
+
+function kindsOfValues(values: readonly unknown[]): ScalarKind[] | undefined {
+	const kinds: ScalarKind[] = []
+	for (const value of values) {
+		if (value === null) continue
+		const kind = typeof value
+		if (kind !== "string" && kind !== "number" && kind !== "boolean") return undefined
+		kinds.push(kind)
+	}
+	return kinds
+}

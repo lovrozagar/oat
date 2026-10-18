@@ -32,3 +32,14 @@ describe("schema type inference", () => {
 		expect([...types]).toEqual([["id", "string"]])
 	})
 })
+
+describe("schema type inference through the shared scalar reading", () => {
+	it("reads a nullable oneOf, a single-branch allOf and an untyped const like their scalar", () => {
+		expect(inferFieldType({ oneOf: [{ type: "integer" }, { type: "null" }] })).toBe("number")
+		expect(inferFieldType({ allOf: [{ type: "boolean" }, { description: "flag" }] })).toBe("boolean")
+		expect(inferFieldType({ const: "x" })).toBe("string")
+		expect(inferFieldType({ format: "date", oneOf: [{ type: "string" }, { type: "null" }] })).toBe("date")
+		expect(inferFieldType({ oneOf: [{ type: "null" }] })).toBeUndefined()
+		expect(inferFieldType({ type: [] })).toBeUndefined()
+	})
+})

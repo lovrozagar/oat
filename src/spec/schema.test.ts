@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { normalizeSchema } from "./schema.ts"
+import { normalizeSchema, scalarKinds } from "./schema.ts"
 import type { SchemaObject } from "./types.ts"
 
 const response = { direction: "response" } as const
@@ -101,5 +101,57 @@ describe("normalizeSchema directions and nulls", () => {
 		const out = normalizeSchema(node, response)
 		expect((out.properties as Record<string, unknown>).child).toBe(out)
 		expect(node.example).toBe(1)
+	})
+})
+
+describe("scalarKinds", () => {
+	it("reads a scalar type, and nothing else", () => {
+		expect(scalarKinds({ type: "string" })).toEqual(["string"])
+		expect(scalarKinds({ type: "integer" })).toEqual(["integer"])
+		expect(scalarKinds({ type: "object" })).toBeUndefined()
+		expect(scalarKinds({ type: "null" })).toBeUndefined()
+		expect(scalarKinds({})).toBeUndefined()
+		expect(scalarKinds(null)).toBeUndefined()
+		expect(scalarKinds("string")).toBeUndefined()
+	})
+
+	it("reads a 3.1 type list, nulls aside, and an empty or null-only list as no scalar", () => {
+		expect(scalarKinds({ type: ["string", "null"] })).toEqual(["string"])
+		expect(scalarKinds({ type: ["string", "integer"] })).toEqual(["string", "integer"])
+		expect(scalarKinds({ type: [] })).toBeUndefined()
+		expect(scalarKinds({ type: ["null"] })).toBeUndefined()
+		expect(scalarKinds({ type: ["string", "object"] })).toBeUndefined()
+		expect(scalarKinds({ type: [1] })).toBeUndefined()
+	})
+
+	it("keeps the 3.0 nullable flag out of it: the type decides", () => {
+		expect(scalarKinds({ nullable: true, type: "string" })).toEqual(["string"])
+		expect(scalarKinds({ nullable: true, type: "object" })).toBeUndefined()
+	})
+
+	it("reads oneOf and anyOf with null branches beside scalars, but not null alone", () => {
+		expect(scalarKinds({ oneOf: [{ type: "string" }, { type: "null" }] })).toEqual(["string"])
+		expect(scalarKinds({ anyOf: [{ type: "integer" }, { type: ["string", "null"] }] })).toEqual(["integer", "string"])
+		expect(scalarKinds({ oneOf: [{ type: "null" }] })).toBeUndefined()
+		expect(scalarKinds({ oneOf: [] })).toBeUndefined()
+		expect(scalarKinds({ oneOf: [{ type: "string" }, { type: "object" }] })).toBeUndefined()
+		expect(scalarKinds({ oneOf: [{ type: "string" }, 1] })).toBeUndefined()
+	})
+
+	it("reads an untyped enum or const by its values", () => {
+		expect(scalarKinds({ enum: ["a", "b", null] })).toEqual(["string"])
+		expect(scalarKinds({ enum: [1, 2.5, true] })).toEqual(["number", "boolean"])
+		expect(scalarKinds({ const: "fixed" })).toEqual(["string"])
+		expect(scalarKinds({ enum: [null] })).toBeUndefined()
+		expect(scalarKinds({ enum: [] })).toBeUndefined()
+		expect(scalarKinds({ enum: ["a", { b: 1 }] })).toBeUndefined()
+		expect(scalarKinds({ const: [1] })).toBeUndefined()
+	})
+
+	it("reads allOf with exactly one typed branch, the description-beside-a-ref idiom", () => {
+		expect(scalarKinds({ allOf: [{ type: "string" }, { description: "the name" }] })).toEqual(["string"])
+		expect(scalarKinds({ allOf: [{ type: "string" }, { maxLength: 4, type: "string" }] })).toBeUndefined()
+		expect(scalarKinds({ allOf: [{ type: "object" }, { description: "x" }] })).toBeUndefined()
+		expect(scalarKinds({ allOf: [{ description: "x" }] })).toBeUndefined()
 	})
 })

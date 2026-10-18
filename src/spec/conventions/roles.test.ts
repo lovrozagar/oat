@@ -73,3 +73,17 @@ describe("resolvePagingRoles", () => {
 		).toEqual({ limit: "limit", offset: "offset", page: "page" })
 	})
 })
+
+describe("resolvePagingRoles over nullable numbers", () => {
+	it("reads a 3.1 nullable integer and a nullable oneOf like the integer they are", () => {
+		const roles = resolvePagingRoles([
+			{ in: "query", name: "limit", schema: { maximum: 100, type: ["integer", "null"] } },
+			{ in: "query", name: "page", schema: { minimum: 1, oneOf: [{ type: "integer" }, { type: "null" }] } },
+		])
+		expect(roles).toEqual({ limit: "limit", page: "page" })
+	})
+
+	it("passes over a parameter that is not one number kind", () => {
+		expect(resolvePagingRoles([{ in: "query", name: "limit", schema: { type: ["integer", "string"] } }])).toEqual({})
+	})
+})

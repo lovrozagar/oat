@@ -1,6 +1,7 @@
 /** Which query parameter plays which role, by the aliases real APIs use and the schema they declare. */
 
 import type { ParameterObject, SchemaObject } from "../types.ts"
+import { scalarKinds } from "../schema.ts"
 
 export type Role = "filter" | "order" | "select" | "search" | "searchMode" | "limit" | "page" | "offset" | "cursor"
 
@@ -66,8 +67,9 @@ export interface PagingRoles {
 export function resolvePagingRoles(candidates: readonly ParameterObject[]): PagingRoles {
 	const roles: PagingRoles = {}
 	for (const parameter of candidates) {
-		const type = schemaOf(parameter).type
-		if (type !== "integer" && type !== "number") continue
+		/* A page size or number is a number, however its nullability is spelled. */
+		const kinds = scalarKinds(schemaOf(parameter))
+		if (kinds === undefined || !kinds.every((kind) => kind === "integer" || kind === "number")) continue
 		const role = namedRole(parameter, roles) ?? shapedRole(schemaOf(parameter), roles)
 		if (role !== undefined) roles[role] = parameter.name
 	}

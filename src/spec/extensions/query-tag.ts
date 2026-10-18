@@ -10,6 +10,7 @@ import { parseQueryCatalog } from "../query/parse-catalog.ts"
 import type { Endpoint } from "../types.ts"
 import type { GapCollector } from "./gaps.ts"
 import { ext } from "./tag.ts"
+import { scalarKinds } from "../schema.ts"
 
 export interface QueryCapability {
 	filterable: string[]
@@ -32,29 +33,13 @@ export interface QueryCapability {
 	sortableFields?: SortableField[]
 }
 
-const SCALAR_TYPES: ReadonlySet<string> = /* @__PURE__ */ new Set(["string", "number", "integer", "boolean"])
-
-function isScalarSchema(schema: Record<string, unknown>): boolean {
-	const type = schema.type
-	if (typeof type === "string") return SCALAR_TYPES.has(type)
-	if (Array.isArray(type)) return type.every((t) => t === "null" || SCALAR_TYPES.has(String(t)))
-	/* `oneOf: [{type: string}, {type: null}]` is the nullable-scalar idiom. */
-	const oneOf = schema.oneOf ?? schema.anyOf
-	if (Array.isArray(oneOf)) {
-		return oneOf.every(
-			(branch) => branch !== null && typeof branch === "object" && isScalarSchema(branch as Record<string, unknown>),
-		)
-	}
-	return false
-}
-
 function scalarProperties(schema: Record<string, unknown>): string[] {
 	const props = schema.properties
 	if (props === null || typeof props !== "object") return []
 	const out: string[] = []
 	for (const [name, raw] of Object.entries(props as Record<string, unknown>)) {
 		if (raw === null || typeof raw !== "object") continue
-		if (isScalarSchema(raw as Record<string, unknown>)) out.push(name)
+		if (scalarKinds(raw) !== undefined) out.push(name)
 	}
 	return out
 }
