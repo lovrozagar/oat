@@ -1171,7 +1171,7 @@
 	"src/runtime/transcript/types.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/unique.ts": { "statements": 83, "branches": 68, "functions": 100, "lines": 95 },
 	"src/runtime/upload-each.ts": { "statements": 81, "branches": 61, "functions": 80, "lines": 81 },
-	"src/runtime/upload.ts": { "statements": 48, "branches": 47, "functions": 65, "lines": 50 },
+	"src/runtime/upload.ts": { "statements": 95, "branches": 87, "functions": 100, "lines": 99 },
 	"src/runtime/validate.ts": { "statements": 95, "branches": 74, "functions": 100, "lines": 96 },
 	"src/runtime/wait.ts": { "statements": 94, "branches": 92, "functions": 100, "lines": 96 },
 	"src/runtime/world/adopt.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },

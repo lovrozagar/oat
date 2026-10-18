@@ -96,6 +96,19 @@ describe("encodeMultipart, additionalProperties", () => {
 		required: ["name", "upload"],
 	}
 
+	it("sends the hook's file for that part, asking once", async () => {
+		const asking = hook(PDF)
+		const options = optionsOf({
+			fields: { name: "n" },
+			schema: additional,
+			uploads: { resolveUpload: asking.resolveUpload, seed: 1 },
+		})
+		const parts = partsOf(await encodeMultipart(options))
+		expect(parts.map(([name]) => name)).toEqual(["name", "upload"])
+		expect(parts[1]?.[1]).toMatchObject({ name: PDF.filename })
+		expect(asking.asked).toHaveLength(1)
+	})
+
 	it("sends the file under the required field no property names", async () => {
 		const asking = hook(null)
 		const options = optionsOf({
@@ -107,7 +120,7 @@ describe("encodeMultipart, additionalProperties", () => {
 			["name", "n"],
 			["upload", { name: "upload-baseline-0.bin", type: "application/octet-stream" }],
 		])
-		expect(asking.asked.map((request) => request.field)).toEqual(["upload", "upload"])
+		expect(asking.asked.map((request) => request.field)).toEqual(["upload"])
 	})
 
 	it("sends no extra file when a property already is one, or no required field is left", async () => {

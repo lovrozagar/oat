@@ -12,21 +12,22 @@ import { fileForPart, filePartNames, overrideIncludesFile, uploadRequest } from 
 
 /**
  * The file-typed `additionalProperties` part for the first required field no property sent,
- * unless the form already holds a file. A required file property was sent as one by then.
+ * unless the form already holds a file. A required file property was sent as one by then. The
+ * hook was asked for this part with the others: its file is sent, and it is not asked again.
  */
 async function appendAdditionalFile(
 	form: FormData,
 	options: EncodeOptions,
-	sent: Set<string>,
-	required: string[],
+	parts: { sent: Set<string>; required: string[]; hookHits: ReadonlyMap<string, UploadResolution> },
 ): Promise<void> {
 	const additional = additionalSchema(options.schema)
 	if (additional === undefined || !isFilePart(additional, undefined)) return
 	const already = [...form.keys()].some((name) => form.get(name) instanceof File)
 	if (already) return
-	const name = required.find((item) => !sent.has(item))
+	const name = parts.required.find((item) => !parts.sent.has(item))
 	if (name === undefined) return
-	appendFile(form, name, await fileForPart(name, additional, options))
+	const hit = parts.hookHits.get(name)
+	appendFile(form, name, isUploadFile(hit) ? hit : await fileForPart(name, additional, options))
 }
 
 /** A non-file property's value, when it has one. */
@@ -34,11 +35,6 @@ function appendProperty(form: FormData, name: string, options: EncodeOptions): v
 	const value = options.fields[name]
 	if (value === undefined || value === null) return
 	appendValue(form, name, value, options.encoding?.[name])
-}
-
-/** The same options with the upload hook taken out: the hook was asked already. */
-function withoutHook(options: EncodeOptions): EncodeOptions {
-	return { ...options, uploads: { ...options.uploads, resolveUpload: undefined } }
 }
 
 export async function encodeMultipart(options: EncodeOptions): Promise<FormData> {
@@ -76,11 +72,11 @@ export async function encodeMultipart(options: EncodeOptions): Promise<FormData>
 			continue
 		}
 		const hit = hookHits.get(name)
-		const file = isUploadFile(hit) ? hit : await fileForPart(name, schema, withoutHook(options))
+		const file = isUploadFile(hit) ? hit : await fileForPart(name, schema, options)
 		appendFile(form, name, file)
 	}
 
-	await appendAdditionalFile(form, options, sent, required)
+	await appendAdditionalFile(form, options, { hookHits, required, sent })
 	for (const overlay of overlays) appendFields(form, overlay)
 	return form
 }

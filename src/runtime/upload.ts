@@ -27,14 +27,11 @@ export interface UploadContext {
 
 const warned = new Set<string>()
 
+/**
+ * The file a part is sent when the `resolveUpload` hook gave none: the `uploads.each` slot, the
+ * pool, or a dummy of the declared type. The body encoder asks the hook, once per part, first.
+ */
 export async function resolveUploadFile(request: UploadRequest, context: UploadContext): Promise<UploadFile> {
-	const hook = context.resolveUpload
-	if (hook !== undefined) {
-		const resolved = await hook(request)
-		if (isUploadFile(resolved)) return resolved
-		/* `{ fields }` is handled by the body encoder, which calls the hook first. */
-	}
-
 	const fromEach = await fileFromFixtureSlot(request, context)
 	if (fromEach !== undefined) return fromEach
 

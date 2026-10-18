@@ -51,7 +51,6 @@ const UNTESTED: readonly string[] = [
 	"src/runtime/target-version.ts",
 	"src/runtime/unique.ts",
 	"src/runtime/upload-each.ts",
-	"src/runtime/upload.ts",
 	"src/runtime/validate.ts",
 	"src/runtime/wait.ts",
 ]

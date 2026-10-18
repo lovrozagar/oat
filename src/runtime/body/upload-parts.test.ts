@@ -55,13 +55,12 @@ describe("uploadRequest", () => {
 })
 
 describe("fileForPart", () => {
-	it("is the hook's file when it gives one", async () => {
+	it("never asks the hook: the encoder asked it for every part first", async () => {
 		const asked: UploadRequest[] = []
 		const options = optionsOf({ uploads: { resolveUpload: async (request) => (asked.push(request), PDF), seed: 1 } })
-		expect(await fileForPart("doc", { format: "binary" }, options)).toBe(PDF)
-		expect(asked.map((request) => [request.field, request.contentMediaType])).toEqual([
-			["doc", "application/octet-stream"],
-		])
+		const file = await fileForPart("doc", { format: "binary" }, options)
+		expect(file.filename).toBe("doc-baseline-0.bin")
+		expect(asked).toEqual([])
 	})
 
 	it("is a generated file of the declared type otherwise", async () => {
