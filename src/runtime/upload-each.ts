@@ -4,7 +4,7 @@
 
 import { readFile } from "node:fs/promises"
 import { basename } from "node:path"
-import { expandPattern, type UploadContext } from "./upload.ts"
+import { expandPattern, type UploadContext, warnOnce } from "./upload.ts"
 
 export interface FixtureSlot {
 	path: string
@@ -29,7 +29,7 @@ export async function resolveEachInvocations(
 	const seen = new Set<string>()
 	const readable: string[] = []
 	for (const pattern of patterns) {
-		const matches = await expandPattern(pattern, root, context.warn, "uploads.each")
+		const matches = await expandPattern(pattern, root, warnOnce(context), "uploads.each")
 		for (const path of matches) {
 			if (seen.has(path)) continue
 			seen.add(path)

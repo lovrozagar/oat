@@ -1,13 +1,14 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { describe, expect, it } from "vitest"
 import type { UploadRequest } from "../config/types/hooks.ts"
 import {
 	expandPattern,
 	isFieldOverride,
 	isUploadFile,
-	resetUploadPool,
+	uploadMemory,
+	warnOnce,
 	resolveUploadFile,
 	resolveUploadOverride,
 	type UploadContext,
@@ -34,10 +35,6 @@ function folder(files: Record<string, Uint8Array | string>): string {
 	}
 	return root
 }
-
-afterEach(() => {
-	resetUploadPool()
-})
 
 describe("the hook's answer", () => {
 	it("is asked only when there is a hook", async () => {
@@ -71,7 +68,7 @@ describe("resolveUploadFile from an uploads.each slot", () => {
 
 	it("warns once and falls back when the slot cannot be read", async () => {
 		const warned: string[] = []
-		const context: UploadContext = { seed: 1, warn: (message) => warned.push(message) }
+		const context: UploadContext = { memory: uploadMemory(), seed: 1, warn: (message) => warned.push(message) }
 		const fixture = { filename: "gone.bin", index: 0, path: "/nonexistent/gone.bin", total: 1 }
 		const file = await resolveUploadFile(request({ fixture }), context)
 		await resolveUploadFile(request({ fixture }), context)
@@ -130,7 +127,7 @@ describe("expandPattern", () => {
 	it("warns once, under its label, for a path or a glob base that is not there", async () => {
 		const root = folder({ "a.pdf": PDF })
 		const warned: string[] = []
-		const warn = (message: string) => warned.push(message)
+		const warn = warnOnce({ memory: uploadMemory(), warn: (message: string) => warned.push(message) })
 		expect(await expandPattern("missing.pdf", root, warn)).toEqual([])
 		expect(await expandPattern("nowhere/*.pdf", root, warn, "uploads.each")).toEqual([])
 		expect(await expandPattern("a.pdf/*.x", root, warn)).toEqual([])
@@ -140,5 +137,30 @@ describe("expandPattern", () => {
 			"uploads.each path not found: nowhere/*.pdf",
 			"uploads.pool path not found: a.pdf/*.x",
 		])
+	})
+})
+
+describe("upload memory", () => {
+	it("belongs to one run: another run in the same process reads the pool afresh and warns again", async () => {
+		const root = folder({ "a.png": PNG })
+		const runOf = (warned: string[]): UploadContext => ({
+			configDir: root,
+			memory: uploadMemory(),
+			seed: 1,
+			uploads: { pool: ["*.png", "missing.pdf"] },
+			warn: (message) => warned.push(message),
+		})
+		const firstWarned: string[] = []
+		const first = runOf(firstWarned)
+		expect((await resolveUploadFile(request(), first)).bytes).toEqual(PNG)
+		await resolveUploadFile(request({ index: 1 }), first)
+		expect(firstWarned).toEqual(["uploads.pool path not found: missing.pdf"])
+
+		const changed = new Uint8Array([...PNG, 1])
+		writeFileSync(join(root, "a.png"), changed)
+		expect((await resolveUploadFile(request(), first)).bytes).toEqual(PNG)
+		const secondWarned: string[] = []
+		expect((await resolveUploadFile(request(), runOf(secondWarned))).bytes).toEqual(changed)
+		expect(secondWarned).toEqual(["uploads.pool path not found: missing.pdf"])
 	})
 })

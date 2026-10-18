@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { ProgressSnapshot } from "../progress/types.ts"
 import { connected, notesApi, notesDoc, optionsFor } from "./__fixtures__/api.ts"
+import { uploadMemory } from "../upload.ts"
 import { planScope } from "./scope-plan.ts"
 import type { RunOptions } from "./types.ts"
 
@@ -46,7 +47,7 @@ describe("planScope", () => {
 		expect(planned.scope.mode).toBe("full")
 		expect(snaps.at(-1)).toMatchObject({ message: "scope: full", phase: "load" })
 		expect(planned.ownScenarios).toEqual([])
-		expect(planned.uploads).toEqual({ seed: 1 })
+		expect(planned.uploads).toEqual({ memory: uploadMemory(), seed: 1 })
 	})
 
 	it("names a targeted run's operations and entities", async () => {
@@ -98,6 +99,7 @@ describe("planScope scenarios", () => {
 		})
 		expect(planned.uploads).toEqual({
 			configDir: "/cfg",
+			memory: uploadMemory(),
 			resolveInput,
 			resolveUpload,
 			seed: 1,

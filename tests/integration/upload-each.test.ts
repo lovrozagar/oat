@@ -2,20 +2,15 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { chmod, mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { encodeRequest } from "../../src/runtime/body/encode.ts"
 import { run } from "../../src/runtime/run/index.ts"
-import { resetUploadPool } from "../../src/runtime/upload.ts"
 import { forEachInvocation, resolveEachInvocations } from "../../src/runtime/upload-each.ts"
 import { seedCohort } from "../../src/runtime/world/seed-cohort.ts"
 import { Client } from "../../src/client/client.ts"
 import { buildModel } from "../../src/spec/graph/build.ts"
 import type { OpenApiDocument, OperationObject } from "../../src/spec/types.ts"
 import { Redactor } from "../../src/security/redact.ts"
-
-afterEach(() => {
-	resetUploadPool()
-})
 
 const EXTRACT: OperationObject = {
 	operationId: "extract.once",

@@ -2,20 +2,15 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { describe, expect, it } from "vitest"
 import { encodeRequest } from "../../src/runtime/body/encode.ts"
 import { isFilePart } from "../../src/runtime/body/schema.ts"
 import { Client } from "../../src/client/client.ts"
 import { dummyFile } from "../../src/runtime/dummy.ts"
-import { resetUploadPool } from "../../src/runtime/upload.ts"
 import { requestContent, requestSchema } from "../../src/spec/collection/request.ts"
 import { buildModel } from "../../src/spec/graph/build.ts"
 import type { OpenApiDocument, OperationObject } from "../../src/spec/types.ts"
 import { Redactor } from "../../src/security/redact.ts"
-
-afterEach(() => {
-	resetUploadPool()
-})
 
 const MULTIPART_EXTRACT: OperationObject = {
 	operationId: "extract.once",

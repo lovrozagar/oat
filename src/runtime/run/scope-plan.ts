@@ -5,7 +5,7 @@ import { authStepOperationIds } from "../scope/entities.ts"
 import { GradeLedger } from "../grades.ts"
 import { resolveTargetScope } from "../scope/target.ts"
 import { type TargetScope } from "../scope/types.ts"
-import type { UploadContext } from "../upload.ts"
+import { type UploadContext, uploadMemory } from "../upload.ts"
 import type { Connected, Planned } from "./context.ts"
 
 /**
@@ -61,6 +61,7 @@ function scopeMessage(scope: TargetScope): string {
 
 function uploadsOf({ options, hooks, seed }: Connected): UploadContext {
 	return {
+		memory: uploadMemory(),
 		seed,
 		...(options.uploads === undefined ? {} : { uploads: options.uploads }),
 		...(options.configDir === undefined ? {} : { configDir: options.configDir }),

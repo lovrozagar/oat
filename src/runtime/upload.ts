@@ -1,5 +1,5 @@
 /**
- * Resolves a file part: hook, then pool, then a dummy. Missing pool paths warn once
+ * Resolves a file part: hook, then pool, then a dummy. Missing pool paths warn once a run
  * and fall through — a bad glob must not crash a run.
  */
 
@@ -23,9 +23,33 @@ export interface UploadContext {
 		index: number
 		total: number
 	}
+	/** What the run remembers across parts; absent, each call starts fresh. */
+	memory?: UploadMemory
 }
 
-const warned = new Set<string>()
+/**
+ * What one run remembers about its uploads: the pool it read, so every part picks from one read,
+ * and the warnings it gave, so a bad path is reported once rather than once per part. It rides on
+ * the run's `UploadContext`, which every copy shares by reference.
+ */
+export interface UploadMemory {
+	pool?: PoolEntry[]
+	readonly warned: Set<string>
+}
+
+export function uploadMemory(): UploadMemory {
+	return { warned: new Set() }
+}
+
+/** The context's `warn`, saying each message once per run. */
+export function warnOnce(context: Pick<UploadContext, "memory" | "warn">): (message: string) => void {
+	const warned = context.memory?.warned ?? new Set<string>()
+	return (message) => {
+		if (warned.has(message)) return
+		warned.add(message)
+		context.warn?.(message)
+	}
+}
 
 /**
  * The file a part is sent when the `resolveUpload` hook gave none: the `uploads.each` slot, the
@@ -62,7 +86,7 @@ async function fileFromFixtureSlot(request: UploadRequest, context: UploadContex
 			mediaType: sniffed ?? byExt ?? "application/octet-stream",
 		}
 	} catch {
-		warnOnce(`uploads.each could not read ${slot.path}`, context.warn)
+		warnOnce(context)(`uploads.each could not read ${slot.path}`)
 		return undefined
 	}
 }
@@ -96,15 +120,13 @@ interface PoolEntry {
 	mediaType: string
 }
 
-let poolCache: { key: string; entries: PoolEntry[] } | undefined
-
 async function pickFromPool(request: UploadRequest, context: UploadContext): Promise<UploadFile | undefined> {
 	const patterns = context.uploads?.pool
 	if (patterns === undefined || patterns.length === 0) return undefined
 
-	const root = context.configDir ?? process.cwd()
-	const entries = await loadPool(patterns, root, context.warn)
-	const matching = entries.filter((entry) => matchesPart(entry, request))
+	const memory = context.memory ?? uploadMemory()
+	memory.pool ??= await loadPool(patterns, context.configDir ?? process.cwd(), warnOnce(context))
+	const matching = memory.pool.filter((entry) => matchesPart(entry, request))
 	if (matching.length === 0) return undefined
 
 	const picked = stablePick(matching, context.seed, request.field, request.index)
@@ -141,10 +163,7 @@ function stablePick<T>(items: T[], seed: number, field: string, index: number): 
 	return copy[0]
 }
 
-async function loadPool(patterns: string[], root: string, warn?: (message: string) => void): Promise<PoolEntry[]> {
-	const key = `${root}\0${patterns.join("\0")}`
-	if (poolCache?.key === key) return poolCache.entries
-
+async function loadPool(patterns: string[], root: string, warn: (message: string) => void): Promise<PoolEntry[]> {
 	const paths = new Set<string>()
 	for (const pattern of patterns) {
 		const matches = await expandPattern(pattern, root, warn)
@@ -165,18 +184,10 @@ async function loadPool(patterns: string[], root: string, warn?: (message: strin
 				path,
 			})
 		} catch {
-			warnOnce(`uploads.pool could not read ${path}`, warn)
+			warn(`uploads.pool could not read ${path}`)
 		}
 	}
-
-	poolCache = { entries, key }
 	return entries
-}
-
-/** Tests may clear the cache when they rewrite fixtures. */
-export function resetUploadPool(): void {
-	poolCache = undefined
-	warned.clear()
 }
 
 export async function expandPattern(
@@ -195,7 +206,7 @@ export async function expandPattern(
 	}
 
 	if (!/[?*]/.test(pattern)) {
-		warnOnce(`${label} path not found: ${pattern}`, warn)
+		warn?.(`${label} path not found: ${pattern}`)
 		return []
 	}
 
@@ -204,11 +215,11 @@ export async function expandPattern(
 	try {
 		const info = await stat(base)
 		if (!info.isDirectory()) {
-			warnOnce(`${label} path not found: ${pattern}`, warn)
+			warn?.(`${label} path not found: ${pattern}`)
 			return []
 		}
 	} catch {
-		warnOnce(`${label} path not found: ${pattern}`, warn)
+		warn?.(`${label} path not found: ${pattern}`)
 		return []
 	}
 
@@ -284,10 +295,4 @@ function hash32(text: string): number {
 		hash = Math.imul(hash, 16777619)
 	}
 	return hash >>> 0
-}
-
-function warnOnce(message: string, warn?: (message: string) => void): void {
-	if (warned.has(message)) return
-	warned.add(message)
-	warn?.(message)
 }
