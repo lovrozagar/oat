@@ -31,7 +31,7 @@ import { list, type ListResult } from "../../sets/list.ts"
  * This is the criss-cross property: a fact is not "in the database", it is whatever each read
  * path says it is, and a system is only consistent if they say the same thing.
  */
-export const projectionsAgree = /* @__PURE__ */ defineCheck<{
+export const projectionsAgree = defineCheck<{
 	id: string
 	field: string
 	target: Record_

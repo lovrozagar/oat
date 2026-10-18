@@ -82,7 +82,7 @@ function comparablePrefixes(
 	return { cursorItems: clear(cursorWalk.items), pageItems: clear(pageWalk.items) }
 }
 
-export const cursorAgreesWithPage = /* @__PURE__ */ defineCheck({
+export const cursorAgreesWithPage = defineCheck({
 	plan: (ctx) => when(conv(ctx).cursor !== undefined && pageable(ctx) && ctx.records.length > 2),
 	dependsOn: [
 		"pagination.page-walk-covers-set",

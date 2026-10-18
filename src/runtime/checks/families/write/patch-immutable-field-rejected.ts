@@ -9,7 +9,7 @@ import { judgeRefusal } from "../../planning/refusal.ts"
 import { standDownForFeatureGate } from "../../planning/stand-down.ts"
 import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
 
-export const immutableRejected = /* @__PURE__ */ defineCheck<{
+export const immutableRejected = defineCheck<{
 	field: string
 	updateOp: OperationModel
 	readOp: OperationModel

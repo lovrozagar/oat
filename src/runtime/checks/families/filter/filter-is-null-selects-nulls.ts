@@ -17,7 +17,7 @@ function mixedNullField(ctx: CheckContext, field: string): boolean {
 	return holdsSomeNulls(ctx, field)
 }
 
-export const filterIsNullSelectsNulls = /* @__PURE__ */ defineCheck<{
+export const filterIsNullSelectsNulls = defineCheck<{
 	field: EffectiveFilterField
 	nullTerm: Record<string, string>
 	notNullTerm: Record<string, string>

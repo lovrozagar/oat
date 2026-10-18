@@ -7,7 +7,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, q, resolvedCaps } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const searchModeAccepted = /* @__PURE__ */ defineCheck({
+export const searchModeAccepted = defineCheck({
 	plan: (ctx) =>
 		when(
 			conv(ctx).searchMode !== undefined &&

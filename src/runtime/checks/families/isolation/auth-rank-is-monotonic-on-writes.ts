@@ -25,7 +25,7 @@ const judgeWrite = (exchange: Exchange): WriteVerdict => ({
  * Each principal sharing the writer's tenant tries each write once, on a record made for the
  * try: creates go through the create operation, updates and deletes hit a scratch record each.
  */
-export const rankIsMonotonicOnWrites = /* @__PURE__ */ defineCheck<{ home: Actor[] }>({
+export const rankIsMonotonicOnWrites = defineCheck<{ home: Actor[] }>({
 	plan: (ctx) => {
 		const primary = ctx.actors[0]
 		if (primary === undefined || ctx.createOp === undefined) return cannot()

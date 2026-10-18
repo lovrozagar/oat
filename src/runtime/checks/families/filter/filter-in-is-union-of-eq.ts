@@ -9,7 +9,7 @@ import { ids } from "../../sets/list.ts"
 import type { SetRead } from "../../sets/read.ts"
 import { pickFieldForOp } from "./fields.ts"
 
-export const filterInIsUnionOfEq = /* @__PURE__ */ defineCheck<{
+export const filterInIsUnionOfEq = defineCheck<{
 	field: string
 	a: unknown
 	b: unknown

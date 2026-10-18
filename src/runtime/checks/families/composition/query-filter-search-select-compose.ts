@@ -11,7 +11,7 @@ import { overlapPlan, projectionPlan, type Subset } from "./plans.ts"
  * A filter, a search and a select must compose: projecting columns must not change the
  * intersection of filter and search.
  */
-export const filterSearchSelectCompose = /* @__PURE__ */ defineCheck<
+export const filterSearchSelectCompose = defineCheck<
 	Subset & { token: string; extra: string; projection: Record<string, string> }
 >({
 	plan: (ctx) =>

@@ -12,7 +12,7 @@ import { standDownForFeatureGate } from "../../planning/stand-down.ts"
 import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
 import { NO_RECORD } from "./records.ts"
 
-export const patchMinimality = /* @__PURE__ */ defineCheck<{
+export const patchMinimality = defineCheck<{
 	createOp: OperationModel
 	updateOp: OperationModel
 	readOp: OperationModel

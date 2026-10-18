@@ -16,7 +16,7 @@ import { readSet } from "../../sets/read.ts"
  * and no error. Two invented names are sent — one plain, one shaped like a real parameter with a
  * typo — and each answer compared, as a whole set, with the listing asked for without it.
  */
-export const unknownParameterConsistent = /* @__PURE__ */ defineCheck<{ names: string[] }>({
+export const unknownParameterConsistent = defineCheck<{ names: string[] }>({
 	plan: (ctx) => {
 		if (ctx.records.length === 0) return cannot()
 		const real = conv(ctx).limit ?? conv(ctx).page ?? conv(ctx).order ?? "limit"

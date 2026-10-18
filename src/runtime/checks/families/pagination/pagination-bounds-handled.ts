@@ -15,7 +15,7 @@ import { readSet } from "../../sets/read.ts"
  * past the end must hold nothing — a server that serves the last page again there makes every
  * client that pages until an empty page loop forever.
  */
-export const paginationBoundsHandled = /* @__PURE__ */ defineCheck<{
+export const paginationBoundsHandled = defineCheck<{
 	limit: string | undefined
 	page: string | undefined
 }>({

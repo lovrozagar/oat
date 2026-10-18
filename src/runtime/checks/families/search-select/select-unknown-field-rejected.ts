@@ -8,7 +8,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, q, resolvedCaps } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const selectUnknownFieldRejected = /* @__PURE__ */ defineCheck<{
+export const selectUnknownFieldRejected = defineCheck<{
 	policy: NonNullable<NonNullable<EffectiveQueryCapabilities["select"]>["unknown"]>
 	requested: string[]
 	projection: Record<string, string>

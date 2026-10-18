@@ -76,7 +76,7 @@ async function readExchange(
 	return { exchange, operationId, undeclared: exchange.purpose === "probe" ? "probe" : "ordinary" }
 }
 
-export const documentedStatusHonoured = /* @__PURE__ */ defineCheck({
+export const documentedStatusHonoured = defineCheck({
 	plan: (ctx) => when(ctx.model.operations.some((op) => op.entity === ctx.entityName && op.action !== "create")),
 	id: "response.status-is-documented",
 	judgesTranscript: true,

@@ -7,7 +7,7 @@ import { cannot, ready } from "../../core/plan.ts"
 import { itemParamFor, NO_IDENTITY, subjectsOf } from "../../planning/subjects.ts"
 import { tenantBoundary } from "./tenant.ts"
 
-export const crossTenantItemRead = /* @__PURE__ */ defineCheck<{
+export const crossTenantItemRead = defineCheck<{
 	id: string
 	readOp: OperationModel
 	altAuth: () => Record<string, string>

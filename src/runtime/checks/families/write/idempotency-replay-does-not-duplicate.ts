@@ -26,7 +26,7 @@ import { confirmedIdentity } from "./records.ts"
  * Both halves are asserted, because either alone is satisfiable by a broken backend: the replay
  * must return the *original* record, and the collection must not have grown.
  */
-export const idempotentReplay = /* @__PURE__ */ defineCheck<{
+export const idempotentReplay = defineCheck<{
 	createOp: OperationModel
 	header: string
 	schema: Record<string, unknown>

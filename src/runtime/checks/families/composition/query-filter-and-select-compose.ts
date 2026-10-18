@@ -20,9 +20,7 @@ import { projectionPlan, type Subset, subsetPlan } from "./plans.ts"
  * and the same filter with a select must return the same **set**. Identity is always requested
  * so the two sides remain comparable.
  */
-export const filterAndSelectCompose = /* @__PURE__ */ defineCheck<
-	Subset & { extra: string; projection: Record<string, string> }
->({
+export const filterAndSelectCompose = defineCheck<Subset & { extra: string; projection: Record<string, string> }>({
 	plan: (ctx) => {
 		if (!filterable(ctx) || conv(ctx).select === undefined || ctx.records.length <= 2) return cannot()
 		return andThen(subsetPlan(ctx), (subset) =>

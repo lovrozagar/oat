@@ -6,7 +6,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { filterable, q } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const malformedFilterNot5xx = /* @__PURE__ */ defineCheck({
+export const malformedFilterNot5xx = defineCheck({
 	plan: (ctx) => when(filterable(ctx)),
 	id: "error.malformed-filter-not-5xx",
 	needs: "a way to express a filter — a filter expression parameter, or filterable fields",

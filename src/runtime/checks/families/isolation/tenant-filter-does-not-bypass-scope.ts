@@ -8,7 +8,7 @@ import { conv, filterable, filterIdentity, identityIsFilterable, pageSize, q } f
 import { ids, list } from "../../sets/list.ts"
 import { tenantBoundary } from "./tenant.ts"
 
-export const crossTenantFilterBypass = /* @__PURE__ */ defineCheck<{
+export const crossTenantFilterBypass = defineCheck<{
 	id: string
 	tenantTerm: Record<string, string>
 	altAuth: () => Record<string, string>

@@ -10,7 +10,7 @@ import { listAll } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 import { fieldsAllowing } from "./fields.ts"
 
-export const filterIlikeIsCaseInsensitive = /* @__PURE__ */ defineCheck<{
+export const filterIlikeIsCaseInsensitive = defineCheck<{
 	field: EffectiveFilterField
 	sample: string
 	flipped: string

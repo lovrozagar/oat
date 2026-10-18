@@ -37,7 +37,7 @@ function computePickMultiKeyPair(ctx: CheckContext): { primary: string; secondar
 	return null
 }
 
-export const sortMultiKeyTiebreak = /* @__PURE__ */ defineCheck<{
+export const sortMultiKeyTiebreak = defineCheck<{
 	primary: string
 	secondary: string
 	tied: Record_[]

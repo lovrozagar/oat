@@ -12,7 +12,7 @@ import { ids, list } from "../../sets/list.ts"
  * A filter term missing a piece the declared grammar requires must be refused. Dropped instead,
  * the caller gets the whole collection back as though it matched.
  */
-export const filterMalformedTermRejected = /* @__PURE__ */ defineCheck<{
+export const filterMalformedTermRejected = defineCheck<{
 	control: Record<string, string>
 	field: string
 	malformed: Record<string, string>

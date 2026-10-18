@@ -15,7 +15,7 @@ import { standDownForFeatureGate } from "../../planning/stand-down.ts"
 import { isEventStream, subjectsOf } from "../../planning/subjects.ts"
 import { bodyForOp, forOperation, subject } from "./requests.ts"
 
-export const asyncReachesTerminalState = /* @__PURE__ */ defineCheck({
+export const asyncReachesTerminalState = defineCheck({
 	plan: (ctx) => when(ctx.asyncOps.length > 0),
 	mutates: true,
 	id: "async.reaches-terminal-state",

@@ -26,7 +26,7 @@ import { type ActionRun, judgeEffects, missingParams, type Reporter, reportGap }
 import { currentRecords, listOpFor, type Observation, observe } from "./observe.ts"
 import { bodyForOp, forOperation } from "./requests.ts"
 
-export const declaredEffectsOccur = /* @__PURE__ */ defineCheck({
+export const declaredEffectsOccur = defineCheck({
 	plan: (ctx) => when(ctx.effectOps.length > 0),
 	/* An effect is counted by reading whole sets before and after, across pages. */
 	dependsOn: ["list.read-after-write", "pagination.page-walk-covers-set"],

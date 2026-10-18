@@ -16,7 +16,7 @@ import { nullableField } from "../../query/order.ts"
 import { collectSet } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 
-export const negationPartitions = /* @__PURE__ */ defineCheck<{
+export const negationPartitions = defineCheck<{
 	field: string
 	value: string
 	eqTerm: Record<string, string>

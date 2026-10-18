@@ -22,7 +22,7 @@ function containsField(ctx: CheckContext): EffectiveFilterField | undefined {
 	)
 }
 
-export const filterContainsMembership = /* @__PURE__ */ defineCheck<{
+export const filterContainsMembership = defineCheck<{
 	field: EffectiveFilterField
 	element: string
 	term: Record<string, string>

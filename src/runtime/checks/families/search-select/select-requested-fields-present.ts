@@ -6,7 +6,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, q } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const selectRequestedFieldsPresent = /* @__PURE__ */ defineCheck<{
+export const selectRequestedFieldsPresent = defineCheck<{
 	requested: string[]
 	projection: Record<string, string>
 }>({

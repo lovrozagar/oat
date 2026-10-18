@@ -7,7 +7,7 @@ import { NO_IDENTITY, subjectsOf } from "../../planning/subjects.ts"
 import { conv, filterable, filterIdentity, identityIsFilterable, pageSize, q } from "../../query/capabilities.ts"
 import { ids, list } from "../../sets/list.ts"
 
-export const equalityFilterSelectsOne = /* @__PURE__ */ defineCheck<{
+export const equalityFilterSelectsOne = defineCheck<{
 	id: string
 	field: string
 	term: Record<string, string>

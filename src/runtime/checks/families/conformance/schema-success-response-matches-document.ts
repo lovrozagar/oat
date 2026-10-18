@@ -7,7 +7,7 @@ import { cannot, ready } from "../../core/plan.ts"
 import { createExchange } from "../../payloads/body.ts"
 import { isEventStream, subjectsOf } from "../../planning/subjects.ts"
 
-export const successSchemaHonoured = /* @__PURE__ */ defineCheck<{
+export const successSchemaHonoured = defineCheck<{
 	createOp: OperationModel
 	validator: SchemaValidator
 	raw: OperationObject

@@ -6,7 +6,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, pageSize, q } from "../../query/capabilities.ts"
 import { listAll, sameSet, setOf } from "../../sets/compare.ts"
 
-export const querySearchAndSelectCompose = /* @__PURE__ */ defineCheck<{
+export const querySearchAndSelectCompose = defineCheck<{
 	field: string
 	token: string
 	requested: string[]

@@ -12,7 +12,7 @@ import { envelopeValue, list } from "../../sets/list.ts"
  * separate query answering a different question, and every UI that renders "N results" from it
  * shows a number contradicted by the rows directly beneath.
  */
-export const countIsConsistentWithPage = /* @__PURE__ */ defineCheck({
+export const countIsConsistentWithPage = defineCheck({
 	plan: (ctx) => when(ctx.records.length > 0),
 	dependsOn: ["list.read-after-write"],
 	id: "count.consistent-with-returned-page",

@@ -11,7 +11,7 @@ function firstFilterable(ctx: CheckContext, predicate: (name: string) => boolean
 	return filterableNames(ctx).find(predicate) ?? null
 }
 
-export const likeEscaping = /* @__PURE__ */ defineCheck<{ field: string; likeTerm: Record<string, string> }>({
+export const likeEscaping = defineCheck<{ field: string; likeTerm: Record<string, string> }>({
 	plan: (ctx) => {
 		if (!filterable(ctx) || ctx.records.length <= 1) return cannot()
 		const field = firstFilterable(ctx, (name) => (ctx.query?.searchable ?? []).includes(name))

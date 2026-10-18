@@ -35,7 +35,7 @@ import { knownHits } from "./fields.ts"
  * "10" < "9" — so `amount.gt.9` silently omits 10, 20 and 100. The result is a plausible-looking
  * subset rather than an error, which is why it survives in production.
  */
-export const numericComparisonIsNumeric = /* @__PURE__ */ defineCheck<{
+export const numericComparisonIsNumeric = defineCheck<{
 	field: string
 	threshold: number
 	expected: string[]

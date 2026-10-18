@@ -26,7 +26,7 @@ import { readSet } from "../../sets/read.ts"
  * Only routes belonging to a different entity are probed. This entity's own listing is already
  * covered by read-after-write, and re-asserting it here would report one defect twice.
  */
-export const declaredInvalidationHappens = /* @__PURE__ */ defineCheck<{
+export const declaredInvalidationHappens = defineCheck<{
 	createOp: OperationModel
 	foreign: OperationModel[]
 	schema: Record<string, unknown>

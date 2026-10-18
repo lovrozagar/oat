@@ -5,7 +5,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, pageSize, q } from "../../query/capabilities.ts"
 import { listAll, sameSet, setOf } from "../../sets/compare.ts"
 
-export const searchTokensAnd = /* @__PURE__ */ defineCheck<{ a: string; b: string }>({
+export const searchTokensAnd = defineCheck<{ a: string; b: string }>({
 	plan: (ctx) => {
 		const field = ctx.query?.searchable[0]
 		if (conv(ctx).search === undefined || field === undefined || ctx.records.length <= 2) return cannot()

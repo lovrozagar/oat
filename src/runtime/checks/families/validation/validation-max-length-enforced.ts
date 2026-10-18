@@ -9,7 +9,7 @@ import { standDownForFeatureGate } from "../../planning/stand-down.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { type ConstrainedField, type CreateBody, createBodyPlan, findConstrained } from "./bodies.ts"
 
-export const maxLengthValidated = /* @__PURE__ */ defineCheck<CreateBody & { target: ConstrainedField }>({
+export const maxLengthValidated = defineCheck<CreateBody & { target: ConstrainedField }>({
 	plan: (ctx) =>
 		andThen(createBodyPlan(ctx), (create) => {
 			const target = findConstrained(

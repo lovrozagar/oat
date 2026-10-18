@@ -17,7 +17,7 @@ import { projectionBeside, sortFieldBeside, type Subset, subsetPlan } from "./pl
  * dropped — passes every pair check. The oracle is the same membership property as the
  * pairs: the filter alone and the filter with both extras must return the same set.
  */
-export const filterSortSelectCompose = /* @__PURE__ */ defineCheck<
+export const filterSortSelectCompose = defineCheck<
 	Subset & { extra: string; projection: Record<string, string>; sortField: string }
 >({
 	plan: (ctx) =>

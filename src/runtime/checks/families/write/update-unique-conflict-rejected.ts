@@ -20,7 +20,7 @@ import { pageSize, q } from "../../query/capabilities.ts"
 import { type Listing, listAll } from "../../sets/compare.ts"
 import { liveRecord } from "./records.ts"
 
-export const uniqueConflictUpdate = /* @__PURE__ */ defineCheck<{
+export const uniqueConflictUpdate = defineCheck<{
 	first: Record_
 	sets: string[][]
 	updateOp: OperationModel

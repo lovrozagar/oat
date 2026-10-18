@@ -38,7 +38,7 @@ async function teardownCreatedId(ctx: WriteContext, id: string): Promise<void> {
 	}
 }
 
-export const uniqueConflictCreate = /* @__PURE__ */ defineCheck<{
+export const uniqueConflictCreate = defineCheck<{
 	createOp: OperationModel
 	first: Record_
 	schema: Record<string, unknown>

@@ -47,7 +47,7 @@ function typedSentinel(ctx: CheckContext, field: EffectiveFilterField): string |
 	return made.ok && (typeof made.value === "string" || typeof made.value === "number") ? made.value : null
 }
 
-export const declaredFilterableOpsAccepted = /* @__PURE__ */ defineCheck({
+export const declaredFilterableOpsAccepted = defineCheck({
 	plan: (ctx) =>
 		when(
 			ctx.query?.source === "tag" &&

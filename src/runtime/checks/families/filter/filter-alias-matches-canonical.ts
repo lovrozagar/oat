@@ -8,7 +8,7 @@ import { asTermValue, conv, filterable, FOUNDATIONS, MOVING_FILTER, resolvedCaps
 import { readSettled, sameSet, setOf } from "../../sets/compare.ts"
 import type { SetRead } from "../../sets/read.ts"
 
-export const filterAliasMatchesCanonical = /* @__PURE__ */ defineCheck({
+export const filterAliasMatchesCanonical = defineCheck({
 	plan: (ctx) => when(Object.keys(resolvedCaps(ctx).aliases).length > 0 && filterable(ctx)),
 	dependsOn: ["query.filter-selects-from-whole-set", ...FOUNDATIONS, "filter.equality-selects-exactly-one"],
 	id: "filter.alias-matches-canonical",

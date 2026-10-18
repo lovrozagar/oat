@@ -10,7 +10,7 @@ import { list } from "../../sets/list.ts"
  * A page size the document says is refused when out of range — `limitOutOfRange: reject` — must be
  * refused. Clamping is a fine contract too, which is why nothing is judged without the declaration.
  */
-export const limitBoundsEnforced = /* @__PURE__ */ defineCheck<{ limitParam: string; max: number }>({
+export const limitBoundsEnforced = defineCheck<{ limitParam: string; max: number }>({
 	plan: (ctx) => {
 		const max = ctx.query?.maxLimit
 		const limitParam = conv(ctx).limit

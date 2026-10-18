@@ -7,7 +7,7 @@ import { conv, pageSize, q } from "../../query/capabilities.ts"
 import { observeTextOrder, sortedUnder } from "../../query/order.ts"
 import { list } from "../../sets/list.ts"
 
-export const orderChangesResult = /* @__PURE__ */ defineCheck<{ field: string }>({
+export const orderChangesResult = defineCheck<{ field: string }>({
 	plan: (ctx) => {
 		const field = ctx.query?.sortable.find((f) => f !== ctx.identity) ?? ctx.query?.sortable[0]
 		return field === undefined || ctx.records.length <= 2 ? cannot() : ready({ field })

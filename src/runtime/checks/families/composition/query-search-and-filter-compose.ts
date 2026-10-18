@@ -19,7 +19,7 @@ import { overlapPlan, type Subset } from "./plans.ts"
  * already selected, dropping the filter is invisible — the combined set still equals the
  * intersection. The token is chosen so each axis matches something the other does not.
  */
-export const searchAndFilterCompose = /* @__PURE__ */ defineCheck<Subset & { token: string }>({
+export const searchAndFilterCompose = defineCheck<Subset & { token: string }>({
 	plan: (ctx) =>
 		andThen(
 			when(

@@ -9,7 +9,7 @@ import { conv, FOUNDATIONS, pageSize, q, resolvedCaps } from "../../query/capabi
 import { ids, list } from "../../sets/list.ts"
 import { pickFieldForOp } from "./fields.ts"
 
-export const filterEmptyIn = /* @__PURE__ */ defineCheck<{
+export const filterEmptyIn = defineCheck<{
 	field: string
 	policy: NonNullable<EffectiveQueryCapabilities["emptyIn"]>
 	term: Record<string, string>

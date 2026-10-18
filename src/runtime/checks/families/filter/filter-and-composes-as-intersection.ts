@@ -12,7 +12,7 @@ import { type Compound, compoundPlan, readComposed } from "./compound.ts"
  * combinator its own set-algebra property, needing no ground truth just like the rest: a
  * conjunction of two predicates must select exactly the intersection of what each selects alone.
  */
-export const filterAndComposesAsIntersection = /* @__PURE__ */ defineCheck<Compound>({
+export const filterAndComposesAsIntersection = defineCheck<Compound>({
 	plan: (ctx) => (filterable(ctx) && (ctx.query?.filterable.length ?? 0) > 1 ? compoundPlan(ctx, andTerm) : cannot()),
 	dependsOn: [
 		"query.filter-selects-from-whole-set",

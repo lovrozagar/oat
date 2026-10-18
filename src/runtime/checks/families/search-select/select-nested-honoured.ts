@@ -7,7 +7,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, q, resolvedCaps } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const selectNestedHonoured = /* @__PURE__ */ defineCheck<{
+export const selectNestedHonoured = defineCheck<{
 	relation: { name: string; fields: string[] }
 	first: string
 	projection: Record<string, string>

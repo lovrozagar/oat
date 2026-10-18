@@ -7,7 +7,7 @@ import { conv, MOVING, pageSize, q } from "../../query/capabilities.ts"
 import { sortedUnder } from "../../query/order.ts"
 import { listAgain, listAll, sameSet, setOf, settlePair } from "../../sets/compare.ts"
 
-export const querySearchAndSortCompose = /* @__PURE__ */ defineCheck<{
+export const querySearchAndSortCompose = defineCheck<{
 	searchField: string
 	sortField: string
 	token: string

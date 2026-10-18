@@ -7,7 +7,7 @@ import { cannot, ready } from "../../core/plan.ts"
 import { createExchange, requestSchemaOf } from "../../payloads/body.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 
-export const createPersistsFields = /* @__PURE__ */ defineCheck<{
+export const createPersistsFields = defineCheck<{
 	createOp: OperationModel
 	properties: Record<string, Record<string, unknown>>
 }>({

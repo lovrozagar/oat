@@ -15,7 +15,7 @@ import { overlapPlan, sortFieldBeside, type Subset } from "./plans.ts"
  * The search-index path that also tries to honour an ORDER BY is a common place to drop the
  * structured predicate. Pairwise, filter+search and filter+sort both hold; together they do not.
  */
-export const filterSearchSortCompose = /* @__PURE__ */ defineCheck<Subset & { token: string; sortField: string }>({
+export const filterSearchSortCompose = defineCheck<Subset & { token: string; sortField: string }>({
 	plan: (ctx) =>
 		andThen(
 			when(

@@ -26,7 +26,7 @@ import { list } from "../../sets/list.ts"
  * This also closes a silent-skip: every filter check treats a 4xx as a capability statement and
  * stands down, which is right when the field was merely inferred and wrong when it was declared.
  */
-export const declaredFilterableWorks = /* @__PURE__ */ defineCheck({
+export const declaredFilterableWorks = defineCheck({
 	plan: (ctx) =>
 		when(
 			conv(ctx).filter !== undefined &&

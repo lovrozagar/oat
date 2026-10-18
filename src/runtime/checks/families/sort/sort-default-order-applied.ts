@@ -6,7 +6,7 @@ import { MOVING, pageSize, resolvedCaps } from "../../query/capabilities.ts"
 import { collectSet, settlePair } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 
-export const sortDefaultOrderApplied = /* @__PURE__ */ defineCheck<{ defaultOrder: string }>({
+export const sortDefaultOrderApplied = defineCheck<{ defaultOrder: string }>({
 	plan: (ctx) => {
 		const defaultOrder = resolvedCaps(ctx).sort?.defaultOrder ?? ctx.query?.defaultOrder
 		return defaultOrder === undefined || ctx.records.length <= 1 ? cannot() : ready({ defaultOrder })

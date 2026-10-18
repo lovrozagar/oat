@@ -7,7 +7,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, pageSize, q } from "../../query/capabilities.ts"
 import { ids, list } from "../../sets/list.ts"
 
-export const unknownFilterRejected = /* @__PURE__ */ defineCheck<{ unknownField: Record<string, string> }>({
+export const unknownFilterRejected = defineCheck<{ unknownField: Record<string, string> }>({
 	/*
 	 * Deliberately narrower than `filterable`: this asserts that a *filter expression* naming a
 	 * field the document does not declare is rejected rather than dropped.

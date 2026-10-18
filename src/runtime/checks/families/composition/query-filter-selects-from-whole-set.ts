@@ -51,7 +51,7 @@ async function walkBothWays(
  * pushed to the server. A backend that filters before paging returns the same set both times. One
  * that pages first returns a subset, and the difference is exactly the records it skipped.
  */
-export const filterAndPagingCompose = /* @__PURE__ */ defineCheck<Subset & { value: unknown }>({
+export const filterAndPagingCompose = defineCheck<Subset & { value: unknown }>({
 	plan: (ctx) =>
 		andThen(when(filterable(ctx) && ctx.records.length > 2), () =>
 			andThen(subsetPlan(ctx), (subset) => ready({ ...subset, value: subset.target[subset.field] })),

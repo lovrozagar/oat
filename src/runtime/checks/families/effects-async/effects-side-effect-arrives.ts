@@ -18,7 +18,7 @@ import { bodyForOp, forOperation, subject } from "./requests.ts"
  * After a write that declares `x-wait`, poll the named GET until a JSON path is occupied
  * (or `awaitSideEffect` returns true). Timeout is a backend finding, not a coverage gap.
  */
-export const sideEffectArrives = /* @__PURE__ */ defineCheck({
+export const sideEffectArrives = defineCheck({
 	plan: (ctx) => when(ctx.waitOps.length > 0),
 	dependsOn: ["list.read-after-write"],
 	mutates: true,

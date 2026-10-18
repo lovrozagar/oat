@@ -23,7 +23,7 @@ import { tenantBoundary } from "./tenant.ts"
  * rows` — must be as unknown as a parent that never existed. Reading the children through it, or
  * writing a child under it, crosses the boundary one level down from where it is usually guarded.
  */
-export const foreignParentRejected = /* @__PURE__ */ defineCheck<{
+export const foreignParentRejected = defineCheck<{
 	altAuth: () => Record<string, string>
 	mixed: Record<string, string>
 	tenantParam: string

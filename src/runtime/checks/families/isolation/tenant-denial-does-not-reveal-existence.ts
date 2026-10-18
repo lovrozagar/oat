@@ -21,7 +21,7 @@ import { tenantBoundary } from "./tenant.ts"
  * The comparison is what makes this decidable without knowing the backend's policy. Whichever
  * status it picks is fine; picking two different ones is not.
  */
-export const denialDoesNotRevealExistence = /* @__PURE__ */ defineCheck<{
+export const denialDoesNotRevealExistence = defineCheck<{
 	target: Record_
 	readOp: OperationModel
 	altAuth: () => Record<string, string>

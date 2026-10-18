@@ -11,7 +11,7 @@ import { collectSet, settlePair } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 import type { SetRead } from "../../sets/read.ts"
 
-export const sortReverseSymmetry = /* @__PURE__ */ defineCheck<{ field: string }>({
+export const sortReverseSymmetry = defineCheck<{ field: string }>({
 	plan: (ctx) => {
 		if (ctx.records.length <= 1) return cannot()
 		/* A nullable sort key exercises null ordering, where the interesting bugs live. */

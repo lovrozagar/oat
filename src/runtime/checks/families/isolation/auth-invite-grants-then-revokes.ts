@@ -23,7 +23,7 @@ import {
  * A grant that appears before accept, never appears, or survives revoke is a different bug
  * at the same check — the timeline is the property.
  */
-export const inviteGrantsThenRevokes = /* @__PURE__ */ defineCheck<InvitePlan>({
+export const inviteGrantsThenRevokes = defineCheck<InvitePlan>({
 	mutates: true,
 	plan: (ctx) => {
 		const spec = ctx.invite

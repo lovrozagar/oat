@@ -8,7 +8,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, filterIdentity, FOUNDATIONS, identityIsFilterable, q, resolvedCaps } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const filterConditionCapRejected = /* @__PURE__ */ defineCheck<{ max: number; overCap: FilterQuery }>({
+export const filterConditionCapRejected = defineCheck<{ max: number; overCap: FilterQuery }>({
 	plan: (ctx) => {
 		const max = resolvedCaps(ctx).maxFilterConditions
 		const conventions = conv(ctx)

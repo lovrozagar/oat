@@ -13,7 +13,7 @@ import { list } from "../../sets/list.ts"
  * `x-query.selectable` is a promise too, and a sparse fieldset the backend rejects breaks every
  * client generated from the document exactly the same way a rejected filter or sort does.
  */
-export const declaredSelectableWorks = /* @__PURE__ */ defineCheck({
+export const declaredSelectableWorks = defineCheck({
 	plan: (ctx) =>
 		when(
 			conv(ctx).select !== undefined &&

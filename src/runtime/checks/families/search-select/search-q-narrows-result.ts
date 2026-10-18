@@ -5,7 +5,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, pageSize, q } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const searchNarrowsResult = /* @__PURE__ */ defineCheck<{ field: string }>({
+export const searchNarrowsResult = defineCheck<{ field: string }>({
 	plan: (ctx) => {
 		const field = ctx.query?.searchable[0]
 		return conv(ctx).search === undefined || field === undefined || ctx.records.length <= 2

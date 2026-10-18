@@ -10,7 +10,7 @@ import { ids } from "../../sets/list.ts"
 import type { SetRead } from "../../sets/read.ts"
 import { pickOrderedField } from "./fields.ts"
 
-export const filterOrderedTriplePartitions = /* @__PURE__ */ defineCheck<{
+export const filterOrderedTriplePartitions = defineCheck<{
 	field: string
 	threshold: number
 	lt: Record<string, string>

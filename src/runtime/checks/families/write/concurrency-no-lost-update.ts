@@ -19,7 +19,7 @@ import { NO_RECORD } from "./records.ts"
  * reinstates whatever it read, so the later write silently reverts the earlier one. No error is
  * returned to either caller, which is what makes it so hard to notice from the outside.
  */
-export const noLostUpdate = /* @__PURE__ */ defineCheck<{ updateOp: OperationModel; readOp: OperationModel }>({
+export const noLostUpdate = defineCheck<{ updateOp: OperationModel; readOp: OperationModel }>({
 	plan: (ctx) => {
 		const { readOp, updateOp } = ctx
 		if (updateOp === undefined || readOp === undefined || ctx.createOp === undefined) return cannot()

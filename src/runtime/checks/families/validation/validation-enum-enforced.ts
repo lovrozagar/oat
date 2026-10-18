@@ -9,7 +9,7 @@ import { standDownForFeatureGate } from "../../planning/stand-down.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { type ConstrainedField, type CreateBody, createBodyPlan, findConstrained } from "./bodies.ts"
 
-export const enumValidated = /* @__PURE__ */ defineCheck<CreateBody & { target: ConstrainedField }>({
+export const enumValidated = defineCheck<CreateBody & { target: ConstrainedField }>({
 	plan: (ctx) =>
 		andThen(createBodyPlan(ctx), (create) => {
 			const target = findConstrained(create.schema, (s) => Array.isArray(s.enum) && s.enum.length > 0)

@@ -19,7 +19,7 @@ import { tenantBoundary } from "./tenant.ts"
  * on a record made for it: the other tenant patches a field, then deletes the record, and the
  * owner reads it back. A refusal of either is right; a change or a deletion that took is the leak.
  */
-export const crossTenantItemWrite = /* @__PURE__ */ defineCheck<{
+export const crossTenantItemWrite = defineCheck<{
 	readOp: OperationModel
 	altAuth: () => Record<string, string>
 	updateOp: OperationModel | undefined

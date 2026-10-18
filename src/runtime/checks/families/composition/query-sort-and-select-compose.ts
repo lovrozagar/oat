@@ -7,7 +7,7 @@ import { conv, q } from "../../query/capabilities.ts"
 import { sortedUnder } from "../../query/order.ts"
 import { list } from "../../sets/list.ts"
 
-export const querySortAndSelectCompose = /* @__PURE__ */ defineCheck<{
+export const querySortAndSelectCompose = defineCheck<{
 	field: string
 	requested: string[]
 	projection: Record<string, string>

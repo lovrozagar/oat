@@ -16,7 +16,7 @@ import { ownOps } from "../../planning/subjects.ts"
  * Grouped by category rather than reported per request: the point is "the declared rate for X is
  * wrong", once, not one finding for every request that category serves.
  */
-export const declaredRateLimitHonoured = /* @__PURE__ */ defineCheck({
+export const declaredRateLimitHonoured = defineCheck({
 	plan: (ctx) =>
 		when(
 			ctx.model.operations.some(

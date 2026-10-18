@@ -12,7 +12,7 @@ import { type ListResult } from "../../sets/list.ts"
 
 /* -------------------------------------------------------------------- checks */
 
-export const readAfterWrite = /* @__PURE__ */ defineCheck<{ id: string }>({
+export const readAfterWrite = defineCheck<{ id: string }>({
 	plan: (ctx) => {
 		const id = idOf(ctx.records[0], ctx.identity)
 		return ctx.createOp === undefined || id === undefined ? cannot(NO_IDENTITY) : ready({ id })

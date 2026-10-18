@@ -5,7 +5,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, q } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const limitBoundsPageSize = /* @__PURE__ */ defineCheck({
+export const limitBoundsPageSize = defineCheck({
 	plan: (ctx) => when(conv(ctx).limit !== undefined && ctx.records.length > 2),
 	dependsOn: ["list.read-after-write"],
 	id: "pagination.limit-bounds-page-size",

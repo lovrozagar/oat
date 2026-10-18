@@ -7,7 +7,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, filterable, filterIdentity, identityIsFilterable, pageSize, q } from "../../query/capabilities.ts"
 import { envelopeValue, list } from "../../sets/list.ts"
 
-export const countMatchesWalk = /* @__PURE__ */ defineCheck<{ countTerm: Record<string, string> }>({
+export const countMatchesWalk = defineCheck<{ countTerm: Record<string, string> }>({
 	plan: (ctx) => {
 		if (ctx.records.length <= 1 || !filterable(ctx) || !identityIsFilterable(ctx)) return cannot()
 		const targetId = idOf(ctx.records[0], ctx.identity)

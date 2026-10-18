@@ -6,7 +6,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, q } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const selectProjection = /* @__PURE__ */ defineCheck<{
+export const selectProjection = defineCheck<{
 	requested: string[]
 	projection: Record<string, string>
 }>({

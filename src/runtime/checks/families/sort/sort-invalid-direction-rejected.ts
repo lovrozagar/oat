@@ -15,7 +15,7 @@ const UNKNOWN_DIRECTION = "oatsideways"
  * A sort direction the declared grammar does not have must be refused. Read as ascending instead,
  * a caller asking for an order the backend cannot give gets a different one and is never told.
  */
-export const sortInvalidDirectionRejected = /* @__PURE__ */ defineCheck<{ control: string; order: string }>({
+export const sortInvalidDirectionRejected = defineCheck<{ control: string; order: string }>({
 	plan: (ctx) => {
 		const conventions = conv(ctx)
 		if (conventions.order === undefined || conventions.sortDeclared !== true) return cannot()

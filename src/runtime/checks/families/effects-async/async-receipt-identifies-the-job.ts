@@ -6,7 +6,7 @@ import { when } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { forOperation } from "./requests.ts"
 
-export const asyncReceiptIsResolvable = /* @__PURE__ */ defineCheck({
+export const asyncReceiptIsResolvable = defineCheck({
 	plan: (ctx) => when(ctx.asyncOps.some((op) => op.async?.idFrom !== undefined)),
 	id: "async.receipt-identifies-the-job",
 	judgesTranscript: true,

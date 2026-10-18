@@ -7,7 +7,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, q } from "../../query/capabilities.ts"
 import { ids, list } from "../../sets/list.ts"
 
-export const sortUnknownFieldRejected = /* @__PURE__ */ defineCheck({
+export const sortUnknownFieldRejected = defineCheck({
 	plan: (ctx) => when(conv(ctx).order !== undefined),
 	dependsOn: ["error.malformed-filter-not-5xx"],
 	id: "sort.unknown-field-rejected",

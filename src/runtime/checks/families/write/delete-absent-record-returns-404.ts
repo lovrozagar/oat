@@ -8,7 +8,7 @@ import { asProbe } from "../../planning/refusal.ts"
 import { standDownForFeatureGate } from "../../planning/stand-down.ts"
 import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
 
-export const deleteMissingIs404 = /* @__PURE__ */ defineCheck<{ deleteOp: OperationModel; missing: string }>({
+export const deleteMissingIs404 = defineCheck<{ deleteOp: OperationModel; missing: string }>({
 	plan: (ctx) => {
 		if (ctx.deleteOp === undefined) return cannot()
 		const missing = absentId(ctx)

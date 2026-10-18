@@ -11,7 +11,7 @@ function listedRowMatches(listed: Record<string, unknown>, body: unknown): boole
 }
 
 /** A list with no create still has a get. The get body is the row the list already returned. */
-export const listedRowIsTheGet = /* @__PURE__ */ defineCheck<{ id: string; listed: Record<string, unknown> }>({
+export const listedRowIsTheGet = defineCheck<{ id: string; listed: Record<string, unknown> }>({
 	plan: (ctx) => {
 		if (ctx.readOp === undefined || ctx.createOp !== undefined) return cannot()
 		const listed = ctx.records[0]

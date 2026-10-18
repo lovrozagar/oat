@@ -6,7 +6,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const limitRespectsMax = /* @__PURE__ */ defineCheck<{ max: number; limitParam: string }>({
+export const limitRespectsMax = defineCheck<{ max: number; limitParam: string }>({
 	plan: (ctx) => {
 		const max = ctx.query?.maxLimit
 		const limitParam = conv(ctx).limit

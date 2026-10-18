@@ -8,7 +8,7 @@ import { conv, FOUNDATIONS, q, resolvedCaps } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 import { pickFieldForOp } from "./fields.ts"
 
-export const filterInOverLimitRejected = /* @__PURE__ */ defineCheck<{
+export const filterInOverLimitRejected = defineCheck<{
 	field: string
 	max: number
 	term: Record<string, string>

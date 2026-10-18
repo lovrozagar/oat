@@ -7,7 +7,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, pageSize, q, resolvedCaps } from "../../query/capabilities.ts"
 import { listAll, sameSet, setOf } from "../../sets/compare.ts"
 
-export const searchEmptyQ = /* @__PURE__ */ defineCheck<{
+export const searchEmptyQ = defineCheck<{
 	policy: NonNullable<EffectiveQueryCapabilities["searchEmpty"]>
 }>({
 	plan: (ctx) => {

@@ -11,7 +11,7 @@ import { standDownForFeatureGate } from "../../planning/stand-down.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { type CreateBody, createBodyPlan } from "./bodies.ts"
 
-export const contentTypeEnforced = /* @__PURE__ */ defineCheck<CreateBody>({
+export const contentTypeEnforced = defineCheck<CreateBody>({
 	plan: (ctx) =>
 		ctx.createOp !== undefined && documentsStatus(ctx.createOp.statuses, 415) ? createBodyPlan(ctx) : cannot(),
 	mutates: true,

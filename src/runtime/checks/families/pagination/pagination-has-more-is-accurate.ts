@@ -5,7 +5,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { pageable, q } from "../../query/capabilities.ts"
 import { envelopeValue, list } from "../../sets/list.ts"
 
-export const hasMoreIsAccurate = /* @__PURE__ */ defineCheck({
+export const hasMoreIsAccurate = defineCheck({
 	plan: (ctx) => when(pageable(ctx) && ctx.records.length > 2),
 	dependsOn: ["pagination.limit-bounds-page-size"],
 	id: "pagination.has-more-is-accurate",

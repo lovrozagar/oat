@@ -7,7 +7,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, pageSize, resolvedCaps } from "../../query/capabilities.ts"
 import { collectSet } from "../../sets/compare.ts"
 
-export const sortNullsFirstLast = /* @__PURE__ */ defineCheck<{
+export const sortNullsFirstLast = defineCheck<{
 	field: EffectiveFilterField
 	firstClause: string | null
 	lastClause: string | null

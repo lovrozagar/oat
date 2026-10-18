@@ -38,7 +38,7 @@ type IllegalOpProbe = {
 	control: Record<string, string>
 }
 
-export const filterIllegalOpRejected = /* @__PURE__ */ defineCheck<{ probes: IllegalOpProbe[] }>({
+export const filterIllegalOpRejected = defineCheck<{ probes: IllegalOpProbe[] }>({
 	plan: (ctx) => {
 		const probes: IllegalOpProbe[] = []
 		for (const field of resolvedCaps(ctx).filterable) {

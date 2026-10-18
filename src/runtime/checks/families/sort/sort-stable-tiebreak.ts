@@ -10,7 +10,7 @@ import { settlePair } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 import { readSet } from "../../sets/read.ts"
 
-export const sortStableTiebreak = /* @__PURE__ */ defineCheck<{ primary: string; tiebreak: string }>({
+export const sortStableTiebreak = defineCheck<{ primary: string; tiebreak: string }>({
 	plan: (ctx) => {
 		const tiebreak = resolvedCaps(ctx).sort?.stableTiebreak ?? ctx.query?.stableTiebreak
 		if (tiebreak === undefined) return cannot()

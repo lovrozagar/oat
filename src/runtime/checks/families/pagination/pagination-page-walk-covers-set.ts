@@ -37,7 +37,7 @@ function reportUnstableWalks(
 	)
 }
 
-export const pageWalkCoversSet = /* @__PURE__ */ defineCheck({
+export const pageWalkCoversSet = defineCheck({
 	/* Walked by whatever the endpoint pages by — a cursor alone is enough. */
 	plan: (ctx) => when((pageable(ctx) || conv(ctx).cursor !== undefined) && ctx.records.length > 2),
 	dependsOn: [

@@ -13,7 +13,7 @@ import { list } from "../../sets/list.ts"
  * an `order` value the backend rejects breaks every client generated from the document exactly
  * the same way a rejected filter does.
  */
-export const declaredSortableWorks = /* @__PURE__ */ defineCheck({
+export const declaredSortableWorks = defineCheck({
 	plan: (ctx) =>
 		when(
 			conv(ctx).order !== undefined &&

@@ -5,7 +5,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, MOVING, pageSize, q, resolvedCaps } from "../../query/capabilities.ts"
 import { listAgain, listAll, sameSet, setOf, settlePair } from "../../sets/compare.ts"
 
-export const searchCaseInsensitive = /* @__PURE__ */ defineCheck<{ token: string; flipped: string }>({
+export const searchCaseInsensitive = defineCheck<{ token: string; flipped: string }>({
 	plan: (ctx) => {
 		if (conv(ctx).search === undefined) return cannot()
 		/* The first word with a letter, searchable field by field and record by record: a word of

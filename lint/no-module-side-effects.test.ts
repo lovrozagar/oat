@@ -59,3 +59,16 @@ describe("oat/no-module-side-effects", () => {
 		expect(oxlintReports("no-module-side-effects", { "src/runtime/a.ts": "run()\n" }).length).toBe(1)
 	})
 })
+
+describe("oat/no-module-side-effects definers", () => {
+	it("treats a check definition as pure, and still checks what it is given", () => {
+		const fixture = {
+			"src/runtime/checks/families/a.ts": [
+				'export const a = defineCheck({ id: "a", run: () => run() })',
+				"export const b = defineCheck({ id: compute() })",
+				"export const c = other.defineCheck({})",
+			].join("\n"),
+		}
+		expect(reportsOf(rule, fixture).map(({ line }) => line)).toEqual([2, 3])
+	})
+})

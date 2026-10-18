@@ -17,7 +17,7 @@ import { readSettled, sameSet, setOf } from "../../sets/compare.ts"
 import type { SetRead } from "../../sets/read.ts"
 import { twoFilterableFields } from "./compound.ts"
 
-export const filterNestedAndOrDistributes = /* @__PURE__ */ defineCheck<{
+export const filterNestedAndOrDistributes = defineCheck<{
 	nested: Record<string, string>
 	termA: Record<string, string>
 	termB: Record<string, string>

@@ -9,7 +9,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, q, resolvedCaps } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const declaredSortableNullsAccepted = /* @__PURE__ */ defineCheck({
+export const declaredSortableNullsAccepted = defineCheck({
 	plan: (ctx) =>
 		when(
 			conv(ctx).order !== undefined &&

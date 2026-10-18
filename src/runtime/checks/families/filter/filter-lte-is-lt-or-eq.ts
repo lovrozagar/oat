@@ -4,7 +4,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { FOUNDATIONS } from "../../query/capabilities.ts"
 import { assertRangeUnion, rangePlan, type RangeProbe } from "./range.ts"
 
-export const filterLteIsLtOrEq = /* @__PURE__ */ defineCheck<RangeProbe>({
+export const filterLteIsLtOrEq = defineCheck<RangeProbe>({
 	plan: (ctx) => rangePlan(ctx, "lte", "lt"),
 	dependsOn: [
 		"query.filter-selects-from-whole-set",

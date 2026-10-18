@@ -10,7 +10,7 @@ import { ids } from "../../sets/list.ts"
 import type { SetRead } from "../../sets/read.ts"
 import { pickFieldForOp } from "./fields.ts"
 
-export const filterNinComplementsIn = /* @__PURE__ */ defineCheck<{
+export const filterNinComplementsIn = defineCheck<{
 	field: string
 	members: Array<string | number>
 	inTerm: Record<string, string>

@@ -5,7 +5,7 @@ import { cannot, ready } from "../../core/plan.ts"
 import { createExchange } from "../../payloads/body.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 
-export const createStatusMatchesSpec = /* @__PURE__ */ defineCheck<{ createOp: OperationModel; success: string[] }>({
+export const createStatusMatchesSpec = defineCheck<{ createOp: OperationModel; success: string[] }>({
 	plan: (ctx) => {
 		const createOp = ctx.createOp
 		if (createOp === undefined) return cannot()

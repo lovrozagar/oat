@@ -8,7 +8,7 @@ import { standDownForFeatureGate } from "../../planning/stand-down.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { type CreateBody, createBodyPlan } from "./bodies.ts"
 
-export const requiredValidated = /* @__PURE__ */ defineCheck<CreateBody & { field: string }>({
+export const requiredValidated = defineCheck<CreateBody & { field: string }>({
 	plan: (ctx) =>
 		andThen(createBodyPlan(ctx), (create) => {
 			const required = Array.isArray(create.schema.required) ? (create.schema.required as string[]) : []

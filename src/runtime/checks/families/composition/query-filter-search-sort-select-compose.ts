@@ -7,7 +7,7 @@ import { conv, filterable, MOVING_FILTER, pageSize, q } from "../../query/capabi
 import { collectSet, sameSet, setOf, settlePair } from "../../sets/compare.ts"
 import { overlapPlan, selectionPlan, type Subset } from "./plans.ts"
 
-export const queryFilterSearchSortSelectCompose = /* @__PURE__ */ defineCheck<
+export const queryFilterSearchSortSelectCompose = defineCheck<
 	Subset & { token: string; sortField: string; requested: string[]; projection: Record<string, string> }
 >({
 	plan: (ctx) => {

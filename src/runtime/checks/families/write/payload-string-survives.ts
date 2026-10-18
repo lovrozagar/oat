@@ -21,7 +21,7 @@ import {
 	writeField,
 } from "./payload-probe.ts"
 
-export const stringPayloadSurvives = /* @__PURE__ */ defineCheck<{
+export const stringPayloadSurvives = defineCheck<{
 	writeOp: OperationModel
 	readOp: OperationModel
 	field: PayloadField
