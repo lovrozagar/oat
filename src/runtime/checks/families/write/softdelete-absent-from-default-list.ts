@@ -42,7 +42,7 @@ export const softDeleteHidden = /* @__PURE__ */ defineCheck<{ deleteOp: Operatio
 		/* Absence is only proven over the whole listing: a tombstone on page three is still there. */
 		const after = await readSet(ctx, {}, { fresh: true })
 		if (after.status !== "ok") {
-			return ctx.findings.unresolved(this.id, ctx.entityName, after.reason ?? "the listing was rejected")
+			return ctx.findings.unresolved(this.id, ctx.entityName, after.reason)
 		}
 		if (!ids(after.items, ctx.identity).includes(id)) {
 			if (after.complete) return ASSERTED

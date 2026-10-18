@@ -1,15 +1,8 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 import type { Answer, Responder } from "../../__fixtures__/harness.ts"
 import { endlessWhen, pagedDoc, rewriting, without } from "./__fixtures__/composition-b.ts"
 import { backend, NOTES, PARAMS, queryDoc, REJECT, stage } from "./__fixtures__/query-api.ts"
-import { readSet } from "../../sets/read.ts"
 import { unknownParameterConsistent } from "./query-unknown-parameter-consistent.ts"
-
-/* The real set reader, stubbed once where a test needs a read no backend produces. */
-vi.mock("../../sets/read.ts", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("../../sets/read.ts")>()
-	return { ...actual, readSet: vi.fn(actual.readSet) }
-})
 
 const PLAIN = "oat_unknown_parameter"
 const TYPO = "limit_oat_typo"
@@ -103,15 +96,6 @@ describe("query.unknown-parameter-consistent gives up", () => {
 		})
 		const endless = stage(unknownParameterConsistent, { doc: pagedDoc(), respond: endlessWhen() })
 		expect(await endless.run()).toEqual({ kind: "unresolved", reason: "pages repeat the same records" })
-	})
-
-	it("with a reason of its own when the reader gives none", async () => {
-		const last = { envelope: {}, exchange: { status: 200 }, items: [] }
-		vi.mocked(readSet).mockResolvedValueOnce({ complete: false, items: [], last, pages: [], status: "ok" } as never)
-		expect(await stage(unknownParameterConsistent).run()).toEqual({
-			kind: "unresolved",
-			reason: "the plain listing could not be read whole",
-		})
 	})
 
 	it("when a probe is turned away for another reason", async () => {

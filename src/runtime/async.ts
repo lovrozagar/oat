@@ -12,23 +12,30 @@ import type { Client, Exchange } from "./client.ts"
 import { type SseEvent, sseEvents } from "./sse.ts"
 import { fillPath } from "./fill-path.ts"
 
-export interface AsyncOutcome {
-	/**
-	 * How polling ended: a terminal state; the job vanished after it had been served; the poll
-	 * path could not be filled, so the job was never asked about; or time ran out.
-	 */
-	state: "terminal" | "vanished" | "unfillable" | "timed-out"
-	/** Why the poll path could not be filled, when it could not. */
-	unfillable?: string
-	/** Terminal state reached, or null otherwise. */
-	terminal: Record<string, unknown> | null
+/** What polling saw, however it ended. */
+interface Polled {
 	exchanges: Exchange[]
 	polls: number
 	elapsedMs: number
 	timedOut: boolean
-	/** True when `successWhen` matched; false when a terminal-but-failed state was reached. */
-	succeeded: boolean
+	/** Terminal state reached, or null otherwise. */
+	terminal: Record<string, unknown> | null
 }
+
+/**
+ * How polling ended: a terminal state, met or failing `successWhen`; the job vanished after it had
+ * been served; the poll path could not be filled, so the job was never asked about; or time ran out.
+ */
+export type AsyncOutcome = Polled &
+	(
+		| { state: "terminal"; succeeded: true }
+		/** `unmet`: the `successWhen` the terminal state did not satisfy. */
+		| { state: "terminal"; succeeded: false; unmet: string }
+		/** `unfillable`: why the poll path could not be filled. */
+		| { state: "unfillable"; succeeded: false; unfillable: string }
+		| { state: "vanished"; succeeded: false }
+		| { state: "timed-out"; succeeded: false }
+	)
 
 /**
  * A single PostgREST-style predicate, reused here so `until`/`successWhen` speak the same
@@ -187,15 +194,10 @@ export async function driveAsync(
 				const record = body as Record<string, unknown>
 				const done = spec.until === undefined || matchesPredicate(record, spec.until)
 				if (done) {
-					return {
-						elapsedMs: performance.now() - began,
-						exchanges,
-						polls,
-						state: "terminal",
-						succeeded: spec.successWhen === undefined || matchesPredicate(record, spec.successWhen),
-						terminal: record,
-						timedOut: false,
-					}
+					const polled = { elapsedMs: performance.now() - began, exchanges, polls, terminal: record, timedOut: false }
+					return spec.successWhen === undefined || matchesPredicate(record, spec.successWhen)
+						? { ...polled, state: "terminal", succeeded: true }
+						: { ...polled, state: "terminal", succeeded: false, unmet: spec.successWhen }
 				}
 			}
 		} else if (exchange.status === 404 && exchanges.some((prior) => prior.status < 300)) {

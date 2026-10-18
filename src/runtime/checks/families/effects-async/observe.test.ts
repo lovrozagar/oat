@@ -1,13 +1,7 @@
-import { describe, expect, it, vi } from "vitest"
-import { contextFor, exchange, modelOf, op } from "../../__fixtures__/harness.ts"
-import { readSet } from "../../sets/read.ts"
+import { describe, expect, it } from "vitest"
+import { contextFor, modelOf, op } from "../../__fixtures__/harness.ts"
 import { baseDocument, routes } from "./__fixtures__/documents.ts"
 import { currentRecords, listOpFor, observe } from "./observe.ts"
-
-vi.mock("../../sets/read.ts", async (original) => {
-	const actual = await original<typeof import("../../sets/read.ts")>()
-	return { ...actual, readSet: vi.fn(actual.readSet) }
-})
 
 const model = modelOf(baseDocument())
 const seeded = [{ id: "w1", name: "seeded" }]
@@ -80,12 +74,11 @@ describe("observe", () => {
 		expect(sent).toEqual([])
 	})
 
-	it("is an error carrying the failed page when the list fails", async () => {
+	it("is an error carrying the failed page and the read's reason when the list fails", async () => {
 		const { ctx } = contextFor(model, "listWidgets", () => ({ status: 500 }))
 		const seen = await observe(ctx, op(model, "listWidgets"))
-		expect(seen.status).toBe("error")
+		expect(seen).toMatchObject({ reason: "page 1 was answered with 500", status: "error" })
 		expect(seen.status === "error" && seen.exchange.status).toBe(500)
-		expect(seen).not.toHaveProperty("reason")
 	})
 
 	it("is an error with the read's reason when it covered only part of the collection", async () => {
@@ -93,13 +86,5 @@ describe("observe", () => {
 		const { ctx } = contextFor(model, "listWidgets", () => ({ body: [{ name: "e1" }], status: 200 }))
 		const seen = await observe(ctx, op(model, "listEvents"))
 		expect(seen).toMatchObject({ reason: "pages repeat the same records", status: "error" })
-	})
-
-	it("names the read's size as the reason when an incomplete read gives none", async () => {
-		const { ctx } = contextFor(model, "listWidgets", () => undefined)
-		const last = { envelope: {}, exchange: exchange("GET", "/widgets", { status: 200 }), items: [] }
-		vi.mocked(readSet).mockResolvedValueOnce({ complete: false, items: [], last, pages: [last], status: "ok" })
-		const seen = await observe(ctx, op(model, "listWidgets"))
-		expect(seen).toMatchObject({ reason: "the collection is larger than a read covers", status: "error" })
 	})
 })

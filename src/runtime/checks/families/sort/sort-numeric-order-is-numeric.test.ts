@@ -1,23 +1,7 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 import type { Responder } from "../../__fixtures__/harness.ts"
 import { NOTES, PARAMS, queryDoc, REJECT, stage } from "../composition/__fixtures__/query-api.ts"
-import type { SetRead } from "../../sets/read.ts"
 import { sortNumericOrderIsNumeric } from "./sort-numeric-order-is-numeric.ts"
-
-/* A read the next readSet call returns instead of reading: what no real walk produces. */
-const planted = vi.hoisted(() => ({ read: undefined as SetRead | undefined }))
-
-vi.mock("../../sets/read.ts", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("../../sets/read.ts")>()
-	return {
-		...actual,
-		readSet: (...args: Parameters<typeof actual.readSet>) => {
-			const read = planted.read
-			planted.read = undefined
-			return read === undefined ? actual.readSet(...args) : Promise.resolve(read)
-		},
-	}
-})
 
 /* Orders rank by its text: 10 before 2. */
 const byText: Responder = () => ({
@@ -45,15 +29,6 @@ describe("sort.numeric-order-is-numeric judges", () => {
 	it("is unresolved when the sorted listing is refused", async () => {
 		const staged = stage(sortNumericOrderIsNumeric, { respond: () => REJECT })
 		expect(await staged.run()).toEqual({ kind: "unresolved", reason: "page 1 was answered with 400" })
-	})
-})
-
-describe("sort.numeric-order-is-numeric without a stated reason", () => {
-	it("is unresolved with its own reason when an unresolved read gives none", async () => {
-		const staged = stage(sortNumericOrderIsNumeric)
-		planted.read = { complete: false, items: [], pages: [], status: "unresolved" } as unknown as SetRead
-		expect(await staged.run()).toEqual({ kind: "unresolved", reason: "the sorted listing was rejected" })
-		expect(staged.sent).toEqual([])
 	})
 })
 

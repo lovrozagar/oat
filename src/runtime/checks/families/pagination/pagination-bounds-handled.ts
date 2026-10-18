@@ -47,7 +47,7 @@ export const paginationBoundsHandled = /* @__PURE__ */ defineCheck<{
 		if (page === undefined) return ASSERTED
 		const whole = await readSet(ctx, {}, { fresh: true })
 		if (whole.status !== "ok" || !whole.complete) {
-			return ctx.findings.unresolved(this.id, ctx.entityName, whole.reason ?? "the listing could not be read whole")
+			return ctx.findings.unresolved(this.id, ctx.entityName, whole.reason)
 		}
 		const size = pageSize(ctx)
 		/* Past the end at any page size a server may serve — it may clamp below the size asked for,

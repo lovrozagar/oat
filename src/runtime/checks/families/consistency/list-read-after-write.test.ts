@@ -1,24 +1,9 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 import type { CheckContext } from "../../core/context.ts"
 import type { Record_ } from "../../../world.ts"
-import type { SetRead } from "../../sets/read.ts"
 import { contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
 import { readAfterWrite } from "./list-read-after-write.ts"
 import { FULL_LIST, notesBackend, notesDoc, servePage } from "./__fixtures__/notes.ts"
-
-/* A set read the real walk never produces — incomplete with no reason — scripted for one test. */
-const scripted = vi.hoisted(() => ({ read: undefined as SetRead | undefined }))
-vi.mock("../../sets/compare.ts", async (importOriginal) => {
-	const real = await importOriginal<typeof import("../../sets/compare.ts")>()
-	return {
-		...real,
-		collectSet: async (...args: Parameters<typeof real.collectSet>) => scripted.read ?? real.collectSet(...args),
-	}
-})
-
-afterEach(() => {
-	scripted.read = undefined
-})
 
 const created = { id: "n1", status: "open", title: "alpha" }
 const others = (count: number): Record_[] =>
@@ -147,15 +132,6 @@ describe("list.read-after-write unresolved walks", () => {
 		expect(await drive(staged)).toEqual({
 			kind: "unresolved",
 			reason: "pages repeat the same records, so whether the write is visible cannot be decided",
-		})
-	})
-
-	it("says the list could not be read whole when an incomplete walk gives no reason", async () => {
-		const staged = stage(notesBackend([]))
-		scripted.read = { complete: false, items: [], last: undefined as never, pages: [], status: "ok" }
-		expect(await drive(staged)).toEqual({
-			kind: "unresolved",
-			reason: "the list could not be read whole, so whether the write is visible cannot be decided",
 		})
 	})
 

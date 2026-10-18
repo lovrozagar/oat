@@ -3,12 +3,7 @@ import type { EffectSpec } from "../../../../spec/extensions.ts"
 import { contextFor, exchange, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
 import { baseDocument, routes, withOperation } from "./__fixtures__/documents.ts"
 import { type ActionRun, judgeEffects, missingParams, reportGap } from "./effect-verdicts.ts"
-import { type Observation, observe } from "./observe.ts"
-
-vi.mock("./observe.ts", async (original) => {
-	const actual = await original<typeof import("./observe.ts")>()
-	return { ...actual, observe: vi.fn(actual.observe) }
-})
+import type { Observation } from "./observe.ts"
 
 const doc = withOperation(baseDocument(), "/widgets/{id}/act", "post", { operationId: "actOnWidget" })
 const model = modelOf(doc)
@@ -16,10 +11,10 @@ const CHECK = "effects.declared-effect-occurs"
 
 const rows = (...ids: string[]) => ({ body: ids.map((id) => ({ id, name: id })), status: 200 })
 const seen = (...ids: string[]): Observation => ({ exchange: exchange("GET", "/", { status: 200 }), ids, status: "ok" })
-const failed = (reason?: string): Observation => ({
+const failed = (reason: string): Observation => ({
 	exchange: exchange("GET", "/", { status: 503 }),
+	reason,
 	status: "error",
-	...(reason === undefined ? {} : { reason }),
 })
 
 interface Setup {
@@ -167,11 +162,11 @@ describe("an effect that cannot be observed", () => {
 		expect(gaps(run)[0]?.detail).toBe("missing {board_id} after the write; the effect is unverified")
 	})
 
-	it("is a gap with the list's status when the list fails after the write", async () => {
+	it("is a gap with the read's reason when the list fails after the write", async () => {
 		const run = await judge(() => ({ status: 500 }), [{ entity: "widget", op: "update" }])
 		expect(gaps(run)).toEqual([
 			{
-				detail: "list returned 500; the declared effect is unverified",
+				detail: "page 1 was answered with 500; the declared effect is unverified",
 				summary: 'actOnWidget could not observe "widget" after the write',
 				verdict: "COVERAGE_GAP",
 			},
@@ -182,27 +177,16 @@ describe("an effect that cannot be observed", () => {
 		const run = await judge(() => ({ body: [{ name: "e1" }], status: 200 }), [{ entity: "event", op: "update" }])
 		expect(gaps(run)[0]?.detail).toBe("pages repeat the same records; the declared effect is unverified")
 	})
-
-	it("is a gap when the observation finds the child list still unfillable", async () => {
-		vi.mocked(observe).mockResolvedValueOnce({ status: "unfillable" })
-		const run = await judge(() => rows("w1"), [{ entity: "widget", op: "update" }])
-		expect(gaps(run)[0]?.detail).toBe(
-			"the child list still lacks a parent id after the write; the effect is unverified",
-		)
-	})
 })
 
 describe("an effect without a baseline", () => {
-	it.each([
-		["the read's reason", "pages repeat the same records", "pages repeat the same records"],
-		["the list's status", undefined, "list returned 503"],
-	])("is a gap with %s when the baseline read failed", async (_, reason, said) => {
+	it("is a gap with the read's reason when the baseline read failed", async () => {
 		const run = await judge(() => rows("w1"), [{ entity: "widget", op: "update" }], {
-			befores: { widget: failed(reason) },
+			befores: { widget: failed("pages repeat the same records") },
 		})
 		expect(gaps(run)).toEqual([
 			{
-				detail: `${said}; no baseline, so the effect is unverified`,
+				detail: `pages repeat the same records; no baseline, so the effect is unverified`,
 				summary: 'actOnWidget could not observe "widget" before the write',
 				verdict: "COVERAGE_GAP",
 			},

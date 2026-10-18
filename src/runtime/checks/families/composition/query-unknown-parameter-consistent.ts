@@ -29,11 +29,7 @@ export const unknownParameterConsistent = /* @__PURE__ */ defineCheck<{ names: s
 	async run(ctx, { names }): Promise<Outcome> {
 		const baseline = await readSet(ctx, {}, { fresh: true })
 		if (baseline.status !== "ok" || !baseline.complete) {
-			return ctx.findings.unresolved(
-				this.id,
-				ctx.entityName,
-				baseline.reason ?? "the plain listing could not be read whole",
-			)
+			return ctx.findings.unresolved(this.id, ctx.entityName, baseline.reason)
 		}
 		const expected = setOf(baseline.items, ctx.identity)
 		const answers: Array<{ name: string; policy: "refused" | "ignored"; exchange: Exchange }> = []

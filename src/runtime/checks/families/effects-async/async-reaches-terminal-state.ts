@@ -139,7 +139,7 @@ function recordJob(run: Invocation, receipt: unknown, start: Exchange): void {
 
 function judgePolled(run: Invocation, start: Exchange, outcome: AsyncOutcome): void {
 	const { ctx, op, spec } = run
-	if (outcome.timedOut) {
+	if (outcome.state === "timed-out") {
 		ctx.findings.backend(
 			run.check,
 			about(run),
@@ -157,7 +157,7 @@ function judgePolled(run: Invocation, start: Exchange, outcome: AsyncOutcome): v
 		ctx.findings.unresolved(
 			run.check,
 			about(run),
-			`the poll route ${spec.poll} could not be filled from the receipt: ${outcome.unfillable ?? "a parameter is missing"}`,
+			`the poll route ${spec.poll} could not be filled from the receipt: ${outcome.unfillable}`,
 		)
 		return
 	}
@@ -178,7 +178,7 @@ function judgePolled(run: Invocation, start: Exchange, outcome: AsyncOutcome): v
 		run.check,
 		about(run),
 		`${op.operationId} reached a non-success terminal state`,
-		`terminal state did not satisfy "${spec.successWhen ?? ""}"; downstream effects of this operation are untested`,
+		`terminal state did not satisfy "${outcome.unmet}"; downstream effects of this operation are untested`,
 		run.fixture,
 	)
 }

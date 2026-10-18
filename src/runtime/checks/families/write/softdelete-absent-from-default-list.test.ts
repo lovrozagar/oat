@@ -1,7 +1,6 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 import type { Responder } from "../../__fixtures__/harness.ts"
 import { runCheck } from "../../core/run.ts"
-import * as read from "../../sets/read.ts"
 import { GATED, notesContext, notesModel, notesServer } from "./__fixtures__/notes.ts"
 import { softDeleteHidden } from "./softdelete-absent-from-default-list.ts"
 
@@ -9,11 +8,6 @@ import { softDeleteHidden } from "./softdelete-absent-from-default-list.ts"
  * A record deleted under `x-soft-delete` is a tombstone: the default listing must not return it.
  * Defect: softdelete-leaks — the delete answers 204 and the record stays in the list.
  */
-
-vi.mock("../../sets/read.ts", async (importActual) => {
-	const actual = await importActual<typeof read>()
-	return { ...actual, readSet: vi.fn(actual.readSet) }
-})
 
 const MODEL = notesModel({ softDelete: "deleted_at" })
 
@@ -67,19 +61,6 @@ describe("softdelete.absent-from-default-list without a verdict", () => {
 		const { ctx } = backend((method, path) => (method === "GET" && path === "/notes" ? { status: 500 } : undefined))
 		const outcome = await runCheck(softDeleteHidden, ctx)
 		expect(outcome).toEqual({ kind: "unresolved", reason: "page 1 was answered with 500" })
-	})
-
-	it("names a rejected listing even when the read gives no reason", async () => {
-		const { ctx } = backend()
-		vi.mocked(read.readSet).mockResolvedValueOnce({
-			complete: false,
-			items: [],
-			last: { envelope: undefined, exchange: undefined, items: [] } as never,
-			pages: [],
-			status: "unresolved",
-		})
-		const outcome = await runCheck(softDeleteHidden, ctx)
-		expect(outcome).toEqual({ kind: "unresolved", reason: "the listing was rejected" })
 	})
 
 	it("is unresolved when the record is absent from a listing the read could not cover", async () => {

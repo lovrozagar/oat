@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import type { CheckContext } from "../../core/context.ts"
 import type { OperationModel } from "../../../../spec/graph.ts"
-import { driveAsync } from "../../../async.ts"
 import { ASSERTED } from "../../../finding.ts"
 import { type Answer, contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
 import {
@@ -14,11 +13,6 @@ import {
 	withOperation,
 } from "./__fixtures__/documents.ts"
 import { asyncReachesTerminalState as check } from "./async-reaches-terminal-state.ts"
-
-vi.mock("../../../async.ts", async (original) => {
-	const actual = await original<typeof import("../../../async.ts")>()
-	return { ...actual, driveAsync: vi.fn(actual.driveAsync) }
-})
 
 const lifecycle = { idFrom: "$.id", poll: "getJob", pollIntervalMs: 1, successWhen: "result.eq.ok", timeoutMs: 40 }
 const doc = withOperation(baseDocument(), "/jobs", "post", {
@@ -231,24 +225,5 @@ describe("each fixture", () => {
 			uploads: eachFixture("startJob"),
 		})
 		expect(run.findings.findings).toMatchObject([{ entity: "startJob · documents.ts", fixture: "documents.ts" }])
-	})
-})
-
-describe("outcomes the poller does not explain", () => {
-	const outcome = { elapsedMs: 1, exchanges: [], polls: 1, succeeded: false, terminal: null, timedOut: false }
-
-	it("says a parameter is missing when an unfillable poll gives no reason", async () => {
-		vi.mocked(driveAsync).mockResolvedValueOnce({ ...outcome, state: "unfillable" })
-		const run = await watched(started(polls(done)))
-		expect(run.findings.inconclusive[0]?.reason).toBe(
-			"the poll route getJob could not be filled from the receipt: a parameter is missing",
-		)
-	})
-
-	it("names an empty predicate for a failed terminal state with none declared", async () => {
-		vi.mocked(driveAsync).mockResolvedValueOnce({ ...outcome, state: "terminal", terminal: {} })
-		const { successWhen: _, ...lenient } = lifecycle
-		const run = await watched(started(polls(done)), [{ ...startJob, async: lenient }])
-		expect(run.findings.findings[0]?.detail).toContain('did not satisfy ""')
 	})
 })

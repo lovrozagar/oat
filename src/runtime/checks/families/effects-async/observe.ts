@@ -27,7 +27,7 @@ export async function currentRecords(ctx: CheckContext, scope: Record<string, st
 
 export type Observation =
 	| { status: "unfillable" }
-	| { status: "error"; exchange: Exchange; reason?: string }
+	| { status: "error"; exchange: Exchange; reason: string }
 	| { status: "ok"; ids: string[]; exchange: Exchange }
 
 export function listOpFor(ctx: CheckContext, entityName: string): OperationModel | undefined {
@@ -40,24 +40,11 @@ export async function observe(
 	listOp: OperationModel,
 	scope: Record<string, string> = ctx.scope,
 ): Promise<Observation> {
-	let path: string
-	try {
-		path = fillPath(listOp.path, scope)
-	} catch {
-		return { status: "unfillable" }
-	}
-	void path
+	if (!canFillPath(listOp.path, scope)) return { status: "unfillable" }
 	/* The whole collection: an effect that adds one record to a collection larger than a page
 	 * is invisible on the first page, and reads as an effect that never happened. */
 	const view = forList(ctx, listOp)
 	const read = await readSet(view, {}, { fresh: true, scope })
-	if (read.status !== "ok") return { exchange: read.last.exchange, status: "error" }
-	if (!read.complete) {
-		return {
-			exchange: read.last.exchange,
-			reason: read.reason ?? "the collection is larger than a read covers",
-			status: "error",
-		}
-	}
+	if (!read.complete) return { exchange: read.last.exchange, reason: read.reason, status: "error" }
 	return { exchange: read.last.exchange, ids: ids(read.items, view.identity), status: "ok" }
 }

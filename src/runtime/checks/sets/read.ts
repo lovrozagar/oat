@@ -6,18 +6,16 @@ import type { CheckContext } from "../core/context.ts"
 import { conv, pageSize, q, type Query } from "../query/capabilities.ts"
 import { envelopeValue, list, type ListResult } from "./list.ts"
 
-/** What a whole-set read produced. */
-export interface SetRead {
+/**
+ * What a whole-set read produced. `complete` is true only when the API itself showed the set
+ * ended — see `readSet`; a read that is unresolved or incomplete always says why.
+ */
+export type SetRead = {
 	items: Record_[]
-	/** True only when the API itself showed the set ended — see `readSet`. */
-	complete: boolean
 	/** The last page read. */
 	last: ListResult
 	pages: ListResult[]
-	status: "ok" | "unresolved"
-	/** Why the read is unresolved or incomplete. */
-	reason?: string
-}
+} & ({ status: "ok"; complete: true } | { status: "ok" | "unresolved"; complete: false; reason: string })
 
 interface ReadOptions {
 	/** Page size to ask for; never above the documented maximum. */
@@ -134,7 +132,7 @@ async function walkSet(ctx: CheckContext, extra: Query, options: ReadOptions, si
 	}
 	const maxPages = options.maxPages ?? Number.POSITIVE_INFINITY
 	for (let index = 0; ; index++) {
-		if (index >= maxPages) return finish(walk, false, `stopped after ${maxPages} page(s)`)
+		if (index >= maxPages) return finish(walk, `stopped after ${maxPages} page(s)`)
 		fetchAhead(walk, index, maxPages)
 		const result = await (walk.ahead.get(index) ?? fetchPage(walk, index))
 		const ended = judgePage(walk, index, result)
@@ -142,15 +140,12 @@ async function walkSet(ctx: CheckContext, extra: Query, options: ReadOptions, si
 	}
 }
 
-function finish(walk: Walk, complete: boolean, reason?: string): SetRead {
-	return {
-		complete,
-		items: walk.items,
-		last: walk.pages.at(-1) as ListResult,
-		pages: walk.pages,
-		status: "ok",
-		...(reason === undefined ? {} : { reason }),
-	}
+/** The walk's end: the whole set, or, given why, a set that goes on past what was read. */
+function finish(walk: Walk, cutShort?: string): SetRead {
+	const read = { items: walk.items, last: walk.pages.at(-1) as ListResult, pages: walk.pages }
+	return cutShort === undefined
+		? { ...read, complete: true, status: "ok" }
+		: { ...read, complete: false, reason: cutShort, status: "ok" }
 }
 
 function fetchPage(walk: Walk, index: number): Promise<ListResult> {
@@ -197,24 +192,24 @@ function judgePage(walk: Walk, index: number, result: ListResult): SetRead | und
 		}
 	}
 	const page = result.items
-	if (page.length === 0) return finish(walk, true)
+	if (page.length === 0) return finish(walk)
 	const fresh = page.filter((item) => {
 		const key = idOf(item, ctx.identity)
 		return key === undefined || !seen.has(key)
 	})
 	/* A page holding nothing new means the server is not paging — the same window again. */
-	if (fresh.length === 0 && options.keepRepeats !== true) return finish(walk, false, "pages repeat the same records")
+	if (fresh.length === 0 && options.keepRepeats !== true) return finish(walk, "pages repeat the same records")
 	for (const key of page.map((item) => idOf(item, ctx.identity))) if (key !== undefined) seen.add(key)
 	items.push(...page)
-	if (items.length >= SET_RECORD_CAP) return finish(walk, false, `more than ${SET_RECORD_CAP} records`)
-	if (walk.mode === "single") return finish(walk, true)
+	if (items.length >= SET_RECORD_CAP) return finish(walk, `more than ${SET_RECORD_CAP} records`)
+	if (walk.mode === "single") return finish(walk)
 	return walk.mode === "cursor" ? followCursor(walk, result) : judgeEnd(walk, result)
 }
 
 /** The next cursor, or the end of the walk when the page names none. */
 function followCursor(walk: Walk, result: ListResult): SetRead | undefined {
 	const next = envelopeValue(walk.ctx, result, "nextCursor")
-	if (typeof next !== "string" || next === "") return finish(walk, true)
+	if (typeof next !== "string" || next === "") return finish(walk)
 	walk.cursor = next
 	return undefined
 }
@@ -223,7 +218,7 @@ function followCursor(walk: Walk, result: ListResult): SetRead | undefined {
 function judgeEnd(walk: Walk, result: ListResult): SetRead | undefined {
 	const page = result.items
 	/* A page shorter than a full one already seen is the last page. */
-	if (walk.fullPage > 0 && page.length < walk.fullPage) return finish(walk, true)
+	if (walk.fullPage > 0 && page.length < walk.fullPage) return finish(walk)
 	walk.fullPage = Math.max(walk.fullPage, page.length)
 	const total = envelopeValue(walk.ctx, result, "total")
 	const hasMore = envelopeValue(walk.ctx, result, "hasMore")
@@ -237,5 +232,5 @@ function judgeEnd(walk: Walk, result: ListResult): SetRead | undefined {
 			: totalSaysDone || hasMore === false
 	/* Done, and the page was not full: the evidence agrees. Done on a full page, or nothing
 	 * said at all: read one more page and let it decide. */
-	return saysDone && page.length < walk.size ? finish(walk, true) : undefined
+	return saysDone && page.length < walk.size ? finish(walk) : undefined
 }

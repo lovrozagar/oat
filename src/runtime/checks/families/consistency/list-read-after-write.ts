@@ -71,7 +71,7 @@ async function locate(
 	}
 	/* Absent from a walk that stopped early is not absent from the list. */
 	if (!gathered.complete) {
-		return { reason: gathered.reason ?? "the list could not be read whole", status: "unresolved" }
+		return { reason: gathered.reason, status: "unresolved" }
 	}
 	return { last: gathered.last, status: "missing" }
 }

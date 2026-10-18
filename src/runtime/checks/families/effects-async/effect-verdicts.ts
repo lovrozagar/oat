@@ -4,7 +4,6 @@ import type { Exchange } from "../../../client.ts"
 import {
 	bindAfterCreateEffects,
 	bindCreatedScope,
-	canFillPath,
 	describeEffectHold,
 	effectHolds,
 	identityPathParam,
@@ -98,7 +97,7 @@ async function judgeEffect(action: ActionRun, effect: EffectSpec): Promise<void>
 		reportGap(
 			action,
 			`${op.operationId} could not observe "${effect.entity}" before the write`,
-			`${before.reason ?? `list returned ${before.exchange.status}`}; no baseline, so the effect is unverified`,
+			`${before.reason}; no baseline, so the effect is unverified`,
 		)
 		return
 	}
@@ -131,7 +130,8 @@ async function observeAfter(action: ActionRun, effect: EffectSpec): Promise<Seen
 		)
 		return undefined
 	}
-	if (!canFillPath(listOp.path, scope)) {
+	const after = await observe(ctx, listOp, scope)
+	if (after.status === "unfillable") {
 		reportGap(
 			action,
 			`${op.operationId} declares an effect on "${effect.entity}", but the list path cannot be filled`,
@@ -139,20 +139,11 @@ async function observeAfter(action: ActionRun, effect: EffectSpec): Promise<Seen
 		)
 		return undefined
 	}
-	const after = await observe(ctx, listOp, scope)
 	if (after.status === "error") {
 		reportGap(
 			action,
 			`${op.operationId} could not observe "${effect.entity}" after the write`,
-			`${after.reason ?? `list returned ${after.exchange.status}`}; the declared effect is unverified`,
-		)
-		return undefined
-	}
-	if (after.status === "unfillable") {
-		reportGap(
-			action,
-			`${op.operationId} declares an effect on "${effect.entity}", but the list path cannot be filled`,
-			"the child list still lacks a parent id after the write; the effect is unverified",
+			`${after.reason}; the declared effect is unverified`,
 		)
 		return undefined
 	}

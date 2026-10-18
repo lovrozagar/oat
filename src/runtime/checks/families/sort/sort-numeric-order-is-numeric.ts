@@ -35,8 +35,7 @@ export const sortNumericOrderIsNumeric = /* @__PURE__ */ defineCheck<{ field: Ef
 		/* Across pages: a server that serves a few rows at a time can put the disagreeing values on
 		 * different pages. Even a read cut short is a prefix of the order, and must ascend. */
 		const read = await readSet(ctx, {}, { order: sortTerm(conv(ctx), field.field, "asc") })
-		if (read.status !== "ok")
-			return ctx.findings.unresolved(this.id, ctx.entityName, read.reason ?? "the sorted listing was rejected")
+		if (read.status !== "ok") return ctx.findings.unresolved(this.id, ctx.entityName, read.reason)
 		const numbers = read.items.map((item) => item[field.field]).filter((v): v is number => typeof v === "number")
 		const sorted = [...numbers].sort((a, b) => a - b)
 		if (numbers.join(",") === sorted.join(",")) return ASSERTED

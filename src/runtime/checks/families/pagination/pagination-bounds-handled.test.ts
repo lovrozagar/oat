@@ -1,19 +1,8 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 import type { Answer } from "../../__fixtures__/harness.ts"
 import { runCheck } from "../../core/run.ts"
-import type { SetRead } from "../../sets/read.ts"
 import { listDoc, pagedBackend, queryOf, stage, widgets } from "./__fixtures__/paged.ts"
 import { paginationBoundsHandled } from "./pagination-bounds-handled.ts"
-
-/* The set read is real unless a test stands in an answer no real read gives. */
-const stub = vi.hoisted(() => ({ read: undefined as SetRead | undefined }))
-vi.mock("../../sets/read.ts", async (original) => {
-	const real = await original<typeof import("../../sets/read.ts")>()
-	return { ...real, readSet: (...args: Parameters<typeof real.readSet>) => stub.read ?? real.readSet(...args) }
-})
-afterEach(() => {
-	stub.read = undefined
-})
 
 const rows = widgets(3)
 const sizeOnly = listDoc({ params: ["limit"] })
@@ -109,15 +98,6 @@ describe("pagination.bounds-handled: a collection it cannot read whole", () => {
 		expect(await runCheck(paginationBoundsHandled, stuck.ctx)).toEqual({
 			kind: "unresolved",
 			reason: "pages repeat the same records",
-		})
-	})
-
-	it("says the collection could not be read whole when the read gives no reason", async () => {
-		const { ctx } = stage(pageOnly, pagedBackend(rows), rows)
-		stub.read = { complete: false, items: [], last: undefined as never, pages: [], status: "ok" }
-		expect(await runCheck(paginationBoundsHandled, ctx)).toEqual({
-			kind: "unresolved",
-			reason: "the listing could not be read whole",
 		})
 	})
 })
