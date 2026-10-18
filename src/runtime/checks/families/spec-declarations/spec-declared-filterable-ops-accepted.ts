@@ -67,9 +67,19 @@ export const declaredFilterableOpsAccepted = /* @__PURE__ */ defineCheck({
 			if (!opsAreClosed(field, caps)) continue
 			for (const op of opsForField(field, caps)) {
 				if (!canWriteFilterOp(conv(ctx), op)) continue
-				const term = filterTerm(conv(ctx), field.field, op, probeValueForOp(ctx, field, op))
+				/* No value of the field's type: a null operand would test nullability, not the operator. */
+				const value = probeValueForOp(ctx, field, op)
+				if (value === null) continue
+				const term = filterTerm(conv(ctx), field.field, op, value)
 				if (term !== null) probes.push({ label: `${field.field}.${op}`, term })
 			}
+		}
+		if (probes.length === 0) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				"no declared operator has a value of its field's type to probe with",
+			)
 		}
 		/* Every operator at once; the answers are judged in declaration order. */
 		const results = await Promise.all(

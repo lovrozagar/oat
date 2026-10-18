@@ -144,23 +144,29 @@ describe("spec.declared-filterable-ops-accepted probes", () => {
 		expect(ghost).toBe("ghost.in.(zzz last alphabetically 4242 test)")
 	})
 
-	it("writes the literal null when no sentinel of the field's type can be drawn", async () => {
+	it("sends no operator probe for a field with no typed value to compare against", async () => {
 		const filters = await probes(
 			[
 				{ field: "meta", ops: ["eq"] },
 				{ field: "impossible", ops: ["eq"] },
+				{ field: "name", ops: ["eq"] },
 			],
 			{ records: [{ id: "w1" }] },
 		)
-		expect(filters).toEqual(["meta.eq.null", "impossible.eq.null"])
+		expect(filters).toHaveLength(1)
+		expect(filters[0]).toMatch(/^name\.eq\./)
 	})
 
-	/* Found while covering this check: with no row holding the field and no sentinel of its type
-	 * drawable (an object column, a string no value meets), the probe falls back to the literal
-	 * `null` — `meta.eq.null` — where spec.declared-filterable-is-filterable skips the field. A
-	 * backend refusing `eq` with a null operand for a non-nullable column is then reported as
-	 * rejecting the operator itself. Expected: no probe for that field and operator, as the
-	 * sibling check does — `probes([{ field: "meta", ops: ["eq"] }], { records: [{ id: "w1" }] })`
-	 * resolves to `[]`. */
-	it.todo("sends no operator probe for a field with no typed value to compare against")
+	it("is unresolved when no declared operator has a value to probe with", async () => {
+		const { ctx, sent } = stage(ok, {
+			capabilities: caps([{ field: "meta", ops: ["eq"] }]),
+			query: declared,
+			records: [{ id: "w1" }],
+		})
+		expect(await declaredFilterableOpsAccepted.run(ctx, undefined)).toEqual({
+			kind: "unresolved",
+			reason: "no declared operator has a value of its field's type to probe with",
+		})
+		expect(sent).toEqual([])
+	})
 })
