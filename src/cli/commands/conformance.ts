@@ -16,7 +16,9 @@ import { runSuites } from "./conformance-suites.ts"
 import { judgeSkipped, noteD1, runCombinations } from "./conformance-tail.ts"
 import { loadToolkit, type Toolkit } from "./conformance-toolkit.ts"
 
-type Fuzzable = "memory" | "sqlite" | "postgres"
+/* The engines `--fuzz` and `--precision` start themselves: D1 is remote, so neither can run on it. */
+const FUZZABLE = ["memory", "sqlite", "postgres"] as const
+type Fuzzable = (typeof FUZZABLE)[number]
 
 /**
  * `oat conformance`: oat against its own reference backend, every defect injected one at a time on
@@ -74,6 +76,10 @@ function refusal(flags: Args["flags"], toolkit: Toolkit): string | undefined {
 	const backend = str(flags, "backend")
 	if (backend !== undefined && !(BACKENDS as readonly string[]).includes(backend)) {
 		return `unknown --backend "${backend}" — expected ${BACKENDS.join(", ")}`
+	}
+	const own = flags.fuzz !== undefined ? "--fuzz" : flags.precision !== undefined ? "--precision" : undefined
+	if (own !== undefined && backend !== undefined && !(FUZZABLE as readonly string[]).includes(backend)) {
+		return `${own} runs on a local engine — expected ${FUZZABLE.join(", ")}`
 	}
 	const dialects = toolkit.dialect.DIALECTS
 	const dialect = str(flags, "dialect")

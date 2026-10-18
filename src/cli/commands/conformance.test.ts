@@ -47,6 +47,11 @@ describe("commandConformance refusals", () => {
 			[{ only: "," }, "oat: --only needs a comma-separated list of defect names\n"],
 			[{ only: "A,Z,Y" }, "oat: --only names no defect: Z, Y\n"],
 			[{ shapes: "prefix,nope" }, "oat: --shapes names no shape: nope\n"],
+			[{ backend: "d1", fuzz: true }, "oat: --fuzz runs on a local engine — expected memory, sqlite, postgres\n"],
+			[
+				{ backend: "d1", precision: "5" },
+				"oat: --precision runs on a local engine — expected memory, sqlite, postgres\n",
+			],
 		]
 		for (const [flags, said] of refusals) {
 			const { code, log, text } = await conformance(flags, { shapes: [{ label: "shape:prefix", problems: [] }] })
