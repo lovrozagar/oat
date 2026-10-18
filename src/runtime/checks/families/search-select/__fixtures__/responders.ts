@@ -1,4 +1,4 @@
-import type { Record_ } from "../../../../world.ts"
+import type { Record_ } from "../../../../world/records.ts"
 import type { Answer, Responder } from "../../../__fixtures__/harness.ts"
 import { applySelect, backend, NOTES, queryOf } from "../../composition/__fixtures__/query-api.ts"
 

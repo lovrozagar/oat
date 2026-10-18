@@ -1,7 +1,7 @@
 import { defineCheck } from "../../core/define.ts"
 import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
-import { idOf } from "../../../world.ts"
+import { idOf } from "../../../world/records.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, filterable, filterIdentity, identityIsFilterable, pageSize, q } from "../../query/capabilities.ts"

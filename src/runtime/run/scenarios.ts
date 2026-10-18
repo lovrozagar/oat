@@ -1,4 +1,4 @@
-import { runScenarios } from "../scenario.ts"
+import { runScenarios } from "../scenario/run.ts"
 import type { RunContext } from "./context.ts"
 import { stopped } from "./interrupt.ts"
 

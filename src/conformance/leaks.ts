@@ -6,7 +6,7 @@
  * live record present after the run and absent before it was left behind, whoever made it.
  */
 
-import type { TeardownReport } from "../runtime/teardown.ts"
+import type { TeardownReport } from "../runtime/teardown/types.ts"
 
 export type StoreSnapshot = Record<string, Array<Record<string, unknown>>>
 

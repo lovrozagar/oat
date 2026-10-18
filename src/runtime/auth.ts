@@ -701,3 +701,12 @@ export function holdHeaders(
 		headers: () => current,
 	}
 }
+
+/**
+ * The headers a token from a fresh principal's signup is sent in. Always a bearer `authorization`
+ * header today, whatever the operation's security declares: phase 8 replaces this with the
+ * placement the credential source resolves per operation.
+ */
+export function bearerHeaders(token: string): Record<string, string> {
+	return { authorization: `Bearer ${token}` }
+}

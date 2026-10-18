@@ -1,5 +1,6 @@
 import { estimateRequests } from "../../runtime/check-costs.ts"
-import { describeRequested, type ScopePlan } from "../../runtime/scope.ts"
+import { describeRequested } from "../../runtime/scope/plan.ts"
+import { type ScopePlan } from "../../runtime/scope/types.ts"
 import { formatUniqueSets } from "../../spec/extensions/unique.ts"
 import type { EntityModel, SpecModel } from "../../spec/graph/types.ts"
 import {

@@ -13,11 +13,13 @@
  */
 
 import { normalizeSchema } from "../spec/schema.ts"
-import { type Variant, generate, isVacuous } from "./generate.ts"
+import { type Variant } from "./generate/types.ts"
+import { generate } from "./generate/generate.ts"
+import { isVacuous } from "./generate/algebra.ts"
 import { instanceErrors } from "./validate.ts"
 
-export type { Variant } from "./generate.ts"
-export { isVacuous } from "./generate.ts"
+export type { Variant } from "./generate/types.ts"
+export { isVacuous } from "./generate/algebra.ts"
 
 export const COHORT: readonly Variant[] = [
 	"baseline",

@@ -2,7 +2,7 @@ import type { OperationModel } from "../../../spec/graph/types.ts"
 import type { ReadClient } from "../../../client/client.ts"
 import type { Exchange } from "../../exchange.ts"
 import { fillPath } from "../../fill-path.ts"
-import { idOf, type Record_ } from "../../world.ts"
+import { idOf, type Record_ } from "../../world/records.ts"
 import type { CheckContext } from "../core/context.ts"
 import { conv, type Query } from "../query/capabilities.ts"
 

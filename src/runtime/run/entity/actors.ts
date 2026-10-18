@@ -1,5 +1,5 @@
 import type { Actor } from "../../checks/core/context.ts"
-import { resolvePathScope } from "../../world.ts"
+import { resolvePathScope } from "../../world/path-scope.ts"
 import type { ResolvedPrincipal } from "../context.ts"
 import { sameTenant } from "../principals.ts"
 import type { EntityRun, World } from "./state.ts"
@@ -28,19 +28,23 @@ async function scopedActor(run: EntityRun, principal: ResolvedPrincipal, offset:
 	const { principals, exclusion, nonce, seed, uploads } = ctx
 	const roots = { ...ctx.options.roots, ...principal.roots }
 	try {
-		const next = await resolvePathScope(listOp, ctx.model, seeding, {
-			ancestors,
-			authHeaders: principal.headers,
-			/* Its own nonce: its parents must not share the first principal's names, or a server
-			 * deriving a key from them gives both tenants the same one. */
-			nonce: `${nonce}-${offset}`,
-			onCreate: principals.recorder(principals.ownerOf(principal)),
-			onUnidentified: principals.unidentified,
-			principal: principal.id,
-			readable: exclusion.readable,
-			roots,
-			seed: seed + offset,
-			uploads: { ...uploads, seed: seed + offset },
+		const next = await resolvePathScope(listOp, {
+			client: seeding,
+			model: ctx.model,
+			options: {
+				ancestors,
+				authHeaders: principal.headers,
+				/* Its own nonce: its parents must not share the first principal's names, or a server
+				 * deriving a key from them gives both tenants the same one. */
+				nonce: `${nonce}-${offset}`,
+				onCreate: principals.recorder(principals.ownerOf(principal)),
+				onUnidentified: principals.unidentified,
+				principal: principal.id,
+				readable: exclusion.readable,
+				roots,
+				seed: seed + offset,
+				uploads: { ...uploads, seed: seed + offset },
+			},
 		})
 		return actor(principal, roots, { ...roots, ...next.values })
 	} catch {

@@ -1,7 +1,7 @@
 import { defineCheck } from "../../core/define.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { type Outcome, standDown } from "../../../finding.ts"
-import { overMaxLength } from "../../../generate.ts"
+import { overMaxLength } from "../../../generate/probes.ts"
 import { andThen, cannot, ready } from "../../core/plan.ts"
 import { encodeOpBody, validBody } from "../../payloads/body.ts"
 import { asProbe, judgeRefusal } from "../../planning/refusal.ts"

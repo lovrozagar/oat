@@ -3,7 +3,7 @@ import { leftBehind } from "../../src/conformance/leaks.ts"
 import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { run } from "../../src/runtime/run/index.ts"
-import { Ledger } from "../../src/runtime/teardown.ts"
+import { Ledger } from "../../src/runtime/teardown/ledger.ts"
 
 describe("a run that is stopped", () => {
 	it("stops testing, still removes what it made, and says it was interrupted", async () => {

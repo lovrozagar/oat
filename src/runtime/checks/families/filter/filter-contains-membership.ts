@@ -3,7 +3,7 @@ import { canWriteFilterOp, filterTerm } from "../../../../spec/conventions/filte
 import type { EffectiveFilterField } from "../../../../spec/query/effective.ts"
 import { fieldAllows } from "../../../../spec/query/field-ops.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
-import { idOf } from "../../../world.ts"
+import { idOf } from "../../../world/records.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"

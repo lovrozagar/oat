@@ -12,7 +12,8 @@ import {
 	uniqueProbeHeaders,
 	uniquifyProbeBody,
 } from "../../../unique.ts"
-import { idOf, isPlanLimitResponse, type Record_ } from "../../../world.ts"
+import { idOf, type Record_ } from "../../../world/records.ts"
+import { isPlanLimitResponse } from "../../../world/plan-limit.ts"
 import type { WriteContext } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { readRecord } from "../../isolation/scratch.ts"

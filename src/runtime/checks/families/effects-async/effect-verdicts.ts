@@ -1,13 +1,8 @@
 import type { EffectSpec } from "../../../../spec/extensions/effects.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { Exchange } from "../../../exchange.ts"
-import {
-	bindAfterCreateEffects,
-	bindCreatedScope,
-	describeEffectHold,
-	effectHolds,
-	identityPathParam,
-} from "../../../effects.ts"
+import { describeEffectHold, effectHolds } from "../../../effects/cardinality.ts"
+import { bindAfterCreateEffects, bindCreatedScope, identityPathParam } from "../../../effects/scope.ts"
 import { listedIds } from "../../../proven-id.ts"
 import type { WriteContext } from "../../core/context.ts"
 import { listOpFor, type Observation, observe } from "./observe.ts"

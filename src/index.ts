@@ -57,7 +57,7 @@ export { buildModel } from "./spec/graph/build.ts"
 export type { EntityModel, OperationModel, SpecModel } from "./spec/graph/types.ts"
 export { dereference } from "./spec/load/dereference.ts"
 export { loadSpec } from "./spec/load/source.ts"
-export { ScopeError } from "./runtime/scope.ts"
+export { ScopeError } from "./runtime/scope/scope-error.ts"
 
 export type { OpenApiDocument } from "./spec/types.ts"
 export { AuthRefreshRequiredError } from "./runtime/auth.ts"

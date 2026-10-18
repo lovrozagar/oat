@@ -1,7 +1,7 @@
 import type { EntityModel, OperationModel } from "../../../spec/graph/types.ts"
 import { rootReadIds } from "../../root-read.ts"
-import { createIsAuthProvisioned, staticSubjects } from "../../scope.ts"
-import { entityIsSelf } from "../../self.ts"
+import { createIsAuthProvisioned, staticSubjects } from "../../scope/entities.ts"
+import { entityIsSelf } from "../../self/operations.ts"
 import type { RunContext } from "../context.ts"
 import { actorsOf } from "./actors.ts"
 import { checkContext } from "./check-context.ts"
@@ -59,7 +59,7 @@ export function entityRun(ctx: RunContext, entity: EntityModel, listOp: Operatio
 	const taken = new Set<string>()
 	state.takenByEntity.set(entity.name, taken)
 	return {
-		ancestors: new Map(),
+		ancestors: { creating: new Map(), made: new Map() },
 		createOp,
 		ctx,
 		entity,

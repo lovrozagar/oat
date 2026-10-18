@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { Record_ } from "../../world.ts"
+import type { Record_ } from "../../world/records.ts"
 import type { CheckContext } from "../core/context.ts"
 import { resolvedCaps } from "./capabilities.ts"
 import { compareScalars, holdsSomeNulls, nullableField, observeTextOrder, sortedUnder, tiedSortField } from "./order.ts"

@@ -9,7 +9,7 @@
  * was sent (`confirmSubmitted`).
  */
 
-import { createdIdKeys, findCreatedId } from "./effects.ts"
+import { createdIdKeys, findCreatedId } from "./effects/ids.ts"
 import { readPath } from "./path.ts"
 import { type ProvenId, createdId } from "./proven-id.ts"
 

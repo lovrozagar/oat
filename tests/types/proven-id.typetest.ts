@@ -8,8 +8,9 @@
  */
 import type { CheckContext } from "../../src/runtime/checks/core/context.ts"
 import type { ProvenId } from "../../src/runtime/proven-id.ts"
-import type { Ledger, Owner } from "../../src/runtime/teardown.ts"
-import type { WorldOptions } from "../../src/runtime/world.ts"
+import type { Ledger } from "../../src/runtime/teardown/ledger.ts"
+import type { Owner } from "../../src/runtime/teardown/types.ts"
+import type { WorldOptions } from "../../src/runtime/world/types.ts"
 
 declare const ledger: Ledger
 declare const owner: Owner

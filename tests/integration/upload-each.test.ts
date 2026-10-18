@@ -7,7 +7,7 @@ import { encodeRequest } from "../../src/runtime/body.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { resetUploadPool } from "../../src/runtime/upload.ts"
 import { forEachInvocation, resolveEachInvocations } from "../../src/runtime/upload-each.ts"
-import { seedCohort } from "../../src/runtime/world.ts"
+import { seedCohort } from "../../src/runtime/world/seed-cohort.ts"
 import { Client } from "../../src/client/client.ts"
 import { buildModel } from "../../src/spec/graph/build.ts"
 import type { OpenApiDocument, OperationObject } from "../../src/spec/types.ts"
@@ -344,16 +344,18 @@ describe("seed fan-out", () => {
 			const client = new Client({ baseUrl: url, redactor: new Redactor() })
 			const seeded = await seedCohort(
 				createOp,
-				model,
-				client,
 				{
-					authHeaders: () => ({}),
-					roots: {},
-					seed: 1,
-					uploads: {
-						configDir: dir,
+					client,
+					model,
+					options: {
+						authHeaders: () => ({}),
+						roots: {},
 						seed: 1,
-						uploads: { each: { "extract.once": ["./*.pdf"] } },
+						uploads: {
+							configDir: dir,
+							seed: 1,
+							uploads: { each: { "extract.once": ["./*.pdf"] } },
+						},
 					},
 				},
 				{ created: [], values: {} },

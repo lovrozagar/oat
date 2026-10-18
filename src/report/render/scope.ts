@@ -1,11 +1,11 @@
 import { renderConfidenceMarkdown } from "../confidence.ts"
+import { describeRequested } from "../../runtime/scope/plan.ts"
 import {
-	describeRequested,
 	type OperationCoverage,
 	type OperationStatus,
 	type ScopeReport,
 	type SupportUse,
-} from "../../runtime/scope.ts"
+} from "../../runtime/scope/types.ts"
 
 const STATUS_MARK: Record<OperationStatus, string> = {
 	blocked: "○",

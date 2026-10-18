@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { Responder } from "../__fixtures__/harness.ts"
 import { notesContext, withConventions } from "../query/__fixtures__/notes.ts"
-import type { Record_ } from "../../world.ts"
+import type { Record_ } from "../../world/records.ts"
 import {
 	cohortFact,
 	collectSet,

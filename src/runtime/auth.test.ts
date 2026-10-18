@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { interpolate } from "./auth.ts"
+import { interpolate, bearerHeaders } from "./auth.ts"
 
 /*
  * A step that uploads a file sends its bytes as the body. Interpolation fills `{name}` in text; it
@@ -18,5 +18,11 @@ describe("interpolate", () => {
 
 	it("still fills text inside objects", () => {
 		expect(interpolate({ name: "{who}", tags: ["{who}"] }, { who: "oat" })).toEqual({ name: "oat", tags: ["oat"] })
+	})
+})
+
+describe("bearerHeaders", () => {
+	it("sends a fresh principal's token as a bearer authorization header", () => {
+		expect(bearerHeaders("tok")).toEqual({ authorization: "Bearer tok" })
 	})
 })

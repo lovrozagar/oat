@@ -1,6 +1,6 @@
 import type { RequestOptions } from "../../../../../client/types.ts"
 import type { OpenApiDocument } from "../../../../../spec/types.ts"
-import type { Record_ } from "../../../../world.ts"
+import type { Record_ } from "../../../../world/records.ts"
 import { type Answer, contextFor, modelOf, op, type Responder } from "../../../__fixtures__/harness.ts"
 import type { CheckContext } from "../../../core/context.ts"
 

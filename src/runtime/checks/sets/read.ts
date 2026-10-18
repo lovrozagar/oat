@@ -1,7 +1,7 @@
 import type { QueryConventions } from "../../../spec/conventions/types.ts"
 import type { SortValue } from "../../../spec/render/sort.ts"
 import { fillPath } from "../../fill-path.ts"
-import { idOf, type Record_ } from "../../world.ts"
+import { idOf, type Record_ } from "../../world/records.ts"
 import type { CheckContext } from "../core/context.ts"
 import { conv, pageSize, q, type Query } from "../query/capabilities.ts"
 import { envelopeValue, list, type ListResult } from "./list.ts"

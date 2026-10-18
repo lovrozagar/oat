@@ -1,5 +1,6 @@
 import type { EntityModel } from "../../../spec/graph/types.ts"
-import { runSelfIdentity, SELF_CHECK_ID, selfOperationIds } from "../../self.ts"
+import { runSelfIdentity } from "../../self/identity.ts"
+import { SELF_CHECK_ID, selfOperationIds } from "../../self/operations.ts"
 import type { RunContext } from "../context.ts"
 import { graded, startedTest } from "./direct.ts"
 

@@ -1,7 +1,7 @@
 import { defineCheck } from "../../core/define.ts"
 import { sortTerm } from "../../../../spec/conventions/sort.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
-import type { Record_ } from "../../../world.ts"
+import type { Record_ } from "../../../world/records.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, MOVING, resolvedCaps } from "../../query/capabilities.ts"

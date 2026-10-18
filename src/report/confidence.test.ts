@@ -5,7 +5,7 @@ import {
 	renderConfidenceHtml,
 	renderConfidenceMarkdown,
 } from "./confidence.ts"
-import type { OperationCoverage, ScopeReport } from "../runtime/scope.ts"
+import type { OperationCoverage, ScopeReport } from "../runtime/scope/types.ts"
 
 /*
  * The page a person opens after a run: every operation in exactly one group, worst first, each with

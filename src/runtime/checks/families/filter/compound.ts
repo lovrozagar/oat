@@ -1,6 +1,6 @@
 import { type andTerm, filterTerm } from "../../../../spec/conventions/filter.ts"
 import type { FilterQuery } from "../../../../spec/render/filter-types.ts"
-import type { Record_ } from "../../../world.ts"
+import type { Record_ } from "../../../world/records.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { cannot, type Plan, ready } from "../../core/plan.ts"
 import { conv, filterableNames, filterIdentity, pageSize } from "../../query/capabilities.ts"

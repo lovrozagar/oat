@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { Answer, Responder } from "../../__fixtures__/harness.ts"
 import { runCheck } from "../../core/run.ts"
-import type { Record_ } from "../../../world.ts"
+import type { Record_ } from "../../../world/records.ts"
 import { type ListDoc, listDoc, page, pagedBackend, queryOf, stage, widgets } from "./__fixtures__/paged.ts"
 import { cursorAgreesWithPage } from "./pagination-cursor-agrees-with-page.ts"
 

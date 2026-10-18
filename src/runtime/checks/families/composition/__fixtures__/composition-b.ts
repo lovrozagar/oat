@@ -1,4 +1,4 @@
-import type { Record_ } from "../../../../world.ts"
+import type { Record_ } from "../../../../world/records.ts"
 import { type Answer, modelOf, op, type Responder } from "../../../__fixtures__/harness.ts"
 import type { CheckContext } from "../../../core/context.ts"
 import type { OpenApiDocument } from "../../../../../spec/types.ts"

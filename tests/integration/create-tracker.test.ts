@@ -5,7 +5,7 @@ import type { Scenario } from "../../src/config/define-config.ts"
 import { renderJson } from "../../src/report/render/json.ts"
 import { renderMarkdown } from "../../src/report/render/markdown.ts"
 import { run } from "../../src/runtime/run/index.ts"
-import { renderTeardown } from "../../src/runtime/teardown.ts"
+import { renderTeardown } from "../../src/runtime/teardown/render.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 
 /*

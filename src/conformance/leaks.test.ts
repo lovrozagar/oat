@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { damagedBystanders, ledgeredNotCreated, unreportedLeftovers } from "./leaks.ts"
-import type { TeardownReport } from "../runtime/teardown.ts"
+import type { TeardownReport } from "../runtime/teardown/types.ts"
 import { DAMAGES_BYSTANDERS } from "../reference/defects.ts"
 /*
  * A record left behind is a fault in oat unless oat said so: teardown names it as failed, or a

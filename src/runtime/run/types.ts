@@ -16,11 +16,11 @@ import type { Finding, Inconclusive } from "../finding.ts"
 import type { NetworkKind } from "../network.ts"
 import type { PersistedPrincipal } from "../principals.ts"
 import type { ProgressHandler } from "../progress.ts"
-import type { ScopeReport } from "../scope.ts"
+import type { ScopeReport } from "../scope/types.ts"
 import type { SpecModel } from "../../spec/graph/types.ts"
 import type { SpecOverlay } from "../../spec/overlay.ts"
 import type { TargetVersion, TargetVersionSpec } from "../target-version.ts"
-import type { TeardownReport } from "../teardown.ts"
+import type { TeardownReport } from "../teardown/types.ts"
 
 /* The principal shape is the public config's — one definition, checked in both places. */
 export type PrincipalSpec = Principal

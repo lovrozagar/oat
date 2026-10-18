@@ -8,7 +8,7 @@ import { repoPath } from "./paths.ts"
  * the module that owns it reads the field directly. oat's requests are made in the runtime; the
  * reference backend reads its own rows.
  */
-const HOME = "/src/runtime/world.ts"
+const HOME = "/src/runtime/world/records.ts"
 const MESSAGE =
 	'Read an identity with idOf(record, identity): String() turns a missing one into the text "undefined", which then goes out in a request.'
 

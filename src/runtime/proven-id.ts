@@ -8,7 +8,7 @@
  * constructors below are the only places allowed to make one (lint rule `oat/proven-id-origin`).
  */
 
-import { findCreatedId } from "./effects.ts"
+import { findCreatedId } from "./effects/ids.ts"
 import { resolveAsyncId } from "./async.ts"
 
 declare const provenBrand: unique symbol

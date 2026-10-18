@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { Record_ } from "../../../world.ts"
+import type { Record_ } from "../../../world/records.ts"
 import { NOTES, PARAMS, queryDoc, stage } from "./__fixtures__/query-api.ts"
 import { overlapPlan, projectionBeside, projectionPlan, selectionPlan, sortFieldBeside, subsetPlan } from "./plans.ts"
 import { queryAxesCompose } from "./query-axes-compose.ts"

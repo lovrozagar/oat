@@ -1,4 +1,5 @@
-import { runDisposableOps, signupOperationId } from "../disposable.ts"
+import { signupOperationId } from "../disposable/flow.ts"
+import { runDisposableOps } from "../disposable/run.ts"
 import type { RunContext } from "./context.ts"
 
 /** Operations that consume their subject — delete-account, revoke-self — each on a principal of its own. */

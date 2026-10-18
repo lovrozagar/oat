@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { run } from "../../src/runtime/run/index.ts"
-import { isPlanLimitResponse } from "../../src/runtime/world.ts"
+import { isPlanLimitResponse } from "../../src/runtime/world/plan-limit.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 
 function send(res: ServerResponse, status: number, body?: unknown): void {

@@ -13,9 +13,11 @@ import { pathTemplateParams } from "../spec/routes.ts"
 import type { Client } from "../client/client.ts"
 import type { Exchange } from "./exchange.ts"
 import { returnedId } from "./proven-id.ts"
-import { SELF_IDENTITY } from "./self.ts"
-import type { Ledger, Owner } from "./teardown.ts"
-import { createdRecord, idOf, recordsFromList } from "./world.ts"
+import { SELF_IDENTITY } from "./self/operations.ts"
+import type { Ledger } from "./teardown/ledger.ts"
+import type { Owner } from "./teardown/types.ts"
+import { createdRecord } from "./world/created-record.ts"
+import { idOf, recordsFromList } from "./world/records.ts"
 
 /** A configured principal as the tracker needs it: who removes the record, and its roots. */
 export interface TrackedOwner {

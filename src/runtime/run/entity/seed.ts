@@ -1,4 +1,5 @@
-import { resolvePathScope, SeedError } from "../../world.ts"
+import { resolvePathScope } from "../../world/path-scope.ts"
+import { SeedError } from "../../seed-error.ts"
 import { existingOrBlocked, readExisting, worldOptions } from "./fallback.ts"
 import { seedCreated } from "./seed-cohort.ts"
 import { degradedWorld, type EntityRun, type World } from "./state.ts"
@@ -55,7 +56,7 @@ async function listedRootsOf(run: EntityRun, plan: SeedPlan): Promise<Record<str
 	const { listOp, roots, seeding, ctx } = run
 	const listParent = async (): Promise<Record<string, string>> => ({
 		...roots,
-		...(await resolvePathScope(listOp, ctx.model, seeding, worldOptions(run))).values,
+		...(await resolvePathScope(listOp, { client: seeding, model: ctx.model, options: worldOptions(run) })).values,
 	})
 	/* An action cohort has to create the parent the list path names. */
 	if (plan.needsListedCohort) return listParent()

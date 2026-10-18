@@ -1,5 +1,5 @@
 import type { Finding, FindingCollector } from "../../../../finding.ts"
-import type { Record_ } from "../../../../world.ts"
+import type { Record_ } from "../../../../world/records.ts"
 import type { QueryConventions } from "../../../../../spec/conventions/types.ts"
 import { FILTER_PRESETS } from "../../../../../spec/render/filter-presets.ts"
 import type { FilterGrammarSpec } from "../../../../../spec/render/filter-types.ts"

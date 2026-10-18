@@ -1,4 +1,5 @@
-import { confirmDeletes, runContractCalls } from "../contract.ts"
+import { runContractCalls } from "../contract/calls.ts"
+import { confirmDeletes } from "../contract/deletes.ts"
 import { proveFromTranscript } from "../evidence.ts"
 import type { RunContext } from "./context.ts"
 import { stopped } from "./interrupt.ts"

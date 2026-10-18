@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { Record_ } from "../../../world.ts"
+import type { Record_ } from "../../../world/records.ts"
 import type { Responder } from "../../__fixtures__/harness.ts"
 import { backend, NOTES, PARAMS, queryDoc, queryOf, REJECT, stage } from "../composition/__fixtures__/query-api.ts"
 import { sortMultiKeyTiebreak } from "./sort-multi-key-tiebreak.ts"

@@ -5,7 +5,7 @@
  * not required. Uniqueness is never inferred from a 409 without the tag.
  */
 
-import { generate } from "./generate.ts"
+import { generate } from "./generate/generate.ts"
 import { requestContent } from "../spec/collection/request.ts"
 import type { OperationModel, SpecModel } from "../spec/graph/types.ts"
 

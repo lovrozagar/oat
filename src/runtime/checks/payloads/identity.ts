@@ -1,6 +1,6 @@
-import { absentIdentifier } from "../../generate.ts"
+import { absentIdentifier } from "../../generate/identifiers.ts"
 import { uniquifyProbeBody } from "../../unique.ts"
-import { idOf } from "../../world.ts"
+import { idOf } from "../../world/records.ts"
 import type { CheckContext } from "../core/context.ts"
 import { NO_KEY } from "../planning/subjects.ts"
 

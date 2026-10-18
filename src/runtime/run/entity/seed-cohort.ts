@@ -1,6 +1,8 @@
 import type { OperationModel } from "../../../spec/graph/types.ts"
 import { formatUniqueSets } from "../../../spec/extensions/unique.ts"
-import { resolvePathScope, type Scope, type SeededCohort, seedCohort } from "../../world.ts"
+import { resolvePathScope } from "../../world/path-scope.ts"
+import { type Scope, type SeededCohort } from "../../world/types.ts"
+import { seedCohort } from "../../world/seed-cohort.ts"
 import { ids } from "../../checks/sets/list.ts"
 import { existingOrBlocked, worldOptions } from "./fallback.ts"
 import { seedFailed } from "./seed-failure.ts"
@@ -15,14 +17,18 @@ import type { RunFindingId } from "../../check-ids.ts"
 export async function seedCreated(run: EntityRun, createOp: OperationModel): Promise<World | null> {
 	const { ctx, seeding, roots } = run
 	try {
-		const scope = await resolvePathScope(createOp, ctx.model, seeding, worldOptions(run))
+		const scope = await resolvePathScope(createOp, { client: seeding, model: ctx.model, options: worldOptions(run) })
 		/* Carry every known root, not only what the create route happened to need. Sibling routes
 		 * for one entity are frequently scoped differently — a global create beside a tenant-scoped
 		 * item route — and a scope built from create alone leaves those unresolvable, which shows
 		 * up as a wall of "could not complete" gaps. */
 		scope.values = { ...roots, ...scope.values }
 		const options = ctx.options.cohortSize === undefined ? {} : { cohortSize: ctx.options.cohortSize }
-		const cohort = await seedCohort(createOp, ctx.model, seeding, { ...worldOptions(run), ...options }, scope)
+		const cohort = await seedCohort(
+			createOp,
+			{ client: seeding, model: ctx.model, options: { ...worldOptions(run), ...options } },
+			scope,
+		)
 		reportVariants(run, createOp, cohort)
 		return await worldOf(run, createOp, cohort, scope)
 	} catch (error) {

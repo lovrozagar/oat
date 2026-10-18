@@ -7,7 +7,7 @@ import { isAbsoluteHttpUrl } from "../../../cookies.ts"
 import { fillPath } from "../../../fill-path.ts"
 import type { Outcome } from "../../../finding.ts"
 import { readPath } from "../../../path.ts"
-import { idOf } from "../../../world.ts"
+import { idOf } from "../../../world/records.ts"
 import type { Actor, CheckContext, WriteContext } from "../../core/context.ts"
 import { itemParamFor } from "../../planning/subjects.ts"
 

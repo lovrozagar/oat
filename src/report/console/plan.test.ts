@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { planScope, resolveTargetScope, type ScopePlan } from "../../runtime/scope.ts"
+import { planScope } from "../../runtime/scope/plan.ts"
+import { resolveTargetScope } from "../../runtime/scope/target.ts"
+import { type ScopePlan } from "../../runtime/scope/types.ts"
 import {
 	documentOf,
 	FILTER_TEMPLATE,

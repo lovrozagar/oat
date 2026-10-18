@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { CheckContext } from "../../core/context.ts"
-import type { Record_ } from "../../../world.ts"
+import type { Record_ } from "../../../world/records.ts"
 import { type Answer, contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
 import { projectionsAgree } from "./consistency-projections-agree.ts"
 import { notesBackend, notesDoc, servePage } from "./__fixtures__/notes.ts"

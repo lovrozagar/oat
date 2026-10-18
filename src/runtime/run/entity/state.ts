@@ -1,7 +1,8 @@
 import type { EntityModel, OperationModel } from "../../../spec/graph/types.ts"
 import type { Client } from "../../../client/client.ts"
 import type { FindingCollector } from "../../finding.ts"
-import type { Record_, Scope } from "../../world.ts"
+import type { Record_ } from "../../world/records.ts"
+import type { AncestorCache, Scope } from "../../world/types.ts"
 import type { RunContext } from "../context.ts"
 
 /** One entity under test: what it is, and what its seeding has learned so far. */
@@ -23,7 +24,7 @@ export interface EntityRun {
 	 * no other entity: entities whose parent chains are disjoint run side by side, and one that
 	 * shares a parent record with another could see that entity's writes through it.
 	 */
-	ancestors: Map<string, string>
+	ancestors: AncestorCache
 	/** Identities this entity's collection is known to hold; no create oat sends may reuse one. */
 	taken: Set<string>
 	/**

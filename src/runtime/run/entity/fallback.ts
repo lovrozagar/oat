@@ -1,5 +1,7 @@
 import type { Exchange } from "../../exchange.ts"
-import { listExisting, type Record_, type WorldOptions } from "../../world.ts"
+import { listExisting } from "../../world/list-existing.ts"
+import { type Record_ } from "../../world/records.ts"
+import { type WorldOptions } from "../../world/types.ts"
 import { degradedWorld, type EntityRun, type World } from "./state.ts"
 
 /** How the first principal builds this entity's world: its credential, its records, its parents. */
@@ -31,7 +33,11 @@ export async function readExisting(
 	const scope: Record<string, string> = { ...roots }
 	if (run.listOp.pathParams.some((param) => scope[param] === undefined)) return { records: [], scope }
 	const { model, principals } = run.ctx
-	const records = await listExisting(run.listOp, model, run.seeding, principals.alpha.headers(), scope)
+	const records = await listExisting(
+		{ listOp: run.listOp, model, values: scope },
+		run.seeding,
+		principals.alpha.headers(),
+	)
 	return { records, scope }
 }
 

@@ -5,7 +5,7 @@
  * the requests that prove it, so trust in a result never rests on a count.
  */
 
-import type { OperationCoverage, ScopeReport } from "../runtime/scope.ts"
+import type { OperationCoverage, ScopeReport } from "../runtime/scope/types.ts"
 
 export type ConfidenceKey = "failed" | "blocked" | "unproven" | "verified" | "complete"
 

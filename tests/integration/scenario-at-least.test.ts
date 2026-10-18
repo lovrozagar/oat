@@ -3,7 +3,6 @@ import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import type { Scenario } from "../../src/config/define-config.ts"
 import { run } from "../../src/runtime/run/index.ts"
-import { nextPollWait } from "../../src/runtime/scenario.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 
 /*
@@ -98,16 +97,5 @@ describe("an atLeast assert", () => {
 	it("fails a count below the floor", async () => {
 		const result = await runScenario(3)
 		expect(result.scope.operations.find((op) => op.operationId === "ping.send")?.status).toBe("failed")
-	})
-})
-
-describe("a poll", () => {
-	it("backs off from a short interval up to five seconds", () => {
-		expect(nextPollWait(500, 500)).toBe(1_000)
-		expect(nextPollWait(4_000, 500)).toBe(5_000)
-	})
-
-	it("never polls faster than the interval it asked for", () => {
-		expect(nextPollWait(15_000, 15_000)).toBe(15_000)
 	})
 })

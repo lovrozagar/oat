@@ -1,4 +1,4 @@
-import type { TeardownReport } from "../teardown.ts"
+import type { TeardownReport } from "../teardown/types.ts"
 import type { CheckTiming } from "./types.ts"
 
 /**

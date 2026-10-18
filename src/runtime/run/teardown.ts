@@ -1,5 +1,5 @@
 import { createTracker } from "../create-tracker.ts"
-import type { TeardownReport } from "../teardown.ts"
+import type { TeardownReport } from "../teardown/types.ts"
 import type { RunContext } from "./context.ts"
 import { errorText } from "./errors.ts"
 import { messageOf } from "../../errors/message.ts"

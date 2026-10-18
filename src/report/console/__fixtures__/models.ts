@@ -1,6 +1,6 @@
 import { createMemoryReference } from "../../../reference/http/engines.ts"
 import type { ReferenceOptions } from "../../../reference/http/state.ts"
-import { probeCreateFixtures } from "../../../runtime/world.ts"
+import { probeCreateFixtures } from "../../../runtime/world/probe-fixtures.ts"
 import { applyGrammarOverrides, type GrammarConfig } from "../../../spec/grammar-overrides.ts"
 import { buildModel } from "../../../spec/graph/build.ts"
 import type { SpecModel } from "../../../spec/graph/types.ts"

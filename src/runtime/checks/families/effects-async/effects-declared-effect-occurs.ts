@@ -2,21 +2,15 @@ import { defineCheck } from "../../core/define.ts"
 import type { EffectSpec } from "../../../../spec/extensions/effects.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { Exchange } from "../../../exchange.ts"
-import {
-	type ActionBind,
-	applyActionBind,
-	bindActionScope,
-	bindInstanceScope,
-	canFillPath,
-	readActionBind,
-	readBefore,
-} from "../../../effects.ts"
+import { type ActionBind, applyActionBind, bindActionScope, readActionBind, readBefore } from "../../../effects/bind.ts"
+import { bindInstanceScope, canFillPath } from "../../../effects/scope.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { returnedId } from "../../../proven-id.ts"
 import type { UploadContext } from "../../../upload.ts"
 import { forEachInvocation } from "../../../upload-each.ts"
-import { createdRecord, type Record_ } from "../../../world.ts"
+import { createdRecord } from "../../../world/created-record.ts"
+import { type Record_ } from "../../../world/records.ts"
 import type { WriteContext } from "../../core/context.ts"
 import { when } from "../../core/plan.ts"
 import { encodeOpBody } from "../../payloads/body.ts"
@@ -75,11 +69,17 @@ async function invokeAction(run: Invocation, uploads: UploadContext): Promise<vo
 	const effects = op.effects
 	if (effects.length === 0) return
 
-	const seeded = bindInstanceScope(ctx.model, ctx.entityName, ctx.identity, ctx.records, ctx.scope)
+	const seeded = bindInstanceScope(ctx)
 	const binding = await bindAction(run, uploads, seeded)
 	if (binding === undefined) return
 	const current = await currentRecords(ctx, seeded)
-	const scope = bindActionScope(op.pathParams, current, seeded, binding.actionBind, binding.beforeBody)
+	const scope = bindActionScope({
+		beforeBody: binding.beforeBody,
+		bind: binding.actionBind,
+		pathParams: op.pathParams,
+		records: current,
+		scope: seeded,
+	})
 	if (!canFillPath(op.path, scope)) {
 		reportGap(run, `${op.operationId} could not be invoked`, missingParams(op.pathParams, scope))
 		return
@@ -126,7 +126,13 @@ async function runBefore(
 		)
 		return undefined
 	}
-	const beforeScope = bindActionScope(beforeOp.pathParams, ctx.records, scope, null, undefined)
+	const beforeScope = bindActionScope({
+		beforeBody: undefined,
+		bind: null,
+		pathParams: beforeOp.pathParams,
+		records: ctx.records,
+		scope,
+	})
 	if (!canFillPath(beforeOp.path, beforeScope)) {
 		reportGap(
 			run,

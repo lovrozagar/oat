@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { ProgressSnapshot } from "../progress.ts"
 import { createdId } from "../proven-id.ts"
-import type { Record_ } from "../world.ts"
+import type { Record_ } from "../world/records.ts"
 import { contextOf, flow, notesApi, notesDoc, optionsFor, withLogin } from "./__fixtures__/api.ts"
 import type { RunContext } from "./context.ts"
 import { reportUnremovable, teardownPrincipals, trackCreates, unwind } from "./teardown.ts"

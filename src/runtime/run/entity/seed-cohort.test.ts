@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { OpenApiDocument } from "../../../spec/types.ts"
 import type { Answer, Responder } from "../../checks/__fixtures__/harness.ts"
-import type { Record_ } from "../../world.ts"
+import type { Record_ } from "../../world/records.ts"
 import { contextOf, entityRunOf, notesApi, notesDoc, optionsFor, overriding } from "../__fixtures__/api.ts"
 import type { RunOptions } from "../types.ts"
 import { seedCreated } from "./seed-cohort.ts"

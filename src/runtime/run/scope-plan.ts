@@ -1,7 +1,10 @@
 import type { Scenario } from "../../config/types/steps.ts"
 import { excludedByProfile } from "../profile.ts"
-import { assertScenarios } from "../scenario.ts"
-import { authStepOperationIds, GradeLedger, resolveTargetScope, type TargetScope } from "../scope.ts"
+import { assertScenarios } from "../scenario/validate.ts"
+import { authStepOperationIds } from "../scope/entities.ts"
+import { GradeLedger } from "../grades.ts"
+import { resolveTargetScope } from "../scope/target.ts"
+import { type TargetScope } from "../scope/types.ts"
 import type { UploadContext } from "../upload.ts"
 import type { Connected, Planned } from "./context.ts"
 

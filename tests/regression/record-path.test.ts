@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { report } from "../../src/report/console/report.ts"
-import { recordOf } from "../../src/runtime/world.ts"
+import { recordOf } from "../../src/runtime/world/records.ts"
 import { deriveCollectionShape } from "../../src/spec/collection/shape.ts"
 import { buildModel } from "../../src/spec/graph/build.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"

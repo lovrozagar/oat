@@ -2,7 +2,6 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
-import { disposableAddress, freshSignupFlow } from "../../src/runtime/disposable.ts"
 import { run } from "../../src/runtime/run/index.ts"
 
 const DEFECT_VERDICTS = new Set(["BACKEND_BUG", "SECURITY", "SPEC_BUG"])
@@ -393,37 +392,6 @@ async function runRefreshFlow(baseUrl: string) {
 }
 
 describe("disposable principal", () => {
-	it("rewrites only the signup email", () => {
-		const flow = freshSignupFlow(
-			{
-				credentialFrom: "$.access_token",
-				steps: [
-					{
-						bind: { address: "a@b.c" },
-						body: { email: "a@b.c", password: "secret" },
-						operationId: "auth.register",
-					},
-					{ outOfBand: { address: "a@b.c", as: "link", kind: "email-verify" } },
-				],
-			},
-			"new@b.c",
-		)
-		expect(flow.steps[0]).toMatchObject({
-			bind: { address: "new@b.c" },
-			body: { email: "new@b.c", password: "secret" },
-		})
-		expect(flow.steps[1]).toMatchObject({ outOfBand: { address: "new@b.c" } })
-		expect(
-			disposableAddress(
-				{
-					credentialFrom: "$.access_token",
-					steps: [{ body: { email: "oat-alpha@example.test" }, operationId: "auth.register" }],
-				},
-				"abc",
-			),
-		).toBe("oat-disp-abc@example.test")
-	})
-
 	it("logs out a second registered user and leaves the suite session able to read", async () => {
 		const url = await serve(false)
 		const result = await runDisposable(url)

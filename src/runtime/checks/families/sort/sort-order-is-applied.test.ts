@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { Record_ } from "../../../world.ts"
+import type { Record_ } from "../../../world/records.ts"
 import type { Responder } from "../../__fixtures__/harness.ts"
 import { memoTable } from "../../sets/read.ts"
 import { backend, NOTES, queryDoc, queryOf, REJECT, stage } from "../composition/__fixtures__/query-api.ts"

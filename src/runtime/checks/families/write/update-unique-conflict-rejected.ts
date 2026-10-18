@@ -10,7 +10,8 @@ import {
 	uniqueProbeHeaders,
 } from "../../../unique.ts"
 import type { Exchange } from "../../../exchange.ts"
-import { idOf, isPlanLimitResponse, type Record_ } from "../../../world.ts"
+import { idOf, type Record_ } from "../../../world/records.ts"
+import { isPlanLimitResponse } from "../../../world/plan-limit.ts"
 import type { WriteContext } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { scratchRecord, updateRequest } from "../../isolation/scratch.ts"

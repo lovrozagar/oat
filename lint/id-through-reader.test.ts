@@ -23,7 +23,7 @@ describe("oat/id-through-reader", () => {
 	})
 
 	it("allows it in the module that owns the reader", () => {
-		expect(lines("src/runtime/world.ts")).toEqual([])
+		expect(lines("src/runtime/world/records.ts")).toEqual([])
 	})
 
 	it("leaves the reference backend's own rows alone", () => {

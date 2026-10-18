@@ -10,7 +10,7 @@ import { renderMarkdown } from "../../report/render/markdown.ts"
 import { ISSUE_REPRO_DIR, renderRepros } from "../../report/render/repro.ts"
 import { renderConsole } from "../../report/render/summary.ts"
 import type { RunResult } from "../../runtime/run/index.ts"
-import { renderTeardown } from "../../runtime/teardown.ts"
+import { renderTeardown } from "../../runtime/teardown/render.ts"
 import type { Writer } from "../writer.ts"
 
 /** What a finished run reports: the result, and where and when it ran. */

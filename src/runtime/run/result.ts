@@ -1,7 +1,8 @@
 import { applyBaseline } from "../baseline.ts"
 import { type PersistedPrincipal, snapshotPrincipal } from "../principals.ts"
-import { buildScopeReport, type ScopeReport } from "../scope.ts"
-import type { TeardownReport } from "../teardown.ts"
+import { buildScopeReport } from "../scope/report.ts"
+import { type ScopeReport } from "../scope/types.ts"
+import type { TeardownReport } from "../teardown/types.ts"
 import type { Planned, RunContext } from "./context.ts"
 import type { RunResult } from "./types.ts"
 

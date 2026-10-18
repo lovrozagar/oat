@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { CheckContext } from "../../core/context.ts"
-import type { Record_ } from "../../../world.ts"
+import type { Record_ } from "../../../world/records.ts"
 import { type Answer, contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
 import { declaredInvalidationHappens } from "./invalidation-declared-route-changes.ts"
 import { notesBackend, notesDoc } from "./__fixtures__/notes.ts"

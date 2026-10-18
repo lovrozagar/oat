@@ -1,6 +1,6 @@
 import type { FilterQuery } from "../../../spec/render/filter-types.ts"
 import type { SortValue } from "../../../spec/render/sort.ts"
-import type { Record_ } from "../../world.ts"
+import type { Record_ } from "../../world/records.ts"
 import type { CheckContext } from "../core/context.ts"
 import { conv, pageSize, type Query } from "../query/capabilities.ts"
 import { ids, type ListResult } from "./list.ts"

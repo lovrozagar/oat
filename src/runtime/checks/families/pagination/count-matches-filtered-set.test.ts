@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { runCheck } from "../../core/run.ts"
 import { countMatchesWalk } from "./count-matches-filtered-set.ts"
 import { type ListDoc, listDoc, pagedBackend, queryOf, stage, widgets } from "./__fixtures__/paged.ts"
-import type { Record_ } from "../../../world.ts"
+import type { Record_ } from "../../../world/records.ts"
 
 const spec: ListDoc = {
 	envelope: ["total"],
