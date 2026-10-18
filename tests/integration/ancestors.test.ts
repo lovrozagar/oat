@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { createMemoryServer } from "../../src/reference/http.ts"
+import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { Client } from "../../src/client/client.ts"
 import { resolvePathScope } from "../../src/runtime/world.ts"
 import { buildModel } from "../../src/spec/graph.ts"

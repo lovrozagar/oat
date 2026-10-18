@@ -108,13 +108,22 @@ function fakeSuite(options: ToolkitOptions, log: string[]) {
 		runExampleSpecSuite: async () => suite("example")(),
 		runParserSuite: suite("parser"),
 		runPayloadCatalogSuite: suite("payloads"),
-		runTagUnlockSuite: async (baselines?: unknown) => (
+		listening: LISTENING,
+		runTagUnlockSuite: async (via: unknown, baselines?: unknown) => (
+			reachedBySocket(via),
 			log.push(`unlocks ${baselines === undefined ? "own" : "matrix"}`),
 			cases
 		),
-		runTenantScopeSuite: async () => suite("tenant")(),
+		runTenantScopeSuite: async (via: unknown) => (reachedBySocket(via), suite("tenant")()),
 		sqliteAvailable: async () => options.sqlite === true,
 	}
+}
+
+/* The commands run the suites behind a socket: the transport the gate tests. */
+const LISTENING = { host: async () => undefined, launch: async () => undefined }
+
+function reachedBySocket(via: unknown): void {
+	if (via !== LISTENING) throw new Error("a suite was not given the socket transport")
 }
 
 /** A pool that answers each task by its kind, and records it. */

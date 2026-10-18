@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { buildSpec } from "../reference/spec.ts"
+import { buildSpec } from "../reference/spec/build.ts"
 import {
 	buildScopeReport,
 	describeRequested,

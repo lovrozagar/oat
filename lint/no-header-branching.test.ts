@@ -28,7 +28,7 @@ describe("oat/no-header-branching", () => {
 			"src/spec/security/placement.ts": source,
 			"src/credentials/store.ts": source,
 			"src/client/credentials.ts": source,
-			"src/reference/http.ts": source,
+			"src/reference/http/access.ts": source,
 			"src/runtime/auth.test.ts": source,
 			"tests/integration/auth.test.ts": source,
 		}

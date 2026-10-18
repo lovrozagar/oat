@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest"
 import { judgeDefect } from "../../src/conformance/matrix/cases.ts"
 import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
-import { createMemoryServer } from "../../src/reference/http.ts"
+import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { checkSalts } from "../../src/runtime/checks/core/run.ts"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import { dereference } from "../../src/spec/load.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
+import { listening } from "../../src/conformance/harness/launch.ts"
 
 /*
  * What oat sends is a function of its inputs: the same seed and nonce give the same bodies. A salt
@@ -51,7 +52,14 @@ describe("recall behind the client-ids shape, under load", () => {
 	it("reports CLIENT_ID_IGNORED with only that loss's symptoms, eight runs at once", async () => {
 		for (let round = 0; round < 3; round++) {
 			const results = await Promise.all(
-				Array.from({ length: 8 }, () => judgeDefect("CLIENT_ID_IGNORED", "memory", "postgrest", "client-ids")),
+				Array.from({ length: 8 }, () =>
+					judgeDefect("CLIENT_ID_IGNORED", {
+						backend: "memory",
+						dialect: "postgrest",
+						shape: "client-ids",
+						via: listening,
+					}),
+				),
 			)
 			for (const result of results) {
 				expect(result.error).toBeUndefined()

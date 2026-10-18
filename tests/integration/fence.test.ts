@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
 import type { FenceDecision, FenceRequest } from "../../src/config/define-config.ts"
-import { createMemoryServer } from "../../src/reference/http.ts"
+import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { renderJson, renderMarkdown, type ReportInput } from "../../src/report/render.ts"
 import { Client } from "../../src/client/client.ts"
 import { EXIT, exitCode } from "../../src/runtime/exit.ts"

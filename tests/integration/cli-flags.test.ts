@@ -7,7 +7,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 import { main } from "../../src/cli/main.ts"
 import { isKnownFlag, parseArgs, unknownFlag, USAGE } from "../../src/cli/flags.ts"
 import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
-import { createMemoryServer, type ReferenceServer } from "../../src/reference/http.ts"
+import { createMemoryServer } from "../../src/reference/http/engines.ts"
+import type { ReferenceServer } from "../../src/reference/http/server.ts"
 
 describe("CLI flags", () => {
 	it("does not advertise --concurrency in help", () => {

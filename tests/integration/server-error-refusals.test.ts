@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { describe, expect, it } from "vitest"
 import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
-import { createMemoryServer } from "../../src/reference/http.ts"
+import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { run } from "../../src/runtime/run/index.ts"
 
 /* A refusal the backend should answer with 409 or 404 that crashes instead is a defect, not an

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { leftBehind, unreportedLeftovers } from "../../src/conformance/leaks.ts"
 import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
-import { createMemoryServer } from "../../src/reference/http.ts"
+import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { run } from "../../src/runtime/run/index.ts"
 
 /*

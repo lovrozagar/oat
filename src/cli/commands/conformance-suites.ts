@@ -21,9 +21,9 @@ export async function runSuites(writer: Writer, toolkit: Toolkit, beforeMatrix: 
 	/* The documented example is checked in the same breath: it is the only place a reader sees
 	 * where each tag goes, and documentation that drifts teaches a shape that no longer works. */
 	print(await suite.runExampleSpecSuite())
-	if (beforeMatrix) print(await suite.runTagUnlockSuite())
+	if (beforeMatrix) print(await suite.runTagUnlockSuite(suite.listening))
 	print(suite.runCoverageReportSuite())
-	print(await suite.runTenantScopeSuite())
+	print(await suite.runTenantScopeSuite(suite.listening))
 	print(await toolkit.featureGate.runFeatureGateSuite())
 	print(await toolkit.rateLimit.runRateLimitSuite())
 	print(await toolkit.unique.runUniqueSuite())

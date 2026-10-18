@@ -88,7 +88,7 @@ export interface FuzzOptions {
 export async function runFuzz(options: FuzzOptions = {}): Promise<FuzzCase[]> {
 	const { backend = "memory", cases = 25, dialect = "postgrest", maxDefects = 4, seed: rootSeed = 1 } = options
 
-	const { createMemoryServer, createPostgresServer, createSqliteServer } = await import("../reference/http.ts")
+	const { createMemoryServer, createPostgresServer, createSqliteServer } = await import("../reference/http/engines.ts")
 	const factory =
 		backend === "memory" ? createMemoryServer : backend === "sqlite" ? createSqliteServer : createPostgresServer
 
@@ -251,7 +251,7 @@ export async function runPrecision(
 ): Promise<PrecisionCase[]> {
 	const { backend = "memory", cases = 50, dialect = "postgrest", seed: rootSeed = 1 } = options
 
-	const { createMemoryServer, createPostgresServer, createSqliteServer } = await import("../reference/http.ts")
+	const { createMemoryServer, createPostgresServer, createSqliteServer } = await import("../reference/http/engines.ts")
 	const factory =
 		backend === "memory" ? createMemoryServer : backend === "sqlite" ? createSqliteServer : createPostgresServer
 

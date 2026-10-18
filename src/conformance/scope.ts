@@ -7,26 +7,25 @@
  * never queues it or attributes the finding elsewhere.
  */
 
+import { messageOf } from "../errors/message.ts"
 import type { DefectName } from "../reference/defects.ts"
 import type { Finding } from "../runtime/finding.ts"
 import { run } from "../runtime/run/index.ts"
 import { EXPECTED } from "./expected/table.ts"
 import type { ParserResult } from "./harness/result.ts"
+import { launch, reach, type Via } from "./harness/launch.ts"
 import { defectsFor } from "./matrix/defects.ts"
+import { primaryOf } from "./matrix/expected.ts"
 import { PRINCIPALS } from "./matrix/principals.ts"
 
 const NOT_DEFECTS = new Set(["COVERAGE_GAP", "BLOCKED"])
 
-function primaryOf(expected: string | string[]): string {
-	return Array.isArray(expected) ? (expected[0] ?? "") : expected
-}
-
 async function runOnce(
 	defects: DefectName[],
-	ops?: string[],
+	ops: string[] | undefined,
+	via: Via,
 ): Promise<{ findings: Finding[]; statuses: Map<string, string> }> {
-	const { createMemoryServer } = await import("../reference/http.ts")
-	const server = await createMemoryServer({ defects })
+	const server = await launch({ backend: "memory", dialect: "postgrest", via }, { defects })
 	try {
 		const result = await run({
 			baseUrl: server.url,
@@ -34,6 +33,7 @@ async function runOnce(
 			seed: 42,
 			spec: `${server.url}/v1/openapi/spec`,
 			...(ops === undefined ? {} : { ops }),
+			...reach(server),
 		})
 		return {
 			findings: result.findings.filter((f) => !NOT_DEFECTS.has(f.verdict)),
@@ -49,6 +49,7 @@ async function runOnce(
  * made — the defect matrix makes exactly that run — so only the targeted run is sent here.
  */
 export async function runScopeSuite(
+	via: Via,
 	filter?: string[],
 	known?: Readonly<Record<string, readonly string[]>>,
 ): Promise<ParserResult[]> {
@@ -65,7 +66,10 @@ export async function runScopeSuite(
 		const why = `a run targeted at the operation ${check} judges must still report it`
 		try {
 			const reported = known?.[defect]
-			const fresh = reported === undefined ? (await runOnce([defect])).findings.filter((f) => f.check === check) : []
+			const fresh =
+				reported === undefined
+					? (await runOnce([defect], undefined, via)).findings.filter((f) => f.check === check)
+					: []
 			const ops: readonly string[] | undefined =
 				reported ?? (fresh.length === 0 ? undefined : [...new Set(fresh.flatMap((f) => f.operations ?? []))])
 			if (ops === undefined) {
@@ -76,7 +80,7 @@ export async function runScopeSuite(
 				results.push({ detail: `${check} finding carries no operation`, name, ok: false, why })
 				continue
 			}
-			const targeted = await runOnce([defect], [...ops])
+			const targeted = await runOnce([defect], [...ops], via)
 			const detected = targeted.findings.some((f) => f.check === check)
 			const failed = ops.some((op) => targeted.statuses.get(op) === "failed")
 			results.push({
@@ -88,7 +92,7 @@ export async function runScopeSuite(
 				why,
 			})
 		} catch (error) {
-			results.push({ detail: error instanceof Error ? error.message : String(error), name, ok: false, why })
+			results.push({ detail: messageOf(error), name, ok: false, why })
 		}
 	}
 	return results

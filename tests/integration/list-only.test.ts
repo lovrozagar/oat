@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { judgeDefect } from "../../src/conformance/matrix/cases.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { run } from "../../src/runtime/run/index.ts"
+import { listening } from "../../src/conformance/harness/launch.ts"
 
 const DEFECT_VERDICTS = new Set(["BACKEND_BUG", "SECURITY", "SPEC_BUG"])
 const ROW = { id: "art_1", name: "Alpha" }
@@ -130,7 +131,7 @@ describe("a list with no create", () => {
 	})
 
 	it("the reference backend is caught when the get body is not the listed row", async () => {
-		const failed = await judgeDefect("LISTED_GET_DIFFERS", "memory", "postgrest")
+		const failed = await judgeDefect("LISTED_GET_DIFFERS", { backend: "memory", dialect: "postgrest", via: listening })
 		expect(failed.error).toBeUndefined()
 		expect(failed.detected).toBe(true)
 		expect(failed.spurious).toEqual([])

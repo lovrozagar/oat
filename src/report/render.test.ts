@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { Exchange } from "../runtime/exchange.ts"
 import type { Finding } from "../runtime/finding.ts"
-import { buildSpec } from "../reference/spec.ts"
+import { buildSpec } from "../reference/spec/build.ts"
 import { Client } from "../client/client.ts"
 import { buildModel } from "../spec/graph.ts"
 import { dereference } from "../spec/load.ts"

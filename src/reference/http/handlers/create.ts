@@ -1,0 +1,123 @@
+/** A create: the body validated, the identity issued or the client's, uniqueness kept, a replay answered. */
+
+import type { Row } from "../../store-api.ts"
+import { assertWrite } from "../access.ts"
+import { readJson, requireForm, requireJson } from "../body.ts"
+import { HttpError } from "../errors.ts"
+import { answerCreated, present, snapshotKey, withDefaults } from "../records.ts"
+import { type ReferenceState, TENANT_FIELD } from "../state.ts"
+import { assertUnique, liveRows, refreshParentCount } from "../store-ops.ts"
+import { formFields, validateBody } from "../validation.ts"
+import { type ReferenceRequest, type ReferenceResponse, respond } from "../wire.ts"
+import type { EntityCall } from "./entity.ts"
+
+const createdStatus = (state: ReferenceState): number => (state.defects.has("CREATED_201_AS_200") ? 200 : 201)
+
+/* An acknowledgement-only create answers success and nothing else. */
+const acknowledged = (state: ReferenceState, call: EntityCall): boolean =>
+	state.shape.ackCreate === true && call.entity.name === state.table.name
+
+export async function create(
+	state: ReferenceState,
+	request: ReferenceRequest,
+	call: EntityCall,
+): Promise<ReferenceResponse> {
+	const { entity, principal } = call
+	const { defects } = state
+	assertWrite(state, principal, "create")
+	const form = state.shape.formCreate === true
+	if (form) requireForm(request, defects)
+	else requireJson(request, defects)
+	/* Scoped by principal as well as key: two tenants using the same key must not be able to read
+	 * each other's result back. */
+	const idempotencyKey = request.headers["idempotency-key"] ?? ""
+	const replayKey = idempotencyKey === "" ? null : `${principal.projectId}:${entity.name}:${idempotencyKey}`
+	const replay = replayKey === null ? undefined : await replayed(state, call, replayKey)
+	if (replay !== undefined) return replay
+	const received = form ? formFields(entity, await request.text()) : await readJson(request)
+	/* The crash happens on the bytes as received, before anything sanitizes them. */
+	if (defects.has("CREATE_500_ON_NON_ASCII") && nonAscii(received as Row)) {
+		throw new Error("encoding error: could not write row")
+	}
+	const input = validateBody(entity, received, "create", defects)
+	const scope = { ...call.scope, project_id: principal.projectId }
+	const key = snapshotKey(entity, call.scope)
+	if (defects.has("STALE_LIST") && !state.staleSnapshot.has(key)) {
+		state.staleSnapshot.set(key, await liveRows(state, entity, scope))
+	}
+	if (defects.has("CREATE_DROPS_FIELD")) delete input.description
+	const record = withDefaults(state, entity, input, scope)
+	const overwritten = await clientChosenId(state, call, { input, record })
+	if (overwritten !== undefined) return overwritten
+	await assertUnique(state, entity, record, undefined)
+	const created = await state.store.insert(entity, record)
+	await refreshParentCount(state, entity, call.scope)
+	if (replayKey !== null) state.idempotent.set(replayKey, created)
+	if (acknowledged(state, call)) return respond(createdStatus(state), { success: true })
+	return respond(createdStatus(state), answerCreated(state, entity, present(state, entity, created)))
+}
+
+function nonAscii(received: Row): boolean {
+	return Object.values(received).some(
+		(value) => typeof value === "string" && [...value].some((ch) => (ch.codePointAt(0) as number) > 0x7f),
+	)
+}
+
+/* A repeated Idempotency-Key answers with the first create's record — or, under the defect, inserts again. */
+async function replayed(
+	state: ReferenceState,
+	call: EntityCall,
+	replayKey: string,
+): Promise<ReferenceResponse | undefined> {
+	if (state.defects.has("IDEMPOTENCY_IGNORED")) return undefined
+	const previous = state.idempotent.get(replayKey)
+	if (previous === undefined) return undefined
+	const { entity, principal } = call
+	if (state.defects.has("IDEMPOTENT_REPLAY_INSERTS")) {
+		const copy: Row = { ...previous }
+		delete copy[entity.identity]
+		for (const column of (entity.unique ?? []).flat()) {
+			if (typeof copy[column] === "string") copy[column] = `${copy[column] as string}-replay`
+		}
+		await state.store.insert(
+			entity,
+			withDefaults(state, entity, copy, { ...call.scope, project_id: principal.projectId }),
+		)
+	}
+	const body = acknowledged(state, call)
+		? { success: true }
+		: answerCreated(state, entity, present(state, entity, previous))
+	return respond(createdStatus(state), body)
+}
+
+/*
+ * Under the client-ids shape the table's id is the client's to choose: a taken one is a 409.
+ * CLIENT_ID_IGNORED keeps the id the server issued and still acknowledges; CLIENT_ID_OVERWRITES
+ * replaces the tenant's record that holds the id and says so with a 200.
+ */
+async function clientChosenId(
+	state: ReferenceState,
+	call: EntityCall,
+	made: { input: Row; record: Row },
+): Promise<ReferenceResponse | undefined> {
+	const { entity } = call
+	const range = entity.name === state.table.name ? state.shape.clientIds : undefined
+	if (range === undefined) return undefined
+	const chosen = made.input[entity.identity]
+	if (typeof chosen !== "number" || !Number.isInteger(chosen) || chosen < range.min || chosen > range.max) {
+		throw new HttpError(
+			400,
+			"invalid_input",
+			`field "${entity.identity}" must be an integer from ${range.min} to ${range.max}`,
+		)
+	}
+	if (state.defects.has("CLIENT_ID_IGNORED")) return undefined
+	made.record[entity.identity] = chosen
+	const holder = await state.store.byId(entity, chosen)
+	if (holder === null) return undefined
+	if (state.defects.has("CLIENT_ID_OVERWRITES") && holder[TENANT_FIELD] === made.record[TENANT_FIELD]) {
+		await state.store.update(entity, chosen, { ...made.input, updated_at: made.record.updated_at })
+		return respond(200, { success: true })
+	}
+	throw new HttpError(409, "conflict", `${entity.identity} ${chosen} is taken`)
+}

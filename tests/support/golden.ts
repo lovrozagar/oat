@@ -4,7 +4,8 @@ import { join } from "node:path"
 import { vi } from "vitest"
 import { main } from "../../src/cli/main.ts"
 import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
-import { createMemoryServer, createSqliteServer, type ReferenceOptions } from "../../src/reference/http.ts"
+import { createMemoryServer, createSqliteServer } from "../../src/reference/http/engines.ts"
+import type { ReferenceOptions } from "../../src/reference/http/state.ts"
 
 /* What a concurrent run cannot hold still: wall-clock times, call order and counts, request ids,
  * which later exchange happened to prove a write, and evidence bodies, which carry the server's

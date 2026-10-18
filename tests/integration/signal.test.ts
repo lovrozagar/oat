@@ -7,7 +7,8 @@ import { join, resolve } from "node:path"
 import { afterAll, describe, expect, it } from "vitest"
 import { leftBehind } from "../../src/conformance/leaks.ts"
 import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
-import { createMemoryServer, type ReferenceServer } from "../../src/reference/http.ts"
+import { createMemoryServer } from "../../src/reference/http/engines.ts"
+import type { ReferenceServer } from "../../src/reference/http/server.ts"
 
 /*
  * A first Ctrl-C or SIGTERM stops testing in whatever phase the run is in — a long scenario

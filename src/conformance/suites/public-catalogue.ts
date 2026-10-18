@@ -1,5 +1,5 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
-import type { AddressInfo } from "node:net"
+import type { Handle } from "../../reference/http/node.ts"
+import type { ReferenceRequest, ReferenceResponse } from "../../reference/http/wire.ts"
 
 const PUBLIC_CATALOGUE_SPEC = {
 	info: { title: "Public catalogue", version: "1.0" },
@@ -92,98 +92,73 @@ const PUBLIC_CATALOGUE_SPEC = {
 	},
 }
 
-function readJson(req: IncomingMessage): Promise<unknown> {
-	return new Promise((resolve, reject) => {
-		const chunks: Buffer[] = []
-		req.on("data", (chunk: Buffer) => {
-			chunks.push(chunk)
-		})
-		req.on("end", () => {
-			const text = Buffer.concat(chunks).toString("utf8")
-			if (text === "") {
-				resolve(undefined)
-				return
-			}
-			try {
-				resolve(JSON.parse(text) as unknown)
-			} catch (error) {
-				reject(error)
-			}
-		})
-		req.on("error", reject)
-	})
-}
-
-function send(res: ServerResponse, status: number, body?: unknown): void {
-	if (body === undefined) {
-		res.writeHead(status)
-		res.end()
-		return
-	}
+function send(status: number, body?: unknown): ReferenceResponse {
+	if (body === undefined) return { body: "", headers: {}, status }
 	const text = JSON.stringify(body)
-	res.writeHead(status, { "content-type": "application/json", "content-length": String(Buffer.byteLength(text)) })
-	res.end(text)
+	return {
+		body: text,
+		headers: { "content-length": String(Buffer.byteLength(text)), "content-type": "application/json" },
+		status,
+	}
 }
 
-export async function servePublicCatalogue(): Promise<{ close: () => Promise<void>; url: string }> {
+/** A body read as JSON: nothing when empty, and a throw — answered 500 — when it is not JSON. */
+async function readJson(request: ReferenceRequest): Promise<unknown> {
+	const text = await request.text()
+	return text === "" ? undefined : (JSON.parse(text) as unknown)
+}
+
+/**
+ * A catalogue every principal reads in full: no tenant names its records, so a template one
+ * principal made is the other's to read too. Answers each request, failures included.
+ */
+export function publicCatalogue(): Handle {
 	const rows = new Map<string, { id: string; name: string }>()
-	let seq = 0
 	const tokens = new Set(["tok_alpha", "tok_beta"])
-
-	const server = createServer((req, res) => {
-		void (async () => {
-			const url = new URL(req.url ?? "/", "http://127.0.0.1")
-			const method = (req.method ?? "GET").toUpperCase()
-			if (url.pathname === "/v1/openapi/spec" && method === "GET") {
-				return send(res, 200, PUBLIC_CATALOGUE_SPEC)
+	let seq = 0
+	const answer = async (request: ReferenceRequest): Promise<ReferenceResponse> => {
+		const { method, url } = request
+		if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(200, PUBLIC_CATALOGUE_SPEC)
+		const header = request.headers.authorization ?? ""
+		if (!header.startsWith("Bearer ") || !tokens.has(header.slice(7).trim()))
+			return send(401, { error: "unauthorized" })
+		if (url.pathname === "/v1/templates") {
+			if (method === "GET") return send(200, { templates: listed(rows, url.searchParams.get("filter")) })
+			if (method === "POST") {
+				const body = (await readJson(request)) as { name?: unknown } | undefined
+				seq += 1
+				const row = { id: `tmpl_${String(seq)}`, name: typeof body?.name === "string" ? body.name : "" }
+				rows.set(row.id, row)
+				return send(201, row)
 			}
-			const header = req.headers.authorization
-			if (typeof header !== "string" || !header.startsWith("Bearer ") || !tokens.has(header.slice(7).trim())) {
-				return send(res, 401, { error: "unauthorized" })
-			}
-			if (url.pathname === "/v1/templates" && method === "GET") {
-				const raw = url.searchParams.get("filter")
-				const match = raw === null ? null : /^id\.eq\.(.+)$/.exec(raw)
-				if (match !== null) {
-					const row = rows.get(match[1] ?? "")
-					return send(res, 200, { templates: row === undefined ? [] : [row] })
-				}
-				return send(res, 200, { templates: [...rows.values()] })
-			}
-			if (url.pathname === "/v1/templates" && method === "POST") {
-				const body = (await readJson(req)) as { name?: unknown }
-				const name = typeof body?.name === "string" ? body.name : ""
-				const id = `tmpl_${String((seq += 1))}`
-				const row = { id, name }
-				rows.set(id, row)
-				return send(res, 201, row)
-			}
-			const item = /^\/v1\/templates\/([^/]+)$/.exec(url.pathname)
-			if (item !== null && method === "GET") {
-				const row = rows.get(decodeURIComponent(item[1] ?? ""))
-				return row === undefined ? send(res, 404, { error: "not_found" }) : send(res, 200, row)
-			}
-			if (item !== null && method === "DELETE") {
-				const id = decodeURIComponent(item[1] ?? "")
-				if (!rows.has(id)) return send(res, 404, { error: "not_found" })
-				rows.delete(id)
-				return send(res, 204)
-			}
-			return send(res, 404, { error: "not_found" })
-		})().catch(() => {
-			if (!res.headersSent) send(res, 500, { error: "internal" })
-		})
-	})
-
-	await new Promise<void>((resolve) => {
-		server.listen(0, "127.0.0.1", resolve)
-	})
-	const addr = server.address() as AddressInfo
-	return {
-		close: () =>
-			new Promise((resolve, reject) => {
-				server.close((error) => (error ? reject(error) : resolve()))
-			}),
-		url: `http://127.0.0.1:${addr.port}`,
+		}
+		return item(rows, request)
 	}
+	return async (request) => {
+		try {
+			return await answer(request)
+		} catch {
+			return send(500, { error: "internal" })
+		}
+	}
+}
+
+/* Every template, or the one `filter=id.eq.<id>` names. */
+function listed(rows: ReadonlyMap<string, { id: string; name: string }>, filter: string | null): unknown[] {
+	const match = filter === null ? null : /^id\.eq\.(.+)$/.exec(filter)
+	if (match === null) return [...rows.values()]
+	const row = rows.get(match[1] ?? "")
+	return row === undefined ? [] : [row]
+}
+
+function item(rows: Map<string, { id: string; name: string }>, request: ReferenceRequest): ReferenceResponse {
+	const match = /^\/v1\/templates\/([^/]+)$/.exec(request.url.pathname)
+	if (match === null || (request.method !== "GET" && request.method !== "DELETE"))
+		return send(404, { error: "not_found" })
+	const id = decodeURIComponent(match[1] ?? "")
+	const row = rows.get(id)
+	if (row === undefined) return send(404, { error: "not_found" })
+	if (request.method === "GET") return send(200, row)
+	rows.delete(id)
+	return send(204)
 }

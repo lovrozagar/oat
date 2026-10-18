@@ -12,6 +12,7 @@
 import { availableParallelism } from "node:os"
 import { type ChildProcess, fork } from "node:child_process"
 import { type AnswerFor, type ConformanceAnswer, type ConformanceTask, runTask } from "./tasks.ts"
+import { listening } from "./harness/launch.ts"
 
 export type { AnswerFor, ConformanceAnswer, ConformanceTask, MemoryUse } from "./tasks.ts"
 
@@ -109,7 +110,7 @@ function inProcessPool(): ConformancePool {
 		run: <T extends ConformanceTask>(task: T) => {
 			sequence += 1
 			const turn = sequence
-			const answer = previous.catch(() => undefined).then(() => runTask(task, turn) as Promise<AnswerFor<T>>)
+			const answer = previous.catch(() => undefined).then(() => runTask(task, turn, listening) as Promise<AnswerFor<T>>)
 			previous = answer
 			return answer
 		},

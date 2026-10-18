@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"
-import { createMemoryServer } from "../../src/reference/http.ts"
+import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { entityLanes, run } from "../../src/runtime/run/index.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import { dereference } from "../../src/spec/load.ts"

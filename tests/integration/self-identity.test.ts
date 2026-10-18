@@ -4,8 +4,9 @@ import { afterEach, describe, expect, it } from "vitest"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { judgeDefect } from "../../src/conformance/matrix/cases.ts"
 import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
-import { createMemoryServer } from "../../src/reference/http.ts"
+import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { run } from "../../src/runtime/run/index.ts"
+import { listening } from "../../src/conformance/harness/launch.ts"
 
 const DEFECT_VERDICTS = new Set(["BACKEND_BUG", "SECURITY", "SPEC_BUG"])
 
@@ -713,7 +714,11 @@ describe("identity self", () => {
 	})
 
 	it("the reference backend is caught only when the caller update does not stick", async () => {
-		const dropped = await judgeDefect("CALLER_UPDATE_DROPPED", "memory", "postgrest")
+		const dropped = await judgeDefect("CALLER_UPDATE_DROPPED", {
+			backend: "memory",
+			dialect: "postgrest",
+			via: listening,
+		})
 		expect(dropped.error).toBeUndefined()
 		expect(dropped.detected).toBe(true)
 		expect(dropped.spurious).toEqual([])

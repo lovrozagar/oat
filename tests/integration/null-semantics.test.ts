@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { createMemoryServer, createSqliteServer, type ReferenceServer } from "../../src/reference/http.ts"
+import { createMemoryServer, createSqliteServer } from "../../src/reference/http/engines.ts"
+import type { ReferenceServer } from "../../src/reference/http/server.ts"
 
 /* The reference backend's null rules (`src/reference/query.ts`) are decided once and every store
  * must hold them. `eq.null` compares against the text "null", as PostgREST does; `is.null` is the

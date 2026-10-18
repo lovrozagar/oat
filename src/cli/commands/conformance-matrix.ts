@@ -215,7 +215,13 @@ export async function runMatrix(
 async function judgeWhole(run: MatrixRun, answers: Array<Promise<PassAnswer>>, extras: Extras): Promise<void> {
 	const index = defaultPass(run.matrix)
 	if (index !== -1)
-		print(run, await run.toolkit.suite.runTagUnlockSuite((await (answers[index] as Promise<PassAnswer>)).baselines))
+		print(
+			run,
+			await run.toolkit.suite.runTagUnlockSuite(
+				run.toolkit.suite.listening,
+				(await (answers[index] as Promise<PassAnswer>)).baselines,
+			),
+		)
 	if (extras.scope !== undefined)
 		print(
 			run,

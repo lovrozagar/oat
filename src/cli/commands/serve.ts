@@ -1,4 +1,5 @@
-import type { ReferenceOptions, ReferenceServer } from "../../reference/http.ts"
+import type { ReferenceServer } from "../../reference/http/server.ts"
+import type { ReferenceOptions } from "../../reference/http/state.ts"
 import { type Args, str } from "../flags.ts"
 import type { Writer } from "../writer.ts"
 
@@ -13,7 +14,8 @@ export interface ServeDeps {
 
 /** The reference backend's factory for `backend`'s store; the in-memory one for any other name. */
 export async function referenceFactory(backend: string): Promise<Factory> {
-	const { createMemoryServer, createPostgresServer, createSqliteServer } = await import("../../reference/http.ts")
+	const { createMemoryServer, createPostgresServer, createSqliteServer } =
+		await import("../../reference/http/engines.ts")
 	return backend === "sqlite" ? createSqliteServer : backend === "postgres" ? createPostgresServer : createMemoryServer
 }
 

@@ -1,0 +1,86 @@
+import { describe, expect, it } from "vitest"
+import { LINKED, POSTGREST } from "../dialect.ts"
+import { ENTITIES, JOB, ROW, shapedEntities, TABLE } from "../model.ts"
+import { buildSpec, buildUntaggedSpec } from "./build.ts"
+import type { Json } from "./types.ts"
+
+function keysDeep(node: unknown, found = new Set<string>()): Set<string> {
+	if (Array.isArray(node)) {
+		for (const child of node) keysDeep(child, found)
+	} else if (node !== null && typeof node === "object") {
+		for (const [key, value] of Object.entries(node)) {
+			found.add(key)
+			keysDeep(value, found)
+		}
+	}
+	return found
+}
+
+describe("buildSpec", () => {
+	const spec = buildSpec()
+
+	it("is the PostgREST document over the default entities when called bare", () => {
+		expect(spec).toEqual(buildSpec(POSTGREST, { entities: ENTITIES, shape: {} }))
+		expect(spec).toMatchObject({ info: { title: "oat reference backend", version: "1.0.0" }, openapi: "3.1.0" })
+	})
+
+	it("routes every entity, then the caller, public, invite, job and token routes", () => {
+		const routes = Object.keys(spec.paths as Json)
+		expect(routes.slice(0, 6)).toEqual([TABLE, ROW, JOB].flatMap((entity) => [entity.collectionPath, entity.itemPath]))
+		expect(routes.slice(6)).toEqual([
+			"/v1/me",
+			"/health",
+			"/v1/notices",
+			"/v1/notices/{id}",
+			"/v1/logout",
+			"/v1/projects/{project_id}/overview",
+			"/v1/register",
+			`${TABLE.itemPath}/invites`,
+			"/v1/invites/{token}/accept",
+			`${TABLE.itemPath}/grants/{grant_id}`,
+			`${JOB.collectionPath}/start`,
+			"/v1/projects/{project_id}/notifications",
+			"/v1/projects/{project_id}/inbox",
+			"/v1/auth/token",
+		])
+	})
+
+	it("declares bearer auth and the token flow that acquires it", () => {
+		expect(Object.keys(spec)).toEqual(["info", "openapi", "paths", "components", "security", "x-auth-flows"])
+		expect(spec.security).toEqual([{ bearer: [] }])
+		expect(spec).toHaveProperty("x-auth-flows.default.acquire", {
+			credential: "$.access_token",
+			operationId: "auth.token",
+		})
+	})
+
+	it("follows the dialect it is given", () => {
+		const linked = buildSpec(LINKED)
+		expect(linked).toHaveProperty(["paths", TABLE.collectionPath, "get", "responses", "200", "headers", "Link"])
+	})
+
+	it("puts components first and hoists path parameters under the layout shape", () => {
+		const shape = { specLayout: true }
+		const laid = buildSpec(POSTGREST, { entities: shapedEntities(shape), shape })
+		expect(Object.keys(laid)).toEqual(["info", "openapi", "components", "paths", "security", "x-auth-flows"])
+		const item = (laid.paths as Record<string, Json>)[TABLE.itemPath] as { parameters: Json[]; get: Json }
+		expect(item.parameters.map((param) => param.name)).toEqual(["project_id", "table_id"])
+		expect(item.get.parameters).toEqual([])
+	})
+})
+
+describe("buildUntaggedSpec", () => {
+	it("strips every oat meta tag except the root marker", () => {
+		const untagged = buildUntaggedSpec()
+		const keys = [...keysDeep(untagged)]
+		expect(keys.filter((key) => key.startsWith("x-"))).toEqual(["x-root"])
+		expect(keysDeep(buildSpec()).has("x-query")).toBe(true)
+	})
+
+	it("keeps everything else, nulls and arrays included", () => {
+		const untagged = buildUntaggedSpec(POSTGREST, { entities: ENTITIES, shape: {} })
+		expect(untagged.paths).toHaveProperty([TABLE.collectionPath, "get", "operationId"], "table.list")
+		expect(untagged.security).toEqual([{ bearer: [] }])
+		expect(untagged).not.toHaveProperty("x-auth-flows")
+	})
+})

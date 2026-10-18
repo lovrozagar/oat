@@ -9,6 +9,7 @@ import { dereference } from "../../src/spec/load.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { checkContext } from "../support/check-context.ts"
 import { Redactor } from "../../src/security/redact.ts"
+import { listening } from "../../src/conformance/harness/launch.ts"
 
 /*
  * A backend that answers 200 with the whole collection for an operator it does not know, a sort
@@ -127,7 +128,7 @@ describe("filter.malformed-term-rejected", () => {
 describe("recall on the template dialect", () => {
 	for (const defect of ["IGNORES_BAD_SORT_DIRECTION", "IGNORES_MALFORMED_FILTER"] as const) {
 		it(`detects ${defect} and nothing else`, async () => {
-			const result = await judgeDefect(defect, "memory", "template")
+			const result = await judgeDefect(defect, { backend: "memory", dialect: "template", via: listening })
 			expect(result.error).toBeUndefined()
 			expect(result.detected).toBe(true)
 			expect(result.spurious.map((finding) => `${finding.check}: ${finding.summary}`)).toEqual([])

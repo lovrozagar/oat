@@ -10,6 +10,8 @@
  * Cases oat still gets wrong are listed in `expected-failures.ts`, which may only shrink.
  */
 
+import { messageOf } from "../errors/message.ts"
+import { launch, reach, type Target, type Via } from "./harness/launch.ts"
 import type { Backend } from "./matrix/engines.ts"
 import { EXPECTED_FAILURES } from "./expected-failures.ts"
 import { damagedBystanders, leftBehind, ledgeredNotCreated } from "./leaks.ts"
@@ -29,24 +31,18 @@ export interface ShapeCase {
 	expected: string | undefined
 }
 
-async function factoryFor(backend: Backend) {
-	const http = await import("../reference/http.ts")
-	return backend === "sqlite"
-		? http.createSqliteServer
-		: backend === "postgres"
-			? http.createPostgresServer
-			: http.createMemoryServer
+/** The default shape's target on `backend`: what every shape case starts from. */
+export function shapeTarget(backend: Backend, via: Via): Target {
+	return { backend, dialect: "postgrest", via }
 }
 
-/** One clean run behind `shape`, reduced to what it got wrong. */
+/** One clean run behind the target's shape, reduced to what it got wrong. */
 async function judge(
-	backend: Backend,
-	shape: string | undefined,
+	target: Target,
 	reference: ReadonlySet<string> | undefined,
 	cannotRun: Readonly<Record<string, string>> = {},
 ): Promise<{ problems: string[]; checksRun: string[] }> {
-	const factory = await factoryFor(backend)
-	const server = await factory(shape === undefined ? {} : { shape })
+	const server = await launch(target, {})
 	try {
 		const before = await server.snapshot()
 		const result = await run({
@@ -54,6 +50,7 @@ async function judge(
 			principals: PRINCIPALS,
 			seed: 42,
 			spec: `${server.url}/v1/openapi/spec`,
+			...reach(server),
 		})
 		const problems: string[] = []
 		for (const finding of result.findings) {
@@ -98,9 +95,9 @@ export const SHAPE_NAMES: readonly string[] = SHAPES.map((named) => named.name)
  * The checks a clean run behind the default shape runs: what every other shape must also run.
  * `null` when the default shape cannot be run at all, and then no shape is held to it.
  */
-export async function shapeReference(backend: Backend = "memory"): Promise<string[] | null> {
+export async function shapeReference(target: Target): Promise<string[] | null> {
 	try {
-		return (await judge(backend, undefined, undefined)).checksRun
+		return (await judge(target, undefined)).checksRun
 	} catch {
 		return null
 	}
@@ -108,7 +105,7 @@ export async function shapeReference(backend: Backend = "memory"): Promise<strin
 
 /** One shape, judged against the default shape's checks. */
 export async function judgeShape(
-	backend: Backend,
+	target: Target,
 	name: string,
 	reference: readonly string[] | null,
 ): Promise<ShapeCase> {
@@ -117,10 +114,10 @@ export async function judgeShape(
 	const label = `shape:${name}`
 	let problems: string[]
 	try {
-		problems = (await judge(backend, name, reference === null ? undefined : new Set(reference), named.cannotRun))
-			.problems
+		const held = reference === null ? undefined : new Set(reference)
+		problems = (await judge({ ...target, shape: name }, held, named.cannotRun)).problems
 	} catch (error) {
-		problems = [`threw: ${error instanceof Error ? error.message : String(error)}`]
+		problems = [`threw: ${messageOf(error)}`]
 	}
 	return { expected: EXPECTED_FAILURES[label], label, problems, why: named.why }
 }
@@ -180,15 +177,11 @@ export function waitingRecall(shapeCase: ShapeCase): ShapeCase {
 }
 
 /** Recall of `defects` behind the shape `name`: a case per defect. */
-export async function recallBehind(
-	backend: Backend,
-	name: string,
-	defects: readonly DefectName[],
-): Promise<ShapeCase[]> {
+export async function recallBehind(target: Target, name: string, defects: readonly DefectName[]): Promise<ShapeCase[]> {
 	const cases: ShapeCase[] = []
 	for (const defect of defects) {
 		const label = `recall:${name}:${defect}`
-		const result = await judgeDefect(defect, backend, "postgrest", name, label)
+		const result = await judgeDefect(defect, { ...target, dialect: "postgrest", shape: name }, label)
 		cases.push({
 			expected: EXPECTED_FAILURES[label],
 			label,

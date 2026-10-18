@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { judgeDefect } from "../../src/conformance/matrix/cases.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { run } from "../../src/runtime/run/index.ts"
+import { listening } from "../../src/conformance/harness/launch.ts"
 
 const DEFECT_VERDICTS = new Set(["BACKEND_BUG", "SECURITY", "SPEC_BUG"])
 
@@ -113,7 +114,11 @@ describe("a public read with no id", () => {
 	})
 
 	it("the reference backend is caught only when the public read fails", async () => {
-		const failed = await judgeDefect("PUBLIC_GET_NOT_SUCCESS", "memory", "postgrest")
+		const failed = await judgeDefect("PUBLIC_GET_NOT_SUCCESS", {
+			backend: "memory",
+			dialect: "postgrest",
+			via: listening,
+		})
 		expect(failed.error).toBeUndefined()
 		expect(failed.detected).toBe(true)
 		expect(failed.spurious).toEqual([])

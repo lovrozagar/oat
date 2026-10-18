@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
-import { createMemoryServer } from "../../src/reference/http.ts"
+import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { type PrincipalSpec, run } from "../../src/runtime/run/index.ts"
 
 /*
