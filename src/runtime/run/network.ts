@@ -1,4 +1,4 @@
-import type { NetworkClientOptions } from "../client.ts"
+import type { NetworkClientOptions } from "../../client/types.ts"
 import { type Fence, FencedError } from "../fence.ts"
 import type { FindingCollector } from "../finding.ts"
 import {
@@ -13,6 +13,7 @@ import {
 } from "../network.ts"
 import type { RunProgress } from "./progress.ts"
 import type { RunOptions, RunResult } from "./types.ts"
+import type { RunFindingId } from "../check-ids.ts"
 
 /** The run's view of the network: one gate every client waits on, and the outage, once noted. */
 export interface RunNetwork {
@@ -80,7 +81,7 @@ export function createRunNetwork(input: NetworkInput): RunNetwork {
 				waitedMs: gate.waitedMs,
 			}
 			findings.gap(
-				"net.unreachable",
+				"net.unreachable" satisfies RunFindingId,
 				where,
 				`network down (${error.kind})`,
 				describeNetworkFailure(error, gate.waitedMs),

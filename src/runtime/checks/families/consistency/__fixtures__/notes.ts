@@ -1,5 +1,5 @@
 import type { OpenApiDocument } from "../../../../../spec/types.ts"
-import type { RequestOptions } from "../../../../client.ts"
+import type { RequestOptions } from "../../../../../client/types.ts"
 import type { Record_ } from "../../../../world.ts"
 import type { Answer, Responder } from "../../../__fixtures__/harness.ts"
 

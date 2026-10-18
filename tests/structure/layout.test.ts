@@ -53,7 +53,6 @@ const UNTESTED: readonly string[] = [
 	"src/runtime/disposable.ts",
 	"src/runtime/dummy.ts",
 	"src/runtime/effects.ts",
-	"src/runtime/exchanges.ts",
 	"src/runtime/feature-gate.ts",
 	"src/runtime/fence.ts",
 	"src/runtime/headers.ts",

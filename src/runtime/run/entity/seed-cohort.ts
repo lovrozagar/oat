@@ -5,6 +5,7 @@ import { ids } from "../../checks/sets/list.ts"
 import { existingOrBlocked, worldOptions } from "./fallback.ts"
 import { seedFailed } from "./seed-failure.ts"
 import type { EntityRun, World } from "./state.ts"
+import type { RunFindingId } from "../../check-ids.ts"
 
 /**
  * Seeds the entity through its create: the parents its path names, then a cohort of records.
@@ -32,13 +33,14 @@ export async function seedCreated(run: EntityRun, createOp: OperationModel): Pro
 /** What the cohort's seeding said about variants that could not be created. */
 function reportVariants(run: EntityRun, createOp: OperationModel, cohort: SeededCohort): void {
 	const { entity, findings } = run
-	if (cohort.uniqueGap !== undefined) findings.gap("world.seed", entity.name, cohort.uniqueGap, cohort.uniqueGap)
+	if (cohort.uniqueGap !== undefined)
+		findings.gap("world.seed" satisfies RunFindingId, entity.name, cohort.uniqueGap, cohort.uniqueGap)
 	run.lostVariants = (cohort.failedVariants ?? []).map((failed) => failed.variant)
 	for (const failed of cohort.failedVariants ?? []) {
 		const said = JSON.stringify(failed.exchange.responseBody).slice(0, 300)
 		if (failed.exchange.status >= 500) {
 			findings.backend(
-				"create.does-not-error",
+				"create.does-not-error" satisfies RunFindingId,
 				entity.name,
 				`creating the "${failed.variant}" variant of a "${entity.name}" fails with a server error`,
 				`${createOp.operationId} returned ${failed.exchange.status} for a body generated from the ` +
@@ -49,7 +51,7 @@ function reportVariants(run: EntityRun, createOp: OperationModel, cohort: Seeded
 			continue
 		}
 		findings.gap(
-			"world.seed",
+			"world.seed" satisfies RunFindingId,
 			entity.name,
 			`the "${failed.variant}" variant of "${entity.name}" was refused with ${failed.exchange.status}`,
 			`${createOp.operationId} refused a body the document permits (${said}). Checks that ` +
@@ -71,7 +73,7 @@ async function worldOf(
 		 * extract→table) can seed, but do not assert write-path oracles against a body oat never
 		 * submitted. Adopted, not created: this record is somebody else's to keep. */
 		findings.gap(
-			"world.seed",
+			"world.seed" satisfies RunFindingId,
 			entity.name,
 			`seeding "${entity.name}" hit a plan limit; using an existing same-tenant record`,
 			`${createOp.operationId} returned a plan-limit refusal and the list already ` +
@@ -85,7 +87,7 @@ async function worldOf(
 		 * unique-conflict checks still run against that row. The seed 409 is not the unique check
 		 * passing — that check is the explicit second POST. */
 		findings.gap(
-			"world.seed",
+			"world.seed" satisfies RunFindingId,
 			entity.name,
 			`seeding "${entity.name}" could not insert because of x-unique`,
 			`${createOp.operationId} returned 409 and the list already had a record. ` +
@@ -115,13 +117,13 @@ function owned(run: EntityRun, cohort: SeededCohort, scope: Scope): World {
  */
 function gatedWorld(run: EntityRun, detail: string): Promise<World | null> {
 	run.findings.gap(
-		"world.seed",
+		"world.seed" satisfies RunFindingId,
 		run.entity.name,
 		`seeding "${run.entity.name}" is gated by ${detail}`,
 		`${detail}. Checks that need a row oat created stand down rather than treat the documented 403 as a defect.`,
 	)
 	return existingOrBlocked(run, {
-		check: "world.seed",
+		check: "world.seed" satisfies RunFindingId,
 		detail: `${detail} and the list route returned no existing records to fall back on.`,
 		summary: `could not test "${run.entity.name}"`,
 	})

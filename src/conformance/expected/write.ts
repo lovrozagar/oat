@@ -1,4 +1,5 @@
 import type { DefectName } from "../../reference/defects.ts"
+import type { FindingId } from "../../runtime/check-ids.ts"
 
 /** The defects whose primary check is in the write family, and the check each must trip. */
 export const WRITE_EXPECTED = {
@@ -58,4 +59,4 @@ export const WRITE_EXPECTED = {
 		"response.status-is-documented",
 		"response.no-server-error",
 	],
-} satisfies Partial<Record<DefectName, string | string[]>>
+} satisfies Partial<Record<DefectName, FindingId | FindingId[]>>

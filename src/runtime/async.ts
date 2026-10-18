@@ -8,7 +8,8 @@
 
 import { readPath } from "./path.ts"
 import type { AsyncSpec } from "../spec/extensions.ts"
-import type { Client, Exchange } from "./client.ts"
+import type { Client } from "../client/client.ts"
+import type { Exchange } from "./exchange.ts"
 import { type SseEvent, sseEvents } from "./sse.ts"
 import { fillPath } from "./fill-path.ts"
 

@@ -8,9 +8,10 @@ import { run } from "../../src/runtime/run/index.ts"
 import { resetUploadPool } from "../../src/runtime/upload.ts"
 import { forEachInvocation, resolveEachInvocations } from "../../src/runtime/upload-each.ts"
 import { seedCohort } from "../../src/runtime/world.ts"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import type { OpenApiDocument, OperationObject } from "../../src/spec/types.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 afterEach(() => {
 	resetUploadPool()
@@ -340,7 +341,7 @@ describe("seed fan-out", () => {
 			const model = extractModel()
 			const createOp = model.byOperationId.get("extract.once")
 			if (createOp === undefined) throw new Error("missing extract.once")
-			const client = new Client(url)
+			const client = new Client({ baseUrl: url, redactor: new Redactor() })
 			const seeded = await seedCohort(
 				createOp,
 				model,

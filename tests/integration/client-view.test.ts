@@ -1,8 +1,9 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { isBodyRef } from "../../src/runtime/transcript.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 let url = ""
 let close = async (): Promise<void> => {}
@@ -34,13 +35,18 @@ afterAll(() => close())
 
 describe("exchange model", () => {
 	it("resolves operations below the base path and stamps who asked and why", async () => {
-		const client = new Client(url)
-		client.setOperationResolver((method, path) =>
-			method === "GET" && /^\/v1\/tables\/[^/]+$/.test(path)
-				? { operationId: "table.get", template: "/v1/tables/{table_id}" }
-				: null,
-		)
-		client.setPrincipalResolver((headers) => (headers.authorization === "Bearer a" ? "alpha" : undefined))
+		const client = new Client({
+			baseUrl: url,
+			credentials: {
+				credentialFor: () => undefined,
+				principalOf: (headers) => (headers.authorization === "Bearer a" ? "alpha" : undefined),
+			},
+			operationResolver: (method, path) =>
+				method === "GET" && /^\/v1\/tables\/[^/]+$/.test(path)
+					? { operationId: "table.get", template: "/v1/tables/{table_id}" }
+					: null,
+			redactor: new Redactor(),
+		})
 		expect(client.relativePath(`${url}/v1/tables/1`)).toBe("/v1/tables/1")
 		/* A sibling path that merely starts with the same letters is not below the base. */
 		const sibling = new URL(url)
@@ -67,14 +73,14 @@ describe("exchange model", () => {
 	})
 
 	it("hands the caller the real body and keeps a compact copy", async () => {
-		const client = new Client(url)
+		const client = new Client({ baseUrl: url, redactor: new Redactor() })
 		const exchange = await client.get("/v1/big")
 		expect(typeof (exchange.responseBody as { items: string }).items).toBe("string")
 		expect(isBodyRef(client.transcript.at(-1)?.responseBody)).toBe(true)
 	})
 
 	it("marks an answer asked again after a refresh as superseded", async () => {
-		const client = new Client(url)
+		const client = new Client({ baseUrl: url, redactor: new Redactor() })
 		let refreshed = 0
 		const exchange = await client.get("/v1/guarded", {
 			refreshIfStale: async (force) => {

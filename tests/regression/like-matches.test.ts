@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { FindingCollector } from "../../src/runtime/finding.ts"
 import { parseFilterGrammar } from "../../src/spec/filter-render.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import { dereference } from "../../src/spec/load.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { checkContext } from "../support/check-context.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 /*
  * What a `like` value means is declared, not assumed. Under `pattern`, `%` and `_` are wildcards,
@@ -50,7 +51,7 @@ function planFor(grammar: Record<string, unknown>) {
 	const check = CHECKS.find((candidate) => candidate.id === "filter.like-metacharacters-escaped")
 	if (listOp === undefined || check === undefined || listOp.query === null) throw new Error("fixture incomplete")
 	const ctx = checkContext({
-		client: new Client("http://127.0.0.1:1"),
+		client: new Client({ baseUrl: "http://127.0.0.1:1", redactor: new Redactor() }),
 		entityName: "note",
 		findings: new FindingCollector(),
 		listOp,

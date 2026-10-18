@@ -1,6 +1,6 @@
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph.ts"
-import type { Exchange } from "../../../client.ts"
+import type { Exchange } from "../../../exchange.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
 import { listedIds } from "../../../proven-id.ts"

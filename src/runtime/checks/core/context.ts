@@ -2,7 +2,7 @@
 
 import type { PayloadPolicy } from "../../../config/types/config.ts"
 import type { Hooks } from "../../../config/types/hooks.ts"
-import type { Client, ReadClient } from "../../client.ts"
+import type { Client, ReadClient } from "../../../client/client.ts"
 import type { Exchange } from "../../exchange.ts"
 import type { FindingCollector } from "../../finding.ts"
 import type { BackoffConfig } from "../../poll.ts"

@@ -31,7 +31,7 @@ describe("oat/network-through-client", () => {
 	})
 
 	it("allows the client itself, the reference backend, labs and tests", () => {
-		expect(lines("src/runtime/client.ts")).toEqual([])
+		expect(lines("src/client/request.ts")).toEqual([])
 		expect(lines("src/reference/stores/sqlite-driver.ts")).toEqual([])
 		expect(lines("labs/demo.ts")).toEqual([])
 		expect(lines("src/runtime/checks.test.ts")).toEqual([])

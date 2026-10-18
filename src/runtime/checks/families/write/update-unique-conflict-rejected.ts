@@ -9,7 +9,7 @@ import {
 	probeableUniqueSets,
 	uniqueProbeHeaders,
 } from "../../../unique.ts"
-import type { Exchange } from "../../../client.ts"
+import type { Exchange } from "../../../exchange.ts"
 import { idOf, isPlanLimitResponse, type Record_ } from "../../../world.ts"
 import type { WriteContext } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"

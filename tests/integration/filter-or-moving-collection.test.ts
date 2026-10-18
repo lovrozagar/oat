@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { runCheck as planAndRun } from "../../src/runtime/checks/core/run.ts"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { FindingCollector } from "../../src/runtime/finding.ts"
 import { SchemaValidator } from "../../src/runtime/validate.ts"
 import type { Record_ } from "../../src/runtime/world.ts"
@@ -11,6 +11,7 @@ import { buildModel } from "../../src/spec/graph.ts"
 import { dereference } from "../../src/spec/load.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { checkContext } from "../support/check-context.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 /*
  * The union check reads each term alone and then the or(). A record another check creates between
@@ -127,7 +128,7 @@ async function run(opts: { grows: boolean; strangers: boolean }): Promise<Findin
 		altScope: undefined,
 		asyncOps: [],
 		auth: () => ({}),
-		client: new Client(url),
+		client: new Client({ baseUrl: url, redactor: new Redactor() }),
 		collectionKey: listOp.collection?.key ?? "templates",
 		createOp: undefined,
 		deleteOp: undefined,

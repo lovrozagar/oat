@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { Client, type Exchange, type RequestOptions } from "./client.ts"
+import { Client } from "../client/client.ts"
+import type { RequestOptions } from "../client/types.ts"
+import type { Exchange } from "./exchange.ts"
 import {
 	confirmSubmitted,
 	idOf,
@@ -12,6 +14,7 @@ import {
 import { buildModel, type OperationModel } from "../spec/graph.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
 import { dereference } from "../spec/load.ts"
+import { Redactor } from "../security/redact.ts"
 /*
  * An id oat only sent proves nothing: the server may have ignored it. `confirmSubmitted` trusts it
  * only once the entity's read, under that id, returns that id with every scalar field oat sent.
@@ -242,7 +245,7 @@ describe("seeding a create whose path names its own record", () => {
 		const create = model.byOperationId.get("thing.create")
 		expect(create).toBeDefined()
 		/* Nothing is sent: the refusal comes before any request. */
-		const client = new Client("http://127.0.0.1:9")
+		const client = new Client({ baseUrl: "http://127.0.0.1:9", redactor: new Redactor() })
 		const refused = await resolvePathScope(create!, model, client, OPTIONS).catch((error: unknown) => error)
 		expect(refused).toBeInstanceOf(SeedError)
 		expect((refused as Error).message).toBe(

@@ -1,10 +1,11 @@
 import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { MissingValueError } from "../../src/errors/missing-value.ts"
 import { idOf } from "../../src/runtime/world.ts"
 import { FILTER_PRESETS, renderTerm } from "../../src/spec/filter-render.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 /*
  * A record without its identity used to become the text "undefined" in a path (`GET /notes/undefined`),
@@ -51,7 +52,7 @@ describe("a filter term", () => {
 describe("the client", () => {
 	it("sends nothing whose path or query carries a missing value", async () => {
 		const backend = await counting()
-		const client = new Client(backend.url)
+		const client = new Client({ baseUrl: backend.url, redactor: new Redactor() })
 		await expect(client.request("GET", "/v1/notes/undefined")).rejects.toBeInstanceOf(MissingValueError)
 		await expect(client.request("GET", "/v1/notes", { query: { filter: "undefined" } })).rejects.toBeInstanceOf(
 			MissingValueError,

@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
-import type { Exchange } from "../client.ts"
+import type { Exchange } from "../exchange.ts"
 import { contextOf, notesApi, optionsFor, planned } from "./__fixtures__/api.ts"
 import { earlyResult, finalResult, scopeReport, settle } from "./result.ts"
 

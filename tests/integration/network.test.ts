@@ -2,7 +2,7 @@ import { mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import {
 	DEFAULT_REQUEST_TIMEOUT_MS,
 	NetworkError,
@@ -21,6 +21,7 @@ import {
 import { formatProgressLine, type ProgressSnapshot } from "../../src/runtime/progress.ts"
 import { renderMarkdown, type ReportInput } from "../../src/report/render.ts"
 import { run } from "../../src/runtime/run/index.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 function net(code: string, message = "fetch failed"): TypeError {
 	const cause = Object.assign(new Error(message), { code })
@@ -435,18 +436,16 @@ describe("Client records a status-0 network exchange and retries", () => {
 			return new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
 		}) as typeof fetch
 		try {
-			const client = new Client(
-				"http://x.test",
-				{},
-				1,
-				(exchange) => {
+			const client = new Client({
+				baseUrl: "http://x.test",
+				maxInFlight: 1,
+				/* No awaitRecovery: a failed attempt is retried at once, never waited out. */
+				network: { retries: 2 },
+				onExchange: (exchange) => {
 					seen.push(exchange.status)
 				},
-				undefined,
-				undefined,
-				/* No awaitRecovery: a failed attempt is retried at once, never waited out. */
-				{ retries: 2 },
-			)
+				redactor: new Redactor(),
+			})
 			const exchange = await client.get("/v1/x")
 			expect(exchange.status).toBe(200)
 			expect(seen).toEqual([0, 200])
@@ -464,9 +463,14 @@ describe("Client records a status-0 network exchange and retries", () => {
 			throw net("ENONET")
 		}) as typeof fetch
 		try {
-			const client = new Client("http://x.test", {}, 1, undefined, undefined, undefined, {
-				awaitRecovery: async () => false,
-				retries: 0,
+			const client = new Client({
+				baseUrl: "http://x.test",
+				maxInFlight: 1,
+				network: {
+					awaitRecovery: async () => false,
+					retries: 0,
+				},
+				redactor: new Redactor(),
 			})
 			await expect(client.get("/v1/x")).rejects.toSatisfy(
 				(error: unknown) => isNetworkError(error) && error.kind === "offline",
@@ -485,9 +489,14 @@ describe("Client records a status-0 network exchange and retries", () => {
 			return new Response("{}", { status: 200 })
 		}) as typeof fetch
 		try {
-			const client = new Client("http://x.test", {}, 1, undefined, undefined, undefined, {
-				awaitRecovery: async () => true,
-				retries: 0,
+			const client = new Client({
+				baseUrl: "http://x.test",
+				maxInFlight: 1,
+				network: {
+					awaitRecovery: async () => true,
+					retries: 0,
+				},
+				redactor: new Redactor(),
 			})
 			expect((await client.get("/v1/x")).status).toBe(200)
 		} finally {

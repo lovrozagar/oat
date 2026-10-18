@@ -1,4 +1,5 @@
 import type { DefectName } from "../../reference/defects.ts"
+import type { FindingId } from "../../runtime/check-ids.ts"
 
 /** The defects whose primary check is in the composition family, and the check each must trip. */
 export const COMPOSITION_EXPECTED = {
@@ -79,4 +80,4 @@ export const COMPOSITION_EXPECTED = {
 		"query.filter-search-sort-select-compose",
 	],
 	UNKNOWN_PARAM_EMPTIES_LIST: "query.unknown-parameter-consistent",
-} satisfies Partial<Record<DefectName, string | string[]>>
+} satisfies Partial<Record<DefectName, FindingId | FindingId[]>>

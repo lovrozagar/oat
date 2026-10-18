@@ -6,7 +6,9 @@ import type { AddressInfo } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import { Client, describeRequestBody, toCurl } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
+import { toCurl } from "../../src/client/curl.ts"
+import { describeRequestBody } from "../../src/runtime/exchange.ts"
 import { INLINE_BODY_LIMIT, createExchangeJournal } from "../../src/runtime/exchanges.ts"
 import { isSecretJsonKey } from "../../src/security/credential-names.ts"
 import { Redactor } from "../../src/security/redact.ts"
@@ -81,7 +83,7 @@ describe("body descriptors", () => {
 		form.append("title", "scan")
 		form.append("password", "nope")
 		form.append("file", new File([bytes], "a.bin"))
-		const compacted = (await compactRequestBody(form)) as { parts: Array<Record<string, unknown>> }
+		const compacted = (await compactRequestBody(form, new Redactor())) as { parts: Array<Record<string, unknown>> }
 		expect(isFormSnapshot(compacted)).toBe(true)
 		expect(compacted.parts[0]).toEqual({ field: "title", value: "scan" })
 		expect(compacted.parts[1]).toEqual({ field: "password", value: "<redacted>" })
@@ -92,28 +94,31 @@ describe("body descriptors", () => {
 			mediaType: "application/octet-stream",
 			sha256: sha256Hex(bytes),
 		})
-		expect(await compactRequestBody(compacted)).toBe(compacted)
+		expect(await compactRequestBody(compacted, new Redactor())).toBe(compacted)
 		const ref = { bytes: 4, mediaType: "application/octet-stream", sha256: sha256Hex(bytes) }
-		expect(await compactRequestBody(ref)).toBe(ref)
-		expect(await compactRequestBody(undefined)).toBeUndefined()
-		expect(await compactRequestBody(new URLSearchParams({ a: "1", token: "s" }))).toEqual({
+		expect(await compactRequestBody(ref, new Redactor())).toBe(ref)
+		expect(await compactRequestBody(undefined, new Redactor())).toBeUndefined()
+		expect(await compactRequestBody(new URLSearchParams({ a: "1", token: "s" }), new Redactor())).toEqual({
 			a: "1",
 			token: "<redacted>",
 		})
-		expect(await compactRequestBody(bytes)).toEqual(ref)
-		expect(await compactRequestBody(bytes.buffer)).toMatchObject({ bytes: 4, mediaType: "application/octet-stream" })
-		expect(await compactRequestBody(new DataView(new ArrayBuffer(2)))).toMatchObject({ bytes: 2 })
-		expect(await compactRequestBody(new Blob([bytes]))).toMatchObject({ bytes: 4 })
-		expect(await compactRequestBody("hello")).toBe("hello")
+		expect(await compactRequestBody(bytes, new Redactor())).toEqual(ref)
+		expect(await compactRequestBody(bytes.buffer, new Redactor())).toMatchObject({
+			bytes: 4,
+			mediaType: "application/octet-stream",
+		})
+		expect(await compactRequestBody(new DataView(new ArrayBuffer(2)), new Redactor())).toMatchObject({ bytes: 2 })
+		expect(await compactRequestBody(new Blob([bytes]), new Redactor())).toMatchObject({ bytes: 4 })
+		expect(await compactRequestBody("hello", new Redactor())).toBe("hello")
 		const huge = "z".repeat(INLINE_BODY_LIMIT + 8)
-		expect(await compactRequestBody(huge)).toMatchObject({
+		expect(await compactRequestBody(huge, new Redactor())).toMatchObject({
 			bytes: INLINE_BODY_LIMIT + 8,
 			mediaType: "text/plain",
 		})
-		expect(await compactRequestBody({ n: 1 })).toEqual({ n: 1 })
+		expect(await compactRequestBody({ n: 1 }, new Redactor())).toEqual({ n: 1 })
 		const bigJson = { blob: "w".repeat(INLINE_BODY_LIMIT + 8) }
-		expect(await compactRequestBody(bigJson)).toMatchObject({ mediaType: "application/json" })
-		expect(await compactRequestBody(7)).toBe(7)
+		expect(await compactRequestBody(bigJson, new Redactor())).toMatchObject({ mediaType: "application/json" })
+		expect(await compactRequestBody(7, new Redactor())).toBe(7)
 		expect(describeRequestBody(form)).toMatchObject({
 			file: { bytes: 4, filename: "a.bin" },
 			password: "nope",
@@ -129,12 +134,19 @@ describe("body descriptors", () => {
 			mediaType: "application/octet-stream",
 			sha256: sha256Hex(bytes),
 		})
-		const curl = toCurl({ method: "POST", requestBody: compacted, requestHeaders: {}, url: "http://x.test/" } as never)
+		const curl = toCurl(
+			{ method: "POST", requestBody: compacted, requestHeaders: {}, url: "http://x.test/" } as never,
+			{
+				redactor: new Redactor(),
+			},
+		)
 		expect(curl).toContain("-F 'title=scan'")
 		expect(curl).toContain("-F 'file=@a.bin;type=application/octet-stream'")
-		expect(toCurl({ method: "POST", requestBody: ref, requestHeaders: {}, url: "http://x.test/" } as never)).toContain(
-			"--data-binary @-",
-		)
+		expect(
+			toCurl({ method: "POST", requestBody: ref, requestHeaders: {}, url: "http://x.test/" } as never, {
+				redactor: new Redactor(),
+			}),
+		).toContain("--data-binary @-")
 	})
 
 	it("compacts SSE frames, oversized responses, and binary bodies", async () => {
@@ -320,14 +332,19 @@ describe("readResponsePayload", () => {
 describe("Client transcript lifecycle", () => {
 	it("replaces live FormData with a snapshot after the journal records it", async () => {
 		const dir = await scratch()
-		const journal = createExchangeJournal(dir)
+		const journal = createExchangeJournal(dir, new Redactor())
 		const bytes = new Uint8Array(64).fill(7)
 		const server = await listen((_req, res) => {
 			res.writeHead(201, { "content-type": "application/json" })
 			res.end(JSON.stringify({ id: "1" }))
 		})
 		closers.push(server.close)
-		const client = new Client(server.url, {}, 1, (exchange) => journal.record(exchange))
+		const client = new Client({
+			baseUrl: server.url,
+			maxInFlight: 1,
+			onExchange: (exchange) => journal.record(exchange),
+			redactor: new Redactor(),
+		})
 		const form = new FormData()
 		form.append("note", "hi")
 		form.append("file", new File([bytes], "blob.bin", { type: "application/octet-stream" }))
@@ -371,9 +388,14 @@ describe("Client transcript lifecycle", () => {
 		closers.push(server.close)
 		const form = new FormData()
 		form.append("file", new File([new Uint8Array(32).fill(1)], "hang.bin"))
-		const client = new Client(server.url, {}, 1, undefined, undefined, undefined, {
-			requestTimeoutMs: 80,
-			retries: 0,
+		const client = new Client({
+			baseUrl: server.url,
+			maxInFlight: 1,
+			network: {
+				requestTimeoutMs: 80,
+				retries: 0,
+			},
+			redactor: new Redactor(),
 		})
 		await expect(client.request("POST", "/stream", { body: form })).rejects.toSatisfy(
 			(error: unknown) => isNetworkError(error) && error.kind === "timeout",
@@ -438,8 +460,13 @@ describe("uploads.each fan-out does not scale RSS with fixtureBytes × N", () =>
 		})
 		closers.push(server.close)
 		const exchangeDir = await scratch()
-		const journal = createExchangeJournal(exchangeDir)
-		const client = new Client(server.url, {}, 2, (exchange) => journal.record(exchange))
+		const journal = createExchangeJournal(exchangeDir, new Redactor())
+		const client = new Client({
+			baseUrl: server.url,
+			maxInFlight: 2,
+			onExchange: (exchange) => journal.record(exchange),
+			redactor: new Redactor(),
+		})
 		await client.request("GET", "/warmup")
 		const files: WeakRef<File>[] = []
 		const digests: string[] = []
@@ -656,7 +683,7 @@ describe("run() times out a hung stream on a host that still answers", () => {
 describe("a large body stored by reference", () => {
 	it("names a large text request by the digest taken when it was sent", async () => {
 		const digest = { bytes: INLINE_BODY_LIMIT + 1, sha256: "ab".repeat(32) }
-		expect(await compactRequestBody("x".repeat(INLINE_BODY_LIMIT + 1), undefined, digest)).toEqual({
+		expect(await compactRequestBody("x".repeat(INLINE_BODY_LIMIT + 1), new Redactor(), { digest: digest })).toEqual({
 			...digest,
 			mediaType: "text/plain",
 		})
@@ -673,7 +700,7 @@ describe("a large body stored by reference", () => {
 			})
 		})
 		closers.push(server.close)
-		const client = new Client(server.url)
+		const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 		const body = { rows: Array.from({ length: 4000 }, (_, i) => ({ id: i, name: "n".repeat(60) })) }
 		const exchange = await client.request("POST", "/rows", { body })
 		const stored = { ...exchange }
@@ -694,7 +721,7 @@ describe("a large body stored by reference", () => {
 			res.end(sent)
 		})
 		closers.push(server.close)
-		const client = new Client(server.url)
+		const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 		const exchange = await client.request("GET", "/rows")
 		const stored = { ...exchange }
 		await releaseTranscriptBodies(stored, new Redactor())

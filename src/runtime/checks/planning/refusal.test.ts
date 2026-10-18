@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { ReadClient } from "../../client.ts"
+import type { ReadClient } from "../../../client/client.ts"
 import { ASSERTED } from "../../finding.ts"
 import { exchange } from "../__fixtures__/harness.ts"
 import { notesContext } from "../query/__fixtures__/notes.ts"

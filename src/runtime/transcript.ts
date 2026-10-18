@@ -38,12 +38,14 @@ export function bodyRef(bytes: Uint8Array, mediaType: string): BodyRef {
 	return { bytes: bytes.byteLength, mediaType, sha256: sha256Hex(bytes) }
 }
 
-export async function compactRequestBody(
-	body: unknown,
-	knownBytes?: number,
-	digest?: BodyDigest,
-	redactor: Redactor = new Redactor(),
-): Promise<unknown> {
+/** What is already known about a request body as it went out: its size, and its hash when large. */
+export interface SentBody {
+	bytes?: number
+	digest?: BodyDigest | undefined
+}
+
+export async function compactRequestBody(body: unknown, redactor: Redactor, sent: SentBody = {}): Promise<unknown> {
+	const { bytes: knownBytes, digest } = sent
 	if (body === undefined) return undefined
 	if (isFormSnapshot(body) || isBodyRef(body)) return body
 	if (isFormData(body)) {
@@ -152,12 +154,10 @@ export async function compactResponseBody(
 
 /** Drop live request/response payloads on an exchange already pushed to the transcript. */
 export async function releaseTranscriptBodies(exchange: Exchange, redactor: Redactor): Promise<void> {
-	exchange.requestBody = await compactRequestBody(
-		exchange.requestBody,
-		exchange.requestBytes,
-		exchange.requestDigest,
-		redactor,
-	)
+	exchange.requestBody = await compactRequestBody(exchange.requestBody, redactor, {
+		bytes: exchange.requestBytes,
+		digest: exchange.requestDigest,
+	})
 	exchange.responseBody = await compactResponseBody(
 		exchange.responseBody,
 		exchange.responseHeaders,

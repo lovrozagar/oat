@@ -1,8 +1,10 @@
 import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { Client, toCurl } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
+import { toCurl } from "../../src/client/curl.ts"
 import { mergeQuery } from "../../src/runtime/query.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 /*
  * Some grammars write one filter term per parameter and repeat the parameter for each term:
@@ -28,24 +30,29 @@ afterAll(() => close())
 
 describe("repeated query parameters", () => {
 	it("sends every value of an array, in order, next to scalar parameters", async () => {
-		const exchange = await new Client(url).get("/notes", { query: { f: ["a", "b"], g: "c", n: 3 } })
+		const exchange = await new Client({ baseUrl: url, redactor: new Redactor() }).get("/notes", {
+			query: { f: ["a", "b"], g: "c", n: 3 },
+		})
 		expect(seen.at(-1)).toBe("/notes?f=a&f=b&g=c&n=3")
 		expect(new URL(exchange.url).searchParams.getAll("f")).toEqual(["a", "b"])
-		expect(toCurl(exchange)).toContain("f=a&f=b&g=c")
+		expect(toCurl(exchange, { redactor: new Redactor() })).toContain("f=a&f=b&g=c")
 	})
 
 	it("leaves a parameter out when the array is empty", async () => {
-		await new Client(url).get("/notes", { query: { f: [], g: "c" } })
+		await new Client({ baseUrl: url, redactor: new Redactor() }).get("/notes", { query: { f: [], g: "c" } })
 		expect(seen.at(-1)).toBe("/notes?g=c")
 	})
 
 	it("does not add a required default beside a parameter the caller repeats", async () => {
-		const client = new Client(url)
-		client.setOperationResolver(() => ({
-			operationId: "note.list",
-			requiredQuery: { f: "default", tenant: "t1" },
-			template: "/notes",
-		}))
+		const client = new Client({
+			baseUrl: url,
+			operationResolver: () => ({
+				operationId: "note.list",
+				requiredQuery: { f: "default", tenant: "t1" },
+				template: "/notes",
+			}),
+			redactor: new Redactor(),
+		})
 		await client.get("/notes", { query: { f: ["a", "b"] } })
 		expect(seen.at(-1)).toBe("/notes?f=a&f=b&tenant=t1")
 	})

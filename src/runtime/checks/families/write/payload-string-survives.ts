@@ -1,6 +1,6 @@
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph.ts"
-import type { Exchange } from "../../../client.ts"
+import type { Exchange } from "../../../exchange.ts"
 import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
 import { STRING_PAYLOADS } from "../../../payloads.ts"
 import type { Record_ } from "../../../world.ts"

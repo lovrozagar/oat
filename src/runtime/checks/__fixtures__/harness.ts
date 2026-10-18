@@ -1,5 +1,6 @@
 import { checkContext } from "../../../../tests/support/check-context.ts"
-import type { Client, RequestOptions } from "../../client.ts"
+import type { Client } from "../../../client/client.ts"
+import type { RequestOptions } from "../../../client/types.ts"
 import type { Exchange } from "../../exchange.ts"
 import { FindingCollector } from "../../finding.ts"
 import { buildModel, type OperationModel, type SpecModel } from "../../../spec/graph.ts"

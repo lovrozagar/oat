@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest"
 import { FLAGS } from "../../src/cli/flags.ts"
 import { CONFIG } from "../../src/config/validate.ts"
 import { DEFECTS } from "../../src/reference/defects.ts"
+import { RUN_FINDING_IDS } from "../../src/runtime/check-ids.ts"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"
 
 /*
@@ -71,6 +72,12 @@ const SURFACES: Readonly<Record<string, Surface>> = {
 			"response.contract-call",
 			"response.public-get-returns-success",
 		],
+	},
+	"run-level finding ids": {
+		doc: "checks.md",
+		names: () => [...RUN_FINDING_IDS],
+		written: code,
+		undocumented: [],
 	},
 	defects: {
 		doc: "reference-defects.md",
@@ -170,8 +177,8 @@ describe("docs stay in sync with the code", () => {
 
 /* The reverse: a doc that names a check or a tag the code no longer has teaches a shape that does nothing. */
 describe("docs name nothing the code lacks", () => {
-	it("every check id in the checks.md table is registered", () => {
-		const ids = new Set<string>(CHECKS.map((check) => check.id))
+	it("every id in the checks.md tables is a registered check or a run-level finding", () => {
+		const ids = new Set<string>([...CHECKS.map((check) => check.id), ...RUN_FINDING_IDS])
 		const listed = [...doc("checks.md").matchAll(/^\|\s*`([a-z]+\.[a-z0-9.-]+)`/gm)].map((m) => m[1] ?? "")
 		expect(listed.length).toBeGreaterThan(0)
 		expect(listed.filter((id) => !ids.has(id))).toEqual([])

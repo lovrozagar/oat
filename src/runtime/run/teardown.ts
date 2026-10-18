@@ -3,6 +3,7 @@ import type { TeardownReport } from "../teardown.ts"
 import type { RunContext } from "./context.ts"
 import { errorText } from "./errors.ts"
 import { messageOf } from "../../errors/message.ts"
+import type { RunFindingId } from "../check-ids.ts"
 
 /** Every create a configured principal sends is ledgered as it, whichever view sent it. */
 export function trackCreates(ctx: RunContext): void {
@@ -56,7 +57,7 @@ export async function unwind(ctx: RunContext): Promise<void> {
 		ctx.state.teardown = merged(ctx.state.teardown, report)
 	} catch (error) {
 		findings.blocked(
-			"world.teardown",
+			"world.teardown" satisfies RunFindingId,
 			"run",
 			`teardown stopped on an unexpected error with ${ledger.size} record(s) ledgered`,
 			errorText(error),
@@ -69,7 +70,7 @@ function noteHookErrors({ state, findings }: RunContext, errors: readonly string
 	if (errors.length === 0 || state.verifyHookFailed) return
 	state.verifyHookFailed = true
 	findings.gap(
-		"teardown.verify-hook",
+		"teardown.verify-hook" satisfies RunFindingId,
 		"teardown",
 		"hooks.verifyRemoved threw",
 		`${errors.length} call(s) threw, so those records keep teardown's own verdict: ${errors[0]}`,
@@ -92,7 +93,7 @@ export function reportUnremovable({ state, findings }: RunContext): void {
 	if (unremovable.length === 0) return
 	const names = unremovable.join(", ")
 	findings.gap(
-		"world.teardown",
+		"world.teardown" satisfies RunFindingId,
 		names,
 		"records created during the run could not be removed",
 		`no delete operation is reachable for ${names}, so this run left ` +
@@ -121,7 +122,7 @@ export async function teardownPrincipals({ options, hooks, findings, principals 
 	if (teardown === undefined) {
 		const addresses = provisioned.map(({ address }) => address)
 		findings.gap(
-			"world.teardown",
+			"world.teardown" satisfies RunFindingId,
 			"principal",
 			`${addresses.length} principal(s) provisioned by this run were not removed`,
 			`oat registered ${addresses.join(", ")} to run this test and has no way to delete them. ` +
@@ -133,7 +134,12 @@ export async function teardownPrincipals({ options, hooks, findings, principals 
 		try {
 			await teardown(address, { credential: runtime.credential(), headers: principal.headers() })
 		} catch (error) {
-			findings.gap("world.teardown", "principal", `could not remove provisioned principal ${address}`, messageOf(error))
+			findings.gap(
+				"world.teardown" satisfies RunFindingId,
+				"principal",
+				`could not remove provisioned principal ${address}`,
+				messageOf(error),
+			)
 		}
 	}
 }

@@ -1,4 +1,4 @@
-import type { RequestOptions } from "../../../../client.ts"
+import type { RequestOptions } from "../../../../../client/types.ts"
 import { type Answer, contextFor, modelOf, type Responder } from "../../../__fixtures__/harness.ts"
 import type { CheckContext } from "../../../core/context.ts"
 import type { OpenApiDocument } from "../../../../../spec/types.ts"

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { Client } from "../../../client.ts"
+import type { Client } from "../../../../client/client.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { exchange } from "../../__fixtures__/harness.ts"
 import { runCheck } from "../../core/run.ts"

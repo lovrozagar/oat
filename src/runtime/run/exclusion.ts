@@ -1,5 +1,6 @@
 import { excludedByProfile } from "../profile.ts"
 import type { Exclusion, Loaded } from "./context.ts"
+import type { RunFindingId } from "../check-ids.ts"
 
 export function createExclusion({ model, profile, state, findings }: Loaded): Exclusion {
 	return {
@@ -13,7 +14,7 @@ export function createExclusion({ model, profile, state, findings }: Loaded): Ex
 			findings
 				.attributed([op.operationId])
 				.gap(
-					"profile.skip",
+					"profile.skip" satisfies RunFindingId,
 					entity.name,
 					`${op.operationId} excluded by profile "${profile.name}"`,
 					`${reason}, under --profile ${profile.name}. Checks that depend on this operation stand ` +

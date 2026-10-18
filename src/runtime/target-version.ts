@@ -8,7 +8,7 @@
  */
 
 import type { SpecModel } from "../spec/graph.ts"
-import type { Client } from "./client.ts"
+import type { Client } from "../client/client.ts"
 import { readPath } from "./path.ts"
 import { fillPath } from "./fill-path.ts"
 

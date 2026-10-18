@@ -1,13 +1,14 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { driveWait, pointerIsOccupied, readPointer } from "../../src/runtime/wait.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import { dereference } from "../../src/spec/load.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { readWait } from "../../src/spec/extensions.ts"
 import { run } from "../../src/runtime/run/index.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 const closers: Array<() => Promise<void>> = []
 
@@ -118,7 +119,7 @@ describe("driveWait", () => {
 		const model = buildModel(dereference(spec).doc)
 		const pollOp = model.byOperationId.get("inbox.list")
 		expect(pollOp).toBeDefined()
-		const client = new Client(server.url)
+		const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 		const outcome = await driveWait({
 			client,
 			headers: () => ({}),
@@ -139,7 +140,7 @@ describe("driveWait", () => {
 		const model = buildModel(dereference(spec).doc)
 		const outcome = await driveWait({
 			awaitSideEffect: async () => true,
-			client: new Client(server.url),
+			client: new Client({ baseUrl: server.url, redactor: new Redactor() }),
 			headers: () => ({}),
 			pollOp: model.byOperationId.get("inbox.list")!,
 			record: null,
@@ -154,7 +155,7 @@ describe("driveWait", () => {
 		const server = await listen((_req, res) => send(res, 200, { items: [] }))
 		closers.push(server.close)
 		const model = buildModel(dereference(spec).doc)
-		const client = new Client(server.url)
+		const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 		let calls = 0
 		const outcome = await driveWait({
 			awaitSideEffect: async () => {
@@ -179,7 +180,7 @@ describe("driveWait", () => {
 		closers.push(server.close)
 		const model = buildModel(dereference(spec).doc)
 		const outcome = await driveWait({
-			client: new Client(server.url),
+			client: new Client({ baseUrl: server.url, redactor: new Redactor() }),
 			headers: () => ({}),
 			pollOp: model.byOperationId.get("inbox.list")!,
 			record: null,
@@ -200,7 +201,7 @@ describe("driveWait", () => {
 				hookRecord = record
 				return null
 			},
-			client: new Client(server.url),
+			client: new Client({ baseUrl: server.url, redactor: new Redactor() }),
 			headers: () => ({}),
 			pollOp: model.byOperationId.get("inbox.list")!,
 			record: { from: "write" },
@@ -222,7 +223,7 @@ describe("driveWait", () => {
 		closers.push(server.close)
 		const model = buildModel(dereference(spec).doc)
 		const outcome = await driveWait({
-			client: new Client(server.url),
+			client: new Client({ baseUrl: server.url, redactor: new Redactor() }),
 			headers: () => ({}),
 			pollOp: model.byOperationId.get("inbox.list")!,
 			record: null,
@@ -239,7 +240,7 @@ describe("driveWait", () => {
 		closers.push(server.close)
 		const model = buildModel(dereference(spec).doc)
 		const outcome = await driveWait({
-			client: new Client(server.url),
+			client: new Client({ baseUrl: server.url, redactor: new Redactor() }),
 			headers: () => ({}),
 			pollOp: model.byOperationId.get("inbox.list")!,
 			record: null,
@@ -255,7 +256,7 @@ describe("driveWait", () => {
 		closers.push(server.close)
 		const model = buildModel(dereference(spec).doc)
 		const empty = await driveWait({
-			client: new Client(server.url),
+			client: new Client({ baseUrl: server.url, redactor: new Redactor() }),
 			headers: () => ({}),
 			pollOp: model.byOperationId.get("inbox.broken")!,
 			record: null,
@@ -267,7 +268,7 @@ describe("driveWait", () => {
 		expect(empty.timedOut).toBe(true)
 
 		const timed = await driveWait({
-			client: new Client(server.url),
+			client: new Client({ baseUrl: server.url, redactor: new Redactor() }),
 			headers: () => ({}),
 			pollOp: model.byOperationId.get("inbox.list")!,
 			record: null,

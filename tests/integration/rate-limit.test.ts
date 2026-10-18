@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import {
 	buildRateLimitRules,
 	MAX_429_RETRIES,
@@ -16,6 +16,7 @@ import { run } from "../../src/runtime/run/index.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import { dereference } from "../../src/spec/load.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 function send(res: ServerResponse, status: number, body?: unknown, extraHeaders?: Record<string, string>): void {
 	if (body === undefined) {
@@ -155,7 +156,7 @@ describe("Client.request 429 retry", () => {
 			return send(res, 201, { id: "t1", name: "n" })
 		})
 		closers.push(server.close)
-		const client = new Client(server.url)
+		const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 		const started = Date.now()
 		const exchange = await client.request("POST", "/v1/things", { body: { name: "n" } })
 		const elapsed = Date.now() - started
@@ -182,7 +183,12 @@ describe("Client.request 429 retry", () => {
 			return send(res, 201, { id: "t1", name: "n" })
 		})
 		closers.push(server.close)
-		const client = new Client(server.url, {}, 4, undefined, new RateLimiter(rules))
+		const client = new Client({
+			baseUrl: server.url,
+			maxInFlight: 4,
+			rateLimiter: new RateLimiter(rules),
+			redactor: new Redactor(),
+		})
 		const exchange = await client.request("POST", "/v1/things", { body: { name: "n" } })
 		expect(posts).toBe(2)
 		expect(exchange.status).toBe(201)
@@ -201,7 +207,7 @@ describe("Client.request 429 retry", () => {
 			return send(res, 201, { id: "t1", name: "n" })
 		})
 		closers.push(server.close)
-		const client = new Client(server.url)
+		const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 		const started = Date.now()
 		const exchange = await client.request("POST", "/v1/things", { body: { name: "n" } })
 		expect(posts).toBe(2)

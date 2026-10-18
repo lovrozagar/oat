@@ -9,7 +9,7 @@
 
 import type { CheckId } from "./check-ids.ts"
 import type { Check } from "./checks/core/check.ts"
-import type { Exchange } from "./client.ts"
+import type { Exchange } from "./exchange.ts"
 import { ASSERTED, type FindingCollector, type Outcome } from "./finding.ts"
 import { describeServerError, headerValue } from "./rate-limit.ts"
 import type { GradeLedger } from "./grades.ts"

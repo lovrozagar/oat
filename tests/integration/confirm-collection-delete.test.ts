@@ -1,13 +1,14 @@
 import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { confirmDeletes } from "../../src/runtime/contract.ts"
 import { FindingCollector } from "../../src/runtime/finding.ts"
 import { GradeLedger } from "../../src/runtime/scope.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import { dereference } from "../../src/spec/load.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 /*
  * A delete of a whole collection (forget every trusted device) has no item to read back. The read
@@ -63,7 +64,10 @@ async function confirm(keeps: boolean) {
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
 	closers.push(() => new Promise((resolve) => server.close(() => resolve())))
 	const model = buildModel(dereference(spec).doc)
-	const client = new Client(`http://127.0.0.1:${(server.address() as AddressInfo).port}`)
+	const client = new Client({
+		baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+		redactor: new Redactor(),
+	})
 	await client.request("DELETE", "/v1/devices", { operationId: "devices.forgetAll" })
 	const findings = new FindingCollector()
 	const grades = new GradeLedger()

@@ -1,4 +1,4 @@
-import type { RequestOptions } from "../../../../client.ts"
+import type { RequestOptions } from "../../../../../client/types.ts"
 import type { Outcome } from "../../../../finding.ts"
 import type { Record_ } from "../../../../world.ts"
 import type { OpenApiDocument } from "../../../../../spec/types.ts"

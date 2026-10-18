@@ -1,9 +1,10 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 /*
  * A 503 that names when to come back is a cue a well-behaved client follows: wait, ask again. oat
@@ -57,7 +58,12 @@ const spec: OpenApiDocument = {
 describe("a 503 with Retry-After", () => {
 	it("is waited out and asked again, and the answer that follows is the verdict", async () => {
 		const server = await serve([{ retryAfter: "1", status: 503 }, { status: 200 }])
-		const client = new Client(server.url, {}, 1, () => undefined)
+		const client = new Client({
+			baseUrl: server.url,
+			maxInFlight: 1,
+			onExchange: () => undefined,
+			redactor: new Redactor(),
+		})
 		const exchange = await client.request("POST", "/v1/busy")
 		expect(exchange.status).toBe(200)
 		expect(server.hits()).toBe(2)
@@ -66,7 +72,12 @@ describe("a 503 with Retry-After", () => {
 
 	it("is not asked again when it names no wait", async () => {
 		const server = await serve([{ status: 503 }, { status: 200 }])
-		const client = new Client(server.url, {}, 1, () => undefined)
+		const client = new Client({
+			baseUrl: server.url,
+			maxInFlight: 1,
+			onExchange: () => undefined,
+			redactor: new Redactor(),
+		})
 		expect((await client.request("POST", "/v1/busy")).status).toBe(503)
 		expect(server.hits()).toBe(1)
 	})

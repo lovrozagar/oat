@@ -4,7 +4,7 @@
  */
 
 import type { Check } from "./checks/core/check.ts"
-import type { Client } from "./client.ts"
+import type { Client } from "../client/client.ts"
 import { ASSERTED, type FindingCollector, type Outcome } from "./finding.ts"
 import type { CheckId } from "./check-ids.ts"
 import type { EntityModel, SpecModel } from "../spec/graph.ts"

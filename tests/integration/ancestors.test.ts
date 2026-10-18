@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { createMemoryServer } from "../../src/reference/http.ts"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { resolvePathScope } from "../../src/runtime/world.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import { dereference } from "../../src/spec/load.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 describe("an ancestor two lanes need at once", () => {
 	it("is created once and shared", async () => {
@@ -14,7 +15,7 @@ describe("an ancestor two lanes need at once", () => {
 			const model = buildModel(dereference(spec).doc)
 			const rowCreate = model.byOperationId.get(model.entities.get("row")?.create ?? "")
 			expect(rowCreate?.pathParams).toContain("table_id")
-			const client = new Client(server.url)
+			const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 			const ancestors = new Map<string, string>()
 			const created: string[] = []
 			const options = {

@@ -76,19 +76,9 @@ const DIRECTORIES: ReadonlySet<string> = new Set([
 
 /* The HTTP client and its transport still live in runtime/ until they move to client/: bucketed by file. */
 const CLIENT_FILES: ReadonlySet<string> = new Set(
-	[
-		"client",
-		"cookies",
-		"exchange",
-		"exchanges",
-		"fence",
-		"headers",
-		"network",
-		"poll",
-		"rate-limit",
-		"sse",
-		"transcript",
-	].map((name) => `runtime/${name}.ts`),
+	["cookies", "exchange", "exchanges", "fence", "headers", "network", "poll", "rate-limit", "sse", "transcript"].map(
+		(name) => `runtime/${name}.ts`,
+	),
 )
 
 function bucket(rel: string): Bucket | "unknown" {

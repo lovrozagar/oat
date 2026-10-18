@@ -1,4 +1,5 @@
 import type { DefectName } from "../../reference/defects.ts"
+import type { FindingId } from "../../runtime/check-ids.ts"
 
 /** The defects whose primary check is in the isolation family, and the check each must trip. */
 export const ISOLATION_EXPECTED = {
@@ -19,4 +20,4 @@ export const ISOLATION_EXPECTED = {
 	CROSS_TENANT_WRITE: "tenant.item-not-writable-cross-tenant",
 	ROLE_WRITE_INVERTED: "auth.rank-is-monotonic-on-writes",
 	FOREIGN_PARENT_ACCEPTED: "tenant.parent-not-reachable-from-another-root",
-} satisfies Partial<Record<DefectName, string | string[]>>
+} satisfies Partial<Record<DefectName, FindingId | FindingId[]>>

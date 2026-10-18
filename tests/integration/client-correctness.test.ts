@@ -3,7 +3,9 @@ import type { AddressInfo } from "node:net"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { formPairs } from "../../src/runtime/body.ts"
 import { compactResponseBody } from "../../src/runtime/transcript.ts"
-import { AuthRefreshError, Client, toCurl } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
+import { toCurl } from "../../src/client/curl.ts"
+import { AuthRefreshError } from "../../src/client/refresh.ts"
 import { Redactor } from "../../src/security/redact.ts"
 
 describe("repro scripts", () => {
@@ -94,31 +96,48 @@ afterAll(() => close())
 
 describe("the client", () => {
 	it("never resends a POST whose connection broke mid-request", async () => {
-		const client = new Client(url, {}, 4, undefined, undefined, undefined, { retries: 3 })
+		const client = new Client({
+			baseUrl: url,
+			headers: {},
+			maxInFlight: 4,
+			network: { retries: 3 },
+			redactor: new Redactor(),
+		})
 		hits = 0
 		await expect(client.request("POST", "/reset", { body: { a: 1 } })).rejects.toThrow()
 		expect(hits).toBe(1)
 	})
 
 	it("resends a GET, which is safe to repeat", async () => {
-		const client = new Client(url, {}, 4, undefined, undefined, undefined, { retries: 1 })
+		const client = new Client({
+			baseUrl: url,
+			headers: {},
+			maxInFlight: 4,
+			network: { retries: 1 },
+			redactor: new Redactor(),
+		})
 		hits = 0
 		await expect(client.get("/reset")).rejects.toThrow()
 		expect(hits).toBe(2)
 	})
 
 	it("decodes text by its declared charset and counts the bytes on the wire", async () => {
-		const exchange = await new Client(url).get("/latin1")
+		const exchange = await new Client({ baseUrl: url, redactor: new Redactor() }).get("/latin1")
 		expect(exchange.responseBody).toBe("café")
 		expect(exchange.responseBytes).toBeGreaterThan(0)
 	})
 	it("reads a body whose charset label is unknown as UTF-8", async () => {
-		expect((await new Client(url).get("/odd-charset")).responseBody).toBe("plain")
+		expect((await new Client({ baseUrl: url, redactor: new Redactor() }).get("/odd-charset")).responseBody).toBe(
+			"plain",
+		)
 	})
 
 	it("raises a failed refresh as its own error, naming the principal", async () => {
-		const client = new Client(url)
-		client.setPrincipalResolver(() => "alpha")
+		const client = new Client({
+			baseUrl: url,
+			credentials: { credentialFor: () => undefined, principalOf: () => "alpha" },
+			redactor: new Redactor(),
+		})
 		await expect(
 			client.get("/expired", {
 				refreshIfStale: async (force) => {
@@ -128,7 +147,7 @@ describe("the client", () => {
 		).rejects.toThrow(AuthRefreshError)
 	})
 	it("keeps a binary body as its bytes", async () => {
-		const exchange = await new Client(url).get("/pdf")
+		const exchange = await new Client({ baseUrl: url, redactor: new Redactor() }).get("/pdf")
 		expect(exchange.responseBody).toBeInstanceOf(Uint8Array)
 		expect(exchange.responseBytes).toBeGreaterThan(5)
 	})

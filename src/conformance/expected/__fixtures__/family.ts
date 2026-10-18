@@ -1,10 +1,11 @@
 import { expect } from "vitest"
 import { isDefectName } from "../../../reference/defects.ts"
+import { RUN_FINDING_IDS } from "../../../runtime/check-ids.ts"
 import { CHECKS } from "../../../runtime/checks/registry.ts"
 import { EXPECTED } from "../table.ts"
 
-/* The run raises these itself while seeding (run/entity/seed-*.ts); they are not registered checks. */
-const CHECK_IDS = new Set([...CHECKS.map((check) => check.id), "create.does-not-error", "world.seed"])
+/* A row names a registered check, or a finding the run raises itself. */
+const FINDING_IDS = new Set<string>([...CHECKS.map((check) => check.id), ...RUN_FINDING_IDS])
 
 /** A family's rows: real defects, each naming registered checks, carried whole into the table. */
 export function expectFamily(family: Readonly<Record<string, string | readonly string[]>>): void {
@@ -15,7 +16,7 @@ export function expectFamily(family: Readonly<Record<string, string | readonly s
 		const named = typeof ids === "string" ? [ids] : ids
 		expect(named.length, defect).toBeGreaterThan(0)
 		expect(
-			named.filter((id) => !CHECK_IDS.has(id)),
+			named.filter((id) => !FINDING_IDS.has(id)),
 			defect,
 		).toEqual([])
 		expect(EXPECTED[defect as keyof typeof EXPECTED], defect).toEqual(ids)

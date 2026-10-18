@@ -1,4 +1,4 @@
-import type { Client } from "../../../../client.ts"
+import type { Client } from "../../../../../client/client.ts"
 import type { Exchange } from "../../../../exchange.ts"
 import { SchemaValidator } from "../../../../validate.ts"
 import type { SpecModel } from "../../../../../spec/graph.ts"

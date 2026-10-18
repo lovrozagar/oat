@@ -3,6 +3,7 @@ import type { RunContext } from "./context.ts"
 import { testEntity } from "./entity/test-entity.ts"
 import { errorText } from "./errors.ts"
 import { stopped } from "./interrupt.ts"
+import type { RunFindingId } from "../check-ids.ts"
 
 /**
  * Tests every entity in scope, lane by lane.
@@ -57,7 +58,7 @@ async function runLane(run: LaneRun, lane: readonly EntityModel[]): Promise<void
 			/* An error oat did not expect must not skip teardown: it is reported, and the run
 			 * carries on to remove what it made and write its report. */
 			ctx.findings.blocked(
-				"run.error",
+				"run.error" satisfies RunFindingId,
 				entity.name,
 				`testing "${entity.name}" stopped on an unexpected error`,
 				errorText(error),
@@ -75,14 +76,14 @@ function noteStop(run: LaneRun): void {
 	if (options.signal?.aborted === true) {
 		state.interrupted = true
 		findings.gap(
-			"run.interrupted",
+			"run.interrupted" satisfies RunFindingId,
 			"run",
 			`stopped before ${remaining}`,
 			"the run was interrupted; what was tested is reported, and what oat created is removed",
 		)
 		return
 	}
-	findings.blocked("net.unreachable", "run", `skipped ${remaining}`, "network down")
+	findings.blocked("net.unreachable" satisfies RunFindingId, "run", `skipped ${remaining}`, "network down")
 }
 
 /**

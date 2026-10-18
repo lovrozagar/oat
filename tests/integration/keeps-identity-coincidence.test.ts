@@ -2,11 +2,12 @@ import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { FindingCollector } from "../../src/runtime/finding.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { checkContext } from "../support/check-context.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 /*
  * A backend that ignores the client's id and issues its own from a counter can, by chance, issue
@@ -86,7 +87,7 @@ describe("create.keeps-submitted-identity", () => {
 		const createOp = model.byOperationId.get("note.create")
 		const readOp = model.byOperationId.get("note.get")
 		if (createOp === undefined || readOp === undefined) throw new Error("fixture incomplete")
-		const client = new Client(url)
+		const client = new Client({ baseUrl: url, redactor: new Redactor() })
 		/* The seed's creates, as a run would have sent them before the check. */
 		await client.request("POST", "/notes", { body: { id: 7, title: "first" }, operationId: "note.create" })
 		await client.request("POST", "/notes", { body: { id: 412, title: "second" }, operationId: "note.create" })

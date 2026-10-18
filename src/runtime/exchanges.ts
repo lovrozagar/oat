@@ -101,7 +101,7 @@ async function bytesOf(value: unknown): Promise<Uint8Array | undefined> {
 	return undefined
 }
 
-export function createExchangeJournal(dir: string, redactor: Redactor = new Redactor()): ExchangeJournal {
+export function createExchangeJournal(dir: string, redactor: Redactor): ExchangeJournal {
 	const taken = new Set<string>()
 	const writtenBlobs = new Set<string>()
 	let count = 0

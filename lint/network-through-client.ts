@@ -3,16 +3,16 @@ import { propertyName } from "./nodes.ts"
 import { isTestCode, repoPath } from "./paths.ts"
 
 /*
- * Every request oat sends goes through `src/runtime/client.ts`, which paces it, records it and
+ * Every request oat sends goes through the client in `src/client/`, which paces it, records it and
  * (with a fence or an allowlist) can refuse it. A `fetch` anywhere else is a request no report
  * shows and no safety control sees. The reference backend, tests and labs are not oat's traffic.
  */
-const HOME = "/src/runtime/client.ts"
+const HOME = "/src/client/request.ts"
 const OWN_NETWORK = ["/src/reference/", "/labs/"]
 const NODE_HTTP = new Set(["node:http", "node:https", "http", "https"])
 const REQUESTING = new Set(["request", "get"])
 const MESSAGE =
-	"oat sends requests only through src/runtime/client.ts, where pacing, the transcript, the fence and the allowlist apply."
+	"oat sends requests only through the client in src/client/, where pacing, the transcript, the fence and the allowlist apply."
 
 function requestsByCall(node: Call): boolean {
 	const callee = node.callee

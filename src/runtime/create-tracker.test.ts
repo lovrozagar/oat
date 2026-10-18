@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import type { Client, Exchange } from "./client.ts"
+import type { Client } from "../client/client.ts"
+import type { Exchange } from "./exchange.ts"
 import { createTracker } from "./create-tracker.ts"
 import { Ledger, type Owner } from "./teardown.ts"
 import { buildModel } from "../spec/graph.ts"

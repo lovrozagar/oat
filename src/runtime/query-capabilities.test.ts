@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { Client } from "./client.ts"
+import type { Client } from "../client/client.ts"
 import { capabilitiesFromTag, resolveEntityCapabilities } from "./query-capabilities.ts"
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
 import {

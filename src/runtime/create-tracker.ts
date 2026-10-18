@@ -10,7 +10,8 @@
 
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
 import { pathTemplateParams } from "../spec/load.ts"
-import type { Client, Exchange } from "./client.ts"
+import type { Client } from "../client/client.ts"
+import type { Exchange } from "./exchange.ts"
 import { returnedId } from "./proven-id.ts"
 import { SELF_IDENTITY } from "./self.ts"
 import type { Ledger, Owner } from "./teardown.ts"

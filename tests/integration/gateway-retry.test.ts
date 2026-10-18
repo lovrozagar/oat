@@ -1,7 +1,8 @@
 import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 /*
  * A gateway in front of an API answers 502, 503 or 504 now and then without the request ever
@@ -31,7 +32,7 @@ async function serve(statuses: number[]): Promise<{ url: string; hits: () => num
 describe("a gateway status on a read", () => {
 	it("is asked once more, and the answer that follows is the verdict", async () => {
 		const server = await serve([502, 200])
-		const client = new Client(server.url)
+		const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 		const exchange = await client.get("/v1/things")
 		expect(exchange.status).toBe(200)
 		expect(server.hits()).toBe(2)
@@ -40,14 +41,16 @@ describe("a gateway status on a read", () => {
 
 	it("stands when it persists", async () => {
 		const server = await serve([504, 504, 200])
-		const exchange = await new Client(server.url).get("/v1/things")
+		const exchange = await new Client({ baseUrl: server.url, redactor: new Redactor() }).get("/v1/things")
 		expect(exchange.status).toBe(504)
 		expect(server.hits()).toBe(2)
 	})
 
 	it("is never repeated for a write", async () => {
 		const server = await serve([502, 200])
-		const exchange = await new Client(server.url).request("POST", "/v1/things", { body: { a: 1 } })
+		const exchange = await new Client({ baseUrl: server.url, redactor: new Redactor() }).request("POST", "/v1/things", {
+			body: { a: 1 },
+		})
 		expect(exchange.status).toBe(502)
 		expect(server.hits()).toBe(1)
 	})

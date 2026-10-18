@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { Exchange } from "../../client.ts"
+import type { Exchange } from "../../exchange.ts"
 import { FencedError } from "../../fence.ts"
 import { FixtureOverflow } from "../../fixture.ts"
 import { SeedError } from "../../world.ts"

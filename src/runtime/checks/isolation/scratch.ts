@@ -1,5 +1,6 @@
 import type { OperationModel } from "../../../spec/graph.ts"
-import type { Exchange, RequestOptions } from "../../client.ts"
+import type { RequestOptions } from "../../../client/types.ts"
+import type { Exchange } from "../../exchange.ts"
 import { type Outcome, standDown } from "../../finding.ts"
 import { createdRecord, type Record_, recordOf } from "../../world.ts"
 import type { CheckContext, WriteContext } from "../core/context.ts"

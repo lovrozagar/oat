@@ -1,5 +1,5 @@
 import type { OperationModel } from "../../../../spec/graph.ts"
-import type { ReadClient } from "../../../client.ts"
+import type { ReadClient } from "../../../../client/client.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { sameTenantScope } from "../../isolation/scratch.ts"
 import { requestSchemaOf, validBody } from "../../payloads/body.ts"

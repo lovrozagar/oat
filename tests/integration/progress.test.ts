@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import {
 	createProgressPump,
 	formatProgressJsonl,
@@ -14,6 +14,7 @@ import {
 } from "../../src/runtime/progress.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 const EXTRACT = "http://127.0.0.1/v1/projects/p1/extract"
 
@@ -249,15 +250,9 @@ describe("Client HTTP hooks", () => {
 		const server = await listen((_req, res) => {
 			void gate.then(() => send(res, 200, { ok: true }))
 		})
-		const client = new Client(
-			server.url,
-			{},
-			1,
-			(exchange) => {
-				events.push(`complete:${exchange.status}`)
-			},
-			undefined,
-			{
+		const client = new Client({
+			baseUrl: server.url,
+			httpHooks: {
 				end: (probe) => {
 					events.push(`end:${new URL(probe.url).pathname}`)
 				},
@@ -265,7 +260,12 @@ describe("Client HTTP hooks", () => {
 					events.push(`start:${probe.method}:${new URL(probe.url).pathname}`)
 				},
 			},
-		)
+			maxInFlight: 1,
+			onExchange: (exchange) => {
+				events.push(`complete:${exchange.status}`)
+			},
+			redactor: new Redactor(),
+		})
 		const pending = client.request("POST", "/v1/projects/p1/extract")
 		await vi.waitFor(() => {
 			expect(events[0]).toBe("start:POST:/v1/projects/p1/extract")

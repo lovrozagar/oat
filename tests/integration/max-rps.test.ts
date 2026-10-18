@@ -2,12 +2,13 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { configProblems } from "../../src/config/validate.ts"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { buildRateLimitRules, RateLimiter } from "../../src/runtime/rate-limit.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import { dereference } from "../../src/spec/load.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 /*
  * An edge in front of an API (a CDN or firewall) often limits each client IP across every route.
@@ -66,7 +67,14 @@ describe("maxRps", () => {
 		const spec = pingSpec()
 		const { hits, url } = await serve(spec)
 		const limiter = new RateLimiter(buildRateLimitRules(buildModel(dereference(spec).doc), []), { maxRps: 4 })
-		const client = new Client(url, {}, 16, () => undefined, limiter)
+		const client = new Client({
+			baseUrl: url,
+			headers: {},
+			maxInFlight: 16,
+			onExchange: () => undefined,
+			rateLimiter: limiter,
+			redactor: new Redactor(),
+		})
 		const started = performance.now()
 		await Promise.all(Array.from({ length: 12 }, () => client.request("GET", "/v1/ping")))
 		/* A burst of 4, then 4 a second: the last of 12 leaves no sooner than two seconds in. */
@@ -78,7 +86,14 @@ describe("maxRps", () => {
 		const spec = pingSpec({ category: "ping", rps: 2 })
 		const { url } = await serve(spec)
 		const limiter = new RateLimiter(buildRateLimitRules(buildModel(dereference(spec).doc), []), { maxRps: 100 })
-		const client = new Client(url, {}, 16, () => undefined, limiter)
+		const client = new Client({
+			baseUrl: url,
+			headers: {},
+			maxInFlight: 16,
+			onExchange: () => undefined,
+			rateLimiter: limiter,
+			redactor: new Redactor(),
+		})
 		const started = performance.now()
 		await Promise.all(Array.from({ length: 6 }, () => client.request("GET", "/v1/ping", { operationId: "ping.get" })))
 		expect(performance.now() - started).toBeGreaterThanOrEqual(1_900)

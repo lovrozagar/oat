@@ -1,4 +1,5 @@
 import type { DefectName } from "../../reference/defects.ts"
+import type { FindingId } from "../../runtime/check-ids.ts"
 
 /** The defects whose primary check is in the sort family, and the check each must trip. */
 export const SORT_EXPECTED = {
@@ -11,4 +12,4 @@ export const SORT_EXPECTED = {
 	SORT_UNKNOWN_FIELD_IGNORED: "sort.unknown-field-rejected",
 	DEFAULT_ORDER_IGNORED: "sort.default-order-applied",
 	TIEBREAK_NOT_APPLIED: "sort.stable-tiebreak",
-} satisfies Partial<Record<DefectName, string | string[]>>
+} satisfies Partial<Record<DefectName, FindingId | FindingId[]>>

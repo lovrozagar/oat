@@ -8,10 +8,12 @@
  */
 
 import { renderConfidenceMarkdown } from "./confidence.ts"
-import { describeRequestBody, toCurl } from "../runtime/client.ts"
+import { toCurl } from "../client/curl.ts"
+import { describeRequestBody } from "../runtime/exchange.ts"
 import type { FencedRequest } from "../runtime/fence.ts"
 import { Redactor } from "../security/redact.ts"
-import type { Client, Exchange } from "../runtime/client.ts"
+import type { Client } from "../client/client.ts"
+import type { Exchange } from "../runtime/exchange.ts"
 import { describeRequested, type OperationCoverage, type OperationStatus, type ScopeReport } from "../runtime/scope.ts"
 import { EXIT, runVerdict } from "../runtime/exit.ts"
 import type { BaselineEntry } from "../runtime/baseline.ts"
@@ -356,7 +358,7 @@ export interface ReproScript {
 export const ISSUE_REPRO_DIR = "issue-repro"
 
 /** One runnable script per finding — the artifact a backend developer actually opens. */
-export function renderRepros(findings: Finding[], baseUrl: string, redactor = new Redactor()): ReproScript[] {
+export function renderRepros(findings: Finding[], baseUrl: string, redactor: Redactor): ReproScript[] {
 	/* `BASE` stands for the whole base URL, path prefix and all, so it replaces exactly that. */
 	const base = baseUrl.replace(/\/+$/, "")
 	const taken = new Set<string>()

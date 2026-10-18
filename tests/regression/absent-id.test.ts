@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest"
 import { absentId } from "../../src/runtime/checks/payloads/identity.ts"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { FindingCollector } from "../../src/runtime/finding.ts"
 import { absentIdentifier } from "../../src/runtime/generate.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { checkContext } from "../support/check-context.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 /*
  * A probe for a record that does not exist must name one in the identity's own shape: a backend
@@ -63,7 +64,7 @@ function context(identity: Record<string, unknown>) {
 	const deleteOp = model.byOperationId.get("note.delete")
 	if (listOp === undefined || deleteOp === undefined) throw new Error("operations missing")
 	return checkContext({
-		client: new Client("http://127.0.0.1:1"),
+		client: new Client({ baseUrl: "http://127.0.0.1:1", redactor: new Redactor() }),
 		deleteOp,
 		entityName: "note",
 		findings: new FindingCollector(),

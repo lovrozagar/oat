@@ -5,12 +5,13 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
-import { Client } from "../runtime/client.ts"
+import { Client } from "../client/client.ts"
 import { parseRetryAfter, retryWaitMs, RETRY_BACKOFF_CAP_MS } from "../runtime/rate-limit.ts"
 import { run } from "../runtime/run/index.ts"
 import { isPlanLimitResponse } from "../runtime/world.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
 import type { ParserResult } from "./harness/result.ts"
+import { Redactor } from "../security/redact.ts"
 
 function send(res: ServerResponse, status: number, body?: unknown, extra?: Record<string, string>): void {
 	if (body === undefined) {
@@ -183,7 +184,7 @@ export async function runRateLimitSuite(): Promise<ParserResult[]> {
 			})
 		})
 		try {
-			const client = new Client(server.url)
+			const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 			const first = await client.request("POST", "/v1/things", { body: { name: "n" } })
 			push(
 				"Client.request retries a 429 with Retry-After and returns 201",

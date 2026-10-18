@@ -167,6 +167,29 @@ export const FAMILY_OF_PREFIX: Record<Prefix<CheckId>, CheckFamily> = {
 	validation: "validation",
 }
 
+/**
+ * Findings the run raises itself, outside any registered check: a seed or teardown that failed,
+ * a credential that could not be refreshed, the network or the run stopping. Reports name them and
+ * conformance expects them like any check, so they are typed the same way: a misspelled one fails
+ * to compile.
+ */
+export const RUN_FINDING_IDS = [
+	"auth.refresh",
+	"create.does-not-error",
+	"net.unreachable",
+	"profile.skip",
+	"run.error",
+	"run.interrupted",
+	"teardown.verify-hook",
+	"world.seed",
+	"world.teardown",
+] as const
+
+export type RunFindingId = (typeof RUN_FINDING_IDS)[number]
+
+/** What a finding names: the check that raised it, or the run itself. */
+export type FindingId = CheckId | RunFindingId
+
 export function familyOf(id: CheckId): CheckFamily {
 	return FAMILY_OF_PREFIX[id.slice(0, id.indexOf(".")) as Prefix<CheckId>]
 }

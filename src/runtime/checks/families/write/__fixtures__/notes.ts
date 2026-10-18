@@ -1,4 +1,4 @@
-import type { RequestOptions } from "../../../../client.ts"
+import type { RequestOptions } from "../../../../../client/types.ts"
 import type { FindingCollector } from "../../../../finding.ts"
 import type { SpecModel } from "../../../../../spec/graph.ts"
 import type { OpenApiDocument } from "../../../../../spec/types.ts"

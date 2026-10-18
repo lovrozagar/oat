@@ -1,4 +1,5 @@
 import type { DefectName } from "../../reference/defects.ts"
+import type { FindingId } from "../../runtime/check-ids.ts"
 
 /** The defects whose primary check is in the filter family, and the check each must trip. */
 export const FILTER_EXPECTED = {
@@ -70,4 +71,4 @@ export const FILTER_EXPECTED = {
 	FILTER_NESTED_COMBINATOR_LEAKS: "filter.nested-and-or-distributes",
 	FILTER_NIN_FIRST_ONLY: "filter.nin-complements-in",
 	CONTAINS_MATCHES_SUBSTRING: "filter.contains-membership",
-} satisfies Partial<Record<DefectName, string | string[]>>
+} satisfies Partial<Record<DefectName, FindingId | FindingId[]>>

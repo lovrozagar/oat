@@ -1,7 +1,7 @@
 import { defineCheck } from "../../core/define.ts"
 import { sortTerm } from "../../../../spec/conventions.ts"
 import type { SortValue } from "../../../../spec/sort-render.ts"
-import type { Exchange } from "../../../client.ts"
+import type { Exchange } from "../../../exchange.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { when } from "../../core/plan.ts"

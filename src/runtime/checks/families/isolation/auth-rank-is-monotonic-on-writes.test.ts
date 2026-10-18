@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { RequestOptions } from "../../../client.ts"
+import type { RequestOptions } from "../../../../client/types.ts"
 import { modelOf } from "../../__fixtures__/harness.ts"
 import { runCheck } from "../../core/run.ts"
 import { rankIsMonotonicOnWrites } from "./auth-rank-is-monotonic-on-writes.ts"

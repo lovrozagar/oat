@@ -1,7 +1,7 @@
 import { defineCheck } from "../../core/define.ts"
 import { documentsStatus, type OperationModel, readStatuses } from "../../../../spec/graph.ts"
 import type { OperationObject } from "../../../../spec/types.ts"
-import type { Exchange } from "../../../client.ts"
+import type { Exchange } from "../../../exchange.ts"
 import { isDocumentedFeatureGateDenial } from "../../../feature-gate.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import type { CheckContext } from "../../core/context.ts"

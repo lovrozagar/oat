@@ -2,13 +2,14 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { createPrincipal, resolveOutOfBandValue } from "../../src/runtime/auth.ts"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import { dereference } from "../../src/spec/load.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { report } from "../../src/report/console.ts"
 import { readInvite } from "../../src/spec/extensions.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 const closers: Array<() => Promise<void>> = []
 
@@ -108,7 +109,7 @@ describe("absolute URL RequestStep + cookie saveAs", () => {
 		let oob:
 			| { address: string; kind: string; scope: Record<string, string>; headers: Record<string, string> }
 			| undefined
-		const client = new Client(api.url)
+		const client = new Client({ baseUrl: api.url, redactor: new Redactor() })
 		const runtime = await createPrincipal(
 			"alpha",
 			{
@@ -190,7 +191,7 @@ describe("absolute URL RequestStep + cookie saveAs", () => {
 		})
 		closers.push(api.close)
 
-		const client = new Client(api.url)
+		const client = new Client({ baseUrl: api.url, redactor: new Redactor() })
 		const runtime = await createPrincipal(
 			"alpha",
 			{
@@ -251,7 +252,7 @@ describe("absolute URL RequestStep + cookie saveAs", () => {
 				],
 			},
 			{
-				client: new Client(api.url),
+				client: new Client({ baseUrl: api.url, redactor: new Redactor() }),
 				hooks: { resolveOutOfBand: async () => `${app.url}/verify` },
 				model,
 				principalId: "alpha",
@@ -268,7 +269,7 @@ describe("absolute URL RequestStep + cookie saveAs", () => {
 			return send(res, 404)
 		})
 		closers.push(api.close)
-		const client = new Client(api.url)
+		const client = new Client({ baseUrl: api.url, redactor: new Redactor() })
 		await expect(
 			createPrincipal(
 				"alpha",
@@ -305,7 +306,7 @@ describe("absolute URL RequestStep + cookie saveAs", () => {
 			return send(res, 404)
 		})
 		closers.push(api.close)
-		const client = new Client(api.url)
+		const client = new Client({ baseUrl: api.url, redactor: new Redactor() })
 		const runtime = await createPrincipal(
 			"alpha",
 			{
@@ -337,7 +338,7 @@ describe("absolute URL RequestStep + cookie saveAs", () => {
 					],
 				},
 				{
-					client: new Client(api.url),
+					client: new Client({ baseUrl: api.url, redactor: new Redactor() }),
 					hooks: { resolveOutOfBand: async () => `${app.url}/verify` },
 					model,
 					principalId: "beta",
@@ -355,7 +356,7 @@ describe("absolute URL RequestStep + cookie saveAs", () => {
 			return send(res, 404)
 		})
 		closers.push(api.close)
-		const client = new Client(api.url)
+		const client = new Client({ baseUrl: api.url, redactor: new Redactor() })
 		const runtime = await createPrincipal(
 			"alpha",
 			{

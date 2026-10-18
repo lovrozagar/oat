@@ -1,5 +1,5 @@
 import type { OperationModel } from "../../../spec/graph.ts"
-import type { Exchange } from "../../client.ts"
+import type { Exchange } from "../../exchange.ts"
 import { fillPath } from "../../fill-path.ts"
 import type { WriteContext } from "../core/context.ts"
 import { encodeOpBody, validBody } from "./body.ts"

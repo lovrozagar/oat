@@ -1,4 +1,5 @@
 import type { DefectName } from "../../reference/defects.ts"
+import type { FindingId } from "../../runtime/check-ids.ts"
 
 /** The defects whose primary check is in the pagination family, and the check each must trip. */
 export const PAGINATION_EXPECTED = {
@@ -21,4 +22,4 @@ export const PAGINATION_EXPECTED = {
 	COLLATION_INCONSISTENT: "pagination.cursor-agrees-with-page",
 	/* A walk whose last page is full asks once more, and sees the repeat. */
 	PAGE_PAST_END_REPEATS: ["pagination.bounds-handled", "pagination.page-walk-covers-set"],
-} satisfies Partial<Record<DefectName, string | string[]>>
+} satisfies Partial<Record<DefectName, FindingId | FindingId[]>>

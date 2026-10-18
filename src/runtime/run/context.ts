@@ -1,11 +1,11 @@
 import type { Hooks } from "../../config/types/hooks.ts"
 import type { EntityModel, OperationModel, SpecModel } from "../../spec/graph.ts"
 import type { PrincipalRuntime } from "../auth.ts"
-import type { Exchange } from "../client.ts"
+import type { Exchange } from "../exchange.ts"
 import type { ProvenId } from "../proven-id.ts"
 import type { Scenario } from "../../config/types/steps.ts"
 import type { OriginClient } from "../auth.ts"
-import type { Client } from "../client.ts"
+import type { Client } from "../../client/client.ts"
 import type { ExchangeJournal } from "../exchanges.ts"
 import type { Fence } from "../fence.ts"
 import type { FindingCollector } from "../finding.ts"
@@ -16,6 +16,7 @@ import type { TargetVersion } from "../target-version.ts"
 import type { Ledger, Owner } from "../teardown.ts"
 import type { UploadContext } from "../upload.ts"
 import type { SchemaValidator } from "../validate.ts"
+import type { RunCredentials } from "./credentials.ts"
 import type { RunNetwork } from "./network.ts"
 import type { RunProgress } from "./progress.ts"
 import type { RunState } from "./state.ts"
@@ -41,6 +42,8 @@ export interface Loaded {
 /** A client to talk to the API with, and what records the run's exchanges and fixtures. */
 export interface Connected extends Loaded {
 	client: Client
+	/** The run's principals as the client sees them: bound as each logs in. */
+	credentials: RunCredentials
 	journal: ExchangeJournal | null
 	network: RunNetwork
 	originClients: Map<string, OriginClient>

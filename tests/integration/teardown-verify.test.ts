@@ -7,12 +7,13 @@ import { leftBehind } from "../../src/conformance/leaks.ts"
 import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http.ts"
 import { run } from "../../src/runtime/run/index.ts"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { listedIds } from "../../src/runtime/proven-id.ts"
 import { Ledger, NEVER_SEEN, type Owner, VERIFY_HOOK_PRESENT } from "../../src/runtime/teardown.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import { dereference } from "../../src/spec/load.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 /*
  * A delete that answers 2xx proves only that the backend said so. After the unwind oat reads each
@@ -372,7 +373,10 @@ async function twoRowOnes(seer: string | null, verdicts: Record<string, "present
 	})
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
 	closers.push(() => new Promise((resolve) => server.close(() => resolve())))
-	const client = new Client(`http://127.0.0.1:${(server.address() as AddressInfo).port}`)
+	const client = new Client({
+		baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+		redactor: new Redactor(),
+	})
 	const ledger = new Ledger()
 	const [one] = listedIds(["1"])
 	if (one === undefined) throw new Error("listedIds gave nothing back")

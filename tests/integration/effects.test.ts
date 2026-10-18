@@ -24,10 +24,11 @@ import {
 } from "../../src/runtime/effects.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { driveWait } from "../../src/runtime/wait.ts"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { GapCollector, readEffects } from "../../src/spec/extensions.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 const closers: Array<() => Promise<void>> = []
 
@@ -1341,7 +1342,7 @@ describe("driveWait with a bound scope", () => {
 		const model = buildModel(spec)
 		const pollOp = model.byOperationId.get("row.list")
 		if (pollOp === undefined) throw new Error("missing row.list")
-		const client = new Client(server.url)
+		const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 		const unbound = await driveWait({
 			client,
 			headers: () => ({}),

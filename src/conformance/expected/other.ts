@@ -1,4 +1,5 @@
 import type { DefectName } from "../../reference/defects.ts"
+import type { FindingId } from "../../runtime/check-ids.ts"
 
 /** The defects whose primary check is in the other family, and the check each must trip. */
 export const OTHER_EXPECTED = {
@@ -24,4 +25,4 @@ export const OTHER_EXPECTED = {
 	NESTED_SELECT_IGNORED: "select.nested-honoured",
 	SIDE_EFFECT_NEVER_ARRIVES: "effects.side-effect-arrives",
 	RATE_LIMIT_STRICTER_THAN_DECLARED: "spec.declared-rate-limit-is-honoured",
-} satisfies Partial<Record<DefectName, string | string[]>>
+} satisfies Partial<Record<DefectName, FindingId | FindingId[]>>

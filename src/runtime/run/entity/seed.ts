@@ -2,6 +2,7 @@ import { resolvePathScope, SeedError } from "../../world.ts"
 import { existingOrBlocked, readExisting, worldOptions } from "./fallback.ts"
 import { seedCreated } from "./seed-cohort.ts"
 import { degradedWorld, type EntityRun, type World } from "./state.ts"
+import type { RunFindingId } from "../../check-ids.ts"
 
 /** How the entity's records come to exist, in the order the cases are decided. */
 export interface SeedPlan {
@@ -30,7 +31,7 @@ export async function seedWorld(run: EntityRun, plan: SeedPlan): Promise<World |
 	if (createOp !== undefined && ctx.exclusion.excludeOp(entity, createOp)) {
 		/* The gap finding excludeOp already reported names the reason. */
 		return existingOrBlocked(run, {
-			check: "profile.skip",
+			check: "profile.skip" satisfies RunFindingId,
 			detail: `create is excluded by profile "${ctx.profile.name}" and the list route returned no existing records to fall back on.`,
 			summary: `could not test "${entity.name}"`,
 		})

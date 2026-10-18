@@ -2,12 +2,14 @@ import { MissingValueError } from "../../../errors/missing-value.ts"
 import type { WriteContext } from "../../checks/core/context.ts"
 import { checkSalts } from "../../checks/core/run.ts"
 import { CHECKS } from "../../checks/registry.ts"
-import { AuthRefreshError, type Client } from "../../client.ts"
+import type { Client } from "../../../client/client.ts"
+import { AuthRefreshError } from "../../../client/refresh.ts"
 import { FencedError } from "../../fence.ts"
 import { type FindingCollector, isRootCause, type Outcome } from "../../finding.ts"
 import { isNetworkError } from "../../network.ts"
 import type { EntityRun } from "./state.ts"
 import { messageOf } from "../../../errors/message.ts"
+import type { RunFindingId } from "../../check-ids.ts"
 
 export type Check = (typeof CHECKS)[number]
 
@@ -128,7 +130,7 @@ async function unresolvedBy(
 	if (error instanceof MissingValueError) return error.message
 	if (!(error instanceof AuthRefreshError)) return undefined
 	attributed.blocked(
-		"auth.refresh",
+		"auth.refresh" satisfies RunFindingId,
 		name,
 		`refreshing the credential${error.principal === undefined ? "" : ` of "${error.principal}"`} failed`,
 		`${error.message}. ${check.id} could not complete.`,

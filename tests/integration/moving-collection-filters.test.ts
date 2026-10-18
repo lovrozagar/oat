@@ -3,13 +3,14 @@ import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { runCheck } from "../../src/runtime/checks/core/run.ts"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { FindingCollector } from "../../src/runtime/finding.ts"
 import type { Record_ } from "../../src/runtime/world.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import { dereference } from "../../src/spec/load.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { checkContext } from "../support/check-context.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 /*
  * Checks run side by side, and one may change a record while another reads the collection term
@@ -150,7 +151,7 @@ async function judge(checkId: string, after: number, move: Move): Promise<{ find
 	if (listOp === undefined) throw new Error("no list")
 	const findings = new FindingCollector()
 	const ctx = checkContext({
-		client: new Client(await serve(after, move)),
+		client: new Client({ baseUrl: await serve(after, move), redactor: new Redactor() }),
 		collectionKey: "widgets",
 		entityName: "widget",
 		findings,

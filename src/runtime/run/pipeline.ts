@@ -19,6 +19,7 @@ import { serverErrors } from "./server-errors.ts"
 import { readVersion } from "./target-version.ts"
 import { reportUnremovable, teardownPrincipals, trackCreates, unwind } from "./teardown.ts"
 import type { RunOptions, RunResult } from "./types.ts"
+import type { RunFindingId } from "../check-ids.ts"
 
 /**
  * Run orchestrator: model → world → checks → findings.
@@ -63,7 +64,7 @@ async function secondaryOrigins(ctx: RunContext, runs: OriginRuns): Promise<void
 		await runSecondaryOrigins(ctx, runs)
 	} catch (error) {
 		ctx.findings.blocked(
-			"run.error",
+			"run.error" satisfies RunFindingId,
 			"origins",
 			"the secondary origins stopped on an unexpected error",
 			errorText(error),

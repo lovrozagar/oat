@@ -3,10 +3,11 @@ import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
 import type { FenceDecision, FenceRequest } from "../../src/config/define-config.ts"
 import { createMemoryServer } from "../../src/reference/http.ts"
 import { renderJson, renderMarkdown, type ReportInput } from "../../src/report/render.ts"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { EXIT, exitCode } from "../../src/runtime/exit.ts"
 import { Fence, FencedError } from "../../src/runtime/fence.ts"
 import { run } from "../../src/runtime/run/index.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 /*
  * A hook that sees every request before it leaves the process and may refuse it. A refused
@@ -37,8 +38,7 @@ describe("Client with a fence", () => {
 	it("refuses before any I/O and records what it refused", async () => {
 		const fence = new Fence(noDeletes)
 		/* Nothing listens here: a request that left the process would fail with a network error. */
-		const client = new Client("http://127.0.0.1:1")
-		client.setFence(fence)
+		const client = new Client({ baseUrl: "http://127.0.0.1:1", fence, redactor: new Redactor() })
 		await expect(client.request("DELETE", "/v1/tables/1")).rejects.toBeInstanceOf(FencedError)
 		expect(fence.fenced).toEqual([
 			expect.objectContaining({ method: "DELETE", reason: "no deletes on the shared backend" }),
@@ -86,7 +86,7 @@ describe("the report of a fenced run", () => {
 	const input = {
 		baseUrl: "http://x.test",
 		checksRun: [],
-		client: new Client("http://x.test"),
+		client: new Client({ baseUrl: "http://x.test", redactor: new Redactor() }),
 		durationMs: 1,
 		entitiesTested: [],
 		fenced: {

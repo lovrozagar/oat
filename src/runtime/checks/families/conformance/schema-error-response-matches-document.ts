@@ -1,7 +1,7 @@
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph.ts"
 import type { OperationObject } from "../../../../spec/types.ts"
-import type { Exchange } from "../../../client.ts"
+import type { Exchange } from "../../../exchange.ts"
 import { isDocumentedFeatureGateDenial } from "../../../feature-gate.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { ASSERTED, type FindingCollector, type Outcome, standDown } from "../../../finding.ts"

@@ -1,7 +1,9 @@
 import { createServer, type Server } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
-import { Client, type Exchange } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
+import type { Exchange } from "../../src/runtime/exchange.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 /*
  * What oat learns from an answer — a record a create made — is learned before the request returns,
@@ -31,7 +33,7 @@ async function serve(): Promise<string> {
 
 describe("Client.setAfterExchange", () => {
 	it("is awaited before the request returns, and may send its own request at maxInFlight 1", async () => {
-		const client = new Client(await serve(), {}, 1)
+		const client = new Client({ baseUrl: await serve(), maxInFlight: 1, redactor: new Redactor() })
 		const seen: string[] = []
 		client.setAfterExchange(async (exchange: Exchange) => {
 			seen.push(new URL(exchange.url).pathname)
@@ -42,7 +44,7 @@ describe("Client.setAfterExchange", () => {
 	})
 
 	it("fires for a view's requests, with the view's purpose", async () => {
-		const client = new Client(await serve())
+		const client = new Client({ baseUrl: await serve(), redactor: new Redactor() })
 		const purposes: Array<string | undefined> = []
 		client.setAfterExchange(async (exchange) => {
 			purposes.push(exchange.purpose)
@@ -53,7 +55,7 @@ describe("Client.setAfterExchange", () => {
 	})
 
 	it("never fires for a request that threw", async () => {
-		const client = new Client(await serve())
+		const client = new Client({ baseUrl: await serve(), redactor: new Redactor() })
 		let calls = 0
 		client.setAfterExchange(async () => {
 			calls += 1

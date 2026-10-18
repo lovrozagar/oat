@@ -1,5 +1,6 @@
 import type { OperationModel } from "../../../spec/graph.ts"
-import type { Exchange, ReadClient } from "../../client.ts"
+import type { ReadClient } from "../../../client/client.ts"
+import type { Exchange } from "../../exchange.ts"
 import { fillPath } from "../../fill-path.ts"
 import { idOf, type Record_ } from "../../world.ts"
 import type { CheckContext } from "../core/context.ts"

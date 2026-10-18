@@ -1,4 +1,5 @@
-import type { Exchange, ReadClient } from "../../client.ts"
+import type { ReadClient } from "../../../client/client.ts"
+import type { Exchange } from "../../exchange.ts"
 import { ASSERTED, type Outcome } from "../../finding.ts"
 import type { CheckContext } from "../core/context.ts"
 

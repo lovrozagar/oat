@@ -1,5 +1,5 @@
 import type { OperationModel } from "../../../spec/graph.ts"
-import type { Exchange } from "../../client.ts"
+import type { Exchange } from "../../exchange.ts"
 import { FencedError } from "../../fence.ts"
 import { isOverflowError, overflowFrom } from "../../fixture.ts"
 import { isNetworkError } from "../../network.ts"
@@ -7,6 +7,7 @@ import { SeedError } from "../../world.ts"
 import { existingOrBlocked } from "./fallback.ts"
 import type { EntityRun, World } from "./state.ts"
 import { messageOf } from "../../../errors/message.ts"
+import type { RunFindingId } from "../../check-ids.ts"
 
 /**
  * A seed that threw: the network went away, a request was fenced, the fixtures overflowed, or the
@@ -21,7 +22,7 @@ export async function seedFailed(run: EntityRun, createOp: OperationModel, error
 	}
 	if (error instanceof FencedError) {
 		findings.blocked(
-			"world.seed",
+			"world.seed" satisfies RunFindingId,
 			entity.name,
 			`seeding "${entity.name}" was fenced: ${error.request.reason}`,
 			`${error.message}. The request was never sent, so "${entity.name}" has no cohort to test.`,
@@ -30,9 +31,9 @@ export async function seedFailed(run: EntityRun, createOp: OperationModel, error
 	}
 	if (isOverflowError(error)) {
 		const overflow = overflowFrom(error, createOp.operationId)
-		findings.gap("world.seed", entity.name, overflow.message, overflow.message)
+		findings.gap("world.seed" satisfies RunFindingId, entity.name, overflow.message, overflow.message)
 		return existingOrBlocked(run, {
-			check: "world.seed",
+			check: "world.seed" satisfies RunFindingId,
 			detail: overflow.message,
 			summary: `could not seed "${entity.name}"`,
 		})
@@ -64,7 +65,7 @@ async function createFailed(run: EntityRun, createOp: OperationModel, error: unk
 		run.ctx.findings
 			.attributed([failure.failedOp])
 			.backend(
-				"create.does-not-error",
+				"create.does-not-error" satisfies RunFindingId,
 				entity.name,
 				`creating a "${entity.name}" fails with a server error`,
 				`${failure.message}. The request body was generated from the documented schema, so ` +
@@ -76,7 +77,7 @@ async function createFailed(run: EntityRun, createOp: OperationModel, error: unk
 	}
 	/* A backend whose create is broken can still have a working list. */
 	const world = await existingOrBlocked(run, {
-		check: "world.seed",
+		check: "world.seed" satisfies RunFindingId,
 		detail: failure.support
 			? `support operation ${failure.failedOp} failing: ${failure.message}`
 			: `${failure.cause}: ${failure.message}`,
@@ -85,7 +86,7 @@ async function createFailed(run: EntityRun, createOp: OperationModel, error: unk
 	})
 	if (world === null) return null
 	findings.gap(
-		"world.seed",
+		"world.seed" satisfies RunFindingId,
 		entity.name,
 		`seeding "${entity.name}" failed; running read-only checks against existing records`,
 		`${failure.cause}: ${failure.message}. Write-path and lifecycle checks are skipped for this entity.`,

@@ -4,12 +4,13 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { encodeRequest, isFilePart } from "../../src/runtime/body.ts"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { dummyFile } from "../../src/runtime/dummy.ts"
 import { resetUploadPool } from "../../src/runtime/upload.ts"
 import { requestContent, requestSchema } from "../../src/spec/collection.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import type { OpenApiDocument, OperationObject } from "../../src/spec/types.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 afterEach(() => {
 	resetUploadPool()
@@ -123,7 +124,7 @@ describe("encode + client", () => {
 			expect(encoded.body).toBeInstanceOf(FormData)
 			expect(encoded.contentType).toBeNull()
 
-			const client = new Client(url)
+			const client = new Client({ baseUrl: url, redactor: new Redactor() })
 			const exchange = await client.request("POST", "/extract", {
 				body: encoded.body,
 				...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),
@@ -243,7 +244,7 @@ describe("encode + client", () => {
 			expect(encoded.body).toEqual({ name: "Quarterly Report 0" })
 			expect(encoded.body).not.toBeInstanceOf(FormData)
 
-			const client = new Client(url)
+			const client = new Client({ baseUrl: url, redactor: new Redactor() })
 			await client.request("POST", "/tables", {
 				body: encoded.body,
 				...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),
@@ -270,7 +271,7 @@ describe("encode + client", () => {
 			expect(encoded.body).toBeInstanceOf(URLSearchParams)
 			expect(encoded.contentType).toBe("application/x-www-form-urlencoded")
 
-			const client = new Client(url)
+			const client = new Client({ baseUrl: url, redactor: new Redactor() })
 			const exchange = await client.request("POST", "/login", {
 				body: encoded.body,
 				...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),

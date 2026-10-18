@@ -1,10 +1,11 @@
 import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { buildModel, operationResolver } from "../../src/spec/graph.ts"
 import { dereference } from "../../src/spec/load.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 /*
  * A list the document says needs ?locale= is refused without it. Every read oat makes of that list
@@ -73,8 +74,11 @@ async function client(): Promise<{ client: Client; seen: string[] }> {
 	})
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
 	closers.push(() => new Promise((resolve) => server.close(() => resolve())))
-	const made = new Client(`http://127.0.0.1:${(server.address() as AddressInfo).port}`)
-	made.setOperationResolver(operationResolver(buildModel(dereference(spec).doc)))
+	const made = new Client({
+		baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+		operationResolver: operationResolver(buildModel(dereference(spec).doc)),
+		redactor: new Redactor(),
+	})
 	return { client: made, seen }
 }
 

@@ -4,7 +4,7 @@
  * conformance suite assert "exactly this defect was detected".
  */
 
-import type { Exchange } from "./client.ts"
+import type { Exchange } from "./exchange.ts"
 
 export type Verdict = "BACKEND_BUG" | "SPEC_BUG" | "SECURITY" | "AMBIGUITY" | "COVERAGE_GAP" | "BLOCKED"
 

@@ -4,9 +4,12 @@ import { buildModel } from "../../spec/graph.ts"
 import { dereference, loadSpec } from "../../spec/load.ts"
 import { applyOverlay } from "../../spec/overlay.ts"
 import type { OriginClient } from "../auth.ts"
-import { Client, type Exchange, type NetworkClientOptions } from "../client.ts"
+import { Client } from "../../client/client.ts"
+import type { NetworkClientOptions } from "../../client/types.ts"
+import type { Exchange } from "../exchange.ts"
 import { fetchSpecText } from "../network.ts"
 import { persistedToPrincipal, type PersistedPrincipal } from "../principals.ts"
+import type { Redactor } from "../../security/redact.ts"
 import { RateLimiter } from "../rate-limit.ts"
 import type { ScopeReport } from "../scope.ts"
 import type { Loaded, RunContext } from "./context.ts"
@@ -17,6 +20,8 @@ import type { RunOptions, RunResult } from "./types.ts"
 export interface OriginWiring {
 	network: NetworkClientOptions
 	onExchange: (exchange: Exchange) => Promise<void>
+	/** The primary's: one redactor scrubs every client of the run. */
+	redactor: Redactor
 }
 
 /** A client per secondary origin, over that origin's own document. */
@@ -29,17 +34,18 @@ export async function loadOriginClients(loaded: Loaded, wiring: OriginWiring): P
 			fetchText: (url) => fetchSpecText(url, transportOpt(options)),
 		})
 		const { doc } = dereference(origin.overlay === undefined ? raw : applyOverlay(raw, origin.overlay))
-		const client = new Client(
-			origin.baseUrl,
-			options.globalHeaders ?? {},
-			options.maxInFlight ?? 4,
-			wiring.onExchange,
-			origin.maxRps === undefined ? undefined : new RateLimiter([], { maxRps: origin.maxRps }),
-			progress.httpHooks,
-			wiring.network,
-		)
-		if (hooks.resolveHeaders !== undefined) client.setResolveHeaders(hooks.resolveHeaders)
-		if (fence !== undefined) client.setFence(fence)
+		const client = new Client({
+			baseUrl: origin.baseUrl,
+			fence,
+			headers: options.globalHeaders ?? {},
+			httpHooks: progress.httpHooks,
+			maxInFlight: options.maxInFlight ?? 4,
+			network: wiring.network,
+			onExchange: wiring.onExchange,
+			rateLimiter: origin.maxRps === undefined ? undefined : new RateLimiter([], { maxRps: origin.maxRps }),
+			redactor: wiring.redactor,
+			resolveHeaders: hooks.resolveHeaders,
+		})
 		clients.set(origin.id, { client, model: buildModel(doc) })
 	}
 	return clients

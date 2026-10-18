@@ -2,11 +2,12 @@ import { createServer, type Server } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { createFresh } from "../../src/runtime/checks/payloads/create.ts"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { FindingCollector } from "../../src/runtime/finding.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { checkContext } from "../support/check-context.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 /*
  * A client-chosen identity oat has never seen can still be taken: another tenant's record holds
@@ -71,7 +72,7 @@ function context(base: string, schema: Record<string, unknown>) {
 	const createOp = model.byOperationId.get("note.create")
 	if (listOp === undefined || createOp === undefined) throw new Error("operations missing")
 	const ctx = checkContext({
-		client: new Client(base),
+		client: new Client({ baseUrl: base, redactor: new Redactor() }),
 		createOp,
 		entityName: "note",
 		findings: new FindingCollector(),

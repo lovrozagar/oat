@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest"
-import type { Exchange } from "../runtime/client.ts"
+import type { Exchange } from "../runtime/exchange.ts"
 import type { Finding } from "../runtime/finding.ts"
 import { buildSpec } from "../reference/spec.ts"
-import { Client } from "../runtime/client.ts"
+import { Client } from "../client/client.ts"
 import { buildModel } from "../spec/graph.ts"
 import { dereference } from "../spec/load.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
 import { renderJson, renderRepros, type ReportInput } from "./render.ts"
+import { Redactor } from "../security/redact.ts"
 
 const exchange = (url: string, headers: Record<string, string> = {}): Exchange => ({
 	at: 0,
@@ -35,13 +36,21 @@ const finding = (evidence: Exchange[]): Finding => ({
 
 describe("repro scripts", () => {
 	it("replace the whole base URL, so a path prefix is not doubled", () => {
-		const [script] = renderRepros([finding([exchange("http://h.test/api/v1/rows")])], "http://h.test/api/")
+		const [script] = renderRepros(
+			[finding([exchange("http://h.test/api/v1/rows")])],
+			"http://h.test/api/",
+			new Redactor(),
+		)
 		expect(script?.content).toContain('BASE="${BASE:-http://h.test/api}"')
 		expect(script?.content).toContain('"$BASE/v1/rows"')
 	})
 
 	it("only abbreviate a URL that lies under the base path", () => {
-		const [script] = renderRepros([finding([exchange("http://h.test/apiv2/rows")])], "http://h.test/api")
+		const [script] = renderRepros(
+			[finding([exchange("http://h.test/apiv2/rows")])],
+			"http://h.test/api",
+			new Redactor(),
+		)
 		expect(script?.content).toContain("'http://h.test/apiv2/rows'")
 		expect(script?.content).not.toContain("$BASE")
 	})
@@ -50,6 +59,7 @@ describe("repro scripts", () => {
 		const [script] = renderRepros(
 			[finding([exchange("http://other.test/it's", { "x-note": "it's" })])],
 			"http://h.test",
+			new Redactor(),
 		)
 		expect(script?.content).toContain(`'http://other.test/it'\\''s'`)
 		expect(script?.content).toContain(`-H 'x-note: it'\\''s'`)
@@ -59,6 +69,7 @@ describe("repro scripts", () => {
 		const scripts = renderRepros(
 			[finding([exchange("http://h.test/a")]), finding([exchange("http://h.test/b")])],
 			"http://h.test",
+			new Redactor(),
 		)
 		expect(scripts.map((script) => script.filename)).toEqual([
 			"row-sort-order-is-applied.sh",
@@ -80,7 +91,7 @@ const reportOf = (client: Client): ReportInput => ({
 
 describe("the JSON report", () => {
 	it("scrubs what the run's redactor learned, as well as secret names", () => {
-		const client = new Client("http://h.test")
+		const client = new Client({ baseUrl: "http://h.test", redactor: new Redactor() })
 		client.redactor.registerSecret("issued-secret-value")
 		const text = renderJson(reportOf(client))
 		expect(text).not.toContain("issued-secret-value")

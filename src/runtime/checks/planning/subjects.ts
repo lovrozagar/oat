@@ -1,5 +1,5 @@
 import type { EntityModel, OperationModel, SpecModel } from "../../../spec/graph.ts"
-import type { Exchange } from "../../client.ts"
+import type { Exchange } from "../../exchange.ts"
 import type { CheckContext } from "../core/context.ts"
 
 export const graded = (ctx: CheckContext, op: OperationModel): boolean => ctx.inScope?.(op) ?? true

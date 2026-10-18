@@ -149,6 +149,22 @@ COVERAGE_GAP  batch    no x-async; receipt treated as the result
               async.reaches-terminal-state
 ```
 
+## Run-level findings
+
+The run raises these itself, outside any check. They appear in reports like a check's findings.
+
+| id                      | raised when                                                                                                                                                                      | verdict                     |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `world.seed`            | an entity's cohort could not be seeded: the create was refused, fenced, or ran out of values                                                                                     | `COVERAGE_GAP` or `BLOCKED` |
+| `create.does-not-error` | a create answered 5xx for a body generated from the documented schema while seeding                                                                                              | `BACKEND_BUG`               |
+| `world.teardown`        | records the run created could not be removed, or teardown stopped on an error                                                                                                    | `COVERAGE_GAP` or `BLOCKED` |
+| `teardown.verify-hook`  | `hooks.verifyRemoved` threw                                                                                                                                                      | `COVERAGE_GAP`              |
+| `auth.refresh`          | a principal's credential could not be refreshed, so the checks that needed it could not complete                                                                                 | `BLOCKED`                   |
+| `profile.skip`          | the active profile excluded an operation, so the checks that depend on it stand down; with the create excluded and no existing records to fall back on, the entity is not tested | `COVERAGE_GAP` or `BLOCKED` |
+| `net.unreachable`       | the network went down and the remaining entities were skipped                                                                                                                    | `COVERAGE_GAP` or `BLOCKED` |
+| `run.interrupted`       | the run was stopped by a signal; what was tested is reported and what oat created is removed                                                                                     | `COVERAGE_GAP`              |
+| `run.error`             | testing an entity, or a secondary origin, stopped on an unexpected error                                                                                                         | `BLOCKED`                   |
+
 ## Verdicts, skips, and exit codes
 
 | verdict        | meaning                                                              | fails `oat run`? |

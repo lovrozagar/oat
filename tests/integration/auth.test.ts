@@ -5,7 +5,8 @@ import { buildModel } from "../../src/spec/graph.ts"
 import { dereference } from "../../src/spec/load.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { AuthRefreshRequiredError, createPrincipal, type AcquireSpec } from "../../src/runtime/auth.ts"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 interface Harness {
 	url: string
@@ -224,7 +225,7 @@ afterEach(async () => {
 })
 
 async function principalOf(harness: Harness, spec: AcquireSpec) {
-	const client = new Client(harness.url)
+	const client = new Client({ baseUrl: harness.url, redactor: new Redactor() })
 	const runtime = await createPrincipal("alpha", spec, {
 		client,
 		hooks: {},

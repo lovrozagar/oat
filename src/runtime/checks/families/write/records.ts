@@ -1,4 +1,4 @@
-import type { Client } from "../../../client.ts"
+import type { Client } from "../../../../client/client.ts"
 import { FencedError } from "../../../fence.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { type ProvenId, returnedId } from "../../../proven-id.ts"

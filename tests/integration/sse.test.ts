@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { inspectStreamAsync, resolveAsyncId } from "../../src/runtime/async.ts"
 import { runCheck } from "../../src/runtime/checks/core/run.ts"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { FindingCollector } from "../../src/runtime/finding.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { isSseFrameList, parseSse, SseParser, sseEvents, sseFramesOf } from "../../src/runtime/sse.ts"
@@ -14,6 +14,7 @@ import { buildModel } from "../../src/spec/graph.ts"
 import { dereference } from "../../src/spec/load.ts"
 import type { OpenApiDocument, OperationObject } from "../../src/spec/types.ts"
 import { checkContext } from "../support/check-context.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 const closers: Array<() => Promise<void>> = []
 
@@ -410,7 +411,7 @@ describe("stream from text/event-stream", () => {
 		expect(createOp).toBeDefined()
 		expect(listOp).toBeDefined()
 
-		const client = new Client("http://127.0.0.1")
+		const client = new Client({ baseUrl: "http://127.0.0.1", redactor: new Redactor() })
 		client.transcript.push({
 			at: Date.now(),
 			durationMs: 1,
@@ -494,7 +495,7 @@ describe("stream from text/event-stream", () => {
 		const createOp = model.byOperationId.get("batch.create")
 		const listOp = model.byOperationId.get("batch.list")
 		expect(createOp?.eventStream).toBe(false)
-		const client = new Client("http://127.0.0.1")
+		const client = new Client({ baseUrl: "http://127.0.0.1", redactor: new Redactor() })
 		client.transcript.push({
 			at: Date.now(),
 			durationMs: 1,
@@ -559,7 +560,7 @@ describe("stream from text/event-stream", () => {
 			send(res, 404)
 		})
 		closers.push(server.close)
-		const exchange = await new Client(server.url).request("GET", "/stream")
+		const exchange = await new Client({ baseUrl: server.url, redactor: new Redactor() }).request("GET", "/stream")
 		expect(exchange.status).toBe(200)
 		expect(typeof exchange.responseBody).toBe("string")
 		expect(exchange.responseBody).toBe('{"ok":true}')

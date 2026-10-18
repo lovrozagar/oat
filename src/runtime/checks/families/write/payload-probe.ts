@@ -1,5 +1,5 @@
 import type { OperationModel } from "../../../../spec/graph.ts"
-import type { Exchange } from "../../../client.ts"
+import type { Exchange } from "../../../exchange.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { type Outcome, standDown } from "../../../finding.ts"
 import type { StringPayload } from "../../../payloads.ts"

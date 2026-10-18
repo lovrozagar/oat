@@ -1,4 +1,4 @@
-import type { Exchange } from "../../client.ts"
+import type { Exchange } from "../../exchange.ts"
 import { listExisting, type Record_, type WorldOptions } from "../../world.ts"
 import { degradedWorld, type EntityRun, type World } from "./state.ts"
 

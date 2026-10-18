@@ -8,7 +8,7 @@ import {
 	mergeQueryCapabilities,
 } from "../../../spec/query-capabilities.ts"
 import type { SortValue } from "../../../spec/sort-render.ts"
-import type { RequestOptions } from "../../client.ts"
+import type { RequestOptions } from "../../../client/types.ts"
 import type { CheckContext } from "../core/context.ts"
 
 /** The list endpoint's derived conventions — parameter roles and envelope spellings. */

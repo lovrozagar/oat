@@ -6,6 +6,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
 import { messageOf } from "../../errors/message.ts"
+import { Redactor } from "../../security/redact.ts"
 
 const exec = promisify(execFile)
 
@@ -15,7 +16,7 @@ const exec = promisify(execFile)
  * `bash -n` parses without executing, which catches that class before anyone copies one.
  */
 export async function checkReproSyntax(findings: Finding[]): Promise<string[]> {
-	return await checkScripts(renderRepros(findings, "https://example.test"))
+	return await checkScripts(renderRepros(findings, "https://example.test", new Redactor()))
 }
 
 /** Each script's parse failures and unexpandable variables, as `filename: problem`. */

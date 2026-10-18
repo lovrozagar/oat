@@ -1,4 +1,5 @@
 import type { DefectName } from "../../reference/defects.ts"
+import type { FindingId } from "../../runtime/check-ids.ts"
 
 /** The defects whose primary check is in the conformance family, and the check each must trip. */
 export const CONFORMANCE_EXPECTED = {
@@ -9,4 +10,4 @@ export const CONFORMANCE_EXPECTED = {
 	RESPONSE_SCHEMA_DRIFT: "schema.success-response-matches-document",
 	/* The 500 is a crash, and one the reference document never lists, which is a spec finding too. */
 	ACTION_CRASHES: ["response.no-server-error", "response.status-is-documented"],
-} satisfies Partial<Record<DefectName, string | string[]>>
+} satisfies Partial<Record<DefectName, FindingId | FindingId[]>>

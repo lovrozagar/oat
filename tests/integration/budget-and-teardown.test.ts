@@ -4,13 +4,14 @@ import { describe, expect, it } from "vitest"
 import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http.ts"
 import { report } from "../../src/report/console.ts"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { Ledger } from "../../src/runtime/teardown.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import { dereference } from "../../src/spec/load.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { type ProvenId, answeredId, listedIds } from "../../src/runtime/proven-id.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 /* Ids as the backend gave them back; the ledger takes nothing else. */
 function proven(id: ProvenId | undefined): ProvenId {
@@ -33,7 +34,7 @@ describe("teardown", () => {
 			const model = await referenceModel(server.url)
 			const headers = { authorization: "Bearer tok_alpha" }
 			const owner = { headers: () => headers, id: "alpha" }
-			const client = new Client(server.url)
+			const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 			const table = await client.request("POST", "/v1/projects/proj_alpha/tables", { body: { name: "t" }, headers })
 			const tableId = proven(answeredId(table, ["id"]))
 			const ledger = new Ledger()
@@ -126,7 +127,7 @@ describe("teardown of a record the run already deleted", () => {
 		try {
 			const model = buildModel(dereference(orgsSpec).doc)
 			const owner = { headers: () => ({}), id: "alpha" }
-			const client = new Client(server.url)
+			const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 			expect((await client.request("DELETE", "/v1/orgs/org_1", {})).status).toBe(204)
 			const ledger = new Ledger()
 			ledger.record("org", listed("org_1"), { org_id: "org_1" }, owner)
@@ -143,7 +144,7 @@ describe("teardown of a record the run already deleted", () => {
 		try {
 			const model = buildModel(dereference(orgsSpec).doc)
 			const owner = { headers: () => ({}), id: "alpha" }
-			const client = new Client(server.url)
+			const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 			const ledger = new Ledger()
 			ledger.record("org", listed("org_2"), { org_id: "org_2" }, owner)
 			const result = await ledger.unwind(model, client, () => [])

@@ -18,7 +18,7 @@ import {
 	mergeQueryCapabilities,
 	readJsonPathList,
 } from "../spec/query-capabilities.ts"
-import type { Client } from "./client.ts"
+import type { Client } from "../client/client.ts"
 import { fillPath } from "./fill-path.ts"
 
 export async function resolveEntityCapabilities(input: {

@@ -23,8 +23,8 @@ const ALLOWED: Array<[string, string]> = [
 	["src/runtime/run/stages/load.ts", "../../checks/registry.ts"],
 	["src/runtime/checks.ts", "../client/request.ts"],
 	["src/client/request.ts", "../credentials/store.ts"],
-	["src/runtime/checks.ts", "./client.ts"],
-	["src/runtime/client.ts", "./cookies.ts"],
+	["src/runtime/world.ts", "../client/client.ts"],
+	["src/client/client.ts", "../runtime/cookies.ts"],
 	["src/security/redact.ts", "./credential-names.ts"],
 	["src/security/strip.ts", "../errors/network.ts"],
 	["src/runtime/world.ts", "../spec/graph.ts"],
@@ -47,7 +47,7 @@ const REFUSED: Array<[string, string]> = [
 	["src/spec/graph.ts", "../runtime/world.ts"],
 	["src/errors/network.ts", "../spec/graph.ts"],
 	["src/config/types/principals.ts", "../define-config.ts"],
-	["src/reference/http.ts", "../runtime/client.ts"],
+	["src/reference/http.ts", "../client/client.ts"],
 	["src/runtime/world.ts", "../reference/http.ts"],
 	["src/runtime/run/pipeline.ts", "../../reference/http.ts"],
 	["src/runtime/checks.ts", "../report/render.ts"],
@@ -56,8 +56,8 @@ const REFUSED: Array<[string, string]> = [
 	["src/report/render.ts", "../config/define-config.ts"],
 	["src/runtime/checks.ts", "./run/index.ts"],
 	["src/spec/load.ts", "fs"],
-	["src/runtime/client.ts", "postgres"],
-	["src/runtime/client.ts", "lodash"],
+	["src/client/client.ts", "postgres"],
+	["src/client/client.ts", "lodash"],
 	["src/misc/thing.ts", "../spec/graph.ts"],
 	["src/runtime/world.ts", "../misc/thing.ts"],
 	/* security is a leaf: it reaches only the errors and config types. */
@@ -66,8 +66,8 @@ const REFUSED: Array<[string, string]> = [
 	/* client and credentials sit below the runtime: never the reverse arrow. */
 	["src/credentials/store.ts", "../runtime/body.ts"],
 	["src/client/request.ts", "../runtime/checks.ts"],
-	["src/runtime/client.ts", "./checks.ts"],
-	["src/runtime/client.ts", "./world.ts"],
+	["src/client/client.ts", "../runtime/checks/registry.ts"],
+	["src/client/client.ts", "../runtime/world.ts"],
 ]
 
 describe("oat/boundaries", () => {

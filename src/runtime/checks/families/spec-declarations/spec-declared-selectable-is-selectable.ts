@@ -1,6 +1,6 @@
 import { defineCheck } from "../../core/define.ts"
 import { selectTerm } from "../../../../spec/conventions.ts"
-import type { Exchange } from "../../../client.ts"
+import type { Exchange } from "../../../exchange.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { when } from "../../core/plan.ts"
 import { declarationAnswer } from "../../planning/declarations.ts"

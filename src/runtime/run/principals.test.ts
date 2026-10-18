@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { Responder } from "../checks/__fixtures__/harness.ts"
-import type { Exchange } from "../client.ts"
+import type { Exchange } from "../exchange.ts"
 import { createdId } from "../proven-id.ts"
 import { ALPHA, flow, notesApi, optionsFor, planned, unreachable, withLogin } from "./__fixtures__/api.ts"
 import { adoptPrincipals, resolvePrincipals, sameTenant } from "./principals.ts"

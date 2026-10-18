@@ -1,4 +1,5 @@
 import type { DefectName } from "../../reference/defects.ts"
+import type { FindingId } from "../../runtime/check-ids.ts"
 
 /** The defects whose primary check is in the consistency family, and the check each must trip. */
 export const CONSISTENCY_EXPECTED = {
@@ -15,4 +16,4 @@ export const CONSISTENCY_EXPECTED = {
 	],
 	STALE_LIST: "list.read-after-write",
 	LISTED_GET_DIFFERS: "list.item-matches-listed-row",
-} satisfies Partial<Record<DefectName, string | string[]>>
+} satisfies Partial<Record<DefectName, FindingId | FindingId[]>>

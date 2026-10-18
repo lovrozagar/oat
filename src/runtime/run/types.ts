@@ -1,5 +1,5 @@
 import type { BaselineEntry, BaselineFile } from "../baseline.ts"
-import type { Client } from "../client.ts"
+import type { Client } from "../../client/client.ts"
 import type {
 	EntityConfig,
 	OriginSpec,

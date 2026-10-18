@@ -24,7 +24,8 @@ import {
 	resolveRequest,
 	triggerSentAt,
 } from "./auth.ts"
-import type { Client, Exchange } from "./client.ts"
+import type { Client } from "../client/client.ts"
+import type { Exchange } from "./exchange.ts"
 import { cookiesFromRecordedHeaders, describeSaveAs, readSaveAs } from "./cookies.ts"
 import type { FindingCollector } from "./finding.ts"
 import { readAll, readPath } from "./path.ts"

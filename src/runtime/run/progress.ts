@@ -1,4 +1,5 @@
-import type { Exchange, HttpHooks, RequestStart } from "../client.ts"
+import type { HttpHooks, RequestStart } from "../../client/types.ts"
+import type { Exchange } from "../exchange.ts"
 import type { ProgressHandler, ProgressInflight, ProgressLast, ProgressSnapshot } from "../progress.ts"
 
 type Phase = ProgressSnapshot["phase"]

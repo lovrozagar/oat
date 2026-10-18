@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url"
-import type { RequestOptions } from "../../../../client.ts"
+import type { RequestOptions } from "../../../../../client/types.ts"
 import type { UploadContext } from "../../../../upload.ts"
 import type { OpenApiDocument } from "../../../../../spec/types.ts"
 import type { Answer, Responder } from "../../../__fixtures__/harness.ts"

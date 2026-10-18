@@ -5,7 +5,8 @@ import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import { Client, type Exchange } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
+import type { Exchange } from "../../src/runtime/exchange.ts"
 import { isSecretHeaderName } from "../../src/security/credential-names.ts"
 import { Redactor } from "../../src/security/redact.ts"
 import {
@@ -135,14 +136,14 @@ describe("isBinaryMediaType", () => {
 describe("exchange journal", () => {
 	it("writes nothing on a flush with nothing buffered", async () => {
 		const dir = await scratch()
-		const journal = createExchangeJournal(dir)
+		const journal = createExchangeJournal(dir, new Redactor())
 		await journal.flush()
 		expect(journal.count).toBe(0)
 	})
 
 	it("persists a followed redirect chain with redacted Set-Cookie", async () => {
 		const dir = await scratch()
-		const journal = createExchangeJournal(dir)
+		const journal = createExchangeJournal(dir, new Redactor())
 		await journal.record(
 			exchange({
 				finalUrl: "http://app.test/app",
@@ -180,7 +181,7 @@ describe("exchange journal", () => {
 
 	it("writes a JSON POST/GET that jsonl can join by requestId", async () => {
 		const dir = await scratch()
-		const journal = createExchangeJournal(dir)
+		const journal = createExchangeJournal(dir, new Redactor())
 		expect(journal.dir).toBe(dir)
 		await journal.record(
 			exchange({
@@ -239,7 +240,7 @@ describe("exchange journal", () => {
 
 	it("content-addresses the same multipart fixture across two POSTs", async () => {
 		const dir = await scratch()
-		const journal = createExchangeJournal(dir)
+		const journal = createExchangeJournal(dir, new Redactor())
 		const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0x01, 0x02, 0x03])
 		const once = async (seq: number, requestId: string): Promise<void> => {
 			const form = new FormData()
@@ -283,7 +284,7 @@ describe("exchange journal", () => {
 
 	it("names a missing request id seq-<n>.json and does not overwrite a duplicate id", async () => {
 		const dir = await scratch()
-		const journal = createExchangeJournal(dir)
+		const journal = createExchangeJournal(dir, new Redactor())
 		await journal.record(exchange({ requestId: "", seq: 4, url: "http://x.test/a" }))
 		await journal.flush()
 		await journal.record(exchange({ requestId: "same", seq: 5, url: "http://x.test/b" }))
@@ -306,7 +307,7 @@ describe("exchange journal", () => {
 		const dir = await scratch()
 		await mkdir(join(dir, "exchanges"), { recursive: true })
 		await writeFile(join(dir, "exchanges/pre.json"), '{"keep":true}\n')
-		const journal = createExchangeJournal(dir)
+		const journal = createExchangeJournal(dir, new Redactor())
 		await journal.record(exchange({ requestId: "pre", seq: 9 }))
 		await journal.flush()
 		expect(JSON.parse(await readFile(join(dir, "exchanges/pre.json"), "utf8"))).toEqual({ keep: true })
@@ -320,7 +321,7 @@ describe("exchange journal", () => {
 
 	it("passes through already-compacted body refs and form snapshots", async () => {
 		const dir = await scratch()
-		const journal = createExchangeJournal(dir)
+		const journal = createExchangeJournal(dir, new Redactor())
 		const ref = { bytes: 3, mediaType: "text/plain", sha256: "abc" }
 		await journal.record(
 			exchange({
@@ -350,7 +351,7 @@ describe("exchange journal", () => {
 
 	it("stores already-parsed SSE frames with redaction", async () => {
 		const dir = await scratch()
-		const journal = createExchangeJournal(dir)
+		const journal = createExchangeJournal(dir, new Redactor())
 		await journal.record(
 			exchange({
 				requestId: "sse-frames",
@@ -368,7 +369,7 @@ describe("exchange journal", () => {
 
 	it("stores SSE as parsed frames, not a raw dump", async () => {
 		const dir = await scratch()
-		const journal = createExchangeJournal(dir)
+		const journal = createExchangeJournal(dir, new Redactor())
 		await journal.record(
 			exchange({
 				requestId: "sse-1",
@@ -387,7 +388,7 @@ describe("exchange journal", () => {
 
 	it("keeps an event-stream body as text when it is not framed", async () => {
 		const dir = await scratch()
-		const journal = createExchangeJournal(dir)
+		const journal = createExchangeJournal(dir, new Redactor())
 		await journal.record(
 			exchange({
 				requestId: "sse-raw",
@@ -403,7 +404,7 @@ describe("exchange journal", () => {
 
 	it("parses SSE frames from a raw string even without the event-stream header", async () => {
 		const dir = await scratch()
-		const journal = createExchangeJournal(dir)
+		const journal = createExchangeJournal(dir, new Redactor())
 		await journal.record(
 			exchange({
 				requestId: "sse-guess",
@@ -419,7 +420,7 @@ describe("exchange journal", () => {
 
 	it("spills oversized text and JSON to blobs/", async () => {
 		const dir = await scratch()
-		const journal = createExchangeJournal(dir)
+		const journal = createExchangeJournal(dir, new Redactor())
 		const big = "z".repeat(INLINE_BODY_LIMIT + 8)
 		await journal.record(
 			exchange({
@@ -445,7 +446,7 @@ describe("exchange journal", () => {
 
 	it("stores binary downloads as a blob pointer", async () => {
 		const dir = await scratch()
-		const journal = createExchangeJournal(dir)
+		const journal = createExchangeJournal(dir, new Redactor())
 		await journal.record(
 			exchange({
 				requestId: "pdf",
@@ -474,7 +475,7 @@ describe("exchange journal", () => {
 
 	it("hashes raw request bytes and URLSearchParams", async () => {
 		const dir = await scratch()
-		const journal = createExchangeJournal(dir)
+		const journal = createExchangeJournal(dir, new Redactor())
 		await journal.record(
 			exchange({
 				method: "POST",
@@ -865,8 +866,14 @@ describe("Client records operationId and fixture on the exchange", () => {
 		const addr = server.address()
 		if (addr === null || typeof addr === "string") throw new Error("no addr")
 		const seen: Exchange[] = []
-		const client = new Client(`http://127.0.0.1:${addr.port}`, {}, 4, (item) => {
-			seen.push(item)
+		const client = new Client({
+			baseUrl: `http://127.0.0.1:${addr.port}`,
+			headers: {},
+			maxInFlight: 4,
+			onExchange: (item) => {
+				seen.push(item)
+			},
+			redactor: new Redactor(),
 		})
 		const pdfRead = await client.get("/v1/x", { fixture: "a.pdf", operationId: "x.read" })
 		expect(pdfRead.operationId).toBe("x.read")

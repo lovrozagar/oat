@@ -5,9 +5,10 @@ import { buildModel } from "../../src/spec/graph.ts"
 import { dereference } from "../../src/spec/load.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { createPrincipal, resolveOutOfBandValue, resolvePrincipalAuthValue } from "../../src/runtime/auth.ts"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { isAuthFlow, isHookAuth } from "../../src/runtime/auth-kind.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 const closers: Array<() => Promise<void>> = []
 
@@ -144,7 +145,7 @@ describe("resolvePrincipalAuth / fromHook", () => {
 	it("creates a principal from the hook and refreshes by calling it again", async () => {
 		const model = buildModel(dereference(AUTH_SPEC).doc)
 		let n = 0
-		const client = new Client("http://127.0.0.1")
+		const client = new Client({ baseUrl: "http://127.0.0.1", redactor: new Redactor() })
 		const runtime = await createPrincipal(
 			"google",
 			{ fromHook: "oauth-google", assumeTtlMs: 1, refreshBufferMs: 10_000 },
@@ -183,7 +184,7 @@ describe("resolvePrincipalAuth / fromHook", () => {
 			"google",
 			{ fromHook: "oauth-google" },
 			{
-				client: new Client("http://127.0.0.1"),
+				client: new Client({ baseUrl: "http://127.0.0.1", redactor: new Redactor() }),
 				hooks: {
 					resolvePrincipalAuth: async () => {
 						n += 1
@@ -211,17 +212,21 @@ describe("resolveHeaders", () => {
 			send(res, 200, { items: [] })
 		})
 		closers.push(server.close)
-		const client = new Client(server.url, { "x-global": "g" })
-		client.setResolveHeaders(async ({ method, url, operationId }) => {
-			expect(method).toBe("GET")
-			expect(url).toContain("/v1/items")
-			expect(operationId).toBe("item.list")
-			return { "cf-turnstile-response": "fresh" }
-		})
-		client.bindAuth({
-			headers: () => ({ authorization: "Bearer live" }),
-			matches: (headers) => headers.authorization === "Bearer live",
-			refreshIfStale: async () => undefined,
+		const live = { headers: () => ({ authorization: "Bearer live" }), refreshIfStale: async () => undefined }
+		const client = new Client({
+			baseUrl: server.url,
+			credentials: {
+				credentialFor: ({ headers }) => (headers.authorization === "Bearer live" ? live : undefined),
+				principalOf: () => undefined,
+			},
+			headers: { "x-global": "g" },
+			redactor: new Redactor(),
+			resolveHeaders: async ({ method, url, operationId }) => {
+				expect(method).toBe("GET")
+				expect(url).toContain("/v1/items")
+				expect(operationId).toBe("item.list")
+				return { "cf-turnstile-response": "fresh" }
+			},
 		})
 		await client.get("/v1/items", {
 			headers: { authorization: "Bearer live" },
@@ -233,8 +238,7 @@ describe("resolveHeaders", () => {
 	it("treats a null hook return as no extra headers", async () => {
 		const server = await listen((_req, res) => send(res, 200, {}))
 		closers.push(server.close)
-		const client = new Client(server.url)
-		client.setResolveHeaders(async () => null)
+		const client = new Client({ baseUrl: server.url, redactor: new Redactor(), resolveHeaders: async () => null })
 		const exchange = await client.get("/v1/items")
 		expect(exchange.status).toBe(200)
 	})
@@ -277,7 +281,7 @@ describe("origins and auth-step origin", () => {
 
 		const model = buildModel(dereference(AUTH_SPEC).doc)
 		const originModel = buildModel(dereference(cdnSpec).doc)
-		const originClient = new Client(cdn.url)
+		const originClient = new Client({ baseUrl: cdn.url, redactor: new Redactor() })
 		const runtime = await createPrincipal(
 			"alpha",
 			{
@@ -285,7 +289,7 @@ describe("origins and auth-step origin", () => {
 				steps: [{ operationId: "cdn.token", origin: "cdn", body: {} }],
 			},
 			{
-				client: new Client(api.url),
+				client: new Client({ baseUrl: api.url, redactor: new Redactor() }),
 				hooks: {},
 				model,
 				originClients: new Map([["cdn", { client: originClient, model: originModel }]]),
@@ -302,7 +306,7 @@ describe("origins and auth-step origin", () => {
 					credentialFrom: "$.access_token",
 					steps: [{ method: "POST", origin: "missing", path: "/x" }],
 				},
-				{ client: new Client(api.url), hooks: {}, model, principalId: "alpha" },
+				{ client: new Client({ baseUrl: api.url, redactor: new Redactor() }), hooks: {}, model, principalId: "alpha" },
 			),
 		).rejects.toThrow(/not in config.origins/)
 	})

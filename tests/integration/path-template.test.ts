@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { pathTemplateParams } from "../../src/spec/load.ts"
 import { operationResolver } from "../../src/spec/graph.ts"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import type { SpecModel } from "../../src/spec/graph.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 /*
  * The values a request put in its path, read back against the template it resolved to. A create's
@@ -64,8 +65,11 @@ describe("an exchange's path parameters", () => {
 		})
 		await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
 		try {
-			const client = new Client(`http://127.0.0.1:${(server.address() as AddressInfo).port}`)
-			client.setOperationResolver(operationResolver(model))
+			const client = new Client({
+				baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+				operationResolver: operationResolver(model),
+				redactor: new Redactor(),
+			})
 			const exchange = await client.get("/projects/b/tables/t%209")
 			expect(exchange.pathParams).toEqual({ project_id: "b", table_id: "t 9" })
 		} finally {

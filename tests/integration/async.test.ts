@@ -3,10 +3,11 @@ import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { driveAsync } from "../../src/runtime/async.ts"
 import { AuthRefreshRequiredError, createPrincipal, type AcquireSpec } from "../../src/runtime/auth.ts"
-import { Client } from "../../src/runtime/client.ts"
+import { Client } from "../../src/client/client.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import { dereference } from "../../src/spec/load.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
+import { Redactor } from "../../src/security/redact.ts"
 
 const SPEC = {
 	info: { title: "async-refresh", version: "1" },
@@ -160,7 +161,7 @@ describe("driveAsync live headers", () => {
 		})
 		closers.push(server.close)
 
-		const client = new Client(server.url)
+		const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 		const runtime = await createPrincipal("alpha", signup, {
 			client,
 			hooks: {},
@@ -229,7 +230,7 @@ describe("driveAsync live headers", () => {
 		})
 		closers.push(server.close)
 
-		const client = new Client(server.url)
+		const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 		const runtime = await createPrincipal("alpha", signup, {
 			client,
 			hooks: {},
@@ -279,7 +280,7 @@ describe("driveAsync live headers", () => {
 		})
 		closers.push(server.close)
 
-		const client = new Client(server.url)
+		const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 		const runtime = await createPrincipal(
 			"alpha",
 			{

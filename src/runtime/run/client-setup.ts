@@ -1,13 +1,15 @@
 import { randomBytes } from "node:crypto"
 import { operationResolver } from "../../spec/graph.ts"
 import { Redactor } from "../../security/redact.ts"
-import { Client, type Exchange } from "../client.ts"
+import { Client } from "../../client/client.ts"
+import type { Exchange } from "../exchange.ts"
 import { createExchangeJournal, type ExchangeJournal } from "../exchanges.ts"
 import { resolveBackoff } from "../poll.ts"
 import { buildRateLimitRules, RateLimiter } from "../rate-limit.ts"
 import { Ledger } from "../teardown.ts"
 import { SchemaValidator } from "../validate.ts"
 import type { Connected, Loaded } from "./context.ts"
+import { RunCredentials } from "./credentials.ts"
 import { createRunNetwork } from "./network.ts"
 import { loadOriginClients } from "./origins.ts"
 import type { RunProgress } from "./progress.ts"
@@ -22,29 +24,31 @@ export async function connect(loaded: Loaded): Promise<Connected> {
 	const journal = options.exchangeDir === undefined ? null : createExchangeJournal(options.exchangeDir, redactor)
 	const onExchange = answered(journal, progress)
 	const network = createRunNetwork(loaded)
-	const client = new Client(
-		options.baseUrl,
-		options.globalHeaders ?? {},
-		options.maxInFlight ?? 4,
+	const credentials = new RunCredentials()
+	const client = new Client({
+		baseUrl: options.baseUrl,
+		credentials,
+		fence,
+		headers: options.globalHeaders ?? {},
+		httpHooks: progress.httpHooks,
+		maxInFlight: options.maxInFlight ?? 4,
+		network: network.client,
 		onExchange,
-		new RateLimiter(
+		operationResolver: operationResolver(model),
+		rateLimiter: new RateLimiter(
 			buildRateLimitRules(model, options.rateLimits),
 			options.maxRps === undefined ? {} : { maxRps: options.maxRps },
 		),
-		progress.httpHooks,
-		network.client,
-	)
-	client.setRedactor(redactor)
-	if (hooks.resolveHeaders !== undefined) client.setResolveHeaders(hooks.resolveHeaders)
-	client.setOperationResolver(operationResolver(model))
-	if (fence !== undefined) client.setFence(fence)
+		redactor,
+		resolveHeaders: hooks.resolveHeaders,
+	})
 	progress.countRequests(() => client.transcript.length)
 	if (options.principals[0] === undefined) throw new Error("oat: at least one principal is required")
-	const originClients = await loadOriginClients(loaded, { network: network.client, onExchange })
-	for (const origin of originClients.values()) origin.client.setRedactor(redactor)
+	const originClients = await loadOriginClients(loaded, { network: network.client, onExchange, redactor })
 	return {
 		...loaded,
 		client,
+		credentials,
 		journal,
 		ledger: new Ledger(),
 		network,

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest"
 import { MissingValueError } from "../../../errors/missing-value.ts"
-import { AuthRefreshError } from "../../client.ts"
+import { AuthRefreshError } from "../../../client/refresh.ts"
 import { FencedError } from "../../fence.ts"
 import { checkOf, loopOf } from "../__fixtures__/checks.ts"
 import { contextOf, notesApi, optionsFor, outage } from "../__fixtures__/api.ts"
-import type { Client } from "../../client.ts"
+import type { Client } from "../../../client/client.ts"
 import type { CheckSpec } from "../__fixtures__/checks.ts"
 import { runCheck, withLostVariants } from "./run-check.ts"
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { Exchange } from "../client.ts"
+import type { Exchange } from "../exchange.ts"
 import type { RunContext } from "./context.ts"
 import { contextOf, notesApi, optionsFor } from "./__fixtures__/api.ts"
 import { scopeReport } from "./result.ts"

@@ -5,7 +5,8 @@
  */
 
 import type { OperationModel, SpecModel } from "../spec/graph.ts"
-import type { Client, Exchange } from "./client.ts"
+import type { Client } from "../client/client.ts"
+import type { Exchange } from "./exchange.ts"
 import type { GradeLedger, PassEvidence } from "./grades.ts"
 
 const READS = new Set(["GET", "HEAD"])

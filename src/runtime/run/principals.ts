@@ -2,11 +2,12 @@ import type { Principal } from "../../config/types/principals.ts"
 import { isSecretHeaderName } from "../../security/credential-names.ts"
 import { credentialHeaderNames } from "../../security/strip.ts"
 import { createPrincipal, holdHeaders } from "../auth.ts"
-import type { Client } from "../client.ts"
+import type { Client } from "../../client/client.ts"
 import { isNetworkError } from "../network.ts"
 import type { Owner } from "../teardown.ts"
 import type { Planned, ResolvedPrincipal, RunPrincipals } from "./context.ts"
 import { messageOf } from "../../errors/message.ts"
+import type { RunFindingId } from "../check-ids.ts"
 
 /**
  * Resolves every configured principal. `null` when the network went away while doing it: the
@@ -26,9 +27,9 @@ export async function resolvePrincipals(planned: Planned): Promise<ResolvedPrinc
 
 /** The resolved principals bound to the run: each exchange names its sender, each create its owner. */
 export function adoptPrincipals(planned: Planned, all: ResolvedPrincipal[]): Planned & { principals: RunPrincipals } {
-	const { client, progress } = planned
+	const { credentials, progress } = planned
 	progress.tick({ message: `${all.length} principal(s)`, phase: "auth", requests: progress.requests })
-	client.setPrincipalResolver((sent) => senderOf(all, sent))
+	credentials.nameSenders((sent) => senderOf(all, sent))
 	return { ...planned, principals: runPrincipals(planned, all) }
 }
 
@@ -63,7 +64,7 @@ function runPrincipals(planned: Planned, all: ResolvedPrincipal[]): RunPrincipal
 					await principal.runtime?.refreshIfStale()
 				} catch (error) {
 					findings.blocked(
-						"auth.refresh",
+						"auth.refresh" satisfies RunFindingId,
 						where,
 						`refreshing the credential of "${principal.id}" failed`,
 						messageOf(error),
@@ -132,7 +133,11 @@ async function resolvePrincipal(planned: Planned, principal: Principal): Promise
 		if (value !== undefined) discovered[param] = value
 	}
 	const headers = (): Record<string, string> => ({ ...principal.headers, ...runtime.headers() })
-	client.bindAuth({ headers, matches: (sent) => runtime.matches(sent), refreshIfStale: runtime.refreshIfStale })
+	planned.credentials.bind({
+		headers,
+		matches: (sent) => runtime.matches(sent),
+		refreshIfStale: runtime.refreshIfStale,
+	})
 	return {
 		...described(principal),
 		adoptCredential: (token) => runtime.adoptCredential(token),

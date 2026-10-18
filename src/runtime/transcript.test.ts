@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { Exchange } from "./client.ts"
+import type { Exchange } from "./exchange.ts"
 import { REDACTED, Redactor } from "../security/redact.ts"
 import { BodySpool, bodyRef, compactRequestBody, holdsLiveBody, isSpooledBody, sha256Hex } from "./transcript.ts"
 
@@ -78,7 +78,7 @@ describe("spooled bodies, at the edges", () => {
 			["tag", "b"],
 			["tag", "c"],
 		])
-		expect(await compactRequestBody(form)).toEqual({ tag: ["a", "b", "c"] })
+		expect(await compactRequestBody(form, new Redactor())).toEqual({ tag: ["a", "b", "c"] })
 	})
 })
 
@@ -91,14 +91,14 @@ describe("request bodies, compacted for the transcript", () => {
 			["tag", "a"],
 			["tag", "b"],
 		])
-		expect(await compactRequestBody(form, undefined, undefined, redactor)).toEqual({
+		expect(await compactRequestBody(form, redactor)).toEqual({
 			note: `sent ${REDACTED}`,
 			tag: ["a", "b"],
 		})
 		const multipart = new FormData()
 		multipart.append("password", "hunter2")
 		multipart.append("file", new Blob(["abc"], { type: "text/plain" }), "a.txt")
-		expect(await compactRequestBody(multipart)).toEqual({
+		expect(await compactRequestBody(multipart, new Redactor())).toEqual({
 			parts: [
 				{ field: "password", value: REDACTED },
 				{
@@ -114,7 +114,7 @@ describe("request bodies, compacted for the transcript", () => {
 
 	it("stores raw bytes as a reference and knows a live body when it holds one", async () => {
 		const bytes = new Uint8Array([1, 2])
-		expect(await compactRequestBody(bytes)).toEqual(bodyRef(bytes, "application/octet-stream"))
+		expect(await compactRequestBody(bytes, new Redactor())).toEqual(bodyRef(bytes, "application/octet-stream"))
 		expect(
 			[new FormData(), new URLSearchParams(), new Blob([]), new ArrayBuffer(1), bytes, "x", 1].map(holdsLiveBody),
 		).toEqual([true, true, true, true, true, false, false])

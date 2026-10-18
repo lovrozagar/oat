@@ -9,7 +9,8 @@
 
 import type { RemovalVerdict, RemovedRecord } from "../config/types/hooks.ts"
 import { largestPageQuery, type OperationModel, type SpecModel } from "../spec/graph.ts"
-import type { Client, Exchange } from "./client.ts"
+import type { Client } from "../client/client.ts"
+import type { Exchange } from "./exchange.ts"
 import { parseRouteRef } from "../spec/load.ts"
 import { FencedError } from "./fence.ts"
 import { isNetworkError } from "./network.ts"

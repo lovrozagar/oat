@@ -18,7 +18,7 @@ import type { GradeLedger, PassEvidence } from "./grades.ts"
 export { GradeLedger, type PassEvidence } from "./grades.ts"
 import { nearest } from "../errors/suggest.ts"
 import { UsageError } from "../errors/usage-error.ts"
-import type { Exchange } from "./client.ts"
+import type { Exchange } from "./exchange.ts"
 import type { Finding, Inconclusive } from "./finding.ts"
 
 export class ScopeError extends UsageError {
