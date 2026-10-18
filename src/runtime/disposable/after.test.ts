@@ -15,7 +15,8 @@ async function after(
 	call: {
 		operationId: string
 		ends?: boolean
-		renew?: Answer
+		/* `nothing`: a refresh is declared, and sends no request (fenced, or missing a value). */
+		renew?: Answer | "nothing"
 		values?: Record<string, string>
 		read?: Partial<OperationModel>
 	},
@@ -29,7 +30,9 @@ async function after(
 		headers: () => ({ authorization: "Bearer t1" }),
 		known: {},
 		roots: {},
-		...(renew === undefined ? {} : { renew: async () => exchange("POST", "/v1/refresh", renew) }),
+		...(renew === undefined
+			? {}
+			: { renew: async () => (renew === "nothing" ? undefined : exchange("POST", "/v1/refresh", renew)) }),
 	}
 	if (call.operationId === "auth.logout") accountsApi(state)("POST", "/v1/logout", { headers: session.headers() })
 	await afterCall(input, {
@@ -110,6 +113,25 @@ describe("afterCall: an ended session", () => {
 			operationId: "auth.logout",
 			renew: { status: 401 },
 		})
+		expect(input.findings.findings).toEqual([])
+		expect(input.grades.evidence.get("auth.logout")?.observation).toMatchObject({ status: 401 })
+	})
+
+	it("fails a session still accepted when no refresh refused it, declared or not", async () => {
+		const unrenewable = await after(accounts({ keepSession: true }), { ends: true, operationId: "auth.logout" })
+		expect(summaries(unrenewable)).toEqual(["profile: the disposable session was still accepted"])
+		expect(unrenewable.findings.findings[0]?.evidence).toHaveLength(2)
+		expect(unrenewable.grades.evidence.has("auth.logout")).toBe(false)
+		const silent = await after(accounts({ keepSession: true }), {
+			ends: true,
+			operationId: "auth.logout",
+			renew: "nothing",
+		})
+		expect(summaries(silent)).toEqual(["profile: the disposable session was still accepted"])
+	})
+
+	it("proves an ended session by the refused read when its refresh sent nothing", async () => {
+		const input = await after(accounts(), { ends: true, operationId: "auth.logout", renew: "nothing" })
 		expect(input.findings.findings).toEqual([])
 		expect(input.grades.evidence.get("auth.logout")?.observation).toMatchObject({ status: 401 })
 	})

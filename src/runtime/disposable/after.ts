@@ -101,13 +101,15 @@ async function sessionEnded(input: DisposableInput, call: Accepted): Promise<Obs
 	const refused = gone.status === 401 || gone.status === 403 || gone.status === 404
 	/* A declared refresh that answered anything but a 4xx still renews. */
 	const renews = renewed !== undefined && !(renewed.status >= 400 && renewed.status < 500)
-	if (!refused && renews) {
+	/* A read still answered proves the session ended only beside a refresh that was refused. With
+	 * no refresh declared, or one that sent nothing, nothing shows the session ended. */
+	if (!refused && (renewed === undefined || renews)) {
 		blame.collector.backend(
 			DISPOSABLE_CHECK_ID,
 			blame.entity,
 			"the disposable session was still accepted",
 			`${op.operationId} invalidates ${read.operationId}, and that read then returned ${gone.status} with the second user's credential.`,
-			[called, gone, renewed],
+			renewed === undefined ? [called, gone] : [called, gone, renewed],
 		)
 		return BLAMED
 	}
@@ -121,7 +123,7 @@ async function sessionEnded(input: DisposableInput, call: Accepted): Promise<Obs
 		)
 		return BLAMED
 	}
-	return refused
-		? { seq: gone.seq, status: gone.status }
-		: { seq: (renewed as Exchange).seq, status: (renewed as Exchange).status }
+	/* Not refused here means the refresh was: the branch above took every other case. */
+	const proof = refused ? gone : (renewed as Exchange)
+	return { seq: proof.seq, status: proof.status }
 }
