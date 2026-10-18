@@ -89,6 +89,46 @@ function withFixture(finding: Finding, fixture?: string): Finding {
 	return { ...finding, fixture }
 }
 
+/* A stack frame line as V8 prints it: a newline, indentation, then "at ...". */
+const STACK_FRAME = /\n[ \t]*at [^\n]*/g
+
+/*
+ * An absolute path that names a user's directory: under /home/<user>, /Users/<user> or /root, or
+ * any path on a Windows drive, optionally as a file:// URL. A Unix path elsewhere is left alone,
+ * since an API route such as /rows/{id} reads the same and a report must keep it.
+ */
+const USER_PATH =
+	/(?<![\w./\\-])(?:file:\/\/)?(?:\/(?:home|Users)\/[^\s/'"`()<>]+|\/root(?![^\s/'"`()<>])|[A-Za-z]:(?=[\\/]))[^\s'"`()<>]*/g
+
+/* Everything up to the last path separator that something follows. */
+const DIRECTORIES = /^.*[\\/](?=[^\\/])/
+
+/**
+ * `path` as a whole path, never inside a longer one: under cwd "/x/oat", "/x/oat2" and "/x/oat.bak"
+ * stay, while "/x/oat/a.ts" and a sentence ending "/x/oat." match.
+ */
+function wholePath(path: string): RegExp {
+	return new RegExp(
+		String.raw`(?<![\w.-])${path.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)}(?![\w-]|\.\w)`,
+		"g",
+	)
+}
+
+/**
+ * Text a report may carry. A report is shared beyond the machine that ran it, so no finding names
+ * where oat or its user lives:
+ * - every stack frame line ("\n    at ...") is dropped;
+ * - a path under the working directory is written relative to it, the directory itself as ".";
+ * - any other path in a user's directory (see `USER_PATH`) is cut to its last segment, so
+ *   "/home/ann/x/spec.yaml:3" reads "spec.yaml:3".
+ */
+function reportable(text: string): string {
+	return text
+		.replaceAll(STACK_FRAME, "")
+		.replaceAll(wholePath(process.cwd()), ".")
+		.replaceAll(USER_PATH, (path) => path.replace(DIRECTORIES, ""))
+}
+
 export class FindingCollector {
 	readonly findings: Finding[]
 	readonly inconclusive: Inconclusive[]
@@ -144,16 +184,24 @@ export class FindingCollector {
 	 */
 	unresolved(check: string, entity: string, reason: string): Outcome {
 		this.#own(check)
-		this.inconclusive.push({ check, entity, reason, ...this.#stamp() })
-		return { kind: "unresolved", reason }
+		const said = reportable(reason)
+		this.inconclusive.push({ check, entity, reason: said, ...this.#stamp() })
+		return { kind: "unresolved", reason: said }
 	}
 
+	/** Records a finding. Every finding passes here, so here its text is made fit to share. */
 	report(finding: Finding): Outcome {
 		this.#own(finding.check)
-		this.findings.push(finding.operations === undefined ? { ...finding, ...this.#stamp() } : finding)
-		if (finding.verdict === "COVERAGE_GAP") return standDown(finding.summary)
-		if (finding.verdict === "BLOCKED") return { kind: "unresolved", reason: finding.summary }
-		return { kind: "finding", verdict: finding.verdict }
+		const recorded: Finding = {
+			...finding,
+			detail: reportable(finding.detail),
+			summary: reportable(finding.summary),
+			...(finding.operations === undefined ? this.#stamp() : {}),
+		}
+		this.findings.push(recorded)
+		if (recorded.verdict === "COVERAGE_GAP") return standDown(recorded.summary)
+		if (recorded.verdict === "BLOCKED") return { kind: "unresolved", reason: recorded.summary }
+		return { kind: "finding", verdict: recorded.verdict }
 	}
 
 	backend(

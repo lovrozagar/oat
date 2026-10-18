@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import type { Exchange } from "./exchange.ts"
 import { FindingCollector } from "./finding.ts"
 
 describe("finding attribution", () => {
@@ -48,5 +49,46 @@ describe("a check's own findings", () => {
 		expect(() => findings.unresolved("filter.unknown-field-rejected", "row", "r")).toThrow()
 		findings.attributed(["row.list"]).gap("sort.order-is-applied", "row", "s", "d")
 		expect(findings.findings).toHaveLength(1)
+	})
+})
+
+describe("what a finding may say", () => {
+	const cwd = process.cwd()
+	const stack = "TypeError: x is not a function\n    at run (/home/ann/oat/src/a.ts:3:9)\n\tat async /Users/bo/b.ts:1:1"
+	const pathy = `open '${cwd}/specs/a.yaml' then /home/ann/x/spec.yaml:3 and C:\\Users\\cy\\c.ts, file:///root/d.ts`
+	const clean = "open './specs/a.yaml' then spec.yaml:3 and c.ts, d.ts"
+	const evidence: Exchange[] = []
+	const recorders: Record<string, (findings: FindingCollector) => unknown> = {
+		backend: (f) => f.backend("c", "row", stack, pathy, evidence),
+		blocked: (f) => f.blocked("c", "row", stack, pathy),
+		gap: (f) => f.gap("c", "row", stack, pathy),
+		report: (f) =>
+			f.report({ check: "c", detail: pathy, entity: "row", evidence, summary: stack, verdict: "AMBIGUITY" }),
+		security: (f) => f.security("c", "row", stack, pathy, evidence),
+		spec: (f) => f.spec("c", "row", stack, pathy, evidence),
+	}
+
+	it.each(Object.keys(recorders))("%s drops stack frames and every user path", (method) => {
+		const findings = new FindingCollector()
+		recorders[method]?.(findings)
+		const [finding] = findings.findings
+		expect(finding?.summary).toBe("TypeError: x is not a function")
+		expect(finding?.detail).toMatch(new RegExp(`${clean.replaceAll(/[.*+?()\\]/g, String.raw`\$&`)}$`))
+	})
+
+	it("unresolved does the same to its reason, in the record and the outcome", () => {
+		const findings = new FindingCollector()
+		const outcome = findings.unresolved("c", "row", `${stack}: ${pathy}`)
+		const said = `TypeError: x is not a function`
+		expect(findings.inconclusive[0]?.reason).toBe(said)
+		expect(outcome).toEqual({ kind: "unresolved", reason: said })
+	})
+
+	it("keeps API routes, and rewrites the cwd only as a whole path", () => {
+		const findings = new FindingCollector()
+		findings.unresolved("c", "row", `GET /rows/{id} and /roots/1 in ${cwd}. not ${cwd}2/x or ${cwd}.bak`)
+		const reason = findings.inconclusive[0]?.reason
+		expect(reason).toMatch(/^GET \/rows\/\{id\} and \/roots\/1 in \.\. not /)
+		expect(reason).not.toMatch(/\.2\/x|\.\.bak/)
 	})
 })
