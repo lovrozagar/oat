@@ -151,7 +151,7 @@ describe("what 0.25.0 removed", () => {
 		expect(problems(old)).toEqual([
 			"principals.alpha.auth was removed in 0.25.0: put the flow in security.<scheme>: { login: { steps, from } }",
 			"principals.alpha.headers was removed in 0.25.0: a fixed credential is security.<scheme>: { static: … }",
-			"principals.alpha.roots was removed in 0.25.0: give the principal its tenant and identity data instead",
+			"principals.alpha.roots was removed in 0.25.0: bind its parameters with principals.alpha.scope and its tenant with tenant",
 			"rootsFromFlow was removed in 0.25.0: bind token claims with security.<scheme>.login.claims",
 		])
 		expect(problems({}, { ...ANYROW, authFlows: true })).toEqual([

@@ -1,12 +1,12 @@
 import { requestContent } from "../../../../spec/collection/request.ts"
 import type { InviteSpec } from "../../../../spec/extensions/invite.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
-import { resolveOutOfBandValue, sentAt } from "../../../auth.ts"
+import { resolveOutOfBandValue, sentAt } from "../../../steps/out-of-band.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { isAbsoluteHttpUrl } from "../../../cookies/redirect.ts"
 import { fillPath } from "../../../fill-path.ts"
 import type { Outcome } from "../../../finding.ts"
-import { readPath } from "../../../path.ts"
+import { readPath } from "../../../../client/read-path.ts"
 import { idOf } from "../../../world/records.ts"
 import type { Actor, CheckContext, WriteContext } from "../../core/context.ts"
 import { itemParamFor } from "../../planning/subjects.ts"
@@ -119,8 +119,9 @@ export async function inviteToken(flow: Flow, invited: Exchange): Promise<string
 	}
 	const kind = spec.tokenKind ?? `${ctx.entityName}-invite`
 	try {
-		return await resolveOutOfBandValue(ctx.hooks.resolveOutOfBand, inviteAs, kind, {
+		return await resolveOutOfBandValue(ctx.hooks.resolveOutOfBand, inviteAs, {
 			headers: delegate.headers(),
+			kind,
 			label: `invite to ${ctx.entityName}`,
 			outOfBand: ctx.outOfBand,
 			scope: { ...resource, inviteAs },

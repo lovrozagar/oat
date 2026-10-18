@@ -21,6 +21,21 @@ function stepsShape(path: string, value: unknown): string[] {
 	]
 }
 
+/* A claim binds the principal's tenant, or one of its scope parameters: nothing else is the principal's to bind. */
+const CLAIM_TARGET = /^(?:tenant|scope\.[\w-]+)$/
+
+/** `login.claims`: target → the claim name or JSON path in the answer that fills it. */
+function claimsShape(path: string, login: unknown): string[] {
+	if (!isRecord(login) || login.claims === undefined) return []
+	if (!isRecord(login.claims)) return [`${path}.claims must be a map of target → claim`]
+	return Object.entries(login.claims).flatMap(([target, claim]) => {
+		if (!CLAIM_TARGET.test(target)) {
+			return [`${path}.claims.${target} binds nothing: a claim binds tenant or scope.<parameter>`]
+		}
+		return isString(claim) ? [] : [`${path}.claims.${target} must be a claim name or JSON path string`]
+	})
+}
+
 function mintShape(path: string, mint: Raw): string[] {
 	return ["with", "operationId"]
 		.filter((field) => !isString(mint[field]))
@@ -89,6 +104,7 @@ export function kindShapeProblems(path: string, recipe: Raw, { hasHook, scheme }
 	return [
 		...fitProblems(path, recipe),
 		...(recipe.login === undefined ? [] : stepsShape(`${path}.login`, recipe.login)),
+		...claimsShape(`${path}.login`, recipe.login),
 		...(recipe.refresh === undefined ? [] : stepsShape(`${path}.refresh`, recipe.refresh)),
 		...(isRecord(recipe.mint) ? mintShape(path, recipe.mint) : []),
 		...(recipe.static === undefined ? [] : staticShape(path, recipe.static, scheme)),

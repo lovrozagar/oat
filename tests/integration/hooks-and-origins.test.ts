@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it } from "vitest"
 import { buildModel } from "../../src/spec/graph/build.ts"
 import { dereference } from "../../src/spec/load/dereference.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
-import { createPrincipal, resolveOutOfBandValue, resolvePrincipalAuthValue } from "../../src/runtime/auth.ts"
+import { createPrincipal, resolvePrincipalAuthValue } from "../../src/runtime/auth.ts"
+import { resolveOutOfBandValue } from "../../src/runtime/steps/out-of-band.ts"
 import { Client } from "../../src/client/client.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { isAuthFlow, isHookAuth } from "../../src/runtime/auth-kind.ts"
@@ -87,7 +88,7 @@ const AUTH_SPEC = {
 describe("resolveOutOfBand backoff", () => {
 	it("requires the hook and retries null / empty", async () => {
 		await expect(
-			resolveOutOfBandValue(undefined, "a@x.test", "email-verify", { label: 'principal "a"' }),
+			resolveOutOfBandValue(undefined, "a@x.test", { kind: "email-verify", label: 'principal "a"' }),
 		).rejects.toThrow(/no resolveOutOfBand hook/)
 
 		let n = 0
@@ -99,14 +100,14 @@ describe("resolveOutOfBand backoff", () => {
 				return attempt < 3 ? (attempt === 1 ? null : "") : "tok"
 			},
 			"a@x.test",
-			"email-verify",
-			{ label: 'principal "a"', outOfBand: { attempts: 4, initialMs: 1, maxMs: 1 } },
+			{ kind: "email-verify", label: 'principal "a"', outOfBand: { attempts: 4, initialMs: 1, maxMs: 1 } },
 		)
 		expect(value).toBe("tok")
 		expect(n).toBe(3)
 
 		await expect(
-			resolveOutOfBandValue(async () => null, "a@x.test", "email-verify", {
+			resolveOutOfBandValue(async () => null, "a@x.test", {
+				kind: "email-verify",
 				label: 'principal "a"',
 				outOfBand: { attempts: 2, initialMs: 1, maxMs: 1 },
 			}),

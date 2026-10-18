@@ -9,7 +9,7 @@
 
 import type { SpecModel } from "../spec/graph/types.ts"
 import type { Client } from "../client/client.ts"
-import { readPath } from "./path.ts"
+import { readPath } from "../client/read-path.ts"
 import { fillPath } from "./fill-path.ts"
 import { headerValue } from "./headers.ts"
 import type { Exchange } from "./exchange.ts"

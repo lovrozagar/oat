@@ -3,11 +3,11 @@
  */
 
 import type { ScenarioAssert, ScenarioRequestStep } from "../../config/types/steps.ts"
-import { interpolate } from "../auth.ts"
+import { interpolate } from "../steps/interpolate.ts"
 import { cookiesFromRecordedHeaders } from "../cookies/set-cookie.ts"
 import { describeSaveAs, readSaveAs } from "../cookies/save-as.ts"
 import type { Exchange } from "../exchange.ts"
-import { readAll, readPath } from "../path.ts"
+import { readAll, readPath } from "../../client/read-path.ts"
 
 /** What an assert wants, with `{name}` already filled in its path and its value. */
 export type Want = { from: string; mode: "atLeast" | "contains" | "equals" | "excludes" | "omits"; value: string }

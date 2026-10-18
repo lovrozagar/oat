@@ -4,7 +4,8 @@
  */
 
 import type { ExternalStep, OutOfBandStep, ScenarioStep } from "../../config/types/steps.ts"
-import { interpolate, resolveOutOfBandValue, triggerSentAt } from "../auth.ts"
+import { interpolate } from "../steps/interpolate.ts"
+import { resolveOutOfBandValue, triggerSentAt } from "../steps/out-of-band.ts"
 import { StepFailure } from "./failure.ts"
 import { requestStep } from "./request.ts"
 import { withObjects } from "./state.ts"
@@ -24,8 +25,9 @@ async function outOfBandStep(run: ScenarioRun, step: OutOfBandStep): Promise<voi
 	const { input, scope } = run
 	const address = String(interpolate(step.outOfBand.address, scope))
 	const since = step.outOfBand.sentEarlier === true ? undefined : triggerSentAt(run.sent, address)
-	scope[step.outOfBand.as] = await resolveOutOfBandValue(input.hooks.resolveOutOfBand, address, step.outOfBand.kind, {
+	scope[step.outOfBand.as] = await resolveOutOfBandValue(input.hooks.resolveOutOfBand, address, {
 		headers: run.headers(),
+		kind: step.outOfBand.kind,
 		label: `scenario "${run.scenario.id}"`,
 		scope: { ...scope },
 		...(since === undefined ? {} : { since }),

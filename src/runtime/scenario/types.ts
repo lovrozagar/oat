@@ -1,7 +1,7 @@
 import type { Hooks } from "../../config/types/hooks.ts"
 import type { Scenario } from "../../config/types/steps.ts"
 import type { SpecModel } from "../../spec/graph/types.ts"
-import type { AcquireContext, OriginClient } from "../auth.ts"
+import type { OriginClient, StepContext } from "../steps/request.ts"
 import type { Client } from "../../client/client.ts"
 import type { Exchange } from "../exchange.ts"
 import type { FindingCollector } from "../finding.ts"
@@ -40,7 +40,7 @@ export interface ScenarioRun {
 	sleep: (ms: number) => Promise<void>
 	/** The scenario principal's credential. */
 	headers: () => Record<string, string>
-	context: AcquireContext
+	context: StepContext
 	/** `{name}` values, the principal's roots among them from the first step. */
 	scope: Record<string, string>
 	/**

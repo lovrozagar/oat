@@ -21,7 +21,10 @@ export interface ExtraPlacement {
 export interface LoginRecipe {
 	steps: [AuthStep, ...AuthStep[]]
 	from: string
-	/** JWT claims bound into the principal, e.g. `{ tenant: "org_id" }`. */
+	/**
+	 * What the answer binds into the principal: its `tenant`, or a `scope.<parameter>`, each from a JWT claim
+	 * name or a JSON path into the answer, e.g. `{ tenant: "org_id", "scope.project_id": "$.project.id" }`.
+	 */
 	claims?: Record<string, string>
 }
 
@@ -81,6 +84,8 @@ export interface PrincipalEntry {
 	[identity: string]: unknown
 	/** The tenant it belongs to; principals in different tenants enable the isolation checks. */
 	tenant?: string
+	/** Path or query parameters bound for this principal, e.g. its `project_id`. Identity data never fills one. */
+	scope?: Record<string, string>
 	/** Higher can do everything a lower rank can. */
 	rank?: number
 	/** What an owner puts in an invite body for this principal. */

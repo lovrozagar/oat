@@ -34,6 +34,23 @@ describe("login and refresh", () => {
 	})
 })
 
+const withClaims = (claims: unknown) => ({ jwt: { login: { claims, from: "$.t", steps } } })
+
+describe("login claims", () => {
+	it("bind the tenant or a scope parameter from the answer", () => {
+		expect(problems(withClaims({ "scope.project_id": "$.project.id", tenant: "org_id" }))).toEqual([])
+	})
+
+	it("bind nothing else, and name a claim or path as a string", () => {
+		expect(problems(withClaims({ email: "email", "scope.": "x", tenant: 3 }))).toEqual([
+			"security.jwt.login.claims.email binds nothing: a claim binds tenant or scope.<parameter>",
+			"security.jwt.login.claims.scope. binds nothing: a claim binds tenant or scope.<parameter>",
+			"security.jwt.login.claims.tenant must be a claim name or JSON path string",
+		])
+		expect(problems(withClaims("org_id"))).toEqual(["security.jwt.login.claims must be a map of target → claim"])
+	})
+})
+
 describe("mint", () => {
 	it("needs string with, operationId and from, and a revoke that names an operation", () => {
 		const jwt = { login: { from: "$.t", steps } }

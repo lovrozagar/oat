@@ -1,0 +1,127 @@
+import { describe, expect, it } from "vitest"
+import type { LoginRecipe } from "../../config/types/security.ts"
+import type { AuthStep } from "../../config/types/steps.ts"
+import { jwtOf } from "../__fixtures__/jwt.ts"
+import { answerOf, ctxOf, fakePorts, NOW, rejection } from "../__fixtures__/ports.ts"
+import { acquireLogin } from "./login.ts"
+
+const steps: [AuthStep, ...AuthStep[]] = [
+	{ outOfBand: { address: "{principal.email}", as: "otp", kind: "otp" } },
+	{
+		body: { email: "{principal.email}", otp: "{otp}", password: "{principal.password}" },
+		operationId: "auth.login",
+		saveAs: { refreshToken: "$.refresh" },
+	},
+]
+const login: LoginRecipe = { from: "$.token", steps }
+
+describe("acquireLogin", () => {
+	it("runs the steps once with the principal filled in, and reads the credential at `from`", async () => {
+		const { ports, recorded } = fakePorts({
+			run: () => Promise.resolve({ answer: answerOf({ token: "t1" }), scope: { refreshToken: "r1" } }),
+		})
+		const issued = await acquireLogin(ctxOf(ports), login, {})
+		expect([issued.value, issued.expiresAt, issued.refresh, issued.identity]).toEqual([
+			"t1",
+			null,
+			undefined,
+			undefined,
+		])
+		expect(recorded.runs).toEqual([
+			{
+				principal: "ann",
+				scope: {},
+				steps: [
+					{ outOfBand: { address: "ann@x.io", as: "otp", kind: "otp" } },
+					{
+						body: { email: "ann@x.io", otp: "{otp}", password: "pw" },
+						operationId: "auth.login",
+						saveAs: { refreshToken: "$.refresh" },
+					},
+				],
+			},
+		])
+	})
+
+	it("is a single attempt: a failing runner is not retried, and its reason is the failure", async () => {
+		const { ports, recorded } = fakePorts({ run: () => Promise.reject(new Error("auth step 2 answered 401")) })
+		expect((await rejection(acquireLogin(ctxOf(ports), login, {}))).message).toBe("auth step 2 answered 401")
+		expect(recorded.runs).toHaveLength(1)
+	})
+
+	it("reads a credential a step saved into scope when the answer has none at `from`", async () => {
+		const { ports } = fakePorts({ run: () => Promise.resolve({ answer: answerOf({}), scope: { session: "s1" } }) })
+		expect((await acquireLogin(ctxOf(ports), { from: "session", steps }, {})).value).toBe("s1")
+	})
+
+	it("fails with the reason when neither the answer nor the scope has a credential", async () => {
+		const { ports } = fakePorts({ run: () => Promise.resolve({ answer: answerOf({}), scope: {} }) })
+		expect((await rejection(acquireLogin(ctxOf(ports), login, {}))).message).toBe(
+			'login for "ann" answered no credential at $.token',
+		)
+	})
+})
+
+describe("acquireLogin: claims, lifetime and refresh", () => {
+	it("binds `claims` from the JWT into identity, and takes its lifetime from `exp`", async () => {
+		const token = jwtOf({ exp: 5000, org: { id: "o9" }, org_id: "o1" })
+		const { ports } = fakePorts({ run: () => Promise.resolve({ answer: answerOf({ token }), scope: {} }) })
+		const issued = await acquireLogin(ctxOf(ports), { ...login, claims: { org: "$.org.id", tenant: "org_id" } }, {})
+		expect([issued.identity, issued.expiresAt]).toEqual([{ org: "o9", tenant: "o1" }, 5_000_000])
+	})
+
+	it("refuses claims from a value that is not a JWT, or a claim it does not carry", async () => {
+		const answers = [answerOf({ token: "opaque" }), answerOf({ token: jwtOf({ sub: "u" }) })]
+		const { ports } = fakePorts({
+			run: () => Promise.resolve({ answer: answers.shift() ?? answerOf({}), scope: {} }),
+		})
+		const recipe = { ...login, claims: { tenant: "org_id" } }
+		expect((await rejection(acquireLogin(ctxOf(ports), recipe, {}))).message).toBe(
+			'login for "ann" binds claims, but its credential is not a JWT',
+		)
+		expect((await rejection(acquireLogin(ctxOf(ports), recipe, {}))).message).toBe(
+			'login for "ann" binds tenant to claim "org_id", which the token does not carry (it has sub)',
+		)
+	})
+
+	it("takes `expiresIn` from the issuing answer", async () => {
+		const { ports } = fakePorts({
+			run: () => Promise.resolve({ answer: answerOf({ expires: 60, token: "t" }), scope: {} }),
+		})
+		expect((await acquireLogin(ctxOf(ports), login, { expiresIn: { from: "$.expires" } })).expiresAt).toBe(NOW + 60_000)
+	})
+})
+
+describe("acquireLogin: refresh", () => {
+	it("refreshes by the refresh steps, with the current scope plus the credential, and rotates", async () => {
+		const answers = [
+			{ answer: answerOf({ token: "t1" }), scope: { refreshToken: "r1" } },
+			{ answer: answerOf({ access: "t2", expires: 30 }), scope: { refreshToken: "r2" } },
+			{ answer: answerOf({ access: "t3" }), scope: { refreshToken: "r3" } },
+		]
+		const { ports, recorded } = fakePorts({
+			run: () => {
+				const next = answers.shift()
+				return next === undefined ? Promise.reject(new Error("no answer left")) : Promise.resolve(next)
+			},
+		})
+		const refreshSteps: [AuthStep, ...AuthStep[]] = [
+			{ body: { by: "{principal.email}", token: "{refreshToken}" }, operationId: "auth.refresh" },
+		]
+		const options = { expiresIn: { from: "$.expires" }, refresh: { from: "$.access", steps: refreshSteps } }
+		const first = await acquireLogin(ctxOf(ports), login, options)
+		const second = await (first.refresh as () => Promise<typeof first>)()
+		const third = await (second.refresh as () => Promise<typeof first>)()
+		expect([first.value, second.value, second.expiresAt, third.value]).toEqual(["t1", "t2", NOW + 30_000, "t3"])
+		expect(recorded.runs.slice(1).map((run) => [run.scope, run.steps])).toEqual([
+			[
+				{ credential: "t1", refreshToken: "r1" },
+				[{ body: { by: "ann@x.io", token: "{refreshToken}" }, operationId: "auth.refresh" }],
+			],
+			[
+				{ credential: "t2", refreshToken: "r2" },
+				[{ body: { by: "ann@x.io", token: "{refreshToken}" }, operationId: "auth.refresh" }],
+			],
+		])
+	})
+})

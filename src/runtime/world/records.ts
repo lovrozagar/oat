@@ -1,6 +1,6 @@
 /** Records as a backend answers them: plain objects, read by identity, out of single and list bodies. */
 
-import { readPath } from "../path.ts"
+import { readPath } from "../../client/read-path.ts"
 
 export type Record_ = Record<string, unknown>
 

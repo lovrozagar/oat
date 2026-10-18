@@ -4,7 +4,7 @@
  */
 
 import type { Scenario } from "../../config/types/steps.ts"
-import { isBytes } from "../auth.ts"
+import { isBytes } from "../steps/interpolate.ts"
 import type { ScenarioInput, ScenarioPrincipal, ScenarioRun } from "./types.ts"
 
 /** The configured principal `id`; a scenario that names another is refused. */

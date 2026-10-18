@@ -4,7 +4,7 @@
  */
 
 import type { ScenarioRequestStep } from "../../config/types/steps.ts"
-import { resolveRequest } from "../auth.ts"
+import { resolveRequest } from "../steps/request.ts"
 import type { Exchange } from "../exchange.ts"
 import { blamed, ScenarioStopped, StepFailure } from "./failure.ts"
 import { durationMs, nextPollWait } from "./poll.ts"
@@ -47,8 +47,8 @@ async function send(
 ): Promise<{ exchange: Exchange; request: Resolved }> {
 	const { step, stepOp } = at
 	const request = await resolveRequest(
-		step.body === undefined ? step : { ...step, body: withObjects(run.objects, step.body) },
 		run.context,
+		step.body === undefined ? step : { ...step, body: withObjects(run.objects, step.body) },
 		run.scope,
 		at.index,
 	)

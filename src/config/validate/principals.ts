@@ -10,10 +10,11 @@ type Raw = Record<string, unknown>
 
 const isRecord = (value: unknown): value is Raw => value !== null && typeof value === "object" && !Array.isArray(value)
 
-const REMOVED_ON_PRINCIPAL: Readonly<Record<string, string>> = {
-	auth: "put the flow in security.<scheme>: { login: { steps, from } }",
-	headers: "a fixed credential is security.<scheme>: { static: … }",
-	roots: "give the principal its tenant and identity data instead",
+/* What replaces each field 0.25.0 removed from a principal, said for the principal at `path`. */
+const REMOVED_ON_PRINCIPAL: Readonly<Record<string, (path: string) => string>> = {
+	auth: () => "put the flow in security.<scheme>: { login: { steps, from } }",
+	headers: () => "a fixed credential is security.<scheme>: { static: … }",
+	roots: (path) => `bind its parameters with ${path}.scope and its tenant with tenant`,
 }
 
 const FIELD_CHECKS: ReadonlyArray<[string, (value: unknown) => boolean, string]> = [
@@ -36,12 +37,22 @@ export function placeholders(value: unknown): Set<string> {
 	return found
 }
 
+/** `scope`: the path or query parameters bound for this principal, each to a string. */
+function scopeProblems(path: string, scope: unknown): string[] {
+	if (scope === undefined) return []
+	if (!isRecord(scope)) return [`${path}.scope must be a map of parameter → value`]
+	return Object.entries(scope)
+		.filter(([, value]) => typeof value !== "string")
+		.map(([name]) => `${path}.scope.${name} must be a string`)
+}
+
 function entryProblems(id: string, entry: Raw, schemes: ReadonlySet<string>): string[] {
 	const path = `principals.${id}`
 	const problems: string[] = []
 	for (const [field, why] of Object.entries(REMOVED_ON_PRINCIPAL)) {
-		if (field in entry) problems.push(`${path}.${field} was removed in 0.25.0: ${why}`)
+		if (field in entry) problems.push(`${path}.${field} was removed in 0.25.0: ${why(path)}`)
 	}
+	problems.push(...scopeProblems(path, entry.scope))
 	for (const [field, valid, need] of FIELD_CHECKS) {
 		if (field in entry && !valid(entry[field])) problems.push(`${path}.${field} ${need}`)
 	}
@@ -84,7 +95,12 @@ export function principalProblems(config: Raw, schemes: ReadonlySet<string>): st
 
 /** Top-level fields 0.25.0 removed, with their replacement. */
 export function removedProblems(config: Raw): string[] {
-	return "rootsFromFlow" in config
-		? ["rootsFromFlow was removed in 0.25.0: bind token claims with security.<scheme>.login.claims"]
-		: []
+	return [
+		...("roots" in config
+			? ["roots was removed in 0.25.0: bind parameters per principal with principals.<id>.scope"]
+			: []),
+		...("rootsFromFlow" in config
+			? ["rootsFromFlow was removed in 0.25.0: bind token claims with security.<scheme>.login.claims"]
+			: []),
+	]
 }

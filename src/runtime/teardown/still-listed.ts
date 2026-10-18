@@ -9,7 +9,7 @@ import type { Client } from "../../client/client.ts"
 import type { Exchange } from "../exchange.ts"
 import { FencedError } from "../fence.ts"
 import { isNetworkError } from "../../errors/network.ts"
-import { readPath } from "../path.ts"
+import { readPath } from "../../client/read-path.ts"
 import { idOf, recordsFromList } from "../world/records.ts"
 import type { Disposable, Owner } from "./types.ts"
 

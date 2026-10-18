@@ -1,7 +1,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
-import { createPrincipal, resolveOutOfBandValue } from "../../src/runtime/auth.ts"
+import { createPrincipal } from "../../src/runtime/auth.ts"
+import { resolveOutOfBandValue } from "../../src/runtime/steps/out-of-band.ts"
 import { Client } from "../../src/client/client.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { buildModel } from "../../src/spec/graph/build.ts"
@@ -342,9 +343,9 @@ describe("resolveOutOfBand extra fields", () => {
 				return request.attempt >= 1 ? "tok" : null
 			},
 			"a@x.test",
-			"email-verify",
 			{
 				headers: { authorization: "Bearer live" },
+				kind: "email-verify",
 				label: 'principal "a"',
 				outOfBand: { attempts: 2, initialMs: 1, maxMs: 1 },
 				scope: { credential: "live", address: "a@x.test" },

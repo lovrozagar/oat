@@ -6,7 +6,7 @@
  * stream ends without a terminal frame and `idFrom` resolved.
  */
 
-import { readPath } from "./path.ts"
+import { readPath } from "../client/read-path.ts"
 import type { AsyncSpec } from "../spec/extensions/async.ts"
 import type { Client } from "../client/client.ts"
 import type { Exchange } from "./exchange.ts"

@@ -10,7 +10,7 @@ import type { WaitSpec } from "../spec/extensions/async.ts"
 import type { OperationModel } from "../spec/graph/types.ts"
 import type { Client } from "../client/client.ts"
 import type { Exchange } from "./exchange.ts"
-import { readPath as readPointer } from "./path.ts"
+import { readPath as readPointer } from "../client/read-path.ts"
 import { sleep } from "./poll.ts"
 import { fillPath } from "./fill-path.ts"
 

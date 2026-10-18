@@ -10,7 +10,7 @@
  */
 
 import { createdIdKeys, findCreatedId } from "./effects/ids.ts"
-import { readPath } from "./path.ts"
+import { readPath } from "../client/read-path.ts"
 import { type ProvenId, createdId } from "./proven-id.ts"
 
 type Record_ = Record<string, unknown>

@@ -28,6 +28,15 @@ export interface TeardownPrincipalContext {
 	headers: Record<string, string>
 }
 
+/** The principal `hooks.resolveCredential` gets a credential for: its id and its identity data. */
+export interface CredentialPrincipal {
+	id: string
+	identity: Readonly<Record<string, unknown>>
+}
+
+/** A credential `hooks.resolveCredential` returns: the value, or the value and its lifetime in seconds. */
+export type CredentialAnswer = string | { value: string; expiresIn?: number }
+
 /**
  * Poll schedule for `resolveOutOfBand` and `resolvePrincipalAuth`.
  *
@@ -203,6 +212,12 @@ export interface Hooks {
 	 * Return `null` to retry with the `outOfBand` backoff so a human can finish the click.
 	 */
 	resolvePrincipalAuth?: (fromHook: string) => Promise<PrincipalAuthResult | null>
+	/**
+	 * The credential for a `{ hook: true }` recipe: the scheme's name and the principal it is for.
+	 * Called on every acquire, so a TOTP code is fresh each time. Return the value, or the value with
+	 * its lifetime in seconds. `null` blocks that principal for that scheme, with the reason in the report.
+	 */
+	resolveCredential?: (scheme: string, principal: CredentialPrincipal) => Promise<CredentialAnswer | null>
 	/**
 	 * A path parameter the document does not let oat create (an account provider with no row yet).
 	 * Return the value to send, or `null` to leave the operation unresolved. Product doors stay

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { readAll, readPath } from "./path.ts"
+import { readAll, readPath } from "./read-path.ts"
 
 const body = {
 	topics: [

@@ -4,12 +4,13 @@
  */
 
 import type { ScenarioAssert, ScenarioRequestStep } from "../../config/types/steps.ts"
-import { interpolate, jwtClaims } from "../auth.ts"
+import { interpolate } from "../steps/interpolate.ts"
+import { jwtClaims } from "../../credentials/jwt.ts"
 import { cookiesFromRecordedHeaders } from "../cookies/set-cookie.ts"
 import { readSaveAs } from "../cookies/save-as.ts"
 import type { Exchange } from "../exchange.ts"
 import type { PassEvidence } from "../grades.ts"
-import { readPath } from "../path.ts"
+import { readPath } from "../../client/read-path.ts"
 import { blamed, StepFailure } from "./failure.ts"
 import type { ScenarioRun } from "./types.ts"
 import { shownValue, type Want } from "./want.ts"
