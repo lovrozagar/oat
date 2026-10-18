@@ -17,7 +17,7 @@ import { scratchRecord, updateRequest } from "../../isolation/scratch.ts"
 import { standDownForFeatureGate } from "../../planning/stand-down.ts"
 import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
 import { pageSize, q } from "../../query/capabilities.ts"
-import { listAll } from "../../sets/compare.ts"
+import { type Listing, listAll } from "../../sets/compare.ts"
 import { liveRecord } from "./records.ts"
 
 export const uniqueConflictUpdate = /* @__PURE__ */ defineCheck<{
@@ -62,8 +62,6 @@ interface UpdateProbe {
 	listLimit: number
 	source: Record_
 }
-
-type Listing = Awaited<ReturnType<typeof listAll>>
 
 /** One set's probe; an outcome only when no record could be made for it, which ends the check. */
 async function probeUpdateSet(

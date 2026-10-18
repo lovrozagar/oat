@@ -6,16 +6,37 @@ import { conv, pageSize, type Query } from "../query/capabilities.ts"
 import { ids, type ListResult } from "./list.ts"
 import { memoTable, readSet, type SetRead } from "./read.ts"
 
+/** A whole set in the shape of one listed page: `items` holds every record, `exchange` is the last page read. */
+export type Listing = ListResult & { complete: boolean }
+
 /**
- * A whole set, in the shape of one listed page: `items` holds every record, `exchange` is the last
- * page read. For checks written against a single page that reason about the whole set.
+ * A whole set, as a `Listing`. For checks written against a single page that reason about the
+ * whole set; a refused page shows as the last exchange's status.
  */
-export async function listAll(
-	ctx: CheckContext,
-	query: Query,
-	/* A repeat read that must see the collection as it is now, not as an earlier read saw it. */
-	fresh = false,
-): Promise<ListResult & { complete: boolean }> {
+export async function listAll(ctx: CheckContext, query: Query): Promise<Listing> {
+	return toListing(await readListing(ctx, query, false))
+}
+
+/**
+ * A repeat `listAll` that sees the collection as it is now, for `settlePair`. `null` when a page was
+ * refused, so a refusal is not read as rows vanishing.
+ */
+export async function listAgain(ctx: CheckContext, query: Query): Promise<Listing | null> {
+	const read = await readListing(ctx, query, true)
+	return read.status === "ok" ? toListing(read) : null
+}
+
+function toListing(read: SetRead): Listing {
+	return {
+		complete: read.status === "ok" && read.complete,
+		envelope: read.last.envelope,
+		exchange: read.last.exchange,
+		items: read.items,
+	}
+}
+
+/** `readSet` for a query written as one page's: paging keys dropped, the order key taken apart. */
+function readListing(ctx: CheckContext, query: Query, fresh: boolean): Promise<SetRead> {
 	const c = conv(ctx)
 	const extra: Query = {}
 	let order: string | undefined
@@ -24,13 +45,7 @@ export async function listAll(
 		if (key === c.order) order = value === undefined ? undefined : String(value)
 		else extra[key] = value
 	}
-	const read = await readSet(ctx, extra, { ...(fresh ? { fresh: true } : {}), order })
-	return {
-		complete: read.status === "ok" && read.complete,
-		envelope: read.last.envelope,
-		exchange: read.last.exchange,
-		items: read.items,
-	}
+	return readSet(ctx, extra, { ...(fresh ? { fresh: true } : {}), order })
 }
 
 /**

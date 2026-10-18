@@ -3,7 +3,7 @@ import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, MOVING, pageSize, q, resolvedCaps } from "../../query/capabilities.ts"
-import { listAll, sameSet, setOf, settlePair } from "../../sets/compare.ts"
+import { listAgain, listAll, sameSet, setOf, settlePair } from "../../sets/compare.ts"
 
 export const searchCaseInsensitive = /* @__PURE__ */ defineCheck<{ token: string; flipped: string }>({
 	plan: (ctx) => {
@@ -25,9 +25,9 @@ export const searchCaseInsensitive = /* @__PURE__ */ defineCheck<{ token: string
 	subjects: subjectsOf.list,
 	async run(ctx, { flipped, token }): Promise<Outcome> {
 		const limit = pageSize(ctx)
-		const read = (term: string, fresh: boolean) => listAll(ctx, q(ctx, { limit, search: term }), fresh)
-		const first = await read(token, false)
-		const second = await read(flipped, false)
+		const query = (term: string) => q(ctx, { limit, search: term })
+		const first = await listAll(ctx, query(token))
+		const second = await listAll(ctx, query(flipped))
 		if (first.exchange.status >= 400 || second.exchange.status >= 400) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "a case-flipped search was rejected")
 		}
@@ -36,8 +36,8 @@ export const searchCaseInsensitive = /* @__PURE__ */ defineCheck<{ token: string
 		}
 		/* A record written between the two searches is the collection moving, not case mattering. */
 		const settled = await settlePair(ctx.identity, first, second, {
-			first: () => read(token, true),
-			second: () => read(flipped, true),
+			first: () => listAgain(ctx, query(token)),
+			second: () => listAgain(ctx, query(flipped)),
 		})
 		if (settled === null) return ctx.findings.unresolved(this.id, ctx.entityName, "a case-flipped search was rejected")
 		if (settled === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING)

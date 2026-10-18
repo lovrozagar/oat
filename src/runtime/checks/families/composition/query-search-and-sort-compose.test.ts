@@ -1,16 +1,9 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 import type { Responder } from "../../__fixtures__/harness.ts"
 import { MOVING } from "../../query/capabilities.ts"
 import { carries, dropWhen, endlessWhen, pagedDoc } from "./__fixtures__/composition-b.ts"
 import { backend, NOTES, queryDoc, queryOf, REJECT, stage } from "./__fixtures__/query-api.ts"
-import { settlePair } from "../../sets/compare.ts"
 import { querySearchAndSortCompose } from "./query-search-and-sort-compose.ts"
-
-/* The real settle, stubbed once where a test needs the refusal it is typed to report. */
-vi.mock("../../sets/compare.ts", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("../../sets/compare.ts")>()
-	return { ...actual, settlePair: vi.fn(actual.settlePair) }
-})
 
 /* A cohort the first title's whole value finds all of: "memo" in every title. */
 const MEMOS = NOTES.map((row, index) => ({ ...row, title: index === 0 ? "memo" : `memo ${String(row.id)}` }))
@@ -72,19 +65,8 @@ describe("query.search-and-sort-compose gives up", () => {
 		})
 	})
 
-	/* Bug: the repeat reads go through `listAll`, which answers a refusal with an empty 400 page
-	 * rather than null, so `settlePair` reads the refusal as rows vanishing and the check blames a
-	 * moving collection. Its `settled === null` branch can never be taken. */
-	it.todo("reports a repeat read that is refused as rejected, not as the collection moving", async () => {
+	it("reports a repeat read that is refused as rejected, not as the collection moving", async () => {
 		expect(await stage(querySearchAndSortCompose, { respond: refusingRepeat() }).run()).toEqual({
-			kind: "unresolved",
-			reason: "search+sort probe was rejected",
-		})
-	})
-
-	it("is unresolved when the settle reports a repeat read refused", async () => {
-		vi.mocked(settlePair).mockResolvedValueOnce(null)
-		expect(await stage(querySearchAndSortCompose).run()).toEqual({
 			kind: "unresolved",
 			reason: "search+sort probe was rejected",
 		})

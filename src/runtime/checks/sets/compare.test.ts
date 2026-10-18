@@ -6,6 +6,7 @@ import {
 	cohortFact,
 	collectSet,
 	duplicates,
+	listAgain,
 	listAll,
 	membership,
 	readSettled,
@@ -55,13 +56,25 @@ describe("listAll", () => {
 		expect(await listAll(ctx, {})).toMatchObject({ complete: false, envelope: { error: "no" }, items: [] })
 	})
 
-	it("reads again when fresh, and shares the read otherwise", async () => {
+	it("shares a read of the same set", async () => {
 		const { ctx, sent } = notesContext(served([]))
 		await listAll(ctx, {})
 		await listAll(ctx, {})
 		expect(sent).toHaveLength(1)
-		await listAll(ctx, {}, true)
-		expect(sent).toHaveLength(2)
+	})
+})
+
+describe("listAgain", () => {
+	it("reads the set again rather than sharing an earlier read", async () => {
+		const { ctx, sent } = notesContext(served(rows(2)))
+		await listAll(ctx, {})
+		expect(await listAgain(ctx, {})).toMatchObject({ complete: true, items: rows(2) })
+		expect(walks(sent)).toHaveLength(2)
+	})
+
+	it("is null when a page was refused, never rows vanishing", async () => {
+		const { ctx } = notesContext(() => ({ status: 403 }))
+		expect(await listAgain(ctx, {})).toBeNull()
 	})
 })
 

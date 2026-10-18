@@ -1,24 +1,17 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 import type { Responder } from "../../__fixtures__/harness.ts"
 import { backend, NOTES, PARAMS, queryDoc, queryOf, REJECT, stage } from "../composition/__fixtures__/query-api.ts"
 import { answering, caseSensitive, notPaging } from "./__fixtures__/responders.ts"
 import { searchCaseInsensitive } from "./search-case-insensitive.ts"
 
-/* Lets one test have the repeat reads come back refused, which a set read never reports itself. */
-const settle = vi.hoisted(() => ({ refused: false }))
-vi.mock("../../sets/compare.ts", async (importOriginal) => {
-	const real = await importOriginal<typeof import("../../sets/compare.ts")>()
-	return {
-		...real,
-		settlePair: (...args: Parameters<typeof real.settlePair>) =>
-			settle.refused ? Promise.resolve(null) : real.settlePair(...args),
-	}
-})
-afterEach(() => {
-	settle.refused = false
-})
-
 const INSENSITIVE = { doc: queryDoc({ searchCase: "insensitive" }) }
+
+/* Case-sensitive, and "Alpha" is refused once it has been answered. */
+function refusingRepeat(): Responder {
+	let reads = 0
+	return (method, path, options) =>
+		queryOf(options).q === "Alpha" && reads++ > 0 ? REJECT : caseSensitive(method, path, options)
+}
 
 /* Case-sensitive, and a record lands between the first and the repeat read of "Alpha". */
 function movingSensitive(): Responder {
@@ -75,13 +68,10 @@ describe("search.case-insensitive gives up", () => {
 		expect(staged.findings.findings).toEqual([])
 	})
 
-	it("is unresolved when the repeat reads are refused", async () => {
-		settle.refused = true
-		const staged = stage(searchCaseInsensitive, { respond: caseSensitive })
+	it("reports a refused repeat read as rejected, not as the collection moving", async () => {
+		const staged = stage(searchCaseInsensitive, { respond: refusingRepeat() })
 		expect(await staged.run()).toEqual({ kind: "unresolved", reason: "a case-flipped search was rejected" })
 	})
-
-	it.todo("reports a refused repeat read as rejected, not as the collection moving")
 })
 
 describe("search.case-insensitive plans", () => {

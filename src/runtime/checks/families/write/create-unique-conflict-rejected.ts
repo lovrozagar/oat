@@ -21,7 +21,7 @@ import { reserveClientIdentity, saltOf } from "../../payloads/identity.ts"
 import { standDownForFeatureGate } from "../../planning/stand-down.ts"
 import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
 import { pageSize, q } from "../../query/capabilities.ts"
-import { listAll } from "../../sets/compare.ts"
+import { type Listing, listAll } from "../../sets/compare.ts"
 import { liveRecord } from "./records.ts"
 
 async function teardownCreatedId(ctx: WriteContext, id: string): Promise<void> {
@@ -102,8 +102,6 @@ interface CreateProbe {
 	evidence: Exchange[]
 	known: Record_
 }
-
-type Listing = Awaited<ReturnType<typeof listAll>>
 
 /** A create colliding with `known` on `set` alone, or `null` when no such body can be made. */
 async function sendCollision(
