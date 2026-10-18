@@ -35,16 +35,19 @@ const UNSTABLE_KEYS = new Set([
  * encodes whichever record id a lane reached).
  */
 export function normalizeText(text: string): string {
-	return text
-		.replaceAll(/http:\/\/127\.0\.0\.1:\d+/g, "http://reference.test")
-		.replaceAll(/(?<![A-Za-z])([a-z]+)_\d{6}\b/g, "$1_ID")
-		.replaceAll(/(?<![A-Za-z])inv_[a-z0-9]{1,10}\b/g, "inv_TOKEN")
-		.replaceAll(/(?<![A-Za-z])grn_[a-z0-9]+_[a-z0-9]{6}\b/g, "grn_ID")
-		.replaceAll(/\boat-([a-z]+)-[a-z0-9]{5,}\b/g, "oat-$1-NONCE")
-		.replaceAll(/\b1700000\d{6}\b/g, "CLOCK")
-		.replaceAll(/\b\d+ (time|poll)\(s\)/g, "N $1(s)")
-		.replaceAll(/\b\d+ms\b/g, "Nms")
-		.replaceAll(/([?&]cursor=)[\w-]+=*/g, "$1CURSOR")
+	return (
+		text
+			.replaceAll(/http:\/\/127\.0\.0\.1:\d+/g, "http://reference.test")
+			/* An encoded separator (`%2C`) ends in a letter, and is still a separator. */
+			.replaceAll(/(?<=^|[^A-Za-z]|%[0-9A-F]{2})([a-z]+)_\d{6}\b/g, "$1_ID")
+			.replaceAll(/(?<![A-Za-z])inv_[a-z0-9]{1,10}\b/g, "inv_TOKEN")
+			.replaceAll(/(?<![A-Za-z])grn_[a-z0-9]+_[a-z0-9]{6}\b/g, "grn_ID")
+			.replaceAll(/\boat-([a-z]+)-[a-z0-9]{5,}\b/g, "oat-$1-NONCE")
+			.replaceAll(/\b1700000\d{6}\b/g, "CLOCK")
+			.replaceAll(/\b\d+ (time|poll)\(s\)/g, "N $1(s)")
+			.replaceAll(/\b\d+ms\b/g, "Nms")
+			.replaceAll(/([?&]cursor=)[\w-]+=*/g, "$1CURSOR")
+	)
 }
 
 /**

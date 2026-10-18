@@ -1,7 +1,9 @@
 import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { renderJson, renderMarkdown, type ReportInput } from "../../src/report/render.ts"
+import type { ReportInput } from "../../src/report/render/input.ts"
+import { renderJson } from "../../src/report/render/json.ts"
+import { renderMarkdown } from "../../src/report/render/markdown.ts"
 import { EXIT, exitCode } from "../../src/runtime/exit.ts"
 import { run } from "../../src/runtime/run/index.ts"
 

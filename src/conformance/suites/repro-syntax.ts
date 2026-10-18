@@ -1,4 +1,4 @@
-import { renderRepros } from "../../report/render.ts"
+import { renderRepros } from "../../report/render/repro.ts"
 import type { Finding } from "../../runtime/finding.ts"
 import { execFile } from "node:child_process"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"

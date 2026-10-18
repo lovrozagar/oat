@@ -1,4 +1,4 @@
-import { report } from "../../report/console.ts"
+import { report } from "../../report/console/report.ts"
 import type { SpecModel } from "../../spec/graph.ts"
 import { EXIT } from "../../runtime/exit.ts"
 import { authStepOperationIds, planScope, resolveTargetScope, ScopeError } from "../../runtime/scope.ts"

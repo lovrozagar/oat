@@ -3,7 +3,7 @@ import { filterTerm } from "../../src/spec/conventions.ts"
 import { dereference } from "../../src/spec/load.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import { applyGrammarOverrides } from "../../src/spec/grammar-overrides.ts"
-import { report } from "../../src/report/console.ts"
+import { report } from "../../src/report/console/report.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 
 /*

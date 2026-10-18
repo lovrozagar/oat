@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
-import { report } from "../../src/report/console.ts"
+import { report } from "../../src/report/console/report.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { readUnique } from "../../src/spec/extensions.ts"
 import { buildModel } from "../../src/spec/graph.ts"

@@ -19,7 +19,8 @@ import {
 	resolveRequestTimeoutMs,
 } from "../../src/runtime/network.ts"
 import { formatProgressLine, type ProgressSnapshot } from "../../src/runtime/progress.ts"
-import { renderMarkdown, type ReportInput } from "../../src/report/render.ts"
+import type { ReportInput } from "../../src/report/render/input.ts"
+import { renderMarkdown } from "../../src/report/render/markdown.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { Redactor } from "../../src/security/redact.ts"
 

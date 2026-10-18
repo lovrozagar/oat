@@ -36,7 +36,6 @@ const UNTESTED: readonly string[] = [
 	"src/reference/stores/postgres.ts",
 	"src/reference/stores/sqlite-driver.ts",
 	"src/reference/stores/sqlite.ts",
-	"src/report/console.ts",
 	"src/report/diff.ts",
 	"src/runtime/async.ts",
 	"src/runtime/baseline.ts",

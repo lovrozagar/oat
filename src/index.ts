@@ -46,7 +46,7 @@ export type {
 export type { PayloadPolicy } from "./config/define-config.ts"
 export { EXIT, exitCode, runVerdict } from "./runtime/exit.ts"
 
-export type { ReportInput } from "./report/render.ts"
+export type { ReportInput } from "./report/render/input.ts"
 export { loadPersistedPrincipals } from "./runtime/principals.ts"
 
 export { allocateRunDir, DEFAULT_RUNS_ROOT } from "./runtime/runs.ts"
@@ -66,6 +66,9 @@ export type { RunOptions, RunResult } from "./runtime/run/index.ts"
 
 export type { Actor } from "./runtime/checks/core/context.ts"
 export type { Finding, Verdict } from "./runtime/finding.ts"
-export { renderMatrixGraph, renderMatrixHtml } from "./report/matrix.ts"
+export { renderMatrixGraph } from "./report/matrix/graph.ts"
+export { renderMatrixHtml } from "./report/matrix/poster.ts"
 
-export { renderJson, renderMarkdown, renderRepros } from "./report/render.ts"
+export { renderJson } from "./report/render/json.ts"
+export { renderMarkdown } from "./report/render/markdown.ts"
+export { renderRepros } from "./report/render/repro.ts"

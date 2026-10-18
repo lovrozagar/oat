@@ -7,7 +7,7 @@ import { run } from "../../src/runtime/run/index.ts"
 import { buildModel } from "../../src/spec/graph.ts"
 import { dereference } from "../../src/spec/load.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
-import { report } from "../../src/report/console.ts"
+import { report } from "../../src/report/console/report.ts"
 import { readInvite } from "../../src/spec/extensions.ts"
 import { Redactor } from "../../src/security/redact.ts"
 

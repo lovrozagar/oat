@@ -213,12 +213,12 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&filter=id.in.%28table_ID%2Ctable_000044%29&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&filter=id.in.%28table_ID%2Ctable_ID%29&page=1"
             },
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&filter=id.nin.%28table_ID%2Ctable_000044%29&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&filter=id.nin.%28table_ID%2Ctable_ID%29&page=1"
             }
           ],
           "summary": "in() and nin() both match the same record",

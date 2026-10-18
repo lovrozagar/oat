@@ -18,7 +18,8 @@ import {
 	resolveSaveExchanges,
 	sanitizeExchangeId,
 } from "../../src/runtime/exchanges.ts"
-import { renderMarkdown, type ReportInput } from "../../src/report/render.ts"
+import type { ReportInput } from "../../src/report/render/input.ts"
+import { renderMarkdown } from "../../src/report/render/markdown.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 

@@ -2,15 +2,13 @@ import { existsSync, readFileSync } from "node:fs"
 import { mkdir, writeFile } from "node:fs/promises"
 import { resolve } from "node:path"
 import { exchangeFilesFromIndex, renderConfidenceHtml } from "../../report/confidence.ts"
-import { renderMatrixGraph, renderMatrixHtml } from "../../report/matrix.ts"
-import {
-	ISSUE_REPRO_DIR,
-	renderConsole,
-	renderJson,
-	renderMarkdown,
-	renderRepros,
-	type ReportInput,
-} from "../../report/render.ts"
+import { buildMatrixGraphFromReport, graphJson } from "../../report/matrix/graph.ts"
+import { renderPoster } from "../../report/matrix/poster.ts"
+import type { ReportInput } from "../../report/render/input.ts"
+import { renderJson } from "../../report/render/json.ts"
+import { renderMarkdown } from "../../report/render/markdown.ts"
+import { ISSUE_REPRO_DIR, renderRepros } from "../../report/render/repro.ts"
+import { renderConsole } from "../../report/render/summary.ts"
 import type { RunResult } from "../../runtime/run/index.ts"
 import { renderTeardown } from "../../runtime/teardown.ts"
 import type { Writer } from "../writer.ts"
@@ -56,7 +54,8 @@ export function reportInput({ result, baseUrl, startedAt, durationMs }: Finished
 
 /**
  * Every file of the run folder: the credentials as they stood, the reports in markdown and JSON,
- * the matrix, the confidence page over the journaled exchanges, and a repro script per finding.
+ * the matrix (one graph, drawn as the poster and written as JSON), the confidence page over the
+ * journaled exchanges, and a repro script per finding.
  */
 export async function writeReports(finished: Finished, input: ReportInput): Promise<void> {
 	const { result, outDir, baseUrl, startedAt } = finished
@@ -64,8 +63,9 @@ export async function writeReports(finished: Finished, input: ReportInput): Prom
 	await writeFile(at("principals.json"), `${JSON.stringify({ principals: result.principals }, null, 2)}\n`)
 	await writeFile(at("oat-report.md"), renderMarkdown(input))
 	await writeFile(at("oat-report.json"), renderJson(input))
-	await writeFile(at("matrix.html"), renderMatrixHtml(input))
-	await writeFile(at("matrix.json"), renderMatrixGraph(input))
+	const graph = buildMatrixGraphFromReport(input)
+	await writeFile(at("matrix.html"), renderPoster(graph))
+	await writeFile(at("matrix.json"), graphJson(graph))
 	const index = at("exchanges.jsonl")
 	const files = existsSync(index) ? exchangeFilesFromIndex(readFileSync(index, "utf8")) : new Map<number, string>()
 	await writeFile(

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { TAG_UNLOCKS } from "../../report/console.ts"
+import { TAG_UNLOCKS } from "../../report/console/tags.ts"
 import { inProcess } from "../harness/launch.ts"
 import { runTagUnlockSuite } from "./tag-unlock.ts"
 

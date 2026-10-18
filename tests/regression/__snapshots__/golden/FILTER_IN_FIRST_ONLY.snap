@@ -244,7 +244,7 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&filter=id.in.%28table_ID%2Ctable_000044%29&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&filter=id.in.%28table_ID%2Ctable_ID%29&page=1"
             }
           ],
           "summary": "in() is not the union of the equalities it lists",

@@ -1,4 +1,6 @@
-import { coverageByCheck, renderConsole, type ReportInput } from "../../report/render.ts"
+import { coverageByCheck } from "../../report/render/coverage.ts"
+import type { ReportInput } from "../../report/render/input.ts"
+import { renderConsole } from "../../report/render/summary.ts"
 import type { ParserResult } from "../harness/result.ts"
 
 /**

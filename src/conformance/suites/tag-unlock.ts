@@ -36,7 +36,7 @@ export async function runTagUnlockSuite(
 	via: Via,
 	baselines?: { tagged: readonly string[]; untagged: readonly string[] },
 ): Promise<ParserResult[]> {
-	const { TAG_UNLOCKS } = await import("../../report/console.ts")
+	const { TAG_UNLOCKS } = await import("../../report/console/tags.ts")
 	const tagged = baselines === undefined ? await checksRun(false, via) : new Set(baselines.tagged)
 	const untagged = baselines === undefined ? await checksRun(true, via) : new Set(baselines.untagged)
 	const lost = [...tagged].filter((id) => !untagged.has(id)).sort()

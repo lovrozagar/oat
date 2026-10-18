@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { report } from "../../src/report/console.ts"
+import { report } from "../../src/report/console/report.ts"
 import { recordOf } from "../../src/runtime/world.ts"
 import { deriveCollectionShape } from "../../src/spec/collection.ts"
 import { buildModel } from "../../src/spec/graph.ts"

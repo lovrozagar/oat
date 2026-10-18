@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs"
 import { dirname, resolve } from "node:path"
-import { report } from "../../report/console.ts"
+import { report } from "../../report/console/report.ts"
 import type { Args } from "../flags.ts"
 import type { Writer } from "../writer.ts"
 import { modelled } from "./spec.ts"

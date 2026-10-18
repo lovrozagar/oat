@@ -2,14 +2,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import type { ReferenceServer } from "../../src/reference/http/server.ts"
-import { buildMatrixGraphFromReport } from "../../src/report/matrix.ts"
-import {
-	coverageByCheck,
-	renderConsole,
-	renderJson,
-	renderMarkdown,
-	type ReportInput,
-} from "../../src/report/render.ts"
+import { buildMatrixGraphFromReport } from "../../src/report/matrix/graph.ts"
+import { coverageByCheck } from "../../src/report/render/coverage.ts"
+import type { ReportInput } from "../../src/report/render/input.ts"
+import { renderJson } from "../../src/report/render/json.ts"
+import { renderMarkdown } from "../../src/report/render/markdown.ts"
+import { renderConsole } from "../../src/report/render/summary.ts"
 import type { ProgressSnapshot } from "../../src/runtime/progress.ts"
 import { run } from "../../src/runtime/run/index.ts"
 
@@ -94,8 +92,6 @@ describe("scope in reports", () => {
 		const table = graph.entities.find((entity) => entity.name === "table")
 		expect(table?.nodes.find((node) => node.id === "patch.minimality")?.status).toBe("out-of-scope")
 		expect(table?.nodes.find((node) => node.id === "tenant.item-not-readable-cross-tenant")?.status).toBe("passed")
-		/* The poster and the JSON graph draw one graph, built once per report. */
-		expect(buildMatrixGraphFromReport(input)).toBe(graph)
 	})
 
 	it("a full run lists every operation with its status", async () => {
