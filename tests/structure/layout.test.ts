@@ -45,7 +45,6 @@ const UNTESTED: readonly string[] = [
 	"src/runtime/body.ts",
 	"src/runtime/check-costs.ts",
 	"src/runtime/check-ids.ts",
-	"src/runtime/client.ts",
 	"src/runtime/contract.ts",
 	"src/runtime/created-id.ts",
 	"src/runtime/disposable.ts",

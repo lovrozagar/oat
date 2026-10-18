@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { reserveClientIdentity, validBody } from "../../src/runtime/checks.ts"
+import { validBody } from "../../src/runtime/checks/payloads/body.ts"
+import { reserveClientIdentity } from "../../src/runtime/checks/payloads/identity.ts"
 import { Client } from "../../src/runtime/client.ts"
 import { FindingCollector } from "../../src/runtime/finding.ts"
 import { buildModel } from "../../src/spec/graph.ts"

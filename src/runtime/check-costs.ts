@@ -5,7 +5,7 @@
  */
 import type { EntityModel, SpecModel } from "../spec/graph.ts"
 import type { CheckId } from "./check-ids.ts"
-import { CHECKS } from "./checks.ts"
+import { CHECKS } from "./checks/registry.ts"
 
 export const TYPICAL_REQUESTS: Partial<Record<CheckId, number>> = {
 	"async.reaches-terminal-state": 5,

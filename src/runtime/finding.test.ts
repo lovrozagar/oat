@@ -40,3 +40,13 @@ describe("finding attribution", () => {
 		})
 	})
 })
+
+describe("a check's own findings", () => {
+	it("cannot be filed under another check's id", () => {
+		const findings = new FindingCollector().ownedBy("sort.order-is-applied")
+		expect(() => findings.gap("filter.unknown-field-rejected", "row", "s", "d")).toThrow(/tried to report under/)
+		expect(() => findings.unresolved("filter.unknown-field-rejected", "row", "r")).toThrow()
+		findings.attributed(["row.list"]).gap("sort.order-is-applied", "row", "s", "d")
+		expect(findings.findings).toHaveLength(1)
+	})
+})

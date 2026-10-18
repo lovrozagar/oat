@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { absentId } from "../../src/runtime/checks.ts"
+import { absentId } from "../../src/runtime/checks/payloads/identity.ts"
 import { Client } from "../../src/runtime/client.ts"
 import { FindingCollector } from "../../src/runtime/finding.ts"
 import { absentIdentifier } from "../../src/runtime/generate.ts"

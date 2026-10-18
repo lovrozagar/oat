@@ -18,7 +18,7 @@ import { DAMAGES_BYSTANDERS, DEFECTS, type DefectName } from "../reference/defec
 import { DIALECTS } from "../reference/dialect.ts"
 import { STRING_PAYLOADS, catalogProblems } from "../runtime/payloads.ts"
 import { coverageByCheck, renderConsole, renderRepros, type ReportInput } from "../report/render.ts"
-import { CHECKS } from "../runtime/checks.ts"
+import { CHECKS } from "../runtime/checks/registry.ts"
 import type { Finding, Inconclusive } from "../runtime/finding.ts"
 import { type PrincipalSpec, run } from "../runtime/run.ts"
 import { buildModel } from "../spec/graph.ts"

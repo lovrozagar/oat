@@ -8,7 +8,7 @@
  */
 
 import { isRootCause } from "../runtime/finding.ts"
-import { CHECKS } from "../runtime/checks.ts"
+import { CHECKS } from "../runtime/checks/registry.ts"
 import type { SpecModel } from "../spec/graph.ts"
 import type { ReportInput } from "./render.ts"
 

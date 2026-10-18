@@ -6,7 +6,7 @@
  * row somebody else owns. Each line below must fail to compile; if one stops failing, the
  * `@ts-expect-error` above it is unused and the check fails. The first three lines must compile.
  */
-import type { CheckContext } from "../../src/runtime/checks.ts"
+import type { CheckContext } from "../../src/runtime/checks/core/context.ts"
 import type { ProvenId } from "../../src/runtime/proven-id.ts"
 import type { Ledger, Owner } from "../../src/runtime/teardown.ts"
 import type { WorldOptions } from "../../src/runtime/world.ts"

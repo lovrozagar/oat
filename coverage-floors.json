@@ -69,44 +69,763 @@
 	"src/report/diff.ts": { "statements": 0, "branches": 0, "functions": 0, "lines": 0 },
 	"src/report/matrix.ts": { "statements": 23, "branches": 16, "functions": 23, "lines": 23 },
 	"src/report/render.ts": { "statements": 16, "branches": 12, "functions": 26, "lines": 16 },
-	"src/runtime/async.ts": { "statements": 50, "branches": 30, "functions": 72, "lines": 54 },
+	"src/runtime/async.ts": { "statements": 77, "branches": 70, "functions": 100, "lines": 84 },
 	"src/runtime/auth-kind.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
-	"src/runtime/auth.ts": { "statements": 36, "branches": 32, "functions": 39, "lines": 39 },
+	"src/runtime/auth.ts": { "statements": 39, "branches": 34, "functions": 45, "lines": 42 },
 	"src/runtime/baseline.ts": { "statements": 3, "branches": 0, "functions": 0, "lines": 5 },
-	"src/runtime/body.ts": { "statements": 6, "branches": 4, "functions": 8, "lines": 8 },
+	"src/runtime/body.ts": { "statements": 14, "branches": 10, "functions": 13, "lines": 16 },
 	"src/runtime/check-costs.ts": { "statements": 0, "branches": 0, "functions": 0, "lines": 0 },
 	"src/runtime/check-ids.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
-	"src/runtime/checks.ts": { "statements": 72, "branches": 58, "functions": 86, "lines": 76 },
 	"src/runtime/checks/core/check.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/checks/core/context.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/checks/core/define.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/checks/core/plan.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/checks/core/registry.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/checks/core/run.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/checks/families/composition/plans.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/composition/query-axes-compose.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/composition/query-filter-and-select-compose.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/composition/query-filter-search-select-compose.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/composition/query-filter-search-sort-compose.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/composition/query-filter-search-sort-select-compose.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/composition/query-filter-selects-from-whole-set.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/composition/query-filter-sort-select-compose.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/composition/query-search-and-filter-compose.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/composition/query-search-and-select-compose.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/composition/query-search-and-sort-compose.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/composition/query-sort-and-select-compose.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/composition/query-unknown-parameter-consistent.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/conformance/response-status-is-documented.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/conformance/schema-error-response-matches-document.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/conformance/schema-success-response-matches-document.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/consistency/consistency-projections-agree.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/consistency/invalidation-declared-route-changes.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/consistency/list-item-matches-listed-row.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/consistency/list-read-after-write.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/effects-async/async-reaches-terminal-state.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/effects-async/async-receipt-identifies-the-job.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/effects-async/effect-verdicts.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/effects-async/effects-declared-effect-occurs.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/effects-async/effects-side-effect-arrives.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/effects-async/observe.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/effects-async/requests.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/compound.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/error-malformed-filter-not-5xx.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/fields.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-alias-matches-canonical.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-and-composes-as-intersection.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-condition-cap-rejected.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-contains-membership.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-empty-in.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-equality-selects-exactly-one.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-gte-is-gt-or-eq.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-ilike-is-case-insensitive.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-illegal-op-rejected.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-in-is-union-of-eq.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-in-over-limit-rejected.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-is-null-selects-nulls.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-like-metacharacters-escaped.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-lte-is-lt-or-eq.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-malformed-term-rejected.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-negation-partitions-the-set.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-nested-and-or-distributes.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-nin-complements-in.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-numeric-comparison-is-numeric.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-or-composes-as-union.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-ordered-triple-partitions.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-unknown-field-rejected.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/filter-zero-match-returns-none.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/filter/range.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/checks/families/isolation/auth-invite-grants-then-revokes.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/isolation/auth-rank-is-monotonic-on-writes.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/isolation/auth-rank-is-monotonic.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/isolation/invite-flow.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/isolation/tenant-denial-does-not-reveal-existence.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/isolation/tenant-filter-does-not-bypass-scope.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/isolation/tenant-item-not-readable-cross-tenant.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/isolation/tenant-item-not-writable-cross-tenant.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/isolation/tenant-parent-not-reachable-from-another-root.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/isolation/tenant.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/pagination/count-consistent-with-returned-page.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/pagination/count-matches-filtered-set.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/pagination/pagination-bounds-handled.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/pagination/pagination-cursor-agrees-with-page.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/pagination/pagination-has-more-is-accurate.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/pagination/pagination-limit-bounds-enforced.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/pagination/pagination-limit-bounds-page-size.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/pagination/pagination-limit-respects-documented-max.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/pagination/pagination-page-walk-covers-set.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/pagination/walk.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/search-select/search-case-insensitive.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/search-select/search-empty-q.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/search-select/search-mode-accepted.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/search-select/search-q-narrows-result.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/search-select/search-tokens-and.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/search-select/select-nested-honoured.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/search-select/select-projection-honoured.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/search-select/select-requested-fields-present.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/search-select/select-unknown-field-rejected.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/sort/sort-default-order-applied.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/sort/sort-invalid-direction-rejected.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/sort/sort-multi-key-tiebreak.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/sort/sort-nulls-first-last.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/sort/sort-numeric-order-is-numeric.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/sort/sort-order-is-applied.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/sort/sort-reverse-symmetry.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/sort/sort-stable-tiebreak.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/sort/sort-unknown-field-rejected.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/spec-declarations/spec-declared-filterable-is-filterable.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/spec-declarations/spec-declared-filterable-ops-accepted.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/spec-declarations/spec-declared-rate-limit-is-honoured.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/spec-declarations/spec-declared-selectable-is-selectable.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/spec-declarations/spec-declared-sortable-is-sortable.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/spec-declarations/spec-declared-sortable-nulls-accepted.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/validation/bodies.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/validation/validation-content-type-enforced.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/validation/validation-enum-enforced.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/validation/validation-max-length-enforced.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/validation/validation-required-enforced.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/write/concurrency-no-lost-update.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/write/create-keeps-submitted-identity.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/write/create-persists-submitted-fields.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/write/create-status-matches-document.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/write/create-unique-conflict-rejected.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/write/delete-absent-record-returns-404.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/write/idempotency-replay-does-not-duplicate.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/write/patch-immutable-field-rejected.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/write/patch-minimality.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/write/payload-cases.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/write/payload-probe.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/write/payload-string-survives.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/write/records.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/write/softdelete-absent-from-default-list.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/write/update-unique-conflict-rejected.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/isolation/scratch.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/checks/payloads/body.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/checks/payloads/create.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/checks/payloads/identity.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/checks/payloads/lanes.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/checks/planning/declarations.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/checks/planning/refusal.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/checks/planning/stand-down.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/checks/planning/subjects.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/checks/query/capabilities.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/checks/query/order.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/checks/registry.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/checks/sets/compare.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/checks/sets/list.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/checks/sets/read.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/client.ts": { "statements": 62, "branches": 49, "functions": 78, "lines": 65 },
 	"src/runtime/contract.ts": { "statements": 69, "branches": 58, "functions": 88, "lines": 72 },
 	"src/runtime/cookies.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/create-tracker.ts": { "statements": 96, "branches": 86, "functions": 100, "lines": 96 },
-	"src/runtime/created-id.ts": { "statements": 66, "branches": 55, "functions": 75, "lines": 78 },
+	"src/runtime/created-id.ts": { "statements": 69, "branches": 60, "functions": 75, "lines": 78 },
 	"src/runtime/disposable.ts": { "statements": 40, "branches": 32, "functions": 62, "lines": 42 },
 	"src/runtime/dummy.ts": { "statements": 21, "branches": 0, "functions": 15, "lines": 24 },
-	"src/runtime/effects.ts": { "statements": 35, "branches": 26, "functions": 60, "lines": 40 },
+	"src/runtime/effects.ts": { "statements": 69, "branches": 61, "functions": 88, "lines": 76 },
 	"src/runtime/evidence.ts": { "statements": 95, "branches": 92, "functions": 100, "lines": 97 },
 	"src/runtime/exchange.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/exchanges.ts": { "statements": 6, "branches": 10, "functions": 13, "lines": 8 },
 	"src/runtime/exit.ts": { "statements": 91, "branches": 73, "functions": 75, "lines": 93 },
-	"src/runtime/feature-gate.ts": { "statements": 10, "branches": 3, "functions": 20, "lines": 9 },
-	"src/runtime/fence.ts": { "statements": 0, "branches": 0, "functions": 0, "lines": 0 },
+	"src/runtime/feature-gate.ts": { "statements": 83, "branches": 81, "functions": 100, "lines": 100 },
+	"src/runtime/fence.ts": { "statements": 27, "branches": 0, "functions": 33, "lines": 30 },
 	"src/runtime/fill-path.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/finding-key.ts": { "statements": 100, "branches": 75, "functions": 100, "lines": 100 },
-	"src/runtime/finding.ts": { "statements": 86, "branches": 86, "functions": 80, "lines": 90 },
-	"src/runtime/fixture.ts": { "statements": 73, "branches": 59, "functions": 85, "lines": 81 },
-	"src/runtime/generate.ts": { "statements": 80, "branches": 72, "functions": 91, "lines": 86 },
+	"src/runtime/finding.ts": { "statements": 94, "branches": 95, "functions": 90, "lines": 96 },
+	"src/runtime/fixture.ts": { "statements": 73, "branches": 60, "functions": 85, "lines": 81 },
+	"src/runtime/generate.ts": { "statements": 82, "branches": 76, "functions": 91, "lines": 87 },
 	"src/runtime/grades.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/headers.ts": { "statements": 100, "branches": 83, "functions": 100, "lines": 100 },
 	"src/runtime/input.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/network.ts": { "statements": 32, "branches": 28, "functions": 37, "lines": 36 },
 	"src/runtime/one-shot.ts": { "statements": 76, "branches": 73, "functions": 88, "lines": 87 },
-	"src/runtime/path.ts": { "statements": 70, "branches": 64, "functions": 83, "lines": 79 },
-	"src/runtime/payloads.ts": { "statements": 20, "branches": 15, "functions": 75, "lines": 27 },
+	"src/runtime/path.ts": { "statements": 72, "branches": 65, "functions": 83, "lines": 79 },
+	"src/runtime/payloads.ts": { "statements": 24, "branches": 22, "functions": 75, "lines": 27 },
 	"src/runtime/poll.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/principals.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/profile.ts": { "statements": 66, "branches": 55, "functions": 100, "lines": 71 },
@@ -123,26 +842,26 @@
 	"src/runtime/seed-error.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/self.ts": { "statements": 47, "branches": 34, "functions": 67, "lines": 55 },
 	"src/runtime/server-errors.ts": { "statements": 55, "branches": 25, "functions": 75, "lines": 63 },
-	"src/runtime/sse.ts": { "statements": 7, "branches": 9, "functions": 16, "lines": 5 },
+	"src/runtime/sse.ts": { "statements": 76, "branches": 54, "functions": 66, "lines": 83 },
 	"src/runtime/target-version.ts": { "statements": 4, "branches": 0, "functions": 0, "lines": 5 },
 	"src/runtime/teardown.ts": { "statements": 58, "branches": 40, "functions": 74, "lines": 63 },
 	"src/runtime/transcript.ts": { "statements": 57, "branches": 56, "functions": 86, "lines": 60 },
-	"src/runtime/unique.ts": { "statements": 80, "branches": 59, "functions": 100, "lines": 95 },
-	"src/runtime/upload-each.ts": { "statements": 29, "branches": 23, "functions": 40, "lines": 28 },
-	"src/runtime/upload.ts": { "statements": 0, "branches": 0, "functions": 0, "lines": 0 },
-	"src/runtime/validate.ts": { "statements": 79, "branches": 50, "functions": 88, "lines": 83 },
-	"src/runtime/wait.ts": { "statements": 76, "branches": 53, "functions": 100, "lines": 80 },
-	"src/runtime/world.ts": { "statements": 76, "branches": 65, "functions": 97, "lines": 80 },
+	"src/runtime/unique.ts": { "statements": 82, "branches": 65, "functions": 100, "lines": 95 },
+	"src/runtime/upload-each.ts": { "statements": 81, "branches": 61, "functions": 80, "lines": 81 },
+	"src/runtime/upload.ts": { "statements": 3, "branches": 1, "functions": 5, "lines": 3 },
+	"src/runtime/validate.ts": { "statements": 93, "branches": 70, "functions": 100, "lines": 95 },
+	"src/runtime/wait.ts": { "statements": 94, "branches": 92, "functions": 100, "lines": 96 },
+	"src/runtime/world.ts": { "statements": 77, "branches": 67, "functions": 97, "lines": 80 },
 	"src/security/credential-names.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/security/redact.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/security/strip.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/allow.ts": { "statements": 4, "branches": 0, "functions": 0, "lines": 5 },
-	"src/spec/collection.ts": { "statements": 88, "branches": 80, "functions": 90, "lines": 93 },
-	"src/spec/conventions.ts": { "statements": 80, "branches": 68, "functions": 89, "lines": 89 },
-	"src/spec/extensions.ts": { "statements": 78, "branches": 67, "functions": 84, "lines": 85 },
-	"src/spec/filter-render.ts": { "statements": 80, "branches": 76, "functions": 88, "lines": 92 },
+	"src/spec/collection.ts": { "statements": 89, "branches": 83, "functions": 90, "lines": 93 },
+	"src/spec/conventions.ts": { "statements": 82, "branches": 71, "functions": 89, "lines": 91 },
+	"src/spec/extensions.ts": { "statements": 84, "branches": 78, "functions": 89, "lines": 89 },
+	"src/spec/filter-render.ts": { "statements": 82, "branches": 78, "functions": 88, "lines": 92 },
 	"src/spec/grammar-overrides.ts": { "statements": 45, "branches": 43, "functions": 75, "lines": 50 },
-	"src/spec/graph.ts": { "statements": 87, "branches": 77, "functions": 85, "lines": 91 },
+	"src/spec/graph.ts": { "statements": 91, "branches": 84, "functions": 89, "lines": 94 },
 	"src/spec/load.ts": { "statements": 84, "branches": 73, "functions": 100, "lines": 87 },
 	"src/spec/overlay.ts": { "statements": 5, "branches": 0, "functions": 0, "lines": 6 },
 	"src/spec/prepare.ts": { "statements": 57, "branches": 50, "functions": 100, "lines": 50 },
@@ -151,7 +870,7 @@
 	"src/spec/security/placement.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/security/requirements.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/security/schemes.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
-	"src/spec/sort-render.ts": { "statements": 84, "branches": 77, "functions": 81, "lines": 93 },
-	"src/spec/tag-schema.ts": { "statements": 88, "branches": 77, "functions": 92, "lines": 93 },
-	"src/spec/types.ts": { "statements": 80, "branches": 47, "functions": 50, "lines": 83 }
+	"src/spec/sort-render.ts": { "statements": 94, "branches": 86, "functions": 100, "lines": 100 },
+	"src/spec/tag-schema.ts": { "statements": 91, "branches": 80, "functions": 92, "lines": 93 },
+	"src/spec/types.ts": { "statements": 95, "branches": 82, "functions": 100, "lines": 100 }
 }

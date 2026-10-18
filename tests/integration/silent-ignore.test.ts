@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { judgeDefect } from "../../src/conformance/suite.ts"
 import { TEMPLATE, toCanonicalFilter } from "../../src/reference/dialect.ts"
-import { CHECKS } from "../../src/runtime/checks.ts"
+import { CHECKS } from "../../src/runtime/checks/registry.ts"
 import { Client } from "../../src/runtime/client.ts"
 import { FindingCollector } from "../../src/runtime/finding.ts"
 import { buildModel } from "../../src/spec/graph.ts"

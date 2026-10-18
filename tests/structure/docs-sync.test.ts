@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest"
 import { FLAGS } from "../../src/cli.ts"
 import { CONFIG } from "../../src/config/validate.ts"
 import { DEFECTS } from "../../src/reference/defects.ts"
-import { CHECKS } from "../../src/runtime/checks.ts"
+import { CHECKS } from "../../src/runtime/checks/registry.ts"
 
 /*
  * Every name a user can meet (a check id, a defect, a CLI flag, a top-level config field, an `x-*`

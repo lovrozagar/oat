@@ -46,7 +46,10 @@ import {
 } from "./network.ts"
 import { type BackoffConfig, resolveBackoff } from "./poll.ts"
 import { type PersistedPrincipal, persistedToPrincipal, snapshotPrincipal } from "./principals.ts"
-import { CHECKS, type Actor, checkMemo, checkSalts, validateRegistry, type WriteContext } from "./checks.ts"
+import { type Actor, checkMemo, type WriteContext } from "./checks/core/context.ts"
+import { buildRegistry } from "./checks/core/define.ts"
+import { checkSalts } from "./checks/core/run.ts"
+import { CHECKS } from "./checks/registry.ts"
 import { runPublicGets } from "./one-shot.ts"
 import { runDisposableOps, signupOperationId } from "./disposable.ts"
 import { assertScenarios, runScenarios } from "./scenario.ts"
@@ -426,7 +429,7 @@ async function readExisting(
 
 export async function run(options: RunOptions): Promise<RunResult> {
 	/* A registry with a duplicate id or a dependency out of order would grade nothing correctly. */
-	validateRegistry(CHECKS)
+	buildRegistry(CHECKS)
 	const startedAt = Date.now()
 	const findings = new FindingCollector()
 	const profile = resolveProfile(options.profile, options.profiles)

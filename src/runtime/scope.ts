@@ -12,7 +12,7 @@ import type { Principal } from "../config/types/principals.ts"
 import { isAuthFlow } from "./auth-kind.ts"
 import { type OperationModel, type EntityModel, owningEntityOf, type SpecModel } from "../spec/graph.ts"
 import { pathTemplateMatches } from "../spec/load.ts"
-import { CHECKS } from "./checks.ts"
+import { CHECKS } from "./checks/registry.ts"
 import type { GradeLedger, PassEvidence } from "./grades.ts"
 
 export { GradeLedger, type PassEvidence } from "./grades.ts"

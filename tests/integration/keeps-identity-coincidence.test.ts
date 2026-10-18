@@ -1,7 +1,7 @@
 import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { CHECKS } from "../../src/runtime/checks.ts"
+import { CHECKS } from "../../src/runtime/checks/registry.ts"
 import { Client } from "../../src/runtime/client.ts"
 import { FindingCollector } from "../../src/runtime/finding.ts"
 import { buildModel } from "../../src/spec/graph.ts"

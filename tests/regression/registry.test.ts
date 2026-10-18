@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { CHECKS } from "../../src/runtime/checks.ts"
+import { CHECKS } from "../../src/runtime/checks/registry.ts"
 
 describe("check registry golden", () => {
 	/* Order is behavior: a check runs after the ones it depends on, and mutating checks run alone

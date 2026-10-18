@@ -1,4 +1,4 @@
-import { type CheckContext, checkMemo } from "../../src/runtime/checks.ts"
+import { type CheckContext, checkMemo } from "../../src/runtime/checks/core/context.ts"
 import { SchemaValidator } from "../../src/runtime/validate.ts"
 
 /*
