@@ -1,19 +1,9 @@
-import {
-	andTerm,
-	canWriteFilterOp,
-	type FilterGrammar,
-	filterFragment,
-	filterTerm,
-	type FilterTermValue,
-	orTerm,
-	type QueryConventions,
-	selectTerm,
-	type SelectGrammar,
-	type SortGrammar,
-	sortTerm,
-	sortTermWithNulls,
-} from "../../src/spec/conventions.ts"
-import { FILTER_OPS } from "../../src/spec/query-capabilities.ts"
+import { andTerm, canWriteFilterOp, filterFragment, filterTerm, orTerm } from "../../src/spec/conventions/filter.ts"
+import type { FilterGrammar, QueryConventions, SelectGrammar, SortGrammar } from "../../src/spec/conventions/types.ts"
+import type { FilterTermValue } from "../../src/spec/render/filter-types.ts"
+import { selectTerm } from "../../src/spec/conventions/select.ts"
+import { sortTerm, sortTermWithNulls } from "../../src/spec/conventions/sort.ts"
+import { FILTER_OPS } from "../../src/spec/query/ops.ts"
 
 /*
  * Every filter, sort and select term oat can write, rendered by today's writers. The
@@ -76,9 +66,9 @@ export function grammarTable(): Record<string, unknown> {
 				if (typeof value === "object" && value !== null) continue
 				table[`filterFragment|${scope}|${label}`] = filterFragment(at, "qty", String(value))
 			}
-			table[`andTerm|${scope}`] = andTerm(at, "qty", "2", "name", "x")
-			table[`andTerm|${scope}|same-field`] = andTerm(at, "qty", "2", "qty", "3")
-			table[`orTerm|${scope}`] = orTerm(at, "qty", "2", "name", "x")
+			table[`andTerm|${scope}`] = andTerm(at, { field: "qty", value: "2" }, { field: "name", value: "x" })
+			table[`andTerm|${scope}|same-field`] = andTerm(at, { field: "qty", value: "2" }, { field: "qty", value: "3" })
+			table[`orTerm|${scope}`] = orTerm(at, { field: "qty", value: "2" }, { field: "name", value: "x" })
 		}
 	}
 	for (const grammar of SORT_GRAMMARS) {

@@ -1,12 +1,9 @@
 import { defineCheck } from "../../core/define.ts"
-import { canWriteFilterOp, filterSpec, filterTerm } from "../../../../spec/conventions.ts"
-import { renderUnknownOp } from "../../../../spec/filter-render.ts"
-import {
-	type EffectiveFilterField,
-	FILTER_OPS,
-	opsAreClosed,
-	opsForField,
-} from "../../../../spec/query-capabilities.ts"
+import { canWriteFilterOp, filterSpec, filterTerm } from "../../../../spec/conventions/filter.ts"
+import { renderUnknownOp } from "../../../../spec/render/filter-probe.ts"
+import type { EffectiveFilterField } from "../../../../spec/query/effective.ts"
+import { opsAreClosed, opsForField } from "../../../../spec/query/field-ops.ts"
+import { FILTER_OPS } from "../../../../spec/query/ops.ts"
 import type { Outcome } from "../../../finding.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
@@ -59,7 +56,10 @@ export const filterIllegalOpRejected = defineCheck<{ probes: IllegalOpProbe[] }>
 			for (const field of resolvedCaps(ctx).filterable) {
 				const sample = ctx.records.find((row) => row[field.field] != null)
 				const value = sample === undefined ? "oat-probe" : String(asTermValue(sample[field.field]))
-				const term = renderUnknownOp(filterSpec(conventions), conventions.filter, field.field, UNKNOWN_OP, value)
+				const term = renderUnknownOp(
+					{ field: field.field, filterParam: conventions.filter, spec: filterSpec(conventions), value },
+					UNKNOWN_OP,
+				)
 				const control = filterTerm(conventions, field.field, "eq", value)
 				if (term === null || control === null) continue
 				probes.push({ control, field, kind: "unknown", op: UNKNOWN_OP, term })

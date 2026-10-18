@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto"
-import { operationResolver } from "../../spec/graph.ts"
+import { operationResolver } from "../../spec/graph/resolver.ts"
 import { Redactor } from "../../security/redact.ts"
 import { Client } from "../../client/client.ts"
 import type { Exchange } from "../exchange.ts"

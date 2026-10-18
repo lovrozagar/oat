@@ -1,4 +1,4 @@
-import type { OperationModel } from "../../../../spec/graph.ts"
+import type { OperationModel } from "../../../../spec/graph/types.ts"
 
 /**
  * Isolation checks need a tenant boundary to have meaning. A public catalogue has neither

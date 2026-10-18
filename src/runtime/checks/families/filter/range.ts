@@ -1,4 +1,4 @@
-import { filterTerm } from "../../../../spec/conventions.ts"
+import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { cannot, type Plan, ready } from "../../core/plan.ts"

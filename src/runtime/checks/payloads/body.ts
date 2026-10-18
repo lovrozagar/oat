@@ -1,5 +1,5 @@
-import { requestContent } from "../../../spec/collection.ts"
-import type { OperationModel } from "../../../spec/graph.ts"
+import { requestContent } from "../../../spec/collection/request.ts"
+import type { OperationModel } from "../../../spec/graph/types.ts"
 import { normalizeSchema } from "../../../spec/schema.ts"
 import { encodeForOperation } from "../../body.ts"
 import type { RequestOptions } from "../../../client/types.ts"

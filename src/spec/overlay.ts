@@ -31,16 +31,34 @@ function merge(base: unknown, patch: unknown): unknown {
 
 export function applyOverlay(doc: OpenApiDocument, overlay: SpecOverlay): OpenApiDocument {
 	const out = structuredClone(doc)
-	const paths = (out.paths ?? {}) as Record<string, Record<string, unknown>>
-	const byId = new Map<string, { item: Record<string, unknown>; method: string }>()
-	for (const item of Object.values(paths)) {
+	patchOperations(operationsById(out), overlay.operations ?? {})
+	patchSchemas((out.components?.schemas ?? {}) as Record<string, unknown>, overlay.schemas ?? {})
+	return out
+}
+
+interface OperationSlot {
+	item: Record<string, unknown>
+	method: string
+}
+
+/** Where each operation with an `operationId` sits: its path item and method. */
+function operationsById(doc: OpenApiDocument): Map<string, OperationSlot> {
+	const byId = new Map<string, OperationSlot>()
+	for (const item of Object.values(doc.paths ?? {})) {
 		if (!isRecord(item)) continue
 		for (const method of METHODS) {
 			const op = item[method]
 			if (isRecord(op) && typeof op.operationId === "string") byId.set(op.operationId, { item, method })
 		}
 	}
-	for (const [operationId, patch] of Object.entries(overlay.operations ?? {})) {
+	return byId
+}
+
+function patchOperations(
+	byId: ReadonlyMap<string, OperationSlot>,
+	patches: Record<string, Record<string, unknown>>,
+): void {
+	for (const [operationId, patch] of Object.entries(patches)) {
 		const at = byId.get(operationId)
 		if (at === undefined)
 			throw new UsageError(`overlay.operations["${operationId}"] names no operation in the document`)
@@ -52,12 +70,13 @@ export function applyOverlay(doc: OpenApiDocument, overlay: SpecOverlay): OpenAp
 		}
 		at.item[at.method] = merge(at.item[at.method], patch)
 	}
-	const schemas = (out.components?.schemas ?? {}) as Record<string, unknown>
-	for (const [name, patch] of Object.entries(overlay.schemas ?? {})) {
+}
+
+function patchSchemas(schemas: Record<string, unknown>, patches: Record<string, unknown>): void {
+	for (const [name, patch] of Object.entries(patches)) {
 		if (!Object.hasOwn(schemas, name)) {
 			throw new UsageError(`overlay.schemas["${name}"] names no schema under components.schemas`)
 		}
 		schemas[name] = merge(schemas[name], patch)
 	}
-	return out
 }

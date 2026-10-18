@@ -1,5 +1,5 @@
-import type { QueryConventions } from "../../../../spec/conventions.ts"
-import type { OperationModel, SpecModel } from "../../../../spec/graph.ts"
+import type { QueryConventions } from "../../../../spec/conventions/types.ts"
+import type { OperationModel, SpecModel } from "../../../../spec/graph/types.ts"
 import type { OpenApiDocument } from "../../../../spec/types.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { contextFor, modelOf, op, type Responder, type Sent } from "../../__fixtures__/harness.ts"

@@ -1,6 +1,6 @@
 import { defineCheck } from "../../core/define.ts"
-import { filterSpec, orTerm } from "../../../../spec/conventions.ts"
-import { canWriteOr } from "../../../../spec/filter-render.ts"
+import { filterSpec, orTerm } from "../../../../spec/conventions/filter.ts"
+import { canWriteOr } from "../../../../spec/render/filter-term.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"

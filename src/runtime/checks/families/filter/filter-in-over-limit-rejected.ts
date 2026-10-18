@@ -1,5 +1,5 @@
 import { defineCheck } from "../../core/define.ts"
-import { filterTerm } from "../../../../spec/conventions.ts"
+import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import type { Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { asProbe, judgeRefusal } from "../../planning/refusal.ts"

@@ -1,5 +1,5 @@
 import { defineCheck } from "../../core/define.ts"
-import { sortTerm } from "../../../../spec/conventions.ts"
+import { sortTerm } from "../../../../spec/conventions/sort.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { idOf, type Record_ } from "../../../world.ts"
 import type { CheckContext } from "../../core/context.ts"

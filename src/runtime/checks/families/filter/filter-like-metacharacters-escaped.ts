@@ -1,5 +1,5 @@
 import { defineCheck } from "../../core/define.ts"
-import { filterSpec, filterTerm } from "../../../../spec/conventions.ts"
+import { filterSpec, filterTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"

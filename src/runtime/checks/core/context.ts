@@ -10,9 +10,10 @@ import type { ProvenId } from "../../proven-id.ts"
 import type { UploadContext } from "../../upload.ts"
 import type { SchemaValidator } from "../../validate.ts"
 import type { Record_ } from "../../world.ts"
-import type { InviteSpec, QueryCapability } from "../../../spec/extensions.ts"
-import type { OperationModel, SpecModel } from "../../../spec/graph.ts"
-import type { EffectiveQueryCapabilities } from "../../../spec/query-capabilities.ts"
+import type { InviteSpec } from "../../../spec/extensions/invite.ts"
+import type { QueryCapability } from "../../../spec/extensions/query-tag.ts"
+import type { OperationModel, SpecModel } from "../../../spec/graph/types.ts"
+import type { EffectiveQueryCapabilities } from "../../../spec/query/effective.ts"
 
 /** A resolved principal as checks see it — identity, lattice position, and how to speak as it. */
 export interface Actor {

@@ -4,8 +4,9 @@ import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { pruneToAllow } from "../../src/spec/allow.ts"
-import { buildModel, operationResolver } from "../../src/spec/graph.ts"
-import { dereference } from "../../src/spec/load.ts"
+import { buildModel } from "../../src/spec/graph/build.ts"
+import { operationResolver } from "../../src/spec/graph/resolver.ts"
+import { dereference } from "../../src/spec/load/dereference.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 
 /*

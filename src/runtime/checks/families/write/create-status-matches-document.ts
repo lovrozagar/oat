@@ -1,5 +1,6 @@
 import { defineCheck } from "../../core/define.ts"
-import { describeSuccess, documentsStatus, type OperationModel } from "../../../../spec/graph.ts"
+import { describeSuccess, documentsStatus } from "../../../../spec/graph/statuses.ts"
+import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { createExchange } from "../../payloads/body.ts"

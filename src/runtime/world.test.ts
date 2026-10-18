@@ -11,9 +11,10 @@ import {
 	SeedError,
 	seedCohort,
 } from "./world.ts"
-import { buildModel, type OperationModel } from "../spec/graph.ts"
+import { buildModel } from "../spec/graph/build.ts"
+import type { OperationModel } from "../spec/graph/types.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
-import { dereference } from "../spec/load.ts"
+import { dereference } from "../spec/load/dereference.ts"
 import { Redactor } from "../security/redact.ts"
 /*
  * An id oat only sent proves nothing: the server may have ignored it. `confirmSubmitted` trusts it

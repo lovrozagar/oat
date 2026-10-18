@@ -13,7 +13,7 @@ import type {
 	ScenarioRequestStep,
 	ScenarioStep,
 } from "../config/types/steps.ts"
-import type { SpecModel } from "../spec/graph.ts"
+import type { SpecModel } from "../spec/graph/types.ts"
 import {
 	type AcquireContext,
 	interpolate,

@@ -23,8 +23,8 @@ describe("oat/grammar-through-renderer", () => {
 	})
 
 	it("leaves the renderer, the reference backend and tests alone", () => {
-		expect(lines("src/spec/conventions.ts")).toEqual([])
-		expect(lines("src/spec/filter-render.ts")).toEqual([])
+		expect(lines("src/spec/conventions/filter.ts")).toEqual([])
+		expect(lines("src/spec/render/filter-term.ts")).toEqual([])
 		expect(lines("src/reference/dialect.ts")).toEqual([])
 		expect(lines("src/runtime/probe.test.ts")).toEqual([])
 	})

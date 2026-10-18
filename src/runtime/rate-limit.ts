@@ -11,7 +11,7 @@
 
 import { headerValue } from "./headers.ts"
 import type { RateLimitSpec } from "../config/types/config.ts"
-import type { OperationModel, SpecModel } from "../spec/graph.ts"
+import type { OperationModel, SpecModel } from "../spec/graph/types.ts"
 
 export interface CompiledRateLimitRule {
 	/** `operationId` is the operation the client stamped on the request, when it resolved one. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { EffectiveQueryCapabilities } from "../../../../spec/query-capabilities.ts"
+import type { EffectiveQueryCapabilities } from "../../../../spec/query/effective.ts"
 import { runCheck } from "../../core/run.ts"
 import { resolvedCaps } from "../../query/capabilities.ts"
 import { OPS } from "./__fixtures__/backend.ts"

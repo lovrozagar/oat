@@ -3,8 +3,8 @@ import type { Client } from "../client/client.ts"
 import type { Exchange } from "./exchange.ts"
 import { proveFromTranscript } from "./evidence.ts"
 import { GradeLedger } from "./scope.ts"
-import { buildModel } from "../spec/graph.ts"
-import { dereference } from "../spec/load.ts"
+import { buildModel } from "../spec/graph/build.ts"
+import { dereference } from "../spec/load/dereference.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
 
 /*

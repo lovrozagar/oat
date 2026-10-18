@@ -1,6 +1,6 @@
 import { defineCheck } from "../../core/define.ts"
-import { sortTermWithNulls } from "../../../../spec/conventions.ts"
-import { fieldAllowsNulls } from "../../../../spec/query-capabilities.ts"
+import { sortTermWithNulls } from "../../../../spec/conventions/sort.ts"
+import { fieldAllowsNulls } from "../../../../spec/query/field-ops.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { when } from "../../core/plan.ts"

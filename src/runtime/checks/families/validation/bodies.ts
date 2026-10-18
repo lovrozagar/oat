@@ -1,4 +1,4 @@
-import type { OperationModel } from "../../../../spec/graph.ts"
+import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { cannot, type Plan, ready } from "../../core/plan.ts"
 import { requestSchemaOf } from "../../payloads/body.ts"

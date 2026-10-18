@@ -1,5 +1,5 @@
-import type { QueryConventions } from "../../../spec/conventions.ts"
-import type { SortValue } from "../../../spec/sort-render.ts"
+import type { QueryConventions } from "../../../spec/conventions/types.ts"
+import type { SortValue } from "../../../spec/render/sort.ts"
 import { fillPath } from "../../fill-path.ts"
 import { idOf, type Record_ } from "../../world.ts"
 import type { CheckContext } from "../core/context.ts"

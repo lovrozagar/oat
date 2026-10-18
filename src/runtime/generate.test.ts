@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { type Variant, absentIdentifier, distinctValue, filterSentinel, generate } from "./generate.ts"
 import { instanceErrors } from "./validate.ts"
-import { dereference, documentDefs } from "../spec/load.ts"
+import { dereference } from "../spec/load/dereference.ts"
+import { documentDefs } from "../spec/load/defs.ts"
 import { normalizeSchema } from "../spec/schema.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
 

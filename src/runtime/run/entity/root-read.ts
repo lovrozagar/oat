@@ -1,4 +1,4 @@
-import type { EntityModel } from "../../../spec/graph.ts"
+import type { EntityModel } from "../../../spec/graph/types.ts"
 import { rootReadIds, ROOT_READ_CHECK_ID, runRootRead } from "../../root-read.ts"
 import type { RunContext } from "../context.ts"
 import { graded, startedTest } from "./direct.ts"

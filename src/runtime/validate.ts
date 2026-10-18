@@ -8,7 +8,7 @@
 
 import ajvModule from "ajv/dist/2020.js"
 import formatsModule from "ajv-formats"
-import { DEFS_ID } from "../spec/load.ts"
+import { DEFS_ID } from "../spec/load/defs.ts"
 import { normalizeSchema } from "../spec/schema.ts"
 import type { OperationObject, SchemaObject } from "../spec/types.ts"
 

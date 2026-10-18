@@ -7,9 +7,9 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { report } from "../report/console/report.ts"
 import { run } from "../runtime/run/index.ts"
-import { formatUniqueSets, readUnique } from "../spec/extensions.ts"
-import { buildModel } from "../spec/graph.ts"
-import { dereference } from "../spec/load.ts"
+import { formatUniqueSets, readUnique } from "../spec/extensions/unique.ts"
+import { buildModel } from "../spec/graph/build.ts"
+import { dereference } from "../spec/load/dereference.ts"
 import type { OpenApiDocument, OperationObject } from "../spec/types.ts"
 import type { ParserResult } from "./harness/result.ts"
 

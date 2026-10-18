@@ -1,6 +1,6 @@
 import { defineCheck } from "../../core/define.ts"
-import { selectTerm } from "../../../../spec/conventions.ts"
-import type { EffectiveQueryCapabilities } from "../../../../spec/query-capabilities.ts"
+import { selectTerm } from "../../../../spec/conventions/select.ts"
+import type { EffectiveQueryCapabilities } from "../../../../spec/query/effective.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { asProbe, judgeRefusal } from "../../planning/refusal.ts"

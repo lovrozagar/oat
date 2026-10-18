@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { OperationModel } from "../../../../spec/graph.ts"
+import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { ASSERTED } from "../../../finding.ts"
 import { contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
 import type { WriteContext } from "../../core/context.ts"

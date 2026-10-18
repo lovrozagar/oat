@@ -13,8 +13,8 @@ import {
 	UNTAGGED_WRITE_CATEGORY,
 } from "../../src/runtime/rate-limit.ts"
 import { run } from "../../src/runtime/run/index.ts"
-import { buildModel } from "../../src/spec/graph.ts"
-import { dereference } from "../../src/spec/load.ts"
+import { buildModel } from "../../src/spec/graph/build.ts"
+import { dereference } from "../../src/spec/load/dereference.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { Redactor } from "../../src/security/redact.ts"
 

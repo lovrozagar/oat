@@ -1,10 +1,7 @@
-import { canWriteFilterOp } from "../../../../spec/conventions.ts"
-import {
-	type EffectiveFilterField,
-	fieldAllows,
-	FILTER_OPS,
-	ORDERED_TYPES,
-} from "../../../../spec/query-capabilities.ts"
+import { canWriteFilterOp } from "../../../../spec/conventions/filter.ts"
+import type { EffectiveFilterField } from "../../../../spec/query/effective.ts"
+import { fieldAllows } from "../../../../spec/query/field-ops.ts"
+import { FILTER_OPS, ORDERED_TYPES } from "../../../../spec/query/ops.ts"
 import type { Record_ } from "../../../world.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { canUseOp, conv, resolvedCaps } from "../../query/capabilities.ts"

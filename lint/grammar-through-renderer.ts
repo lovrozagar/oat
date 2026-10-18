@@ -8,7 +8,7 @@ import { isTestCode, repoPath } from "./paths.ts"
  * renderer (`canWriteOr`, `canGroupAnd`, a `null` term) instead. Only the renderer, the reference
  * backend and tests may name a grammar.
  */
-const HOMES = ["/src/spec/conventions.ts", "/src/spec/filter-render.ts", "/src/reference/"]
+const HOMES = ["/src/spec/conventions/", "/src/spec/render/", "/src/reference/"]
 const FIELDS = new Set(["grammar", "sortGrammar"])
 const MESSAGE =
 	"Ask the renderer what this grammar can write (canWriteOr, canGroupAnd, a null term) instead of comparing its name: a declared template has none of the presets' names."

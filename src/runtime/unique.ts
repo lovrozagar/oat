@@ -6,8 +6,8 @@
  */
 
 import { generate } from "./generate.ts"
-import { requestContent } from "../spec/collection.ts"
-import type { OperationModel, SpecModel } from "../spec/graph.ts"
+import { requestContent } from "../spec/collection/request.ts"
+import type { OperationModel, SpecModel } from "../spec/graph/types.ts"
 
 export const UNIQUE_CONFLICT_STATUS = 409
 

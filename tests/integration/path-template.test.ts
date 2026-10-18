@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest"
-import { pathTemplateParams } from "../../src/spec/load.ts"
-import { operationResolver } from "../../src/spec/graph.ts"
+import { pathTemplateParams } from "../../src/spec/routes.ts"
+import { operationResolver } from "../../src/spec/graph/resolver.ts"
 import { Client } from "../../src/client/client.ts"
 import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
-import type { SpecModel } from "../../src/spec/graph.ts"
+import type { SpecModel } from "../../src/spec/graph/types.ts"
 import { Redactor } from "../../src/security/redact.ts"
 
 /*

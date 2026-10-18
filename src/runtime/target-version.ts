@@ -7,7 +7,7 @@
  * verdict, because it says nothing about the backend's behaviour.
  */
 
-import type { SpecModel } from "../spec/graph.ts"
+import type { SpecModel } from "../spec/graph/types.ts"
 import type { Client } from "../client/client.ts"
 import { readPath } from "./path.ts"
 import { fillPath } from "./fill-path.ts"

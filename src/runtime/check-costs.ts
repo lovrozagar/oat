@@ -3,7 +3,7 @@
  * what `oat plan` estimates a run's cost from before a request is sent. Regenerate after a
  * check's request pattern changes; a check missing here is estimated at `DEFAULT_CHECK_COST`.
  */
-import type { EntityModel, SpecModel } from "../spec/graph.ts"
+import type { EntityModel, SpecModel } from "../spec/graph/types.ts"
 import type { CheckId } from "./check-ids.ts"
 import { CHECKS } from "./checks/registry.ts"
 

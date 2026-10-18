@@ -1,5 +1,5 @@
 import { defineCheck } from "../../core/define.ts"
-import { andTerm } from "../../../../spec/conventions.ts"
+import { andTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"

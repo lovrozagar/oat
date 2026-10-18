@@ -6,8 +6,8 @@
  */
 
 import type { Hooks } from "../config/types/hooks.ts"
-import type { WaitSpec } from "../spec/extensions.ts"
-import type { OperationModel } from "../spec/graph.ts"
+import type { WaitSpec } from "../spec/extensions/async.ts"
+import type { OperationModel } from "../spec/graph/types.ts"
 import type { Client } from "../client/client.ts"
 import type { Exchange } from "./exchange.ts"
 import { readPath as readPointer } from "./path.ts"

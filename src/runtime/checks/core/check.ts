@@ -4,7 +4,7 @@ import type { CheckId } from "../../check-ids.ts"
 import type { CheckContext, WriteContext } from "./context.ts"
 import type { Plan } from "./plan.ts"
 import type { Outcome } from "../../finding.ts"
-import type { EntityModel, SpecModel } from "../../../spec/graph.ts"
+import type { EntityModel, SpecModel } from "../../../spec/graph/types.ts"
 
 export interface CheckBase<T> {
 	id: CheckId

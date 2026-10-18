@@ -1,4 +1,4 @@
-import type { SpecModel } from "../../spec/graph.ts"
+import type { SpecModel } from "../../spec/graph/types.ts"
 
 /**
  * Which checks each tag makes possible, measured rather than estimated.

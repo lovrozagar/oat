@@ -1,4 +1,4 @@
-import type { EntityModel, OperationModel } from "../../../spec/graph.ts"
+import type { EntityModel, OperationModel } from "../../../spec/graph/types.ts"
 import { rootReadIds } from "../../root-read.ts"
 import { createIsAuthProvisioned, staticSubjects } from "../../scope.ts"
 import { entityIsSelf } from "../../self.ts"

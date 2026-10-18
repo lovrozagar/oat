@@ -69,15 +69,6 @@ const UNTESTED: readonly string[] = [
 	"src/runtime/upload.ts",
 	"src/runtime/validate.ts",
 	"src/runtime/wait.ts",
-	"src/spec/allow.ts",
-	"src/spec/conventions.ts",
-	"src/spec/grammar-overrides.ts",
-	"src/spec/overlay.ts",
-	"src/spec/prepare.ts",
-	"src/spec/query-capabilities.ts",
-	"src/spec/schema.ts",
-	"src/spec/tag-schema.ts",
-	"src/spec/types.ts",
 ]
 
 function filesUnder(dir: string): string[] {

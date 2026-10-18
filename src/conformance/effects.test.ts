@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { buildModel } from "../spec/graph.ts"
-import { dereference } from "../spec/load.ts"
+import { buildModel } from "../spec/graph/build.ts"
+import { dereference } from "../spec/load/dereference.ts"
 import { extractSpec } from "./effects.ts"
 
 describe("the effects suite's document", () => {

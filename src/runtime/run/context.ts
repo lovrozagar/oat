@@ -1,5 +1,5 @@
 import type { Hooks } from "../../config/types/hooks.ts"
-import type { EntityModel, OperationModel, SpecModel } from "../../spec/graph.ts"
+import type { EntityModel, OperationModel, SpecModel } from "../../spec/graph/types.ts"
 import type { PrincipalRuntime } from "../auth.ts"
 import type { Exchange } from "../exchange.ts"
 import type { ProvenId } from "../proven-id.ts"

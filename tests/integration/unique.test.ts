@@ -3,8 +3,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { report } from "../../src/report/console/report.ts"
 import { run } from "../../src/runtime/run/index.ts"
-import { readUnique } from "../../src/spec/extensions.ts"
-import { buildModel } from "../../src/spec/graph.ts"
+import { readUnique } from "../../src/spec/extensions/unique.ts"
+import { buildModel } from "../../src/spec/graph/build.ts"
 import type { OpenApiDocument, OperationObject } from "../../src/spec/types.ts"
 
 const ITEM = {

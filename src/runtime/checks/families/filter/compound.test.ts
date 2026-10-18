@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { andTerm, orTerm } from "../../../../spec/conventions.ts"
+import { andTerm, orTerm } from "../../../../spec/conventions/filter.ts"
 import { compoundPlan, readComposed, twoFilterableFields } from "./compound.ts"
 import { endless, filters, growing, REFUSE_FILTERED, reserving, stage } from "./__fixtures__/widgets.ts"
 

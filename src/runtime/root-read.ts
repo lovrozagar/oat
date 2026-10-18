@@ -7,7 +7,7 @@ import type { Check } from "./checks/core/check.ts"
 import type { Client } from "../client/client.ts"
 import { ASSERTED, type FindingCollector, type Outcome } from "./finding.ts"
 import type { CheckId } from "./check-ids.ts"
-import type { EntityModel, SpecModel } from "../spec/graph.ts"
+import type { EntityModel, SpecModel } from "../spec/graph/types.ts"
 import { fillPath } from "./fill-path.ts"
 
 export const ROOT_READ_CHECK_ID = "read.matches-caller-root" as const satisfies CheckId

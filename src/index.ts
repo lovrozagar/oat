@@ -53,9 +53,10 @@ export { allocateRunDir, DEFAULT_RUNS_ROOT } from "./runtime/runs.ts"
 
 export { worstCaseWaitMs } from "./runtime/poll.ts"
 
-export { buildModel } from "./spec/graph.ts"
-export type { EntityModel, OperationModel, SpecModel } from "./spec/graph.ts"
-export { dereference, loadSpec } from "./spec/load.ts"
+export { buildModel } from "./spec/graph/build.ts"
+export type { EntityModel, OperationModel, SpecModel } from "./spec/graph/types.ts"
+export { dereference } from "./spec/load/dereference.ts"
+export { loadSpec } from "./spec/load/source.ts"
 export { ScopeError } from "./runtime/scope.ts"
 
 export type { OpenApiDocument } from "./spec/types.ts"

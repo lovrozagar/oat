@@ -46,33 +46,38 @@ export function pruneToAllow(
 	return { doc: out, removed: removed.sort() }
 }
 
+/** The operations `steps` call on the document itself that the allowlist removed. */
+function removedCalls(kept: ReadonlySet<string>, steps: readonly object[]): string[] {
+	return steps
+		.filter((step): step is { operationId: string; origin?: unknown } => "operationId" in step)
+		.filter((step) => step.origin === undefined && !kept.has(step.operationId))
+		.map((step) => step.operationId)
+}
+
+function principalProblems(kept: ReadonlySet<string>, principal: Principal): string[] {
+	const auth = principal.auth
+	if (auth === undefined || !("steps" in auth)) return []
+	const steps = [...auth.steps, ...(auth.refresh?.steps ?? [])]
+	return removedCalls(kept, steps).map((id) => `principal "${principal.id}" auth step "${id}"`)
+}
+
+function scenarioProblems(kept: ReadonlySet<string>, scenario: Scenario): string[] {
+	if (scenario.origin !== undefined) return []
+	return [
+		...removedCalls(kept, scenario.steps).map((id) => `scenario "${scenario.id}" step "${id}"`),
+		...scenario.covers.filter((id) => !kept.has(id)).map((id) => `scenario "${scenario.id}" covers "${id}"`),
+	]
+}
+
 /** Every operation the config itself will call by name must survive the allowlist. */
 export function assertAllowedReferences(
 	kept: ReadonlySet<string>,
 	config: { principals?: readonly Principal[]; scenarios?: readonly Scenario[] },
 ): void {
-	const problems: string[] = []
-	for (const principal of config.principals ?? []) {
-		const auth = principal.auth
-		if (auth === undefined || !("steps" in auth)) continue
-		const steps = [...auth.steps, ...(auth.refresh?.steps ?? [])]
-		for (const step of steps) {
-			if ("operationId" in step && step.origin === undefined && !kept.has(step.operationId)) {
-				problems.push(`principal "${principal.id}" auth step "${step.operationId}"`)
-			}
-		}
-	}
-	for (const scenario of config.scenarios ?? []) {
-		if (scenario.origin !== undefined) continue
-		for (const step of scenario.steps) {
-			if ("operationId" in step && step.origin === undefined && !kept.has(step.operationId)) {
-				problems.push(`scenario "${scenario.id}" step "${step.operationId}"`)
-			}
-		}
-		for (const id of scenario.covers) {
-			if (!kept.has(id)) problems.push(`scenario "${scenario.id}" covers "${id}"`)
-		}
-	}
+	const problems = [
+		...(config.principals ?? []).flatMap((principal) => principalProblems(kept, principal)),
+		...(config.scenarios ?? []).flatMap((scenario) => scenarioProblems(kept, scenario)),
+	]
 	if (problems.length > 0) {
 		throw new UsageError(`allow removes operations the config still calls: ${[...new Set(problems)].join("; ")}`)
 	}

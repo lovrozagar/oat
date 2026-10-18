@@ -1,5 +1,5 @@
 import type { FindingCollector } from "../../../../finding.ts"
-import type { SpecModel } from "../../../../../spec/graph.ts"
+import type { SpecModel } from "../../../../../spec/graph/types.ts"
 import { contextFor, type Responder, type Sent } from "../../../__fixtures__/harness.ts"
 import type { Actor, CheckContext, WriteContext } from "../../../core/context.ts"
 

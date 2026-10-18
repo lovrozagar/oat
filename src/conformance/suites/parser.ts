@@ -1,5 +1,5 @@
-import { buildModel } from "../../spec/graph.ts"
-import { dereference } from "../../spec/load.ts"
+import { buildModel } from "../../spec/graph/build.ts"
+import { dereference } from "../../spec/load/dereference.ts"
 import type { OpenApiDocument } from "../../spec/types.ts"
 import type { ParserResult } from "../harness/result.ts"
 import { SPEC_FIXTURES } from "../specs.ts"

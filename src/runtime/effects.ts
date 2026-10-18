@@ -6,8 +6,8 @@
  * or from A's list delta. `count` is exact; `min` is at-least.
  */
 
-import type { EffectSpec } from "../spec/extensions.ts"
-import type { SpecModel } from "../spec/graph.ts"
+import type { EffectSpec } from "../spec/extensions/effects.ts"
+import type { SpecModel } from "../spec/graph/types.ts"
 import { fillPath } from "./fill-path.ts"
 
 export type EffectCardinality = { mode: "exact"; count: number } | { mode: "min"; min: number }

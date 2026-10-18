@@ -8,8 +8,8 @@
  * where its own path put it.
  */
 
-import type { OperationModel, SpecModel } from "../spec/graph.ts"
-import { pathTemplateParams } from "../spec/load.ts"
+import type { OperationModel, SpecModel } from "../spec/graph/types.ts"
+import { pathTemplateParams } from "../spec/routes.ts"
 import type { Client } from "../client/client.ts"
 import type { Exchange } from "./exchange.ts"
 import { returnedId } from "./proven-id.ts"

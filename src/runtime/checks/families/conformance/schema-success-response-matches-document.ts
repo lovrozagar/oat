@@ -1,5 +1,5 @@
 import { defineCheck } from "../../core/define.ts"
-import type { OperationModel } from "../../../../spec/graph.ts"
+import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { OperationObject } from "../../../../spec/types.ts"
 import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
 import type { SchemaValidator } from "../../../validate.ts"

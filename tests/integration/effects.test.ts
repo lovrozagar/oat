@@ -25,8 +25,9 @@ import {
 import { run } from "../../src/runtime/run/index.ts"
 import { driveWait } from "../../src/runtime/wait.ts"
 import { Client } from "../../src/client/client.ts"
-import { GapCollector, readEffects } from "../../src/spec/extensions.ts"
-import { buildModel } from "../../src/spec/graph.ts"
+import { readEffects } from "../../src/spec/extensions/effects.ts"
+import { GapCollector } from "../../src/spec/extensions/gaps.ts"
+import { buildModel } from "../../src/spec/graph/build.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { Redactor } from "../../src/security/redact.ts"
 

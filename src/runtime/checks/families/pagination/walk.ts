@@ -1,4 +1,4 @@
-import type { SortValue } from "../../../../spec/sort-render.ts"
+import type { SortValue } from "../../../../spec/render/sort.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { ids, type Walk } from "../../sets/list.ts"
 import { readSet } from "../../sets/read.ts"

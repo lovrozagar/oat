@@ -1,5 +1,5 @@
 import { defineCheck } from "../../core/define.ts"
-import { owningEntityOf } from "../../../../spec/graph.ts"
+import { owningEntityOf } from "../../../../spec/graph/roots.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { canFillPath } from "../../../effects.ts"
 import { fillPath } from "../../../fill-path.ts"

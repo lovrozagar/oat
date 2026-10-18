@@ -6,7 +6,7 @@
  * a broken create is the class of mistake that turns a correct backend into `world.seed` BLOCKED.
  */
 
-import type { OperationModel } from "../spec/graph.ts"
+import type { OperationModel } from "../spec/graph/types.ts"
 
 /** Forbidden status unless a later abstraction names another one — the documented default. */
 export const FEATURE_GATE_STATUS = 403

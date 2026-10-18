@@ -13,7 +13,7 @@
  * never from suffix arithmetic that ignores `maximum`, `multipleOf`, `enum` or `format`.
  */
 
-import { DEFS_ID } from "../spec/load.ts"
+import { DEFS_ID } from "../spec/load/defs.ts"
 import { UNICODE_COHORT_STRING, codePointCount, sliceCodePoints } from "./payloads.ts"
 
 type Schema = Record<string, unknown>

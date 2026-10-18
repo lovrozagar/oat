@@ -58,7 +58,7 @@
 				"src/runtime/checks/**",
 				"src/runtime/run/**",
 				"src/security/**",
-				"src/spec/security/**"
+				"src/spec/**"
 			],
 			"plugins": ["typescript", "unicorn", "oxc", "vitest"],
 			"rules": {
@@ -101,7 +101,7 @@
 				"src/credentials/**/*.test.ts",
 				"src/runtime/checks/**/*.test.ts",
 				"src/security/**/*.test.ts",
-				"src/spec/security/**/*.test.ts"
+				"src/spec/**/*.test.ts"
 			],
 			"rules": {
 				"max-lines": ["error", 500]

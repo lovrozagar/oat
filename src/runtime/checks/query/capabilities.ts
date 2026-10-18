@@ -1,13 +1,11 @@
-import { canWriteFilterOp, filterSpec, type QueryConventions } from "../../../spec/conventions.ts"
-import { documentedPage } from "../../../spec/graph.ts"
-import {
-	type EffectiveFilterField,
-	type EffectiveQueryCapabilities,
-	fieldAllows,
-	FILTER_OPS,
-	mergeQueryCapabilities,
-} from "../../../spec/query-capabilities.ts"
-import type { SortValue } from "../../../spec/sort-render.ts"
+import { canWriteFilterOp, filterSpec } from "../../../spec/conventions/filter.ts"
+import type { QueryConventions } from "../../../spec/conventions/types.ts"
+import { documentedPage } from "../../../spec/graph/paging.ts"
+import type { EffectiveFilterField, EffectiveQueryCapabilities } from "../../../spec/query/effective.ts"
+import { fieldAllows } from "../../../spec/query/field-ops.ts"
+import { mergeQueryCapabilities } from "../../../spec/query/merge.ts"
+import { FILTER_OPS } from "../../../spec/query/ops.ts"
+import type { SortValue } from "../../../spec/render/sort.ts"
 import type { RequestOptions } from "../../../client/types.ts"
 import type { CheckContext } from "../core/context.ts"
 

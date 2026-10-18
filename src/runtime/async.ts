@@ -7,7 +7,7 @@
  */
 
 import { readPath } from "./path.ts"
-import type { AsyncSpec } from "../spec/extensions.ts"
+import type { AsyncSpec } from "../spec/extensions/async.ts"
 import type { Client } from "../client/client.ts"
 import type { Exchange } from "./exchange.ts"
 import { type SseEvent, sseEvents } from "./sse.ts"

@@ -1,7 +1,7 @@
 import { estimateRequests } from "../../runtime/check-costs.ts"
 import { describeRequested, type ScopePlan } from "../../runtime/scope.ts"
-import { formatUniqueSets } from "../../spec/extensions.ts"
-import type { EntityModel, SpecModel } from "../../spec/graph.ts"
+import { formatUniqueSets } from "../../spec/extensions/unique.ts"
+import type { EntityModel, SpecModel } from "../../spec/graph/types.ts"
 import {
 	type DeclaredGrammar,
 	declaredGrammars,

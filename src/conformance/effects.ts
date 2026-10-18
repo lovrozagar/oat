@@ -8,8 +8,9 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { run } from "../runtime/run/index.ts"
-import { buildModel } from "../spec/graph.ts"
-import { GapCollector, readEffects } from "../spec/extensions.ts"
+import { buildModel } from "../spec/graph/build.ts"
+import { readEffects } from "../spec/extensions/effects.ts"
+import { GapCollector } from "../spec/extensions/gaps.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
 import type { ParserResult } from "./harness/result.ts"
 

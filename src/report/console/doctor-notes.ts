@@ -1,4 +1,4 @@
-import type { SpecModel } from "../../spec/graph.ts"
+import type { SpecModel } from "../../spec/graph/types.ts"
 import type { QueryCatalog } from "./catalog.ts"
 import type { DoctorFacts } from "./doctor-facts.ts"
 import { block } from "./doctor-text.ts"

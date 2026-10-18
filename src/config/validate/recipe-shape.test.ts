@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { anyrow, everyScheme, keycloak } from "../../spec/security/__fixtures__/documents.ts"
-import { buildModel } from "../../spec/graph.ts"
+import { buildModel } from "../../spec/graph/build.ts"
 import type { OpenApiDocument } from "../../spec/types.ts"
 import { securityProblems, type SpecView } from "./security.ts"
 

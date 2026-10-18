@@ -1,5 +1,5 @@
 import { defineCheck } from "../../core/define.ts"
-import type { EffectiveQueryCapabilities } from "../../../../spec/query-capabilities.ts"
+import type { EffectiveQueryCapabilities } from "../../../../spec/query/effective.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { judgeRefusal } from "../../planning/refusal.ts"

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import type { InviteSpec } from "../../../spec/extensions.ts"
-import type { EntityModel, OperationModel, SpecModel } from "../../../spec/graph.ts"
+import type { InviteSpec } from "../../../spec/extensions/invite.ts"
+import type { EntityModel, OperationModel, SpecModel } from "../../../spec/graph/types.ts"
 import { exchange } from "../__fixtures__/harness.ts"
 import { notesContext, notesModel } from "../query/__fixtures__/notes.ts"
 import { declared, graded, isEventStream, itemParamFor, NO_KEY, ownOps, subjectsOf } from "./subjects.ts"

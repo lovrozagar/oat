@@ -7,9 +7,10 @@
  * reported as BLOCKED against that single cause.
  */
 
-import type { OperationModel, SpecModel } from "../spec/graph.ts"
-import { requestContent } from "../spec/collection.ts"
-import { largestPageQuery, owningEntityOf } from "../spec/graph.ts"
+import type { OperationModel, SpecModel } from "../spec/graph/types.ts"
+import { requestContent } from "../spec/collection/request.ts"
+import { largestPageQuery } from "../spec/graph/paging.ts"
+import { owningEntityOf } from "../spec/graph/roots.ts"
 import { encodeForOperation } from "./body.ts"
 import { forEachInvocation } from "./upload-each.ts"
 import type { Client } from "../client/client.ts"

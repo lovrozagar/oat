@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import type { QueryConventions } from "../../spec/conventions.ts"
-import type { EffectiveQueryCapabilities } from "../../spec/query-capabilities.ts"
+import type { QueryConventions } from "../../spec/conventions/types.ts"
+import type { EffectiveQueryCapabilities } from "../../spec/query/effective.ts"
 import { referenceModel } from "./__fixtures__/models.ts"
 import { catalogCheckPreview } from "./catalog-checks.ts"
 import { listOperation } from "./describe.ts"

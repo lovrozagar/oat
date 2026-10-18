@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { QueryCapability as QueryTag } from "../../../spec/extensions.ts"
+import type { QueryCapability as QueryTag } from "../../../spec/extensions/query-tag.ts"
 import {
 	asTermValue,
 	canUseOp,

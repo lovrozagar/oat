@@ -5,19 +5,15 @@
  */
 
 import type { QueryCapabilitiesRequest } from "../config/types/hooks.ts"
-import type { QueryCapability } from "../spec/extensions.ts"
-import { parseRouteRef } from "../spec/load.ts"
-import type { OperationModel, SpecModel } from "../spec/graph.ts"
-import {
-	type EffectiveQueryCapabilities,
-	type FilterableField,
-	type QueryCapabilities,
-	applyHarvest,
-	applyHook,
-	emptyCapabilities,
-	mergeQueryCapabilities,
-	readJsonPathList,
-} from "../spec/query-capabilities.ts"
+import type { QueryCapability } from "../spec/extensions/query-tag.ts"
+import { parseRouteRef } from "../spec/routes.ts"
+import type { OperationModel, SpecModel } from "../spec/graph/types.ts"
+import type { FilterableField, QueryCapabilities } from "../config/types/query.ts"
+import type { EffectiveQueryCapabilities } from "../spec/query/effective.ts"
+import { applyHarvest } from "../spec/query/harvest.ts"
+import { applyHook } from "../spec/query/hook.ts"
+import { readJsonPathList } from "../spec/query/json-path.ts"
+import { emptyCapabilities, mergeQueryCapabilities } from "../spec/query/merge.ts"
 import type { Client } from "../client/client.ts"
 import { fillPath } from "./fill-path.ts"
 

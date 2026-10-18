@@ -1,5 +1,5 @@
 import { defineCheck } from "../../core/define.ts"
-import { selectTerm } from "../../../../spec/conventions.ts"
+import { selectTerm } from "../../../../spec/conventions/select.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"

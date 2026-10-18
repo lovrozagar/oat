@@ -1,5 +1,5 @@
-import { type andTerm, filterTerm } from "../../../../spec/conventions.ts"
-import type { FilterQuery } from "../../../../spec/filter-render.ts"
+import { type andTerm, filterTerm } from "../../../../spec/conventions/filter.ts"
+import type { FilterQuery } from "../../../../spec/render/filter-types.ts"
 import type { Record_ } from "../../../world.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { cannot, type Plan, ready } from "../../core/plan.ts"
@@ -102,7 +102,7 @@ export function compoundPlan(
 	const valueB = String(target[fieldB])
 	const termA = filterTerm(conventions, fieldA, "eq", valueA)
 	const termB = filterTerm(conventions, fieldB, "eq", valueB)
-	const combined = combine(conventions, fieldA, valueA, fieldB, valueB)
+	const combined = combine(conventions, { field: fieldA, value: valueA }, { field: fieldB, value: valueB })
 	if (termA === null || termB === null || combined === null) {
 		return cannot("a filter grammar that can express a combined predicate")
 	}

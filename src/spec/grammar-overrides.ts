@@ -8,10 +8,12 @@
  */
 
 import { UsageError } from "../errors/usage-error.ts"
-import type { QueryConventions } from "./conventions.ts"
-import { type FilterGrammarSpec, parseFilterGrammar } from "./filter-render.ts"
-import type { SpecModel } from "./graph.ts"
-import { parseSortGrammar, SORT_PRESETS, type SortGrammarSpec } from "./sort-render.ts"
+import type { QueryConventions } from "./conventions/types.ts"
+import type { FilterGrammarSpec } from "./render/filter-types.ts"
+import { parseFilterGrammar } from "./render/filter-parse.ts"
+import type { SpecModel } from "./graph/types.ts"
+import { parseSortGrammar } from "./render/sort-parse.ts"
+import { SORT_PRESETS, type SortGrammarSpec } from "./render/sort.ts"
 
 import type { DeclaredFilterGrammar, DeclaredSortGrammar } from "../config/types/query.ts"
 

@@ -1,5 +1,5 @@
-import type { EffectiveQueryCapabilities } from "../../../spec/query-capabilities.ts"
-import type { QueryCapability } from "../../../spec/extensions.ts"
+import type { EffectiveQueryCapabilities } from "../../../spec/query/effective.ts"
+import type { QueryCapability } from "../../../spec/extensions/query-tag.ts"
 import { resolveEntityCapabilities } from "../../query-capabilities.ts"
 import type { EntityRun } from "./state.ts"
 

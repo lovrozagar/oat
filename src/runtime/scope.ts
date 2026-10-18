@@ -10,8 +10,9 @@
 
 import type { Principal } from "../config/types/principals.ts"
 import { isAuthFlow } from "./auth-kind.ts"
-import { type OperationModel, type EntityModel, owningEntityOf, type SpecModel } from "../spec/graph.ts"
-import { pathTemplateMatches } from "../spec/load.ts"
+import type { OperationModel, EntityModel, SpecModel } from "../spec/graph/types.ts"
+import { owningEntityOf } from "../spec/graph/roots.ts"
+import { pathTemplateMatches } from "../spec/routes.ts"
 import { CHECKS } from "./checks/registry.ts"
 import type { GradeLedger, PassEvidence } from "./grades.ts"
 

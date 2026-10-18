@@ -1,6 +1,6 @@
-import type { EntityModel, OperationModel, SpecModel } from "../../spec/graph.ts"
-import { describeFilterGrammar } from "../../spec/filter-render.ts"
-import { describeSortGrammar } from "../../spec/sort-render.ts"
+import type { EntityModel, OperationModel, SpecModel } from "../../spec/graph/types.ts"
+import { describeFilterGrammar } from "../../spec/render/filter-describe.ts"
+import { describeSortGrammar } from "../../spec/render/sort-parse.ts"
 
 /** A declared grammar, described, for one entity's list. */
 export interface DeclaredGrammar {

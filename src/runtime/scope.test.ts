@@ -10,8 +10,9 @@ import {
 	ScopeError,
 	staticSubjects,
 } from "./scope.ts"
-import { buildModel, type SpecModel } from "../spec/graph.ts"
-import { dereference } from "../spec/load.ts"
+import { buildModel } from "../spec/graph/build.ts"
+import type { SpecModel } from "../spec/graph/types.ts"
+import { dereference } from "../spec/load/dereference.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
 function referenceModel(): SpecModel {
 	return buildModel(dereference(buildSpec() as OpenApiDocument).doc)

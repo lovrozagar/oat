@@ -1,5 +1,5 @@
 import { report } from "../../report/console/report.ts"
-import type { SpecModel } from "../../spec/graph.ts"
+import type { SpecModel } from "../../spec/graph/types.ts"
 import { EXIT } from "../../runtime/exit.ts"
 import { authStepOperationIds, planScope, resolveTargetScope, ScopeError } from "../../runtime/scope.ts"
 import { type Args, list } from "../flags.ts"

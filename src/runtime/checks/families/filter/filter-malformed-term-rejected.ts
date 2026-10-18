@@ -1,6 +1,6 @@
 import { defineCheck } from "../../core/define.ts"
-import { filterSpec, filterTerm } from "../../../../spec/conventions.ts"
-import { renderMalformed } from "../../../../spec/filter-render.ts"
+import { filterSpec, filterTerm } from "../../../../spec/conventions/filter.ts"
+import { renderMalformed } from "../../../../spec/render/filter-probe.ts"
 import type { Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { asProbe, judgeRefusal } from "../../planning/refusal.ts"
@@ -23,7 +23,12 @@ export const filterMalformedTermRejected = defineCheck<{
 		for (const field of resolvedCaps(ctx).filterable) {
 			const sample = ctx.records.find((row) => row[field.field] != null)
 			const value = sample === undefined ? "oat-probe" : String(asTermValue(sample[field.field]))
-			const malformed = renderMalformed(filterSpec(conventions), conventions.filter, field.field, value)
+			const malformed = renderMalformed({
+				field: field.field,
+				filterParam: conventions.filter,
+				spec: filterSpec(conventions),
+				value,
+			})
 			const control = filterTerm(conventions, field.field, "eq", value)
 			if (malformed !== null && control !== null) return ready({ control, field: field.field, malformed })
 		}

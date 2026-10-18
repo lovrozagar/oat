@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { QueryCapability } from "../../../../spec/extensions.ts"
+import type { QueryCapability } from "../../../../spec/extensions/query-tag.ts"
 import type { Record_ } from "../../../world.ts"
 import type { Responder } from "../../__fixtures__/harness.ts"
 import { resolvedCaps } from "../../query/capabilities.ts"

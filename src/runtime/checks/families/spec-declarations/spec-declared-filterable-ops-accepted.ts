@@ -1,11 +1,8 @@
 import { defineCheck } from "../../core/define.ts"
-import { canWriteFilterOp, filterTerm } from "../../../../spec/conventions.ts"
-import {
-	type EffectiveFilterField,
-	FILTER_OPS,
-	opsAreClosed,
-	opsForField,
-} from "../../../../spec/query-capabilities.ts"
+import { canWriteFilterOp, filterTerm } from "../../../../spec/conventions/filter.ts"
+import type { EffectiveFilterField } from "../../../../spec/query/effective.ts"
+import { opsAreClosed, opsForField } from "../../../../spec/query/field-ops.ts"
+import { FILTER_OPS } from "../../../../spec/query/ops.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { filterSentinel } from "../../../generate.ts"

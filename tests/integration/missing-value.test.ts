@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it } from "vitest"
 import { Client } from "../../src/client/client.ts"
 import { MissingValueError } from "../../src/errors/missing-value.ts"
 import { idOf } from "../../src/runtime/world.ts"
-import { FILTER_PRESETS, renderTerm } from "../../src/spec/filter-render.ts"
+import { FILTER_PRESETS } from "../../src/spec/render/filter-presets.ts"
+import { renderTerm } from "../../src/spec/render/filter-term.ts"
 import { Redactor } from "../../src/security/redact.ts"
 
 /*

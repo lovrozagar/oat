@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { OperationModel } from "../../../../spec/graph.ts"
+import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
 import { runCheck } from "../../core/run.ts"
 import { noLostUpdate } from "./concurrency-no-lost-update.ts"

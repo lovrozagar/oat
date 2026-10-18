@@ -1,0 +1,185 @@
+/** One operation read into the model: its tags, its contract, and what its query parameters mean. */
+
+import { ambiguousRows, type CollectionShape, deriveCollectionShape, rowsKeyOf } from "../collection/shape.ts"
+import { documentsEventStream, successSchema } from "../collection/responses.ts"
+import { hasRequestBody, requestSchema } from "../collection/request.ts"
+import { type ConventionSources, deriveQueryConventions } from "../conventions/derive.ts"
+import { MUTATING_METHODS } from "../endpoints.ts"
+import type { GapCollector } from "../extensions/gaps.ts"
+import { pathParameterNames, readRootParams, readTenantParam, readTenantSource } from "../extensions/tenant.ts"
+import { readAsync, readWait } from "../extensions/async.ts"
+import { readCleanup, readInvalidate } from "../extensions/routes.ts"
+import {
+	readCost,
+	readFeatureGate,
+	readFlag,
+	readGenerated,
+	readImmutable,
+	readRateLimit,
+	readSoftDelete,
+} from "../extensions/flags.ts"
+import { readCreatedIdFrom, readEntity, readRecordPath } from "../extensions/entity.ts"
+import { readEffects } from "../extensions/effects.ts"
+import { readInvite } from "../extensions/invite.ts"
+import { readQueryCapability } from "../extensions/query-tag.ts"
+import { readUnique } from "../extensions/unique.ts"
+import { resolveSecurity } from "../security/requirements.ts"
+import { validateTags } from "../tags/validate.ts"
+import type { Endpoint, OpenApiDocument, SchemaObject } from "../types.ts"
+import { operationIdentity } from "./identity.ts"
+import { idempotencyHeader, readRequiredQuery, successResponseHeaders } from "./parameters.ts"
+import { isParamSegment, segmentsOf } from "./segments.ts"
+import { readStatuses } from "./statuses.ts"
+import type { OperationModel } from "./types.ts"
+
+/** What the facts are read from: the endpoint, and what was derived from it first. */
+interface Reading {
+	endpoint: Endpoint
+	gaps: GapCollector
+	collection: CollectionShape | null
+	recordPath: string | null
+	bodySchema: SchemaObject | null
+	entity: ReturnType<typeof readEntity>
+	pathParams: string[]
+	identity: Pick<OperationModel, "identity" | "identitySource">
+	security: OperationModel["security"]
+	statuses: OperationModel["statuses"]
+}
+
+/* The model's fields, split where they are read; gaps are recorded in field order. */
+type ContractFacts =
+	| "action"
+	| "async"
+	| "eventStream"
+	| "cleanup"
+	| "collection"
+	| "createdIdFrom"
+	| "recordPath"
+	| "cost"
+	| "featureGate"
+	| "unique"
+	| "destructive"
+	| "documentedStatuses"
+	| "statuses"
+
+export function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapCollector): OperationModel {
+	const reading = readOperation(endpoint, doc, gaps)
+	return { ...contractFacts(reading), ...behaviourFacts(reading), ...requestFacts(reading) }
+}
+
+function readOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapCollector): Reading {
+	const { op, path, operationId } = endpoint
+	const responseSchema = successSchema(op)
+	const recordPath = readRecordPath(endpoint)
+	const collection = deriveCollectionShape(responseSchema, rowsKeyOf(recordPath))
+	reportAmbiguousRows(endpoint, recordPath, responseSchema, gaps)
+	const bodySchema = requestSchema(op)
+	validateTags(op, operationId, gaps)
+	const entity = readEntity(endpoint, gaps)
+	const pathParams = pathParameterNames(path)
+	const itemSchema = collection?.itemSchema ?? responseSchema
+	return {
+		bodySchema,
+		collection,
+		endpoint,
+		entity,
+		gaps,
+		identity: operationIdentity(entity?.identity, itemSchema, path, pathParams),
+		pathParams,
+		recordPath,
+		security: resolveSecurity(op, doc),
+		statuses: readStatuses(op.responses),
+	}
+}
+
+/** Only a listing has rows to name: a record that holds several arrays is just a record. */
+function reportAmbiguousRows(
+	endpoint: Endpoint,
+	recordPath: string | null,
+	schema: SchemaObject | null,
+	gaps: GapCollector,
+): void {
+	const lastSegment = segmentsOf(endpoint.path).at(-1) ?? ""
+	const listing = endpoint.method.toUpperCase() === "GET" && !isParamSegment(lastSegment)
+	const ambiguous = recordPath === null && listing ? ambiguousRows(schema) : []
+	if (ambiguous.length === 0) return
+	gaps.record(
+		endpoint.operationId,
+		"x-entity.recordPath",
+		`the response holds several arrays of objects (${ambiguous.join(", ")}), so oat cannot tell which ` +
+			'are the rows; name them with x-entity.recordPath (e.g. "$.' +
+			`${ambiguous[0]}")`,
+	)
+}
+
+function contractFacts(reading: Reading): Pick<OperationModel, ContractFacts> {
+	const { endpoint, gaps } = reading
+	const { op } = endpoint
+	return {
+		action: reading.entity?.action ?? null,
+		async: readAsync(op),
+		eventStream: documentsEventStream(op),
+		cleanup: readCleanup(op),
+		collection: reading.collection,
+		createdIdFrom: readCreatedIdFrom(endpoint),
+		recordPath: reading.recordPath,
+		cost: readCost(op),
+		featureGate: readFeatureGate(op),
+		unique: readUnique(op, endpoint.operationId, gaps),
+		destructive: readFlag(op, "x-destructive", true),
+		documentedStatuses: reading.statuses.exact,
+		statuses: reading.statuses,
+	}
+}
+
+function behaviourFacts(reading: Reading) {
+	const { endpoint, gaps } = reading
+	const { op, operationId, path } = endpoint
+	const effects = (op as Record<string, unknown>)["x-effects"]
+	const method = endpoint.method.toUpperCase()
+	return {
+		effects: readEffects(op, operationId, gaps),
+		noEffects: Array.isArray(effects) && effects.length === 0,
+		entity: reading.entity?.name ?? null,
+		entitySource: reading.entity?.source ?? null,
+		freshPrincipal: readFlag(op, "x-fresh-principal"),
+		generated: readGenerated(op, reading.bodySchema),
+		hasRequestBody: hasRequestBody(op),
+		...reading.identity,
+		idempotent: readFlag(op, "x-idempotent"),
+		immutable: readImmutable(op),
+		invalidates: readInvalidate(op),
+		rateLimit: readRateLimit(op),
+		isMutation: MUTATING_METHODS.has(method),
+		method,
+		operationId,
+		path,
+		pathParams: reading.pathParams,
+	}
+}
+
+function requestFacts(reading: Reading) {
+	const { endpoint, gaps, collection } = reading
+	const { op, operationId } = endpoint
+	const parameters = op.parameters ?? []
+	return {
+		query: collection === null ? null : readQueryCapability(endpoint, collection.itemSchema, gaps),
+		conventions: deriveQueryConventions(parameters, collection, {
+			declared: (op as Record<string, unknown>)["x-query"] as ConventionSources["declared"],
+			onGuess: (message) => gaps.record(operationId, "x-query", message),
+			responseHeaders: successResponseHeaders(op),
+		}),
+		queryParamNames: parameters.filter((p) => p.in === "query").map((p) => p.name),
+		requiredQuery: readRequiredQuery(parameters),
+		idempotencyHeader: idempotencyHeader(op),
+		rootParams: readRootParams(op),
+		route: `${endpoint.method.toUpperCase()} ${endpoint.path}`,
+		securitySchemes: [...new Set(reading.security.alternatives.flat().map((requirement) => requirement.scheme))],
+		security: reading.security,
+		softDelete: readSoftDelete(op),
+		invite: readInvite(op),
+		wait: readWait(op),
+		tenantParam: readTenantParam(endpoint, gaps),
+		tenantSource: readTenantSource(endpoint),
+	}
+}

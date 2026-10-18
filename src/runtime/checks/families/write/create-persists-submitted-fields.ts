@@ -1,5 +1,5 @@
 import { defineCheck } from "../../core/define.ts"
-import type { OperationModel } from "../../../../spec/graph.ts"
+import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
 import { headerValue } from "../../../headers.ts"
 import { createdRecordOf, type Record_ } from "../../../world.ts"

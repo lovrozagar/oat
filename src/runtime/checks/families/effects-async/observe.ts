@@ -1,4 +1,4 @@
-import type { OperationModel } from "../../../../spec/graph.ts"
+import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { canFillPath } from "../../../effects.ts"
 import { fillPath } from "../../../fill-path.ts"

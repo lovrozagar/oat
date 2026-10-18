@@ -9,8 +9,9 @@
 
 import type { Hooks } from "../config/types/hooks.ts"
 import type { OperationObject } from "../spec/types.ts"
-import { documentsStatus, type OperationModel, type SpecModel } from "../spec/graph.ts"
-import { requestContent } from "../spec/collection.ts"
+import { documentsStatus } from "../spec/graph/statuses.ts"
+import type { OperationModel, SpecModel } from "../spec/graph/types.ts"
+import { requestContent } from "../spec/collection/request.ts"
 import type { CheckId } from "./check-ids.ts"
 import type { Client } from "../client/client.ts"
 import type { Exchange } from "./exchange.ts"

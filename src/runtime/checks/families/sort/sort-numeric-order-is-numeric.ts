@@ -1,6 +1,6 @@
 import { defineCheck } from "../../core/define.ts"
-import { sortTerm } from "../../../../spec/conventions.ts"
-import type { EffectiveFilterField } from "../../../../spec/query-capabilities.ts"
+import { sortTerm } from "../../../../spec/conventions/sort.ts"
+import type { EffectiveFilterField } from "../../../../spec/query/effective.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"

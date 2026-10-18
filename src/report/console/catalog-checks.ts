@@ -1,12 +1,9 @@
 import type { FilterOp } from "../../config/types/query.ts"
-import { canWriteFilterOp, filterSpec, type QueryConventions } from "../../spec/conventions.ts"
-import { canGroupAnd } from "../../spec/filter-render.ts"
-import {
-	anyFieldAllows,
-	type EffectiveQueryCapabilities,
-	fieldAllowsNulls,
-	opsAreClosed,
-} from "../../spec/query-capabilities.ts"
+import { canWriteFilterOp, filterSpec } from "../../spec/conventions/filter.ts"
+import type { QueryConventions } from "../../spec/conventions/types.ts"
+import { canGroupAnd } from "../../spec/render/filter-term.ts"
+import type { EffectiveQueryCapabilities } from "../../spec/query/effective.ts"
+import { anyFieldAllows, fieldAllowsNulls, opsAreClosed } from "../../spec/query/field-ops.ts"
 
 type Caps = EffectiveQueryCapabilities
 

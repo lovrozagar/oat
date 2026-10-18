@@ -4,7 +4,7 @@
  * trusting oat. Bodies are read through the client, which may have moved older ones to disk.
  */
 
-import type { OperationModel, SpecModel } from "../spec/graph.ts"
+import type { OperationModel, SpecModel } from "../spec/graph/types.ts"
 import type { Client } from "../client/client.ts"
 import type { Exchange } from "./exchange.ts"
 import type { GradeLedger, PassEvidence } from "./grades.ts"

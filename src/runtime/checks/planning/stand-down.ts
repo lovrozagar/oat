@@ -1,4 +1,4 @@
-import type { OperationModel } from "../../../spec/graph.ts"
+import type { OperationModel } from "../../../spec/graph/types.ts"
 import type { Exchange } from "../../exchange.ts"
 import { describeFeatureGate, isDocumentedFeatureGateDenial } from "../../feature-gate.ts"
 import type { CheckContext } from "../core/context.ts"

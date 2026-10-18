@@ -1,5 +1,5 @@
-import { formatUniqueSets } from "../../spec/extensions.ts"
-import type { SpecModel } from "../../spec/graph.ts"
+import { formatUniqueSets } from "../../spec/extensions/unique.ts"
+import type { SpecModel } from "../../spec/graph/types.ts"
 import { bar, inviteAcceptMode } from "./describe.ts"
 import type { DoctorConfig, DoctorFacts } from "./doctor-facts.ts"
 import { declaredTags, TAG_SHARPENS, TAG_UNLOCKS } from "./tags.ts"

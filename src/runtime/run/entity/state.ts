@@ -1,4 +1,4 @@
-import type { EntityModel, OperationModel } from "../../../spec/graph.ts"
+import type { EntityModel, OperationModel } from "../../../spec/graph/types.ts"
 import type { Client } from "../../../client/client.ts"
 import type { FindingCollector } from "../../finding.ts"
 import type { Record_, Scope } from "../../world.ts"

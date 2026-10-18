@@ -1,5 +1,6 @@
-import { buildModel } from "../../spec/graph.ts"
-import { dereference, loadSpec } from "../../spec/load.ts"
+import { buildModel } from "../../spec/graph/build.ts"
+import { dereference } from "../../spec/load/dereference.ts"
+import { loadSpec } from "../../spec/load/source.ts"
 import type { ParserResult } from "../harness/result.ts"
 import { messageOf } from "../../errors/message.ts"
 

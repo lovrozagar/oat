@@ -1,5 +1,5 @@
-import type { Gap } from "../../spec/extensions.ts"
-import type { EntityModel, SpecModel } from "../../spec/graph.ts"
+import type { Gap } from "../../spec/extensions/gaps.ts"
+import type { EntityModel, SpecModel } from "../../spec/graph/types.ts"
 import { type CatalogConfig, entityQueryCatalogs, type QueryCatalog } from "./catalog.ts"
 import { hasInvite, type InvitingEntity, sortedEntities } from "./describe.ts"
 

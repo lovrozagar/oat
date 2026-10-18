@@ -1,5 +1,5 @@
-import type { OperationModel } from "../../../spec/graph.ts"
-import { formatUniqueSets } from "../../../spec/extensions.ts"
+import type { OperationModel } from "../../../spec/graph/types.ts"
+import { formatUniqueSets } from "../../../spec/extensions/unique.ts"
 import { resolvePathScope, type Scope, type SeededCohort, seedCohort } from "../../world.ts"
 import { ids } from "../../checks/sets/list.ts"
 import { existingOrBlocked, worldOptions } from "./fallback.ts"

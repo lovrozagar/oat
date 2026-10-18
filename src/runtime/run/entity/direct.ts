@@ -1,4 +1,4 @@
-import type { EntityModel } from "../../../spec/graph.ts"
+import type { EntityModel } from "../../../spec/graph/types.ts"
 import type { Outcome } from "../../finding.ts"
 import type { RunContext } from "../context.ts"
 

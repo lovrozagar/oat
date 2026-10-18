@@ -9,7 +9,7 @@
  */
 
 import type { ProfileSpec } from "../config/types/config.ts"
-import type { OperationModel } from "../spec/graph.ts"
+import type { OperationModel } from "../spec/graph/types.ts"
 
 export const BUILTIN_PROFILES: Record<string, ProfileSpec> = {
 	cheap: { maxCost: "low" },

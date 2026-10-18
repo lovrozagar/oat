@@ -1,6 +1,6 @@
 import { defineCheck } from "../../core/define.ts"
-import { filterTerm } from "../../../../spec/conventions.ts"
-import type { EffectiveFilterField } from "../../../../spec/query-capabilities.ts"
+import { filterTerm } from "../../../../spec/conventions/filter.ts"
+import type { EffectiveFilterField } from "../../../../spec/query/effective.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { idOf } from "../../../world.ts"
 import { cannot, ready } from "../../core/plan.ts"

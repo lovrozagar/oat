@@ -1,4 +1,4 @@
-import type { EntityModel, OperationModel, SpecModel } from "../../../spec/graph.ts"
+import type { EntityModel, OperationModel, SpecModel } from "../../../spec/graph/types.ts"
 import type { Exchange } from "../../exchange.ts"
 import type { CheckContext } from "../core/context.ts"
 

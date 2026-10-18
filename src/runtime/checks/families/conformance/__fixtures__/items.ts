@@ -1,7 +1,7 @@
 import type { Client } from "../../../../../client/client.ts"
 import type { Exchange } from "../../../../exchange.ts"
 import { SchemaValidator } from "../../../../validate.ts"
-import type { SpecModel } from "../../../../../spec/graph.ts"
+import type { SpecModel } from "../../../../../spec/graph/types.ts"
 import type { OpenApiDocument } from "../../../../../spec/types.ts"
 import type { CheckContext } from "../../../core/context.ts"
 import { type Answer, contextFor, exchange, modelOf, type Responder } from "../../../__fixtures__/harness.ts"

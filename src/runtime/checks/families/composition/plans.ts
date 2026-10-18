@@ -1,4 +1,5 @@
-import { filterTerm, selectTerm } from "../../../../spec/conventions.ts"
+import { filterTerm } from "../../../../spec/conventions/filter.ts"
+import { selectTerm } from "../../../../spec/conventions/select.ts"
 import { idOf, type Record_ } from "../../../world.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { cannot, type Plan, ready } from "../../core/plan.ts"

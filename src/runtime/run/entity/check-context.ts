@@ -1,4 +1,4 @@
-import type { OperationModel } from "../../../spec/graph.ts"
+import type { OperationModel } from "../../../spec/graph/types.ts"
 import { type Actor, checkMemo, type WriteContext } from "../../checks/core/context.ts"
 import { isolationOf } from "./actors.ts"
 import { queryOf } from "./capabilities.ts"

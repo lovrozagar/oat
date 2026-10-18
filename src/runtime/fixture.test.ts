@@ -9,7 +9,8 @@ import {
 	overflowFrom,
 } from "./fixture.ts"
 import { codePointCount } from "./payloads.ts"
-import { dereference, documentDefs } from "../spec/load.ts"
+import { dereference } from "../spec/load/dereference.ts"
+import { documentDefs } from "../spec/load/defs.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
 
 describe("fixture walk", () => {

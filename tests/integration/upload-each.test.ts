@@ -9,7 +9,7 @@ import { resetUploadPool } from "../../src/runtime/upload.ts"
 import { forEachInvocation, resolveEachInvocations } from "../../src/runtime/upload-each.ts"
 import { seedCohort } from "../../src/runtime/world.ts"
 import { Client } from "../../src/client/client.ts"
-import { buildModel } from "../../src/spec/graph.ts"
+import { buildModel } from "../../src/spec/graph/build.ts"
 import type { OpenApiDocument, OperationObject } from "../../src/spec/types.ts"
 import { Redactor } from "../../src/security/redact.ts"
 

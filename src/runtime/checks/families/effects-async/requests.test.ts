@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { InviteSpec } from "../../../../spec/extensions.ts"
+import type { InviteSpec } from "../../../../spec/extensions/invite.ts"
 import { contextFor, modelOf, op } from "../../__fixtures__/harness.ts"
 import type { Actor } from "../../core/context.ts"
 import { baseDocument } from "./__fixtures__/documents.ts"

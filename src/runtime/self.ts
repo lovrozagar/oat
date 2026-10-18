@@ -5,7 +5,7 @@
  * No token is a 401.
  */
 
-import type { EntityModel, OperationModel, SpecModel } from "../spec/graph.ts"
+import type { EntityModel, OperationModel, SpecModel } from "../spec/graph/types.ts"
 import type { Hooks } from "../config/types/hooks.ts"
 import type { CheckContext, WriteContext } from "./checks/core/context.ts"
 import { requestContentOf } from "./body.ts"

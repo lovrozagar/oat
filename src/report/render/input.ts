@@ -6,7 +6,7 @@ import type { CheckTiming } from "../../runtime/run/index.ts"
 import type { ScopeReport } from "../../runtime/scope.ts"
 import type { TargetVersion } from "../../runtime/target-version.ts"
 import type { TeardownReport } from "../../runtime/teardown.ts"
-import type { SpecModel } from "../../spec/graph.ts"
+import type { SpecModel } from "../../spec/graph/types.ts"
 
 /** A finished run as every report renderer reads it. */
 export interface ReportInput {

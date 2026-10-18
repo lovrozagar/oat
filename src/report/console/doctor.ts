@@ -4,7 +4,7 @@
  * and work the list down.
  */
 
-import type { SpecModel } from "../../spec/graph.ts"
+import type { SpecModel } from "../../spec/graph/types.ts"
 import { type DoctorConfig, type DoctorFacts, doctorFacts } from "./doctor-facts.ts"
 import { authLines, catalogLines, envelopeLines, externalRefLines, gapLines } from "./doctor-notes.ts"
 import { declarationLines, entityLines, summaryLines, tagLines } from "./doctor-text.ts"

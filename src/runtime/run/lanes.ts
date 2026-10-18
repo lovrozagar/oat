@@ -1,4 +1,4 @@
-import type { EntityModel, SpecModel } from "../../spec/graph.ts"
+import type { EntityModel, SpecModel } from "../../spec/graph/types.ts"
 import type { RunContext } from "./context.ts"
 import { testEntity } from "./entity/test-entity.ts"
 import { errorText } from "./errors.ts"

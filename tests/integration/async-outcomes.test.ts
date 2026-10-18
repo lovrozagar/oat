@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { driveAsync } from "../../src/runtime/async.ts"
 import { Client } from "../../src/client/client.ts"
-import type { AsyncSpec } from "../../src/spec/extensions.ts"
+import type { AsyncSpec } from "../../src/spec/extensions/async.ts"
 import { Redactor } from "../../src/security/redact.ts"
 
 let url = ""

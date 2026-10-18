@@ -13,7 +13,7 @@ import type { Exchange } from "./exchange.ts"
 import { ASSERTED, type FindingCollector, type Outcome } from "./finding.ts"
 import { describeServerError, headerValue } from "./rate-limit.ts"
 import type { GradeLedger } from "./grades.ts"
-import type { SpecModel } from "../spec/graph.ts"
+import type { SpecModel } from "../spec/graph/types.ts"
 import { TARGET_VERSION_READ } from "./target-version.ts"
 
 export const SERVER_ERROR_CHECK_ID = "response.no-server-error" as const satisfies CheckId

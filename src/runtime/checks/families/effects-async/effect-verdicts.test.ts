@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import type { EffectSpec } from "../../../../spec/extensions.ts"
+import type { EffectSpec } from "../../../../spec/extensions/effects.ts"
 import { contextFor, exchange, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
 import { baseDocument, routes, withOperation } from "./__fixtures__/documents.ts"
 import { type ActionRun, judgeEffects, missingParams, reportGap } from "./effect-verdicts.ts"

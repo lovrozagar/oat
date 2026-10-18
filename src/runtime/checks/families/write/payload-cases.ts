@@ -1,5 +1,5 @@
-import { requestContent } from "../../../../spec/collection.ts"
-import type { OperationModel } from "../../../../spec/graph.ts"
+import { requestContent } from "../../../../spec/collection/request.ts"
+import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { payloadFits, REQUIRED_IDS, STRING_PAYLOADS, type StringPayload } from "../../../payloads.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { propertySchemaOf, requestSchemaOf } from "../../payloads/body.ts"

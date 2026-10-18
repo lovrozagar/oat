@@ -18,8 +18,9 @@ import {
 } from "../runtime/fixture.ts"
 import { codePointCount } from "../runtime/payloads.ts"
 import { run } from "../runtime/run/index.ts"
-import { buildModel } from "../spec/graph.ts"
-import { dereference, documentDefs } from "../spec/load.ts"
+import { buildModel } from "../spec/graph/build.ts"
+import { dereference } from "../spec/load/dereference.ts"
+import { documentDefs } from "../spec/load/defs.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
 import type { ParserResult } from "./harness/result.ts"
 

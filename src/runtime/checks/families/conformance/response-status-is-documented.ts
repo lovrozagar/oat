@@ -1,5 +1,6 @@
 import { defineCheck } from "../../core/define.ts"
-import { documentsStatus, type OperationModel, readStatuses } from "../../../../spec/graph.ts"
+import { documentsStatus, readStatuses } from "../../../../spec/graph/statuses.ts"
+import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { OperationObject } from "../../../../spec/types.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { isDocumentedFeatureGateDenial } from "../../../feature-gate.ts"

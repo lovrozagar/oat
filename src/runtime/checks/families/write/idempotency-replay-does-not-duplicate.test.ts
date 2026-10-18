@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import type { OperationModel } from "../../../../spec/graph.ts"
+import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { type Answer, contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
 import { runCheck } from "../../core/run.ts"
 import { idempotentReplay } from "./idempotency-replay-does-not-duplicate.ts"

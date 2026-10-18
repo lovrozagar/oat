@@ -1,4 +1,4 @@
-import type { OperationModel } from "../../../../spec/graph.ts"
+import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { ReadClient } from "../../../../client/client.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { sameTenantScope } from "../../isolation/scratch.ts"

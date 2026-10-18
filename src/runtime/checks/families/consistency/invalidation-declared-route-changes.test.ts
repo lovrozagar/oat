@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { OperationModel } from "../../../../spec/graph.ts"
+import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { CheckContext } from "../../core/context.ts"
 import type { Record_ } from "../../../world.ts"
 import { type Answer, contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"

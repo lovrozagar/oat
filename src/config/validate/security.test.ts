@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { anyrow, immich, keycloak } from "../../spec/security/__fixtures__/documents.ts"
-import { buildModel } from "../../spec/graph.ts"
+import { buildModel } from "../../spec/graph/build.ts"
 import { securityProblems, type SpecView } from "./security.ts"
 
 const view = (doc: typeof anyrow): SpecView => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { emptyCapabilities, type EffectiveSortableField } from "../../../../spec/query-capabilities.ts"
+import type { EffectiveSortableField } from "../../../../spec/query/effective.ts"
+import { emptyCapabilities } from "../../../../spec/query/merge.ts"
 import { runCheck } from "../../core/run.ts"
 import { listing, queries, refusing, stage } from "./__fixtures__/widgets.ts"
 import { declaredSortableNullsAccepted } from "./spec-declared-sortable-nulls-accepted.ts"

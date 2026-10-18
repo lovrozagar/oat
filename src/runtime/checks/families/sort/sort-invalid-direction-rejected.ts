@@ -1,6 +1,6 @@
 import { defineCheck } from "../../core/define.ts"
-import { sortSpec, sortTerm } from "../../../../spec/conventions.ts"
-import { renderUnknownDirection } from "../../../../spec/sort-render.ts"
+import { sortSpec, sortTerm } from "../../../../spec/conventions/sort.ts"
+import { renderUnknownDirection } from "../../../../spec/render/sort.ts"
 import type { Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { asProbe, judgeRefusal } from "../../planning/refusal.ts"

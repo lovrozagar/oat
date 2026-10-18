@@ -1,6 +1,6 @@
 import { defineCheck } from "../../core/define.ts"
-import { filterSpec, filterTerm } from "../../../../spec/conventions.ts"
-import { renderAndOfOr } from "../../../../spec/filter-render.ts"
+import { filterSpec, filterTerm } from "../../../../spec/conventions/filter.ts"
+import { renderAndOfOr } from "../../../../spec/render/filter-combine.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { idOf } from "../../../world.ts"
 import { cannot, ready } from "../../core/plan.ts"
