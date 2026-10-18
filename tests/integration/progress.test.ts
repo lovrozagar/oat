@@ -356,8 +356,14 @@ const SPEC = {
 
 type Widget = { id: string; name: string }
 
+/* The item a request names, and its method. */
+interface ItemRequest {
+	id: string
+	method: string
+}
+
 /* A read, update or delete of one widget; the update changes nothing. */
-function widgetItem(rows: Map<string, Widget>, method: string, id: string, res: ServerResponse) {
+function widgetItem(rows: Map<string, Widget>, { id, method }: ItemRequest, res: ServerResponse) {
 	if (method === "DELETE") {
 		rows.delete(id)
 		return send(res, 204)
@@ -397,7 +403,7 @@ async function routeSlowWidgets(store: SlowWidgets, req: IncomingMessage, res: S
 	if (url.pathname === "/v1/widgets" && method === "POST") return createWidget(store, res)
 	const item = /^\/v1\/widgets\/([^/]+)$/.exec(url.pathname)
 	if (item !== null && ["GET", "PATCH", "DELETE"].includes(method)) {
-		return widgetItem(store.rows, method, item[1] ?? "", res)
+		return widgetItem(store.rows, { id: item[1] ?? "", method }, res)
 	}
 	const extract = /^\/v1\/widgets\/([^/]+)\/extract$/.exec(url.pathname)
 	if (extract !== null && method === "POST") return extractWidget(store, extract[1] ?? "", res)

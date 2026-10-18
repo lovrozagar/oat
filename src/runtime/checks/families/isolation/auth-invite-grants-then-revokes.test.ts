@@ -155,8 +155,8 @@ describe("auth.invite-grants-then-revokes when the invite answer lacks a value",
 
 describe("auth.invite-grants-then-revokes planning", () => {
 	it("picks a delegate in another tenant, else a peer in the same one", () => {
-		const peer = actor("peer", 1, { org_id: "o1" }, { inviteAs: "pat" })
-		const plain = actor("plain", 1, { org_id: "o2" })
+		const peer = actor("peer", { rank: 1, roots: { org_id: "o1" }, inviteAs: "pat" })
+		const plain = actor("plain", { rank: 1, roots: { org_id: "o2" } })
 		const across = inviteContext(inviteDocument(), inviteBackend(), { actors: [owner, peer, delegate] })
 		expect(inviteGrantsThenRevokes.plan(across.ctx)).toMatchObject({ ok: true, value: { delegate, inviteAs: "bob" } })
 		const within = inviteContext(inviteDocument(), inviteBackend(), { actors: [owner, plain, peer] })

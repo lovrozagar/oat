@@ -18,7 +18,7 @@ export const filterEmptyIn = defineCheck<{
 		const picked = pickFieldForOp(ctx, "in", 1)
 		const policy = resolvedCaps(ctx).emptyIn
 		if (picked === null || policy === undefined) return cannot()
-		const term = filterTerm(conv(ctx), picked.field.field, "in", [])
+		const term = filterTerm(conv(ctx), { field: picked.field.field, op: "in", value: [] })
 		return term === null
 			? cannot("a filter grammar that can express an empty in()")
 			: ready({ field: picked.field.field, policy, term })

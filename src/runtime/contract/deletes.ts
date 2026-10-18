@@ -14,6 +14,7 @@ const DELETE_CHECK_ID = "delete.absent-record-returns-404" as const satisfies Ch
 
 /** A successful delete, the read on its path, and that path below the base URL. */
 interface ReadBack {
+	op: OperationModel
 	call: Exchange
 	read: OperationModel
 	path: string
@@ -28,7 +29,7 @@ export async function confirmDeletes(input: ConfirmInput): Promise<void> {
 			headers: input.auth(),
 			operationId: target.read.operationId,
 		})
-		judgeReadBack(input, op, target, after)
+		judgeReadBack(input, target, after)
 	}
 }
 
@@ -47,15 +48,15 @@ function readBackOf(input: ConfirmInput, op: OperationModel): ReadBack | null {
 	try {
 		/* Below the base URL, as the client takes it: under a mount like `/api` the full path
 		 * would be prefixed a second time and answer 404 for a record that is still there. */
-		return { call, path: input.client.relativePath(call.url), read }
+		return { call, op, path: input.client.relativePath(call.url), read }
 	} catch {
 		return null
 	}
 }
 
-function judgeReadBack(input: ConfirmInput, op: OperationModel, target: ReadBack, after: Exchange): void {
+function judgeReadBack(input: ConfirmInput, target: ReadBack, after: Exchange): void {
 	const { grades } = input
-	const { call, path, read } = target
+	const { call, op, path, read } = target
 	if (after.status === 404 || after.status === 410) {
 		grades.graded([op.operationId], DELETE_CHECK_ID)
 		grades.prove(op.operationId, { call: call.seq, observation: { seq: after.seq, status: after.status } })

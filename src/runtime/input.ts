@@ -5,14 +5,19 @@
 
 import type { Hooks, InputRequest } from "../config/types/hooks.ts"
 
+/** The operation generated fields are sent to, and the schema they follow. */
+export interface InputTarget {
+	operationId: string
+	schema: Record<string, unknown> | undefined
+}
+
 export async function applyResolveInput(
 	fields: Record<string, unknown>,
-	operationId: string,
-	schema: Record<string, unknown> | undefined,
 	hook: Hooks["resolveInput"],
+	{ operationId, schema }: InputTarget,
 ): Promise<Record<string, unknown>> {
 	if (hook === undefined) return fields
-	return (await walk(fields, schema ?? {}, "$", { hook, operationId })) as Record<string, unknown>
+	return (await walk(fields, { pointer: "$", schema: schema ?? {} }, { hook, operationId })) as Record<string, unknown>
 }
 
 /** The hook, and the operation whose fields it is asked about. */
@@ -21,7 +26,13 @@ interface Resolver {
 	hook: NonNullable<Hooks["resolveInput"]>
 }
 
-async function walk(value: unknown, schema: unknown, pointer: string, resolver: Resolver): Promise<unknown> {
+/** Where the walk stands: the schema of the value and its JSON pointer. */
+interface Place {
+	schema: unknown
+	pointer: string
+}
+
+async function walk(value: unknown, { schema, pointer }: Place, resolver: Resolver): Promise<unknown> {
 	if (value === null || typeof value !== "object" || Array.isArray(value)) return value
 	const record = value as Record<string, unknown>
 	const properties = propertiesOf(schema)
@@ -44,7 +55,7 @@ async function walk(value: unknown, schema: unknown, pointer: string, resolver: 
 		}
 		const current = record[name]
 		if (current !== undefined && childSchema !== undefined) {
-			out[name] = await walk(current, childSchema, childPointer, resolver)
+			out[name] = await walk(current, { pointer: childPointer, schema: childSchema }, resolver)
 		}
 	}
 	return out

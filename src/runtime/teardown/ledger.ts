@@ -10,10 +10,17 @@
 import type { SpecModel } from "../../spec/graph/types.ts"
 import type { Client } from "../../client/client.ts"
 import type { Exchange } from "../exchange.ts"
-import type { ProvenId } from "../proven-id.ts"
 import { keyOf, recordKey } from "./routes.ts"
-import type { Disposable, Owner, TeardownReport, UnidentifiedCreate, UnwindOptions } from "./types.ts"
+import type { Created, Disposable, Owner, TeardownReport, UnidentifiedCreate, UnwindOptions } from "./types.ts"
 import { unwindQueue } from "./unwind.ts"
+
+/** How the ledger is unwound: who else may remove a record, and the unwind's options. */
+export interface LedgerUnwind {
+	/* Principals allowed to remove a record its creator was refused, strongest first — the
+	 * same tenant's owner removing what a member created. */
+	fallbacks: (owner: Owner) => Owner[]
+	options?: UnwindOptions
+}
 
 /**
  * Registry of what a run brought into existence, recorded the moment each record is created.
@@ -34,7 +41,7 @@ export class Ledger {
 	/* Records a principal read back — `entity, id, principal` — wherever the read came from. */
 	private readonly sightings = new Set<string>()
 
-	record(entity: string, id: ProvenId, scope: Record<string, string>, owner: Owner): void {
+	record({ entity, id, scope }: Created, owner: Owner): void {
 		if (id === "" || id === "undefined") return
 		/* By principal too: ids are often unique only within a tenant, and each tenant's is its own. */
 		const key = recordKey(entity, id, owner.id)
@@ -95,14 +102,7 @@ export class Ledger {
 		return this.items
 	}
 
-	unwind(
-		model: SpecModel,
-		client: Client,
-		/* Principals allowed to remove a record its creator was refused, strongest first — the
-		 * same tenant's owner removing what a member created. */
-		fallbacks: (owner: Owner) => Owner[],
-		options: UnwindOptions = {},
-	): Promise<TeardownReport> {
+	unwind(model: SpecModel, client: Client, { fallbacks, options = {} }: LedgerUnwind): Promise<TeardownReport> {
 		/* Takes what is ledgered now; a later unwind removes only what was recorded after this one. */
 		const queue = this.items.splice(0).toReversed()
 		return unwindQueue({

@@ -46,7 +46,7 @@ async function readableFiles(patterns: string[], root: string, context: UploadCo
 	const readable: string[] = []
 	const warnMissing = warnOnce(context)
 	for (const pattern of patterns) {
-		const matches = await expandPattern(pattern, root, warnMissing, "uploads.each")
+		const matches = await expandPattern(pattern, root, { label: "uploads.each", warn: warnMissing })
 		for (const path of matches) {
 			if (seen.has(path)) continue
 			seen.add(path)

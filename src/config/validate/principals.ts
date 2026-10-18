@@ -36,7 +36,7 @@ export function placeholders(value: unknown): Set<string> {
 	return found
 }
 
-function entryProblems(id: string, entry: Raw, schemes: ReadonlySet<string>, declared: string): string[] {
+function entryProblems(id: string, entry: Raw, schemes: ReadonlySet<string>): string[] {
 	const path = `principals.${id}`
 	const problems: string[] = []
 	for (const [field, why] of Object.entries(REMOVED_ON_PRINCIPAL)) {
@@ -47,6 +47,7 @@ function entryProblems(id: string, entry: Raw, schemes: ReadonlySet<string>, dec
 	}
 	const overrides = isRecord(entry.security) ? Object.keys(entry.security) : []
 	for (const scheme of overrides.filter((name) => !schemes.has(name))) {
+		const declared = [...schemes].toSorted().join(", ")
 		problems.push(`${path}.security.${scheme} names no scheme in the document. The document declares: ${declared}`)
 	}
 	return problems
@@ -73,11 +74,10 @@ export function principalProblems(config: Raw, schemes: ReadonlySet<string>): st
 	if (!isRecord(principals)) return ["principals must be a map of id → identity data"]
 	const entries = Object.entries(principals)
 	if (entries.length === 0) return ["principals declares no principal"]
-	const declared = [...schemes].toSorted().join(", ")
 	const security = isRecord(config.security) ? config.security : {}
 	return entries.flatMap(([id, entry]) =>
 		isRecord(entry)
-			? [...entryProblems(id, entry, schemes, declared), ...placeholderProblems(id, entry, security)]
+			? [...entryProblems(id, entry, schemes), ...placeholderProblems(id, entry, security)]
 			: [`principals.${id} must be an object of identity data`],
 	)
 }

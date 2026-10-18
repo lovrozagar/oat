@@ -64,10 +64,10 @@ describe("renderSuite on a baseline", () => {
 	})
 
 	it("holds an unknown shape to ten checks and lists nothing when all ran", () => {
-		const few = renderSuite([tagged({ checksRun: IDS.slice(0, 9) })], "unknown")
+		const few = renderSuite([tagged({ checksRun: IDS.slice(0, 9) })], { dialect: "unknown" })
 		expect(few.text).toContain("below the 10 this shape supports")
 		const all = [...IDS, ...IDS].slice(0, 10)
-		expect(renderSuite([tagged({ checksRun: all })], "unknown").failures).toBe(0)
+		expect(renderSuite([tagged({ checksRun: all })], { dialect: "unknown" }).failures).toBe(0)
 	})
 
 	it("fails an untagged baseline that ran almost nothing, without calling it vacuous", () => {
@@ -91,11 +91,13 @@ describe("renderSuite on what a baseline leaves behind", () => {
 	it("lets a baseline stay undecided only where its backend and shape allow it", () => {
 		const allowance = { "memory:postgrest": ["c.x"], "memory:postgrest:untagged": ["c.y"] }
 		const undecided = (label: CaseResult["label"], inconclusive: string[]) =>
-			renderSuite([tagged({ inconclusive, label })], "postgrest", "memory", allowance).failures
+			renderSuite([tagged({ inconclusive, label })], { inconclusive: allowance }).failures
 		expect(undecided("baseline (correct backend)", ["c.x: why"])).toBe(0)
 		expect(undecided("baseline (correct backend)", ["c.y: why", "c.xx: why"])).toBe(1)
 		expect(undecided("baseline (untagged spec)", ["c.y: why"])).toBe(0)
-		expect(renderSuite([tagged({ inconclusive: ["c.x: why"] })], "postgrest", "sqlite", allowance).failures).toBe(1)
+		expect(
+			renderSuite([tagged({ inconclusive: ["c.x: why"] })], { backend: "sqlite", inconclusive: allowance }).failures,
+		).toBe(1)
 	})
 
 	it("fails a baseline that litters, touches, ledgers or leaves undecided", () => {

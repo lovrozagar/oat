@@ -39,17 +39,17 @@ export async function create(
 	if (defects.has("CREATE_500_ON_NON_ASCII") && nonAscii(received as Row)) {
 		throw new Error("encoding error: could not write row")
 	}
-	const input = validateBody(entity, received, "create", defects)
+	const input = validateBody(received, { defects, entity, mode: "create" })
 	const scope = { ...call.scope, project_id: principal.projectId }
 	const key = snapshotKey(entity, call.scope)
 	if (defects.has("STALE_LIST") && !state.staleSnapshot.has(key)) {
 		state.staleSnapshot.set(key, await liveRows(state, entity, scope))
 	}
 	if (defects.has("CREATE_DROPS_FIELD")) delete input.description
-	const record = withDefaults(state, entity, input, scope)
+	const record = withDefaults(state, { entity, scope }, input)
 	const overwritten = await clientChosenId(state, call, { input, record })
 	if (overwritten !== undefined) return overwritten
-	await assertUnique(state, entity, record, undefined)
+	await assertUnique(state, { entity, record })
 	const created = await state.store.insert(entity, record)
 	await refreshParentCount(state, entity, call.scope)
 	if (replayKey !== null) state.idempotent.set(replayKey, created)
@@ -81,7 +81,7 @@ async function replayed(
 		}
 		await state.store.insert(
 			entity,
-			withDefaults(state, entity, copy, { ...call.scope, project_id: principal.projectId }),
+			withDefaults(state, { entity, scope: { ...call.scope, project_id: principal.projectId } }, copy),
 		)
 	}
 	const body = acknowledged(state, call)

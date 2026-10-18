@@ -101,8 +101,8 @@ const names = (spec: SpecView, operationId: string): boolean =>
 	spec.operations.some((op) => op.operationId === operationId)
 
 /* References a mint makes, once its fields are strings: the shape check reports them otherwise. */
-function mintProblems(path: string, name: string, mint: Raw, against: Against): string[] {
-	const { security, spec } = against
+function mintProblems(ctx: Against, path: string, name: string, mint: Raw): string[] {
+	const { security, spec } = ctx
 	const problems: string[] = []
 	if (typeof mint.with === "string" && !isRecord(security[mint.with])) {
 		problems.push(`${path}.mint.with names "${mint.with}", which has no recipe`)
@@ -125,8 +125,8 @@ function mintProblems(path: string, name: string, mint: Raw, against: Against): 
 	return problems
 }
 
-function recipeProblems(path: string, name: string, recipe: unknown, against: Against): string[] {
-	const { spec } = against
+function recipeProblems(ctx: Against, path: string, name: string, recipe: unknown): string[] {
+	const { spec } = ctx
 	const scheme = spec.schemes.get(name)
 	if (scheme === undefined) {
 		const close = nearest(name, spec.schemes.keys())[0]
@@ -140,9 +140,9 @@ function recipeProblems(path: string, name: string, recipe: unknown, against: Ag
 	if (kind.length > 0) return kind
 	return [
 		...optionProblems(path, recipe),
-		...kindShapeProblems(path, recipe, scheme, against.hasHook),
+		...kindShapeProblems(path, recipe, { hasHook: ctx.hasHook, scheme }),
 		...(isRecord(recipe.oauth2) ? oauth2Problems(path, recipe.oauth2, scheme) : []),
-		...(isRecord(recipe.mint) ? mintProblems(path, name, recipe.mint, against) : []),
+		...(isRecord(recipe.mint) ? mintProblems(ctx, path, name, recipe.mint) : []),
 	]
 }
 
@@ -156,7 +156,7 @@ function overrideProblems(config: Raw, against: Against): string[] {
 			.flatMap(([scheme, override]) => {
 				const base = against.security[scheme] as Partial<Recipe> | undefined
 				const effective = effectiveRecipe(base, override as Partial<Recipe>)
-				return recipeProblems(`principals.${id}.security.${scheme}`, scheme, effective, against)
+				return recipeProblems(against, `principals.${id}.security.${scheme}`, scheme, effective)
 			})
 	})
 }
@@ -192,7 +192,7 @@ export function securityProblems(
 		config.security === undefined || isRecord(config.security) ? [] : ["security must be a map of scheme → recipe"]
 	return [
 		...shape,
-		...Object.entries(security).flatMap(([name, recipe]) => recipeProblems(`security.${name}`, name, recipe, against)),
+		...Object.entries(security).flatMap(([name, recipe]) => recipeProblems(against, `security.${name}`, name, recipe)),
 		...overrideProblems(config, against),
 		...principalProblems(config, new Set(spec.schemes.keys())),
 		...removedProblems(config),

@@ -7,6 +7,8 @@ import { cursorOffset, cut, filteredWindow, invert, numberedStart } from "./wind
 
 const ROWS = ["a", "b", "c", "d", "e"].map((id) => ({ id }))
 const defects = (...names: DefectName[]) => new DefectSet(names)
+/* The table's listing context, under `names`. */
+const under = (...names: DefectName[]) => ({ defects: defects(...names), entity: TABLE })
 const paging = (page: number | undefined, offset: number | undefined, servedLimit = 2): Paging => ({
 	offset,
 	page,
@@ -21,12 +23,12 @@ describe("invert", () => {
 
 describe("cursorOffset", () => {
 	it("starts just past the row the cursor names, or on it under the drift", () => {
-		expect(cursorOffset(ROWS, "b", TABLE, defects())).toBe(2)
-		expect(cursorOffset(ROWS, "b", TABLE, defects("CURSOR_DRIFT"))).toBe(1)
+		expect(cursorOffset(under(), ROWS, "b")).toBe(2)
+		expect(cursorOffset(under("CURSOR_DRIFT"), ROWS, "b")).toBe(1)
 	})
 
 	it("refuses a cursor naming no row of the collection", () => {
-		expect(() => cursorOffset(ROWS, "z", TABLE, defects())).toThrow("cursor does not point into this collection")
+		expect(() => cursorOffset(under(), ROWS, "z")).toThrow("cursor does not point into this collection")
 	})
 })
 
@@ -53,20 +55,20 @@ describe("numberedStart", () => {
 
 describe("cut", () => {
 	it("takes the page's rows, or every row from its start when the limit is ignored", () => {
-		expect(cut(ROWS, { offset: 1, page: null }, 2, defects())).toEqual([{ id: "b" }, { id: "c" }])
-		expect(cut(ROWS, { offset: 1, page: null }, 2, defects("LIMIT_IGNORED"))).toHaveLength(4)
+		expect(cut(under(), ROWS, { offset: 1, page: null }, 2)).toEqual([{ id: "b" }, { id: "c" }])
+		expect(cut(under("LIMIT_IGNORED"), ROWS, { offset: 1, page: null }, 2)).toHaveLength(4)
 	})
 })
 
 describe("filteredWindow", () => {
 	it("keeps the window's rows the predicate matched", () => {
-		expect(filteredWindow(ROWS.slice(0, 3), [{ id: "c" }, { id: "e" }], TABLE, defects())).toEqual([{ id: "c" }])
-		expect(filteredWindow(ROWS.slice(0, 2), [{ id: "e" }], TABLE, defects())).toEqual([])
+		expect(filteredWindow(under(), ROWS.slice(0, 3), [{ id: "c" }, { id: "e" }])).toEqual([{ id: "c" }])
+		expect(filteredWindow(under(), ROWS.slice(0, 2), [{ id: "e" }])).toEqual([])
 	})
 
 	it("serves the unfiltered window when the result would be empty, under the guard", () => {
 		const window = ROWS.slice(0, 2)
-		expect(filteredWindow(window, [{ id: "e" }], TABLE, defects("EMPTY_RESULT_RETURNS_ALL"))).toBe(window)
-		expect(filteredWindow(window, [{ id: "a" }], TABLE, defects("EMPTY_RESULT_RETURNS_ALL"))).toEqual([{ id: "a" }])
+		expect(filteredWindow(under("EMPTY_RESULT_RETURNS_ALL"), window, [{ id: "e" }])).toBe(window)
+		expect(filteredWindow(under("EMPTY_RESULT_RETURNS_ALL"), window, [{ id: "a" }])).toEqual([{ id: "a" }])
 	})
 })

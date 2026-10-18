@@ -80,7 +80,11 @@ describe("the record envelope", () => {
 			success: true,
 		})
 		expect(answerRead(state, state.table, record)).toEqual({ data: record, fields: fieldList(state.table) })
-		expect(answerWritten(state, state.table, record, "updated")).toEqual({ id: 4, message: "updated", success: true })
+		expect(answerWritten(state, { entity: state.table, record }, "updated")).toEqual({
+			id: 4,
+			message: "updated",
+			success: true,
+		})
 		expect(answerCreated(state, state.job, record)).toBe(record)
 	})
 
@@ -89,7 +93,7 @@ describe("the record envelope", () => {
 		const record = { id: "t" }
 		expect(answerCreated(state, state.table, record)).toBe(record)
 		expect(answerRead(state, state.table, record)).toBe(record)
-		expect(answerWritten(state, state.table, record, "deleted")).toBe(record)
+		expect(answerWritten(state, { entity: state.table, record }, "deleted")).toBe(record)
 	})
 
 	it("lists the readable fields and their types", async () => {
@@ -103,7 +107,7 @@ describe("the record envelope", () => {
 describe("withDefaults", () => {
 	it("issues an id, links the parents, stamps the times and fills every field", async () => {
 		const { state } = await api()
-		expect(withDefaults(state, state.table, { name: "n" }, { project_id: "proj_alpha" })).toEqual({
+		expect(withDefaults(state, { entity: state.table, scope: { project_id: "proj_alpha" } }, { name: "n" })).toEqual({
 			created_at: 1_700_000_001_000,
 			deleted_at: null,
 			description: null,
@@ -120,20 +124,20 @@ describe("withDefaults", () => {
 
 	it("links only the parents a record stores, and a missing one as null", async () => {
 		const { state } = await api()
-		const row = withDefaults(state, ROW, { label: "l" }, {})
+		const row = withDefaults(state, { entity: ROW, scope: {} }, { label: "l" })
 		expect(row).toMatchObject({ active: false, amount: 0, label: "l", note: null, table_id: null, tags: [] })
 		expect(row).not.toHaveProperty("project_id")
 	})
 
 	it("pads a large record and derives a table's slug from its name", async () => {
 		const large = await api({ shape: "large-pages" })
-		const padded = withDefaults(large.state, large.state.table, { name: "n" }, {})
+		const padded = withDefaults(large.state, { entity: large.state.table, scope: {} }, { name: "n" })
 		expect(String(padded.padding).length).toBe(49_152)
 		const slugs = await api({ shape: "tenant-slugs" })
-		const named = withDefaults(slugs.state, slugs.state.table, { name: "Quarterly Report 0" }, {})
+		const named = withDefaults(slugs.state, { entity: slugs.state.table, scope: {} }, { name: "Quarterly Report 0" })
 		expect(named.slug).toBe("quarterly-report-0")
 		expect(slugs.state.slugOf.get(String(named.id))).toBe("quarterly-report-0")
-		expect(withDefaults(slugs.state, slugs.state.table, {}, {}).slug).toBe("")
+		expect(withDefaults(slugs.state, { entity: slugs.state.table, scope: {} }, {}).slug).toBe("")
 	})
 })
 

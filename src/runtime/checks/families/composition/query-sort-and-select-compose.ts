@@ -29,7 +29,7 @@ export const querySortAndSelectCompose = defineCheck<{
 	subjects: subjectsOf.list,
 	async run(ctx, { field, projection, requested }): Promise<Outcome> {
 		const result = await list(ctx, {
-			...q(ctx, { limit: 20, order: sortTerm(conv(ctx), field, "asc") }),
+			...q(ctx, { limit: 20, order: sortTerm(conv(ctx), { direction: "asc", field }) }),
 			...projection,
 		})
 		const [first, second] = result.items

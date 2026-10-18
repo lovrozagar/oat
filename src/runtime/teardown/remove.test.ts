@@ -9,7 +9,7 @@ describe("removeOne", () => {
 	it("removes a record its creator deletes, and counts it", async () => {
 		const note = disposable("note", "n1")
 		const done: Array<[number, number]> = []
-		const state = unwindOf(model, store({ alpha: ["n1"] }), [note], { onItem: (at, total) => done.push([at, total]) })
+		const state = unwindOf(store({ alpha: ["n1"] }), [note], { model, onItem: (at, total) => done.push([at, total]) })
 		await removeOne(state, note)
 		expect(state.sent.map((request) => `${request.method} ${request.path}`)).toEqual(["DELETE /notes/n1"])
 		expect(state.report.removed).toBe(1)
@@ -20,10 +20,11 @@ describe("removeOne", () => {
 
 	it("takes the creator's 404 as gone, but nobody else's", async () => {
 		const note = disposable("note", "n1")
-		const state = unwindOf(model, store(), [note])
+		const state = unwindOf(store(), [note], { model })
 		await removeOne(state, note)
 		expect(state.report.removed).toBe(1)
-		const moved = unwindOf(model, store(), [note], {
+		const moved = unwindOf(store(), [note], {
+			model,
 			ledger: { movedAway: () => "moved to t2", seenByCreator: () => true, sighted: () => undefined },
 		})
 		await removeOne(moved, note)
@@ -31,9 +32,9 @@ describe("removeOne", () => {
 	})
 
 	it("retries a denial with a stronger credential, and stops at anything else", async () => {
-		const note = disposable("note", "n1", {}, "beta")
+		const note = disposable("note", "n1", { by: "beta" })
 		const held = store({ alpha: ["n1"] }, { answers: {} })
-		const state = unwindOf(model, held, [note], { fallbacks: () => [owner("member"), owner("root")] })
+		const state = unwindOf(held, [note], { model, fallbacks: () => [owner("member"), owner("root")] })
 		held.answers["DELETE /notes/n1"] = (options) => {
 			const who = (options.headers as () => Record<string, string>)().authorization
 			return who === "Bearer root" ? { status: 204 } : { status: who === "Bearer beta" ? 403 : 401 }
@@ -41,7 +42,8 @@ describe("removeOne", () => {
 		await removeOne(state, note)
 		expect(state.sent.map((request) => request.method)).toEqual(["DELETE", "DELETE", "DELETE"])
 		expect(state.report.removed).toBe(1)
-		const failing = unwindOf(model, store({}, { answers: { "DELETE /notes/n1": { status: 500 } } }), [note], {
+		const failing = unwindOf(store({}, { answers: { "DELETE /notes/n1": { status: 500 } } }), [note], {
+			model,
 			fallbacks: () => [owner("root")],
 		})
 		await removeOne(failing, note)
@@ -52,7 +54,8 @@ describe("removeOne", () => {
 describe("removeOne: other ways a record goes or stays", () => {
 	it("counts a record removed when a delete earlier in the run took it", async () => {
 		const note = disposable("note", "n1")
-		const state = unwindOf(model, store({}, { answers: { "DELETE /notes/n1": { status: 403 } } }), [note], {
+		const state = unwindOf(store({}, { answers: { "DELETE /notes/n1": { status: 403 } } }), [note], {
+			model,
 			deletedEarlier: (path) => path === "/notes/n1",
 		})
 		await removeOne(state, note)
@@ -64,7 +67,6 @@ describe("removeOne: other ways a record goes or stays", () => {
 		const comment = disposable("comment", "c1")
 		const note = disposable("note", "n1")
 		const state = unwindOf(
-			model,
 			store(
 				{},
 				{
@@ -83,6 +85,7 @@ describe("removeOne: other ways a record goes or stays", () => {
 				},
 			),
 			[tag, comment, note],
+			{ model },
 		)
 		await removeOne(state, tag)
 		await removeOne(state, comment)
@@ -110,7 +113,9 @@ describe("removeOne: other routes and throws", () => {
 			},
 		})
 		const widget = disposable("widget", "w1")
-		const state = unwindOf(widgets, store({}, { answers: { "POST /admin/purge": { status: 204 } } }), [widget])
+		const state = unwindOf(store({}, { answers: { "POST /admin/purge": { status: 204 } } }), [widget], {
+			model: widgets,
+		})
 		await removeOne(state, widget)
 		expect(state.paths.get(widget)).toBe("/admin/purge")
 		expect(state.client.transcript.map((exchange) => exchange.method)).toEqual(["POST"])
@@ -120,7 +125,6 @@ describe("removeOne: other routes and throws", () => {
 	it("reports what a delete threw that is not an error", async () => {
 		const note = disposable("note", "n1")
 		const throwing = unwindOf(
-			model,
 			store(
 				{},
 				{
@@ -132,6 +136,7 @@ describe("removeOne: other routes and throws", () => {
 				},
 			),
 			[note],
+			{ model },
 		)
 		await removeOne(throwing, note)
 		expect(throwing.report.failed).toEqual([leftover(note, "socket hang up")])

@@ -24,47 +24,75 @@ describe("readActionBind / readBefore", () => {
 	})
 })
 
-/* `bindActionScope` over a raw `x-bind`, its prelude body last. */
-const scopeOf = (
-	pathParams: string[],
-	[records, scope]: [Record<string, unknown>[], Record<string, string>],
-	bind: unknown,
-	beforeBody?: unknown,
-) => bindActionScope({ beforeBody, bind: readActionBind(bind), pathParams, records, scope })
+/** The seeded instance an action runs against, and the prelude's body when there is one. */
+interface Seeded {
+	pathParams: string[]
+	records: Record<string, unknown>[]
+	scope: Record<string, string>
+	beforeBody?: unknown
+}
+
+/* `bindActionScope` over a raw `x-bind`. */
+const scopeOf = (bind: unknown, seeded: Seeded) =>
+	bindActionScope({ ...seeded, beforeBody: seeded.beforeBody, bind: readActionBind(bind) })
 
 describe("bindActionScope", () => {
 	it("walks the record for a param the scope lacks", () => {
-		expect(scopeOf(["table_id", "col_id"], [[record], { table_id: "t1" }], null)).toEqual({
-			col_id: "c1",
-			table_id: "t1",
-		})
-		expect(scopeOf(["col_id"], [[{}], {}], null)).toEqual({})
-		expect(scopeOf(["col_id"], [[{}, record], {}], null)).toEqual({ col_id: "c1" })
+		expect(scopeOf(null, { pathParams: ["table_id", "col_id"], records: [record], scope: { table_id: "t1" } })).toEqual(
+			{
+				col_id: "c1",
+				table_id: "t1",
+			},
+		)
+		expect(scopeOf(null, { pathParams: ["col_id"], records: [{}], scope: {} })).toEqual({})
+		expect(scopeOf(null, { pathParams: ["col_id"], records: [{}, record], scope: {} })).toEqual({ col_id: "c1" })
 	})
 
 	it("prefers an explicit x-bind.path, from the prelude or the record", () => {
 		expect(
-			scopeOf(["member_id"], [[], { member_id: "owner" }], { path: { member_id: "before:$.id" } }, { id: "mem_1" }),
+			scopeOf(
+				{ path: { member_id: "before:$.id" } },
+				{ pathParams: ["member_id"], records: [], scope: { member_id: "owner" }, beforeBody: { id: "mem_1" } },
+			),
 		).toEqual({
 			member_id: "mem_1",
 		})
 		expect(
-			scopeOf(["member_id"], [[], { member_id: "owner" }], { path: { member_id: "before:$.missing" } }, {}),
+			scopeOf(
+				{ path: { member_id: "before:$.missing" } },
+				{ pathParams: ["member_id"], records: [], scope: { member_id: "owner" }, beforeBody: {} },
+			),
 		).toEqual({
 			member_id: "owner",
 		})
 		expect(
-			scopeOf(["template_id"], [[record], {}], { path: { template_id: "before:$.id" } }, { id: "tmpl_1" }),
+			scopeOf(
+				{ path: { template_id: "before:$.id" } },
+				{ pathParams: ["template_id"], records: [record], scope: {}, beforeBody: { id: "tmpl_1" } },
+			),
 		).toEqual({
 			template_id: "tmpl_1",
 		})
-		expect(scopeOf(["col_id"], [[record], {}], { path: { col_id: "$.nope" } })).toEqual({ col_id: "c1" })
-		expect(scopeOf(["template_id"], [[], {}], { path: { template_id: "before:id" } }, { id: "x" })).toEqual({})
-		expect(scopeOf(["col_id"], [[record], {}], { path: { col_id: "$.columns_json[*].id" } })).toEqual({ col_id: "c1" })
-		expect(scopeOf(["col_id"], [[record], {}], { path: { col_id: "$.columns_json[*].nope" } })).toEqual({
+		expect(scopeOf({ path: { col_id: "$.nope" } }, { pathParams: ["col_id"], records: [record], scope: {} })).toEqual({
 			col_id: "c1",
 		})
-		expect(scopeOf(["col_id"], [[], {}], { path: { col_id: "literal" } })).toEqual({ col_id: "literal" })
+		expect(
+			scopeOf(
+				{ path: { template_id: "before:id" } },
+				{ pathParams: ["template_id"], records: [], scope: {}, beforeBody: { id: "x" } },
+			),
+		).toEqual({})
+		expect(
+			scopeOf({ path: { col_id: "$.columns_json[*].id" } }, { pathParams: ["col_id"], records: [record], scope: {} }),
+		).toEqual({ col_id: "c1" })
+		expect(
+			scopeOf({ path: { col_id: "$.columns_json[*].nope" } }, { pathParams: ["col_id"], records: [record], scope: {} }),
+		).toEqual({
+			col_id: "c1",
+		})
+		expect(scopeOf({ path: { col_id: "literal" } }, { pathParams: ["col_id"], records: [], scope: {} })).toEqual({
+			col_id: "literal",
+		})
 	})
 })
 
@@ -75,14 +103,22 @@ describe("applyActionBind", () => {
 				body: { order: "$.columns_json[*].id" },
 				query: { aggs: "aa0.count", names: "$.columns_json[*].name" },
 			}),
-			[record],
-			undefined,
+			{ records: [record], beforeBody: undefined },
 			{ order: ["generated"] },
 		)
 		expect(applied.body).toEqual({ order: ["c1"] })
 		expect(applied.query).toEqual({ aggs: "aa0.count", names: "aa0" })
-		expect(applyActionBind(null, [], undefined, undefined)).toEqual({ body: undefined, query: {} })
-		expect(applyActionBind(readActionBind({ query: { n: "$.n" } }), [{ n: 2 }], undefined, undefined).query).toEqual({
+		expect(applyActionBind(null, { records: [], beforeBody: undefined }, undefined)).toEqual({
+			body: undefined,
+			query: {},
+		})
+		expect(
+			applyActionBind(
+				readActionBind({ query: { n: "$.n" } }),
+				{ records: [{ n: 2 }], beforeBody: undefined },
+				undefined,
+			).query,
+		).toEqual({
 			n: "2",
 		})
 	})
@@ -91,29 +127,30 @@ describe("applyActionBind", () => {
 		expect(
 			applyActionBind(
 				readActionBind({ body: { order: "$.id" }, query: { aggs: "$.name" } }),
-				[{ id: "c1", name: "" }],
-				undefined,
+				{ records: [{ id: "c1", name: "" }], beforeBody: undefined },
 				undefined,
 			),
 		).toEqual({ body: undefined, query: {} })
 		expect(
 			applyActionBind(
 				readActionBind({ query: { names: "$.columns_json[*].name" } }),
-				[{ columns_json: [{ name: "" }, { name: "aa0" }] }],
-				undefined,
+				{ records: [{ columns_json: [{ name: "" }, { name: "aa0" }] }], beforeBody: undefined },
 				{},
 			).query,
 		).toEqual({ names: "aa0" })
 		expect(
-			applyActionBind(readActionBind({ body: { name: "$.missing" } }), [record], undefined, { name: "old" }).body,
+			applyActionBind(
+				readActionBind({ body: { name: "$.missing" } }),
+				{ records: [record], beforeBody: undefined },
+				{ name: "old" },
+			).body,
 		).toEqual({
 			name: "old",
 		})
 		expect(
 			applyActionBind(
 				readActionBind({ query: { flag: "$.flag", names: "$.columns_json[*].name", n: "$.n" } }),
-				[{ columns_json: [{ name: "" }], flag: true, n: Number.POSITIVE_INFINITY }],
-				undefined,
+				{ records: [{ columns_json: [{ name: "" }], flag: true, n: Number.POSITIVE_INFINITY }], beforeBody: undefined },
 				{},
 			).query,
 		).toEqual({})
@@ -123,11 +160,18 @@ describe("applyActionBind", () => {
 describe("applyActionBind on a list field", () => {
 	it("keeps a list field a list", () => {
 		expect(
-			applyActionBind(readActionBind({ body: { ids: "$.id" } }), [{ id: "apkey_1" }], undefined, { ids: ["generated"] })
-				.body,
+			applyActionBind(
+				readActionBind({ body: { ids: "$.id" } }),
+				{ records: [{ id: "apkey_1" }], beforeBody: undefined },
+				{ ids: ["generated"] },
+			).body,
 		).toEqual({ ids: ["apkey_1"] })
 		expect(
-			applyActionBind(readActionBind({ body: { ids: "before:$.ids" } }), [], { ids: ["a"] }, { ids: ["b"] }).body,
+			applyActionBind(
+				readActionBind({ body: { ids: "before:$.ids" } }),
+				{ records: [], beforeBody: { ids: ["a"] } },
+				{ ids: ["b"] },
+			).body,
 		).toEqual({
 			ids: ["a"],
 		})

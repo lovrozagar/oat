@@ -118,7 +118,14 @@ interface Parsed {
 	terms: number
 }
 
-function refusalsOf(field: string, name: string, arg: string, behavior: Behavior): Refusal[] {
+/** A term as written, `field.op.arg`: the field, the operator's name, and its argument. */
+interface TermParts {
+	field: string
+	name: string
+	arg: string
+}
+
+function refusalsOf({ field, name, arg }: TermParts, behavior: Behavior): Refusal[] {
 	const out: Refusal[] = []
 	if (!(field in PROPERTIES) || (behavior.ops?.[name] ?? OPS[name]) === undefined) out.push("unknown")
 	const closed = behavior.closed?.[field]
@@ -133,7 +140,7 @@ function parseTerm(text: string, behavior: Behavior, out: Parsed): Node | null {
 	const match = /^([a-z_]+)\.([a-z]+)\.(.*)$/.exec(text)
 	if (match === null) return null
 	const [, field = "", name = "", arg = ""] = match
-	out.refusals.push(...refusalsOf(field, name, arg, behavior))
+	out.refusals.push(...refusalsOf({ arg, field, name }, behavior))
 	out.terms += 1
 	return { arg, field, impl: behavior.ops?.[name] ?? OPS[name] ?? (() => true), kind: "term" }
 }

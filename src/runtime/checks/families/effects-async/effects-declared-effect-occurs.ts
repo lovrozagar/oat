@@ -105,17 +105,19 @@ async function bindAction(
 	const actionBind = readActionBind(raw?.["x-bind"])
 	const beforeId = readBefore(raw?.["x-before"])
 	if (beforeId === undefined) return { actionBind, beforeBody: undefined }
-	const prelude = await runBefore(run, uploads, beforeId, scope)
+	const prelude = await runBefore(run, uploads, { operationId: beforeId, scope })
 	return prelude === undefined ? undefined : { actionBind, beforeBody: prelude.responseBody }
 }
 
+/** The `x-before` prelude to run: its operation, and the path scope the action runs in. */
+interface Prelude {
+	operationId: string
+	scope: Record<string, string>
+}
+
 /** Runs the `x-before` prelude; `undefined` once a prelude that could not run has been reported. */
-async function runBefore(
-	run: Invocation,
-	uploads: UploadContext,
-	beforeId: string,
-	scope: Record<string, string>,
-): Promise<Exchange | undefined> {
+async function runBefore(run: Invocation, uploads: UploadContext, prelude: Prelude): Promise<Exchange | undefined> {
+	const { operationId: beforeId, scope } = prelude
 	const { ctx, op } = run
 	const beforeOp = ctx.model.byOperationId.get(beforeId)
 	if (beforeOp === undefined) {
@@ -180,7 +182,7 @@ async function recordPrelude(
 	})
 	const id = created === null ? undefined : returnedId(created.record, made.identity ?? "id")
 	if (id === undefined) ctx.recordUnidentified?.(made.name, beforeOp.operationId, beforeInvoked)
-	else ctx.recordCreated?.(made.name, id, { ...beforeScope }, beforeInvoked.principal)
+	else ctx.recordCreated?.({ entity: made.name, id, scope: { ...beforeScope } }, beforeInvoked.principal)
 }
 
 /** Each effect's collection as it is before the action, read once per entity. */
@@ -208,8 +210,7 @@ async function invoke(
 	const { ctx, op, fixture } = run
 	const prepared = applyActionBind(
 		at.binding.actionBind,
-		at.current,
-		at.binding.beforeBody,
+		{ records: at.current, beforeBody: at.binding.beforeBody },
 		op.hasRequestBody ? bodyForOp(ctx, op) : undefined,
 	)
 	const body = prepared.body

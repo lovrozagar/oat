@@ -35,13 +35,13 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
 }
 
 /* A JSON answer, or a bare status when there is no body. */
-function send(res: ServerResponse, status: number, body?: unknown, headers: Record<string, string> = {}): void {
+function send(res: ServerResponse, status: number, body?: unknown): void {
 	if (body === undefined) {
 		res.writeHead(status)
 		res.end()
 		return
 	}
-	res.writeHead(status, { "content-type": "application/json", ...headers })
+	res.writeHead(status, { "content-type": "application/json" })
 	res.end(JSON.stringify(body))
 }
 
@@ -77,8 +77,14 @@ const unauthorized = { description: "unauthorized" }
 
 const missing = { description: "missing" }
 
+/* What one operation answers, and the body it takes when it takes one. */
+interface OpShape {
+	responses: Record<string, unknown>
+	body?: Schema
+}
+
 /* One `identity: self` operation on the profile entity. */
-function selfOp(operationId: string, action: string, responses: Record<string, unknown>, body?: Schema) {
+function selfOp(operationId: string, action: string, { body, responses }: OpShape) {
 	return {
 		operationId,
 		...(body === undefined
@@ -95,8 +101,8 @@ function readUpdateSpec(schema: Schema, title?: string): OpenApiDocument {
 	return selfSpec(
 		{
 			"/v1/me": {
-				get: selfOp("profile.read", "read", responses),
-				patch: selfOp("profile.update", "update", responses, schema),
+				get: selfOp("profile.read", "read", { responses }),
+				patch: selfOp("profile.update", "update", { body: schema, responses }),
 			},
 		},
 		title,
@@ -128,8 +134,10 @@ export function serveProfile(mode: ProfileMode): Promise<Served> {
 			return true
 		}
 		if (method === "GET") {
-			if (mode === "throttle" && state.patched) send(res, 429, { error: "too_many_requests" }, { "retry-after": "0" })
-			else send(res, 200, { first_name: state.first })
+			if (mode === "throttle" && state.patched) {
+				res.setHeader("retry-after", "0")
+				send(res, 429, { error: "too_many_requests" })
+			} else send(res, 200, { first_name: state.first })
 			return true
 		}
 		if (method !== "PATCH") return false
@@ -179,11 +187,11 @@ export function serveTwoReads(): Promise<Served> {
 	const responses = { "200": ok(booleanSchema), "401": unauthorized }
 	const spec = selfSpec({
 		"/v1/me": {
-			get: selfOp("profile.read", "read", responses),
-			patch: selfOp("profile.update", "update", responses, booleanSchema),
+			get: selfOp("profile.read", "read", { responses }),
+			patch: selfOp("profile.update", "update", { body: booleanSchema, responses }),
 		},
 		"/v1/me/flags": {
-			get: selfOp("profile.flags", "read", responses),
+			get: selfOp("profile.flags", "read", { responses }),
 		},
 	})
 	return serveDismissed(spec, ["/v1/me", "/v1/me/flags"], () => ({}))
@@ -201,9 +209,12 @@ function createFirstSpec(): OpenApiDocument {
 	const responses = { "200": ok(schema), "401": unauthorized, "404": missing }
 	return selfSpec({
 		"/v1/me": {
-			get: selfOp("profile.read", "read", responses),
-			patch: selfOp("profile.update", "update", responses, schema),
-			post: selfOp("profile.create", "create", { "201": ok(schema, "created"), "401": unauthorized }, schema),
+			get: selfOp("profile.read", "read", { responses }),
+			patch: selfOp("profile.update", "update", { body: schema, responses }),
+			post: selfOp("profile.create", "create", {
+				body: schema,
+				responses: { "201": ok(schema, "created"), "401": unauthorized },
+			}),
 		},
 	})
 }
@@ -254,8 +265,8 @@ function nestedSpec(): OpenApiDocument {
 	const responses = { "200": ok(readSchema), "401": unauthorized }
 	return selfSpec({
 		"/v1/me": {
-			get: selfOp("profile.read", "read", responses),
-			patch: selfOp("profile.update", "update", responses, updateSchema),
+			get: selfOp("profile.read", "read", { responses }),
+			patch: selfOp("profile.update", "update", { body: updateSchema, responses }),
 		},
 	})
 }
@@ -290,14 +301,22 @@ function handleSpec(): OpenApiDocument {
 		required: ["available"],
 		type: "object",
 	}
-	const available = selfOp("profile.available", "action", { "200": ok(answer), "401": unauthorized })
+	const available = selfOp("profile.available", "action", { responses: { "200": ok(answer), "401": unauthorized } })
 	const parameters = [{ in: "query", name: "handle", required: true, schema: { minLength: 1, type: "string" } }]
 	return selfSpec({
 		"/v1/handle-available": { get: { ...available, parameters } },
 		"/v1/me": {
-			get: selfOp("profile.read", "read", { "200": ok(bodySchema), "401": unauthorized, "404": missing }),
-			patch: selfOp("profile.update", "update", { "200": ok(bodySchema), "401": unauthorized }, bodySchema),
-			post: selfOp("profile.create", "create", { "201": ok(bodySchema, "created"), "401": unauthorized }, bodySchema),
+			get: selfOp("profile.read", "read", {
+				responses: { "200": ok(bodySchema), "401": unauthorized, "404": missing },
+			}),
+			patch: selfOp("profile.update", "update", {
+				body: bodySchema,
+				responses: { "200": ok(bodySchema), "401": unauthorized },
+			}),
+			post: selfOp("profile.create", "create", {
+				body: bodySchema,
+				responses: { "201": ok(bodySchema, "created"), "401": unauthorized },
+			}),
 		},
 	})
 }

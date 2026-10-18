@@ -36,10 +36,11 @@ function json(schema: unknown, description: string): Record<string, unknown> {
 	return { content: { "application/json": { schema } }, description }
 }
 
-/** A list operation answering `{ [key]: items[] }`. */
-function listOf(operationId: string, key: string, items: unknown, entity: string): Record<string, unknown> {
+/** The list operation of `entity`: `<entity>.list`, answering `{ <entity>s: items[] }`. */
+function listOf(entity: string, items: unknown): Record<string, unknown> {
+	const key = `${entity}s`
 	return {
-		operationId,
+		operationId: `${entity}.list`,
 		parameters: [ORG_ID],
 		responses: {
 			"200": json({ properties: { [key]: { items, type: "array" } }, required: [key], type: "object" }, "ok"),
@@ -65,7 +66,7 @@ function gated(tag: string | null): Record<string, unknown> {
 
 function webhookCollection(tag: string | null): Record<string, unknown> {
 	return {
-		get: listOf("webhook.list", "webhooks", WEBHOOK_ITEM, "webhook"),
+		get: listOf("webhook", WEBHOOK_ITEM),
 		parameters: [ORG_ID],
 		post: {
 			operationId: "webhook.create",
@@ -99,7 +100,7 @@ function webhookItem(tag: string | null): Record<string, unknown> {
 function inviteCollection(): Record<string, unknown> {
 	const invite = { properties: { email: { type: "string" }, id: { type: "string" } }, type: "object" }
 	return {
-		get: listOf("invite.list", "invites", invite, "invite"),
+		get: listOf("invite", invite),
 		parameters: [ORG_ID],
 		post: {
 			operationId: "invite.create",

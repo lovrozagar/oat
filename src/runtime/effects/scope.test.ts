@@ -25,12 +25,12 @@ describe("identityPathParam", () => {
 describe("bindCreatedScope / bindAfterCreateEffects", () => {
 	it("binds table_id from the write body or the list delta", () => {
 		const model = tablesModel()
-		expect(bindCreatedScope(model, "table", { table_id: "t_body" })).toEqual({ table_id: "t_body" })
-		expect(bindCreatedScope(model, "table", { id: "t_id" })).toEqual({ table_id: "t_id" })
-		expect(bindCreatedScope(model, "table", {}, ["t_delta"])).toEqual({ table_id: "t_delta" })
-		expect(bindCreatedScope(model, "table", {})).toEqual({})
-		expect(bindCreatedScope(model, "ghost", { id: "g1" })).toEqual({ ghost_id: "g1" })
-		expect(bindCreatedScope(itemModel("item", "id", ["read"]), "item", { id: "i1" })).toEqual({
+		expect(bindCreatedScope(model, "table", { body: { table_id: "t_body" } })).toEqual({ table_id: "t_body" })
+		expect(bindCreatedScope(model, "table", { body: { id: "t_id" } })).toEqual({ table_id: "t_id" })
+		expect(bindCreatedScope(model, "table", { added: ["t_delta"], body: {} })).toEqual({ table_id: "t_delta" })
+		expect(bindCreatedScope(model, "table", { body: {} })).toEqual({})
+		expect(bindCreatedScope(model, "ghost", { body: { id: "g1" } })).toEqual({ ghost_id: "g1" })
+		expect(bindCreatedScope(itemModel("item", "id", ["read"]), "item", { body: { id: "i1" } })).toEqual({
 			id: "i1",
 			item_id: "i1",
 		})
@@ -41,10 +41,14 @@ describe("bindCreatedScope / bindAfterCreateEffects", () => {
 			{ entity: "table", op: "create" as const },
 			{ entity: "row", min: 1, op: "append" as const },
 		]
-		expect(bindAfterCreateEffects(tablesModel(), effects, { table_id: "t_new" })).toEqual({ table_id: "t_new" })
-		expect(bindAfterCreateEffects(tablesModel(), effects, {}, new Map([["table", ["t_d"]]]))).toEqual({
-			table_id: "t_d",
+		expect(bindAfterCreateEffects(tablesModel(), effects, { body: { table_id: "t_new" } })).toEqual({
+			table_id: "t_new",
 		})
+		expect(bindAfterCreateEffects(tablesModel(), effects, { body: {}, deltas: new Map([["table", ["t_d"]]]) })).toEqual(
+			{
+				table_id: "t_d",
+			},
+		)
 	})
 })
 

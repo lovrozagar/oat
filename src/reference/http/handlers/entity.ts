@@ -1,11 +1,8 @@
 /** What every entity route works from: the entity, the path's typed scope, and who is asking. */
 
-import type { EntityDef } from "../../model/types.ts"
-import type { Principal, Scope } from "../state.ts"
+import type { Collection, Principal } from "../state.ts"
 
-export interface EntityCall {
-	entity: EntityDef
-	scope: Scope
+export interface EntityCall extends Collection {
 	principal: Principal
 }
 

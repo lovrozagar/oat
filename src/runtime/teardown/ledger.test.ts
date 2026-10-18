@@ -14,11 +14,11 @@ function id(value: string): ProvenId {
 describe("Ledger: recording", () => {
 	it("records each record once per creator, and never an empty id", () => {
 		const ledger = new Ledger()
-		ledger.record("note", id("n1"), { org: "o1" }, owner("alpha"))
-		ledger.record("note", id("n1"), {}, owner("alpha"))
-		ledger.record("note", id("n1"), {}, owner("beta"))
-		ledger.record("note", id(""), {}, owner("alpha"))
-		ledger.record("note", id("undefined"), {}, owner("alpha"))
+		ledger.record({ entity: "note", id: id("n1"), scope: { org: "o1" } }, owner("alpha"))
+		ledger.record({ entity: "note", id: id("n1"), scope: {} }, owner("alpha"))
+		ledger.record({ entity: "note", id: id("n1"), scope: {} }, owner("beta"))
+		ledger.record({ entity: "note", id: id(""), scope: {} }, owner("alpha"))
+		ledger.record({ entity: "note", id: id("undefined"), scope: {} }, owner("alpha"))
 		expect(ledger.size).toBe(2)
 		expect(ledger.recorded).toBe(2)
 		expect(ledger.entries().map((item) => `${item.id} ${item.owner.id}`)).toEqual(["n1 alpha", "n1 beta"])
@@ -47,14 +47,14 @@ describe("Ledger: recording", () => {
 describe("Ledger: unwinding", () => {
 	it("removes what was recorded, then only what was recorded since", async () => {
 		const ledger = new Ledger()
-		ledger.record("note", id("n1"), {}, owner("alpha"))
+		ledger.record({ entity: "note", id: id("n1"), scope: {} }, owner("alpha"))
 		ledger.sighted("note", "n1", "alpha")
 		const { client, sent } = notesClient(store({ alpha: ["n1", "n2"] }))
-		const first = await ledger.unwind(notesModel(), client, () => [])
+		const first = await ledger.unwind(notesModel(), client, { fallbacks: () => [] })
 		expect(first.removed).toBe(1)
 		expect(ledger.size).toBe(0)
-		ledger.record("note", id("n2"), {}, owner("alpha"))
-		const second = await ledger.unwind(notesModel(), client, () => [], { verify: false })
+		ledger.record({ entity: "note", id: id("n2"), scope: {} }, owner("alpha"))
+		const second = await ledger.unwind(notesModel(), client, { fallbacks: () => [], options: { verify: false } })
 		expect(sent.map((request) => `${request.method} ${request.path}`)).toEqual([
 			"DELETE /notes/n1",
 			"GET /notes",
@@ -66,11 +66,11 @@ describe("Ledger: unwinding", () => {
 
 	it("does not take its creator's 404 for a record a write moved away", async () => {
 		const ledger = new Ledger()
-		ledger.record("note", id("n1"), {}, owner("alpha"))
+		ledger.record({ entity: "note", id: id("n1"), scope: {} }, owner("alpha"))
 		ledger.sighted("note", "n1", "alpha")
 		ledger.moved("note", "n1", "PATCH moved it to tenant t2")
 		const { client } = notesClient(store())
-		const report = await ledger.unwind(notesModel(), client, () => [])
+		const report = await ledger.unwind(notesModel(), client, { fallbacks: () => [] })
 		expect(report.failed.map((entry) => entry.reason)).toEqual([
 			"PATCH moved it to tenant t2; DELETE /notes/n1 returned alpha: 404",
 		])

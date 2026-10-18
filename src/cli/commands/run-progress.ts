@@ -19,7 +19,13 @@ const JSON_EVERY_MS = 1_000
  * The run's status: a line on stderr unless `quiet`, and in the run folder `progress.log` (with
  * its glossary), `progress.tsv`, `progress.jsonl`, and `progress.json` for what is happening now.
  */
-export function runProgress(writer: Writer, outDir: string, startedAt: number, quiet: boolean): RunProgressOut {
+/** When the run started, and whether its stderr line stays quiet. */
+export interface ProgressOptions {
+	startedAt: number
+	quiet: boolean
+}
+
+export function runProgress(writer: Writer, outDir: string, { quiet, startedAt }: ProgressOptions): RunProgressOut {
 	const stderr = quiet ? undefined : createProgressPrinter(writer.err, startedAt)
 	const log = createWriteStream(resolve(outDir, "progress.log"))
 	const tsv = createWriteStream(resolve(outDir, "progress.tsv"))

@@ -88,7 +88,14 @@ function bodyOf(options: RequestOptions): Record<string, unknown> {
 	return body !== null && typeof body === "object" && !Array.isArray(body) ? (body as Record<string, unknown>) : {}
 }
 
-function itemAnswer(rows: Rows, method: string, id: string, options: RequestOptions): Answer | undefined {
+/** A request to one item: its method, the id its path names, and how it was sent. */
+interface ItemRequest {
+	method: string
+	id: string
+	options: RequestOptions
+}
+
+function itemAnswer(rows: Rows, { method, id, options }: ItemRequest): Answer | undefined {
 	const row = rows.get(id)
 	if (row === undefined) return undefined
 	if (method === "GET") return { body: row, status: 200 }
@@ -115,7 +122,7 @@ export function widgetApi(rows: Rows = new Map()): Responder {
 			return { body: row, status: 201 }
 		}
 		const id = decodeURIComponent(path.slice("/widgets/".length))
-		return itemAnswer(rows, method, id, options)
+		return itemAnswer(rows, { id, method, options })
 	}
 }
 

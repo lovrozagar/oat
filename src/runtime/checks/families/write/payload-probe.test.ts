@@ -9,11 +9,14 @@ function probeOf(
 	options: WidgetDocOptions = {},
 ): { probe: PayloadProbe; sent: ReturnType<typeof contextFor>["sent"] } {
 	const model = modelOf(widgetDoc(options))
-	const { ctx, sent } = contextFor(model, "listWidgets", respond, {
-		createOp: op(model, "createWidget"),
-		deleteOp: model.byOperationId.get("deleteWidget"),
-		readOp: op(model, "getWidget"),
-		updateOp: model.byOperationId.get("updateWidget"),
+	const { ctx, sent } = contextFor(model, "listWidgets", {
+		respond,
+		fields: {
+			createOp: op(model, "createWidget"),
+			deleteOp: model.byOperationId.get("deleteWidget"),
+			readOp: op(model, "getWidget"),
+			updateOp: model.byOperationId.get("updateWidget"),
+		},
 	})
 	const field = { maxLength: undefined, minLength: undefined, name: "note" }
 	const writeOp = ctx.updateOp ?? op(model, "createWidget")

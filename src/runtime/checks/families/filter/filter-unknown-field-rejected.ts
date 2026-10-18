@@ -18,7 +18,10 @@ export const unknownFilterRejected = defineCheck<{ unknownField: Record<string, 
 	 * of real APIs, which is how a tool earns a reputation for crying wolf.
 	 */
 	plan: (ctx) => {
-		const unknownField = conv(ctx).filter === undefined ? null : filterTerm(conv(ctx), "oat_no_such_field_xyz", "eq", 1)
+		const unknownField =
+			conv(ctx).filter === undefined
+				? null
+				: filterTerm(conv(ctx), { field: "oat_no_such_field_xyz", op: "eq", value: 1 })
 		return unknownField === null ? cannot() : ready({ unknownField })
 	},
 	id: "filter.unknown-field-rejected",

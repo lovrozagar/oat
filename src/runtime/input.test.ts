@@ -7,7 +7,10 @@ describe("resolveInput", () => {
 	it("leaves the generator alone when the hook is omitted", async () => {
 		const fields = { name: "Quarterly Report 0" }
 		expect(
-			await applyResolveInput(fields, "billing.subscribe", { properties: { name: { type: "string" } } }, undefined),
+			await applyResolveInput(fields, undefined, {
+				operationId: "billing.subscribe",
+				schema: { properties: { name: { type: "string" } } },
+			}),
 		).toEqual(fields)
 	})
 
@@ -15,16 +18,18 @@ describe("resolveInput", () => {
 		const asked: InputRequest[] = []
 		const out = await applyResolveInput(
 			{ name: "plan", payment_method_id: "generated" },
-			"billing.subscribe",
-			{
-				properties: {
-					name: { type: "string" },
-					payment_method_id: { type: "string" },
-				},
-			},
 			async (request) => {
 				asked.push(request)
 				return request.field === "payment_method_id" ? "pm_test_123" : null
+			},
+			{
+				operationId: "billing.subscribe",
+				schema: {
+					properties: {
+						name: { type: "string" },
+						payment_method_id: { type: "string" },
+					},
+				},
 			},
 		)
 		expect(out).toEqual({ name: "plan", payment_method_id: "pm_test_123" })
@@ -37,14 +42,16 @@ describe("resolveInput", () => {
 	it("walks nested objects and skips arrays", async () => {
 		const out = await applyResolveInput(
 			{ card: { brand: "visa" }, tags: ["a"] },
-			"pay.create",
+			async ({ pointer }) => (pointer === "$.card.brand" ? "amex" : null),
 			{
-				properties: {
-					card: { properties: { brand: { type: "string" } }, type: "object" },
-					tags: { type: "array" },
+				operationId: "pay.create",
+				schema: {
+					properties: {
+						card: { properties: { brand: { type: "string" } }, type: "object" },
+						tags: { type: "array" },
+					},
 				},
 			},
-			async ({ pointer }) => (pointer === "$.card.brand" ? "amex" : null),
 		)
 		expect(out).toEqual({ card: { brand: "amex" }, tags: ["a"] })
 	})
@@ -54,12 +61,11 @@ describe("resolveInput on fields the body lacks or keeps", () => {
 	it("still visits fields that exist only on the schema", async () => {
 		const out = await applyResolveInput(
 			{},
-			"billing.subscribe",
-			{ properties: { payment_method_id: { type: "string" } } },
 			async ({ field, value }) => {
 				expect(value).toBeUndefined()
 				return field === "payment_method_id" ? "pm_only_schema" : null
 			},
+			{ operationId: "billing.subscribe", schema: { properties: { payment_method_id: { type: "string" } } } },
 		)
 		expect(out.payment_method_id).toBe("pm_only_schema")
 	})
@@ -68,9 +74,8 @@ describe("resolveInput on fields the body lacks or keeps", () => {
 		const over = "x".repeat(65)
 		const out = await applyResolveInput(
 			{ category: over },
-			"tableTemplate.create",
-			{ properties: { category: { maxLength: 64, type: "string" } } },
 			async ({ value }) => (value === undefined || (typeof value === "string" && value.length > 64) ? null : "general"),
+			{ operationId: "tableTemplate.create", schema: { properties: { category: { maxLength: 64, type: "string" } } } },
 		)
 		expect(out.category).toBe(over)
 	})
@@ -79,11 +84,13 @@ describe("resolveInput on fields the body lacks or keeps", () => {
 		const asked: InputRequest[] = []
 		const out = await applyResolveInput(
 			{ name: "Quarterly Report 0" },
-			"table.create",
-			{ properties: { columns_json: { type: "array" }, name: { type: "string" } } },
 			async (request) => {
 				asked.push(request)
 				return null
+			},
+			{
+				operationId: "table.create",
+				schema: { properties: { columns_json: { type: "array" }, name: { type: "string" } } },
 			},
 		)
 		expect(out).toEqual({ name: "Quarterly Report 0" })
@@ -113,27 +120,32 @@ describe("resolveInput through encode and odd schemas", () => {
 	})
 
 	it("treats a non-object schema as empty properties", async () => {
-		const out = await applyResolveInput({ a: 1 }, "op", undefined, async () => null)
+		const out = await applyResolveInput({ a: 1 }, async () => null, { operationId: "op", schema: undefined })
 		expect(out).toEqual({ a: 1 })
-		expect(await applyResolveInput({ a: 1 }, "op", { properties: null } as never, async () => null)).toEqual({ a: 1 })
+		expect(
+			await applyResolveInput({ a: 1 }, async () => null, { operationId: "op", schema: { properties: null } as never }),
+		).toEqual({ a: 1 })
 	})
 
 	it("does not walk a scalar child", async () => {
-		const out = await applyResolveInput({ n: 3 }, "op", { properties: { n: { type: "number" } } }, async () => null)
+		const out = await applyResolveInput({ n: 3 }, async () => null, {
+			operationId: "op",
+			schema: { properties: { n: { type: "number" } } },
+		})
 		expect(out).toEqual({ n: 3 })
 	})
 
 	it("treats a null child schema as empty", async () => {
-		const out = await applyResolveInput(
-			{ nested: { a: 1 } },
-			"op",
-			{ properties: { nested: null } } as never,
-			async () => null,
-		)
+		const out = await applyResolveInput({ nested: { a: 1 } }, async () => null, {
+			operationId: "op",
+			schema: { properties: { nested: null } } as never,
+		})
 		expect(out).toEqual({ nested: { a: 1 } })
 	})
 
 	it("treats a non-object schema argument as empty properties", async () => {
-		expect(await applyResolveInput({ a: 1 }, "op", "nope" as never, async () => null)).toEqual({ a: 1 })
+		expect(await applyResolveInput({ a: 1 }, async () => null, { operationId: "op", schema: "nope" as never })).toEqual(
+			{ a: 1 },
+		)
 	})
 })

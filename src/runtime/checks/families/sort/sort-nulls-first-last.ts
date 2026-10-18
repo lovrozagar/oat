@@ -14,7 +14,11 @@ export const sortNullsFirstLast = defineCheck<{
 	lastClause: string | null
 }>({
 	plan: (ctx) => {
-		if (conv(ctx).order === undefined || sortTermWithNulls(conv(ctx), "x", "asc", "first") === null) return cannot()
+		if (
+			conv(ctx).order === undefined ||
+			sortTermWithNulls(conv(ctx), { direction: "asc", field: "x", nulls: "first" }) === null
+		)
+			return cannot()
 		const field = resolvedCaps(ctx).sortable.find(
 			(item) =>
 				(fieldAllowsNulls(item, resolvedCaps(ctx), "first") || fieldAllowsNulls(item, resolvedCaps(ctx), "last")) &&
@@ -22,7 +26,9 @@ export const sortNullsFirstLast = defineCheck<{
 		)
 		if (field === undefined) return cannot()
 		const placed = (where: "first" | "last"): string | null =>
-			fieldAllowsNulls(field, resolvedCaps(ctx), where) ? sortTermWithNulls(conv(ctx), field.field, "asc", where) : null
+			fieldAllowsNulls(field, resolvedCaps(ctx), where)
+				? sortTermWithNulls(conv(ctx), { direction: "asc", field: field.field, nulls: where })
+				: null
 		/* The grammar has a nulls token and the field allows at least one placement, so at least
 		 * one clause is written. */
 		return ready({ field, firstClause: placed("first"), lastClause: placed("last") })

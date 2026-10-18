@@ -77,7 +77,13 @@ function send(res: ServerResponse, status: number, body?: unknown): void {
 	res.end(body === undefined ? "" : JSON.stringify(body))
 }
 
-function noteItem(notes: Map<string, Note>, pathname: string, method: string, res: ServerResponse): void {
+/* The item path a request names, and its method. */
+interface ItemRequest {
+	pathname: string
+	method: string
+}
+
+function noteItem(notes: Map<string, Note>, { method, pathname }: ItemRequest, res: ServerResponse): void {
 	const id = decodeURIComponent(pathname.match(/^\/notes\/([^/]+)$/)?.[1] ?? "")
 	const note = notes.get(id)
 	if (method === "GET") return note === undefined ? send(res, 404, { error: "missing" }) : send(res, 200, note)
@@ -103,7 +109,7 @@ async function serve(notes: Map<string, Note>): Promise<string> {
 				notes.set(note.id, note)
 				return send(res, 201, note)
 			}
-			noteItem(notes, url.pathname, method, res)
+			noteItem(notes, { method, pathname: url.pathname }, res)
 		})().catch(() => {
 			if (!res.headersSent) res.writeHead(500)
 			res.end()

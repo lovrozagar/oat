@@ -155,7 +155,8 @@ async function raceAndJudge(race: Race, path: string, [first, second]: [string, 
  * when a probe value was written into a `status` enum.
  */
 function writableStringFields(ctx: CheckContext, record: Record_): string[] {
-	const immutable = new Set([...(ctx.updateOp?.immutable ?? []), ...(ctx.updateOp?.generated ?? [])])
+	/* The identity, and what the update cannot change: immutable and generated fields. */
+	const fixed = new Set([ctx.identity, ...(ctx.updateOp?.immutable ?? []), ...(ctx.updateOp?.generated ?? [])])
 	const schema = ctx.updateOp === undefined ? null : requestSchemaOf(ctx, ctx.updateOp)
 	const properties = (schema?.properties ?? {}) as Record<string, Record<string, unknown>>
 
@@ -167,7 +168,7 @@ function writableStringFields(ctx: CheckContext, record: Record_): string[] {
 
 	const out: string[] = []
 	for (const [key, value] of Object.entries(record)) {
-		if (!isFreeStringValue(key, value, ctx.identity, immutable)) continue
+		if (!isFreeStringValue(key, value, fixed)) continue
 
 		const propertySchema = properties[key]
 		if (enumerated && propertySchema === undefined) continue
@@ -178,8 +179,8 @@ function writableStringFields(ctx: CheckContext, record: Record_): string[] {
 }
 
 /** A string the record holds under a key that is not the identity, immutable, generated, or a timestamp or reference. */
-function isFreeStringValue(key: string, value: unknown, identity: string, immutable: ReadonlySet<string>): boolean {
-	if (immutable.has(key) || key === identity) return false
+function isFreeStringValue(key: string, value: unknown, fixed: ReadonlySet<string>): boolean {
+	if (fixed.has(key)) return false
 	if (/_at$|_id$/.test(key)) return false
 	return typeof value === "string"
 }

@@ -14,21 +14,21 @@ import {
 import { sideEffectArrives as check } from "./effects-side-effect-arrives.ts"
 
 const quick = { pollIntervalMs: 1, timeoutMs: 25 }
-const doc = withOperation(baseDocument(), "/notes", "post", {
+const doc = withOperation(baseDocument(), "post /notes", {
 	operationId: "sendNote",
 	requestBody: withBody,
 	"x-wait": { ...quick, operationId: "getInbox", until: "$.items" },
 })
-withOperation(doc, "/bare-notes", "post", { operationId: "sendBare", "x-wait": { ...quick, operationId: "getInbox" } })
-withOperation(doc, "/letters", "post", { operationId: "sendLetter", "x-wait": { ...quick, operationId: "getMailbox" } })
-withOperation(doc, "/mailboxes/{mailbox_id}", "get", { operationId: "getMailbox" })
-withOperation(doc, "/board-requests", "post", {
+withOperation(doc, "post /bare-notes", { operationId: "sendBare", "x-wait": { ...quick, operationId: "getInbox" } })
+withOperation(doc, "post /letters", { operationId: "sendLetter", "x-wait": { ...quick, operationId: "getMailbox" } })
+withOperation(doc, "get /mailboxes/{mailbox_id}", { operationId: "getMailbox" })
+withOperation(doc, "post /board-requests", {
 	operationId: "requestBoard",
 	"x-effects": [{ entity: "board", op: "create" }],
 	"x-wait": { ...quick, operationId: "getBoard" },
 })
-withOperation(doc, "/lost", "post", { operationId: "sendLost", "x-wait": { operationId: "nowhere" } })
-withOperation(doc, "/gated-notes", "post", {
+withOperation(doc, "post /lost", { operationId: "sendLost", "x-wait": { operationId: "nowhere" } })
+withOperation(doc, "post /gated-notes", {
 	operationId: "sendGated",
 	"x-feature-gate": "pro",
 	"x-wait": { ...quick, operationId: "getInbox" },
@@ -37,7 +37,7 @@ const model = modelOf(doc)
 const sendNote = op(model, "sendNote")
 
 async function waited(respond: Responder, waitOps: OperationModel[] = [sendNote], fields: Partial<CheckContext> = {}) {
-	const stage = contextFor(model, "listWidgets", respond, { waitOps, ...fields })
+	const stage = contextFor(model, "listWidgets", { respond, fields: { waitOps, ...fields } })
 	const outcome = await check.run(stage.ctx, undefined)
 	return { ...stage, outcome }
 }
@@ -46,7 +46,7 @@ const delivered = { body: { items: ["n1"] }, status: 200 }
 const empty = { body: { items: [] }, status: 200 }
 
 const plan = (waitOps: OperationModel[]) =>
-	check.plan(contextFor(model, "listWidgets", () => undefined, { waitOps }).ctx).ok
+	check.plan(contextFor(model, "listWidgets", { respond: () => undefined, fields: { waitOps } }).ctx).ok
 
 describe("plan", () => {
 	it("applies when some operation declares x-wait", () => {

@@ -36,13 +36,15 @@ export const SORT_PRESETS = {
 
 export type SortDirection = "asc" | "desc"
 
+/** One sort key: the field, its direction, and where nulls go when that is asked for. */
+export interface SortKey {
+	field: string
+	direction: SortDirection
+	nulls?: "first" | "last" | undefined
+}
+
 /** One key. `nulls` is appended only by a grammar that has a token for it. */
-export function renderSortKey(
-	spec: SortGrammarSpec,
-	field: string,
-	direction: SortDirection,
-	nulls?: "first" | "last",
-): string {
+export function renderSortKey(spec: SortGrammarSpec, { direction, field, nulls }: SortKey): string {
 	const key = spec.term.replace(/\{(field|direction)\}/g, (_whole, name: string) =>
 		name === "field" ? field : spec[direction],
 	)
@@ -60,7 +62,7 @@ export function renderSortKeys(
 	spec: SortGrammarSpec,
 	keys: readonly (readonly [string, SortDirection])[],
 ): SortValue | null {
-	const rendered = keys.map(([field, direction]) => renderSortKey(spec, field, direction))
+	const rendered = keys.map(([field, direction]) => renderSortKey(spec, { direction, field }))
 	if (rendered.length <= 1) return rendered[0] ?? null
 	if (spec.join === REPEATED_KEYS) return rendered
 	return spec.join === null ? null : rendered.join(spec.join)

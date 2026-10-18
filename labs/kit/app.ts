@@ -55,7 +55,7 @@ export function createWorldApp(world: World, store: WorldStore): App {
 	app.use("/v1/invites/*", authenticate)
 
 	for (const entity of world.entities) {
-		mountEntity(app, world, entity, store)
+		mountEntity(app, entity, { store, world })
 	}
 
 	if (world.entities.some((e) => e.invite === true)) {
@@ -101,7 +101,7 @@ function mountJobs(app: App, world: World, store: WorldStore): void {
 		assertTenant(c)
 		assertWrite(c.get("role"), "create")
 		assertJson(c)
-		const input = validateBody(job, await readJson(c), "create", world)
+		const input = validateBody(job, await readJson(c), { phase: "create", world })
 		const now = Date.now()
 		const row: Row = {
 			...defaults(job),
@@ -134,7 +134,7 @@ function mountJobs(app: App, world: World, store: WorldStore): void {
 	})
 }
 
-function mountEntity(app: App, world: World, entity: Entity, store: WorldStore): void {
+function mountEntity(app: App, entity: Entity, { store, world }: Pick<Mount, "store" | "world">): void {
 	const mount: Mount = {
 		app,
 		entity,
@@ -197,7 +197,7 @@ async function createRoute({ entity, store, world }: Mount, c: C): Promise<Respo
 		const replay = await store.findIdempotent(idemKey)
 		if (replay !== null) return c.json(replay, 201)
 	}
-	const input = validateBody(entity, await readJson(c), "create", world)
+	const input = validateBody(entity, await readJson(c), { phase: "create", world })
 	const created = await store.insert(entity, newRow({ entity, world }, input, c))
 	if (idemKey !== null) await store.saveIdempotent(idemKey, created)
 	return c.json(created, hasDefect(world, "create-200") ? 200 : 201)
@@ -245,9 +245,9 @@ async function updateRoute(mount: Mount, c: C): Promise<Response> {
 	assertTenant(c)
 	assertWrite(c.get("role"), "update")
 	assertJson(c)
-	const patch = validateBody(entity, await readJson(c), "update", world)
+	const patch = validateBody(entity, await readJson(c), { phase: "update", world })
 	const id = c.req.param(mount.idParam) as string
-	const updated = await store.update(entity, c.get("orgId"), id, patch)
+	const updated = await store.update(entity, { id, orgId: c.get("orgId") }, patch)
 	if (updated === null) throw await deny(mount, id, c.get("orgId"))
 	return c.json(updated)
 }

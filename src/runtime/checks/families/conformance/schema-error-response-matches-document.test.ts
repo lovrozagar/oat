@@ -15,8 +15,13 @@ import {
 	unnamed,
 } from "./__fixtures__/items.ts"
 
+/** The transcript's setting, and the options of the items document it runs against. */
+interface Stage extends Transcript {
+	document?: ItemsOptions
+}
+
 /** Plans and runs the check over `exchanges`, with the read's probe answered by `missing`. */
-async function judge(exchanges: Exchange[], missing: Answer, transcript: Transcript = {}, options: ItemsOptions = {}) {
+async function judge(exchanges: Exchange[], missing: Answer, { document: options = {}, ...transcript }: Stage = {}) {
 	const judged: string[][] = []
 	const fields = { judged: (ids: readonly string[]) => judged.push([...ids]), ...transcript.fields }
 	const staged = overTranscript(modelOfItems(options), exchanges, { ...transcript, fields, respond: () => missing })
@@ -68,7 +73,7 @@ describe("schema.error-response-matches-document probe", () => {
 	})
 
 	it("reports a schema AJV cannot compile as a coverage gap", async () => {
-		const { findings } = await judge([], { body: "x", status: 404 }, {}, { missing: UNCOMPILABLE })
+		const { findings } = await judge([], { body: "x", status: 404 }, { document: { missing: UNCOMPILABLE } })
 		expect(summaries(findings)).toEqual([
 			["COVERAGE_GAP", "item.read 404 has a schema that cannot be compiled", undefined],
 		])
@@ -80,7 +85,11 @@ describe("schema.error-response-matches-document probe", () => {
 	})
 
 	it("sends nothing when no identifier of the documented shape names no record", async () => {
-		const { findings, judged, sent } = await judge([], { status: 404 }, {}, { id: { enum: ["a"], type: "string" } })
+		const { findings, judged, sent } = await judge(
+			[],
+			{ status: 404 },
+			{ document: { id: { enum: ["a"], type: "string" } } },
+		)
 		expect(sent).toEqual([])
 		expect(findings.findings).toEqual([])
 		expect(judged).toEqual([["item.read"]])
@@ -137,12 +146,9 @@ describe("schema.error-response-matches-document over the transcript", () => {
 	})
 
 	it("reports a conflict schema AJV cannot compile as a gap on its operation", async () => {
-		const { findings } = await judge(
-			[seen("item.create", { body: "x", status: 409 })],
-			fine,
-			{},
-			{ conflict: UNCOMPILABLE },
-		)
+		const { findings } = await judge([seen("item.create", { body: "x", status: 409 })], fine, {
+			document: { conflict: UNCOMPILABLE },
+		})
 		expect(summaries(findings)).toEqual([
 			["COVERAGE_GAP", "item.create 409 has a schema that cannot be compiled", ["item.create"]],
 		])
@@ -175,7 +181,7 @@ describe("schema.error-response-matches-document transcript stand-asides", () =>
 
 	it("counts a refusal its operation documents no schema for as judged, without a finding", async () => {
 		const gate = seen("item.update", { body: GATE_BODY, status: 403 })
-		const { findings, judged } = await judge([gate], fine, {}, { update: { "200": json(ITEM) } })
+		const { findings, judged } = await judge([gate], fine, { document: { update: { "200": json(ITEM) } } })
 		expect(findings.findings).toEqual([])
 		expect(judged).toEqual([["item.read", "item.update"]])
 	})

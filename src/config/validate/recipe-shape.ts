@@ -78,8 +78,14 @@ function fitProblems(path: string, recipe: Raw): string[] {
 	return problems
 }
 
+/** What a recipe's shape is checked for: its scheme, and whether a credential hook exists. */
+export interface ShapeFor {
+	scheme: SecurityScheme
+	hasHook: boolean
+}
+
 /** What is wrong with the shape of a recipe of exactly one kind, for its scheme. */
-export function kindShapeProblems(path: string, recipe: Raw, scheme: SecurityScheme, hasHook: boolean): string[] {
+export function kindShapeProblems(path: string, recipe: Raw, { hasHook, scheme }: ShapeFor): string[] {
 	return [
 		...fitProblems(path, recipe),
 		...(recipe.login === undefined ? [] : stepsShape(`${path}.login`, recipe.login)),

@@ -78,13 +78,13 @@ export function baseDocument(): OpenApiDocument {
 	} as unknown as OpenApiDocument
 }
 
-/** Adds `operation` (with its operationId and any x- tags) at `method path`. */
+/** Adds `operation` (with its operationId and any x- tags) at `route`, written `method path`: "post /jobs". */
 export function withOperation(
 	doc: OpenApiDocument,
-	path: string,
-	method: string,
+	route: string,
 	operation: Record<string, unknown>,
 ): OpenApiDocument {
+	const [method, path] = route.split(" ") as [string, string]
 	const paths = doc.paths as Record<string, Record<string, unknown>>
 	const params = [...path.matchAll(/\{([^}]+)\}/g)].map((m) => idParam(m[1] ?? ""))
 	paths[path] = { ...paths[path], [method]: { responses: ok({ type: "object" }), ...operation } }

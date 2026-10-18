@@ -9,10 +9,6 @@ import type { OpenApiDocument, OperationObject } from "../../spec/types.ts"
 import type { ParserResult } from "../harness/result.ts"
 import { widgetSpec } from "./spec.ts"
 
-function result(name: string, why: string, ok: boolean, detail: string): ParserResult {
-	return { detail, name, ok, why }
-}
-
 const parsed = (tag: unknown): string[][] | null => readUnique({ "x-unique": tag } as OperationObject)
 
 function shapesCase(): ParserResult {
@@ -22,14 +18,15 @@ function shapesCase(): ParserResult {
 		["single string[]", ["email"]],
 	]
 	const sets = shapes.map(([, tag]) => parsed(tag))
-	return result(
-		"accepted x-unique shapes parse to column sets",
-		"list of sets, {columns}, and a single string[] are the documented forms",
-		JSON.stringify(sets[0]) === JSON.stringify([["email"], ["workspace_id", "slug"]]) &&
+	return {
+		detail: shapes.map(([name], i) => `${name}=${JSON.stringify(sets[i])}`).join("; "),
+		name: "accepted x-unique shapes parse to column sets",
+		ok:
+			JSON.stringify(sets[0]) === JSON.stringify([["email"], ["workspace_id", "slug"]]) &&
 			JSON.stringify(sets[1]) === JSON.stringify([["email"], ["workspace_id", "slug"]]) &&
 			JSON.stringify(sets[2]) === JSON.stringify([["email"]]),
-		shapes.map(([name], i) => `${name}=${JSON.stringify(sets[i])}`).join("; "),
-	)
+		why: "list of sets, {columns}, and a single string[] are the documented forms",
+	}
 }
 
 function malformedCase(): ParserResult {
@@ -50,12 +47,12 @@ function malformedCase(): ParserResult {
 	const model = buildModel(doc)
 	const gap = model.gaps.gaps.some((g) => g.tag === "x-unique")
 	const unique = model.byOperationId.get("thing.create")?.unique
-	return result(
-		"malformed x-unique is absent plus a doctor gap",
-		"non-array is not a guess",
-		unique === null && gap,
-		`unique=${String(unique)} gap=${String(gap)}`,
-	)
+	return {
+		detail: `unique=${String(unique)} gap=${String(gap)}`,
+		name: "malformed x-unique is absent plus a doctor gap",
+		ok: unique === null && gap,
+		why: "non-array is not a guess",
+	}
 }
 
 /** The plan of `model`, which tags its widget `[name]`, shows the sets. */
@@ -63,24 +60,24 @@ export function planCase(model: SpecModel): ParserResult {
 	const plan = report.plan(model, false)
 	const unique = model.entities.get("widget")?.unique ?? null
 	const shown = plan.includes("x-unique:")
-	return result(
-		"plan lists x-unique",
-		"doctor / plan should show the effective sets",
-		shown && plan.includes("[name]") && unique !== null,
-		shown ? formatUniqueSets(unique) : "missing from plan",
-	)
+	return {
+		detail: shown ? formatUniqueSets(unique) : "missing from plan",
+		name: "plan lists x-unique",
+		ok: shown && plan.includes("[name]") && unique !== null,
+		why: "doctor / plan should show the effective sets",
+	}
 }
 
 /** The doctor report of `model`, which tags its widget `[name]`, shows the sets. */
 export function doctorCase(model: SpecModel): ParserResult {
-	const { text } = report.doctor(model, [], false)
+	const { text } = report.doctor(model)
 	const shown = text.includes("x-unique:")
-	return result(
-		"doctor lists x-unique",
-		"doctor / plan should show the effective sets",
-		shown && text.includes("[name]"),
-		shown ? "shown" : "missing from doctor",
-	)
+	return {
+		detail: shown ? "shown" : "missing from doctor",
+		name: "doctor lists x-unique",
+		ok: shown && text.includes("[name]"),
+		why: "doctor / plan should show the effective sets",
+	}
 }
 
 /** Every case about the document alone, in the order the suite reports them. */
@@ -90,21 +87,31 @@ export function documentCases(): ParserResult[] {
 	const none = JSON.stringify(buildModel(widgetSpec({ tag: [] })).byOperationId.get("widget.create")?.unique)
 	return [
 		shapesCase(),
-		result("empty sets are dropped", "[[]] after filtering is explicit none", empty === "[]", empty),
+		{
+			detail: empty,
+			name: "empty sets are dropped",
+			ok: empty === "[]",
+			why: "[[]] after filtering is explicit none",
+		},
 		malformedCase(),
 		planCase(tagged),
 		doctorCase(tagged),
-		result("[] after filter does not run unique checks", "explicit none", none === "[]", none),
+		{
+			detail: none,
+			name: "[] after filter does not run unique checks",
+			ok: none === "[]",
+			why: "explicit none",
+		},
 	]
 }
 
 /** `text`, the doctor report of a widget with no tag, names the checks the tag would unlock. */
 export function untaggedDoctorCase(text: string): ParserResult {
 	const named = text.includes("x-unique")
-	return result(
-		"doctor says unique checks do not run without the tag",
-		"TAG_UNLOCKS names the locked checks",
-		named && text.includes("create.unique-conflict-rejected"),
-		named ? "named" : "missing from doctor",
-	)
+	return {
+		detail: named ? "named" : "missing from doctor",
+		name: "doctor says unique checks do not run without the tag",
+		ok: named && text.includes("create.unique-conflict-rejected"),
+		why: "TAG_UNLOCKS names the locked checks",
+	}
 }

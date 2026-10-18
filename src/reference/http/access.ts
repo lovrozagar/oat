@@ -4,7 +4,16 @@ import type { EntityDef } from "../model/types.ts"
 import type { Row } from "../store-api.ts"
 import { HttpError } from "./errors.ts"
 import { hiddenFromCreator, tombstoned } from "./records.ts"
-import { type Principal, PRINCIPALS, type ReferenceState, type Scope, TENANT_FIELD } from "./state.ts"
+import type { EntityCall, ItemCall } from "./handlers/entity.ts"
+import {
+	type EntityRecord,
+	type Grant,
+	type Principal,
+	PRINCIPALS,
+	type ReferenceState,
+	type Scope,
+	TENANT_FIELD,
+} from "./state.ts"
 import type { ReferenceRequest } from "./wire.ts"
 
 const notFound = (entity: EntityDef, id: unknown, why = "does not exist"): HttpError =>
@@ -48,8 +57,7 @@ function parentOf(state: ReferenceState, param: string): EntityDef | undefined {
 /** Walks a record up its parent chain to the owning tenant, driven by the descriptors. */
 export async function ownedByTenant(
 	state: ReferenceState,
-	entity: EntityDef,
-	record: Row,
+	{ entity, record }: EntityRecord,
 	principal: Principal,
 ): Promise<boolean> {
 	if (entity.fields.some((f) => f.name === TENANT_FIELD)) return record[TENANT_FIELD] === principal.projectId
@@ -58,7 +66,7 @@ export async function ownedByTenant(
 		const link = record[param]
 		if (parentEntity === undefined || (typeof link !== "string" && typeof link !== "number")) continue
 		const parent = await state.store.byId(parentEntity, link)
-		return parent !== null && ownedByTenant(state, parentEntity, parent, principal)
+		return parent !== null && ownedByTenant(state, { entity: parentEntity, record: parent }, principal)
 	}
 	return false
 }
@@ -68,12 +76,8 @@ export async function ownedByTenant(
  * ancestors must be the ones the path names. Without this, a caller could list or write rows of
  * another tenant's table by placing that table's id under their own project.
  */
-export async function assertParents(
-	state: ReferenceState,
-	entity: EntityDef,
-	scope: Scope,
-	principal: Principal,
-): Promise<void> {
+export async function assertParents(state: ReferenceState, call: EntityCall): Promise<void> {
+	const { entity, scope } = call
 	for (const param of entity.parents) {
 		const parentEntity = parentOf(state, param)
 		if (parentEntity === undefined) continue
@@ -82,31 +86,31 @@ export async function assertParents(
 		/* Under the defect a parent only has to exist: whose it is, and whose path names it, go
 		 * unchecked — another tenant's parent id under the caller's own root is let through. */
 		if (parent !== null && state.defects.has("FOREIGN_PARENT_ACCEPTED")) continue
-		if (parent === null || !(await liveAndOwned(state, { entity: parentEntity, record: parent }, scope, principal))) {
+		if (parent === null || !(await liveAndOwned(state, { entity: parentEntity, record: parent }, call))) {
 			throw notFound(parentEntity, id)
 		}
 	}
 }
 
-/* A parent the path may name: linked to the path's own ancestors, live, and the caller's. */
-async function liveAndOwned(
-	state: ReferenceState,
-	parent: { entity: EntityDef; record: Row },
-	scope: Scope,
-	principal: Principal,
-): Promise<boolean> {
+/* A parent the call's path may name: linked to the path's own ancestors, live, and the caller's. */
+async function liveAndOwned(state: ReferenceState, parent: EntityRecord, call: EntityCall): Promise<boolean> {
 	const { entity, record } = parent
+	const { scope } = call
 	const linked = entity.parents.every(
 		(ancestor) => !entity.fields.some((f) => f.name === ancestor) || record[ancestor] === scope[ancestor],
 	)
-	return linked && !tombstoned(entity, record) && ownedByTenant(state, entity, record, principal)
+	return linked && !tombstoned(entity, record) && ownedByTenant(state, parent, call.principal)
 }
 
 /**
  * A record is served under the path that names its own parents, and no other — all the way up: a
  * row's table must itself sit under the project the path names.
  */
-export async function underPath(state: ReferenceState, entity: EntityDef, record: Row, scope: Scope): Promise<boolean> {
+export async function underPath(
+	state: ReferenceState,
+	{ entity, record }: EntityRecord,
+	scope: Scope,
+): Promise<boolean> {
 	const stored = (param: string): boolean => entity.fields.some((f) => f.name === param)
 	if (entity.parents.some((param) => stored(param) && scope[param] !== undefined && record[param] !== scope[param])) {
 		return false
@@ -115,34 +119,40 @@ export async function underPath(state: ReferenceState, entity: EntityDef, record
 	if (parentParam === undefined || !stored(parentParam)) return true
 	const parentEntity = parentOf(state, parentParam) as EntityDef
 	const parent = await state.store.byId(parentEntity, record[parentParam] as string)
-	return parent !== null && underPath(state, parentEntity, parent, scope)
+	return parent !== null && underPath(state, { entity: parentEntity, record: parent }, scope)
 }
 
-function canReadViaGrant(state: ReferenceState, entityName: string, id: string, principal: Principal): boolean {
+/* The resource a grant names: the entity's name and the record's id. */
+type Granted = Pick<Grant, "entity" | "resourceId">
+
+function canReadViaGrant(state: ReferenceState, { entity, resourceId }: Granted, principal: Principal): boolean {
 	if (state.defects.has("INVITE_NEVER_GRANTS")) return false
 	return [...state.grants.values()].some(
 		(grant) =>
-			grant.entity === entityName && grant.resourceId === id && grant.granteeKey === principal.key && grant.accepted,
+			grant.entity === entity &&
+			grant.resourceId === resourceId &&
+			grant.granteeKey === principal.key &&
+			grant.accepted,
 	)
 }
 
 /** The record a caller may read or write under this path, or the refusal a correct backend gives. */
 export async function findItem(
 	state: ReferenceState,
-	target: { entity: EntityDef; id: string | number; scope: Scope },
-	principal: Principal,
+	call: ItemCall,
 	purpose: "read" | "write" = "read",
 ): Promise<Row> {
-	const { entity, id, scope } = target
+	const { entity, itemId: id, principal, scope } = call
 	const { defects } = state
 	const record = await state.store.byId(entity, id)
 	if (record === null || hiddenFromCreator(defects, entity, record)) throw notFound(entity, id)
 	/* Writes looked up by id alone: reads stay scoped, so only a write probe can tell. */
 	if (purpose === "write" && defects.has("CROSS_TENANT_WRITE")) return record
 	/* A record named under somebody else's parents is not this caller's to read, whoever owns it. */
-	const inPath = await underPath(state, entity, record, scope)
-	const owned = inPath && (await ownedByTenant(state, entity, record, principal))
-	const granted = inPath && canReadViaGrant(state, entity.name, String(id), principal)
+	const held = { entity, record }
+	const inPath = await underPath(state, held, scope)
+	const owned = inPath && (await ownedByTenant(state, held, principal))
+	const granted = inPath && canReadViaGrant(state, { entity: entity.name, resourceId: String(id) }, principal)
 	/* The leak is a lookup by id alone: no tenant check, and no check of the path either. */
 	if (!defects.has("CROSS_TENANT_READ") && !owned && !granted) {
 		/* Correct is 404: the same answer an id that never existed would get. Answering 403 here is

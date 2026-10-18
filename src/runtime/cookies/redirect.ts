@@ -28,12 +28,18 @@ export interface RedirectHop {
 	responseHeaders: Record<string, string>
 }
 
+/** What a redirect answer says: its status and its `Location` header. */
+export interface RedirectAnswer {
+	status: number
+	location: string | null
+}
+
+/** Where `request`'s redirect answer sends it next, or `null` when it sends it nowhere. */
 export function redirectTarget(
-	status: number,
-	method: string,
-	location: string | null,
-	currentUrl: URL,
+	{ status, location }: RedirectAnswer,
+	request: Pick<RedirectTarget, "method" | "url">,
 ): RedirectTarget | null {
+	const { method, url: currentUrl } = request
 	if (!isRedirectStatus(status)) return null
 	if (location === null || location === "") return null
 	let next: URL

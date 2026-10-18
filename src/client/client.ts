@@ -121,7 +121,7 @@ export class Client {
 
 	async request(method: string, path: string, options: RequestOptions = {}): Promise<Exchange> {
 		if (method.toUpperCase() !== "GET" && method.toUpperCase() !== "HEAD") this.writes += 1
-		const request = prepare(method, path, options, this.wire)
+		const request = prepare(this.wire, method, path, options)
 		const { network, rateLimiter } = this.options
 		const deadline = performance.now() + (network?.deadlineMs ?? DEFAULT_DEADLINE_MS)
 		const policy = { deadline, headers: request.callerHeaders, method: request.method, network }
@@ -136,7 +136,11 @@ export class Client {
 				supersede(previous)
 				return send()
 			},
-			backedOff: (waitMs) => rateLimiter?.noteBackoff(request.method, request.relative, waitMs, request.operationId),
+			backedOff: (waitMs) =>
+				rateLimiter?.noteBackoff(
+					{ method: request.method, operationId: request.operationId, pathname: request.relative },
+					waitMs,
+				),
 			method: request.method,
 			reauthorized,
 		})

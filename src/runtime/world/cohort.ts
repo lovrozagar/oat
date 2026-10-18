@@ -62,7 +62,8 @@ export async function recordCreated(run: CohortRun, exchange: Exchange, sent: un
 
 export async function postMember(run: CohortRun, member: CohortMember, nextUploads: UploadContext): Promise<Exchange> {
 	const { createOp, seeding } = run
-	const encoded = await encodeForOperation(createOp, seeding.model, member.body, {
+	const encoded = await encodeForOperation(createOp, seeding.model, {
+		fields: member.body,
 		index: run.records.length,
 		uploads: nextUploads,
 		variant: member.variant,
@@ -90,7 +91,7 @@ export async function postFresh(
 	for (let attempt = 0; attempt < 3 && exchange.status === 409; attempt++) {
 		if (ownIdentity === null || !Object.hasOwn(sent.body, ownIdentity)) break
 		const token = `id${attempt}-${sent.variant}-${run.seeding.options.nonce ?? ""}`
-		sent = { ...sent, body: uniquifyProbeBody(sent.body, [[ownIdentity]], run.schema, token) }
+		sent = { ...sent, body: uniquifyProbeBody(sent.body, [[ownIdentity]], { schema: run.schema, token }) }
 		exchange = await postMember(run, sent, nextUploads)
 	}
 	return { exchange, sent }

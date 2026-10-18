@@ -30,7 +30,7 @@ export async function seedCreated(run: EntityRun, createOp: OperationModel): Pro
 			scope,
 		)
 		reportVariants(run, createOp, cohort)
-		return await worldOf(run, createOp, cohort, scope)
+		return await worldOf(run, createOp, { cohort, scope })
 	} catch (error) {
 		return seedFailed(run, createOp, error)
 	}
@@ -67,13 +67,14 @@ function reportVariants(run: EntityRun, createOp: OperationModel, cohort: Seeded
 	}
 }
 
+/** What seeding left: the cohort, and the path scope it was made under. */
+interface Seeded {
+	cohort: SeededCohort
+	scope: Scope
+}
+
 /** The world a seeded cohort leaves: oat's own records, or ones it adopted or had to read. */
-async function worldOf(
-	run: EntityRun,
-	createOp: OperationModel,
-	cohort: SeededCohort,
-	scope: Scope,
-): Promise<World | null> {
+async function worldOf(run: EntityRun, createOp: OperationModel, { cohort, scope }: Seeded): Promise<World | null> {
 	const { entity, findings } = run
 	if (cohort.adopted === true) {
 		/* Plan limit after an effect already created the row: keep the id so children (row after

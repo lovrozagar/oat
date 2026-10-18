@@ -67,27 +67,32 @@ describe("selectParam", () => {
 
 describe("paginated", () => {
 	it("publishes only the facts the envelope names", () => {
-		expect(paginated(POSTGREST, TABLE, url(""), result())).toEqual({
+		expect(paginated({ dialect: POSTGREST, entity: TABLE, url: url("") }, result())).toEqual({
 			body: { count: 3, hasMore: true, limit: 2, nextCursor: "c2", page: 3, tables: [{ id: "a" }, { id: "b" }] },
 			headers: {},
 		})
 		const bare: Dialect = { ...POSTGREST, envelope: { collection: "data" } }
-		expect(paginated(bare, JOB, url(""), result()).body).toEqual({ data: [{ id: "a" }, { id: "b" }] })
+		expect(paginated({ dialect: bare, entity: JOB, url: url("") }, result()).body).toEqual({
+			data: [{ id: "a" }, { id: "b" }],
+		})
 	})
 
 	it("answers a root array with a next link while more pages follow", () => {
-		expect(paginated(LINKED, TABLE, url("?limit=2&offset=4"), result())).toEqual({
+		expect(paginated({ dialect: LINKED, entity: TABLE, url: url("?limit=2&offset=4") }, result())).toEqual({
 			body: [{ id: "a" }, { id: "b" }],
 			headers: { link: '</v1/projects/p/tables?limit=2&offset=6>; rel="next"' },
 		})
 	})
 
 	it("answers a root array with no link on the last page or without an offset", () => {
-		expect(paginated(LINKED, TABLE, url(""), result({ hasMore: false })).headers).toEqual({})
+		expect(paginated({ dialect: LINKED, entity: TABLE, url: url("") }, result({ hasMore: false })).headers).toEqual({})
 		const params = { ...LINKED.params }
 		delete params.offset
 		const unpaged: Dialect = { ...LINKED, params }
-		expect(paginated(unpaged, TABLE, url(""), result())).toEqual({ body: [{ id: "a" }, { id: "b" }], headers: {} })
+		expect(paginated({ dialect: unpaged, entity: TABLE, url: url("") }, result())).toEqual({
+			body: [{ id: "a" }, { id: "b" }],
+			headers: {},
+		})
 	})
 })
 

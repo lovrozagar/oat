@@ -48,7 +48,7 @@ export const declaredSortableWorks = defineCheck({
 		const answers = await Promise.all(
 			(ctx.query?.sortable ?? []).map(async (field) => ({
 				field,
-				result: await list(ctx, q(ctx, { limit: 5, order: sortTerm(conventions, field, "asc") })),
+				result: await list(ctx, q(ctx, { limit: 5, order: sortTerm(conventions, { direction: "asc", field }) })),
 			})),
 		)
 		for (const { field, result } of answers) {

@@ -62,12 +62,17 @@ export function renderOr(
 	return fragments === null ? null : { [filterParam]: grouped(spec.or as TermGroup, fragments) }
 }
 
+/** `a AND (b OR c)`: a predicate that must hold, and predicates of which one must. */
+export interface AndOfOr {
+	first: FilterPredicate
+	either: readonly FilterPredicate[]
+}
+
 /** `a AND (b OR c)` as one filter value; `null` unless the grammar groups both and lets them nest. */
 export function renderAndOfOr(
 	spec: FilterGrammarSpec,
 	filterParam: string | undefined,
-	first: FilterPredicate,
-	either: readonly FilterPredicate[],
+	{ either, first }: AndOfOr,
 ): Record<string, string> | null {
 	if (!spec.mixed || filterParam === undefined) return null
 	const head = renderFragment(spec, first)

@@ -90,7 +90,8 @@ async function destructiveBody(input: DisposableInput, op: OperationModel, sessi
 	if (schema !== null) {
 		try {
 			/* One variant asked for, one member back, and its body is always an object. */
-			const [member] = buildCohort(schema, input.seed ?? 1, ["baseline"], {
+			const [member] = buildCohort(schema, input.seed ?? 1, {
+				variants: ["baseline"],
 				nonce: `${input.nonce ?? "user"}d`,
 				operationId: op.operationId,
 			}) as [CohortMember]
@@ -100,7 +101,7 @@ async function destructiveBody(input: DisposableInput, op: OperationModel, sessi
 			 * depth): the body stays empty, and what the signup knows still fills it. */
 		}
 		if (input.resolveInput !== undefined) {
-			generated = await applyResolveInput(generated, op.operationId, schema, input.resolveInput)
+			generated = await applyResolveInput(generated, input.resolveInput, { operationId: op.operationId, schema })
 		}
 	}
 	return bodyFor(schema, session.known, generated)

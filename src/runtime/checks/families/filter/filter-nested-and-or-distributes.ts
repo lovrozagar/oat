@@ -37,10 +37,10 @@ export const filterNestedAndOrDistributes = defineCheck<{
 		const pickedId = idOf(picked.target, ctx.identity)
 		if (pickedId === undefined) return cannot(NO_IDENTITY)
 		const c = { field: idField, op: "eq", value: pickedId } as const
-		const nested = renderAndOfOr(filterSpec(conventions), conventions.filter, a, [b, c])
-		const termA = filterTerm(conventions, a.field, a.op, a.value)
-		const termB = filterTerm(conventions, b.field, b.op, b.value)
-		const termC = filterTerm(conventions, c.field, c.op, c.value)
+		const nested = renderAndOfOr(filterSpec(conventions), conventions.filter, { either: [b, c], first: a })
+		const termA = filterTerm(conventions, { field: a.field, op: a.op, value: a.value })
+		const termB = filterTerm(conventions, { field: b.field, op: b.op, value: b.value })
+		const termC = filterTerm(conventions, { field: c.field, op: c.op, value: c.value })
 		if (nested === null || termA === null || termB === null || termC === null) return cannot()
 		return ready({ nested, termA, termB, termC })
 	},

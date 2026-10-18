@@ -41,8 +41,8 @@ export const sortReverseSymmetry = defineCheck<{ field: string }>({
 		/* Gathered across pages: a collection larger than one page would otherwise leave this
 		 * property — that a reversal reorders a set without changing its membership — untested on
 		 * exactly the collections where sorting matters most. */
-		const ascending = await collectSet(ctx, limit, {}, { order: sortTerm(conv(ctx), field, "asc") })
-		const descending = await collectSet(ctx, limit, {}, { order: sortTerm(conv(ctx), field, "desc") })
+		const ascending = await collectSet(ctx, limit, {}, { order: sortTerm(conv(ctx), { direction: "asc", field }) })
+		const descending = await collectSet(ctx, limit, {}, { order: sortTerm(conv(ctx), { direction: "desc", field }) })
 		if (ascending === null || descending === null) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -63,10 +63,16 @@ export const sortReverseSymmetry = defineCheck<{ field: string }>({
 			)
 		}
 
-		const settled = await settlePair(ctx.identity, ascending, descending, {
-			first: () => collectSet(ctx, limit, {}, { order: sortTerm(conv(ctx), field, "asc"), fresh: true }),
-			second: () => collectSet(ctx, limit, {}, { order: sortTerm(conv(ctx), field, "desc"), fresh: true }),
-		})
+		const settled = await settlePair(
+			ctx.identity,
+			{ first: ascending, second: descending },
+			{
+				first: () =>
+					collectSet(ctx, limit, {}, { order: sortTerm(conv(ctx), { direction: "asc", field }), fresh: true }),
+				second: () =>
+					collectSet(ctx, limit, {}, { order: sortTerm(conv(ctx), { direction: "desc", field }), fresh: true }),
+			},
+		)
 		if (settled === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING)
 		if (settled === null) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, `ordering by "${field}" was rejected on a repeat read`)

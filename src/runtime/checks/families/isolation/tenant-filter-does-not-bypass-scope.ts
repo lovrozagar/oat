@@ -21,7 +21,7 @@ export const crossTenantFilterBypass = defineCheck<{
 		if (!filterable(ctx) || !tenantBoundary(ctx.listOp) || !identityIsFilterable(ctx)) return cannot()
 		const id = idOf(target, ctx.identity)
 		if (id === undefined) return cannot(NO_IDENTITY)
-		const tenantTerm = filterTerm(conv(ctx), filterIdentity(ctx), "eq", id)
+		const tenantTerm = filterTerm(conv(ctx), { field: filterIdentity(ctx), op: "eq", value: id })
 		if (tenantTerm === null) return cannot("a filter grammar that can express equality on the identity")
 		return ready({ altAuth, altScope, id, tenantTerm })
 	},

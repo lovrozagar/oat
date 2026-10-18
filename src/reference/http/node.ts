@@ -39,7 +39,7 @@ async function answer(handle: Handle, req: IncomingMessage, res: ServerResponse)
 	const headers: Record<string, string> = {}
 	for (const [name, value] of Object.entries(req.headers)) if (typeof value === "string") headers[name] = value
 	const url = new URL(req.url ?? "/", "http://localhost")
-	const response = await handle(referenceRequest(req.method ?? "GET", url, headers, () => readText(req)))
+	const response = await handle(referenceRequest(req.method ?? "GET", url, { headers, read: () => readText(req) }))
 	res.writeHead(response.status, response.headers)
 	res.end(response.body)
 }

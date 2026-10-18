@@ -1,6 +1,13 @@
 /** Sort keys, written in whichever grammar the endpoint speaks. */
 
-import { renderSortKey, renderSortKeys, SORT_PRESETS, type SortGrammarSpec, type SortValue } from "../render/sort.ts"
+import {
+	renderSortKey,
+	renderSortKeys,
+	SORT_PRESETS,
+	type SortGrammarSpec,
+	type SortKey,
+	type SortValue,
+} from "../render/sort.ts"
 import type { QueryConventions } from "./types.ts"
 
 /** How this endpoint's sort keys are spelled: its declared template, or its named grammar's preset. */
@@ -13,24 +20,17 @@ export function sortSpec(conventions: QueryConventions): SortGrammarSpec {
 }
 
 /** Renders a sort term in whichever grammar the endpoint speaks. */
-export function sortTerm(
-	conventions: QueryConventions,
-	field: string,
-	direction: "asc" | "desc",
-	nulls?: "first" | "last",
-): string {
-	return renderSortKey(sortSpec(conventions), field, direction, nulls)
+export function sortTerm(conventions: QueryConventions, key: SortKey): string {
+	return renderSortKey(sortSpec(conventions), key)
 }
 
 /** `null` when the grammar cannot write a nulls token. */
 export function sortTermWithNulls(
 	conventions: QueryConventions,
-	field: string,
-	direction: "asc" | "desc",
-	nulls: "first" | "last",
+	key: SortKey & { nulls: "first" | "last" },
 ): string | null {
 	const spec = sortSpec(conventions)
-	return spec.nulls === undefined ? null : renderSortKey(spec, field, direction, nulls)
+	return spec.nulls === undefined ? null : renderSortKey(spec, key)
 }
 
 /** Several sort keys as one order value (a list, for a repeated grammar); `null` when it sorts by one key only. */

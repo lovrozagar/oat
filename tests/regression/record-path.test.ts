@@ -99,7 +99,7 @@ describe("a list with two arrays of objects", () => {
 
 describe("doctor", () => {
 	it("prints where each operation keeps its record and its created id", () => {
-		const text = report.doctor(buildModel(document({ recordPath: "$.data" })), [], false).text
+		const text = report.doctor(buildModel(document({ recordPath: "$.data" }))).text
 		expect(text).toContain("note.create")
 		expect(text).toMatch(/note\.create\s+record \$\.data\s+created id \$\.id/)
 		expect(text).toMatch(/note\.read\s+record \$\.data/)

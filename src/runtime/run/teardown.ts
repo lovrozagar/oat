@@ -35,11 +35,9 @@ export async function unwind(ctx: RunContext): Promise<void> {
 	progress.tick({ message: `${ledger.size} record(s)`, phase: "teardown", requests: progress.requests })
 	if (options.keepFixtures === true || ledger.size === 0) return
 	try {
-		const report = await ledger.unwind(
-			ctx.model,
-			ctx.client.view({ purpose: "teardown" }),
-			ctx.principals.fallbackDeleters,
-			{
+		const report = await ledger.unwind(ctx.model, ctx.client.view({ purpose: "teardown" }), {
+			fallbacks: ctx.principals.fallbackDeleters,
+			options: {
 				onItem: (done, total, item) => {
 					if (done % 25 !== 0 && done !== total) return
 					progress.tick({
@@ -52,7 +50,7 @@ export async function unwind(ctx: RunContext): Promise<void> {
 				verify: options.teardown?.verify !== false,
 				...(ctx.hooks.verifyRemoved === undefined ? {} : { verifyRemoved: ctx.hooks.verifyRemoved }),
 			},
-		)
+		})
 		noteHookErrors(ctx, report.verifyHookErrors ?? [])
 		ctx.state.teardown = merged(ctx.state.teardown, report)
 	} catch (error) {

@@ -72,7 +72,7 @@ function readOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapCollec
 	const responseSchema = successSchema(op)
 	const recordPath = readRecordPath(endpoint)
 	const collection = deriveCollectionShape(responseSchema, rowsKeyOf(recordPath))
-	reportAmbiguousRows(endpoint, recordPath, responseSchema, gaps)
+	reportAmbiguousRows(endpoint, { recordPath, schema: responseSchema }, gaps)
 	const bodySchema = requestSchema(op)
 	validateTags(op, operationId, gaps)
 	const entity = readEntity(endpoint, gaps)
@@ -84,7 +84,7 @@ function readOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapCollec
 		endpoint,
 		entity,
 		gaps,
-		identity: operationIdentity(entity?.identity, itemSchema, path, pathParams),
+		identity: operationIdentity(entity?.identity, itemSchema, { path, pathParams }),
 		pathParams,
 		recordPath,
 		security: resolveSecurity(op, doc),
@@ -92,13 +92,14 @@ function readOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapCollec
 	}
 }
 
+/* The success response's body: its schema, and where `x-entity.recordPath` says the rows are. */
+interface SuccessBody {
+	schema: SchemaObject | null
+	recordPath: string | null
+}
+
 /** Only a listing has rows to name: a record that holds several arrays is just a record. */
-function reportAmbiguousRows(
-	endpoint: Endpoint,
-	recordPath: string | null,
-	schema: SchemaObject | null,
-	gaps: GapCollector,
-): void {
+function reportAmbiguousRows(endpoint: Endpoint, { recordPath, schema }: SuccessBody, gaps: GapCollector): void {
 	const lastSegment = segmentsOf(endpoint.path).at(-1) ?? ""
 	const listing = endpoint.method.toUpperCase() === "GET" && !isParamSegment(lastSegment)
 	const ambiguous = recordPath === null && listing ? ambiguousRows(schema) : []

@@ -28,6 +28,25 @@ interface Term {
 	raw: string
 }
 
+/** A pattern term: its operator and the raw pattern it matches. */
+interface LikeTerm {
+	op: "like" | "ilike"
+	raw: string
+}
+
+/** The fields an order may sort on, the row's columns, and the column that breaks ties. */
+export interface OrderScope {
+	sortable: readonly string[]
+	columns: ReadonlySet<string>
+	tiebreak: string
+}
+
+/** The fields a select may name, and the row's columns. */
+export interface SelectScope {
+	selectable: readonly string[]
+	columns: ReadonlySet<string>
+}
+
 const COMPARISONS: Readonly<Record<string, string>> = /* @__PURE__ */ Object.freeze({
 	gt: ">",
 	gte: ">=",
@@ -87,11 +106,11 @@ function compare(term: Term, numeric: ReadonlySet<string>, opts: CompileFilterOp
 		}
 		return { args: [value], sql: `${ident} ${cmp} ?` }
 	}
-	if (op === "like" || op === "ilike") return like(ident, op, raw, opts)
+	if (op === "like" || op === "ilike") return like(ident, { op, raw }, opts)
 	throw new QueryError(`unknown filter operator: ${op}`)
 }
 
-function like(ident: string, op: "like" | "ilike", raw: string, opts: CompileFilterOptions): Compiled {
+function like(ident: string, { op, raw }: LikeTerm, opts: CompileFilterOptions): Compiled {
 	if (opts.unescapeLike === true) {
 		const pattern = String(raw).replaceAll("*", "%")
 		const sql = op === "ilike" ? `LOWER(${ident}) LIKE LOWER(?)` : `${ident} LIKE ?`
@@ -106,12 +125,7 @@ function like(ident: string, op: "like" | "ilike", raw: string, opts: CompileFil
 	return { args: [escaped], sql }
 }
 
-export function compileOrder(
-	expression: string,
-	sortable: readonly string[],
-	columns: ReadonlySet<string>,
-	tiebreak: string,
-): Compiled {
+export function compileOrder(expression: string, { columns, sortable, tiebreak }: OrderScope): Compiled {
 	const terms: string[] = []
 	for (const raw of expression
 		.split(",")
@@ -134,8 +148,7 @@ export function compileOrder(
 export function project(
 	row: Record<string, unknown>,
 	select: string | undefined,
-	selectable: readonly string[],
-	columns: ReadonlySet<string>,
+	{ columns, selectable }: SelectScope,
 ): Record<string, unknown> {
 	if (select === undefined || select === "" || select === "*") return { ...row }
 	const out: Record<string, unknown> = {}

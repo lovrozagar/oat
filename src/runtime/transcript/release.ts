@@ -11,10 +11,8 @@ export async function releaseTranscriptBodies(exchange: Exchange, redactor: Reda
 		bytes: exchange.requestBytes,
 		digest: exchange.requestDigest,
 	})
-	exchange.responseBody = await compactResponseBody(
-		exchange.responseBody,
-		exchange.responseHeaders,
-		exchange.responseBytes,
-		exchange.responseDigest,
-	)
+	exchange.responseBody = await compactResponseBody(exchange.responseBody, exchange.responseHeaders, {
+		bytes: exchange.responseBytes,
+		digest: exchange.responseDigest,
+	})
 }

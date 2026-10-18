@@ -256,10 +256,13 @@ export interface StageOptions {
 export function stage(check: Check, options: StageOptions = {}) {
 	const model = modelOf(options.doc ?? queryDoc())
 	const rows = options.rows ?? NOTES
-	const staged = contextFor(model, LIST, options.respond ?? backend(rows), {
-		query: op(model, LIST).query,
-		records: rows.map((row) => ({ ...row })),
-		...options.fields,
+	const staged = contextFor(model, LIST, {
+		respond: options.respond ?? backend(rows),
+		fields: {
+			query: op(model, LIST).query,
+			records: rows.map((row) => ({ ...row })),
+			...options.fields,
+		},
 	})
 	return {
 		...staged,

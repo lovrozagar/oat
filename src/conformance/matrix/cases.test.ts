@@ -65,7 +65,7 @@ describe("runSuite", () => {
 
 describe("judgeDefect", () => {
 	it("leaves out the bystanders a defect damages by design", async () => {
-		const result = await judgeDefect("PATCH_REPLACES", MEMORY, "patch")
+		const result = await judgeDefect("PATCH_REPLACES", MEMORY, { label: "patch" })
 		expect(result).toMatchObject({ bystanders: [], detected: true, label: "patch" })
 	}, 120_000)
 
@@ -78,7 +78,7 @@ describe("judgeDefect", () => {
 
 describe("judgeDefect's judging", () => {
 	it("fails a defect whose generated reproducer is not runnable", async () => {
-		const result = await judgeDefect("STALE_LIST", MEMORY, "stale", { checkRepros: unrunnable })
+		const result = await judgeDefect("STALE_LIST", MEMORY, { checkRepros: unrunnable, label: "stale" })
 		expect(result).toMatchObject({
 			detected: false,
 			error: "generated reproducer is not runnable — stale.sh: syntax error near unexpected token",
@@ -87,7 +87,7 @@ describe("judgeDefect's judging", () => {
 	}, 120_000)
 
 	it("holds no excused defect to the bystander rule", async () => {
-		const result = await judgeDefect("STALE_LIST", MEMORY, "stale", { excused: new Set(["STALE_LIST"]) })
+		const result = await judgeDefect("STALE_LIST", MEMORY, { excused: new Set(["STALE_LIST"]), label: "stale" })
 		expect(result).toMatchObject({ bystanders: [], detected: true })
 	}, 120_000)
 })

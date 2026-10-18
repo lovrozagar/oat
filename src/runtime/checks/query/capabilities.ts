@@ -32,7 +32,7 @@ export function q(ctx: CheckContext, roles: QueryRoles): Query {
 	 * The one check that probes past the cap on purpose sets the parameter itself. */
 	const size = roles.limit === undefined ? undefined : Math.min(roles.limit, pageSize(ctx))
 	if (size !== undefined && c.limit !== undefined) out[c.limit] = size
-	placePage(out, c, roles.page, size)
+	placePage(out, c, { page: roles.page, size })
 	for (const role of NAMED_ROLES) {
 		const name = c[role]
 		const value = roles[role]
@@ -57,8 +57,14 @@ type QueryOut = Record<string, string | number | readonly (string | number)[] | 
 /* The roles written as given under the endpoint's own name for each, in this order. */
 const NAMED_ROLES = ["cursor", "order", "search", "searchMode", "filter"] as const
 
+/** The page a check asks for, and the page size it is counted in. */
+interface PageAsked {
+	page: number | undefined
+	size: number | undefined
+}
+
 /** Writes the page number, or the offset it stands for where the endpoint skips rows instead. */
-function placePage(out: QueryOut, c: QueryConventions, page: number | undefined, size: number | undefined): void {
+function placePage(out: QueryOut, c: QueryConventions, { page, size }: PageAsked): void {
 	if (page === undefined) return
 	if (c.page !== undefined) out[c.page] = page
 	else if (c.offset !== undefined) {

@@ -5,7 +5,7 @@ import { doctor } from "./doctor.ts"
 describe("doctor as text", () => {
 	it("reports what oat can and cannot test in the reference, section by section, and blocks on its roots", async () => {
 		const { model, externalRefs } = await referenceModel()
-		const { text, blocking } = doctor(model, externalRefs, false)
+		const { text, blocking } = doctor(model, { externalRefs })
 		expect(blocking).toBe(1)
 		const sections = [
 			"  trackable",
@@ -22,7 +22,7 @@ describe("doctor as text", () => {
 	})
 
 	it("says a document with nothing missing has full coverage available", () => {
-		const { text, blocking } = doctor(modelOf(documentOf({})).model, [], false, { allowRemoved: [] })
+		const { text, blocking } = doctor(modelOf(documentOf({})).model, { config: { allowRemoved: [] } })
 		expect(blocking).toBe(0)
 		expect(text.split("\n").slice(0, 2)).toEqual(["", "  allow      0 operations removed"])
 		expect(text.endsWith("  no gaps — full coverage available\n")).toBe(true)
@@ -32,7 +32,11 @@ describe("doctor as text", () => {
 describe("doctor as JSON", () => {
 	it("carries the counts, declarations, gaps and catalog in a stable order", async () => {
 		const { model } = await referenceModel()
-		const { text, blocking } = doctor(model, ["x.yaml"], true, { allowRemoved: ["a.b"], entities: { ghost: {} } })
+		const { text, blocking } = doctor(model, {
+			asJson: true,
+			config: { allowRemoved: ["a.b"], entities: { ghost: {} } },
+			externalRefs: ["x.yaml"],
+		})
 		const json = JSON.parse(text)
 		expect(Object.keys(json)).toEqual([
 			"blocking",
@@ -69,7 +73,7 @@ describe("doctor as JSON", () => {
 		for (const entity of model.entities.values()) {
 			if (entity.invite !== null) entity.invite = { ...entity.invite, acceptFrom: "link" }
 		}
-		const json = JSON.parse(doctor(model, [], true).text)
+		const json = JSON.parse(doctor(model, { asJson: true }).text)
 		expect(json.invites[0].acceptFrom).toBe("link")
 		expect(json.allowRemoved).toBeUndefined()
 	})

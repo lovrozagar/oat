@@ -31,18 +31,18 @@ export function isVacuous(schema: unknown): boolean {
 }
 
 /**
- * Folds `allOf` branches into one schema: properties merged, bounds intersected. `pointer` is the
+ * Folds `base`'s `allOf` branches into one schema: properties merged, bounds intersected. `pointer` is the
  * value being generated, `path` the `allOf` within its schema; one that is not a list of schemas
  * admits nothing anyone could construct.
  */
-export function mergeAll(base: Schema, branches: unknown, pointer: string, path = "allOf"): Schema {
+export function mergeAll(base: Schema, pointer: string, path = "allOf"): Schema {
+	const branches = base.allOf
 	if (!Array.isArray(branches)) throw new Unconstructible(`${path} is not a list of schemas`, pointer)
 	let out: Schema = { ...base }
 	delete out.allOf
 	for (const [index, branch] of branches.entries()) {
 		if (!isObject(branch)) continue
-		const nested =
-			branch.allOf === undefined ? branch : mergeAll(branch, branch.allOf, pointer, `${path}/${index}/allOf`)
+		const nested = branch.allOf === undefined ? branch : mergeAll(branch, pointer, `${path}/${index}/allOf`)
 		out = merge(out, nested)
 	}
 	return out

@@ -97,13 +97,16 @@ export function notesContext(
 	fields: Partial<CheckContext> = {},
 	model: SpecModel = notesModel(),
 ): { ctx: WriteContext; sent: Sent[]; findings: FindingCollector } {
-	return contextFor(model, "note.list", respond, {
-		createOp: op(model, "note.create"),
-		query: op(model, "note.list").query,
-		deleteOp: op(model, "note.delete"),
-		readOp: op(model, "note.read"),
-		updateOp: op(model, "note.update"),
-		...fields,
+	return contextFor(model, "note.list", {
+		respond,
+		fields: {
+			createOp: op(model, "note.create"),
+			query: op(model, "note.list").query,
+			deleteOp: op(model, "note.delete"),
+			readOp: op(model, "note.read"),
+			updateOp: op(model, "note.update"),
+			...fields,
+		},
 	})
 }
 

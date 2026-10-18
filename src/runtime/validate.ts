@@ -12,6 +12,7 @@ import { messageOf } from "../errors/message.ts"
 import { DEFS_ID } from "../spec/load/defs.ts"
 import { normalizeSchema } from "../spec/schema.ts"
 import type { OperationObject, SchemaObject } from "../spec/types.ts"
+import type { Exchange } from "./exchange.ts"
 
 /**
  * Minimal surface oat uses — avoids depending on AJV's CJS/ESM type shape. `errors` is read only
@@ -91,11 +92,17 @@ export class SchemaValidator {
 		}
 	}
 
-	validate(operationId: string, op: OperationObject, status: number, body: unknown): ValidationResult {
+	/** Whether `response` holds to the schema `op` documents for its status. */
+	validate(
+		operationId: string,
+		op: OperationObject,
+		response: Pick<Exchange, "responseBody" | "status">,
+	): ValidationResult {
+		const { status } = response
 		const validate = this.compile(op, `${operationId}:${status}`, status)
 		if (validate === null) return OK
 		if ("failed" in validate) return { errors: [], ok: true, unchecked: validate.failed }
-		if (validate(body) === true) return OK
+		if (validate(response.responseBody) === true) return OK
 		const errors = validate.errors.map((error) => `${error.instancePath || "(root)"} ${error.message}`)
 		return { errors: [...new Set(errors)].slice(0, 12), ok: false }
 	}

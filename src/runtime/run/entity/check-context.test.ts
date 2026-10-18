@@ -50,14 +50,9 @@ function tagged(edit: (paths: Record<string, Record<string, Json>>) => void): Op
 	return doc as unknown as OpenApiDocument
 }
 
-async function contextFor(
-	doc: OpenApiDocument,
-	world: World,
-	extra: Partial<RunOptions> = {},
-	actors = [actor("alpha", "o1")],
-) {
+async function contextFor(doc: OpenApiDocument, world: World, extra: Partial<RunOptions> = {}) {
 	const ctx = await contextOf(optionsFor(notesApi(doc), extra))
-	return { checks: await checkContext(entityRunOf(ctx), world, actors as [Actor, ...Actor[]]), ctx }
+	return { checks: await checkContext(entityRunOf(ctx), world, [actor("alpha", "o1")]), ctx }
 }
 
 describe("checkContext", () => {

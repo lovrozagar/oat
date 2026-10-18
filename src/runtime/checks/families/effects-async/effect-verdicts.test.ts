@@ -6,7 +6,7 @@ import { baseDocument, routes, withOperation } from "./__fixtures__/documents.ts
 import { type ActionRun, judgeEffects, missingParams, reportGap } from "./effect-verdicts.ts"
 import type { Observation } from "./observe.ts"
 
-const doc = withOperation(baseDocument(), "/widgets/{id}/act", "post", { operationId: "actOnWidget" })
+const doc = withOperation(baseDocument(), "post /widgets/{id}/act", { operationId: "actOnWidget" })
 const model = modelOf(doc)
 const CHECK = "effects.declared-effect-occurs"
 
@@ -28,7 +28,7 @@ interface Setup {
 /** Judges `effects` of a succeeded `actOnWidget` against a server answering through `respond`. */
 async function judge(respond: Responder, effects: EffectSpec[], setup: Setup = {}) {
 	const recordCreated = vi.fn<NonNullable<CheckContext["recordCreated"]>>()
-	const stage = contextFor(model, "listWidgets", respond, setup.tracked === false ? {} : { recordCreated })
+	const stage = contextFor(model, "listWidgets", { respond, fields: setup.tracked === false ? {} : { recordCreated } })
 	const action: ActionRun = {
 		befores: new Map(Object.entries(setup.befores ?? {})),
 		check: CHECK,
@@ -51,7 +51,7 @@ describe("missingParams", () => {
 
 describe("reportGap", () => {
 	it("reports a coverage gap on the invocation's subject, naming the fixture", () => {
-		const { ctx, findings } = contextFor(model, "listWidgets", () => undefined)
+		const { ctx, findings } = contextFor(model, "listWidgets", { respond: () => undefined })
 		reportGap({ check: CHECK, ctx, fixture: "a.png", op: op(model, "actOnWidget") }, "title", "detail")
 		expect(findings.findings).toMatchObject([
 			{ detail: "detail", entity: "actOnWidget · a.png", fixture: "a.png", summary: "title", verdict: "COVERAGE_GAP" },
@@ -65,7 +65,7 @@ describe("a create or append effect", () => {
 			befores: { widget: seen("w1") },
 		})
 		expect(run.findings.findings).toEqual([])
-		expect(run.recordCreated).toHaveBeenCalledWith("widget", "w2", { id: "w1" }, "owner")
+		expect(run.recordCreated).toHaveBeenCalledWith({ entity: "widget", id: "w2", scope: { id: "w1" } }, "owner")
 		expect(run.action.scope).toEqual({ id: "w2", widget_id: "w2" })
 	})
 
@@ -90,7 +90,7 @@ describe("a create or append effect", () => {
 			befores: { widget: seen("w1") },
 		})
 		expect(run.findings.findings[0]?.detail).toContain('declares append ≥ 2 on "widget"')
-		expect(run.recordCreated).toHaveBeenCalledWith("widget", "w2", { id: "w1" }, "owner")
+		expect(run.recordCreated).toHaveBeenCalledWith({ entity: "widget", id: "w2", scope: { id: "w1" } }, "owner")
 		expect(run.action.scope).toEqual({ id: "w1" })
 	})
 
@@ -211,7 +211,10 @@ describe("a created parent", () => {
 		)
 		expect(run.findings.findings).toEqual([])
 		expect(run.action.scope).toMatchObject({ board_id: "b1" })
-		expect(run.recordCreated).toHaveBeenCalledWith("card", "c1", expect.objectContaining({ board_id: "b1" }), "owner")
+		expect(run.recordCreated).toHaveBeenCalledWith(
+			{ entity: "card", id: "c1", scope: expect.objectContaining({ board_id: "b1" }) },
+			"owner",
+		)
 	})
 
 	it("is taken from the response when the response names it, without a second read", async () => {

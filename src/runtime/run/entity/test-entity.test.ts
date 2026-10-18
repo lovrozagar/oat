@@ -24,13 +24,9 @@ import { testEntity } from "./test-entity.ts"
 const json = (schema: unknown) => ({ content: { "application/json": { schema } } })
 const thing = { properties: { id: { type: "string" } }, type: "object" }
 
-/** A document of one operation tagged as `entity`. */
-function tagged(
-	path: string,
-	method: string,
-	entity: Record<string, string>,
-	extra: Record<string, unknown> = {},
-): OpenApiDocument {
+/** A document of one operation, at `route` ("get /orgs/{org_id}"), tagged as `entity`. */
+function tagged(route: string, entity: Record<string, string>, extra: Record<string, unknown> = {}): OpenApiDocument {
+	const [method, path] = route.split(" ") as [string, string]
 	return {
 		info: { title: "t", version: "1" },
 		openapi: "3.1.0",
@@ -47,12 +43,13 @@ function tagged(
 	} as unknown as OpenApiDocument
 }
 
-async function tested(
-	respond: Responder,
-	entity: string,
-	extra: Partial<RunOptions> = {},
-	before?: (ctx: RunContext) => void | Promise<void>,
-) {
+/** How an entity is tested: the run's options, and what to do to the context before. */
+interface Testing {
+	options?: Partial<RunOptions>
+	before?: (ctx: RunContext) => void | Promise<void>
+}
+
+async function tested(respond: Responder, entity: string, { options: extra = {}, before }: Testing = {}) {
 	const options = optionsFor(respond, extra)
 	const ctx = await contextOf(options)
 	await before?.(ctx)
@@ -70,20 +67,19 @@ const serving =
 describe("testEntity without a list", () => {
 	it("tests a root by reading it", async () => {
 		const doc = tagged(
-			"/orgs/{org_id}",
-			"get",
+			"get /orgs/{org_id}",
 			{ action: "read", identity: "root", name: "org" },
 			{
 				parameters: [{ in: "path", name: "org_id", required: true, schema: { type: "string" } }],
 			},
 		)
-		const { ctx } = await tested(serving(doc), "org", { roots: { org_id: "o1" } })
+		const { ctx } = await tested(serving(doc), "org", { options: { roots: { org_id: "o1" } } })
 		expect(ctx.state.entitiesTested).toEqual(["org"])
 	})
 
 	it("tests the caller by reading itself", async () => {
 		const { ctx } = await tested(
-			serving(tagged("/me", "get", { action: "read", identity: "self", name: "profile" })),
+			serving(tagged("get /me", { action: "read", identity: "self", name: "profile" })),
 			"profile",
 		)
 		expect(ctx.state.entitiesTested).toEqual(["profile"])
@@ -91,8 +87,7 @@ describe("testEntity without a list", () => {
 
 	it("tests nothing of an entity with neither", async () => {
 		const doc = tagged(
-			"/widgets",
-			"post",
+			"post /widgets",
 			{ action: "create", name: "widget" },
 			{ requestBody: { required: true, ...json(thing) } },
 		)
@@ -104,14 +99,17 @@ describe("testEntity without a list", () => {
 
 describe("testEntity stops early", () => {
 	it("when the network is gone for good", async () => {
-		const { ctx } = await tested(notesApi(), "note", {}, (run) =>
-			run.network.gate.awaitRecovery(Object.assign(new Error("x"), { kind: "dns" }) as never).then(() => undefined),
-		)
+		const { ctx } = await tested(notesApi(), "note", {
+			before: (run) =>
+				run.network.gate.awaitRecovery(Object.assign(new Error("x"), { kind: "dns" }) as never).then(() => undefined),
+		})
 		expect(ctx.state.entitiesTested).toEqual([])
 	})
 
 	it("when the profile excludes the list, which every check goes through", async () => {
-		const { ctx } = await tested(notesApi(), "note", { profile: "p", profiles: { p: { exclude: ["notes.list"] } } })
+		const { ctx } = await tested(notesApi(), "note", {
+			options: { profile: "p", profiles: { p: { exclude: ["notes.list"] } } },
+		})
 		expect(ctx.state.entitiesTested).toEqual([])
 		expect(ctx.findings.findings[0]).toMatchObject({ check: "profile.skip", operations: ["notes.list"] })
 	})
@@ -119,8 +117,11 @@ describe("testEntity stops early", () => {
 	it("when the first principal's credential cannot be renewed", async () => {
 		const state = { failing: false, issued: 0 }
 		const login = withLogin(state)
-		const { ctx } = await tested(login, "note", { principals: [flow] }, () => {
-			state.failing = true
+		const { ctx } = await tested(login, "note", {
+			before: () => {
+				state.failing = true
+			},
+			options: { principals: [flow] },
 		})
 		expect(ctx.findings.findings[0]).toMatchObject({ check: "auth.refresh", entity: "note" })
 		expect(ctx.state.entitiesTested).toEqual([])
@@ -128,7 +129,7 @@ describe("testEntity stops early", () => {
 
 	it("when seeding left nothing to test against", async () => {
 		const owner = { covers: ["notes.create"], id: "own", steps: [{ operationId: "notes.create" }] }
-		const { ctx } = await tested(notesApi(), "note", { scenarios: [owner] as never })
+		const { ctx } = await tested(notesApi(), "note", { options: { scenarios: [owner] as never } })
 		expect(ctx.state.entitiesTested).toEqual([])
 	})
 })
@@ -137,7 +138,9 @@ describe("testEntity", () => {
 	it("seeds the entity, says so, and runs its checks", async () => {
 		const messages: string[] = []
 		const { ctx } = await tested(notesApi(), "note", {
-			onProgress: (snap) => messages.push(`${snap.phase} ${snap.message ?? ""}`),
+			options: {
+				onProgress: (snap) => messages.push(`${snap.phase} ${snap.message ?? ""}`),
+			},
 		})
 		expect(messages).toContain("seed seeding")
 		expect(ctx.state.entitiesTested).toEqual(["note"])
@@ -187,7 +190,9 @@ describe("testEntity seed plans", () => {
 		const doc = listOnly as unknown as OpenApiDocument
 		const withEffects = await tested(notesApi(doc, [{ id: "n1", title: "a" }]), "note")
 		expect(withEffects.ctx.state.entitiesTested).toEqual(["note"])
-		const targetedAway = await tested(notesApi(doc, [{ id: "n1", title: "a" }]), "note", { ops: ["notes.pin"] })
+		const targetedAway = await tested(notesApi(doc, [{ id: "n1", title: "a" }]), "note", {
+			options: { ops: ["notes.pin"] },
+		})
 		expect(targetedAway.ctx.state.entitiesTested).toEqual(["note"])
 	})
 
@@ -216,7 +221,7 @@ describe("testEntity seed plans", () => {
 			method === "POST" && path === "/notes"
 				? { body: { id: "u1", title: "me", token: "t-1" }, status: 201 }
 				: notes(method, path, request)
-		const { ctx } = await tested(respond, "note", { principals: [signup] })
+		const { ctx } = await tested(respond, "note", { options: { principals: [signup] } })
 		expect(ctx.state.entitiesTested).toEqual(["note"])
 	})
 })

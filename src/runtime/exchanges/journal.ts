@@ -70,12 +70,17 @@ function exchangeFile(exchange: Exchange, bodies: PersistedBodies, redactor: Red
 	}
 }
 
+/** What an index line carries beside the exchange: its tags, and the file the exchange is in. */
+interface IndexMeta extends ExchangeMeta {
+	file: string
+}
+
 /** The exchange's line in `exchanges.jsonl`, pointing at its file. */
-function indexLine(exchange: Exchange, meta: ExchangeMeta, rel: string, redactor: Redactor): Record<string, unknown> {
+function indexLine(exchange: Exchange, meta: IndexMeta, redactor: Redactor): Record<string, unknown> {
 	const line: Record<string, unknown> = {
 		at: exchange.at,
 		durationMs: exchange.durationMs,
-		file: rel,
+		file: meta.file,
 		method: exchange.method,
 		requestBytes: exchange.requestBytes,
 		requestId: exchange.requestId,
@@ -155,7 +160,7 @@ export function createExchangeJournal(dir: string, redactor: Redactor): Exchange
 			const rel = `exchanges/${claimStem(exchange, dir, taken)}.json`
 			const file = exchangeFile(exchange, { requestBody, responseBody }, redactor)
 			pendingFiles.push({ content: `${JSON.stringify(file, null, 2)}\n`, path: join(dir, rel) })
-			pending.push(`${JSON.stringify(indexLine(exchange, meta, rel, redactor))}\n`)
+			pending.push(`${JSON.stringify(indexLine(exchange, { ...meta, file: rel }, redactor))}\n`)
 			if (pending.length >= JOURNAL_BATCH) await flush()
 			count += 1
 		},

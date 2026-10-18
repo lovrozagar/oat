@@ -77,7 +77,13 @@ type Send = (status: number, body?: unknown) => void
 type Hit = { at: number; kind: string; parent: string | undefined }
 type World = { hits: Hit[]; rows: Map<string, Map<string, Record<string, unknown>>>; seq: number }
 
-function itemAnswer(store: Map<string, Record<string, unknown>>, id: string, method: string | undefined, send: Send) {
+/* The item a request names, and its method. */
+interface ItemRequest {
+	id: string
+	method: string | undefined
+}
+
+function itemAnswer(store: Map<string, Record<string, unknown>>, { id, method }: ItemRequest, send: Send) {
 	const record = store.get(id)
 	if (record === undefined) return send(404, { error: "not found" })
 	if (method === "GET") return send(200, record)
@@ -92,8 +98,14 @@ function hitOf(parts: string[]): Hit {
 	return { at: performance.now(), kind: (nested ? parts[3] : parts[1]) ?? "", parent: nested ? parts[2] : undefined }
 }
 
+/* A request and the body read from it. */
+interface Received {
+	req: IncomingMessage
+	body: Buffer
+}
+
 /* Records by collection path; any path works, so one handler serves all three kinds. */
-function answer(world: World, req: IncomingMessage, body: Buffer, send: Send): void {
+function answer(world: World, { body, req }: Received, send: Send): void {
 	const path = new URL(req.url ?? "/", "http://x").pathname
 	if (path === "/v1/openapi/spec") return send(200, SPEC)
 	const parts = path.split("/").filter(Boolean)
@@ -109,7 +121,7 @@ function answer(world: World, req: IncomingMessage, body: Buffer, send: Send): v
 		store.set(record.id, record)
 		return send(201, record)
 	}
-	itemAnswer(store, parts.at(-1) ?? "", req.method, send)
+	itemAnswer(store, { id: parts.at(-1) ?? "", method: req.method }, send)
 }
 
 async function startWorld() {
@@ -122,7 +134,7 @@ async function startWorld() {
 		}
 		const chunks: Buffer[] = []
 		req.on("data", (chunk: Buffer) => chunks.push(chunk))
-		req.on("end", () => answer(world, req, Buffer.concat(chunks), send))
+		req.on("end", () => answer(world, { body: Buffer.concat(chunks), req }, send))
 	})
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
 	return {

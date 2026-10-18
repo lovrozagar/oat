@@ -60,7 +60,7 @@ export async function resolveEntityCapabilities(input: {
 			from.typePath === undefined
 				? []
 				: readJsonPathList(body, from.typePath).map((value) => (typeof value === "string" ? value : undefined))
-		caps = applyHarvest(caps, names, types, axis)
+		caps = applyHarvest(caps, { axis, names, types })
 	}
 
 	if (caps.filterableFrom !== undefined) await harvest(caps.filterableFrom, "filterable")

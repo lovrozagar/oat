@@ -45,16 +45,20 @@ const headers = { authorization: "Bearer alpha" }
 
 const isDocument = (value: NotesOptions | OpenApiDocument): value is OpenApiDocument => "openapi" in value
 
+/** The world's options, and the create the cohort is seeded through (default `note.create`). */
+interface SeedSetup extends Partial<WorldOptions> {
+	create?: string
+}
+
 function seed(
 	respond: Responder,
 	document: NotesOptions | OpenApiDocument = {},
-	options: Partial<WorldOptions> = {},
-	operationId = "note.create",
+	{ create = "note.create", ...options }: SeedSetup = {},
 ) {
 	const model = modelOf(isDocument(document) ? document : notes(document))
 	const fake = fakeClient(respond)
 	const result = seedCohort(
-		op(model, operationId),
+		op(model, create),
 		{ client: fake.client, model, options: { authHeaders: () => headers, roots: scope, seed: 1, ...options } },
 		{ created: [], values: scope },
 	)
@@ -158,8 +162,7 @@ describe("seedCohort with no entity identity", () => {
 			(method) =>
 				method === "POST" ? { body: { id: "c1", size: 1 }, status: 201 } : { body: [{ size: 3 }], status: 200 },
 			COUNTERS,
-			{ cohortSize: 1 },
-			"counter.create",
+			{ cohortSize: 1, create: "counter.create" },
 		).result
 		expect(counters).toMatchObject({ records: [{ id: "c1", size: 1 }] })
 		expect(counters.existingIds).toBeUndefined()
@@ -167,8 +170,7 @@ describe("seedCohort with no entity identity", () => {
 		const pay = await seed(
 			(_method, _path, options) => (bodyOf(options).size === 1 ? { body: { id: "p1" }, status: 200 } : { status: 200 }),
 			PAY,
-			{ cohortSize: 2, onUnidentified: (entity) => unidentified.push(entity) },
-			"pay.start",
+			{ cohortSize: 2, create: "pay.start", onUnidentified: (entity) => unidentified.push(entity) },
 		).result
 		expect(pay.records).toEqual([{ id: "p1" }])
 		expect(unidentified).toEqual(["pay.start"])

@@ -69,6 +69,13 @@ export function selectParam(dialect: Dialect, entity: EntityDef): string {
 	return dialect.selectGrammar === "bracketed" ? `${dialect.params.select}[${entity.name}]` : dialect.params.select
 }
 
+/** The listing a page answers: the dialect it speaks, its entity, and the URL it was asked at. */
+export interface ListingRoute {
+	dialect: Dialect
+	entity: EntityDef
+	url: URL
+}
+
 /**
  * Builds a listing response in whichever pagination model the dialect speaks.
  *
@@ -77,11 +84,10 @@ export function selectParam(dialect: Dialect, entity: EntityDef): string {
  * Keeping both here means the routing code never branches on it.
  */
 export function paginated(
-	dialect: Dialect,
-	entity: EntityDef,
-	requestUrl: URL,
+	route: ListingRoute,
 	result: ListingResult,
 ): { body: Json | Row[]; headers: Record<string, string> } {
+	const { dialect, entity, url: requestUrl } = route
 	const env = dialect.envelope
 	if (env !== null) {
 		const envelope: Json = { [env.collection ?? entity.plural]: result.items }

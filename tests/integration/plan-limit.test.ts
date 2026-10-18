@@ -167,10 +167,16 @@ type World = {
 	rowSeq: number
 }
 
+/* One request and the response that answers it. */
+interface Exchange {
+	req: IncomingMessage
+	res: ServerResponse
+}
+
 type Route = {
 	method: string
 	path: RegExp
-	handle: (world: World, match: RegExpExecArray, req: IncomingMessage, res: ServerResponse) => unknown
+	handle: (world: World, match: RegExpExecArray, exchange: Exchange) => unknown
 }
 
 function param(match: RegExpExecArray, index: number): string {
@@ -183,7 +189,7 @@ async function refuseTable(world: World, req: IncomingMessage, res: ServerRespon
 	send(res, 402, { error_key: "table_plan_limit", status: 402, status_key: "payment_required" })
 }
 
-async function createRow(world: World, tableId: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
+async function createRow(world: World, tableId: string, { req, res }: Exchange): Promise<void> {
 	if (!world.tables.has(tableId)) return send(res, 404, { error: "missing table" })
 	const body = ((await readJson(req)) ?? {}) as { name?: string }
 	world.rowSeq += 1
@@ -198,20 +204,20 @@ function sendFound(res: ServerResponse, value: unknown): void {
 }
 
 const ROUTES: readonly Route[] = [
-	{ handle: (w, _m, _q, res) => send(res, 200, w.document), method: "GET", path: /^\/v1\/openapi\/spec$/ },
+	{ handle: (w, _m, { res }) => send(res, 200, w.document), method: "GET", path: /^\/v1\/openapi\/spec$/ },
 	{
-		handle: (w, _m, _q, res) => send(res, 200, { items: [...w.tables.values()] }),
+		handle: (w, _m, { res }) => send(res, 200, { items: [...w.tables.values()] }),
 		method: "GET",
 		path: /^\/v1\/tables$/,
 	},
-	{ handle: (w, _m, req, res) => refuseTable(w, req, res), method: "POST", path: /^\/v1\/tables$/ },
+	{ handle: (w, _m, { req, res }) => refuseTable(w, req, res), method: "POST", path: /^\/v1\/tables$/ },
 	{
-		handle: (w, m, _q, res) => sendFound(res, w.tables.get(param(m, 1))),
+		handle: (w, m, { res }) => sendFound(res, w.tables.get(param(m, 1))),
 		method: "GET",
 		path: /^\/v1\/tables\/([^/]+)$/,
 	},
 	{
-		handle: (w, m, _q, res) => {
+		handle: (w, m, { res }) => {
 			w.tables.delete(param(m, 1))
 			send(res, 204)
 		},
@@ -219,23 +225,23 @@ const ROUTES: readonly Route[] = [
 		path: /^\/v1\/tables\/([^/]+)$/,
 	},
 	{
-		handle: (w, m, _q, res) =>
+		handle: (w, m, { res }) =>
 			send(res, 200, { items: [...w.rows.values()].filter((r) => r.table_id === param(m, 1)) }),
 		method: "GET",
 		path: /^\/v1\/tables\/([^/]+)\/rows$/,
 	},
 	{
-		handle: (w, m, req, res) => createRow(w, param(m, 1), req, res),
+		handle: (w, m, exchange) => createRow(w, param(m, 1), exchange),
 		method: "POST",
 		path: /^\/v1\/tables\/([^/]+)\/rows$/,
 	},
 	{
-		handle: (w, m, _q, res) => sendFound(res, w.rows.get(param(m, 2))),
+		handle: (w, m, { res }) => sendFound(res, w.rows.get(param(m, 2))),
 		method: "GET",
 		path: /^\/v1\/tables\/([^/]+)\/rows\/([^/]+)$/,
 	},
 	{
-		handle: (w, m, _q, res) => {
+		handle: (w, m, { res }) => {
 			w.rows.delete(param(m, 2))
 			send(res, 204)
 		},
@@ -250,7 +256,7 @@ async function dispatch(world: World, req: IncomingMessage, res: ServerResponse)
 	for (const route of ROUTES) {
 		const match = route.method === method ? route.path.exec(url.pathname) : null
 		if (match !== null) {
-			await route.handle(world, match, req, res)
+			await route.handle(world, match, { req, res })
 			return
 		}
 	}

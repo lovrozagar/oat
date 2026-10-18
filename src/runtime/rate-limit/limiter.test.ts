@@ -53,7 +53,7 @@ describe("RateLimiter buckets", () => {
 describe("RateLimiter after a 429", () => {
 	it("penalizes the tagged bucket the request belongs to", async () => {
 		const limiter = new RateLimiter(RULES)
-		expect(limiter.noteBackoff("POST", "/w", 2_000)).toBe(RULES[2])
+		expect(limiter.noteBackoff({ method: "POST", pathname: "/w" }, 2_000)).toBe(RULES[2])
 		const held = limiter.acquire(RULES[2] as CompiledRateLimitRule)
 		await vi.advanceTimersByTimeAsync(2_000)
 		expect(await held).toBe(false)
@@ -62,20 +62,20 @@ describe("RateLimiter after a 429", () => {
 	it("opens a cooldown for untagged writes and reads, apart", async () => {
 		const limiter = new RateLimiter(RULES)
 		expect(limiter.implicitRule("POST")).toBeUndefined()
-		const opened = limiter.noteBackoff("post", "/untagged", 1_000)
+		const opened = limiter.noteBackoff({ method: "post", pathname: "/untagged" }, 1_000)
 		expect([opened.category, opened.rps, opened.source]).toEqual([UNTAGGED_WRITE_CATEGORY, 0, "implicit"])
 		expect([opened.test("DELETE", "/x"), opened.test("GET", "/x")]).toEqual([true, false])
-		limiter.noteBackoff("PUT", "/untagged", -1)
+		limiter.noteBackoff({ method: "PUT", pathname: "/untagged" }, -1)
 		const held = limiter.implicitRule("PATCH")
 		expect([held?.category, held?.test("PUT", "/x")]).toEqual([UNTAGGED_WRITE_CATEGORY, true])
 		expect(limiter.implicitRule("GET")).toBeUndefined()
-		expect(limiter.noteBackoff("GET", "/untagged", 0).category).toBe(UNTAGGED_CATEGORY)
+		expect(limiter.noteBackoff({ method: "GET", pathname: "/untagged" }, 0).category).toBe(UNTAGGED_CATEGORY)
 	})
 
 	it("makes a caller wait out the cooldown, and lets it through once it is over", async () => {
 		const limiter = new RateLimiter(RULES)
 		expect(await limiter.waitImplicit("POST")).toBe(true)
-		limiter.noteBackoff("POST", "/untagged", 1_500)
+		limiter.noteBackoff({ method: "POST", pathname: "/untagged" }, 1_500)
 		const waited = limiter.waitImplicit("PUT")
 		await vi.advanceTimersByTimeAsync(1_500)
 		expect(await waited).toBe(false)

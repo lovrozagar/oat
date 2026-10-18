@@ -9,10 +9,16 @@ import type { ListingRequest } from "./types.ts"
 
 const NONE: Axes = { searched: false, selected: false, sorted: false }
 const SELECTED: Axes = { ...NONE, selected: true }
-const order = (request: ListingRequest, defects: DefectName[] = [], axes = NONE, entity: EntityDef = TABLE) =>
+/** What a request is ordered under: no defect, no axis, and the table, unless given. */
+interface Under {
+	defects?: DefectName[]
+	axes?: Axes
+	entity?: EntityDef
+}
+const order = (request: ListingRequest, { defects = [], axes = NONE, entity = TABLE }: Under = {}) =>
 	listingOrder(request, parseContext(defects, entity), axes)
 const fields = (request: ListingRequest, defects: DefectName[] = [], axes = NONE) =>
-	order(request, defects, axes).fullOrder.map((term) => `${term.field}${term.descending ? "-" : "+"}`)
+	order(request, { axes, defects }).fullOrder.map((term) => `${term.field}${term.descending ? "-" : "+"}`)
 
 describe("listingOrder: the order chosen", () => {
 	it("takes the named order, or the documented default, with the identity as the last tiebreak", () => {
@@ -36,14 +42,14 @@ describe("listingOrder: the order chosen", () => {
 
 describe("listingOrder: what the order changes", () => {
 	it("keeps rows with a null descending key out, under the defect", () => {
-		expect(order({ order: "name,position.desc" }, ["SORT_DESC_DROPS_NULLS"]).dropNulls).toEqual([
+		expect(order({ order: "name,position.desc" }, { defects: ["SORT_DESC_DROPS_NULLS"] }).dropNulls).toEqual([
 			{ field: "position", kind: "isnull", negate: true },
 		])
 		expect(order({ order: "position.desc" }).dropNulls).toEqual([])
 	})
 
 	it("adds no tiebreak to an unstable sort", () => {
-		expect(order({ order: "name" }, ["UNSTABLE_SORT"])).toMatchObject({
+		expect(order({ order: "name" }, { defects: ["UNSTABLE_SORT"] })).toMatchObject({
 			fullOrder: [{ field: "name" }],
 			unstable: true,
 		})
@@ -52,16 +58,15 @@ describe("listingOrder: what the order changes", () => {
 
 	it("breaks ties by the first searchable text field under the defect, where the entity has one", () => {
 		expect(fields({}, ["TIEBREAK_NOT_APPLIED"])).toEqual(["created_at-", "name+", "id+"])
-		expect(order({}, ["TIEBREAK_NOT_APPLIED"]).fullOrder[1]).toEqual({
+		expect(order({}, { defects: ["TIEBREAK_NOT_APPLIED"] }).fullOrder[1]).toEqual({
 			asText: true,
 			descending: false,
 			field: "name",
 			nullsFirst: false,
 		})
 		const plain = { ...TABLE, fields: TABLE.fields.map((field) => ({ ...field, searchable: false })) }
-		expect(order({}, ["TIEBREAK_NOT_APPLIED"], NONE, plain).fullOrder.map((term) => term.field)).toEqual([
-			"created_at",
-			"id",
-		])
+		expect(order({}, { defects: ["TIEBREAK_NOT_APPLIED"], entity: plain }).fullOrder.map((term) => term.field)).toEqual(
+			["created_at", "id"],
+		)
 	})
 })

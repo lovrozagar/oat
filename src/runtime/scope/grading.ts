@@ -22,10 +22,10 @@ export interface Grading {
 	status: OperationStatus
 }
 
-function statusOf(passed: number, failed: number, inconclusive: number, blocked: boolean): OperationStatus {
-	if (failed > 0) return "failed"
-	if (passed > 0) return "passed"
-	if (inconclusive > 0) return "inconclusive"
+function statusOf(checks: Pick<Grading, "failed" | "inconclusive" | "passed">, blocked: boolean): OperationStatus {
+	if (checks.failed.length > 0) return "failed"
+	if (checks.passed.length > 0) return "passed"
+	if (checks.inconclusive.length > 0) return "inconclusive"
 	return blocked ? "blocked" : "untested"
 }
 
@@ -36,8 +36,7 @@ function succeededOn(input: CoverageInput, operationId: string): boolean {
 		(exchange) =>
 			exchange.status >= 200 &&
 			exchange.status < 400 &&
-			(exchange.operationId ?? operationFor(input.model, exchange.method, exchange.url, input.baseUrl)?.operationId) ===
-				operationId,
+			(exchange.operationId ?? operationFor(input.model, exchange, input.baseUrl)?.operationId) === operationId,
 	)
 }
 
@@ -62,11 +61,6 @@ export function gradingOf(input: CoverageInput, operationId: string): Grading {
 				.sort()
 		: []
 	const suppressed = [...(ledger.suppressed.get(operationId) ?? [])].sort()
-	const status = statusOf(
-		passed.length,
-		failed.length,
-		inconclusive.length,
-		suppressed.length > 0 || blocked.length > 0,
-	)
+	const status = statusOf({ failed, inconclusive, passed }, suppressed.length > 0 || blocked.length > 0)
 	return { blocked, defects, failed, gapFindings, gaps, inconclusive, passed, ran, status, succeeded, suppressed }
 }

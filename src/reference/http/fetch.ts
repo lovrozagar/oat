@@ -9,7 +9,7 @@ export function asFetch(handle: Handle): typeof fetch {
 		const request = new Request(input, { ...init, duplex: "half" } as RequestInit)
 		const read = (): Promise<string> => request.text()
 		const answer = await handle(
-			referenceRequest(request.method, new URL(request.url), Object.fromEntries(request.headers), read),
+			referenceRequest(request.method, new URL(request.url), { headers: Object.fromEntries(request.headers), read }),
 		)
 		return new Response(answer.status === 204 ? null : answer.body, { headers: answer.headers, status: answer.status })
 	}

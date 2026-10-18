@@ -22,7 +22,14 @@ export function describeEffectHold(effect: EffectSpec): string {
  * `delete`: the same against removals (delta is negative).
  * `update`/`replace`: the collection must not change size.
  */
-export function effectHolds(effect: EffectSpec, delta: number, added: number, removed: number): boolean {
+/** How a collection changed across an action: its size delta, and the ids it gained and lost. */
+export interface CollectionChange {
+	delta: number
+	added: number
+	removed: number
+}
+
+export function effectHolds(effect: EffectSpec, { delta, added, removed }: CollectionChange): boolean {
 	const hold = effectCardinality(effect)
 	if (effect.op === "create" || effect.op === "append") {
 		return hold.mode === "exact" ? delta === hold.count && added === hold.count : delta >= hold.min && added >= hold.min

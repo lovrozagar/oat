@@ -8,9 +8,9 @@ import { actor, caller, notesContext } from "./__fixtures__/context.ts"
 import { type NotesOptions, notesDocument } from "./__fixtures__/notes.ts"
 
 const HOME = { org_id: "o1" }
-const owner = actor("owner", 2, HOME, { role: "owner" })
-const viewer = actor("viewer", 0, HOME, { role: "viewer" })
-const stranger = actor("stranger", 1, { org_id: "o2" })
+const owner = actor("owner", { rank: 2, roots: HOME, role: "owner" })
+const viewer = actor("viewer", { rank: 0, roots: HOME, role: "viewer" })
+const stranger = actor("stranger", { rank: 1, roots: { org_id: "o2" } })
 const MEMBERS = { owner: "o1", stranger: "o2", viewer: "o1" }
 const modelWith = (options: NotesOptions = {}) => modelOf(notesDocument(options))
 
@@ -59,8 +59,8 @@ describe("auth.rank-is-monotonic-on-writes", () => {
 	}
 
 	it("names principals without a role by id, and counts a 401 as a refusal", async () => {
-		const lead = actor("lead", 2, HOME)
-		const member = actor("member", 1, HOME)
+		const lead = actor("lead", { rank: 2, roots: HOME })
+		const member = actor("member", { rank: 1, roots: HOME })
 		const backend = notesBackend({ members: { ...MEMBERS, lead: "o1", member: "o1" } })
 		const refusing = (method: string, path: string, options: RequestOptions) =>
 			caller(options) === "lead" && method === "DELETE" ? { status: 401 } : backend(method, path, options)

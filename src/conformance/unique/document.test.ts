@@ -33,7 +33,7 @@ describe("planCase and doctorCase", () => {
 
 describe("untaggedDoctorCase", () => {
 	it("passes a doctor report that names the locked checks", () => {
-		expect(untaggedDoctorCase(report.doctor(untagged, [], false).text)).toMatchObject({ detail: "named", ok: true })
+		expect(untaggedDoctorCase(report.doctor(untagged).text)).toMatchObject({ detail: "named", ok: true })
 	})
 
 	it("fails a report that never mentions the tag", () => {

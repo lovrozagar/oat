@@ -23,9 +23,9 @@ export const filterInIsUnionOfEq = defineCheck<{
 		if (picked === null || a === undefined || b === undefined) return cannot()
 		const conventions = conv(ctx)
 		const field = picked.field.field
-		const inTerm = filterTerm(conventions, field, "in", [asTermValue(a), asTermValue(b)])
-		const eqA = filterTerm(conventions, field, "eq", asTermValue(a))
-		const eqB = filterTerm(conventions, field, "eq", asTermValue(b))
+		const inTerm = filterTerm(conventions, { field, op: "in", value: [asTermValue(a), asTermValue(b)] })
+		const eqA = filterTerm(conventions, { field, op: "eq", value: asTermValue(a) })
+		const eqB = filterTerm(conventions, { field, op: "eq", value: asTermValue(b) })
 		if (inTerm === null || eqA === null || eqB === null) return cannot("a filter grammar that can express in and eq")
 		return ready({ a, b, eqA, eqB, field, inTerm })
 	},

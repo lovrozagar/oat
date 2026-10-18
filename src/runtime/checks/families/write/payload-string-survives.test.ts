@@ -10,12 +10,15 @@ import { overriding, type Rows, widgetApi, widgetDoc, type WidgetDocOptions } fr
 
 function stage(respond: Responder, options: WidgetDocOptions = {}, fields: Partial<CheckContext> = {}) {
 	const model = modelOf(widgetDoc(options))
-	return contextFor(model, "listWidgets", respond, {
-		createOp: op(model, "createWidget"),
-		deleteOp: model.byOperationId.get("deleteWidget"),
-		readOp: model.byOperationId.get("getWidget"),
-		updateOp: model.byOperationId.get("updateWidget"),
-		...fields,
+	return contextFor(model, "listWidgets", {
+		respond,
+		fields: {
+			createOp: op(model, "createWidget"),
+			deleteOp: model.byOperationId.get("deleteWidget"),
+			readOp: model.byOperationId.get("getWidget"),
+			updateOp: model.byOperationId.get("updateWidget"),
+			...fields,
+		},
 	})
 }
 

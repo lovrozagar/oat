@@ -23,7 +23,7 @@ async function walkBothWays(
 	matches: (row: Record_) => boolean,
 ): Promise<{ everything: SetRead | null; serverSide: SetRead | null }> {
 	const tiebreak = ctx.query?.sortable.includes(ctx.identity) === true ? ctx.identity : undefined
-	const walkOrder = tiebreak === undefined ? undefined : sortTerm(conv(ctx), tiebreak, "asc")
+	const walkOrder = tiebreak === undefined ? undefined : sortTerm(conv(ctx), { direction: "asc", field: tiebreak })
 	const everything = await collectSet(ctx, ROWS_PER_PAGE, {}, { order: walkOrder })
 	const serverSide = await collectSet(ctx, ROWS_PER_PAGE, term, { order: walkOrder })
 	/* Rows that do not match mean the filter was not applied to this walk. A backend that drops

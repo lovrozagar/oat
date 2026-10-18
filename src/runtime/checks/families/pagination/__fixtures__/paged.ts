@@ -142,5 +142,5 @@ export function stage(doc: OpenApiDocument, respond: Responder, records: Record_
 		query: listOp.query,
 		records,
 	}
-	return contextFor(model, "listWidgets", respond, fields)
+	return contextFor(model, "listWidgets", { respond, fields })
 }

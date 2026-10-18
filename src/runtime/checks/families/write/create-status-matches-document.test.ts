@@ -6,7 +6,7 @@ import { widgetApi, widgetDoc, type WidgetDocOptions } from "./__fixtures__/widg
 
 function stage(respond: Responder, options: WidgetDocOptions = {}) {
 	const model = modelOf(widgetDoc(options))
-	return contextFor(model, "listWidgets", respond, { createOp: op(model, "createWidget") })
+	return contextFor(model, "listWidgets", { respond, fields: { createOp: op(model, "createWidget") } })
 }
 
 /** What the transcript holds once the run's own create has gone through. */
@@ -42,7 +42,7 @@ describe("create.status-matches-document", () => {
 
 	it("stands down without a create, or without a documented success status", () => {
 		const model = modelOf(widgetDoc())
-		const { ctx } = contextFor(model, "listWidgets", widgetApi())
+		const { ctx } = contextFor(model, "listWidgets", { respond: widgetApi() })
 		expect(createStatusMatchesSpec.plan(ctx).ok).toBe(false)
 		const { ctx: undocumented } = stage(widgetApi(), { createStatus: "400" })
 		expect(createStatusMatchesSpec.plan(undocumented)).toEqual({

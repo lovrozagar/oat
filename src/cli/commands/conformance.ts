@@ -44,7 +44,7 @@ export async function commandConformance(
 	const suites = legs.has("suites") ? await runSuites(writer, toolkit, !includesDefault(passes)) : 0
 	if (flags.precision !== undefined) return verdict(suites + (await precision(writer, flags, toolkit)))
 	if (flags.fuzz !== undefined) return verdict(suites + (await fuzz(writer, flags, toolkit)))
-	return verdict(suites + (await legsRun(writer, flags, toolkit, { legs, passes })))
+	return verdict(suites + (await legsRun({ flags, toolkit, writer }, { legs, passes })))
 }
 
 function verdict(failures: number): number {
@@ -162,17 +162,20 @@ async function fuzz(writer: Writer, flags: Args["flags"], toolkit: Toolkit): Pro
 	return rendered.failures
 }
 
+/* One `oat conformance` invocation: where it writes, its flags, and the toolkit it loaded. */
+interface Invocation {
+	writer: Writer
+	flags: Args["flags"]
+	toolkit: Toolkit
+}
+
 /**
  * The matrix legs, then — on a full run — the engines that were missing, the checks no defect
  * proved, and the D1 note; the combination pass when its leg is taken; and what the legs proved,
  * written where `--proven-out` says.
  */
-async function legsRun(
-	writer: Writer,
-	flags: Args["flags"],
-	toolkit: Toolkit,
-	run: { legs: ReadonlySet<Leg>; passes: Pass[] },
-): Promise<number> {
+async function legsRun(invocation: Invocation, run: { legs: ReadonlySet<Leg>; passes: Pass[] }): Promise<number> {
+	const { flags, toolkit, writer } = invocation
 	const { legs, passes } = run
 	const matrix: Matrix = {
 		jobs: Number.parseInt(str(flags, "jobs") ?? String(toolkit.pool.defaultJobs()), 10),

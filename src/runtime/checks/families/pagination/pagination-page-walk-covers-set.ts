@@ -56,7 +56,7 @@ export const pageWalkCoversSet = defineCheck({
 		/* Walk under a low-cardinality sort. Distinct keys admit exactly one valid order, so an
 		 * unstable sort is indistinguishable from a correct one until values tie. */
 		const order = tiedSortField(ctx)
-		const orderParam = order === null ? undefined : sortTerm(conv(ctx), order, "asc")
+		const orderParam = order === null ? undefined : sortTerm(conv(ctx), { direction: "asc", field: order })
 		/* The whole set, read at the largest page: what a walk at two per page must reproduce. */
 		void limit
 		const whole = await readSet(ctx, {}, { order: orderParam })

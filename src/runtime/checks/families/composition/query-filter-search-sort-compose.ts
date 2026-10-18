@@ -51,7 +51,7 @@ export const filterSearchSortCompose = defineCheck<Subset & { token: string; sor
 			...q(ctx, { search: token }),
 		} as Record<string, string>)
 		const triple = await collectSet(ctx, limit, { ...term, ...q(ctx, { search: token }) } as Record<string, string>, {
-			order: sortTerm(conventions, sortField, "desc"),
+			order: sortTerm(conventions, { direction: "desc", field: sortField }),
 		})
 		if (pair === null || triple === null) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "combining a filter, a search and a sort was rejected")

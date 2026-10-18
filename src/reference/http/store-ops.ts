@@ -6,7 +6,7 @@ import type { FilterNode } from "../query-types.ts"
 import type { Row } from "../store-api.ts"
 import { HttpError } from "./errors.ts"
 import { tombstoned, withDefaults } from "./records.ts"
-import { type ReferenceState, type Scope, TENANT_FIELD } from "./state.ts"
+import { type EntityRecord, type RecordKey, type ReferenceState, type Scope, TENANT_FIELD } from "./state.ts"
 import { pathId } from "./validation.ts"
 
 /** The path's parameters, each read as the type its entity declares. */
@@ -62,12 +62,9 @@ export async function liveRows(
 	return state.store.select(entity, { collation: "binary", order: [], shuffleTies: false, where })
 }
 
-export async function assertUnique(
-	state: ReferenceState,
-	entity: EntityDef,
-	record: Row,
-	exceptId: string | undefined,
-): Promise<void> {
+/** Refuses a record that repeats a unique set of another live one; `exceptId` is the record being rewritten. */
+export async function assertUnique(state: ReferenceState, written: EntityRecord, exceptId?: string): Promise<void> {
+	const { entity, record } = written
 	if (state.defects.has("UNIQUE_NOT_ENFORCED")) return
 	/* A slug names a table within its project, so it is unique there; the document does not say so. */
 	const slugged = state.shape.tableKey === "slug" && entity.name === state.table.name
@@ -108,8 +105,7 @@ export async function refreshParentCount(state: ReferenceState, entity: EntityDe
  */
 export async function readModifyWrite(
 	state: ReferenceState,
-	entity: EntityDef,
-	id: string | number,
+	{ entity, id }: RecordKey,
 	patch: Row,
 ): Promise<Row | null> {
 	const current = await state.store.byId(entity, id)
@@ -165,7 +161,7 @@ async function prepopulateOne(state: ReferenceState, projectId: string, i: numbe
 	const scope = { project_id: projectId }
 	const table = withDefaults(
 		state,
-		state.table,
+		{ entity: state.table, scope },
 		{
 			description: i % 3 === 0 ? null : `pre-existing ${word.toLowerCase()} record`,
 			name,
@@ -173,14 +169,12 @@ async function prepopulateOne(state: ReferenceState, projectId: string, i: numbe
 			slug: name.toLowerCase().replace(/\s+/g, "-"),
 			status: ["active", "draft", "archived"][i % 3],
 		},
-		scope,
 	)
 	await state.store.insert(state.table, table)
 	const job = withDefaults(
 		state,
-		state.job,
+		{ entity: state.job, scope },
 		{ kind: ["export", "import", "sync"][i % 3], name, note: i % 4 === 0 ? null : word },
-		scope,
 	)
 	job.status = "complete"
 	job.progress = 100

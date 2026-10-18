@@ -24,17 +24,14 @@ interface OutOfBandSeen {
 	headers: Record<string, string>
 }
 
-function send(res: ServerResponse, status: number, body?: unknown, extra?: Record<string, string | string[]>): void {
-	const headers: Record<string, string | string[]> = { ...extra }
+function send(res: ServerResponse, status: number, body?: unknown): void {
 	if (body === undefined) {
-		res.writeHead(status, headers)
+		res.writeHead(status)
 		res.end()
 		return
 	}
 	const text = JSON.stringify(body)
-	headers["content-length"] = String(Buffer.byteLength(text))
-	headers["content-type"] = "application/json"
-	res.writeHead(status, headers)
+	res.writeHead(status, { "content-length": String(Buffer.byteLength(text)), "content-type": "application/json" })
 	res.end(text)
 }
 

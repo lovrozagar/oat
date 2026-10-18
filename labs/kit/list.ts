@@ -22,6 +22,12 @@ export interface ListPage {
 }
 
 /** One list request against one world: the store's driver and defects, the entity, its scope. */
+/** What a list call asks for: the parent ids it is scoped under, and its query parameters. */
+export interface ListQuery {
+	scope: Record<string, string>
+	params: ListParams
+}
+
 interface ListRequest {
 	db: Driver
 	world: World
@@ -44,15 +50,18 @@ interface Where {
 export async function listEntity(
 	store: { db: Driver; world: World },
 	entity: Entity,
-	scope: Record<string, string>,
-	params: ListParams,
+	{ params, scope }: ListQuery,
 ): Promise<ListPage> {
 	const request: ListRequest = { db: store.db, entity, params, world: store.world }
 	const fields = fieldsOf(entity)
 	const where = whereOf(request, fields, scope)
 	const counted = await request.db.all(`SELECT COUNT(*) AS n FROM "${entity.plural}" ${where.sql}`, where.args)
 	const count = Number(counted[0]?.n ?? 0)
-	const compiledOrder = compileOrder(params.order ?? "created_at.desc", fields.sortable, fields.filter.columns, "id")
+	const compiledOrder = compileOrder(params.order ?? "created_at.desc", {
+		columns: fields.filter.columns,
+		sortable: fields.sortable,
+		tiebreak: "id",
+	})
 	const order = hasDefect(request.world, "drop-sort")
 		? { args: [] as Array<string | number | null>, sql: `"created_at" DESC, "id" ASC` }
 		: compiledOrder
@@ -197,10 +206,10 @@ function projectItems(request: ListRequest, fields: Fields, rows: Row[]): Row[] 
 	const { select } = request.params
 	const { columns } = fields.filter
 	if (!hasDefect(request.world, "drop-select")) {
-		return rows.map((row) => project(row, select, fields.selectable, columns))
+		return rows.map((row) => project(row, select, { columns, selectable: fields.selectable }))
 	}
 	/* Validate the projection so unknown fields still 400, then ignore it. */
-	if (select !== undefined && select !== "") project({}, select, fields.selectable, columns)
+	if (select !== undefined && select !== "") project({}, select, { columns, selectable: fields.selectable })
 	return rows.map((row) => ({ ...row }))
 }
 

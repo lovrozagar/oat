@@ -32,13 +32,14 @@ export function respond(status: number, body: unknown, extraHeaders: Record<stri
 	}
 }
 
+/** What a request carries beside its method and URL: its headers, and how to read its body. */
+export interface ReferenceInit {
+	headers: Readonly<Record<string, string>>
+	read: () => Promise<string>
+}
+
 /** A request whose body is read at most once. */
-export function referenceRequest(
-	method: string,
-	url: URL,
-	headers: Readonly<Record<string, string>>,
-	read: () => Promise<string>,
-): ReferenceRequest {
+export function referenceRequest(method: string, url: URL, { headers, read }: ReferenceInit): ReferenceRequest {
 	let body: Promise<string> | undefined
 	return { headers, method: method.toUpperCase(), text: () => (body ??= read()), url }
 }

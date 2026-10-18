@@ -12,7 +12,7 @@ export const zeroMatchFilter = defineCheck<{ term: Record<string, string> }>({
 		if (!filterable(ctx) || !identityIsFilterable(ctx)) return cannot()
 		const missing = absentId(ctx)
 		if (missing === null) return cannot(NO_ABSENT_ID)
-		const term = filterTerm(conv(ctx), filterIdentity(ctx), "eq", missing)
+		const term = filterTerm(conv(ctx), { field: filterIdentity(ctx), op: "eq", value: missing })
 		return term === null ? cannot("a filter grammar that can express equality on the identity") : ready({ term })
 	},
 	dependsOn: ["query.filter-selects-from-whole-set", "list.read-after-write"],

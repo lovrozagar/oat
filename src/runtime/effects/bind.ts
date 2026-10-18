@@ -43,12 +43,16 @@ function resolveBindExpr(expr: string, records: readonly Record<string, unknown>
 }
 
 /** What an action's path is filled from: its params, the records it acts on, and what `x-bind` names. */
-export interface ActionScopeInput {
-	pathParams: readonly string[]
+/** What a bind's pointers read: the seeded records, and the prelude's response body (`before:`). */
+export interface BindSources {
 	records: readonly Record<string, unknown>[]
+	beforeBody: unknown
+}
+
+export interface ActionScopeInput extends BindSources {
+	pathParams: readonly string[]
 	scope: Record<string, string>
 	bind: ActionBind | null
-	beforeBody: unknown
 }
 
 /** Fill path params still missing after the instance id bind. Explicit `x-bind.path` wins over the stem walk. */
@@ -79,8 +83,7 @@ export function bindActionScope(input: ActionScopeInput): Record<string, string>
 /** Overlay `x-bind` body fields and query values. Literals pass through; pointers read the record or prelude. */
 export function applyActionBind(
 	bind: ActionBind | null,
-	records: readonly Record<string, unknown>[],
-	beforeBody: unknown,
+	{ records, beforeBody }: BindSources,
 	body: Record<string, unknown> | undefined,
 ): { body: Record<string, unknown> | undefined; query: Record<string, string> } {
 	const query: Record<string, string> = {}

@@ -3,7 +3,7 @@ import { referenceRequest } from "../../reference/http/wire.ts"
 import { answer, guarded, readJson } from "./serve.ts"
 
 function post(body: string) {
-	return referenceRequest("post", new URL("http://suite.test/v1/things"), {}, async () => body)
+	return referenceRequest("post", new URL("http://suite.test/v1/things"), { headers: {}, read: async () => body })
 }
 
 describe("answer", () => {

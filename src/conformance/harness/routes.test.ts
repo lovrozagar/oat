@@ -4,7 +4,7 @@ import { type Route, routed } from "./routes.ts"
 import { answer } from "./serve.ts"
 
 function request(method: string, path: string) {
-	return referenceRequest(method, new URL(path, "http://suite.test"), {}, async () => "")
+	return referenceRequest(method, new URL(path, "http://suite.test"), { headers: {}, read: async () => "" })
 }
 
 const ROUTES: Route[] = [

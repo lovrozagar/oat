@@ -22,10 +22,14 @@ export const sortDefaultOrderApplied = defineCheck<{ defaultOrder: string }>({
 		if (implicit === null || explicit === null) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "default-order walk was rejected")
 		}
-		const settled = await settlePair(ctx.identity, implicit, explicit, {
-			first: () => collectSet(ctx, limit, {}, { fresh: true }),
-			second: () => collectSet(ctx, limit, {}, { order: defaultOrder, fresh: true }),
-		})
+		const settled = await settlePair(
+			ctx.identity,
+			{ first: implicit, second: explicit },
+			{
+				first: () => collectSet(ctx, limit, {}, { fresh: true }),
+				second: () => collectSet(ctx, limit, {}, { order: defaultOrder, fresh: true }),
+			},
+		)
 		if (settled === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING)
 		if (settled === null) return ctx.findings.unresolved(this.id, ctx.entityName, "default-order walk was rejected")
 		implicit = settled.first

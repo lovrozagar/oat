@@ -48,14 +48,17 @@ export async function sendFollowing(first: FirstHop, how: Following): Promise<La
 	const jar = new CookieJar()
 	const hops: RedirectHop[] = []
 	let current: Hop = { body: first.body, method: first.method, url: first.url }
-	applyJarToHeaders(first.headers, jar, first.url, how.callerCookie)
+	applyJarToHeaders(first.headers, { callerCookie: how.callerCookie, jar, url: first.url })
 	const init: RequestInit = { headers: first.headers, method: first.method }
 	if (first.body !== undefined) init.body = first.body
 	if (first.redirect !== undefined) init.redirect = first.redirect
-	let answer = await sendHop(jar, current.url, init, how)
+	let answer = await sendHop(jar, { init, url: current.url }, how)
 	while (how.follow && isRedirectStatus(answer.response.status) && hops.length < MAX_REDIRECTS) {
 		const { response } = answer
-		const next = redirectTarget(response.status, current.method, response.headers.get("location"), current.url)
+		const next = redirectTarget(
+			{ location: response.headers.get("location"), status: response.status },
+			{ method: current.method, url: current.url },
+		)
 		if (next === null) break
 		hops.push({
 			responseHeaders: recordResponseHeaders(response.headers),
@@ -66,7 +69,7 @@ export async function sendFollowing(first: FirstHop, how: Following): Promise<La
 		const crossOrigin = next.url.origin !== first.url.origin
 		prepareHop(first.headers, { crossOrigin, dropBody: next.dropBody, jar, url: current.url }, how)
 		await how.fence(current.url, current.method.toUpperCase(), next.dropBody ? undefined : how.body)
-		answer = await sendHop(jar, current.url, hopInit(first.headers, current), how)
+		answer = await sendHop(jar, { init: hopInit(first.headers, current), url: current.url }, how)
 	}
 	return { ...answer, hops, jar, landing: current.url }
 }
@@ -82,7 +85,11 @@ function prepareHop(
 		omitHeader(headers, "content-type")
 		omitHeader(headers, "content-length")
 	}
-	applyJarToHeaders(headers, hop.jar, hop.url, hop.crossOrigin ? undefined : how.callerCookie)
+	applyJarToHeaders(headers, {
+		callerCookie: hop.crossOrigin ? undefined : how.callerCookie,
+		jar: hop.jar,
+		url: hop.url,
+	})
 }
 
 function hopInit(headers: Record<string, string>, hop: Hop): RequestInit {
@@ -91,10 +98,15 @@ function hopInit(headers: Record<string, string>, hop: Hop): RequestInit {
 	return init
 }
 
+/* One hop's request: where it goes, and what fetch is handed. */
+interface HopRequest {
+	url: URL
+	init: RequestInit
+}
+
 async function sendHop(
 	jar: CookieJar,
-	url: URL,
-	init: RequestInit,
+	{ init, url }: HopRequest,
 	how: Following,
 ): Promise<ResponsePayload & { response: Response }> {
 	const response = await how.send(url, init)

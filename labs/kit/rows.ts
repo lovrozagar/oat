@@ -18,7 +18,13 @@ export function defaults(entity: Entity): Row {
 	return row
 }
 
-export function validateBody(entity: Entity, input: Row, phase: "create" | "update", world: World): Row {
+/** How a body is checked: as a create or an update, under the world's defects. */
+export interface BodyCheck {
+	phase: "create" | "update"
+	world: World
+}
+
+export function validateBody(entity: Entity, input: Row, { phase, world }: BodyCheck): Row {
 	assertWritable(entity, input, world)
 	if (phase === "create" && !hasDefect(world, "skip-required")) assertRequired(entity, input)
 	for (const field of entity.fields) {

@@ -22,7 +22,8 @@ function ancestorBody(
 	let member: CohortMember
 	try {
 		/* One variant asked for, one member made: buildCohort maps the variants it is given. */
-		member = buildCohort(schema ?? {}, options.seed, ["baseline"], {
+		member = buildCohort(schema ?? {}, options.seed, {
+			variants: ["baseline"],
 			defs: model.defs,
 			/* A parent made as scaffolding carries the nonce in every string, not only the unique ones:
 			 * a server that derives an undeclared key from a name (a slug) must never see the name the
@@ -40,7 +41,7 @@ function ancestorBody(
 	if (unique.length > 0) {
 		/* Ancestor creates share the entity seed with the entity's own cohort; unique columns
 		 * must not collide with a later seed of the same collection. */
-		body = uniquifyProbeBody(body, unique, schema, `anc${options.seed}-${options.nonce ?? ""}`)
+		body = uniquifyProbeBody(body, unique, { schema, token: `anc${options.seed}-${options.nonce ?? ""}` })
 	}
 	return { body, member }
 }
@@ -53,7 +54,8 @@ export async function createOne(
 ): Promise<{ record: Record_; adopted: boolean }> {
 	const { model, client, options } = seeding
 	const { body, member } = ancestorBody(createOp, seeding)
-	const encoded = await encodeForOperation(createOp, model, body, {
+	const encoded = await encodeForOperation(createOp, model, {
+		fields: body,
 		index: 0,
 		uploads: uploadContext(options),
 		variant: member.variant,

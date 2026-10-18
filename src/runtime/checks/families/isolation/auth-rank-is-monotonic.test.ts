@@ -7,10 +7,10 @@ import { notesDocument } from "./__fixtures__/notes.ts"
 
 const model = modelOf(notesDocument())
 const HOME = { org_id: "o1" }
-const owner = actor("owner", 2, HOME, { role: "owner" })
-const viewer = actor("viewer", 0, HOME, { role: "viewer" })
-const member = actor("member", 1, HOME)
-const stranger = actor("stranger", 0, { org_id: "o2" })
+const owner = actor("owner", { rank: 2, roots: HOME, role: "owner" })
+const viewer = actor("viewer", { rank: 0, roots: HOME, role: "viewer" })
+const member = actor("member", { rank: 1, roots: HOME })
+const stranger = actor("stranger", { rank: 0, roots: { org_id: "o2" } })
 
 /** Each credential's status for the read of note n1. */
 const reads = (statuses: Record<string, number>) => (_method: string, _path: string, options: object) => ({
@@ -65,7 +65,7 @@ describe("auth.rank-is-monotonic", () => {
 			{ actors: [owner, viewer], records: [] },
 			{ actors: [] },
 			{ actors: [owner, stranger] },
-			{ actors: [owner, actor("peer", 2, HOME)] },
+			{ actors: [owner, actor("peer", { rank: 2, roots: HOME })] },
 		]) {
 			expect(rankIsMonotonic.plan(notesContext(model, reads({}), fields).ctx)).toEqual({ ok: false })
 		}

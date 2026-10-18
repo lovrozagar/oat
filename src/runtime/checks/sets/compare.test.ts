@@ -110,31 +110,41 @@ describe("settlePair", () => {
 	const b = { items: [{ id: "2" }] }
 
 	it("keeps two reads that agree", async () => {
-		expect(await settlePair("id", a, { items: [{ id: "1" }] }, { first: never, second: never })).toEqual({
+		expect(
+			await settlePair("id", { first: a, second: { items: [{ id: "1" }] } }, { first: never, second: never }),
+		).toEqual({
 			first: a,
 			second: { items: [{ id: "1" }] },
 		})
 	})
 
 	it("is moving when the first read now holds other rows", async () => {
-		expect(await settlePair("id", a, b, { first: async () => b, second: never })).toBe("moving")
+		expect(await settlePair("id", { first: a, second: b }, { first: async () => b, second: never })).toBe("moving")
 	})
 
 	it("is moving when the second read now holds other rows", async () => {
-		expect(await settlePair("id", a, b, { first: async () => a, second: async () => a })).toBe("moving")
+		expect(await settlePair("id", { first: a, second: b }, { first: async () => a, second: async () => a })).toBe(
+			"moving",
+		)
 	})
 
 	it("hands back the fresh pair when the disagreement holds still", async () => {
 		const freshA = { items: [{ id: "1" }] }
 		const freshB = { items: [{ id: "2" }] }
-		const settled = await settlePair("id", a, b, { first: async () => freshA, second: async () => freshB })
+		const settled = await settlePair(
+			"id",
+			{ first: a, second: b },
+			{ first: async () => freshA, second: async () => freshB },
+		)
 		expect(settled).toEqual({ first: freshA, second: freshB })
 		expect(settled === "moving" || settled === null ? null : settled.first).toBe(freshA)
 	})
 
 	it("is null when either read again was refused", async () => {
-		expect(await settlePair("id", a, b, { first: async () => null, second: never })).toBeNull()
-		expect(await settlePair("id", a, b, { first: async () => a, second: async () => null })).toBeNull()
+		expect(await settlePair("id", { first: a, second: b }, { first: async () => null, second: never })).toBeNull()
+		expect(
+			await settlePair("id", { first: a, second: b }, { first: async () => a, second: async () => null }),
+		).toBeNull()
 	})
 })
 

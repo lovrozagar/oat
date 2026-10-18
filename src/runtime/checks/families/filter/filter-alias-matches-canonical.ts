@@ -25,8 +25,8 @@ export const filterAliasMatchesCanonical = defineCheck({
 			const sample = ctx.records.find((row) => row[field.field] != null)
 			if (sample === undefined) continue
 			const value = asTermValue(sample[field.field])
-			const aliasTerm = filterTerm(conventions, field.field, alias, value)
-			const targetTerm = filterTerm(conventions, field.field, target, value)
+			const aliasTerm = filterTerm(conventions, { field: field.field, op: alias, value })
+			const targetTerm = filterTerm(conventions, { field: field.field, op: target, value })
 			if (aliasTerm === null || targetTerm === null) continue
 			const agree = (pair: SetRead[]): boolean => {
 				const [a, b] = pair as [SetRead, SetRead]

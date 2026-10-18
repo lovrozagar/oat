@@ -20,17 +20,21 @@ function checksFor(model: SpecModel, scope: TargetScope): Map<string, Set<string
 }
 
 /** The creates of every parent `op`'s path names, up the chain, into `support`. */
-function addParents(model: SpecModel, op: OperationModel | undefined, support: Set<string>, seen: Set<string>): void {
-	if (op === undefined || seen.has(op.operationId)) return
-	seen.add(op.operationId)
-	for (const param of op.pathParams) {
-		const owner = owningEntityOf(model.operations, op.path, param)
-		/* An owner named only by the path (`/projects/{project_id}`) is no entity of the model. */
-		const create = owner === null ? undefined : model.byOperationId.get(model.entities.get(owner)?.create ?? "")
-		if (create === undefined || create.operationId === op.operationId) continue
-		support.add(create.operationId)
-		addParents(model, create, support, seen)
+function addParents(model: SpecModel, op: OperationModel | undefined, support: Set<string>): void {
+	const seen = new Set<string>()
+	const climb = (from: OperationModel | undefined): void => {
+		if (from === undefined || seen.has(from.operationId)) return
+		seen.add(from.operationId)
+		for (const param of from.pathParams) {
+			const owner = owningEntityOf(model.operations, from.path, param)
+			/* An owner named only by the path (`/projects/{project_id}`) is no entity of the model. */
+			const create = owner === null ? undefined : model.byOperationId.get(model.entities.get(owner)?.create ?? "")
+			if (create === undefined || create.operationId === from.operationId) continue
+			support.add(create.operationId)
+			climb(create)
+		}
 	}
+	climb(op)
 }
 
 /** Lifecycle routes of the queued entities and the parents their creates need. */
@@ -38,7 +42,7 @@ function supportOf(model: SpecModel, scope: TargetScope): Set<string> {
 	const support = new Set<string>()
 	for (const entity of scope.entities) {
 		for (const id of [entity.create, entity.list, entity.read, entity.delete]) if (id !== undefined) support.add(id)
-		addParents(model, model.byOperationId.get(entity.create ?? ""), support, new Set())
+		addParents(model, model.byOperationId.get(entity.create ?? ""), support)
 	}
 	return support
 }

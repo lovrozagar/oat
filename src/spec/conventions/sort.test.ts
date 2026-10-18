@@ -29,14 +29,16 @@ describe("sortSpec", () => {
 
 describe("sort terms", () => {
 	it("render one key in the endpoint's grammar", () => {
-		expect(sortTerm(at("prefixed"), "name", "desc")).toBe("-name")
-		expect(sortTerm(at("dotted"), "name", "asc", "last")).toBe("name.asc.nullslast")
-		expect(sortTerm(template, "name", "desc")).toBe("name_down")
+		expect(sortTerm(at("prefixed"), { direction: "desc", field: "name" })).toBe("-name")
+		expect(sortTerm(at("dotted"), { direction: "asc", field: "name", nulls: "last" })).toBe("name.asc.nullslast")
+		expect(sortTerm(template, { direction: "desc", field: "name" })).toBe("name_down")
 	})
 
 	it("place nulls only in a grammar with a token for it", () => {
-		expect(sortTermWithNulls(at("dotted"), "name", "desc", "first")).toBe("name.desc.nullsfirst")
-		expect(sortTermWithNulls(at("spaced"), "name", "desc", "first")).toBeNull()
+		expect(sortTermWithNulls(at("dotted"), { direction: "desc", field: "name", nulls: "first" })).toBe(
+			"name.desc.nullsfirst",
+		)
+		expect(sortTermWithNulls(at("spaced"), { direction: "desc", field: "name", nulls: "first" })).toBeNull()
 	})
 
 	it("render several keys as one value, or one per parameter for a repeated grammar", () => {

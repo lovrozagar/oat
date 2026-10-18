@@ -19,8 +19,8 @@ describe("appendFile / appendFields", () => {
 describe("appendValue", () => {
 	it("sends JSON when the encoding says so, and an object as a JSON part", async () => {
 		const form = new FormData()
-		appendValue(form, "meta", "x", { contentType: "application/json" })
-		appendValue(form, "obj", { a: 1 }, undefined)
+		appendValue(form, { name: "meta", value: "x" }, { contentType: "application/json" })
+		appendValue(form, { name: "obj", value: { a: 1 } }, undefined)
 		expect(partsOf(form)).toEqual([
 			["meta", { name: "blob", type: "application/json" }],
 			["obj", { name: "blob", type: "application/json" }],
@@ -30,9 +30,9 @@ describe("appendValue", () => {
 
 	it("sends a part per array item, and scalars as text", () => {
 		const form = new FormData()
-		appendValue(form, "tags", ["a", { b: 1 }, null], { contentType: "text/plain" })
-		appendValue(form, "n", 3, undefined)
-		appendValue(form, "nil", null, undefined)
+		appendValue(form, { name: "tags", value: ["a", { b: 1 }, null] }, { contentType: "text/plain" })
+		appendValue(form, { name: "n", value: 3 }, undefined)
+		appendValue(form, { name: "nil", value: null }, undefined)
 		expect(partsOf(form)).toEqual([
 			["tags", "a"],
 			["tags", { name: "blob", type: "application/json" }],

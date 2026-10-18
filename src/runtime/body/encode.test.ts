@@ -59,7 +59,7 @@ describe("encodeRequest", () => {
 describe("encodeForOperation", () => {
 	it("leaves the fields as they are for an operation without a body", async () => {
 		const fields = { a: 1 }
-		expect(await encodeForOperation(operation("docs.list"), bodiesModel(), fields, { uploads: { seed: 1 } })).toEqual({
+		expect(await encodeForOperation(operation("docs.list"), bodiesModel(), { fields, uploads: { seed: 1 } })).toEqual({
 			body: fields,
 			contentType: undefined,
 		})
@@ -68,14 +68,28 @@ describe("encodeForOperation", () => {
 	it("encodes by the operation's media type and encoding, as the baseline's first record by default", async () => {
 		const asked: UploadRequest[] = []
 		const uploads = { resolveUpload: async (request: UploadRequest) => (asked.push(request), null), seed: 1 }
-		const created = await encodeForOperation(operation("docs.create"), bodiesModel(), { tags: ["a", "b"] }, { uploads })
+		const created = await encodeForOperation(operation("docs.create"), bodiesModel(), {
+			fields: { tags: ["a", "b"] },
+			uploads,
+		})
 		expect(partsOf(created.body as FormData).map(([name]) => name)).toEqual(["tags", "tags", "file"])
 		expect(asked.map((request) => [request.variant, request.index])).toEqual([["baseline", 0]])
-		await encodeForOperation(operation("docs.create"), bodiesModel(), {}, { index: 3, uploads, variant: "edge" })
+		await encodeForOperation(operation("docs.create"), bodiesModel(), {
+			fields: {},
+			index: 3,
+			uploads,
+			variant: "edge",
+		})
 		expect(asked.at(-1)).toMatchObject({ index: 3, variant: "edge" })
-		const updated = await encodeForOperation(operation("docs.update"), bodiesModel(), { tags: ["a", "b"] }, { uploads })
+		const updated = await encodeForOperation(operation("docs.update"), bodiesModel(), {
+			fields: { tags: ["a", "b"] },
+			uploads,
+		})
 		expect((updated.body as URLSearchParams).toString()).toBe("tags=a%2Cb")
-		const replaced = await encodeForOperation(operation("docs.replace"), bodiesModel(), { name: "n" }, { uploads })
+		const replaced = await encodeForOperation(operation("docs.replace"), bodiesModel(), {
+			fields: { name: "n" },
+			uploads,
+		})
 		expect(replaced).toEqual({ body: { name: "n" }, contentType: undefined })
 	})
 })

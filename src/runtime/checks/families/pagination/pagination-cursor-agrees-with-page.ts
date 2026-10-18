@@ -99,7 +99,7 @@ export const cursorAgreesWithPage = defineCheck({
 	async run(ctx): Promise<Outcome> {
 		/* Walk under an explicit text sort. */
 		const sortField = textSortField(ctx)
-		const order = sortField === undefined ? undefined : sortTerm(conv(ctx), sortField, "asc")
+		const order = sortField === undefined ? undefined : sortTerm(conv(ctx), { direction: "asc", field: sortField })
 
 		const pageWalk = await walkPages(ctx, 2, order)
 		const cursorWalk = await walkCursor(ctx, 2, order)

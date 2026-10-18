@@ -11,7 +11,8 @@ export const countMatchesWalk = defineCheck<{ countTerm: Record<string, string> 
 	plan: (ctx) => {
 		if (ctx.records.length <= 1 || !filterable(ctx) || !identityIsFilterable(ctx)) return cannot()
 		const targetId = idOf(ctx.records[0], ctx.identity)
-		const countTerm = targetId === undefined ? null : filterTerm(conv(ctx), filterIdentity(ctx), "eq", targetId)
+		const countTerm =
+			targetId === undefined ? null : filterTerm(conv(ctx), { field: filterIdentity(ctx), op: "eq", value: targetId })
 		return countTerm === null
 			? cannot("a filter grammar that can express equality on the identity")
 			: ready({ countTerm })

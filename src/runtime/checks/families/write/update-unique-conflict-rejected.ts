@@ -31,7 +31,7 @@ export const uniqueConflictUpdate = defineCheck<{
 		const [first] = ctx.records
 		if (updateOp === undefined || (ctx.uniqueSets?.length ?? 0) === 0 || first === undefined) return cannot()
 		if (ctx.createOp === undefined) return cannot()
-		const sets = probeableUniqueSets(updateOp, ctx.model, "update", ctx.uniqueSets)
+		const sets = probeableUniqueSets(updateOp, ctx.model, { phase: "update", sets: ctx.uniqueSets })
 		return sets.length === 0 ? cannot() : ready({ first, sets, updateOp })
 	},
 	/* Reads whole sets across pages, so a walk that skips or repeats records corrupts them. */
@@ -90,12 +90,11 @@ async function probeUpdateSet(
 		set,
 	})
 	if (patch === null) return undefined
-	const headers = uniqueProbeHeaders(
-		ctx.auth(),
-		updateOp.idempotencyHeader,
-		probe.required,
-		`oat-unique-patch-${ctx.entityName}-${ctx.seed}-${index}`,
-	)
+	const headers = uniqueProbeHeaders(ctx.auth(), {
+		header: updateOp.idempotencyHeader,
+		required: probe.required,
+		fresh: `oat-unique-patch-${ctx.entityName}-${ctx.seed}-${index}`,
+	})
 	const update = await updateRequest(ctx, updateOp, target, patch)
 	const params = { ...ctx.scope, ...itemParamFor(ctx, made.scratch.id) }
 	const sent = await ctx.client.request(update.method, fillPath(updateOp.path, params), {

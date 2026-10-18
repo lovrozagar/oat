@@ -134,7 +134,7 @@ function recordJob(run: Invocation, receipt: unknown, start: Exchange): void {
 	if (polled === null || polled === undefined) return
 	/* A receipt that names no id still made a job, and nothing can remove it. */
 	if (jobId === undefined) ctx.recordUnidentified?.(polled, op.operationId, start)
-	else ctx.recordCreated?.(polled, jobId, { ...ctx.scope }, start.principal)
+	else ctx.recordCreated?.({ entity: polled, id: jobId, scope: { ...ctx.scope } }, start.principal)
 }
 
 function judgePolled(run: Invocation, start: Exchange, outcome: AsyncOutcome): void {

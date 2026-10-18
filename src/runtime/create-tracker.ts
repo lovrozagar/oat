@@ -126,7 +126,7 @@ async function recordCreate(tracker: Tracker, exchange: Exchange, owned: Tracked
 		ledger.unidentified(entity, op.operationId, exchange)
 		return
 	}
-	ledger.record(entity, id, scope, owned.owner)
+	ledger.record({ entity, id, scope }, owned.owner)
 	input.onRecorded?.(entity, id)
 }
 

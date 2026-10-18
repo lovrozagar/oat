@@ -129,7 +129,7 @@ async function pickFromPool(request: UploadRequest, context: UploadContext): Pro
 	const matching = memory.pool.filter((entry) => matchesPart(entry, request))
 	if (matching.length === 0) return undefined
 
-	const picked = stablePick(matching, context.seed, request.field, request.index)
+	const picked = stablePick(matching, { field: request.field, index: request.index, seed: context.seed })
 	return { bytes: picked.bytes, filename: picked.filename, mediaType: picked.mediaType }
 }
 
@@ -146,8 +146,15 @@ function matchesPart(entry: PoolEntry, request: UploadRequest): boolean {
 	return false
 }
 
+/** What a stable pick is keyed by: the run's seed, the field, and the record's position. */
+interface PickKey {
+	seed: number
+	field: string
+	index: number
+}
+
 /** One of `items` (never empty), the same one for the same seed, field and index. */
-function stablePick<T>(items: T[], seed: number, field: string, index: number): T {
+function stablePick<T>(items: T[], { seed, field, index }: PickKey): T {
 	const rand = mulberry32(hash32(`${seed}\0${field}\0${index}`))
 	/* Fisher–Yates with the seeded RNG so the same seed always picks the same file. */
 	const copy = [...items]
@@ -164,7 +171,7 @@ function stablePick<T>(items: T[], seed: number, field: string, index: number): 
 async function loadPool(patterns: string[], root: string, warn: (message: string) => void): Promise<PoolEntry[]> {
 	const paths = new Set<string>()
 	for (const pattern of patterns) {
-		const matches = await expandPattern(pattern, root, warn)
+		const matches = await expandPattern(pattern, root, { warn })
 		for (const path of matches) paths.add(path)
 	}
 
@@ -181,11 +188,16 @@ async function loadPool(patterns: string[], root: string, warn: (message: string
 	return entries
 }
 
+/** How a pattern that matches nothing is reported: through `warn`, naming the `label` setting. */
+export interface PatternWarnings {
+	warn?: (message: string) => void
+	label?: string
+}
+
 export async function expandPattern(
 	pattern: string,
 	root: string,
-	warn?: (message: string) => void,
-	label = "uploads.pool",
+	{ warn, label = "uploads.pool" }: PatternWarnings = {},
 ): Promise<string[]> {
 	const absolute = resolve(root, pattern)
 	try {

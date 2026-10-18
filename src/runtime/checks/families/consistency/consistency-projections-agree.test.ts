@@ -14,12 +14,15 @@ const rows = (): Record_[] => [
 function stage(respond: Responder, fields: Partial<CheckContext> = {}, doc = notesDoc()) {
 	const model = modelOf(doc)
 	const listOp = op(model, "notes.list")
-	return contextFor(model, "notes.list", respond, {
-		createOp: op(model, "notes.create"),
-		query: listOp.query,
-		readOp: op(model, "notes.get"),
-		records: [{ id: "n1", status: "open", title: "alpha" }],
-		...fields,
+	return contextFor(model, "notes.list", {
+		respond,
+		fields: {
+			createOp: op(model, "notes.create"),
+			query: listOp.query,
+			readOp: op(model, "notes.get"),
+			records: [{ id: "n1", status: "open", title: "alpha" }],
+			...fields,
+		},
 	})
 }
 

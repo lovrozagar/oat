@@ -5,20 +5,17 @@
  * leaves the operation untested with the reason.
  */
 
-import type { OperationObject } from "../../spec/types.ts"
-import type { OperationModel } from "../../spec/graph/types.ts"
 import { requestContent } from "../../spec/collection/request.ts"
-import { type ActionBind, applyActionBind } from "../effects/bind.ts"
+import { applyActionBind } from "../effects/bind.ts"
 import { buildCohort, type CohortMember } from "../fixture.ts"
 import type { GradeLedger } from "../grades.ts"
-import { exampleOf, type Parameter, seenValue } from "./params.ts"
-import type { ContractInput } from "./types.ts"
+import { exampleOf, seenValue } from "./params.ts"
+import type { ContractCall, ContractInput } from "./types.ts"
 
 /** Every path parameter's value, or `null` once one cannot be resolved (and the operation is skipped). */
 export async function pathValues(
 	input: Pick<ContractInput, "client" | "grades" | "hooks" | "roots">,
-	op: OperationModel,
-	params: readonly Parameter[],
+	{ op, params }: Pick<ContractCall, "op" | "params">,
 	headers: Record<string, string>,
 ): Promise<Record<string, string> | null> {
 	const values: Record<string, string> = {}
@@ -52,11 +49,9 @@ export async function pathValues(
  */
 export function queryValues(
 	grades: GradeLedger,
-	op: OperationModel,
-	params: readonly Parameter[],
-	bind: ActionBind | null,
+	{ op, params, bind }: Pick<ContractCall, "bind" | "op" | "params">,
 ): Record<string, string> | null {
-	const bound = applyActionBind(bind, [], undefined, undefined).query
+	const bound = applyActionBind(bind, { records: [], beforeBody: undefined }, undefined).query
 	const query: Record<string, string> = {}
 	for (const param of params) {
 		if (param.in !== "query" || param.required !== true) continue
@@ -75,9 +70,7 @@ export function queryValues(
 /** The request body, or `null` when the operation needs one oat cannot build (and is skipped). */
 export function bodyOf(
 	input: Pick<ContractInput, "grades" | "model" | "nonce" | "seed">,
-	op: OperationModel,
-	raw: OperationObject,
-	bind: ActionBind | null,
+	{ op, raw, bind }: Pick<ContractCall, "bind" | "op" | "raw">,
 ): { body: unknown } | null {
 	const { model } = input
 	const content = requestContent(raw)
@@ -88,11 +81,12 @@ export function bodyOf(
 	}
 	/* The schema `requestSchemaOf` reads, from the same raw operation. One variant asked for, one
 	 * member back, and its body is always an object. */
-	const [member] = buildCohort(content.schema, input.seed, ["baseline"], {
+	const [member] = buildCohort(content.schema, input.seed, {
+		variants: ["baseline"],
 		defs: model.defs,
 		/* By operation, not by how many requests came before: the same run sends the same body. */
 		nonce: `${input.nonce}c${op.operationId}`,
 		operationId: op.operationId,
 	}) as [CohortMember]
-	return { body: applyActionBind(bind, [], undefined, member.body).body }
+	return { body: applyActionBind(bind, { records: [], beforeBody: undefined }, member.body).body }
 }

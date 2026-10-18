@@ -16,7 +16,7 @@ export interface SliceEntity {
 }
 
 export function entitySlice(entity: SliceEntity, catalog: CheckCatalog, rows: ReportRows): EntityMatrix {
-	const nodes = catalog.ids.map((id) => graphNode(entity.name, id, catalog, rows))
+	const nodes = catalog.ids.map((id) => graphNode({ entity: entity.name, id }, catalog, rows))
 	const counts: Record<CellStatus, number> = { blocked: 0, failed: 0, passed: 0, "out-of-scope": 0, skipped: 0 }
 	for (const node of nodes) counts[node.status] += 1
 
@@ -28,7 +28,13 @@ export function entitySlice(entity: SliceEntity, catalog: CheckCatalog, rows: Re
 	return { counts, identity: entity.identity, name: entity.name, nodes, readSurface: entity.readSurface, roots }
 }
 
-function graphNode(entity: string, id: string, catalog: CheckCatalog, rows: ReportRows): MatrixGraphNode {
+/* One cell of the matrix: check `id` on `entity`. */
+interface Cell {
+	entity: string
+	id: string
+}
+
+function graphNode({ entity, id }: Cell, catalog: CheckCatalog, rows: ReportRows): MatrixGraphNode {
 	/* The catalog's ids are the ids of its strips: every one has a strip. */
 	const strip = catalog.stripOf.get(id) as Strip
 	const node: MatrixGraphNode = { group: strip.title, id, layer: strip.layer, status: statusFor(entity, id, rows) }

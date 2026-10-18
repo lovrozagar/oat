@@ -52,15 +52,32 @@ function tableName(entity: EntityDef, prefix: string): string {
 	return `"${prefix}${entity.plural}"`
 }
 
+/** The tables a store keeps: which entities, under which name prefix. */
+export interface SqlTables {
+	prefix?: string
+	entities?: readonly EntityDef[]
+}
+
+/* The store's working parts: its driver, its tables' prefix, and what it models. */
+interface SqlParts {
+	defects: DefectSet
+	db: SqliteDriver
+	prefix: string
+	entities: readonly EntityDef[]
+}
+
 export class SqlStore implements Store {
 	private readonly flavour: SqlFlavour
+	private readonly defects: DefectSet
+	private readonly db: SqliteDriver
+	private readonly prefix: string
+	private readonly entities: readonly EntityDef[]
 
-	private constructor(
-		private readonly defects: DefectSet,
-		private readonly db: SqliteDriver,
-		private readonly prefix: string,
-		private readonly entities: readonly EntityDef[],
-	) {
+	private constructor(parts: SqlParts) {
+		this.defects = parts.defects
+		this.db = parts.db
+		this.prefix = parts.prefix
+		this.entities = parts.entities
 		this.flavour = {
 			binary: (expr) => expr,
 			bind: (args, value) => {
@@ -76,12 +93,12 @@ export class SqlStore implements Store {
 			/* GLOB is SQLite's case-sensitive matcher and needs no pragma, so the same SQL behaves
 			 * identically in-process and on D1. Case-insensitive matching folds both sides with
 			 * the engine's own LOWER so the two always agree on what "lower" means. */
-			like: (expr, segments, insensitive, args) => {
+			like: (expr, { insensitive, segments }, args) => {
 				args.push(globText(segments))
 				return insensitive ? `LOWER(${expr}) GLOB LOWER(?)` : `${expr} GLOB ?`
 			},
-			position: (expr, needle, caseSensitive, args) => {
-				args.push(needle)
+			position: (expr, { caseSensitive, text }, args) => {
+				args.push(text)
 				return caseSensitive ? `instr(${expr}, ?)` : `instr(LOWER(${expr}), LOWER(?))`
 			},
 			random: "random()",
@@ -96,10 +113,9 @@ export class SqlStore implements Store {
 	static async create(
 		defects: DefectSet,
 		driver: SqliteDriver,
-		prefix = "",
-		entities: readonly EntityDef[] = ENTITIES,
+		{ prefix = "", entities = ENTITIES }: SqlTables = {},
 	): Promise<SqlStore> {
-		const store = new SqlStore(defects, driver, prefix, entities)
+		const store = new SqlStore({ db: driver, defects, entities, prefix })
 		/* One statement per table would be one network round trip per table. Both drivers accept
 		 * a multi-statement script, so the whole schema costs a single trip. */
 		await driver.exec(entities.map((entity) => store.ddl(entity)).join(";\n"))
@@ -211,7 +227,7 @@ export class SqlStore implements Store {
 
 	async select(entity: EntityDef, plan: SelectPlan): Promise<Row[]> {
 		const args: SqlParam[] = []
-		const where = compileWhere(plan.where, entity, this.flavour, args)
+		const where = compileWhere(plan.where, { args, entity, flavour: this.flavour })
 		const order = compileOrder(plan, entity, this.flavour)
 		const rows = await this.db.all(
 			`SELECT ${this.selectList(entity)} FROM ${tableName(entity, this.prefix)} WHERE ${where}${order}`,

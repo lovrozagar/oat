@@ -34,7 +34,9 @@ function columnDefaults(): { ok: boolean; detail: string } {
 		type: "object",
 	}
 	const schema = { properties: { columns: { items: column, type: "array" } }, required: ["columns"], type: "object" }
-	const [body] = buildCohort(schema, 1, ["baseline"], { operationId: "table.create" }).map((member) => member.body)
+	const [body] = buildCohort(schema, 1, { operationId: "table.create", variants: ["baseline"] }).map(
+		(member) => member.body,
+	)
 	return { detail: JSON.stringify(body).slice(0, 120), ok: Array.isArray(body?.columns) }
 }
 
@@ -58,13 +60,17 @@ function cyclicRef(): { ok: boolean; detail: string } {
 		doc.paths?.["/tables"] as { post?: { requestBody?: { content?: Record<string, { schema?: unknown }> } } }
 	)?.post?.requestBody?.content?.["application/json"]?.schema as Record<string, unknown>
 	/* A cohort has one member per variant, or the walk throws: getting here is the pass. */
-	const cohort = buildCohort(schema, 1, ["baseline"], { defs: documentDefs(doc), operationId: "table.create" })
+	const cohort = buildCohort(schema, 1, {
+		defs: documentDefs(doc),
+		operationId: "table.create",
+		variants: ["baseline"],
+	})
 	return { detail: "body returned", ok: cohort.length === 1 }
 }
 
 function emailFormat(): { ok: boolean; detail: string } {
 	const schema = { properties: { email: { format: "email", type: "string" } }, required: ["email"], type: "object" }
-	const [member] = buildCohort(schema, 1, ["baseline"], { operationId: "user.create" })
+	const [member] = buildCohort(schema, 1, { operationId: "user.create", variants: ["baseline"] })
 	const email = member?.body.email
 	return {
 		detail: String(email),
@@ -86,7 +92,7 @@ export const HANDLE_SCHEMA = {
 
 /* Every cohort member's handle matches the pattern and is not `a`, and every name is in [3, 32]. */
 export function boundedPattern(schema: Record<string, unknown>): { ok: boolean; detail: string } {
-	const members = buildCohort(schema, 1, undefined, { operationId: "user.create" })
+	const members = buildCohort(schema, 1, { operationId: "user.create" })
 	const re = new RegExp(HANDLE)
 	const ok = members.every(({ body: { handle, name } }) => {
 		const n = codePointCount(String(name))
@@ -106,7 +112,7 @@ export function boundedPattern(schema: Record<string, unknown>): { ok: boolean; 
 function impossibleBounds(): { ok: boolean; detail: string } {
 	const bounded = { maxLength: 3, minLength: 10, type: "string" }
 	const schema = { properties: { opt: bounded, req: bounded }, required: ["req"], type: "object" }
-	const { body, missingRequired } = generateBody(schema, "baseline", mulberry32(1), 0)
+	const { body, missingRequired } = generateBody(schema, { index: 0, rand: mulberry32(1), variant: "baseline" })
 	return {
 		detail: `body=${JSON.stringify(body)} missing=${missingRequired.join(",")}`,
 		ok: body.opt === undefined && body.req === undefined && missingRequired.includes("/req"),

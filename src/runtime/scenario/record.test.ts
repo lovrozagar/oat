@@ -4,10 +4,17 @@ import { exchange, type Answer } from "../checks/__fixtures__/harness.ts"
 import { jwt, notes, runOf } from "./__fixtures__/stage.ts"
 import { StepFailure } from "./failure.ts"
 import { record } from "./record.ts"
+import type { ScenarioRun } from "./types.ts"
 import { wantsOf } from "./want.ts"
 
+/** How a step was sent: its method, and the run it belongs to (a fresh one over the notes API by default). */
+interface Sending {
+	method?: string
+	run?: ScenarioRun
+}
+
 /** Records `step` as passed on `answer` to `method`, and returns the run. */
-function passed(step: ScenarioRequestStep, answer: Answer, method = "GET", run = runOf(notes())) {
+function passed(step: ScenarioRequestStep, answer: Answer, { method = "GET", run = runOf(notes()) }: Sending = {}) {
 	const answered = exchange(method, "/notes", answer)
 	const stepOp = "operationId" in step ? step.operationId : undefined
 	record(run, { exchange: answered, step, stepOp, wants: wantsOf(step, run.scope) })
@@ -34,12 +41,7 @@ describe("record: saveAs", () => {
 	it("forgets an object once the name holds text", () => {
 		const run = runOf(notes())
 		run.objects.set("name", { old: true })
-		passed(
-			{ operationId: "notes.list", saveAs: { name: "$.name" } },
-			{ body: { name: "Ada" }, status: 200 },
-			"GET",
-			run,
-		)
+		passed({ operationId: "notes.list", saveAs: { name: "$.name" } }, { body: { name: "Ada" }, status: 200 }, { run })
 		expect(run.objects.has("name")).toBe(false)
 	})
 
@@ -65,15 +67,13 @@ describe("record: saveClaimsFrom", () => {
 		passed(
 			{ operationId: "notes.list", saveClaimsFrom: { bind: { org: "$.org" }, token: "saved" } },
 			{ body: {}, status: 200 },
-			"GET",
-			run,
+			{ run },
 		)
 		expect(run.scope.org).toBe("o9")
 		passed(
 			{ operationId: "notes.list", saveClaimsFrom: { bind: { sub: "$.sub" }, token: "token" } },
 			{ body: { token }, status: 200 },
-			"GET",
-			run,
+			{ run },
 		)
 		expect(run.scope.sub).toBe("u1")
 	})
@@ -115,8 +115,7 @@ describe("record: observations", () => {
 				operationId: "notes.list",
 			},
 			{ body: { items: [{ text: "Ada" }] }, status: 200 },
-			"GET",
-			run,
+			{ run },
 		)
 		expect(run.observations.get("notes.create")).toEqual({ path: "$.items[*].text", seq: answered.seq, value: "Ad" })
 		expect(run.observations.get("notes.rename")).toEqual({
@@ -134,19 +133,17 @@ describe("record: observations", () => {
 		passed(
 			{ assert: { from: "$.text", omits: "secret" }, operationId: "notes.create" },
 			{ body: { text: "x" }, status: 201 },
-			"POST",
-			run,
+			{ method: "POST", run },
 		)
 		expect(run.observations.has("notes.create")).toBe(false)
 		run.observations.set("notes.list", { seq: 1, status: 200 })
 		const first = run.calls.get("notes.list")
-		passed({ operationId: "notes.list" }, { body: {}, status: 200 }, "GET", run)
+		passed({ operationId: "notes.list" }, { body: {}, status: 200 }, { run })
 		expect(run.calls.get("notes.list")).toBe(first)
 		passed(
 			{ assert: { equals: "x", from: "$.a" }, method: "GET", path: "/a" },
 			{ body: { a: "x" }, status: 200 },
-			"GET",
-			run,
+			{ run },
 		)
 	})
 })

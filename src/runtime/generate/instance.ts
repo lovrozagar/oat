@@ -7,7 +7,7 @@ import { numberFor } from "./number.ts"
 import { objectFor } from "./object.ts"
 import { stringFor } from "./string.ts"
 import { text } from "./text.ts"
-import type { At, Context, Schema } from "./types.ts"
+import type { At, Schema } from "./types.ts"
 import { Unconstructible } from "./unconstructible.ts"
 
 const MAX_DEPTH = 12
@@ -30,27 +30,27 @@ function typed(schema: Schema, at: At): unknown {
 		case "boolean":
 			return ctx.index % 2 === 0
 		case "array":
-			return arrayFor(schema, next, pointer, instance)
+			return arrayFor(schema, { ...at, ctx: next }, instance)
 		case "object":
-			return objectFor(schema, next, pointer, instance)
+			return objectFor(schema, { ...at, ctx: next }, instance)
 		default:
 			throw new Unconstructible(`unknown type "${type}"`, pointer)
 	}
 }
 
-export function instance(raw: unknown, ctx: Context, pointer: string, distinct: boolean): unknown {
+export function instance(raw: unknown, at: At): unknown {
+	const { ctx, distinct, pointer } = at
 	if (ctx.depth > MAX_DEPTH) throw new Unconstructible("the schema nests too deeply to generate", pointer)
 	if (raw === false) throw new Unconstructible("the schema admits no value (false)", pointer)
 	if (raw === true || isVacuous(raw)) return text(ctx, distinct)
 	if (!isObject(raw)) throw new Unconstructible("the schema is not an object", pointer)
-	const at: At = { ctx, distinct, pointer }
-	if (typeof raw.$ref === "string") return viaRef(raw, raw.$ref, at, instance)
+	if (typeof raw.$ref === "string") return viaRef(raw, at, instance)
 
-	const schema = raw.allOf === undefined ? raw : mergeAll(raw, raw.allOf, pointer)
+	const schema = raw.allOf === undefined ? raw : mergeAll(raw, pointer)
 	if ("const" in schema) return schema.const
 
 	const union = (schema.oneOf ?? schema.anyOf) as unknown[] | undefined
-	if (Array.isArray(union) && union.length > 0) return unionOf(schema, union, at, instance)
+	if (Array.isArray(union) && union.length > 0) return unionOf(schema, at, instance)
 	if (Array.isArray(schema.enum)) return enumOf(schema.enum, ctx, pointer)
 	return typed(schema, at)
 }

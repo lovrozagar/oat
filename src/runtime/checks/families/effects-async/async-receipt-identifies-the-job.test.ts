@@ -11,15 +11,15 @@ import { asyncReceiptIsResolvable as check } from "./async-receipt-identifies-th
  * client first, as the async lifecycle check would, then asks this one about the transcript.
  */
 
-const doc = withOperation(baseDocument(), "/jobs", "post", {
+const doc = withOperation(baseDocument(), "post /jobs", {
 	operationId: "startJob",
 	"x-async": { idFrom: "$.job.id", poll: "getJob" },
 })
-withOperation(doc, "/orgs/{org}/jobs", "post", {
+withOperation(doc, "post /orgs/{org}/jobs", {
 	operationId: "startOrgJob",
 	"x-async": { idFrom: "$.id", poll: "getJob" },
 })
-withOperation(doc, "/exports", "post", { operationId: "startExport", "x-async": { poll: "getJob" } })
+withOperation(doc, "post /exports", { operationId: "startExport", "x-async": { poll: "getJob" } })
 const model = modelOf(doc)
 const startJob = op(model, "startJob")
 
@@ -28,7 +28,7 @@ async function judged(
 	send: (ctx: WriteContext) => Promise<unknown>,
 	asyncOps: OperationModel[] = [startJob],
 ) {
-	const stage = contextFor(model, "listWidgets", respond, { asyncOps })
+	const stage = contextFor(model, "listWidgets", { respond, fields: { asyncOps } })
 	await send(stage.ctx)
 	const outcome = await check.run(stage.ctx, undefined)
 	return { ...stage, outcome }
@@ -42,7 +42,7 @@ const acknowledged = () => ({ body: {}, status: 202 })
 describe("plan", () => {
 	it("applies only when some async operation names where its job id is", () => {
 		const plan = (asyncOps: OperationModel[]) =>
-			check.plan(contextFor(model, "listWidgets", () => undefined, { asyncOps }).ctx).ok
+			check.plan(contextFor(model, "listWidgets", { respond: () => undefined, fields: { asyncOps } }).ctx).ok
 		expect(plan([])).toBe(false)
 		expect(plan([op(model, "startExport")])).toBe(false)
 		expect(plan([op(model, "startExport"), startJob])).toBe(true)

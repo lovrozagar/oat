@@ -10,19 +10,19 @@ export async function commandDoctor(writer: Writer, flags: Args["flags"]): Promi
 	const read = await modelled(writer, flags)
 	if (typeof read === "number") return read
 	const { model, externalRefs, config, configPath, removed } = read
-	const output = report.doctor(
-		model,
+	const output = report.doctor(model, {
+		asJson: flags.json === true,
+		config:
+			config === undefined
+				? undefined
+				: {
+						...(config.query === undefined ? {} : { query: config.query }),
+						...(config.entities === undefined ? {} : { entities: config.entities }),
+						...(config.hooks === undefined ? {} : { hooks: config.hooks }),
+						...(config.allow === undefined ? {} : { allowRemoved: removed }),
+					},
 		externalRefs,
-		flags.json === true,
-		config === undefined
-			? undefined
-			: {
-					...(config.query === undefined ? {} : { query: config.query }),
-					...(config.entities === undefined ? {} : { entities: config.entities }),
-					...(config.hooks === undefined ? {} : { hooks: config.hooks }),
-					...(config.allow === undefined ? {} : { allowRemoved: removed }),
-				},
-	)
+	})
 	writer.out(output.text)
 	/* A baseline that is not there makes every known finding fail the next run. */
 	if (config?.baseline !== undefined && configPath !== undefined) {

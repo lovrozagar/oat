@@ -146,7 +146,7 @@ export function dummyFile(options: {
 	const kind = kindOf(mediaType, options.filename)
 	const ext = kind?.ext ?? extensionOf(mediaType, options.filename)
 	const filename = options.filename ?? `${options.field}-${options.variant}-${options.index}.${ext}`
-	const bytes = bytesOf(kind, mediaType, options.seed, options.index)
+	const bytes = bytesOf(kind, mediaType, options)
 	return { bytes, filename, mediaType: kind?.mediaType ?? (mediaType === "" ? "application/octet-stream" : mediaType) }
 }
 
@@ -161,7 +161,13 @@ function kindOf(mediaType: string, filename?: string): DummyKind | undefined {
 	return undefined
 }
 
-function bytesOf(kind: DummyKind | undefined, mediaType: string, seed: number, index: number): Uint8Array {
+/** Which dummy is drawn: the run's seed and the file's position in the cohort. */
+interface DummyDraw {
+	seed: number
+	index: number
+}
+
+function bytesOf(kind: DummyKind | undefined, mediaType: string, { seed, index }: DummyDraw): Uint8Array {
 	if (kind !== undefined) return kind.bytes
 	if (mediaType.startsWith("text/")) return textBytes(`oat dummy ${seed} ${index}\n`)
 	return octetDummy(seed, index)

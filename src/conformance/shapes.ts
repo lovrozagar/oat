@@ -210,7 +210,7 @@ export async function recallBehind(target: Target, name: string, defects: readon
 	const cases: ShapeCase[] = []
 	for (const defect of defects) {
 		const label = `recall:${name}:${defect}`
-		const result = await judgeDefect(defect, { ...target, dialect: "postgrest", shape: name }, label)
+		const result = await judgeDefect(defect, { ...target, dialect: "postgrest", shape: name }, { label })
 		cases.push({
 			expected: EXPECTED_FAILURES[label],
 			label,

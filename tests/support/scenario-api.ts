@@ -130,6 +130,7 @@ interface Store {
 }
 
 interface Exchange {
+	authorization: unknown
 	body: Record<string, unknown>
 	method: string
 	path: string
@@ -225,12 +226,13 @@ async function readExchange(req: IncomingMessage, res: ServerResponse): Promise<
 		res.writeHead(status, { "content-type": "application/json" })
 		res.end(JSON.stringify(value))
 	}
-	return { body, method: (req.method ?? "GET").toUpperCase(), path: url.pathname, raw, send, type }
+	const method = (req.method ?? "GET").toUpperCase()
+	return { authorization: req.headers.authorization, body, method, path: url.pathname, raw, send, type }
 }
 
-function respond(store: Store, document: OpenApiDocument, exchange: Exchange, authorization: unknown): void {
+function respond(store: Store, document: OpenApiDocument, exchange: Exchange): void {
 	if (exchange.path === "/openapi.json") return exchange.send(200, document)
-	if (authorization !== "Bearer alpha") return exchange.send(401, { error: "unauthorized" })
+	if (exchange.authorization !== "Bearer alpha") return exchange.send(401, { error: "unauthorized" })
 	const writes = exchange.method === "POST" || exchange.method === "PATCH"
 	if (writes && exchange.path.startsWith("/v1/notes") && typeof exchange.body["text"] !== "string") {
 		return exchange.send(400, { error: "text_required" })
@@ -252,7 +254,7 @@ export async function serveNotes(options: { brokenRename?: boolean; statsLagMs?:
 	}
 	const document = spec()
 	const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-		respond(store, document, await readExchange(req, res), req.headers.authorization)
+		respond(store, document, await readExchange(req, res))
 	})
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
 	const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`

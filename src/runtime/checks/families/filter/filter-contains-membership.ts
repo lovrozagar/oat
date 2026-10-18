@@ -42,7 +42,7 @@ export const filterContainsMembership = defineCheck<{
 		const element =
 			elements.find((candidate) => elements.some((other) => other !== candidate && other.includes(candidate))) ??
 			(elements[0] as string)
-		const term = filterTerm(conv(ctx), field.field, "contains", asTermValue(element))
+		const term = filterTerm(conv(ctx), { field: field.field, op: "contains", value: asTermValue(element) })
 		return term === null ? cannot("a filter grammar with a contains operator") : ready({ element, field, term })
 	},
 	dependsOn: [...FOUNDATIONS, "query.filter-selects-from-whole-set"],

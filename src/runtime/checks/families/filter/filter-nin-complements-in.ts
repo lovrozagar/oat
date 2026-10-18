@@ -26,8 +26,8 @@ export const filterNinComplementsIn = defineCheck<{
 		const members = picked.values.slice(0, 2).map(asTermValue)
 		const conventions = conv(ctx)
 		const field = picked.field.field
-		const inTerm = filterTerm(conventions, field, "in", members)
-		const ninTerm = filterTerm(conventions, field, "nin", members)
+		const inTerm = filterTerm(conventions, { field, op: "in", value: members })
+		const ninTerm = filterTerm(conventions, { field, op: "nin", value: members })
 		if (inTerm === null || ninTerm === null) return cannot("a filter grammar that can express in and nin")
 		return ready({ field, inTerm, members, ninTerm })
 	},

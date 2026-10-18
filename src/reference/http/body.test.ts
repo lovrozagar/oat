@@ -6,7 +6,7 @@ import { referenceRequest } from "./wire.ts"
 
 function request(text: string, contentType?: string) {
 	const headers: Record<string, string> = contentType === undefined ? {} : { "content-type": contentType }
-	return referenceRequest("POST", new URL("http://reference.test/"), headers, async () => text)
+	return referenceRequest("POST", new URL("http://reference.test/"), { headers, read: async () => text })
 }
 
 const CLEAN = new DefectSet()

@@ -71,7 +71,12 @@ function declaredLimits(caps: Caps): Partial<QueryCatalog> {
 	}
 }
 
-function catalogRow(entity: string, listOp: OperationModel, caps: Caps, hook: boolean): QueryCatalog {
+/** One entity's catalog row: from its list operation and capabilities, with its name and hook as given. */
+function catalogRow(
+	listOp: OperationModel,
+	caps: Caps,
+	{ entity, hook }: Pick<QueryCatalog, "entity" | "hook">,
+): QueryCatalog {
 	const { filterGrammar, sortSpec } = listOp.conventions
 	return {
 		aliases: caps.aliases,
@@ -108,7 +113,7 @@ export function entityQueryCatalogs(
 			...(config?.query === undefined ? {} : { global: config.query }),
 			...(entityQuery === undefined ? {} : { entity: entityQuery }),
 		})
-		catalogs.push(catalogRow(entity.name, listOp, caps, hook))
+		catalogs.push(catalogRow(listOp, caps, { entity: entity.name, hook }))
 	}
 	return { catalogs, unknownEntities }
 }

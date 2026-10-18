@@ -15,7 +15,7 @@ import type { GradeLedger } from "../grades.ts"
 import type { TargetScope } from "../scope/types.ts"
 import type { TargetVersion } from "../target-version.ts"
 import type { Ledger } from "../teardown/ledger.ts"
-import type { Owner } from "../teardown/types.ts"
+import type { Created, Owner } from "../teardown/types.ts"
 import type { UploadContext } from "../upload.ts"
 import type { SchemaValidator } from "../validate.ts"
 import type { RunCredentials } from "./credentials.ts"
@@ -101,7 +101,7 @@ export interface RunPrincipals {
 	/** Ledgers a record `owner` created. */
 	recorder(owner: Owner): (entity: string, id: ProvenId, values: Record<string, string>) => void
 	/** Ledgers a record learned of another way, as whoever sent the request that made it. */
-	recordCreated(entity: string, id: ProvenId, values: Record<string, string>, principal?: string): void
+	recordCreated(created: Created, principal?: string): void
 	unidentified(entity: string, operationId: string, exchange: Exchange): void
 	/** Refreshes every credential that is stale; false, with a finding, when one cannot be. */
 	refreshAll(where: string): Promise<boolean>

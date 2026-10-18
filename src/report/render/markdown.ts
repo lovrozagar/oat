@@ -38,7 +38,7 @@ export function renderMarkdown(input: ReportInput): string {
 		...leftoverSections(input, redactor),
 		...fencedSection(input, redactor),
 		...observedSection(input),
-		...outcomeSection(input, findings, verdict, findings.filter(isFailingRootCause).length),
+		...outcomeSection(input, findings, { defects: findings.filter(isFailingRootCause).length, verdict }),
 		...(input.scope === undefined ? [] : scopeSections(input.scope)),
 		...knownSection(known),
 		...fixedSection(input),

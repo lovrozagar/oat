@@ -143,22 +143,25 @@ function reportable(text: string): string {
 		.replaceAll(USER_PATH, (path) => path.replace(DIRECTORIES, ""))
 }
 
+/** What a view of the findings stamps on and enforces for what it records. */
+interface CollectorView {
+	/** The operations every finding it records is attributed to. */
+	operations?: readonly string[] | undefined
+	/** The one check it accepts findings from. */
+	owner?: string | undefined
+}
+
 export class FindingCollector {
 	readonly findings: Finding[]
 	readonly inconclusive: Inconclusive[]
 	readonly #operations: readonly string[] | undefined
 	readonly #owner: string | undefined
 
-	constructor(
-		findings: Finding[] = [],
-		inconclusive: Inconclusive[] = [],
-		operations?: readonly string[],
-		owner?: string,
-	) {
+	constructor(findings: Finding[] = [], inconclusive: Inconclusive[] = [], view: CollectorView = {}) {
 		this.findings = findings
 		this.inconclusive = inconclusive
-		this.#operations = operations
-		this.#owner = owner
+		this.#operations = view.operations
+		this.#owner = view.owner
 	}
 
 	/**
@@ -167,7 +170,7 @@ export class FindingCollector {
 	 * defect, and suppresses the wrong dependents.
 	 */
 	ownedBy(check: string): FindingCollector {
-		return new FindingCollector(this.findings, this.inconclusive, this.#operations, check)
+		return new FindingCollector(this.findings, this.inconclusive, { operations: this.#operations, owner: check })
 	}
 
 	#own(check: string): void {
@@ -184,7 +187,7 @@ export class FindingCollector {
 	 * shared "current check" would attribute one check's finding to another.
 	 */
 	attributed(operations: readonly string[]): FindingCollector {
-		return new FindingCollector(this.findings, this.inconclusive, operations, this.#owner)
+		return new FindingCollector(this.findings, this.inconclusive, { operations, owner: this.#owner })
 	}
 
 	#stamp(): { operations: string[] } | Record<string, never> {
@@ -218,26 +221,26 @@ export class FindingCollector {
 		return { kind: "finding", verdict: recorded.verdict }
 	}
 
-	#claim(check: string, entity: string, verdict: Verdict, claim: Claim): Outcome {
-		const { detail, evidence, fixture, summary } = claim
+	#claim(check: string, entity: string, claim: Claim & { verdict: Verdict }): Outcome {
+		const { detail, evidence, fixture, summary, verdict } = claim
 		const finding: Finding = { check, detail, entity, evidence, summary, verdict }
 		return this.report(fixture === undefined || fixture === "" ? finding : { ...finding, fixture })
 	}
 
 	backend(check: string, entity: string, claim: Claim): Outcome {
-		return this.#claim(check, entity, "BACKEND_BUG", claim)
+		return this.#claim(check, entity, { ...claim, verdict: "BACKEND_BUG" })
 	}
 
 	security(check: string, entity: string, claim: Claim): Outcome {
-		return this.#claim(check, entity, "SECURITY", claim)
+		return this.#claim(check, entity, { ...claim, verdict: "SECURITY" })
 	}
 
 	spec(check: string, entity: string, claim: Claim): Outcome {
-		return this.#claim(check, entity, "SPEC_BUG", claim)
+		return this.#claim(check, entity, { ...claim, verdict: "SPEC_BUG" })
 	}
 
 	gap(check: string, entity: string, claim: GapClaim): Outcome {
-		return this.#claim(check, entity, "COVERAGE_GAP", { ...claim, evidence: [] })
+		return this.#claim(check, entity, { ...claim, evidence: [], verdict: "COVERAGE_GAP" })
 	}
 
 	blocked(check: string, entity: string, claim: BlockedClaim): Outcome {

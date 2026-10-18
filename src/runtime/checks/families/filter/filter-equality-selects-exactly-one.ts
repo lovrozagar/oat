@@ -18,7 +18,7 @@ export const equalityFilterSelectsOne = defineCheck<{
 		const id = idOf(target, ctx.identity)
 		if (id === undefined) return cannot(NO_IDENTITY)
 		const field = filterIdentity(ctx)
-		const term = filterTerm(conv(ctx), field, "eq", id)
+		const term = filterTerm(conv(ctx), { field, op: "eq", value: id })
 		return term === null
 			? cannot("a filter grammar that can express equality on the identity")
 			: ready({ field, id, term })

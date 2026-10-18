@@ -8,10 +8,13 @@ import { overriding, type Rows, widgetApi, widgetDoc, type WidgetDocOptions } fr
 function stage(respond: Responder, options: WidgetDocOptions = {}, update: Partial<OperationModel> = {}) {
 	const model = modelOf(widgetDoc(options))
 	const updateOp = model.byOperationId.get("updateWidget")
-	return contextFor(model, "listWidgets", respond, {
-		createOp: op(model, "createWidget"),
-		readOp: model.byOperationId.get("getWidget"),
-		updateOp: updateOp === undefined ? undefined : { ...updateOp, ...update },
+	return contextFor(model, "listWidgets", {
+		respond,
+		fields: {
+			createOp: op(model, "createWidget"),
+			readOp: model.byOperationId.get("getWidget"),
+			updateOp: updateOp === undefined ? undefined : { ...updateOp, ...update },
+		},
 	})
 }
 

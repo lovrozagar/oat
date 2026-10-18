@@ -6,7 +6,7 @@ import { type ItemsOptions, UNCOMPILABLE, itemOperations, modelOfItems } from ".
 /** A context whose run already created an item, answered with `created`; then the check's outcome. */
 async function judge(created: Answer | null, options: ItemsOptions = {}) {
 	const model = modelOfItems(options)
-	const staged = contextFor(model, "item.list", () => created ?? undefined, itemOperations(model))
+	const staged = contextFor(model, "item.list", { respond: () => created ?? undefined, fields: itemOperations(model) })
 	if (created !== null) await staged.ctx.client.request("POST", "/items", { operationId: "item.create" })
 	const plan = successSchemaHonoured.plan(staged.ctx)
 	if (!plan.ok) throw new Error("the success-schema plan did not apply")
@@ -19,7 +19,7 @@ const verdicts = (findings: { findings: { verdict: string; summary: string }[] }
 describe("schema.success-response-matches-document plan", () => {
 	it("needs a create, a validator, and the create in the document", () => {
 		const model = modelOfItems()
-		const { ctx } = contextFor(model, "item.list", () => undefined, itemOperations(model))
+		const { ctx } = contextFor(model, "item.list", { respond: () => undefined, fields: itemOperations(model) })
 		expect(successSchemaHonoured.plan(ctx).ok).toBe(true)
 		expect(successSchemaHonoured.plan({ ...ctx, createOp: undefined })).toEqual({ needs: undefined, ok: false })
 		expect(successSchemaHonoured.plan({ ...ctx, validator: undefined }).ok).toBe(false)

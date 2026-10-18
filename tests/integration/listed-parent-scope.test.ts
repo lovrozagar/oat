@@ -88,7 +88,13 @@ function listExports(parentExists: boolean, sort: string | null, send: Send): vo
 	send(200, { items: [{ created_at: "2026-01-01T00:00:00Z", id: "e1" }] })
 }
 
-function tableItem(tables: Map<string, Table>, id: string, method: string | undefined, send: Send): void {
+/* The item a request names, and its method. */
+interface ItemRequest {
+	id: string
+	method: string | undefined
+}
+
+function tableItem(tables: Map<string, Table>, { id, method }: ItemRequest, send: Send): void {
 	const table = tables.get(id)
 	if (method === "DELETE") {
 		tables.delete(id)
@@ -118,7 +124,7 @@ async function serve(): Promise<string> {
 		const exports = /^\/v1\/tables\/([^/]+)\/exports$/.exec(url.pathname)
 		if (exports !== null) return listExports(tables.has(exports[1] ?? ""), url.searchParams.get("order"), send)
 		const item = /^\/v1\/tables\/([^/]+)$/.exec(url.pathname)
-		if (item !== null) return tableItem(tables, item[1] ?? "", req.method, send)
+		if (item !== null) return tableItem(tables, { id: item[1] ?? "", method: req.method }, send)
 		send(404, { error: "not_found" })
 	})
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))

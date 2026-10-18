@@ -7,8 +7,14 @@ import { unwindQueue } from "./unwind.ts"
 
 const model = notesModel()
 
-/** Unwinds `queue` (newest first) against `held`; `seen` are the records their creators read back. */
-async function unwind(held: Store, queue: Disposable[], options: UnwindOptions = {}, seen: Disposable[] = queue) {
+/** How a test unwinds: the unwind's options, and the records their creators read back. */
+interface Unwinding {
+	options?: UnwindOptions
+	seen?: Disposable[]
+}
+
+/** Unwinds `queue` (newest first) against `held`; `seen` (default: all of `queue`) were read back by their creators. */
+async function unwind(held: Store, queue: Disposable[], { options = {}, seen = queue }: Unwinding = {}) {
 	const sighted: string[] = []
 	const ledger: LedgerView = {
 		movedAway: () => undefined,
@@ -23,7 +29,7 @@ async function unwind(held: Store, queue: Disposable[], options: UnwindOptions =
 describe("unwindQueue", () => {
 	it("removes children before their parents, and verifies each level before the next", async () => {
 		const note = disposable("note", "n1")
-		const comment = disposable("comment", "c1", { note_id: "n1" })
+		const comment = disposable("comment", "c1", { scope: { note_id: "n1" } })
 		const tag = disposable("tag", "t1")
 		const held = store(
 			{ alpha: ["n1"] },
@@ -45,12 +51,10 @@ describe("unwindQueue", () => {
 		const read = disposable("note", "n1")
 		const missing = disposable("note", "n2")
 		const tag = disposable("tag", "t1")
-		const { report, sent, sighted } = await unwind(
-			store({ alpha: ["n1"] }),
-			[read, missing, tag],
-			{ verify: false },
-			[],
-		)
+		const { report, sent, sighted } = await unwind(store({ alpha: ["n1"] }), [read, missing, tag], {
+			options: { verify: false },
+			seen: [],
+		})
 		expect(sent).toEqual(["GET /notes/n1", "GET /notes/n2", "DELETE /notes/n1", "DELETE /notes/n2"])
 		expect(sighted).toEqual(["n1"])
 		expect(report.failed.map((entry) => `${entry.id}: ${entry.reason}`)).toEqual([
@@ -73,7 +77,10 @@ describe("unwindQueue: read backs and hooks", () => {
 				},
 			},
 		)
-		expect((await unwind(refused, [note], { verify: false }, [])).sent).toEqual(["GET /notes/n1", "DELETE /notes/n1"])
+		expect((await unwind(refused, [note], { options: { verify: false }, seen: [] })).sent).toEqual([
+			"GET /notes/n1",
+			"DELETE /notes/n1",
+		])
 		const broken = store(
 			{ alpha: ["n1"] },
 			{
@@ -84,17 +91,17 @@ describe("unwindQueue: read backs and hooks", () => {
 				},
 			},
 		)
-		await expect(unwind(broken, [note], {}, [])).rejects.toThrow("bug")
+		await expect(unwind(broken, [note], { seen: [] })).rejects.toThrow("bug")
 	})
 
 	it("asks hooks.verifyRemoved about what it removed", async () => {
 		const asked: RemovedRecord[] = []
-		const note = disposable("note", "n1", { org: "o1" })
+		const note = disposable("note", "n1", { scope: { org: "o1" } })
 		const verifyRemoved = (record: RemovedRecord) => {
 			asked.push(record)
 			return "present" as const
 		}
-		const { report } = await unwind(store({ alpha: ["n1"] }), [note], { verifyRemoved })
+		const { report } = await unwind(store({ alpha: ["n1"] }), [note], { options: { verifyRemoved } })
 		expect(asked).toEqual([{ entity: "note", id: "n1", principal: "alpha", scope: { org: "o1" } }])
 		expect(report.removed).toBe(0)
 	})

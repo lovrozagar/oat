@@ -104,19 +104,18 @@ describe("observedSection", () => {
 describe("outcomeSection", () => {
 	it("says there were no defects, or that the run failed without any", () => {
 		const input = reportOf({ checksRun: ["a", "b"] })
-		expect(outcomeSection(input, [], { outcome: "clean", reason: "ok" }, 0)).toEqual([
+		expect(outcomeSection(input, [], { defects: 0, verdict: { outcome: "clean", reason: "ok" } })).toEqual([
 			"No defects found across 2 checks.",
 			"",
 		])
-		expect(outcomeSection(input, [], { outcome: "failed", reason: "the network went away" }, 0)).toEqual([
-			"No defects found, but the run failed: the network went away.",
-			"",
-		])
+		expect(
+			outcomeSection(input, [], { defects: 0, verdict: { outcome: "failed", reason: "the network went away" } }),
+		).toEqual(["No defects found, but the run failed: the network went away.", ""])
 	})
 
 	it("counts findings per severity", () => {
 		const findings = [finding(), finding(), finding({ verdict: "SECURITY" })]
-		expect(outcomeSection(reportOf(), findings, { outcome: "defects", reason: "" }, 3)).toEqual([
+		expect(outcomeSection(reportOf(), findings, { defects: 3, verdict: { outcome: "defects", reason: "" } })).toEqual([
 			"## Summary",
 			"",
 			"| severity | count |",

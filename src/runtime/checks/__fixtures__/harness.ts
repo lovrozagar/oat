@@ -30,8 +30,14 @@ export type Responder = (method: string, path: string, options: RequestOptions) 
 
 let seq = 0
 
-/** An exchange as the client would record it. */
-export function exchange(method: string, path: string, answer: Answer, options: RequestOptions = {}): Exchange {
+/** An exchange as the client would record it, for a request sent with no options. */
+export function exchange(method: string, path: string, answer: Answer): Exchange {
+	return exchangeOf({ method, options: {}, path }, answer)
+}
+
+/** The exchange the client records when `sent` draws `answer`. */
+export function exchangeOf(sent: Sent, answer: Answer): Exchange {
+	const { method, options, path } = sent
 	seq += 1
 	return {
 		at: 0,
@@ -61,8 +67,9 @@ export function fakeClient(respond: Responder): FakeClient {
 	const sent: Sent[] = []
 	const transcript: Exchange[] = []
 	const request = async (method: string, path: string, options: RequestOptions = {}): Promise<Exchange> => {
-		sent.push({ method, options, path })
-		const answered = exchange(method, path, respond(method, path, options) ?? { status: 404 }, options)
+		const asked: Sent = { method, options, path }
+		sent.push(asked)
+		const answered = exchangeOf(asked, respond(method, path, options) ?? { status: 404 })
 		transcript.push(answered)
 		if (method !== "GET" && method !== "HEAD") fake.writes += 1
 		return answered
@@ -94,12 +101,17 @@ export function op(model: SpecModel, operationId: string): OperationModel {
 	return found
 }
 
+/** How a staged check is answered, and the context fields it overrides. */
+export interface Stage {
+	respond: Responder
+	fields?: Partial<CheckContext>
+}
+
 /** A full context for a check against `model`, with the fake client and fresh findings. */
 export function contextFor(
 	model: SpecModel,
 	listOperation: string,
-	respond: Responder,
-	fields: Partial<CheckContext> = {},
+	{ respond, fields }: Stage,
 ): { ctx: WriteContext; sent: Sent[]; findings: FindingCollector } {
 	const { client, sent } = fakeClient(respond)
 	const findings = new FindingCollector()

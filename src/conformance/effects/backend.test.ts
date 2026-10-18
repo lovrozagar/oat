@@ -7,7 +7,9 @@ const TABLES = "/v1/projects/p1/tables"
 function caller(rowCount: number) {
 	const handle = extractBackend(rowCount)
 	return async (method: string, path: string, body = "") => {
-		const answer = await handle(referenceRequest(method, new URL(path, "http://suite.test"), {}, async () => body))
+		const answer = await handle(
+			referenceRequest(method, new URL(path, "http://suite.test"), { headers: {}, read: async () => body }),
+		)
 		return [answer.status, answer.body]
 	}
 }

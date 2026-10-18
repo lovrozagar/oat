@@ -99,12 +99,17 @@ function failedLine(payload: StringPayload, outcome: string): string {
 	return `${payload.id} (${payload.why}): ${outcome}`
 }
 
+/** One case of a probe: the payload, and the record it is written to. */
+interface ProbeCase {
+	payload: StringPayload
+	recordId: string
+}
+
 /** A case whose write was refused: a 401 that an ASCII retry passes, or any other 4xx/5xx. */
 async function refusedCase(
 	probe: PayloadProbe,
-	payload: StringPayload,
+	{ payload, recordId }: ProbeCase,
 	written: Exchange,
-	recordId: string,
 ): Promise<CaseResult> {
 	const sent = `sent ${JSON.stringify(payload.value)}, got HTTP ${written.status}`
 	if (written.status === 401) {
@@ -125,12 +130,12 @@ export async function runCase(probe: PayloadProbe, payload: StringPayload, recor
 	if (standDownForFeatureGate(ctx, writeOp, written, check)) {
 		return { kind: "stop", outcome: standDown("a documented feature gate refused the request") }
 	}
-	if (written.status === 401) return refusedCase(probe, payload, written, recordId)
+	if (written.status === 401) return refusedCase(probe, { payload, recordId }, written)
 	if (standDownForRateLimit(ctx, written, check)) {
 		return { kind: "stop", outcome: standDown("the request was rate limited") }
 	}
 	if (written.status === 404 || written.status === 409 || written.status === 415) return { kind: "kept" }
-	if (written.status >= 400) return refusedCase(probe, payload, written, recordId)
+	if (written.status >= 400) return refusedCase(probe, { payload, recordId }, written)
 	const writtenId = viaPatch(probe) ? recordId : await identityOf(probe, written)
 	if (writtenId === undefined) {
 		return {

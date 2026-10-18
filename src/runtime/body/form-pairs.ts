@@ -11,8 +11,14 @@ function delimiterOf(style: string): string {
 	return style === "pipeDelimited" ? "|" : ","
 }
 
+/** How a field is serialized: its `style`, and whether it is exploded. */
+interface Serialization {
+	style: string
+	explode: boolean
+}
+
 /** An object field: `name[key]` under deepObject, its own keys when exploded, one joined pair otherwise. */
-function objectPairs(name: string, value: object, style: string, explode: boolean): Array<[string, string]> {
+function objectPairs(name: string, value: object, { style, explode }: Serialization): Array<[string, string]> {
 	const entries = Object.entries(value as Record<string, unknown>).filter(([, item]) => item !== undefined)
 	if (style === "deepObject") return entries.map(([key, item]) => [`${name}[${key}]`, scalar(item)])
 	if (explode) return entries.map(([key, item]) => [key, scalar(item)])
@@ -35,7 +41,7 @@ export function formPairs(name: string, value: unknown, encoding: FieldEncoding 
 		if (explode) return value.map((item) => [name, scalar(item)])
 		return [[name, value.map(scalar).join(delimiterOf(style))]]
 	}
-	if (typeof value === "object") return objectPairs(name, value, style, explode)
+	if (typeof value === "object") return objectPairs(name, value, { explode, style })
 	return [[name, String(value)]]
 }
 

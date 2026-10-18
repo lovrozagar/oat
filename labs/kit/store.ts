@@ -14,6 +14,12 @@ export interface Grant {
 	token: string
 }
 
+/** One row of an entity, named by the org that owns it and its id. */
+export interface RowRef {
+	orgId: string
+	id: string
+}
+
 export interface Driver {
 	exec(sql: string): Promise<void>
 	run(sql: string, args: Array<string | number | null>): Promise<void>
@@ -60,7 +66,7 @@ export class WorldStore {
 	}
 
 	list(entity: Entity, scope: Record<string, string>, params: ListParams): Promise<ListPage> {
-		return listEntity(this, entity, scope, params)
+		return listEntity(this, entity, { params, scope })
 	}
 
 	async insert(entity: Entity, row: Row): Promise<Row> {
@@ -73,7 +79,7 @@ export class WorldStore {
 		return row
 	}
 
-	async update(entity: Entity, orgId: string, id: string, patch: Row): Promise<Row | null> {
+	async update(entity: Entity, { id, orgId }: RowRef, patch: Row): Promise<Row | null> {
 		const current = await this.get(entity, orgId, id)
 		if (current === null) return null
 		const next: Row = { ...current, ...patch, updated_at: Date.now() }

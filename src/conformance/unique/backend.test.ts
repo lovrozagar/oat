@@ -6,12 +6,18 @@ import { against, conflict, type HarnessOptions, widgetBackend } from "./backend
 const AUTH = { authorization: "Bearer tok_alpha" }
 const WIDGETS = "/v1/orgs/org_1/widgets"
 
+/** A request's body and headers: none, and the owner's token, unless given. */
+interface Sent {
+	body?: string
+	headers?: Record<string, string>
+}
+
 /** A backend for `options`, and a way to send it one request and read the answer. */
 function harness(options: HarnessOptions) {
 	const { handle, posts } = widgetBackend(options)
-	const send = async (method: string, path: string, body = "", headers: Record<string, string> = AUTH) => {
+	const send = async (method: string, path: string, { body = "", headers = AUTH }: Sent = {}) => {
 		const response = await handle(
-			referenceRequest(method, new URL(`http://unique.test${path}`), headers, async () => body),
+			referenceRequest(method, new URL(`http://unique.test${path}`), { headers, read: async () => body }),
 		)
 		return { body: response.body === "" ? undefined : (JSON.parse(response.body) as unknown), status: response.status }
 	}
@@ -21,23 +27,26 @@ function harness(options: HarnessOptions) {
 /** The answer to a second create, after one named `a` with slug `s`. */
 async function duplicate(options: HarnessOptions, second = '{"name":"a"}') {
 	const { send } = harness(options)
-	await send("POST", WIDGETS, '{"name":"a","slug":"s"}')
-	return send("POST", WIDGETS, second)
+	await send("POST", WIDGETS, { body: '{"name":"a","slug":"s"}' })
+	return send("POST", WIDGETS, { body: second })
 }
 
 describe("widgetBackend", () => {
 	it("serves its document without a token, and refuses everything else without one", async () => {
 		const { send } = harness({ spec: {} })
-		expect((await send("GET", "/v1/openapi/spec", "", {})).status).toBe(200)
-		expect(await send("GET", WIDGETS, "", {})).toEqual({ body: { error_key: "unauthorized" }, status: 401 })
-		expect((await send("GET", WIDGETS, "", { authorization: "Basic x" })).status).toBe(401)
+		expect((await send("GET", "/v1/openapi/spec", { headers: {} })).status).toBe(200)
+		expect(await send("GET", WIDGETS, { headers: {} })).toEqual({ body: { error_key: "unauthorized" }, status: 401 })
+		expect((await send("GET", WIDGETS, { headers: { authorization: "Basic x" } })).status).toBe(401)
 	})
 
 	it("creates, lists, reads, updates and deletes a widget", async () => {
 		const { posts, send } = harness({ listSeeded: true, spec: {} })
-		const created = await send("POST", WIDGETS, '{"name":"a","email":"a@x.test","slug":"a"}', {
-			...AUTH,
-			"idempotency-key": "k1",
+		const created = await send("POST", WIDGETS, {
+			body: '{"name":"a","email":"a@x.test","slug":"a"}',
+			headers: {
+				...AUTH,
+				"idempotency-key": "k1",
+			},
 		})
 		expect(created).toEqual({ body: { email: "a@x.test", id: "w_1", name: "a", slug: "a" }, status: 201 })
 		expect(posts[0]?.headers["idempotency-key"]).toBe("k1")
@@ -47,17 +56,19 @@ describe("widgetBackend", () => {
 				{ email: "a@x.test", id: "w_1", name: "a", slug: "a" },
 			],
 		})
-		expect((await send("PATCH", `${WIDGETS}/w_1`, '{"name":"b","email":"b@x.test","slug":"b"}')).body).toEqual({
+		expect(
+			(await send("PATCH", `${WIDGETS}/w_1`, { body: '{"name":"b","email":"b@x.test","slug":"b"}' })).body,
+		).toEqual({
 			email: "b@x.test",
 			id: "w_1",
 			name: "b",
 			slug: "b",
 		})
-		expect((await send("PATCH", `${WIDGETS}/w_1`, "")).body).toMatchObject({ name: "b" })
+		expect((await send("PATCH", `${WIDGETS}/w_1`)).body).toMatchObject({ name: "b" })
 		expect((await send("GET", `${WIDGETS}/w_1`)).status).toBe(200)
 		expect(await send("DELETE", `${WIDGETS}/w_1`)).toEqual({ body: undefined, status: 204 })
 		expect(await send("GET", `${WIDGETS}/w_1`)).toEqual({ body: { error_key: "not_found" }, status: 404 })
-		expect((await send("PATCH", `${WIDGETS}/w_1`, "{}")).status).toBe(404)
+		expect((await send("PATCH", `${WIDGETS}/w_1`, { body: "{}" })).status).toBe(404)
 	})
 
 	it("fills what a create leaves out from the new id", async () => {
@@ -75,15 +86,15 @@ describe("widgetBackend", () => {
 		expect((await send("PUT", `${WIDGETS}/w_1`)).status).toBe(404)
 		expect((await send("GET", `${WIDGETS}/w_1/parts`)).status).toBe(404)
 		expect((await send("GET", "/v1/elsewhere")).status).toBe(404)
-		expect(await send("POST", WIDGETS, "{")).toEqual({ body: { error_key: "internal" }, status: 500 })
+		expect(await send("POST", WIDGETS, { body: "{" })).toEqual({ body: { error_key: "internal" }, status: 500 })
 	})
 })
 
 describe("widgetBackend's duplicates", () => {
 	it("refuses the first create when the seed is meant to conflict", async () => {
 		const { send } = harness({ seedConflict: true, spec: {} })
-		expect((await send("POST", WIDGETS, '{"name":"a"}')).status).toBe(409)
-		expect((await send("POST", WIDGETS, '{"name":"a"}')).status).toBe(201)
+		expect((await send("POST", WIDGETS, { body: '{"name":"a"}' })).status).toBe(409)
+		expect((await send("POST", WIDGETS, { body: '{"name":"a"}' })).status).toBe(201)
 	})
 
 	it("answers a duplicate create the way the case asks", async () => {
@@ -122,9 +133,9 @@ describe("widgetBackend's duplicates", () => {
 			["ok", 200],
 		] as const) {
 			const { send } = harness({ spec: {}, ...(updateDuplicate === undefined ? {} : { updateDuplicate }) })
-			await send("POST", WIDGETS, '{"name":"a"}')
-			await send("POST", WIDGETS, '{"name":"b"}')
-			expect((await send("PATCH", `${WIDGETS}/w_2`, '{"name":"a"}')).status).toBe(status)
+			await send("POST", WIDGETS, { body: '{"name":"a"}' })
+			await send("POST", WIDGETS, { body: '{"name":"b"}' })
+			expect((await send("PATCH", `${WIDGETS}/w_2`, { body: '{"name":"a"}' })).status).toBe(status)
 		}
 	})
 })
@@ -133,9 +144,9 @@ describe("conflict", () => {
 	const rows = [{ email: "a@x", id: "w_1", name: "a", slug: "s" }]
 
 	it("names the first set a row already holds, never the row being updated", () => {
-		expect(conflict([["email"], ["name"]], rows, { name: "a" })).toEqual(["name"])
-		expect(conflict([["name"]], rows, { name: "a" }, "w_1")).toBeNull()
-		expect(conflict([["name", "slug"]], rows, { name: "a" })).toBeNull()
+		expect(conflict([["email"], ["name"]], rows, { values: { name: "a" } })).toEqual(["name"])
+		expect(conflict([["name"]], rows, { id: "w_1", values: { name: "a" } })).toBeNull()
+		expect(conflict([["name", "slug"]], rows, { values: { name: "a" } })).toBeNull()
 	})
 })
 

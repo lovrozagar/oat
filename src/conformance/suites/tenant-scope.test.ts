@@ -91,7 +91,9 @@ function catalogueUnder(enforce: boolean): Handle {
 		const [, workspace = ""] = /^\/v1\/workspaces\/([^/]+)\//.exec(request.url.pathname) ?? []
 		const url = new URL(request.url)
 		url.pathname = request.url.pathname.replace(`/workspaces/${workspace}/`, "/")
-		const answer = await catalogue(referenceRequest(request.method, url, request.headers, request.text))
+		const answer = await catalogue(
+			referenceRequest(request.method, url, { headers: request.headers, read: request.text }),
+		)
 		if (url.pathname === "/v1/openapi/spec") {
 			return respond(200, tenanted(JSON.parse(answer.body) as Parameters<typeof tenanted>[0]))
 		}

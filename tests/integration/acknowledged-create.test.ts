@@ -108,12 +108,13 @@ async function createNote(rows: Map<string, Row>, req: IncomingMessage, res: Ser
 	send(res, 200, { success: true })
 }
 
-async function updateNote(
-	rows: Map<string, Row>,
-	id: string,
-	req: IncomingMessage,
-	res: ServerResponse,
-): Promise<void> {
+/* One request and the response that answers it. */
+interface Exchange {
+	req: IncomingMessage
+	res: ServerResponse
+}
+
+async function updateNote(rows: Map<string, Row>, id: string, { req, res }: Exchange): Promise<void> {
 	const body = (await readJson(req)) as Partial<Row> | undefined
 	if (!rows.has(id)) return send(res, 404, {})
 	if (!named(body?.name)) return send(res, 400, { success: false })
@@ -122,13 +123,13 @@ async function updateNote(
 	send(res, 200, { success: true })
 }
 
-async function noteItem(rows: Map<string, Row>, id: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
+async function noteItem(rows: Map<string, Row>, id: string, { req, res }: Exchange): Promise<void> {
 	const method = (req.method ?? "GET").toUpperCase()
 	if (method === "GET") {
 		const row = rows.get(id)
 		return row === undefined ? send(res, 404, {}) : send(res, 200, row)
 	}
-	if (method === "PUT") return updateNote(rows, id, req, res)
+	if (method === "PUT") return updateNote(rows, id, { req, res })
 	if (method === "DELETE") return rows.delete(id) ? send(res, 200, { success: true }) : send(res, 404, {})
 	send(res, 404, {})
 }
@@ -140,7 +141,7 @@ async function route(rows: Map<string, Row>, req: IncomingMessage, res: ServerRe
 	if (url.pathname === "/notes" && method === "POST") return createNote(rows, req, res)
 	const item = url.pathname.match(/^\/notes\/([^/]+)$/)
 	if (item === null) return send(res, 404, {})
-	return noteItem(rows, decodeURIComponent(item[1] ?? ""), req, res)
+	return noteItem(rows, decodeURIComponent(item[1] ?? ""), { req, res })
 }
 
 async function serve(rows: Map<string, Row>): Promise<string> {

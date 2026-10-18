@@ -23,7 +23,7 @@ export interface Subset {
 export function subsetPlan(ctx: CheckContext): Plan<Subset> {
 	const picked = properSubsetFilter(ctx)
 	if (picked === null) return cannot("a filterable value shared by several cohort records but not all of them")
-	const term = filterTerm(conv(ctx), picked.field, "eq", String(picked.target[picked.field]))
+	const term = filterTerm(conv(ctx), { field: picked.field, op: "eq", value: String(picked.target[picked.field]) })
 	return term === null
 		? cannot(`a filter grammar that can express equality on "${picked.field}"`)
 		: ready({ ...picked, term })
@@ -33,7 +33,7 @@ export function subsetPlan(ctx: CheckContext): Plan<Subset> {
 export function overlapPlan(ctx: CheckContext): Plan<Subset & { token: string }> {
 	const picked = overlappingFilterAndSearch(ctx)
 	if (picked === null) return cannot("a filterable value and a search token that overlap without nesting")
-	const term = filterTerm(conv(ctx), picked.field, "eq", String(picked.target[picked.field]))
+	const term = filterTerm(conv(ctx), { field: picked.field, op: "eq", value: String(picked.target[picked.field]) })
 	return term === null
 		? cannot(`a filter grammar that can express equality on "${picked.field}"`)
 		: ready({ ...picked, term })

@@ -17,9 +17,12 @@ const KEY_HEADER = { in: "header", name: "Idempotency-Key", schema: { type: "str
 
 function stage(respond: Responder, options: WidgetDocOptions = {}, create: Partial<OperationModel> = {}) {
 	const model = modelOf(widgetDoc({ createParameters: [KEY_HEADER], ...options }))
-	return contextFor(model, "listWidgets", respond, {
-		createOp: { ...op(model, "createWidget"), ...create },
-		readOp: op(model, "getWidget"),
+	return contextFor(model, "listWidgets", {
+		respond,
+		fields: {
+			createOp: { ...op(model, "createWidget"), ...create },
+			readOp: op(model, "getWidget"),
+		},
 	})
 }
 
@@ -87,7 +90,7 @@ describe("idempotency.replay-does-not-duplicate verdicts", () => {
 		expect(findings.findings[0]?.detail).toContain("the collection went from 1 to 2 records")
 		expect(findings.findings[0]?.evidence).toHaveLength(4)
 		expect(recordCreated).toHaveBeenCalledTimes(1)
-		expect(recordCreated.mock.calls[0]?.slice(0, 3)).toEqual(["widget", "twin", {}])
+		expect(recordCreated.mock.calls[0]?.[0]).toEqual({ entity: "widget", id: "twin", scope: {} })
 		/* Without a ledger the finding still stands. */
 		const { ctx: unledgered } = stage((method, path, options) => {
 			const answer = honest(method, path, options)

@@ -25,8 +25,8 @@ const model = modelOf({
 	},
 } as unknown as OpenApiDocument)
 
-function crash(path: string, status: number, extra: Partial<Exchange> = {}, operationId?: string): Exchange {
-	return { ...exchange("GET", path, { status }, operationId === undefined ? {} : { operationId }), ...extra }
+function crash(path: string, status: number, extra: Partial<Exchange> = {}): Exchange {
+	return { ...exchange("GET", path, { status }), ...extra }
 }
 
 function judge(transcripts: Exchange[][], over: Partial<ServerErrorInput> = {}): ServerErrorInput {
@@ -47,9 +47,9 @@ function judge(transcripts: Exchange[][], over: Partial<ServerErrorInput> = {}):
 
 describe("reportServerErrors", () => {
 	it("reports every unreported 5xx once per operation, graded and attributed to it", () => {
-		const first = crash("/rows", 500, {}, "rows.list")
-		const again = crash("/rows", 503, { responseHeaders: { "Retry-After": "1" } }, "rows.list")
-		const { checksRun, findings, grades } = judge([[first, crash("/rows", 200, {}, "rows.list")], [again]])
+		const first = crash("/rows", 500, { operationId: "rows.list" })
+		const again = crash("/rows", 503, { responseHeaders: { "Retry-After": "1" }, operationId: "rows.list" })
+		const { checksRun, findings, grades } = judge([[first, crash("/rows", 200, { operationId: "rows.list" })], [again]])
 		expect(checksRun.has(SERVER_ERROR_CHECK_ID)).toBe(true)
 		expect(grades.ran.get("rows.list")).toEqual(new Set([SERVER_ERROR_CHECK_ID]))
 		expect(findings.findings).toMatchObject([
@@ -66,7 +66,7 @@ describe("reportServerErrors", () => {
 	})
 
 	it("names a request no operation owns by its method and path, on the run", () => {
-		const { findings, grades } = judge([[crash("/health?x=1", 502), crash("/x", 500, {}, "ghost.op")]])
+		const { findings, grades } = judge([[crash("/health?x=1", 502), crash("/x", 500, { operationId: "ghost.op" })]])
 		expect(findings.findings.map((f) => [f.summary, f.entity, f.operations])).toEqual([
 			["GET /health answered with a server error (502)", "run", []],
 			["ghost.op answered with a server error (500)", "run", []],
@@ -75,8 +75,14 @@ describe("reportServerErrors", () => {
 	})
 
 	it("counts a timeout as the operation failing, unless the host itself went down", () => {
-		const timeout = crash("/rows", 0, { network: { attempt: 1, kind: "timeout", message: "t" } }, "rows.list")
-		const refused = crash("/rows", 0, { network: { attempt: 1, kind: "refused", message: "r" } }, "rows.list")
+		const timeout = crash("/rows", 0, {
+			network: { attempt: 1, kind: "timeout", message: "t" },
+			operationId: "rows.list",
+		})
+		const refused = crash("/rows", 0, {
+			network: { attempt: 1, kind: "refused", message: "r" },
+			operationId: "rows.list",
+		})
 		expect(judge([[timeout, refused]]).findings.findings.map((f) => f.summary)).toEqual([
 			"rows.list did not answer before the request timed out",
 		])
@@ -86,7 +92,7 @@ describe("reportServerErrors", () => {
 
 describe("what reportServerErrors leaves alone", () => {
 	it("skips what is superseded, the version read, and what a check already reported", () => {
-		const reported = crash("/rows", 500, {}, "rows.list")
+		const reported = crash("/rows", 500, { operationId: "rows.list" })
 		const findings = new FindingCollector()
 		findings.backend("filter.empty-in", "row", { detail: "d", evidence: [reported], summary: "s" })
 		findings.gap("filter.empty-in", "row", { detail: "d", summary: "s" })
@@ -94,7 +100,7 @@ describe("what reportServerErrors leaves alone", () => {
 			[
 				[
 					reported,
-					crash("/rows", 500, { superseded: true }, "rows.list"),
+					crash("/rows", 500, { superseded: true, operationId: "rows.list" }),
 					crash("/version", 500, { check: TARGET_VERSION_READ }),
 				],
 			],
@@ -104,7 +110,7 @@ describe("what reportServerErrors leaves alone", () => {
 	})
 
 	it("in a targeted run, judges only operations in scope", () => {
-		const input = judge([[crash("/health", 500), crash("/rows", 500, {}, "rows.list")]], {
+		const input = judge([[crash("/health", 500), crash("/rows", 500, { operationId: "rows.list" })]], {
 			inScope: () => false,
 			mode: "targeted",
 		})

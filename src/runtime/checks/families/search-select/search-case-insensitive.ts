@@ -35,10 +35,14 @@ export const searchCaseInsensitive = defineCheck<{ token: string; flipped: strin
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the sets are larger than a read covers")
 		}
 		/* A record written between the two searches is the collection moving, not case mattering. */
-		const settled = await settlePair(ctx.identity, first, second, {
-			first: () => listAgain(ctx, query(token)),
-			second: () => listAgain(ctx, query(flipped)),
-		})
+		const settled = await settlePair(
+			ctx.identity,
+			{ first, second },
+			{
+				first: () => listAgain(ctx, query(token)),
+				second: () => listAgain(ctx, query(flipped)),
+			},
+		)
 		if (settled === null) return ctx.findings.unresolved(this.id, ctx.entityName, "a case-flipped search was rejected")
 		if (settled === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING)
 		const { first: original, second: other } = settled

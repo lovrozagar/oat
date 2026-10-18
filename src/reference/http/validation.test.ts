@@ -6,16 +6,18 @@ import { JOB } from "../model/job.ts"
 import { ROW } from "../model/row.ts"
 import { shapedEntities } from "../model/shaped.ts"
 import { TABLE } from "../model/table.ts"
-import { coerceField, emptyValue, formFields, pathId, validateBody } from "./validation.ts"
+import { type BodyRules, coerceField, emptyValue, formFields, pathId, validateBody } from "./validation.ts"
 
 const CLEAN = new DefectSet()
 const defects = (...names: string[]): DefectSet => new DefectSet(names)
 const field = (more: Partial<FieldDef>): FieldDef => ({ name: "f", type: "string", ...more })
 const UUID = "123e4567-e89b-42d3-a456-426614174000"
+/* A create of a table, with no defect: what each case below departs from. */
+const CREATE: BodyRules = { defects: CLEAN, entity: TABLE, mode: "create" }
 
 describe("validateBody", () => {
 	it("keeps the writable fields, coerced", () => {
-		expect(validateBody(TABLE, { name: "a", position: 3, status: "draft" }, "create", CLEAN)).toEqual({
+		expect(validateBody({ name: "a", position: 3, status: "draft" }, CREATE)).toEqual({
 			name: "a",
 			position: 3,
 			status: "draft",
@@ -24,14 +26,14 @@ describe("validateBody", () => {
 
 	it("refuses a body that is not a JSON object", () => {
 		for (const body of [null, "text", [1]]) {
-			expect(() => validateBody(TABLE, body, "create", CLEAN)).toThrow("request body must be a JSON object")
+			expect(() => validateBody(body, CREATE)).toThrow("request body must be a JSON object")
 		}
 	})
 
 	it("refuses an unknown field, and a generated or immutable one unless IMMUTABLE_WRITABLE", () => {
-		expect(() => validateBody(TABLE, { name: "a", nope: 1 }, "create", CLEAN)).toThrow('unknown field "nope"')
-		expect(() => validateBody(TABLE, { name: "a", id: "x" }, "create", CLEAN)).toThrow('field "id" is not writable')
-		expect(validateBody(TABLE, { id: "x", name: "a" }, "create", defects("IMMUTABLE_WRITABLE"))).toEqual({
+		expect(() => validateBody({ name: "a", nope: 1 }, CREATE)).toThrow('unknown field "nope"')
+		expect(() => validateBody({ name: "a", id: "x" }, CREATE)).toThrow('field "id" is not writable')
+		expect(validateBody({ id: "x", name: "a" }, { ...CREATE, defects: defects("IMMUTABLE_WRITABLE") })).toEqual({
 			id: "x",
 			name: "a",
 		})
@@ -39,8 +41,11 @@ describe("validateBody", () => {
 
 	it("refuses a create-only field on update as unknown", () => {
 		const entity = { ...JOB, fields: [...JOB.fields, field({ createOnly: true, name: "seed" })] }
-		expect(validateBody(entity, { name: "a", seed: "s" }, "create", CLEAN)).toEqual({ name: "a", seed: "s" })
-		expect(() => validateBody(entity, { seed: "s" }, "update", CLEAN)).toThrow('unknown field "seed"')
+		expect(validateBody({ name: "a", seed: "s" }, { ...CREATE, entity })).toEqual({
+			name: "a",
+			seed: "s",
+		})
+		expect(() => validateBody({ seed: "s" }, { ...CREATE, entity, mode: "update" })).toThrow('unknown field "seed"')
 	})
 
 	it("keeps only keys it admitted, even when the body grows while it is read", () => {
@@ -50,14 +55,14 @@ describe("validateBody", () => {
 				return "a"
 			},
 		}
-		expect(validateBody(TABLE, body, "create", CLEAN)).toEqual({ name: "a" })
+		expect(validateBody(body, CREATE)).toEqual({ name: "a" })
 	})
 
 	it("requires every required field on create and replace, not on update", () => {
-		expect(() => validateBody(TABLE, {}, "create", CLEAN)).toThrow('field "name" is required')
-		expect(() => validateBody(TABLE, {}, "replace", CLEAN)).toThrow('field "name" is required')
-		expect(validateBody(TABLE, {}, "update", CLEAN)).toEqual({})
-		expect(validateBody(TABLE, {}, "create", defects("REQUIRED_NOT_VALIDATED"))).toEqual({})
+		expect(() => validateBody({}, CREATE)).toThrow('field "name" is required')
+		expect(() => validateBody({}, { ...CREATE, mode: "replace" })).toThrow('field "name" is required')
+		expect(validateBody({}, { ...CREATE, mode: "update" })).toEqual({})
+		expect(validateBody({}, { ...CREATE, defects: defects("REQUIRED_NOT_VALIDATED") })).toEqual({})
 	})
 })
 

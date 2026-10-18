@@ -66,7 +66,7 @@ export async function answered(
 		durationMs: Math.round(performance.now() - landed.started),
 		method: request.method,
 		requestBody: request.options.body,
-		requestBytes: requestMessageBytes(request.method, request.url, headers, body),
+		requestBytes: requestMessageBytes(request, headers, body),
 		requestHeaders: headers,
 		requestId: requestIdOf(headers, responseHeaders),
 		responseBody: landed.parsed,

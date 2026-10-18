@@ -30,8 +30,8 @@ export const negationPartitions = defineCheck<{
 		const probe = ctx.records.map((r) => r[field]).find((v) => v !== null && v !== undefined)
 		if (probe === undefined) return cannot(`a cohort record with a non-null "${field}" to negate`)
 		const value = String(probe)
-		const eqTerm = filterTerm(conv(ctx), field, "eq", value)
-		const neqTerm = filterTerm(conv(ctx), field, "neq", value)
+		const eqTerm = filterTerm(conv(ctx), { field, op: "eq", value })
+		const neqTerm = filterTerm(conv(ctx), { field, op: "neq", value })
 		/* Negation has no representation in an equality-only grammar, so this property simply
 		 * cannot be expressed against such an API — better to stand down than to send something
 		 * meaningless and read the answer as a defect. */

@@ -24,7 +24,7 @@ export const sortStableTiebreak = defineCheck<{ primary: string; tiebreak: strin
 	needs: "a declared stableTiebreak and a tie on the primary key",
 	subjects: subjectsOf.list,
 	async run(ctx, { primary, tiebreak }): Promise<Outcome> {
-		const order = sortTerm(conv(ctx), primary, "asc")
+		const order = sortTerm(conv(ctx), { direction: "asc", field: primary })
 		/* Two independent reads: a shared one would compare a walk with itself. */
 		const read = async () => {
 			const result = await readSet(ctx, {}, { fresh: true, order })
@@ -34,7 +34,11 @@ export const sortStableTiebreak = defineCheck<{ primary: string; tiebreak: strin
 		const secondRead = await read()
 		if (firstRead === null || secondRead === null)
 			return ctx.findings.unresolved(this.id, ctx.entityName, "repeat sort was rejected")
-		const settled = await settlePair(ctx.identity, firstRead, secondRead, { first: read, second: read })
+		const settled = await settlePair(
+			ctx.identity,
+			{ first: firstRead, second: secondRead },
+			{ first: read, second: read },
+		)
 		if (settled === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING)
 		if (settled === null) return ctx.findings.unresolved(this.id, ctx.entityName, "repeat sort was rejected")
 		const { first, second } = settled

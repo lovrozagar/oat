@@ -66,7 +66,8 @@ export async function createExchange(ctx: CheckContext): Promise<Exchange | unde
 export function validBody(ctx: CheckContext, schema: Record<string, unknown>): Record<string, unknown> {
 	const salt = `${ctx.nonce}b${saltOf(ctx)}`
 	/* One variant asked for, one member made. */
-	const [member] = buildCohort(schema, ctx.seed, ["baseline"], {
+	const [member] = buildCohort(schema, ctx.seed, {
+		variants: ["baseline"],
 		defs: ctx.model.defs,
 		/* Every string carries the body's own salt, not only the unique ones: a server that derives an
 		 * undeclared key from a name (a slug) refuses a record named like one the cohort holds. */
@@ -76,7 +77,7 @@ export function validBody(ctx: CheckContext, schema: Record<string, unknown>): R
 	}) as [CohortMember]
 	let body = member.body
 	const sets = ctx.uniqueSets ?? []
-	if (sets.length > 0) body = uniquifyProbeBody(body, sets, schema, `p${salt}`)
+	if (sets.length > 0) body = uniquifyProbeBody(body, sets, { schema, token: `p${salt}` })
 	return reserveClientIdentity(ctx, body, schema, salt)
 }
 
@@ -96,7 +97,7 @@ export async function encodeOpBody(
 		uploads = ctx.uploads,
 	}: { variant?: string | undefined; index?: number | undefined; uploads?: UploadContext | undefined } = {},
 ): Promise<Pick<RequestOptions, "body" | "contentType">> {
-	const encoded = await encodeForOperation(op, ctx.model, fields, { index, uploads, variant })
+	const encoded = await encodeForOperation(op, ctx.model, { fields, index, uploads, variant })
 	return encoded.contentType === undefined
 		? { body: encoded.body }
 		: { body: encoded.body, contentType: encoded.contentType }

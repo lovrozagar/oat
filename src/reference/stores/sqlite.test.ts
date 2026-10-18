@@ -62,7 +62,7 @@ function recordingDriver(options: { dqs?: boolean; rows?: SqlRow[]; fails?: (sql
 }
 
 async function sqlite(defects: DefectName[] = []): Promise<SqlStore> {
-	return SqlStore.create(new DefectSet(defects), await nodeSqliteDriver(), "", [ITEM])
+	return SqlStore.create(new DefectSet(defects), await nodeSqliteDriver(), { entities: [ITEM] })
 }
 
 const plan = (where: FilterNode, order: SelectPlan["order"] = []): SelectPlan => ({
@@ -114,7 +114,7 @@ const by = (field: string): SelectPlan["order"] => [{ asText: false, descending:
 describe("SqlStore.create", () => {
 	it("writes the whole schema as one script, a table and an id index per entity", async () => {
 		const { calls, driver } = recordingDriver()
-		await SqlStore.create(new DefectSet(), driver, "run_", [ITEM])
+		await SqlStore.create(new DefectSet(), driver, { entities: [ITEM], prefix: "run_" })
 		expect(calls).toEqual([
 			{
 				kind: "exec",
@@ -208,14 +208,16 @@ describe("COLUMN_NAME_MISMATCH", () => {
 	}
 
 	it("serves the column's own name where the engine refuses the read", async () => {
-		const store = await SqlStore.create(new DefectSet(["COLUMN_NAME_MISMATCH"]), await nodeSqliteDriver(), "", [named])
+		const store = await SqlStore.create(new DefectSet(["COLUMN_NAME_MISMATCH"]), await nodeSqliteDriver(), {
+			entities: [named],
+		})
 		expect(await store.insert(named, { id: "a", name: "real" })).toEqual({ id: "a", name: "name" })
 		await store.close()
 	})
 
 	it("names the column in its natural form on an engine with the double-quoted-string fallback", async () => {
 		const { calls, driver } = recordingDriver({ dqs: true })
-		const store = await SqlStore.create(new DefectSet(["COLUMN_NAME_MISMATCH"]), driver, "", [named])
+		const store = await SqlStore.create(new DefectSet(["COLUMN_NAME_MISMATCH"]), driver, { entities: [named] })
 		expect(calls[0]?.sql).toContain('"mislabelled_name" TEXT')
 		expect(await store.insert(named, { id: "a", name: "real" })).toEqual({ id: "a", name: "real" })
 		expect(calls[1]).toEqual({
@@ -230,7 +232,7 @@ describe("SqlStore.close", () => {
 	it("drops this run's tables on a shared engine, past a drop that fails, then closes", async () => {
 		const other: EntityDef = { ...ITEM, plural: "others" }
 		const { calls, driver } = recordingDriver({ fails: (sql) => sql === 'DROP TABLE IF EXISTS "run_items"' })
-		const store = await SqlStore.create(new DefectSet(), driver, "run_", [ITEM, other])
+		const store = await SqlStore.create(new DefectSet(), driver, { entities: [ITEM, other], prefix: "run_" })
 		await store.close()
 		expect(calls.slice(1)).toEqual([
 			{ kind: "exec", sql: 'DROP TABLE IF EXISTS "run_items"' },
@@ -241,7 +243,7 @@ describe("SqlStore.close", () => {
 
 	it("only closes an unprefixed engine", async () => {
 		const { calls, driver } = recordingDriver()
-		await (await SqlStore.create(new DefectSet(), driver, "", [ITEM])).close()
+		await (await SqlStore.create(new DefectSet(), driver, { entities: [ITEM] })).close()
 		expect(calls.slice(1)).toEqual([{ kind: "close" }])
 	})
 })

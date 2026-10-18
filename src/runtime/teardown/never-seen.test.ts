@@ -11,7 +11,8 @@ describe("markNeverSeen", () => {
 		const earlier = disposable("note", "n3")
 		const kept = disposable("note", "n4")
 		const items = [unseen, seen, unreadable, earlier, kept]
-		const state = unwindOf(notesModel(), store(), items, {
+		const state = unwindOf(store(), items, {
+			model: notesModel(),
 			deletedEarlier: (path) => path === "/notes/n3",
 			ledger: { movedAway: () => undefined, seenByCreator: (item) => item === seen, sighted: () => undefined },
 		})

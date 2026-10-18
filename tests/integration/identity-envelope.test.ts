@@ -136,7 +136,13 @@ async function createWidget(world: World, req: IncomingMessage, res: ServerRespo
 	send(res, 201, { data: world.innerHasId ? row : rest, id: ID, success: true })
 }
 
-function widgetItem({ store }: World, id: string, method: string, res: ServerResponse): void {
+/* The item a request names, and its method. */
+interface ItemRequest {
+	id: string
+	method: string
+}
+
+function widgetItem({ store }: World, { id, method }: ItemRequest, res: ServerResponse): void {
 	if (method === "GET") return store.has(id) ? send(res, 200, store.get(id)) : send(res, 404, {})
 	if (method !== "DELETE") return send(res, 405)
 	if (!store.delete(id)) return send(res, 404, {})
@@ -152,7 +158,7 @@ async function route(world: World, req: IncomingMessage, res: ServerResponse): P
 	const id = match[1] === undefined ? undefined : decodeURIComponent(match[1])
 	if (id === undefined && method === "GET") return send(res, 200, { items: [...world.store.values()] })
 	if (id === undefined && method === "POST") return createWidget(world, req, res)
-	widgetItem(world, id ?? "", method, res)
+	widgetItem(world, { id: id ?? "", method }, res)
 }
 
 async function serve(innerHasId: boolean) {

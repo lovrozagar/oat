@@ -8,10 +8,13 @@ import { widgetApi, widgetDoc } from "./__fixtures__/widget-api.ts"
 
 function stage(properties: Record<string, unknown>, update: Partial<OperationModel> = {}) {
 	const model = modelOf(widgetDoc({ item: { properties, type: "object" } }))
-	const { ctx } = contextFor(model, "listWidgets", widgetApi(), {
-		createOp: op(model, "createWidget"),
-		readOp: op(model, "getWidget"),
-		updateOp: { ...op(model, "updateWidget"), ...update },
+	const { ctx } = contextFor(model, "listWidgets", {
+		respond: widgetApi(),
+		fields: {
+			createOp: op(model, "createWidget"),
+			readOp: op(model, "getWidget"),
+			updateOp: { ...op(model, "updateWidget"), ...update },
+		},
 	})
 	return { ctx, model }
 }

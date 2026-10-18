@@ -8,8 +8,10 @@ import { Unconstructible } from "./unconstructible.ts"
 /** How many times one recursive schema may nest inside itself before generation stops descending. */
 const RECURSION_BOUND = 2
 
-export function viaRef(schema: Schema, ref: string, at: At, walk: Walk): unknown {
+/** The value `schema.$ref` names, with the schema's sibling keywords applied. */
+export function viaRef(schema: Schema, at: At, walk: Walk): unknown {
 	const { ctx, pointer } = at
+	const ref = schema.$ref as string
 	const name = ref.startsWith(`${DEFS_ID}#/$defs/`) ? ref.slice(`${DEFS_ID}#/$defs/`.length) : undefined
 	const target = name === undefined ? undefined : ctx.defs[name]
 	if (name === undefined || target === undefined) {
@@ -20,20 +22,21 @@ export function viaRef(schema: Schema, ref: string, at: At, walk: Walk): unknown
 	}
 	const { $ref: _ref, ...siblings } = schema
 	const inner = { ...ctx, refs: [...ctx.refs, name] }
-	return walk(Object.keys(siblings).length === 0 ? target : merge(target, siblings), inner, pointer, at.distinct)
+	return walk(Object.keys(siblings).length === 0 ? target : merge(target, siblings), { ...at, ctx: inner })
 }
 
 const isNull = (branch: unknown): boolean => isObject(branch) && branch.type === "null"
 
 /* A union keeps its base: `{properties: {kind}, oneOf: [...]}` needs `kind` whichever branch. */
-export function unionOf(schema: Schema, union: unknown[], at: At, walk: Walk): unknown {
+export function unionOf(schema: Schema, at: At, walk: Walk): unknown {
+	const union = (schema.oneOf ?? schema.anyOf) as unknown[]
 	const { oneOf: _o, anyOf: _a, ...base } = schema
 	if (at.ctx.variant === "null-heavy" && union.some(isNull)) return null
 	const failures: string[] = []
 	for (const branch of union.filter((candidate) => !isNull(candidate))) {
 		const candidate = isObject(branch) ? merge(base, branch) : branch
 		try {
-			return walk(candidate, at.ctx, at.pointer, at.distinct)
+			return walk(candidate, at)
 		} catch (error) {
 			if (!(error instanceof Unconstructible)) throw error
 			failures.push(error.reason)

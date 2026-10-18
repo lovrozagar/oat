@@ -12,18 +12,18 @@ import { encodeUrlencoded } from "./form-pairs.ts"
 import { encodeMultipart } from "./multipart.ts"
 import type { EncodedBody, EncodeOptions, EncodePlacement } from "./types.ts"
 
+/** The fields to encode as an operation's body, and where that body is placed. */
+export interface OperationFields extends EncodePlacement {
+	fields: Record<string, unknown>
+}
+
 export function requestContentOf(op: OperationModel, model: SpecModel): ReturnType<typeof requestContent> {
 	const raw = model.rawOperations.get(op.operationId)
 	return raw === undefined ? null : requestContent(raw)
 }
 
 export async function encodeRequest(options: EncodeOptions): Promise<EncodedBody> {
-	const fields = await applyResolveInput(
-		options.fields,
-		options.operationId,
-		options.schema,
-		options.uploads.resolveInput,
-	)
+	const fields = await applyResolveInput(options.fields, options.uploads.resolveInput, options)
 	const next = { ...options, fields }
 	const media = options.mediaType.toLowerCase()
 	if (media.startsWith("multipart/")) {
@@ -42,8 +42,7 @@ export async function encodeRequest(options: EncodeOptions): Promise<EncodedBody
 export async function encodeForOperation(
 	op: OperationModel,
 	model: SpecModel,
-	fields: Record<string, unknown>,
-	{ uploads, variant = "baseline", index = 0 }: EncodePlacement,
+	{ fields, uploads, variant = "baseline", index = 0 }: OperationFields,
 ): Promise<EncodedBody> {
 	const content = requestContentOf(op, model)
 	if (content === null) return { body: fields, contentType: undefined }

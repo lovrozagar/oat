@@ -158,8 +158,10 @@ async function baseline(target: Target, untagged: boolean): Promise<CaseResult> 
 	}
 }
 
-/** What a defect case is judged by beyond its run; the defaults are the suite's own. */
+/** What a defect case is judged by beyond its run, and the name it is shown under; the defaults are the suite's own. */
 export interface Judging {
+	/** The case's name in the report; the defect's own by default. */
+	label?: string
 	/** Defects that damage bystanders by design. */
 	excused?: ReadonlySet<DefectName>
 	/** Each generated reproducer's problems; none when every one is runnable. */
@@ -170,8 +172,7 @@ export interface Judging {
 export async function judgeDefect(
 	defect: DefectName,
 	target: Target,
-	label: string = defect,
-	{ checkRepros = checkReproSyntax, excused = DAMAGES_BYSTANDERS }: Judging = {},
+	{ checkRepros = checkReproSyntax, excused = DAMAGES_BYSTANDERS, label = defect }: Judging = {},
 ): Promise<CaseResult> {
 	const expected = EXPECTED[defect]
 	const acceptable = acceptableOf(expected)

@@ -26,8 +26,8 @@ export const filterIlikeIsCaseInsensitive = defineCheck<{
 		if (sample === undefined) return cannot(`a cohort value of "${field.field}" holding a letter to case-flip`)
 		const flipped = sample.replace(/[A-Za-z]/, (ch) => (ch === ch.toLowerCase() ? ch.toUpperCase() : ch.toLowerCase()))
 		const conventions = conv(ctx)
-		const likeTerm = filterTerm(conventions, field.field, "like", flipped)
-		const ilikeTerm = filterTerm(conventions, field.field, "ilike", flipped)
+		const likeTerm = filterTerm(conventions, { field: field.field, op: "like", value: flipped })
+		const ilikeTerm = filterTerm(conventions, { field: field.field, op: "ilike", value: flipped })
 		if (likeTerm === null || ilikeTerm === null) return cannot("a filter grammar that can express like and ilike")
 		return ready({ field, flipped, ilikeTerm, likeTerm, sample })
 	},

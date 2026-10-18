@@ -37,7 +37,11 @@ const REFUSED = { default: { description: "refused" } }
 const PROJECT = { in: "path", name: "project_id", required: true, schema: { type: "string" }, "x-root": true }
 const param = (name: string) => ({ in: "path", name, required: true, schema: { type: "string" } })
 
-const op = (entity: string, identity: string, action: string, extra: Record<string, unknown>) => ({
+const op = (
+	{ entity, identity }: Pick<Resource, "entity" | "identity">,
+	action: string,
+	extra: Record<string, unknown>,
+) => ({
 	operationId: `${entity}.${action}`,
 	"x-entity": { action, identity, name: entity },
 	"x-tenant": "project_id",
@@ -60,7 +64,7 @@ interface Resource {
 function resource({ entity, identity, item, field, parents, id }: Resource) {
 	return {
 		collection: {
-			get: op(entity, identity, "list", {
+			get: op({ entity, identity }, "list", {
 				parameters: parents,
 				responses: {
 					"200": {
@@ -70,18 +74,18 @@ function resource({ entity, identity, item, field, parents, id }: Resource) {
 					...REFUSED,
 				},
 			}),
-			post: op(entity, identity, "create", {
+			post: op({ entity, identity }, "create", {
 				parameters: parents,
 				requestBody: write(item as { properties: Record<string, unknown> }, field),
 				responses: { "201": { ...json(item), description: "created" }, ...REFUSED },
 			}),
 		},
 		item: {
-			delete: op(entity, identity, "delete", {
+			delete: op({ entity, identity }, "delete", {
 				parameters: [...parents, param(id)],
 				responses: { "204": { description: "gone" }, ...REFUSED },
 			}),
-			get: op(entity, identity, "read", {
+			get: op({ entity, identity }, "read", {
 				parameters: [...parents, param(id)],
 				responses: { "200": { ...json(item), description: "ok" }, ...REFUSED },
 			}),

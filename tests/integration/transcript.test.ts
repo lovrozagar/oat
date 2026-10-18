@@ -79,8 +79,14 @@ async function expectBodiesCompacted(bytes: Uint8Array, compacted: Snapshot, ref
 	expect(await compactRequestBody(7, new Redactor())).toBe(7)
 }
 
+/* A stored body's ref, and the bytes it names. */
+interface StoredBody {
+	ref: object
+	bytes: Uint8Array
+}
+
 /* The live form, its snapshot and a ref each describe and render as curl. */
-function expectDescribedAndCurled(form: FormData, compacted: Snapshot, ref: object, bytes: Uint8Array): void {
+function expectDescribedAndCurled(form: FormData, compacted: Snapshot, { bytes, ref }: StoredBody): void {
 	expect(describeRequestBody(form)).toMatchObject({
 		file: { bytes: 4, filename: "a.bin" },
 		password: "nope",
@@ -128,7 +134,7 @@ async function compactsRequestBodies() {
 	})
 	const ref = { bytes: 4, mediaType: "application/octet-stream", sha256: sha256Hex(bytes) }
 	await expectBodiesCompacted(bytes, compacted, ref)
-	expectDescribedAndCurled(form, compacted, ref, bytes)
+	expectDescribedAndCurled(form, compacted, { bytes, ref })
 }
 
 async function compactsResponseBodies() {

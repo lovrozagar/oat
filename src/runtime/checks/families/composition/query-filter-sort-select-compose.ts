@@ -61,7 +61,7 @@ export const filterSortSelectCompose = defineCheck<
 			ctx,
 			limit,
 			{ ...term, ...projection },
-			{ order: sortTerm(conventions, sortField, "desc") },
+			{ order: sortTerm(conventions, { direction: "desc", field: sortField }) },
 		)
 		if (filtered === null || triple === null) {
 			return ctx.findings.unresolved(

@@ -45,7 +45,7 @@ export async function list(
 		defects.has("UNKNOWN_PARAM_EMPTIES_LIST") && unknownGiven(state, request.url, call)
 			? { ...result, count: 0, hasMore: false, items: [], nextCursor: null }
 			: result
-	const listing = paginated(state.dialect, entity, request.url, served)
+	const listing = paginated({ dialect: state.dialect, entity, url: request.url }, served)
 	/* Under `recordEnvelope` the rows travel beside a second array of objects. */
 	const body =
 		wraps(state, entity) && !Array.isArray(listing.body) ? { ...listing.body, fields: fieldList(entity) } : listing.body
@@ -68,15 +68,18 @@ function staleListing(state: ReferenceState, url: URL, call: EntityCall): Refere
 	const frozen = state.staleSnapshot.get(snapshotKey(call.entity, call.scope))
 	if (!state.defects.has("STALE_LIST") || window === null || frozen === undefined) return undefined
 	const items = frozen.slice(window.offset, window.offset + window.limit)
-	const page = paginated(dialect, call.entity, url, {
-		count: frozen.length,
-		hasMore: window.offset + items.length < frozen.length,
-		items,
-		limit: window.limit,
-		nextCursor: null,
-		offset: window.offset,
-		page: window.page,
-	})
+	const page = paginated(
+		{ dialect, entity: call.entity, url },
+		{
+			count: frozen.length,
+			hasMore: window.offset + items.length < frozen.length,
+			items,
+			limit: window.limit,
+			nextCursor: null,
+			offset: window.offset,
+			page: window.page,
+		},
+	)
 	return respond(200, page.body, page.headers)
 }
 

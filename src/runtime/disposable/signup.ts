@@ -101,13 +101,14 @@ async function signUpByRegister(
 	let body: Record<string, unknown> = {}
 	if (schema !== null) {
 		/* One variant asked for, one member back, and its body is always an object. */
-		const [member] = buildCohort(schema, input.seed ?? 1, ["baseline"], {
+		const [member] = buildCohort(schema, input.seed ?? 1, {
+			variants: ["baseline"],
 			nonce: `${input.nonce ?? "user"}${label}`,
 			operationId: register.operationId,
 		}) as [CohortMember]
 		body = member.body
 		if (input.resolveInput !== undefined) {
-			body = await applyResolveInput(body, register.operationId, schema, input.resolveInput)
+			body = await applyResolveInput(body, input.resolveInput, { operationId: register.operationId, schema })
 		}
 	}
 	const signup = await input.client.request(register.method, register.path, {

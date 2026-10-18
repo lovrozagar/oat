@@ -38,11 +38,17 @@ interface Origin {
 	generatedAt: string
 }
 
+/* What the graph shows: each entity's slice, and the invalidation links between them. */
+interface MatrixContent {
+	entities: EntityMatrix[]
+	invalidate: InvalidateLink[]
+}
+
 /** One entity's graph, given piece by piece. */
 export function buildMatrixGraph(parts: MatrixParts): MatrixGraph {
 	const catalog = checkCatalog()
 	const entity = { identity: null, name: parts.entity, readSurface: parts.readSurface }
-	return assembleGraph(parts, [entitySlice(entity, catalog, reportRows(parts))], [], catalog)
+	return assembleGraph(parts, { entities: [entitySlice(entity, catalog, reportRows(parts))], invalidate: [] }, catalog)
 }
 
 /** Every entity the run tested; a report that tested none draws one placeholder `entity`. */
@@ -52,7 +58,7 @@ export function buildMatrixGraphFromReport(input: MatrixReport): MatrixGraph {
 	const names = input.entitiesTested.length > 0 ? input.entitiesTested : ["entity"]
 	const entities = names.map((name) => entitySlice(sliceEntity(input.model, name), catalog, rows))
 	const origin = { baseUrl: input.baseUrl, generatedAt: input.startedAt.toISOString() }
-	return assembleGraph(origin, entities, invalidateLinks(input.model), catalog)
+	return assembleGraph(origin, { entities, invalidate: invalidateLinks(input.model) }, catalog)
 }
 
 function sliceEntity(model: MatrixModel, name: string): SliceEntity {
@@ -60,12 +66,7 @@ function sliceEntity(model: MatrixModel, name: string): SliceEntity {
 	return { identity: modelEntity?.identity ?? null, name, readSurface: modelEntity?.readSurface ?? [] }
 }
 
-function assembleGraph(
-	origin: Origin,
-	entities: EntityMatrix[],
-	invalidate: InvalidateLink[],
-	catalog: CheckCatalog,
-): MatrixGraph {
+function assembleGraph(origin: Origin, { entities, invalidate }: MatrixContent, catalog: CheckCatalog): MatrixGraph {
 	const counts = totalCounts(entities)
 	const cross = invalidate.filter((invalidation) => invalidation.cross)
 	const inbound: Record<string, number> = {}

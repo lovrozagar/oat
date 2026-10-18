@@ -56,7 +56,7 @@ export const numericComparisonIsNumeric = defineCheck<{
 			.flatMap((r) => idOf(r, ctx.identity) ?? [])
 			.sort()
 		if (expected.length === 0) return cannot(`a cohort value of "${field}" above the median`)
-		const gtTerm = filterTerm(conv(ctx), field, "gt", threshold)
+		const gtTerm = filterTerm(conv(ctx), { field, op: "gt", value: threshold })
 		if (gtTerm === null) return cannot("a filter grammar with a gt operator")
 		return ready({ expected, field, gtTerm, threshold })
 	},

@@ -42,7 +42,7 @@ export function passAnswer(
 	baselines: { tagged: string[]; untagged: string[] }
 	primaryOps: Record<string, string[]>
 } {
-	const rendered = renderSuite(results, dialect, backend)
+	const rendered = renderSuite(results, { backend, dialect })
 	const primaryOps: Record<string, string[]> = {}
 	/* Every operation the primary check judged, not the first finding's alone: a defect seen on two
 	 * entities is reported twice in no fixed order, and a targeted run must cover the one it shows on. */
@@ -80,8 +80,15 @@ type Measured = Omit<Judged, "ok">
 /** Inconclusive verdicts a clean baseline may return, per `backend:dialect`; see `expected-failures.ts`. */
 type Allowance = Readonly<Record<string, readonly string[]>>
 
+/** One leg of the suite: the dialect and backend it ran on, and the inconclusive verdicts it may return. */
+export interface SuiteLeg {
+	dialect: string
+	backend: Backend
+	inconclusive: Allowance
+}
+
 /** Judges one case of a leg on `backend` under `dialect`. */
-function judge(result: CaseResult, leg: { dialect: string; backend: Backend; inconclusive: Allowance }): Judged {
+function judge(result: CaseResult, leg: SuiteLeg): Judged {
 	const { backend, dialect } = leg
 	/*
 	 * A baseline that reports nothing because it ran nothing is not evidence of precision — and a
@@ -230,9 +237,7 @@ function provenChecks(results: CaseResult[]): Set<string> {
 
 export function renderSuite(
 	results: CaseResult[],
-	dialect = "postgrest",
-	backend: Backend = "memory",
-	inconclusive: Allowance = EXPECTED_INCONCLUSIVE,
+	{ backend = "memory", dialect = "postgrest", inconclusive = EXPECTED_INCONCLUSIVE }: Partial<SuiteLeg> = {},
 ): { text: string; failures: number; proven: Set<string> } {
 	const lines = [
 		"",

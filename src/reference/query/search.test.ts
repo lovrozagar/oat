@@ -16,19 +16,21 @@ const token = (value: string, extra: object = {}) => ({
 
 describe("parseSearch", () => {
 	it("requires every whitespace-separated token in some searchable field", () => {
-		expect(parseSearch(" alpha \t beta ", TABLE, new DefectSet(), "contains")).toEqual({
+		expect(parseSearch(" alpha \t beta ", "contains", { defects: new DefectSet(), entity: TABLE })).toEqual({
 			children: [token("alpha"), token("beta")],
 			kind: "and",
 		})
-		expect(parseSearch("al", ROW, new DefectSet(), "prefix")).toEqual({
+		expect(parseSearch("al", "prefix", { defects: new DefectSet(), entity: ROW })).toEqual({
 			children: [{ caseSensitive: false, fields: ["label", "note"], kind: "search", mode: "prefix", token: "al" }],
 			kind: "and",
 		})
 	})
 
 	it("matches everything for a blank query, or nothing under the defect", () => {
-		expect(parseSearch("  ", TABLE, new DefectSet(), "contains")).toBeNull()
-		expect(parseSearch("", TABLE, new DefectSet(["SEARCH_EMPTY_MATCHES_NONE"]), "contains")).toEqual({
+		expect(parseSearch("  ", "contains", { defects: new DefectSet(), entity: TABLE })).toBeNull()
+		expect(
+			parseSearch("", "contains", { defects: new DefectSet(["SEARCH_EMPTY_MATCHES_NONE"]), entity: TABLE }),
+		).toEqual({
 			kind: "const",
 			value: false,
 		})
@@ -36,15 +38,17 @@ describe("parseSearch", () => {
 
 	it("matches everything on an entity with nothing searchable", () => {
 		const unsearchable: EntityDef = { ...TABLE, fields: TABLE.fields.filter((field) => field.searchable !== true) }
-		expect(parseSearch("alpha", unsearchable, new DefectSet(), "contains")).toBeNull()
+		expect(parseSearch("alpha", "contains", { defects: new DefectSet(), entity: unsearchable })).toBeNull()
 	})
 
 	it("keeps only the first token, or matches case-sensitively, under the defects", () => {
-		expect(parseSearch("a b", TABLE, new DefectSet(["SEARCH_ONLY_FIRST_TOKEN"]), "contains")).toEqual({
+		expect(
+			parseSearch("a b", "contains", { defects: new DefectSet(["SEARCH_ONLY_FIRST_TOKEN"]), entity: TABLE }),
+		).toEqual({
 			children: [token("a")],
 			kind: "and",
 		})
-		expect(parseSearch("A", TABLE, new DefectSet(["SEARCH_CASE_SENSITIVE"]), "contains")).toEqual({
+		expect(parseSearch("A", "contains", { defects: new DefectSet(["SEARCH_CASE_SENSITIVE"]), entity: TABLE })).toEqual({
 			children: [token("A", { caseSensitive: true })],
 			kind: "and",
 		})

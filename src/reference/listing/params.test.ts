@@ -8,19 +8,25 @@ import { integerParam, nearestLimit, pagingOf } from "./params.ts"
 import type { ListingRequest } from "./types.ts"
 
 const paging = (request: ListingRequest, defects: DefectName[] = [], clampLimit?: number) =>
-	pagingOf(TABLE, request, { clampLimit, conventions: DEFAULT_CONVENTIONS, scope: {} }, new DefectSet(defects))
+	pagingOf({ defects: new DefectSet(defects), entity: TABLE }, request, {
+		clampLimit,
+		conventions: DEFAULT_CONVENTIONS,
+		scope: {},
+	})
 
 describe("integerParam", () => {
 	it("reads an absent parameter as absent and an integer in range as itself", () => {
-		expect(integerParam(undefined, "page", 1)).toBeUndefined()
-		expect(integerParam("3", "page", 1, 5)).toBe(3)
+		expect(integerParam(undefined, "page", { min: 1 })).toBeUndefined()
+		expect(integerParam("3", "page", { max: 5, min: 1 })).toBe(3)
 	})
 
 	it("refuses blank, fractional and out-of-range text, naming the range", () => {
 		for (const raw of ["", " ", "2.5", "x", "0"]) {
-			expect(() => integerParam(raw, "page", 1)).toThrow('query parameter "page" must be an integer >= 1')
+			expect(() => integerParam(raw, "page", { min: 1 })).toThrow('query parameter "page" must be an integer >= 1')
 		}
-		expect(() => integerParam("6", "limit", 1, 5)).toThrow('query parameter "limit" must be an integer between 1 and 5')
+		expect(() => integerParam("6", "limit", { max: 5, min: 1 })).toThrow(
+			'query parameter "limit" must be an integer between 1 and 5',
+		)
 	})
 })
 
@@ -56,6 +62,9 @@ describe("pagingOf", () => {
 	})
 
 	it("caps the default at the entity's own maximum", () => {
-		expect(pagingOf(ROW, {}, { conventions: DEFAULT_CONVENTIONS, scope: {} }, new DefectSet()).servedLimit).toBe(5)
+		expect(
+			pagingOf({ defects: new DefectSet(), entity: ROW }, {}, { conventions: DEFAULT_CONVENTIONS, scope: {} })
+				.servedLimit,
+		).toBe(5)
 	})
 })

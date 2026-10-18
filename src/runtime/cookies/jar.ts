@@ -125,16 +125,18 @@ export class CookieJar {
 	}
 }
 
+/** Where a hop's cookies come from: the jar, for the hop's URL, and the caller's own Cookie header. */
+export interface HopCookies {
+	jar: CookieJar
+	url: URL
+	callerCookie?: string | undefined
+}
+
 /**
  * Rebuilds the Cookie header for one hop: the caller's own cookie, then whatever the jar holds
  * for this URL. Rebuilt rather than appended to, or every hop would repeat the last one's.
  */
-export function applyJarToHeaders(
-	headers: Record<string, string>,
-	jar: CookieJar,
-	url: URL,
-	callerCookie?: string,
-): void {
+export function applyJarToHeaders(headers: Record<string, string>, { jar, url, callerCookie }: HopCookies): void {
 	const fromJar = jar.cookieHeader(url)
 	omitHeader(headers, "cookie")
 	const merged = mergeCookieHeader(callerCookie, fromJar)

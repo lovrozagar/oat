@@ -15,7 +15,7 @@ describe("prepare", () => {
 			transport(() => json({})),
 			{ operationResolver: resolver },
 		)
-		const request = prepare("get", "/rows", { query: { page: 2 } }, wire)
+		const request = prepare(wire, "get", "/rows", { query: { page: 2 } })
 		expect(request).toMatchObject({ method: "GET", operationId: "row.list", relative: "/rows" })
 		expect(request.url.toString()).toBe(`${BASE}/rows?page=2&tenant=t1`)
 	})
@@ -25,14 +25,14 @@ describe("prepare", () => {
 			transport(() => json({})),
 			{ operationResolver: resolver },
 		)
-		expect(prepare("GET", "http://cdn.test/f", {}, wire)).toMatchObject({ operationId: undefined, resolved: null })
-		expect(prepare("GET", "/rows", { operationId: "mine" }, wire).operationId).toBe("mine")
-		expect(prepare("GET", "/rows", {}, wireOf(transport(() => json({})))).resolved).toBeNull()
+		expect(prepare(wire, "GET", "http://cdn.test/f", {})).toMatchObject({ operationId: undefined, resolved: null })
+		expect(prepare(wire, "GET", "/rows", { operationId: "mine" }).operationId).toBe("mine")
+		expect(prepare(wireOf(transport(() => json({}))), "GET", "/rows", {}).resolved).toBeNull()
 	})
 
 	it("refuses to send a value oat did not have", () => {
 		const wire = wireOf(transport(() => json({})))
-		expect(() => prepare("DELETE", "/rows/undefined", {}, wire)).toThrow(MissingValueError)
+		expect(() => prepare(wire, "DELETE", "/rows/undefined", {})).toThrow(MissingValueError)
 	})
 
 	it("reads the caller's headers afresh, and finds their credential unless refresh is skipped", () => {
@@ -47,19 +47,19 @@ describe("prepare", () => {
 			transport(() => json({})),
 			{ credentials, operationResolver: resolver },
 		)
-		const request = prepare("GET", "/rows", { headers: () => ({ authorization: `Bearer ${token}` }) }, wire)
+		const request = prepare(wire, "GET", "/rows", { headers: () => ({ authorization: `Bearer ${token}` }) })
 		token = "b"
 		expect(request.callerHeaders()).toEqual({ authorization: "Bearer b" })
 		expect(request.credential({ x: "1" })).toBe(credential)
 		expect(asked).toEqual([{ headers: { x: "1" }, operationId: "row.list" }])
-		expect(prepare("GET", "/x", { headers: { a: "1" } }, wire).callerHeaders()).toEqual({ a: "1" })
-		expect(prepare("GET", "/x", {}, wire).callerHeaders()).toEqual({})
-		expect(prepare("GET", "/x", { skipAuthRefresh: true }, wire).credential({})).toBeUndefined()
+		expect(prepare(wire, "GET", "/x", { headers: { a: "1" } }).callerHeaders()).toEqual({ a: "1" })
+		expect(prepare(wire, "GET", "/x", {}).callerHeaders()).toEqual({})
+		expect(prepare(wire, "GET", "/x", { skipAuthRefresh: true }).credential({})).toBeUndefined()
 		const bare = wireOf(
 			transport(() => json({})),
 			{ credentials },
 		)
-		prepare("GET", "/x", {}, bare).credential({})
+		prepare(bare, "GET", "/x", {}).credential({})
 		expect(asked.at(-1)).toEqual({ headers: {} })
 	})
 })
@@ -78,7 +78,7 @@ describe("sendAttempt", () => {
 			resolveHeaders: async (request) => (hooked.push(request), { h: "hook", i: "hook" }),
 		})
 		const options = { body: { n: 1 }, headers: { authorization: "Bearer old", i: "caller" }, operationId: "row.create" }
-		await sendAttempt(prepare("POST", "/rows", options, ctx), 0, ctx)
+		await sendAttempt(prepare(ctx, "POST", "/rows", options), 0, ctx)
 		expect(wire.sent[0]?.headers).toEqual({
 			authorization: "Bearer live",
 			"content-type": "application/json",
@@ -87,7 +87,7 @@ describe("sendAttempt", () => {
 			i: "caller",
 			"x-key": "k",
 		})
-		await sendAttempt(prepare("GET", "/rows", {}, ctx), 0, ctx)
+		await sendAttempt(prepare(ctx, "GET", "/rows", {}), 0, ctx)
 		expect(hooked).toEqual([
 			{ method: "POST", operationId: "row.create", url: `${BASE}/rows` },
 			{ method: "GET", url: `${BASE}/rows` },
@@ -99,7 +99,7 @@ describe("sendAttempt", () => {
 		const wire = transport(() => json({}))
 		const fence = new Fence(() => ({ allow: false, reason: "read-only run" }))
 		const ctx = wireOf(wire, { fence })
-		await expect(sendAttempt(prepare("DELETE", "/rows/1", {}, ctx), 0, ctx)).rejects.toThrow(/read-only run/)
+		await expect(sendAttempt(prepare(ctx, "DELETE", "/rows/1", {}), 0, ctx)).rejects.toThrow(/read-only run/)
 		expect(wire.sent).toEqual([])
 		expect(fence.fenced).toMatchObject([{ method: "DELETE", phase: "request" }])
 	})
@@ -118,12 +118,12 @@ describe("sendAttempt on the wire", () => {
 			transport(() => json({})),
 			{ rateLimiter: limiter },
 		)
-		const write = await sendAttempt(prepare("POST", "/rows", { body: {} }, ctx), 0, ctx)
+		const write = await sendAttempt(prepare(ctx, "POST", "/rows", { body: {} }), 0, ctx)
 		expect(write).toMatchObject({ rateLimitCategory: "writes", rateLimitHadRoom: true, rateLimitSource: "tag" })
-		const read = await sendAttempt(prepare("GET", "/rows", {}, ctx), 0, ctx)
+		const read = await sendAttempt(prepare(ctx, "GET", "/rows", {}), 0, ctx)
 		expect(read.rateLimitCategory).toBeUndefined()
-		limiter.noteBackoff("DELETE", "/rows/1", 0)
-		const cooled = await sendAttempt(prepare("DELETE", "/rows/1", {}, ctx), 0, ctx)
+		limiter.noteBackoff({ method: "DELETE", pathname: "/rows/1" }, 0)
+		const cooled = await sendAttempt(prepare(ctx, "DELETE", "/rows/1", {}), 0, ctx)
 		expect(cooled).toMatchObject({ rateLimitHadRoom: true, rateLimitSource: "implicit" })
 	})
 
@@ -135,11 +135,11 @@ describe("sendAttempt on the wire", () => {
 			start: (probe: RequestStart) => seen.push(`start ${probe.url}`),
 		}
 		const ctx = wireOf(wire, { httpHooks: hooks, network: { fetchImpl: wire.fetch, requestTimeoutMs: 5_000 } })
-		await sendAttempt(prepare("GET", "/rows", {}, ctx), 0, ctx)
+		await sendAttempt(prepare(ctx, "GET", "/rows", {}), 0, ctx)
 		expect(seen).toEqual([`start ${BASE}/rows`, "end GET true"])
 		expect(wire.sent[0]?.signal).toBe(true)
 		const bare = wireOf(wire, { httpHooks: {} })
-		await sendAttempt(prepare("GET", "/rows", {}, bare), 0, bare)
+		await sendAttempt(prepare(bare, "GET", "/rows", {}), 0, bare)
 		expect(wire.sent[1]?.signal).toBe(false)
 	})
 })
@@ -150,12 +150,12 @@ describe("sendAttempt redirects and transport", () => {
 			request.url.endsWith("/a") ? new Response(null, { headers: { location: "/v1/b" }, status: 302 }) : json({}),
 		)
 		const ctx = wireOf(wire)
-		expect((await sendAttempt(prepare("GET", "/a", { redirect: "manual" }, ctx), 0, ctx)).status).toBe(302)
+		expect((await sendAttempt(prepare(ctx, "GET", "/a", { redirect: "manual" }), 0, ctx)).status).toBe(302)
 		const resolving = wireOf(wire, { operationResolver: () => ({ operationId: "a", redirects: true, template: "/a" }) })
-		expect((await sendAttempt(prepare("GET", "/a", {}, resolving), 0, resolving)).status).toBe(302)
-		const followed = await sendAttempt(prepare("GET", "/a", { redirect: "follow" }, ctx), 0, ctx)
+		expect((await sendAttempt(prepare(resolving, "GET", "/a", {}), 0, resolving)).status).toBe(302)
+		const followed = await sendAttempt(prepare(ctx, "GET", "/a", { redirect: "follow" }), 0, ctx)
 		expect(followed).toMatchObject({ finalUrl: `${BASE}/b`, status: 200 })
-		await sendAttempt(prepare("GET", "/a", {}, ctx), 0, ctx)
+		await sendAttempt(prepare(ctx, "GET", "/a", {}), 0, ctx)
 		expect(wire.sent.map((request) => request.redirect)).toEqual(["manual", "manual", "manual", "manual", undefined])
 	})
 
@@ -164,7 +164,7 @@ describe("sendAttempt redirects and transport", () => {
 		vi.stubGlobal("fetch", wire.fetch)
 		try {
 			const ctx = wireOf(wire, { network: undefined })
-			expect((await sendAttempt(prepare("GET", "/rows", {}, ctx), 0, ctx)).responseBody).toEqual({ global: true })
+			expect((await sendAttempt(prepare(ctx, "GET", "/rows", {}), 0, ctx)).responseBody).toEqual({ global: true })
 		} finally {
 			vi.unstubAllGlobals()
 		}

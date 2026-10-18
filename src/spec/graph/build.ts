@@ -100,7 +100,7 @@ function buildEntities(
 ): Map<string, EntityModel> {
 	const entities = new Map<string, EntityModel>()
 	registerOperations(entities, operations)
-	invertInvalidate(entities, operations, byRoute, gaps)
+	invertInvalidate(entities, { byRoute, operations }, gaps)
 	fallBackToSiblings(entities, operations, gaps)
 	markTrackable(entities, gaps)
 	return entities

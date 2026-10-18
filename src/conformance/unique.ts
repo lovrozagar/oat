@@ -15,6 +15,6 @@ import { widgetSpec } from "./unique/spec.ts"
 export async function runUniqueSuite(via: Via = listening): Promise<ParserResult[]> {
 	const results = documentCases()
 	for (const unique of UNIQUE_CASES) results.push(...(await runCase(via, unique)))
-	results.push(untaggedDoctorCase(report.doctor(buildModel(widgetSpec({ omitTag: true })), [], false).text))
+	results.push(untaggedDoctorCase(report.doctor(buildModel(widgetSpec({ omitTag: true }))).text))
 	return results
 }

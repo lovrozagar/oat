@@ -11,11 +11,16 @@ import { parseRouteRef } from "../routes.ts"
 import { entityNamed } from "./entities.ts"
 import type { EntityModel, OperationModel } from "./types.ts"
 
+/** The document's operations, in order and by route. */
+export interface DocumentOperations {
+	operations: readonly OperationModel[]
+	byRoute: ReadonlyMap<string, OperationModel>
+}
+
 /** Invert x-invalidate: a mutator's declared read routes belong to its entity's surface. */
 export function invertInvalidate(
 	entities: Map<string, EntityModel>,
-	operations: readonly OperationModel[],
-	byRoute: ReadonlyMap<string, OperationModel>,
+	{ byRoute, operations }: DocumentOperations,
 	gaps: GapCollector,
 ): void {
 	for (const op of operations) {

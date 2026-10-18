@@ -83,7 +83,7 @@ async function started(writer: Writer, start: Start): Promise<number> {
 	const began = performance.now()
 	const allocated = await allocateRunDir(str(flags, "out") ?? config.outDir ?? DEFAULT_RUNS_ROOT, startedAt)
 	const outDir = allocated.runDir
-	const progress = runProgress(writer, outDir, startedAt.getTime(), flags.quiet === true)
+	const progress = runProgress(writer, outDir, { quiet: flags.quiet === true, startedAt: startedAt.getTime() })
 	const stop = stopOnSignal(writer, deps.signals)
 	const options = runOptionsOf(config, flags, {
 		baseline: start.baseline,

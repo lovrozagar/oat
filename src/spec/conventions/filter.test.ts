@@ -32,9 +32,11 @@ describe("filter terms", () => {
 	it("render one predicate in the endpoint's grammar, or say it cannot be written", () => {
 		expect(canWriteFilterOp(at("postgrest"), "gt")).toBe(true)
 		expect(canWriteFilterOp(at("equality"), "gt")).toBe(false)
-		expect(filterTerm(at("postgrest"), "qty", "gt", 5)).toEqual({ filter: "qty.gt.5" })
-		expect(filterTerm(template, "qty", "eq", "a")).toEqual({ filter: "qty[is]=a" })
-		expect(filterTerm(at("postgrest", { filter: undefined } as never), "qty", "eq", "a")).toBeNull()
+		expect(filterTerm(at("postgrest"), { field: "qty", op: "gt", value: 5 })).toEqual({ filter: "qty.gt.5" })
+		expect(filterTerm(template, { field: "qty", op: "eq", value: "a" })).toEqual({ filter: "qty[is]=a" })
+		expect(
+			filterTerm(at("postgrest", { filter: undefined } as never), { field: "qty", op: "eq", value: "a" }),
+		).toBeNull()
 	})
 
 	it("give the bare text of an equality term", () => {

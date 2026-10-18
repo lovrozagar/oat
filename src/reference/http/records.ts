@@ -4,7 +4,7 @@ import type { DefectSet } from "../defects/defect-set.ts"
 import type { EntityDef } from "../model/types.ts"
 import { writableFields } from "../model/fields.ts"
 import type { Row } from "../store-api.ts"
-import type { ReferenceState, Scope } from "./state.ts"
+import type { Collection, EntityRecord, ReferenceState, Scope } from "./state.ts"
 import { emptyValue } from "./validation.ts"
 
 /** 48 KiB per record: six of them make one listing page larger than 256 KiB. */
@@ -69,7 +69,7 @@ export function answerRead(state: ReferenceState, entity: EntityDef, record: Row
 	return wraps(state, entity) ? { data: record, fields: fieldList(entity) } : record
 }
 
-export function answerWritten(state: ReferenceState, entity: EntityDef, record: Row, message: string): Row {
+export function answerWritten(state: ReferenceState, { entity, record }: EntityRecord, message: string): Row {
 	return wraps(state, entity) ? { id: record[entity.identity], message, success: true } : record
 }
 
@@ -81,7 +81,7 @@ export function fieldList(entity: EntityDef): Row[] {
 }
 
 /** A new record: its id, parents, timestamps, and every field nobody supplied. */
-export function withDefaults(state: ReferenceState, entity: EntityDef, input: Row, scope: Scope): Row {
+export function withDefaults(state: ReferenceState, { entity, scope }: Collection, input: Row): Row {
 	const record: Row = { ...input }
 	record[entity.identity] = state.ids.next(entity)
 	for (const parent of entity.parents) {

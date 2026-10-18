@@ -28,13 +28,29 @@ export interface PlannedCheck {
 	graded: string[]
 }
 
+/** One check under way: the check, the view its findings are attributed through, and where they begin. */
+interface Running {
+	check: Check
+	attributed: FindingCollector
+	/** How many findings the run held when the check began. */
+	start: number
+}
+
+/** How a check ended, and the subjects it grades and those it judged. */
+interface Ended {
+	outcome: Outcome
+	graded: string[]
+	judged: string[]
+}
+
 /** Runs one check, records how it ended, and grades its subjects by that. */
 export async function runCheck(loop: CheckLoop, { check, graded }: PlannedCheck): Promise<void> {
 	const { run } = loop
 	const { ctx, entity } = run
 	const attributed = graded.length === 0 ? ctx.findings : ctx.findings.attributed(graded)
+	const running: Running = { attributed, check, start: ctx.findings.findings.length }
 	let judged: Set<string> | undefined
-	const view = viewFor(loop, check, attributed, (operationIds) => {
+	const view = viewFor(loop, running, (operationIds) => {
 		judged ??= new Set()
 		for (const id of operationIds) judged.add(id)
 	})
@@ -47,16 +63,16 @@ export async function runCheck(loop: CheckLoop, { check, graded }: PlannedCheck)
 		phase: "test",
 		requests: ctx.progress.requests,
 	})
-	const start = ctx.findings.findings.length
 	const began = performance.now()
-	const ran = await outcomeOf(loop, check, view, attributed)
+	const ran = await outcomeOf(loop, running, view)
 	if (ran === undefined) return
 	ctx.state.checkTimings.push({ check: check.id, entity: entity.name, ms: Math.round(performance.now() - began) })
-	const outcome = reported(run, check, ran, start)
+	const outcome = reported(run, running, ran)
 	loop.outcomes.set(check.id, outcome)
-	judge(run, check, outcome, {
+	judge(run, check, {
 		graded,
 		judged: judged === undefined ? graded : graded.filter((id) => judged?.has(id) === true),
+		outcome,
 	})
 }
 
@@ -67,8 +83,7 @@ export async function runCheck(loop: CheckLoop, { check, graded }: PlannedCheck)
  */
 function viewFor(
 	loop: CheckLoop,
-	check: Check,
-	attributed: FindingCollector,
+	{ check, attributed }: Running,
 	judged: (operationIds: readonly string[]) => void,
 ): WriteContext {
 	const { client } = loop.run.ctx
@@ -89,9 +104,8 @@ function viewFor(
  */
 async function outcomeOf(
 	loop: CheckLoop,
-	check: Check,
+	{ check, attributed }: Running,
 	view: WriteContext,
-	attributed: FindingCollector,
 ): Promise<Outcome | undefined> {
 	try {
 		return await check.run(view, loop.plans.get(check.id))
@@ -150,7 +164,7 @@ export async function unresolvedBy(stopped: Stopped, error: unknown): Promise<st
  * A check that reported along the way and then fell through to "asserted" did not assert
  * anything: what it reported is the outcome.
  */
-function reported(run: EntityRun, check: Check, outcome: Outcome, start: number): Outcome {
+function reported(run: EntityRun, { check, start }: Running, outcome: Outcome): Outcome {
 	if (outcome.kind !== "asserted") return outcome
 	const found = run.ctx.findings.findings
 		.slice(start)
@@ -162,7 +176,8 @@ function reported(run: EntityRun, check: Check, outcome: Outcome, start: number)
  * Grades the check's subjects by its outcome: those it judged, when it named them, else all it
  * grades. A check that stood down did not pass: the report says why.
  */
-function judge(run: EntityRun, check: Check, outcome: Outcome, subjects: { graded: string[]; judged: string[] }): void {
+function judge(run: EntityRun, check: Check, subjects: Ended): void {
+	const { outcome } = subjects
 	const { state, grades } = run.ctx
 	const entity = run.entity.name
 	if (outcome.kind === "asserted" && outcome.note !== undefined) {

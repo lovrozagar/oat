@@ -63,7 +63,7 @@ function scopeTerms(entity: EntityDef, scope: ListingOptions["scope"]): FilterNo
 
 /* The free-text search, its mode validated first. */
 function searchOf(request: ListingRequest, ctx: ParseContext, axes: Axes): FilterNode | null {
-	const { defects, entity } = ctx
+	const { defects } = ctx
 	const mode = request.searchMode ?? "contains"
 	if (!(SEARCH_MODES as readonly string[]).includes(mode)) {
 		throw new SqlError("invalid_search", `search mode "${mode}" is not one of ${SEARCH_MODES.join(", ")}`)
@@ -73,7 +73,7 @@ function searchOf(request: ListingRequest, ctx: ParseContext, axes: Axes): Filte
 	}
 	return request.q === undefined || defects.has("SEARCH_IGNORED") || searchDropped(defects, axes)
 		? null
-		: parseSearch(request.q, entity, defects, mode as SearchMode)
+		: parseSearch(request.q, mode as SearchMode, ctx)
 }
 
 /* Each of these keeps the search while it is alone and drops it once its axis joins. */

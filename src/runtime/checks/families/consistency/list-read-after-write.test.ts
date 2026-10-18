@@ -12,11 +12,14 @@ const others = (count: number): Record_[] =>
 /** A notes context whose seeded record is `created`, served by `respond`. */
 function stage(respond: Responder, fields: Partial<CheckContext> = {}, doc = notesDoc()) {
 	const model = modelOf(doc)
-	return contextFor(model, "notes.list", respond, {
-		createOp: op(model, "notes.create"),
-		readOp: op(model, "notes.get"),
-		records: [created],
-		...fields,
+	return contextFor(model, "notes.list", {
+		respond,
+		fields: {
+			createOp: op(model, "notes.create"),
+			readOp: op(model, "notes.get"),
+			records: [created],
+			...fields,
+		},
 	})
 }
 

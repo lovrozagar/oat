@@ -50,7 +50,7 @@ describe("verifyGone", () => {
 		const { sent } = await relist(store(), [
 			disposable("note", "n1"),
 			disposable("note", "n2"),
-			disposable("note", "n3", {}, "beta"),
+			disposable("note", "n3", { by: "beta" }),
 		])
 		expect(sent.map((request) => request.path)).toEqual(["/notes", "/notes"])
 	})

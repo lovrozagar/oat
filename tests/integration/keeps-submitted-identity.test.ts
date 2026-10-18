@@ -107,7 +107,13 @@ async function createNote(world: World, req: IncomingMessage, res: ServerRespons
 	send(res, 201, { success: true })
 }
 
-function noteItem(notes: Map<string, Note>, pathname: string, method: string, res: ServerResponse): void {
+/* The item path a request names, and its method. */
+interface ItemRequest {
+	pathname: string
+	method: string
+}
+
+function noteItem(notes: Map<string, Note>, { method, pathname }: ItemRequest, res: ServerResponse): void {
 	const id = decodeURIComponent(pathname.match(/^\/notes\/([^/]+)$/)?.[1] ?? "")
 	const note = notes.get(id)
 	if (method === "GET") return note === undefined ? send(res, 404, { error: "missing" }) : send(res, 200, note)
@@ -125,7 +131,7 @@ async function serve(mode: Mode): Promise<string> {
 			if (url.pathname === "/openapi.json") return send(res, 200, document)
 			if (url.pathname === "/notes" && method === "GET") return send(res, 200, [...world.notes.values()])
 			if (url.pathname === "/notes" && method === "POST") return createNote(world, req, res)
-			noteItem(world.notes, url.pathname, method, res)
+			noteItem(world.notes, { method, pathname: url.pathname }, res)
 		})().catch(() => {
 			if (!res.headersSent) res.writeHead(500)
 			res.end()

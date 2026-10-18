@@ -64,7 +64,7 @@ export const declaredFilterableWorks = defineCheck({
 				 * string compared with a number is right to, and that says nothing about the field. */
 				const probe = capabilityProbe(ctx, field)
 				if (probe === null) return null
-				const term = filterTerm(conventions, field, probe.op, probe.value)
+				const term = filterTerm(conventions, { field, op: probe.op, value: probe.value })
 				if (term === null) return null
 				return { field, result: await list(ctx, { ...q(ctx, { limit: 5 }), ...term }) }
 			}),

@@ -128,10 +128,10 @@ describe("expandPattern", () => {
 		const root = folder({ "a.pdf": PDF })
 		const warned: string[] = []
 		const warn = warnOnce({ memory: uploadMemory(), warn: (message: string) => warned.push(message) })
-		expect(await expandPattern("missing.pdf", root, warn)).toEqual([])
-		expect(await expandPattern("nowhere/*.pdf", root, warn, "uploads.each")).toEqual([])
-		expect(await expandPattern("a.pdf/*.x", root, warn)).toEqual([])
-		expect(await expandPattern("missing.pdf", root, warn)).toEqual([])
+		expect(await expandPattern("missing.pdf", root, { warn })).toEqual([])
+		expect(await expandPattern("nowhere/*.pdf", root, { label: "uploads.each", warn })).toEqual([])
+		expect(await expandPattern("a.pdf/*.x", root, { warn })).toEqual([])
+		expect(await expandPattern("missing.pdf", root, { warn })).toEqual([])
 		expect(warned).toEqual([
 			"uploads.pool path not found: missing.pdf",
 			"uploads.each path not found: nowhere/*.pdf",
@@ -183,7 +183,7 @@ describe("expandPattern over what is neither a file nor a folder", () => {
 		symlinkSync(join(root, "a.pdf"), join(root, "link.pdf"))
 		expect(await expandPattern(".", root)).toEqual([join(root, "a.pdf")])
 		const warned: string[] = []
-		expect(await expandPattern("/dev/null", root, (message) => warned.push(message))).toEqual([])
+		expect(await expandPattern("/dev/null", root, { warn: (message) => warned.push(message) })).toEqual([])
 		expect(warned).toEqual(["uploads.pool path not found: /dev/null"])
 	})
 

@@ -57,13 +57,15 @@ const ITEM = /^\/v1\/orgs\/org_1\/widgets\/[^/]+$/
 const conflicted = (): ReferenceResponse => answer(409, { error_key: "conflict", status: 409 })
 const notFound = (): ReferenceResponse => answer(404, { error_key: "not_found" })
 
-/** The first set `incoming` collides on with a row other than `exceptId`, or null. */
-export function conflict(
-	sets: string[][],
-	existing: Row[],
-	incoming: Record<string, unknown>,
-	exceptId?: string,
-): string[] | null {
+/** A row about to be written: its values, and its own id when it already exists. */
+export interface Candidate {
+	values: Record<string, unknown>
+	id?: string
+}
+
+/** The first set the candidate collides on with a row other than itself, or null. */
+export function conflict(sets: string[][], existing: Row[], candidate: Candidate): string[] | null {
+	const { values: incoming, id: exceptId } = candidate
 	for (const set of sets) {
 		const hit = existing.find(
 			(row) =>
@@ -102,7 +104,7 @@ function text(value: unknown, fallback: string): string {
 async function create(state: Widgets, request: ReferenceRequest): Promise<ReferenceResponse> {
 	const body = await received(state, request)
 	if (state.options.seedConflict === true && state.posts.length === 1) return conflicted()
-	const colliding = conflict(state.sets, [...state.rows.values()], body)
+	const colliding = conflict(state.sets, [...state.rows.values()], { values: body })
 	const refused = colliding === null ? null : ON_DUPLICATE[state.options.duplicate ?? "409"](state, colliding)
 	if (refused !== null) return refused
 	state.seq += 1
@@ -121,7 +123,7 @@ async function update(state: Widgets, id: string, request: ReferenceRequest): Pr
 	const row = state.rows.get(id)
 	if (row === undefined) return notFound()
 	const body = await received(state, request)
-	const colliding = conflict(state.sets, [...state.rows.values()], { ...row, ...body }, id)
+	const colliding = conflict(state.sets, [...state.rows.values()], { id, values: { ...row, ...body } })
 	if (colliding !== null && (state.options.updateDuplicate ?? "409") === "409") return conflicted()
 	row.email = text(body.email, row.email)
 	row.name = text(body.name, row.name)

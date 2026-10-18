@@ -9,7 +9,23 @@ import { type DoctorConfig, type DoctorFacts, doctorFacts } from "./doctor-facts
 import { authLines, catalogLines, envelopeLines, externalRefLines, gapLines } from "./doctor-notes.ts"
 import { declarationLines, entityLines, summaryLines, tagLines } from "./doctor-text.ts"
 
-function doctorJson(model: SpecModel, facts: DoctorFacts, externalRefs: string[], config?: DoctorConfig): string {
+/** How `doctor` reports: the external refs the document named, JSON or text, and the config beside it. */
+export interface DoctorOptions {
+	/** Refs to other files, which oat did not follow. */
+	externalRefs?: string[]
+	asJson?: boolean
+	config?: DoctorConfig | undefined
+}
+
+/* Everything one doctor report is written from. */
+interface Diagnosis {
+	model: SpecModel
+	facts: DoctorFacts
+	externalRefs: string[]
+	config: DoctorConfig | undefined
+}
+
+function doctorJson({ config, externalRefs, facts, model }: Diagnosis): string {
 	return `${JSON.stringify(
 		{
 			blocking: facts.blocking,
@@ -37,7 +53,7 @@ function doctorJson(model: SpecModel, facts: DoctorFacts, externalRefs: string[]
 	)}\n`
 }
 
-function doctorText(model: SpecModel, facts: DoctorFacts, externalRefs: string[], config?: DoctorConfig): string {
+function doctorText({ config, externalRefs, facts, model }: Diagnosis): string {
 	const lines = [
 		...summaryLines(facts, config),
 		...tagLines(model, facts),
@@ -54,13 +70,9 @@ function doctorText(model: SpecModel, facts: DoctorFacts, externalRefs: string[]
 }
 
 /** `oat doctor`: what oat can and cannot test in the document, as text or JSON, and how much of it blocks a run. */
-export function doctor(
-	model: SpecModel,
-	externalRefs: string[],
-	asJson: boolean,
-	config?: DoctorConfig,
-): { text: string; blocking: number } {
+export function doctor(model: SpecModel, options: DoctorOptions = {}): { text: string; blocking: number } {
+	const { asJson = false, config, externalRefs = [] } = options
 	const facts = doctorFacts(model, config)
-	const text = asJson ? doctorJson(model, facts, externalRefs, config) : doctorText(model, facts, externalRefs, config)
-	return { blocking: facts.blocking, text }
+	const diagnosis = { config, externalRefs, facts, model }
+	return { blocking: facts.blocking, text: asJson ? doctorJson(diagnosis) : doctorText(diagnosis) }
 }

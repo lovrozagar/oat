@@ -17,9 +17,10 @@ import { dereference } from "../../src/spec/load/dereference.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { Redactor } from "../../src/security/redact.ts"
 
-function send(res: ServerResponse, status: number, body?: unknown, extraHeaders?: Record<string, string>): void {
+/* A JSON answer, or a bare status; headers a test sets on `res` first go out with it. */
+function send(res: ServerResponse, status: number, body?: unknown): void {
 	if (body === undefined) {
-		res.writeHead(status, extraHeaders)
+		res.writeHead(status)
 		res.end()
 		return
 	}
@@ -27,7 +28,6 @@ function send(res: ServerResponse, status: number, body?: unknown, extraHeaders?
 	res.writeHead(status, {
 		"content-length": String(Buffer.byteLength(text)),
 		"content-type": "application/json",
-		...extraHeaders,
 	})
 	res.end(text)
 }
@@ -151,7 +151,10 @@ async function throttledOnce(headers?: Record<string, string>) {
 		const url = new URL(req.url ?? "/", "http://127.0.0.1")
 		if (url.pathname !== "/v1/things" || req.method !== "POST") return send(res, 404)
 		posts += 1
-		if (posts === 1) return send(res, 429, { error: "too_many_requests" }, headers)
+		if (posts === 1) {
+			for (const [name, value] of Object.entries(headers ?? {})) res.setHeader(name, value)
+			return send(res, 429, { error: "too_many_requests" })
+		}
 		return send(res, 201, { id: "t1", name: "n" })
 	})
 	closers.push(server.close)
@@ -163,14 +166,23 @@ type ThingWorld = { posts: number; rows: Map<string, { id: string; name: string 
 /* The first create is throttled with a zero wait; the rest succeed. */
 function createThing(world: ThingWorld, res: ServerResponse): void {
 	world.posts += 1
-	if (world.posts === 1) return send(res, 429, { error: "too_many_requests" }, { "retry-after": "0" })
+	if (world.posts === 1) {
+		res.setHeader("retry-after", "0")
+		return send(res, 429, { error: "too_many_requests" })
+	}
 	const id = `t_${String(world.posts)}`
 	const row = { id, name: "n" }
 	world.rows.set(id, row)
 	send(res, 201, row)
 }
 
-function thingItem(world: ThingWorld, id: string, method: string, res: ServerResponse): void {
+/* The item a request names, and its method. */
+interface ItemRequest {
+	id: string
+	method: string
+}
+
+function thingItem(world: ThingWorld, { id, method }: ItemRequest, res: ServerResponse): void {
 	if (method === "GET") {
 		const row = world.rows.get(id)
 		return row === undefined ? send(res, 404) : send(res, 200, row)
@@ -189,7 +201,7 @@ async function routeThings(world: ThingWorld, req: IncomingMessage, res: ServerR
 	if (url.pathname === "/v1/things" && method === "POST") return createThing(world, res)
 	const item = /^\/v1\/things\/([^/]+)$/.exec(url.pathname)
 	if (item === null) return send(res, 404)
-	thingItem(world, item[1] ?? "", method, res)
+	thingItem(world, { id: item[1] ?? "", method }, res)
 }
 
 /* A run against the thing backend, seeding through its throttled first create. */

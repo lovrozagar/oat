@@ -91,11 +91,13 @@ describe("doctor / plan invite accept mode", () => {
 	it("prints JSON-token and GET-link", () => {
 		const modelled = buildModel(dereference(inviteDoc()).doc)
 		const plan = report.plan(modelled, false)
-		const doctor = report.doctor(modelled, [], false)
+		const doctor = report.doctor(modelled)
 		expect(plan).toContain("GET-link")
 		expect(plan).toContain("acceptFrom: link")
 		expect(doctor.text).toContain("GET-link")
-		const asJson = JSON.parse(report.doctor(modelled, [], true).text) as { invites: Array<{ acceptFrom: string }> }
+		const asJson = JSON.parse(report.doctor(modelled, { asJson: true }).text) as {
+			invites: Array<{ acceptFrom: string }>
+		}
 		expect(asJson.invites.some((row) => row.acceptFrom === "link")).toBe(true)
 		expect(report.plan(modelled, true)).toContain("acceptFrom")
 	})

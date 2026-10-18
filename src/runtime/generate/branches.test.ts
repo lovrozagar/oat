@@ -29,46 +29,48 @@ const ref = (name: string): string => `${DEFS_ID}#/$defs/${name}`
 
 describe("viaRef", () => {
 	it("follows a ref into the document's defs, with its siblings merged in", () => {
-		expect(viaRef({ $ref: ref("Leaf") }, ref("Leaf"), at(), instance)).toBe("Quarterly Report 0")
-		expect(viaRef({ $ref: ref("Leaf"), maxLength: 3 }, ref("Leaf"), at(), instance)).toBe("Q 0")
+		expect(viaRef({ $ref: ref("Leaf") }, at(), instance)).toBe("Quarterly Report 0")
+		expect(viaRef({ $ref: ref("Leaf"), maxLength: 3 }, at(), instance)).toBe("Q 0")
 	})
 
 	it("refuses a ref it cannot follow", () => {
-		expect(() => viaRef({}, "#/components/schemas/Leaf", at(), instance)).toThrow(
+		expect(() => viaRef({ $ref: "#/components/schemas/Leaf" }, at(), instance)).toThrow(
 			"cannot follow #/components/schemas/Leaf",
 		)
-		expect(() => viaRef({}, ref("Missing"), at(), instance)).toThrow(`cannot follow ${ref("Missing")}`)
+		expect(() => viaRef({ $ref: ref("Missing") }, at(), instance)).toThrow(`cannot follow ${ref("Missing")}`)
 	})
 
 	it("bounds recursion through one schema", () => {
-		expect(() => viaRef({}, ref("Node"), at({ refs: ["Node", "Node"] }), instance)).toThrow(
+		expect(() => viaRef({ $ref: ref("Node") }, at({ refs: ["Node", "Node"] }), instance)).toThrow(
 			"recursion through Node is bounded at depth 2",
 		)
 		/* The optional child is left out where the bound stops it. */
-		expect(viaRef({}, ref("Node"), at(), instance)).toEqual({ child: {} })
+		expect(viaRef({ $ref: ref("Node") }, at(), instance)).toEqual({ child: {} })
 	})
 })
 
 describe("unionOf", () => {
 	it("is null under null-heavy when a branch allows it", () => {
-		expect(unionOf({}, [{ type: "string" }, { type: "null" }], at({ variant: "null-heavy" }), instance)).toBeNull()
+		expect(
+			unionOf({ oneOf: [{ type: "string" }, { type: "null" }] }, at({ variant: "null-heavy" }), instance),
+		).toBeNull()
 	})
 
 	it("takes the first branch it can make, keeping the base", () => {
 		const schema = { properties: { kind: { const: "k" } }, required: ["kind"] }
-		const union = [false, { properties: { a: { const: 1 } }, required: ["a"] }]
-		expect(unionOf(schema, union, at(), instance)).toEqual({ a: 1, kind: "k" })
+		const oneOf = [false, { properties: { a: { const: 1 } }, required: ["a"] }]
+		expect(unionOf({ ...schema, oneOf }, at(), instance)).toEqual({ a: 1, kind: "k" })
 	})
 
 	it("is null when only the null branch is left, and refuses with every reason otherwise", () => {
-		expect(unionOf({}, [false, { type: "null" }], at(), instance)).toBeNull()
-		expect(() => unionOf({}, [false, { enum: [] }], at(), instance)).toThrow(
+		expect(unionOf({ oneOf: [false, { type: "null" }] }, at(), instance)).toBeNull()
+		expect(() => unionOf({ oneOf: [false, { enum: [] }] }, at(), instance)).toThrow(
 			"no branch of the union can be generated: the schema admits no value (false); the enum is empty",
 		)
 	})
 
 	it("lets an error that is not about the schema through", () => {
-		expect(() => unionOf({}, [{ type: "number" }], at({ rand: noRandomness }), instance)).toThrow(TypeError)
+		expect(() => unionOf({ oneOf: [{ type: "number" }] }, at({ rand: noRandomness }), instance)).toThrow(TypeError)
 	})
 })
 

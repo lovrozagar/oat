@@ -89,7 +89,10 @@ export function listing(patch: Partial<QueryConventions>, ...omit: Array<keyof Q
 
 /** A context on the widgets list holding one row, with `fields` laid over it. */
 export function stage(respond: Responder, fields: Partial<CheckContext> = {}) {
-	return contextFor(widgetsModel(), "listWidgets", respond, { query: tagQuery(), records: [ROW], ...fields })
+	return contextFor(widgetsModel(), "listWidgets", {
+		respond,
+		fields: { query: tagQuery(), records: [ROW], ...fields },
+	})
 }
 
 /** Answers every request `ok`, except those whose query includes `value` in some parameter, which get `status`. */

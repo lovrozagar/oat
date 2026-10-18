@@ -73,17 +73,20 @@ describe("or", () => {
 
 describe("and of or", () => {
 	it("nests an or group inside an and group where the grammar lets them nest", () => {
-		expect(renderAndOfOr(postgrest, "filter", { field: "a", op: "gt", value: 1 }, both)).toEqual({
+		expect(renderAndOfOr(postgrest, "filter", { either: both, first: { field: "a", op: "gt", value: 1 } })).toEqual({
 			filter: "and(a.gt.1,or(Qty.eq.2,Name.eq.x))",
 		})
 	})
 
 	it("is null unless the grammar nests, and when a term cannot be written", () => {
-		expect(renderAndOfOr(spec, "filter", both[0] as FilterPredicate, both)).toBeNull()
-		expect(renderAndOfOr(postgrest, undefined, both[0] as FilterPredicate, both)).toBeNull()
-		expect(renderAndOfOr(postgrest, "filter", { field: "a", op: "is", value: 1 }, both)).toBeNull()
+		expect(renderAndOfOr(spec, "filter", { either: both, first: both[0] as FilterPredicate })).toBeNull()
+		expect(renderAndOfOr(postgrest, undefined, { either: both, first: both[0] as FilterPredicate })).toBeNull()
+		expect(renderAndOfOr(postgrest, "filter", { either: both, first: { field: "a", op: "is", value: 1 } })).toBeNull()
 		expect(
-			renderAndOfOr(postgrest, "filter", both[0] as FilterPredicate, [{ field: "b", op: "is", value: "x" }]),
+			renderAndOfOr(postgrest, "filter", {
+				either: [{ field: "b", op: "is", value: "x" }],
+				first: both[0] as FilterPredicate,
+			}),
 		).toBeNull()
 	})
 })

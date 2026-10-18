@@ -72,7 +72,7 @@ export const patchMinimality = defineCheck<{
 		const moved = Object.keys(original).filter(
 			(key) => key !== field && !drifting.has(key) && JSON.stringify(baseline[key]) !== JSON.stringify(current[key]),
 		)
-		const collateral = moved.length === 0 ? moved : await withoutControlDrift(read, readOp, control, moved)
+		const collateral = moved.length === 0 ? moved : await withoutControlDrift({ read, readOp }, control, moved)
 		/* A ternary, not an early return: after the await above, v8 miscounts an if's implicit else. */
 		return collateral.length === 0
 			? ASSERTED
@@ -101,6 +101,12 @@ function collateralDetail(
 
 /** An item read of the record the path parameters name. */
 type Read = (params: Record<string, string>) => Promise<Exchange>
+
+/** How a record is read back: the read, and the operation whose response holds the record. */
+interface RecordReader {
+	read: Read
+	readOp: OperationModel
+}
 
 /** A record never written to, read before the PATCH: where it lives and what it held. */
 interface Control {
@@ -156,8 +162,7 @@ function driftingFields(writes: OperationModel[], original: Record_, baseline: R
 
 /* Whatever also moved on the untouched control record was not caused by this PATCH. */
 async function withoutControlDrift(
-	read: Read,
-	readOp: OperationModel,
+	{ read, readOp }: RecordReader,
 	control: Control | undefined,
 	collateral: string[],
 ): Promise<string[]> {

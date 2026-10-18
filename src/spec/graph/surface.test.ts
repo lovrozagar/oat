@@ -23,7 +23,11 @@ describe("invertInvalidate", () => {
 		const nameless = operation({ entity: null, invalidates: ["GET /notes"] })
 		const entities = new Map<string, EntityModel>()
 		const gaps = new GapCollector()
-		invertInvalidate(entities, [create, quiet, nameless], new Map([["GET /notes", list]]), gaps)
+		invertInvalidate(
+			entities,
+			{ byRoute: new Map([["GET /notes", list]]), operations: [create, quiet, nameless] },
+			gaps,
+		)
 		expect(entities.get("note")).toMatchObject({
 			declaredSurface: ["GET /notes", "GET /gone"],
 			readSurface: ["GET /notes", "GET /gone"],

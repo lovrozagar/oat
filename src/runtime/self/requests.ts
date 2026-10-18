@@ -26,10 +26,15 @@ export interface Caller {
 	auth: () => Record<string, string>
 }
 
+/** An operation and the filled path the request goes to. */
+export interface Route {
+	op: OperationModel
+	path: string
+}
+
 export async function sendUpdate(
 	caller: Caller,
-	op: OperationModel,
-	path: string,
+	{ op, path }: Route,
 	body: Record<string, unknown>,
 ): Promise<Exchange> {
 	return caller.client.request(op.method, path, {

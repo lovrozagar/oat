@@ -45,7 +45,7 @@ describe("readPathOf", () => {
 	})
 
 	it("fills the entity's read with the record's id", () => {
-		expect(readPathOf(model, disposable("comment", "c1", { note_id: "n1" }))).toMatchObject({
+		expect(readPathOf(model, disposable("comment", "c1", { scope: { note_id: "n1" } }))).toMatchObject({
 			op: { operationId: "comments.get" },
 			path: "/notes/n1/comments/c1",
 		})

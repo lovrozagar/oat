@@ -93,7 +93,13 @@ async function createNote(rows: Map<number, Row>, req: IncomingMessage, res: Ser
 	send(res, 200, { success: true })
 }
 
-function noteItem(rows: Map<number, Row>, pathname: string, method: string, res: ServerResponse): void {
+/* The item path a request names, and its method. */
+interface ItemRequest {
+	pathname: string
+	method: string
+}
+
+function noteItem(rows: Map<number, Row>, { method, pathname }: ItemRequest, res: ServerResponse): void {
 	const id = Number(decodeURIComponent(pathname.match(/^\/notes\/([^/]+)$/)?.[1] ?? ""))
 	const row = rows.get(id)
 	if (method === "GET") return row === undefined ? send(res, 404, {}) : send(res, 200, row)
@@ -110,7 +116,7 @@ async function serve(rows: Map<number, Row>): Promise<string> {
 			if (url.pathname === "/openapi.json") return send(res, 200, document)
 			if (url.pathname === "/notes" && method === "GET") return send(res, 200, [...rows.values()])
 			if (url.pathname === "/notes" && method === "POST") return createNote(rows, req, res)
-			noteItem(rows, url.pathname, method, res)
+			noteItem(rows, { method, pathname: url.pathname }, res)
 		})().catch(() => {
 			if (!res.headersSent) res.writeHead(500)
 			res.end()

@@ -42,8 +42,7 @@ describe("buildCohort on nested and cyclic schemas", () => {
 				type: "object",
 			},
 			1,
-			["baseline"],
-			{ operationId: "table.create" },
+			{ variants: ["baseline"], operationId: "table.create" },
 		)
 		expect(members[0]?.body).toBeDefined()
 		expect(Array.isArray(members[0]?.body.columns)).toBe(true)
@@ -72,7 +71,7 @@ describe("buildCohort on nested and cyclic schemas", () => {
 			doc.paths?.["/tables"] as { post?: { requestBody?: { content?: Record<string, { schema?: unknown }> } } }
 		)?.post?.requestBody?.content?.["application/json"]?.schema as Record<string, unknown>
 		expect(() =>
-			buildCohort(schema ?? {}, 1, ["baseline"], { defs: documentDefs(doc), operationId: "table.create" }),
+			buildCohort(schema ?? {}, 1, { variants: ["baseline"], defs: documentDefs(doc), operationId: "table.create" }),
 		).not.toThrow()
 	})
 })
@@ -86,8 +85,7 @@ describe("buildCohort strings", () => {
 				type: "object",
 			},
 			1,
-			["unicode"],
-			{ operationId: "table.create" },
+			{ variants: ["unicode"], operationId: "table.create" },
 		)
 		const name = String(member?.body.name ?? "")
 		expect(name).toContain("äöüß")
@@ -107,8 +105,7 @@ describe("buildCohort string formats", () => {
 				type: "object",
 			},
 			1,
-			["baseline"],
-			{ operationId: "user.create" },
+			{ variants: ["baseline"], operationId: "user.create" },
 		)
 		expect(member?.body.email).toMatch(/^[^@]+@[^@]+\.[^@]+$/)
 	})
@@ -121,8 +118,7 @@ describe("buildCohort string formats", () => {
 				type: "object",
 			},
 			1,
-			COHORT,
-			{ operationId: "thing.create" },
+			{ variants: COHORT, operationId: "thing.create" },
 		)
 		expect(members).toHaveLength(COHORT.length)
 		expect(failing(members, "name", (value) => length(value) >= 3 && length(value) <= 32)).toEqual([])
@@ -137,8 +133,7 @@ describe("buildCohort string formats", () => {
 				type: "object",
 			},
 			1,
-			COHORT,
-			{ operationId: "user.create" },
+			{ variants: COHORT, operationId: "user.create" },
 		)
 		const re = new RegExp(pattern)
 		const handle = (value: unknown) => typeof value === "string" && re.test(value) && codePointCount(value) >= 3
@@ -157,9 +152,7 @@ describe("generateBody", () => {
 				required: ["req"],
 				type: "object",
 			},
-			"baseline",
-			mulberry32(1),
-			0,
+			{ index: 0, rand: mulberry32(1), variant: "baseline" },
 		)
 		expect(body.opt).toBeUndefined()
 		expect(body.req).toBeUndefined()
@@ -176,8 +169,7 @@ describe("buildCohort padding", () => {
 				type: "object",
 			},
 			1,
-			["baseline"],
-			{ operationId: "user.create" },
+			{ variants: ["baseline"], operationId: "user.create" },
 		)
 		const email = String(member?.body.email ?? "")
 		expect(codePointCount(email)).toBeGreaterThanOrEqual(40)
@@ -192,8 +184,7 @@ describe("buildCohort padding", () => {
 				type: "object",
 			},
 			1,
-			COHORT,
-			{ operationId: "thing.create" },
+			{ variants: COHORT, operationId: "thing.create" },
 		)
 		expect(failing(members, "name", (value) => codePointCount(String(value ?? "")) >= 5)).toEqual([])
 	})
@@ -205,9 +196,7 @@ describe("buildCohort padding", () => {
 				required: ["code"],
 				type: "object",
 			},
-			"baseline",
-			mulberry32(1),
-			0,
+			{ index: 0, rand: mulberry32(1), variant: "baseline" },
 		)
 		expect(body.code).toBeUndefined()
 		expect(missingRequired).toContain("/code")
@@ -236,10 +225,12 @@ function throwing(key: string): Record<string, unknown> {
 
 describe("buildCohort on a schema that cannot be read", () => {
 	it("reports it as an overflow with the error, never a crash", () => {
-		expect(() => buildCohort(throwing("properties"), 1, ["baseline"], { operationId: "note.create" })).toThrow(
-			FixtureOverflow,
-		)
-		expect(() => buildCohort(throwing("properties"), 1, ["baseline"], { operationId: "note.create" })).toThrow(/boom/)
+		expect(() =>
+			buildCohort(throwing("properties"), 1, { variants: ["baseline"], operationId: "note.create" }),
+		).toThrow(FixtureOverflow)
+		expect(() =>
+			buildCohort(throwing("properties"), 1, { variants: ["baseline"], operationId: "note.create" }),
+		).toThrow(/boom/)
 	})
 })
 
@@ -278,23 +269,23 @@ describe("buildCohort's self-check", () => {
 
 	it("names the operation and field it cannot make, defaulting the operation to unknown", () => {
 		const schema = { properties: { a: impossible }, required: ["a"], type: "object" }
-		expect(() => buildCohort(schema, 1, ["baseline"])).toThrow(
+		expect(() => buildCohort(schema, 1, { variants: ["baseline"] })).toThrow(
 			"cannot generate a valid body for unknown at /a: minLength 5 exceeds maxLength 1",
 		)
 	})
 
 	it("refuses a body the schema rejects, and accepts anything for a vacuous one", () => {
-		expect(() => buildCohort({ not: {}, type: "object" }, 1, ["baseline"], { operationId: "x.create" })).toThrow(
-			"cannot generate a valid body for x.create at /: (root) must NOT be valid",
-		)
-		expect(() => buildCohort({ type: "string" }, 1, ["baseline"])).toThrow(/\(root\) must be string/)
+		expect(() =>
+			buildCohort({ not: {}, type: "object" }, 1, { variants: ["baseline"], operationId: "x.create" }),
+		).toThrow("cannot generate a valid body for x.create at /: (root) must NOT be valid")
+		expect(() => buildCohort({ type: "string" }, 1, { variants: ["baseline"] })).toThrow(/\(root\) must be string/)
 		expect(buildCohort(true, 1)).toHaveLength(COHORT.length)
 	})
 
 	it("passes definitions and the nonce through, salting distinct fields", () => {
 		const schema = { properties: { name: { $ref: "oat-defs#/$defs/Name" } }, required: ["name"], type: "object" }
 		const options = { defs: { Name: { type: "string" } }, distinct: new Set(["name"]), nonce: "n1" }
-		const [member] = buildCohort(schema, 1, ["baseline"], options)
+		const [member] = buildCohort(schema, 1, { ...options, variants: ["baseline"] })
 		expect(String(member?.body.name)).toContain("n1")
 	})
 })
@@ -303,9 +294,18 @@ describe("generateBody's partial bodies", () => {
 	const impossible = { maxLength: 1, minLength: 5, type: "string" }
 
 	it("is the value as made when it is not an object, and the root when the root cannot be made", () => {
-		expect(generateBody({ type: "string" }, "baseline", mulberry32(1), 0)).toEqual({ body: {}, missingRequired: [] })
-		expect(generateBody(impossible, "baseline", mulberry32(1), 0)).toEqual({ body: {}, missingRequired: ["/"] })
-		expect(generateBody(false, "baseline", mulberry32(1), 0)).toEqual({ body: {}, missingRequired: ["/"] })
+		expect(generateBody({ type: "string" }, { index: 0, rand: mulberry32(1), variant: "baseline" })).toEqual({
+			body: {},
+			missingRequired: [],
+		})
+		expect(generateBody(impossible, { index: 0, rand: mulberry32(1), variant: "baseline" })).toEqual({
+			body: {},
+			missingRequired: ["/"],
+		})
+		expect(generateBody(false, { index: 0, rand: mulberry32(1), variant: "baseline" })).toEqual({
+			body: {},
+			missingRequired: ["/"],
+		})
 	})
 
 	it("drops a field required only through allOf and makes the rest", () => {
@@ -314,7 +314,7 @@ describe("generateBody's partial bodies", () => {
 			properties: { a: impossible, b: { type: "string" } },
 			type: "object",
 		}
-		const { body, missingRequired } = generateBody(schema, "baseline", mulberry32(1), 0)
+		const { body, missingRequired } = generateBody(schema, { index: 0, rand: mulberry32(1), variant: "baseline" })
 		expect(missingRequired).toEqual(["/a"])
 		expect(Object.keys(body).toSorted()).toEqual(["a", "b"])
 	})
@@ -331,13 +331,13 @@ describe("ensureDistinctUniqueValues", () => {
 
 	it("leaves a cohort alone when there is no set, or nothing to collide with", () => {
 		const members = cohort({ code: "a" }, { code: "a" })
-		expect(ensureDistinctUniqueValues(members, [], schema)).toEqual({ gap: null, members })
-		expect(ensureDistinctUniqueValues(members.slice(0, 1), [["code"]], schema).members).toHaveLength(1)
+		expect(ensureDistinctUniqueValues(members, [], { schema })).toEqual({ gap: null, members })
+		expect(ensureDistinctUniqueValues(members.slice(0, 1), [["code"]], { schema }).members).toHaveLength(1)
 	})
 
 	it("redraws a colliding column until every tuple differs", () => {
 		const members = cohort({ code: "a", n: 1 }, { code: "a", n: 1 }, { code: "b", n: 1 })
-		const result = ensureDistinctUniqueValues(members, [["code"], ["n", "code"]], schema, { nonce: "r" })
+		const result = ensureDistinctUniqueValues(members, [["code"], ["n", "code"]], { schema, nonce: "r" })
 		expect(result.gap).toBeNull()
 		expect(new Set(result.members.map((member) => member.body.code)).size).toBe(3)
 		expect(result.members.map((member) => member.variant)).toEqual(COHORT.slice(0, 3))
@@ -345,7 +345,7 @@ describe("ensureDistinctUniqueValues", () => {
 
 	it("drops the members a schema cannot tell apart, and says so", () => {
 		const members = cohort({ kind: "only" }, { kind: "only" }, { other: 1 }, { other: 1 })
-		const result = ensureDistinctUniqueValues(members, [["kind"], ["other"]], schema, { defs: {} })
+		const result = ensureDistinctUniqueValues(members, [["kind"], ["other"]], { schema, defs: {} })
 		expect(result.members.map((member) => member.body)).toEqual([{ kind: "only" }, { other: 1 }])
 		expect(result.gap).toBe(
 			"x-unique cannot express distinct values for [kind]; [other] within the schema; extra variants skipped",
@@ -354,15 +354,15 @@ describe("ensureDistinctUniqueValues", () => {
 
 	it("stops redrawing a column its schema cannot make", () => {
 		const unmakeable = { properties: { code: { maxLength: 1, minLength: 5, type: "string" } }, type: "object" }
-		const result = ensureDistinctUniqueValues(cohort({ code: "a" }, { code: "a" }), [["code"]], unmakeable)
+		const result = ensureDistinctUniqueValues(cohort({ code: "a" }, { code: "a" }), [["code"]], { schema: unmakeable })
 		expect(result.members).toHaveLength(1)
 		expect(result.gap).not.toBeNull()
 	})
 
 	it("treats a set no body fills as never colliding, and a boolean schema as having no columns", () => {
 		const members = cohort({ code: "a" }, { code: "a" })
-		expect(ensureDistinctUniqueValues(members, [["absent"]], schema).gap).toBeNull()
-		expect(ensureDistinctUniqueValues(members, [["code"]], true).members).toHaveLength(1)
+		expect(ensureDistinctUniqueValues(members, [["absent"]], { schema }).gap).toBeNull()
+		expect(ensureDistinctUniqueValues(members, [["code"]], { schema: true }).members).toHaveLength(1)
 	})
 })
 
@@ -371,6 +371,6 @@ describe("generateBody on a field required through allOf", () => {
 		const schema = {
 			allOf: [{ properties: { a: { maxLength: 1, minLength: 5, type: "string" } }, required: ["a"], type: "object" }],
 		}
-		expect(generateBody(schema, "baseline", () => 0.5, 0).missingRequired).toEqual(["/a"])
+		expect(generateBody(schema, { index: 0, rand: () => 0.5, variant: "baseline" }).missingRequired).toEqual(["/a"])
 	})
 })

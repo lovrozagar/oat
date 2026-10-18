@@ -1,4 +1,4 @@
-import type { Context, Schema, Walk } from "./types.ts"
+import type { At, Schema, Walk } from "./types.ts"
 import { Unconstructible } from "./unconstructible.ts"
 
 function itemBounds(schema: Schema, pointer: string): { min: number; max: number } {
@@ -8,11 +8,12 @@ function itemBounds(schema: Schema, pointer: string): { min: number; max: number
 	return { max, min }
 }
 
-export function arrayFor(schema: Schema, ctx: Context, pointer: string, walk: Walk): unknown[] {
+export function arrayFor(schema: Schema, at: At, walk: Walk): unknown[] {
+	const { ctx, pointer } = at
 	const { min, max } = itemBounds(schema, pointer)
 	const prefix = Array.isArray(schema.prefixItems) ? schema.prefixItems : []
 	const out: unknown[] = prefix.map((item, position) =>
-		walk(item, { ...ctx, index: ctx.index + position }, `${pointer}/${position}`, false),
+		walk(item, { ctx: { ...ctx, index: ctx.index + position }, distinct: false, pointer: `${pointer}/${position}` }),
 	)
 	/* One element where the schema allows it: an empty array fails `minItems` on exactly the
 	 * collections most worth testing, and one element is what a cohort needs to filter on. */
@@ -23,7 +24,11 @@ export function arrayFor(schema: Schema, ctx: Context, pointer: string, walk: Wa
 	for (let attempt = 0; out.length < want && attempt < want + 8; attempt++) {
 		let value: unknown
 		try {
-			value = walk(items ?? true, { ...ctx, index: ctx.index + attempt }, `${pointer}/${out.length}`, false)
+			value = walk(items ?? true, {
+				ctx: { ...ctx, index: ctx.index + attempt },
+				distinct: false,
+				pointer: `${pointer}/${out.length}`,
+			})
 		} catch (error) {
 			if (error instanceof Unconstructible && out.length >= min) break
 			throw error

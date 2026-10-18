@@ -114,7 +114,7 @@ async function probeMissingItemError(judge: ErrorJudge, readOp: OperationModel, 
 function judgeErrorBody(judge: ErrorJudge, subject: ErrorSubject, exchange: Exchange): void {
 	const { check, ctx, validator } = judge
 	const { operationId } = subject
-	const result = validator.validate(operationId, subject.raw, exchange.status, exchange.responseBody)
+	const result = validator.validate(operationId, subject.raw, exchange)
 	if (result.unchecked !== undefined) {
 		subject.gaps.gap(check, ctx.entityName, {
 			summary: `${operationId} ${exchange.status} has a schema that cannot be compiled`,

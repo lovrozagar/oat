@@ -79,7 +79,7 @@ export function reserveClientIdentity(
 	let reserved = body
 	const held = (): boolean => taken.has(idOf(reserved, ctx.identity) ?? NO_KEY)
 	for (let token = 0; token < 16 && held(); token++) {
-		reserved = uniquifyProbeBody(reserved, [[ctx.identity]], schema, `i${salt}t${token}`)
+		reserved = uniquifyProbeBody(reserved, [[ctx.identity]], { schema, token: `i${salt}t${token}` })
 	}
 	if (held()) throw new Error(`no "${ctx.identity}" is left that names no existing record`)
 	/* Reserved now, before the request goes out, so a body made meanwhile picks another. */

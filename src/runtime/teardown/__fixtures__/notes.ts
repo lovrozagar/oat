@@ -108,7 +108,13 @@ export function owner(id: string): Owner {
 	return { headers: () => ({ authorization: `Bearer ${id}` }), id }
 }
 
-export function disposable(entity: string, id: string, scope: Record<string, string> = {}, by = "alpha"): Disposable {
+/** Where a disposable record was made and who made it. */
+export interface Provenance {
+	scope?: Record<string, string>
+	by?: string
+}
+
+export function disposable(entity: string, id: string, { scope = {}, by = "alpha" }: Provenance = {}): Disposable {
 	return { entity, id, owner: owner(by), scope }
 }
 
@@ -165,12 +171,11 @@ export function notesClient(held: Store) {
 	return fakeClient(notesApi(held))
 }
 
-/** An unwind of `items` against `model` over `held`, with every record still counted in place. */
+/** An unwind of `items` against `fields.model` over `held`, with every record still counted in place. */
 export function unwindOf(
-	model: SpecModel,
 	held: Store,
 	items: readonly Disposable[],
-	fields: Partial<Unwind> = {},
+	fields: Pick<Unwind, "model"> & Partial<Unwind>,
 ): Unwind & { sent: ReturnType<typeof notesClient>["sent"] } {
 	const { client, sent } = notesClient(held)
 	return {
@@ -179,7 +184,6 @@ export function unwindOf(
 		done: 0,
 		fallbacks: () => [],
 		ledger: { movedAway: () => undefined, seenByCreator: () => true, sighted: () => undefined },
-		model,
 		onItem: undefined,
 		paths: new Map(),
 		records: new Map(

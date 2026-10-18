@@ -24,9 +24,9 @@ export const filterOrderedTriplePartitions = defineCheck<{
 		if (threshold === undefined) return cannot()
 		const conventions = conv(ctx)
 		const field = picked.field.field
-		const lt = filterTerm(conventions, field, "lt", threshold)
-		const eq = filterTerm(conventions, field, "eq", threshold)
-		const gt = filterTerm(conventions, field, "gt", threshold)
+		const lt = filterTerm(conventions, { field, op: "lt", value: threshold })
+		const eq = filterTerm(conventions, { field, op: "eq", value: threshold })
+		const gt = filterTerm(conventions, { field, op: "gt", value: threshold })
 		if (lt === null || eq === null || gt === null) return cannot("a filter grammar that can express lt, eq and gt")
 		return ready({ eq, field, gt, lt, threshold })
 	},

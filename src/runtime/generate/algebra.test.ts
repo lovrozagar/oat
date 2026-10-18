@@ -98,18 +98,20 @@ describe("mergeAll", () => {
 	it("folds every object branch, nested allOf included, and drops allOf", () => {
 		expect(
 			mergeAll(
-				{ allOf: [], type: "object" },
-				[{ properties: { a: {} } }, "not a schema", { allOf: [{ required: ["a"] }], properties: { b: {} } }],
+				{
+					allOf: [{ properties: { a: {} } }, "not a schema", { allOf: [{ required: ["a"] }], properties: { b: {} } }],
+					type: "object",
+				},
 				"",
 			),
 		).toEqual({ properties: { a: {}, b: {} }, required: ["a"], type: "object" })
 	})
 
 	it("refuses an allOf that is not a list, naming the value and the allOf within its schema", () => {
-		expect(() => mergeAll({}, { a: 1 }, "/x")).toThrow(
+		expect(() => mergeAll({ allOf: { a: 1 } }, "/x")).toThrow(
 			expect.objectContaining({ pointer: "/x", reason: "allOf is not a list of schemas" }),
 		)
-		expect(() => mergeAll({}, [{ allOf: 5 }], "")).toThrow(
+		expect(() => mergeAll({ allOf: [{ allOf: 5 }] }, "")).toThrow(
 			expect.objectContaining({ reason: "allOf/0/allOf is not a list of schemas" }),
 		)
 	})

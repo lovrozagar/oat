@@ -11,18 +11,21 @@ const DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2
 
 const invalid = (message: string): HttpError => new HttpError(400, "invalid_input", message)
 
-export function validateBody(
-	entity: EntityDef,
-	body: unknown,
-	mode: "create" | "update" | "replace",
-	defects: DefectSet,
-): Row {
+/** What a write body is checked against: the entity, the kind of write, and the defects in force. */
+export interface BodyRules {
+	entity: EntityDef
+	mode: "create" | "update" | "replace"
+	defects: DefectSet
+}
+
+export function validateBody(body: unknown, rules: BodyRules): Row {
+	const { entity, mode, defects } = rules
 	if (body === null || typeof body !== "object" || Array.isArray(body)) {
 		throw invalid("request body must be a JSON object")
 	}
 	const input = body as Row
 	const allowed = new Map(writableFields(entity, mode === "create" ? "create" : "update").map((f) => [f.name, f]))
-	for (const key of Object.keys(input)) admit(entity, key, allowed, defects)
+	for (const key of Object.keys(input)) admit(key, allowed, rules)
 	/* A create, and a replacing update, must carry every required field. */
 	if (mode !== "update" && !defects.has("REQUIRED_NOT_VALIDATED")) {
 		const missing = [...allowed.values()].find((field) => field.required === true && input[field.name] === undefined)
@@ -37,7 +40,7 @@ export function validateBody(
 }
 
 /* A key the body may carry: writable, or — under the defect — immutable or generated too. */
-function admit(entity: EntityDef, key: string, allowed: Map<string, FieldDef>, defects: DefectSet): void {
+function admit(key: string, allowed: Map<string, FieldDef>, { entity, defects }: BodyRules): void {
 	if (allowed.has(key)) return
 	const known = entity.fields.find((f) => f.name === key)
 	if (known === undefined) throw invalid(`unknown field "${key}"`)

@@ -57,16 +57,22 @@ export function callerEchoed(sent: Record<string, unknown>, body: unknown): bool
 }
 
 /** The body the create sends: the schema's required fields, generated; or why none can be. */
+/** The create the caller's body is made for: its operation and its request schema. */
+interface CreateRequest {
+	operationId: string
+	schema: Record<string, unknown>
+}
+
 function callerBody(
 	input: CallerInput,
 	findings: FindingCollector,
-	schema: Record<string, unknown>,
-	operationId: string,
+	{ operationId, schema }: CreateRequest,
 ): { body: Record<string, unknown> } | { outcome: Outcome } {
 	const required = requiredSchema(schema)
 	try {
 		/* One variant asked for, one member made: buildCohort maps the variants it is given. */
-		const member = buildCohort(required, input.seed ?? 1, ["baseline"], {
+		const member = buildCohort(required, input.seed ?? 1, {
+			variants: ["baseline"],
 			distinct: propertyNames(required),
 			...(input.nonce === undefined ? {} : { nonce: input.nonce }),
 			operationId,
@@ -98,11 +104,11 @@ export async function createCaller(
 	if (schema === null) {
 		return findings.unresolved(SELF_CHECK_ID, input.entity.name, `${createOp.operationId} declares no request body`)
 	}
-	const generated = callerBody(input, findings, schema, createOp.operationId)
+	const generated = callerBody(input, findings, { operationId: createOp.operationId, schema })
 	if ("outcome" in generated) return generated.outcome
 	let body = generated.body
 	if (input.resolveInput !== undefined) {
-		body = await applyResolveInput(body, createOp.operationId, schema, input.resolveInput)
+		body = await applyResolveInput(body, input.resolveInput, { operationId: createOp.operationId, schema })
 	}
 	const exchange = await input.client.request(createOp.method, createPath, {
 		body,

@@ -26,7 +26,7 @@ async function judge(exchanges: Exchange[], transcript: Transcript = {}) {
 
 describe("response.status-is-documented plan", () => {
 	it("applies to an entity with any operation besides its create", () => {
-		const { ctx } = contextFor(model, "item.list", () => undefined)
+		const { ctx } = contextFor(model, "item.list", { respond: () => undefined })
 		expect(documentedStatusHonoured.plan(ctx).ok).toBe(true)
 		expect(documentedStatusHonoured.plan({ ...ctx, entityName: "ghost" }).ok).toBe(false)
 	})
@@ -129,7 +129,7 @@ describe("response.status-is-documented stand-asides", () => {
 })
 
 describe("describeUndeclared", () => {
-	const { ctx } = contextFor(model, "item.list", () => undefined)
+	const { ctx } = contextFor(model, "item.list", { respond: () => undefined })
 
 	it("says when an operation declares no concrete status, or is not in the document", () => {
 		const { lines, evidence } = describeUndeclared(

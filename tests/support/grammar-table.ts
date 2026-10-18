@@ -60,7 +60,7 @@ export function grammarTable(): Record<string, unknown> {
 			for (const op of FILTER_OPS) {
 				table[`canWrite|${scope}|${op}`] = canWriteFilterOp(at, op)
 				for (const [label, value] of VALUES) {
-					table[`filterTerm|${scope}|${op}|${label}`] = filterTerm(at, "qty", op, value)
+					table[`filterTerm|${scope}|${op}|${label}`] = filterTerm(at, { field: "qty", op, value })
 				}
 			}
 			for (const [label, value] of VALUES) {
@@ -75,10 +75,14 @@ export function grammarTable(): Record<string, unknown> {
 	for (const grammar of SORT_GRAMMARS) {
 		const at = conventions("postgrest", "filter", { sortGrammar: grammar })
 		for (const direction of ["asc", "desc"] as const) {
-			table[`sortTerm|${grammar}|${direction}`] = sortTerm(at, "qty", direction)
+			table[`sortTerm|${grammar}|${direction}`] = sortTerm(at, { direction, field: "qty" })
 			for (const nulls of ["first", "last"] as const) {
-				table[`sortTerm|${grammar}|${direction}|${nulls}`] = sortTerm(at, "qty", direction, nulls)
-				table[`sortTermWithNulls|${grammar}|${direction}|${nulls}`] = sortTermWithNulls(at, "qty", direction, nulls)
+				table[`sortTerm|${grammar}|${direction}|${nulls}`] = sortTerm(at, { direction, field: "qty", nulls })
+				table[`sortTermWithNulls|${grammar}|${direction}|${nulls}`] = sortTermWithNulls(at, {
+					direction,
+					field: "qty",
+					nulls,
+				})
 			}
 		}
 	}

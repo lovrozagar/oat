@@ -54,13 +54,14 @@ function plannedMembers(
 	plan: CohortPlan,
 ): { members: CohortMember[]; gap: string | null } {
 	const { model, options } = seeding
-	const generated = buildCohort(plan.schema, options.seed, undefined, {
+	const generated = buildCohort(plan.schema, options.seed, {
 		defs: model.defs,
 		distinct: new Set(plan.avoid.flat()),
 		...(options.nonce === undefined ? {} : { nonce: options.nonce }),
 		operationId: createOp.operationId,
 	}).slice(0, options.cohortSize ?? 7)
-	return ensureDistinctUniqueValues(generated, createOp.unique ?? [], plan.schema, {
+	return ensureDistinctUniqueValues(generated, createOp.unique ?? [], {
+		schema: plan.schema,
 		defs: model.defs,
 		distinct: new Set((createOp.unique ?? []).flat()),
 		...(options.nonce === undefined ? {} : { nonce: options.nonce }),
@@ -78,7 +79,7 @@ function avoidExisting(
 	let kept = members.map((member, index) => {
 		let body = member.body
 		for (let token = 0; token < 8 && uniqueTupleCollides(body, avoid, existing); token++) {
-			body = uniquifyProbeBody(body, avoid, plan.schema, `ex${index}${token}-${input.nonce ?? ""}`)
+			body = uniquifyProbeBody(body, avoid, { schema: plan.schema, token: `ex${index}${token}-${input.nonce ?? ""}` })
 		}
 		return { ...member, body }
 	})

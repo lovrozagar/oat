@@ -52,7 +52,7 @@ export const uniqueConflictCreate = defineCheck<{
 		/* A create with no documented body has no column to collide on. */
 		const schema = requestSchemaOf(ctx, createOp)
 		if (schema === null) return cannot()
-		const sets = probeableUniqueSets(createOp, ctx.model, "create", ctx.uniqueSets)
+		const sets = probeableUniqueSets(createOp, ctx.model, { phase: "create", sets: ctx.uniqueSets })
 		return sets.length === 0 ? cannot() : ready({ createOp, first, schema, sets })
 	},
 	/* Reads whole sets across pages, so a walk that skips or repeats records corrupts them. */
@@ -116,7 +116,7 @@ async function sendCollision(
 	/* Distinct unique columns, then an identity no record holds: only `set` may collide. */
 	const base = reserveClientIdentity(
 		ctx,
-		uniquifyProbeBody(validBody(ctx, schema), ctx.uniqueSets, schema, salt),
+		uniquifyProbeBody(validBody(ctx, schema), ctx.uniqueSets, { schema, token: salt }),
 		schema,
 		salt,
 	)
@@ -127,12 +127,11 @@ async function sendCollision(
 		set,
 	})
 	if (body === null) return null
-	const headers = uniqueProbeHeaders(
-		ctx.auth(),
-		createOp.idempotencyHeader,
-		probe.required,
-		`oat-unique-${ctx.entityName}-${ctx.seed}-${index}`,
-	)
+	const headers = uniqueProbeHeaders(ctx.auth(), {
+		header: createOp.idempotencyHeader,
+		required: probe.required,
+		fresh: `oat-unique-${ctx.entityName}-${ctx.seed}-${index}`,
+	})
 	const encoded = await encodeOpBody(ctx, createOp, body)
 	return ctx.client.request("POST", probe.path, { ...encoded, headers, operationId: createOp.operationId })
 }

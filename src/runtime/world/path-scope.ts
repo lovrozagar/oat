@@ -50,10 +50,15 @@ function ancestorOf(op: OperationModel, model: SpecModel, param: string): Ancest
 	return { createOp, entity, owner, param }
 }
 
+/** An ancestor, and the key its id is shared under: one per principal and parent path. */
+interface KeyedAncestor extends Ancestor {
+	cacheKey: string
+}
+
 /** Makes the ancestor, reports it, and keeps its id for every later scope that needs the same one. */
-async function makeAncestor(ancestor: Ancestor, seeding: Seeding, scope: Scope, cacheKey: string): Promise<string> {
+async function makeAncestor(ancestor: KeyedAncestor, seeding: Seeding, scope: Scope): Promise<string> {
 	const { options } = seeding
-	const { owner, param } = ancestor
+	const { cacheKey, owner, param } = ancestor
 	const { record: created, adopted } = await createOne(ancestor.createOp, seeding, scope)
 	const identity = ancestor.entity.identity ?? "id"
 	const id = returnedId(created, identity)
@@ -103,7 +108,7 @@ export async function resolvePathScope(
 			scope.values[param] = await pending
 			continue
 		}
-		const creating = makeAncestor(ancestor, seeding, scope, cacheKey)
+		const creating = makeAncestor({ ...ancestor, cacheKey }, seeding, scope)
 		options.ancestors?.creating.set(cacheKey, creating)
 		try {
 			scope.values[param] = await creating

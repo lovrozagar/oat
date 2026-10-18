@@ -48,4 +48,4 @@ export interface At {
 }
 
 /** The walk itself, handed to the parts that recurse so none of them imports it back. */
-export type Walk = (raw: unknown, ctx: Context, pointer: string, distinct: boolean) => unknown
+export type Walk = (raw: unknown, at: At) => unknown

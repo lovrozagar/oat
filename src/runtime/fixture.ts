@@ -105,14 +105,14 @@ function readable(schema: Schema | boolean, operationId: string): Schema | boole
 	}
 }
 
+/** A cohort to build: the variants to make, default the whole `COHORT`, and how to make them. */
+export interface CohortBuild extends CohortOptions {
+	variants?: readonly Variant[]
+}
+
 /** One body per variant, each valid for the schema — or a `FixtureOverflow` naming what is not. */
-export function buildCohort(
-	bodySchema: Schema | boolean,
-	seed: number,
-	variants: readonly Variant[] = COHORT,
-	options: CohortOptions = {},
-): CohortMember[] {
-	const { operationId = "unknown" } = options
+export function buildCohort(bodySchema: Schema | boolean, seed: number, options: CohortBuild = {}): CohortMember[] {
+	const { operationId = "unknown", variants = COHORT } = options
 	const schema = readable(bodySchema, operationId)
 	return variants.map((variant, index) => {
 		const result = generate(schema, {
@@ -134,17 +134,23 @@ export function buildCohort(
 	})
 }
 
+/** Which body to draw: its variant, the random source, and its position in a cohort. */
+export interface BodyDraw {
+	variant: Variant
+	rand: () => number
+	index: number
+}
+
 /**
  * One body, with the required fields that could not be made rather than an exception — for
  * callers that report each gap themselves. Optional fields that cannot be made are left out.
  */
 export function generateBody(
 	bodySchema: Schema | boolean,
-	variant: Variant,
-	rand: () => number,
-	index: number,
+	draw: BodyDraw,
 ): { body: Record<string, unknown>; missingRequired: string[] } {
 	const schema = requestSchema(bodySchema)
+	const { index, rand, variant } = draw
 	const result = generate(schema, { index, rand, variant })
 	if (result.ok) return { body: isObject(result.value) ? result.value : {}, missingRequired: [] }
 	/*
@@ -162,7 +168,7 @@ export function generateBody(
 		const required = Array.isArray(schema.required) ? schema.required.filter((name) => name !== field) : []
 		const properties = { ...schema.properties }
 		delete properties[field]
-		const rest = generateBody({ ...schema, properties, required }, variant, rand, index)
+		const rest = generateBody({ ...schema, properties, required }, draw)
 		return { body: rest.body, missingRequired: [result.pointer, ...rest.missingRequired] }
 	}
 	return { body: {}, missingRequired: [result.pointer] }
@@ -177,11 +183,15 @@ function isObject(value: unknown): value is Record<string, unknown> {
  * column's schema. When the document cannot express two distinct values — a two-value enum and
  * seven members — the extra members are dropped and the caller records a gap.
  */
+/** What a member's unique columns are redrawn from: the body schema, and how cohort values are made. */
+export interface Redrawing extends CohortOptions {
+	schema: Schema | boolean
+}
+
 export function ensureDistinctUniqueValues(
 	members: CohortMember[],
 	sets: string[][],
-	schema: Schema | boolean,
-	options: CohortOptions = {},
+	{ schema, ...options }: Redrawing,
 ): { members: CohortMember[]; gap: string | null } {
 	if (sets.length === 0 || members.length <= 1) return { gap: null, members }
 	const normalized = requestSchema(schema)

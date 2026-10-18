@@ -136,20 +136,23 @@ export function inviteBackend(options: InviteBackendOptions = {}) {
 }
 
 /** The owner in org o1; the delegate, invited as bob, in org o2. */
-export const owner = actor("owner", 1, { org_id: "o1" })
-export const delegate = actor("delegate", 1, { org_id: "o2" }, { inviteAs: "bob" })
+export const owner = actor("owner", { rank: 1, roots: { org_id: "o1" } })
+export const delegate = actor("delegate", { rank: 1, roots: { org_id: "o2" }, inviteAs: "bob" })
 
 /** A context on note n1 with the invite tag the document declares, as the owner. */
 export function inviteContext(doc: OpenApiDocument, respond: Responder, fields: Partial<CheckContext> = {}) {
 	const model = modelOf(doc)
 	const invites = [...model.entities.values()].find((entity) => entity.invite !== null)
-	return contextFor(model, "listNotes", respond, {
-		actors: [owner, delegate],
-		auth: owner.headers,
-		invite: invites?.invite ?? null,
-		readOp: model.byOperationId.get("readNote"),
-		records: [{ id: "n1", title: "first" }],
-		scope: { org_id: "o1" },
-		...fields,
+	return contextFor(model, "listNotes", {
+		respond,
+		fields: {
+			actors: [owner, delegate],
+			auth: owner.headers,
+			invite: invites?.invite ?? null,
+			readOp: model.byOperationId.get("readNote"),
+			records: [{ id: "n1", title: "first" }],
+			scope: { org_id: "o1" },
+			...fields,
+		},
 	})
 }

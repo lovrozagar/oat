@@ -90,7 +90,13 @@ afterAll(() => close())
 
 type World = { seq: number; stores: Record<"apple" | "banana", Map<string, unknown>> }
 
-async function createFruit(world: World, entity: "apple" | "banana", req: IncomingMessage, res: ServerResponse) {
+/* One request and the response that answers it. */
+interface Exchange {
+	req: IncomingMessage
+	res: ServerResponse
+}
+
+async function createFruit(world: World, entity: "apple" | "banana", { req, res }: Exchange) {
 	const body = await readJson(req)
 	world.seq += 1
 	const row = { id: `${entity}_${world.seq}`, name: String(body.name ?? "n") }
@@ -98,7 +104,13 @@ async function createFruit(world: World, entity: "apple" | "banana", req: Incomi
 	send(res, 201, row)
 }
 
-function fruitItem(store: Map<string, unknown>, id: string, method: string, res: ServerResponse): void {
+/* The item a request names, and its method. */
+interface ItemRequest {
+	id: string
+	method: string
+}
+
+function fruitItem(store: Map<string, unknown>, { id, method }: ItemRequest, res: ServerResponse): void {
 	if (method === "GET") return store.has(id) ? send(res, 200, store.get(id)) : send(res, 404, {})
 	if (method !== "DELETE") return send(res, 405)
 	store.delete(id)
@@ -118,8 +130,8 @@ async function route(world: World, req: IncomingMessage, res: ServerResponse): P
 	/* The entity planned first answers slowly, so it finishes last. */
 	if (entity === "apple") await new Promise((resolve) => setTimeout(resolve, 60))
 	if (id === undefined && method === "GET") return send(res, 200, { items: [...store.values()] })
-	if (id === undefined && method === "POST") return createFruit(world, entity, req, res)
-	fruitItem(store, id ?? "", method, res)
+	if (id === undefined && method === "POST") return createFruit(world, entity, { req, res })
+	fruitItem(store, { id: id ?? "", method }, res)
 }
 
 async function start(): Promise<void> {

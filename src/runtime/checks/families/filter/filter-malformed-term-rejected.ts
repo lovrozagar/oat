@@ -29,7 +29,7 @@ export const filterMalformedTermRejected = defineCheck<{
 				spec: filterSpec(conventions),
 				value,
 			})
-			const control = filterTerm(conventions, field.field, "eq", value)
+			const control = filterTerm(conventions, { field: field.field, op: "eq", value })
 			if (malformed !== null && control !== null) return ready({ control, field: field.field, malformed })
 		}
 		return cannot("a declared grammar whose terms carry a conjunction or an operator to leave out")

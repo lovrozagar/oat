@@ -25,19 +25,27 @@ export function isIdempotencyHeaderName(name: string): boolean {
  *
  * Omit the key unless the document requires it, in which case send a fresh one.
  */
+/** The idempotency key a unique probe may need. */
+export interface IdempotencyKey {
+	/** The operation's idempotency header, when it names one. */
+	header: string | null
+	/** Whether the document requires the header. */
+	required: boolean
+	/** A key no earlier request sent. */
+	fresh: string
+}
+
 export function uniqueProbeHeaders(
 	auth: Record<string, string>,
-	idempotencyHeader: string | null,
-	required: boolean,
-	freshKey: string,
+	{ header, required, fresh }: IdempotencyKey,
 ): Record<string, string> {
 	const headers: Record<string, string> = {}
 	for (const [name, value] of Object.entries(auth)) {
 		if (isIdempotencyHeaderName(name)) continue
 		headers[name] = value
 	}
-	if (required && idempotencyHeader !== null && idempotencyHeader !== "") {
-		headers[idempotencyHeader] = freshKey
+	if (required && header !== null && header !== "") {
+		headers[header] = fresh
 	}
 	return headers
 }
@@ -74,11 +82,16 @@ function propertySchema(schema: Record<string, unknown> | null, name: string): R
  * body columns is skipped, not failed. Update sets whose columns are all `x-immutable` are
  * skipped.
  */
+export interface UniqueProbe {
+	phase: "create" | "update"
+	/** The sets to consider; the operation's own `x-unique` sets when absent. */
+	sets?: string[][]
+}
+
 export function probeableUniqueSets(
 	op: OperationModel,
 	model: SpecModel,
-	phase: "create" | "update",
-	sets: string[][] = op.unique ?? [],
+	{ phase, sets = op.unique ?? [] }: UniqueProbe,
 ): string[][] {
 	if (sets.length === 0) return []
 	const body = bodyPropertyNames(op, model)
@@ -102,11 +115,16 @@ export function uniqueTupleCollides(
 	})
 }
 
+/** What a fresh unique value is drawn from: the body's schema, and a token no earlier record used. */
+export interface Uniquifier {
+	schema: Record<string, unknown> | null
+	token: string
+}
+
 export function uniquifyProbeBody(
 	body: Record<string, unknown>,
 	sets: string[][],
-	schema: Record<string, unknown> | null,
-	token: string,
+	{ schema, token }: Uniquifier,
 ): Record<string, unknown> {
 	if (sets.length === 0) return { ...body }
 	const out = { ...body }

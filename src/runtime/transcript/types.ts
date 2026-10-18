@@ -11,6 +11,12 @@ export interface SentBody {
 	digest?: BodyDigest | undefined
 }
 
+/** What is already known about a response body as it came in: its size, and its hash when large. */
+export interface ReceivedBody {
+	bytes?: number | undefined
+	digest?: BodyDigest | undefined
+}
+
 export interface ResponsePayload {
 	parsed: unknown
 	bodyBytes: number

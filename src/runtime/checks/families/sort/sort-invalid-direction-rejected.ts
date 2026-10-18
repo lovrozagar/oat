@@ -23,7 +23,7 @@ export const sortInvalidDirectionRejected = defineCheck<{ control: string; order
 		if (field === undefined) return cannot("a sortable field")
 		const order = renderUnknownDirection(sortSpec(conventions), field, UNKNOWN_DIRECTION)
 		if (order === null) return cannot("a sort grammar with a token for each direction")
-		return ready({ control: sortTerm(conventions, field, "asc"), order })
+		return ready({ control: sortTerm(conventions, { direction: "asc", field }), order })
 	},
 	dependsOn: ["sort.order-is-applied"],
 	id: "sort.invalid-direction-rejected",

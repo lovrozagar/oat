@@ -76,17 +76,17 @@ export function normalizeSchema(schema: SchemaObject, options: NormalizeOptions)
 	return visit({ direction: options.direction, seen: new Map() }, schema)
 }
 
-function visit(state: Normalizing, node: SchemaObject): SchemaObject {
-	const cached = state.seen.get(node)
+function visit(ctx: Normalizing, node: SchemaObject): SchemaObject {
+	const cached = ctx.seen.get(node)
 	if (cached !== undefined) return cached
 	const out: SchemaObject = {}
-	state.seen.set(node, out)
+	ctx.seen.set(node, out)
 	for (const [key, value] of Object.entries(node)) {
-		if (!OPENAPI_ONLY.has(key)) translate(state, out, key, value)
+		if (!OPENAPI_ONLY.has(key)) translate(ctx, out, key, value)
 	}
 	resolveExclusiveBounds(out)
 	/* Properties that do not travel in this direction are neither allowed nor required. */
-	dropProperties(out, state.direction === "request" ? "readOnly" : "writeOnly")
+	dropProperties(out, ctx.direction === "request" ? "readOnly" : "writeOnly")
 	/* `nullable` widens whatever the schema otherwise allows. 3.1 has no such keyword, but
 	 * generators still emit it, and reading it there costs nothing. */
 	if (node.nullable === true) return nullable(out)
@@ -94,20 +94,20 @@ function visit(state: Normalizing, node: SchemaObject): SchemaObject {
 }
 
 /** Writes one keyword of a schema node into `out`, translating any subschemas it holds. */
-function translate(state: Normalizing, out: SchemaObject, key: string, value: unknown): void {
-	if (SINGLE.has(key) && isSchema(value)) out[key] = visit(state, value)
-	else if (LIST.has(key) && Array.isArray(value)) out[key] = visitEach(state, value)
+function translate(ctx: Normalizing, out: SchemaObject, key: string, value: unknown): void {
+	if (SINGLE.has(key) && isSchema(value)) out[key] = visit(ctx, value)
+	else if (LIST.has(key) && Array.isArray(value)) out[key] = visitEach(ctx, value)
 	/* Draft-04 tuple form: positional item schemas. */
-	else if (key === "items" && Array.isArray(value)) out.prefixItems = visitEach(state, value)
+	else if (key === "items" && Array.isArray(value)) out.prefixItems = visitEach(ctx, value)
 	else if (MAP.has(key) && isSchema(value)) {
 		const map: SchemaObject = {}
-		for (const [name, sub] of Object.entries(value)) map[name] = isSchema(sub) ? visit(state, sub) : sub
+		for (const [name, sub] of Object.entries(value)) map[name] = isSchema(sub) ? visit(ctx, sub) : sub
 		out[key] = map
 	} else out[key] = value
 }
 
-function visitEach(state: Normalizing, items: unknown[]): unknown[] {
-	return items.map((item) => (isSchema(item) ? visit(state, item) : item))
+function visitEach(ctx: Normalizing, items: unknown[]): unknown[] {
+	return items.map((item) => (isSchema(item) ? visit(ctx, item) : item))
 }
 
 function resolveExclusiveBounds(out: SchemaObject): void {

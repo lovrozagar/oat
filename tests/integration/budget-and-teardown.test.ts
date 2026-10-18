@@ -38,16 +38,19 @@ describe("teardown", () => {
 			const table = await client.request("POST", "/v1/projects/proj_alpha/tables", { body: { name: "t" }, headers })
 			const tableId = proven(answeredId(table, ["id"]))
 			const ledger = new Ledger()
-			ledger.record("table", tableId, { project_id: "proj_alpha", table_id: tableId }, owner)
+			ledger.record({ entity: "table", id: tableId, scope: { project_id: "proj_alpha", table_id: tableId } }, owner)
 			for (const label of ["a", "b"]) {
 				const row = await client.request("POST", `/v1/projects/proj_alpha/tables/${tableId}/rows`, {
 					body: { label },
 					headers,
 				})
 				const rowId = proven(answeredId(row, ["id"]))
-				ledger.record("row", rowId, { project_id: "proj_alpha", row_id: rowId, table_id: tableId }, owner)
+				ledger.record(
+					{ entity: "row", id: rowId, scope: { project_id: "proj_alpha", row_id: rowId, table_id: tableId } },
+					owner,
+				)
 			}
-			const result = await ledger.unwind(model, client, () => [])
+			const result = await ledger.unwind(model, client, { fallbacks: () => [] })
 			expect(result.removed).toBe(3)
 			const deletes = client.transcript.filter((exchange) => exchange.method === "DELETE").map((e) => e.url)
 			expect(deletes.at(-1)).toMatch(/\/tables\/[^/]+$/)
@@ -130,8 +133,8 @@ describe("teardown of a record the run already deleted", () => {
 			const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 			expect((await client.request("DELETE", "/v1/orgs/org_1", {})).status).toBe(204)
 			const ledger = new Ledger()
-			ledger.record("org", listed("org_1"), { org_id: "org_1" }, owner)
-			const result = await ledger.unwind(model, client, () => [])
+			ledger.record({ entity: "org", id: listed("org_1"), scope: { org_id: "org_1" } }, owner)
+			const result = await ledger.unwind(model, client, { fallbacks: () => [] })
 			expect(result.failed).toEqual([])
 			expect(result.removed).toBe(1)
 		} finally {
@@ -146,8 +149,8 @@ describe("teardown of a record the run already deleted", () => {
 			const owner = { headers: () => ({}), id: "alpha" }
 			const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 			const ledger = new Ledger()
-			ledger.record("org", listed("org_2"), { org_id: "org_2" }, owner)
-			const result = await ledger.unwind(model, client, () => [])
+			ledger.record({ entity: "org", id: listed("org_2"), scope: { org_id: "org_2" } }, owner)
+			const result = await ledger.unwind(model, client, { fallbacks: () => [] })
 			expect(result.removed).toBe(0)
 			expect(result.failed).toHaveLength(1)
 		} finally {

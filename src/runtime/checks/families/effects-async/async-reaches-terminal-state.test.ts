@@ -15,20 +15,20 @@ import {
 import { asyncReachesTerminalState as check } from "./async-reaches-terminal-state.ts"
 
 const lifecycle = { idFrom: "$.id", poll: "getJob", pollIntervalMs: 1, successWhen: "result.eq.ok", timeoutMs: 40 }
-const doc = withOperation(baseDocument(), "/jobs", "post", {
+const doc = withOperation(baseDocument(), "post /jobs", {
 	operationId: "startJob",
 	requestBody: withBody,
 	"x-async": { ...lifecycle, until: "status.eq.done" },
 })
-withOperation(doc, "/loose", "post", {
+withOperation(doc, "post /loose", {
 	operationId: "startLoose",
 	"x-async": { idFrom: "$.id", poll: "GET /jobs/{id}", pollIntervalMs: 1, timeoutMs: 20 },
 })
-withOperation(doc, "/inbox-jobs", "post", {
+withOperation(doc, "post /inbox-jobs", {
 	operationId: "startInboxJob",
 	"x-async": { poll: "GET /inbox", pollIntervalMs: 1, timeoutMs: 40, until: "status.eq.done" },
 })
-withOperation(doc, "/gated", "post", { operationId: "startGated", "x-async": lifecycle, "x-feature-gate": "pro" })
+withOperation(doc, "post /gated", { operationId: "startGated", "x-async": lifecycle, "x-feature-gate": "pro" })
 const model = modelOf(doc)
 const startJob = op(model, "startJob")
 
@@ -48,7 +48,10 @@ async function watched(
 ) {
 	const recordCreated = vi.fn<NonNullable<CheckContext["recordCreated"]>>()
 	const recordUnidentified = vi.fn<NonNullable<CheckContext["recordUnidentified"]>>()
-	const stage = contextFor(model, "listWidgets", respond, { asyncOps, recordCreated, recordUnidentified, ...fields })
+	const stage = contextFor(model, "listWidgets", {
+		respond,
+		fields: { asyncOps, recordCreated, recordUnidentified, ...fields },
+	})
 	const outcome = await check.run(stage.ctx, undefined)
 	return { ...stage, outcome, recordCreated, recordUnidentified }
 }
@@ -57,7 +60,7 @@ const started = (poll: Handler, start: Answer = { body: { id: "j1" }, status: 20
 	routes({ "GET /jobs/j1": poll, "POST /jobs": () => start })
 
 const plan = (asyncOps: OperationModel[]) =>
-	check.plan(contextFor(model, "listWidgets", () => undefined, { asyncOps }).ctx).ok
+	check.plan(contextFor(model, "listWidgets", { respond: () => undefined, fields: { asyncOps } }).ctx).ok
 
 describe("plan", () => {
 	it("applies when some operation declares x-async", () => {
@@ -74,7 +77,7 @@ describe("a polled job", () => {
 		expect(run.findings.inconclusive).toEqual([])
 		expect(run.sent.map((s) => `${s.method} ${s.path}`)).toEqual(["POST /jobs", "GET /jobs/j1", "GET /jobs/j1"])
 		expect(run.sent[0]?.options.body).toMatchObject({ name: expect.any(String) })
-		expect(run.recordCreated).toHaveBeenCalledWith("job", "j1", {}, undefined)
+		expect(run.recordCreated).toHaveBeenCalledWith({ entity: "job", id: "j1", scope: {} }, undefined)
 	})
 
 	it("fails a job that never reaches a terminal state, with the start and the last polls as evidence", async () => {
@@ -92,7 +95,7 @@ describe("a polled job", () => {
 		})
 		const run = await watched(respond, [op(model, "startLoose")])
 		expect(run.findings.findings[0]?.detail).toContain('without satisfying "any terminal state"')
-		expect(run.recordCreated).toHaveBeenCalledWith("job", "j1", {}, undefined)
+		expect(run.recordCreated).toHaveBeenCalledWith({ entity: "job", id: "j1", scope: {} }, undefined)
 	})
 
 	it("fails a job the poll route stops serving", async () => {

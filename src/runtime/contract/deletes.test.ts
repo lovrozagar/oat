@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { Answer } from "../checks/__fixtures__/harness.ts"
-import { exchange } from "../checks/__fixtures__/harness.ts"
+import { exchangeOf } from "../checks/__fixtures__/harness.ts"
 import { confirmDeletes } from "./deletes.ts"
 import { doc, ok, pathParam, stage } from "./__fixtures__/stage.ts"
 
@@ -50,7 +50,9 @@ const notes = doc({
 function deleted(reads: Record<string, Answer>, fields: Parameters<typeof stage>[2] = {}) {
 	const staged = stage(notes, (method, path) => (method === "GET" ? reads[path] : undefined), fields)
 	const done = (operationId: string, path: string) =>
-		staged.input.client.transcript.push(exchange("DELETE", path, { status: 204 }, { operationId }))
+		staged.input.client.transcript.push(
+			exchangeOf({ method: "DELETE", options: { operationId }, path }, { status: 204 }),
+		)
 	done("notes.delete", "/notes/n1")
 	done("archive.delete", "/archive/n2")
 	done("bin.empty", "/bin")
@@ -124,7 +126,7 @@ describe("confirmDeletes on refusals and skips", () => {
 		input.grades.prove("notes.delete", { call: 1, observation: { seq: 2, status: 404 } })
 		input.client.transcript.splice(1, 1)
 		input.client.transcript.push({
-			...exchange("DELETE", "/bin", { status: 204 }, { operationId: "bin.empty" }),
+			...exchangeOf({ method: "DELETE", options: { operationId: "bin.empty" }, path: "/bin" }, { status: 204 }),
 			url: "http://[",
 		})
 		await confirmDeletes(input)

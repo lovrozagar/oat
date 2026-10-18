@@ -51,7 +51,7 @@ describe("x-query.grammar as a template", () => {
 		expect(queryGaps(built)).toEqual([])
 		const conventions = conventionsOf(built)
 		expect(conventions.grammar).toBe("template")
-		expect(filterTerm(conventions, "Qty", "neq", 2)).toEqual({ filter: "and_Qty_ne_2" })
+		expect(filterTerm(conventions, { field: "Qty", op: "neq", value: 2 })).toEqual({ filter: "and_Qty_ne_2" })
 	})
 
 	it("is a gap naming the bad key when it cannot be read, and oat falls back to inference", () => {
@@ -65,7 +65,7 @@ describe("x-query.grammar as a template", () => {
 		 * read the backend ignoring them as a defect. */
 		const conventions = conventionsOf(model())
 		expect(conventions.grammar).toBe("unrecognised")
-		expect(filterTerm(conventions, "Qty", "eq", 2)).toBeNull()
+		expect(filterTerm(conventions, { field: "Qty", op: "eq", value: 2 })).toBeNull()
 		expect(conventionsOf(model({ ...TEMPLATE, ops: { approx: "~" } })).grammar).toBe("unrecognised")
 	})
 
@@ -79,14 +79,14 @@ describe("config grammars", () => {
 		const built = model(TEMPLATE)
 		applyGrammarOverrides(built, { query: { grammar: "postgrest" } })
 		expect(conventionsOf(built).grammar).toBe("postgrest")
-		expect(filterTerm(conventionsOf(built), "Qty", "eq", 2)).toEqual({ filter: "Qty.eq.2" })
+		expect(filterTerm(conventionsOf(built), { field: "Qty", op: "eq", value: 2 })).toEqual({ filter: "Qty.eq.2" })
 
 		applyGrammarOverrides(built, {
 			entities: { note: { query: { grammar: { ...TEMPLATE, conj: { and: "all" } } } } },
 			query: { grammar: "colon" },
 		})
 		expect(conventionsOf(built).grammar).toBe("template")
-		expect(filterTerm(conventionsOf(built), "Qty", "eq", 2)).toEqual({ filter: "all_Qty_eq_2" })
+		expect(filterTerm(conventionsOf(built), { field: "Qty", op: "eq", value: 2 })).toEqual({ filter: "all_Qty_eq_2" })
 	})
 
 	it("leave the document's grammar alone when config names none", () => {
@@ -107,14 +107,14 @@ describe("config grammars", () => {
 
 describe("doctor", () => {
 	it("prints a declared template and the operators it cannot write", () => {
-		const text = report.doctor(model(TEMPLATE), [], false).text
+		const text = report.doctor(model(TEMPLATE)).text
 		expect(text).toContain("grammar     template {conj}_{field}_{op}_{value}")
 		expect(text).toContain("ops eq=eq neq=ne")
 		expect(text).toMatch(/cannot write [^\n]*ilike/)
 	})
 
 	it("prints no grammar line when none was declared", () => {
-		expect(report.doctor(model(), [], false).text).not.toContain("grammar     ")
+		expect(report.doctor(model()).text).not.toContain("grammar     ")
 	})
 })
 
@@ -130,7 +130,7 @@ describe("oat plan and doctor", () => {
 		const plan = report.plan(withBoth(), false)
 		expect(plan).toContain("template {conj}_{field}_{op}_{value}")
 		expect(plan).toContain("template {field}_{direction}")
-		const doctor = report.doctor(withBoth(), [], false).text
+		const doctor = report.doctor(withBoth()).text
 		expect(doctor).toContain("sort        template {field}_{direction}")
 		expect(JSON.parse(report.plan(withBoth(), true)).grammars).toEqual([
 			expect.objectContaining({

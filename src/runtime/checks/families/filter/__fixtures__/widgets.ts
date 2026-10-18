@@ -102,15 +102,18 @@ export function stage(options: StageOptions): Stage {
 	const listOp = op(model, LIST)
 	const respond = options.respond ?? backend(options.store ?? options.records, options.behavior)
 	const conventions = options.conventions
-	return contextFor(model, LIST, respond, {
-		collectionKey: "widgets",
-		identity: "id",
-		query: listOp.query,
-		records: options.records,
-		...(conventions === undefined
-			? {}
-			: { listOp: { ...listOp, conventions: { ...listOp.conventions, ...conventions } } }),
-		...options.fields,
+	return contextFor(model, LIST, {
+		respond,
+		fields: {
+			collectionKey: "widgets",
+			identity: "id",
+			query: listOp.query,
+			records: options.records,
+			...(conventions === undefined
+				? {}
+				: { listOp: { ...listOp, conventions: { ...listOp.conventions, ...conventions } } }),
+			...options.fields,
+		},
 	})
 }
 

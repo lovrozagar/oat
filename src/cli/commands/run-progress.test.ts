@@ -30,7 +30,7 @@ describe("runProgress", () => {
 	it("writes every move to the run folder and the terminal", async () => {
 		const dir = folder()
 		const writer = bufferWriter()
-		const progress = runProgress(writer, dir, Date.now(), false)
+		const progress = runProgress(writer, dir, { quiet: false, startedAt: Date.now() })
 		progress.onProgress(snap({ message: "openapi.json" }))
 		progress.onProgress(snap({ entity: "note", phase: "seed" }))
 		await closed(progress)
@@ -43,7 +43,7 @@ describe("runProgress", () => {
 
 	it("keeps the terminal quiet when asked", async () => {
 		const writer = bufferWriter()
-		const progress = runProgress(writer, folder(), Date.now(), true)
+		const progress = runProgress(writer, folder(), { quiet: true, startedAt: Date.now() })
 		progress.onProgress(snap({}))
 		await closed(progress)
 		expect(writer.text()).toBe("")
@@ -51,7 +51,7 @@ describe("runProgress", () => {
 
 	it("rewrites progress.json at most once a second, and at the end, with how long since the last answer", async () => {
 		const dir = folder()
-		const progress = runProgress(bufferWriter(), dir, Date.now(), true)
+		const progress = runProgress(bufferWriter(), dir, { quiet: true, startedAt: Date.now() })
 		const read = () =>
 			JSON.parse(readFileSync(join(dir, "progress.json"), "utf8")) as ProgressSnapshot & { lastAgoMs: number | null }
 		progress.onProgress(snap({ message: "first" }))

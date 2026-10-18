@@ -44,9 +44,11 @@ export const filterIllegalOpRejected = defineCheck<{ probes: IllegalOpProbe[] }>
 			const sample = ctx.records.find((row) => row[field.field] != null)
 			const value = sample === undefined ? "oat-probe" : asTermValue(sample[field.field])
 			const legal = opsForField(field, resolvedCaps(ctx)).find((allowed) => canWriteFilterOp(conv(ctx), allowed))
-			const term = filterTerm(conv(ctx), field.field, op, value)
+			const term = filterTerm(conv(ctx), { field: field.field, op, value })
 			const control =
-				legal === undefined ? null : filterTerm(conv(ctx), field.field, legal as (typeof FILTER_OPS)[number], value)
+				legal === undefined
+					? null
+					: filterTerm(conv(ctx), { field: field.field, op: legal as (typeof FILTER_OPS)[number], value })
 			if (term !== null && control !== null) probes.push({ control, field, kind: "closed", op, term })
 		}
 		/* An operator token the grammar does not have at all — asked only of a declared grammar, where
@@ -60,7 +62,7 @@ export const filterIllegalOpRejected = defineCheck<{ probes: IllegalOpProbe[] }>
 					{ field: field.field, filterParam: conventions.filter, spec: filterSpec(conventions), value },
 					UNKNOWN_OP,
 				)
-				const control = filterTerm(conventions, field.field, "eq", value)
+				const control = filterTerm(conventions, { field: field.field, op: "eq", value })
 				if (term === null || control === null) continue
 				probes.push({ control, field, kind: "unknown", op: UNKNOWN_OP, term })
 				break

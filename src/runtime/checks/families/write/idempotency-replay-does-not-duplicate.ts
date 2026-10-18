@@ -152,7 +152,8 @@ async function judgeGrowth(replay: Replay): Promise<Outcome> {
 	/* The twin the replay made is named only by the listing: it is the run's to remove. */
 	const existed = new Set(ids(before.items, ctx.identity))
 	const twins = ids(after.items, ctx.identity).filter((id) => !existed.has(id))
-	for (const id of listedIds(twins)) ctx.recordCreated?.(ctx.entityName, id, { ...ctx.scope }, second.principal)
+	for (const id of listedIds(twins))
+		ctx.recordCreated?.({ entity: ctx.entityName, id, scope: { ...ctx.scope } }, second.principal)
 	return ctx.findings.backend(check, ctx.entityName, {
 		summary: "replaying a request with the same idempotency key grew the collection",
 		detail:

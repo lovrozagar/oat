@@ -26,8 +26,8 @@ export const filterIsNullSelectsNulls = defineCheck<{
 		const field = fieldsAllowing(ctx, "is").find((item) => mixedNullField(ctx, item.field))
 		if (field === undefined) return cannot()
 		const conventions = conv(ctx)
-		const nullTerm = filterTerm(conventions, field.field, "is", "null")
-		const notNullTerm = filterTerm(conventions, field.field, "is", "notnull")
+		const nullTerm = filterTerm(conventions, { field: field.field, op: "is", value: "null" })
+		const notNullTerm = filterTerm(conventions, { field: field.field, op: "is", value: "notnull" })
 		if (nullTerm === null || notNullTerm === null) return cannot("a filter grammar that can express is.null")
 		return ready({ field, notNullTerm, nullTerm })
 	},

@@ -23,7 +23,7 @@ export const memoryStore: StoreFactory = async () => {
 export const sqliteStore: StoreFactory = async (defects, entities) => {
 	const { SqlStore } = await import("../stores/sqlite.ts")
 	const { nodeSqliteDriver } = await import("../stores/sqlite-driver.ts")
-	return SqlStore.create(defects, await nodeSqliteDriver(), "", entities)
+	return SqlStore.create(defects, await nodeSqliteDriver(), { entities })
 }
 
 /**
@@ -76,7 +76,7 @@ export function d1Store(credentials: D1Credentials = {}): StoreFactory {
 			apiToken: apiToken as string,
 			databaseId: databaseId as string,
 		})
-		return SqlStore.create(defects, driver, prefix, entities)
+		return SqlStore.create(defects, driver, { entities, prefix })
 	}
 }
 

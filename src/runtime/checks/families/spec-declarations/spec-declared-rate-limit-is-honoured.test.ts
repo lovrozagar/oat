@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { Client } from "../../../../client/client.ts"
 import type { Exchange } from "../../../exchange.ts"
-import { exchange } from "../../__fixtures__/harness.ts"
+import { exchangeOf } from "../../__fixtures__/harness.ts"
 import { runCheck } from "../../core/run.ts"
 import { refusing, stage, widgetsModel } from "./__fixtures__/widgets.ts"
 import { declaredRateLimitHonoured } from "./spec-declared-rate-limit-is-honoured.ts"
@@ -10,7 +10,13 @@ type Pacing = Pick<Exchange, "rateLimitCategory" | "rateLimitHadRoom" | "rateLim
 
 /** A recorded request to `operationId` that drew `status`, paced as `pacing` says. */
 function sentTo(operationId: string | undefined, status: number, pacing: Pacing = {}): Exchange {
-	return { ...exchange("GET", "/widgets", { status }, operationId === undefined ? {} : { operationId }), ...pacing }
+	return {
+		...exchangeOf(
+			{ method: "GET", options: operationId === undefined ? {} : { operationId }, path: "/widgets" },
+			{ status },
+		),
+		...pacing,
+	}
 }
 
 const declaredRoom: Pacing = { rateLimitCategory: "reads", rateLimitHadRoom: true, rateLimitSource: "tag" }

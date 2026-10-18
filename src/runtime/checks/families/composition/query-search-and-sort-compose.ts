@@ -29,7 +29,11 @@ export const querySearchAndSortCompose = defineCheck<{
 	subjects: subjectsOf.list,
 	async run(ctx, { sortField, token }): Promise<Outcome> {
 		const search = q(ctx, { limit: pageSize(ctx), search: token })
-		const sorted = q(ctx, { limit: pageSize(ctx), search: token, order: sortTerm(conv(ctx), sortField, "asc") })
+		const sorted = q(ctx, {
+			limit: pageSize(ctx),
+			search: token,
+			order: sortTerm(conv(ctx), { direction: "asc", field: sortField }),
+		})
 		const first = await listAll(ctx, search)
 		const second = await listAll(ctx, sorted)
 		if (first.exchange.status >= 400 || second.exchange.status >= 400) {
@@ -39,10 +43,14 @@ export const querySearchAndSortCompose = defineCheck<{
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the sets are larger than a read covers")
 		}
 		/* A record written between the two reads is the collection moving, not the sort filtering. */
-		const settled = await settlePair(ctx.identity, first, second, {
-			first: () => listAgain(ctx, search),
-			second: () => listAgain(ctx, sorted),
-		})
+		const settled = await settlePair(
+			ctx.identity,
+			{ first, second },
+			{
+				first: () => listAgain(ctx, search),
+				second: () => listAgain(ctx, sorted),
+			},
+		)
 		if (settled === null) return ctx.findings.unresolved(this.id, ctx.entityName, "search+sort probe was rejected")
 		if (settled === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING)
 		const { first: searched, second: combined } = settled

@@ -15,20 +15,20 @@ import {
 import { declaredEffectsOccur as check } from "./effects-declared-effect-occurs.ts"
 
 const clones = [{ entity: "widget", op: "create" }]
-const doc = withOperation(baseDocument(), "/widgets/{id}/clone", "post", {
+const doc = withOperation(baseDocument(), "post /widgets/{id}/clone", {
 	operationId: "cloneWidget",
 	requestBody: withBody,
 	"x-effects": clones,
 })
-withOperation(doc, "/widgets/{id}/copy", "post", { operationId: "copyWidget", "x-effects": clones })
-withOperation(doc, "/widgets/{id}/quiet", "post", { operationId: "quietWidget", "x-effects": [] })
-withOperation(doc, "/widgets/{id}/parts/{part_id}/act", "post", {
+withOperation(doc, "post /widgets/{id}/copy", { operationId: "copyWidget", "x-effects": clones })
+withOperation(doc, "post /widgets/{id}/quiet", { operationId: "quietWidget", "x-effects": [] })
+withOperation(doc, "post /widgets/{id}/parts/{part_id}/act", {
 	operationId: "actOnPart",
 	"x-effects": [{ entity: "widget", op: "update" }],
 })
-withOperation(doc, "/gated/{id}", "post", { operationId: "gatedClone", "x-effects": clones, "x-feature-gate": "pro" })
+withOperation(doc, "post /gated/{id}", { operationId: "gatedClone", "x-effects": clones, "x-feature-gate": "pro" })
 const tagged = (operationId: string, before: string) =>
-	withOperation(doc, `/widgets/{id}/${operationId}`, "post", {
+	withOperation(doc, `post /widgets/{id}/${operationId}`, {
 		operationId,
 		"x-before": before,
 		"x-bind": { query: { board: "before:$.id" } },
@@ -39,7 +39,7 @@ tagged("pinWidget", "nowhere")
 tagged("cardWidget", "getCard")
 tagged("noteWidget", "createCard")
 tagged("readWidget", "getInbox")
-withOperation(doc, "/widgets/{id}/audit", "post", {
+withOperation(doc, "post /widgets/{id}/audit", {
 	operationId: "auditWidget",
 	"x-effects": [
 		{ entity: "job", op: "create" },
@@ -68,12 +68,15 @@ async function occurred(respond: Responder, ids: string[], fields: Partial<Check
 	const recordCreated = vi.fn<NonNullable<CheckContext["recordCreated"]>>()
 	const recordUnidentified = vi.fn<NonNullable<CheckContext["recordUnidentified"]>>()
 	const effectOps = ids.map((id): OperationModel => op(model, id))
-	const stage = contextFor(model, "listWidgets", respond, {
-		effectOps,
-		recordCreated,
-		recordUnidentified,
-		records: [{ id: "w1", name: "w1" }],
-		...fields,
+	const stage = contextFor(model, "listWidgets", {
+		respond,
+		fields: {
+			effectOps,
+			recordCreated,
+			recordUnidentified,
+			records: [{ id: "w1", name: "w1" }],
+			...fields,
+		},
 	})
 	const outcome = await check.run(stage.ctx, undefined)
 	const calls = stage.sent.map((s) => `${s.method} ${s.path}`)
@@ -83,7 +86,7 @@ async function occurred(respond: Responder, ids: string[], fields: Partial<Check
 describe("plan", () => {
 	it("applies when some operation declares x-effects", () => {
 		const plan = (effectOps: OperationModel[]) =>
-			check.plan(contextFor(model, "listWidgets", () => undefined, { effectOps }).ctx).ok
+			check.plan(contextFor(model, "listWidgets", { respond: () => undefined, fields: { effectOps } }).ctx).ok
 		expect(plan([])).toBe(false)
 		expect(plan([op(model, "cloneWidget")])).toBe(true)
 	})
@@ -97,7 +100,7 @@ describe("an action that succeeds", () => {
 		expect(run.calls).toEqual(["GET /widgets", "POST /widgets/w1/clone", "GET /widgets"])
 		expect(run.sent[1]?.options).toMatchObject({ operationId: "cloneWidget" })
 		expect(run.sent[1]?.options.body).toMatchObject({ name: expect.any(String) })
-		expect(run.recordCreated).toHaveBeenCalledWith("widget", "w2", { id: "w1" }, undefined)
+		expect(run.recordCreated).toHaveBeenCalledWith({ entity: "widget", id: "w2", scope: { id: "w1" } }, undefined)
 	})
 
 	it("fails when the declared record never appears", async () => {
@@ -189,7 +192,7 @@ describe("an x-before prelude", () => {
 		expect(run.calls).toEqual(["POST /boards", "GET /widgets", "POST /widgets/w1/tagWidget", "GET /widgets"])
 		expect(run.sent[0]?.options.body).toMatchObject({ name: expect.any(String) })
 		expect(run.sent[2]?.options.query).toEqual({ board: "b1" })
-		expect(run.recordCreated).toHaveBeenCalledWith("board", "b1", { id: "w1" }, undefined)
+		expect(run.recordCreated).toHaveBeenCalledWith({ entity: "board", id: "b1", scope: { id: "w1" } }, undefined)
 		expect(run.findings.findings).toEqual([])
 	})
 
@@ -257,7 +260,7 @@ describe("a prelude create the model describes partly", () => {
 		const run = await occurred(tag({ body: { id: "b1" }, status: 201 }), ["tagWidget"], {
 			model: variant({ identity: null }),
 		})
-		expect(run.recordCreated).toHaveBeenCalledWith("board", "b1", { id: "w1" }, undefined)
+		expect(run.recordCreated).toHaveBeenCalledWith({ entity: "board", id: "b1", scope: { id: "w1" } }, undefined)
 	})
 })
 

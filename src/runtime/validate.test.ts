@@ -18,47 +18,49 @@ describe("SchemaValidator", () => {
 	it("passes a body that matches the documented schema, and fails one that does not", () => {
 		const validator = new SchemaValidator()
 		const op = returning("200", "application/json", ITEM)
-		expect(validator.validate("get", op, 200, { id: 1 })).toEqual({ errors: [], ok: true })
-		expect(validator.validate("get", op, 200, { id: "x", name: 2 })).toEqual({
+		expect(validator.validate("get", op, { responseBody: { id: 1 }, status: 200 })).toEqual({ errors: [], ok: true })
+		expect(validator.validate("get", op, { responseBody: { id: "x", name: 2 }, status: 200 })).toEqual({
 			errors: ["/id must be integer", "/name must be string"],
 			ok: false,
 		})
-		expect(validator.validate("get", op, 200, [])).toEqual({ errors: ["(root) must be object"], ok: false })
+		expect(validator.validate("get", op, { responseBody: [], status: 200 })).toEqual({
+			errors: ["(root) must be object"],
+			ok: false,
+		})
 	})
 
 	it("falls back to the status class, then default, and reads only a JSON schema", () => {
 		const validator = new SchemaValidator()
-		expect(validator.validate("a", returning("2XX", "application/problem+json", ITEM), 201, {}).ok).toBe(false)
-		expect(validator.validate("b", returning("default", "application/json", ITEM), 503, {}).ok).toBe(false)
+		expect(
+			validator.validate("a", returning("2XX", "application/problem+json", ITEM), { responseBody: {}, status: 201 }).ok,
+		).toBe(false)
+		expect(
+			validator.validate("b", returning("default", "application/json", ITEM), { responseBody: {}, status: 503 }).ok,
+		).toBe(false)
 		expect(validator.documents(returning("200", "text/plain", ITEM), 200)).toBe(false)
 		expect(validator.documents(returning("200", "application/json"), 200)).toBe(false)
 		expect(validator.documents({ responses: { "200": { description: "" } } }, 200)).toBe(false)
 		expect(validator.documents({}, 200)).toBe(false)
 		expect(validator.documents(returning("200", "application/json", ITEM), 200)).toBe(true)
-		expect(validator.validate("c", {}, 200, "anything")).toEqual({ errors: [], ok: true })
-		expect(validator.validate("c", {}, 200, "again")).toEqual({ errors: [], ok: true })
+		expect(validator.validate("c", {}, { responseBody: "anything", status: 200 })).toEqual({ errors: [], ok: true })
+		expect(validator.validate("c", {}, { responseBody: "again", status: 200 })).toEqual({ errors: [], ok: true })
 	})
 
 	it("says a schema it cannot compile was not checked, every time it is asked", () => {
 		const validator = new SchemaValidator()
 		const op = returning("200", "application/json", { $ref: "#/nowhere" })
-		const first = validator.validate("get", op, 200, {})
+		const first = validator.validate("get", op, { responseBody: {}, status: 200 })
 		expect(first.ok).toBe(true)
 		expect(first.unchecked).toMatch(/resolve reference/)
-		expect(validator.validate("get", op, 200, {})).toEqual(first)
+		expect(validator.validate("get", op, { responseBody: {}, status: 200 })).toEqual(first)
 	})
 
 	it("reaches recursive definitions and lists at most twelve distinct errors", () => {
 		const node: SchemaObject = { properties: { next: { $ref: "oat-defs#/$defs/Node" } }, type: "object" }
 		const validator = new SchemaValidator({ Node: node })
 		const op = returning("200", "application/json", { items: { $ref: "oat-defs#/$defs/Node" }, type: "array" })
-		expect(validator.validate("list", op, 200, [{ next: { next: {} } }]).ok).toBe(true)
-		const result = validator.validate(
-			"list",
-			op,
-			200,
-			Array.from({ length: 20 }, () => 1),
-		)
+		expect(validator.validate("list", op, { responseBody: [{ next: { next: {} } }], status: 200 }).ok).toBe(true)
+		const result = validator.validate("list", op, { responseBody: Array.from({ length: 20 }, () => 1), status: 200 })
 		expect(result.errors).toHaveLength(12)
 		expect(result.errors[0]).toBe("/0 must be object")
 	})

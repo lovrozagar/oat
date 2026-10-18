@@ -20,15 +20,15 @@ declare const sentId: string
 declare const returned: ProvenId
 
 /* What the backend gave back is recordable everywhere. */
-ledger.record("note", returned, {}, owner)
+ledger.record({ entity: "note", id: returned, scope: {} }, owner)
 options.onCreate?.("note", returned, {})
-ctx.recordCreated?.("note", returned, {})
+ctx.recordCreated?.({ entity: "note", id: returned, scope: {} })
 
 // @ts-expect-error an id oat only sent is not proof of a record it made
-ledger.record("note", sentId, {}, owner)
+ledger.record({ entity: "note", id: sentId, scope: {} }, owner)
 
 // @ts-expect-error seeding reports only ids a response or a confirming read returned
 options.onCreate?.("note", sentId, {})
 
 // @ts-expect-error a check records only ids the backend gave back
-ctx.recordCreated?.("note", sentId, {})
+ctx.recordCreated?.({ entity: "note", id: sentId, scope: {} })

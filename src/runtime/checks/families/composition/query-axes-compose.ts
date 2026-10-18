@@ -52,7 +52,9 @@ export const queryAxesCompose = defineCheck<Subset & { sortField: string }>({
 		 * the set is larger than one page, and the difference would be read as a dropped filter.
 		 */
 		const filtered = await collectSet(ctx, limit, term)
-		const both = await collectSet(ctx, limit, term, { order: sortTerm(conventions, sortField, "desc") })
+		const both = await collectSet(ctx, limit, term, {
+			order: sortTerm(conventions, { direction: "desc", field: sortField }),
+		})
 		if (filtered === null || both === null) {
 			return ctx.findings.unresolved(
 				this.id,

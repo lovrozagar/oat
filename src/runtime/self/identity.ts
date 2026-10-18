@@ -60,7 +60,7 @@ export async function runSelfIdentity(input: SelfInput): Promise<Outcome> {
 	if (anonymous.status !== 401) return answeredWithoutToken(run, anonymous)
 	if (readOp === undefined) {
 		/* No read: the probe is the update. */
-		const wrote = await sendUpdate(input, probe, probePath, { note: "Oat" })
+		const wrote = await sendUpdate(input, { op: probe, path: probePath }, { note: "Oat" })
 		return updatedAlone(run, anonymous, wrote)
 	}
 
@@ -87,13 +87,13 @@ export async function runSelfIdentity(input: SelfInput): Promise<Outcome> {
 	const update = updateProbe(run, input.model, read)
 	if ("kind" in update) return update
 	const { field } = update
-	const wrote = await sendUpdate(input, update.op, update.path, { [field.name]: update.value })
+	const wrote = await sendUpdate(input, update, { [field.name]: update.value })
 	const writeFailed = writeRefused(run, update, read, wrote)
 	if (writeFailed !== null) return writeFailed
 	/* The read's path was filled in the loop above, so it needs no id. */
 	const again = await client.request(readOp.method, probePath, { headers: auth, operationId: readOp.operationId })
 	const lost = notStuck(run, update, wrote, again)
 	if (lost !== null) return lost
-	if (restorable(update)) await sendUpdate(input, update.op, update.path, { [field.name]: update.before.current })
+	if (restorable(update)) await sendUpdate(input, update, { [field.name]: update.before.current })
 	return ASSERTED
 }

@@ -5,6 +5,7 @@
 	"lint/grammar-through-renderer.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"lint/id-through-reader.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"lint/index-purity.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"lint/max-params.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"lint/network-through-client.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"lint/no-console.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"lint/no-header-branching.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },

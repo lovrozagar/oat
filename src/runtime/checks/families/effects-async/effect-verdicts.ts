@@ -52,7 +52,7 @@ export async function judgeEffects(action: ActionRun): Promise<void> {
 	const deltas = new Map<string, string[]>()
 	Object.assign(
 		action.scope,
-		bindAfterCreateEffects(action.ctx.model, action.effects, action.invoked.responseBody, deltas),
+		bindAfterCreateEffects(action.ctx.model, action.effects, { body: action.invoked.responseBody, deltas }),
 	)
 	await bindCreatedParents(action, deltas)
 	for (const effect of action.effects) await judgeEffect(action, effect)
@@ -76,7 +76,7 @@ async function bindCreatedParents(action: ActionRun, deltas: Map<string, string[
 		const prior = before?.status === "ok" ? before.ids : []
 		const added = afterParent.ids.filter((id) => !prior.includes(id))
 		deltas.set(effect.entity, added)
-		Object.assign(scope, bindCreatedScope(ctx.model, effect.entity, action.invoked.responseBody, added))
+		Object.assign(scope, bindCreatedScope(ctx.model, effect.entity, { added, body: action.invoked.responseBody }))
 	}
 }
 
@@ -99,12 +99,13 @@ async function judgeEffect(action: ActionRun, effect: EffectSpec): Promise<void>
 	const removed = prior.filter((id) => !after.ids.includes(id))
 	/* Records the operation made on oat's behalf are oat's to remove. */
 	if (effect.op === "create" || effect.op === "append") {
-		for (const id of listedIds(added)) ctx.recordCreated?.(effect.entity, id, { ...scope }, invoked.principal)
+		for (const id of listedIds(added))
+			ctx.recordCreated?.({ entity: effect.entity, id, scope: { ...scope } }, invoked.principal)
 	}
 
-	if (effectHolds(effect, after.ids.length - prior.length, added.length, removed.length)) {
+	if (effectHolds(effect, { added: added.length, delta: after.ids.length - prior.length, removed: removed.length })) {
 		if (effect.op === "create") {
-			Object.assign(scope, bindCreatedScope(ctx.model, effect.entity, invoked.responseBody, added))
+			Object.assign(scope, bindCreatedScope(ctx.model, effect.entity, { added, body: invoked.responseBody }))
 		}
 		return
 	}

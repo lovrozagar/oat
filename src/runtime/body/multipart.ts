@@ -34,7 +34,7 @@ async function appendAdditionalFile(
 function appendProperty(form: FormData, name: string, options: EncodeOptions): void {
 	const value = options.fields[name]
 	if (value === undefined || value === null) return
-	appendValue(form, name, value, options.encoding?.[name])
+	appendValue(form, { name, value }, options.encoding?.[name])
 }
 
 export async function encodeMultipart(options: EncodeOptions): Promise<FormData> {

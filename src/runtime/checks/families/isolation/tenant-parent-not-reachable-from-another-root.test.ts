@@ -13,12 +13,14 @@ const SCOPES = { altScope: { book_id: "b2", org_id: "o2" }, scope: { book_id: "b
 /** Answers by `METHOD path`; anything else is a 404. */
 const table = (answers: Record<string, Answer>) => (method: string, path: string) => answers[`${method} ${path}`]
 
-function staged(
-	answers: Record<string, Answer>,
-	parents: readonly Parent[] = [BOOKS],
-	options: NotesOptions & { prefix?: string } = {},
-	fields: Partial<CheckContext> = {},
-) {
+/** How a stage departs from the default: the parents the notes nest under, the document's options, the context's fields. */
+interface Setup {
+	parents?: readonly Parent[]
+	options?: NotesOptions & { prefix?: string }
+	fields?: Partial<CheckContext>
+}
+
+function staged(answers: Record<string, Answer>, { parents = [BOOKS], options = {}, fields = {} }: Setup = {}) {
 	return notesContext(modelOf(nestedDocument(parents, options)), table(answers), { ...SCOPES, ...fields })
 }
 
@@ -52,8 +54,7 @@ describe("tenant.parent-not-reachable-from-another-root", () => {
 	it("reports SECURITY when a declared tenant's records are listed through the owner's parent", async () => {
 		const { ctx, findings } = staged(
 			{ ...OWN_BOOKS, "GET /orgs/o2/books/b1/notes": { body: [{ id: "n1" }], status: 200 } },
-			[BOOKS],
-			{ tenant: "org_id" },
+			{ options: { tenant: "org_id" } },
 		)
 		expect(await runCheck(foreignParentRejected, ctx)).toEqual({ kind: "finding", verdict: "SECURITY" })
 		expect(findings.findings[0]?.summary).toBe(
@@ -86,7 +87,7 @@ describe("tenant.parent-not-reachable-from-another-root: writes and skipped prob
 			[{ bodilessCreate: true }, { readOp: undefined }],
 			[{}, { createOp: undefined, records: [{ title: "first" }] }],
 		] satisfies Array<[NotesOptions, Partial<CheckContext>]>) {
-			const { ctx, sent } = staged(OWN_BOOKS, [BOOKS], options, fields)
+			const { ctx, sent } = staged(OWN_BOOKS, { options, fields })
 			expect(await runCheck(foreignParentRejected, ctx)).toEqual({ kind: "asserted" })
 			expect(sent.map((s) => s.method)).toEqual(["GET", "GET"])
 		}
@@ -110,11 +111,12 @@ describe("tenant.parent-not-reachable-from-another-root: the other tenant's own 
 				"GET /orgs/o2/books": { body: [{ id: "b1" }], status: 200 },
 				"GET /orgs/o2/books/b1/pages": { body: [{ id: "p1" }], status: 200 },
 			},
-			[BOOKS, PAGES],
-			{},
 			{
-				altScope: { book_id: "b2", org_id: "o2", page_id: "p2" },
-				scope: { book_id: "b1", org_id: "o1", page_id: "p1" },
+				parents: [BOOKS, PAGES],
+				fields: {
+					altScope: { book_id: "b2", org_id: "o2", page_id: "p2" },
+					scope: { book_id: "b1", org_id: "o1", page_id: "p1" },
+				},
 			},
 		)
 		expect(await runCheck(foreignParentRejected, ctx)).toMatchObject({
@@ -129,11 +131,12 @@ describe("tenant.parent-not-reachable-from-another-root: the other tenant's own 
 				"GET /orgs/o2/books": { body: [{ id: "b1" }], status: 200 },
 				"GET /orgs/o2/books/b1/pages": { body: [{ id: "p2" }], status: 200 },
 			},
-			[BOOKS, PAGES],
-			{},
 			{
-				altScope: { book_id: "b2", org_id: "o2", page_id: "p2" },
-				scope: { book_id: "b1", org_id: "o1", page_id: "p1" },
+				parents: [BOOKS, PAGES],
+				fields: {
+					altScope: { book_id: "b2", org_id: "o2", page_id: "p2" },
+					scope: { book_id: "b1", org_id: "o1", page_id: "p1" },
+				},
 			},
 		)
 		expect(await runCheck(foreignParentRejected, ctx)).toEqual({ kind: "asserted" })
@@ -163,13 +166,13 @@ describe("tenant.parent-not-reachable-from-another-root: parents it cannot rule 
 describe("tenant.parent-not-reachable-from-another-root: parents without a list", () => {
 	it("reads the parent itself where it has no list, and cannot tell when it is served", async () => {
 		const READ_ONLY: Parent = { param: "book_id", read: true, segment: "books" }
-		const served = staged({ "GET /orgs/o2/books/b1": { status: 200 } }, [READ_ONLY])
+		const served = staged({ "GET /orgs/o2/books/b1": { status: 200 } }, { parents: [READ_ONLY] })
 		expect(await runCheck(foreignParentRejected, served.ctx)).toEqual({
 			kind: "unresolved",
 			reason: "cannot tell whether the other tenant holds its own book b1",
 		})
 		expect(served.sent[0]?.options.operationId).toBe("read_book")
-		const refused = staged({}, [READ_ONLY])
+		const refused = staged({}, { parents: [READ_ONLY] })
 		expect(await runCheck(foreignParentRejected, refused.ctx)).toEqual({ kind: "asserted" })
 	})
 
@@ -179,7 +182,7 @@ describe("tenant.parent-not-reachable-from-another-root: parents without a list"
 			[{ create: true, param: "book_id", segment: "books" }, undefined],
 			[{ param: "book_id", segment: "books" }, undefined],
 		] as const) {
-			const { ctx, sent } = staged({}, [parent], prefix === undefined ? {} : { prefix })
+			const { ctx, sent } = staged({}, { parents: [parent], options: prefix === undefined ? {} : { prefix } })
 			expect(await runCheck(foreignParentRejected, ctx)).toEqual({ kind: "asserted" })
 			expect(sent[0]?.path).toBe("/orgs/o2/books/b1/notes")
 		}
@@ -188,11 +191,13 @@ describe("tenant.parent-not-reachable-from-another-root: parents without a list"
 	it("probes the boundary where no entity owns the parent", async () => {
 		const { ctx, sent } = staged(
 			{},
-			[],
-			{ prefix: "/{shelf_id}/orgs/{org_id}" },
 			{
-				altScope: { org_id: "o2", shelf_id: "s2" },
-				scope: { org_id: "o1", shelf_id: "s1" },
+				parents: [],
+				options: { prefix: "/{shelf_id}/orgs/{org_id}" },
+				fields: {
+					altScope: { org_id: "o2", shelf_id: "s2" },
+					scope: { org_id: "o1", shelf_id: "s1" },
+				},
 			},
 		)
 		expect(await runCheck(foreignParentRejected, ctx)).toEqual({ kind: "asserted" })
@@ -209,16 +214,16 @@ describe("tenant.parent-not-reachable-from-another-root planning", () => {
 			[{}, { altScope: { book_id: "b2" } }],
 			[{}, { altScope: { book_id: "b2", org_id: "o1" } }],
 		] as const) {
-			expect(foreignParentRejected.plan(staged({}, [BOOKS], options, fields).ctx)).toEqual({ ok: false })
+			expect(foreignParentRejected.plan(staged({}, { options, fields }).ctx)).toEqual({ ok: false })
 		}
 	})
 
 	it("names what is missing for a flat collection or a parent both tenants share", () => {
-		expect(foreignParentRejected.plan(staged({}, []).ctx)).toEqual({
+		expect(foreignParentRejected.plan(staged({}, { parents: [] }).ctx)).toEqual({
 			needs: "a parent below the tenant in the collection's path",
 			ok: false,
 		})
-		const shared = staged({}, [BOOKS], {}, { altScope: { book_id: "b1", org_id: "o2" } })
+		const shared = staged({}, { fields: { altScope: { book_id: "b1", org_id: "o2" } } })
 		expect(foreignParentRejected.plan(shared.ctx)).toEqual({
 			needs: "the other tenant's book_id has the same identity as the owner's",
 			ok: false,

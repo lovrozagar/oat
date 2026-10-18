@@ -43,7 +43,7 @@ describe("pathValues", () => {
 			roots: { org_id: "o1" },
 		})
 		input.client.transcript.push(exchange("GET", "/x", { body: { seen_id: "s1" }, status: 200 }))
-		expect(await pathValues(input, op, params, { h: "1" })).toEqual({
+		expect(await pathValues(input, { op, params }, { h: "1" })).toEqual({
 			kind: "red",
 			org_id: "o1",
 			seen_id: "s1",
@@ -59,13 +59,13 @@ describe("pathValues", () => {
 		const { input, op, params } = staged(paths, "deep.get", {
 			hooks: { resolvePathValue: async () => null },
 		})
-		expect(await pathValues(input, op, params, {})).toBeNull()
+		expect(await pathValues(input, { op, params }, {})).toBeNull()
 		expect([...(input.grades.needs.get("deep.get") ?? [])]).toEqual(["unresolved param org_id"])
 	})
 
 	it("works without a hook or a declared parameter", async () => {
 		const { input, op } = staged(paths, "deep.get", { roots: { org_id: "o1" } })
-		expect(await pathValues(input, op, [], {})).toBeNull()
+		expect(await pathValues(input, { op, params: [] }, {})).toBeNull()
 		expect([...(input.grades.needs.get("deep.get") ?? [])]).toEqual(["unresolved param kind"])
 	})
 })
@@ -85,8 +85,8 @@ describe("queryValues", () => {
 			"q.get",
 		)
 		const bind = readActionBind({ query: { bound: "lit", other: "$.ptr" } })
-		expect(queryValues(input.grades, op, params, bind)).toEqual({ bound: "lit", typed: "1" })
-		expect(queryValues(input.grades, { ...op, requiredQuery: { typed: "9" } }, params, null)).toEqual({
+		expect(queryValues(input.grades, { bind, op, params })).toEqual({ bound: "lit", typed: "1" })
+		expect(queryValues(input.grades, { bind: null, op: { ...op, requiredQuery: { typed: "9" } }, params })).toEqual({
 			bound: "oat",
 			typed: "9",
 		})
@@ -94,7 +94,7 @@ describe("queryValues", () => {
 
 	it("skips the operation at a required value nothing names", () => {
 		const { input, op, params } = staged(queried([query("blob", { type: "object" })]), "q.get")
-		expect(queryValues(input.grades, op, params, null)).toBeNull()
+		expect(queryValues(input.grades, { bind: null, op, params })).toBeNull()
 		expect([...(input.grades.needs.get("q.get") ?? [])]).toEqual(["unresolved query param blob"])
 	})
 })
@@ -106,12 +106,12 @@ const post = (requestBody?: unknown) => ({
 describe("bodyOf", () => {
 	it("sends no body when none is documented", () => {
 		const { input, op, raw } = staged(post(), "p.post")
-		expect(bodyOf(input, op, raw, null)).toEqual({ body: undefined })
+		expect(bodyOf(input, { bind: null, op, raw })).toEqual({ body: undefined })
 	})
 
 	it("skips a body that is not JSON", () => {
 		const { input, op, raw } = staged(post({ content: { "text/csv": { schema: { type: "string" } } } }), "p.post")
-		expect(bodyOf(input, op, raw, null)).toBeNull()
+		expect(bodyOf(input, { bind: null, op, raw })).toBeNull()
 		expect([...(input.grades.needs.get("p.post") ?? [])]).toEqual([
 			"needs a text/csv body oat cannot build without a scenario",
 		])
@@ -124,15 +124,17 @@ describe("bodyOf", () => {
 			type: "object",
 		}
 		const { input, op, raw } = staged(post(json(schema)), "p.post")
-		const built = bodyOf(input, op, raw, readActionBind({ body: { mode: "fast" } }))
+		const built = bodyOf(input, { bind: readActionBind({ body: { mode: "fast" } }), op, raw })
 		expect(built?.body).toMatchObject({ mode: "fast" })
 		expect(typeof (built as { body: { name?: unknown } }).body.name).toBe("string")
 	})
 
 	it("sends an empty object for a schema-less body, and throws on a body that is not an object", () => {
 		const list = staged(post(json({ items: { type: "integer" }, minItems: 1, type: "array" })), "p.post")
-		expect(() => bodyOf(list.input, list.op, list.raw, null)).toThrow(/cannot generate a valid body for p.post/)
+		expect(() => bodyOf(list.input, { bind: null, op: list.op, raw: list.raw })).toThrow(
+			/cannot generate a valid body for p.post/,
+		)
 		const bare = staged(post({ content: { "application/json": {} } }), "p.post")
-		expect(bodyOf(bare.input, bare.op, bare.raw, null)).toEqual({ body: {} })
+		expect(bodyOf(bare.input, { bind: null, op: bare.op, raw: bare.raw })).toEqual({ body: {} })
 	})
 })

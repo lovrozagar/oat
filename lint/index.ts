@@ -4,6 +4,7 @@ import { rule as exitOnlyInCli } from "./exit-only-in-cli.ts"
 import { rule as grammarThroughRenderer } from "./grammar-through-renderer.ts"
 import { rule as idThroughReader } from "./id-through-reader.ts"
 import { rule as indexPurity } from "./index-purity.ts"
+import { rule as maxParams } from "./max-params.ts"
 import { rule as networkThroughClient } from "./network-through-client.ts"
 import { rule as noConsole } from "./no-console.ts"
 import { rule as noHeaderBranching } from "./no-header-branching.ts"
@@ -20,6 +21,7 @@ export default {
 		"grammar-through-renderer": grammarThroughRenderer,
 		"id-through-reader": idThroughReader,
 		"index-purity": indexPurity,
+		"max-params": maxParams,
 		"network-through-client": networkThroughClient,
 		"no-console": noConsole,
 		"no-header-branching": noHeaderBranching,

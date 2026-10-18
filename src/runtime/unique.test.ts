@@ -84,13 +84,19 @@ describe("idempotency headers", () => {
 
 	it("a probe sends auth only, and a fresh key where the document requires one", () => {
 		const auth = { authorization: "Bearer t", "Idempotency-Key": "old" }
-		expect(uniqueProbeHeaders(auth, "Idempotency-Key", false, "new")).toEqual({ authorization: "Bearer t" })
-		expect(uniqueProbeHeaders(auth, "Idempotency-Key", true, "new")).toEqual({
+		expect(uniqueProbeHeaders(auth, { header: "Idempotency-Key", required: false, fresh: "new" })).toEqual({
+			authorization: "Bearer t",
+		})
+		expect(uniqueProbeHeaders(auth, { header: "Idempotency-Key", required: true, fresh: "new" })).toEqual({
 			authorization: "Bearer t",
 			"Idempotency-Key": "new",
 		})
-		expect(uniqueProbeHeaders(auth, null, true, "new")).toEqual({ authorization: "Bearer t" })
-		expect(uniqueProbeHeaders(auth, "", true, "new")).toEqual({ authorization: "Bearer t" })
+		expect(uniqueProbeHeaders(auth, { header: null, required: true, fresh: "new" })).toEqual({
+			authorization: "Bearer t",
+		})
+		expect(uniqueProbeHeaders(auth, { header: "", required: true, fresh: "new" })).toEqual({
+			authorization: "Bearer t",
+		})
 	})
 
 	it("is required only where the document marks the header parameter required", () => {
@@ -116,13 +122,15 @@ describe("probeable unique sets", () => {
 	const users = op(model, "users.create")
 
 	it("are the sets with a body column the server does not generate", () => {
-		expect(probeableUniqueSets(users, model, "create")).toEqual([["email"], ["slug", "org"]])
-		expect(probeableUniqueSets({ ...users, unique: null }, model, "create")).toEqual([])
+		expect(probeableUniqueSets(users, model, { phase: "create" })).toEqual([["email"], ["slug", "org"]])
+		expect(probeableUniqueSets({ ...users, unique: null }, model, { phase: "create" })).toEqual([])
 	})
 
 	it("skip an update set whose columns are all immutable", () => {
 		const immutable = { ...users, immutable: ["slug", "org"] }
-		expect(probeableUniqueSets(immutable, model, "update", [["slug", "org"], ["email"], []])).toEqual([["email"]])
+		expect(probeableUniqueSets(immutable, model, { phase: "update", sets: [["slug", "org"], ["email"], []] })).toEqual([
+			["email"],
+		])
 	})
 })
 
@@ -140,7 +148,7 @@ describe("uniquifying a probe body", () => {
 
 	it("draws a new value from each unique column's schema", () => {
 		const body = { email: "a@x.test", slug: "s", title: "t" }
-		const out = uniquifyProbeBody(body, [["email"], ["missing"]], schema, "tok")
+		const out = uniquifyProbeBody(body, [["email"], ["missing"]], { schema, token: "tok" })
 		expect(out.email).not.toBe("a@x.test")
 		expect(out.email).toMatch(/@/)
 		expect(out).toMatchObject({ slug: "s", title: "t" })
@@ -149,7 +157,7 @@ describe("uniquifying a probe body", () => {
 
 	it("leaves a body without unique sets as it was, as a copy", () => {
 		const body = { email: "a@x.test" }
-		const out = uniquifyProbeBody(body, [], schema, "tok")
+		const out = uniquifyProbeBody(body, [], { schema, token: "tok" })
 		expect(out).toEqual(body)
 		expect(out).not.toBe(body)
 	})
@@ -157,9 +165,11 @@ describe("uniquifying a probe body", () => {
 	it("keeps a value where the schema admits nothing new, or names no such column", () => {
 		const narrow = { properties: { fixed: { const: "only" }, never: { enum: [] }, plain: null }, type: "object" }
 		const body = { fixed: "only", never: 1, other: 2, plain: 3 }
-		expect(uniquifyProbeBody(body, [["fixed", "never", "other", "plain"]], narrow, "tok")).toEqual(body)
-		expect(uniquifyProbeBody(body, [["fixed"]], null, "tok")).toEqual(body)
-		expect(uniquifyProbeBody(body, [["fixed"]], { properties: "x" }, "tok")).toEqual(body)
+		expect(uniquifyProbeBody(body, [["fixed", "never", "other", "plain"]], { schema: narrow, token: "tok" })).toEqual(
+			body,
+		)
+		expect(uniquifyProbeBody(body, [["fixed"]], { schema: null, token: "tok" })).toEqual(body)
+		expect(uniquifyProbeBody(body, [["fixed"]], { schema: { properties: "x" }, token: "tok" })).toEqual(body)
 	})
 })
 

@@ -23,6 +23,13 @@ function implicitRuleFor(category: string): CompiledRateLimitRule {
 	}
 }
 
+/** The request a rate applies to: its method, its path below the base URL, and its operation. */
+export interface RateRoute {
+	method: string
+	pathname: string
+	operationId?: string | undefined
+}
+
 export class RateLimiter {
 	private readonly buckets = new Map<string, RateBucket>()
 	/** Cooldown-only: after an untagged 429, later untagged writes wait this out, then run free. */
@@ -60,7 +67,8 @@ export class RateLimiter {
 	 * Feed a 429 wait into the matching bucket, or open the implicit untagged cooldown when the
 	 * operation never declared a rate. Tags stay the proactive path; this is the reactive one.
 	 */
-	noteBackoff(method: string, pathname: string, waitMs: number, operationId?: string): CompiledRateLimitRule {
+	noteBackoff(route: RateRoute, waitMs: number): CompiledRateLimitRule {
+		const { method, pathname, operationId } = route
 		const tagged = this.resolve(method, pathname, operationId)
 		if (tagged !== undefined) {
 			this.bucketFor(tagged).penalize(waitMs)

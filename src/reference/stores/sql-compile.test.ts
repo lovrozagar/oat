@@ -23,12 +23,12 @@ const plain: SqlFlavour = {
 		args.push(element)
 		return `HAS(${expr}, ?)`
 	},
-	like: (expr, segments, insensitive, args) => {
+	like: (expr, { insensitive, segments }, args) => {
 		args.push(likeText(segments))
 		return `${expr} ${insensitive ? "ILIKE" : "LIKE"} ?`
 	},
-	position: (expr, needle, caseSensitive, args) => {
-		args.push(needle)
+	position: (expr, { caseSensitive, text }, args) => {
+		args.push(text)
 		return `${caseSensitive ? "POS" : "IPOS"}(${expr}, ?)`
 	},
 	random: "RANDOM()",
@@ -37,14 +37,14 @@ const plain: SqlFlavour = {
 
 function where(expression: string, defects: DefectName[] = []): { sql: string; args: SqlParam[] } {
 	const args: SqlParam[] = []
-	const sql = compileWhere(parseFilter(expression, context(defects, {}, ROW)), ROW, plain, args)
+	const sql = compileWhere(parseFilter(expression, context(defects, {}, ROW)), { args, entity: ROW, flavour: plain })
 	return { args, sql }
 }
 
 function search(q: string, mode: "contains" | "prefix", defects: DefectName[] = []): { sql: string; args: SqlParam[] } {
 	const args: SqlParam[] = []
-	const node = parseSearch(q, ROW, new DefectSet(defects), mode)
-	const sql = node === null ? "" : compileWhere(node, ROW, plain, args)
+	const node = parseSearch(q, mode, { defects: new DefectSet(defects), entity: ROW })
+	const sql = node === null ? "" : compileWhere(node, { args, entity: ROW, flavour: plain })
 	return { args, sql }
 }
 

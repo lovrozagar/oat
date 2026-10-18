@@ -1,14 +1,17 @@
-import type { DefectSet } from "../defects/defect-set.ts"
 import { fieldsWhere } from "../model/fields.ts"
-import type { EntityDef } from "../model/types.ts"
 import type { FilterNode, SearchMode } from "../query-types.ts"
+import type { ParseContext } from "./conventions.ts"
 
 /**
  * Search tokens: every token must occur, case-insensitively, in some searchable field — as a
  * substring under `contains`, at the start of the value under `prefix`. A blank query matches
  * everything.
  */
-export function parseSearch(q: string, entity: EntityDef, defects: DefectSet, mode: SearchMode): FilterNode | null {
+export function parseSearch(
+	q: string,
+	mode: SearchMode,
+	{ defects, entity }: Pick<ParseContext, "defects" | "entity">,
+): FilterNode | null {
 	const split = q
 		.split(/\s+/)
 		.map((token) => token.trim())

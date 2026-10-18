@@ -1,9 +1,10 @@
 import { isObject } from "./algebra.ts"
 import { text } from "./text.ts"
-import type { Context, Schema, Walk } from "./types.ts"
+import type { At, Schema, Walk } from "./types.ts"
 import { Unconstructible } from "./unconstructible.ts"
 
-export function objectFor(schema: Schema, ctx: Context, pointer: string, walk: Walk): Record<string, unknown> {
+export function objectFor(schema: Schema, at: At, walk: Walk): Record<string, unknown> {
+	const { ctx, pointer } = at
 	const properties = isObject(schema.properties) ? schema.properties : {}
 	const required = new Set(Array.isArray(schema.required) ? (schema.required as string[]) : [])
 	const out: Record<string, unknown> = {}
@@ -12,7 +13,7 @@ export function objectFor(schema: Schema, ctx: Context, pointer: string, walk: W
 		const child = `${pointer}/${name.replace(/~/g, "~0").replace(/\//g, "~1")}`
 		const distinct = pointer === "" && ctx.distinct.has(name)
 		try {
-			out[name] = walk(sub, ctx, child, distinct)
+			out[name] = walk(sub, { ctx, distinct, pointer: child })
 		} catch (error) {
 			/* An optional property that cannot be made is left out; a required one cannot be. */
 			if (!(error instanceof Unconstructible) || required.has(name)) throw error

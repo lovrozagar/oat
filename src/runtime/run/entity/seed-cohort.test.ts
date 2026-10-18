@@ -33,8 +33,9 @@ function createsAnswered(...answers: Answer[]): Responder {
 	}
 }
 
-async function seeded(doc: OpenApiDocument, rows: Record_[], override: Responder, extra: Partial<RunOptions> = {}) {
-	const ctx = await contextOf(optionsFor(overriding(notesApi(doc, rows), override), extra))
+/** Seeds the notes entity against `backend`, with `override` answering first. */
+async function seeded(backend: Responder, override: Responder, extra: Partial<RunOptions> = {}) {
+	const ctx = await contextOf(optionsFor(overriding(backend, override), extra))
 	const run = entityRunOf(ctx)
 	const createOp = ctx.model.byOperationId.get("notes.create")
 	if (createOp === undefined) throw new Error("no create")
@@ -45,7 +46,7 @@ const none: Responder = () => undefined
 
 describe("seedCreated", () => {
 	it("seeds oat's own records, and marks every identity the collection holds as taken", async () => {
-		const { world, run } = await seeded(notesDoc(), [{ id: "n0", title: "old" }], none)
+		const { world, run } = await seeded(notesApi(notesDoc(), [{ id: "n0", title: "old" }]), none)
 		expect(world).toMatchObject({ createAcknowledged: false, degraded: false, uniqueAdopted: false })
 		expect(world?.records.length).toBeGreaterThan(0)
 		expect(run.taken.has("n0")).toBe(true)
@@ -54,8 +55,7 @@ describe("seedCreated", () => {
 
 	it("reports a variant the create crashed on, and one it refused, and seeds without them", async () => {
 		const { world, run, ctx } = await seeded(
-			notesDoc(),
-			[],
+			notesApi(notesDoc(), []),
 			createsAnswered(undefined as never, { status: 500 }, { body: { e: 1 }, status: 422 }),
 		)
 		expect(world?.records.length).toBeGreaterThan(0)
@@ -71,7 +71,7 @@ describe("seedCreated", () => {
 			note.properties = { ...(note.properties as Json), kind: { enum: ["only"], type: "string" } }
 			note.required = ["title", "kind"]
 		})
-		const { ctx } = await seeded(doc, [], (method, path, request) =>
+		const { ctx } = await seeded(notesApi(doc, []), (method, path, request) =>
 			method === "POST" && path === "/notes"
 				? { body: { ...(request.body as Json), id: "k1" }, status: 201 }
 				: undefined,
@@ -83,8 +83,7 @@ describe("seedCreated", () => {
 describe("seedCreated adopting", () => {
 	it("adopts a same-tenant row after a plan limit, standing the write checks down", async () => {
 		const { world, ctx } = await seeded(
-			notesDoc(),
-			[{ id: "n0", title: "old" }],
+			notesApi(notesDoc(), [{ id: "n0", title: "old" }]),
 			createsAnswered({ body: { error: "plan_limit" }, status: 402 }),
 		)
 		expect(world).toMatchObject({ degraded: true, records: [{ id: "n0" }], uniqueAdopted: false })
@@ -97,7 +96,7 @@ describe("seedCreated adopting", () => {
 		const doc = docWith((create) => {
 			create["x-unique"] = ["title"]
 		})
-		const { world, ctx } = await seeded(doc, [{ id: "n0", title: "old" }], createsAnswered({ status: 409 }))
+		const { world, ctx } = await seeded(notesApi(doc, [{ id: "n0", title: "old" }]), createsAnswered({ status: 409 }))
 		expect(world).toMatchObject({ degraded: true, uniqueAdopted: true })
 		expect(ctx.findings.findings[0]?.summary).toBe('seeding "note" could not insert because of x-unique')
 	})
@@ -107,10 +106,10 @@ describe("seedCreated adopting", () => {
 			create["x-feature-gate"] = "pro"
 		})
 		const gate = { body: { vars: { key: "pro", type: "feature_gate" } }, status: 403 }
-		const withRows = await seeded(doc, [{ id: "n0", title: "old" }], createsAnswered(gate))
+		const withRows = await seeded(notesApi(doc, [{ id: "n0", title: "old" }]), createsAnswered(gate))
 		expect(withRows.world).toMatchObject({ degraded: true, records: [{ id: "n0" }] })
 		expect(withRows.ctx.findings.findings[0]?.summary).toMatch(/^seeding "note" is gated by /)
-		const empty = await seeded(doc, [], createsAnswered(gate))
+		const empty = await seeded(notesApi(doc, []), createsAnswered(gate))
 		expect(empty.world).toBeNull()
 		expect(empty.ctx.findings.findings.at(-1)).toMatchObject({ summary: 'could not test "note"', verdict: "BLOCKED" })
 	})
@@ -123,7 +122,7 @@ describe("seedCreated identities", () => {
 			note.required = ["id", "title"]
 		})
 		const rows: Record_[] = []
-		const { world } = await seeded(doc, rows, (method, path, request) => {
+		const { world } = await seeded(notesApi(doc, rows), (method, path, request) => {
 			if (method !== "POST" || path !== "/notes") return undefined
 			rows.push(request.body as Record_)
 			return { body: { status: "accepted" }, status: 202 }
@@ -132,13 +131,15 @@ describe("seedCreated identities", () => {
 	})
 
 	it("reports a seed that failed as what it is", async () => {
-		const { world, ctx } = await seeded(notesDoc(), [], (method) => (method === "POST" ? { status: 500 } : undefined))
+		const { world, ctx } = await seeded(notesApi(notesDoc(), []), (method) =>
+			method === "POST" ? { status: 500 } : undefined,
+		)
 		expect(world).toBeNull()
 		expect(ctx.findings.findings.map((finding) => finding.check)).toEqual(["create.does-not-error", "world.seed"])
 	})
 
 	it("seeds no more than the configured cohort", async () => {
-		const { world } = await seeded(notesDoc(), [], none, { cohortSize: 1 })
+		const { world } = await seeded(notesApi(notesDoc(), []), none, { cohortSize: 1 })
 		expect(world?.records).toHaveLength(1)
 	})
 
@@ -147,7 +148,7 @@ describe("seedCreated identities", () => {
 			note.properties = { ...(note.properties as Json), id: { readOnly: true, type: "integer" } }
 		})
 		let next = 0
-		const { run } = await seeded(doc, [], (method, path, request) => {
+		const { run } = await seeded(notesApi(doc, []), (method, path, request) => {
 			if (method !== "POST" || path !== "/notes") return undefined
 			next += 1
 			return { body: { ...(request.body as Json), id: next }, status: 201 }
@@ -162,7 +163,7 @@ describe("seedCreated identities", () => {
 			note.properties = { title: { type: "string" } }
 		}) as unknown as { paths: Record<string, unknown> }
 		delete doc.paths["/notes/{note_id}"]
-		const { world, run } = await seeded(doc as unknown as OpenApiDocument, [], none)
+		const { world, run } = await seeded(notesApi(doc as unknown as OpenApiDocument, []), none)
 		expect(run.entity.identity).toBeNull()
 		expect(world?.records.length).toBeGreaterThan(0)
 		expect(run.taken.size).toBe(0)

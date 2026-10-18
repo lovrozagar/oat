@@ -62,12 +62,12 @@ function pgFlavour(): SqlFlavour {
 			args.push(element)
 			return `jsonb_exists(${expr}::jsonb, $${args.length})`
 		},
-		like: (expr, segments, insensitive, args) => {
+		like: (expr, { insensitive, segments }, args) => {
 			args.push(likeText(segments))
 			return `${expr} ${insensitive ? "ILIKE" : "LIKE"} $${args.length} ESCAPE '\\'`
 		},
-		position: (expr, needle, caseSensitive, args) => {
-			args.push(needle)
+		position: (expr, { caseSensitive, text }, args) => {
+			args.push(text)
 			return caseSensitive
 				? `strpos(${expr}, $${args.length}::text)`
 				: `strpos(lower(${expr}), lower($${args.length}::text))`
@@ -202,7 +202,7 @@ export class PgStore implements Store {
 
 	async select(entity: EntityDef, plan: SelectPlan): Promise<Row[]> {
 		const args: SqlParam[] = []
-		const where = compileWhere(plan.where, entity, this.flavour, args)
+		const where = compileWhere(plan.where, { args, entity, flavour: this.flavour })
 		const order = compileOrder(plan, entity, this.flavour)
 		const rows = await this.sql.unsafe(
 			`SELECT ${this.selectList(entity)} FROM ${ident(entity.plural)} WHERE ${where}${order}`,

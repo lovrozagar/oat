@@ -10,6 +10,7 @@
 
 import type { DefectSet } from "../defects/defect-set.ts"
 import type { EntityDef } from "../model/types.ts"
+import type { ParseContext } from "../query/conventions.ts"
 import { and } from "../query/tree.ts"
 import type { Collation, FilterNode, OrderTerm, SelectPlan } from "../query-types.ts"
 import { decodeCursor, encodeCursor, type Row, type Store } from "../store-api.ts"
@@ -35,7 +36,7 @@ export interface Listing {
  */
 export async function runListing(store: Store, { entity, request, options, defects }: Listing): Promise<ListingResult> {
 	const ctx = { conventions: options.conventions, defects, entity }
-	const paging = pagingOf(entity, request, options, defects)
+	const paging = pagingOf(ctx, request, options)
 	const predicate = listingPredicate(request, options, ctx)
 	const { filter, scope, scoped, search, tombstones } = predicate
 	const { dropNulls, fullOrder, unstable } = listingOrder(request, ctx, predicate.axes)
@@ -60,12 +61,12 @@ export async function runListing(store: Store, { entity, request, options, defec
 		const ordered = defects.has("COLLATION_INCONSISTENT")
 			? await store.select(entity, plan(listingWhere, invert(options.conventions.collation)))
 			: rows
-		start = { offset: cursorOffset(ordered, afterId, entity, defects), page: null }
+		start = { offset: cursorOffset(ctx, ordered, afterId), page: null }
 	} else start = numberedStart(paging, rows.length, defects)
-	let window = cut(rows, start, paging.servedLimit, defects)
+	let window = cut(ctx, rows, start, paging.servedLimit)
 	if (pageBeforeFilter) {
 		const matching = await store.select(entity, plan(and(...scoped, tombstones, filter, search)))
-		window = filteredWindow(window, matching, entity, defects)
+		window = filteredWindow(ctx, window, matching)
 	}
 	const projection = { defects, embed: options.embed, entity, select: request.select }
 	const items = await Promise.all(
@@ -73,7 +74,7 @@ export async function runListing(store: Store, { entity, request, options, defec
 			.map((row) => (options.transform === undefined ? row : options.transform(row)))
 			.map((row) => project(row, projection)),
 	)
-	return listingResult({ count, items, rows, start, window }, paging.servedLimit, entity, defects)
+	return listingResult(ctx, { count, items, limit: paging.servedLimit, rows, start, window })
 }
 
 /* The select plan for a predicate: the listing's order, under its collation unless told another. */
@@ -91,18 +92,21 @@ function fallsBackToAll(defects: DefectSet, rows: Row[], { filter, search }: Lis
 	return defects.has("EMPTY_RESULT_RETURNS_ALL") && rows.length === 0 && (filter !== null || search !== null)
 }
 
+/* A page as cut: every matching row, the window taken from them at `start`, the page size served,
+ * the count, and the window's rows as projected. */
+interface CutPage {
+	count: number
+	items: Row[]
+	limit: number
+	rows: Row[]
+	start: WindowStart
+	window: Row[]
+}
+
 /* What the listing answers: the rows served, the count, and where the page sits among the rest. */
 function listingResult(
-	{
-		count,
-		items,
-		rows,
-		start,
-		window,
-	}: { count: number; items: Row[]; rows: Row[]; start: WindowStart; window: Row[] },
-	limit: number,
-	entity: EntityDef,
-	defects: DefectSet,
+	{ defects, entity }: Pick<ParseContext, "defects" | "entity">,
+	{ count, items, limit, rows, start, window }: CutPage,
 ): ListingResult {
 	const hasMore = defects.has("HASMORE_ALWAYS_FALSE") ? false : start.offset + window.length < rows.length
 	const last = window.at(-1)

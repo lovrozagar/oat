@@ -47,7 +47,7 @@ export const queryFilterSearchSortSelectCompose = defineCheck<
 				ctx,
 				pageSize(ctx),
 				{ ...term, ...projection, ...searched },
-				{ order: sortTerm(conventions, sortField, "asc"), fresh },
+				{ order: sortTerm(conventions, { direction: "asc", field: sortField }), fresh },
 			)
 		const firstBase = await readBase()
 		const firstCombined = await readCombined()
@@ -58,10 +58,14 @@ export const queryFilterSearchSortSelectCompose = defineCheck<
 			return ctx.findings.unresolved(this.id, ctx.entityName, "a side of the comparison is larger than the walk covers")
 		}
 		/* A disagreement is read again: a collection another writer moved is no defect of composition. */
-		const pair = await settlePair(ctx.identity, firstBase, firstCombined, {
-			first: () => readBase(true),
-			second: () => readCombined(true),
-		})
+		const pair = await settlePair(
+			ctx.identity,
+			{ first: firstBase, second: firstCombined },
+			{
+				first: () => readBase(true),
+				second: () => readCombined(true),
+			},
+		)
 		if (pair === null) return ctx.findings.unresolved(this.id, ctx.entityName, "four-axis probe was rejected")
 		if (pair === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_FILTER)
 		const { first: base, second: combined } = pair

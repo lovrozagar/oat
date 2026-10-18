@@ -158,7 +158,13 @@ async function createNote(world: World, req: IncomingMessage, res: ServerRespons
 	send(res, 201, createdAnswer(world.mode, row, world.seq))
 }
 
-async function patchNote(world: World, id: number, req: IncomingMessage, res: ServerResponse): Promise<void> {
+/* One request and the response that answers it. */
+interface Exchange {
+	req: IncomingMessage
+	res: ServerResponse
+}
+
+async function patchNote(world: World, id: number, { req, res }: Exchange): Promise<void> {
 	const row = world.store.get(id)
 	if (row === undefined) return send(res, 404, {})
 	const body = await readJson(req)
@@ -174,12 +180,7 @@ async function patchNote(world: World, id: number, req: IncomingMessage, res: Se
 	send(res, 200, next)
 }
 
-async function noteItem(
-	world: World,
-	raw: string | undefined,
-	req: IncomingMessage,
-	res: ServerResponse,
-): Promise<void> {
+async function noteItem(world: World, raw: string | undefined, { req, res }: Exchange): Promise<void> {
 	const method = req.method ?? "GET"
 	const id = Number(raw)
 	if (!Number.isInteger(id)) return send(res, 400, { error: "ID is an integer" })
@@ -187,7 +188,7 @@ async function noteItem(
 		const row = world.store.get(id)
 		return row === undefined ? send(res, 404, {}) : send(res, 200, row)
 	}
-	if (method === "PATCH") return patchNote(world, id, req, res)
+	if (method === "PATCH") return patchNote(world, id, { req, res })
 	if (method !== "DELETE") return send(res, 405)
 	world.deleted.push(raw ?? "")
 	return world.store.delete(id) ? send(res, 204) : send(res, 404, {})
@@ -202,7 +203,7 @@ async function route(world: World, req: IncomingMessage, res: ServerResponse): P
 	const raw = match[1] === undefined ? undefined : decodeURIComponent(match[1])
 	if (raw === undefined && method === "GET") return send(res, 200, { items: [...world.store.values()] })
 	if (raw === undefined && method === "POST") return createNote(world, req, res)
-	return noteItem(world, raw, req, res)
+	return noteItem(world, raw, { req, res })
 }
 
 async function serve(mode: Mode) {

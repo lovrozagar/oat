@@ -114,7 +114,13 @@ async function createNote(world: World, req: IncomingMessage, res: ServerRespons
 	send(res, 200, { success: true })
 }
 
-async function updateNote(world: World, id: number, req: IncomingMessage, res: ServerResponse): Promise<void> {
+/* One request and the response that answers it. */
+interface Exchange {
+	req: IncomingMessage
+	res: ServerResponse
+}
+
+async function updateNote(world: World, id: number, { req, res }: Exchange): Promise<void> {
 	const row = world.rows.get(id)
 	const body = (await readJson(req)) as Partial<Row> | undefined
 	if (row === undefined) return send(res, 404, {})
@@ -124,11 +130,11 @@ async function updateNote(world: World, id: number, req: IncomingMessage, res: S
 }
 
 /* Any row answers by id, whoever owns it: the weak item isolation the header describes. */
-async function noteItem(world: World, id: number, req: IncomingMessage, res: ServerResponse): Promise<void> {
+async function noteItem(world: World, id: number, { req, res }: Exchange): Promise<void> {
 	const method = (req.method ?? "GET").toUpperCase()
 	const row = world.rows.get(id)
 	if (method === "GET") return row === undefined ? send(res, 404, {}) : send(res, 200, row)
-	if (method === "PUT" && world.withUpdate) return updateNote(world, id, req, res)
+	if (method === "PUT" && world.withUpdate) return updateNote(world, id, { req, res })
 	if (method === "DELETE") return world.rows.delete(id) ? send(res, 200, { success: true }) : send(res, 404, {})
 	send(res, 405, {})
 }
@@ -146,7 +152,7 @@ async function route(world: World, req: IncomingMessage, res: ServerResponse): P
 	if (url.pathname === "/notes" && method === "POST") return createNote(world, req, res)
 	const item = url.pathname.match(/^\/notes\/([^/]+)$/)
 	if (item === null) return send(res, 404, {})
-	return noteItem(world, Number(decodeURIComponent(item[1] ?? "")), req, res)
+	return noteItem(world, Number(decodeURIComponent(item[1] ?? "")), { req, res })
 }
 
 async function serve(rows: Map<number, Row>, options: { withUpdate: boolean }): Promise<string> {

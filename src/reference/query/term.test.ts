@@ -3,12 +3,11 @@ import { ROW } from "../model/row.ts"
 import { TABLE } from "../model/table.ts"
 import type { DefectName } from "../defects/table.ts"
 import { context, field } from "./__fixtures__/context.ts"
-import type { QueryConventions } from "./conventions.ts"
+import type { ParseContext } from "./conventions.ts"
 import { buildTerm } from "./term.ts"
 
 const position = field("position")
-const term = (op: string, raw: string, defects: DefectName[] = [], conventions: Partial<QueryConventions> = {}) =>
-	buildTerm({ ctx: context(defects, conventions), field: position, op, raw })
+const term = (op: string, raw: string, ctx: ParseContext = context()) => buildTerm({ ctx, field: position, op, raw })
 const cmp = (op: string, value: unknown, extra: object = {}) => ({
 	asText: false,
 	field: "position",
@@ -55,21 +54,27 @@ describe("buildTerm: equality", () => {
 	it("compares the typed value, matching nothing for a value of the wrong type", () => {
 		expect(term("eq", "2")).toEqual(cmp("eq", 2))
 		expect(term("eq", "abc")).toEqual({ kind: "const", value: false })
-		expect(() => term("eq", "abc", [], { strictTypes: true })).toThrow('"abc" is not a valid integer for "position"')
+		expect(() => term("eq", "abc", context([], { strictTypes: true }))).toThrow(
+			'"abc" is not a valid integer for "position"',
+		)
 	})
 
 	it("matches everything when eq is never applied, and compares as text under the numeric defect", () => {
-		expect(term("eq", "2", ["FILTER_EQ_NOT_APPLIED"])).toEqual({ kind: "const", value: true })
-		expect(term("eq", "2", ["NUMERIC_COMPARED_AS_TEXT"])).toEqual(cmp("eq", 2, { asText: true }))
+		expect(term("eq", "2", context(["FILTER_EQ_NOT_APPLIED"]))).toEqual({ kind: "const", value: true })
+		expect(term("eq", "2", context(["NUMERIC_COMPARED_AS_TEXT"]))).toEqual(cmp("eq", 2, { asText: true }))
 		const name = buildTerm({ ctx: context(["NUMERIC_COMPARED_AS_TEXT"]), field: field("name"), op: "eq", raw: "x" })
 		expect(name).toMatchObject({ asText: false })
 	})
 
 	it("lets nulls through neq, unless the defect drops them", () => {
 		expect(term("neq", "2")).toEqual(cmp("neq", 2, { nullsMatch: true }))
-		expect(term("neq", "2", ["NEQ_DROPS_NULLS"])).toEqual(cmp("neq", 2))
+		expect(term("neq", "2", context(["NEQ_DROPS_NULLS"]))).toEqual(cmp("neq", 2))
 		expect(term("neq", "abc")).toEqual({ kind: "const", value: true })
-		expect(term("neq", "abc", ["NEQ_DROPS_NULLS"])).toEqual({ field: "position", kind: "isnull", negate: true })
+		expect(term("neq", "abc", context(["NEQ_DROPS_NULLS"]))).toEqual({
+			field: "position",
+			kind: "isnull",
+			negate: true,
+		})
 	})
 })
 
@@ -77,10 +82,10 @@ describe("buildTerm: ranges and patterns", () => {
 	it("compares ranges, a defect moving a bound across the boundary", () => {
 		expect(term("gt", "2")).toEqual(cmp("gt", 2))
 		expect(term("lte", "x")).toEqual({ kind: "const", value: false })
-		expect(term("gte", "2", ["FILTER_GTE_IS_GT"])).toEqual(cmp("gt", 2))
-		expect(term("lte", "2", ["FILTER_LTE_IS_LT"])).toEqual(cmp("lt", 2))
-		expect(term("lt", "2", ["FILTER_LT_IS_LTE"])).toEqual(cmp("lte", 2))
-		expect(term("gte", "2", ["FILTER_LTE_IS_LT", "FILTER_LT_IS_LTE"])).toEqual(cmp("gte", 2))
+		expect(term("gte", "2", context(["FILTER_GTE_IS_GT"]))).toEqual(cmp("gt", 2))
+		expect(term("lte", "2", context(["FILTER_LTE_IS_LT"]))).toEqual(cmp("lt", 2))
+		expect(term("lt", "2", context(["FILTER_LT_IS_LTE"]))).toEqual(cmp("lte", 2))
+		expect(term("gte", "2", context(["FILTER_LTE_IS_LT", "FILTER_LT_IS_LTE"]))).toEqual(cmp("gte", 2))
 	})
 
 	it("matches like and ilike on text only, case folded for ilike unless the defect drops it", () => {

@@ -2,10 +2,15 @@
 
 import { utf8Bytes } from "../runtime/exchange.ts"
 
+/** What a request's start line names: its method, and the URL it goes to. */
+export interface RequestLine {
+	method: string
+	url: URL
+}
+
 /** Start line + headers + body. Host and Content-Length are filled when they would be on the wire. */
 export function requestMessageBytes(
-	method: string,
-	url: URL,
+	{ method, url }: RequestLine,
 	headers: Record<string, string>,
 	body: { bytes: number; text?: string | undefined },
 ): number {

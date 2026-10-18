@@ -9,9 +9,9 @@ import { type ListGroup, stillListed } from "./still-listed.ts"
 const ids = (count: number) => Array.from({ length: count }, (_, at) => `n${at + 1}`)
 
 /** Which of `wanted` the notes list still holds, as `alpha` reads it, paging as `paging`. */
-async function relist(paging: Paging, held: Store, wanted: string[], list = "notes.list") {
+async function relist(paging: Paging, held: Store, wanted: string[]) {
 	const model = notesModel(paging)
-	const listOp = model.byOperationId.get(list) as OperationModel
+	const listOp = model.byOperationId.get("notes.list") as OperationModel
 	const group: ListGroup = {
 		identity: "id",
 		items: wanted.map((id) => disposable("note", id)),

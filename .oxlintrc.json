@@ -42,7 +42,6 @@
 		"max-depth": ["error", 4],
 		"max-lines": ["error", 300],
 		"max-lines-per-function": ["error", 60],
-		"max-params": ["error", 4],
 		"unicorn/consistent-function-scoping": "error",
 		"vitest/expect-expect": "error",
 		"vitest/no-conditional-expect": "error",
@@ -54,7 +53,8 @@
 		"oat/no-header-branching": "error",
 		"oat/no-module-side-effects": "error",
 		"oat/no-module-state": "error",
-		"oat/no-v8-ignore": "error"
+		"oat/no-v8-ignore": "error",
+		"oat/max-params": "error"
 	},
 	"overrides": [
 		{
@@ -76,11 +76,11 @@
 				"max-depth": "off",
 				"max-lines": "off",
 				"max-lines-per-function": "off",
-				"max-params": "off",
 				"unicorn/consistent-function-scoping": "off",
 				"oat/no-header-branching": "off",
 				"oat/no-module-side-effects": "off",
-				"oat/no-module-state": "off"
+				"oat/no-module-state": "off",
+				"oat/max-params": "off"
 			}
 		}
 	]

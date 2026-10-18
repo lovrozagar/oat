@@ -15,7 +15,7 @@ export const startJob: Route = async (state, request) => {
 	const name = ((await readJson(request)) as { name?: unknown }).name
 	if (typeof name !== "string" || name === "") throw new HttpError(400, "invalid_input", 'field "name" is required')
 	if (state.defects.has("ACTION_CRASHES")) throw new HttpError(500, "internal_error", "job runner unavailable")
-	const job = withDefaults(state, state.job, { name }, { project_id: projectId })
+	const job = withDefaults(state, { entity: state.job, scope: { project_id: projectId } }, { name })
 	job.status = "pending"
 	job.progress = 0
 	if (!state.defects.has("EFFECT_NOT_APPLIED")) {

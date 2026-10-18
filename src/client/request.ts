@@ -15,12 +15,13 @@ import { sendFollowing } from "./redirect.ts"
 import { addRequiredQuery, carriesMissingValue, encodeBody, requestUrl } from "./serialize.ts"
 import type { NetworkClientOptions, RequestOptions, RequestStart } from "./types.ts"
 
-export function prepare(method: string, path: string, options: RequestOptions, wire: Wire): Prepared {
+/** A request as the wire it is sent on will send it: its URL, operation, headers and credential. */
+export function prepare(ctx: Wire, method: string, path: string, options: RequestOptions): Prepared {
 	const verb = method.toUpperCase()
-	const url = requestUrl(wire.baseUrl, path, options.query)
-	const resolved = isAbsoluteHttpUrl(path) ? null : (wire.operationResolver?.(verb, wire.relativePath(url)) ?? null)
+	const url = requestUrl(ctx.baseUrl, path, options.query)
+	const resolved = isAbsoluteHttpUrl(path) ? null : (ctx.operationResolver?.(verb, ctx.relativePath(url)) ?? null)
 	addRequiredQuery(url, resolved?.requiredQuery ?? {}, options.query)
-	const relative = wire.relativePath(url)
+	const relative = ctx.relativePath(url)
 	/* A value oat did not have, written as text: nothing goes out. */
 	if (carriesMissingValue(url)) throw new MissingValueError(`${verb} ${relative}`)
 	const operationId = options.operationId ?? resolved?.operationId
@@ -31,7 +32,7 @@ export function prepare(method: string, path: string, options: RequestOptions, w
 			const raw = options.headers
 			return { ...(typeof raw === "function" ? raw() : raw) }
 		},
-		credential: (headers) => (skip ? undefined : wire.credentials?.credentialFor({ headers, ...named })),
+		credential: (headers) => (skip ? undefined : ctx.credentials?.credentialFor({ headers, ...named })),
 		method: verb,
 		operationId,
 		options,
@@ -154,7 +155,7 @@ function probeOf({ request, headers, body }: Sent): RequestStart {
 	return {
 		at: Date.now(),
 		method: request.method,
-		requestBytes: requestMessageBytes(request.method, request.url, headers, body),
+		requestBytes: requestMessageBytes(request, headers, body),
 		requestId: requestIdOf(headers, {}),
 		url: request.url.toString(),
 	}

@@ -3,7 +3,7 @@ import { referenceRequest } from "../../reference/http/wire.ts"
 import { projectBackend, projectSpec } from "./project.ts"
 
 function ask(method: string, path: string, body = "") {
-	return referenceRequest(method, new URL(path, "http://project.test"), {}, async () => body)
+	return referenceRequest(method, new URL(path, "http://project.test"), { headers: {}, read: async () => body })
 }
 
 describe("projectBackend", () => {

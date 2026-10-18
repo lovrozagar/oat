@@ -19,11 +19,17 @@ function json(item: unknown): Blob {
 	return new Blob([JSON.stringify(item)], { type: "application/json" })
 }
 
+/** One field of a form: its name and the value generated for it. */
+export interface FormField {
+	name: string
+	value: unknown
+}
+
 /**
  * One multipart field: a part per array item, and an object as one JSON part (the OpenAPI
  * default content type for an object in multipart) unless the encoding says otherwise.
  */
-export function appendValue(form: FormData, name: string, value: unknown, encoding: FieldEncoding | undefined): void {
+export function appendValue(form: FormData, { name, value }: FormField, encoding: FieldEncoding | undefined): void {
 	if (encoding?.contentType?.includes("json") === true) {
 		form.append(name, json(value))
 		return

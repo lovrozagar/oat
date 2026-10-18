@@ -21,7 +21,7 @@ export const invite: Route = async (state, request) => {
 	if (typeof key !== "string" || key === "") throw new HttpError(400, "invalid_input", 'field "key" is required')
 	if (PRINCIPALS.find((p) => p.key === key) === undefined)
 		throw new HttpError(400, "invalid_input", "unknown invitee key")
-	await findItem(state, { entity: state.table, id: tableId, scope: { project_id: projectId } }, principal)
+	await findItem(state, { entity: state.table, itemId: tableId, principal, scope: { project_id: projectId } })
 	const grant: Grant = {
 		accepted: false,
 		entity: "table",

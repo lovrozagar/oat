@@ -4,7 +4,14 @@ import { SchemaValidator } from "../../../../validate.ts"
 import type { SpecModel } from "../../../../../spec/graph/types.ts"
 import type { OpenApiDocument } from "../../../../../spec/types.ts"
 import type { CheckContext } from "../../../core/context.ts"
-import { type Answer, contextFor, exchange, modelOf, type Responder } from "../../../__fixtures__/harness.ts"
+import {
+	type Answer,
+	contextFor,
+	exchange,
+	exchangeOf,
+	modelOf,
+	type Responder,
+} from "../../../__fixtures__/harness.ts"
 
 /*
  * An `item` entity: a list, a create unique on `name`, a read with a documented 404, an update
@@ -102,7 +109,7 @@ export function itemOperations(model: SpecModel): Partial<CheckContext> {
 /** An exchange of `operationId` as the transcript holds it, with any field `extra` sets. */
 export function seen(operationId: string, answer: Answer, extra: Partial<Exchange> = {}): Exchange {
 	const path = operationId === "item.create" ? "/items" : "/items/1"
-	return { ...exchange("GET", path, answer, { operationId }), ...extra }
+	return { ...exchangeOf({ method: "GET", options: { operationId }, path }, answer), ...extra }
 }
 
 /** An exchange that names no operation, as a request sent without one is recorded. */
@@ -125,9 +132,12 @@ export interface Transcript {
  * and get their body from `stored` when the transcript had moved it out of memory.
  */
 export function overTranscript(model: SpecModel, exchanges: Exchange[], transcript: Transcript = {}) {
-	const staged = contextFor(model, "item.list", transcript.respond ?? (() => undefined), {
-		...itemOperations(model),
-		...transcript.fields,
+	const staged = contextFor(model, "item.list", {
+		respond: transcript.respond ?? (() => undefined),
+		fields: {
+			...itemOperations(model),
+			...transcript.fields,
+		},
 	})
 	const hydrated: Exchange[] = []
 	const stored = transcript.stored ?? new Map<Exchange, unknown>()

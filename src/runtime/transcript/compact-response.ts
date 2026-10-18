@@ -6,7 +6,7 @@ import { INLINE_BODY_LIMIT, isBinaryMediaType, primaryMediaType } from "../excha
 import { presentHeader } from "../headers.ts"
 import { type SseEvent, sseEvents, sseFramesOf } from "../sse.ts"
 import { bodyRef } from "./live.ts"
-import type { BodyDigest } from "./types.ts"
+import type { BodyDigest, ReceivedBody } from "./types.ts"
 
 /** What was received, when the client kept its size and hash; a re-encoding otherwise. */
 function refOf(bytes: Uint8Array, type: string, digest: BodyDigest | undefined): BodyRef {
@@ -48,9 +48,9 @@ function compactTextual(body: unknown, mediaType: string, digest: BodyDigest | u
 export async function compactResponseBody(
 	body: unknown,
 	responseHeaders: Record<string, string>,
-	knownBytes?: number,
-	digest?: BodyDigest,
+	received: ReceivedBody = {},
 ): Promise<unknown> {
+	const { bytes: knownBytes, digest } = received
 	if (body === undefined) return undefined
 	if (isBodyRef(body) || isFormSnapshot(body)) return body
 	const mediaType = presentHeader(responseHeaders, "content-type") ?? ""

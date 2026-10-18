@@ -44,7 +44,10 @@ export function itemsDocument(
 /** A context over `doc` whose create is the document's, answering every request with `answer`. */
 export function stage(doc: OpenApiDocument, answer: Answer, fields: Partial<CheckContext> = {}) {
 	const model = modelOf(doc)
-	return contextFor(model, "item.list", () => answer, { createOp: model.byOperationId.get("item.create"), ...fields })
+	return contextFor(model, "item.list", {
+		respond: () => answer,
+		fields: { createOp: model.byOperationId.get("item.create"), ...fields },
+	})
 }
 
 /** The 403 a documented feature gate answers with. */

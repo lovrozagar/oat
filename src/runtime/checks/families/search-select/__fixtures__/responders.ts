@@ -16,8 +16,8 @@ export function ignoring(param: string, rows: readonly Record_[] = NOTES): Respo
 }
 
 /** The backend, except that a request whose `param` is `value` gets `answer`. */
-export function answering(param: string, value: string, answer: Answer, rows: readonly Record_[] = NOTES): Responder {
-	return (method, path, options) => (queryOf(options)[param] === value ? answer : backend(rows)(method, path, options))
+export function answering(param: string, value: string, answer: Answer): Responder {
+	return (method, path, options) => (queryOf(options)[param] === value ? answer : backend(NOTES)(method, path, options))
 }
 
 /** A paged listing that serves the same page whatever page is asked for: no read is ever complete. */

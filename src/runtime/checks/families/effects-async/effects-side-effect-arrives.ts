@@ -111,7 +111,7 @@ function bindWaitScope(
 	writeBody: unknown,
 ): Record<string, string> {
 	const scope = { ...ctx.scope }
-	Object.assign(scope, bindAfterCreateEffects(ctx.model, writeOp.effects, writeBody))
+	Object.assign(scope, bindAfterCreateEffects(ctx.model, writeOp.effects, { body: writeBody }))
 	Object.assign(scope, bindMissingPathParams(pollOp.pathParams, scope, writeBody))
 	return scope
 }

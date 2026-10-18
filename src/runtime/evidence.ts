@@ -25,12 +25,18 @@ function pathOf(url: string): string {
 	}
 }
 
-function walk(node: unknown, depth: number, into: string[], idsOnly: boolean): void {
+/** Where `walk` gathers strings, and whether it keeps only ids. */
+interface Harvest {
+	into: string[]
+	idsOnly: boolean
+}
+
+function walk(node: unknown, depth: number, harvest: Harvest): void {
 	if (depth > 4 || node === null || typeof node !== "object") return
 	for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
 		if (typeof value === "string" && value.length >= 6) {
-			if (!idsOnly || key === "id" || key.endsWith("_id")) into.push(value)
-		} else walk(value, depth + 1, into, idsOnly)
+			if (!harvest.idsOnly || key === "id" || key.endsWith("_id")) harvest.into.push(value)
+		} else walk(value, depth + 1, harvest)
 	}
 }
 
@@ -38,25 +44,32 @@ function walk(node: unknown, depth: number, into: string[], idsOnly: boolean): v
 function tokensOf(exchange: Exchange): string[] {
 	const ids: string[] = []
 	const sent: string[] = []
-	walk(exchange.responseBody, 0, ids, true)
-	walk(exchange.requestBody, 0, sent, false)
+	walk(exchange.responseBody, 0, { idsOnly: true, into: ids })
+	walk(exchange.requestBody, 0, { idsOnly: false, into: sent })
 	return [...new Set([...ids, ...sent])]
 }
 
+/** Where a search stands: the JSON path walked so far and how deep it is. */
+interface Position {
+	prefix: string
+	depth: number
+}
+
 /** A JSON path (`[*]` for arrays) to a string node equal to `value`, or null. */
-export function pathTo(body: unknown, value: string, prefix = "$", depth = 0): string | null {
+export function pathTo(body: unknown, value: string, at: Position = { depth: 0, prefix: "$" }): string | null {
+	const { depth, prefix } = at
 	if (depth > 6 || body === null || typeof body !== "object") return null
 	if (Array.isArray(body)) {
 		for (const item of body) {
 			if (item === value) return `${prefix}[*]`
-			const hit = pathTo(item, value, `${prefix}[*]`, depth + 1)
+			const hit = pathTo(item, value, { depth: depth + 1, prefix: `${prefix}[*]` })
 			if (hit !== null) return hit
 		}
 		return null
 	}
 	for (const [key, item] of Object.entries(body as Record<string, unknown>)) {
 		if (item === value) return `${prefix}.${key}`
-		const hit = pathTo(item, value, `${prefix}.${key}`, depth + 1)
+		const hit = pathTo(item, value, { depth: depth + 1, prefix: `${prefix}.${key}` })
 		if (hit !== null) return hit
 	}
 	return null

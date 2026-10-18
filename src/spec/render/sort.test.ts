@@ -22,8 +22,8 @@ const keys = [
 describe("a template sort grammar", () => {
 	it("writes each key with its own direction tokens", () => {
 		const spec = parsed(TEMPLATE)
-		expect(renderSortKey(spec, "Qty", "desc")).toBe("Qty_descending")
-		expect(renderSortKey(spec, "Qty", "asc")).toBe("Qty_ascending")
+		expect(renderSortKey(spec, { direction: "desc", field: "Qty" })).toBe("Qty_descending")
+		expect(renderSortKey(spec, { direction: "asc", field: "Qty" })).toBe("Qty_ascending")
 		expect(renderSortKeys(spec, keys)).toBe("Qty_descending,Name_ascending")
 	})
 
@@ -35,10 +35,10 @@ describe("a template sort grammar", () => {
 	})
 
 	it("appends a nulls token only when it declares one", () => {
-		expect(renderSortKey(parsed(TEMPLATE), "Qty", "asc", "first")).toBe("Qty_ascending")
+		expect(renderSortKey(parsed(TEMPLATE), { direction: "asc", field: "Qty", nulls: "first" })).toBe("Qty_ascending")
 		const withNulls = parsed({ ...TEMPLATE, nulls: { first: "_nf", last: "_nl" } })
-		expect(renderSortKey(withNulls, "Qty", "asc", "last")).toBe("Qty_ascending_nl")
-		expect(renderSortKey(withNulls, "Qty", "asc")).toBe("Qty_ascending")
+		expect(renderSortKey(withNulls, { direction: "asc", field: "Qty", nulls: "last" })).toBe("Qty_ascending_nl")
+		expect(renderSortKey(withNulls, { direction: "asc", field: "Qty" })).toBe("Qty_ascending")
 	})
 })
 
@@ -52,7 +52,7 @@ describe("the named sort grammars", () => {
 		expect(renderSortKeys(SORT_PRESETS.prefixed, both)).toBe("a,-b")
 		expect(renderSortKeys(SORT_PRESETS.colon, both)).toBe("a:asc,b:desc")
 		expect(renderSortKeys(SORT_PRESETS.spaced, both)).toBe("a asc,b desc")
-		expect(renderSortKey(SORT_PRESETS.dotted, "a", "asc", "last")).toBe("a.asc.nullslast")
+		expect(renderSortKey(SORT_PRESETS.dotted, { direction: "asc", field: "a", nulls: "last" })).toBe("a.asc.nullslast")
 	})
 })
 

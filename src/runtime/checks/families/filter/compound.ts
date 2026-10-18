@@ -100,8 +100,8 @@ export function compoundPlan(
 	const { fieldA, fieldB, target } = picked
 	const valueA = String(target[fieldA])
 	const valueB = String(target[fieldB])
-	const termA = filterTerm(conventions, fieldA, "eq", valueA)
-	const termB = filterTerm(conventions, fieldB, "eq", valueB)
+	const termA = filterTerm(conventions, { field: fieldA, op: "eq", value: valueA })
+	const termB = filterTerm(conventions, { field: fieldB, op: "eq", value: valueB })
 	const combined = combine(conventions, { field: fieldA, value: valueA }, { field: fieldB, value: valueB })
 	if (termA === null || termB === null || combined === null) {
 		return cannot("a filter grammar that can express a combined predicate")

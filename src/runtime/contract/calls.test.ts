@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { exchange } from "../checks/__fixtures__/harness.ts"
+import { exchangeOf } from "../checks/__fixtures__/harness.ts"
 import { runContractCalls } from "./calls.ts"
 import { doc, json, ok, pathParam, stage } from "./__fixtures__/stage.ts"
 
@@ -71,7 +71,12 @@ describe("runContractCalls", () => {
 			mode: "targeted",
 			inScope: (id) => id === "things.list",
 		})
-		input.client.transcript.push(exchange("GET", "/things", { body: [], status: 200 }, { operationId: "things.list" }))
+		input.client.transcript.push(
+			exchangeOf(
+				{ method: "GET", options: { operationId: "things.list" }, path: "/things" },
+				{ body: [], status: 200 },
+			),
+		)
 		await runContractCalls(input)
 		expect(sent).toEqual([])
 		expect(input.grades.evidence.has("things.list")).toBe(true)

@@ -68,6 +68,12 @@ export function membership(records: Record_[], identity: string): string {
 	return ids(records, identity).sort().join(",")
 }
 
+/** Two reads that must hold the same rows. */
+export interface ReadPair<T> {
+	first: T
+	second: T
+}
+
 /**
  * Two reads that must hold the same rows and do not. Read the first again: when the same read
  * now holds other rows, the collection is moving under the check — an append-only log the run
@@ -76,10 +82,9 @@ export function membership(records: Record_[], identity: string): string {
  */
 export async function settlePair<T extends { items: Record_[] }>(
 	identity: string,
-	first: T,
-	second: T,
+	{ first, second }: ReadPair<T>,
 	again: { first: () => Promise<T | null>; second: () => Promise<T | null> },
-): Promise<{ first: T; second: T } | "moving" | null> {
+): Promise<ReadPair<T> | "moving" | null> {
 	if (membership(first.items, identity) === membership(second.items, identity)) return { first, second }
 	const firstAgain = await again.first()
 	if (firstAgain === null) return null

@@ -20,7 +20,7 @@ describe("respond", () => {
 describe("referenceRequest", () => {
 	it("upper-cases the method and keeps the url and headers", () => {
 		const url = new URL("http://reference.test/health")
-		const request = referenceRequest("patch", url, { accept: "*/*" }, async () => "")
+		const request = referenceRequest("patch", url, { headers: { accept: "*/*" }, read: async () => "" })
 		expect(request.method).toBe("PATCH")
 		expect(request.url).toBe(url)
 		expect(request.headers).toEqual({ accept: "*/*" })
@@ -28,7 +28,7 @@ describe("referenceRequest", () => {
 
 	it("reads the body once, however often it is asked", async () => {
 		const read = vi.fn<() => Promise<string>>(async () => "payload")
-		const request = referenceRequest("POST", new URL("http://reference.test/"), {}, read)
+		const request = referenceRequest("POST", new URL("http://reference.test/"), { headers: {}, read })
 		expect(await request.text()).toBe("payload")
 		expect(await request.text()).toBe("payload")
 		expect(read).toHaveBeenCalledTimes(1)

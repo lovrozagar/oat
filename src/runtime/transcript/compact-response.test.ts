@@ -33,7 +33,7 @@ describe("compactResponseBody, event streams", () => {
 
 	it("keeps a stream with no frames as text, by reference past the limit", async () => {
 		expect(await compactResponseBody(": ping", SSE)).toBe(": ping")
-		expect(await compactResponseBody(`: ${long}`, SSE, undefined, digest)).toEqual(
+		expect(await compactResponseBody(`: ${long}`, SSE, { digest })).toEqual(
 			bodyRef(utf8Encode(`: ${long}`), "text/event-stream"),
 		)
 		expect(await compactResponseBody(["a"], SSE)).toEqual(["a"])
@@ -48,7 +48,7 @@ describe("compactResponseBody, event streams", () => {
 describe("compactResponseBody, other bodies", () => {
 	it("keeps small text inline, and binary or long text by reference, by the received hash when known", async () => {
 		expect(await compactResponseBody("hello", { "content-type": "text/plain" })).toBe("hello")
-		expect(await compactResponseBody("png", { "content-type": "image/png" }, 3, digest)).toEqual({
+		expect(await compactResponseBody("png", { "content-type": "image/png" }, { bytes: 3, digest })).toEqual({
 			bytes: 99,
 			mediaType: "image/png",
 			sha256: "received",
@@ -64,11 +64,11 @@ describe("compactResponseBody, other bodies", () => {
 		expect(await compactResponseBody(bytes, { "content-type": "image/png" })).toEqual(bodyRef(bytes, "image/png"))
 		expect(await compactResponseBody(bytes, {})).toEqual(bodyRef(bytes, "application/octet-stream"))
 		const big = { rows: long }
-		expect(await compactResponseBody(big, JSON_TYPE, 10)).toBe(big)
+		expect(await compactResponseBody(big, JSON_TYPE, { bytes: 10 })).toBe(big)
 		expect(await compactResponseBody(big, JSON_TYPE)).toEqual(
 			bodyRef(utf8Encode(JSON.stringify(big)), "application/json"),
 		)
-		expect(await compactResponseBody(big, {}, INLINE_BODY_LIMIT + 9, digest)).toEqual({
+		expect(await compactResponseBody(big, {}, { bytes: INLINE_BODY_LIMIT + 9, digest })).toEqual({
 			bytes: 99,
 			mediaType: "application/json",
 			sha256: "received",

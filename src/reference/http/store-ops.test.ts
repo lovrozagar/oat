@@ -85,23 +85,23 @@ describe("assertUnique", () => {
 		const { state, table } = await api()
 		const first = await table("dup")
 		const copy = { name: "dup", project_id: "proj_alpha" }
-		await expect(assertUnique(state, state.table, copy, undefined)).rejects.toMatchObject({
+		await expect(assertUnique(state, { entity: state.table, record: copy })).rejects.toMatchObject({
 			message: "unique constraint violated (name)",
 			status: 409,
 		})
-		await expect(assertUnique(state, state.table, copy, String(first.id))).resolves.toBeUndefined()
-		await expect(assertUnique(state, state.table, { ...copy, project_id: "proj_beta" }, undefined)).resolves.toBe(
-			undefined,
-		)
+		await expect(assertUnique(state, { entity: state.table, record: copy }, String(first.id))).resolves.toBeUndefined()
+		await expect(
+			assertUnique(state, { entity: state.table, record: { ...copy, project_id: "proj_beta" } }),
+		).resolves.toBe(undefined)
 	})
 
 	it("checks nothing for an entity with no unique set, or under UNIQUE_NOT_ENFORCED", async () => {
 		const { state } = await api()
-		await expect(assertUnique(state, state.job, { name: "x" }, undefined)).resolves.toBeUndefined()
+		await expect(assertUnique(state, { entity: state.job, record: { name: "x" } })).resolves.toBeUndefined()
 		const lax = await api({ defects: ["UNIQUE_NOT_ENFORCED"] })
 		await lax.table("dup")
 		await expect(
-			assertUnique(lax.state, lax.state.table, { name: "dup", project_id: "proj_alpha" }, undefined),
+			assertUnique(lax.state, { entity: lax.state.table, record: { name: "dup", project_id: "proj_alpha" } }),
 		).resolves.toBeUndefined()
 	})
 
@@ -109,7 +109,7 @@ describe("assertUnique", () => {
 		const slugs = await api({ shape: "tenant-slugs" })
 		await slugs.table("Same")
 		await expect(
-			assertUnique(slugs.state, slugs.state.table, { project_id: "proj_alpha", slug: "same" }, undefined),
+			assertUnique(slugs.state, { entity: slugs.state.table, record: { project_id: "proj_alpha", slug: "same" } }),
 		).rejects.toMatchObject({ message: "unique constraint violated (slug)" })
 	})
 })
@@ -141,9 +141,9 @@ describe("readModifyWrite", () => {
 	it("writes the whole record read before the patch", async () => {
 		const { state, table } = await api()
 		const made = await table("t")
-		const updated = await readModifyWrite(state, state.table, String(made.id), { position: 9 })
+		const updated = await readModifyWrite(state, { entity: state.table, id: String(made.id) }, { position: 9 })
 		expect(updated).toMatchObject({ name: "t", position: 9 })
-		expect(await readModifyWrite(state, state.table, "missing", { position: 1 })).toBeNull()
+		expect(await readModifyWrite(state, { entity: state.table, id: "missing" }, { position: 1 })).toBeNull()
 	})
 })
 

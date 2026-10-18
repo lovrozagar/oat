@@ -4,20 +4,17 @@
  * the schema.
  */
 
-import type { OperationObject } from "../../spec/types.ts"
-import type { OperationModel } from "../../spec/graph/types.ts"
 import type { Exchange } from "../exchange.ts"
 import { documentsStatus } from "../../spec/graph/statuses.ts"
 import { describeServerError } from "../rate-limit/retry-after.ts"
 import { headerValue } from "../headers.ts"
 import { CONTRACT_CHECK_ID } from "./check.ts"
 import { snippet } from "./params.ts"
-import type { ContractInput } from "./types.ts"
+import type { ContractCall, ContractInput } from "./types.ts"
 
 export function judge(
 	input: Pick<ContractInput, "findings" | "grades" | "validator">,
-	op: OperationModel,
-	raw: OperationObject,
+	{ op, raw }: Pick<ContractCall, "op" | "raw">,
 	exchange: Exchange,
 ): void {
 	const { grades } = input
@@ -47,7 +44,7 @@ export function judge(
 	grades.graded([op.operationId], CONTRACT_CHECK_ID)
 	/* A documented status with no body schema has nothing more to hold the body to. */
 	const result = input.validator.documents(raw, exchange.status)
-		? input.validator.validate(op.operationId, raw, exchange.status, exchange.responseBody)
+		? input.validator.validate(op.operationId, raw, exchange)
 		: { ok: true, errors: [] as string[], unchecked: undefined }
 	if (result.unchecked === undefined && !result.ok) {
 		blame.spec(CONTRACT_CHECK_ID, entity, {

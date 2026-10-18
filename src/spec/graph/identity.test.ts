@@ -1,22 +1,28 @@
 import { describe, expect, it } from "vitest"
 import { member } from "../__fixtures__/documents.ts"
-import { identityRank, operationIdentity } from "./identity.ts"
+import { identityRank, type OperationRoute, operationIdentity } from "./identity.ts"
+
+/* A route whose path parameters are the ones its path names, in order. */
+const route = (path: string): OperationRoute => ({
+	path,
+	pathParams: [...path.matchAll(/\{([^}]+)\}/g)].map((match) => match[1] as string),
+})
 
 describe("operationIdentity", () => {
 	it("takes a declared identity first", () => {
-		expect(operationIdentity("slug", member, "/notes/{id}", ["id"])).toEqual({
+		expect(operationIdentity("slug", member, route("/notes/{id}"))).toEqual({
 			identity: "slug",
 			identitySource: "declared",
 		})
 	})
 
 	it("reads the identity off the item route's parameter, camelCase or snake_case", () => {
-		expect(operationIdentity(undefined, null, "/tables/{tableId}", ["tableId"])).toEqual({
+		expect(operationIdentity(undefined, null, route("/tables/{tableId}"))).toEqual({
 			identity: "id",
 			identitySource: "route",
 		})
-		expect(operationIdentity(undefined, null, "/tables/{table_id}", ["table_id"]).identity).toBe("id")
-		expect(operationIdentity(undefined, null, "/w/{workspaceUuid}", ["workspaceUuid"]).identity).toBe("uuid")
+		expect(operationIdentity(undefined, null, route("/tables/{table_id}")).identity).toBe("id")
+		expect(operationIdentity(undefined, null, route("/w/{workspaceUuid}")).identity).toBe("uuid")
 	})
 
 	/* Teardown deletes by the identity through the item route, so the property the route's own
@@ -28,24 +34,27 @@ describe("operationIdentity", () => {
 			required: ["name"],
 			type: "object",
 		}
-		expect(operationIdentity(undefined, note, "/notes/{noteId}", ["noteId"]).identity).toBe("id")
-		expect(operationIdentity(undefined, note, "/notes/{note_id}", ["note_id"]).identity).toBe("id")
-		expect(operationIdentity(undefined, note, "/notes", [])).toEqual({ identity: "name", identitySource: "schema" })
+		expect(operationIdentity(undefined, note, route("/notes/{noteId}")).identity).toBe("id")
+		expect(operationIdentity(undefined, note, route("/notes/{note_id}")).identity).toBe("id")
+		expect(operationIdentity(undefined, note, route("/notes"))).toEqual({
+			identity: "name",
+			identitySource: "schema",
+		})
 		const page = {
 			properties: { id: { type: "string" }, slug: { type: "string" } },
 			required: ["id", "slug"],
 			type: "object",
 		}
-		expect(operationIdentity(undefined, page, "/pages/{pageSlug}", ["pageSlug"]).identity).toBe("slug")
-		expect(operationIdentity(undefined, page, "/pages/{pageRef}", ["pageRef"]).identity).toBe("id")
+		expect(operationIdentity(undefined, page, route("/pages/{pageSlug}")).identity).toBe("slug")
+		expect(operationIdentity(undefined, page, route("/pages/{pageRef}")).identity).toBe("id")
 	})
 
 	it("reads the schema alone on a collection route, and has none when nothing names one", () => {
-		expect(operationIdentity(undefined, { anyOf: [{ type: "null" }, member] }, "/p/{p}/notes", ["p"])).toEqual({
+		expect(operationIdentity(undefined, { anyOf: [{ type: "null" }, member] }, route("/p/{p}/notes"))).toEqual({
 			identity: "id",
 			identitySource: "schema",
 		})
-		expect(operationIdentity(undefined, { type: "object" }, "/notes", [])).toEqual({
+		expect(operationIdentity(undefined, { type: "object" }, route("/notes"))).toEqual({
 			identity: null,
 			identitySource: null,
 		})

@@ -13,7 +13,7 @@ export const declaredSortableNullsAccepted = defineCheck({
 	plan: (ctx) =>
 		when(
 			conv(ctx).order !== undefined &&
-				sortTermWithNulls(conv(ctx), "x", "asc", "first") !== null &&
+				sortTermWithNulls(conv(ctx), { direction: "asc", field: "x", nulls: "first" }) !== null &&
 				resolvedCaps(ctx).sortable.some(
 					(field) =>
 						fieldAllowsNulls(field, resolvedCaps(ctx), "first") || fieldAllowsNulls(field, resolvedCaps(ctx), "last"),
@@ -30,7 +30,7 @@ export const declaredSortableNullsAccepted = defineCheck({
 		for (const field of resolvedCaps(ctx).sortable) {
 			for (const token of ["first", "last"] as const) {
 				if (!fieldAllowsNulls(field, resolvedCaps(ctx), token)) continue
-				const clause = sortTermWithNulls(conv(ctx), field.field, "asc", token)
+				const clause = sortTermWithNulls(conv(ctx), { direction: "asc", field: field.field, nulls: token })
 				if (clause === null) continue
 				const result = await list(ctx, q(ctx, { limit: 5, order: clause }))
 				const answer = declarationAnswer(result.exchange.status)

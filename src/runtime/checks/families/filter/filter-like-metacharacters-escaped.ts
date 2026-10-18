@@ -20,7 +20,7 @@ export const likeEscaping = defineCheck<{ field: string; likeTerm: Record<string
 		 * Matching everything means the value was interpolated into a LIKE pattern unescaped. Where
 		 * the grammar declares `%` its wildcard, matching everything is the answer, not a leak. */
 		if (filterSpec(conv(ctx)).likeWildcard === "%") return cannot("a like operator that reads % literally")
-		const likeTerm = filterTerm(conv(ctx), field, "like", "%")
+		const likeTerm = filterTerm(conv(ctx), { field, op: "like", value: "%" })
 		return likeTerm === null ? cannot("a filter grammar with a like operator") : ready({ field, likeTerm })
 	},
 	/* The tell is "the filtered result equals the whole listing". Where the listing is already

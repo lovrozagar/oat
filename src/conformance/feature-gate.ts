@@ -195,7 +195,7 @@ function defensiveCase(): ParserResult {
 /** `plan` and `doctor` show the tag `tagged` declares on webhook create. */
 export function shownCases(tagged: SpecModel): ParserResult[] {
 	const plan = report.plan(tagged, false).includes(TAG)
-	const doctor = report.doctor(tagged, [], false).text.includes(TAG)
+	const doctor = report.doctor(tagged).text.includes(TAG)
 	const why = "doctor / plan should show the tag"
 	return [
 		{

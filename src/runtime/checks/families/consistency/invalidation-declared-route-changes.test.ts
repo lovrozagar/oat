@@ -13,7 +13,7 @@ const declaring = (invalidate: readonly string[]) => notesDoc({ invalidate })
 /** A note context over `doc`, whose create declares FOREIGN unless the document says otherwise. */
 function stage(respond: Responder, fields: Partial<CheckContext> = {}, doc = declaring(FOREIGN)) {
 	const model = modelOf(doc)
-	return contextFor(model, "notes.list", respond, { createOp: op(model, "notes.create"), ...fields })
+	return contextFor(model, "notes.list", { respond, fields: { createOp: op(model, "notes.create"), ...fields } })
 }
 
 async function drive(staged: ReturnType<typeof stage>) {

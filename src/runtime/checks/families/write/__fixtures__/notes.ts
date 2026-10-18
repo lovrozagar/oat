@@ -140,7 +140,14 @@ function fieldsOf(options: RequestOptions): Note {
 	return {}
 }
 
-function writeRoute(server: NotesServer, method: string, id: string, options: RequestOptions): Answer {
+/** A request to one item: its method, the id its path names, and how it was sent. */
+interface ItemRequest {
+	method: string
+	id: string
+	options: RequestOptions
+}
+
+function writeRoute(server: NotesServer, { method, id, options }: ItemRequest): Answer {
 	const current = server.records.get(id)
 	if (current === undefined) return { status: 404 }
 	if (method === "DELETE") {
@@ -181,7 +188,7 @@ export function notesServer(seed: Note[] = []): NotesServer {
 			const found = server.records.get(id)
 			return found === undefined ? { status: 404 } : { body: { ...found }, status: 200 }
 		}
-		return writeRoute(server, method, id, options)
+		return writeRoute(server, { id, method, options })
 	}
 	return server
 }
@@ -200,11 +207,14 @@ export function notesContext(
 	respond: Responder,
 	fields: Partial<CheckContext> = {},
 ): { ctx: WriteContext; sent: Sent[]; findings: FindingCollector } {
-	return contextFor(model, "note.list", respond, {
-		createOp: op(model, "note.create"),
-		deleteOp: op(model, "note.delete"),
-		readOp: op(model, "note.get"),
-		updateOp: op(model, "note.update"),
-		...fields,
+	return contextFor(model, "note.list", {
+		respond,
+		fields: {
+			createOp: op(model, "note.create"),
+			deleteOp: op(model, "note.delete"),
+			readOp: op(model, "note.get"),
+			updateOp: op(model, "note.update"),
+			...fields,
+		},
 	})
 }

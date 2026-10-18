@@ -6,7 +6,7 @@ import type { Client, ReadClient } from "../../../client/client.ts"
 import type { Exchange } from "../../exchange.ts"
 import type { FindingCollector } from "../../finding.ts"
 import type { BackoffConfig } from "../../poll.ts"
-import type { ProvenId } from "../../proven-id.ts"
+import type { Created } from "../../teardown/types.ts"
 import type { UploadContext } from "../../upload.ts"
 import type { SchemaValidator } from "../../validate.ts"
 import type { Record_ } from "../../world/records.ts"
@@ -132,7 +132,7 @@ export interface CheckContext<C extends ReadClient = ReadClient> {
 	 * teardown. Records made through the entity's own create are tracked without it.
 	 */
 	/** Ledgers a record made other than by its create, as the principal that sent the request. */
-	recordCreated?: (entity: string, id: ProvenId, scope: Record<string, string>, principal?: string) => void
+	recordCreated?: (created: Created, principal?: string) => void
 	/** A create that answered 2xx with no id oat could read: the record may remain. */
 	recordUnidentified?: (entity: string, operationId: string, exchange: Exchange) => void
 	/** A ledgered record an accepted write moved, so its creator's 404 no longer shows it gone. */

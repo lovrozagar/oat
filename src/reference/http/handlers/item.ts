@@ -11,15 +11,13 @@ import { validateBody } from "../validation.ts"
 import { type ReferenceRequest, type ReferenceResponse, respond } from "../wire.ts"
 import type { ItemCall } from "./entity.ts"
 
-const target = (call: ItemCall) => ({ entity: call.entity, id: call.itemId, scope: call.scope })
-
 export async function read(state: ReferenceState, call: ItemCall): Promise<ReferenceResponse> {
 	/* Invert only the middle rank: viewer still reads, owner still reads, member does not. Denying
 	 * the owner would collapse the rest of the suite. */
 	if (state.defects.has("ROLE_MONOTONICITY_BROKEN") && call.principal.rank === 1) {
 		throw new HttpError(403, "forbidden", "role cannot read this record")
 	}
-	const shown = present(state, call.entity, await findItem(state, target(call), call.principal))
+	const shown = present(state, call.entity, await findItem(state, call))
 	if (state.defects.has("READ_DROPS_FIELD") && call.entity.name === state.table.name) delete shown.description
 	return respond(200, answerRead(state, call.entity, shown))
 }
@@ -33,17 +31,17 @@ export async function update(
 	const { defects } = state
 	assertWrite(state, principal, "update")
 	requireJson(request, defects)
-	const existing = await findItem(state, target(call), principal, "write")
+	const existing = await findItem(state, call, "write")
 	const replace = request.method === "PUT"
-	const patch = validateBody(entity, await readJson(request), replace ? "replace" : "update", defects)
+	const patch = validateBody(await readJson(request), { defects, entity, mode: replace ? "replace" : "update" })
 	const changes = changesOf(state, call, { patch, replace })
-	await assertUnique(state, entity, { ...existing, ...changes }, String(itemId))
+	await assertUnique(state, { entity, record: { ...existing, ...changes } }, String(itemId))
 	const updated = defects.has("CONCURRENT_WRITE_LOST")
-		? await readModifyWrite(state, entity, itemId, changes)
+		? await readModifyWrite(state, { entity, id: itemId }, changes)
 		: await state.store.update(entity, itemId, changes)
 	return respond(
 		defects.has("RESPONSE_STATUS_UNDECLARED") ? 201 : 200,
-		answerWritten(state, entity, present(state, entity, updated ?? { ...existing, ...changes }), "updated"),
+		answerWritten(state, { entity, record: present(state, entity, updated ?? { ...existing, ...changes }) }, "updated"),
 	)
 }
 
@@ -59,7 +57,10 @@ function changesOf(state: ReferenceState, call: ItemCall, sent: { patch: Row; re
 	const { entity, principal } = call
 	const { defects } = state
 	const changes: Row = defects.has("PATCH_REPLACES")
-		? { ...withDefaults(state, entity, {}, { ...call.scope, project_id: principal.projectId }), ...sent.patch }
+		? {
+				...withDefaults(state, { entity, scope: { ...call.scope, project_id: principal.projectId } }, {}),
+				...sent.patch,
+			}
 		: sent.replace
 			? { ...replacementDefaults(entity), ...sent.patch }
 			: { ...sent.patch }
@@ -83,17 +84,17 @@ export async function remove(state: ReferenceState, call: ItemCall): Promise<Ref
 	}
 	/* Answers that it removed a row it keeps. */
 	if (hiddenFromCreator(defects, entity, existing)) {
-		return respond(200, answerWritten(state, entity, present(state, entity, existing), "deleted"))
+		return respond(200, answerWritten(state, { entity, record: present(state, entity, existing) }, "deleted"))
 	}
-	const record = await findItem(state, target(call), principal, "write")
+	const record = await findItem(state, call, "write")
 	if (entity.softDeleteField !== undefined) {
 		const now = state.ids.now()
 		const updated = await state.store.update(entity, itemId, { [entity.softDeleteField]: now, updated_at: now })
-		return respond(200, answerWritten(state, entity, present(state, entity, updated ?? record), "deleted"))
+		return respond(200, answerWritten(state, { entity, record: present(state, entity, updated ?? record) }, "deleted"))
 	}
 	if (!defects.has("DELETE_KEEPS_ROW")) {
 		await state.store.remove(entity, itemId)
 		await refreshParentCount(state, entity, call.scope)
 	}
-	return respond(200, answerWritten(state, entity, present(state, entity, record), "deleted"))
+	return respond(200, answerWritten(state, { entity, record: present(state, entity, record) }, "deleted"))
 }

@@ -152,7 +152,7 @@ async function readProjections(
 	}
 
 	if (conventions.order !== undefined) {
-		const sorted = await list(ctx, q(ctx, { limit, order: sortTerm(conv(ctx), field, "asc") }))
+		const sorted = await list(ctx, q(ctx, { limit, order: sortTerm(conv(ctx), { direction: "asc", field }) }))
 		const row = record(sorted)
 		if (row !== undefined) seen.push({ projection: "sorted page", value: row[field] })
 	}
@@ -177,7 +177,7 @@ async function filterMembership(
 			`"${field}" is null on the item route, and equality is not defined for null`,
 		)
 	}
-	const matching = filterTerm(conv(ctx), field, "eq", String(value))
+	const matching = filterTerm(conv(ctx), { field, op: "eq", value: String(value) })
 	if (matching === null) return standDown("the filter grammar cannot express this probe")
 	/* The whole filtered set, not its first page: absence from one page proves nothing. */
 	const included = await collectSet(ctx, pageSize(ctx), matching)

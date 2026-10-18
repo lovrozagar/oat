@@ -89,7 +89,7 @@ describe("accepting by link", () => {
 describe("the credential an accept issues", () => {
 	it("is adopted by a delegate that can take one, and ignored by one that cannot", async () => {
 		const adoptCredential = vi.fn<(token: string) => void>()
-		const adopting = actor("delegate", 1, { org_id: "o2" }, { adoptCredential, inviteAs: "bob" })
+		const adopting = actor("delegate", { rank: 1, roots: { org_id: "o2" }, adoptCredential, inviteAs: "bob" })
 		const issuing = inviteBackend({ accepted: { access_token: "fresh" } })
 		await runCheck(inviteGrantsThenRevokes, inviteContext(inviteDocument(), issuing, { actors: [owner, adopting] }).ctx)
 		expect(adoptCredential).toHaveBeenCalledWith("fresh")

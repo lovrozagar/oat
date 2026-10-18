@@ -11,11 +11,16 @@ type Identity = Pick<OperationModel, "identity" | "identitySource">
  * `pathParams` are the operation's path parameters in order; the last one names an item route
  * when the path ends with it.
  */
+/** An operation's path, and its path parameters in order. */
+export interface OperationRoute {
+	path: string
+	pathParams: readonly string[]
+}
+
 export function operationIdentity(
 	declared: string | undefined,
 	itemSchema: SchemaObject | null,
-	path: string,
-	pathParams: readonly string[],
+	{ path, pathParams }: OperationRoute,
 ): Identity {
 	const lastParam = pathParams.at(-1)
 	const itemRoute = lastParam !== undefined && path.endsWith(`{${lastParam}}`)

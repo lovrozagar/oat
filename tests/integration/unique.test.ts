@@ -146,6 +146,12 @@ interface Widget {
 }
 
 /* Widgets by id; a duplicate name is refused with 409 only when `duplicate` says so. */
+/* One request and the response that answers it. */
+interface Exchange {
+	req: IncomingMessage
+	res: ServerResponse
+}
+
 class WidgetBackend {
 	readonly rows = new Map<string, Widget>()
 	#seq = 0
@@ -186,7 +192,7 @@ class WidgetBackend {
 		return send(res, 200, row)
 	}
 
-	item(method: string, id: string, req: IncomingMessage, res: ServerResponse) {
+	item(method: string, id: string, { req, res }: Exchange) {
 		if (method === "GET") {
 			const row = this.rows.get(id)
 			return row === undefined ? send(res, 404) : send(res, 200, row)
@@ -200,7 +206,7 @@ class WidgetBackend {
 	}
 }
 
-async function route(backend: WidgetBackend, document: OpenApiDocument, req: IncomingMessage, res: ServerResponse) {
+async function route(backend: WidgetBackend, document: OpenApiDocument, { req, res }: Exchange) {
 	const url = new URL(req.url ?? "/", "http://127.0.0.1")
 	const method = (req.method ?? "GET").toUpperCase()
 	if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(res, 200, document)
@@ -208,14 +214,14 @@ async function route(backend: WidgetBackend, document: OpenApiDocument, req: Inc
 	if (url.pathname === "/v1/widgets" && method === "POST") return backend.create(req, res)
 	const item = /^\/v1\/widgets\/([^/]+)$/.exec(url.pathname)
 	if (item === null) return send(res, 404)
-	return backend.item(method, decodeURIComponent(item[1] ?? ""), req, res)
+	return backend.item(method, decodeURIComponent(item[1] ?? ""), { req, res })
 }
 
 async function serve(options: ServeOptions): Promise<{ close: () => Promise<void>; url: string }> {
 	const document = widgetDoc(options.tag)
 	const backend = new WidgetBackend(options)
 	const server = createServer((req, res) => {
-		route(backend, document, req, res).catch(() => {
+		route(backend, document, { req, res }).catch(() => {
 			if (!res.headersSent) send(res, 500)
 		})
 	})
@@ -275,7 +281,7 @@ describe("x-unique", () => {
 		const good = buildModel(widgetDoc([["name"]]))
 		expect(good.entities.get("widget")?.unique).toEqual([["name"]])
 		const plan = report.plan(good, false)
-		const doctor = report.doctor(good, [], false)
+		const doctor = report.doctor(good)
 		expect(plan).toContain("x-unique:")
 		expect(plan).toContain("[name]")
 		expect(doctor.text).toContain("x-unique:")

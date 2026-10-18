@@ -67,7 +67,7 @@ export const declaredFilterableOpsAccepted = defineCheck({
 				/* No value of the field's type: a null operand would test nullability, not the operator. */
 				const value = probeValueForOp(ctx, field, op)
 				if (value === null) continue
-				const term = filterTerm(conv(ctx), field.field, op, value)
+				const term = filterTerm(conv(ctx), { field: field.field, op, value })
 				if (term !== null) probes.push({ label: `${field.field}.${op}`, term })
 			}
 		}

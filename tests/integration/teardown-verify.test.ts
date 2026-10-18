@@ -188,12 +188,13 @@ async function hiddenFolders(backend: HiddenBackend, req: IncomingMessage, res: 
 	return reply(res, 201, folder)
 }
 
-function hiddenFolder(
-	backend: HiddenBackend,
-	folder: { id: string; text: string },
-	req: IncomingMessage,
-	res: ServerResponse,
-) {
+/* One request and the response that answers it. */
+interface Exchange {
+	req: IncomingMessage
+	res: ServerResponse
+}
+
+function hiddenFolder(backend: HiddenBackend, folder: { id: string; text: string }, { req, res }: Exchange) {
 	if ((req.method ?? "GET") === "GET") return reply(res, 200, folder)
 	backend.folders.delete(folder.id)
 	/* A hidden note outlives its folder too: nothing a client does reaches it. */
@@ -202,7 +203,7 @@ function hiddenFolder(
 	return reply(res, 204)
 }
 
-async function hiddenNotes(backend: HiddenBackend, folder: { id: string }, req: IncomingMessage, res: ServerResponse) {
+async function hiddenNotes(backend: HiddenBackend, folder: { id: string }, { req, res }: Exchange) {
 	if ((req.method ?? "GET") === "GET") {
 		const shown = [...backend.notes.values()].filter(
 			(note) => note.folder === folder.id && !hidden(note) && !note.text.includes("UNLISTED"),
@@ -214,7 +215,7 @@ async function hiddenNotes(backend: HiddenBackend, folder: { id: string }, req: 
 	return reply(res, 201, { id: note.id, text: note.text })
 }
 
-function hiddenNote(backend: HiddenBackend, note: Note | undefined, req: IncomingMessage, res: ServerResponse) {
+function hiddenNote(backend: HiddenBackend, note: Note | undefined, { req, res }: Exchange) {
 	const method = req.method ?? "GET"
 	if (note === undefined || (method === "GET" && hidden(note))) return reply(res, 404, {})
 	if (method === "GET") return reply(res, 200, { id: note.id, text: note.text })
@@ -230,12 +231,12 @@ async function routeHidden(backend: HiddenBackend, req: IncomingMessage, res: Se
 	if (parts.length === 1) return hiddenFolders(backend, req, res)
 	const folder = backend.folders.get(parts[1] ?? "")
 	if (folder === undefined) return reply(res, 404, {})
-	if (parts.length === 2) return hiddenFolder(backend, folder, req, res)
-	if (parts.length === 3) return hiddenNotes(backend, folder, req, res)
+	if (parts.length === 2) return hiddenFolder(backend, folder, { req, res })
+	if (parts.length === 3) return hiddenNotes(backend, folder, { req, res })
 	const note = [...backend.notes.values()].find(
 		(candidate) => candidate.folder === folder.id && candidate.id === parts[3],
 	)
-	return hiddenNote(backend, note, req, res)
+	return hiddenNote(backend, note, { req, res })
 }
 
 async function serveHidden() {
@@ -413,11 +414,14 @@ async function twoRowOnes(seer: string | null, verdicts: Record<string, "present
 	const ledger = new Ledger()
 	const [one] = listedIds(["1"])
 	if (one === undefined) throw new Error("listedIds gave nothing back")
-	ledger.record("row", one, { project_id: "a", row_id: "1" }, owner("alpha"))
-	ledger.record("row", one, { project_id: "b", row_id: "1" }, owner("beta"))
-	return ledger.unwind(buildModel(dereference(TENANT_ROWS).doc), client, () => [], {
-		verify: false,
-		verifyRemoved: (record) => verdicts[record.principal] ?? "unknown",
+	ledger.record({ entity: "row", id: one, scope: { project_id: "a", row_id: "1" } }, owner("alpha"))
+	ledger.record({ entity: "row", id: one, scope: { project_id: "b", row_id: "1" } }, owner("beta"))
+	return ledger.unwind(buildModel(dereference(TENANT_ROWS).doc), client, {
+		fallbacks: () => [],
+		options: {
+			verify: false,
+			verifyRemoved: (record) => verdicts[record.principal] ?? "unknown",
+		},
 	})
 }
 

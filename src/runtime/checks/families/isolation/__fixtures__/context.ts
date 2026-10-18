@@ -19,33 +19,34 @@ export function notesContext(
 	const entity = model.entities.get("note")
 	const opOf = (id: string | undefined) => (id === undefined ? undefined : model.byOperationId.get(id))
 	const listOp = model.byOperationId.get("listNotes")
-	return contextFor(model, "listNotes", respond, {
-		altAuth: () => OTHER,
-		altScope: { org_id: "o2" },
-		auth: () => OWNER,
-		collectionKey: listOp?.collection?.key ?? null,
-		createOp: opOf(entity?.create),
-		deleteOp: opOf(entity?.delete),
-		query: listOp?.query ?? null,
-		readOp: opOf(entity?.read),
-		records: [{ id: "n1", title: "first" }],
-		scope: { org_id: "o1" },
-		updateOp: opOf(entity?.update),
-		...fields,
+	return contextFor(model, "listNotes", {
+		respond,
+		fields: {
+			altAuth: () => OTHER,
+			altScope: { org_id: "o2" },
+			auth: () => OWNER,
+			collectionKey: listOp?.collection?.key ?? null,
+			createOp: opOf(entity?.create),
+			deleteOp: opOf(entity?.delete),
+			query: listOp?.query ?? null,
+			readOp: opOf(entity?.read),
+			records: [{ id: "n1", title: "first" }],
+			scope: { org_id: "o1" },
+			updateOp: opOf(entity?.update),
+			...fields,
+		},
 	})
 }
 
 /** A principal: `id` doubles as its credential, so a responder can tell who sent a request. */
-export function actor(id: string, rank: number, roots: Record<string, string>, extra: Partial<Actor> = {}): Actor {
+export function actor(id: string, fields: Pick<Actor, "rank" | "roots"> & Partial<Actor>): Actor {
 	return {
 		headers: () => ({ authorization: id }),
 		id,
 		inviteAs: undefined,
-		rank,
 		role: undefined,
-		roots,
-		scope: roots,
-		...extra,
+		scope: fields.roots,
+		...fields,
 	}
 }
 

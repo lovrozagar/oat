@@ -28,11 +28,16 @@ export function identityPathParam(model: SpecModel, entityName: string): string 
  * Bind the created A id so a later child list can `fillPath`. Prefers the write body, then the
  * first id added to A's list (same adopt idea as a 402 plan-limit reuse).
  */
+/** What shows a created record's id: the write's response body, and the ids its list gained. */
+export interface CreatedEvidence {
+	body: unknown
+	added?: readonly string[]
+}
+
 export function bindCreatedScope(
 	model: SpecModel,
 	entityName: string,
-	writeBody: unknown,
-	addedIds: readonly string[] = [],
+	{ body: writeBody, added: addedIds = [] }: CreatedEvidence,
 ): Record<string, string> {
 	const identity = model.entities.get(entityName)?.identity ?? "id"
 	const param = identityPathParam(model, entityName)
@@ -84,16 +89,21 @@ export function bindMissingPathParams(
 	return bound
 }
 
+/** What shows the ids a write's create effects made: its response body, and the ids each entity's list gained. */
+export interface EffectsEvidence {
+	body: unknown
+	deltas?: ReadonlyMap<string, readonly string[]>
+}
+
 export function bindAfterCreateEffects(
 	model: SpecModel,
 	effects: readonly EffectSpec[],
-	writeBody: unknown,
-	deltas: ReadonlyMap<string, readonly string[]> = new Map(),
+	{ body, deltas = new Map() }: EffectsEvidence,
 ): Record<string, string> {
 	const bound: Record<string, string> = {}
 	for (const effect of effects) {
 		if (effect.op !== "create") continue
-		Object.assign(bound, bindCreatedScope(model, effect.entity, writeBody, deltas.get(effect.entity) ?? []))
+		Object.assign(bound, bindCreatedScope(model, effect.entity, { added: deltas.get(effect.entity) ?? [], body }))
 	}
 	return bound
 }

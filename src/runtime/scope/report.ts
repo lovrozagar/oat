@@ -40,7 +40,7 @@ function supportOf(input: CoverageInput): SupportUse[] {
 	const support = new Map<string, SupportUse>()
 	for (const exchange of input.transcript) {
 		const named = exchange.operationId === undefined ? undefined : model.byOperationId.get(exchange.operationId)
-		const op = named ?? operationFor(model, exchange.method, exchange.url, input.baseUrl)
+		const op = named ?? operationFor(model, exchange, input.baseUrl)
 		if (op === null || scope.targets.has(op.operationId)) continue
 		const use = support.get(op.operationId) ?? { calls: 0, non2xx: 0, operationId: op.operationId }
 		use.calls++

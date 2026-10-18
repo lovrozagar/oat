@@ -27,9 +27,9 @@ export function rangePlan(ctx: CheckContext, closed: "gte" | "lte", open: "gt" |
 	if (threshold === undefined) return cannot()
 	const field = picked.field.field
 	const conventions = conv(ctx)
-	const closedTerm = filterTerm(conventions, field, closed, threshold)
-	const openTerm = filterTerm(conventions, field, open, threshold)
-	const eqTerm = filterTerm(conventions, field, "eq", threshold)
+	const closedTerm = filterTerm(conventions, { field, op: closed, value: threshold })
+	const openTerm = filterTerm(conventions, { field, op: open, value: threshold })
+	const eqTerm = filterTerm(conventions, { field, op: "eq", value: threshold })
 	if (closedTerm === null || openTerm === null || eqTerm === null) {
 		return cannot(`a filter grammar that can express ${closed}, ${open} and eq`)
 	}

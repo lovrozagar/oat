@@ -28,6 +28,24 @@ export const TENANT_FIELD = "project_id"
 /** Path parameters, typed: an integer identifier is a number from the moment it is parsed. */
 export type Scope = Record<string, string | number>
 
+/** A collection: an entity, under the path scope that names it. */
+export interface Collection {
+	entity: EntityDef
+	scope: Scope
+}
+
+/** A stored record, with the entity it is a record of. */
+export interface EntityRecord {
+	entity: EntityDef
+	record: Row
+}
+
+/** Where one record is kept: its entity and its identifier. */
+export interface RecordKey {
+	entity: EntityDef
+	id: string | number
+}
+
 export interface ReferenceOptions {
 	defects?: string[]
 	untagged?: boolean

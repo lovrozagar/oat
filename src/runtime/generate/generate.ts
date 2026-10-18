@@ -32,7 +32,7 @@ export function generate(schema: unknown, options: GenerateOptions = {}): Genera
 		variant: options.variant ?? "baseline",
 	}
 	try {
-		return { ok: true, value: instance(schema, ctx, "", false) }
+		return { ok: true, value: instance(schema, { ctx, distinct: false, pointer: "" }) }
 	} catch (error) {
 		if (error instanceof Unconstructible) return { ok: false, pointer: error.pointer || "/", reason: error.reason }
 		if (error instanceof RangeError)

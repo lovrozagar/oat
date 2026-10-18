@@ -21,7 +21,7 @@ describe("reaching the caller's routes", () => {
 
 	it("sends an update as the caller", async () => {
 		const { client, sent } = fakeClient(() => ({ status: 200 }))
-		expect((await sendUpdate({ auth, client }, op(model, "me.update"), "/me", { a: 1 })).status).toBe(200)
+		expect((await sendUpdate({ auth, client }, { op: op(model, "me.update"), path: "/me" }, { a: 1 })).status).toBe(200)
 		expect(sent).toEqual([
 			{ method: "PATCH", options: { body: { a: 1 }, headers: auth, operationId: "me.update" }, path: "/me" },
 		])

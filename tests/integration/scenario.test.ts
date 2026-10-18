@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest"
 import type { Scenario } from "../../src/config/define/types.ts"
+import type { Hooks } from "../../src/config/types/hooks.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { type Api, serveNotes } from "../support/scenario-api.ts"
 
@@ -32,7 +33,14 @@ const RENAME: Scenario = {
 	],
 }
 
-async function runWith(api: Api, scenarios: Scenario[], ops: string[], hooks = {}) {
+/* The scenarios a run plays, the operations it covers, and the hooks it calls out to. */
+interface ScenarioRun {
+	scenarios: Scenario[]
+	ops: string[]
+	hooks?: Hooks
+}
+
+async function runWith(api: Api, { hooks = {}, ops, scenarios }: ScenarioRun) {
 	return run({
 		baseUrl: api.url,
 		hooks,
@@ -50,7 +58,7 @@ function row(result: Awaited<ReturnType<typeof runWith>>, operationId: string) {
 
 async function gradesVerified(): Promise<void> {
 	const api = await serve()
-	const result = await runWith(api, [RENAME], ["notes.write", "notes.rename"])
+	const result = await runWith(api, { ops: ["notes.write", "notes.rename"], scenarios: [RENAME] })
 	for (const id of ["notes.write", "notes.rename"]) {
 		const graded = row(result, id)
 		expect(graded?.status).toBe("passed")
@@ -74,7 +82,7 @@ async function failsUnshownAndBlocksUnreached(): Promise<void> {
 		covers: [...RENAME.covers, "stats.get"],
 		steps: [...RENAME.steps, { assert: { contains: "first", from: "$.texts[*]" }, operationId: "stats.get" }],
 	}
-	const result = await runWith(api, [extended], ["notes.write", "notes.rename", "stats.get"])
+	const result = await runWith(api, { ops: ["notes.write", "notes.rename", "stats.get"], scenarios: [extended] })
 	expect(row(result, "notes.write")?.status).toBe("passed")
 	expect(row(result, "notes.rename")?.status).toBe("failed")
 	expect(row(result, "stats.get")?.status).toBe("blocked")
@@ -98,7 +106,7 @@ async function pollsLaggingRead(): Promise<void> {
 			},
 		],
 	}
-	const result = await runWith(api, [scenario], ["notes.write", "stats.get"])
+	const result = await runWith(api, { ops: ["notes.write", "stats.get"], scenarios: [scenario] })
 	expect(row(result, "stats.get")?.status).toBe("passed")
 	expect(row(result, "notes.write")?.tier).toBe("verified")
 }
@@ -116,7 +124,7 @@ async function failsLaggingReadWithoutPoll(): Promise<void> {
 			},
 		],
 	}
-	const result = await runWith(api, [scenario], ["notes.write", "stats.get"])
+	const result = await runWith(api, { ops: ["notes.write", "stats.get"], scenarios: [scenario] })
 	expect(row(result, "stats.get")?.status).toBe("failed")
 }
 
@@ -140,7 +148,11 @@ async function handsBrowserStepToHook(): Promise<void> {
 		seen.push({ input, name })
 		return "cs_1-paid"
 	}
-	const result = await runWith(api, [scenario], ["checkout.open", "checkout.confirm"], { external })
+	const result = await runWith(api, {
+		hooks: { external },
+		ops: ["checkout.open", "checkout.confirm"],
+		scenarios: [scenario],
+	})
 	expect(seen).toEqual([{ input: { url: "https://pay.example/session/cs_1" }, name: "pay-with-test-card" }])
 	expect(row(result, "checkout.open")?.tier).toBe("verified")
 	expect(row(result, "checkout.confirm")?.status).toBe("passed")
@@ -167,7 +179,11 @@ async function keepsObjectsWhole(): Promise<void> {
 		const options = input["options"] as { challenge: string }
 		return JSON.stringify({ signed: options.challenge })
 	}
-	const result = await runWith(api, [scenario], ["ceremony.options", "ceremony.verify"], { external })
+	const result = await runWith(api, {
+		hooks: { external },
+		ops: ["ceremony.options", "ceremony.verify"],
+		scenarios: [scenario],
+	})
 	expect(seen).toEqual([{ options: { challenge: "ch_1", rp: { id: "example.test" } } }])
 	expect(row(result, "ceremony.verify")?.status).toBe("passed")
 	const sent = result.client.transcript.find((exchange) => exchange.operationId === "ceremony.verify")
@@ -187,7 +203,7 @@ async function provesRemoval(): Promise<void> {
 			},
 		],
 	}
-	const result = await runWith(api, [scenario], ["notes.write", "stats.get"])
+	const result = await runWith(api, { ops: ["notes.write", "stats.get"], scenarios: [scenario] })
 	expect(row(result, "notes.write")?.tier).toBe("verified")
 	expect(row(result, "notes.write")?.evidence?.observation).toMatchObject({ absent: true, value: "never-written" })
 	const failing: Scenario = {
@@ -198,7 +214,7 @@ async function provesRemoval(): Promise<void> {
 			{ assert: { excludes: "keep-me", from: "$.texts[*]", observes: ["notes.write"] }, operationId: "stats.get" },
 		],
 	}
-	const refused = await runWith(await serve(), [failing], ["notes.write", "stats.get"])
+	const refused = await runWith(await serve(), { ops: ["notes.write", "stats.get"], scenarios: [failing] })
 	expect(row(refused, "notes.write")?.status).toBe("failed")
 }
 
@@ -220,7 +236,7 @@ async function bindsTokenClaims(): Promise<void> {
 			},
 		],
 	}
-	const result = await runWith(api, [scenario], ["token.mint", "user.get"])
+	const result = await runWith(api, { ops: ["token.mint", "user.get"], scenarios: [scenario] })
 	expect(row(result, "user.get")?.status).toBe("passed")
 	expect(row(result, "token.mint")?.tier).toBe("verified")
 }
@@ -236,7 +252,7 @@ async function keepsObservationWithItsCall(): Promise<void> {
 			{ body: { text: "twice" }, operationId: "notes.write" },
 		],
 	}
-	const result = await runWith(api, [scenario], ["notes.write"])
+	const result = await runWith(api, { ops: ["notes.write"], scenarios: [scenario] })
 	const evidence = row(result, "notes.write")?.evidence
 	const call = result.client.transcript.find((exchange) => exchange.seq === evidence?.call)
 	expect(call?.requestBody).toEqual({ text: "once" })
@@ -250,7 +266,7 @@ async function refusesSelfProof(): Promise<void> {
 		id: "self-proof",
 		steps: [{ assert: { contains: "cs_1", from: "$.url" }, operationId: "checkout.open" }],
 	}
-	const result = await runWith(api, [scenario], ["checkout.open"])
+	const result = await runWith(api, { ops: ["checkout.open"], scenarios: [scenario] })
 	expect(row(result, "checkout.open")?.status).toBe("passed")
 	expect(row(result, "checkout.open")?.tier).toBe("contract")
 }
@@ -297,7 +313,7 @@ async function sendsNamedMediaType(): Promise<void> {
 			},
 		],
 	}
-	const result = await runWith(api, [scenario], ["form.send"])
+	const result = await runWith(api, { ops: ["form.send"], scenarios: [scenario] })
 	expect(row(result, "form.send")?.status).toBe("passed")
 	const sent = result.client.transcript.find((exchange) => exchange.operationId === "form.send")
 	expect(JSON.stringify(sent?.requestBody)).toContain("plain words")
@@ -306,7 +322,7 @@ async function sendsNamedMediaType(): Promise<void> {
 async function refusesUncalledCover(): Promise<void> {
 	const api = await serve()
 	const scenario: Scenario = { ...RENAME, covers: [...RENAME.covers, "stats.get"] }
-	await expect(runWith(api, [scenario], ["notes.write"])).rejects.toThrow(
+	await expect(runWith(api, { ops: ["notes.write"], scenarios: [scenario] })).rejects.toThrow(
 		'scenario "notes" covers stats.get but no step calls it',
 	)
 }

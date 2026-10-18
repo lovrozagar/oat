@@ -9,7 +9,10 @@ const listed = { id: "n1", status: "open", title: "alpha" }
 /** A list-only notes context: a read route, no create, and `records` as the list returned them. */
 function stage(respond: Responder, fields: Partial<CheckContext> = {}) {
 	const model = modelOf(notesDoc())
-	return contextFor(model, "notes.list", respond, { readOp: op(model, "notes.get"), records: [listed], ...fields })
+	return contextFor(model, "notes.list", {
+		respond,
+		fields: { readOp: op(model, "notes.get"), records: [listed], ...fields },
+	})
 }
 
 async function drive(staged: ReturnType<typeof stage>) {

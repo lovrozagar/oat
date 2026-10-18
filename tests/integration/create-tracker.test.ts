@@ -47,30 +47,30 @@ const PROJECT = { in: "path", name: "project_id", required: true, schema: { type
 const param = (name: string) => ({ in: "path", name, required: true, schema: { type: "string" } })
 
 function spec(): OpenApiDocument {
-	const op = (entity: string, action: string, operationId: string, extra: Record<string, unknown> = {}) => ({
-		operationId,
+	const op = (entity: string, action: string, extra: Record<string, unknown> = {}) => ({
+		operationId: `${entity}.${action}`,
 		responses: REFUSED,
 		"x-entity": { action, identity: "id", name: entity },
 		"x-tenant": "project_id",
 		...extra,
 	})
 	const collection = (entity: string, parents: unknown[]) => ({
-		get: op(entity, "list", `${entity}.list`, {
+		get: op(entity, "list", {
 			parameters: parents,
 			responses: { "200": { ...LIST, description: "ok" }, ...REFUSED },
 		}),
-		post: op(entity, "create", `${entity}.create`, {
+		post: op(entity, "create", {
 			parameters: parents,
 			requestBody: { ...json(WRITE), required: true },
 			responses: { "201": { ...json(ITEM), description: "created" }, ...REFUSED },
 		}),
 	})
 	const item = (entity: string, parents: unknown[]) => ({
-		delete: op(entity, "delete", `${entity}.delete`, {
+		delete: op(entity, "delete", {
 			parameters: parents,
 			responses: { "204": { description: "gone" }, ...REFUSED },
 		}),
-		get: op(entity, "read", `${entity}.read`, {
+		get: op(entity, "read", {
 			parameters: parents,
 			responses: { "200": { ...json(ITEM), description: "ok" }, ...REFUSED },
 		}),
@@ -88,7 +88,7 @@ function spec(): OpenApiDocument {
 			"/v1/projects/{project_id}/tables/{table_id}/rows": collection("row", table),
 			"/v1/projects/{project_id}/tables/{table_id}/rows/{row_id}": item("row", row),
 			"/v1/projects/{project_id}/things": {
-				get: op("thing", "list", "thing.list", {
+				get: op("thing", "list", {
 					parameters: tables,
 					responses: { "200": { ...LIST, description: "ok" }, ...REFUSED },
 				}),
@@ -96,7 +96,7 @@ function spec(): OpenApiDocument {
 			"/v1/projects/{project_id}/things/{thing_id}": {
 				...item("thing", thing),
 				/* The client names the record: the create is a PUT to its own path. */
-				put: op("thing", "create", "thing.create", {
+				put: op("thing", "create", {
 					parameters: thing,
 					requestBody: { ...json(WRITE), required: true },
 					responses: { "201": { ...json(ITEM), description: "created" }, ...REFUSED },
@@ -191,10 +191,11 @@ class TenantBackend {
 		return this.#underTable(call, parts)
 	}
 
-	async #create(call: Call, store: Map<string, Stored>, id: string, extra: Partial<Stored> = {}) {
+	/* `placed` is the id the new record takes, and the table it lands under when it has one. */
+	async #create(call: Call, store: Map<string, Stored>, { id, ...under }: Pick<Stored, "id" | "table">) {
 		const body = await readJson(call.req)
 		if (body === null || typeof body.name !== "string") return send(call.res, 400, { error: "name is required" })
-		const record: Stored = { by: call.caller.who, id, name: body.name, project: call.project, ...extra }
+		const record: Stored = { by: call.caller.who, id, name: body.name, project: call.project, ...under }
 		store.set(id, record)
 		return send(call.res, 201, shown(record))
 	}
@@ -219,14 +220,14 @@ class TenantBackend {
 		const found = this.things.get(id)
 		if (call.method === "PUT") {
 			if (found !== undefined) return send(call.res, 409, { error: "taken" })
-			return this.#create(call, this.things, id)
+			return this.#create(call, this.things, { id })
 		}
 		return this.#one(call, this.things, found?.project === call.project ? found : undefined)
 	}
 
 	#tableList(call: Call) {
 		if (call.method === "GET") return this.#listed(call, this.tables)
-		if (call.method === "POST") return this.#create(call, this.tables, `t${++this.#seq}`)
+		if (call.method === "POST") return this.#create(call, this.tables, { id: `t${++this.#seq}` })
 		return send(call.res, 405)
 	}
 
@@ -248,7 +249,7 @@ class TenantBackend {
 		if (parts.length === 6) {
 			if (call.method === "GET")
 				return send(call.res, 200, { items: [...this.rows.values()].filter(inTable).map(shown) })
-			if (call.method === "POST") return this.#create(call, this.rows, `r${++this.#seq}`, { table: table.id })
+			if (call.method === "POST") return this.#create(call, this.rows, { id: `r${++this.#seq}`, table: table.id })
 			return send(call.res, 405)
 		}
 		const row = this.rows.get(parts[6] ?? "")

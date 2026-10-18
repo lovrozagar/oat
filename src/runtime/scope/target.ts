@@ -5,12 +5,12 @@ import type { ScopeInput, TargetScope } from "./types.ts"
 
 /** The targeted scope: the entities whose checks grade a target, and why any other target never can be. */
 function targetedScope(
-	t: Targeting,
+	ctx: Targeting,
 	testable: EntityModel[],
 	authCreates: ReadonlySet<string>,
 	requested: TargetScope["requested"],
 ): TargetScope {
-	const { model, targets } = t
+	const { model, targets } = ctx
 	const graded = new Set<string>()
 	const entities = testable.filter((entity) => {
 		const subjects = staticSubjects(entity, model)
@@ -27,11 +27,11 @@ function targetedScope(
 	}
 
 	const origins = new Map<string, string[]>()
-	for (const [originId, ids] of t.originTargets) if (ids.size > 0) origins.set(originId, [...ids])
+	for (const [originId, ids] of ctx.originTargets) if (ids.size > 0) origins.set(originId, [...ids])
 
 	return {
 		entities,
-		excluded: t.excluded,
+		excluded: ctx.excluded,
 		inScope: (operationId) => targets.has(operationId),
 		mode: "targeted",
 		origins,

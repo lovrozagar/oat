@@ -1,8 +1,14 @@
 import { pathTemplateMatches } from "../../spec/routes.ts"
 import type { OperationModel, SpecModel } from "../../spec/graph/types.ts"
+import type { Exchange } from "../exchange.ts"
 
 /** The operation an exchange hit, preferring literal segments over parameters on a tie. */
-export function operationFor(model: SpecModel, method: string, url: string, baseUrl: string): OperationModel | null {
+export function operationFor(
+	model: SpecModel,
+	exchange: Pick<Exchange, "method" | "url">,
+	baseUrl: string,
+): OperationModel | null {
+	const { method, url } = exchange
 	let pathname: string
 	let basePath: string
 	try {

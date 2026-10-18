@@ -11,7 +11,7 @@ import { CONTRACT_CHECK_ID } from "./check.ts"
 import { judge } from "./judge.ts"
 import { parametersOf } from "./params.ts"
 import { bodyOf, pathValues, queryValues } from "./request.ts"
-import type { ContractInput } from "./types.ts"
+import type { ContractCall, ContractInput } from "./types.ts"
 
 export async function runContractCalls(input: ContractInput): Promise<void> {
 	const { model, grades } = input
@@ -49,17 +49,21 @@ async function callOnce(input: ContractInput, op: OperationModel): Promise<void>
 	)
 	if (earlier !== undefined) {
 		/* The transcript may have moved the body to disk; judge the body the server sent. */
-		judge(input, op, raw, await input.client.hydrate(earlier))
+		judge(input, { op, raw }, await input.client.hydrate(earlier))
 		return
 	}
-	const params = parametersOf(raw)
+	const call: ContractCall = {
+		bind: readActionBind((raw as unknown as Record<string, unknown>)["x-bind"]),
+		op,
+		params: parametersOf(raw),
+		raw,
+	}
 	const headers = input.auth()
-	const values = await pathValues(input, op, params, headers)
+	const values = await pathValues(input, call, headers)
 	if (values === null) return
-	const bind = readActionBind((raw as unknown as Record<string, unknown>)["x-bind"])
-	const query = queryValues(input.grades, op, params, bind)
+	const query = queryValues(input.grades, call)
 	if (query === null) return
-	const built = bodyOf(input, op, raw, bind)
+	const built = bodyOf(input, call)
 	if (built === null) return
 	const { body } = built
 	const exchange = await input.client.request(op.method, fillPath(op.path, values), {
@@ -68,5 +72,5 @@ async function callOnce(input: ContractInput, op: OperationModel): Promise<void>
 		operationId: op.operationId,
 		...(Object.keys(query).length === 0 ? {} : { query }),
 	})
-	judge(input, op, raw, exchange)
+	judge(input, call, exchange)
 }

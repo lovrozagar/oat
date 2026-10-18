@@ -18,7 +18,7 @@ export const orderChangesResult = defineCheck<{ field: string }>({
 	subjects: subjectsOf.list,
 	async run(ctx, { field }): Promise<Outcome> {
 		const limit = pageSize(ctx)
-		const ascending = await list(ctx, q(ctx, { limit, order: sortTerm(conv(ctx), field, "asc") }))
+		const ascending = await list(ctx, q(ctx, { limit, order: sortTerm(conv(ctx), { direction: "asc", field }) }))
 		if (ascending.exchange.status >= 400 || ascending.items.length < 2)
 			return ctx.findings.unresolved(
 				this.id,
@@ -33,7 +33,7 @@ export const orderChangesResult = defineCheck<{ field: string }>({
 		if (order !== null) {
 			/* An ignored order can come back ascending by accident — a server's own tiebreak on
 			 * this very field does it — but not ascending and descending at once. */
-			const descending = await list(ctx, q(ctx, { limit, order: sortTerm(conv(ctx), field, "desc") }))
+			const descending = await list(ctx, q(ctx, { limit, order: sortTerm(conv(ctx), { direction: "desc", field }) }))
 			const reversed = descending.items.map((item) => item[field])
 			const distinct = new Set(values.map((value) => JSON.stringify(value))).size
 			if (descending.exchange.status < 400 && distinct > 1 && JSON.stringify(reversed) === JSON.stringify(values)) {

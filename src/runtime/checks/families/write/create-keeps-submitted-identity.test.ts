@@ -12,9 +12,12 @@ const CLIENT_ID = {
 
 function stage(respond: Responder, options: WidgetDocOptions = {}) {
 	const model = modelOf(widgetDoc({ item: CLIENT_ID, ...options }))
-	return contextFor(model, "listWidgets", respond, {
-		createOp: op(model, "createWidget"),
-		readOp: model.byOperationId.get("getWidget"),
+	return contextFor(model, "listWidgets", {
+		respond,
+		fields: {
+			createOp: op(model, "createWidget"),
+			readOp: model.byOperationId.get("getWidget"),
+		},
 	})
 }
 
@@ -137,9 +140,12 @@ describe("create.keeps-submitted-identity preconditions", () => {
 		expect(createKeepsSubmittedIdentity.plan(stage(widgetApi()).ctx).ok).toBe(true)
 		/* The server issues the id. */
 		const issued = modelOf(widgetDoc())
-		const { ctx: serverIds } = contextFor(issued, "listWidgets", widgetApi(), {
-			createOp: op(issued, "createWidget"),
-			readOp: op(issued, "getWidget"),
+		const { ctx: serverIds } = contextFor(issued, "listWidgets", {
+			respond: widgetApi(),
+			fields: {
+				createOp: op(issued, "createWidget"),
+				readOp: op(issued, "getWidget"),
+			},
 		})
 		expect(createKeepsSubmittedIdentity.plan(serverIds).ok).toBe(false)
 		/* The body has no identity at all. */

@@ -19,11 +19,16 @@ function typedRow(field: string, type: FieldType | undefined): { field: string; 
 	return type === undefined ? { field } : { field, type }
 }
 
+/** What a `*From` source read: field names, their raw types by position, and the axis they extend. */
+export interface Harvest {
+	names: string[]
+	types?: Array<string | undefined>
+	axis?: HarvestAxis
+}
+
 export function applyHarvest(
 	caps: EffectiveQueryCapabilities,
-	names: string[],
-	types: Array<string | undefined> = [],
-	axis: HarvestAxis = "filterable",
+	{ names, types = [], axis = "filterable" }: Harvest,
 ): EffectiveQueryCapabilities {
 	const extraNames = names.filter((name) => name !== "")
 	if (axis === "searchable") return { ...caps, searchable: unionStrings(caps.searchable, extraNames) }

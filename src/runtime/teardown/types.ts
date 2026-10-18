@@ -1,4 +1,12 @@
 import type { RemovalVerdict, RemovedRecord } from "../../config/types/hooks.ts"
+import type { ProvenId } from "../proven-id.ts"
+
+/** A record oat made: its entity, the id the backend gave back, and the path parameters in scope. */
+export interface Created {
+	entity: string
+	id: ProvenId
+	scope: Record<string, string>
+}
 
 /** The principal a record belongs to, as far as removing it goes. */
 export interface Owner {

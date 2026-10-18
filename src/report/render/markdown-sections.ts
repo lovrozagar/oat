@@ -67,12 +67,17 @@ export function observedSection(input: ReportInput): string[] {
 	return lines
 }
 
+/** How the run ended: its verdict, and how many defects it found. */
+export interface RunOutcome {
+	verdict: ReturnType<typeof runVerdict>
+	defects: number
+}
+
 /** No defects, said plainly, or the count of findings per severity. */
 export function outcomeSection(
 	input: ReportInput,
 	findings: readonly Finding[],
-	verdict: ReturnType<typeof runVerdict>,
-	defects: number,
+	{ defects, verdict }: RunOutcome,
 ): string[] {
 	if (defects === 0) {
 		return [

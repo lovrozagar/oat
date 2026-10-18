@@ -2,7 +2,7 @@
 
 import { canWriteOp, renderTerm } from "../render/filter-term.ts"
 import { FILTER_PRESETS } from "../render/filter-presets.ts"
-import type { FilterGrammarSpec, FilterQuery, FilterTermValue } from "../render/filter-types.ts"
+import type { FilterGrammarSpec, FilterPredicate, FilterQuery } from "../render/filter-types.ts"
 import { renderAnd, renderOr } from "../render/filter-combine.ts"
 import type { FilterOp } from "../../config/types/query.ts"
 import type { QueryConventions } from "./types.ts"
@@ -28,18 +28,13 @@ export function canWriteFilterOp(conventions: QueryConventions, op: FilterOp): b
 }
 
 /** Renders one filter term in whichever grammar the endpoint speaks. */
-export function filterTerm(
-	conventions: QueryConventions,
-	field: string,
-	op: FilterOp,
-	value: FilterTermValue,
-): Record<string, string> | null {
-	return renderTerm(filterSpec(conventions), conventions.filter, { field, op, value })
+export function filterTerm(conventions: QueryConventions, predicate: FilterPredicate): Record<string, string> | null {
+	return renderTerm(filterSpec(conventions), conventions.filter, predicate)
 }
 
 /** The equality term `filterTerm` wraps in its parameter, as bare text. */
 export function filterFragment(conventions: QueryConventions, field: string, value: string): string | null {
-	const term = filterTerm(conventions, field, "eq", value)
+	const term = filterTerm(conventions, { field, op: "eq", value })
 	/* A rendered term is exactly one parameter and its text. */
 	return term === null ? null : (Object.values(term)[0] as string)
 }

@@ -23,12 +23,10 @@ const [OWNER, OTHER, MEMBER, VIEWER] = PRINCIPALS as [
 const ALPHA = { project_id: "proj_alpha" }
 
 const request = (authorization?: string) =>
-	referenceRequest(
-		"GET",
-		new URL("http://reference.test/"),
-		authorization === undefined ? {} : { authorization },
-		async () => "",
-	)
+	referenceRequest("GET", new URL("http://reference.test/"), {
+		headers: authorization === undefined ? {} : { authorization },
+		read: async () => "",
+	})
 
 /* A row under one of alpha's tables, and the scope that names it. */
 async function rowWorld(options = {}) {
@@ -105,30 +103,30 @@ describe("assertTenant", () => {
 describe("ownedByTenant", () => {
 	it("reads the tenant field, or walks up to the parent that has one", async () => {
 		const { state, row } = await rowWorld()
-		expect(await ownedByTenant(state, state.table, { project_id: "proj_alpha" }, OWNER)).toBe(true)
-		expect(await ownedByTenant(state, state.table, { project_id: "proj_alpha" }, OTHER)).toBe(false)
-		expect(await ownedByTenant(state, ROW, row, OWNER)).toBe(true)
-		expect(await ownedByTenant(state, ROW, row, OTHER)).toBe(false)
+		expect(await ownedByTenant(state, { entity: state.table, record: { project_id: "proj_alpha" } }, OWNER)).toBe(true)
+		expect(await ownedByTenant(state, { entity: state.table, record: { project_id: "proj_alpha" } }, OTHER)).toBe(false)
+		expect(await ownedByTenant(state, { entity: ROW, record: row }, OWNER)).toBe(true)
+		expect(await ownedByTenant(state, { entity: ROW, record: row }, OTHER)).toBe(false)
 	})
 
 	it("owns nothing for a record with no link, or a link to nothing", async () => {
 		const { state } = await api()
-		expect(await ownedByTenant(state, ROW, { table_id: null }, OWNER)).toBe(false)
-		expect(await ownedByTenant(state, ROW, { table_id: "missing" }, OWNER)).toBe(false)
-		expect(await ownedByTenant(state, ROW, { table_id: 4 }, OWNER)).toBe(false)
+		expect(await ownedByTenant(state, { entity: ROW, record: { table_id: null } }, OWNER)).toBe(false)
+		expect(await ownedByTenant(state, { entity: ROW, record: { table_id: "missing" } }, OWNER)).toBe(false)
+		expect(await ownedByTenant(state, { entity: ROW, record: { table_id: 4 } }, OWNER)).toBe(false)
 	})
 })
 
 describe("assertParents", () => {
 	it("admits the caller's own live parents", async () => {
 		const { state, rowScope } = await rowWorld()
-		await expect(assertParents(state, ROW, rowScope, OWNER)).resolves.toBeUndefined()
+		await expect(assertParents(state, { entity: ROW, principal: OWNER, scope: rowScope })).resolves.toBeUndefined()
 	})
 
 	it("refuses a missing, deleted, foreign or misplaced parent with a 404", async () => {
 		const { state, call, table, tableId, rowScope } = await rowWorld()
 		const theirs = await table("theirs", BETA)
-		const refused = (scope: Record<string, string>) => assertParents(state, ROW, scope, OWNER)
+		const refused = (scope: Record<string, string>) => assertParents(state, { entity: ROW, principal: OWNER, scope })
 		await expect(refused({ ...ALPHA, table_id: "missing" })).rejects.toMatchObject({ status: 404 })
 		await expect(refused(ALPHA)).rejects.toMatchObject({ message: "table  does not exist" })
 		await expect(refused({ ...ALPHA, table_id: String(theirs.id) })).rejects.toMatchObject({ status: 404 })
@@ -140,8 +138,9 @@ describe("assertParents", () => {
 	it("admits any existing parent under FOREIGN_PARENT_ACCEPTED", async () => {
 		const { state, table } = await api({ defects: ["FOREIGN_PARENT_ACCEPTED"] })
 		const theirs = await table("theirs", BETA)
-		await expect(assertParents(state, ROW, { ...ALPHA, table_id: String(theirs.id) }, OWNER)).resolves.toBeUndefined()
-		await expect(assertParents(state, ROW, { ...ALPHA, table_id: "missing" }, OWNER)).rejects.toMatchObject({
+		const admitted = (scope: Record<string, string>) => assertParents(state, { entity: ROW, principal: OWNER, scope })
+		await expect(admitted({ ...ALPHA, table_id: String(theirs.id) })).resolves.toBeUndefined()
+		await expect(admitted({ ...ALPHA, table_id: "missing" })).rejects.toMatchObject({
 			status: 404,
 		})
 	})
@@ -150,17 +149,21 @@ describe("assertParents", () => {
 describe("underPath", () => {
 	it("serves a record only under the path that names its own parents", async () => {
 		const { state, row, rowScope, table } = await rowWorld()
-		expect(await underPath(state, ROW, row, rowScope)).toBe(true)
-		expect(await underPath(state, ROW, row, { ...rowScope, project_id: "proj_beta" })).toBe(false)
+		expect(await underPath(state, { entity: ROW, record: row }, rowScope)).toBe(true)
+		expect(await underPath(state, { entity: ROW, record: row }, { ...rowScope, project_id: "proj_beta" })).toBe(false)
 		const other = await table("other")
-		expect(await underPath(state, ROW, row, { ...rowScope, table_id: String(other.id) })).toBe(false)
-		expect(await underPath(state, ROW, { ...row, table_id: "missing" }, { project_id: "proj_alpha" })).toBe(false)
+		expect(await underPath(state, { entity: ROW, record: row }, { ...rowScope, table_id: String(other.id) })).toBe(
+			false,
+		)
+		expect(
+			await underPath(state, { entity: ROW, record: { ...row, table_id: "missing" } }, { project_id: "proj_alpha" }),
+		).toBe(false)
 	})
 
 	it("stops at a parent the record does not store", async () => {
 		const { state, row } = await rowWorld()
 		const unlinked = { ...ROW, fields: ROW.fields.filter((field) => field.name !== "table_id") }
-		expect(await underPath(state, unlinked, row, { project_id: "proj_beta" })).toBe(true)
+		expect(await underPath(state, { entity: unlinked, record: row }, { project_id: "proj_beta" })).toBe(true)
 	})
 })
 
@@ -168,35 +171,40 @@ describe("findItem", () => {
 	it("finds the caller's own record, and refuses a missing or deleted one with a 404", async () => {
 		const { state, call, table } = await api()
 		const made = await table("t")
-		const target = { entity: state.table, id: String(made.id), scope: ALPHA }
-		expect(await findItem(state, target, OWNER)).toMatchObject({ name: "t" })
-		await expect(findItem(state, { ...target, id: "missing" }, OWNER)).rejects.toMatchObject({
+		const target = { entity: state.table, itemId: String(made.id), principal: OWNER, scope: ALPHA }
+		expect(await findItem(state, target)).toMatchObject({ name: "t" })
+		await expect(findItem(state, { ...target, itemId: "missing" })).rejects.toMatchObject({
 			message: "table missing does not exist",
 			status: 404,
 		})
 		await call("DELETE", `${TABLES}/${String(made.id)}`)
-		await expect(findItem(state, target, OWNER)).rejects.toMatchObject({ message: /has been deleted/, status: 404 })
+		await expect(findItem(state, target)).rejects.toMatchObject({ message: /has been deleted/, status: 404 })
 	})
 
 	it("hides another tenant's record behind a 404, or a 403 under EXISTENCE_LEAK_VIA_STATUS", async () => {
 		const clean = await api()
 		const theirs = await clean.table("theirs", BETA)
-		const target = { entity: clean.state.table, id: String(theirs.id), scope: { project_id: "proj_beta" } }
-		await expect(findItem(clean.state, target, OWNER)).rejects.toMatchObject({ status: 404 })
+		const target = {
+			entity: clean.state.table,
+			itemId: String(theirs.id),
+			principal: OWNER,
+			scope: { project_id: "proj_beta" },
+		}
+		await expect(findItem(clean.state, target)).rejects.toMatchObject({ status: 404 })
 		const leaky = await api({ defects: ["EXISTENCE_LEAK_VIA_STATUS"] })
 		await leaky.table("theirs", BETA)
-		await expect(findItem(leaky.state, target, OWNER)).rejects.toMatchObject({ status: 403 })
+		await expect(findItem(leaky.state, target)).rejects.toMatchObject({ status: 403 })
 	})
 
 	it("serves another tenant's record under CROSS_TENANT_READ, and for writing under CROSS_TENANT_WRITE", async () => {
 		const reads = await api({ defects: ["CROSS_TENANT_READ"] })
 		const theirs = await reads.table("theirs", BETA)
-		const target = { entity: reads.state.table, id: String(theirs.id), scope: ALPHA }
-		expect(await findItem(reads.state, target, OWNER)).toMatchObject({ name: "theirs" })
+		const target = { entity: reads.state.table, itemId: String(theirs.id), principal: OWNER, scope: ALPHA }
+		expect(await findItem(reads.state, target)).toMatchObject({ name: "theirs" })
 		const writes = await api({ defects: ["CROSS_TENANT_WRITE"] })
 		await writes.table("theirs", BETA)
-		expect(await findItem(writes.state, target, OWNER, "write")).toMatchObject({ name: "theirs" })
-		await expect(findItem(writes.state, target, OWNER)).rejects.toMatchObject({ status: 404 })
+		expect(await findItem(writes.state, target, "write")).toMatchObject({ name: "theirs" })
+		await expect(findItem(writes.state, target)).rejects.toMatchObject({ status: 404 })
 	})
 })
 
@@ -210,10 +218,15 @@ describe("findItem through a grant", () => {
 			const theirs = await world.table("shared", BETA)
 			const grant = { accepted: false, entity: "table", granteeKey: "key_alpha", resourceId: String(theirs.id) }
 			world.state.grants.set("g", { ...grant, grantId: "g", token: "t" })
-			const target = { entity: world.state.table, id: String(theirs.id), scope: { project_id: "proj_beta" } }
-			await expect(findItem(world.state, target, OWNER)).rejects.toMatchObject({ status: 404 })
+			const target = {
+				entity: world.state.table,
+				itemId: String(theirs.id),
+				principal: OWNER,
+				scope: { project_id: "proj_beta" },
+			}
+			await expect(findItem(world.state, target)).rejects.toMatchObject({ status: 404 })
 			world.state.grants.set("g", { ...grant, accepted: true, grantId: "g", token: "t" })
-			const found = await findItem(world.state, target, OWNER).then(
+			const found = await findItem(world.state, target).then(
 				() => true,
 				() => false,
 			)
@@ -224,7 +237,9 @@ describe("findItem through a grant", () => {
 	it("hides a row holding the probe value from its creator", async () => {
 		const { state, rowScope, tableId, call } = await rowWorld({ defects: ["HIDDEN_FROM_CREATOR"] })
 		const probe = (await call("POST", rowsOf(tableId), { body: { label: "oat-payload-probe" } })).body
-		await expect(findItem(state, { entity: ROW, id: String(probe.id), scope: rowScope }, OWNER)).rejects.toMatchObject({
+		await expect(
+			findItem(state, { entity: ROW, itemId: String(probe.id), principal: OWNER, scope: rowScope }),
+		).rejects.toMatchObject({
 			status: 404,
 		})
 	})

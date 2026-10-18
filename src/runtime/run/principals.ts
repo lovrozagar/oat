@@ -48,11 +48,11 @@ function runPrincipals(planned: Planned, all: ResolvedPrincipal[]): RunPrincipal
 				.map(ownerOf)
 		},
 		ownerOf,
-		recordCreated: (entity, id, values, principal) => {
+		recordCreated: (created, principal) => {
 			const sender = principal === undefined ? undefined : all.find((candidate) => candidate.id === principal)
-			ledger.record(entity, id, values, ownerOf(sender ?? alpha))
+			ledger.record(created, ownerOf(sender ?? alpha))
 		},
-		recorder: (owner) => (entity, id, values) => ledger.record(entity, id, values, owner),
+		recorder: (owner) => (entity, id, scope) => ledger.record({ entity, id, scope }, owner),
 		/*
 		 * Proactive refreshes, before each entity and before the credentials are persisted. A
 		 * failure is reported — the backend would not renew a session — and the run carries on to

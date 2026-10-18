@@ -40,7 +40,7 @@ export const successSchemaHonoured = defineCheck<{
 			)
 		}
 
-		const result = validator.validate(createOp.operationId, raw, exchange.status, exchange.responseBody)
+		const result = validator.validate(createOp.operationId, raw, exchange)
 		if (result.unchecked !== undefined) {
 			return ctx.findings.gap(this.id, ctx.entityName, {
 				summary: `${createOp.operationId} ${exchange.status} has a schema that cannot be compiled`,
