@@ -38,6 +38,10 @@ Flags
   --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
   --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
   --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --legs <legs>           conformance: run only these parts — suites, passes, shapes, recall, scope, fuzz
+  --shapes <names>        conformance: the shapes the shapes and recall legs judge behind; all when absent
+  --proven-out <file>     conformance: write the checks this run's defects proved to a file, for --aggregate
+  --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
   --force                 baseline: overwrite an existing --out file
@@ -118,6 +122,10 @@ Flags
   --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
   --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
   --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --legs <legs>           conformance: run only these parts — suites, passes, shapes, recall, scope, fuzz
+  --shapes <names>        conformance: the shapes the shapes and recall legs judge behind; all when absent
+  --proven-out <file>     conformance: write the checks this run's defects proved to a file, for --aggregate
+  --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
   --force                 baseline: overwrite an existing --out file
@@ -174,6 +182,10 @@ Flags
   --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
   --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
   --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --legs <legs>           conformance: run only these parts — suites, passes, shapes, recall, scope, fuzz
+  --shapes <names>        conformance: the shapes the shapes and recall legs judge behind; all when absent
+  --proven-out <file>     conformance: write the checks this run's defects proved to a file, for --aggregate
+  --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
   --force                 baseline: overwrite an existing --out file
@@ -254,6 +266,10 @@ Flags
   --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
   --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
   --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --legs <legs>           conformance: run only these parts — suites, passes, shapes, recall, scope, fuzz
+  --shapes <names>        conformance: the shapes the shapes and recall legs judge behind; all when absent
+  --proven-out <file>     conformance: write the checks this run's defects proved to a file, for --aggregate
+  --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
   --force                 baseline: overwrite an existing --out file
@@ -300,6 +316,10 @@ Flags
   --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
   --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
   --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --legs <legs>           conformance: run only these parts — suites, passes, shapes, recall, scope, fuzz
+  --shapes <names>        conformance: the shapes the shapes and recall legs judge behind; all when absent
+  --proven-out <file>     conformance: write the checks this run's defects proved to a file, for --aggregate
+  --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
   --force                 baseline: overwrite an existing --out file
@@ -348,6 +368,10 @@ Flags
   --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
   --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
   --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --legs <legs>           conformance: run only these parts — suites, passes, shapes, recall, scope, fuzz
+  --shapes <names>        conformance: the shapes the shapes and recall legs judge behind; all when absent
+  --proven-out <file>     conformance: write the checks this run's defects proved to a file, for --aggregate
+  --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
   --force                 baseline: overwrite an existing --out file
@@ -394,6 +418,10 @@ Flags
   --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
   --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
   --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --legs <legs>           conformance: run only these parts — suites, passes, shapes, recall, scope, fuzz
+  --shapes <names>        conformance: the shapes the shapes and recall legs judge behind; all when absent
+  --proven-out <file>     conformance: write the checks this run's defects proved to a file, for --aggregate
+  --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
   --force                 baseline: overwrite an existing --out file
@@ -450,6 +478,10 @@ Flags
   --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
   --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
   --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --legs <legs>           conformance: run only these parts — suites, passes, shapes, recall, scope, fuzz
+  --shapes <names>        conformance: the shapes the shapes and recall legs judge behind; all when absent
+  --proven-out <file>     conformance: write the checks this run's defects proved to a file, for --aggregate
+  --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
   --force                 baseline: overwrite an existing --out file
@@ -514,6 +546,10 @@ Flags
   --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
   --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
   --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --legs <legs>           conformance: run only these parts — suites, passes, shapes, recall, scope, fuzz
+  --shapes <names>        conformance: the shapes the shapes and recall legs judge behind; all when absent
+  --proven-out <file>     conformance: write the checks this run's defects proved to a file, for --aggregate
+  --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
   --force                 baseline: overwrite an existing --out file
@@ -562,6 +598,10 @@ Flags
   --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
   --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
   --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --legs <legs>           conformance: run only these parts — suites, passes, shapes, recall, scope, fuzz
+  --shapes <names>        conformance: the shapes the shapes and recall legs judge behind; all when absent
+  --proven-out <file>     conformance: write the checks this run's defects proved to a file, for --aggregate
+  --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
   --force                 baseline: overwrite an existing --out file
@@ -653,6 +693,10 @@ Flags
   --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
   --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
   --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --legs <legs>           conformance: run only these parts — suites, passes, shapes, recall, scope, fuzz
+  --shapes <names>        conformance: the shapes the shapes and recall legs judge behind; all when absent
+  --proven-out <file>     conformance: write the checks this run's defects proved to a file, for --aggregate
+  --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
   --force                 baseline: overwrite an existing --out file
@@ -701,6 +745,10 @@ Flags
   --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
   --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
   --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --legs <legs>           conformance: run only these parts — suites, passes, shapes, recall, scope, fuzz
+  --shapes <names>        conformance: the shapes the shapes and recall legs judge behind; all when absent
+  --proven-out <file>     conformance: write the checks this run's defects proved to a file, for --aggregate
+  --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
   --force                 baseline: overwrite an existing --out file
@@ -749,6 +797,10 @@ Flags
   --fuzz-seed <n>         conformance: seed for the combination pass of a full run (default 1)
   --jobs <n>              conformance: legs run at once, each on its own thread (default: CPUs − 1, at most 4)
   --skip-backend <names>  conformance: comma-separated backends a full run may leave out when unreachable
+  --legs <legs>           conformance: run only these parts — suites, passes, shapes, recall, scope, fuzz
+  --shapes <names>        conformance: the shapes the shapes and recall legs judge behind; all when absent
+  --proven-out <file>     conformance: write the checks this run's defects proved to a file, for --aggregate
+  --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
   --force                 baseline: overwrite an existing --out file

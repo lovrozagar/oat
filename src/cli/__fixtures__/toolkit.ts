@@ -17,10 +17,12 @@ export interface ToolkitOptions {
 	sqlite?: boolean
 	postgres?: boolean
 	d1?: boolean
-	/** Cases the shapes task reports. */
+	/** The shapes, each as its own task judges it: `shape:<name>`, with its problems. */
 	shapes?: Array<{ label: string; problems: string[] }>
-	/** Cases each recall task reports. */
-	recall?: Array<{ label: string; problems: string[] }>
+	/** Defects recalled behind every clean shape. */
+	recallDefects?: string[]
+	/** Problems a recalled defect reports, by defect name; none for the rest. */
+	recallProblems?: Record<string, string[]>
 	/** What each check a leg proves. */
 	proven?: string[]
 	defectNames?: string[]
@@ -59,11 +61,18 @@ export function fakeToolkit(options: ToolkitOptions = {}): { toolkit: Toolkit; l
 		rateLimit: { runRateLimitSuite: async () => suite("rateLimit")() },
 		seedContract: { runSeedContractSuite: async () => suite("seedContract")() },
 		shapes: {
+			SHAPE_NAMES: (options.shapes ?? []).map((shape) => shape.label.replace(/^shape:/, "")),
+			recallDefects: () => options.recallDefects ?? ["A", "B"],
 			renderShapeSuite: (shapes: Array<{ label: string; problems: string[] }>, recall?: boolean) => ({
 				failures: shapes.filter((one) => one.problems.length > 0).length,
 				text: `${recall === true ? "recall" : "shapes"} ${shapes.length}\n`,
 			}),
+			waitingRecall: (shape: { label: string }) => ({
+				label: `recall:${shape.label.replace(/^shape:/, "")}`,
+				problems: ["waits"],
+			}),
 		},
+
 		suite: fakeSuite(options, log),
 		unique: { runUniqueSuite: async () => suite("unique")() },
 	}
@@ -111,16 +120,35 @@ function fakeSuite(options: ToolkitOptions, log: string[]) {
 /** A pool that answers each task by its kind, and records it. */
 function fakePool(jobs: number, options: ToolkitOptions, log: string[]) {
 	log.push(`pool ${jobs}`)
+	const memory = { heapUsed: 50 * 2 ** 20, rss: 300 * 2 ** 20 }
 	return {
 		close: async () => void log.push("pool closed"),
-		run: async (task: { kind: string; backend?: string; dialect?: string; defects?: string[] }) => {
+		run: async (task: {
+			kind: string
+			backend?: string
+			dialect?: string
+			defects?: string[]
+			name?: string
+			shape?: string
+		}) => {
+			const where = task.backend === undefined ? "" : ` ${task.backend}/${task.dialect}`
 			log.push(
-				`task ${task.kind}${task.backend === undefined ? "" : ` ${task.backend}/${task.dialect}`}${task.defects === undefined ? "" : ` ${task.defects.length}`}`,
+				`task ${task.kind}${where}${task.name === undefined ? "" : ` ${task.name}`}${task.shape === undefined ? "" : ` ${task.shape}`}${task.defects === undefined ? "" : ` ${task.defects.length}`}`,
 			)
-			if (task.kind === "shapes") return { cases: options.shapes ?? [], kind: "cases" }
-			if (task.kind === "recall") return { cases: options.recall ?? [], kind: "cases" }
-			if (task.kind === "scope") return { kind: "results", results: options.cases ?? [] }
-			return { kind: "leg", results: (task.defects ?? ["baseline"]).map((label) => ({ label })) }
+			if (task.kind === "shape-reference") return { checks: ["c1"], kind: "reference", memory }
+			if (task.kind === "shape") {
+				const shape = (options.shapes ?? []).find((one) => one.label === `shape:${task.name}`)
+				return { cases: shape === undefined ? [] : [shape], kind: "cases", memory }
+			}
+			if (task.kind === "recall") {
+				const cases = (task.defects ?? []).map((defect) => ({
+					label: `recall:${task.shape}:${defect}`,
+					problems: options.recallProblems?.[defect] ?? [],
+				}))
+				return { cases, kind: "cases", memory }
+			}
+			if (task.kind === "scope") return { kind: "results", memory, results: options.cases ?? [] }
+			return { kind: "leg", memory, results: (task.defects ?? ["baseline"]).map((label) => ({ label })) }
 		},
 	}
 }

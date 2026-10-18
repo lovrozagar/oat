@@ -52,6 +52,7 @@
 		"build": "tsc -p tsconfig.json",
 		"check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
 		"conformance": "node --experimental-sqlite dist/cli.js conformance",
+		"conformance:sharded": "bun scripts/conformance-sharded.ts",
 		"demo": "bun run build && node labs/demo.mjs",
 		"dev": "tsc -p tsconfig.json --watch",
 		"fmt": "oxfmt",

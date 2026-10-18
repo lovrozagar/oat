@@ -1,32 +1,15 @@
 /** One conformance task per message, in a forked process; see `pool.ts`. */
 
-import type { ConformanceAnswer, ConformanceTask } from "./pool.ts"
-import { runScopeSuite } from "./scope.ts"
-import { runShapeRecall, runShapeSuite } from "./shapes.ts"
-import { judgeDefect, portableResult, runBaselines } from "./suite.ts"
+import { messageOf } from "../errors/message.ts"
+import { type ConformanceTask, runTask } from "./tasks.ts"
 
-async function answer(task: ConformanceTask): Promise<ConformanceAnswer> {
-	if (task.kind === "baselines") {
-		return { kind: "leg", results: (await runBaselines(task.backend, task.dialect)).map(portableResult) }
-	}
-	if (task.kind === "defects") {
-		const results = []
-		for (const defect of task.defects)
-			results.push(portableResult(await judgeDefect(defect, task.backend, task.dialect)))
-		return { kind: "leg", results }
-	}
-	if (task.kind === "scope") return { kind: "results", results: await runScopeSuite(task.defects, task.known) }
-	if (task.kind === "shapes") return { cases: await runShapeSuite("memory"), kind: "cases" }
-	return { cases: await runShapeRecall("memory", task.shapes), kind: "cases" }
-}
+let sequence = 0
 
 process.on("message", (task: ConformanceTask) => {
-	answer(task).then(
-		(result) => process.send?.({ answer: result, ok: true }),
+	sequence += 1
+	runTask(task, sequence).then(
+		(answer) => process.send?.({ answer, ok: true }),
 		(error: unknown) =>
-			process.send?.({
-				error: error instanceof Error ? (error.stack ?? error.message) : String(error),
-				ok: false,
-			}),
+			process.send?.({ error: error instanceof Error ? (error.stack ?? error.message) : messageOf(error), ok: false }),
 	)
 })

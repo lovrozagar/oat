@@ -3,37 +3,17 @@
  *
  * Every case already owns its server, so cases share nothing but the CPU — and the suite is
  * CPU-bound: oat and the reference backend run in one process, so concurrency inside it buys
- * nothing. Separate processes do, each with its own heap and event loop. A task is a slice of a leg — a pass's baselines or a chunk of its defects,
- * the shape suite, or the recall cases behind one shape — and comes back as plain data the parent
- * assembles and prints in order.
+ * nothing. Separate processes do, each with its own heap and event loop. A task is a slice of a
+ * leg (see `tasks.ts`) and comes back as plain data the parent assembles and prints in order.
+ * In process, the same tasks run one at a time in the caller's own process: for a test, or a
+ * machine short of memory.
  */
 
 import { availableParallelism } from "node:os"
 import { type ChildProcess, fork } from "node:child_process"
-import type { ShapeCase } from "./shapes.ts"
-import type { DefectName } from "../reference/defects.ts"
-import type { Backend, CaseResult, ParserResult } from "./suite.ts"
+import { type AnswerFor, type ConformanceAnswer, type ConformanceTask, runTask } from "./tasks.ts"
 
-export type ConformanceTask =
-	/* One leg in pieces: its baselines, and its defects a chunk at a time, so the longest leg no
-	 * longer sets the wall time. */
-	| { kind: "baselines"; backend: Backend; dialect: string }
-	| { kind: "defects"; backend: Backend; dialect: string; defects: DefectName[] }
-	| { kind: "shapes" }
-	| { kind: "recall"; shapes: ShapeCase[] }
-	| { kind: "scope"; defects: string[]; known: Record<string, string[]> }
-
-export type ConformanceAnswer =
-	| { kind: "cases"; cases: ShapeCase[] }
-	| { kind: "leg"; results: CaseResult[] }
-	| { kind: "results"; results: ParserResult[] }
-
-/** The answer a task gets: a leg's results, a shape's cases, or the scope suite's results. */
-export type AnswerFor<T extends ConformanceTask> = T extends { kind: "shapes" | "recall" }
-	? Extract<ConformanceAnswer, { kind: "cases" }>
-	: T extends { kind: "scope" }
-		? Extract<ConformanceAnswer, { kind: "results" }>
-		: Extract<ConformanceAnswer, { kind: "leg" }>
+export type { AnswerFor, ConformanceAnswer, ConformanceTask, MemoryUse } from "./tasks.ts"
 
 export interface ConformancePool {
 	run<T extends ConformanceTask>(task: T): Promise<AnswerFor<T>>
@@ -45,7 +25,10 @@ export function defaultJobs(): number {
 	return Math.max(1, Math.min(4, availableParallelism() - 1))
 }
 
-export function createPool(jobs: number): ConformancePool {
+/** A pool of `jobs` worker processes, or the caller's own process when `inProcess`. */
+export function createPool(jobs: number, { inProcess = false }: { inProcess?: boolean } = {}): ConformancePool {
+	if (inProcess) return inProcessPool()
+
 	const script = new URL("./worker.js", import.meta.url)
 	const idle: ChildProcess[] = []
 	const all: ChildProcess[] = []
@@ -112,5 +95,23 @@ export function createPool(jobs: number): ConformancePool {
 				const worker = idle.shift()
 				if (worker !== undefined) next(worker)
 			}),
+	}
+}
+
+/** Tasks run one at a time in this process, in the order they were asked for. */
+function inProcessPool(): ConformancePool {
+	let sequence = 0
+	let previous: Promise<unknown> = Promise.resolve()
+	return {
+		close: async () => {
+			await previous.catch(() => undefined)
+		},
+		run: <T extends ConformanceTask>(task: T) => {
+			sequence += 1
+			const turn = sequence
+			const answer = previous.catch(() => undefined).then(() => runTask(task, turn) as Promise<AnswerFor<T>>)
+			previous = answer
+			return answer
+		},
 	}
 }

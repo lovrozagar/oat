@@ -113,7 +113,7 @@ const SURFACES: Readonly<Record<string, Surface>> = {
 		doc: "commands.md",
 		names: () => Object.keys(FLAGS),
 		written: (name) => `--${name}`,
-		undocumented: ["fuzz-seed", "help", "skip-backend"],
+		undocumented: [],
 	},
 	"top-level config fields": {
 		doc: "configuration.md",

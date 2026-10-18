@@ -19,6 +19,8 @@ oat help
 
 `--untagged` is a **serve** flag (and a conformance concern). It is not a `run` flag.
 
+`oat help`, `oat --help` and `--help` after any command print every command and flag, from the same table the command line is read with. An unknown flag or command, or a flag without its value, is refused with exit `2` and the help.
+
 ### `oat run`
 
 Requires `--config`. CLI flags override the same field in the config when both are set.
@@ -225,10 +227,20 @@ oat conformance --only STALE_LIST,PATCH_REPLACES
 | `--seed`          | replay a fuzz/precision run                                                                                                        |
 | `--parser`        | only the hostile-document + example-spec + tag-unlock suites                                                                       |
 | `--only`          | restrict injected defects (comma-separated `STALE_LIST,…`)                                                                         |
-| `--jobs`          | legs run at once, each on its own thread (default: CPUs − 1, at most 4)                                                            |
+| `--jobs`          | worker processes the legs share (default: CPUs − 1, at most 4)                                                                     |
+| `--legs`          | run only these parts: `suites`, `passes`, `shapes`, `recall`, `scope`, `fuzz` (comma-separated)                                    |
+| `--shapes`        | the shapes the `shapes` and `recall` legs judge behind (comma-separated); all when absent                                          |
+| `--proven-out`    | write the checks this run's defects proved to a JSON file, for `--aggregate`                                                       |
+| `--aggregate`     | judge a folder of `--proven-out` files together; exit `1` on any check no file proved                                              |
+| `--fuzz-seed`     | seed of the 40-combination pass a full run ends with (default 1); CI passes a fresh one                                            |
+| `--skip-backend`  | backends a full run may leave out when unreachable (comma-separated); otherwise a missing one fails the run                        |
 
-A default `oat conformance` (no `--fuzz` / `--precision` / `--parser`) also runs a 40-case combination smoke on memory after the one-at-a-time matrix, and `--ops` recall for every defect, reusing the matrix's own runs. The extra dialects run only the defects whose symptom depends on how a listing is asked for and answered.
+A default `oat conformance` runs every leg: the suites (hostile documents, the `labs/annotated-openapi.yaml` model lock, the tag-unlock map and the other self-contained suites), the passes on every local engine plus the extra dialects on memory, the correct-backend shapes, every defect again behind each shape that runs clean (recall), `--ops` recall from the default pass's own runs, a 40-case combination pass, and finally the checks no defect proved. The extra dialects run only the defects whose symptom depends on how a listing is asked for and answered.
 
-D1 needs `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_D1_DATABASE_ID`, `CLOUDFLARE_API_TOKEN`. Postgres needs a reachable server on the default connection (`database: "postgres"`). Missing backends are skipped with a printed reason, not treated as a pass.
+Selecting a `--backend`, `--dialect` or `--only` runs the suites and those passes alone; `--legs` runs exactly the legs named (the `scope` leg brings the default memory pass it judges from); `--parser` runs the suites alone. Each pass prints its time, recall prints a line per shape as it finishes, and the run ends with the largest worker's memory. Set `OAT_HEAP_SNAPSHOTS=<dir>` to write a worker heap snapshot after every task.
 
-`--parser` still always runs first (hostile documents, `labs/annotated-openapi.yaml` model lock, tag-unlock map). Exit `1` if any parser, matrix, fuzz, or precision case fails.
+D1 needs `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_D1_DATABASE_ID`, `CLOUDFLARE_API_TOKEN`; it never runs unless asked for by name. Postgres needs a reachable server on the default connection (`database: "postgres"`). A full run fails on a local backend it cannot reach unless `--skip-backend` names it. Exit `1` if any suite, pass, shape, recall, fuzz or precision case fails, or a full run leaves a check unproven.
+
+#### Sharded
+
+`bun run conformance:sharded [--jobs n] [--skip-backend sqlite,postgres] [--out dir]` runs the same self-test as short legs, one process each — the suites, each pass, recall a few shapes at a time, `--ops` scope, the combination pass — writing each leg's proven checks with `--proven-out`, then judges them with `--aggregate`. It prints every leg's exit and time. No leg holds the whole matrix, so a machine short of memory still finishes, and a failing leg can be rerun alone with the command it prints.

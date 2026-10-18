@@ -104,6 +104,26 @@ export const FLAGS: Readonly<Record<string, FlagSpec>> = {
 		kind: "value",
 		value: "<names>",
 	},
+	legs: {
+		help: "conformance: run only these parts — suites, passes, shapes, recall, scope, fuzz",
+		kind: "value",
+		value: "<legs>",
+	},
+	shapes: {
+		help: "conformance: the shapes the shapes and recall legs judge behind; all when absent",
+		kind: "value",
+		value: "<names>",
+	},
+	"proven-out": {
+		help: "conformance: write the checks this run's defects proved to a file, for --aggregate",
+		kind: "value",
+		value: "<file>",
+	},
+	aggregate: {
+		help: "conformance: judge the proven-check files of a sharded run together; fails on any check none proved",
+		kind: "value",
+		value: "<dir>",
+	},
 	json: { help: "machine-readable output, for plan, doctor and diff", kind: "boolean" },
 	from: { help: "baseline: the run folder (or latest) whose findings become known", kind: "value", value: "<run>" },
 	force: { help: "baseline: overwrite an existing --out file", kind: "boolean" },

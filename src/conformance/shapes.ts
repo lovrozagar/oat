@@ -89,27 +89,38 @@ async function judge(
 	}
 }
 
-export async function runShapeSuite(backend: Backend = "memory", only?: readonly string[]): Promise<ShapeCase[]> {
-	/* The default shape first: what it runs is what every other shape must also run. */
-	let reference: ReadonlySet<string> | undefined
+/** Every shape the reference serves, by name, in order. */
+export const SHAPE_NAMES: readonly string[] = SHAPES.map((named) => named.name)
+
+/**
+ * The checks a clean run behind the default shape runs: what every other shape must also run.
+ * `null` when the default shape cannot be run at all, and then no shape is held to it.
+ */
+export async function shapeReference(backend: Backend = "memory"): Promise<string[] | null> {
 	try {
-		reference = new Set((await judge(backend, undefined, undefined)).checksRun)
+		return (await judge(backend, undefined, undefined)).checksRun
 	} catch {
-		reference = undefined
+		return null
 	}
-	const cases: ShapeCase[] = []
-	for (const named of SHAPES) {
-		if (only !== undefined && only.length > 0 && !only.includes(named.name)) continue
-		const label = `shape:${named.name}`
-		let problems: string[]
-		try {
-			problems = (await judge(backend, named.name, reference, named.cannotRun)).problems
-		} catch (error) {
-			problems = [`threw: ${error instanceof Error ? error.message : String(error)}`]
-		}
-		cases.push({ expected: EXPECTED_FAILURES[label], label, problems, why: named.why })
+}
+
+/** One shape, judged against the default shape's checks. */
+export async function judgeShape(
+	backend: Backend,
+	name: string,
+	reference: readonly string[] | null,
+): Promise<ShapeCase> {
+	const named = SHAPES.find((candidate) => candidate.name === name)
+	if (named === undefined) throw new Error(`no shape "${name}"`)
+	const label = `shape:${name}`
+	let problems: string[]
+	try {
+		problems = (await judge(backend, name, reference === null ? undefined : new Set(reference), named.cannotRun))
+			.problems
+	} catch (error) {
+		problems = [`threw: ${error instanceof Error ? error.message : String(error)}`]
 	}
-	return cases
+	return { expected: EXPECTED_FAILURES[label], label, problems, why: named.why }
 }
 
 export function renderShapeSuite(cases: ShapeCase[], quiet = false): { text: string; failures: number } {
@@ -145,48 +156,64 @@ export function renderShapeSuite(cases: ShapeCase[], quiet = false): { text: str
  * A clean baseline behind a shape says oat is quiet there; it does not say oat still *sees*
  * anything. Mounting the API under a prefix once cost five detections while the clean run stayed
  * spotless. Behind a shape whose clean baseline still fails, recall cannot mean anything yet, so
- * those shapes report one case that waits on the shape itself.
+ * that shape reports one case that waits on the shape itself (`waitingRecall`).
  */
-export async function runShapeRecall(backend: Backend, shapes: readonly ShapeCase[]): Promise<ShapeCase[]> {
+export function recallDefects(backend: Backend, name: string): DefectName[] {
+	const named = SHAPES.find((candidate) => candidate.name === name)
+	if (named === undefined) return []
+	const skip = new Set(named.cannotExhibit ?? [])
+	const own = (named.exhibits ?? []).filter((defect): defect is DefectName => isDefectName(defect))
+	return [...defectsFor(backend, "postgrest").filter((candidate) => !skip.has(candidate)), ...own]
+}
+
+/** The one recall case of a shape that does not run clean yet. */
+export function waitingRecall(shapeCase: ShapeCase): ShapeCase {
+	const name = shapeCase.label.replace(/^shape:/, "")
+	return {
+		expected: shapeCase.expected,
+		label: `recall:${name}`,
+		problems: [`waits for shape:${name}, which does not run clean yet`],
+		why: shapeCase.why,
+	}
+}
+
+/** Recall of `defects` behind the shape `name`: a case per defect. */
+export async function recallBehind(
+	backend: Backend,
+	name: string,
+	defects: readonly DefectName[],
+): Promise<ShapeCase[]> {
 	const cases: ShapeCase[] = []
-	for (const shapeCase of shapes) {
-		const name = shapeCase.label.replace(/^shape:/, "")
-		const named = SHAPES.find((candidate) => candidate.name === name)
-		if (named === undefined) continue
-		if (shapeCase.problems.length > 0) {
-			cases.push({
-				expected: shapeCase.expected,
-				label: `recall:${name}`,
-				problems: [`waits for shape:${name}, which does not run clean yet`],
-				why: named.why,
-			})
-			continue
-		}
-		const skip = new Set(named.cannotExhibit ?? [])
-		const own = (named.exhibits ?? []).filter((defect): defect is DefectName => isDefectName(defect))
-		for (const defect of [...defectsFor(backend, "postgrest").filter((candidate) => !skip.has(candidate)), ...own]) {
-			const label = `recall:${name}:${defect}`
-			const result = await judgeDefect(defect, backend, "postgrest", name, label)
-			const problems: string[] = []
-			if (result.error !== undefined) problems.push(`error: ${result.error}`)
-			else if (!result.detected) {
-				const fired = result.findings.filter((f) => f.verdict !== "COVERAGE_GAP").map((f) => f.check)
-				problems.push(`missed ${result.expected ?? ""} — reported instead: ${fired.join(", ") || "nothing"}`)
-			}
-			for (const finding of result.spurious.slice(0, 3)) {
-				problems.push(`spurious [${finding.check}] ${finding.entity}: ${finding.summary}`)
-			}
-			for (const where of (result.missingValues ?? []).slice(0, 3)) {
-				problems.push(`would have sent a value it did not have: ${where}`)
-			}
-			const unreported = result.unreported ?? []
-			if (unreported.length > 0) {
-				problems.push(
-					`left ${unreported.length} record(s) behind without reporting them: ${unreported.slice(0, 4).join("; ")}`,
-				)
-			}
-			cases.push({ expected: EXPECTED_FAILURES[label], label, problems, why: `${defect} behind ${name}` })
-		}
+	for (const defect of defects) {
+		const label = `recall:${name}:${defect}`
+		const result = await judgeDefect(defect, backend, "postgrest", name, label)
+		cases.push({
+			expected: EXPECTED_FAILURES[label],
+			label,
+			problems: recallProblems(result),
+			why: `${defect} behind ${name}`,
+		})
 	}
 	return cases
+}
+
+/** What a recall run got wrong: a miss, a spurious finding, a value it lacked, a record it left. */
+function recallProblems(result: Awaited<ReturnType<typeof judgeDefect>>): string[] {
+	const problems: string[] = []
+	if (result.error !== undefined) problems.push(`error: ${result.error}`)
+	else if (!result.detected) {
+		const fired = result.findings.filter((f) => f.verdict !== "COVERAGE_GAP").map((f) => f.check)
+		problems.push(`missed ${result.expected ?? ""} — reported instead: ${fired.join(", ") || "nothing"}`)
+	}
+	for (const finding of result.spurious.slice(0, 3))
+		problems.push(`spurious [${finding.check}] ${finding.entity}: ${finding.summary}`)
+	for (const where of (result.missingValues ?? []).slice(0, 3))
+		problems.push(`would have sent a value it did not have: ${where}`)
+	const unreported = result.unreported ?? []
+	if (unreported.length > 0) {
+		problems.push(
+			`left ${unreported.length} record(s) behind without reporting them: ${unreported.slice(0, 4).join("; ")}`,
+		)
+	}
+	return problems
 }
