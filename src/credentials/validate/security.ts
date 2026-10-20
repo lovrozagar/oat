@@ -169,7 +169,7 @@ function recipeProblems(ctx: Against, path: string, name: string, recipe: unknow
 	if (kind.length > 0) return kind
 	return [
 		...optionProblems(path, recipe),
-		...kindShapeProblems(path, recipe, { hasHook: ctx.hasHook, scheme }),
+		...kindShapeProblems(path, recipe, { hasHook: ctx.hasHook, scheme, signsUp: spec.fresh !== undefined }),
 		...(isRecord(recipe.oauth2) ? oauth2Problems(path, recipe.oauth2, scheme) : []),
 		...(isRecord(recipe.mint) ? mintProblems(ctx, path, name, recipe.mint) : []),
 	]

@@ -49,6 +49,15 @@ describe("acquireLogin", () => {
 		expect(recorded.runs).toHaveLength(1)
 	})
 
+	it("refuses steps that read a placeholder nothing fills, naming it, and sends nothing", async () => {
+		const { ports, recorded } = fakePorts()
+		const typo: LoginRecipe = { from: "$.token", steps: [{ body: { otp: "{otpp}" }, operationId: "auth.login" }] }
+		expect((await rejection(acquireLogin(ctxOf(ports), typo, {}))).message).toBe(
+			'login for "ann" reads {otpp} at step 1, which nothing it started from or an earlier step saved fills',
+		)
+		expect(recorded.runs).toEqual([])
+	})
+
 	it("reads a credential a step saved into scope when the answer has none at `from`", async () => {
 		const { ports } = fakePorts({ run: () => Promise.resolve({ answer: answerOf({}), scope: { session: "s1" } }) })
 		expect((await acquireLogin(ctxOf(ports), { from: "session", steps }, {})).value).toBe("s1")
@@ -152,6 +161,15 @@ describe("heldLogin", () => {
 				],
 			],
 		])
+	})
+
+	it("refuses a refresh that reads a value the session never carried, naming it, and sends nothing", async () => {
+		const { ports, recorded } = fakePorts()
+		const held = heldLogin(ctxOf(ports), { scope: { access_token: "t1" }, value: "t1" }, { login, refresh })
+		expect((await rejection((held.refresh as () => Promise<unknown>)())).message).toBe(
+			'refresh for "ann" reads {refresh_token} at step 1, which nothing it started from or an earlier step saved fills',
+		)
+		expect(recorded.runs).toEqual([])
 	})
 
 	it("has no refresh of its own when the recipe declares none, so the store signs in again", () => {

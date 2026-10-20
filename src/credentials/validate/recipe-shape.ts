@@ -1,4 +1,5 @@
 import type { SecurityScheme } from "../../spec/security/schemes.ts"
+import { capturedBy, unfilledIn } from "../placeholders.ts"
 
 /*
  * Each recipe kind's own shape. A config written as .json or .mjs never meets the TypeScript types,
@@ -19,6 +20,33 @@ function stepsShape(path: string, value: unknown): string[] {
 		...(Array.isArray(raw.steps) && raw.steps.length > 0 ? [] : [`${path}.steps must be a non-empty list of steps`]),
 		...(isString(raw.from) ? [] : [`${path}.from must be a JSON path string`]),
 	]
+}
+
+const stepsOf = (value: unknown): unknown[] => (isRecord(value) && Array.isArray(value.steps) ? value.steps : [])
+
+/*
+ * A `{name}` the login's steps read that no earlier step binds, or the refresh's that neither the
+ * login saves nor an earlier refresh step binds (`credential` is the session's own value): it
+ * would be sent as written. Where the document signs principals up, a session may be taken from the
+ * signup's answer and refresh from what it carries, which only the run sees: the store refuses it then.
+ */
+function placeholderProblems(path: string, recipe: Raw, signsUp: boolean): string[] {
+	const login = stepsOf(recipe.login)
+	const problems: string[] = []
+	const loginGap = unfilledIn(login, [])
+	if (loginGap !== undefined) {
+		problems.push(
+			`${path}.login.steps[${loginGap.step - 1}] reads {${loginGap.name}}, which no earlier login step binds`,
+		)
+	}
+	const refreshGap = signsUp ? undefined : unfilledIn(stepsOf(recipe.refresh), [...capturedBy(login), "credential"])
+	if (refreshGap !== undefined) {
+		problems.push(
+			`${path}.refresh.steps[${refreshGap.step - 1}] reads {${refreshGap.name}}, ` +
+				"which neither the login saves nor an earlier refresh step binds",
+		)
+	}
+	return problems
 }
 
 /* A claim binds the principal's tenant, or one of its scope parameters: nothing else is the principal's to bind. */
@@ -93,19 +121,21 @@ function fitProblems(path: string, recipe: Raw): string[] {
 	return problems
 }
 
-/** What a recipe's shape is checked for: its scheme, and whether a credential hook exists. */
+/** What a recipe's shape is checked for: its scheme, whether a credential hook exists, and whether the document signs principals up. */
 export interface ShapeFor {
 	scheme: SecurityScheme
 	hasHook: boolean
+	signsUp: boolean
 }
 
 /** What is wrong with the shape of a recipe of exactly one kind, for its scheme. */
-export function kindShapeProblems(path: string, recipe: Raw, { hasHook, scheme }: ShapeFor): string[] {
+export function kindShapeProblems(path: string, recipe: Raw, { hasHook, scheme, signsUp }: ShapeFor): string[] {
 	return [
 		...fitProblems(path, recipe),
 		...(recipe.login === undefined ? [] : stepsShape(`${path}.login`, recipe.login)),
 		...claimsShape(`${path}.login`, recipe.login),
 		...(recipe.refresh === undefined ? [] : stepsShape(`${path}.refresh`, recipe.refresh)),
+		...placeholderProblems(path, recipe, signsUp),
 		...(isRecord(recipe.mint) ? mintShape(path, recipe.mint) : []),
 		...(recipe.static === undefined ? [] : staticShape(path, recipe.static, scheme)),
 		...(isRecord(recipe.oauth2) ? oauth2Shape(path, recipe.oauth2) : []),

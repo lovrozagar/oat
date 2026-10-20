@@ -34,6 +34,41 @@ describe("login and refresh", () => {
 	})
 })
 
+/* A refresh whose one step sends `{name}`. */
+const renew = (name: string) => ({
+	from: "$.t",
+	steps: [{ body: { token: `{${name}}` }, operationId: "auth.login" }],
+})
+
+describe("login and refresh placeholders", () => {
+	it("name a placeholder that no captured or configured value fills", () => {
+		const saving = [{ operationId: "auth.login", saveAs: { refresh_token: "$.r" } }]
+		expect(problems({ jwt: { login: { from: "$.t", steps: saving }, refresh: renew("refresh_token") } })).toEqual([])
+		expect(problems({ jwt: { login: { from: "$.t", steps: saving }, refresh: renew("credential") } })).toEqual([])
+		expect(problems({ jwt: { login: { from: "$.t", steps }, refresh: renew("refresh_token") } })).toEqual([
+			"security.jwt.refresh.steps[0] reads {refresh_token}, which neither the login saves nor an earlier refresh step binds",
+		])
+		expect(problems({ jwt: { login: renew("token") } })).toEqual([
+			"security.jwt.login.steps[0] reads {token}, which no earlier login step binds",
+		])
+	})
+
+	it("leave a refresh to the run where the document signs principals up, as its answer may carry the value", () => {
+		const refresh = { from: "$.t", steps: [{ body: { token: "{refresh_token}" }, operationId: "auth.login" }] }
+		const signup = { ...ANYROW, fresh: { operationId: "auth.login", properties: [] } }
+		expect(problems({ jwt: { login: { from: "$.t", steps }, refresh } }, signup)).toEqual([])
+	})
+
+	it("catch the same mistake made through a principal's override", () => {
+		const security = { jwt: { login: { from: "$.t", steps } } }
+		const refresh = { from: "$.t", steps: [{ body: { token: "{refresh_token}" }, operationId: "auth.login" }] }
+		const extra = { principals: { alpha: { security: { jwt: { refresh } }, tenant: "t1" } } }
+		expect(problems(security, ANYROW, extra)).toEqual([
+			"principals.alpha.security.jwt.refresh.steps[0] reads {refresh_token}, which neither the login saves nor an earlier refresh step binds",
+		])
+	})
+})
+
 const withClaims = (claims: unknown) => ({ jwt: { login: { claims, from: "$.t", steps } } })
 
 describe("login claims", () => {

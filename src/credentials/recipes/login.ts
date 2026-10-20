@@ -3,6 +3,7 @@ import type { AuthStep } from "../../config/types/steps.ts"
 import { expiresAtOf } from "../expiry.ts"
 import { fillPrincipal } from "../interpolate.ts"
 import { jwtClaims } from "../jwt.ts"
+import { unfilledIn } from "../placeholders.ts"
 import { readPath } from "../../client/read-path.ts"
 import { readAnswer } from "../read.ts"
 import type { StepAnswer } from "../ports.ts"
@@ -13,6 +14,7 @@ import type { AcquireCtx, Issued } from "./types.ts"
  * reported, never retried. The credential is at `from` in the last answer, or a scope key a step
  * saved. `claims` binds JWT claims into the principal's identity. A recipe `refresh` runs its steps
  * with the scope the last run bound plus `credential`, so a rotated refresh token carries forward.
+ * Steps that read a `{name}` nothing fills are refused before anything is sent, naming it.
  */
 
 interface Ran {
@@ -22,7 +24,7 @@ interface Ran {
 
 /** Signs the principal in by the login recipe; `options` are the recipe's shared options. */
 export async function acquireLogin(ctx: AcquireCtx, login: LoginRecipe, options: Partial<Recipe>): Promise<Issued> {
-	return issue(ctx, { login, options, ran: await run(ctx, login.steps, {}) }, login.from)
+	return issue(ctx, { login, options, ran: await run(ctx, login.steps, { scope: {}, what: "login" }) }, login.from)
 }
 
 interface Issuing {
@@ -31,7 +33,19 @@ interface Issuing {
 	ran: Ran
 }
 
-function run(ctx: AcquireCtx, steps: readonly AuthStep[], scope: Record<string, string>): Promise<Ran> {
+async function run(
+	ctx: AcquireCtx,
+	steps: readonly AuthStep[],
+	at: { scope: Record<string, string>; what: "login" | "refresh" },
+): Promise<Ran> {
+	const { scope, what } = at
+	const unfilled = unfilledIn(steps, Object.keys(scope))
+	if (unfilled !== undefined) {
+		throw new Error(
+			`${what} for "${ctx.principal.id}" reads {${unfilled.name}} at step ${unfilled.step}, ` +
+				"which nothing it started from or an earlier step saved fills",
+		)
+	}
 	return ctx.ports.steps.run(fillPrincipal(ctx.principal, steps), { principal: ctx.principal.id, scope })
 }
 
@@ -52,7 +66,8 @@ function renewable(ctx: AcquireCtx, issuing: Issuing, issued: Issued): Issued {
 	const refresh = issuing.options.refresh
 	if (refresh === undefined) return issued
 	issued.refresh = async () => {
-		const renewed = await run(ctx, refresh.steps, { ...issuing.ran.scope, credential: issued.value })
+		const scope = { ...issuing.ran.scope, credential: issued.value }
+		const renewed = await run(ctx, refresh.steps, { scope, what: "refresh" })
 		return issue(ctx, { ...issuing, ran: renewed }, refresh.from)
 	}
 	return issued
