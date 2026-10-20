@@ -126,12 +126,35 @@ describe("the slug of a table", () => {
 	})
 })
 
+/* Two of one entity's updates, the second made first, maybe with another entity's write between. */
+async function updatedOrder(between: boolean): Promise<unknown[]> {
+	const { call, table } = await api()
+	const [first, second] = [await table("first"), await table("second")]
+	await call("PATCH", `${TABLES}/${String(second.id)}`, { body: { description: "x" } })
+	if (between) await call("POST", JOBS, { body: { name: "j" } })
+	await call("PATCH", `${TABLES}/${String(first.id)}`, { body: { description: "y" } })
+	const listed = (await call("GET", `${TABLES}?order=updated_at.asc&limit=100`)).body.tables as Array<{
+		name: string
+	}>
+	return listed.map((record) => record.name).filter((name) => name === "first" || name === "second")
+}
+
+describe("ordering by when a record was written", () => {
+	it("lists updates in the order they were made, whether or not another entity wrote between them", async () => {
+		expect(await updatedOrder(false)).toEqual(["second", "first"])
+		expect(await updatedOrder(true)).toEqual(["second", "first"])
+	})
+})
+
 describe("deleting a record", () => {
 	it("soft-deletes a table: it reads as gone and stays stored", async () => {
 		const { call, item, state, made } = await withTable()
+		const written = (await call("GET", item)).body.updated_at
 		const { status, body } = await call("DELETE", item)
 		expect(status).toBe(200)
-		expect(body.deleted_at).toEqual(expect.any(Number))
+		/* A delete is a write of its own: stamped after the last one. */
+		expect(body.deleted_at).toBeGreaterThan(Number(written))
+		expect(body.updated_at).toBe(body.deleted_at)
 		expect((await call("GET", item)).status).toBe(404)
 		expect(await state.store.byId(state.table, String(made.id))).not.toBeNull()
 	})

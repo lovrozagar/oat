@@ -61,4 +61,17 @@ describe("MemoryStore", () => {
 		await store.remove(ITEM, "b")
 		expect(ids(await store.select(ITEM, shuffled))).toEqual(["c"])
 	})
+
+	it("varies an entity's tie order by its own queries alone, whatever another entity's interleave", async () => {
+		const shuffled = { ...ALL, shuffleTies: true }
+		const alone = await seeded()
+		const interleaved = await seeded()
+		for (const id of ["x", "y"]) await interleaved.insert(OTHER, { id })
+		const first = ids(await alone.select(ITEM, shuffled))
+		const second = ids(await alone.select(ITEM, shuffled))
+		/* Two lanes' list walks land in whatever order the server answers them. */
+		expect(ids(await interleaved.select(ITEM, shuffled))).toEqual(first)
+		await interleaved.select(OTHER, shuffled)
+		expect(ids(await interleaved.select(ITEM, shuffled))).toEqual(second)
+	})
 })

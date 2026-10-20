@@ -64,7 +64,7 @@ function changesOf(state: ReferenceState, call: ItemCall, sent: { patch: Row; re
 		: sent.replace
 			? { ...replacementDefaults(entity), ...sent.patch }
 			: { ...sent.patch }
-	changes.updated_at = state.ids.now()
+	changes.updated_at = state.ids.stamp()
 	delete changes[entity.identity]
 	/* Under `tableKey: "slug"` the slug is the identity a client knows: no write changes it. */
 	if (state.shape.tableKey === "slug" && entity.name === state.table.name) delete changes.slug
@@ -88,7 +88,7 @@ export async function remove(state: ReferenceState, call: ItemCall): Promise<Ref
 	}
 	const record = await findItem(state, call, "write")
 	if (entity.softDeleteField !== undefined) {
-		const now = state.ids.now()
+		const now = state.ids.stamp()
 		const updated = await state.store.update(entity, itemId, { [entity.softDeleteField]: now, updated_at: now })
 		return respond(200, answerWritten(state, { entity, record: present(state, entity, updated ?? record) }, "deleted"))
 	}

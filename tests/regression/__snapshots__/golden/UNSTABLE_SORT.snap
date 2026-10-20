@@ -1660,7 +1660,7 @@
       "added": [
         {
           "check": "pagination.page-walk-covers-set",
-          "detail": "walking at limit=2 returned 2 duplicated id(s): row_ID, row_ID. This is the signature of a sort without a total order — the page boundary is not stable.",
+          "detail": "walking at limit=2 returned 1 duplicated id(s): row_ID. This is the signature of a sort without a total order — the page boundary is not stable.",
           "entity": "row",
           "operations": [
             "row.list"
@@ -1694,7 +1694,7 @@
         },
         {
           "check": "pagination.page-walk-covers-set",
-          "detail": "walking at limit=2 returned 3 duplicated id(s): job_ID, job_ID, job_ID. This is the signature of a sort without a total order — the page boundary is not stable.",
+          "detail": "walking the collection twice with the same parameters (order=kind.asc) produced different sets. Pagination requires a total order; without a tiebreak the page boundary moves between requests and callers silently miss or repeat rows.",
           "entity": "job",
           "operations": [
             "job.list"
@@ -1706,7 +1706,7 @@
               "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&order=kind.asc&page=1"
             }
           ],
-          "summary": "paging returns the same record on more than one page",
+          "summary": "identical page walks return different records",
           "verdict": "BACKEND_BUG"
         }
       ]

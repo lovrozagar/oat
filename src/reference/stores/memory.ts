@@ -15,11 +15,17 @@ import type { Row, Store } from "../store-api.ts"
 
 export class MemoryStore implements Store {
 	private readonly tables = new Map<string, Map<string, Row>>()
-	/** Advances per shuffled query so tied rows land differently each time — see UNSTABLE_SORT. */
-	private rotation = 0
+	/**
+	 * Per entity, advances per shuffled query so tied rows land differently each time — see
+	 * UNSTABLE_SORT. Kept per entity, so one lane's queries never move another's: lanes answer in
+	 * whatever order the server is scheduled, and a shared count would make the defect's report
+	 * depend on that timing.
+	 */
+	private readonly rotations = new Map<string, number>()
 
 	async close(): Promise<void> {
 		this.tables.clear()
+		this.rotations.clear()
 	}
 
 	private collection(entity: EntityDef): Map<string, Row> {
@@ -60,8 +66,9 @@ export class MemoryStore implements Store {
 		 * returns tied rows in whatever order the plan produced, varying between queries; rotating
 		 * the input reproduces that. */
 		if (plan.shuffleTies && rows.length > 1) {
-			this.rotation = (this.rotation + 1) % rows.length
-			rows = [...rows.slice(this.rotation), ...rows.slice(0, this.rotation)]
+			const rotation = ((this.rotations.get(entity.name) ?? 0) + 1) % rows.length
+			this.rotations.set(entity.name, rotation)
+			rows = [...rows.slice(rotation), ...rows.slice(0, rotation)]
 		}
 		return rows.sort(compareRows(plan.order, plan.collation)).map((row) => ({ ...row }))
 	}
