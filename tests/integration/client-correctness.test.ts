@@ -5,7 +5,7 @@ import { formPairs } from "../../src/runtime/body/form-pairs.ts"
 import { compactResponseBody } from "../../src/runtime/transcript/compact-response.ts"
 import { Client } from "../../src/client/client.ts"
 import { toCurl } from "../../src/client/curl.ts"
-import { type Resolution, UnsatisfiedSecurity } from "../../src/client/credential-source.ts"
+import type { Resolution } from "../../src/client/credential-source.ts"
 import { Redactor } from "../../src/security/redact.ts"
 
 describe("repro scripts", () => {
@@ -146,7 +146,7 @@ describe("the client", () => {
 })
 
 describe("a principal whose renewal fails", () => {
-	it("blocks the principal when its renewal fails, naming why, and sends nothing more", async () => {
+	it("answers the refusal as it is when its renewal fails, and sends nothing more", async () => {
 		let resolved = 0
 		const sending: Resolution = {
 			kind: "sends",
@@ -171,9 +171,8 @@ describe("a principal whose renewal fails", () => {
 			redactor: new Redactor(),
 		})
 		hits = 0
-		const refused = client.get("/expired", { as: { principal: "alpha" } })
-		await expect(refused).rejects.toBeInstanceOf(UnsatisfiedSecurity)
-		await expect(refused).rejects.toMatchObject({ kind: "blocked", message: expect.stringContaining("said 500") })
+		const refused = await client.get("/expired", { as: { principal: "alpha" } })
+		expect(refused.status).toBe(401)
 		expect([hits, resolved]).toEqual([1, 1])
 	})
 })
