@@ -16,16 +16,19 @@ export async function commandPlan(writer: Writer, flags: Args["flags"]): Promise
 	const { model, config } = read
 	const ops = list(flags, "ops") ?? config?.ops
 	const only = list(flags, "only") ?? config?.only
+	const authCreates = authStepOperationIds(config ?? {})
 	const scope = targetedScope(model, {
 		...(ops === undefined ? {} : { ops }),
 		...(only === undefined ? {} : { only }),
-		authCreates: authStepOperationIds(config ?? {}),
+		authCreates,
 	})
 	if (scope instanceof ScopeError) {
 		writer.err(`${scope.message}\n`)
 		return EXIT.usage
 	}
-	writer.out(report.plan(model, flags.json === true, scope.mode === "targeted" ? scope : undefined))
+	writer.out(
+		report.plan(model, flags.json === true, { authCreates, scope: scope.mode === "targeted" ? scope : undefined }),
+	)
 	return 0
 }
 

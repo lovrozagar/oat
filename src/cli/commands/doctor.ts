@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { report } from "../../report/console/report.ts"
+import { authStepOperationIds } from "../../runtime/scope/entities.ts"
 import type { Args } from "../flags.ts"
 import type { Writer } from "../writer.ts"
 import { modelled } from "./spec.ts"
@@ -20,6 +21,7 @@ export async function commandDoctor(writer: Writer, flags: Args["flags"]): Promi
 						...(config.entities === undefined ? {} : { entities: config.entities }),
 						...(config.hooks === undefined ? {} : { hooks: config.hooks }),
 						...(config.allow === undefined ? {} : { allowRemoved: removed }),
+						authCreates: authStepOperationIds(config),
 					},
 		externalRefs,
 	})

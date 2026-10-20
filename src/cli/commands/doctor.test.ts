@@ -2,7 +2,7 @@ import { existsSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { bufferWriter } from "../writer.ts"
-import { folder, json, notesConfig, notesSpec } from "../__fixtures__/files.ts"
+import { folder, json, notesConfig, notesSpec, signupConfig } from "../__fixtures__/files.ts"
 import { commandDoctor } from "./doctor.ts"
 
 /* What oat can and cannot test in a document, and why; exits 1 when something blocks testing. */
@@ -73,5 +73,22 @@ describe("commandDoctor and the credentials config", () => {
 		})
 		expect(code).toBe(2)
 		expect(writer.text()).toContain("security.jwt names no scheme in the document")
+	})
+})
+
+describe("commandDoctor and the operations a login sends", () => {
+	it("leaves out what the auth flow owns, as a run does: the account it signs up, and its sign-in call's gap", async () => {
+		const writer = bufferWriter()
+		const code = await commandDoctor(writer, { config: signupConfig(), json: true })
+		const report = JSON.parse(writer.text()) as {
+			blocking: number
+			entities: number
+			gaps: Array<{ operationId: string }>
+		}
+		expect([code, report.entities, report.blocking]).toEqual([0, 1, 0])
+		expect(report.gaps.map((gap) => gap.operationId)).not.toContain("session.start")
+		const text = bufferWriter()
+		await commandDoctor(text, { config: signupConfig() })
+		expect(text.text()).not.toMatch(/account|session\.start/)
 	})
 })

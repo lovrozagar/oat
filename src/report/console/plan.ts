@@ -9,13 +9,23 @@ import {
 	hasInvite,
 	inviteAcceptMode,
 	lifecycleGlyphs,
+	modelledEntities,
 	sortedEntities,
 } from "./describe.ts"
 
-function planJson(model: SpecModel, grammars: DeclaredGrammar[], scope?: ScopePlan): string {
+/** What `plan` shows beside the model: the targeted scope, and the operations the config's recipes send. */
+export interface PlanView {
+	scope?: ScopePlan | undefined
+	/** An entity the auth flow owns through one of these is left out, as a run leaves it out. */
+	authCreates?: ReadonlySet<string>
+}
+
+function planJson(model: SpecModel, grammars: DeclaredGrammar[], view: PlanView): string {
+	const { authCreates = new Set(), scope } = view
+	const entities = modelledEntities(model, authCreates)
 	return `${JSON.stringify(
 		{
-			entities: [...model.entities.values()].map((entity) => ({
+			entities: entities.map((entity) => ({
 				...entity,
 				estimatedRequests: estimateRequests(entity, model),
 			})),
@@ -23,7 +33,7 @@ function planJson(model: SpecModel, grammars: DeclaredGrammar[], scope?: ScopePl
 			operations: model.operations,
 			roots: model.roots,
 			...(scope === undefined ? {} : { scope }),
-			unique: [...model.entities.values()]
+			unique: entities
 				.filter((entity) => entity.unique !== null)
 				.map((entity) => ({ entity: entity.name, unique: entity.unique })),
 		},
@@ -121,10 +131,10 @@ function planScopeText(scope: ScopePlan): string {
 }
 
 /** `oat plan`: the test model derived from the document, as text or JSON; the targeted scope when there is one. */
-export function plan(model: SpecModel, asJson: boolean, scope?: ScopePlan): string {
+export function plan(model: SpecModel, asJson: boolean, view: PlanView = {}): string {
 	const grammars = declaredGrammars(model)
-	if (asJson) return planJson(model, grammars, scope)
-	if (scope !== undefined) return planScopeText(scope)
-	const entities = sortedEntities(model)
+	if (asJson) return planJson(model, grammars, view)
+	if (view.scope !== undefined) return planScopeText(view.scope)
+	const entities = sortedEntities(model, view.authCreates)
 	return [...entityTable(model, entities), ...declarations(model, entities, grammars), ""].join("\n")
 }

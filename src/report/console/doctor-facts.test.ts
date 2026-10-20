@@ -2,6 +2,17 @@ import { describe, expect, it } from "vitest"
 import { documentOf, listOp, modelOf, referenceModel } from "./__fixtures__/models.ts"
 import { doctorFacts } from "./doctor-facts.ts"
 
+describe("doctorFacts and the gaps of a recipe's operations", () => {
+	it("drops a gap on an operation a recipe sends, and keeps every other", async () => {
+		const { model } = await referenceModel()
+		const all = doctorFacts(model).gapsByTag.get("x-entity") ?? []
+		const kept = doctorFacts(model, { authCreates: new Set(["auth.token"]) })
+		expect(all.map((gap) => gap.operationId)).toContain("auth.token")
+		expect(kept.gapsByTag.get("x-entity")).toHaveLength(all.length - 1)
+		expect(kept.gaps.map((gap) => gap.operationId)).not.toContain("auth.token")
+	})
+})
+
 describe("doctorFacts", () => {
 	it("counts what a run can follow and list, and blocks on roots it must be given", async () => {
 		const facts = doctorFacts((await referenceModel()).model)

@@ -35,6 +35,36 @@ export function notesConfig(dir: string = folder(), extra: Record<string, unknow
 	})
 }
 
+/*
+ * The notes document with a sign-up: `account.create` makes the account a login's first step sends,
+ * and `session.start` is the sign-in call after it, which belongs to no entity.
+ */
+const signupPaths = {
+	"/accounts": {
+		post: {
+			operationId: "account.create",
+			responses: { "201": { description: "made" } },
+			security: [],
+			"x-entity": { action: "create", identity: "id", name: "account" },
+		},
+	},
+	"/session": { post: { operationId: "session.start", responses: { "200": { description: "ok" } }, security: [] } },
+}
+
+/** A config whose login signs up through `account.create`, then signs in at `session.start`, for that document. */
+export function signupConfig(dir: string = folder()): string {
+	return json(dir, "oat.config.json", {
+		baseUrl: "http://api.test",
+		principals: { alpha: { tenant: "t1" } },
+		security: {
+			bearer: {
+				login: { from: "$.token", steps: [{ operationId: "account.create" }, { operationId: "session.start" }] },
+			},
+		},
+		spec: notesSpec(dir, notesDoc(signupPaths)),
+	})
+}
+
 /** A run folder `name` in `dir`, its saved report holding `report`. */
 export function savedRun(dir: string, name: string, report: unknown): string {
 	const run = join(dir, name)

@@ -56,18 +56,32 @@ function testableOtherwise(entity: EntityModel, model: SpecModel): boolean {
 	return entity.list !== undefined && entity.create === undefined
 }
 
-/** Why an entity cannot be seeded and checked, or `null` when it can. */
-export function untestableEntityReason(
+/**
+ * Why the auth flow, not the lanes, owns `entity`, or `null` when it does not. A run, `doctor` and
+ * `plan` all leave such an entity out: register-as-create with no item route is the auth flow, not
+ * a fixture.
+ */
+export function authOwnedReason(
 	entity: EntityModel,
 	model: SpecModel,
 	authCreates: ReadonlySet<string>,
 ): string | null {
 	const createOp = entity.create === undefined ? undefined : model.byOperationId.get(entity.create)
 	const authProvisioned = createOp !== undefined && createIsAuthProvisioned(createOp, authCreates)
-	/* Register-as-create with no item route is the auth flow, not a fixture. */
 	if (authProvisioned && entity.read === undefined) {
 		return `"${entity.name}" is created by the auth flow and has no item route`
 	}
+	return null
+}
+
+/** Why an entity cannot be seeded and checked, or `null` when it can. */
+export function untestableEntityReason(
+	entity: EntityModel,
+	model: SpecModel,
+	authCreates: ReadonlySet<string>,
+): string | null {
+	const owned = authOwnedReason(entity, model, authCreates)
+	if (owned !== null) return owned
 	if (testableOtherwise(entity, model)) return null
 	const missing = [
 		...(entity.list === undefined ? ["a list operation"] : []),

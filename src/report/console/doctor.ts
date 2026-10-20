@@ -39,7 +39,7 @@ function doctorJson({ config, externalRefs, facts, model }: Diagnosis): string {
 				tokenFrom: entity.invite.tokenFrom,
 			})),
 			uniqueConstraints: facts.uniqueConstraints,
-			gaps: model.gaps.gaps,
+			gaps: facts.gaps,
 			listableEntities: facts.listable.length,
 			queryCatalog: facts.catalogs,
 			...(config?.allowRemoved === undefined ? {} : { allowRemoved: config.allowRemoved }),

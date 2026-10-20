@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { bufferWriter } from "../writer.ts"
-import { folder, notesConfig, notesSpec } from "../__fixtures__/files.ts"
+import { folder, notesConfig, notesSpec, signupConfig } from "../__fixtures__/files.ts"
 import { commandPlan, targetedScope } from "./plan.ts"
 
 /* The test model, offline: in full, or narrowed to what --ops or --only (or the config) target. */
@@ -25,6 +25,16 @@ describe("commandPlan", () => {
 		const byOps = bufferWriter()
 		expect(await commandPlan(byOps, { config: notesConfig(folder(), { ops: ["notes.get"] }) })).toBe(0)
 		expect(byOps.text()).toContain("notes.get")
+	})
+
+	it("leaves out the account a login signs up, as a run does", async () => {
+		const writer = bufferWriter()
+		expect(await commandPlan(writer, { config: signupConfig() })).toBe(0)
+		expect(writer.text()).toMatch(/ operations · 1 entities\n/)
+		const machine = bufferWriter()
+		await commandPlan(machine, { config: signupConfig(), json: true })
+		const plan = JSON.parse(machine.text()) as { entities: Array<{ name: string }> }
+		expect(plan.entities.map((entity) => entity.name)).toEqual(["note"])
 	})
 
 	it("refuses a target that names nothing, and a document it cannot read", async () => {

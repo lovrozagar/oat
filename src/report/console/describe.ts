@@ -1,3 +1,4 @@
+import { authOwnedReason } from "../../runtime/scope/entities.ts"
 import type { EntityModel, OperationModel, SpecModel } from "../../spec/graph/types.ts"
 import { describeFilterGrammar } from "../../spec/render/filter-describe.ts"
 import { describeSortGrammar } from "../../spec/render/sort-parse.ts"
@@ -41,9 +42,14 @@ export function hasInvite(entity: EntityModel): entity is InvitingEntity {
 	return entity.invite !== null
 }
 
-/** The entities sorted by name: the order `plan` and `doctor` print them in. */
-export function sortedEntities(model: SpecModel): EntityModel[] {
-	return [...model.entities.values()].sort((a, b) => a.name.localeCompare(b.name))
+/** The entities sorted by name, less those the auth flow owns: what `plan` and `doctor` print, in order. */
+export function sortedEntities(model: SpecModel, authCreates: ReadonlySet<string> = new Set()): EntityModel[] {
+	return modelledEntities(model, authCreates).sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** The model's entities in document order, less those the auth flow owns, as a run leaves them out. */
+export function modelledEntities(model: SpecModel, authCreates: ReadonlySet<string>): EntityModel[] {
+	return [...model.entities.values()].filter((entity) => authOwnedReason(entity, model, authCreates) === null)
 }
 
 /** The operation that lists an entity. Its id is an operation's own, so the model holds it. */

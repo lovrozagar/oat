@@ -28,7 +28,7 @@ const scopePlan = (over: Partial<ScopePlan> = {}): ScopePlan => ({
 describe("plan as JSON", () => {
 	it("carries entities with their cost, operations, roots, unique sets, and grammars and scope when there are any", async () => {
 		const { model } = await referenceModel({ dialect: "template" })
-		const json = JSON.parse(plan(model, true, scopePlan()))
+		const json = JSON.parse(plan(model, true, { scope: scopePlan() }))
 		expect(Object.keys(json)).toEqual(["entities", "grammars", "operations", "roots", "scope", "unique"])
 		expect(json.entities.every((entity: { estimatedRequests: number }) => entity.estimatedRequests > 0)).toBe(true)
 		expect(json.unique).toEqual([{ entity: "table", unique: [["name"]] }])
@@ -112,10 +112,8 @@ describe("plan as text, for an entity nothing reads", () => {
 
 describe("plan with a targeted scope", () => {
 	it("lists targets, what cannot be tested, profile exclusions, origins, queued entities and support", () => {
-		const text = plan(
-			modelOf(documentOf({})).model,
-			false,
-			scopePlan({
+		const text = plan(modelOf(documentOf({})).model, false, {
+			scope: scopePlan({
 				entities: ["row"],
 				excluded: [{ operationId: "row.delete", reason: "x-destructive" }],
 				origins: { billing: ["invoice.get", "invoice.list"] },
@@ -127,7 +125,7 @@ describe("plan with a targeted scope", () => {
 				],
 				untestable: [{ operationId: "row.export", reason: "no entity" }],
 			}),
-		)
+		})
 		const width = "a-long-operation-id.get".length + 2
 		expect(text.split("\n")).toEqual([
 			"",
@@ -148,12 +146,12 @@ describe("plan with a targeted scope", () => {
 	})
 
 	it("says when nothing is gradable, queued or supporting", async () => {
-		const text = plan(modelOf(documentOf({})).model, false, scopePlan())
+		const text = plan(modelOf(documentOf({})).model, false, { scope: scopePlan() })
 		expect(text).toContain("    — none gradable")
 		expect(text).toContain("  entities queued: none")
 		expect(text).toContain("  support (called, never graded): none")
 		const { model } = await referenceModel()
 		const real = planScope(model, resolveTargetScope(model, { authCreates: new Set<string>(), ops: ["table.get"] }))
-		expect(plan(model, false, real)).toContain("  scope: targeted (--ops table.get)")
+		expect(plan(model, false, { scope: real })).toContain("  scope: targeted (--ops table.get)")
 	})
 })
