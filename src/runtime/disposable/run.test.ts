@@ -116,4 +116,25 @@ describe("runDisposableOps: the second user's credential", () => {
 		expect(seen.map((request) => `${request.method} ${request.path}`)).toEqual(["POST /v1/register", "GET /v1/keys"])
 		expect(needs(input, "keys.delete")).toEqual(["keys.list answered 401"])
 	})
+
+	it("skips the next operation of a second user its renewal BLOCKED, and sends it nothing", async () => {
+		const doc = accountsDoc({
+			"/v1/tokens": {
+				post: { operationId: "tokens.rotate", responses: { "200": { description: "ok" } }, "x-destructive": true },
+			},
+		})
+		const api = accountsApi(accounts())
+		/* The shared second user's first read is refused; a renewal would sign up again, so it is blocked. */
+		const refused: Responder = (method, path, options) =>
+			path === "/v1/keys" && method === "GET" ? { status: 401 } : api(method, path, options)
+		const { input, seen } = await stageOf(doc, refused, {
+			input: { inScope: (id) => id === "keys.delete" || id === "tokens.rotate", mode: "targeted" },
+		})
+		await runDisposableOps(input)
+		const blocked = "renewing disposable-shared/session would sign up again; declare a refresh"
+		expect(needs(input, "tokens.rotate")).toEqual([blocked])
+		/* tokens.rotate is refused at resolve: the shared user's only requests are its signup and the refused read. */
+		expect(seen.map((request) => `${request.method} ${request.path}`)).toEqual(["POST /v1/register", "GET /v1/keys"])
+		expect(input.grades.evidence.has("tokens.rotate")).toBe(false)
+	})
 })
