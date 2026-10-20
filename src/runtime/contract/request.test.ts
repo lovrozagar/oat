@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { OperationObject } from "../../spec/types.ts"
-import { exchange } from "../checks/__fixtures__/harness.ts"
+import { exchange, exchangeOf } from "../checks/__fixtures__/harness.ts"
 import { readActionBind } from "../effects/bind.ts"
 import { doc, json, ok, pathParam, stage } from "./__fixtures__/stage.ts"
 import { parametersOf } from "./params.ts"
@@ -55,6 +55,52 @@ describe("pathValues", () => {
 			{ enumValues: [], method: "GET", operationId: "deep.get", param: "thing_id", path: op.path, ...told },
 			{ enumValues: [], method: "GET", operationId: "deep.get", param: "seen_id", path: op.path, ...told },
 		])
+	})
+})
+
+/* Keys under a bare `{id}`, a usage read beneath one, and jobs: another resource whose records carry `id` too. */
+const keyed = {
+	"/keys": { post: { operationId: "keys.create", responses: { "201": { description: "made" } } } },
+	"/keys/{id}": { get: { operationId: "keys.get", parameters: [pathParam("id")], responses: ok() } },
+	"/keys/{id}/usage": { get: { operationId: "keys.usage", parameters: [pathParam("id")], responses: ok() } },
+	"/projects/{project_id}/jobs": {
+		post: { operationId: "jobs.create", parameters: [pathParam("project_id")], responses: ok() },
+	},
+}
+
+/* A success of `operationId` at `path` whose body holds `id`. */
+const answered = (operationId: string | undefined, path: string, id: string) =>
+	exchangeOf(
+		{
+			method: "GET",
+			options: { as: { anonymous: true }, ...(operationId === undefined ? {} : { operationId }) },
+			path,
+		},
+		{ body: { id }, status: 200 },
+	)
+
+describe("pathValues: a bare record key", () => {
+	it("draws a bare id only from its own collection or items, never another resource's newest record", async () => {
+		const { input, op, params } = staged(keyed, "keys.get")
+		input.client.transcript.push(
+			answered("keys.create", "/keys", "key_1"),
+			answered("keys.usage", "/keys/key_1/usage", "usage_1"),
+			answered("jobs.create", "/projects/p1/jobs", "job_1"),
+		)
+		expect(await pathValues(input, { op, params })).toEqual({ id: "key_1" })
+		input.client.transcript.push(answered("keys.get", "/keys/key_2", "key_2"))
+		expect(await pathValues(input, { op, params })).toEqual({ id: "key_2" })
+	})
+
+	it("leaves a bare id unresolved when only other resources, raw requests or other documents answered one", async () => {
+		const { input, op, params } = staged(keyed, "keys.get")
+		input.client.transcript.push(
+			answered("jobs.create", "/projects/p1/jobs", "job_1"),
+			answered(undefined, "/keys", "raw_1"),
+			answered("elsewhere.get", "/keys", "other_1"),
+		)
+		expect(await pathValues(input, { op, params })).toBeNull()
+		expect([...(input.grades.needs.get("keys.get") ?? [])]).toEqual(["unresolved param id"])
 	})
 })
 

@@ -1,8 +1,8 @@
 /**
  * A request built from an operation's own schema: its path parameters from the principal's roots,
- * a declared enum, `hooks.resolvePathValue` or an earlier success; its required query from
- * `x-bind`, the document or an example; its body from the request schema. What cannot be built
- * leaves the operation untested with the reason.
+ * a declared enum, `hooks.resolvePathValue` or an earlier success about the same kind of record; its
+ * required query from `x-bind`, the document or an example; its body from the request schema. What
+ * cannot be built leaves the operation untested with the reason.
  */
 
 import { requestContent } from "../../spec/collection/request.ts"
@@ -14,7 +14,7 @@ import type { ContractCall, ContractInput } from "./types.ts"
 
 /** Every path parameter's value, or `null` once one cannot be resolved (and the operation is skipped). */
 export async function pathValues(
-	input: Pick<ContractInput, "acting" | "client" | "grades" | "hooks" | "principal" | "roots">,
+	input: Pick<ContractInput, "acting" | "client" | "grades" | "hooks" | "model" | "principal" | "roots">,
 	{ op, params }: Pick<ContractCall, "op" | "params">,
 ): Promise<Record<string, string> | null> {
 	const values: Record<string, string> = {}
@@ -24,7 +24,7 @@ export async function pathValues(
 			input.roots[name] ??
 			(declared?.schema?.enum === undefined ? undefined : exampleOf(declared.schema)) ??
 			(await askHook(input, { declared, name, op })) ??
-			seenValue(input.client.transcript, name, input.client.redactor)
+			seenFor(input, op, name)
 		if (value === undefined || value === null) {
 			input.grades.skipped([op.operationId], `unresolved param ${name}`)
 			return null
@@ -32,6 +32,34 @@ export async function pathValues(
 		values[name] = value
 	}
 	return values
+}
+
+/* A path template with its parameter names dropped: `/projects/{project_id}/jobs` is `/projects/{}/jobs`. */
+const shapeOf = (path: string): string => path.replaceAll(/\{[^}]*\}/g, "{}")
+
+/*
+ * The value an earlier success returned under `name`. A bare record key (`id`, `uuid`, `slug`) names
+ * the record of the body it sits in, so only an answer about the parameter's own collection holds
+ * one: its list or create, or one of its items. Any other resource's newest record answers `id`
+ * too, and is the wrong record. A qualified name (`thing_id`, `thingId`) names its entity, and any
+ * answer's value under it will do.
+ */
+function seenFor(
+	input: Pick<ContractInput, "client" | "model">,
+	op: ContractCall["op"],
+	name: string,
+): string | undefined {
+	const { redactor, transcript } = input.client
+	if (!/^[a-z0-9]+$/.test(name)) return seenValue(transcript, name, redactor)
+	/* A built model's path parameters each stand in its path. */
+	const at = op.path.indexOf(`{${name}}`)
+	const collection = shapeOf(op.path.slice(0, op.path.lastIndexOf("/", at)))
+	const own = transcript.filter((exchange) => {
+		const id = exchange.operationId
+		const path = id === undefined ? undefined : input.model.byOperationId.get(id)?.path
+		return path !== undefined && [collection, `${collection}/{}`].includes(shapeOf(path))
+	})
+	return seenValue(own, name, redactor)
 }
 
 /* `hooks.resolvePathValue`, told who acts and what the operation would send as it: never raw headers. */
