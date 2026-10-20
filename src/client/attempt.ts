@@ -1,5 +1,6 @@
 /** The shapes one request attempt passes between preparing, sending and recording it. */
 
+import type { Controls } from "./control.ts"
 import type { Exchange } from "../runtime/exchange.ts"
 import type { Fence } from "../runtime/fence.ts"
 import type { CompiledRateLimitRule } from "../runtime/rate-limit/rules.ts"
@@ -44,6 +45,8 @@ export interface Wire {
 	resolveHeaders: HeaderResolver | undefined
 	operationResolver: OperationResolver | undefined
 	credentials: CredentialSource | undefined
+	/** The control reads that judge a renewal refused too; one per client. */
+	controls: Controls
 	/** Every credential a request places registers here; one per run. */
 	redactor: Redactor
 	fence: Fence | undefined

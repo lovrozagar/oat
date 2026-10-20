@@ -223,6 +223,7 @@ describe("resolveHeaders", () => {
 		})
 		closers.push(server.close)
 		const live: Resolution = {
+			block: () => undefined,
 			kind: "sends",
 			principal: "alpha",
 			refresh: async () => live,

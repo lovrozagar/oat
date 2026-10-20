@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { UnsatisfiedSecurity } from "../../client/credential-source.ts"
 import type { RequestOptions } from "../../client/types.ts"
 import type { OperationModel } from "../../spec/graph/types.ts"
 import { FencedError } from "../fence.ts"
@@ -152,6 +153,15 @@ describe("stillListed: refusals", () => {
 				)
 			).listed ?? []),
 		]).toEqual(["n1"])
+	})
+})
+
+describe("stillListed: a list it cannot ask", () => {
+	it("claims nothing when the owner's credential is BLOCKED: the list could not be asked", async () => {
+		const blocked = failingAt(1, () => {
+			throw new UnsatisfiedSecurity("blocked", "signed in again, and the new credential is refused")
+		})
+		expect((await relist("page", blocked, ["n1"])).listed).toBeNull()
 	})
 
 	it("throws what is neither fenced nor the network", async () => {

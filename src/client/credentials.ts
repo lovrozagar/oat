@@ -28,6 +28,7 @@ import type { Actor, CredentialRequest, CredentialSource, Resolution, Sending } 
 export interface CredentialStorePort {
 	acquire(key: CredentialKey): Promise<Held>
 	refresh(request: CredentialKey & { sentValue: string }): Promise<Held>
+	block(key: CredentialKey, reason: string): void
 }
 
 export interface CredentialSourceOptions {
@@ -119,6 +120,11 @@ async function settle(ctx: CredentialSourceOptions, settling: Settling): Promise
 		}),
 	)
 	const sending: Sending = {
+		block: (reason) => {
+			for (const requirement of alternative) {
+				ctx.store.block({ principal, scheme: primaryOf(ctx, requirement.scheme) as string }, reason)
+			}
+		},
 		kind: "sends",
 		principal,
 		refresh: () => settle(ctx, { alternative, principal, renew: sending.sentValues }),

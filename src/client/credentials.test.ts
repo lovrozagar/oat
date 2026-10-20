@@ -26,6 +26,9 @@ function fakeStore(model: ReturnType<typeof buildModel>, security: SecurityConfi
 			calls.push(`acquire ${key.principal} ${key.scheme} [${(key.scopes ?? []).join(",")}]`)
 			return held(key)
 		},
+		block: (key, reason) => {
+			calls.push(`block ${key.principal} ${key.scheme}: ${reason}`)
+		},
 		refresh: async (request) => {
 			calls.push(`refresh ${request.principal} ${request.scheme} ${request.sentValue}`)
 			issued.set(request.scheme, (issued.get(request.scheme) ?? 1) + 1)
@@ -201,6 +204,15 @@ describe("createCredentialSource: refresh", () => {
 		expect(renewed.sentValues).toEqual({ jwt: "alpha-jwt-2" })
 		expect(sending(await renewed.refresh()).sentValues).toEqual({ jwt: "alpha-jwt-3" })
 		expect(calls.slice(1)).toEqual(["refresh alpha jwt alpha-jwt-1", "refresh alpha jwt alpha-jwt-2"])
+	})
+
+	it("blocks every scheme it sent, by the store's own scheme, with the reason", async () => {
+		const { calls, source } = sourceOf()
+		const first = sending(
+			await source.resolve({ route: ROUTE, actor: { principal: "alpha" }, operationId: "row.list" }),
+		)
+		first.block("refused where the old one was accepted")
+		expect(calls.slice(1)).toEqual(["block alpha jwt: refused where the old one was accepted"])
 	})
 
 	it("is blocked when the renewal fails", async () => {

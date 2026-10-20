@@ -3,6 +3,7 @@
 import type { Exchange } from "../../runtime/exchange.ts"
 import { Redactor } from "../../security/redact.ts"
 import type { Wire } from "../attempt.ts"
+import { createControls } from "../control.ts"
 import { Slots } from "../slots.ts"
 import type { Transport } from "./transport.ts"
 
@@ -18,6 +19,7 @@ export function wireOf(transport: Transport, more: Partial<Wire> = {}): Wire & {
 	let seq = 0
 	return {
 		baseUrl: BASE,
+		controls: createControls(),
 		credentials: undefined,
 		deliver: async (exchange, entity) => {
 			delivered.push({ entity, exchange })

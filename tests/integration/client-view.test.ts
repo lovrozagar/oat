@@ -38,6 +38,7 @@ afterAll(() => close())
 function bearer(value: string, refresh: () => Promise<Resolution>): Resolution {
 	const authorization = `Bearer ${value}`
 	return {
+		block: () => undefined,
 		kind: "sends",
 		principal: "alpha",
 		refresh,

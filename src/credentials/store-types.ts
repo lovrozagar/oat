@@ -74,6 +74,11 @@ export interface CredentialStore {
 	/** Renews the credential a refused request carried, once however many requests were refused. */
 	refresh(request: CredentialKey & { sentValue: string }): Promise<Held>
 	/**
+	 * BLOCKS the principal × scheme for the rest of the run, as a failed renewal does: a control read
+	 * showed the server refuses its credential anywhere. Adopting a credential lifts it.
+	 */
+	block(key: CredentialKey, reason: string): void
+	/**
 	 * Holds `value` as the principal's credential for the scheme, placed like any acquired one: the
 	 * credential an invite issued its delegate, or the one a signup answered with. It replaces what
 	 * was held, a blocked login included.

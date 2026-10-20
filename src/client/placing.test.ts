@@ -9,6 +9,7 @@ import {
 	type Resolution,
 	UnsatisfiedSecurity,
 } from "./credential-source.ts"
+import { createControls } from "./control.ts"
 import { NOTHING_PLACED, placeOn, placedNames, requestCredential } from "./placing.ts"
 
 const sends = (more: Partial<Sends>): Sends => ({ cookies: {}, headers: {}, query: {}, ...more })
@@ -26,8 +27,9 @@ function sourceOf(...answers: Resolution[]): CredentialSource & { asked: Credent
 	}
 }
 
-function sendingOf(value: string, refreshed: Resolution = { kind: "anonymous" }): Resolution {
+function sendingOf(value: string, refreshed: Resolution = { kind: "anonymous" }, blocked: string[] = []): Resolution {
 	return {
+		block: (reason) => blocked.push(reason),
 		kind: "sends",
 		principal: "alpha",
 		refresh: async () => refreshed,
@@ -43,7 +45,7 @@ const R = "GET /rows"
 describe("requestCredential: resolving", () => {
 	it("asks the source for the actor, the operation and whether it is a probe, on every attempt", async () => {
 		const source = sourceOf({ kind: "anonymous" })
-		const wire = { credentials: source, redactor: new Redactor() }
+		const wire = { credentials: source, controls: createControls(), redactor: new Redactor() }
 		const credential = requestCredential(wire, {
 			route: R,
 			actor: { anonymous: true },
@@ -62,7 +64,7 @@ describe("requestCredential: resolving", () => {
 	})
 
 	it("places nothing for an anonymous actor without a source, and refuses any other", async () => {
-		const wire = { credentials: undefined, redactor: new Redactor() }
+		const wire = { credentials: undefined, controls: createControls(), redactor: new Redactor() }
 		expect(await requestCredential(wire, { route: R, actor: { anonymous: true } }).next()).toEqual(NOTHING_PLACED)
 		const alpha = requestCredential(wire, { route: R, actor: { principal: "alpha" } })
 		await expect(alpha.next()).rejects.toEqual(
@@ -71,7 +73,7 @@ describe("requestCredential: resolving", () => {
 	})
 
 	it("names the acting principal when its operation sends nothing, so the exchange is still theirs", async () => {
-		const wire = { credentials: sourceOf({ kind: "anonymous" }), redactor: new Redactor() }
+		const wire = { credentials: sourceOf({ kind: "anonymous" }), controls: createControls(), redactor: new Redactor() }
 		const own = { forged: false, principal: "alpha", schemes: [], sends: {} }
 		expect(await requestCredential(wire, { route: R, actor: { principal: "alpha" } }).next()).toEqual(own)
 		const via = { principal: "alpha", via: { operationId: "row.list" } as Exchange }
@@ -81,12 +83,16 @@ describe("requestCredential: resolving", () => {
 
 	it("raises an unsatisfied or blocked resolution before anything is placed", async () => {
 		const unsatisfied = sourceOf({ kind: "unsatisfied", reason: "no credential for jwt" })
-		const wire = { credentials: unsatisfied, redactor: new Redactor() }
+		const wire = { credentials: unsatisfied, controls: createControls(), redactor: new Redactor() }
 		const error = await requestCredential(wire, { route: R, actor: { principal: "alpha" } })
 			.next()
 			.catch((caught: unknown) => caught)
 		expect(error).toMatchObject({ kind: "unsatisfied", name: "UnsatisfiedSecurity", reason: "no credential for jwt" })
-		const blocked = { credentials: sourceOf({ kind: "blocked", reason: "login failed" }), redactor: new Redactor() }
+		const blocked = {
+			credentials: sourceOf({ kind: "blocked", reason: "login failed" }),
+			controls: createControls(),
+			redactor: new Redactor(),
+		}
 		await expect(requestCredential(blocked, { route: R, actor: { principal: "alpha" } }).next()).rejects.toMatchObject({
 			kind: "blocked",
 			message: "login failed",
@@ -98,7 +104,7 @@ describe("requestCredential: redaction", () => {
 	it("registers every name and value a principal's credential places, and none of a forged one's", async () => {
 		const redactor = new Redactor()
 		const credential = requestCredential(
-			{ credentials: sourceOf(sendingOf("value-one-1")), redactor },
+			{ controls: createControls(), credentials: sourceOf(sendingOf("value-one-1")), redactor },
 			{
 				actor: { principal: "alpha" },
 				route: R,
@@ -111,7 +117,7 @@ describe("requestCredential: redaction", () => {
 		const forged: Resolution = { kind: "forged", schemes: ["key"], sends: { key: sends({ query: { k: "forged-1" } }) } }
 		const quiet = new Redactor()
 		const probe = requestCredential(
-			{ credentials: sourceOf(forged), redactor: quiet },
+			{ controls: createControls(), credentials: sourceOf(forged), redactor: quiet },
 			{
 				actor: { forged: { scheme: "key", value: "forged-1" } },
 				route: R,
@@ -126,7 +132,7 @@ describe("requestCredential: renewing after a 401", () => {
 	it("renews what the last attempt sent once per request, and sends the renewal next", async () => {
 		const source = sourceOf(sendingOf("v1", sendingOf("v2")))
 		const credential = requestCredential(
-			{ credentials: source, redactor: new Redactor() },
+			{ credentials: source, controls: createControls(), redactor: new Redactor() },
 			{
 				actor: { principal: "alpha" },
 				route: R,
@@ -144,7 +150,7 @@ describe("requestCredential: renewing after a 401", () => {
 	it("sends nothing more once the store blocked the renewal: the refusal stands", async () => {
 		const blocked: Resolution = { kind: "blocked", reason: "could not refresh" }
 		const credential = requestCredential(
-			{ credentials: sourceOf(sendingOf("v1", blocked)), redactor: new Redactor() },
+			{ credentials: sourceOf(sendingOf("v1", blocked)), controls: createControls(), redactor: new Redactor() },
 			{
 				actor: { principal: "alpha" },
 				route: R,
@@ -156,13 +162,13 @@ describe("requestCredential: renewing after a 401", () => {
 	})
 
 	it("never renews a probe, a forged value or nothing", async () => {
-		const wire = { credentials: sourceOf(sendingOf("v1")), redactor: new Redactor() }
+		const wire = { credentials: sourceOf(sendingOf("v1")), controls: createControls(), redactor: new Redactor() }
 		const probe = requestCredential(wire, { route: R, actor: { principal: "alpha" }, probe: true })
 		await probe.next()
 		expect(await probe.renew()).toBe(false)
 		const forged: Resolution = { kind: "forged", schemes: ["jwt"], sends: {} }
 		const forging = requestCredential(
-			{ credentials: sourceOf(forged), redactor: new Redactor() },
+			{ credentials: sourceOf(forged), controls: createControls(), redactor: new Redactor() },
 			{
 				actor: { forged: { scheme: "jwt", value: "f" } },
 				route: R,
@@ -171,7 +177,7 @@ describe("requestCredential: renewing after a 401", () => {
 		await forging.next()
 		expect(await forging.renew()).toBe(false)
 		const anonymous = requestCredential(
-			{ credentials: sourceOf({ kind: "anonymous" }), redactor: new Redactor() },
+			{ credentials: sourceOf({ kind: "anonymous" }), controls: createControls(), redactor: new Redactor() },
 			{
 				actor: { principal: "alpha" },
 				route: R,
@@ -192,6 +198,48 @@ const placement = {
 		session: sends({ cookies: { sid: "s1" } }),
 	},
 }
+
+/* A credential over a source sending v1, whose renewal is `refreshed`, and its controls. */
+const controlled = (refreshed: Resolution) => {
+	const controls = createControls()
+	const credential = requestCredential(
+		{ controls, credentials: sourceOf(sendingOf("v1", refreshed)), redactor: new Redactor() },
+		{ actor: { principal: "alpha" }, route: R },
+	)
+	return { controls, credential }
+}
+
+describe("requestCredential: a renewal refused too", () => {
+	const read = { method: "GET", operationId: "profile.get", options: { as: { principal: "alpha" } }, path: "/me" }
+	const accepted = { method: "GET", principal: "alpha", schemes: ["jwt"], status: 200 } as Exchange
+
+	it("sends the control with the renewal, and blocks by the renewal when the control is refused too", async () => {
+		const blocked: string[] = []
+		const { controls, credential } = controlled(sendingOf("v2", { kind: "anonymous" }, blocked))
+		controls.note(accepted, read)
+		await credential.next()
+		await credential.refused(() => Promise.reject(new Error("not renewed yet: no control")))
+		expect(await credential.renew()).toBe(true)
+		await credential.next()
+		const sentControls: string[] = []
+		await credential.refused(async (control) => (sentControls.push(control.path), { status: 401 }) as Exchange)
+		expect(sentControls).toEqual(["/me"])
+		expect(blocked).toEqual([
+			"signed in again, and the new credential is refused where the old one was accepted (profile.get)",
+		])
+	})
+
+	it("never renews a value a renewal issued: its refusal goes to the control", async () => {
+		const { controls, credential } = controlled(sendingOf("v2"))
+		controls.renewed({ block: () => undefined, principal: "alpha", sentValues: { jwt: "v1" } })
+		controls.note(accepted, read)
+		await credential.next()
+		expect(await credential.renew()).toBe(false)
+		const sentControls: string[] = []
+		await credential.refused(async (control) => (sentControls.push(control.path), { status: 200 }) as Exchange)
+		expect(sentControls).toEqual(["/me"])
+	})
+})
 
 describe("placeOn", () => {
 	it("puts the header in, the query on a copy of the URL, and the cookie beside the caller's", () => {

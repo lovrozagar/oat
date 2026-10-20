@@ -3,6 +3,7 @@
 import type { Redactor } from "../security/redact.ts"
 import type { Exchange } from "../runtime/exchange.ts"
 import { belowBase } from "./curl.ts"
+import { createControls } from "./control.ts"
 import { Journal } from "./journal.ts"
 import { afterUnauthorized } from "./refresh.ts"
 import type { Wire } from "./attempt.ts"
@@ -32,6 +33,7 @@ export class Client {
 		this.journal = new Journal(options.redactor, options.transcript)
 		this.wire = {
 			baseUrl: options.baseUrl,
+			controls: createControls(),
 			credentials: options.credentials,
 			deliver: async (exchange, entity) => {
 				await options.onExchange?.(exchange)
@@ -129,8 +131,11 @@ export class Client {
 		const policy = { deadline, headers: request.callerHeaders, method: request.method, network }
 		const send = (): Promise<Exchange> => resilient((attempt) => sendAttempt(request, attempt, this.wire), policy)
 		const supersede = (exchange: Exchange): void => this.journal.supersede(exchange)
+		/* A renewal refused too: the control re-sends the last read that accepted the credential, as any request. */
+		const refused = (): Promise<void> =>
+			request.credential.refused((read) => this.request(read.method, read.path, read.options))
 		const reauthorized = (exchange: Exchange): Promise<Exchange> =>
-			afterUnauthorized(exchange, { renew: request.credential.renew, send, supersede })
+			afterUnauthorized(exchange, { refused, renew: request.credential.renew, send, supersede })
 		const exchange = await untilAnswered(await reauthorized(await send()), {
 			again: (previous) => {
 				supersede(previous)
@@ -143,6 +148,13 @@ export class Client {
 				),
 			method: request.method,
 			reauthorized,
+		})
+		const { probe: _probe, ...control } = options
+		this.wire.controls.note(exchange, {
+			method: request.method,
+			operationId: request.operationId,
+			options: control,
+			path,
 		})
 		await this.afterExchange?.(exchange)
 		return exchange

@@ -3,6 +3,7 @@
  * paging, until the list ends or every one of them has been seen.
  */
 
+import { UnsatisfiedSecurity } from "../../client/credential-source.ts"
 import { largestPageQuery } from "../../spec/graph/paging.ts"
 import type { OperationModel, SpecModel } from "../../spec/graph/types.ts"
 import type { Client } from "../../client/client.ts"
@@ -62,7 +63,10 @@ export async function stillListed(model: SpecModel, client: Client, group: ListG
 				query,
 			})
 		} catch (error) {
-			if (!(error instanceof FencedError) && !isNetworkError(error)) throw error
+			/* A list that could not be asked shows nothing: fenced, offline, or an owner's BLOCKED credential. */
+			if (!(error instanceof FencedError) && !(error instanceof UnsatisfiedSecurity) && !isNetworkError(error)) {
+				throw error
+			}
 			return index === 0 ? null : walk.listed
 		}
 		if (exchange.status >= 300) return index === 0 ? null : walk.listed

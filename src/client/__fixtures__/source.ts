@@ -19,6 +19,7 @@ export function sendingHeaders(
 	more: { principal?: string; refresh?: () => Promise<Resolution> } = {},
 ): Resolution {
 	return {
+		block: () => undefined,
 		kind: "sends",
 		principal: more.principal ?? "alpha",
 		refresh: more.refresh ?? (async () => ({ kind: "anonymous" })),

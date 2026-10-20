@@ -3,12 +3,16 @@
  *
  * Every attempt asks the source again, so a credential that went stale during a wait is renewed by the
  * store before it is sent. A 401 renews what that attempt sent, once per request, and the retry sends
- * the renewal; a renewal that failed leaves the 401 as the answer. A probe expects the refusal, and a forged value is one, so neither is renewed. What a
- * principal's credential places registers on the run's redactor; a forged value is no secret.
+ * the renewal; a renewal that failed leaves the 401 as the answer. A value a renewal issued is never
+ * renewed again: its refusal goes to the run's control read (`control.ts`). A probe expects the
+ * refusal, and a forged value is one, so neither is renewed. What a principal's credential places
+ * registers on the run's redactor; a forged value is no secret.
  */
 
+import type { Exchange } from "../runtime/exchange.ts"
 import { headerValue } from "../runtime/headers.ts"
 import type { Redactor } from "../security/redact.ts"
+import type { ControlRead, Controls } from "./control.ts"
 import {
 	type Actor,
 	CredentialCollision,
@@ -34,6 +38,8 @@ export interface RequestCredential {
 	next(): Promise<Placement>
 	/** After a 401: renews what the last attempt sent, once per request. Whether the request should be sent again. */
 	renew(): Promise<boolean>
+	/** The request was refused: when it carried a value a renewal issued, `send` sends the control read, once per value. */
+	refused(send: (read: ControlRead) => Promise<Exchange>): Promise<void>
 }
 
 /** A request's actor, as the client hands it to the source. */
@@ -47,7 +53,7 @@ export interface Acting {
 
 /** The credential of one request, over the client's source. */
 export function requestCredential(
-	wire: { credentials: CredentialSource | undefined; redactor: Redactor },
+	wire: { controls: Controls; credentials: CredentialSource | undefined; redactor: Redactor },
 	acting: Acting,
 ): RequestCredential {
 	const probe = acting.probe === true || "forged" in acting.actor
@@ -66,12 +72,17 @@ export function requestCredential(
 			renewal = undefined
 			return placementOf(last, { actor: acting.actor, redactor: wire.redactor })
 		},
+		refused: async (send) => {
+			/* Only a value a renewal issued is judged: any other refusal is the answer as it stands. */
+			if (last?.kind === "sends" && wire.controls.renewal(last)) await wire.controls.confirm(last, send)
+		},
 		renew: async () => {
-			if (renewed || probe || last?.kind !== "sends") return false
+			if (renewed || probe || last?.kind !== "sends" || wire.controls.renewal(last)) return false
 			renewed = true
 			const next = await last.refresh()
 			/* A renewal the store BLOCKED sends nothing more: the refusal this request got is its answer. */
 			if (next.kind !== "sends") return false
+			wire.controls.renewed(next)
 			renewal = next
 			return true
 		},

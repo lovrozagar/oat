@@ -53,6 +53,8 @@ export interface Sending {
 	secrets: PlacedSecrets
 	/** Renews what this resolution sent, single-flight across every request that sent it. */
 	refresh(): Promise<Resolution>
+	/** BLOCKS every scheme this resolution sent, for the rest of the run, with `reason`. */
+	block(reason: string): void
 }
 
 /** A forged value, placed like the scheme's credential. Not a secret, so never redacted. */

@@ -39,6 +39,7 @@
 	"src/client/answer.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/client/attempt.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/client/client.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/client/control.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/client/credential-source.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/client/credentials.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/client/curl.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },

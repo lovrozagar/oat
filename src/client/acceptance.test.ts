@@ -205,6 +205,78 @@ describe("a renewal that fails", () => {
 	})
 })
 
+/* placesDoc with a second jwt read beside /me, so a route can refuse what /me accepts. */
+const rowsDoc = {
+	...placesDoc,
+	paths: {
+		...(placesDoc as { paths: Record<string, unknown> }).paths,
+		"/rows": { get: { operationId: "rows.get", responses: { "200": { description: "ok" } }, security: [{ jwt: [] }] } },
+	},
+} as typeof placesDoc
+
+/* A jwt login issuing `token-<n>`, counting its logins. */
+function countedLogins() {
+	const counted = { logins: 0 }
+	const { ports } = fakePorts({
+		run: async () => ({ answer: answerOf({ token: `token-${++counted.logins}` }), scope: {} }),
+	})
+	const security = { jwt: { login: { from: "$.token", steps: [{ operationId: "auth.login" }] } } } as SecurityConfig
+	return { counted, ports, security }
+}
+
+const ALPHA = { as: { principal: "alpha" } }
+
+describe("a renewal refused too: the control read", () => {
+	it("blocks a principal the server refuses anywhere: 27 refused reads cost one renewal and one control", async () => {
+		const { counted, ports, security } = countedLogins()
+		const server = { killed: false }
+		const { client, sent } = clientOf({
+			answer: () => (server.killed ? json({}, 401) : json({})),
+			doc: rowsDoc,
+			ports,
+			security,
+		})
+		expect((await client.get("/me", ALPHA)).status).toBe(200)
+		server.killed = true
+		const refused = await Promise.all(Array.from({ length: 27 }, () => client.get("/rows", ALPHA)))
+		expect(refused.every((exchange) => exchange.status === 401)).toBe(true)
+		expect(counted.logins).toBe(2)
+		expect(sent.filter((request) => request.url.endsWith("/me"))).toHaveLength(2)
+		await expect(client.get("/rows", ALPHA)).rejects.toMatchObject({
+			kind: "blocked",
+			reason: "signed in again, and the new credential is refused where the old one was accepted (me.get)",
+		})
+	})
+
+	it("blocks nothing when the control is accepted, and never renews that value again", async () => {
+		const { counted, ports, security } = countedLogins()
+		const { client } = clientOf({
+			answer: (request) => (request.url.endsWith("/rows") ? json({}, 401) : json({})),
+			doc: rowsDoc,
+			ports,
+			security,
+		})
+		expect((await client.get("/me", ALPHA)).status).toBe(200)
+		expect((await client.get("/rows", ALPHA)).status).toBe(401)
+		expect((await client.get("/rows", ALPHA)).status).toBe(401)
+		expect((await client.get("/me", ALPHA)).status).toBe(200)
+		expect(counted.logins).toBe(2)
+	})
+
+	it("decides nothing when no read accepted the principal before: the 401 stands, nothing is blocked", async () => {
+		const { counted, ports, security } = countedLogins()
+		const { client } = clientOf({
+			answer: (request) => (request.url.endsWith("/rows") ? json({}, 401) : json({})),
+			doc: rowsDoc,
+			ports,
+			security,
+		})
+		expect((await client.get("/rows", ALPHA)).status).toBe(401)
+		expect((await client.get("/me", ALPHA)).status).toBe(200)
+		expect(counted.logins).toBe(2)
+	})
+})
+
 describe("the collision guard", () => {
 	it("refuses a caller, hook or global header under the placed name, and sends nothing", async () => {
 		const collides = 'header "x-key" collides with the hdr credential placement'

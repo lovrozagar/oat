@@ -149,6 +149,7 @@ describe("a principal whose renewal fails", () => {
 	it("answers the refusal as it is when its renewal fails, and sends nothing more", async () => {
 		let resolved = 0
 		const sending: Resolution = {
+			block: () => undefined,
 			kind: "sends",
 			principal: "alpha",
 			refresh: async () => ({

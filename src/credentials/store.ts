@@ -39,17 +39,8 @@ import type {
  * retry gets the same 401, and that refusal is the finding. The no-op is deliberate.
  */
 
-export type {
-	Adopting,
-	Blocked,
-	Credential,
-	CredentialKey,
-	CredentialStore,
-	Held,
-	HeldCredential,
-	RevokeFailure,
-	StoreOptions,
-} from "./store-types.ts"
+/* Every type the store's contract names, re-exported whole: store-types.ts declares those alone. */
+export type * from "./store-types.ts"
 
 interface Entry {
 	key: HeldCredential
@@ -57,6 +48,8 @@ interface Entry {
 	issued: Issued
 	/** Epoch ms the store took it in, which with its expiry gives its lifetime. */
 	issuedAt: number
+	/** The value a renewal replaced: refused again, it is not renewed twice, even when the server reissued it. */
+	renewedFrom?: string
 }
 type Settled = Entry | Blocked
 
@@ -104,6 +97,7 @@ export function createStore(options: StoreOptions): CredentialStore {
 	return {
 		acquire: (key) => acquire(ctx, key),
 		adopt: (input) => adopt(ctx, input),
+		block: (key, reason) => void ctx.blocked.set(`${key.principal}\u0000${key.scheme}`, { blocked: reason }),
 		enroll: (id, entry) => {
 			ctx.principals[id] = entry
 		},
@@ -137,13 +131,16 @@ async function refresh(ctx: StoreCtx, request: CredentialKey & { sentValue: stri
 	if (pending === undefined) return acquire(ctx, request)
 	const held = await pending
 	if ("blocked" in held) return held
-	if (held.credential.value !== request.sentValue) return held.credential
+	if (held.credential.value !== request.sentValue || held.renewedFrom === request.sentValue) return held.credential
 	return renewEntry(ctx, plan, held)
 }
 
 async function renewEntry(ctx: StoreCtx, plan: Plan, held: Entry): Promise<Held> {
 	const renewed = await ctx.renew(held, () => {
-		const next = renewal(ctx, plan, held)
+		const from = held.credential.value
+		const next = renewal(ctx, plan, held).then((settled) =>
+			"blocked" in settled ? settled : { ...settled, renewedFrom: from },
+		)
 		ctx.entries.set(plan.id, next)
 		return next
 	})
