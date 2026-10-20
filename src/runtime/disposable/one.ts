@@ -71,6 +71,11 @@ async function pathValues(
 			as: { principal: session.principal },
 			operationId: list.operationId,
 		})
+		/* A refusal, a session the server ended and oat could not renew say, lists nothing to read. */
+		if (listed.status < 200 || listed.status >= 300) {
+			input.grades.skipped([op.operationId], `${list.operationId} answered ${listed.status}`)
+			return null
+		}
 		const field = identityOf(list, input.model, param)
 		const row = recordsOf(listed.responseBody, list, input.model).find((item) => typeof item[field] === "string")
 		if (row === undefined) {

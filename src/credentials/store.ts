@@ -31,8 +31,8 @@ import type {
  * grant is issued for the scopes asked, so each scope set is its own credential.
  *
  * Nothing is retried. A failed acquire is memoized as BLOCKED with its reason, so a login is
- * attempted once per principal and scheme per run. A failed refresh blocks that principal × scheme
- * for every scope set, and other principals carry on. A refresh names the value the refused request
+ * attempted once per principal and scheme per run. A failed declared refresh falls back to one login
+ * (never a signup); a failed renewal blocks the principal × scheme, and other principals carry on. A refresh names the value the refused request
  * carried: when the store already holds a newer one, that is the answer, and nothing is renewed.
  *
  * A static credential has nothing to renew: on a 401 its recipe gives the same value again, the one
@@ -155,15 +155,19 @@ async function renewEntry(ctx: StoreCtx, plan: Plan, held: Entry): Promise<Held>
  * that would run the signup again: then it fails closed, never registering a second account.
  */
 async function renewal(ctx: StoreCtx, plan: Plan, held: Entry): Promise<Settled> {
-	if (held.issued.refresh === undefined && signsUp(plan.recipe, ctx.options.signup)) {
+	const signup = signsUp(plan.recipe, ctx.options.signup)
+	if (held.issued.refresh === undefined && signup) {
 		return blockPair(ctx, plan, `renewing ${plan.principal}/${plan.scheme} would sign up again; declare a refresh`)
 	}
 	try {
 		const renew = held.issued.refresh ?? (() => acquireRecipe(acquireCtx(ctx, plan), plan.recipe))
 		return record(ctx, plan, await renew())
 	} catch (error) {
-		return blockPair(ctx, plan, blockedBy("refresh", plan, error))
+		if (held.issued.refresh === undefined || signup) return blockPair(ctx, plan, blockedBy("refresh", plan, error))
 	}
+	/* A refused declared refresh falls back to one fresh login, shared by concurrent callers; only its failure blocks. */
+	const settled = await issue(ctx, plan)
+	return "blocked" in settled ? blockPair(ctx, plan, settled.blocked) : settled
 }
 
 /* A renewal that failed blocks the principal × scheme for every scope set, for the rest of the run. */

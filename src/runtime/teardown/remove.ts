@@ -5,6 +5,7 @@
 
 import type { SpecModel } from "../../spec/graph/types.ts"
 import type { Client } from "../../client/client.ts"
+import { UnsatisfiedSecurity } from "../../client/credential-source.ts"
 import type { Exchange } from "../exchange.ts"
 import { fillPath } from "../fill-path.ts"
 import { deleteOperationFor } from "./routes.ts"
@@ -72,7 +73,11 @@ export async function removeOne(state: Unwind, item: Disposable): Promise<void> 
 		let removed = false
 		for (const [index, deleter] of [item.owner, ...state.fallbacks(item.owner)].entries()) {
 			/* An x-cleanup route may remove with another method than DELETE: its own is sent. */
-			const exchange = await state.client.request(deleteOp.method, path, { as: { principal: deleter.id } })
+			const exchange = await deleteAs(state, { method: deleteOp.method, path }, deleter.id)
+			if (typeof exchange === "string") {
+				attempts.push(`${deleter.id}: ${exchange}`)
+				continue
+			}
 			attempts.push(`${deleter.id}: ${exchange.status}`)
 			if (shownGone(exchange, index === 0, moved)) {
 				removed = true
@@ -95,6 +100,23 @@ export async function removeOne(state: Unwind, item: Disposable): Promise<void> 
 	}
 	state.done += 1
 	state.onItem?.(state.done, state.total, item)
+}
+
+/*
+ * One deleter's request: its exchange, or why it could not be sent, a credential the deleter cannot
+ * hold (BLOCKED by a failed login or renewal) say, so the next deleter is tried as after a denial.
+ */
+async function deleteAs(
+	state: Unwind,
+	route: { method: string; path: string },
+	principal: string,
+): Promise<Exchange | string> {
+	try {
+		return await state.client.request(route.method, route.path, { as: { principal } })
+	} catch (error) {
+		if (!(error instanceof UnsatisfiedSecurity)) throw error
+		return `not sent (${error.reason})`
+	}
 }
 
 /** Counts the record removed, or a leftover for `reason`. */

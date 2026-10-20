@@ -3,7 +3,7 @@
  *
  * Every attempt asks the source again, so a credential that went stale during a wait is renewed by the
  * store before it is sent. A 401 renews what that attempt sent, once per request, and the retry sends
- * the renewal. A probe expects the refusal, and a forged value is one, so neither is renewed. What a
+ * the renewal; a renewal that failed leaves the 401 as the answer. A probe expects the refusal, and a forged value is one, so neither is renewed. What a
  * principal's credential places registers on the run's redactor; a forged value is no secret.
  */
 
@@ -69,7 +69,10 @@ export function requestCredential(
 		renew: async () => {
 			if (renewed || probe || last?.kind !== "sends") return false
 			renewed = true
-			renewal = await last.refresh()
+			const next = await last.refresh()
+			/* A renewal the store BLOCKED sends nothing more: the refusal this request got is its answer. */
+			if (next.kind !== "sends") return false
+			renewal = next
 			return true
 		},
 	}

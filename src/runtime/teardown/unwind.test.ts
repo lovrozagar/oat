@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { RemovedRecord } from "../../config/types/hooks.ts"
+import { UnsatisfiedSecurity } from "../../client/credential-source.ts"
 import { FencedError } from "../fence.ts"
 import { disposable, notesClient, notesModel, store, type Store } from "./__fixtures__/notes.ts"
 import type { Disposable, LedgerView, UnwindOptions } from "./types.ts"
@@ -114,5 +115,26 @@ describe("unwindQueue: read backs and hooks", () => {
 			unidentified: [],
 			unsupported: [],
 		})
+	})
+})
+
+describe("unwindQueue: a creator whose credential is BLOCKED", () => {
+	it("gives up a read back its creator holds no credential for, and reports the record it could not see", async () => {
+		const note = disposable("note", "n1")
+		const blocked = store(
+			{ alpha: ["n1"] },
+			{
+				answers: {
+					"GET /notes/n1": () => {
+						throw new UnsatisfiedSecurity("blocked", "refresh for alpha/jwt: token revoked")
+					},
+				},
+			},
+		)
+		const { report, sent } = await unwind(blocked, [note], { options: { verify: false }, seen: [] })
+		expect(sent).toEqual(["GET /notes/n1", "DELETE /notes/n1"])
+		expect(report.failed.map((entry) => entry.reason)).toEqual([
+			"its creator could never read it back, so teardown cannot tell whether it is gone",
+		])
 	})
 })

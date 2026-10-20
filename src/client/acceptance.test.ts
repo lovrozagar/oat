@@ -146,6 +146,65 @@ describe("bar 5: refresh is single-flight", () => {
 	})
 })
 
+/* A jwt login issuing `token-<n>`, whose declared refresh the server refuses. */
+function refusedRefresh() {
+	let issued = 0
+	const steps: string[] = []
+	const { ports } = fakePorts({
+		run: async (call) => {
+			const step = call.steps[0] as { operationId: string }
+			steps.push(step.operationId)
+			if (step.operationId === "auth.refresh") throw new Error("auth step 1 answered 401")
+			return { answer: answerOf({ token: `token-${++issued}` }), scope: {} }
+		},
+	})
+	const security = {
+		jwt: {
+			login: { from: "$.token", steps: [{ operationId: "auth.login" }] },
+			refresh: { from: "$.token", steps: [{ operationId: "auth.refresh" }] },
+		},
+	} as SecurityConfig
+	return { ports, security, steps }
+}
+
+describe("a refused refresh", () => {
+	it("is followed by exactly one login, and the retry carries its session", async () => {
+		const { ports, security, steps } = refusedRefresh()
+		const { client, sent } = clientOf({ answer: secondTokenOnly, doc: placesDoc, ports, security })
+		expect((await client.get("/me", { as: { principal: "alpha" } })).status).toBe(200)
+		expect(steps).toEqual(["auth.login", "auth.refresh", "auth.login"])
+		expect(sent.map((request) => request.headers.Authorization)).toEqual(["Bearer token-1", "Bearer token-2"])
+	})
+
+	it("renews no more for that request when the retry after the login is refused too", async () => {
+		const { ports, security, steps } = refusedRefresh()
+		const { client, sent } = clientOf({ answer: () => json({}, 401), doc: placesDoc, ports, security })
+		expect((await client.get("/me", { as: { principal: "alpha" } })).status).toBe(401)
+		expect([steps, sent.length]).toEqual([["auth.login", "auth.refresh", "auth.login"], 2])
+	})
+})
+
+describe("a renewal that fails", () => {
+	it("answers the 401 as it is, and BLOCKS the principal for the requests after it", async () => {
+		let runs = 0
+		const { ports } = fakePorts({
+			run: async () => {
+				runs += 1
+				if (runs > 1) throw new Error("auth step 1 answered 401")
+				return { answer: answerOf({ token: "token-1" }), scope: {} }
+			},
+		})
+		const security = { jwt: { login: { from: "$.token", steps: [{ operationId: "auth.login" }] } } } as SecurityConfig
+		const { client, sent } = clientOf({ answer: () => json({}, 401), doc: placesDoc, ports, security })
+		expect((await client.get("/me", { as: { principal: "alpha" } })).status).toBe(401)
+		await expect(client.get("/me", { as: { principal: "alpha" } })).rejects.toMatchObject({
+			kind: "blocked",
+			reason: expect.stringContaining("auth step 1 answered 401"),
+		})
+		expect([runs, sent.length]).toEqual([2, 1])
+	})
+})
+
 describe("the collision guard", () => {
 	it("refuses a caller, hook or global header under the placed name, and sends nothing", async () => {
 		const collides = 'header "x-key" collides with the hdr credential placement'

@@ -7,6 +7,7 @@
 
 import type { SpecModel } from "../../spec/graph/types.ts"
 import type { Client } from "../../client/client.ts"
+import { UnsatisfiedSecurity } from "../../client/credential-source.ts"
 import { FencedError } from "../fence.ts"
 import { isNetworkError } from "../../errors/network.ts"
 import { markNeverSeen } from "./never-seen.ts"
@@ -67,7 +68,10 @@ export async function unwindQueue(input: UnwindInput): Promise<TeardownReport> {
 	return report
 }
 
-/* One read of the record as its creator; a 2xx is the sighting it lacked. */
+/*
+ * One read of the record as its creator; a 2xx is the sighting it lacked. A read that cannot go,
+ * fenced, offline, or as a creator with no credential to send, leaves it unsighted.
+ */
 async function readBack(state: Unwind, item: Disposable): Promise<void> {
 	const read = readPathOf(state.model, item)
 	if (read === null) return
@@ -78,6 +82,7 @@ async function readBack(state: Unwind, item: Disposable): Promise<void> {
 		})
 		if (exchange.status >= 200 && exchange.status < 300) state.ledger.sighted(item.entity, item.id, item.owner.id)
 	} catch (error) {
-		if (!(error instanceof FencedError) && !isNetworkError(error)) throw error
+		if (!(error instanceof FencedError) && !(error instanceof UnsatisfiedSecurity) && !isNetworkError(error))
+			throw error
 	}
 }

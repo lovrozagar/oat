@@ -141,7 +141,7 @@ describe("requestCredential: renewing after a 401", () => {
 		expect((await credential.next()).sends.jwt?.headers).toEqual({ Authorization: "Bearer v1" })
 	})
 
-	it("raises a renewal the store blocked on the attempt that would send it", async () => {
+	it("sends nothing more once the store blocked the renewal: the refusal stands", async () => {
 		const blocked: Resolution = { kind: "blocked", reason: "could not refresh" }
 		const credential = requestCredential(
 			{ credentials: sourceOf(sendingOf("v1", blocked)), redactor: new Redactor() },
@@ -151,8 +151,8 @@ describe("requestCredential: renewing after a 401", () => {
 			},
 		)
 		await credential.next()
-		expect(await credential.renew()).toBe(true)
-		await expect(credential.next()).rejects.toEqual(new UnsatisfiedSecurity("blocked", "could not refresh"))
+		expect(await credential.renew()).toBe(false)
+		expect(await credential.renew()).toBe(false)
 	})
 
 	it("never renews a probe, a forged value or nothing", async () => {

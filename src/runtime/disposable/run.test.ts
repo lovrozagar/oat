@@ -114,8 +114,6 @@ describe("runDisposableOps: the second user's credential", () => {
 		})
 		await runDisposableOps(input)
 		expect(seen.map((request) => `${request.method} ${request.path}`)).toEqual(["POST /v1/register", "GET /v1/keys"])
-		expect(needs(input, "keys.delete")).toEqual([
-			"renewing disposable-shared/session would sign up again; declare a refresh",
-		])
+		expect(needs(input, "keys.delete")).toEqual(["keys.list answered 401"])
 	})
 })

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { UnsatisfiedSecurity } from "../../client/credential-source.ts"
 import type { Answer } from "../checks/__fixtures__/harness.ts"
 import { exchangeOf } from "../checks/__fixtures__/harness.ts"
 import { confirmDeletes } from "./deletes.ts"
@@ -141,5 +142,39 @@ describe("confirmDeletes on refusals and skips", () => {
 		const { input, sent } = deleted({}, { stopped: () => true })
 		await confirmDeletes(input)
 		expect(sent).toEqual([])
+	})
+})
+
+describe("confirmDeletes when a read-back cannot be sent", () => {
+	it("reports a read-back whose credential is BLOCKED, or unsatisfied, and confirms the rest", async () => {
+		const blocked = "refresh for alpha/jwt: the refresh answered 401"
+		const { input } = deleted({
+			"/archive/n2": { body: { deleted_at: "2026-01-01", id: "n2" }, status: 200 },
+			"/flat": { body: [], status: 200 },
+		})
+		const respond = input.client.request.bind(input.client)
+		input.client.request = async (method, path, options) => {
+			if (path === "/notes/n1") throw new UnsatisfiedSecurity("blocked", blocked)
+			if (path === "/bin") throw new UnsatisfiedSecurity("unsatisfied", "no credential for apiKey")
+			return respond(method, path, options)
+		}
+		await confirmDeletes(input)
+		expect(input.findings.findings.map((finding) => [finding.check, finding.entity, finding.verdict])).toEqual([
+			["auth.blocked", "note", "BLOCKED"],
+		])
+		expect(input.findings.findings[0]?.detail).toContain(blocked)
+		expect(input.findings.inconclusive.map((entry) => entry.reason)).toEqual([
+			"bin.list could not be sent to read /bin back after bin.empty (no credential for apiKey), so whether the record is gone was not seen",
+		])
+		expect(input.grades.evidence.get("archive.delete")?.observation).toMatchObject({ value: "2026-01-01" })
+		expect(input.grades.evidence.get("flat.empty")?.observation).toMatchObject({ path: "$", value: "[]" })
+	})
+
+	it("leaves any other failure of a read-back to the run", async () => {
+		const { input } = deleted({})
+		input.client.request = async () => {
+			throw new Error("socket hang up")
+		}
+		await expect(confirmDeletes(input)).rejects.toThrow("socket hang up")
 	})
 })

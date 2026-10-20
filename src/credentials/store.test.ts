@@ -266,14 +266,28 @@ describe("createStore: refresh outcomes", () => {
 		expect([valueOf(held), recorded.runs.length]).toEqual(["ann-1", 1])
 	})
 
-	it("blocks that principal × scheme on a refresh failure, never refreshing again, while others carry on", async () => {
+	it("signs in once more when the declared refresh fails, and renews from that session", async () => {
 		const { recorded, store } = harness({ refresh: new Set(["ann"]) })
 		await store.acquire({ principal: "ann", scheme: "jwt" })
-		const blocked = { blocked: "refresh for ann/jwt: refresh token reused" }
+		expect(valueOf(await store.refresh({ principal: "ann", scheme: "jwt", sentValue: "ann-1" }))).toBe("ann-2")
+		expect(valueOf(await store.acquire({ principal: "ann", scheme: "jwt", scopes: ["other"] }))).toBe("ann-2")
+		expect(recorded.runs.map((run) => "operationId" in run.steps[0]! && run.steps[0].operationId)).toEqual([
+			"auth.login",
+			"auth.refresh",
+			"auth.login",
+		])
+	})
+
+	it("blocks that principal × scheme when the login after a failed refresh fails too, while others carry on", async () => {
+		const login = new Set<string>()
+		const { recorded, store } = harness({ login, refresh: new Set(["ann"]) })
+		await store.acquire({ principal: "ann", scheme: "jwt" })
+		login.add("ann")
+		const blocked = { blocked: "login for ann/jwt: auth step 1 answered 401" }
 		expect(await store.refresh({ principal: "ann", scheme: "jwt", sentValue: "ann-1" })).toEqual(blocked)
 		expect(await store.refresh({ principal: "ann", scheme: "jwt", sentValue: "ann-1" })).toEqual(blocked)
 		expect(await store.acquire({ principal: "ann", scheme: "jwt", scopes: ["other"] })).toEqual(blocked)
-		expect(recorded.runs).toHaveLength(2)
+		expect(recorded.runs).toHaveLength(3)
 		expect(valueOf(await store.acquire({ principal: "cy", scheme: "jwt" }))).toBe("cy-2")
 	})
 
@@ -322,6 +336,27 @@ describe("createStore: a login that signs up", () => {
 			expect(await store.acquire({ principal: "ann", scheme: "jwt" })).toEqual(blocked)
 			expect(recorded.runs).toHaveLength(1)
 		}
+	})
+
+	it("blocks a failed refresh of a login that signs up, never signing up again", async () => {
+		const { ports, recorded } = fakePorts({
+			run: (call) =>
+				"operationId" in call.steps[0]! && call.steps[0].operationId === "auth.refresh"
+					? Promise.reject(new Error("refresh token revoked"))
+					: Promise.resolve({ answer: answerOf({ t: "t1" }), scope: {} }),
+		})
+		const security: SecurityConfig = {
+			jwt: {
+				login: { from: "$.t", steps: [{ operationId: "auth.register" }] },
+				refresh: { from: "$.t", steps: [{ operationId: "auth.refresh" }] },
+			},
+		}
+		const store = createStore({ ports, principals: { ann: {} }, schemes: SCHEMES, security, signup: SIGNUP })
+		await store.acquire({ principal: "ann", scheme: "jwt" })
+		expect(await store.refresh({ principal: "ann", scheme: "jwt", sentValue: "t1" })).toEqual({
+			blocked: "refresh for ann/jwt: refresh token revoked",
+		})
+		expect(recorded.runs).toHaveLength(2)
 	})
 
 	it("re-runs a login that calls no signup, or one on another origin, or when the document marks none", async () => {

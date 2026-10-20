@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { UnsatisfiedSecurity } from "../../client/credential-source.ts"
 import { NetworkError } from "../../errors/network.ts"
 import { actorOf, disposable, notesModel, owner, store, unwindOf } from "./__fixtures__/notes.ts"
 import { leftover, removeOne } from "./remove.ts"
@@ -144,5 +145,34 @@ describe("removeOne: other routes and throws", () => {
 		)
 		await removeOne(throwing, note)
 		expect(throwing.report.failed).toEqual([leftover(note, "socket hang up")])
+	})
+})
+
+describe("removeOne: a deleter whose credential is BLOCKED", () => {
+	it("tries the next deleter, and names why when none can remove it", async () => {
+		const note = disposable("note", "n1", { by: "beta" })
+		const held = store({ alpha: ["n1"] }, { answers: {} })
+		held.answers["DELETE /notes/n1"] = (options) => {
+			const who = actorOf(options)
+			if (who !== "root") throw new UnsatisfiedSecurity("blocked", `refresh for ${who}/jwt: token revoked`)
+			return { status: 204 }
+		}
+		const state = unwindOf(held, [note], { model, fallbacks: () => [owner("member"), owner("root")] })
+		await removeOne(state, note)
+		expect(state.sent.map((request) => request.options.as)).toEqual([
+			{ principal: "beta" },
+			{ principal: "member" },
+			{ principal: "root" },
+		])
+		expect(state.report.removed).toBe(1)
+		const stuck = unwindOf(held, [note], { model, fallbacks: () => [owner("member")] })
+		await removeOne(stuck, note)
+		expect(stuck.report.failed).toEqual([
+			leftover(
+				note,
+				"DELETE /notes/n1 returned beta: not sent (refresh for beta/jwt: token revoked), " +
+					"member: not sent (refresh for member/jwt: token revoked)",
+			),
+		])
 	})
 })

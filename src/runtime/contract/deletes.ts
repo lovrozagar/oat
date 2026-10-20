@@ -4,7 +4,8 @@
  * is still readable, unmarked, was not deleted.
  */
 
-import type { CheckId } from "../check-ids.ts"
+import { UnsatisfiedSecurity } from "../../client/credential-source.ts"
+import type { CheckId, RunFindingId } from "../check-ids.ts"
 import type { OperationModel } from "../../spec/graph/types.ts"
 import type { Exchange } from "../exchange.ts"
 import type { PassEvidence } from "../grades.ts"
@@ -25,11 +26,42 @@ export async function confirmDeletes(input: ConfirmInput): Promise<void> {
 		if (input.stopped()) return
 		const target = readBackOf(input, op)
 		if (target === null) continue
-		const after = await input.client.request("GET", target.path, {
+		const after = await readBack(input, target)
+		if (after !== null) judgeReadBack(input, target, after)
+	}
+}
+
+/*
+ * The read on the deleted path, as the floor's principal. A credential it cannot hold (BLOCKED by a
+ * failed login or renewal, or none that meets the read's security) leaves this delete unseen, with
+ * why, and the floor goes on: `null`.
+ */
+async function readBack(input: ConfirmInput, target: ReadBack): Promise<Exchange | null> {
+	const { op, path, read } = target
+	try {
+		return await input.client.request("GET", path, {
 			as: { principal: input.principal },
-			operationId: target.read.operationId,
+			operationId: read.operationId,
 		})
-		judgeReadBack(input, target, after)
+	} catch (error) {
+		if (!(error instanceof UnsatisfiedSecurity)) throw error
+		const attributed = input.findings.attributed([op.operationId])
+		const entity = op.entity ?? op.operationId
+		if (error.kind === "blocked") {
+			attributed.blocked("auth.blocked" satisfies RunFindingId, entity, {
+				summary: `${DELETE_CHECK_ID} needed a credential that is BLOCKED`,
+				cause: `${error.reason}. ${read.operationId} was not sent to read ${path} back after ${op.operationId}.`,
+			})
+			return null
+		}
+		attributed
+			.ownedBy(DELETE_CHECK_ID)
+			.unresolved(
+				DELETE_CHECK_ID,
+				entity,
+				`${read.operationId} could not be sent to read ${path} back after ${op.operationId} (${error.reason}), so whether the record is gone was not seen`,
+			)
+		return null
 	}
 }
 
