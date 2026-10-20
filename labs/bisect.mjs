@@ -11,11 +11,11 @@
  *
  * `SILENT` is what to fix — usually a missing `dependsOn`. A clean run prints only `done`.
  */
-const dist = (name) => new URL(`../dist/${name}`, import.meta.url).href
-const { createMemoryServer } = await import(dist("reference/http.js"))
-const { run } = await import(dist("runtime/run.js"))
-const { EXPECTED, PRINCIPALS, SECURITY } = await import(dist("conformance/suite.js"))
-const { DEFECTS } = await import(dist("reference/defects/table.js"))
+import { EXPECTED } from "../dist/conformance/expected/table.js"
+import { PRINCIPALS, SECURITY } from "../dist/conformance/matrix/principals.js"
+import { DEFECTS } from "../dist/reference/defects/table.js"
+import { createMemoryServer } from "../dist/reference/http/engines.js"
+import { run } from "../dist/runtime/run/index.js"
 
 const target = process.argv[2]
 if (target === undefined || DEFECTS[target] === undefined) {

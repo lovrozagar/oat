@@ -16,7 +16,7 @@ interface Manifest {
 const BUILT = /^\.?\/?dist\//
 
 /** The source module a built path comes from: `dist/cli.js` → `src/cli.ts`. */
-function sourceOf(built: string): string {
+export function sourceOf(built: string): string {
 	return built.replace(BUILT, "src/").replace(/\.d\.ts$|\.js$/, ".ts")
 }
 

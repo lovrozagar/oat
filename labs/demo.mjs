@@ -18,10 +18,13 @@ import { mkdir, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { DEFECTS } from "../dist/reference/defects/table.js"
-import { createMemoryServer, createPostgresServer, createSqliteServer } from "../dist/reference/http.js"
-import { renderConsole, renderJson, renderMarkdown, renderRepros } from "../dist/report/render.js"
-import { run } from "../dist/runtime/run.js"
-import { allocateRunDir } from "../dist/runtime/runs.js"
+import { createMemoryServer, createPostgresServer, createSqliteServer } from "../dist/reference/http/engines.js"
+import { renderJson } from "../dist/report/render/json.js"
+import { renderMarkdown } from "../dist/report/render/markdown.js"
+import { renderRepros } from "../dist/report/render/repro.js"
+import { renderConsole } from "../dist/report/render/summary.js"
+import { run } from "../dist/runtime/run/index.js"
+import { allocateRunDir, publishLatest } from "../dist/runtime/runs.js"
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -76,7 +79,8 @@ console.log(`  defects  ${defects.length > 0 ? defects.join(", ") : "none — co
 
 const startedAt = new Date()
 const began = performance.now()
-const { latest, runDir: outDir } = await allocateRunDir(resolve(here, "../.oat/runs"), startedAt)
+const allocated = await allocateRunDir(resolve(here, "../.oat/runs"), startedAt)
+const outDir = allocated.runDir
 const result = await run({
 	baseUrl: server.url,
 	principals,
@@ -100,13 +104,14 @@ const input = {
 await mkdir(resolve(outDir, "repro"), { recursive: true })
 await writeFile(resolve(outDir, "oat-report.md"), renderMarkdown(input))
 await writeFile(resolve(outDir, "oat-report.json"), renderJson(input))
-for (const script of renderRepros(result.findings, server.url)) {
+for (const script of renderRepros(result.findings, server.url, result.client.redactor)) {
 	await writeFile(resolve(outDir, "repro", script.filename), script.content, { mode: 0o755 })
 }
+await publishLatest(allocated)
 
 process.stdout.write(renderConsole(input))
 console.log(`  report   ${resolve(outDir, "oat-report.md")}`)
 console.log(`  repro    ${resolve(outDir, "repro")}/`)
-console.log(`  latest   ${latest}\n`)
+console.log(`  latest   ${allocated.latest}\n`)
 
 await server.close()
