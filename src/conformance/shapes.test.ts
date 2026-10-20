@@ -110,6 +110,36 @@ describe("cleanRunProblems", () => {
 	})
 })
 
+/* The store minted apikey_000017; the reference created it, and teardown never ledgered it. */
+const minted = (teardown: CleanRun["result"]["teardown"]): CleanRun => ({
+	after: { widget: [] },
+	before: { widget: [] },
+	created: { "api-key": ["apikey_000017"] },
+	result: { checksRun: [], findings: [], inconclusive: [], teardown },
+})
+const torn = (failed: NonNullable<CleanRun["result"]["teardown"]>["failed"]) => ({
+	failed,
+	records: [],
+	removed: 0,
+	unidentified: [],
+	unsupported: [],
+})
+
+describe("cleanRunProblems on what the credential store issued", () => {
+	it("stays silent on a key the store minted and revokeAll revoked: created, never ledgered, not alive", () => {
+		expect(cleanRunProblems(minted(torn([])), undefined, {})).toEqual([])
+	})
+
+	it("reports a minted key revokeAll failed to revoke, as the unremovable credential record it is", () => {
+		const failed = [
+			{ entity: "credential", id: "alpha/apiKey", principal: "alpha", reason: "revoke apiKey.revoke answered 500" },
+		]
+		expect(cleanRunProblems(minted(torn(failed)), undefined, {})).toEqual([
+			"could not remove credential alpha/apiKey: revoke apiKey.revoke answered 500",
+		])
+	})
+})
+
 describe("renderShapeSuite", () => {
 	const clean: ShapeCase = { expected: undefined, label: "shape:uuid-ids", problems: [], why: "uuid ids" }
 	const known: ShapeCase = { expected: "no cursor yet", label: "shape:cursor-only", problems: ["x"], why: "cursors" }

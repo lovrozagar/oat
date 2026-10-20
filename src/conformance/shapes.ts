@@ -99,6 +99,10 @@ function reportedProblems(result: CleanRun["result"]): string[] {
 		...(result.teardown?.unidentified ?? []).map(
 			(create) => `left a record it could not identify: ${create.operationId} → ${create.status} (#${create.seq})`,
 		),
+		/* A record or credential teardown could not remove, a minted key whose revoke failed among them. */
+		...(result.teardown?.failed ?? []).map(
+			(failure) => `could not remove ${failure.entity} ${failure.id}: ${failure.reason}`,
+		),
 	]
 }
 
