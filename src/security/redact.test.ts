@@ -69,6 +69,50 @@ describe("Redactor.holdsSecret", () => {
 	})
 })
 
+describe("Redactor.textBody", () => {
+	it("redacts a form's secret-named fields, and every registered value, wherever the text holds it", () => {
+		const redactor = new Redactor()
+		redactor.registerSecret("acc+tok/123456")
+		const form = "access_token=acc%2Btok%2F123456&refresh_token=rt-9876543210&scope=read+write&flag"
+		expect(redactor.textBody(form, "application/x-www-form-urlencoded; charset=utf-8")).toBe(
+			`access_token=${REDACTED}&refresh_token=${REDACTED}&scope=read+write&flag`,
+		)
+		expect(redactor.textBody("note=acc%2Btok%2F123456&bad=%E0%A4%A", "application/x-www-form-urlencoded")).toBe(
+			`note=${REDACTED}&bad=%E0%A4%A`,
+		)
+		expect(redactor.textBody("%E0%A4%A=1&refresh_token", "application/x-www-form-urlencoded")).toBe(
+			"%E0%A4%A=1&refresh_token",
+		)
+		expect(redactor.textBody("token acc+tok/123456 issued", "text/plain")).toBe(`token ${REDACTED} issued`)
+		expect(redactor.textBody("refresh_token=rt-9876543210", "text/plain")).toBe("refresh_token=rt-9876543210")
+	})
+})
+
+describe("Redactor.textBody, value scrubbing first", () => {
+	it("scrubs a registered value under a field whose name says nothing secret, as in plain text", () => {
+		const redactor = new Redactor()
+		redactor.registerSecret("acc-9f8e7d6c5b")
+		const form = "session=acc-9f8e7d6c5b&next=%2Fhome&label=held%20acc-9f8e7d6c5b%20here"
+		expect(redactor.textBody(form, "application/x-www-form-urlencoded")).toBe(
+			`session=${REDACTED}&next=%2Fhome&label=held ${REDACTED} here`,
+		)
+		expect(new Redactor().textBody(form, "application/x-www-form-urlencoded")).toBe(form)
+	})
+})
+
+describe("Redactor.body", () => {
+	it("redacts text by its media type, and any other body as JSON", () => {
+		const redactor = new Redactor()
+		expect(redactor.body("refresh_token=rt-9876543210", "application/x-www-form-urlencoded")).toBe(
+			`refresh_token=${REDACTED}`,
+		)
+		expect(redactor.body({ refresh_token: "rt-9876543210", n: 1 }, "application/json")).toEqual({
+			n: 1,
+			refresh_token: REDACTED,
+		})
+	})
+})
+
 describe("Redactor, placed credentials", () => {
 	it("keeps an Authorization header's scheme word and scrubs the credential after it", () => {
 		const headers = new Redactor().headers({

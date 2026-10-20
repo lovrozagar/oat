@@ -1,3 +1,6 @@
+import { mkdtempSync, readdirSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import type { Exchange } from "../runtime/exchange.ts"
 import { RateLimiter } from "../runtime/rate-limit/limiter.ts"
@@ -25,6 +28,23 @@ function clientOf(
  * Read-only checks run together, through a client that cannot write: one that changed server
  * state would move the cohort under every other check in its batch.
  */
+describe("a client's transcript spool", () => {
+	it("moves bodies past the memory it is given into the folder it is given, and removes them on dispose", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "oat-client-spool-"))
+		try {
+			const { client } = clientOf(() => json({ rows: "r".repeat(64) }), { transcript: { dir, memoryBytes: 1 } })
+			await client.get("/rows", { as: ANON })
+			await client.get("/rows", { as: ANON })
+			expect(readdirSync(dir).filter((name) => name.startsWith("oat-transcript-"))).toHaveLength(1)
+			expect((await client.hydrate(client.transcript[0] as Exchange)).responseBody).toEqual({ rows: "r".repeat(64) })
+			await client.dispose()
+			expect(readdirSync(dir)).toEqual([])
+		} finally {
+			rmSync(dir, { force: true, recursive: true })
+		}
+	})
+})
+
 describe("a read-only client", () => {
 	it("refuses to send anything that could change server state, through any view of it", async () => {
 		const { client, sent } = clientOf(() => json({}))

@@ -55,6 +55,17 @@ describe("the JSON report", () => {
 	})
 })
 
+describe("the JSON report and a sign-in answered as a form", () => {
+	it("scrubs a token pair a sign-in answered as a form, by field name", () => {
+		const answered = exchange({
+			responseBody: "access_token=acc-tok-123456&refresh_token=rt-9876543210",
+			responseHeaders: { "Content-Type": "application/x-www-form-urlencoded" },
+		})
+		const text = renderJson(reportOf({ findings: [finding({ evidence: [answered] })] }))
+		expect([text.includes("acc-tok-123456"), text.includes("rt-9876543210")]).toEqual([false, false])
+	})
+})
+
 describe("the JSON report's optional parts", () => {
 	it("carries every optional part a run produced", () => {
 		const input = reportOf(

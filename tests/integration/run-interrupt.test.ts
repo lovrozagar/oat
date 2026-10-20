@@ -1,3 +1,6 @@
+import { mkdtempSync, readdirSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { describe, expect, it, vi } from "vitest"
 import { leftBehind } from "../../src/conformance/leaks.ts"
 import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
@@ -127,6 +130,43 @@ describe("a teardown that throws", () => {
 			expect(result.checksRun.length).toBeGreaterThan(0)
 		} finally {
 			unwind.mockRestore()
+			await server.close()
+		}
+	})
+})
+
+/* A spool folder of a test's own, and the transcript spools in it now. */
+function spoolRoot(): { dir: string; spools: () => string[] } {
+	const dir = mkdtempSync(join(tmpdir(), "oat-run-spool-"))
+	return { dir, spools: () => readdirSync(dir).filter((name) => name.startsWith("oat-transcript-")) }
+}
+
+describe("a run's transcript spool, when the run ends early", () => {
+	it("is removed after a run that throws mid-stage", async () => {
+		const server = await createMemoryServer()
+		const { dir, spools } = spoolRoot()
+		try {
+			let most = 0
+			/* A transport that breaks with an error no stage expects, once the run has spooled. */
+			const broken: typeof fetch = (input, init) => {
+				most = Math.max(most, spools().length)
+				if (most >= 1) throw new TypeError("the transport broke")
+				return fetch(input, init)
+			}
+			const thrown = await run({
+				baseUrl: server.url,
+				network: { fetch: broken },
+				principals: PRINCIPALS,
+				security: SECURITY,
+				seed: 42,
+				spec: `${server.url}/v1/openapi/spec`,
+				transcript: { dir, memoryBytes: 1 },
+			}).catch((error: unknown) => error)
+			expect(thrown).toBeInstanceOf(Error)
+			expect((thrown as Error).message).toContain("the transport broke")
+			expect(spools()).toEqual([])
+		} finally {
+			rmSync(dir, { force: true, recursive: true })
 			await server.close()
 		}
 	})

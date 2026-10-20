@@ -1,6 +1,7 @@
 import { describeRequestBody, type Exchange } from "../../runtime/exchange.ts"
 import { EXIT, runVerdict } from "../../runtime/exit.ts"
 import type { Finding } from "../../runtime/finding.ts"
+import { presentHeader } from "../../runtime/headers.ts"
 import type { Redactor } from "../../security/redact.ts"
 import { coverageByCheck } from "./coverage.ts"
 import type { ReportInput } from "./input.ts"
@@ -12,10 +13,13 @@ function evidenceJson(exchange: Exchange, redactor: Redactor): Record<string, un
 		at: new Date(exchange.at).toISOString(),
 		durationMs: exchange.durationMs,
 		method: exchange.method,
-		requestBody: redactor.json(describeRequestBody(exchange.requestBody)),
+		requestBody: redactor.body(
+			describeRequestBody(exchange.requestBody),
+			presentHeader(exchange.requestHeaders, "content-type") ?? "",
+		),
 		requestBytes: exchange.requestBytes,
 		requestId: exchange.requestId,
-		responseBody: redactor.json(exchange.responseBody),
+		responseBody: redactor.body(exchange.responseBody, presentHeader(exchange.responseHeaders, "content-type") ?? ""),
 		responseBytes: exchange.responseBytes,
 		status: exchange.status,
 		url: redactor.url(exchange.url),

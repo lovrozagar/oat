@@ -16,7 +16,7 @@ export interface BlobStore {
 	readonly redactor: Redactor
 	/** Writes the bytes once under their hash; a second put of the same bytes writes nothing. */
 	put(bytes: Uint8Array): Promise<StoredBlob>
-	/** Text inline, or by reference once it is past the inline limit. */
+	/** Text redacted by its media type, inline or by reference once it is past the inline limit. */
 	spillText(text: string, mediaType: string): Promise<string | (StoredBlob & { mediaType: string })>
 	/** A JSON value redacted, inline or by reference once its serialization is past the limit. */
 	persistJson(value: unknown, mediaType: string): Promise<unknown>
@@ -46,8 +46,9 @@ export function createBlobStore(dir: string, redactor: Redactor): BlobStore {
 		put,
 		redactor,
 		async spillText(text, mediaType) {
-			const bytes = utf8Encode(text)
-			if (bytes.byteLength <= INLINE_BODY_LIMIT) return text
+			const redacted = redactor.textBody(text, mediaType)
+			const bytes = utf8Encode(redacted)
+			if (bytes.byteLength <= INLINE_BODY_LIMIT) return redacted
 			const blob = await put(bytes)
 			return { ...blob, mediaType }
 		},

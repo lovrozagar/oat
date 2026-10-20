@@ -55,6 +55,8 @@ a `--ops` target never judged). `exitCode(result)` is that outcome as the CLI's 
 
 `run(options)` does not write files. The CLI writes reports after `run` returns. To produce the same artifacts, call `renderMarkdown` / `renderJson` / `renderMatrixHtml` / `renderMatrixGraph` / `renderRepros` with a `ReportInput` (`findings`, `model`, `client`, `baseUrl`, `entitiesTested`, `checksRun`, `startedAt`, `durationMs`, plus optional skip/suppress/inconclusive lists).
 
+`transcript: { memoryBytes, dir }` bounds what a large run holds. Each client keeps up to `memoryBytes` of exchange bodies in memory (default 32 MiB) and moves the oldest to a private folder under `dir` (default the system temporary directory). Checks read those bodies back exactly as the backend sent them, so they are not redacted. Each file is encrypted with AES-256-GCM, under a key each client draws for itself and holds only in memory,, and the folder is removed when the run ends, however it ends. Choose a local, private `dir`: the encryption is what protects the files there. `memoryBytes` must be a positive integer, and `dir` must exist and be writable; `run` refuses either fault with a `UsageError` before it sends anything.
+
 Offline:
 
 ```ts

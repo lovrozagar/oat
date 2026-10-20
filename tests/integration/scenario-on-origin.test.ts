@@ -1,4 +1,7 @@
+import { mkdtempSync, readdirSync, rmSync } from "node:fs"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import type { Scenario } from "../../src/config/define/types.ts"
@@ -111,6 +114,54 @@ describe("a scenario on a secondary origin", () => {
 			})
 			const row = result.scope.operations.find((op) => op.origin === "files" && op.operationId === "file.put")
 			expect(row).toMatchObject({ status: "passed", tier: "verified" })
+		})
+	}
+})
+
+/* A main-origin scenario whose support steps reach the file store through the run's origin client. */
+const supported: Scenario = {
+	covers: ["health.get"],
+	id: "health-beside-files",
+	steps: [
+		{ bind: { name: "a.txt" }, operationId: "file.put", origin: "files" },
+		{ bind: { name: "a.txt" }, operationId: "file.get", origin: "files" },
+		{ operationId: "health.get" },
+	],
+}
+
+describe("a run over two origins, its transcript spooled", () => {
+	for (const interrupted of [false, true]) {
+		it(`leaves no spool behind${interrupted ? " when it is interrupted" : ""}: every client's, the secondary origin's included`, async () => {
+			const { files, main } = await servers()
+			const dir = mkdtempSync(join(tmpdir(), "oat-origins-spool-"))
+			const spools = () => readdirSync(dir).filter((name) => name.startsWith("oat-transcript-"))
+			const stop = new AbortController()
+			let most = 0
+			/* Watches the spool, and stops the run once the file store has answered its support steps. */
+			const watched: typeof fetch = async (input, init) => {
+				const answer = await fetch(input, init)
+				most = Math.max(most, spools().length)
+				if (interrupted && String(input).startsWith(`${files}/files/`) && init?.method === "GET") stop.abort()
+				return answer
+			}
+			try {
+				const result = await run({
+					baseUrl: main,
+					network: { fetch: watched },
+					origins: [{ baseUrl: files, id: "files", spec: `${files}/openapi.json` }],
+					principals: { alpha: {} },
+					scenarios: [supported],
+					seed: 1,
+					signal: stop.signal,
+					spec: `${main}/openapi.json`,
+					transcript: { dir, memoryBytes: 1 },
+				})
+				/* The run spooled along the way, so there was something to leave behind. */
+				expect([result.interrupted === true, most >= 1]).toEqual([interrupted, true])
+				expect(spools()).toEqual([])
+			} finally {
+				rmSync(dir, { force: true, recursive: true })
+			}
 		})
 	}
 })

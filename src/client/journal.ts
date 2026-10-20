@@ -2,7 +2,7 @@
 
 import type { Redactor } from "../security/redact.ts"
 import type { Exchange } from "../runtime/exchange.ts"
-import { BodySpool } from "../runtime/transcript/spool.ts"
+import { BodySpool, type SpoolOptions } from "../runtime/transcript/spool.ts"
 import { releaseTranscriptBodies } from "../runtime/transcript/release.ts"
 
 export class Journal {
@@ -14,9 +14,14 @@ export class Journal {
 	private readonly byOperationId = new Map<string, Exchange[]>()
 	private readonly byEntity = new Map<string, Exchange[]>()
 	private readonly stored = new Map<number, Exchange>()
-	private readonly spool = new BodySpool()
+	private readonly spool: BodySpool
 
-	constructor(private readonly redactor: Redactor) {}
+	constructor(
+		private readonly redactor: Redactor,
+		spool: SpoolOptions = {},
+	) {
+		this.spool = new BodySpool(spool)
+	}
 
 	/**
 	 * Keeps a compacted copy. The caller's exchange is left whole: a check reading a 300 KiB page

@@ -52,6 +52,20 @@ describe("BlobStore.spillText / persistJson", () => {
 		})
 	})
 
+	it("keeps text redacted: a form's secret-named fields and every registered value, inline or spilled", async () => {
+		const redactor = new Redactor()
+		redactor.registerSecret("acc-tok-123456")
+		const store = createBlobStore(dir, redactor)
+		const form = "access_token=acc-tok-123456&refresh_token=rt-9876543210"
+		expect(await store.spillText(form, "application/x-www-form-urlencoded")).toBe(
+			`access_token=${REDACTED}&refresh_token=${REDACTED}`,
+		)
+		const long = `acc-tok-123456 ${"z".repeat(INLINE_BODY_LIMIT)}`
+		const spilled = (await store.spillText(long, "text/plain")) as { sha256: string }
+		const written = readFileSync(join(dir, "blobs", spilled.sha256), "utf8")
+		expect([written.startsWith(`${REDACTED} `), written.includes("acc-tok-123456")]).toEqual([true, false])
+	})
+
 	it("keeps JSON redacted, inline up to the limit, and by reference past it", async () => {
 		const redactor = new Redactor()
 		const store = createBlobStore(dir, redactor)

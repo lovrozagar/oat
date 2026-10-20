@@ -29,7 +29,7 @@ export class Client {
 	private readonly wire: Wire
 
 	constructor(private readonly options: ClientOptions) {
-		this.journal = new Journal(options.redactor)
+		this.journal = new Journal(options.redactor, options.transcript)
 		this.wire = {
 			baseUrl: options.baseUrl,
 			credentials: options.credentials,

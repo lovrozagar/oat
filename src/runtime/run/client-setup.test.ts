@@ -1,9 +1,10 @@
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs"
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import type { ProgressSnapshot } from "../progress/types.ts"
 import { UnsatisfiedSecurity } from "../../client/credential-source.ts"
+import { disposeClients } from "./client-setup.ts"
 import {
 	ALPHA_KEY,
 	BASE,
@@ -138,5 +139,21 @@ describe("connect: secondary origins", () => {
 		doc.security = [{ originKey: [] }]
 		const run = await connected(servingAt(optionsFor(notesApi(), { origins: [ORIGIN] }), ORIGIN.spec, doc as never))
 		await expect(run.originClients.get("other")?.client.get("/notes", AS_ALPHA)).rejects.toThrow(UnsatisfiedSecurity)
+	})
+})
+
+describe("disposeClients", () => {
+	it("removes every client's transcript spool, each origin's as well as the primary's", async () => {
+		const dir = scratch()
+		const options = optionsFor(notesApi(), {
+			origins: [{ ...ORIGIN, security: { bearer: "bearer" } }],
+			transcript: { dir, memoryBytes: 1 },
+		})
+		const run = await connected(options)
+		const origin = run.originClients.get("other")?.client
+		for (const client of [run.client, origin, run.client, origin]) await client?.get("/notes", AS_ALPHA)
+		expect(readdirSync(dir)).toHaveLength(2)
+		await disposeClients(run)
+		expect(readdirSync(dir)).toEqual([])
 	})
 })

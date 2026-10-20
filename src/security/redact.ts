@@ -24,6 +24,18 @@ export interface PlacedSecrets {
 /* Headers whose value is `<scheme> <credential>`, so the scheme word is no secret. */
 const SCHEMED_HEADERS: ReadonlySet<string> = /* @__PURE__ */ new Set(["authorization", "proxy-authorization"])
 
+/* `application/x-www-form-urlencoded`, with or without parameters. */
+const FORM_MEDIA_TYPE = /^\s*application\/x-www-form-urlencoded\s*(;|$)/i
+
+/* A form-encoded name or value as text; a malformed escape is kept as it was sent. */
+function formDecoded(raw: string): string {
+	try {
+		return decodeURIComponent(raw.replaceAll("+", " "))
+	} catch {
+		return raw
+	}
+}
+
 export class Redactor {
 	readonly #headers = new Set<string>()
 	readonly #secrets = new Set<string>()
@@ -85,6 +97,23 @@ export class Redactor {
 		return out
 	}
 
+	/** A recorded body as it may be written down: text by its media type, anything else as JSON. */
+	body(value: unknown, mediaType: string): unknown {
+		return typeof value === "string" ? this.textBody(value, mediaType) : this.json(value)
+	}
+
+	/**
+	 * A body that is text, by its media type: a form's fields as `field` redacts them, any other text
+	 * scrubbed of registered values. A token endpoint may answer its pair as a form.
+	 */
+	textBody(text: string, mediaType: string): string {
+		if (!FORM_MEDIA_TYPE.test(mediaType)) return this.text(text)
+		return text
+			.split("&")
+			.map((pair) => this.#formPair(pair))
+			.join("&")
+	}
+
 	headers(headers: Record<string, string>): Record<string, string> {
 		const out: Record<string, string> = {}
 		for (const [key, value] of Object.entries(headers)) out[key] = this.#headerValue(key, value)
@@ -127,6 +156,16 @@ export class Redactor {
 		if (!this.isSecretHeader(name)) return this.text(value)
 		const scheme = SCHEMED_HEADERS.has(name.toLowerCase()) ? /^([A-Za-z][\w.-]*)\s+\S/.exec(value)?.[1] : undefined
 		return scheme === undefined ? REDACTED : `${scheme} ${REDACTED}`
+	}
+
+	/* One `name=value` pair, its value redacted as a field; a pair redaction leaves alone keeps its encoding. */
+	#formPair(pair: string): string {
+		const at = pair.indexOf("=")
+		if (at === -1) return this.text(pair)
+		const name = pair.slice(0, at)
+		const value = formDecoded(pair.slice(at + 1))
+		const redacted = this.field(formDecoded(name), value)
+		return redacted === value ? pair : `${name}=${redacted}`
 	}
 
 	#isSecretParam(name: string): boolean {

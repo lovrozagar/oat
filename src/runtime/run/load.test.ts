@@ -70,6 +70,15 @@ describe("load", () => {
 	})
 })
 
+describe("load, the transcript option", () => {
+	it("refuses a transcript option it cannot honour before it fetches anything", async () => {
+		const options = optionsFor(notesApi(), { transcript: { memoryBytes: 0 } })
+		await expect(load(options)).rejects.toThrow(UsageError)
+		await expect(load(options)).rejects.toThrow(/transcript\.memoryBytes must be a positive integer/)
+		expect(options.seen).toEqual([])
+	})
+})
+
 describe("load, the secondary origins and the credentials config", () => {
 	const cdn = {
 		baseUrl: "http://cdn.test",

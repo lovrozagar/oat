@@ -53,6 +53,7 @@ export function connect(loaded: Loaded): Connected {
 		),
 		redactor,
 		resolveHeaders: hooks.resolveHeaders,
+		transcript: options.transcript,
 	})
 	progress.countRequests(() => client.transcript.length)
 	const originClients = loadOriginClients(loaded, { network: network.client, onExchange, redactor, store })
@@ -90,4 +91,13 @@ function answered(journal: ExchangeJournal | null, progress: RunProgress): (exch
 		}
 		progress.announce()
 	}
+}
+
+/**
+ * Removes every client's transcript spool: the primary's and each origin's. The run calls it last,
+ * however it ends; a spool that cannot be removed is no reason to lose the run's own outcome.
+ */
+export async function disposeClients(connected: Pick<Connected, "client" | "originClients">): Promise<void> {
+	const clients = [connected.client, ...[...connected.originClients.values()].map((origin) => origin.client)]
+	await Promise.allSettled(clients.map((client) => client.dispose()))
 }

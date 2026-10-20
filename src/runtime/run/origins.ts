@@ -55,6 +55,7 @@ export function loadOriginClients(loaded: Loaded, wiring: OriginWiring): Map<str
 			rateLimiter: origin.maxRps === undefined ? undefined : new RateLimiter([], { maxRps: origin.maxRps }),
 			redactor: wiring.redactor,
 			resolveHeaders: hooks.resolveHeaders,
+			transcript: options.transcript,
 		})
 		clients.set(origin.id, { client, model })
 	}
@@ -81,6 +82,7 @@ const INHERITED = [
 	"entities",
 	"exchangeDir",
 	"network",
+	"transcript",
 ] as const satisfies ReadonlyArray<keyof RunOptions>
 
 /** What the secondary runs found, folded into this run's result. */

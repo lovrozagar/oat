@@ -14,6 +14,7 @@ import { probeCreateFixtures } from "../world/probe-fixtures.ts"
 import type { Loaded, LoadedOrigin } from "./context.ts"
 import { requestTimeoutOpt, transportOpt } from "./network.ts"
 import { RunProgress } from "./progress.ts"
+import { assertTranscript } from "./transcript-options.ts"
 import { emptyState } from "./state.ts"
 import type { RunOptions } from "./types.ts"
 
@@ -22,8 +23,9 @@ import type { RunOptions } from "./types.ts"
  * them, and checks the config's credentials against them: a misfit is a UsageError, nothing sent.
  */
 export async function load(options: RunOptions): Promise<Loaded> {
-	/* An unknown profile is a config error: it costs nothing to find out. */
+	/* An unknown profile, or a transcript budget or folder the run cannot honour, is a config error: it costs nothing to find out. */
 	const profile = resolveProfile(options.profile, options.profiles)
+	assertTranscript(options.transcript)
 	const findings = new FindingCollector()
 	const progress = new RunProgress(options.onProgress, Date.now(), () => findings.findings.filter(isRootCause).length)
 	const fence = options.hooks?.beforeRequest === undefined ? undefined : new Fence(options.hooks.beforeRequest)

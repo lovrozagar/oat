@@ -15,6 +15,7 @@ import type { Scenario } from "../../config/types/steps.ts"
 import type { FencedRequest } from "../fence.ts"
 import type { Finding, Inconclusive } from "../finding.ts"
 import type { NetworkKind } from "../../errors/network.ts"
+import type { SpoolOptions } from "../transcript/spool.ts"
 import type { KeptCredential, PersistedPrincipal } from "../principals.ts"
 import type { ProgressHandler } from "../progress/types.ts"
 import type { ScopeReport } from "../scope/types.ts"
@@ -105,6 +106,11 @@ export interface RunOptions {
 	 * Omit to leave the journal off. The CLI decides the default from the profile.
 	 */
 	exchangeDir?: string
+	/**
+	 * How much of the transcript's bodies each client keeps in memory (default 32 MiB), and where it
+	 * spools the rest, encrypted (default the system's temporary directory). Removed when the run ends.
+	 */
+	transcript?: SpoolOptions
 	network?: {
 		retries?: number
 		waitMs?: number

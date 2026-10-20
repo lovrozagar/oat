@@ -1,7 +1,7 @@
 import { buildRegistry } from "../checks/core/define.ts"
 import { CHECKS } from "../checks/registry.ts"
-import { connect } from "./client-setup.ts"
-import type { RunContext } from "./context.ts"
+import { connect, disposeClients } from "./client-setup.ts"
+import type { Connected, RunContext } from "./context.ts"
 import { contractFloor } from "./contract-floor.ts"
 import { disposable } from "./disposable.ts"
 import { errorText } from "./errors.ts"
@@ -32,7 +32,17 @@ import type { RunFindingId } from "../check-ids.ts"
 export async function run(options: RunOptions): Promise<RunResult> {
 	/* A registry with a duplicate id or a dependency out of order would grade nothing correctly. */
 	buildRegistry(CHECKS)
-	const planned = planScope(connect(await load(options)))
+	const connected = connect(await load(options))
+	/* However the run ends (done, stopped or thrown), no client's spooled bodies stay on disk. */
+	try {
+		return await runConnected(connected)
+	} finally {
+		await disposeClients(connected)
+	}
+}
+
+async function runConnected(connected: Connected): Promise<RunResult> {
+	const planned = planScope(connected)
 	const principals = await resolvePrincipals(planned)
 	if (principals === null) return earlyResult(planned)
 	const authed = { ...planned, principals }

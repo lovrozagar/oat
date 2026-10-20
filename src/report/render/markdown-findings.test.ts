@@ -42,6 +42,17 @@ describe("exchangeBlock", () => {
 	})
 })
 
+describe("exchangeBlock and a sign-in answered as a form", () => {
+	it("scrubs the token pair by field name", () => {
+		const answered = exchange({
+			responseBody: "access_token=acc-tok-123456&refresh_token=rt-9876543210",
+			responseHeaders: { "content-type": "application/x-www-form-urlencoded; charset=utf-8" },
+		})
+		const text = exchangeBlock(answered, new Redactor()).join("\n")
+		expect([text.includes("acc-tok-123456"), text.includes("rt-9876543210")]).toEqual([false, false])
+	})
+})
+
 describe("findingSections", () => {
 	it("writes a section per severity, each finding with up to three exchanges and its repro script", () => {
 		const evidence = [1, 2, 3, 4].map((seq) => exchange({ seq, url: `${BASE}/v1/rows/${seq}` }))

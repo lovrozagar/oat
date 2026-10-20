@@ -8,6 +8,7 @@ import type { Fence } from "../runtime/fence.ts"
 import type { NetworkError } from "../errors/network.ts"
 import type { RateLimiter } from "../runtime/rate-limit/limiter.ts"
 import type { Actor, CredentialSource } from "./credential-source.ts"
+import type { SpoolOptions } from "../runtime/transcript/spool.ts"
 
 /** Methods that cannot change server state. */
 export type SafeMethod = "GET" | "HEAD" | "OPTIONS"
@@ -121,4 +122,6 @@ export interface ClientOptions {
 	operationResolver?: OperationResolver | undefined
 	/** What each request's actor sends. Without one, only anonymous requests can be sent. */
 	credentials?: CredentialSource | undefined
+	/** How much of the transcript's bodies stays in memory, and where the encrypted rest is spooled. */
+	transcript?: SpoolOptions | undefined
 }
