@@ -40,6 +40,8 @@ export class Ledger {
 	private readonly movedAway = new Map<string, string>()
 	/* Records a principal read back — `entity, id, principal` — wherever the read came from. */
 	private readonly sightings = new Set<string>()
+	/* Every record ever ledgered, by entity and id, whoever created it. */
+	private readonly held = new Set<string>()
 
 	record({ entity, id, scope }: Created, owner: Owner): void {
 		if (id === "" || id === "undefined") return
@@ -47,7 +49,13 @@ export class Ledger {
 		const key = recordKey(entity, id, owner.id)
 		if (this.seen.has(key)) return
 		this.seen.add(key)
+		this.held.add(`${entity}\u0000${id}`)
 		this.items.push({ entity, id, owner, scope: { ...scope } })
+	}
+
+	/** Whether any principal's record of `entity` with `id` was ever ledgered, removed since or not. */
+	holds(entity: string, id: string): boolean {
+		return this.held.has(`${entity}\u0000${id}`)
 	}
 
 	/** A create that answered 2xx without an id oat could read: nothing can remove its record. */

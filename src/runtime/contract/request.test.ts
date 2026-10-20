@@ -60,8 +60,15 @@ describe("pathValues", () => {
 
 /* Keys under a bare `{id}`, a usage read beneath one, and jobs: another resource whose records carry `id` too. */
 const keyed = {
-	"/keys": { post: { operationId: "keys.create", responses: { "201": { description: "made" } } } },
-	"/keys/{id}": { get: { operationId: "keys.get", parameters: [pathParam("id")], responses: ok() } },
+	"/keys": {
+		get: { operationId: "keys.list", responses: ok() },
+		post: { operationId: "keys.create", responses: { "201": { description: "made" } } },
+	},
+	"/keys/{id}": {
+		delete: { operationId: "keys.revoke", parameters: [pathParam("id")], responses: ok() },
+		get: { operationId: "keys.get", parameters: [pathParam("id")], responses: ok() },
+		patch: { operationId: "keys.update", parameters: [pathParam("id")], responses: ok() },
+	},
 	"/keys/{id}/usage": { get: { operationId: "keys.usage", parameters: [pathParam("id")], responses: ok() } },
 	"/projects/{project_id}/jobs": {
 		post: { operationId: "jobs.create", parameters: [pathParam("project_id")], responses: ok() },
@@ -101,6 +108,80 @@ describe("pathValues: a bare record key", () => {
 		)
 		expect(await pathValues(input, { op, params })).toBeNull()
 		expect([...(input.grades.needs.get("keys.get") ?? [])]).toEqual(["unresolved param id"])
+	})
+})
+
+/* `operationId`'s DELETE of `path`, answered `status`. */
+const deleted = (operationId: string, path: string, status = 200) =>
+	exchangeOf({ method: "DELETE", options: { as: { anonymous: true }, operationId }, path }, { status })
+
+/* A list of keys the API already held: records this run did not make. */
+const listed = (...ids: string[]) =>
+	exchangeOf(
+		{ method: "GET", options: { as: { anonymous: true }, operationId: "keys.list" }, path: "/keys" },
+		{ body: ids.map((id) => ({ id })), status: 200 },
+	)
+
+/* Whether the run made a record: here, exactly `ids`, of the entity each question names. */
+function madeOnly(...ids: string[]) {
+	const asked = new Set<string>()
+	const madeByRun = (entity: string, id: string) => {
+		asked.add(entity)
+		return ids.includes(id)
+	}
+	return { asked, madeByRun }
+}
+
+describe("pathValues: a write goes only to a record this run made", () => {
+	it("draws a record the run made and already deleted over a live foreign one", async () => {
+		const made = madeOnly("key_1", "key_2")
+		const { input, op, params } = staged(keyed, "keys.revoke", { madeByRun: made.madeByRun })
+		input.client.transcript.push(
+			answered("keys.create", "/keys", "key_1"),
+			answered("keys.create", "/keys", "key_2"),
+			deleted("keys.revoke", "/keys/key_1"),
+			deleted("keys.revoke", "/keys/key_2", 404),
+			listed("foreign_1"),
+		)
+		expect(await pathValues(input, { op, params })).toEqual({ id: "key_1" })
+		expect([...made.asked]).toEqual(["key"])
+	})
+
+	it("else a live record the run made, never a foreign one", async () => {
+		const { input, op, params } = staged(keyed, "keys.update", { madeByRun: madeOnly("key_2").madeByRun })
+		input.client.transcript.push(answered("keys.create", "/keys", "key_2"), listed("foreign_1", "foreign_2"))
+		expect(await pathValues(input, { op, params })).toEqual({ id: "key_2" })
+	})
+
+	it("leaves a write unresolved when only records the run did not make were seen", async () => {
+		for (const operationId of ["keys.revoke", "keys.update"]) {
+			const { input, op, params } = staged(keyed, operationId, { madeByRun: madeOnly().madeByRun })
+			input.client.transcript.push(listed("foreign_1"), answered("keys.get", "/keys/foreign_2", "foreign_2"))
+			expect(await pathValues(input, { op, params })).toBeNull()
+			expect([...(input.grades.needs.get(operationId) ?? [])]).toEqual([
+				"unresolved param id: a write is sent only to a record this run created",
+			])
+		}
+	})
+
+	it("leaves a write under a parent no route reads unresolved: no entity, so nothing the run made", async () => {
+		const { input, op, params } = staged(keyed, "jobs.create", { madeByRun: () => true })
+		input.client.transcript.push(
+			exchangeOf(
+				{ method: "GET", options: { as: { anonymous: true }, operationId: "keys.list" }, path: "/keys" },
+				{ body: { project_id: "p1" }, status: 200 },
+			),
+		)
+		expect(await pathValues(input, { op, params })).toBeNull()
+		expect([...(input.grades.needs.get("jobs.create") ?? [])]).toEqual([
+			"unresolved param project_id: a write is sent only to a record this run created",
+		])
+	})
+
+	it("names no write rule when no answer showed a value at all", async () => {
+		const { input, op, params } = staged(keyed, "keys.revoke", { madeByRun: () => true })
+		expect(await pathValues(input, { op, params })).toBeNull()
+		expect([...(input.grades.needs.get("keys.revoke") ?? [])]).toEqual(["unresolved param id"])
 	})
 })
 

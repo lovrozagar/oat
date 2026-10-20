@@ -33,6 +33,7 @@ export async function contractFloor(ctx: RunContext): Promise<void> {
 		grades,
 		hooks: ctx.hooks,
 		inScope,
+		madeByRun: (entity, id) => ctx.ledger.holds(entity, id),
 		mode: scope.mode,
 		model,
 		nonce: ctx.nonce,

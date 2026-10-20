@@ -35,7 +35,16 @@ export function seenValue(
 	name: string,
 	redactor: Pick<Redactor, "holdsSecret">,
 ): string | undefined {
-	const want: Wanted = { accept: (value) => !redactor.holdsSecret(value), name }
+	return newestSeen(transcript, name, (value) => !redactor.holdsSecret(value))
+}
+
+/** The newest value an earlier success returned under exactly this name that `accept` takes. */
+export function newestSeen(
+	transcript: readonly Exchange[],
+	name: string,
+	accept: (value: string) => boolean,
+): string | undefined {
+	const want: Wanted = { accept, name }
 	for (let index = transcript.length - 1; index >= 0; index--) {
 		const exchange = transcript[index] as Exchange
 		if (exchange.status < 200 || exchange.status >= 300) continue

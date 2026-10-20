@@ -8,13 +8,14 @@
 import { requestContent } from "../../spec/collection/request.ts"
 import { applyActionBind } from "../effects/bind.ts"
 import { buildCohort, type CohortMember } from "../fixture.ts"
+import type { Exchange } from "../exchange.ts"
 import type { GradeLedger } from "../grades.ts"
-import { exampleOf, seenValue } from "./params.ts"
+import { exampleOf, newestSeen, seenValue } from "./params.ts"
 import type { ContractCall, ContractInput } from "./types.ts"
 
 /** Every path parameter's value, or `null` once one cannot be resolved (and the operation is skipped). */
 export async function pathValues(
-	input: Pick<ContractInput, "acting" | "client" | "grades" | "hooks" | "model" | "principal" | "roots">,
+	input: Pick<ContractInput, "acting" | "client" | "grades" | "hooks" | "madeByRun" | "model" | "principal" | "roots">,
 	{ op, params }: Pick<ContractCall, "op" | "params">,
 ): Promise<Record<string, string> | null> {
 	const values: Record<string, string> = {}
@@ -26,7 +27,8 @@ export async function pathValues(
 			(await askHook(input, { declared, name, op })) ??
 			seenFor(input, op, name)
 		if (value === undefined || value === null) {
-			input.grades.skipped([op.operationId], `unresolved param ${name}`)
+			const why = refusedWrite(input, op, name) ? ": a write is sent only to a record this run created" : ""
+			input.grades.skipped([op.operationId], `unresolved param ${name}${why}`)
 			return null
 		}
 		values[name] = value
@@ -34,32 +36,97 @@ export async function pathValues(
 	return values
 }
 
+/* The methods that change nothing: a read may go to any record the run saw. */
+const READS: ReadonlySet<string> = /* @__PURE__ */ new Set(["GET", "HEAD", "OPTIONS"])
+
 /* A path template with its parameter names dropped: `/projects/{project_id}/jobs` is `/projects/{}/jobs`. */
 const shapeOf = (path: string): string => path.replaceAll(/\{[^}]*\}/g, "{}")
+
+/* Where a parameter's records live: the collection's path shape, and one of its items'. */
+interface Collection {
+	path: string
+	item: string
+}
+
+/* What a value is drawn from: the parameter's name, its collection, and the answers it may come from. */
+interface Seen {
+	name: string
+	collection: Collection
+	pool: readonly Exchange[]
+}
 
 /*
  * The value an earlier success returned under `name`. A bare record key (`id`, `uuid`, `slug`) names
  * the record of the body it sits in, so only an answer about the parameter's own collection holds
  * one: its list or create, or one of its items. Any other resource's newest record answers `id`
  * too, and is the wrong record. A qualified name (`thing_id`, `thingId`) names its entity, and any
- * answer's value under it will do.
+ * answer's value under it will do. A write takes only a record the run made (`madeValue`).
  */
 function seenFor(
-	input: Pick<ContractInput, "client" | "model">,
+	input: Pick<ContractInput, "client" | "madeByRun" | "model">,
 	op: ContractCall["op"],
 	name: string,
 ): string | undefined {
-	const { redactor, transcript } = input.client
-	if (!/^[a-z0-9]+$/.test(name)) return seenValue(transcript, name, redactor)
+	const seen = seenOf(input, op, name)
+	if (READS.has(op.method)) return seenValue(seen.pool, name, input.client.redactor)
+	return madeValue(input, seen)
+}
+
+/* Whether a write's parameter went unresolved though an answer showed a value: one the run did not make. */
+function refusedWrite(input: Pick<ContractInput, "client" | "model">, op: ContractCall["op"], name: string): boolean {
+	return !READS.has(op.method) && seenValue(seenOf(input, op, name).pool, name, input.client.redactor) !== undefined
+}
+
+/* The parameter's collection, and the answers its value may come from. */
+function seenOf(input: Pick<ContractInput, "client" | "model">, op: ContractCall["op"], name: string): Seen {
+	const { transcript } = input.client
 	/* A built model's path parameters each stand in its path. */
 	const at = op.path.indexOf(`{${name}}`)
-	const collection = shapeOf(op.path.slice(0, op.path.lastIndexOf("/", at)))
-	const own = transcript.filter((exchange) => {
-		const id = exchange.operationId
-		const path = id === undefined ? undefined : input.model.byOperationId.get(id)?.path
-		return path !== undefined && [collection, `${collection}/{}`].includes(shapeOf(path))
-	})
-	return seenValue(own, name, redactor)
+	const path = shapeOf(op.path.slice(0, op.path.lastIndexOf("/", at)))
+	const collection = { item: `${path}/{}`, path }
+	const pool = /^[a-z0-9]+$/.test(name)
+		? transcript.filter((exchange) => [path, collection.item].includes(shapeAt(input.model, exchange) ?? ""))
+		: transcript
+	return { collection, name, pool }
+}
+
+/* The path shape of the operation an exchange was sent to; none for a raw request or another document's. */
+function shapeAt(model: ContractInput["model"], exchange: Exchange): string | undefined {
+	const id = exchange.operationId
+	const path = id === undefined ? undefined : model.byOperationId.get(id)?.path
+	return path === undefined ? undefined : shapeOf(path)
+}
+
+/*
+ * A write's value: a record this run made and has deleted since, where the write answers a harmless
+ * 404, else a live one it made. Never one an answer merely showed: a list or a read shows records
+ * the run did not make, and a write there would change one.
+ */
+function madeValue(input: Pick<ContractInput, "client" | "madeByRun" | "model">, seen: Seen): string | undefined {
+	/* A route of no entity names records of none: nothing there is the run's. */
+	const entity = input.model.operations.find((op) => shapeOf(op.path) === seen.collection.item)?.entity ?? undefined
+	if (entity === undefined) return undefined
+	const { redactor } = input.client
+	const made = (value: string): boolean => !redactor.holdsSecret(value) && input.madeByRun(entity, value)
+	const gone = deletedIn(input, seen.collection)
+	return (
+		newestSeen(seen.pool, seen.name, (value) => made(value) && gone.has(value)) ??
+		newestSeen(seen.pool, seen.name, made)
+	)
+}
+
+/* Every record of the collection a successful DELETE removed, by the id its URL ends in. */
+function deletedIn(input: Pick<ContractInput, "client" | "model">, collection: Collection): Set<string> {
+	const removed = input.client.transcript.filter(
+		(exchange) =>
+			exchange.method === "DELETE" &&
+			exchange.status >= 200 &&
+			exchange.status < 300 &&
+			shapeAt(input.model, exchange) === collection.item,
+	)
+	return new Set(
+		removed.map((exchange) => decodeURIComponent(new URL(exchange.url).pathname.split("/").at(-1) as string)),
+	)
 }
 
 /* `hooks.resolvePathValue`, told who acts and what the operation would send as it: never raw headers. */

@@ -42,6 +42,11 @@ export interface ContractInput {
 	nonce: string
 	/** Operations a scenario owns. Its verdict stands, even when it stopped before them. */
 	owned: ReadonlySet<string>
+	/**
+	 * Whether this run made the record of `entity` with `id`, removed since or not: the run's own
+	 * evidence, never an id an answer merely showed. A write is sent to no other record.
+	 */
+	madeByRun: (entity: string, id: string) => boolean
 	/** True once the run was interrupted or the network is gone: send nothing more. */
 	stopped: () => boolean
 }

@@ -12,6 +12,14 @@ function id(value: string): ProvenId {
 }
 
 describe("Ledger: recording", () => {
+	it("says which records it holds, whoever made them, removed since or not", () => {
+		const ledger = new Ledger()
+		ledger.record({ entity: "job", id: id("j1"), scope: {} }, owner("beta"))
+		expect(ledger.holds("job", "j1")).toBe(true)
+		expect(ledger.holds("job", "j2")).toBe(false)
+		expect(ledger.holds("note", "j1")).toBe(false)
+	})
+
 	it("records each record once per creator, and never an empty id", () => {
 		const ledger = new Ledger()
 		ledger.record({ entity: "note", id: id("n1"), scope: { org: "o1" } }, owner("alpha"))

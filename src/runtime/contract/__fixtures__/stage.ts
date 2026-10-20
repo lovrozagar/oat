@@ -46,6 +46,7 @@ export function stage(document: OpenApiDocument, respond: Responder, fields: Par
 		grades: new GradeLedger(),
 		hooks: {} as Hooks,
 		inScope: () => true,
+		madeByRun: () => false,
 		mode: "full" as const,
 		model,
 		nonce: "n0",

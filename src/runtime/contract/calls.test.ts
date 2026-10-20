@@ -84,6 +84,33 @@ describe("runContractCalls", () => {
 	})
 })
 
+/* Records the API already held, listed, and a delete that would remove one. */
+const held = doc({
+	"/records": { get: { operationId: "records.list", responses: ok({ items: item, type: "array" }) } },
+	"/records/{id}": { delete: { operationId: "records.delete", parameters: [pathParam("id")], responses: ok() } },
+})
+
+describe("runContractCalls and records the run did not make", () => {
+	it("never sends a write to a record only a list showed: it is left untested, and nothing is sent", async () => {
+		const { input, sent } = stage(held, () => ({ body: [{ id: "bystander" }], status: 200 }), {
+			inScope: (id) => id === "records.delete",
+			madeByRun: () => false,
+			mode: "targeted",
+		})
+		input.client.transcript.push(
+			exchangeOf(
+				{ method: "GET", options: { as: { principal: "alpha" }, operationId: "records.list" }, path: "/records" },
+				{ body: [{ id: "bystander" }], status: 200 },
+			),
+		)
+		await runContractCalls(input)
+		expect(sent).toEqual([])
+		expect([...(input.grades.needs.get("records.delete") ?? [])]).toEqual([
+			"unresolved param id: a write is sent only to a record this run created",
+		])
+	})
+})
+
 describe("runContractCalls on what it leaves alone", () => {
 	it("leaves out what a scenario owns, a check graded, or evidence proved", async () => {
 		const { input, sent } = stage(things, () => ({ status: 200 }), {
