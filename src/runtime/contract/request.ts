@@ -24,7 +24,7 @@ export async function pathValues(
 			input.roots[name] ??
 			(declared?.schema?.enum === undefined ? undefined : exampleOf(declared.schema)) ??
 			(await askHook(input, { declared, name, op })) ??
-			seenValue(input.client.transcript, name)
+			seenValue(input.client.transcript, name, input.client.redactor)
 		if (value === undefined || value === null) {
 			input.grades.skipped([op.operationId], `unresolved param ${name}`)
 			return null

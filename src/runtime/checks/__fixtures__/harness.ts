@@ -1,6 +1,7 @@
 import { checkContext } from "../../../../tests/support/check-context.ts"
 import type { Client } from "../../../client/client.ts"
 import type { RequestOptions } from "../../../client/types.ts"
+import { Redactor } from "../../../security/redact.ts"
 import type { Exchange } from "../../exchange.ts"
 import { FindingCollector } from "../../finding.ts"
 import { buildModel } from "../../../spec/graph/build.ts"
@@ -89,6 +90,7 @@ export function fakeClient(respond: Responder): FakeClient {
 		get: (path: string, options: RequestOptions) => request("GET", path, options),
 		hydrate: async (e: Exchange) => e,
 		readOnlyView: () => fake,
+		redactor: new Redactor(),
 		relativePath: (url: URL | string) => new URL(String(url), "http://api.test").pathname,
 		request,
 		transcript,

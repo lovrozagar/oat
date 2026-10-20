@@ -65,6 +65,12 @@ export class Redactor {
 		if (bare !== undefined) this.#secrets.add(bare)
 	}
 
+	/** Whether `value` carries a registered credential value, whole or inside it: never one to send elsewhere. */
+	holdsSecret(value: string): boolean {
+		for (const secret of this.#secrets) if (value.includes(secret)) return true
+		return false
+	}
+
 	isSecretHeader(name: string): boolean {
 		return isSecretHeaderName(name) || this.#headers.has(name.toLowerCase())
 	}

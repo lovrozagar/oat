@@ -1,9 +1,11 @@
 /**
  * Values for a schema-built request: an operation's declared parameters, an example each schema
- * names, and a value an earlier success returned under the same name.
+ * names, and a value an earlier success returned under the same name. A credential is never one:
+ * a login's answer is a success too, and its tokens are not a record's values.
  */
 
 import type { OperationObject } from "../../spec/types.ts"
+import type { Redactor } from "../../security/redact.ts"
 import type { Exchange } from "../exchange.ts"
 
 export interface Parameter {
@@ -27,35 +29,51 @@ export function exampleOf(schema: Parameter["schema"]): string | undefined {
 	return undefined
 }
 
-/** A value an earlier success already returned under exactly this name — the newest one. */
-export function seenValue(transcript: readonly Exchange[], name: string): string | undefined {
+/** A value an earlier success already returned under exactly this name — the newest one that is no credential. */
+export function seenValue(
+	transcript: readonly Exchange[],
+	name: string,
+	redactor: Pick<Redactor, "holdsSecret">,
+): string | undefined {
+	const want: Wanted = { accept: (value) => !redactor.holdsSecret(value), name }
 	for (let index = transcript.length - 1; index >= 0; index--) {
 		const exchange = transcript[index] as Exchange
 		if (exchange.status < 200 || exchange.status >= 300) continue
-		const hit = findNamed(exchange.responseBody, name, 0)
+		const hit = findNamed(exchange.responseBody, want, 0)
 		if (hit !== undefined) return hit
 	}
 	return undefined
 }
 
-/** The first non-empty string or number under `name`, at most five levels down. */
-function findNamed(node: unknown, name: string, depth: number): string | undefined {
+interface Wanted {
+	name: string
+	accept: (value: string) => boolean
+}
+
+/** The first acceptable non-empty string or number under `want.name`, at most five levels down. */
+function findNamed(node: unknown, want: Wanted, depth: number): string | undefined {
 	if (depth > 5 || node === null || typeof node !== "object") return undefined
 	if (Array.isArray(node)) {
 		for (const item of node) {
-			const hit = findNamed(item, name, depth + 1)
+			const hit = findNamed(item, want, depth + 1)
 			if (hit !== undefined) return hit
 		}
 		return undefined
 	}
 	for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
-		if (key === name && (typeof value === "string" || typeof value === "number") && String(value) !== "") {
-			return String(value)
-		}
-		const hit = findNamed(value, name, depth + 1)
+		const hit = key === want.name ? candidate(value, want) : undefined
 		if (hit !== undefined) return hit
+		const deeper = findNamed(value, want, depth + 1)
+		if (deeper !== undefined) return deeper
 	}
 	return undefined
+}
+
+/* A string or number, as text, when it is non-empty and acceptable. */
+function candidate(value: unknown, want: Wanted): string | undefined {
+	if (typeof value !== "string" && typeof value !== "number") return undefined
+	const text = String(value)
+	return text !== "" && want.accept(text) ? text : undefined
 }
 
 export function snippet(body: unknown): string {

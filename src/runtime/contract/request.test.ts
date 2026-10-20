@@ -58,6 +58,24 @@ describe("pathValues", () => {
 	})
 })
 
+describe("pathValues: never a credential", () => {
+	it("leaves a parameter unresolved rather than fill it with a token a login answered", async () => {
+		const invite = {
+			"/invites/{token}": { get: { operationId: "invite.get", parameters: [pathParam("token")], responses: ok() } },
+		}
+		const { input, op, params } = staged(invite, "invite.get")
+		input.client.redactor.registerSecret("acc-9f8e7d6c5b")
+		input.client.transcript.push(
+			exchange("POST", "/auth/login", {
+				body: { refresh_token: "ref-1a2b3c4d5e", token: "acc-9f8e7d6c5b" },
+				status: 200,
+			}),
+		)
+		expect(await pathValues(input, { op, params })).toBeNull()
+		expect([...(input.grades.needs.get("invite.get") ?? [])]).toEqual(["unresolved param token"])
+	})
+})
+
 describe("pathValues: what the hook is told", () => {
 	it("tells the hook who acts and what it would send on the operation, never raw headers", async () => {
 		const asked: unknown[] = []

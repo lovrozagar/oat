@@ -57,6 +57,18 @@ describe("Redactor", () => {
 	})
 })
 
+describe("Redactor.holdsSecret", () => {
+	it("tells whether a value carries a registered credential, whole or inside it", () => {
+		const redactor = new Redactor()
+		redactor.registerSecret("Bearer tok_live_123456")
+		expect(redactor.holdsSecret("tok_live_123456")).toBe(true)
+		expect(redactor.holdsSecret("Bearer tok_live_123456")).toBe(true)
+		expect(redactor.holdsSecret("id-tok_live_123456-x")).toBe(true)
+		expect(redactor.holdsSecret("tok_live")).toBe(false)
+		expect(redactor.holdsSecret("7")).toBe(false)
+	})
+})
+
 describe("Redactor, placed credentials", () => {
 	it("keeps an Authorization header's scheme word and scrubs the credential after it", () => {
 		const headers = new Redactor().headers({
