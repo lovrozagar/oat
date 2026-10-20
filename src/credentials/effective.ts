@@ -22,3 +22,8 @@ export function effectiveRecipe(
 	const options = Object.fromEntries(Object.entries(base).filter(([key]) => SCHEME_OPTIONS.has(key)))
 	return { ...options, ...override } as Partial<Recipe>
 }
+
+/** A config map's own entry: a principal or scheme named `constructor` is not the prototype's. */
+export function own<T>(map: Readonly<Record<string, T>>, key: string): T | undefined {
+	return Object.hasOwn(map, key) ? map[key] : undefined
+}

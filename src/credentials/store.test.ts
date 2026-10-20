@@ -283,7 +283,11 @@ describe("createStore: refresh outcomes", () => {
 		const { recorded, store } = harness({ login, refresh: new Set(["ann"]) })
 		await store.acquire({ principal: "ann", scheme: "jwt" })
 		login.add("ann")
-		const blocked = { blocked: "login for ann/jwt: auth step 1 answered 401" }
+		/* The reason names the renewal and both refusals, never reading like a first sign-in that failed. */
+		const blocked = {
+			blocked:
+				"renewal for ann/jwt: the refresh failed (refresh token reused), then acquiring afresh failed (auth step 1 answered 401)",
+		}
 		expect(await store.refresh({ principal: "ann", scheme: "jwt", sentValue: "ann-1" })).toEqual(blocked)
 		expect(await store.refresh({ principal: "ann", scheme: "jwt", sentValue: "ann-1" })).toEqual(blocked)
 		expect(await store.acquire({ principal: "ann", scheme: "jwt", scopes: ["other"] })).toEqual(blocked)

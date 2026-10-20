@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { Recipe } from "../config/types/security.ts"
-import { effectiveRecipe } from "./effective.ts"
+import { effectiveRecipe, own } from "./effective.ts"
 
 const login = { from: "$.t", steps: [{ operationId: "auth.login" }] } as Recipe["login"]
 
@@ -50,5 +50,12 @@ describe("effectiveRecipe, options that belong to the kind", () => {
 
 	it("keeps what the override restates", () => {
 		expect(effectiveRecipe(base, { expiresIn: 60, static: "t" })).toMatchObject({ expiresIn: 60, static: "t" })
+	})
+})
+
+describe("own", () => {
+	it("reads a config map's own entry, never the prototype's", () => {
+		const map: Record<string, number> = { a: 1 }
+		expect([own(map, "a"), own(map, "b"), own(map, "constructor")]).toEqual([1, undefined, undefined])
 	})
 })

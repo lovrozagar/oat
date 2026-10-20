@@ -10,7 +10,7 @@
  * belong to the primary scheme's place. An origin scheme with no mapping has no credential.
  */
 
-import { effectiveRecipe } from "../credentials/effective.ts"
+import { effectiveRecipe, own } from "../credentials/effective.ts"
 import { sendsFor } from "../credentials/placement.ts"
 import type { PrincipalsConfig, Recipe, SecurityConfig } from "../config/types/security.ts"
 import type { Sends } from "../credentials/ports.ts"
@@ -189,9 +189,4 @@ function recipeOf(ctx: CredentialSourceOptions, principal: string, scheme: strin
 	const primary = primaryOf(ctx, scheme)
 	if (primary === undefined) return undefined
 	return effectiveRecipe(own(ctx.security, primary), own(ctx.principals, principal)?.security?.[primary])
-}
-
-/* A config map's own entry: a scheme or principal named `constructor` is not the prototype's. */
-function own<T>(map: Readonly<Record<string, T>>, key: string): T | undefined {
-	return Object.hasOwn(map, key) ? map[key] : undefined
 }

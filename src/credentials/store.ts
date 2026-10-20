@@ -1,7 +1,7 @@
 import type { PrincipalsConfig, Recipe } from "../config/types/security.ts"
 import { messageOf } from "../errors/message.ts"
 import type { SecurityScheme } from "../spec/security/schemes.ts"
-import { effectiveRecipe } from "./effective.ts"
+import { effectiveRecipe, own } from "./effective.ts"
 import { expiresAtOf } from "./expiry.ts"
 import { sendsFor } from "./placement.ts"
 import { acquireRecipe, recipeKind } from "./recipes/acquire.ts"
@@ -164,10 +164,10 @@ async function renewal(ctx: StoreCtx, plan: Plan, held: Entry): Promise<Settled>
 		return record(ctx, plan, await renew())
 	} catch (error) {
 		if (held.issued.refresh === undefined || signup) return blockPair(ctx, plan, blockedBy("refresh", plan, error))
+		/* A refused declared refresh falls back to one fresh login, shared by concurrent callers; only its failure blocks. */
+		const settled = await issue(ctx, plan, { refused: error })
+		return "blocked" in settled ? blockPair(ctx, plan, settled.blocked) : settled
 	}
-	/* A refused declared refresh falls back to one fresh login, shared by concurrent callers; only its failure blocks. */
-	const settled = await issue(ctx, plan)
-	return "blocked" in settled ? blockPair(ctx, plan, settled.blocked) : settled
 }
 
 /* A renewal that failed blocks the principal × scheme for every scope set, for the rest of the run. */
@@ -177,11 +177,14 @@ function blockPair(ctx: StoreCtx, plan: Plan, reason: string): Blocked {
 	return blocked
 }
 
-async function issue(ctx: StoreCtx, plan: Plan): Promise<Settled> {
+/* A credential through the recipe; as a refused refresh's fallback, a failure names the renewal. */
+async function issue(ctx: StoreCtx, plan: Plan, after?: { refused: unknown }): Promise<Settled> {
 	try {
 		return record(ctx, plan, await acquireRecipe(acquireCtx(ctx, plan), plan.recipe))
 	} catch (error) {
-		return { blocked: blockedBy(recipeKind(plan.recipe) ?? "acquire", plan, error) }
+		if (after === undefined) return { blocked: blockedBy(recipeKind(plan.recipe) ?? "acquire", plan, error) }
+		const why = `the refresh failed (${messageOf(after.refused)}), then acquiring afresh failed (${messageOf(error)})`
+		return { blocked: blockedBy("renewal", plan, new Error(why)) }
 	}
 }
 
@@ -274,11 +277,6 @@ function acquireCtx(ctx: StoreCtx, plan: Plan): AcquireCtx {
 function identityOf(ctx: StoreCtx, principal: string): Readonly<Record<string, unknown>> {
 	const data = Object.entries(own(ctx.principals, principal) ?? {}).filter(([key]) => !GRADING.has(key))
 	return { ...Object.fromEntries(data), ...ctx.bound.get(principal) }
-}
-
-/* A config map's own entry: a principal or scheme named `constructor` is not the prototype's. */
-function own<T>(map: Readonly<Record<string, T>>, key: string): T | undefined {
-	return Object.hasOwn(map, key) ? map[key] : undefined
 }
 
 async function snapshot(ctx: StoreCtx): Promise<HeldCredential[]> {
