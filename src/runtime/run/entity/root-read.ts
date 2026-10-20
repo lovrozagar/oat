@@ -29,7 +29,8 @@ export async function rootRead(ctx: RunContext, entity: EntityModel): Promise<vo
 
 /* An error stops the root read as it stops any check: a stand-down where it has a cause, else a gap. */
 async function stoppedBy(ctx: RunContext, entity: string, ids: string[], error: unknown): Promise<Outcome> {
-	const attributed = ctx.findings.attributed(ids).ownedBy(ROOT_READ_CHECK_ID)
+	/* A stop is reported under its own id (the fence, a blocked credential), never the check's. */
+	const attributed = ctx.findings.attributed(ids)
 	const stopped = { attributed, checkId: ROOT_READ_CHECK_ID, ctx, entity }
 	const reason = await unresolvedBy(stopped, error)
 	if (reason !== undefined) return { kind: "unresolved", reason }
