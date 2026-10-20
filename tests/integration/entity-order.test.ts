@@ -150,7 +150,7 @@ describe("entity order", () => {
 		const result = await run({
 			baseUrl: url,
 			only: ["apple", "banana"],
-			principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
+			principals: { alpha: {} },
 			seed: 1,
 			spec: `${url}/v1/openapi/spec`,
 		})

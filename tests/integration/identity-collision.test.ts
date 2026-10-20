@@ -144,7 +144,7 @@ async function runAgainst(url: string): Promise<void> {
 	await run({
 		baseUrl: url,
 		cohortSize: 3,
-		principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+		principals: { alpha: {} },
 		seed: 1,
 		spec: `${url}/openapi.json`,
 	})

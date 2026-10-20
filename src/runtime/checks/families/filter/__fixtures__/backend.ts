@@ -202,7 +202,7 @@ function paged(rows: Record_[], query: Record<string, unknown>, behavior: Behavi
 /** Answers the widget listing from `store` (or what it returns now), as `behavior` says. */
 export function backend(store: Record_[] | ((call: number) => Record_[]), behavior: Behavior = {}): Responder {
 	let call = 0
-	return (method: string, path: string, options: RequestOptions): Answer | undefined => {
+	return (method: string, path: string, options: Omit<RequestOptions, "as">): Answer | undefined => {
 		call += 1
 		if (method !== "GET" || path !== PATH) return undefined
 		const query = (options.query ?? {}) as Record<string, unknown>

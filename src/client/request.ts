@@ -1,38 +1,46 @@
 /** One request, prepared once and sent per attempt: headers, fence, pacing and the wire. */
 
 import { MissingValueError } from "../errors/missing-value.ts"
-import { isAbsoluteHttpUrl } from "../runtime/cookies/redirect.ts"
 import type { Exchange } from "../runtime/exchange.ts"
 import { headerValue } from "../runtime/headers.ts"
 import type { RateLimiter } from "../runtime/rate-limit/limiter.ts"
 import { credentialHeaderNames } from "../security/strip.ts"
 import { answered, failed } from "./answer.ts"
 import type { Pacing, Prepared, Sent, Timed, Wire } from "./attempt.ts"
-import type { Credential } from "./credential-source.ts"
+import type { Actor } from "./credential-source.ts"
 import { type FenceAsk, fenceAsker } from "./fence.ts"
 import { requestIdOf, requestMessageBytes } from "./message.ts"
+import { placedNames, placeOn, requestCredential, type Unplaced } from "./placing.ts"
 import { sendFollowing } from "./redirect.ts"
 import { addRequiredQuery, carriesMissingValue, encodeBody, requestUrl } from "./serialize.ts"
 import type { NetworkClientOptions, RequestOptions, RequestStart } from "./types.ts"
 
-/** A request as the wire it is sent on will send it: its URL, operation, headers and credential. */
+/**
+ * A request as the wire it is sent on will send it: its URL, operation, headers and credential. An
+ * absolute URL on the client's own origin is resolved like a path; one on another origin matches no
+ * operation, and a URL followed from a response carries no credential there.
+ */
 export function prepare(ctx: Wire, method: string, path: string, options: RequestOptions): Prepared {
 	const verb = method.toUpperCase()
 	const url = requestUrl(ctx.baseUrl, path, options.query)
-	const resolved = isAbsoluteHttpUrl(path) ? null : (ctx.operationResolver?.(verb, ctx.relativePath(url)) ?? null)
+	const foreign = url.origin !== new URL(ctx.baseUrl).origin
+	const resolved = foreign ? null : (ctx.operationResolver?.(verb, ctx.relativePath(url)) ?? null)
+	const callerQuery = new Set(url.searchParams.keys())
 	addRequiredQuery(url, resolved?.requiredQuery ?? {}, options.query)
 	const relative = ctx.relativePath(url)
 	/* A value oat did not have, written as text: nothing goes out. */
 	if (carriesMissingValue(url)) throw new MissingValueError(`${verb} ${relative}`)
 	const operationId = options.operationId ?? resolved?.operationId
-	const named = operationId === undefined ? {} : { operationId }
-	const skip = options.skipAuthRefresh === true
+	const actor: Actor = foreign && "via" in options.as ? { anonymous: true } : options.as
+	/* Never the query: a presigned URL's signature is a secret no message repeats. */
+	const route = `${verb} ${foreign ? `${url.origin}${url.pathname}` : relative}`
 	return {
 		callerHeaders: () => {
 			const raw = options.headers
 			return { ...(typeof raw === "function" ? raw() : raw) }
 		},
-		credential: (headers) => (skip ? undefined : ctx.credentials?.credentialFor({ headers, ...named })),
+		callerQuery,
+		credential: requestCredential(ctx, { actor, operationId, probe: options.probe, route }),
 		method: verb,
 		operationId,
 		options,
@@ -42,45 +50,44 @@ export function prepare(ctx: Wire, method: string, path: string, options: Reques
 	}
 }
 
-/** One attempt. A network failure is recorded as an exchange with status 0 and raised as a `NetworkError`. */
+/**
+ * One attempt. Its credential is resolved first, so a request whose security cannot be met sends
+ * nothing. A network failure is recorded as an exchange with status 0 and raised as a `NetworkError`.
+ */
 export async function sendAttempt(request: Prepared, attempt: number, wire: Wire): Promise<Exchange> {
 	const { options } = request
-	const { headers, caller, credential } = await headersFor(request, wire)
+	const placement = await request.credential.next()
+	const { headers, url } = placeOn(placement, await unplaced(request, wire))
 	const body = encodeBody(options.body, options.contentType)
 	if (body.contentType !== undefined) headers["content-type"] = body.contentType
 	/* The headers each hop sends: redirects strip and add to them, and the fence sees them as they are. */
 	const hopHeaders = { ...headers }
-	const fenced = { headers: hopHeaders, operationId: request.operationId, purpose: options.context?.purpose }
+	const fenced = { headers: hopHeaders, operationId: request.operationId, placement, purpose: options.context?.purpose }
 	const fence = fenceAsker(wire.fence, fenced)
-	await fence(request.url, request.method, options.body)
-	const sent: Sent = { attempt, body, caller, headers, request }
+	await fence(url, request.method, options.body)
+	const sent: Sent = { attempt, body, headers, placement, request, url }
 	const pacing = pacingOf(request, wire.rateLimiter)
 	await wire.slots.acquire()
 	let landed: Timed
 	try {
 		const room = await paced(pacing, request.method, wire.rateLimiter)
-		landed = await onTheWire(sent, { credential, fence, hopHeaders, room }, wire)
+		landed = await onTheWire(sent, { fence, hopHeaders, room }, wire)
 	} finally {
 		wire.slots.release()
 	}
 	return answered(landed, { ...sent, pacing }, wire)
 }
 
-/** The headers one attempt sends: globals, then `resolveHeaders`, then the caller's, then the credential. */
-async function headersFor(
-	request: Prepared,
-	wire: Wire,
-): Promise<{ headers: Record<string, string>; caller: Record<string, string>; credential: Credential | undefined }> {
+/** The attempt before its credential: globals, then `resolveHeaders`, then the caller's headers. */
+async function unplaced(request: Prepared, wire: Wire): Promise<Unplaced> {
 	const { options } = request
-	const own = request.callerHeaders()
 	const hooked = await wire.resolveHeaders?.({
 		method: request.method,
 		url: request.url.toString(),
 		...(options.operationId === undefined ? {} : { operationId: options.operationId }),
 	})
-	const credential = request.credential(own)
-	const caller = credential === undefined ? own : { ...own, ...credential.headers() }
-	return { caller, credential, headers: { ...wire.headers, ...hooked, ...caller } }
+	const layers = [wire.headers, hooked ?? {}, request.callerHeaders()]
+	return { callerQuery: request.callerQuery, layers, url: request.url }
 }
 
 /* Rules are written against documented paths, which never include the base path. */
@@ -109,7 +116,6 @@ async function paced(
 }
 
 interface Going {
-	credential: Credential | undefined
 	fence: FenceAsk
 	hopHeaders: Record<string, string>
 	room: boolean | undefined
@@ -117,9 +123,10 @@ interface Going {
 
 /** Sends the attempt and every redirect it follows, inside the hooks that watch the wire. */
 async function onTheWire(sent: Sent, going: Going, wire: Wire): Promise<Timed> {
-	const { request, headers, body } = sent
+	const { request, headers, body, url } = sent
 	const { options } = request
 	const probe = probeOf(sent)
+	const placed = placedNames(sent.placement)
 	wire.httpHooks?.start?.(probe)
 	const started = performance.now()
 	try {
@@ -130,14 +137,15 @@ async function onTheWire(sent: Sent, going: Going, wire: Wire): Promise<Timed> {
 				headers: going.hopHeaders,
 				method: request.method,
 				redirect: manual ? "manual" : undefined,
-				url: request.url,
+				url,
 			},
 			{
 				body: options.body,
 				callerCookie: headerValue(headers, "cookie"),
-				/* Every header that carries a credential: the known names, and whatever the bound
-				 * principal injects — an API key under a custom name is still a key. */
-				credentialNames: credentialHeaderNames(Object.keys(going.credential?.headers() ?? {})),
+				/* Every header that carries a credential: the known names, and whatever this request
+				 * placed its credential under, an API key under a custom name included. */
+				credentialNames: credentialHeaderNames(placed.headers),
+				credentialQuery: placed.query,
 				fence: going.fence,
 				follow: options.redirect === "follow",
 				send: transport(wire.network),
@@ -151,13 +159,13 @@ async function onTheWire(sent: Sent, going: Going, wire: Wire): Promise<Timed> {
 	}
 }
 
-function probeOf({ request, headers, body }: Sent): RequestStart {
+function probeOf({ request, headers, body, url }: Sent): RequestStart {
 	return {
 		at: Date.now(),
 		method: request.method,
-		requestBytes: requestMessageBytes(request, headers, body),
+		requestBytes: requestMessageBytes({ method: request.method, url }, headers, body),
 		requestId: requestIdOf(headers, {}),
-		url: request.url.toString(),
+		url: url.toString(),
 	}
 }
 

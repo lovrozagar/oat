@@ -37,9 +37,9 @@ describe("Client.setAfterExchange", () => {
 		const seen: string[] = []
 		client.setAfterExchange(async (exchange: Exchange) => {
 			seen.push(new URL(exchange.url).pathname)
-			if (new URL(exchange.url).pathname === "/made") await client.get("/read-back")
+			if (new URL(exchange.url).pathname === "/made") await client.get("/read-back", { as: { anonymous: true } })
 		})
-		await client.request("POST", "/made", { body: {} })
+		await client.request("POST", "/made", { as: { anonymous: true }, body: {} })
 		expect(seen).toEqual(["/made", "/read-back"])
 	})
 
@@ -49,8 +49,8 @@ describe("Client.setAfterExchange", () => {
 		client.setAfterExchange(async (exchange) => {
 			purposes.push(exchange.purpose)
 		})
-		await client.view({ purpose: "probe" }).get("/a")
-		await client.readOnlyView({ purpose: "assertion" }).get("/b")
+		await client.view({ purpose: "probe" }).get("/a", { as: { anonymous: true } })
+		await client.readOnlyView({ purpose: "assertion" }).get("/b", { as: { anonymous: true } })
 		expect(purposes).toEqual(["probe", "assertion"])
 	})
 
@@ -60,7 +60,7 @@ describe("Client.setAfterExchange", () => {
 		client.setAfterExchange(async () => {
 			calls += 1
 		})
-		await expect(client.request("POST", "/broken", { body: {} })).rejects.toThrow(
+		await expect(client.request("POST", "/broken", { as: { anonymous: true }, body: {} })).rejects.toThrow(
 			/^POST http:\/\/127\.0\.0\.1:\d+\/broken failed \(/,
 		)
 		expect(calls).toBe(0)

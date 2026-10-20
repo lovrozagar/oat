@@ -1,7 +1,8 @@
 import { createServer, request as httpRequest, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
-import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
+import type { PrincipalEntry } from "../../src/config/types/security.ts"
+import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import type { ReferenceServer } from "../../src/reference/http/server.ts"
 import { run, type RunResult } from "../../src/runtime/run/index.ts"
@@ -50,6 +51,7 @@ async function runAt(baseUrl: string, ops?: string[]): Promise<RunResult> {
 	return run({
 		baseUrl,
 		principals: PRINCIPALS,
+		security: SECURITY,
 		seed: 42,
 		spec: `${baseUrl}/v1/openapi/spec`,
 		...(ops === undefined ? {} : { ops }),
@@ -143,8 +145,9 @@ async function runWithCdn(seeded: string[], ops: string[]): Promise<RunResult> {
 	return run({
 		baseUrl: primary.url,
 		ops,
-		origins: [{ baseUrl: cdn.url, id: "cdn", spec: `${cdn.url}/v1/openapi/spec` }],
+		origins: [{ baseUrl: cdn.url, id: "cdn", security: { bearer: "bearer" }, spec: `${cdn.url}/v1/openapi/spec` }],
 		principals: PRINCIPALS,
+		security: SECURITY,
 		seed: 42,
 		spec: `${primary.url}/v1/openapi/spec`,
 	})
@@ -177,7 +180,8 @@ function ungradedTests(): void {
 		const result = await run({
 			baseUrl: server.url,
 			ops: ["table.revoke"],
-			principals: PRINCIPALS.slice(0, 1),
+			principals: { alpha: PRINCIPALS["alpha"] as PrincipalEntry },
+			security: SECURITY,
 			seed: 42,
 			spec: `${server.url}/v1/openapi/spec`,
 		})

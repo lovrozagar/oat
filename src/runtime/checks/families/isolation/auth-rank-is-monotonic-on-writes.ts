@@ -5,7 +5,7 @@ import { fillPath } from "../../../fill-path.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import type { Actor, WriteContext } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
-import { sameTenantScope, scratchRecord, updateRequest } from "../../isolation/scratch.ts"
+import { scratchRecord, updateRequest } from "../../isolation/scratch.ts"
 import { changedValue, pickWritableStringField, requestSchemaOf } from "../../payloads/body.ts"
 import { createFresh } from "../../payloads/create.ts"
 import { declared, itemParamFor } from "../../planning/subjects.ts"
@@ -29,7 +29,7 @@ export const rankIsMonotonicOnWrites = defineCheck<{ home: Actor[] }>({
 	plan: (ctx) => {
 		const primary = ctx.actors[0]
 		if (primary === undefined || ctx.createOp === undefined) return cannot()
-		const home = ctx.actors.filter((actor) => sameTenantScope(actor.roots, primary.roots))
+		const home = ctx.actors.filter((actor) => actor.tenant === primary.tenant)
 		if (new Set(home.map((actor) => actor.rank)).size < 2) return cannot()
 		return ready({ home })
 	},
@@ -55,8 +55,8 @@ export const rankIsMonotonicOnWrites = defineCheck<{ home: Actor[] }>({
 			return ctx.findings.backend(this.id, ctx.entityName, {
 				summary: `a lower-ranked role can ${kind} where a higher-ranked role cannot`,
 				detail:
-					`${lower.role ?? lower.id} (rank ${lower.rank}) was allowed to ${kind} ${ctx.entityName} ` +
-					`(${lo.exchange.status}); ${higher.role ?? higher.id} (rank ${higher.rank}) was refused ` +
+					`${lower.id} (rank ${lower.rank}) was allowed to ${kind} ${ctx.entityName} ` +
+					`(${lo.exchange.status}); ${higher.id} (rank ${higher.rank}) was refused ` +
 					`(${hi.exchange.status}). Privilege must be monotonic on writes as on reads.`,
 				evidence: [lo.exchange, hi.exchange],
 			})
@@ -73,7 +73,7 @@ async function tryWrites(ctx: WriteContext, check: string, actor: Actor): Promis
 	const createOp = ctx.createOp as OperationModel
 	const schema = requestSchemaOf(ctx, createOp)
 	if (schema !== null) {
-		const { exchange: created } = await createFresh(ctx, createOp, schema, actor.headers())
+		const { exchange: created } = await createFresh(ctx, createOp, schema, actor.id)
 		verdicts.push(["create", judgeWrite(created)])
 	}
 	const updateOp = ctx.updateOp
@@ -88,7 +88,7 @@ async function tryWrites(ctx: WriteContext, check: string, actor: Actor): Promis
 		if ("outcome" in made) return made
 		const params = { ...ctx.scope, ...itemParamFor(ctx, made.scratch.id) }
 		const deleted = await ctx.client.request("DELETE", fillPath(deleteOp.path, params), {
-			headers: actor.headers(),
+			as: { principal: actor.id },
 			operationId: deleteOp.operationId,
 		})
 		verdicts.push(["delete", judgeWrite(deleted)])
@@ -112,7 +112,7 @@ async function tryUpdate(
 	const params = { ...ctx.scope, ...itemParamFor(ctx, made.scratch.id) }
 	const updated = await ctx.client.request(update.method, fillPath(updateOp.path, params), {
 		...update.options,
-		headers: actor.headers(),
+		as: { principal: actor.id },
 		operationId: updateOp.operationId,
 	})
 	return { verdict: judgeWrite(updated) }

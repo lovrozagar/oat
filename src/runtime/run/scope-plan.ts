@@ -14,7 +14,7 @@ import type { Connected, Planned } from "./context.ts"
  */
 export function planScope(connected: Connected): Planned {
 	const { options, model, originClients, profile, progress } = connected
-	const authCreates = authStepOperationIds(options.principals)
+	const authCreates = authStepOperationIds(options)
 	const scope = resolveTargetScope(model, {
 		...(options.ops === undefined ? {} : { ops: options.ops }),
 		...(options.only === undefined ? {} : { only: options.only }),

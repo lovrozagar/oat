@@ -35,6 +35,7 @@ Requires `--config`. CLI flags override the same field in the config when both a
 | `--out`                                    | `config.outDir` or `./.oat/runs` | history root; each run writes `<out>/<datetime>/` and updates `latest`                                                                          |
 | `--max-in-flight`                          | `config.maxInFlight` or `4`      | HTTP requests allowed at once                                                                                                                   |
 | `--keep-fixtures`                          | `config.keepFixtures` or false   | do not DELETE what the run created                                                                                                              |
+| `--keep-credentials`                       | false                            | write the credentials the run held to `.oat/credentials.json` (mode 0600), outside `--out`; `principals.json` never holds one                   |
 | `--quiet`                                  | false                            | no stderr progress; files under `--out` still update                                                                                            |
 | `--save-exchanges` / `--no-save-exchanges` | on unless `--profile cheap`      | persist every HTTP exchange under the run dir (`exchanges.jsonl`, `exchanges/`, `blobs/`). Does **not** change in-memory transcript RAM         |
 

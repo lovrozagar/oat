@@ -10,14 +10,14 @@ import { noteLateStop } from "./interrupt.ts"
 import { runLanes } from "./lanes.ts"
 import { load } from "./load.ts"
 import { type OriginRuns, runSecondaryOrigins } from "./origins.ts"
-import { adoptPrincipals, resolvePrincipals } from "./principals.ts"
+import { resolvePrincipals } from "./principals.ts"
 import { publicGets } from "./public-gets.ts"
 import { earlyResult, finalResult, scopeReport, settle } from "./result.ts"
 import { scenarios } from "./scenarios.ts"
 import { planScope } from "./scope-plan.ts"
 import { serverErrors } from "./server-errors.ts"
 import { readVersion } from "./target-version.ts"
-import { reportUnremovable, teardownPrincipals, trackCreates, unwind } from "./teardown.ts"
+import { reportUnremovable, revokeCredentials, teardownPrincipals, trackCreates, unwind } from "./teardown.ts"
 import type { RunOptions, RunResult } from "./types.ts"
 import type { RunFindingId } from "../check-ids.ts"
 
@@ -32,10 +32,10 @@ import type { RunFindingId } from "../check-ids.ts"
 export async function run(options: RunOptions): Promise<RunResult> {
 	/* A registry with a duplicate id or a dependency out of order would grade nothing correctly. */
 	buildRegistry(CHECKS)
-	const planned = planScope(await connect(await load(options)))
-	const resolved = await resolvePrincipals(planned)
-	if (resolved === null) return earlyResult(planned)
-	const authed = adoptPrincipals(planned, resolved)
+	const planned = planScope(connect(await load(options)))
+	const principals = await resolvePrincipals(planned)
+	if (principals === null) return earlyResult(planned)
+	const authed = { ...planned, principals }
 	const ctx: RunContext = { ...authed, exclusion: createExclusion(authed), targetVersion: await readVersion(authed) }
 	trackCreates(ctx)
 	await publicGets(ctx)
@@ -49,14 +49,23 @@ export async function run(options: RunOptions): Promise<RunResult> {
 	await unwind(ctx)
 	serverErrors(ctx)
 	reportUnremovable(ctx)
-	const persisted = await settle(ctx)
+	const settled = await settle(ctx)
 	const coverage = scopeReport(ctx)
-	if ((options.origins ?? []).length > 0 && options.skipPrincipalTeardown !== true) {
-		await secondaryOrigins(ctx, { coverage, persisted, runOrigin: run })
-	}
-	await teardownPrincipals(ctx)
+	await closeOut(ctx, { coverage, runOrigin: run })
 	ctx.progress.tick({ message: "done", phase: "done", requests: ctx.progress.requests })
-	return finalResult(ctx, persisted, coverage)
+	return finalResult(ctx, settled, coverage)
+}
+
+/**
+ * The run's last calls, in this order: the secondary origins, which send its minted keys too; then
+ * the revokes of every key minted; then the accounts it signed up, whose sessions those revokes
+ * were sent with.
+ */
+export async function closeOut(ctx: RunContext, runs: OriginRuns): Promise<void> {
+	const { options } = ctx
+	if ((options.origins ?? []).length > 0 && options.skipPrincipalTeardown !== true) await secondaryOrigins(ctx, runs)
+	await revokeCredentials(ctx)
+	await teardownPrincipals(ctx)
 }
 
 async function secondaryOrigins(ctx: RunContext, runs: OriginRuns): Promise<void> {

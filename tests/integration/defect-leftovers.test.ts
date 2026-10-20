@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { leftBehind, unreportedLeftovers } from "../../src/conformance/leaks.ts"
-import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { run } from "../../src/runtime/run/index.ts"
 
@@ -17,6 +17,7 @@ async function runWith(defect: string, shape?: string) {
 		const result = await run({
 			baseUrl: server.url,
 			principals: PRINCIPALS,
+			security: SECURITY,
 			seed: 42,
 			spec: `${server.url}/v1/openapi/spec`,
 		})

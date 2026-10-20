@@ -296,7 +296,7 @@ async function runWidgets(options: ServeOptions) {
 	return run({
 		baseUrl: world.url,
 		only: ["widget"],
-		principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
+		principals: { alpha: {} },
 		seed: 1,
 		spec: `${world.url}/v1/openapi/spec`,
 	})

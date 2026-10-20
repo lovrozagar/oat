@@ -11,6 +11,7 @@ import type { CheckId } from "./check-ids.ts"
 import { describeSuccess } from "../spec/graph/statuses.ts"
 import type { OperationModel, SpecModel } from "../spec/graph/types.ts"
 import type { GradeLedger } from "./grades.ts"
+import { noSecurityReason } from "./no-security.ts"
 
 export const PUBLIC_GET_CHECK_ID = "response.public-get-returns-success" as const satisfies CheckId
 
@@ -53,23 +54,26 @@ export async function runPublicGets(input: {
 	input.checksRun.add(PUBLIC_GET_CHECK_ID)
 	/* `isPublicGet` keeps only paths with no parameter, so each path is sent as written. */
 	for (const op of ops) {
+		const findings = input.findings.attributed([op.operationId]).ownedBy(PUBLIC_GET_CHECK_ID)
+		const undeclared = noSecurityReason(op)
+		if (undeclared !== undefined) {
+			findings.unresolved(PUBLIC_GET_CHECK_ID, op.operationId, undeclared)
+			continue
+		}
 		const exchange = await input.client.request(op.method, op.path, {
-			headers: {},
+			as: { anonymous: true },
 			operationId: op.operationId,
-			skipAuthRefresh: true,
+			probe: true,
 		})
 		input.grades.graded([op.operationId], PUBLIC_GET_CHECK_ID)
 		if (successMatches(op, exchange.status)) continue
 		/* `documentsSuccess` kept only routes that name a 2xx, so this list is never empty. */
 		const expected = describeSuccess(op.statuses).join(", ")
-		input.findings
-			.attributed([op.operationId])
-			.ownedBy(PUBLIC_GET_CHECK_ID)
-			.backend(PUBLIC_GET_CHECK_ID, op.operationId, {
-				summary: "a public read did not return its success status",
-				detail: `${op.operationId} returned ${exchange.status}. The document says ${expected} for a request with no token and no id.`,
-				evidence: [exchange],
-			})
+		findings.backend(PUBLIC_GET_CHECK_ID, op.operationId, {
+			summary: "a public read did not return its success status",
+			detail: `${op.operationId} returned ${exchange.status}. The document says ${expected} for a request with no token and no id.`,
+			evidence: [exchange],
+		})
 	}
 }
 

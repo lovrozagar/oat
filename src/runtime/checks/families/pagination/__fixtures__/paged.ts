@@ -88,7 +88,7 @@ export function widgets(n: number, tags = 2): Record_[] {
 }
 
 /** The query as the client sent it. */
-export function queryOf(options: RequestOptions): Record<string, unknown> {
+export function queryOf(options: Omit<RequestOptions, "as">): Record<string, unknown> {
 	return (options.query ?? {}) as Record<string, unknown>
 }
 

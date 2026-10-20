@@ -96,7 +96,7 @@ describe("stillListed: shapes", () => {
 const failingAt = (failing: number, answer: () => never | { status: number }): Store => {
 	const held = store({ alpha: ids(4) }, { pageSize: 2 })
 	const full = held
-	held.answers["GET /notes"] = (options: RequestOptions) => {
+	held.answers["GET /notes"] = (options: Omit<RequestOptions, "as">) => {
 		const page = Number((options.query as Record<string, unknown>).page ?? 1)
 		if (page === failing) return answer()
 		return {

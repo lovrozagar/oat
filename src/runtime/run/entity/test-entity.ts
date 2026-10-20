@@ -36,7 +36,6 @@ export async function testEntity(ctx: RunContext, entity: EntityModel): Promise<
 		phase: "seed",
 		requests: ctx.progress.requests,
 	})
-	if (!(await ctx.principals.refreshAll(entity.name))) return
 	const world = await seedWorld(run, seedPlan(run))
 	if (world === null) return
 	const context = await checkContext(run, world, await actorsOf(run, world))
@@ -46,7 +45,7 @@ export async function testEntity(ctx: RunContext, entity: EntityModel): Promise<
 
 /** One entity under test, before its seeding: its routes, its targets, and its own scratch state. */
 export function entityRun(ctx: RunContext, entity: EntityModel, listOp: OperationModel): EntityRun {
-	const { model, scope, findings, principals, options, state } = ctx
+	const { model, scope, findings, principals, state } = ctx
 	const createOp = model.byOperationId.get(entity.create ?? "")
 	/* Targets this entity's checks can grade. Seeding findings land on them: under --ops a seed
 	 * that fails leaves exactly these ungraded, and the report has to say which. */
@@ -67,7 +66,7 @@ export function entityRun(ctx: RunContext, entity: EntityModel, listOp: Operatio
 		index: [...model.entities.keys()].indexOf(entity.name),
 		listOp,
 		lostVariants: [],
-		roots: { ...options.roots, ...principals.alpha.roots },
+		roots: { ...principals.alpha.scope },
 		seeding: ctx.client.view({ purpose: "seed", subject: entity.name }),
 		taken,
 	}

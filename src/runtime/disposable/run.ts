@@ -3,6 +3,7 @@
  * that leave the session standing, and one of its own for each that ends it.
  */
 
+import { UnsatisfiedSecurity } from "../../client/credential-source.ts"
 import { callerRead, destructiveOps, DISPOSABLE_CHECK_ID, invalidatesCaller } from "./check.ts"
 import { runOne } from "./one.ts"
 import { signUp } from "./signup.ts"
@@ -21,23 +22,30 @@ export async function runDisposableOps(input: DisposableInput): Promise<void> {
 		return
 	}
 	/* An operation that ends the session gets a user of its own, so no order between them matters. */
-	let shared: Session | null | undefined
+	let shared: Session | undefined
 	for (const [index, op] of ops.entries()) {
 		const ends = invalidatesCaller(op, read)
-		let session: Session | null
+		let session: Session | { blocked: string }
 		try {
-			session = ends ? await signUp(input, `${index}`) : (shared ??= await signUp(input, "shared"))
+			session = ends ? await signUp(input, `${index}`) : (shared ?? (await signUp(input, "shared")))
 		} catch (error) {
-			input.grades.skipped(
-				[op.operationId],
-				`the second user could not sign up: ${error instanceof Error ? error.message : String(error)}`,
-			)
+			session = { blocked: error instanceof Error ? error.message : String(error) }
+		}
+		if ("blocked" in session) {
+			input.grades.skipped([op.operationId], `the second user could not sign up: ${session.blocked}`)
 			continue
 		}
-		if (session === null) {
-			input.grades.skipped([op.operationId], "no way to sign up a second user (an auth flow or x-fresh-principal)")
-			continue
-		}
-		await runOne(input, { ends, op, read, session })
+		if (!ends) shared = session
+		await runAsSecondUser(input, { ends, op, read, session })
+	}
+}
+
+/* One operation as the second user; a credential it cannot hold (a renewal that would sign up again) skips it, with why. */
+async function runAsSecondUser(input: DisposableInput, run: Parameters<typeof runOne>[1]): Promise<void> {
+	try {
+		await runOne(input, run)
+	} catch (error) {
+		if (!(error instanceof UnsatisfiedSecurity)) throw error
+		input.grades.skipped([run.op.operationId], error.message)
 	}
 }

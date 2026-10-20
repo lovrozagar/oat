@@ -4,10 +4,10 @@ import { afterEach, describe, expect, it } from "vitest"
 import type { Hooks, Scenario } from "../../src/config/define/types.ts"
 import { configProblems } from "../../src/config/validate.ts"
 import { leftBehind } from "../../src/conformance/leaks.ts"
-import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
+import { bearerSecurity } from "../../src/conformance/harness/security.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { run } from "../../src/runtime/run/index.ts"
-import { Client } from "../../src/client/client.ts"
 import { listedIds } from "../../src/runtime/proven-id.ts"
 import { Ledger } from "../../src/runtime/teardown/ledger.ts"
 import { NEVER_SEEN } from "../../src/runtime/teardown/never-seen.ts"
@@ -16,7 +16,7 @@ import { VERIFY_HOOK_PRESENT } from "../../src/runtime/teardown/verify-hook.ts"
 import { buildModel } from "../../src/spec/graph/build.ts"
 import { dereference } from "../../src/spec/load/dereference.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
-import { Redactor } from "../../src/security/redact.ts"
+import { actingClient } from "../support/acting-client.ts"
 
 /*
  * A delete that answers 2xx proves only that the backend said so. After the unwind oat reads each
@@ -33,6 +33,7 @@ async function runAgainst(defects: string[], extra: Record<string, unknown> = {}
 		return await run({
 			baseUrl: server.url,
 			principals: PRINCIPALS,
+			security: SECURITY,
 			seed: 42,
 			spec: `${server.url}/v1/openapi/spec`,
 			...extra,
@@ -69,6 +70,7 @@ describe("teardown verification", () => {
 			const result = await run({
 				baseUrl: server.url,
 				principals: PRINCIPALS,
+				security: SECURITY,
 				seed: 42,
 				spec: `${server.url}/v1/openapi/spec`,
 			})
@@ -271,7 +273,7 @@ async function runHidden(text: string, options: { drop?: boolean; hooks?: Hooks 
 	const result = await run({
 		baseUrl: backend.url,
 		...(options.hooks === undefined ? {} : { hooks: options.hooks }),
-		principals: [{ id: "alpha" }],
+		principals: { alpha: {} },
 		scenarios: [scenario(text, options.drop)],
 		seed: 1,
 		spec: `${backend.url}/openapi.json`,
@@ -379,6 +381,7 @@ describe("hooks.verifyRemoved", () => {
 
 /* A per-tenant id sequence: each project's first row is `1`. Reads find nothing; deletes answer 204. */
 const TENANT_ROWS = {
+	...bearerSecurity(),
 	info: { title: "tenant-rows", version: "1" },
 	openapi: "3.1.0",
 	paths: {
@@ -395,7 +398,7 @@ const TENANT_ROWS = {
 	},
 } as unknown as OpenApiDocument
 
-const owner = (id: string): Owner => ({ headers: () => ({ authorization: `Bearer ${id}` }), id })
+const owner = (id: string): Owner => ({ id })
 
 /* Both tenants hold `row 1`; only `seer`'s read of it answers. */
 async function twoRowOnes(seer: string | null, verdicts: Record<string, "present" | "absent">) {
@@ -407,16 +410,20 @@ async function twoRowOnes(seer: string | null, verdicts: Record<string, "present
 	})
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
 	closers.push(() => new Promise((resolve) => server.close(() => resolve())))
-	const client = new Client({
+	const model = buildModel(dereference(TENANT_ROWS).doc)
+	/* Each tenant's principal sends its own token. */
+	const client = actingClient({
 		baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
-		redactor: new Redactor(),
+		model,
+		principals: { alpha: { token: "alpha" }, beta: { token: "beta" } },
+		security: { bearer: { static: "{principal.token}" } },
 	})
 	const ledger = new Ledger()
 	const [one] = listedIds(["1"])
 	if (one === undefined) throw new Error("listedIds gave nothing back")
 	ledger.record({ entity: "row", id: one, scope: { project_id: "a", row_id: "1" } }, owner("alpha"))
 	ledger.record({ entity: "row", id: one, scope: { project_id: "b", row_id: "1" } }, owner("beta"))
-	return ledger.unwind(buildModel(dereference(TENANT_ROWS).doc), client, {
+	return ledger.unwind(model, client, {
 		fallbacks: () => [],
 		options: {
 			verify: false,

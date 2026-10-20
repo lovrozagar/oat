@@ -215,7 +215,7 @@ async function runThrottledSeed() {
 		baseUrl: server.url,
 		keepFixtures: true,
 		only: ["thing"],
-		principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
+		principals: { alpha: {} },
 		seed: 1,
 		spec: `${server.url}/v1/openapi/spec`,
 	})
@@ -227,7 +227,7 @@ describe("Client.request 429 retry", () => {
 		const { posts, server } = await throttledOnce({ "retry-after": "1" })
 		const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 		const started = Date.now()
-		const exchange = await client.request("POST", "/v1/things", { body: { name: "n" } })
+		const exchange = await client.request("POST", "/v1/things", { as: { anonymous: true }, body: { name: "n" } })
 		const elapsed = Date.now() - started
 		expect(posts()).toBe(2)
 		expect(exchange.status).toBe(201)
@@ -250,7 +250,7 @@ describe("Client.request 429 retry", () => {
 			rateLimiter: new RateLimiter(rules),
 			redactor: new Redactor(),
 		})
-		const exchange = await client.request("POST", "/v1/things", { body: { name: "n" } })
+		const exchange = await client.request("POST", "/v1/things", { as: { anonymous: true }, body: { name: "n" } })
 		expect(posts()).toBe(2)
 		expect(exchange.status).toBe(201)
 		expect(client.transcript[0]?.rateLimitCategory).toBeUndefined()
@@ -262,7 +262,7 @@ describe("Client.request 429 retry", () => {
 		const { posts, server } = await throttledOnce()
 		const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 		const started = Date.now()
-		const exchange = await client.request("POST", "/v1/things", { body: { name: "n" } })
+		const exchange = await client.request("POST", "/v1/things", { as: { anonymous: true }, body: { name: "n" } })
 		expect(posts()).toBe(2)
 		expect(exchange.status).toBe(201)
 		expect(Date.now() - started).toBeGreaterThanOrEqual(900)

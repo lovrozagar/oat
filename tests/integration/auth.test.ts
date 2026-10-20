@@ -1,12 +1,25 @@
+import { signupOf } from "../../src/credentials/signup.ts"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
+import { Client } from "../../src/client/client.ts"
+import { createCredentialSource } from "../../src/client/credentials.ts"
+import { bearerSecurity } from "../../src/conformance/harness/security.ts"
+import type { PrincipalsConfig, Recipe, SecurityConfig } from "../../src/config/types/security.ts"
+import type { CredentialPorts, StepRunner } from "../../src/credentials/ports.ts"
+import { type CredentialStore, createStore, type Held } from "../../src/credentials/store.ts"
+import { stepRunner } from "../../src/runtime/steps/runner.ts"
+import { Redactor } from "../../src/security/redact.ts"
 import { buildModel } from "../../src/spec/graph/build.ts"
+import { operationResolver } from "../../src/spec/graph/resolver.ts"
 import { dereference } from "../../src/spec/load/dereference.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
-import { AuthRefreshRequiredError, createPrincipal, type AcquireSpec } from "../../src/runtime/auth.ts"
-import { Client } from "../../src/client/client.ts"
-import { Redactor } from "../../src/security/redact.ts"
+
+/*
+ * A principal's login credential over its lifetime, as a run holds it: signed in once through the
+ * step engine, renewed ahead of expiry or after a 401 by its declared refresh, once however many
+ * requests need it, and replaced by a credential the run is handed.
+ */
 
 interface Harness {
 	url: string
@@ -53,15 +66,19 @@ function readJson(req: IncomingMessage): Promise<unknown> {
 	})
 }
 
+/* Items need alpha's bearer token; signing in and refreshing are public. */
 const SPEC = {
+	...bearerSecurity(),
 	info: { title: "auth-refresh", version: "1" },
 	openapi: "3.1.0",
 	paths: {
 		"/v1/auth/register": {
 			post: {
 				operationId: "auth.register",
+				"x-fresh-principal": true,
 				requestBody: { content: { "application/json": { schema: { type: "object" } } } },
 				responses: { "200": { description: "ok" } },
+				security: [],
 			},
 		},
 		"/v1/auth/refresh": {
@@ -69,6 +86,7 @@ const SPEC = {
 				operationId: "auth.refreshToken",
 				requestBody: { content: { "application/json": { schema: { type: "object" } } } },
 				responses: { "200": { description: "ok" } },
+				security: [],
 			},
 		},
 		"/v1/auth/token": {
@@ -76,6 +94,7 @@ const SPEC = {
 				operationId: "auth.token",
 				requestBody: { content: { "application/json": { schema: { type: "object" } } } },
 				responses: { "200": { description: "ok" } },
+				security: [],
 			},
 		},
 		"/v1/items": {
@@ -194,27 +213,23 @@ async function startAuthServer(options?: AuthOptions): Promise<Harness> {
 
 const model = buildModel(dereference(SPEC).doc)
 
-function signupFlow(refresh: boolean): AcquireSpec {
+/* The register answer's refresh token, saved so the declared refresh can send it. */
+const SAVE_REFRESH = { refresh_token: "$.refresh_token" }
+
+/* Signs up by auth.register; its lifetime is the answer's `access_token_expires_in`. */
+function signupRecipe(refresh: boolean): Recipe {
 	return {
-		credentialFrom: "$.access_token",
-		expiresInFrom: "$.access_token_expires_in",
-		refreshBufferMs: 30_000,
-		steps: [
-			{
-				body: { email: "oat@example.test" },
-				operationId: "auth.register",
-				saveAs: { credential: "$.access_token", refreshToken: "$.refresh_token" },
-			},
-		],
+		expiresIn: { from: "$.access_token_expires_in" },
+		login: {
+			from: "$.access_token",
+			steps: [{ body: { email: "oat@example.test" }, operationId: "auth.register", saveAs: SAVE_REFRESH }],
+		},
 		...(refresh
 			? {
 					refresh: {
+						from: "$.access_token",
 						steps: [
-							{
-								body: { refresh_token: "{refreshToken}" },
-								operationId: "auth.refreshToken",
-								saveAs: { credential: "$.access_token", refreshToken: "$.refresh_token" },
-							},
+							{ body: { refresh_token: "{refresh_token}" }, operationId: "auth.refreshToken", saveAs: SAVE_REFRESH },
 						],
 					},
 				}
@@ -222,12 +237,10 @@ function signupFlow(refresh: boolean): AcquireSpec {
 	}
 }
 
-function tokenExchangeFlow(): AcquireSpec {
+function tokenExchangeRecipe(): Recipe {
 	return {
-		credentialFrom: "$.access_token",
-		expiresInFrom: "$.access_token_expires_in",
-		refreshBufferMs: 30_000,
-		steps: [{ body: { key: "k" }, operationId: "auth.token" }],
+		expiresIn: { from: "$.access_token_expires_in" },
+		login: { from: "$.access_token", steps: [{ body: { key: "k" }, operationId: "auth.token" }] },
 	}
 }
 
@@ -237,17 +250,6 @@ afterEach(async () => {
 	await Promise.all(servers.splice(0).map((s) => s.close()))
 })
 
-async function principalOf(harness: Harness, spec: AcquireSpec) {
-	const client = new Client({ baseUrl: harness.url, redactor: new Redactor() })
-	const runtime = await createPrincipal("alpha", spec, {
-		client,
-		hooks: {},
-		model,
-		principalId: "alpha",
-	})
-	return { client, runtime }
-}
-
 /* A started auth server, closed after the test. */
 async function harnessed(options?: AuthOptions): Promise<Harness> {
 	const harness = await startAuthServer(options)
@@ -255,66 +257,128 @@ async function harnessed(options?: AuthOptions): Promise<Harness> {
 	return harness
 }
 
-/* One resource read as the principal, refreshing first when its credential is stale. */
-function getItems(client: Client, runtime: Awaited<ReturnType<typeof principalOf>>["runtime"]) {
-	return client.request("GET", "/v1/items", {
-		headers: runtime.headers,
-		refreshIfStale: runtime.refreshIfStale,
+interface Stack {
+	client: Client
+	store: CredentialStore
+	/** Moves the store's clock on: a credential issued 90 s out is 20 s out after `pass(70_000)`. */
+	pass: (ms: number) => void
+}
+
+const unused = async (): Promise<never> => {
+	throw new Error("no recipe here mints a credential or posts a token form")
+}
+
+/*
+ * What a run builds for alpha's bearer `recipe`: a client whose source resolves alpha over a store,
+ * whose login and refresh steps run through the step engine on that same client.
+ */
+function stackOf(harness: Harness, recipe: Recipe): Stack {
+	const security: SecurityConfig = { bearer: recipe }
+	const principals: PrincipalsConfig = { alpha: {} }
+	const wired: { client?: Client } = {}
+	const steps = (): StepRunner =>
+		stepRunner({ client: (wired.client as Client).view({ purpose: "auth" }), hooks: {}, model })
+	const ports: CredentialPorts = {
+		operations: { call: unused },
+		steps: { run: (list, at) => steps().run(list, at) },
+		tokens: { post: unused },
+	}
+	let now = Date.now()
+	const store = createStore({ now: () => now, ports, principals, schemes: model.schemes, security, ...signupOf(model) })
+	wired.client = new Client({
+		baseUrl: harness.url,
+		credentials: createCredentialSource({ model, principals, security, store }),
+		operationResolver: operationResolver(model),
+		redactor: new Redactor(),
 	})
+	return {
+		client: wired.client,
+		pass: (ms) => {
+			now += ms
+		},
+		store,
+	}
+}
+
+const ALPHA = { principal: "alpha", scheme: "bearer" }
+
+/* alpha's bearer credential as the store holds it now, renewed first when it is stale. */
+async function held(stack: Stack): Promise<Held> {
+	return stack.store.acquire(ALPHA)
+}
+
+/* What 90 s of lifetime has left once 70 s passed: inside the 30 s renewal buffer. */
+const TO_20S_OUT = 70_000
+
+/* alpha signed in, and then the clock moved on until its credential is 20 s from lapsing. */
+async function twentySecondsOut(stack: Stack): Promise<void> {
+	await held(stack)
+	stack.pass(TO_20S_OUT)
+}
+
+/* One resource read as alpha. */
+function getItems(client: Client) {
+	return client.request("GET", "/v1/items", { as: { principal: "alpha" } })
 }
 
 describe("countdown refresh", () => {
 	it("does not refresh when expiresAt is 90s out and buffer is 30s", async () => {
 		const harness = await harnessed({ expiresIn: 90 })
-		const { client, runtime } = await principalOf(harness, signupFlow(true))
+		const { client } = stackOf(harness, signupRecipe(true))
+		await getItems(client)
 		expect(harness.registerHits).toEqual(["register"])
-		await getItems(client, runtime)
 		expect(harness.refreshHits).toEqual([])
 		expect(harness.resourceAuth).toEqual(["Bearer acquire-1"])
 	})
 
 	it("refreshes before dispatch when expiresAt is 20s out", async () => {
-		const harness = await harnessed({ expiresIn: 20 })
-		const { client, runtime } = await principalOf(harness, signupFlow(true))
-		await getItems(client, runtime)
+		const harness = await harnessed({ expiresIn: 90 })
+		const stack = stackOf(harness, signupRecipe(true))
+		await twentySecondsOut(stack)
+		await getItems(stack.client)
 		expect(harness.registerHits).toEqual(["register"])
 		expect(harness.refreshHits).toEqual(["rt-1"])
 		expect(harness.resourceAuth).toEqual(["Bearer refresh-2"])
 	})
 
 	it("signup with refresh hits auth.refreshToken, never register again", async () => {
-		const harness = await harnessed({ expiresIn: 20 })
-		const { runtime } = await principalOf(harness, signupFlow(true))
-		await runtime.refreshIfStale()
+		const harness = await harnessed({ expiresIn: 90 })
+		const stack = stackOf(harness, signupRecipe(true))
+		await twentySecondsOut(stack)
+		await held(stack)
+		stack.pass(TO_20S_OUT)
+		await held(stack)
 		expect(harness.registerHits).toEqual(["register"])
-		expect(harness.refreshHits).toEqual(["rt-1"])
+		expect(harness.refreshHits).toEqual(["rt-1", "rt-2"])
 	})
 
-	it("signup without refresh fails closed with AUTH_REFRESH_REQUIRED", async () => {
-		const harness = await harnessed({ expiresIn: 20 })
-		const { runtime } = await principalOf(harness, signupFlow(false))
-		await expect(runtime.refreshIfStale()).rejects.toBeInstanceOf(AuthRefreshRequiredError)
-		await expect(runtime.refreshIfStale()).rejects.toMatchObject({ code: "AUTH_REFRESH_REQUIRED" })
+	it("signup without refresh fails closed: BLOCKED, never a second signup", async () => {
+		const harness = await harnessed({ expiresIn: 90 })
+		const stack = stackOf(harness, signupRecipe(false))
+		await twentySecondsOut(stack)
+		expect(await held(stack)).toMatchObject({ blocked: expect.stringContaining("refresh") })
+		expect(await held(stack)).toMatchObject({ blocked: expect.stringContaining("refresh") })
 		expect(harness.registerHits).toEqual(["register"])
 		expect(harness.refreshHits).toEqual([])
 	})
 
-	it("single-flights overlapping refreshIfStale on one principal", async () => {
-		const harness = await harnessed({ expiresIn: 20 })
+	it("single-flights overlapping renewals of one principal's credential", async () => {
+		const harness = await harnessed({ expiresIn: 90 })
 		harness.delayRefreshMs = 40
-		const { runtime } = await principalOf(harness, signupFlow(true))
-		await Promise.all([runtime.refreshIfStale(), runtime.refreshIfStale()])
+		const stack = stackOf(harness, signupRecipe(true))
+		await twentySecondsOut(stack)
+		await Promise.all([getItems(stack.client), getItems(stack.client)])
 		expect(harness.refreshHits).toHaveLength(1)
-		expect(runtime.headers().authorization).toBe("Bearer refresh-2")
+		expect(harness.resourceAuth).toEqual(["Bearer refresh-2", "Bearer refresh-2"])
 	})
 })
 
 describe("countdown refresh", () => {
 	it("retries a 401 once after a forced refresh", async () => {
 		const harness = await harnessed({ expiresIn: 90 })
-		const { client, runtime } = await principalOf(harness, signupFlow(true))
+		const { client } = stackOf(harness, signupRecipe(true))
 		harness.setGetStatus((n) => (n === 1 ? 401 : 200))
-		const exchange = await getItems(client, runtime)
+		const exchange = await getItems(client)
 		expect(exchange.status).toBe(200)
 		expect(harness.refreshHits).toEqual(["rt-1"])
 		expect(harness.resourceAuth).toEqual(["Bearer acquire-1", "Bearer refresh-2"])
@@ -323,39 +387,30 @@ describe("countdown refresh", () => {
 
 	it("records a second 401 and does not attempt a third request", async () => {
 		const harness = await harnessed({ expiresIn: 90 })
-		const { client, runtime } = await principalOf(harness, signupFlow(true))
+		const { client } = stackOf(harness, signupRecipe(true))
 		harness.setGetStatus(401)
-		const exchange = await getItems(client, runtime)
+		const exchange = await getItems(client)
 		expect(exchange.status).toBe(401)
 		expect(harness.refreshHits).toEqual(["rt-1"])
 		expect(harness.resourceAuth).toHaveLength(2)
 		expect(client.transcript.filter((e) => e.url.endsWith("/v1/items"))).toHaveLength(2)
 	})
 
-	it("never proactive-refreshes a principal with expiresAt === null", async () => {
+	it("never proactive-refreshes a credential with no lifetime", async () => {
 		const harness = await harnessed({ expiresIn: 90, plainToken: true })
-		const spec: AcquireSpec = {
-			credentialFrom: "$.access_token",
-			refresh: {
-				steps: [
-					{
-						body: { refresh_token: "{refreshToken}" },
-						operationId: "auth.refreshToken",
-						saveAs: { credential: "$.access_token", refreshToken: "$.refresh_token" },
-					},
-				],
+		const recipe: Recipe = {
+			login: {
+				from: "$.access_token",
+				steps: [{ body: { key: "k" }, operationId: "auth.token", saveAs: SAVE_REFRESH }],
 			},
-			steps: [
-				{
-					body: { key: "k" },
-					operationId: "auth.token",
-					saveAs: { credential: "$.access_token", refreshToken: "$.refresh_token" },
-				},
-			],
+			refresh: {
+				from: "$.access_token",
+				steps: [{ body: { refresh_token: "{refresh_token}" }, operationId: "auth.refreshToken", saveAs: SAVE_REFRESH }],
+			},
 		}
-		const { client, runtime } = await principalOf(harness, spec)
-		expect(runtime.expiresAt).toBeNull()
-		await getItems(client, runtime)
+		const stack = stackOf(harness, recipe)
+		expect(await held(stack)).toMatchObject({ expiresAt: null, value: "plain-1" })
+		await getItems(stack.client)
 		expect(harness.refreshHits).toEqual([])
 		expect(harness.resourceAuth).toEqual(["Bearer plain-1"])
 	})
@@ -363,59 +418,54 @@ describe("countdown refresh", () => {
 
 describe("countdown refresh", () => {
 	it("token-exchange without refresh re-runs steps instead of failing closed", async () => {
-		const harness = await harnessed({ expiresIn: 20 })
-		const { runtime } = await principalOf(harness, tokenExchangeFlow())
-		await runtime.refreshIfStale()
+		const harness = await harnessed({ expiresIn: 90 })
+		const stack = stackOf(harness, tokenExchangeRecipe())
+		await twentySecondsOut(stack)
+		expect(await held(stack)).toMatchObject({ value: "acquire-2" })
 		expect(harness.registerHits).toEqual(["token", "token"])
 		expect(harness.refreshHits).toEqual([])
 	})
 
-	it("adopts a credential issued outside the auth flow without refreshing it away", async () => {
-		const harness = await harnessed({ expiresIn: 20 })
-		const { runtime } = await principalOf(harness, tokenExchangeFlow())
-		const scope = { ...runtime.scope }
-		expect(runtime.headers().authorization).toBe("Bearer acquire-1")
+	it("adopts a credential issued outside the login without refreshing it away", async () => {
+		const harness = await harnessed({ expiresIn: 90 })
+		const stack = stackOf(harness, tokenExchangeRecipe())
+		expect(await held(stack)).toMatchObject({ value: "acquire-1" })
 
-		runtime.adoptCredential("fresh")
-		expect(runtime.credential()).toBe("fresh")
-		expect(runtime.headers().authorization).toBe("Bearer fresh")
-		expect(runtime.expiresAt).toBeNull()
-		expect(runtime.scope).toEqual(scope)
-		await runtime.refreshIfStale()
+		await stack.store.adopt({ ...ALPHA, value: "fresh" })
+		expect(await held(stack)).toMatchObject({ expiresAt: null, value: "fresh" })
+		await getItems(stack.client)
 		expect(harness.registerHits).toEqual(["token"])
-		expect(runtime.credential()).toBe("fresh")
+		expect(harness.resourceAuth).toEqual(["Bearer fresh"])
 
 		const payload = Buffer.from(JSON.stringify({ exp: 4_102_444_800 })).toString("base64url")
 		const jwt = `eyJhbGciOiJub25lIn0.${payload}.sig`
-		runtime.adoptCredential(jwt)
-		expect(runtime.credential()).toBe(jwt)
-		expect(runtime.headers().authorization).toBe(`Bearer ${jwt}`)
-		expect(runtime.expiresAt).toBe(4_102_444_800_000)
-		expect(runtime.matches({ authorization: "Bearer acquire-1" })).toBe(true)
-		expect(runtime.matches({ authorization: `Bearer ${jwt}` })).toBe(true)
-		expect(runtime.matches({})).toBe(false)
-		runtime.adoptCredential("")
-		expect(runtime.credential()).toBe(jwt)
-		expect(runtime.scope).toEqual(scope)
+		await stack.store.adopt({ ...ALPHA, value: jwt })
+		expect(await held(stack)).toMatchObject({ expiresAt: 4_102_444_800_000, value: jwt })
+		/* An empty value is no credential: what was held stays. */
+		await stack.store.adopt({ ...ALPHA, value: "" })
+		expect(await held(stack)).toMatchObject({ value: jwt })
+		expect(harness.registerHits).toEqual(["token"])
 	})
 
 	it("interpolates nested bodies, arrays, and non-strings", async () => {
 		const harness = await harnessed()
-		const spec: AcquireSpec = {
-			credentialFrom: "$.access_token",
-			steps: [
-				{
-					bind: { who: "oat" },
-					body: { empty: null, meta: { name: "{who}" }, n: 1, ok: true, tags: ["{who}", 2] },
-					headers: { "x-who": "{who}" },
-					operationId: "auth.token",
-					query: { q: "{who}" },
-				},
-			],
+		const recipe: Recipe = {
+			login: {
+				from: "$.access_token",
+				steps: [
+					{
+						bind: { who: "oat" },
+						body: { empty: null, meta: { name: "{who}" }, n: 1, ok: true, tags: ["{who}", 2] },
+						headers: { "x-who": "{who}" },
+						operationId: "auth.token",
+						query: { q: "{who}" },
+					},
+				],
+			},
 		}
-		const { runtime } = await principalOf(harness, spec)
+		const stack = stackOf(harness, recipe)
+		expect(await held(stack)).toMatchObject({ value: "acquire-1" })
 		expect(harness.tokenBodies).toEqual([{ empty: null, meta: { name: "oat" }, n: 1, ok: true, tags: ["oat", 2] }])
 		expect(harness.tokenWho).toEqual(["oat"])
-		expect(runtime.credential()).toBe("acquire-1")
 	})
 })

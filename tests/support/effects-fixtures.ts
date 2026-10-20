@@ -90,7 +90,7 @@ export function runTable(baseUrl: string): ReturnType<typeof run> {
 		baseUrl,
 		cohortSize: 1,
 		only: ["table"],
-		principals: [{ headers: { authorization: "Bearer t" }, id: "a", roots: { project_id: "p1" } }],
+		principals: { a: { scope: { project_id: "p1" } } },
 		seed: 1,
 		spec: `${baseUrl}/v1/openapi/spec`,
 	})

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { buildModel } from "../../spec/graph/build.ts"
 import { dereference } from "../../spec/load/dereference.ts"
 import type { OperationObject } from "../../spec/types.ts"
+import { bearerSecurity } from "../harness/security.ts"
 import { planLimitSpec, thingSpec } from "./spec.ts"
 
 const operations = (doc: ReturnType<typeof thingSpec>) =>
@@ -27,5 +28,15 @@ describe("the rate-limit suite's documents", () => {
 		])
 		const created = planLimitSpec().paths?.["/v1/tables"]?.post as OperationObject | undefined
 		expect(Object.keys(created?.responses ?? {})).toEqual(["201", "402"])
+	})
+})
+
+describe("the rate-limit suite's documents security", () => {
+	it("each require the bearer on every operation, from the root", () => {
+		for (const doc of [thingSpec(), planLimitSpec()]) {
+			expect(doc).toMatchObject(bearerSecurity())
+			const sources = buildModel(dereference(doc).doc).operations.map((op) => op.security.source)
+			expect(new Set(sources)).toEqual(new Set(["root"]))
+		}
 	})
 })

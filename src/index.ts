@@ -3,8 +3,6 @@ export { env } from "./config/env.ts"
 export { loadConfig } from "./config/load.ts"
 
 export type {
-	AuthFlow,
-	AuthRefresh,
 	AuthStep,
 	EntityConfig,
 	ExternalStep,
@@ -13,7 +11,6 @@ export type {
 	FilterableField,
 	FilterableFrom,
 	HeaderRequest,
-	HookAuth,
 	Hooks,
 	InputRequest,
 	OatConfig,
@@ -23,18 +20,19 @@ export type {
 	OutOfBandRequest,
 	OutOfBandStep,
 	PathValueRequest,
-	Principal,
-	PrincipalAuth,
-	PrincipalAuthResult,
+	PrincipalEntry,
+	PrincipalsConfig,
 	ProfileSpec,
 	QueryCapabilities,
 	QueryCapabilitiesRequest,
 	RateLimitSpec,
+	Recipe,
 	RequestStep,
 	Scenario,
 	ScenarioAssert,
 	ScenarioRequestStep,
 	ScenarioStep,
+	SecurityConfig,
 	SideEffectRequest,
 	TeardownPrincipalContext,
 	UploadFile,
@@ -60,7 +58,6 @@ export { loadSpec } from "./spec/load/source.ts"
 export { ScopeError } from "./runtime/scope/scope-error.ts"
 
 export type { OpenApiDocument } from "./spec/types.ts"
-export { AuthRefreshRequiredError } from "./runtime/auth.ts"
 
 export { run } from "./runtime/run/index.ts"
 export type { RunOptions, RunResult } from "./runtime/run/index.ts"

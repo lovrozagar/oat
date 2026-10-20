@@ -1,4 +1,5 @@
 import type { Client } from "../../../../client/client.ts"
+import { UnsatisfiedSecurity } from "../../../../client/credential-source.ts"
 import { FencedError } from "../../../fence.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { type ProvenId, returnedId } from "../../../proven-id.ts"
@@ -24,10 +25,10 @@ export async function confirmedIdentity(
 	const record = await confirmSubmitted({
 		client,
 		entity: ctx.entityName,
-		headers: ctx.auth(),
 		identity: ctx.identity,
 		ignore,
 		model: ctx.model,
+		principal: ctx.actor.id,
 		readable: (op) => op.operationId === ctx.readOp?.operationId,
 		scope: ctx.scope,
 		sent,
@@ -41,15 +42,16 @@ export async function liveRecord(ctx: CheckContext, id: string | undefined): Pro
 	if (id === undefined || ctx.readOp === undefined) return undefined
 	try {
 		const exchange = await ctx.client.get(fillPath(ctx.readOp.path, { ...ctx.scope, ...itemParamFor(ctx, id) }), {
-			headers: ctx.auth(),
+			as: { principal: ctx.actor.id },
 		})
 		if (exchange.status >= 300 || exchange.responseBody === null || typeof exchange.responseBody !== "object") {
 			return undefined
 		}
 		return readRecord(ctx.readOp, exchange)
 	} catch (error) {
-		/* A fenced read is not "no record": the caller must hear that it could not ask. */
-		if (error instanceof FencedError) throw error
+		/* A fenced read, or one no credential could be sent for, is not "no record": the caller must
+		 * hear that it could not ask. */
+		if (error instanceof FencedError || error instanceof UnsatisfiedSecurity) throw error
 		return undefined
 	}
 }

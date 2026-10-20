@@ -90,7 +90,7 @@ async function probeUpdateSet(
 		set,
 	})
 	if (patch === null) return undefined
-	const headers = uniqueProbeHeaders(ctx.auth(), {
+	const headers = uniqueProbeHeaders({
 		header: updateOp.idempotencyHeader,
 		required: probe.required,
 		fresh: `oat-unique-patch-${ctx.entityName}-${ctx.seed}-${index}`,
@@ -99,6 +99,7 @@ async function probeUpdateSet(
 	const params = { ...ctx.scope, ...itemParamFor(ctx, made.scratch.id) }
 	const sent = await ctx.client.request(update.method, fillPath(updateOp.path, params), {
 		...update.options,
+		as: { principal: ctx.actor.id },
 		headers,
 		operationId: updateOp.operationId,
 	})

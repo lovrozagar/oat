@@ -70,7 +70,7 @@ describe("an exchange's path parameters", () => {
 				operationResolver: operationResolver(model),
 				redactor: new Redactor(),
 			})
-			const exchange = await client.get("/projects/b/tables/t%209")
+			const exchange = await client.get("/projects/b/tables/t%209", { as: { anonymous: true } })
 			expect(exchange.pathParams).toEqual({ project_id: "b", table_id: "t 9" })
 		} finally {
 			await new Promise<void>((resolve) => server.close(() => resolve()))

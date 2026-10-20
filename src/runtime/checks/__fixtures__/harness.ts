@@ -25,14 +25,22 @@ export interface Sent {
 /** The answer to a request: a status and a body, or a whole exchange. */
 export type Answer = { status: number; body?: unknown; headers?: Record<string, string> }
 
-/** Answers each request; `undefined` means a 404 with an empty body. */
-export type Responder = (method: string, path: string, options: RequestOptions) => Answer | undefined
+/**
+ * Answers a request by what it carries on the wire, never by who it acts as, which the client resolved
+ * already; `undefined` means a 404 with an empty body.
+ */
+export type Responder = (method: string, path: string, options: Omit<RequestOptions, "as">) => Answer | undefined
 
 let seq = 0
 
-/** An exchange as the client would record it, for a request sent with no options. */
+/** An exchange as the client would record it, for an anonymous request sent with no other options. */
 export function exchange(method: string, path: string, answer: Answer): Exchange {
-	return exchangeOf({ method, options: {}, path }, answer)
+	return exchangeOf({ method, options: { as: { anonymous: true } }, path }, answer)
+}
+
+/* Who the exchange names as the sender: the principal a request acted as, if it acted as one. */
+function principalOf(options: RequestOptions): { principal: string } | Record<string, never> {
+	return "principal" in options.as ? { principal: options.as.principal } : {}
 }
 
 /** The exchange the client records when `sent` draws `answer`. */
@@ -54,6 +62,7 @@ export function exchangeOf(sent: Sent, answer: Answer): Exchange {
 		status: answer.status,
 		url: `http://api.test${path}`,
 		...(options.operationId === undefined ? {} : { operationId: options.operationId }),
+		...principalOf(options),
 	}
 }
 
@@ -66,7 +75,7 @@ export interface FakeClient {
 export function fakeClient(respond: Responder): FakeClient {
 	const sent: Sent[] = []
 	const transcript: Exchange[] = []
-	const request = async (method: string, path: string, options: RequestOptions = {}): Promise<Exchange> => {
+	const request = async (method: string, path: string, options: RequestOptions): Promise<Exchange> => {
 		const asked: Sent = { method, options, path }
 		sent.push(asked)
 		const answered = exchangeOf(asked, respond(method, path, options) ?? { status: 404 })
@@ -77,7 +86,7 @@ export function fakeClient(respond: Responder): FakeClient {
 	const fake = {
 		exchangesFor: (operationId: string) => transcript.filter((e) => e.operationId === operationId),
 		exchangesForEntity: () => transcript,
-		get: (path: string, options: RequestOptions = {}) => request("GET", path, options),
+		get: (path: string, options: RequestOptions) => request("GET", path, options),
 		hydrate: async (e: Exchange) => e,
 		readOnlyView: () => fake,
 		relativePath: (url: URL | string) => new URL(String(url), "http://api.test").pathname,

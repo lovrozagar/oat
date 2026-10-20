@@ -57,6 +57,7 @@ async function snapshotsRecordedForm() {
 	form.append("note", "hi")
 	form.append("file", new File([bytes], "blob.bin", { type: "application/octet-stream" }))
 	const exchange = await client.request("POST", "/upload", {
+		as: { anonymous: true },
 		body: form,
 		fixture: "blob.bin",
 		operationId: "upload.once",
@@ -101,7 +102,7 @@ async function compactsTimedOutAttempt() {
 		},
 		redactor: new Redactor(),
 	})
-	await expect(client.request("POST", "/stream", { body: form })).rejects.toSatisfy(
+	await expect(client.request("POST", "/stream", { as: { anonymous: true }, body: form })).rejects.toSatisfy(
 		(error: unknown) => isNetworkError(error) && error.kind === "timeout",
 	)
 	expect(client.transcript).toHaveLength(1)
@@ -169,6 +170,7 @@ async function postParts(client: Client): Promise<{ digests: string[]; files: We
 		const form = new FormData()
 		form.append("file", file)
 		await client.request("POST", "/uploads", {
+			as: { anonymous: true },
 			body: form,
 			fixture: `part-${i}.bin`,
 			operationId: "upload.once",
@@ -199,7 +201,7 @@ async function journalsUniqueParts() {
 		onExchange: (exchange) => journal.record(exchange),
 		redactor: new Redactor(),
 	})
-	await client.request("GET", "/warmup")
+	await client.request("GET", "/warmup", { as: { anonymous: true } })
 	const { digests, files } = await postParts(client)
 	const product = FAN_OUT * PART_SIZE
 	const posts = client.transcript.filter((e) => e.method === "POST")
@@ -231,7 +233,7 @@ async function runLeavesDescriptors() {
 		configDir: dir,
 		network: { retries: 0, waitMs: 0 },
 		only: ["upload"],
-		principals: [{ headers: {}, id: "alpha" }],
+		principals: { alpha: {} },
 		seed: 1,
 		spec: `${server.url}/openapi.json`,
 		uploads: { each: { "upload.once": ["./*.bin"] }, eachMax: 2 },
@@ -255,7 +257,7 @@ async function noGiantPartialBuffer() {
 		cohortSize: 1,
 		network: { requestTimeoutMs: 120, retries: 0, waitMs: 0 },
 		only: ["item"],
-		principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
+		principals: { alpha: {} },
 		seed: 1,
 		spec: `${server.url}/openapi.json`,
 	})

@@ -49,13 +49,10 @@ describe("buildSpec", () => {
 		])
 	})
 
-	it("declares bearer auth and the token flow that acquires it", () => {
-		expect(Object.keys(spec)).toEqual(["info", "openapi", "paths", "components", "security", "x-auth-flows"])
+	it("declares bearer auth, and leaves how to obtain it to the config's recipe", () => {
+		expect(Object.keys(spec)).toEqual(["info", "openapi", "paths", "components", "security"])
 		expect(spec.security).toEqual([{ bearer: [] }])
-		expect(spec).toHaveProperty("x-auth-flows.default.acquire", {
-			credential: "$.access_token",
-			operationId: "auth.token",
-		})
+		expect(spec).not.toHaveProperty("x-auth-flows")
 	})
 
 	it("follows the dialect it is given", () => {
@@ -66,7 +63,7 @@ describe("buildSpec", () => {
 	it("puts components first and hoists path parameters under the layout shape", () => {
 		const shape = { specLayout: true }
 		const laid = buildSpec(POSTGREST, { entities: shapedEntities(shape), shape })
-		expect(Object.keys(laid)).toEqual(["info", "openapi", "components", "paths", "security", "x-auth-flows"])
+		expect(Object.keys(laid)).toEqual(["info", "openapi", "components", "paths", "security"])
 		const item = (laid.paths as Record<string, Json>)[TABLE.itemPath] as { parameters: Json[]; get: Json }
 		expect(item.parameters.map((param) => param.name)).toEqual(["project_id", "table_id"])
 		expect(item.get.parameters).toEqual([])

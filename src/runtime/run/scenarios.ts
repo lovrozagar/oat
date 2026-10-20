@@ -18,9 +18,7 @@ export async function scenarios(ctx: RunContext): Promise<void> {
 		model,
 		originClients: ctx.originClients,
 		outOfBand: ctx.options.outOfBand ?? {},
-		principals: new Map(
-			principals.all.map((principal) => [principal.id, { headers: principal.headers, roots: principal.roots }]),
-		),
+		principals: new Map(principals.all.map((principal) => [principal.id, { scope: principal.scope }])),
 		scenarios: ownScenarios,
 		stopped: () => stopped(ctx),
 	})

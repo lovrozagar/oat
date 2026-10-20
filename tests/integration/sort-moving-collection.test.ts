@@ -128,11 +128,12 @@ async function run(checkId: string, opts: { grows: boolean; shuffleTies?: boolea
 	const findings = new FindingCollector()
 	const ctx = checkContext({
 		actors: [],
-		altAuth: undefined,
-		altScope: undefined,
 		asyncOps: [],
-		auth: () => ({}),
-		client: new Client({ baseUrl: url, redactor: new Redactor() }),
+		client: new Client({
+			baseUrl: url,
+			credentials: { resolve: async () => ({ kind: "anonymous" }) },
+			redactor: new Redactor(),
+		}),
 		collectionKey: listOp.collection?.key ?? "logs",
 		createOp: undefined,
 		deleteOp: undefined,

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs"
-import { mkdir, writeFile } from "node:fs/promises"
-import { resolve } from "node:path"
+import { chmod, mkdir, writeFile } from "node:fs/promises"
+import { dirname, resolve } from "node:path"
 import { exchangeFilesFromIndex, renderConfidenceHtml } from "../../report/confidence.ts"
 import { buildMatrixGraphFromReport, graphJson } from "../../report/matrix/graph.ts"
 import { renderPoster } from "../../report/matrix/poster.ts"
@@ -52,15 +52,35 @@ export function reportInput({ result, baseUrl, startedAt, durationMs }: Finished
 	}
 }
 
+/** Where `--keep-credentials` writes, from the working directory: beside the default runs root, never in a run folder. */
+export const KEPT_CREDENTIALS = ".oat/credentials.json"
+
+/* Readable by its owner alone, even where the file was already there. */
+async function writePrivate(path: string, text: string): Promise<void> {
+	await writeFile(path, text, { mode: 0o600 })
+	await chmod(path, 0o600)
+}
+
 /**
- * Every file of the run folder: the credentials as they stood, the reports in markdown and JSON,
+ * The credential values a run kept (`--keep-credentials`), written to `path`, which is never under
+ * the output directory: a report is shared, and holds no credential. False when the run kept none.
+ */
+export async function keepCredentials(result: RunResult, path: string): Promise<boolean> {
+	if (result.credentials === undefined) return false
+	await mkdir(dirname(path), { recursive: true })
+	await writePrivate(path, `${JSON.stringify({ credentials: result.credentials }, null, 2)}\n`)
+	return true
+}
+
+/**
+ * Every file of the run folder: the principals as they stood, holding no credential value, the reports in markdown and JSON,
  * the matrix (one graph, drawn as the poster and written as JSON), the confidence page over the
  * journaled exchanges, and a repro script per finding.
  */
 export async function writeReports(finished: Finished, input: ReportInput): Promise<void> {
 	const { result, outDir, baseUrl, startedAt } = finished
 	const at = (name: string): string => resolve(outDir, name)
-	await writeFile(at("principals.json"), `${JSON.stringify({ principals: result.principals }, null, 2)}\n`)
+	await writePrivate(at("principals.json"), `${JSON.stringify({ principals: result.principals }, null, 2)}\n`)
 	await writeFile(at("oat-report.md"), renderMarkdown(input))
 	await writeFile(at("oat-report.json"), renderJson(input))
 	const graph = buildMatrixGraphFromReport(input)

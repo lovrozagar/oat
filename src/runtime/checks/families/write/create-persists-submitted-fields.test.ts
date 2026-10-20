@@ -24,13 +24,17 @@ const PROPERTIES = {
 }
 
 /** A context whose transcript holds one create: `options` sent, `answer` returned. */
-async function afterCreate(options: RequestOptions, answer: Answer) {
+async function afterCreate(options: Omit<RequestOptions, "as">, answer: Answer) {
 	const stage = notesContext(MODEL, () => answer, { records: COHORT })
-	await stage.ctx.client.request("POST", "/notes", { ...options, operationId: "note.create" })
+	await stage.ctx.client.request("POST", "/notes", {
+		...options,
+		as: { principal: "alpha" },
+		operationId: "note.create",
+	})
 	return stage
 }
 
-async function judge(options: RequestOptions, answer: Answer) {
+async function judge(options: Omit<RequestOptions, "as">, answer: Answer) {
 	const stage = await afterCreate(options, answer)
 	const outcome = await createPersistsFields.run(stage.ctx, {
 		createOp: MODEL.byOperationId.get("note.create") as never,

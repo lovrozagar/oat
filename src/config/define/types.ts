@@ -36,14 +36,7 @@ export type {
 	UploadResolution,
 	Uploads,
 } from "../types/hooks.ts"
-export type {
-	AuthFlow,
-	AuthRefresh,
-	HookAuth,
-	Principal,
-	PrincipalAuth,
-	PrincipalAuthResult,
-} from "../types/principals.ts"
+export type { PrincipalEntry, PrincipalsConfig, Recipe, SecurityConfig } from "../types/security.ts"
 export type {
 	DeclaredFilterGrammar,
 	DeclaredSortGrammar,

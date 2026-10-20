@@ -1,6 +1,6 @@
 import type { Hooks } from "../../config/types/hooks.ts"
 import type { EntityModel, OperationModel, SpecModel } from "../../spec/graph/types.ts"
-import type { PrincipalRuntime } from "../auth.ts"
+import type { OpenApiDocument } from "../../spec/types.ts"
 import type { Exchange } from "../exchange.ts"
 import type { ProvenId } from "../proven-id.ts"
 import type { Scenario } from "../../config/types/steps.ts"
@@ -18,7 +18,7 @@ import type { Ledger } from "../teardown/ledger.ts"
 import type { Created, Owner } from "../teardown/types.ts"
 import type { UploadContext } from "../upload.ts"
 import type { SchemaValidator } from "../validate.ts"
-import type { RunCredentials } from "./credentials.ts"
+import type { CredentialStore } from "../../credentials/store.ts"
 import type { RunNetwork } from "./network.ts"
 import type { RunProgress } from "./progress.ts"
 import type { RunState } from "./state.ts"
@@ -38,14 +38,28 @@ export interface Loaded {
 	progress: RunProgress
 	fence: Fence | undefined
 	model: SpecModel
+	/**
+	 * Each secondary origin's document, read and modelled once at load, where the config's
+	 * credentials are checked against it. By origin id; each origin's client is built on it.
+	 */
+	origins: ReadonlyMap<string, LoadedOrigin>
 	state: RunState
+}
+
+/** A secondary origin's document, after its overlay, and its model. */
+export interface LoadedOrigin {
+	doc: OpenApiDocument
+	model: SpecModel
 }
 
 /** A client to talk to the API with, and what records the run's exchanges and fixtures. */
 export interface Connected extends Loaded {
 	client: Client
-	/** The run's principals as the client sees them: bound as each logs in. */
-	credentials: RunCredentials
+	/**
+	 * The run's credentials, one store for the run: the primary client and each origin's resolve
+	 * their actors over it, each against its own document.
+	 */
+	store: CredentialStore
 	journal: ExchangeJournal | null
 	network: RunNetwork
 	originClients: Map<string, OriginClient>
@@ -77,25 +91,36 @@ export interface RunContext extends Planned {
 	targetVersion: TargetVersion | undefined
 }
 
-/** A configured principal, able to produce its headers on demand. */
-export interface ResolvedPrincipal {
+/** A principal the run acts as: who it is, its tenant and rank, and the parameters bound for it. */
+export interface RunPrincipal {
 	id: string
-	headers: () => Record<string, string>
-	/** Swap the credential this principal sends. Static headers and auth flows both implement it. */
-	adoptCredential: (token: string) => void
-	roots: Record<string, string>
-	role: string | undefined
+	/** What its recipes interpolate as `{principal.<key>}`: config data, a fresh signup's values, a login's claims. */
+	identity: Readonly<Record<string, unknown>>
+	/** From the config, or bound by a login's `claims`. */
+	tenant?: string
+	/** Higher can do everything a lower rank can. */
 	rank: number
-	inviteAs: string | undefined
-	runtime?: PrincipalRuntime
+	/** Path or query parameters bound for it: the config's `scope`, then a login's `scope.<param>` claims. */
+	scope: Readonly<Record<string, string>>
+	/** What an owner puts in an invite body for it. */
+	inviteAs?: string
+	/** Signed up by this run through the document's `x-fresh-principal` operation. */
+	fresh: boolean
 }
 
-/** The run's principals, and who owns and may remove what they create. */
+/** The run's principals, who is isolated from whom, and who owns and may remove what they create. */
 export interface RunPrincipals {
-	all: ResolvedPrincipal[]
-	/** The first principal: the one the matrix acts as. */
-	alpha: ResolvedPrincipal
-	ownerOf(principal: ResolvedPrincipal): Owner
+	/** Every principal not BLOCKED, in config order. */
+	all: RunPrincipal[]
+	/** The first: the one the matrix acts as. */
+	alpha: RunPrincipal
+	byId: ReadonlyMap<string, RunPrincipal>
+	/** The first principal of a tenant other than `principal`'s: what isolation reads and writes across. */
+	peerOf(principal: RunPrincipal): RunPrincipal | undefined
+	sameTenant(a: RunPrincipal, b: RunPrincipal): boolean
+	/** Principals whose login failed, each reported once; the run goes on without them. */
+	blocked: ReadonlyArray<{ id: string; reason: string }>
+	ownerOf(principal: RunPrincipal): Owner
 	/** Who else may remove a record its creator could not: a stronger principal of its tenant. */
 	fallbackDeleters(owner: Owner): Owner[]
 	/** Ledgers a record `owner` created. */
@@ -103,8 +128,6 @@ export interface RunPrincipals {
 	/** Ledgers a record learned of another way, as whoever sent the request that made it. */
 	recordCreated(created: Created, principal?: string): void
 	unidentified(entity: string, operationId: string, exchange: Exchange): void
-	/** Refreshes every credential that is stale; false, with a finding, when one cannot be. */
-	refreshAll(where: string): Promise<boolean>
 }
 
 /** What the active profile lets the run call. */

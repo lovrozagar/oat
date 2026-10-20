@@ -1,20 +1,16 @@
 import type { Hooks } from "../../config/types/hooks.ts"
-import type { Principal } from "../../config/types/principals.ts"
-import { buildModel } from "../../spec/graph/build.ts"
-import { dereference } from "../../spec/load/dereference.ts"
-import { loadSpec } from "../../spec/load/source.ts"
-import { applyOverlay } from "../../spec/overlay.ts"
+import type { PrincipalEntry, PrincipalsConfig } from "../../config/types/security.ts"
+import type { CredentialStore } from "../../credentials/store.ts"
+import { operationResolver } from "../../spec/graph/resolver.ts"
 import type { OriginClient } from "../steps/request.ts"
 import { Client } from "../../client/client.ts"
+import { createCredentialSource } from "../../client/credentials.ts"
 import type { NetworkClientOptions } from "../../client/types.ts"
 import type { Exchange } from "../exchange.ts"
-import { fetchSpecText } from "../network/fetch.ts"
-import { persistedToPrincipal, type PersistedPrincipal } from "../principals.ts"
 import type { Redactor } from "../../security/redact.ts"
 import { RateLimiter } from "../rate-limit/limiter.ts"
 import type { ScopeReport } from "../scope/types.ts"
-import type { Loaded, RunContext } from "./context.ts"
-import { transportOpt } from "./network.ts"
+import type { Loaded, LoadedOrigin, RunContext } from "./context.ts"
 import type { RunOptions, RunResult } from "./types.ts"
 
 /** How each origin's client reports and recovers: the same as the primary's. */
@@ -23,31 +19,44 @@ export interface OriginWiring {
 	onExchange: (exchange: Exchange) => Promise<void>
 	/** The primary's: one redactor scrubs every client of the run. */
 	redactor: Redactor
+	/** The run's: every origin's adapter resolves over it. */
+	store: CredentialStore
 }
 
-/** A client per secondary origin, over that origin's own document. */
-export async function loadOriginClients(loaded: Loaded, wiring: OriginWiring): Promise<Map<string, OriginClient>> {
+/**
+ * A client per secondary origin, over that origin's document as the run loaded it. Its adapter
+ * reads that document's security, and sends for an origin scheme the credential of the primary
+ * scheme `origins[].security` maps it to; a scheme with no mapping sends nothing (D8).
+ */
+export function loadOriginClients(loaded: Loaded, wiring: OriginWiring): Map<string, OriginClient> {
 	const { options, hooks, progress, fence } = loaded
+	const { store } = wiring
 	const clients = new Map<string, OriginClient>()
 	for (const origin of options.origins ?? []) {
-		const raw = await loadSpec(origin.spec, {
-			baseUrl: origin.baseUrl,
-			fetchText: (url) => fetchSpecText(url, transportOpt(options)),
+		/* Load read and modelled every declared origin. */
+		const { model } = loaded.origins.get(origin.id) as LoadedOrigin
+		const credentials = createCredentialSource({
+			mapping: origin.security ?? {},
+			model,
+			principals: store.principals,
+			security: options.security ?? {},
+			store,
 		})
-		const { doc } = dereference(origin.overlay === undefined ? raw : applyOverlay(raw, origin.overlay))
 		const client = new Client({
 			baseUrl: origin.baseUrl,
+			credentials,
 			fence,
 			headers: options.globalHeaders ?? {},
 			httpHooks: progress.httpHooks,
 			maxInFlight: options.maxInFlight ?? 4,
 			network: wiring.network,
 			onExchange: wiring.onExchange,
+			operationResolver: operationResolver(model),
 			rateLimiter: origin.maxRps === undefined ? undefined : new RateLimiter([], { maxRps: origin.maxRps }),
 			redactor: wiring.redactor,
 			resolveHeaders: hooks.resolveHeaders,
 		})
-		clients.set(origin.id, { client, model: buildModel(doc) })
+		clients.set(origin.id, { client, model })
 	}
 	return clients
 }
@@ -57,7 +66,8 @@ const INHERITED = [
 	"uploads",
 	"configDir",
 	"globalHeaders",
-	"roots",
+	"security",
+	"redact",
 	"seed",
 	"cohortSize",
 	"profiles",
@@ -75,15 +85,15 @@ const INHERITED = [
 
 /** What the secondary runs found, folded into this run's result. */
 export interface OriginRuns {
-	persisted: PersistedPrincipal[]
 	coverage: ScopeReport
 	/** Runs one origin: `run` itself, passed in so this stage does not import the pipeline. */
 	runOrigin: (options: RunOptions) => Promise<RunResult>
 }
 
 /**
- * Each secondary origin as a run of its own, with the primary's principals as they stood after
- * acquire. Its findings and coverage join this run's, named by origin.
+ * Each secondary origin as a run of its own, over the primary's store: the same principals, already
+ * signed in, each origin scheme sending the primary credential it maps to. Its findings and coverage
+ * join this run's, named by origin.
  */
 export async function runSecondaryOrigins(ctx: RunContext, runs: OriginRuns): Promise<void> {
 	const { options, scope } = ctx
@@ -98,10 +108,11 @@ export async function runSecondaryOrigins(ctx: RunContext, runs: OriginRuns): Pr
 		const result = await runs.runOrigin({
 			...inherited(options),
 			baseUrl: origin.baseUrl,
-			principals: runs.persisted.map(persistedToPrincipal) as [Principal, ...Principal[]],
+			principals: originPrincipals(ctx),
 			scenarios: (options.scenarios ?? [])
 				.filter((scenario) => scenario.origin === origin.id)
 				.map(({ origin: _origin, ...scenario }) => scenario),
+			sharedCredentials: { mapping: origin.security ?? {}, store: ctx.store },
 			skipPrincipalTeardown: true,
 			spec: origin.spec,
 			...originHooks(options.hooks),
@@ -110,6 +121,16 @@ export async function runSecondaryOrigins(ctx: RunContext, runs: OriginRuns): Pr
 		})
 		absorb(ctx, origin.id, result, runs.coverage)
 	}
+}
+
+/* The primary's principals that signed in, as the store holds them: none is signed up again. */
+function originPrincipals({ principals, store }: RunContext): PrincipalsConfig {
+	return Object.fromEntries(
+		principals.all.map((principal) => {
+			const { fresh: _fresh, ...entry } = store.principals[principal.id] as PrincipalEntry
+			return [principal.id, entry]
+		}),
+	)
 }
 
 function inherited(options: RunOptions): Partial<RunOptions> {

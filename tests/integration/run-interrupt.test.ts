@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import { leftBehind } from "../../src/conformance/leaks.ts"
-import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { Ledger } from "../../src/runtime/teardown/ledger.ts"
@@ -18,6 +18,7 @@ describe("a run that is stopped", () => {
 					if (snap.phase === "seed" && (snap.entityIndex ?? 0) >= 2) stop.abort()
 				},
 				principals: PRINCIPALS,
+				security: SECURITY,
 				seed: 42,
 				signal: stop.signal,
 				spec: `${server.url}/v1/openapi/spec`,
@@ -40,6 +41,7 @@ describe("a cohort variant the backend refuses", () => {
 				baseUrl: server.url,
 				only: ["table"],
 				principals: PRINCIPALS,
+				security: SECURITY,
 				seed: 42,
 				spec: `${server.url}/v1/openapi/spec`,
 			})
@@ -61,10 +63,11 @@ describe("principals that authenticate with a static key", () => {
 			const result = await run({
 				baseUrl: server.url,
 				only: ["job"],
-				principals: [
-					{ headers: { authorization: "Bearer tok_alpha" }, id: "alpha", roots: { project_id: "proj_alpha" } },
-					{ headers: { authorization: "Bearer tok_beta" }, id: "beta", roots: { project_id: "proj_beta" } },
-				],
+				principals: {
+					alpha: { scope: { project_id: "proj_alpha" }, tenant: "proj_alpha", token: "tok_alpha" },
+					beta: { scope: { project_id: "proj_beta" }, tenant: "proj_beta", token: "tok_beta" },
+				},
+				security: { bearer: { static: "{principal.token}" } },
 				seed: 42,
 				spec: `${server.url}/v1/openapi/spec`,
 			})
@@ -84,24 +87,20 @@ describe("a credential that cannot be renewed", () => {
 			const result = await run({
 				baseUrl: server.url,
 				hooks: {
-					resolvePrincipalAuth: async () => {
+					/* Good for a second: well inside the renewal buffer, so the next request renews it. */
+					resolveCredential: async () => {
 						calls += 1
 						if (calls > 1) throw new Error("the identity provider is down")
-						return { credential: "tok_alpha" }
+						return { expiresIn: 1, value: "tok_alpha" }
 					},
 				},
 				only: ["job"],
-				principals: [
-					{
-						auth: { assumeTtlMs: 1, fromHook: "sso", refreshBufferMs: 0 },
-						id: "alpha",
-						roots: { project_id: "proj_alpha" },
-					},
-				],
+				principals: { alpha: { scope: { project_id: "proj_alpha" }, tenant: "proj_alpha" } },
+				security: { bearer: { hook: true } },
 				seed: 42,
 				spec: `${server.url}/v1/openapi/spec`,
 			})
-			expect(result.findings.some((finding) => finding.check === "auth.refresh" && finding.verdict === "BLOCKED")).toBe(
+			expect(result.findings.some((finding) => finding.check === "auth.blocked" && finding.verdict === "BLOCKED")).toBe(
 				true,
 			)
 		} finally {
@@ -119,6 +118,7 @@ describe("a teardown that throws", () => {
 				baseUrl: server.url,
 				only: ["job"],
 				principals: PRINCIPALS,
+				security: SECURITY,
 				seed: 42,
 				spec: `${server.url}/v1/openapi/spec`,
 			})

@@ -1,8 +1,8 @@
 /* The config file's top level: the target, the principals, and every knob a run reads. */
 
 import type { Hooks, OutOfBandConfig, Uploads } from "./hooks.ts"
-import type { Principal } from "./principals.ts"
 import type { DeclaredFilterGrammar, DeclaredSortGrammar, QueryCapabilities } from "./query.ts"
+import type { PrincipalsConfig, SecurityConfig } from "./security.ts"
 import type { Scenario } from "./steps.ts"
 
 /** Per-entity overlays. Only `query` is in scope this release. Unknown names are ignored. */
@@ -18,7 +18,7 @@ export type QueryConfig = QueryCapabilities & {
 	sortGrammar?: DeclaredSortGrammar
 }
 
-/** A second host with its own OpenAPI. Auth stays on the primary; the JWT is reused. */
+/** A second host with its own OpenAPI. Its schemes send the primary's credentials only where `security` maps them. */
 export interface OriginSpec {
 	id: string
 	baseUrl: string
@@ -27,6 +27,8 @@ export interface OriginSpec {
 	maxRps?: number
 	/** Patches to this origin's document, as `overlay` is for the primary. */
 	overlay?: SpecOverlay
+	/** Which primary recipe each of this origin's schemes sends, e.g. `{ bearer: "jwt" }`. An unmapped scheme sends nothing. */
+	security?: Record<string, string>
 }
 
 /* -------------------------------------------------------------------- profiles */
@@ -85,15 +87,22 @@ export interface OatConfig {
 	/** Backend under test. */
 	baseUrl: string
 	/**
-	 * At least one principal. Isolation needs a second with different `roots`. A lattice
-	 * needs several that share `roots` and differ in `rank`. Extra principals are not ignored.
+	 * At least one principal, by id. Isolation needs a second with a different `tenant`. A lattice
+	 * needs several that share a tenant and differ in `rank`. Extra principals are not ignored.
 	 */
-	principals: [Principal, ...Principal[]]
+	principals: PrincipalsConfig
+	/** How each scheme the document declares gets its credential: one recipe per scheme. */
+	security?: SecurityConfig
 	hooks?: Hooks
 	/** File pool for multipart / binary parts. `resolveUpload` lives on `hooks`. */
 	uploads?: Uploads
-	/** Sent on every request. Request-id / correlation-id headers are recorded on each exchange; the rest is opaque. */
+	/**
+	 * Sent on every request; never a credential, which its scheme places. Request-id / correlation-id
+	 * headers are recorded on each exchange; the rest is opaque.
+	 */
 	globalHeaders?: Record<string, string>
+	/** Header names whose values are secret though they carry no credential, scrubbed wherever a run records them. */
+	redact?: { headers?: string[] }
 	/**
 	 * Extra hosts, each with its own document. Do not merge those routes into the primary spec.
 	 * After primary auth, oat binds the same principals and runs the matrix against each origin.
@@ -133,7 +142,7 @@ export interface OatConfig {
 	 */
 	targetVersion?: TargetVersionSpec
 	/**
-	 * Backoff for `resolveOutOfBand` and `resolvePrincipalAuth`.
+	 * Backoff for `resolveOutOfBand`.
 	 * Defaults: `{ attempts: 6, initialMs: 200, maxMs: 3000 }` (~9s worst case).
 	 */
 	outOfBand?: OutOfBandConfig
@@ -143,8 +152,6 @@ export interface OatConfig {
 	 * representative family of each kind elsewhere; `"full"` sends all of it to every field.
 	 */
 	payloads?: PayloadPolicy
-	/** Path parameters oat cannot create. Also declarable in-spec via `x-root`. */
-	roots?: Record<string, string>
 	/** Fixture generation derives from this, so a failing run is exactly reproducible. */
 	seed?: number
 	/** Instances seeded per entity. Larger cohorts discriminate more, and cost more. */
@@ -216,10 +223,15 @@ export interface OatConfig {
 
 /** Where a run reads the target's version from, to stamp the report with it. */
 export interface TargetVersionSpec {
-	/** The operation to read it from. Its path parameters come from the first principal's roots. */
+	/** The operation to read it from. Its path parameters come from the first principal's scope. */
 	operationId?: string
-	/** A path below the base URL, when no operation in the document serves it. */
+	/**
+	 * A path below the base URL, when no operation in the document serves it. It is read anonymously,
+	 * unless `scheme` names the credential the first principal sends.
+	 */
 	path?: string
+	/** The declared scheme a `path` read sends as the first principal. Without it the read is anonymous. */
+	scheme?: string
 	/** `$.json.path` into the body, or `header:<name>`. */
 	from: string
 }

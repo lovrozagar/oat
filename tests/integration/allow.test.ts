@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { UsageError } from "../../src/errors/usage-error.ts"
-import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { pruneToAllow } from "../../src/spec/allow.ts"
@@ -68,6 +68,7 @@ describe("a run under allow", () => {
 				allow: ALLOW,
 				baseUrl: server.url,
 				principals: PRINCIPALS,
+				security: SECURITY,
 				seed: 42,
 				spec: `${server.url}/v1/openapi/spec`,
 			})
@@ -85,6 +86,7 @@ describe("a run under allow", () => {
 			allow: ALLOW,
 			baseUrl: server.url,
 			principals: PRINCIPALS,
+			security: SECURITY,
 			seed: 42,
 			spec: `${server.url}/v1/openapi/spec`,
 		}
@@ -95,18 +97,12 @@ describe("a run under allow", () => {
 					scenarios: [{ covers: ["table.update"], id: "rename", steps: [{ operationId: "table.update" }] }],
 				}),
 			).rejects.toThrow(/table\.update/)
-			const [first, ...rest] = PRINCIPALS
-			if (first === undefined) throw new Error("no principal")
+			/* One principal signs in its own way, through an operation allow removed. */
+			const login = { from: "$.token", steps: [{ operationId: "table.invite" }] as [{ operationId: string }] }
 			await expect(
 				run({
 					...base,
-					principals: [
-						{
-							...first,
-							auth: { credentialFrom: "$.token", steps: [{ operationId: "table.invite" }] },
-						},
-						...rest,
-					],
+					principals: { ...PRINCIPALS, alpha: { ...PRINCIPALS["alpha"], security: { bearer: { login } } } },
 				}),
 			).rejects.toThrow(/table\.invite/)
 		} finally {

@@ -2,6 +2,7 @@ import { runContractCalls } from "../contract/calls.ts"
 import { confirmDeletes } from "../contract/deletes.ts"
 import { proveFromTranscript } from "../evidence.ts"
 import type { RunContext } from "./context.ts"
+import { actingOf } from "./acting.ts"
 import { stopped } from "./interrupt.ts"
 
 /**
@@ -14,18 +15,18 @@ export async function contractFloor(ctx: RunContext): Promise<void> {
 	progress.enter("test", "evidence from the transcript")
 	await proveFromTranscript({ client, grades, model })
 	await confirmDeletes({
-		auth: principals.alpha.headers,
 		client,
 		findings,
 		grades,
 		inScope,
 		mode: scope.mode,
 		model,
+		principal: principals.alpha.id,
 		stopped: () => stopped(ctx),
 	})
 	progress.enter("contract", "operations no check or scenario reached")
 	await runContractCalls({
-		auth: principals.alpha.headers,
+		acting: actingOf(ctx, principals.alpha.id),
 		checksRun: state.checksRun,
 		client,
 		findings,
@@ -36,7 +37,8 @@ export async function contractFloor(ctx: RunContext): Promise<void> {
 		model,
 		nonce: ctx.nonce,
 		owned: ctx.scenarioOwned,
-		roots: principals.alpha.roots,
+		principal: principals.alpha.id,
+		roots: { ...principals.alpha.scope },
 		seed: ctx.seed,
 		stopped: () => stopped(ctx),
 		validator: ctx.validator,

@@ -44,14 +44,34 @@ function issue(ctx: AcquireCtx, issuing: Issuing, from: string): Issued {
 	const expiresAt = expiresAtOf({ body: ran.answer.body, expiresIn: options.expiresIn, now: ctx.now(), value })
 	const issued: Issued = { expiresAt, value }
 	if (login.claims !== undefined) issued.identity = claimsOf(ctx, login.claims, value)
-	const refresh = options.refresh
-	if (refresh !== undefined) {
-		issued.refresh = async () => {
-			const renewed = await run(ctx, refresh.steps, { ...ran.scope, credential: value })
-			return issue(ctx, { ...issuing, ran: renewed }, refresh.from)
-		}
+	return renewable(ctx, issuing, issued)
+}
+
+/* The recipe's declared refresh, run with the scope the credential came with plus the credential itself. */
+function renewable(ctx: AcquireCtx, issuing: Issuing, issued: Issued): Issued {
+	const refresh = issuing.options.refresh
+	if (refresh === undefined) return issued
+	issued.refresh = async () => {
+		const renewed = await run(ctx, refresh.steps, { ...issuing.ran.scope, credential: issued.value })
+		return issue(ctx, { ...issuing, ran: renewed }, refresh.from)
 	}
 	return issued
+}
+
+/**
+ * A login credential the run was handed rather than signed in for, a signup's answer or an
+ * invite's: it renews by the recipe's declared refresh from `held.scope` (a `refresh_token`, say),
+ * as a signed-in one does from what its steps saved. With no refresh declared, the store signs in again.
+ */
+export function heldLogin(
+	ctx: AcquireCtx,
+	held: { value: string; scope: Readonly<Record<string, string>> },
+	options: Partial<Recipe>,
+): Issued {
+	const { value } = held
+	const expiresAt = expiresAtOf({ body: undefined, expiresIn: options.expiresIn, now: ctx.now(), value })
+	const ran = { answer: { body: undefined, cookies: {}, headers: {}, status: 200 }, scope: { ...held.scope } }
+	return renewable(ctx, { login: options.login as LoginRecipe, options, ran }, { expiresAt, value })
 }
 
 function claimsOf(ctx: AcquireCtx, claims: Record<string, string>, value: string): Record<string, string> {

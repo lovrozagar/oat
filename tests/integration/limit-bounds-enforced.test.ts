@@ -81,7 +81,7 @@ async function judged(refuses: boolean, declared: boolean) {
 	const url = await serve(refuses, declared)
 	const result = await run({
 		baseUrl: url,
-		principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
+		principals: { alpha: {} },
 		seed: 1,
 		spec: `${url}/openapi.json`,
 	})

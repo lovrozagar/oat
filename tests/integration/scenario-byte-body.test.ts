@@ -76,7 +76,7 @@ describe("a byte body in a scenario step", () => {
 		}
 		await run({
 			baseUrl: url,
-			principals: [{ headers: {}, id: "alpha" }],
+			principals: { alpha: {} },
 			scenarios: [scenario],
 			seed: 1,
 			spec: `${url}/openapi.json`,

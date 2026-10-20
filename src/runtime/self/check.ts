@@ -17,7 +17,7 @@ export const selfIdentityCheck = {
 	},
 	async run(ctx: WriteContext): Promise<Outcome> {
 		return runSelfIdentity({
-			auth: ctx.auth,
+			principal: ctx.actor.id,
 			client: ctx.client,
 			entity: ctx.model.entities.get(ctx.entityName) as EntityModel,
 			findings: ctx.findings,

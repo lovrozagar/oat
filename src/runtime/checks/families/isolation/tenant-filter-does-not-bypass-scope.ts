@@ -11,19 +11,19 @@ import { tenantBoundary } from "./tenant.ts"
 export const crossTenantFilterBypass = defineCheck<{
 	id: string
 	tenantTerm: Record<string, string>
-	altAuth: () => Record<string, string>
-	altScope: Record<string, string>
+	peer: string
+	peerScope: Record<string, string>
 }>({
 	plan: (ctx) => {
-		const { altAuth, altScope } = ctx
+		const { peer, peerScope } = ctx
 		const target = ctx.records[0]
-		if (altAuth === undefined || altScope === undefined || target === undefined) return cannot()
+		if (peer === undefined || peerScope === undefined || target === undefined) return cannot()
 		if (!filterable(ctx) || !tenantBoundary(ctx.listOp) || !identityIsFilterable(ctx)) return cannot()
 		const id = idOf(target, ctx.identity)
 		if (id === undefined) return cannot(NO_IDENTITY)
 		const tenantTerm = filterTerm(conv(ctx), { field: filterIdentity(ctx), op: "eq", value: id })
 		if (tenantTerm === null) return cannot("a filter grammar that can express equality on the identity")
-		return ready({ altAuth, altScope, id, tenantTerm })
+		return ready({ id, peer: peer.id, peerScope, tenantTerm })
 	},
 	/* The probe filters, so anything that stops a filter from selecting over the whole collection
 	 * hides the very record whose visibility is in question — a leak that cannot be observed is
@@ -32,11 +32,11 @@ export const crossTenantFilterBypass = defineCheck<{
 	id: "tenant.filter-does-not-bypass-scope",
 	needs: "a second principal, a filter, and a tenant tagged or inferred from the path",
 	subjects: subjectsOf.list,
-	async run(ctx, { altAuth, altScope, id, tenantTerm }): Promise<Outcome> {
+	async run(ctx, { id, peer, peerScope, tenantTerm }): Promise<Outcome> {
 		const result = await list(
 			ctx,
 			{ ...q(ctx, { limit: pageSize(ctx) }), ...tenantTerm },
-			{ auth: altAuth, scope: altScope },
+			{ principal: peer, scope: peerScope },
 		)
 		if (result.exchange.status >= 400) return ASSERTED
 		if (!ids(result.items, ctx.identity).includes(id)) return ASSERTED

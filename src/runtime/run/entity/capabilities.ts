@@ -16,11 +16,11 @@ export async function queryOf(run: EntityRun, scope: Record<string, string>): Pr
 	const { options, hooks } = ctx
 	const configured = options.entities?.[entity.name]?.query
 	const capabilities = await resolveEntityCapabilities({
-		auth: ctx.principals.alpha.headers,
 		client: ctx.client,
 		entityName: entity.name,
 		itemSchema: listOp.collection?.itemSchema ?? null,
 		model: ctx.model,
+		principal: ctx.principals.alpha.id,
 		scope,
 		tag: listOp.query,
 		...(options.query === undefined ? {} : { global: options.query }),

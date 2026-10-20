@@ -51,7 +51,7 @@ function deleted(reads: Record<string, Answer>, fields: Parameters<typeof stage>
 	const staged = stage(notes, (method, path) => (method === "GET" ? reads[path] : undefined), fields)
 	const done = (operationId: string, path: string) =>
 		staged.input.client.transcript.push(
-			exchangeOf({ method: "DELETE", options: { operationId }, path }, { status: 204 }),
+			exchangeOf({ method: "DELETE", options: { as: { principal: "alpha" }, operationId }, path }, { status: 204 }),
 		)
 	done("notes.delete", "/notes/n1")
 	done("archive.delete", "/archive/n2")
@@ -76,6 +76,7 @@ describe("confirmDeletes", () => {
 			"GET /bin bin.list",
 			"GET /flat flat.list",
 		])
+		expect(sent.every((request) => JSON.stringify(request.options.as) === '{"principal":"alpha"}')).toBe(true)
 		expect(input.grades.evidence.get("notes.delete")?.observation).toMatchObject({ status: 404 })
 		expect(input.grades.evidence.get("archive.delete")?.observation).toMatchObject({
 			path: "$.deleted_at",
@@ -126,7 +127,10 @@ describe("confirmDeletes on refusals and skips", () => {
 		input.grades.prove("notes.delete", { call: 1, observation: { seq: 2, status: 404 } })
 		input.client.transcript.splice(1, 1)
 		input.client.transcript.push({
-			...exchangeOf({ method: "DELETE", options: { operationId: "bin.empty" }, path: "/bin" }, { status: 204 }),
+			...exchangeOf(
+				{ method: "DELETE", options: { as: { principal: "alpha" }, operationId: "bin.empty" }, path: "/bin" },
+				{ status: 204 },
+			),
 			url: "http://[",
 		})
 		await confirmDeletes(input)

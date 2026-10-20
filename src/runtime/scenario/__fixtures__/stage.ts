@@ -9,7 +9,8 @@ import { startScenario } from "../state.ts"
 
 /*
  * A socket-free stage for scenarios: a notes document with a token endpoint, a notes API that
- * answers from memory, and the input `runScenarios` takes — two principals, fresh ledgers.
+ * answers from memory, and the input `runScenarios` takes — two principals, fresh ledgers. The
+ * fake client records who each request acts as; it places no credential.
  */
 
 const json = (schema: unknown) => ({ content: { "application/json": { schema } } })
@@ -115,8 +116,8 @@ export function stage(
 		mode: "full",
 		model: modelOf(notesDoc),
 		principals: new Map([
-			["alpha", { headers: () => ({ authorization: "Bearer alpha" }), roots: { org: "o1" } }],
-			["beta", { headers: () => ({ authorization: "Bearer beta" }), roots: {} }],
+			["alpha", { scope: { org: "o1" } }],
+			["beta", { scope: {} }],
 		]),
 		scenarios: [],
 		sleep: async () => undefined,

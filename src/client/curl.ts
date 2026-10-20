@@ -6,8 +6,7 @@
  * single-quoted so JSON bodies and query strings survive untouched.
  */
 
-import { isSecretJsonKey } from "../security/credential-names.ts"
-import { REDACTED, type Redactor } from "../security/redact.ts"
+import type { Redactor } from "../security/redact.ts"
 import {
 	type Exchange,
 	type FormSnapshot,
@@ -64,10 +63,22 @@ function redactBody(body: unknown, redactor: Redactor): unknown {
 	if (typeof body === "string") return redactor.text(body)
 	if (isURLSearchParams(body)) {
 		const out = new URLSearchParams()
-		for (const [key, value] of body) out.append(key, isSecretJsonKey(key) ? REDACTED : redactor.text(value))
+		for (const [key, value] of body) out.append(key, redactor.field(key, value))
 		return out
 	}
-	if (isFormData(body) || isFormSnapshot(body) || isRawBytes(body) || isBodyRef(body)) return body
+	if (isFormData(body)) {
+		const out = new FormData()
+		for (const [key, value] of body) out.append(key, typeof value === "string" ? redactor.field(key, value) : value)
+		return out
+	}
+	if (isFormSnapshot(body)) {
+		return {
+			parts: body.parts.map((part) =>
+				"value" in part ? { ...part, value: redactor.field(part.field, part.value) } : part,
+			),
+		}
+	}
+	if (isRawBytes(body) || isBodyRef(body)) return body
 	return redactor.json(body)
 }
 

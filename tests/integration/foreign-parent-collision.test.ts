@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
+import { bearerSecurity } from "../../src/conformance/harness/security.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 
@@ -21,6 +22,8 @@ interface Options {
 }
 
 const TOKENS: Record<string, string> = { "Bearer a": "a", "Bearer b": "b" }
+/* Each principal's bearer token is its project's id. */
+const SECURITY = { bearer: { static: "{principal.token}" } }
 
 const json = (schema: unknown) => ({ content: { "application/json": { schema } } })
 const TABLE = {
@@ -111,6 +114,7 @@ function spec(): OpenApiDocument {
 		parents: [PROJECT, param("table_id")],
 	})
 	return {
+		...bearerSecurity(),
 		info: { title: "foreign-parent-collision", version: "1" },
 		openapi: "3.1.0",
 		paths: {
@@ -292,15 +296,16 @@ async function serve(options: Options = {}) {
 	return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }
 }
 
-async function runAgainst(options: Options, roots: { a: Record<string, string>; b: Record<string, string> }) {
+async function runAgainst(options: Options, scope: { a: Record<string, string>; b: Record<string, string> }) {
 	const backend = await serve(options)
 	return run({
 		baseUrl: backend.url,
 		nonce: "n1",
-		principals: [
-			{ headers: { authorization: "Bearer a" }, id: "alpha", roots: { project_id: "a", ...roots.a } },
-			{ headers: { authorization: "Bearer b" }, id: "beta", roots: { project_id: "b", ...roots.b } },
-		],
+		principals: {
+			alpha: { scope: { project_id: "a", ...scope.a }, tenant: "a", token: "a" },
+			beta: { scope: { project_id: "b", ...scope.b }, tenant: "b", token: "b" },
+		},
+		security: SECURITY,
 		seed: 1,
 		spec: `${backend.url}/v1/openapi/spec`,
 	})
@@ -346,7 +351,8 @@ describe("a parent oat creates as scaffolding", () => {
 		const result = await run({
 			baseUrl: backend.url,
 			nonce: "n1",
-			principals: [{ headers: { authorization: "Bearer a" }, id: "alpha", roots: { project_id: "a" } }],
+			principals: { alpha: { scope: { project_id: "a" }, tenant: "a", token: "a" } },
+			security: SECURITY,
 			seed: 1,
 			spec: `${backend.url}/v1/openapi/spec`,
 		})

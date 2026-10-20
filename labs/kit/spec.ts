@@ -37,6 +37,9 @@ export function buildSpec(world: World): Json {
 		info: { title: world.title, version: "1.0" },
 		openapi: "3.1.0",
 		paths,
+		/* The bearer token auth.token issues, which every other route wants (http.ts `authenticate`). */
+		components: { securitySchemes: { bearer: { scheme: "bearer", type: "http" } } },
+		security: [{ bearer: [] }],
 	}
 }
 
@@ -79,6 +82,7 @@ function authOperation(): Json {
 			),
 			"401": error(401),
 		},
+		security: [],
 		summary: "Exchange an API key for a bearer token",
 	}
 }

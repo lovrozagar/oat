@@ -64,7 +64,7 @@ describe("a 503 with Retry-After", () => {
 			onExchange: () => undefined,
 			redactor: new Redactor(),
 		})
-		const exchange = await client.request("POST", "/v1/busy")
+		const exchange = await client.request("POST", "/v1/busy", { as: { anonymous: true } })
 		expect(exchange.status).toBe(200)
 		expect(server.hits()).toBe(2)
 		expect(client.transcript.filter((e) => e.status === 503).every((e) => e.superseded === true)).toBe(true)
@@ -78,7 +78,7 @@ describe("a 503 with Retry-After", () => {
 			onExchange: () => undefined,
 			redactor: new Redactor(),
 		})
-		expect((await client.request("POST", "/v1/busy")).status).toBe(503)
+		expect((await client.request("POST", "/v1/busy", { as: { anonymous: true } })).status).toBe(503)
 		expect(server.hits()).toBe(1)
 	})
 
@@ -86,7 +86,7 @@ describe("a 503 with Retry-After", () => {
 		const server = await serve([{ retryAfter: "1", status: 503 }])
 		const result = await run({
 			baseUrl: server.url,
-			principals: [{ headers: {}, id: "alpha" }],
+			principals: { alpha: {} },
 			seed: 1,
 			spec: `${server.url}/openapi.json`,
 		})

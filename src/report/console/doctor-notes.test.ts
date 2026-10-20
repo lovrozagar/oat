@@ -103,9 +103,13 @@ describe("envelopeLines", () => {
 })
 
 describe("authLines", () => {
-	it("warns when a secured document offers no way to obtain a credential", async () => {
+	it("names the recipes a secured document needs, and the overlay an unsecured one does", async () => {
 		expect(authLines((await referenceModel()).model)).toEqual([])
-		expect(authLines(modelOf(documentOf({})).model)).toEqual([])
+		expect(authLines(modelOf(documentOf({})).model)).toEqual([
+			"  auth",
+			"    the document declares no security; add an overlay.",
+			"",
+		])
 		const secured = modelOf(
 			documentOf(
 				{ "/a": { get: listOp("a", "a.list") } },
@@ -123,7 +127,8 @@ describe("authLines", () => {
 			"  auth",
 			'    document declares "bearer", "key" but contains no',
 			"    operation for obtaining a credential. No generic client can bootstrap from",
-			"    this spec. Add the auth operations, or declare x-auth-flows at document root.",
+			"    this spec. Add a security.<scheme> recipe (login, static, mint, hook or oauth2)",
+			"    to the config for each scheme the document declares.",
 			"",
 		])
 	})

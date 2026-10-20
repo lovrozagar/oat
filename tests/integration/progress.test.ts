@@ -264,7 +264,7 @@ describe("Client HTTP hooks", () => {
 			},
 			redactor: new Redactor(),
 		})
-		const pending = client.request("POST", "/v1/projects/p1/extract")
+		const pending = client.request("POST", "/v1/projects/p1/extract", { as: { anonymous: true } })
 		await vi.waitFor(() => {
 			expect(events[0]).toBe("start:POST:/v1/projects/p1/extract")
 		})
@@ -451,7 +451,7 @@ describe("run() in-flight progress", () => {
 				})
 			},
 			only: ["widget"],
-			principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
+			principals: { alpha: {} },
 			seed: 1,
 			spec: `${server.url}/v1/openapi/spec`,
 		})

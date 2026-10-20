@@ -1,6 +1,7 @@
 /** The feature-gate suite's document: webhooks whose writes may carry `x-feature-gate`, and untagged invites. */
 
 import type { OpenApiDocument } from "../../spec/types.ts"
+import { bearerSecurity } from "../harness/security.ts"
 
 const FORBIDDEN_SCHEMA = {
 	properties: {
@@ -121,5 +122,6 @@ export function webhookSpec(tag: string | null): OpenApiDocument {
 			"/v1/orgs/{org_id}/webhooks/{webhook_id}": webhookItem(tag),
 			"/v1/orgs/{org_id}/invites": inviteCollection(),
 		},
+		...bearerSecurity(),
 	} as OpenApiDocument
 }

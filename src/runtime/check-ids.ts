@@ -169,12 +169,13 @@ export const FAMILY_OF_PREFIX: Record<Prefix<CheckId>, CheckFamily> = {
 
 /**
  * Findings the run raises itself, outside any registered check: a seed or teardown that failed,
- * a credential that could not be refreshed, the network or the run stopping. Reports name them and
+ * a principal or a credential BLOCKED because a login, signup or refresh failed, the network or
+ * the run stopping. Reports name them and
  * conformance expects them like any check, so they are typed the same way: a misspelled one fails
  * to compile.
  */
 export const RUN_FINDING_IDS = [
-	"auth.refresh",
+	"auth.blocked",
 	"create.does-not-error",
 	"net.unreachable",
 	"profile.skip",

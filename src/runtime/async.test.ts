@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { type Answer, json, transport } from "../client/__fixtures__/transport.ts"
 import { Client } from "../client/client.ts"
+import { fixedSource, sendingHeaders } from "../client/__fixtures__/source.ts"
+import type { Exchange } from "./exchange.ts"
 import { Redactor } from "../security/redact.ts"
 import type { AsyncSpec } from "../spec/extensions/async.ts"
 import { type AsyncDrive, driveAsync, inspectStreamAsync, matchesPredicate, resolveAsyncId } from "./async.ts"
@@ -76,19 +78,25 @@ describe("inspectStreamAsync", () => {
 	})
 })
 
+/* The request that began the job, as the client recorded it. */
+const START = { principal: "alpha", schemes: ["jwt"], seq: 1, status: 202 } as Exchange
+
 /** A job store a poll reads: each route's answers in order, the last repeating. */
 function drive(answer: Answer, more: Partial<Omit<AsyncDrive, "spec">> & { spec?: Partial<AsyncSpec> } = {}) {
 	const wire = transport(answer)
+	const source = fixedSource(sendingHeaders({ authorization: "Bearer t" }))
 	const client = new Client({
 		baseUrl: "http://api.test",
+		credentials: source,
 		network: { fetchImpl: wire.fetch },
 		redactor: new Redactor(),
 	})
 	const { spec, ...rest } = more
 	const outcome = driveAsync({
 		client,
-		headers: () => ({ authorization: "Bearer t" }),
+		principal: "alpha",
 		receipt: { id: "job 1" },
+		start: START,
 		scope: {},
 		spec: {
 			idFrom: "$.id",
@@ -100,7 +108,7 @@ function drive(answer: Answer, more: Partial<Omit<AsyncDrive, "spec">> & { spec?
 		},
 		...rest,
 	})
-	return { outcome, sent: wire.sent }
+	return { outcome, sent: wire.sent, source }
 }
 
 const answers =
@@ -185,14 +193,13 @@ describe("driveAsync, when the job does not finish", () => {
 		expect(await outcome).toMatchObject({ state: "timed-out", succeeded: false, terminal: null, timedOut: true })
 	})
 
-	it("refreshes a stale credential before every poll", async () => {
-		const refreshed: Array<boolean | undefined> = []
-		const refreshIfStale = (force?: boolean): Promise<void> => {
-			refreshed.push(force)
-			return Promise.resolve()
-		}
-		const { outcome } = drive(answers([200, { status: "running" }], [200, { status: "done" }]), { refreshIfStale })
-		await outcome
-		expect(refreshed.length).toBeGreaterThanOrEqual(2)
+	it("polls as the principal continuing from the start, its credential resolved afresh for every poll", async () => {
+		const { outcome, source } = drive(answers([200, { status: "running" }], [200, { status: "done" }]))
+		const { exchanges } = await outcome
+		expect(source.asked.length).toBeGreaterThanOrEqual(2)
+		expect(source.asked.map((request) => request.actor)).toEqual(
+			source.asked.map(() => ({ principal: "alpha", via: START })),
+		)
+		for (const poll of exchanges) expect([poll.principal, poll.schemes]).toEqual([START.principal, START.schemes])
 	})
 })

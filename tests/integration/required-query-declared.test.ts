@@ -86,20 +86,20 @@ async function client(): Promise<{ client: Client; seen: string[] }> {
 describe("required query parameters", () => {
 	it("are sent with the value the document declares when the caller names none", async () => {
 		const { client: c, seen } = await client()
-		await c.get("/v1/articles", { query: { limit: 5 } })
+		await c.get("/v1/articles", { as: { anonymous: true }, query: { limit: 5 } })
 		expect(seen).toEqual(["/v1/articles?limit=5&locale=en&format=json"])
 	})
 
 	it("yield to a value the caller sets, or omits on purpose", async () => {
 		const { client: c, seen } = await client()
-		await c.get("/v1/articles", { query: { format: "csv", locale: "pt-BR" } })
-		await c.get("/v1/articles", { query: { format: undefined, locale: undefined } })
+		await c.get("/v1/articles", { as: { anonymous: true }, query: { format: "csv", locale: "pt-BR" } })
+		await c.get("/v1/articles", { as: { anonymous: true }, query: { format: undefined, locale: undefined } })
 		expect(seen).toEqual(["/v1/articles?format=csv&locale=pt-BR", "/v1/articles"])
 	})
 
 	it("are not invented when the document declares no value", async () => {
 		const { client: c, seen } = await client()
-		await c.get("/v1/authors")
+		await c.get("/v1/authors", { as: { anonymous: true } })
 		expect(seen).toEqual(["/v1/authors"])
 	})
 })

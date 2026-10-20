@@ -169,7 +169,7 @@ describe("a create that acknowledges without echoing the record", () => {
 		const result = await run({
 			baseUrl: url,
 			cohortSize: 3,
-			principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+			principals: { alpha: {} },
 			seed: 1,
 			spec: `${url}/openapi.json`,
 		})
@@ -186,7 +186,7 @@ describe("a create that acknowledges without echoing the record", () => {
 		await run({
 			baseUrl: url,
 			cohortSize: 3,
-			principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+			principals: { alpha: {} },
 			seed: 1,
 			spec: `${url}/openapi.json`,
 		})
@@ -199,7 +199,7 @@ describe("a create that acknowledges without echoing the record", () => {
 		const result = await run({
 			baseUrl: url,
 			cohortSize: 3,
-			principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+			principals: { alpha: {} },
 			seed: 1,
 			spec: `${url}/openapi.json`,
 		})

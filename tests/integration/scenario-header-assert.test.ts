@@ -63,7 +63,7 @@ async function grade(location: string) {
 	const result = await run({
 		baseUrl: url,
 		ops: ["reference.open"],
-		principals: [{ headers: {}, id: "alpha" }],
+		principals: { alpha: {} },
 		scenarios: [REFERENCE],
 		seed: 1,
 		spec: `${url}/openapi.json`,

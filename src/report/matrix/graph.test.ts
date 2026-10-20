@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { PRINCIPALS } from "../../conformance/matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../../conformance/matrix/principals.ts"
 import { createMemoryReference } from "../../reference/http/engines.ts"
 import { run } from "../../runtime/run/index.ts"
 import { crowd, report } from "./__fixtures__/reports.ts"
@@ -82,6 +82,7 @@ describe("buildMatrixGraphFromReport", () => {
 				baseUrl: reference.url,
 				network: { fetch: transport },
 				principals: PRINCIPALS,
+				security: SECURITY,
 				seed: 42,
 				spec: `${reference.url}/v1/openapi/spec`,
 			})

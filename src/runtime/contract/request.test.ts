@@ -15,22 +15,23 @@ function staged(paths: Record<string, unknown>, operationId: string, fields: Par
 	return { input, op, params: parametersOf(raw), raw }
 }
 
-describe("pathValues", () => {
-	const paths = {
-		"/a/{org_id}/{kind}/{thing_id}/{seen_id}": {
-			get: {
-				operationId: "deep.get",
-				parameters: [
-					pathParam("org_id"),
-					pathParam("kind", { enum: ["red", "blue"] }),
-					pathParam("thing_id", { enum: [] }),
-					pathParam("seen_id"),
-				],
-				responses: ok(),
-			},
+/** An operation whose path parameters come from roots, an enum, the hook and an earlier success. */
+const paths = {
+	"/a/{org_id}/{kind}/{thing_id}/{seen_id}": {
+		get: {
+			operationId: "deep.get",
+			parameters: [
+				pathParam("org_id"),
+				pathParam("kind", { enum: ["red", "blue"] }),
+				pathParam("thing_id", { enum: [] }),
+				pathParam("seen_id"),
+			],
+			responses: ok(),
 		},
-	}
+	},
+}
 
+describe("pathValues", () => {
 	it("takes roots, then a declared enum, then the hook, then an earlier success", async () => {
 		const asked: unknown[] = []
 		const { input, op, params } = staged(paths, "deep.get", {
@@ -43,29 +44,63 @@ describe("pathValues", () => {
 			roots: { org_id: "o1" },
 		})
 		input.client.transcript.push(exchange("GET", "/x", { body: { seen_id: "s1" }, status: 200 }))
-		expect(await pathValues(input, { op, params }, { h: "1" })).toEqual({
+		expect(await pathValues(input, { op, params })).toEqual({
 			kind: "red",
 			org_id: "o1",
 			seen_id: "s1",
 			thing_id: "t-hook",
 		})
+		const told = { identity: {}, principal: "alpha", scope: { org_id: "o1" } }
 		expect(asked).toEqual([
-			{ enumValues: [], headers: { h: "1" }, method: "GET", operationId: "deep.get", param: "thing_id", path: op.path },
-			{ enumValues: [], headers: { h: "1" }, method: "GET", operationId: "deep.get", param: "seen_id", path: op.path },
+			{ enumValues: [], method: "GET", operationId: "deep.get", param: "thing_id", path: op.path, ...told },
+			{ enumValues: [], method: "GET", operationId: "deep.get", param: "seen_id", path: op.path, ...told },
 		])
+	})
+})
+
+describe("pathValues: what the hook is told", () => {
+	it("tells the hook who acts and what it would send on the operation, never raw headers", async () => {
+		const asked: unknown[] = []
+		const sends = { cookies: {}, headers: { Authorization: "Bearer jwt-1" }, query: {} }
+		const { input, op, params } = staged(paths, "deep.get", {
+			acting: {
+				identity: { email: "a@x.test" },
+				sending: async (operationId) => (operationId === "deep.get" ? { credential: "jwt-1", sends } : undefined),
+			},
+			hooks: {
+				resolvePathValue: async (request) => {
+					asked.push(request)
+					return "v"
+				},
+			},
+			roots: { org_id: "o1" },
+		})
+		await pathValues(input, { op, params })
+		expect(asked[0]).toEqual({
+			credential: "jwt-1",
+			enumValues: [],
+			identity: { email: "a@x.test" },
+			method: "GET",
+			operationId: "deep.get",
+			param: "thing_id",
+			path: op.path,
+			principal: "alpha",
+			scope: { org_id: "o1" },
+			sends,
+		})
 	})
 
 	it("skips the operation at the first value nothing resolves", async () => {
 		const { input, op, params } = staged(paths, "deep.get", {
 			hooks: { resolvePathValue: async () => null },
 		})
-		expect(await pathValues(input, { op, params }, {})).toBeNull()
+		expect(await pathValues(input, { op, params })).toBeNull()
 		expect([...(input.grades.needs.get("deep.get") ?? [])]).toEqual(["unresolved param org_id"])
 	})
 
 	it("works without a hook or a declared parameter", async () => {
 		const { input, op } = staged(paths, "deep.get", { roots: { org_id: "o1" } })
-		expect(await pathValues(input, { op, params: [] }, {})).toBeNull()
+		expect(await pathValues(input, { op, params: [] })).toBeNull()
 		expect([...(input.grades.needs.get("deep.get") ?? [])]).toEqual(["unresolved param kind"])
 	})
 })

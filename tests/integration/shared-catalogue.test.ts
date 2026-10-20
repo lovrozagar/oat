@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
+import { bearerSecurity } from "../../src/conformance/harness/security.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { run } from "../../src/runtime/run/index.ts"
 
@@ -21,6 +22,7 @@ const item = {
 function spec(): OpenApiDocument {
 	const entity = { name: "catalogue" }
 	return {
+		...bearerSecurity(),
 		info: { title: "catalogue", version: "1" },
 		openapi: "3.1.0",
 		paths: {
@@ -140,10 +142,11 @@ describe("shared catalogue", () => {
 		const url = await serve()
 		const result = await run({
 			baseUrl: url,
-			principals: [
-				{ headers: { authorization: "Bearer alpha" }, id: "alpha", roots: { project_id: "proj_alpha" } },
-				{ headers: { authorization: "Bearer beta" }, id: "beta", roots: { project_id: "proj_beta" } },
-			],
+			principals: {
+				alpha: { scope: { project_id: "proj_alpha" }, tenant: "proj_alpha", token: "alpha" },
+				beta: { scope: { project_id: "proj_beta" }, tenant: "proj_beta", token: "beta" },
+			},
+			security: { bearer: { static: "{principal.token}" } },
 			seed: 1,
 			spec: `${url}/openapi.json`,
 		})

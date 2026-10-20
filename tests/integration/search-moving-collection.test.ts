@@ -127,11 +127,13 @@ async function run(opts: { grows: boolean; caseSensitive: boolean }): Promise<Fi
 	const findings = new FindingCollector()
 	const ctx = checkContext({
 		actors: [],
-		altAuth: undefined,
-		altScope: undefined,
 		asyncOps: [],
-		auth: () => ({}),
-		client: new Client({ baseUrl: url, redactor: new Redactor() }),
+		client: new Client({
+			baseUrl: url,
+			/* The document declares no security: the actor's requests send nothing. */
+			credentials: { resolve: async () => ({ kind: "anonymous" }) },
+			redactor: new Redactor(),
+		}),
 		collectionKey: listOp.collection?.key ?? "templates",
 		createOp: undefined,
 		deleteOp: undefined,

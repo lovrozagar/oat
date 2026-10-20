@@ -10,50 +10,20 @@ const API = process.env.LAB_URL ?? "http://127.0.0.1:8788"
 
 export default defineConfig({
 	baseUrl: API,
-	principals: [
-		{
-			auth: {
-				credentialFrom: "$.access_token",
-				steps: [{ body: { key: "key_alpha" }, operationId: "auth.token" }],
-			},
-			id: "alpha",
-			rank: 2,
-			role: "owner",
-			roots: { org_id: "org_alpha" },
-		},
-		{
-			auth: {
-				credentialFrom: "$.access_token",
-				steps: [{ body: { key: "key_alpha_member" }, operationId: "auth.token" }],
-			},
-			id: "alpha_member",
-			rank: 1,
-			role: "member",
-			roots: { org_id: "org_alpha" },
-		},
-		{
-			auth: {
-				credentialFrom: "$.access_token",
-				steps: [{ body: { key: "key_alpha_viewer" }, operationId: "auth.token" }],
-			},
-			id: "alpha_viewer",
-			rank: 0,
-			role: "viewer",
-			roots: { org_id: "org_alpha" },
-		},
-		{
-			auth: {
-				credentialFrom: "$.access_token",
-				steps: [{ body: { key: "key_beta" }, operationId: "auth.token" }],
-			},
-			id: "beta",
-			inviteAs: "key_beta",
-			rank: 2,
-			role: "owner",
-			roots: { org_id: "org_beta" },
-		},
-	],
+	/* An owner, member and viewer in one org, and an owner in another. */
+	principals: {
+		alpha: { key: "key_alpha", rank: 2, scope: { org_id: "org_alpha" }, tenant: "org_alpha" },
+		alpha_member: { key: "key_alpha_member", rank: 1, scope: { org_id: "org_alpha" }, tenant: "org_alpha" },
+		alpha_viewer: { key: "key_alpha_viewer", rank: 0, scope: { org_id: "org_alpha" }, tenant: "org_alpha" },
+		beta: { inviteAs: "key_beta", key: "key_beta", rank: 2, scope: { org_id: "org_beta" }, tenant: "org_beta" },
+	},
 	cohortSize: Number(process.env.COHORT ?? 12) || 12,
+	/* The world's bearer scheme: each principal trades its key at auth.token for the token. */
+	security: {
+		bearer: {
+			login: { from: "$.access_token", steps: [{ body: { key: "{principal.key}" }, operationId: "auth.token" }] },
+		},
+	},
 	seed: 42,
 	spec: `${API}/v1/openapi/spec`,
 })

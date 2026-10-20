@@ -17,13 +17,16 @@ afterEach(async () => {
 	open = []
 })
 
+/** What each operation does, whatever the document calls it. */
+type Role = "create" | "delete" | "get" | "list" | "logout" | "me" | "register" | "version"
+
 interface Names {
 	session: string
 	signUp: string
 	self: string
 	notes: string
 	version: string
-	ops: Record<string, string>
+	ops: Record<Role, string>
 }
 
 const FAMILIAR: Names = {
@@ -247,7 +250,16 @@ async function grades(names: Names): Promise<Record<string, string>> {
 	const url = await serve(names)
 	const result = await run({
 		baseUrl: url,
-		principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+		principals: { alpha: { security: { bearer: { static: "alpha" } } } },
+		/* A fresh principal holds what its signup answered; alpha holds a fixed token. */
+		security: {
+			bearer: {
+				login: {
+					from: "$.access_token",
+					steps: [{ body: { email: "{principal.email}" }, operationId: names.ops.register }],
+				},
+			},
+		},
 		seed: 7,
 		spec: `${url}/openapi.json`,
 	})

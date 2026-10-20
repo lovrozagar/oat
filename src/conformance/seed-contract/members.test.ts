@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { referenceRequest } from "../../reference/http/wire.ts"
+import { buildModel } from "../../spec/graph/build.ts"
+import { dereference } from "../../spec/load/dereference.ts"
+import { bearerSecurity } from "../harness/security.ts"
 import { memberBackend, memberSpec } from "./members.ts"
 
 function ask(method: string, path: string, body = "") {
@@ -34,5 +37,14 @@ describe("memberBackend", () => {
 	it("answers a bare 500 on a body it cannot parse", async () => {
 		const { handle } = memberBackend()
 		expect((await handle(ask("POST", "/v1/orgs/org_1/members", "{"))).status).toBe(500)
+	})
+})
+
+describe("memberSpec security", () => {
+	it("requires the bearer on every operation, from the root", () => {
+		const doc = memberSpec()
+		expect(doc).toMatchObject(bearerSecurity())
+		const sources = buildModel(dereference(doc).doc).operations.map((op) => op.security.source)
+		expect(new Set(sources)).toEqual(new Set(["root"]))
 	})
 })

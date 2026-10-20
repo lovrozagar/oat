@@ -20,6 +20,9 @@ import { userBackend } from "./seed-contract/users.ts"
 
 export { runFixtureWalkCases } from "./seed-contract/fixture-walk.ts"
 
+/** Who a case's run acts as, and how each principal gets its credential. */
+type Credentials = Pick<RunOptions, "principals" | "security">
+
 /** One case: what it reports when it cannot run, and how it runs, adding what it found to `results`. */
 interface ContractCase {
 	name: string
@@ -37,9 +40,11 @@ async function hostedRun(via: Via, handle: Handle, options: Omit<RunOptions, "ba
 	}
 }
 
-const PROJECT_PRINCIPALS: RunOptions["principals"] = [
-	{ headers: { authorization: "Bearer t" }, id: "alpha", roots: { project_id: "p_seed" } },
-]
+/** One principal in project p_seed, with a fixed bearer token. */
+const PROJECT: Credentials = {
+	principals: { alpha: { scope: { project_id: "p_seed" }, tenant: "p_seed" } },
+	security: { bearer: { static: "t" } },
+}
 
 const CHEAP = "cheap profile does not POST extract.once"
 const HONOURED = "effects must honour excludedByProfile"
@@ -48,7 +53,7 @@ async function profiles(via: Via, results: ParserResult[]): Promise<void> {
 	const cheapBackend = projectBackend()
 	const cheap = await hostedRun(via, cheapBackend.handle, {
 		only: ["project"],
-		principals: PROJECT_PRINCIPALS,
+		...PROJECT,
 		profile: "cheap",
 		seed: 1,
 	})
@@ -64,7 +69,7 @@ async function profiles(via: Via, results: ParserResult[]): Promise<void> {
 	const fullBackend = projectBackend()
 	const full = await hostedRun(via, fullBackend.handle, {
 		only: ["project"],
-		principals: PROJECT_PRINCIPALS,
+		...PROJECT,
 		profile: "full",
 		seed: 1,
 	})
@@ -77,14 +82,18 @@ async function profiles(via: Via, results: ParserResult[]): Promise<void> {
 	})
 }
 
-const INVITE_PRINCIPALS: RunOptions["principals"] = [
-	{ headers: { authorization: "Bearer a" }, id: "alpha", roots: { org_id: "org_1" } },
-	{ headers: { authorization: "Bearer b" }, id: "beta", inviteAs: "beta@x.test", roots: { org_id: "org_2" } },
-]
+/** An owner in each of two orgs, each with its own bearer token; beta is invited as its email. */
+const INVITE: Credentials = {
+	principals: {
+		alpha: { scope: { org_id: "org_1" }, tenant: "org_1", token: "a" },
+		beta: { inviteAs: "beta@x.test", scope: { org_id: "org_2" }, tenant: "org_2", token: "b" },
+	},
+	security: { bearer: { static: "{principal.token}" } },
+}
 
 async function inviteOnly(via: Via, results: ParserResult[]): Promise<void> {
 	const backend = memberBackend()
-	const result = await hostedRun(via, backend.handle, { only: ["member"], principals: INVITE_PRINCIPALS, seed: 1 })
+	const result = await hostedRun(via, backend.handle, { only: ["member"], ...INVITE, seed: 1 })
 	const inviteWithPeer = backend.inviteBodies.some(
 		(body) => (body as { invite_email?: unknown } | null | undefined)?.invite_email === "beta@x.test",
 	)
@@ -98,26 +107,29 @@ async function inviteOnly(via: Via, results: ParserResult[]): Promise<void> {
 	})
 }
 
-const REGISTER_PRINCIPALS: RunOptions["principals"] = [
-	{
-		auth: {
-			credentialFrom: "$.access_token",
-			steps: [
-				{
-					body: { email: "alpha@x.test", password: "pw" },
-					headers: { "x-via": "auth" },
-					operationId: "auth.registerWithEmail",
-				},
-				{ body: { email: "alpha@x.test", password: "pw" }, operationId: "auth.login" },
-			],
+/** One principal that signs up, then logs in for its bearer token. */
+const REGISTER: Credentials = {
+	principals: { alpha: {} },
+	security: {
+		bearer: {
+			login: {
+				from: "$.access_token",
+				steps: [
+					{
+						body: { email: "alpha@x.test", password: "pw" },
+						headers: { "x-via": "auth" },
+						operationId: "auth.registerWithEmail",
+					},
+					{ body: { email: "alpha@x.test", password: "pw" }, operationId: "auth.login" },
+				],
+			},
 		},
-		id: "alpha",
 	},
-]
+}
 
 async function registerNotSeeded(via: Via, results: ParserResult[]): Promise<void> {
 	const backend = userBackend()
-	await hostedRun(via, backend.handle, { only: ["user"], principals: REGISTER_PRINCIPALS, seed: 1 })
+	await hostedRun(via, backend.handle, { only: ["user"], ...REGISTER, seed: 1 })
 	results.push({
 		detail: `register calls=${backend.registerFrom.join(",") || "none"}`,
 		name: "auth.registerWithEmail is not seeded",

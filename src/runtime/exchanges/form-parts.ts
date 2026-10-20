@@ -1,12 +1,14 @@
 /** A multipart part as the journal and the transcript keep it: a field's value, or a file's address. */
 
-import { isSecretJsonKey } from "../../security/credential-names.ts"
-import { REDACTED } from "../../security/redact.ts"
+import type { Redactor } from "../../security/redact.ts"
 import type { FormPart } from "../exchange.ts"
 
-/** A text field, its value scrubbed when the field names a secret. */
-export function formFieldPart(field: string, value: string): FormPart {
-	return { field, value: isSecretJsonKey(field) ? REDACTED : value }
+/**
+ * A text field: redacted when its name is a secret's or a placed query credential's, and scrubbed
+ * of every credential value the run placed otherwise.
+ */
+export function formFieldPart(field: string, value: string, redactor: Redactor): FormPart {
+	return { field, value: redactor.field(field, value) }
 }
 
 /** A file part by its size and hash; the bytes themselves are kept elsewhere or not at all. */

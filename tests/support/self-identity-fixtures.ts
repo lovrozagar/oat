@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
+import { bearerSecurity } from "../../src/conformance/harness/security.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 
 /*
@@ -66,7 +67,7 @@ async function serveRoutes(spec: OpenApiDocument, route: Route): Promise<Served>
 }
 
 function selfSpec(paths: OpenApiDocument["paths"], title = "self-boolean"): OpenApiDocument {
-	return { info: { title, version: "1" }, openapi: "3.1.0", paths } as OpenApiDocument
+	return { ...bearerSecurity(), info: { title, version: "1" }, openapi: "3.1.0", paths } as OpenApiDocument
 }
 
 function ok(schema: Schema, description = "ok") {

@@ -10,7 +10,6 @@ export function worldOptions(run: EntityRun): WorldOptions {
 	const { principals, exclusion, nonce, seed, uploads } = ctx
 	return {
 		ancestors,
-		authHeaders: principals.alpha.headers,
 		nonce,
 		onCreate: principals.recorder(principals.ownerOf(principals.alpha)),
 		onUnidentified: principals.unidentified,
@@ -33,11 +32,7 @@ export async function readExisting(
 	const scope: Record<string, string> = { ...roots }
 	if (run.listOp.pathParams.some((param) => scope[param] === undefined)) return { records: [], scope }
 	const { model, principals } = run.ctx
-	const records = await listExisting(
-		{ listOp: run.listOp, model, values: scope },
-		run.seeding,
-		principals.alpha.headers(),
-	)
+	const records = await listExisting({ listOp: run.listOp, model, values: scope }, run.seeding, principals.alpha.id)
 	return { records, scope }
 }
 

@@ -4,6 +4,8 @@
  * whose body drifts from the document.
  */
 
+import type { PrincipalsConfig, SecurityConfig } from "../../config/types/security.ts"
+import { bearer } from "../../reference/http/access.ts"
 import type { Handle } from "../../reference/http/node.ts"
 import type { ReferenceRequest, ReferenceResponse } from "../../reference/http/wire.ts"
 import { run } from "../../runtime/run/index.ts"
@@ -153,7 +155,7 @@ const ON_ITEM: Readonly<Record<string, ItemHandler>> = {
 function route(state: Widgets, request: ReferenceRequest): Promise<ReferenceResponse> | ReferenceResponse {
 	const { pathname } = request.url
 	if (pathname === "/v1/openapi/spec" && request.method === "GET") return answer(200, state.spec)
-	if (!(request.headers.authorization ?? "").startsWith("Bearer ")) return answer(401, { error_key: "unauthorized" })
+	if (bearer(request) === undefined) return answer(401, { error_key: "unauthorized" })
 	if (pathname === COLLECTION && request.method === "GET") return answer(200, { widgets: [...state.rows.values()] })
 	if (pathname === COLLECTION && request.method === "POST") return create(state, request)
 	const onItem = ITEM.test(pathname) ? ON_ITEM[request.method] : undefined
@@ -192,7 +194,8 @@ export interface Outcome {
 	posts: Post[]
 }
 
-const PRINCIPALS = [{ headers: { authorization: "Bearer tok_alpha" }, id: "alpha", roots: { org_id: "org_1" } }]
+const PRINCIPALS: PrincipalsConfig = { alpha: { scope: { org_id: "org_1" }, tenant: "org_1" } }
+const SECURITY: SecurityConfig = { bearer: { static: "tok_alpha" } }
 
 /** oat run once, on the widget entity alone, against a fresh harness reached through `via`. */
 export async function against(via: Via, options: HarnessOptions): Promise<Outcome> {
@@ -203,6 +206,7 @@ export async function against(via: Via, options: HarnessOptions): Promise<Outcom
 			baseUrl: hosted.url,
 			only: ["widget"],
 			principals: PRINCIPALS,
+			security: SECURITY,
 			seed: 1,
 			spec: `${hosted.url}/v1/openapi/spec`,
 			...reach(hosted),

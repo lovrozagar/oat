@@ -1,4 +1,4 @@
-import type { Hooks } from "../../config/types/hooks.ts"
+import type { Hooks, Sends } from "../../config/types/hooks.ts"
 import type { OperationModel, SpecModel } from "../../spec/graph/types.ts"
 import type { OperationObject } from "../../spec/types.ts"
 import type { Client } from "../../client/client.ts"
@@ -17,6 +17,13 @@ export interface ContractCall {
 }
 
 /** What the contract floor reads and grades with. */
+/** Who the floor acts as, and what it would send on an operation: what `hooks.resolvePathValue` is told. */
+export interface Acting {
+	identity: Readonly<Record<string, unknown>>
+	/** The credential an operation would carry as the principal, and its placement; undefined when it sends none. */
+	sending: (operationId: string) => Promise<{ credential: string; sends: Sends } | undefined>
+}
+
 export interface ContractInput {
 	model: SpecModel
 	client: Client
@@ -24,7 +31,9 @@ export interface ContractInput {
 	grades: GradeLedger
 	checksRun: Set<string>
 	validator: SchemaValidator
-	auth: () => Record<string, string>
+	/** The principal it sends as: `as: { principal }`, the operation's security choosing the scheme. */
+	principal: string
+	acting: Acting
 	roots: Record<string, string>
 	hooks: Hooks
 	inScope: (operationId: string) => boolean
@@ -43,7 +52,8 @@ export interface ConfirmInput {
 	client: Client
 	findings: FindingCollector
 	grades: GradeLedger
-	auth: () => Record<string, string>
+	/** The principal it sends as: `as: { principal }`, the operation's security choosing the scheme. */
+	principal: string
 	inScope: (operationId: string) => boolean
 	mode: "full" | "targeted"
 	stopped: () => boolean

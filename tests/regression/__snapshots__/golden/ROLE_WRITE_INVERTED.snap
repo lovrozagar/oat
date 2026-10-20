@@ -325,7 +325,7 @@
       "added": [
         {
           "check": "auth.rank-is-monotonic-on-writes",
-          "detail": "viewer (rank 0) was allowed to update job (200); member (rank 1) was refused (403). Privilege must be monotonic on writes as on reads.",
+          "detail": "alpha_viewer (rank 0) was allowed to update job (200); alpha_member (rank 1) was refused (403). Privilege must be monotonic on writes as on reads.",
           "entity": "job",
           "operations": [
             "job.create",
@@ -349,7 +349,7 @@
         },
         {
           "check": "auth.rank-is-monotonic-on-writes",
-          "detail": "viewer (rank 0) was allowed to update row (200); member (rank 1) was refused (403). Privilege must be monotonic on writes as on reads.",
+          "detail": "alpha_viewer (rank 0) was allowed to update row (200); alpha_member (rank 1) was refused (403). Privilege must be monotonic on writes as on reads.",
           "entity": "row",
           "operations": [
             "row.create",

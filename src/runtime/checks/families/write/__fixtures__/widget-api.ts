@@ -83,7 +83,7 @@ export function widgetDoc(options: WidgetDocOptions = {}): OpenApiDocument {
 export type Rows = Map<string, Record<string, unknown>>
 
 /** The request body as a record; anything else (text, a list) is an empty one. */
-function bodyOf(options: RequestOptions): Record<string, unknown> {
+function bodyOf(options: Omit<RequestOptions, "as">): Record<string, unknown> {
 	const body = options.body
 	return body !== null && typeof body === "object" && !Array.isArray(body) ? (body as Record<string, unknown>) : {}
 }
@@ -92,7 +92,7 @@ function bodyOf(options: RequestOptions): Record<string, unknown> {
 interface ItemRequest {
 	method: string
 	id: string
-	options: RequestOptions
+	options: Omit<RequestOptions, "as">
 }
 
 function itemAnswer(rows: Rows, { method, id, options }: ItemRequest): Answer | undefined {

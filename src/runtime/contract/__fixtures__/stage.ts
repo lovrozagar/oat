@@ -39,7 +39,7 @@ export function stage(document: OpenApiDocument, respond: Responder, fields: Par
 	const model = modelOf(document)
 	const { client, sent } = fakeClient(respond)
 	const input = {
-		auth: () => ({ authorization: "Bearer a" }),
+		acting: { identity: {}, sending: async () => undefined },
 		checksRun: new Set<string>(),
 		client,
 		findings: new FindingCollector(),
@@ -50,6 +50,7 @@ export function stage(document: OpenApiDocument, respond: Responder, fields: Par
 		model,
 		nonce: "n0",
 		owned: new Set<string>(),
+		principal: "alpha",
 		roots: {},
 		seed: 1,
 		stopped: () => false,

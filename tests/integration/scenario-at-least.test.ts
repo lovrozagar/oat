@@ -78,7 +78,7 @@ async function runScenario(atLeast: number) {
 	return run({
 		baseUrl: url,
 		ops: ["ping.send", "usage.get"],
-		principals: [{ headers: {}, id: "alpha" }],
+		principals: { alpha: {} },
 		scenarios: [scenario(atLeast)],
 		seed: 1,
 		spec: `${url}/openapi.json`,

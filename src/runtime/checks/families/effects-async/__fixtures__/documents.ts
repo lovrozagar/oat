@@ -96,7 +96,7 @@ export function withOperation(
 export const withBody = json(record)
 
 /** Handles one route: an answer, or `undefined` for a 404. */
-export type Handler = (options: RequestOptions) => Answer | undefined
+export type Handler = (options: Omit<RequestOptions, "as">) => Answer | undefined
 
 /** A responder from a table of `"METHOD /path"` handlers; anything else is a 404. */
 export function routes(table: Record<string, Handler>): Responder {

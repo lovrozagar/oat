@@ -6,7 +6,14 @@
  * problem names the key path and what it should be, and the CLI exits 2 without sending a request.
  */
 
+import { CREDENTIAL_HEADERS } from "../security/credential-names.ts"
+import { principalMapProblems, REMOVED_KEYS, removedProblems } from "../credentials/validate/principals.ts"
+import { securityMapProblems } from "../credentials/validate/security.ts"
+
 type Rule = (value: unknown, path: string) => string[]
+type Raw = Record<string, unknown>
+
+const isRecord = (value: unknown): value is Raw => value !== null && typeof value === "object" && !Array.isArray(value)
 
 const string: Rule = (value, path) => (typeof value === "string" ? [] : [`${path} must be a string`])
 const boolean: Rule = (value, path) => (typeof value === "boolean" ? [] : [`${path} must be true or false`])
@@ -29,8 +36,6 @@ const integer =
 		Number.isSafeInteger(value) && (value as number) >= min
 			? []
 			: [`${path} must be an integer${min >= 0 ? ` of at least ${min}` : ""}`]
-const number: Rule = (value, path) =>
-	typeof value === "number" && Number.isFinite(value) ? [] : [`${path} must be a number`]
 const positive: Rule = (value, path) =>
 	typeof value === "number" && Number.isFinite(value) && value > 0 ? [] : [`${path} must be a number above 0`]
 const oneOf =
@@ -64,22 +69,8 @@ const shape =
 		}
 		return problems
 	}
-/* The fields of one principal; only `id` is required. */
-function principalRule(): Rule {
-	return shape(
-		{
-			auth: object,
-			headers: recordOf(string),
-			id: string,
-			inviteAs: string,
-			rank: number,
-			role: string,
-			roots: recordOf(string),
-			rootsFromFlow: recordOf(string),
-		},
-		["id"],
-	)
-}
+/* A key checked as a whole by its own validator in `credentialProblems`, which reads other keys too. */
+const checkedWhole: Rule = () => []
 
 /** Patches by operationId and by schema name; each patch is an object merged into the document. */
 function overlayRule(): Rule {
@@ -94,7 +85,7 @@ export function configRules(): Record<string, Rule> {
 		cohortSize: integer(1),
 		entities: recordOf(object),
 		globalHeaders: recordOf(string),
-		hooks: functionsAt("verifyRemoved"),
+		hooks: functionsAt("verifyRemoved", "resolveCredential"),
 		keepFixtures: boolean,
 		maxInFlight: integer(1),
 		maxRps: positive,
@@ -102,37 +93,72 @@ export function configRules(): Record<string, Rule> {
 		only: arrayOf(string),
 		ops: arrayOf(string),
 		origins: arrayOf(
-			shape({ baseUrl: string, id: string, maxRps: positive, overlay, spec: string }, ["baseUrl", "id", "spec"]),
+			shape({ baseUrl: string, id: string, maxRps: positive, overlay, security: recordOf(string), spec: string }, [
+				"baseUrl",
+				"id",
+				"spec",
+			]),
 		),
 		overlay,
 		allow: arrayOf(string),
 		fence: shape({ failRun: boolean }),
 		teardown: shape({ verify: boolean }),
 		baseline: string,
-		targetVersion: shape({ from: string, operationId: string, path: string }, ["from"]),
+		targetVersion: shape({ from: string, operationId: string, path: string, scheme: string }, ["from"]),
 		outDir: string,
 		outOfBand: shape({ attempts: integer(1), initialMs: integer(0), maxMs: integer(0) }),
 		payloads: oneOf("full", "per-write-path"),
-		principals: arrayOf(principalRule()),
+		principals: checkedWhole,
 		profile: string,
 		profiles: recordOf(object),
 		query: object,
 		rateLimits: arrayOf(object),
-		roots: recordOf(string),
+		redact: shape({ headers: arrayOf(string) }),
 		saveExchanges: boolean,
 		scenarios: arrayOf(object),
+		security: checkedWhole,
 		seed: integer(Number.MIN_SAFE_INTEGER),
 		spec: string,
 		uploads: object,
 	}
 }
 
+const CREDENTIAL_HEADER = "a credential is sent by its scheme; declare security.<scheme>"
+const REMOVED_HOOKS: Readonly<Record<string, string>> = {
+	resolvePrincipalAuth:
+		"declare security.<scheme>: { hook: true } and return the credential from hooks.resolveCredential",
+}
+
+/* Keys a 0.25.0 credential recipe replaced: a credential header in globalHeaders, a hook no recipe calls. */
+function carrierProblems(config: Raw): string[] {
+	const headers = isRecord(config.globalHeaders) ? Object.keys(config.globalHeaders) : []
+	const hooks = isRecord(config.hooks) ? config.hooks : {}
+	return [
+		...headers
+			.filter((name) => CREDENTIAL_HEADERS.has(name.toLowerCase()))
+			.map((name) => `globalHeaders.${name} was removed in 0.25.0: ${CREDENTIAL_HEADER}`),
+		...Object.entries(REMOVED_HOOKS)
+			.filter(([name]) => name in hooks)
+			.map(([name, replacement]) => `hooks.${name} was removed in 0.25.0: ${replacement}`),
+	]
+}
+
+/* The credentials config, by the validators that also run against the document, minus what needs it. */
+function credentialProblems(config: Raw): string[] {
+	return [
+		...(config.principals === undefined ? [] : principalMapProblems(config)),
+		...securityMapProblems(config),
+		...removedProblems(config),
+		...carrierProblems(config),
+	]
+}
+
 /** Every problem with `config`, by key path. `run` needs a spec, a base URL and a principal. */
 export function configProblems(config: unknown, options: { forRun?: boolean } = {}): string[] {
 	const required = options.forRun === true ? ["spec", "baseUrl", "principals"] : []
-	const problems = shape(configRules(), required)(config, "config")
-	if (options.forRun === true && Array.isArray((config as { principals?: unknown })?.principals)) {
-		if ((config as { principals: unknown[] }).principals.length === 0) problems.push("config.principals is empty")
-	}
-	return problems
+	const rules = shape(configRules(), required)
+	if (!isRecord(config)) return rules(config, "config")
+	/* A removed key is named with its replacement below, not as a key oat does not know. */
+	const current = Object.fromEntries(Object.entries(config).filter(([key]) => !REMOVED_KEYS.includes(key)))
+	return [...rules(current, "config"), ...credentialProblems(config).map((problem) => `config.${problem}`)]
 }

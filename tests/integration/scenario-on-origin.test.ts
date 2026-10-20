@@ -104,7 +104,7 @@ describe("a scenario on a secondary origin", () => {
 				baseUrl: main,
 				...(ops === undefined ? {} : { ops }),
 				origins: [{ baseUrl: files, id: "files", spec: `${files}/openapi.json` }],
-				principals: [{ headers: {}, id: "alpha" }],
+				principals: { alpha: {} },
 				scenarios: [scenario],
 				seed: 1,
 				spec: `${main}/openapi.json`,

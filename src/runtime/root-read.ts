@@ -9,6 +9,7 @@ import { ASSERTED, type FindingCollector, type Outcome } from "./finding.ts"
 import type { CheckId } from "./check-ids.ts"
 import type { EntityModel, SpecModel } from "../spec/graph/types.ts"
 import { fillPath } from "./fill-path.ts"
+import { noSecurityReason } from "./no-security.ts"
 
 export const ROOT_READ_CHECK_ID = "read.matches-caller-root" as const satisfies CheckId
 
@@ -19,7 +20,8 @@ export function rootReadIds(entity: EntityModel): string[] {
 }
 
 export async function runRootRead(input: {
-	auth: () => Record<string, string>
+	/** The principal it sends as: `as: { principal }`, the operation's security choosing the scheme. */
+	principal: string
 	client: Client
 	entity: EntityModel
 	findings: FindingCollector
@@ -31,6 +33,8 @@ export async function runRootRead(input: {
 	for (const id of ids) {
 		const op = input.model.byOperationId.get(id)
 		if (op === undefined) continue
+		const undeclared = noSecurityReason(op)
+		if (undeclared !== undefined) return findings.unresolved(ROOT_READ_CHECK_ID, input.entity.name, undeclared)
 		let path: string
 		try {
 			path = fillPath(op.path, input.roots)
@@ -39,10 +43,10 @@ export async function runRootRead(input: {
 		}
 		const query = dateWindow(op.queryParamNames)
 		const anonymous = await input.client.request(op.method, path, {
-			headers: {},
+			as: { anonymous: true },
 			operationId: op.operationId,
+			probe: true,
 			...(query === undefined ? {} : { query }),
-			skipAuthRefresh: true,
 		})
 		if (anonymous.status !== 401) {
 			return findings.security(ROOT_READ_CHECK_ID, input.entity.name, {
@@ -52,7 +56,7 @@ export async function runRootRead(input: {
 			})
 		}
 		const read = await input.client.request(op.method, path, {
-			headers: input.auth,
+			as: { principal: input.principal },
 			operationId: op.operationId,
 			...(query === undefined ? {} : { query }),
 		})

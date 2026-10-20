@@ -3,9 +3,12 @@ import type { Exchange } from "../runtime/exchange.ts"
 import { RateLimiter } from "../runtime/rate-limit/limiter.ts"
 import { Redactor } from "../security/redact.ts"
 import { type Answer, json, refused, sequence, transport } from "./__fixtures__/transport.ts"
+import { fixedSource, sendingHeaders } from "./__fixtures__/source.ts"
 import { Client } from "./client.ts"
-import { AuthRefreshError } from "./refresh.ts"
+import type { Actor } from "./credential-source.ts"
 import type { ClientOptions } from "./types.ts"
+
+const ANON: Actor = { anonymous: true }
 
 const BASE = "http://api.test/v1"
 
@@ -26,11 +29,15 @@ describe("a read-only client", () => {
 	it("refuses to send anything that could change server state, through any view of it", async () => {
 		const { client, sent } = clientOf(() => json({}))
 		const unsafe = client.readOnlyView({ check: "sort.order-is-applied" }) as unknown as Client
-		await expect(unsafe.request("POST", "/rows")).rejects.toThrow(/does not mutate/)
-		await expect(unsafe.view({ purpose: "probe" }).request("DELETE", "/rows/1")).rejects.toThrow(/does not mutate/)
+		await expect(unsafe.request("POST", "/rows", { as: ANON })).rejects.toThrow(/does not mutate/)
+		await expect(unsafe.view({ purpose: "probe" }).request("DELETE", "/rows/1", { as: ANON })).rejects.toThrow(
+			/does not mutate/,
+		)
 		const unnamed = client.view({}, true)
-		await expect(unnamed.request("PUT", "/rows/1")).rejects.toThrow('check "?" does not mutate, but sent PUT /rows/1')
-		expect((await unsafe.get("/rows")).status).toBe(200)
+		await expect(unnamed.request("PUT", "/rows/1", { as: ANON })).rejects.toThrow(
+			'check "?" does not mutate, but sent PUT /rows/1',
+		)
+		expect((await unsafe.get("/rows", { as: ANON })).status).toBe(200)
 		expect(sent).toHaveLength(1)
 	})
 })
@@ -39,8 +46,8 @@ describe("a view", () => {
 	it("stamps its context, narrowed per request and per nested view", async () => {
 		const { client } = clientOf(() => json({}))
 		const view = client.view({ check: "list.reads", purpose: "assertion" })
-		const first = await view.get("/rows", { context: { purpose: "probe" } })
-		const nested = await view.view({ subject: "row" }).request("GET", "/rows")
+		const first = await view.get("/rows", { as: ANON, context: { purpose: "probe" } })
+		const nested = await view.view({ subject: "row" }).request("GET", "/rows", { as: ANON })
 		expect(first).toMatchObject({ check: "list.reads", purpose: "probe" })
 		expect(nested).toMatchObject({ check: "list.reads", purpose: "assertion", subject: "row" })
 		expect(view.transcript).toBe(client.transcript)
@@ -53,9 +60,9 @@ describe("a client", () => {
 			operationResolver: (method) =>
 				method === "POST" ? null : { entity: "row", operationId: "row.list", template: "/rows" },
 		})
-		await client.get("/rows")
-		await client.request("POST", "/rows", { body: {} })
-		await client.request("HEAD", "/rows")
+		await client.get("/rows", { as: ANON })
+		await client.request("POST", "/rows", { as: ANON, body: {} })
+		await client.request("HEAD", "/rows", { as: ANON })
 		expect(client.transcript.map((exchange) => exchange.method)).toEqual(["GET", "POST", "HEAD"])
 		expect(client.exchangesFor("row.list")).toHaveLength(2)
 		expect(client.exchangesForEntity("row")).toHaveLength(2)
@@ -72,7 +79,7 @@ describe("a client", () => {
 			redactor,
 		})
 		client.setAfterExchange(async (exchange) => void seen.push(`after ${exchange.seq}`))
-		await client.get("/rows")
+		await client.get("/rows", { as: ANON })
 		expect(seen).toEqual(["on 1", "after 1"])
 		expect(client.redactor).toBe(redactor)
 	})
@@ -87,55 +94,25 @@ describe("a client", () => {
 	})
 })
 
-const bound = (log: string[], token: { value: string }) => ({
-	credentialFor: () => ({
-		headers: () => ({ authorization: `Bearer ${token.value}` }),
-		refreshIfStale: async (force?: boolean) => {
-			log.push(`refresh ${String(force)}`)
-			if (force === true) token.value = "fresh"
-		},
-	}),
-	principalOf: () => "alpha",
-})
-
 describe("a request with a credential", () => {
-	it("refreshes when stale, and once more after a 401, sending the fresh credential", async () => {
-		const log: string[] = []
-		const token = { value: "stale" }
+	it("renews it once after a 401, and sends the renewal", async () => {
+		const renewed = sendingHeaders({ authorization: "Bearer fresh" })
+		const source = fixedSource(sendingHeaders({ authorization: "Bearer stale" }, { refresh: async () => renewed }))
 		const { client, sent } = clientOf(
 			(request) => json({}, request.headers.authorization === "Bearer fresh" ? 200 : 401),
-			{
-				credentials: bound(log, token),
-			},
+			{ credentials: source },
 		)
-		const exchange = await client.get("/rows")
-		expect(exchange.status).toBe(200)
-		expect(log).toEqual(["refresh false", "refresh true"])
+		const exchange = await client.get("/rows", { as: { principal: "alpha" } })
+		expect(exchange).toMatchObject({ principal: "alpha", status: 200 })
 		expect(sent.map((request) => request.headers.authorization)).toEqual(["Bearer stale", "Bearer fresh"])
 		expect(client.transcript.map((item) => item.superseded ?? false)).toEqual([true, false])
 	})
 
-	it("uses the caller's own refresh, and none when told to skip it", async () => {
-		const log: string[] = []
-		const { client } = clientOf(() => json({}), { credentials: bound(log, { value: "t" }) })
-		await client.get("/rows", { refreshIfStale: async () => void log.push("caller") })
-		await client.get("/rows", { skipAuthRefresh: true })
-		const bare = clientOf(() => json({}))
-		await bare.client.get("/rows")
-		expect(log).toEqual(["caller"])
-	})
-
-	it("raises a failed refresh as the principal's", async () => {
-		const { client } = clientOf(() => json({}), {
-			credentials: {
-				credentialFor: () => ({ headers: () => ({}), refreshIfStale: () => Promise.reject(new Error("token 500")) }),
-				principalOf: () => "alpha",
-			},
-		})
-		await expect(client.get("/rows")).rejects.toEqual(new AuthRefreshError("alpha", new Error("token 500")))
-		const unbound = clientOf(() => json({}))
-		const failing = unbound.client.get("/rows", { refreshIfStale: () => Promise.reject(new Error("down")) })
-		await expect(failing).rejects.toMatchObject({ principal: undefined })
+	it("sends a probe once, whatever it is answered", async () => {
+		const source = fixedSource(sendingHeaders({ authorization: "Bearer t" }))
+		const { client, sent } = clientOf(() => json({}, 401), { credentials: source })
+		expect((await client.get("/rows", { as: { principal: "alpha" }, probe: true })).status).toBe(401)
+		expect(sent).toHaveLength(1)
 	})
 })
 
@@ -151,7 +128,7 @@ describe("a request the backend pushes back on", () => {
 				rateLimiter: limiter,
 			},
 		)
-		expect((await client.request("DELETE", "/rows/1")).status).toBe(200)
+		expect((await client.request("DELETE", "/rows/1", { as: ANON })).status).toBe(200)
 		expect(limiter.implicitRule("DELETE")).toMatchObject({ source: "implicit" })
 		const unpaced = clientOf(
 			sequence(
@@ -159,7 +136,7 @@ describe("a request the backend pushes back on", () => {
 				() => json({}),
 			),
 		)
-		expect((await unpaced.client.get("/rows")).status).toBe(200)
+		expect((await unpaced.client.get("/rows", { as: ANON })).status).toBe(200)
 	})
 
 	it("resends a read after a network failure within its deadline", async () => {
@@ -169,7 +146,7 @@ describe("a request the backend pushes back on", () => {
 			network: { deadlineMs: 60_000, fetchImpl: flaky.fetch, retries: 1 },
 			redactor: new Redactor(),
 		})
-		expect((await client.get("/rows")).status).toBe(200)
+		expect((await client.get("/rows", { as: ANON })).status).toBe(200)
 		expect(client.transcript.map((exchange) => exchange.status)).toEqual([0, 200])
 	})
 })

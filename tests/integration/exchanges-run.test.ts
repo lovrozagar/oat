@@ -28,7 +28,7 @@ describe("exchange journal from a run", () => {
 			cohortSize: 1,
 			exchangeDir: on,
 			only: ["widget"],
-			principals: [{ headers: { authorization: "Bearer t" }, id: "a" }],
+			principals: { a: {} },
 			seed: 1,
 			spec: `${url}/v1/openapi/spec`,
 		})
@@ -43,7 +43,7 @@ describe("exchange journal from a run", () => {
 			baseUrl: url,
 			cohortSize: 1,
 			only: ["widget"],
-			principals: [{ headers: { authorization: "Bearer t" }, id: "a" }],
+			principals: { a: {} },
 			seed: 1,
 			spec: `${url}/v1/openapi/spec`,
 		})
@@ -69,7 +69,7 @@ describe("Client records operationId and fixture on the exchange", () => {
 			},
 			redactor: new Redactor(),
 		})
-		const pdfRead = await client.get("/v1/x", { fixture: "a.pdf", operationId: "x.read" })
+		const pdfRead = await client.get("/v1/x", { as: { anonymous: true }, fixture: "a.pdf", operationId: "x.read" })
 		expect(pdfRead.operationId).toBe("x.read")
 		expect(pdfRead.fixture).toBe("a.pdf")
 		expect(pdfRead.requestId).toBe("from-server")

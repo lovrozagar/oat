@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
 import type { FenceDecision, FenceRequest } from "../../src/config/define/types.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import type { ReportInput } from "../../src/report/render/input.ts"
@@ -27,6 +27,7 @@ async function runFenced(beforeRequest: (request: FenceRequest) => FenceDecision
 			baseUrl: server.url,
 			hooks: { beforeRequest },
 			principals: PRINCIPALS,
+			security: SECURITY,
 			seed: 42,
 			spec: `${server.url}/v1/openapi/spec`,
 			...(failRun === undefined ? {} : { fence: { failRun } }),
@@ -41,7 +42,9 @@ describe("Client with a fence", () => {
 		const fence = new Fence(noDeletes)
 		/* Nothing listens here: a request that left the process would fail with a network error. */
 		const client = new Client({ baseUrl: "http://127.0.0.1:1", fence, redactor: new Redactor() })
-		await expect(client.request("DELETE", "/v1/tables/1")).rejects.toBeInstanceOf(FencedError)
+		await expect(client.request("DELETE", "/v1/tables/1", { as: { anonymous: true } })).rejects.toBeInstanceOf(
+			FencedError,
+		)
 		expect(fence.fenced).toEqual([
 			expect.objectContaining({ method: "DELETE", reason: "no deletes on the shared backend" }),
 		])

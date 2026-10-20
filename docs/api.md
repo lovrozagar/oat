@@ -7,6 +7,7 @@
 ```ts
 import {
 	defineConfig,
+	env,
 	loadConfig,
 	run,
 	loadSpec,
@@ -19,12 +20,14 @@ import {
 const config = defineConfig({
 	spec: "./openapi.yaml",
 	baseUrl: "https://api.example.com",
-	principals: [{ id: "alpha", headers: { authorization: `Bearer ${process.env.API_TOKEN}` } }],
+	security: { bearer: { static: env("API_TOKEN") } },
+	principals: { alpha: { tenant: "acme" } },
 })
 
 const result = await run({
 	spec: config.spec,
 	baseUrl: config.baseUrl,
+	security: config.security,
 	principals: config.principals,
 	seed: 1,
 	maxInFlight: 4,
@@ -60,4 +63,4 @@ const { doc: resolved, externalRefs } = dereference(doc)
 const model = buildModel(resolved)
 ```
 
-Types exported: `OatConfig`, `Principal`, `AuthFlow`, `AuthRefresh`, `AuthStep`, `HookAuth`, `Hooks`, `Uploads`, `UploadRequest`, `UploadFile`, `HeaderRequest`, `InputRequest`, `OriginSpec`, `OutOfBandConfig`, `OutOfBandRequest`, `TeardownPrincipalContext`, `RunOptions`, `RunResult`, `Finding`, `Verdict`, `Actor`, `SpecModel`, `EntityModel`, `OperationModel`, `OpenApiDocument`, `AuthRefreshRequiredError`, `loadPersistedPrincipals`, `worstCaseWaitMs`, `allocateRunDir`, `DEFAULT_RUNS_ROOT`, matrix types.
+Types exported: `OatConfig`, `SecurityConfig` (one `Recipe` per scheme), `PrincipalsConfig` (a `PrincipalEntry` per id), `AuthStep`, `Hooks`, `Uploads`, `UploadRequest`, `UploadFile`, `HeaderRequest`, `InputRequest`, `OriginSpec`, `OutOfBandConfig`, `OutOfBandRequest`, `TeardownPrincipalContext`, `RunOptions`, `RunResult`, `Finding`, `Verdict`, `Actor`, `SpecModel`, `EntityModel`, `OperationModel`, `OpenApiDocument`, `loadPersistedPrincipals`, `worstCaseWaitMs`, `allocateRunDir`, `DEFAULT_RUNS_ROOT`, matrix types.

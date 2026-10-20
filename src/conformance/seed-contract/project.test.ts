@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { referenceRequest } from "../../reference/http/wire.ts"
+import { buildModel } from "../../spec/graph/build.ts"
+import { dereference } from "../../spec/load/dereference.ts"
+import { bearerSecurity } from "../harness/security.ts"
 import { projectBackend, projectSpec } from "./project.ts"
 
 function ask(method: string, path: string, body = "") {
@@ -31,5 +34,14 @@ describe("projectBackend", () => {
 		const { handle } = projectBackend()
 		expect((await handle(ask("DELETE", "/v1/projects/p_1"))).status).toBe(404)
 		expect(await handle(ask("POST", "/v1/projects", "{"))).toEqual({ body: "", headers: {}, status: 500 })
+	})
+})
+
+describe("projectSpec security", () => {
+	it("requires the bearer on every operation, from the root", () => {
+		const doc = projectSpec()
+		expect(doc).toMatchObject(bearerSecurity())
+		const sources = buildModel(dereference(doc).doc).operations.map((op) => op.security.source)
+		expect(new Set(sources)).toEqual(new Set(["root"]))
 	})
 })

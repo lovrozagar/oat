@@ -185,11 +185,12 @@ function filterStore(opts: HandlerOpts, filter: string | null): Record_[] {
 function widgetContext(opts: { findings: FindingCollector; listOp: OperationModel; model: SpecModel; url: string }) {
 	return checkContext({
 		actors: [],
-		altAuth: undefined,
-		altScope: undefined,
 		asyncOps: [],
-		auth: () => ({}),
-		client: new Client({ baseUrl: opts.url, redactor: new Redactor() }),
+		client: new Client({
+			baseUrl: opts.url,
+			credentials: { resolve: async () => ({ kind: "anonymous" }) },
+			redactor: new Redactor(),
+		}),
 		collectionKey: opts.listOp.collection?.key ?? "widgets",
 		createOp: undefined,
 		deleteOp: undefined,

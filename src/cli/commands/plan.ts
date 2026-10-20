@@ -19,7 +19,7 @@ export async function commandPlan(writer: Writer, flags: Args["flags"]): Promise
 	const scope = targetedScope(model, {
 		...(ops === undefined ? {} : { ops }),
 		...(only === undefined ? {} : { only }),
-		authCreates: authStepOperationIds(config?.principals ?? []),
+		authCreates: authStepOperationIds(config ?? {}),
 	})
 	if (scope instanceof ScopeError) {
 		writer.err(`${scope.message}\n`)

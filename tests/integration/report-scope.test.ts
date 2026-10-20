@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import type { ReferenceServer } from "../../src/reference/http/server.ts"
 import { buildMatrixGraphFromReport } from "../../src/report/matrix/graph.ts"
@@ -25,6 +25,7 @@ async function report(ops?: string[]): Promise<{ input: ReportInput; progress: P
 		baseUrl: server.url,
 		onProgress: (snap) => progress.push(snap),
 		principals: PRINCIPALS,
+		security: SECURITY,
 		seed: 42,
 		spec: `${server.url}/v1/openapi/spec`,
 		...(ops === undefined ? {} : { ops }),

@@ -1,8 +1,7 @@
 /** Which entities a run can seed and check, and which operations their checks grade. */
 
-import type { Principal } from "../../config/types/principals.ts"
+import type { PrincipalsConfig, Recipe, SecurityConfig } from "../../config/types/security.ts"
 import type { EntityModel, OperationModel, SpecModel } from "../../spec/graph/types.ts"
-import { isAuthFlow } from "../auth-kind.ts"
 import { CHECKS } from "../checks/registry.ts"
 
 /** Union of every check's subjects for this entity. */
@@ -12,13 +11,21 @@ export function staticSubjects(entity: EntityModel, model: SpecModel): Set<strin
 	return ids
 }
 
-/** operationIds named in any principal `auth.steps` — those creates already ran during login. */
-export function authStepOperationIds(principals: readonly Principal[]): Set<string> {
+/**
+ * operationIds a recipe's login or refresh steps send, the base recipes' and each principal's own:
+ * those creates already ran when the principals signed in.
+ */
+export function authStepOperationIds(config: {
+	security?: SecurityConfig
+	principals?: PrincipalsConfig
+}): Set<string> {
+	const recipes: Array<Partial<Recipe>> = [
+		...Object.values(config.security ?? {}),
+		...Object.values(config.principals ?? {}).flatMap((principal) => Object.values(principal.security ?? {})),
+	]
 	const ids = new Set<string>()
-	for (const principal of principals) {
-		const auth = principal.auth
-		if (auth === undefined || !isAuthFlow(auth)) continue
-		for (const step of auth.steps) {
+	for (const recipe of recipes) {
+		for (const step of [...(recipe.login?.steps ?? []), ...(recipe.refresh?.steps ?? [])]) {
 			if ("operationId" in step) ids.add(step.operationId)
 		}
 	}

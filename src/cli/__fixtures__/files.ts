@@ -27,7 +27,9 @@ export function notesConfig(dir: string = folder(), extra: Record<string, unknow
 	const spec = notesSpec(dir)
 	return json(dir, "oat.config.json", {
 		baseUrl: "http://api.test",
-		principals: [{ headers: { authorization: "Bearer alpha-key" }, id: "alpha" }],
+		principals: { alpha: { tenant: "t1" } },
+		/* The notes document declares a bearer scheme; a fixed token satisfies it. */
+		security: { bearer: { static: "t" } },
 		spec,
 		...extra,
 	})

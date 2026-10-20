@@ -58,8 +58,7 @@ async function callOnce(input: ContractInput, op: OperationModel): Promise<void>
 		params: parametersOf(raw),
 		raw,
 	}
-	const headers = input.auth()
-	const values = await pathValues(input, call, headers)
+	const values = await pathValues(input, call)
 	if (values === null) return
 	const query = queryValues(input.grades, call)
 	if (query === null) return
@@ -68,7 +67,7 @@ async function callOnce(input: ContractInput, op: OperationModel): Promise<void>
 	const { body } = built
 	const exchange = await input.client.request(op.method, fillPath(op.path, values), {
 		...(body === undefined ? {} : { body }),
-		headers,
+		as: { principal: input.principal },
 		operationId: op.operationId,
 		...(Object.keys(query).length === 0 ? {} : { query }),
 	})

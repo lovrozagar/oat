@@ -1,16 +1,8 @@
 import { describe, expect, it } from "vitest"
+import type { SecurityConfig } from "../../../config/types/security.ts"
 import type { OpenApiDocument } from "../../../spec/types.ts"
 import type { Responder } from "../../checks/__fixtures__/harness.ts"
-import {
-	contextOf,
-	entityRunOf,
-	flow,
-	notesApi,
-	notesDoc,
-	optionsFor,
-	overriding,
-	withLogin,
-} from "../__fixtures__/api.ts"
+import { contextOf, entityRunOf, notesApi, notesDoc, optionsFor, overriding, secured } from "../__fixtures__/api.ts"
 import type { RunContext } from "../context.ts"
 import type { RunOptions } from "../types.ts"
 import { testEntity } from "./test-entity.ts"
@@ -27,7 +19,7 @@ const thing = { properties: { id: { type: "string" } }, type: "object" }
 /** A document of one operation, at `route` ("get /orgs/{org_id}"), tagged as `entity`. */
 function tagged(route: string, entity: Record<string, string>, extra: Record<string, unknown> = {}): OpenApiDocument {
 	const [method, path] = route.split(" ") as [string, string]
-	return {
+	return secured({
 		info: { title: "t", version: "1" },
 		openapi: "3.1.0",
 		paths: {
@@ -40,7 +32,7 @@ function tagged(route: string, entity: Record<string, string>, extra: Record<str
 				},
 			},
 		},
-	} as unknown as OpenApiDocument
+	}) as unknown as OpenApiDocument
 }
 
 /** How an entity is tested: the run's options, and what to do to the context before. */
@@ -73,7 +65,9 @@ describe("testEntity without a list", () => {
 				parameters: [{ in: "path", name: "org_id", required: true, schema: { type: "string" } }],
 			},
 		)
-		const { ctx } = await tested(serving(doc), "org", { options: { roots: { org_id: "o1" } } })
+		const { ctx } = await tested(serving(doc), "org", {
+			options: { principals: { alpha: { scope: { org_id: "o1" } } } },
+		})
 		expect(ctx.state.entitiesTested).toEqual(["org"])
 	})
 
@@ -112,19 +106,6 @@ describe("testEntity stops early", () => {
 		})
 		expect(ctx.state.entitiesTested).toEqual([])
 		expect(ctx.findings.findings[0]).toMatchObject({ check: "profile.skip", operations: ["notes.list"] })
-	})
-
-	it("when the first principal's credential cannot be renewed", async () => {
-		const state = { failing: false, issued: 0 }
-		const login = withLogin(state)
-		const { ctx } = await tested(login, "note", {
-			before: () => {
-				state.failing = true
-			},
-			options: { principals: [flow] },
-		})
-		expect(ctx.findings.findings[0]).toMatchObject({ check: "auth.refresh", entity: "note" })
-		expect(ctx.state.entitiesTested).toEqual([])
 	})
 
 	it("when seeding left nothing to test against", async () => {
@@ -212,16 +193,15 @@ describe("testEntity seed plans", () => {
 	})
 
 	it("does not seed through a create the principals' sign-up already sent", async () => {
-		const signup = {
-			...flow,
-			auth: { credentialFrom: "$.token", steps: [{ body: { title: "me" }, operationId: "notes.create" }] },
-		} as never
+		const signup: SecurityConfig = {
+			bearer: { login: { from: "$.token", steps: [{ body: { title: "me" }, operationId: "notes.create" }] } },
+		}
 		const notes = notesApi()
 		const respond: Responder = (method, path, request) =>
 			method === "POST" && path === "/notes"
 				? { body: { id: "u1", title: "me", token: "t-1" }, status: 201 }
 				: notes(method, path, request)
-		const { ctx } = await tested(respond, "note", { options: { principals: [signup] } })
+		const { ctx } = await tested(respond, "note", { options: { security: signup } })
 		expect(ctx.state.entitiesTested).toEqual(["note"])
 	})
 })

@@ -1,16 +1,17 @@
 import { describe, expect, it } from "vitest"
-import type { RequestOptions } from "../../../../client/types.ts"
 import { modelOf } from "../../__fixtures__/harness.ts"
 import { runCheck } from "../../core/run.ts"
 import { rankIsMonotonicOnWrites } from "./auth-rank-is-monotonic-on-writes.ts"
 import { notesBackend } from "./__fixtures__/backend.ts"
-import { actor, caller, notesContext } from "./__fixtures__/context.ts"
+import { actor, type Backend, caller, notesContext } from "./__fixtures__/context.ts"
 import { type NotesOptions, notesDocument } from "./__fixtures__/notes.ts"
 
 const HOME = { org_id: "o1" }
-const owner = actor("owner", { rank: 2, roots: HOME, role: "owner" })
-const viewer = actor("viewer", { rank: 0, roots: HOME, role: "viewer" })
-const stranger = actor("stranger", { rank: 1, roots: { org_id: "o2" } })
+const owner = actor("owner", { rank: 2, scope: HOME, tenant: "o1" })
+const viewer = actor("viewer", { rank: 0, scope: HOME, tenant: "o1" })
+const stranger = actor("stranger", { rank: 1, scope: { org_id: "o2" }, tenant: "o2" })
+/* Another tenant, though its scope reads like the owner's: it is not home. */
+const guest = actor("guest", { rank: 1, scope: HOME, tenant: "o2" })
 const MEMBERS = { owner: "o1", stranger: "o2", viewer: "o1" }
 const modelWith = (options: NotesOptions = {}) => modelOf(notesDocument(options))
 
@@ -26,7 +27,7 @@ describe("auth.rank-is-monotonic-on-writes", () => {
 		const backend = policy((who) => who === "owner")
 		const { ctx, findings, sent } = notesContext(modelWith(), backend, { actors: [owner, viewer, stranger] })
 		expect(await runCheck(rankIsMonotonicOnWrites, ctx)).toEqual({ kind: "asserted" })
-		expect(sent.map((s) => `${s.method} ${s.path} ${caller(s.options)}`)).toEqual([
+		expect(sent.map((s) => `${s.method} ${s.path} ${caller(s)}`)).toEqual([
 			"POST /orgs/o1/notes owner",
 			"POST /orgs/o1/notes owner",
 			"PATCH /orgs/o1/notes/s2 owner",
@@ -37,6 +38,13 @@ describe("auth.rank-is-monotonic-on-writes", () => {
 			"PATCH /orgs/o1/notes/s4 viewer",
 			"POST /orgs/o1/notes owner",
 			"DELETE /orgs/o1/notes/s5 viewer",
+		])
+		/* Each try names its operation, so each is sent the credential its own security asks for. */
+		expect(sent.filter((s) => s.method !== "POST").map((s) => s.options.operationId)).toEqual([
+			"updateNote",
+			"deleteNote",
+			"updateNote",
+			"deleteNote",
 		])
 		expect(findings.findings).toEqual([])
 	})
@@ -58,12 +66,12 @@ describe("auth.rank-is-monotonic-on-writes", () => {
 		})
 	}
 
-	it("names principals without a role by id, and counts a 401 as a refusal", async () => {
-		const lead = actor("lead", { rank: 2, roots: HOME })
-		const member = actor("member", { rank: 1, roots: HOME })
+	it("names principals by id, and counts a 401 as a refusal", async () => {
+		const lead = actor("lead", { rank: 2, scope: HOME, tenant: "o1" })
+		const member = actor("member", { rank: 1, scope: HOME, tenant: "o1" })
 		const backend = notesBackend({ members: { ...MEMBERS, lead: "o1", member: "o1" } })
-		const refusing = (method: string, path: string, options: RequestOptions) =>
-			caller(options) === "lead" && method === "DELETE" ? { status: 401 } : backend(method, path, options)
+		const refusing: Backend = (method, path, options) =>
+			options.who === "lead" && method === "DELETE" ? { status: 401 } : backend(method, path, options)
 		const { ctx, findings } = notesContext(modelWith({ without: ["updateNote"] }), refusing, {
 			actors: [lead, member],
 		})
@@ -76,8 +84,8 @@ describe("auth.rank-is-monotonic-on-writes", () => {
 describe("auth.rank-is-monotonic-on-writes without a verdict to compare", () => {
 	it("does not read a write that failed for another reason as a refusal", async () => {
 		const backend = policy(() => true)
-		const failing = (method: string, path: string, options: RequestOptions) =>
-			caller(options) === "owner" && method === "PATCH" ? { status: 500 } : backend(method, path, options)
+		const failing: Backend = (method, path, options) =>
+			options.who === "owner" && method === "PATCH" ? { status: 500 } : backend(method, path, options)
 		const { ctx, findings } = notesContext(modelWith(), failing, { actors: [owner, viewer] })
 		expect(await runCheck(rankIsMonotonicOnWrites, ctx)).toEqual({ kind: "asserted" })
 		expect(findings.findings).toEqual([])
@@ -86,8 +94,8 @@ describe("auth.rank-is-monotonic-on-writes without a verdict to compare", () => 
 	it("hands back what a failed scratch create concluded, before an update or a delete", async () => {
 		for (const without of [[], ["updateNote"]] as const) {
 			const backend = policy(() => true)
-			const failing = (method: string, path: string, options: RequestOptions) =>
-				method === "POST" && caller(options) === "owner" ? { status: 500 } : backend(method, path, options)
+			const failing: Backend = (method, path, options) =>
+				method === "POST" && options.who === "owner" ? { status: 500 } : backend(method, path, options)
 			const { ctx, sent } = notesContext(modelWith({ without }), failing, { actors: [owner, viewer] })
 			expect((await runCheck(rankIsMonotonicOnWrites, ctx)).kind).toBe("unresolved")
 			expect(sent.map((s) => s.method)).toEqual(["POST", "POST"])
@@ -133,6 +141,7 @@ describe("auth.rank-is-monotonic-on-writes with nothing to try", () => {
 			{ actors: [] },
 			{ actors: [owner, viewer], createOp: undefined },
 			{ actors: [owner, stranger] },
+			{ actors: [owner, guest] },
 		]) {
 			expect(rankIsMonotonicOnWrites.plan(notesContext(modelWith(), backend, fields).ctx)).toEqual({ ok: false })
 		}

@@ -48,7 +48,7 @@ async function askedWith(steps: ScenarioStep[]) {
 				return Promise.resolve("token-1")
 			},
 		},
-		principals: [{ headers: {}, id: "alpha" }],
+		principals: { alpha: {} },
 		scenarios: [{ covers: ["invite.accept"], id: "invite", steps }],
 		seed: 1,
 		spec: `${url}/openapi.json`,

@@ -100,7 +100,7 @@ describe("an action that succeeds", () => {
 		expect(run.calls).toEqual(["GET /widgets", "POST /widgets/w1/clone", "GET /widgets"])
 		expect(run.sent[1]?.options).toMatchObject({ operationId: "cloneWidget" })
 		expect(run.sent[1]?.options.body).toMatchObject({ name: expect.any(String) })
-		expect(run.recordCreated).toHaveBeenCalledWith({ entity: "widget", id: "w2", scope: { id: "w1" } }, undefined)
+		expect(run.recordCreated).toHaveBeenCalledWith({ entity: "widget", id: "w2", scope: { id: "w1" } }, "alpha")
 	})
 
 	it("fails when the declared record never appears", async () => {
@@ -192,7 +192,7 @@ describe("an x-before prelude", () => {
 		expect(run.calls).toEqual(["POST /boards", "GET /widgets", "POST /widgets/w1/tagWidget", "GET /widgets"])
 		expect(run.sent[0]?.options.body).toMatchObject({ name: expect.any(String) })
 		expect(run.sent[2]?.options.query).toEqual({ board: "b1" })
-		expect(run.recordCreated).toHaveBeenCalledWith({ entity: "board", id: "b1", scope: { id: "w1" } }, undefined)
+		expect(run.recordCreated).toHaveBeenCalledWith({ entity: "board", id: "b1", scope: { id: "w1" } }, "alpha")
 		expect(run.findings.findings).toEqual([])
 	})
 
@@ -260,7 +260,7 @@ describe("a prelude create the model describes partly", () => {
 		const run = await occurred(tag({ body: { id: "b1" }, status: 201 }), ["tagWidget"], {
 			model: variant({ identity: null }),
 		})
-		expect(run.recordCreated).toHaveBeenCalledWith({ entity: "board", id: "b1", scope: { id: "w1" } }, undefined)
+		expect(run.recordCreated).toHaveBeenCalledWith({ entity: "board", id: "b1", scope: { id: "w1" } }, "alpha")
 	})
 })
 

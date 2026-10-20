@@ -7,11 +7,11 @@ import { runSelfIdentity } from "./identity.ts"
 
 const SIGNUP = { properties: { handle: { type: "string" } }, required: ["handle"], type: "object" }
 
-/* No token is a 401; with one, `answer` decides. */
+/* The anonymous probe is a 401; a request as the caller is up to `answer`. */
 const caller =
-	(answer: (method: string, path: string, options: RequestOptions) => Answer | undefined): Responder =>
+	(answer: (method: string, path: string, options: Omit<RequestOptions, "as">) => Answer | undefined): Responder =>
 	(method, path, options) =>
-		typeof options.headers === "function" ? answer(method, path, options) : { status: 401 }
+		options.probe === true ? { status: 401 } : answer(method, path, options)
 
 function check(respond: Responder, document: MeOptions = {}) {
 	const { input, findings, sent } = selfInput(respond, me(document))
@@ -67,6 +67,28 @@ describe("runSelfIdentity", () => {
 		const { result, sent } = check(stored({ id: "u1" }))
 		expect(await result).toBe(ASSERTED)
 		expect(sent.filter((request) => request.method === "PATCH")).toHaveLength(1)
+	})
+})
+
+describe("runSelfIdentity's anonymous probe", () => {
+	it("stands down when the document declares no security, since nothing says the route needs a token", async () => {
+		const { findings, input, sent } = selfInput(() => ({ status: 200 }), me({ security: false }))
+		expect(await runSelfIdentity(input)).toEqual({
+			kind: "unresolved",
+			reason: "the document declares no security; add an overlay",
+		})
+		expect(sent).toEqual([])
+		expect(findings.findings).toEqual([])
+	})
+
+	it("probes anonymously, then acts as the caller", async () => {
+		const { result, sent } = check(stored({ display_name: "Ada", id: "u1" }))
+		expect(await result).toBe(ASSERTED)
+		expect(sent[0]?.options).toMatchObject({ as: { anonymous: true }, probe: true })
+		expect(sent.slice(1).map((request) => request.options.as)).toEqual(
+			Array.from({ length: 4 }, () => ({ principal: "alpha" })),
+		)
+		expect(sent.slice(1).every((request) => request.options.probe === undefined)).toBe(true)
 	})
 })
 

@@ -5,11 +5,11 @@ import { overridesOf, type RunSetting, runOptionsOf } from "./run-options.ts"
 
 /* The run's options: the config as written, the flags over it, and what the command set up. */
 
-const config = {
+const config: OatConfig = {
 	baseUrl: "http://api.test",
-	principals: [{ id: "alpha" }],
+	principals: { alpha: { tenant: "t1" } },
 	spec: "openapi.json",
-} as OatConfig
+}
 
 const setting = (extra: Partial<RunSetting> = {}): RunSetting => ({
 	baseline: undefined,
@@ -32,7 +32,7 @@ describe("runOptionsOf", () => {
 			seed: 1,
 			spec: "openapi.json",
 		})
-		for (const key of ["baseline", "only", "ops", "profile", "exchangeDir", "hooks", "network"])
+		for (const key of ["baseline", "only", "ops", "profile", "exchangeDir", "hooks", "network", "keepCredentials"])
 			expect(options).not.toHaveProperty(key)
 	})
 
@@ -58,6 +58,18 @@ describe("runOptionsOf", () => {
 	})
 })
 
+describe("runOptionsOf credentials", () => {
+	it("passes the principals map, the recipes and the extra secret header names as written", () => {
+		const security = { bearer: { static: "t" } }
+		const redact = { headers: ["x-ia-tester-key"] }
+		const options = runOptionsOf({ ...config, redact, security }, {}, setting())
+		expect(options.principals).toBe(config.principals)
+		expect(options.security).toBe(security)
+		expect(options.redact).toBe(redact)
+		expect(runOptionsOf(config, {}, setting())).not.toHaveProperty("security")
+	})
+})
+
 describe("runOptionsOf overrides", () => {
 	it("lets the flags override the config, and carries what the command set up", () => {
 		const baseline: BaselineFile = { entries: [], version: 1 }
@@ -65,6 +77,7 @@ describe("runOptionsOf overrides", () => {
 			{ ...config, only: ["x"], ops: ["y"], profile: "full" },
 			{
 				"base-url": "http://other.test",
+				"keep-credentials": true,
 				"keep-fixtures": true,
 				"max-in-flight": "2",
 				only: "note",
@@ -78,6 +91,7 @@ describe("runOptionsOf overrides", () => {
 			baseline,
 			baseUrl: "http://other.test",
 			exchangeDir: "/runs/1",
+			keepCredentials: true,
 			keepFixtures: true,
 			maxInFlight: 2,
 			only: ["note"],
@@ -91,7 +105,7 @@ describe("runOptionsOf overrides", () => {
 describe("runOptionsOf edge cases", () => {
 	it("has no principals for a config that names none", () => {
 		const { principals: _none, ...bare } = config
-		expect(runOptionsOf(bare as OatConfig, {}, setting()).principals).toEqual([])
+		expect(runOptionsOf(bare as OatConfig, {}, setting()).principals).toEqual({})
 	})
 
 	it("drops target lists that name nothing", () => {

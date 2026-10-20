@@ -13,18 +13,14 @@ export interface ListRoute {
 }
 
 /** Same-tenant records the list route already returns. Empty when the route cannot be resolved. */
-export async function listExisting(
-	route: ListRoute,
-	client: Client,
-	headers: Record<string, string> | (() => Record<string, string>),
-): Promise<Record_[]> {
+export async function listExisting(route: ListRoute, client: Client, principal: string): Promise<Record_[]> {
 	const { listOp, model, values } = route
 	for (const param of listOp.pathParams) {
 		if (values[param] === undefined) return []
 	}
 	try {
 		const exchange = await client.get(fillPath(listOp.path, values), {
-			headers,
+			as: { principal },
 			operationId: listOp.operationId,
 			query: largestPageQuery(model, listOp),
 		})

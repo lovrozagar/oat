@@ -1,6 +1,6 @@
 import type { AuthStep } from "../../config/types/steps.ts"
 import type { SecurityScheme } from "../../spec/security/schemes.ts"
-import type { CredentialPorts, Sends, StepAnswer } from "../ports.ts"
+import type { CredentialPorts, StepAnswer } from "../ports.ts"
 import type { AcquireCtx } from "../recipes/types.ts"
 
 /* Fake ports that record every call, so tests count logins, refreshes, mints and revokes. */
@@ -19,14 +19,14 @@ export interface RunCall {
 
 export interface Recorded {
 	runs: RunCall[]
-	calls: Array<{ operationId: string; body?: unknown; sends: Sends; scope?: Readonly<Record<string, string>> }>
+	calls: Array<Parameters<CredentialPorts["operations"]["call"]>[0]>
 	posts: Array<{ url: string; form: Readonly<Record<string, string>> }>
 	hooks: Array<{ scheme: string; principal: string }>
 }
 
 type Answers = {
 	run?: (call: RunCall) => Promise<{ scope: Record<string, string>; answer: StepAnswer }>
-	call?: (operationId: string, body: unknown) => Promise<StepAnswer>
+	call?: (operationId: string, body: unknown, as: { principal: string; scheme: string }) => Promise<StepAnswer>
 	post?: (form: Readonly<Record<string, string>>) => Promise<StepAnswer>
 	hook?: CredentialPorts["resolveCredential"]
 }
@@ -42,7 +42,7 @@ export function fakePorts(answers: Answers = {}): { ports: CredentialPorts; reco
 		operations: {
 			call: (input) => {
 				recorded.calls.push(input)
-				return (answers.call ?? unexpected("call"))(input.operationId, input.body)
+				return (answers.call ?? unexpected("call"))(input.operationId, input.body, input.as)
 			},
 		},
 		steps: {
@@ -79,8 +79,6 @@ export function ctxOf(ports: CredentialPorts, over: Partial<AcquireCtx> = {}): A
 		principal: { id: "ann", identity: { email: "ann@x.io", password: "pw" } },
 		scheme: BEARER,
 		scopes: [],
-		sendsOf: (scheme) =>
-			Promise.resolve({ cookies: {}, headers: { Authorization: `Bearer ${scheme}-token` }, query: {} }),
 		...over,
 	}
 }

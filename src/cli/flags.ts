@@ -44,6 +44,10 @@ export const FLAGS: Readonly<Record<string, FlagSpec>> = {
 		value: "<dir|file>",
 	},
 	"keep-fixtures": { help: "leave created records in place instead of tearing them down", kind: "boolean" },
+	"keep-credentials": {
+		help: "write the credentials the run held to .oat/credentials.json (mode 0600), never under --out",
+		kind: "boolean",
+	},
 	"max-in-flight": {
 		help: "requests allowed in flight at once (default 4)",
 		kind: "value",

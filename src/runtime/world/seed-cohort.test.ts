@@ -41,7 +41,6 @@ const onlyListed: Responder = (method) =>
 	method === "POST" ? { status: 201 } : { body: [{ id: "only" }], status: 200 }
 
 const scope = { projectId: "p1" }
-const headers = { authorization: "Bearer alpha" }
 
 const isDocument = (value: NotesOptions | OpenApiDocument): value is OpenApiDocument => "openapi" in value
 
@@ -59,13 +58,13 @@ function seed(
 	const fake = fakeClient(respond)
 	const result = seedCohort(
 		op(model, create),
-		{ client: fake.client, model, options: { authHeaders: () => headers, roots: scope, seed: 1, ...options } },
+		{ client: fake.client, model, options: { principal: "alpha", roots: scope, seed: 1, ...options } },
 		{ created: [], values: scope },
 	)
 	return { result, sent: fake.sent }
 }
 
-const bodyOf = (options: RequestOptions): Record<string, unknown> => options.body as Record<string, unknown>
+const bodyOf = (options: Omit<RequestOptions, "as">): Record<string, unknown> => options.body as Record<string, unknown>
 
 /* Creates echo what they were sent; the list is empty. */
 const echo: Responder = (method, _path, options) =>

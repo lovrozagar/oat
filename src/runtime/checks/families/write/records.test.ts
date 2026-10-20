@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { UnsatisfiedSecurity } from "../../../../client/credential-source.ts"
 import { FencedError } from "../../../fence.ts"
 import type { Responder } from "../../__fixtures__/harness.ts"
 import { notesContext, notesModel, notesServer } from "./__fixtures__/notes.ts"
@@ -77,5 +78,13 @@ describe("liveRecord", () => {
 			throw fenced
 		})
 		await expect(liveRecord(ctx, "n7")).rejects.toBe(fenced)
+	})
+
+	it("passes a read whose security cannot be met on, so the caller is untested with the reason", async () => {
+		const blocked = new UnsatisfiedSecurity("blocked", "alpha is BLOCKED: login failed")
+		const { ctx } = stage(() => {
+			throw blocked
+		})
+		await expect(liveRecord(ctx, "n7")).rejects.toBe(blocked)
 	})
 })

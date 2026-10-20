@@ -1,21 +1,26 @@
+import type { OriginSpec } from "../../config/types/config.ts"
+import { assertSecurity } from "../../credentials/validate/security.ts"
 import { applyGrammarOverrides } from "../../spec/grammar-overrides.ts"
 import { buildModel } from "../../spec/graph/build.ts"
-import type { SpecModel } from "../../spec/graph/types.ts"
 import { dereference } from "../../spec/load/dereference.ts"
 import { loadSpec } from "../../spec/load/source.ts"
+import { applyOverlay } from "../../spec/overlay.ts"
 import { prepareDocument } from "../../spec/prepare.ts"
 import { Fence } from "../fence.ts"
 import { FindingCollector, isRootCause } from "../finding.ts"
 import { fetchSpecText, type NetworkFetchOptions } from "../network/fetch.ts"
 import { resolveProfile } from "../profile.ts"
 import { probeCreateFixtures } from "../world/probe-fixtures.ts"
-import type { Loaded } from "./context.ts"
+import type { Loaded, LoadedOrigin } from "./context.ts"
 import { requestTimeoutOpt, transportOpt } from "./network.ts"
 import { RunProgress } from "./progress.ts"
 import { emptyState } from "./state.ts"
 import type { RunOptions } from "./types.ts"
 
-/** Reads the document — the first request of the run when it is served — and models it. */
+/**
+ * Reads the document — the first request of the run when it is served — and each origin's, models
+ * them, and checks the config's credentials against them: a misfit is a UsageError, nothing sent.
+ */
 export async function load(options: RunOptions): Promise<Loaded> {
 	/* An unknown profile is a config error: it costs nothing to find out. */
 	const profile = resolveProfile(options.profile, options.profiles)
@@ -44,23 +49,42 @@ export async function load(options: RunOptions): Promise<Loaded> {
 		baseUrl: options.baseUrl,
 		fetchText: (url) => fetchSpecText(url, network),
 	})
+	const primary = modelOf(raw, options)
+	const origins = await loadOrigins(options.origins ?? [], (url) => fetchSpecText(url, transportOpt(options)))
+	/* A secondary origin's run: the primary checked the config against this document already. */
+	if (options.sharedCredentials === undefined) assertSecurity({ ...options }, primary, origins)
 	return {
 		fence,
 		findings,
 		hooks: options.hooks ?? {},
-		model: modelOf(raw, options),
+		model: primary.model,
 		options,
+		origins,
 		profile,
 		progress,
 		state: emptyState(),
 	}
 }
 
-function modelOf(raw: Parameters<typeof prepareDocument>[0], options: RunOptions): SpecModel {
+function modelOf(raw: Parameters<typeof prepareDocument>[0], options: RunOptions): LoadedOrigin {
 	const { doc } = dereference(prepareDocument(raw, options))
 	const model = buildModel(doc)
 	applyGrammarOverrides(model, options)
 	/* A create whose fixtures cannot be built is recorded on the model as a gap, before any request. */
 	probeCreateFixtures(model)
-	return model
+	return { doc, model }
+}
+
+/** Each secondary origin's document after its overlay, read once and modelled, by origin id. */
+export async function loadOrigins(
+	declared: readonly OriginSpec[],
+	fetchText: (url: string) => Promise<string>,
+): Promise<Map<string, LoadedOrigin>> {
+	const origins = new Map<string, LoadedOrigin>()
+	for (const origin of declared) {
+		const raw = await loadSpec(origin.spec, { baseUrl: origin.baseUrl, fetchText })
+		const { doc } = dereference(origin.overlay === undefined ? raw : applyOverlay(raw, origin.overlay))
+		origins.set(origin.id, { doc, model: buildModel(doc) })
+	}
+	return origins
 }

@@ -2,31 +2,34 @@ import { describe, expect, it } from "vitest"
 import { modelOf } from "../../__fixtures__/harness.ts"
 import { runCheck } from "../../core/run.ts"
 import { rankIsMonotonic } from "./auth-rank-is-monotonic.ts"
-import { actor, caller, notesContext } from "./__fixtures__/context.ts"
+import { actor, type Backend, caller, notesContext } from "./__fixtures__/context.ts"
 import { notesDocument } from "./__fixtures__/notes.ts"
 
 const model = modelOf(notesDocument())
 const HOME = { org_id: "o1" }
-const owner = actor("owner", { rank: 2, roots: HOME, role: "owner" })
-const viewer = actor("viewer", { rank: 0, roots: HOME, role: "viewer" })
-const member = actor("member", { rank: 1, roots: HOME })
-const stranger = actor("stranger", { rank: 0, roots: { org_id: "o2" } })
+const owner = actor("owner", { rank: 2, scope: HOME, tenant: "o1" })
+const viewer = actor("viewer", { rank: 0, scope: HOME, tenant: "o1" })
+/* Same tenant, though the run made it parents of its own: it is still home. */
+const member = actor("member", { rank: 1, scope: { ...HOME, shelf_id: "s9" }, tenant: "o1" })
+const stranger = actor("stranger", { rank: 0, scope: { org_id: "o2" }, tenant: "o2" })
+/* Another tenant, though its scope reads like the owner's: it is not home. */
+const guest = actor("guest", { rank: 1, scope: HOME, tenant: "o2" })
 
-/** Each credential's status for the read of note n1. */
-const reads = (statuses: Record<string, number>) => (_method: string, _path: string, options: object) => ({
-	status: statuses[caller(options) ?? ""] ?? 500,
-})
+/** Each principal's status for the read of note n1. */
+const reads =
+	(statuses: Record<string, number>): Backend =>
+	(_method, _path, { who }) => ({ status: statuses[who] ?? 500 })
 
 describe("auth.rank-is-monotonic", () => {
-	it("passes when every rank is served, and reads under each actor's own tenant", async () => {
+	it("passes when every rank is served, each in the tenant reading the record where it lives", async () => {
 		const { ctx, findings, sent } = notesContext(model, reads({ member: 200, owner: 200, viewer: 200 }), {
-			actors: [owner, member, viewer, stranger],
+			actors: [owner, member, viewer, stranger, guest],
 		})
 		expect(await runCheck(rankIsMonotonic, ctx)).toEqual({ kind: "asserted" })
-		expect(sent.map((s) => `${caller(s.options)} ${s.path}`)).toEqual([
-			"owner /orgs/o1/notes/n1",
-			"member /orgs/o1/notes/n1",
-			"viewer /orgs/o1/notes/n1",
+		expect(sent.map((s) => `${caller(s)} ${s.path} ${s.options.operationId}`)).toEqual([
+			"owner /orgs/o1/notes/n1 readNote",
+			"member /orgs/o1/notes/n1 readNote",
+			"viewer /orgs/o1/notes/n1 readNote",
 		])
 		expect(findings.findings).toEqual([])
 	})
@@ -50,7 +53,7 @@ describe("auth.rank-is-monotonic", () => {
 		expect(finding?.evidence.map((e) => e.status)).toEqual([200, 403])
 	})
 
-	it("names a role, else the principal, and does not call an error a denial", async () => {
+	it("names the principal, and does not call an error a denial", async () => {
 		const { ctx, findings } = notesContext(model, reads({ member: 404, owner: 500, viewer: 200 }), {
 			actors: [owner, member, viewer],
 		})
@@ -65,7 +68,8 @@ describe("auth.rank-is-monotonic", () => {
 			{ actors: [owner, viewer], records: [] },
 			{ actors: [] },
 			{ actors: [owner, stranger] },
-			{ actors: [owner, actor("peer", { rank: 2, roots: HOME })] },
+			{ actors: [owner, guest] },
+			{ actors: [owner, actor("peer", { rank: 2, scope: HOME, tenant: "o1" })] },
 		]) {
 			expect(rankIsMonotonic.plan(notesContext(model, reads({}), fields).ctx)).toEqual({ ok: false })
 		}

@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import type { ReferenceServer } from "../../src/reference/http/server.ts"
 import { normalizeText, runCli } from "../support/golden.ts"
@@ -13,11 +13,17 @@ let dir: string
 beforeAll(async () => {
 	server = await createMemoryServer()
 	dir = await mkdtemp(join(tmpdir(), "oat-cli-golden-"))
-	const valid = { baseUrl: server.url, principals: PRINCIPALS, seed: 42, spec: `${server.url}/v1/openapi/spec` }
+	const valid = {
+		baseUrl: server.url,
+		principals: PRINCIPALS,
+		security: SECURITY,
+		seed: 42,
+		spec: `${server.url}/v1/openapi/spec`,
+	}
 	const configs: Record<string, unknown> = {
 		"valid.json": valid,
 		"invalid.json": { principals: PRINCIPALS },
-		"no-principals.json": { ...valid, principals: [] },
+		"no-principals.json": { ...valid, principals: {} },
 		"missing-baseline.json": { ...valid, baseline: "nowhere.json" },
 		"allow-unknown.json": { ...valid, allow: ["nothing.here"] },
 		"overlay-unknown.json": { ...valid, overlay: { operations: { "nothing.here": {} } } },

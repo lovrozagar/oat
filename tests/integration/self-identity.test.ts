@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { judgeDefect } from "../../src/conformance/matrix/cases.ts"
-import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { listening } from "../../src/conformance/harness/launch.ts"
@@ -33,7 +33,8 @@ async function track(started: Served | Promise<Served>): Promise<string> {
 async function runProfile(baseUrl: string) {
 	return run({
 		baseUrl,
-		principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+		principals: { alpha: {} },
+		security: { bearer: { static: "alpha" } },
 		seed: 1,
 		spec: `${baseUrl}/openapi.json`,
 	})
@@ -169,6 +170,7 @@ async function untaggedReferenceBlamesNoCaller() {
 	const result = await run({
 		baseUrl: server.url,
 		principals: PRINCIPALS,
+		security: SECURITY,
 		seed: 42,
 		spec: `${server.url}/v1/openapi/spec`,
 	})

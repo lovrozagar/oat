@@ -80,7 +80,7 @@ describe("scenario assert path", () => {
 		const result = await run({
 			baseUrl: url,
 			ops: ["prefs.set"],
-			principals: [{ headers: {}, id: "alpha" }],
+			principals: { alpha: {} },
 			scenarios: [scenario],
 			seed: 1,
 			spec: `${url}/openapi.json`,

@@ -14,12 +14,9 @@ export const CREDENTIAL_HEADERS: ReadonlySet<string> = /* @__PURE__ */ new Set([
 	"x-auth-token",
 ])
 
-/* Also secret when written down: a response's cookies, and the anyrow tester's key header. */
-const REDACTED_HEADERS: ReadonlySet<string> = /* @__PURE__ */ new Set([
-	...CREDENTIAL_HEADERS,
-	"set-cookie",
-	"x-ia-tester-key",
-])
+/* Also secret when written down: a response's cookies. A backend's own secret header is the config's
+ * `redact.headers`, or matches the `x-…-key` family below. */
+const REDACTED_HEADERS: ReadonlySet<string> = /* @__PURE__ */ new Set([...CREDENTIAL_HEADERS, "set-cookie"])
 
 /** A header whose value is a secret wherever it is recorded: a known name, or `x-<anything>-key|secret|token`. */
 export function isSecretHeaderName(name: string): boolean {

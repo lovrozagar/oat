@@ -26,7 +26,7 @@ export const contentTypeEnforced = defineCheck<CreateBody>({
 		const exchange = await asProbe(ctx).client.request("POST", fillPath(createOp.path, ctx.scope), {
 			body: asText(encoded.body),
 			contentType: "text/plain",
-			headers: ctx.auth(),
+			as: { principal: ctx.actor.id },
 		})
 		if (standDownForFeatureGate(ctx, createOp, exchange, this.id))
 			return standDown("a documented feature gate refused the request")

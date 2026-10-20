@@ -6,7 +6,7 @@ import { join } from "node:path"
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 import { main } from "../../src/cli/main.ts"
 import { isKnownFlag, parseArgs, unknownFlag, USAGE } from "../../src/cli/flags.ts"
-import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import type { ReferenceServer } from "../../src/reference/http/server.ts"
 
@@ -82,6 +82,7 @@ async function writeConfig(dir: string, serverUrl: string, extra: Record<string,
 	const body = {
 		baseUrl: serverUrl,
 		principals: PRINCIPALS,
+		security: SECURITY,
 		seed: 42,
 		spec: `${serverUrl}/v1/openapi/spec`,
 		...extra,
@@ -137,7 +138,9 @@ async function runUngradedTarget({ dir, server }: OpsWorld): Promise<{ code: num
 		const path = await writeConfig(dir, server.url, {
 			baseUrl: url,
 			ops: ["thing.get"],
-			principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+			principals: { alpha: {} },
+			/* The lone document declares no security, so it takes no recipe. */
+			security: {},
 			spec: `${url}/openapi.json`,
 		})
 		return await cli(["run", "--config", path, "--out", dir, "--quiet"])

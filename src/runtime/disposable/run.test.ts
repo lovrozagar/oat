@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import type { Responder } from "../checks/__fixtures__/harness.ts"
 import { accounts, accountsApi, accountsDoc, stageOf } from "./__fixtures__/accounts.ts"
 import { runDisposableOps } from "./run.ts"
 
@@ -9,7 +10,7 @@ const needs = (input: { grades: { needs: Map<string, Set<string>> } }, id: strin
 describe("runDisposableOps", () => {
 	it("runs each destructive operation as a second user, and spares the suite caller", async () => {
 		const state = accounts()
-		const { input, seen } = stageOf(accountsDoc(), accountsApi(state))
+		const { input, seen } = await stageOf(accountsDoc(), accountsApi(state))
 		await runDisposableOps(input)
 		expect(input.checksRun?.has("auth.destructive-spares-the-caller")).toBe(true)
 		expect(seen.map((request) => `${request.method} ${request.path}`)).toEqual([
@@ -34,19 +35,20 @@ describe("runDisposableOps", () => {
 				post: { operationId: "tokens.rotate", responses: { "200": { description: "ok" } }, "x-destructive": true },
 			},
 		})
-		const { input, seen } = stageOf(doc, accountsApi(accounts()), { checksRun: undefined })
+		const { input, seen } = await stageOf(doc, accountsApi(accounts()), { input: { checksRun: undefined } })
 		await runDisposableOps(input)
 		expect(seen.filter((request) => request.path === "/v1/register")).toHaveLength(2)
 	})
 
 	it("runs only targeted operations in a targeted run, and nothing when none is", async () => {
-		const { input, seen } = stageOf(accountsDoc(), accountsApi(accounts()), {
-			inScope: (id) => id === "auth.logout",
-			mode: "targeted",
+		const { input, seen } = await stageOf(accountsDoc(), accountsApi(accounts()), {
+			input: { inScope: (id) => id === "auth.logout", mode: "targeted" },
 		})
 		await runDisposableOps(input)
 		expect(seen.some((request) => request.path.startsWith("/v1/keys"))).toBe(false)
-		const none = stageOf(accountsDoc(), accountsApi(accounts()), { inScope: () => false, mode: "targeted" })
+		const none = await stageOf(accountsDoc(), accountsApi(accounts()), {
+			input: { inScope: () => false, mode: "targeted" },
+		})
 		await runDisposableOps(none.input)
 		expect(none.input.checksRun?.size).toBe(0)
 	})
@@ -54,27 +56,66 @@ describe("runDisposableOps", () => {
 
 describe("runDisposableOps on what it skips", () => {
 	it("skips every operation without a caller read", async () => {
-		const { input, seen } = stageOf(accountsDoc({ "/v1/me": {} }), accountsApi(accounts()))
+		const { input, seen } = await stageOf(accountsDoc({ "/v1/me": {} }), accountsApi(accounts()))
 		await runDisposableOps(input)
 		expect(seen).toEqual([])
 		expect(needs(input, "auth.logout")).toEqual(["no caller read (an identity: self read)"])
 	})
 
 	it("skips an operation whose second user cannot sign up", async () => {
-		const refused = stageOf(accountsDoc({ "/v1/register": {} }), accountsApi(accounts()))
+		const refused = await stageOf(accountsDoc({ "/v1/register": {} }), accountsApi(accounts()))
 		await runDisposableOps(refused.input)
+		/* The reason is the run's, passed on: here, the document has no x-fresh-principal operation. */
 		expect(needs(refused.input, "keys.delete")).toEqual([
-			"no way to sign up a second user (an auth flow or x-fresh-principal)",
+			expect.stringMatching(/^the second user could not sign up: .*disposable-shared.*x-fresh-principal/),
 		])
-		const broken = stageOf(accountsDoc(), () => {
+		const broken = await stageOf(accountsDoc(), () => {
 			throw new Error("register is down")
 		})
 		await runDisposableOps(broken.input)
 		expect(needs(broken.input, "auth.logout")[0]).toMatch(/^the second user could not sign up: /)
-		const odd = stageOf(accountsDoc(), accountsApi(accounts()), {
-			resolveInput: () => Promise.reject("no input"),
+		const odd = await stageOf(accountsDoc(), accountsApi(accounts()), {
+			run: { hooks: { resolveInput: () => Promise.reject("no input") } },
 		})
 		await runDisposableOps(odd.input)
 		expect(needs(odd.input, "auth.logout")).toEqual(["the second user could not sign up: no input"])
+	})
+})
+
+describe("runDisposableOps: the second user's credential", () => {
+	it("goes where the operation's scheme places it: an apiKey signup token in its header, not a bearer one", async () => {
+		const apiKey = { securitySchemes: { key: { in: "header", name: "x-api-key", type: "apiKey" } } }
+		const { input, seen } = await stageOf(accountsDoc({}, apiKey), accountsApi(accounts()))
+		await runDisposableOps(input)
+		const deleted = seen.find((request) => request.method === "DELETE")
+		expect([deleted?.headers["x-api-key"], deleted?.headers.authorization]).toEqual(["t1", undefined])
+		expect(input.findings.findings).toEqual([])
+	})
+
+	it("lets any other failure of the second user's operation through, unswallowed", async () => {
+		const api = accountsApi(accounts())
+		const broken: Responder = (method, path, options) => {
+			if (path === "/v1/keys" && method === "GET") throw new Error("socket closed")
+			return api(method, path, options)
+		}
+		const { input } = await stageOf(accountsDoc(), broken, {
+			input: { inScope: (id) => id === "keys.delete", mode: "targeted" },
+		})
+		await expect(runDisposableOps(input)).rejects.toThrow("socket closed")
+	})
+
+	it("never renews the second user by signing up again: a 401 with no declared refresh skips the operation", async () => {
+		const api = accountsApi(accounts())
+		let listed = 0
+		const once: Responder = (method, path, options) =>
+			path === "/v1/keys" && method === "GET" && (listed += 1) === 1 ? { status: 401 } : api(method, path, options)
+		const { input, seen } = await stageOf(accountsDoc(), once, {
+			input: { inScope: (id) => id === "keys.delete", mode: "targeted" },
+		})
+		await runDisposableOps(input)
+		expect(seen.map((request) => `${request.method} ${request.path}`)).toEqual(["POST /v1/register", "GET /v1/keys"])
+		expect(needs(input, "keys.delete")).toEqual([
+			"renewing disposable-shared/session would sign up again; declare a refresh",
+		])
 	})
 })

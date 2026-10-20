@@ -1,7 +1,7 @@
 import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { describe, expect, it } from "vitest"
-import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { report } from "../../src/report/console/report.ts"
 import { Client } from "../../src/client/client.ts"
@@ -12,6 +12,7 @@ import { dereference } from "../../src/spec/load/dereference.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { type ProvenId, answeredId, listedIds } from "../../src/runtime/proven-id.ts"
 import { Redactor } from "../../src/security/redact.ts"
+import { actingClient } from "../support/acting-client.ts"
 
 /* Ids as the backend gave them back; the ledger takes nothing else. */
 function proven(id: ProvenId | undefined): ProvenId {
@@ -32,17 +33,24 @@ describe("teardown", () => {
 		const server = await createMemoryServer()
 		try {
 			const model = await referenceModel(server.url)
-			const headers = { authorization: "Bearer tok_alpha" }
-			const owner = { headers: () => headers, id: "alpha" }
-			const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
-			const table = await client.request("POST", "/v1/projects/proj_alpha/tables", { body: { name: "t" }, headers })
+			const owner = { id: "alpha" }
+			const client = actingClient({
+				baseUrl: server.url,
+				model,
+				principals: { alpha: {} },
+				security: { bearer: { static: "tok_alpha" } },
+			})
+			const table = await client.request("POST", "/v1/projects/proj_alpha/tables", {
+				as: { principal: "alpha" },
+				body: { name: "t" },
+			})
 			const tableId = proven(answeredId(table, ["id"]))
 			const ledger = new Ledger()
 			ledger.record({ entity: "table", id: tableId, scope: { project_id: "proj_alpha", table_id: tableId } }, owner)
 			for (const label of ["a", "b"]) {
 				const row = await client.request("POST", `/v1/projects/proj_alpha/tables/${tableId}/rows`, {
+					as: { principal: "alpha" },
 					body: { label },
-					headers,
 				})
 				const rowId = proven(answeredId(row, ["id"]))
 				ledger.record(
@@ -105,6 +113,15 @@ const orgsSpec = {
 	},
 } as unknown as OpenApiDocument
 
+/* A client for the orgs document, which declares no security: every actor sends nothing. */
+function openClient(baseUrl: string): Client {
+	return new Client({
+		baseUrl,
+		credentials: { resolve: async () => ({ kind: "anonymous" }) },
+		redactor: new Redactor(),
+	})
+}
+
 async function serveOrgs(): Promise<{ close: () => Promise<void>; url: string }> {
 	const live = new Set(["org_1"])
 	const server = createServer((req, res) => {
@@ -129,9 +146,9 @@ describe("teardown of a record the run already deleted", () => {
 		const server = await serveOrgs()
 		try {
 			const model = buildModel(dereference(orgsSpec).doc)
-			const owner = { headers: () => ({}), id: "alpha" }
-			const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
-			expect((await client.request("DELETE", "/v1/orgs/org_1", {})).status).toBe(204)
+			const owner = { id: "alpha" }
+			const client = openClient(server.url)
+			expect((await client.request("DELETE", "/v1/orgs/org_1", { as: { principal: "alpha" } })).status).toBe(204)
 			const ledger = new Ledger()
 			ledger.record({ entity: "org", id: listed("org_1"), scope: { org_id: "org_1" } }, owner)
 			const result = await ledger.unwind(model, client, { fallbacks: () => [] })
@@ -146,8 +163,8 @@ describe("teardown of a record the run already deleted", () => {
 		const server = await serveOrgs()
 		try {
 			const model = buildModel(dereference(orgsSpec).doc)
-			const owner = { headers: () => ({}), id: "alpha" }
-			const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
+			const owner = { id: "alpha" }
+			const client = openClient(server.url)
 			const ledger = new Ledger()
 			ledger.record({ entity: "org", id: listed("org_2"), scope: { org_id: "org_2" } }, owner)
 			const result = await ledger.unwind(model, client, { fallbacks: () => [] })
@@ -181,6 +198,7 @@ const payloadRequests = async (payloads: "full" | "per-write-path") => {
 			only: ["table", "row"],
 			payloads,
 			principals: PRINCIPALS,
+			security: SECURITY,
 			seed: 42,
 			spec: `${server.url}/v1/openapi/spec`,
 		})

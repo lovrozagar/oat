@@ -19,7 +19,7 @@ describe("tenant.filter-does-not-bypass-scope", () => {
 		expect(sent).toHaveLength(1)
 		expect(sent[0]?.path).toBe("/orgs/o2/notes")
 		expect(sent[0]?.options.query).toEqual({ filter: "id.eq.n1" })
-		expect(caller(sent[0]?.options ?? {})).toBe("other")
+		expect(sent[0] === undefined ? undefined : caller(sent[0])).toBe("other")
 		expect(findings.findings).toEqual([])
 	})
 
@@ -50,8 +50,8 @@ describe("tenant.filter-does-not-bypass-scope", () => {
 		const shared = filtered({ tenant: false })
 		const titleOnly = filtered({ query: { filterable: ["title"], grammar: "postgrest" } })
 		for (const { ctx } of [
-			notesContext(filtered(), listing(200, []), { altAuth: undefined }),
-			notesContext(filtered(), listing(200, []), { altScope: undefined }),
+			notesContext(filtered(), listing(200, []), { peer: undefined }),
+			notesContext(filtered(), listing(200, []), { peerScope: undefined }),
 			notesContext(filtered(), listing(200, []), { records: [] }),
 			notesContext(unfiltered, listing(200, [])),
 			notesContext(shared, listing(200, [])),

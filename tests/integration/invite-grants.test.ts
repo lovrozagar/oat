@@ -1,6 +1,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
+import { bearerSecurity } from "../../src/conformance/harness/security.ts"
+import type { PrincipalsConfig, SecurityConfig } from "../../src/config/types/security.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 
@@ -133,6 +135,7 @@ function memberPaths(grants: string | undefined): Record<string, unknown> {
 
 function spec(grants?: string): OpenApiDocument {
 	return {
+		...bearerSecurity(),
 		info: { title: "invite-grants", version: "1" },
 		openapi: "3.1.0",
 		paths: { ...inviteFlowPaths(), ...memberPaths(grants) },
@@ -262,15 +265,12 @@ async function orgServer(document: OpenApiDocument): Promise<{ deletes: string[]
 	return { deletes: world.deletes, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }
 }
 
-const principals = [
-	{ headers: { authorization: "Bearer a" }, id: "alpha", roots: { org_id: "org_1", project_id: "p_1" } },
-	{
-		headers: { authorization: "Bearer b" },
-		id: "beta",
-		inviteAs: "beta@x.test",
-		roots: { org_id: "org_2", project_id: "p_2" },
-	},
-]
+/* Each principal's bearer token is its `token`; beta's becomes the one accept issues once it joins. */
+const security: SecurityConfig = { bearer: { static: "{principal.token}" } }
+const principals: PrincipalsConfig = {
+	alpha: { scope: { org_id: "org_1", project_id: "p_1" }, tenant: "org_1", token: "a" },
+	beta: { inviteAs: "beta@x.test", scope: { org_id: "org_2", project_id: "p_2" }, tenant: "org_2", token: "b" },
+}
 
 describe("invite grants", () => {
 	it("judges access by the read x-invite.grants names, filled from the inviter's scope", async () => {
@@ -279,6 +279,7 @@ describe("invite grants", () => {
 			baseUrl: server.url,
 			only: ["member"],
 			principals,
+			security,
 			seed: 1,
 			spec: `${server.url}/v1/openapi/spec`,
 		})
@@ -288,7 +289,7 @@ describe("invite grants", () => {
 			(exchange) =>
 				exchange.method === "GET" &&
 				new URL(exchange.url).pathname === "/v1/projects/p_1/tables" &&
-				exchange.requestHeaders.authorization !== "Bearer a",
+				exchange.principal !== "alpha",
 		)
 		expect(reads.map((exchange) => exchange.status)).toEqual([403, 403, 200, 403])
 	})
@@ -299,6 +300,7 @@ describe("invite grants", () => {
 			baseUrl: server.url,
 			only: ["member"],
 			principals,
+			security,
 			seed: 1,
 			spec: `${server.url}/v1/openapi/spec`,
 		})

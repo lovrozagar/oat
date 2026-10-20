@@ -7,7 +7,7 @@ import type { Exchange, Purpose } from "../runtime/exchange.ts"
 import type { Fence } from "../runtime/fence.ts"
 import type { NetworkError } from "../errors/network.ts"
 import type { RateLimiter } from "../runtime/rate-limit/limiter.ts"
-import type { CredentialSource } from "./credential-source.ts"
+import type { Actor, CredentialSource } from "./credential-source.ts"
 
 /** Methods that cannot change server state. */
 export type SafeMethod = "GET" | "HEAD" | "OPTIONS"
@@ -50,6 +50,14 @@ export interface HttpHooks {
 }
 
 export interface RequestOptions {
+	/**
+	 * Who the request acts as. There is no default: anonymous is `{ anonymous: true }`. The credential
+	 * it sends comes from this and the operation's security, never from `headers`.
+	 */
+	as: Actor
+	/** The request expects a refusal: a 401 is its answer, never refreshed or retried. A forged actor is always one. */
+	probe?: boolean
+	/** Non-credential headers only: one under a name the credential is placed in is a `CredentialCollision`. */
 	headers?: Record<string, string> | (() => Record<string, string>)
 	/** An array is sent as the parameter repeated once per item, in order. */
 	query?: Record<string, string | number | readonly (string | number)[] | undefined>
@@ -60,13 +68,6 @@ export interface RequestOptions {
 	 * FormData never gets a Content-Type here — fetch must set the boundary.
 	 */
 	contentType?: string | null
-	/**
-	 * Countdown refresh before dispatch; a 401 forces one refresh + one retry.
-	 * Prefer a getter for `headers` so the retry sends the live credential.
-	 */
-	refreshIfStale?: (force?: boolean) => Promise<void>
-	/** Auth acquire / refresh hops must set this so they cannot recurse into refresh. */
-	skipAuthRefresh?: boolean
 	/** Who is asking and why. A view fills this in; a caller may narrow `purpose` per request. */
 	context?: ExchangeContext
 	/** Named operation, when the caller knows it — `resolveHeaders` uses this to attach captcha. */
@@ -118,5 +119,6 @@ export interface ClientOptions {
 	/** Per-request headers, merged after `headers` and before the principal's credential. */
 	resolveHeaders?: HeaderResolver | undefined
 	operationResolver?: OperationResolver | undefined
+	/** What each request's actor sends. Without one, only anonymous requests can be sent. */
 	credentials?: CredentialSource | undefined
 }

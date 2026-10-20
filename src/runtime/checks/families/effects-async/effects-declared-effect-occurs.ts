@@ -145,7 +145,7 @@ async function runBefore(run: Invocation, uploads: UploadContext, prelude: Prelu
 	}
 	const beforeFields = beforeOp.hasRequestBody ? bodyForOp(ctx, beforeOp) : undefined
 	const beforeInvoked = await ctx.client.request(beforeOp.method, fillPath(beforeOp.path, beforeScope), {
-		headers: ctx.auth(),
+		as: { principal: ctx.actor.id },
 		operationId: beforeOp.operationId,
 		...(beforeFields === undefined
 			? {}
@@ -175,8 +175,8 @@ async function recordPrelude(
 		client: ctx.client,
 		createOp: beforeOp,
 		exchange: beforeInvoked,
-		headers: ctx.auth(),
 		model: ctx.model,
+		principal: ctx.actor.id,
 		scope: beforeScope,
 		sent: beforeInvoked.requestBody,
 	})
@@ -215,7 +215,7 @@ async function invoke(
 	)
 	const body = prepared.body
 	const invoked = await ctx.client.request(op.method, fillPath(op.path, at.scope), {
-		headers: ctx.auth(),
+		as: { principal: ctx.actor.id },
 		operationId: op.operationId,
 		...(fixture === undefined ? {} : { fixture }),
 		...(Object.keys(prepared.query).length === 0 ? {} : { query: prepared.query }),

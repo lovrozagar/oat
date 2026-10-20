@@ -224,7 +224,7 @@ async function runAgainst(mode: Mode) {
 	const backend = await serve(mode)
 	const result = await run({
 		baseUrl: backend.url,
-		principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
+		principals: { alpha: {} },
 		seed: 1,
 		spec: `${backend.url}/v1/openapi/spec`,
 	})

@@ -175,7 +175,7 @@ async function runAgainst(innerHasId: boolean) {
 	const { store, url } = await serve(innerHasId)
 	const result = await run({
 		baseUrl: url,
-		principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
+		principals: { alpha: {} },
 		seed: 1,
 		spec: `${url}/v1/openapi/spec`,
 	})

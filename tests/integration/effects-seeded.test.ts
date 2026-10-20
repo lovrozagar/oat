@@ -356,13 +356,13 @@ function organizationRoutes(seen: string[], members: Array<{ id: string }>): Rou
 	]
 }
 
-/* A run as one principal with `roots`, narrowed as `options` asks. */
-function runAs(baseUrl: string, options: { cohortSize?: number; only?: string[]; roots: Record<string, string> }) {
-	const { roots, ...narrowing } = options
+/* A run as one principal bound to `scope`, narrowed as `options` asks. */
+function runAs(baseUrl: string, options: { cohortSize?: number; only?: string[]; scope: Record<string, string> }) {
+	const { scope, ...narrowing } = options
 	return run({
 		baseUrl,
 		...narrowing,
-		principals: [{ headers: { authorization: "Bearer t" }, id: "a", roots }],
+		principals: { a: { scope } },
 		seed: 1,
 		spec: `${baseUrl}/v1/openapi/spec`,
 	})
@@ -404,7 +404,7 @@ describe("action on a seeded instance", () => {
 	it("removes what an x-before prelude created through an invite", async () => {
 		const world = new MemberWorld()
 		const server = await serve(listeners, preludeInviteSpec(), memberRoutes(world))
-		await runAs(server.url, { roots: { org_id: "o1" } })
+		await runAs(server.url, { scope: { org_id: "o1" } })
 		expect(world.invited).toBeGreaterThan(0)
 		expect([...world.members.keys()]).toEqual(["m_owner"])
 	})
@@ -417,7 +417,7 @@ describe("action on a seeded instance", () => {
 		addMemberActions(paths)
 		const seen: string[] = []
 		const server = await serve(listeners, spec, organizationRoutes(seen, []))
-		const result = await runAs(server.url, { cohortSize: 1, only: ["member"], roots: {} })
+		const result = await runAs(server.url, { cohortSize: 1, only: ["member"], scope: {} })
 		expect(seen).toEqual(["invite", "role"])
 		const gaps = result.findings.filter((finding) => finding.check === "effects.declared-effect-occurs")
 		expect(gaps.map((finding) => finding.summary).sort()).toEqual([

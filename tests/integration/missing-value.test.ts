@@ -54,13 +54,17 @@ describe("the client", () => {
 	it("sends nothing whose path or query carries a missing value", async () => {
 		const backend = await counting()
 		const client = new Client({ baseUrl: backend.url, redactor: new Redactor() })
-		await expect(client.request("GET", "/v1/notes/undefined")).rejects.toBeInstanceOf(MissingValueError)
-		await expect(client.request("GET", "/v1/notes", { query: { filter: "undefined" } })).rejects.toBeInstanceOf(
+		await expect(client.request("GET", "/v1/notes/undefined", { as: { anonymous: true } })).rejects.toBeInstanceOf(
 			MissingValueError,
 		)
-		await expect(client.request("GET", "/v1/notes?ID=undefined")).rejects.toBeInstanceOf(MissingValueError)
+		await expect(
+			client.request("GET", "/v1/notes", { as: { anonymous: true }, query: { filter: "undefined" } }),
+		).rejects.toBeInstanceOf(MissingValueError)
+		await expect(client.request("GET", "/v1/notes?ID=undefined", { as: { anonymous: true } })).rejects.toBeInstanceOf(
+			MissingValueError,
+		)
 		/* A parameter named undefined on purpose is left out, and the text `null` is a value. */
-		await client.request("GET", "/v1/notes", { query: { filter: undefined, x: "null" } })
+		await client.request("GET", "/v1/notes", { as: { anonymous: true }, query: { filter: undefined, x: "null" } })
 		expect(backend.hits).toEqual(["/v1/notes?x=null"])
 	})
 })

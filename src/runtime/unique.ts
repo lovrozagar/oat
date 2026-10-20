@@ -15,16 +15,6 @@ export function isUniqueConflictResponse(op: Pick<OperationModel, "unique">, sta
 	return status === UNIQUE_CONFLICT_STATUS && op.unique !== null && op.unique.length > 0
 }
 
-/** Header names the document (and oat) treat as an idempotency key. */
-export function isIdempotencyHeaderName(name: string): boolean {
-	return /^(x-)?idempotenc(y|e)([-_]?key)?$/i.test(name.replace(/\s/g, ""))
-}
-
-/**
- * Headers for a unique probe: auth only, never the original Idempotency-Key family.
- *
- * Omit the key unless the document requires it, in which case send a fresh one.
- */
 /** The idempotency key a unique probe may need. */
 export interface IdempotencyKey {
 	/** The operation's idempotency header, when it names one. */
@@ -35,19 +25,12 @@ export interface IdempotencyKey {
 	fresh: string
 }
 
-export function uniqueProbeHeaders(
-	auth: Record<string, string>,
-	{ header, required, fresh }: IdempotencyKey,
-): Record<string, string> {
-	const headers: Record<string, string> = {}
-	for (const [name, value] of Object.entries(auth)) {
-		if (isIdempotencyHeaderName(name)) continue
-		headers[name] = value
-	}
-	if (required && header !== null && header !== "") {
-		headers[header] = fresh
-	}
-	return headers
+/**
+ * Headers for a unique probe: never the original request's idempotency key, which would replay it.
+ * The key is omitted unless the document requires it, in which case a fresh one is sent.
+ */
+export function uniqueProbeHeaders({ header, required, fresh }: IdempotencyKey): Record<string, string> {
+	return required && header !== null && header !== "" ? { [header]: fresh } : {}
 }
 
 export function idempotencyHeaderRequired(op: OperationModel, model: SpecModel): boolean {

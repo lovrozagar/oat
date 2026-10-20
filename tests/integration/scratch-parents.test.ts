@@ -151,7 +151,7 @@ describe("siblings under one parent kind", () => {
 			const result = await run({
 				baseUrl: world.url,
 				only: ["apple", "banana"],
-				principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
+				principals: { alpha: {} },
 				seed: 1,
 				spec: `${world.url}/v1/openapi/spec`,
 			})

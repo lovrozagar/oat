@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { referenceRequest } from "../../reference/http/wire.ts"
+import { bearerSecurity } from "../harness/security.ts"
 import { publicCatalogue } from "./public-catalogue.ts"
 
 const ORIGIN = "http://catalogue.test"
@@ -22,7 +23,7 @@ describe("publicCatalogue", () => {
 		const handle = publicCatalogue()
 		const spec = await handle(request("GET", "/v1/openapi/spec", { headers: {} }))
 		expect(spec.status).toBe(200)
-		expect(json(spec.body)).toMatchObject({ openapi: "3.1.0" })
+		expect(json(spec.body)).toMatchObject({ openapi: "3.1.0", ...bearerSecurity() })
 		expect((await handle(request("GET", "/v1/templates", { headers: {} }))).status).toBe(401)
 		expect((await handle(request("GET", "/v1/templates", { headers: { authorization: "Bearer nope" } }))).status).toBe(
 			401,

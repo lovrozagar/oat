@@ -3,6 +3,7 @@
  * feature-gate 403, and invites that never do.
  */
 
+import { bearer } from "../../reference/http/access.ts"
 import type { Handle } from "../../reference/http/node.ts"
 import type { ReferenceRequest, ReferenceResponse } from "../../reference/http/wire.ts"
 import { answer, guarded, readJson } from "../harness/serve.ts"
@@ -122,8 +123,7 @@ export function featureGateHarness(options: HarnessOptions): Handle {
 		async (request) => {
 			const { pathname } = request.url
 			if (pathname === "/v1/openapi/spec" && request.method === "GET") return answer(200, spec)
-			if (!(request.headers.authorization ?? "").startsWith("Bearer "))
-				return answer(401, { error_key: "unauthorized" })
+			if (bearer(request) === undefined) return answer(401, { error_key: "unauthorized" })
 			const { id, key } = routeOf(request.method, pathname)
 			const route = table[key]
 			return route === undefined ? answer(404, { error_key: "not_found" }) : route(request, id, rows)

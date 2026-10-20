@@ -7,12 +7,7 @@ import type { AuthStep } from "../config/types/steps.ts"
  * and the run injects them.
  */
 
-/** Where a credential goes on one request: header, query parameter and cookie values by name. */
-export interface Sends {
-	headers: Record<string, string>
-	query: Record<string, string>
-	cookies: Record<string, string>
-}
+export type { Sends } from "../config/types/hooks.ts"
 
 /** What an answer gives a recipe to read a credential, a lifetime or a claim from. */
 export interface StepAnswer {
@@ -35,14 +30,16 @@ export interface StepRunner {
 }
 
 /**
- * Calls a documented operation with the given credential sends, for mint and revoke. `scope` fills
- * the operation's path parameters. It resolves with whatever the backend answered.
+ * Calls a documented operation as a principal sending one scheme, for mint and revoke: the run's
+ * client places that scheme's credential, refreshing it on a 401 like any request. `scope` fills
+ * the operation's path parameters, over the principal's own. It resolves with whatever the backend
+ * answered, and rejects with the reason when the principal holds no credential for the scheme.
  */
 export interface OperationCaller {
 	call(input: {
 		operationId: string
 		body?: unknown
-		sends: Sends
+		as: { principal: string; scheme: string }
 		scope?: Readonly<Record<string, string>>
 	}): Promise<StepAnswer>
 }

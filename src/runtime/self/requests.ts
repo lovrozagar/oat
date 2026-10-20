@@ -20,10 +20,10 @@ export function pathOf(op: OperationModel): string | null {
 	}
 }
 
-/** The caller as the check acts as it: its client and its credential. */
+/** The caller as the check acts as it: its client and the principal it sends as. */
 export interface Caller {
 	client: Client
-	auth: () => Record<string, string>
+	principal: string
 }
 
 /** An operation and the filled path the request goes to. */
@@ -39,7 +39,7 @@ export async function sendUpdate(
 ): Promise<Exchange> {
 	return caller.client.request(op.method, path, {
 		body,
-		headers: caller.auth,
+		as: { principal: caller.principal },
 		operationId: op.operationId,
 	})
 }

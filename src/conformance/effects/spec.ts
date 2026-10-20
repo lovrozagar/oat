@@ -1,6 +1,7 @@
 /** The effects suite's document: tables in a project, their rows, and one extract that makes both. */
 
 import type { OpenApiDocument } from "../../spec/types.ts"
+import { bearerSecurity } from "../harness/security.ts"
 
 const TABLE = {
 	properties: { id: { type: "string" }, name: { type: "string" }, table_id: { type: "string" } },
@@ -93,5 +94,6 @@ export function extractSpec(): OpenApiDocument {
 			},
 			"/v1/projects/{project_id}/extract": extract(),
 		},
+		...bearerSecurity(),
 	} as OpenApiDocument
 }

@@ -101,7 +101,7 @@ describe("the re-list after teardown, over an offset-paged list", () => {
 		await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
 		closers.push(() => new Promise((resolve) => server.close(() => resolve())))
 		const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
-		const result = await run({ baseUrl: base, principals: [{ id: "alpha" }], seed: 1, spec: `${base}/openapi.json` })
+		const result = await run({ baseUrl: base, principals: { alpha: {} }, seed: 1, spec: `${base}/openapi.json` })
 
 		const offsets = result.client.transcript
 			.filter((exchange) => exchange.purpose === "teardown" && exchange.method === "GET")

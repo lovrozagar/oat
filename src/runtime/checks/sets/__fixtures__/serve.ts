@@ -9,7 +9,7 @@ import type { Answer, Responder } from "../../__fixtures__/harness.ts"
 
 export const rows = (count: number): Record_[] => Array.from({ length: count }, (_, i) => ({ id: `n${i + 1}` }))
 
-const param = (options: RequestOptions, name: string): number | undefined => {
+const param = (options: Pick<RequestOptions, "query">, name: string): number | undefined => {
 	const value = options.query?.[name]
 	return value === undefined ? undefined : Number(value)
 }

@@ -1,9 +1,10 @@
 /**
  * The smallest useful config: a long-lived API key, no login flow.
  *
- * A principal without an `auth` flow authenticates by static header, so nothing needs acquiring.
- * The second principal is optional — but it is what makes the tenant-isolation checks possible;
- * without one they are skipped rather than silently passed.
+ * A static recipe sends a fixed value where the document's bearer scheme says, so nothing needs
+ * acquiring. `env()` stops the load naming the variable when it is unset, rather than sending an
+ * empty token. The second principal is optional — but it is what makes the tenant-isolation checks
+ * possible; without one they are skipped rather than silently passed.
  *
  *   oat run --config labs/minimal.config.ts
  *
@@ -11,22 +12,20 @@
  * in your own project it is `from "@lovrozagar/oat"`.
  */
 
-import { defineConfig } from "../dist/index.js"
+import { defineConfig, env } from "../dist/index.js"
 
 export default defineConfig({
 	baseUrl: "https://api.example.com",
-	principals: [
-		{
-			headers: { authorization: `Bearer ${process.env.API_TOKEN ?? ""}` },
-			id: "alpha",
+	principals: {
+		alpha: {
 			/* Path parameters oat cannot create for itself. */
-			roots: { project_id: process.env.PROJECT_A ?? "" },
+			scope: { project_id: env("PROJECT_A") },
+			tenant: env("PROJECT_A"),
+			token: env("API_TOKEN"),
 		},
-		{
-			headers: { authorization: `Bearer ${process.env.API_TOKEN_B ?? ""}` },
-			id: "beta",
-			roots: { project_id: process.env.PROJECT_B ?? "" },
-		},
-	],
+		beta: { scope: { project_id: env("PROJECT_B") }, tenant: env("PROJECT_B"), token: env("API_TOKEN_B") },
+	},
+	/* The document's bearer scheme; each principal's own token fills it. */
+	security: { bearer: { static: "{principal.token}" } },
 	spec: "https://api.example.com/openapi.json",
 })

@@ -24,32 +24,33 @@ import { tenantBoundary } from "./tenant.ts"
  * writing a child under it, crosses the boundary one level down from where it is usually guarded.
  */
 export const foreignParentRejected = defineCheck<{
-	altAuth: () => Record<string, string>
+	/** The principal of the other tenant, who sends every probe. */
+	peer: string
 	mixed: Record<string, string>
 	tenantParam: string
 	parents: string[]
 }>({
 	plan: (ctx) => {
-		const { altAuth, altScope } = ctx
+		const { peer, peerScope } = ctx
 		const tenantParam = ctx.listOp.tenantParam ?? undefined
-		if (altAuth === undefined || altScope === undefined || tenantParam === undefined) return cannot()
-		if (!tenantBoundary(ctx.listOp) || altScope[tenantParam] === undefined) return cannot()
-		if (altScope[tenantParam] === ctx.scope[tenantParam]) return cannot()
+		if (peer === undefined || peerScope === undefined || tenantParam === undefined) return cannot()
+		if (!tenantBoundary(ctx.listOp) || peerScope[tenantParam] === undefined) return cannot()
+		if (peerScope[tenantParam] === ctx.scope[tenantParam]) return cannot()
 		const parents = ctx.listOp.pathParams.filter((param) => param !== tenantParam && ctx.scope[param] !== undefined)
 		if (parents.length === 0) return cannot("a parent below the tenant in the collection's path")
 		/* Both tenants configured with the same parent: under the other root it is that tenant's own. */
-		const same = parents.find((param) => altScope[param] === ctx.scope[param])
+		const same = parents.find((param) => peerScope[param] === ctx.scope[param])
 		if (same !== undefined) return cannot(`the other tenant's ${same} has the same identity as the owner's`)
 		/* The owner's parents, under the other tenant's root. */
-		const mixed = { ...ctx.scope, [tenantParam]: altScope[tenantParam] as string }
-		return ready({ altAuth, mixed, parents, tenantParam })
+		const mixed = { ...ctx.scope, [tenantParam]: peerScope[tenantParam] as string }
+		return ready({ mixed, parents, peer: peer.id, tenantParam })
 	},
 	dependsOn: ["list.read-after-write", "tenant.item-not-readable-cross-tenant"],
 	id: "tenant.parent-not-reachable-from-another-root",
 	mutates: true,
 	needs: "a second tenant, and a collection nested under a parent below the tenant",
 	subjects: (entity) => declared(entity.list, entity.read, entity.create),
-	async run(ctx, { altAuth, mixed, parents, tenantParam }): Promise<Outcome> {
+	async run(ctx, { mixed, parents, peer, tenantParam }): Promise<Outcome> {
 		const path = `${ctx.listOp.path} with another tenant's ${parents.join(", ")} under its own ${tenantParam}`
 		const breach = (summary: string, detail: string, evidence: Exchange[]): Outcome =>
 			ctx.listOp.tenantSource === "tag"
@@ -64,11 +65,11 @@ export const foreignParentRejected = defineCheck<{
 					})
 		/* The other tenant may hold a parent of its own under the owner's parent's identity — a slug
 		 * derived from a shared name. Reaching it is the backend being right, not a boundary crossed. */
-		const collision = await ownParentOfTheOther(ctx, altAuth, mixed, parents)
+		const collision = await ownParentOfTheOther(ctx, peer, mixed, parents)
 		if (collision !== null) return ctx.findings.unresolved(this.id, ctx.entityName, collision)
 		const owned = setOf(ctx.records, ctx.identity)
 
-		const listed = await list(ctx, q(ctx, { limit: pageSize(ctx) }), { auth: altAuth, scope: mixed })
+		const listed = await list(ctx, q(ctx, { limit: pageSize(ctx) }), { principal: peer, scope: mixed })
 		if (listed.exchange.status < 300 && ids(listed.items, ctx.identity).some((id) => owned.has(id))) {
 			return breach(
 				"another tenant's records are listed through their parent under one's own root",
@@ -79,7 +80,8 @@ export const foreignParentRejected = defineCheck<{
 		const targetId = idOf(ctx.records[0], ctx.identity)
 		if (ctx.readOp !== undefined && targetId !== undefined) {
 			const read = await ctx.client.get(fillPath(ctx.readOp.path, { ...mixed, ...itemParamFor(ctx, targetId) }), {
-				headers: altAuth(),
+				as: { principal: peer },
+				operationId: ctx.readOp.operationId,
 			})
 			if (read.status < 300) {
 				return breach(
@@ -94,7 +96,7 @@ export const foreignParentRejected = defineCheck<{
 		if (createOp !== undefined && schema !== null) {
 			const created = await ctx.client.request("POST", fillPath(createOp.path, mixed), {
 				...(await encodeOpBody(ctx, createOp, validBody(ctx, schema))),
-				headers: altAuth(),
+				as: { principal: peer },
 				operationId: createOp.operationId,
 			})
 			if (created.status < 300) {
@@ -119,7 +121,7 @@ export const foreignParentRejected = defineCheck<{
  */
 async function ownParentOfTheOther(
 	ctx: WriteContext,
-	altAuth: () => Record<string, string>,
+	peer: string,
 	mixed: Record<string, string>,
 	parents: readonly string[],
 ): Promise<string | null> {
@@ -134,7 +136,7 @@ async function ownParentOfTheOther(
 			const readOp = entity.read === undefined ? undefined : ctx.model.byOperationId.get(entity.read)
 			if (readOp === undefined || !canFillPath(readOp.path, mixed)) return null
 			const read = await ctx.client.get(fillPath(readOp.path, mixed), {
-				headers: altAuth(),
+				as: { principal: peer },
 				operationId: readOp.operationId,
 			})
 			if (read.status >= 300) return null
@@ -144,7 +146,7 @@ async function ownParentOfTheOther(
 		const read = await readSet(
 			{ ...ctx, identity, listOp, scope: mixed },
 			{},
-			{ auth: altAuth, fresh: true, scope: mixed },
+			{ fresh: true, principal: peer, scope: mixed },
 		)
 		if (read.status !== "ok" || !read.complete) {
 			return `the other tenant's ${entity.name} list could not be read whole, so a ${entity.name} ${value} of its own is not ruled out`

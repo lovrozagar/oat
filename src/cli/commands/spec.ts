@@ -8,6 +8,8 @@ import type { SpecModel } from "../../spec/graph/types.ts"
 import { dereference } from "../../spec/load/dereference.ts"
 import { loadSpec } from "../../spec/load/source.ts"
 import { prepareDocument } from "../../spec/prepare.ts"
+import { assertSecurity } from "../../credentials/validate/security.ts"
+import { loadOrigins } from "../../runtime/run/load.ts"
 import { readConfig } from "../config.ts"
 import { type Args, str, USAGE } from "../flags.ts"
 import type { Writer } from "../writer.ts"
@@ -49,7 +51,11 @@ export async function modelled(writer: Writer, flags: Args["flags"]): Promise<Mo
 	try {
 		const { doc, externalRefs } = dereference(prepareDocument(raw, config ?? {}, (ids) => (removed = ids)))
 		const model = buildModel(doc)
-		if (config !== undefined) applyGrammarOverrides(model, config)
+		if (config !== undefined) {
+			applyGrammarOverrides(model, config)
+			/* The credentials are checked as `run` checks them: against this document and each origin's. */
+			assertSecurity({ ...config }, { doc, model }, await loadOrigins(config.origins ?? [], fetchSpecText))
+		}
 		/* A create whose fixtures cannot be built is recorded on the model as a gap. */
 		probeCreateFixtures(model)
 		return { config, configPath, externalRefs, model, removed }

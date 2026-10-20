@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { buildModel } from "../../spec/graph/build.ts"
+import { dereference } from "../../spec/load/dereference.ts"
+import { bearerSecurity } from "../harness/security.ts"
 import { widgetSpec } from "./spec.ts"
 
 type Operation = Record<string, unknown>
@@ -39,5 +41,14 @@ describe("widgetSpec", () => {
 			workspace_id: { type: "string" },
 		})
 		expect(update["x-immutable"]).toEqual(["workspace_id"])
+	})
+})
+
+describe("widgetSpec security", () => {
+	it("requires the bearer on every operation, from the root", () => {
+		const doc = widgetSpec()
+		expect(doc).toMatchObject(bearerSecurity())
+		const sources = buildModel(dereference(doc).doc).operations.map((op) => op.security.source)
+		expect(new Set(sources)).toEqual(new Set(["root"]))
 	})
 })

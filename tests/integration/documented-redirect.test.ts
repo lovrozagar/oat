@@ -53,7 +53,7 @@ describe("documented redirects", () => {
 
 		const result = await run({
 			baseUrl: url,
-			principals: [{ headers: {}, id: "alpha" }],
+			principals: { alpha: {} },
 			seed: 1,
 			spec: `${url}/v1/openapi/spec`,
 		})

@@ -15,7 +15,7 @@ export async function adoptExisting(createOp: OperationModel, seeding: Seeding, 
 	const records = await listExisting(
 		{ listOp, model, values: { ...options.roots, ...scope.values } },
 		client,
-		options.authHeaders,
+		options.principal,
 	)
 	const identity = entity.identity ?? "id"
 	return records.find((record) => isScalarId(record[identity])) ?? null

@@ -14,7 +14,14 @@ import { type Args, str, USAGE } from "../flags.ts"
 import type { Writer } from "../writer.ts"
 import { runOptionsOf } from "./run-options.ts"
 import { runProgress } from "./run-progress.ts"
-import { type Finished, printSummary, reportInput, writeReports } from "./run-report.ts"
+import {
+	type Finished,
+	KEPT_CREDENTIALS,
+	keepCredentials,
+	printSummary,
+	reportInput,
+	writeReports,
+} from "./run-report.ts"
 import { signalExit, type SignalSource, stopOnSignal } from "./run-signals.ts"
 
 /** What `run` needs from outside: the run itself, and where signals come from. */
@@ -111,6 +118,8 @@ async function started(writer: Writer, start: Start): Promise<number> {
 	}
 	const input = reportInput(finished)
 	await writeReports(finished, input)
+	if (await keepCredentials(result, resolve(KEPT_CREDENTIALS)))
+		writer.out(`  credentials: ${resolve(KEPT_CREDENTIALS)}\n`)
 	printSummary(writer, finished, input)
 	await publishLatest(allocated)
 	writer.out(`  latest: ${allocated.latest}\n\n`)

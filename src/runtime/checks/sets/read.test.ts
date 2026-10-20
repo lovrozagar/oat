@@ -161,11 +161,11 @@ describe("readSet on a list that does not page", () => {
 })
 
 describe("readSet's request", () => {
-	it("asks for the given size and order, under the given auth and scope, never past the maximum", async () => {
+	it("asks for the given size and order, as the given principal and scope, never past the maximum", async () => {
 		const { ctx, sent } = notesContext(served([]))
-		await readSet(ctx, { filter: "x" }, { auth: () => ({ who: "b" }), order: "name.asc", scope: {}, size: 2 })
+		await readSet(ctx, { filter: "x" }, { order: "name.asc", principal: "b", scope: {}, size: 2 })
 		expect(sent[0]?.options).toMatchObject({
-			headers: { who: "b" },
+			as: { principal: "b" },
 			query: { filter: "x", limit: 2, sort: "name.asc" },
 		})
 		await readSet(ctx, {}, { size: 50 })
@@ -184,8 +184,13 @@ describe("readSet's memo", () => {
 		expect(sent).toHaveLength(before)
 		await readSet(ctx, { filter: "x" })
 		expect(sent.length).toBeGreaterThan(before)
+		const afterFilter = sent.length
+		/* Another principal may see another set: its read is its own. */
+		await readSet(ctx, {}, { principal: "beta" })
+		expect(sent.length).toBeGreaterThan(afterFilter)
+		expect(sent.at(-1)?.options.as).toEqual({ principal: "beta" })
 		const afterOther = sent.length
-		await ctx.client.request("POST", "/notes")
+		await ctx.client.request("POST", "/notes", { as: { principal: "alpha" } })
 		await readSet(ctx)
 		expect(sent.length).toBeGreaterThan(afterOther + 1)
 	})

@@ -108,7 +108,10 @@ describe("createExchangeJournal, a full exchange", () => {
 			"status",
 			"url",
 		])
-		expect([file.requestBody, file.requestHeaders]).toEqual([{ password: REDACTED }, { authorization: REDACTED }])
+		expect([file.requestBody, file.requestHeaders]).toEqual([
+			{ password: REDACTED },
+			{ authorization: `Bearer ${REDACTED}` },
+		])
 		expect(JSON.stringify(file.redirects)).not.toContain("s3cret-value")
 	})
 })

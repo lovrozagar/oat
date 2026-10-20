@@ -6,7 +6,6 @@ import {
 	collisionCreateBody,
 	collisionUpdatePatch,
 	idempotencyHeaderRequired,
-	isIdempotencyHeaderName,
 	isUniqueConflictResponse,
 	probeableUniqueSets,
 	uniqueProbeHeaders,
@@ -69,34 +68,13 @@ describe("a unique conflict", () => {
 })
 
 describe("idempotency headers", () => {
-	it("are recognized by name in every spelling the document uses", () => {
-		for (const name of [
-			"Idempotency-Key",
-			"x-idempotency-key",
-			"Idempotence_Key",
-			"idempotency",
-			"X-Idempotency Key",
-		]) {
-			expect(isIdempotencyHeaderName(name)).toBe(true)
-		}
-		expect(isIdempotencyHeaderName("authorization")).toBe(false)
-	})
-
-	it("a probe sends auth only, and a fresh key where the document requires one", () => {
-		const auth = { authorization: "Bearer t", "Idempotency-Key": "old" }
-		expect(uniqueProbeHeaders(auth, { header: "Idempotency-Key", required: false, fresh: "new" })).toEqual({
-			authorization: "Bearer t",
-		})
-		expect(uniqueProbeHeaders(auth, { header: "Idempotency-Key", required: true, fresh: "new" })).toEqual({
-			authorization: "Bearer t",
+	it("a probe sends a fresh key only where the document requires one", () => {
+		expect(uniqueProbeHeaders({ header: "Idempotency-Key", required: false, fresh: "new" })).toEqual({})
+		expect(uniqueProbeHeaders({ header: "Idempotency-Key", required: true, fresh: "new" })).toEqual({
 			"Idempotency-Key": "new",
 		})
-		expect(uniqueProbeHeaders(auth, { header: null, required: true, fresh: "new" })).toEqual({
-			authorization: "Bearer t",
-		})
-		expect(uniqueProbeHeaders(auth, { header: "", required: true, fresh: "new" })).toEqual({
-			authorization: "Bearer t",
-		})
+		expect(uniqueProbeHeaders({ header: null, required: true, fresh: "new" })).toEqual({})
+		expect(uniqueProbeHeaders({ header: "", required: true, fresh: "new" })).toEqual({})
 	})
 
 	it("is required only where the document marks the header parameter required", () => {

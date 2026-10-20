@@ -27,6 +27,14 @@ function stepOriginOf(step: ScenarioStep): string | undefined {
 	return "origin" in step && typeof step.origin === "string" && step.origin !== "" ? step.origin : undefined
 }
 
+/* An anonymous step sends no credential, so a scheme it names would be silently dropped. */
+function refuseAnonymousScheme(scenario: Scenario, step: ScenarioStep, index: number): void {
+	if (!("anonymous" in step) || step.anonymous !== true || step.scheme === undefined) return
+	throw new Error(
+		`oat: scenario "${scenario.id}" step ${index + 1} is anonymous, so it cannot send the "${step.scheme}" scheme`,
+	)
+}
+
 /**
  * Fails fast on a scenario that names what it cannot grade — before any request is sent. A step on
  * another origin names that origin's operation and is checked against its document; it supports
@@ -53,7 +61,8 @@ function calledOperations(
 	known: (operationId: string, origin?: string) => boolean,
 ): ReadonlySet<string> {
 	const called = new Set<string>()
-	for (const step of scenario.steps) {
+	for (const [index, step] of scenario.steps.entries()) {
+		refuseAnonymousScheme(scenario, step, index)
 		const id = stepOperation(step)
 		if (id === undefined) continue
 		const origin = stepOriginOf(step)

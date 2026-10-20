@@ -31,6 +31,7 @@ afterAll(() => close())
 describe("repeated query parameters", () => {
 	it("sends every value of an array, in order, next to scalar parameters", async () => {
 		const exchange = await new Client({ baseUrl: url, redactor: new Redactor() }).get("/notes", {
+			as: { anonymous: true },
 			query: { f: ["a", "b"], g: "c", n: 3 },
 		})
 		expect(seen.at(-1)).toBe("/notes?f=a&f=b&g=c&n=3")
@@ -39,7 +40,10 @@ describe("repeated query parameters", () => {
 	})
 
 	it("leaves a parameter out when the array is empty", async () => {
-		await new Client({ baseUrl: url, redactor: new Redactor() }).get("/notes", { query: { f: [], g: "c" } })
+		await new Client({ baseUrl: url, redactor: new Redactor() }).get("/notes", {
+			as: { anonymous: true },
+			query: { f: [], g: "c" },
+		})
 		expect(seen.at(-1)).toBe("/notes?g=c")
 	})
 
@@ -53,7 +57,7 @@ describe("repeated query parameters", () => {
 			}),
 			redactor: new Redactor(),
 		})
-		await client.get("/notes", { query: { f: ["a", "b"] } })
+		await client.get("/notes", { as: { anonymous: true }, query: { f: ["a", "b"] } })
 		expect(seen.at(-1)).toBe("/notes?f=a&f=b&tenant=t1")
 	})
 })

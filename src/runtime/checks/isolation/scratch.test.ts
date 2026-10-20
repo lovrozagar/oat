@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { exchange, type Responder } from "../__fixtures__/harness.ts"
 import { notesContext } from "../query/__fixtures__/notes.ts"
-import { readRecord, sameTenantScope, scratchRecord, updateRequest } from "./scratch.ts"
+import { readRecord, scratchRecord, updateRequest } from "./scratch.ts"
 
 /*
  * A mutating check writes to a record made for it, never to the cohort every read-only oracle
@@ -24,19 +24,6 @@ describe("readRecord", () => {
 	})
 })
 
-describe("sameTenantScope", () => {
-	it("holds when every scope key agrees, or neither scope has any", () => {
-		expect(sameTenantScope({}, {})).toBe(true)
-		expect(sameTenantScope({ org: "a" }, { org: "a" })).toBe(true)
-	})
-
-	it("does not hold when a key differs or only one scope has it", () => {
-		expect(sameTenantScope({ org: "a" }, { org: "b" })).toBe(false)
-		expect(sameTenantScope({ org: "a" }, {})).toBe(false)
-		expect(sameTenantScope({}, { org: "a" })).toBe(false)
-	})
-})
-
 describe("scratchRecord", () => {
 	it("makes a record of the check's own and names it", async () => {
 		const { ctx, sent } = notesContext(creating({ body: { id: "n9", name: "x" }, status: 201 }))
@@ -44,6 +31,7 @@ describe("scratchRecord", () => {
 		expect(made).toMatchObject({ scratch: { id: "n9", record: { id: "n9", name: "x" } } })
 		expect("scratch" in made ? made.scratch.exchange.status : 0).toBe(201)
 		expect(sent.map((request) => `${request.method} ${request.path}`)).toEqual(["POST /notes"])
+		expect(sent[0]?.options.as).toEqual({ principal: ctx.actor.id })
 	})
 
 	it("names a numeric identity as text", async () => {
@@ -72,6 +60,8 @@ describe("scratchRecord", () => {
 			"POST /notes",
 			`GET /notes/${encodeURIComponent(id)}`,
 		])
+		/* The record is the actor's: it makes it, and reads it back, as itself. */
+		expect(sent.map((request) => request.options.as)).toEqual([{ principal: "alpha" }, { principal: "alpha" }])
 	})
 })
 

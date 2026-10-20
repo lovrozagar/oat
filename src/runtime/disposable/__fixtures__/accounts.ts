@@ -1,18 +1,19 @@
-import type { AuthFlow } from "../../../config/types/principals.ts"
-import { Client } from "../../../client/client.ts"
-import { Redactor } from "../../../security/redact.ts"
+import type { SecurityConfig } from "../../../config/types/security.ts"
 import type { OpenApiDocument } from "../../../spec/types.ts"
 import type { Answer, Responder } from "../../checks/__fixtures__/harness.ts"
-import { modelOf } from "../../checks/__fixtures__/harness.ts"
 import { FindingCollector } from "../../finding.ts"
 import { GradeLedger } from "../../grades.ts"
-import { BASE, type Seen, transport } from "../../run/__fixtures__/api.ts"
-import type { DisposableInput } from "../types.ts"
+import { contextOf, optionsFor, type Seen } from "../../run/__fixtures__/api.ts"
+import type { RunContext } from "../../run/context.ts"
+import { enrollerOf } from "../../run/disposable.ts"
+import type { RunOptions } from "../../run/types.ts"
+import type { DisposableInput, Session } from "../types.ts"
 
 /*
  * A socket-free accounts API for destructive operations: sign up, read yourself, log out, renew,
- * and API keys listed and deleted one by one. Every request goes through a real client over a
- * scripted transport, so a signup flow runs as it would against a server.
+ * and API keys listed and deleted one by one. Every request goes through the run's own client,
+ * store and credential source over a scripted transport, so a second user is signed up, held and
+ * placed as it would be against a server. The suite caller holds the static token `alpha`.
  */
 
 const json = (schema: unknown) => ({ content: { "application/json": { schema } } })
@@ -21,15 +22,21 @@ const object = (properties: Record<string, unknown>, required: string[] = []) =>
 	required,
 	type: "object",
 })
-const token = object({ access_token: { type: "string" }, refresh_token: { type: "string" } }, ["access_token"])
+const tokens = object({ access_token: { type: "string" }, refresh_token: { type: "string" } }, ["access_token"])
 const key = object({ id: { type: "string" } })
 const keyParam = { in: "path", name: "key_id", required: true, schema: { type: "string" } }
 
-/** The accounts document; `extra` adds or replaces paths. */
-export function accountsDoc(extra: Record<string, unknown> = {}): OpenApiDocument {
+/** The bearer scheme every operation takes unless it says otherwise. */
+const BEARER = { securitySchemes: { session: { scheme: "bearer", type: "http" } } }
+
+/** The accounts document; `extra` adds or replaces paths, and `components` replaces its schemes. */
+export function accountsDoc(extra: Record<string, unknown> = {}, components: unknown = BEARER): OpenApiDocument {
+	const open = { security: [] }
 	return {
+		components,
 		info: { title: "accounts", version: "1" },
 		openapi: "3.1.0",
+		security: [{ [Object.keys((components as typeof BEARER).securitySchemes)[0] as string]: [] }],
 		paths: {
 			"/v1/keys": {
 				get: {
@@ -64,6 +71,7 @@ export function accountsDoc(extra: Record<string, unknown> = {}): OpenApiDocumen
 			"/v1/refresh": {
 				post: {
 					operationId: "auth.refresh",
+					...open,
 					requestBody: json(object({ refresh_token: { type: "string" } }, ["refresh_token"])),
 					responses: { "200": { description: "renewed" } },
 				},
@@ -71,8 +79,9 @@ export function accountsDoc(extra: Record<string, unknown> = {}): OpenApiDocumen
 			"/v1/register": {
 				post: {
 					operationId: "auth.register",
+					...open,
 					requestBody: json(object({ email: { format: "email", type: "string" } }, ["email"])),
-					responses: { "201": { description: "created", ...json(token) } },
+					responses: { "201": { description: "created", ...json(tokens) } },
 					"x-fresh-principal": true,
 				},
 			},
@@ -101,20 +110,20 @@ export function accounts(fields: Partial<Accounts> = {}): Accounts {
 	return { issued: 0, keys: [{ id: "k1" }], revoked: new Set(), tokens: new Set(["alpha"]), ...fields }
 }
 
-/** The accounts API over `state`. */
+/** The accounts API over `state`: a token is read from a bearer `authorization`, or an `x-api-key`. */
 export function accountsApi(state: Accounts): Responder {
 	return (method, path, options) => {
 		const fixed = state.answers?.[`${method} ${path}`]
 		if (fixed !== undefined) return fixed
 		const headers = (options.headers ?? {}) as Record<string, string>
-		const bearer = (headers.authorization ?? "").replace(/^Bearer /, "")
+		const token = headers["x-api-key"] ?? (headers.authorization ?? "").replace(/^Bearer /, "")
 		const body = (options.body ?? {}) as Record<string, unknown>
-		return route(state, { bearer, body, method, path })
+		return route(state, { body, method, path, token })
 	}
 }
 
 interface Hit {
-	bearer: string
+	token: string
 	body: Record<string, unknown>
 	method: string
 	path: string
@@ -124,10 +133,10 @@ interface Hit {
 const ROUTES: Record<string, (state: Accounts, hit: Hit) => Answer> = {
 	"GET /v1/keys": (state) => ({ body: { keys: state.keys }, status: 200 }),
 	"GET /v1/me": (state, hit) =>
-		state.tokens.has(hit.bearer) ? { body: { name: "Ada" }, status: 200 } : { status: 401 },
+		state.tokens.has(hit.token) ? { body: { name: "Ada" }, status: 200 } : { status: 401 },
 	"POST /v1/logout": (state, hit) => {
 		if (state.killCaller === true) state.tokens.clear()
-		else if (state.keepSession !== true) state.tokens.delete(hit.bearer)
+		else if (state.keepSession !== true) state.tokens.delete(hit.token)
 		if (typeof hit.body.refresh_token === "string") state.revoked.add(hit.body.refresh_token)
 		return { body: { ok: true }, status: 200 }
 	},
@@ -152,22 +161,6 @@ function route(state: Accounts, hit: Hit): Answer | undefined {
 	return { status: 204 }
 }
 
-/** The suite principal's flow: sign up an address, keep its refresh token, renew with it. */
-export function signupFlow(email = "suite@example.test"): AuthFlow {
-	return {
-		credentialFrom: "$.access_token",
-		refresh: { steps: [{ body: { refresh_token: "{refreshToken}" }, operationId: "auth.refresh" }] },
-		steps: [
-			{
-				bind: { address: email },
-				body: { email: "{address}", plan: "free" },
-				operationId: "auth.register",
-				saveAs: { credential: "$.access_token", refreshToken: "$.refresh_token" },
-			},
-		],
-	} as AuthFlow
-}
-
 /** Fields to set; one given as `undefined` is left out, so a test can drop a default. */
 export type Overrides<T> = { [K in keyof T]?: T[K] | undefined }
 
@@ -177,25 +170,64 @@ function overriding<T extends object>(base: T, fields: Overrides<T>): T {
 	return out as T
 }
 
-/** The input `runDisposableOps` takes over `document` and `respond`, and what the transport saw. */
-export function stageOf(
-	document: OpenApiDocument,
-	respond: Responder,
-	fields: Overrides<DisposableInput> = {},
-): { input: DisposableInput; seen: Seen[] } {
-	const { fetch, seen } = transport(respond)
-	const client = new Client({ baseUrl: BASE, network: { fetchImpl: fetch, retries: 0 }, redactor: new Redactor() })
+/**
+ * The scheme's credential: a session the signup answers with, which the suite caller holds as the
+ * static `alpha`. Its login steps are never run here, since each second user adopts its signup's token.
+ */
+export function sessionSecurity(scheme = "session"): SecurityConfig {
+	return { [scheme]: { login: { from: "$.access_token", steps: [{ operationId: "auth.register" }] } } }
+}
+
+/** A staged run: the input `runDisposableOps` takes, the run it came from, and what the transport saw since. */
+export interface Staged {
+	input: DisposableInput
+	ctx: RunContext
+	seen: Seen[]
+}
+
+/** What a staged run overrides: fields of the input, and the run's options. */
+export interface Staging {
+	input?: Overrides<DisposableInput>
+	run?: Partial<RunOptions>
+}
+
+/**
+ * The input `runDisposableOps` takes over `document` and `respond`, as the run builds it, and what
+ * the transport saw once the run was set up.
+ */
+export async function stageOf(document: OpenApiDocument, respond: Responder, staging: Staging = {}): Promise<Staged> {
+	const serving: Responder = (method, path, options) =>
+		path === "/openapi.json" ? { body: document, status: 200 } : respond(method, path, options)
+	const scheme = Object.keys(document.components?.securitySchemes ?? {})[0] as string
+	const options = optionsFor(serving, {
+		principals: { alpha: { security: { [scheme]: { static: "alpha" } } } },
+		security: sessionSecurity(scheme),
+		...staging.run,
+	})
+	const ctx = await contextOf(options)
 	const base: DisposableInput = {
-		auth: () => ({ authorization: "Bearer alpha" }),
 		checksRun: new Set(),
-		client,
+		client: ctx.client,
+		enroll: enrollerOf(ctx),
 		findings: new FindingCollector(),
 		grades: new GradeLedger(),
 		inScope: () => true,
 		mode: "full",
-		model: modelOf(document),
+		model: ctx.model,
 		nonce: "n0",
+		principal: "alpha",
 		seed: 1,
 	}
-	return { input: overriding(base, fields), seen }
+	/* What setting the run up sent (its document) is not the disposable stage's. */
+	options.seen.splice(0)
+	return { ctx, input: overriding(base, staging.input ?? {}), seen: options.seen }
+}
+
+/** A second user holding `token`, bound in the staged run's store as `disposable-<token>`. */
+export async function sessionHolding(staged: Staged, token: string, fields: Partial<Session> = {}): Promise<Session> {
+	const principal = `disposable-${token}`
+	const scheme = [...staged.ctx.model.schemes.keys()][0] as string
+	staged.ctx.store.enroll(principal, {})
+	await staged.ctx.store.adopt({ principal, scheme, value: token })
+	return { known: {}, principal, scope: {}, ...fields }
 }

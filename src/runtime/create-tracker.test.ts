@@ -81,7 +81,7 @@ const DOCUMENT = {
 	},
 } as unknown as OpenApiDocument
 
-const owner = (id: string): Owner => ({ headers: () => ({ authorization: `Bearer ${id}` }), id })
+const owner = (id: string): Owner => ({ id })
 
 /* A ledger that keeps what it was told was read back, which the real one keeps private. */
 class WatchedLedger extends Ledger {

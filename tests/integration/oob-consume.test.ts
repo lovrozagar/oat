@@ -1,14 +1,18 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
-import { createPrincipal } from "../../src/runtime/auth.ts"
-import { resolveOutOfBandValue } from "../../src/runtime/steps/out-of-band.ts"
 import { Client } from "../../src/client/client.ts"
+import type { AuthStep, Hooks } from "../../src/config/define/types.ts"
+import { bearerSecurity } from "../../src/conformance/harness/security.ts"
+import { readAnswer } from "../../src/credentials/read.ts"
 import { run } from "../../src/runtime/run/index.ts"
+import { runSteps } from "../../src/runtime/steps/engine.ts"
+import { resolveOutOfBandValue } from "../../src/runtime/steps/out-of-band.ts"
 import { buildModel } from "../../src/spec/graph/build.ts"
 import { dereference } from "../../src/spec/load/dereference.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { Redactor } from "../../src/security/redact.ts"
+import { actingClient } from "../support/acting-client.ts"
 
 const closers: Array<() => Promise<void>> = []
 
@@ -22,7 +26,6 @@ interface OutOfBandSeen {
 	address: string
 	kind: string
 	scope: Record<string, string>
-	headers: Record<string, string>
 }
 
 function send(res: ServerResponse, status: number, body?: unknown): void {
@@ -76,9 +79,11 @@ function client(url: string): Client {
 	return new Client({ baseUrl: url, redactor: new Redactor() })
 }
 
+/* Sign-up is open; the item list takes the session cookie the verify link sets. */
 function model() {
 	return buildModel(
 		dereference({
+			components: { securitySchemes: { session: { in: "cookie", name: "session", type: "apiKey" } } },
 			info: { title: "oob-consume", version: "1" },
 			openapi: "3.1.0",
 			paths: {
@@ -87,26 +92,32 @@ function model() {
 						operationId: "auth.register",
 						requestBody: { content: { "application/json": { schema: { type: "object" } } } },
 						responses: { "200": { description: "ok" } },
+						security: [],
 					},
 				},
 				"/v1/items": {
 					get: { operationId: "item.list", responses: { "200": { description: "ok" } } },
 				},
 			},
+			security: [{ session: [] }],
 		} as OpenApiDocument).doc,
 	)
 }
 
+/** Runs sign-in `steps` as `principal` through the step engine a login recipe runs, with `hooks`. */
+function signIn(url: string, steps: readonly AuthStep[], more: { hooks?: Hooks; principal?: string } = {}) {
+	const consumer = client(url)
+	const ctx = { client: consumer, hooks: more.hooks ?? {}, model: model(), principalId: more.principal ?? "alpha" }
+	return { consumer, signed: runSteps(ctx, steps) }
+}
+
 /** Registers, takes a link out of band, and consumes it with `consume` as the final GET step. */
-function linkFlow(consume: Record<string, unknown>, address = "a@x.test") {
-	return {
-		credentialFrom: "$.access_token",
-		steps: [
-			{ method: "POST", path: "/v1/auth/register", saveAs: { credential: "$.access_token" } },
-			{ outOfBand: { address, as: "link", kind: "email-verify" } },
-			{ method: "GET", path: "{link}", ...consume },
-		],
-	} as Parameters<typeof createPrincipal>[1]
+function linkFlow(consume: Record<string, unknown>, address = "a@x.test"): AuthStep[] {
+	return [
+		{ method: "POST", path: "/v1/auth/register", saveAs: { credential: "$.access_token" } },
+		{ outOfBand: { address, as: "link", kind: "email-verify" } },
+		{ method: "GET", path: "{link}", ...consume } as AuthStep,
+	]
 }
 
 /** The app a verify link points at: 303 to /app with session cookies, then /app records the cookie it got. */
@@ -130,31 +141,27 @@ function verifyApp(session: string, seen: string[], appCookies: Array<string | u
 	}
 }
 
-function cookieSessionAuth() {
-	return {
-		credentialFrom: "$.access_token",
-		header: "cookie",
-		template: "session={credential}",
-		steps: [
-			{
-				bind: { address: "a@x.test" },
-				method: "POST",
-				path: "/v1/auth/register",
-				saveAs: { credential: "$.access_token", refreshToken: "$.refresh_token" },
+/** Registers, then consumes the mailed verify link, whose redirect sets the session and refresh cookies. */
+function cookieSessionSteps(): AuthStep[] {
+	return [
+		{
+			bind: { address: "a@x.test" },
+			method: "POST",
+			path: "/v1/auth/register",
+			saveAs: { credential: "$.access_token", refreshToken: "$.refresh_token" },
+		},
+		{ outOfBand: { address: "{address}", as: "verifyLink", kind: "email-verify" } },
+		{
+			expect: [200, 303],
+			method: "GET",
+			path: "{verifyLink}",
+			saveAs: { credential: "cookie:session", refreshToken: "cookie:refresh" },
+			saveClaimsFrom: {
+				bind: { orgId: "orgs.0.oid", projectId: "orgs.0.pids.0" },
+				token: "credential",
 			},
-			{ outOfBand: { address: "{address}", as: "verifyLink", kind: "email-verify" } },
-			{
-				expect: [200, 303],
-				method: "GET",
-				path: "{verifyLink}",
-				saveAs: { credential: "cookie:session", refreshToken: "cookie:refresh" },
-				saveClaimsFrom: {
-					bind: { orgId: "orgs.0.oid", projectId: "orgs.0.pids.0" },
-					token: "credential",
-				},
-			},
-		],
-	} as Parameters<typeof createPrincipal>[1]
+		},
+	]
 }
 
 function expectConsumedThroughRedirect(consumer: Client, urls: { api: string; app: string }, session: string): void {
@@ -177,32 +184,57 @@ async function followsRedirectAndBindsCookie(): Promise<void> {
 	const app = await serve(verifyApp(session, seen, appCookies))
 	const api = await serve(registerApi({ access_token: unsignedJwt({ sub: "u1" }), refresh_token: "rt-1" }))
 	let oob: OutOfBandSeen | undefined
-	const consumer = client(api.url)
-	const runtime = await createPrincipal("alpha", cookieSessionAuth(), {
-		client: consumer,
+	const { consumer, signed } = signIn(api.url, cookieSessionSteps(), {
 		hooks: {
 			resolveOutOfBand: async (request) => {
 				oob = request
 				return `${app.url}/verify?token=mailed`
 			},
 		},
-		model: model(),
-		principalId: "alpha",
 	})
+	const { last, scope } = await signed
 	expect(oob?.address).toBe("a@x.test")
 	expect(oob?.kind).toBe("email-verify")
 	expect(oob?.scope.credential).toBeDefined()
-	expect(oob?.headers.cookie).toMatch(/^session=/)
 	expect(seen).toEqual(["GET /verify", "GET /app"])
 	expect(appCookies).toHaveLength(1)
 	expect(appCookies[0]).toContain("session=")
-	expect(runtime.headers().cookie).toBe(`session=${session}`)
-	expect(runtime.scope.refreshToken).toBe("rt-cookie")
-	expect(runtime.scope.orgId).toBe("org_1")
-	expect(runtime.scope.projectId).toBe("proj_1")
-	expect(runtime.address).toBe("a@x.test")
-	expect(runtime.credential()).toBe(session)
+	expect(scope.refreshToken).toBe("rt-cookie")
+	expect(scope.orgId).toBe("org_1")
+	expect(scope.projectId).toBe("proj_1")
+	expect(scope.address).toBe("a@x.test")
+	expect(scope.credential).toBe(session)
+	/* What a login recipe's `from: "cookie:session"` reads out of the last answer. */
+	expect(last === undefined ? undefined : readAnswer(last, "cookie:session")).toBe(session)
 	expectConsumedThroughRedirect(consumer, { api: api.url, app: app.url }, session)
+}
+
+async function placesCookieSession(): Promise<void> {
+	const session = unsignedJwt({ orgs: [{ oid: "org_1", pids: ["proj_1"] }] })
+	const app = await serve(verifyApp(session, [], []))
+	const cookies: Array<string | undefined> = []
+	const register = registerApi({ access_token: unsignedJwt({ sub: "u1" }), refresh_token: "rt-1" })
+	const api = await serve((req, res) => {
+		if ((req.url ?? "").startsWith("/v1/items")) {
+			cookies.push(req.headers.cookie)
+			return send(res, 200, [])
+		}
+		return register(req, res)
+	})
+	const consumer = actingClient({
+		baseUrl: api.url,
+		hooks: { resolveOutOfBand: async () => `${app.url}/verify` },
+		model: model(),
+		principals: { alpha: {} },
+		security: {
+			session: { login: { from: "cookie:session", steps: cookieSessionSteps() as [AuthStep, ...AuthStep[]] } },
+		},
+	})
+	const items = await consumer.get("/v1/items", { as: { principal: "alpha" } })
+	expect(items.status).toBe(200)
+	expect(items.principal).toBe("alpha")
+	expect(items.schemes).toEqual(["session"])
+	expect(cookies).toEqual([`session=${session}`])
 }
 
 async function stopsAtManualRedirect(): Promise<void> {
@@ -217,18 +249,12 @@ async function stopsAtManualRedirect(): Promise<void> {
 		return send(res, 404, { error: "followed" })
 	})
 	const api = await serve(registerApi({ access_token: "reg" }))
-	const consumer = client(api.url)
-	const runtime = await createPrincipal(
-		"alpha",
+	const { consumer, signed } = signIn(
+		api.url,
 		linkFlow({ expect: [303], redirect: "manual", saveAs: { credential: "cookie:session" } }),
-		{
-			client: consumer,
-			hooks: { resolveOutOfBand: async () => `${app.url}/verify` },
-			model: model(),
-			principalId: "alpha",
-		},
+		{ hooks: { resolveOutOfBand: async () => `${app.url}/verify` } },
 	)
-	expect(runtime.credential()).toBe(session)
+	expect((await signed).scope.credential).toBe(session)
 	const consume = consumer.transcript.find((e) => e.url.includes("/verify"))
 	expect(consume?.status).toBe(303)
 	expect(consume?.redirects).toBeUndefined()
@@ -241,42 +267,30 @@ async function interpolatesScopeIntoSaveAs(): Promise<void> {
 		res.end()
 	})
 	const api = await serve(registerApi({ access_token: unsignedJwt({ sub: "u42" }) }))
-	const runtime = await createPrincipal(
-		"alpha",
-		{
-			credentialFrom: "$.access_token",
-			steps: [
-				{
-					method: "POST",
-					path: "/v1/auth/register",
-					saveAs: { credential: "$.access_token" },
-					saveClaimsFrom: { bind: { userId: "sub" }, token: "credential" },
-				},
-				{ outOfBand: { address: "a@x.test", as: "link", kind: "email-verify" } },
-				{ method: "GET", path: "{link}", saveAs: { refreshToken: "cookie:rt.{userId}" } },
-			],
-		},
-		{
-			client: client(api.url),
-			hooks: { resolveOutOfBand: async () => `${app.url}/verify` },
-			model: model(),
-			principalId: "alpha",
-		},
+	const { signed } = signIn(
+		api.url,
+		[
+			{
+				method: "POST",
+				path: "/v1/auth/register",
+				saveAs: { credential: "$.access_token" },
+				saveClaimsFrom: { bind: { userId: "sub" }, token: "credential" },
+			},
+			{ outOfBand: { address: "a@x.test", as: "link", kind: "email-verify" } },
+			{ method: "GET", path: "{link}", saveAs: { refreshToken: "cookie:rt.{userId}" } },
+		],
+		{ hooks: { resolveOutOfBand: async () => `${app.url}/verify` } },
 	)
-	expect(runtime.scope.refreshToken).toBe("rt-u42")
+	expect((await signed).scope.refreshToken).toBe("rt-u42")
 }
 
 async function failsClosedOnMissingCookie(): Promise<void> {
 	const app = await serve((_req, res) => send(res, 200, { ok: true }))
 	const api = await serve(registerApi({ access_token: "reg" }))
-	await expect(
-		createPrincipal("alpha", linkFlow({ saveAs: { credential: "cookie:session" } }), {
-			client: client(api.url),
-			hooks: { resolveOutOfBand: async () => `${app.url}/verify` },
-			model: model(),
-			principalId: "alpha",
-		}),
-	).rejects.toThrow(/saveAs\.credential = "cookie:session"/)
+	const { signed } = signIn(api.url, linkFlow({ saveAs: { credential: "cookie:session" } }), {
+		hooks: { resolveOutOfBand: async () => `${app.url}/verify` },
+	})
+	await expect(signed).rejects.toThrow(/saveAs\.credential = "cookie:session"/)
 }
 
 async function bindsResponseHeader(): Promise<void> {
@@ -286,43 +300,26 @@ async function bindsResponseHeader(): Promise<void> {
 	})
 	const api = await serve(registerApi({ access_token: "reg" }))
 	const hooks = { resolveOutOfBand: async () => `${app.url}/verify` }
-	const runtime = await createPrincipal("alpha", linkFlow({ saveAs: { credential: "header:x-session" } }), {
-		client: client(api.url),
-		hooks,
-		model: model(),
-		principalId: "alpha",
-	})
-	expect(runtime.credential()).toBe("hdr-tok")
-	await expect(
-		createPrincipal("beta", linkFlow({ saveAs: { credential: "header:x-missing" } }, "b@x.test"), {
-			client: client(api.url),
-			hooks,
-			model: model(),
-			principalId: "beta",
-		}),
-	).rejects.toThrow(/header:x-missing/)
+	const alpha = signIn(api.url, linkFlow({ saveAs: { credential: "header:x-session" } }), { hooks })
+	expect((await alpha.signed).scope.credential).toBe("hdr-tok")
+	const missing = linkFlow({ saveAs: { credential: "header:x-missing" } }, "b@x.test")
+	await expect(signIn(api.url, missing, { hooks, principal: "beta" }).signed).rejects.toThrow(/header:x-missing/)
 }
 
 async function keepsJsonPathSaveAs(): Promise<void> {
 	const token = unsignedJwt({ orgs: [{ oid: "org_z" }] })
 	const api = await serve(registerApi({ access_token: token }))
-	const runtime = await createPrincipal(
-		"alpha",
+	const { signed } = signIn(api.url, [
 		{
-			credentialFrom: "$.access_token",
-			steps: [
-				{
-					method: "POST",
-					path: "/v1/auth/register",
-					saveAs: { credential: "$.access_token" },
-					saveClaimsFrom: { bind: { orgId: "orgs.0.oid" }, token: "$.access_token" },
-				},
-			],
+			method: "POST",
+			path: "/v1/auth/register",
+			saveAs: { credential: "$.access_token" },
+			saveClaimsFrom: { bind: { orgId: "orgs.0.oid" }, token: "$.access_token" },
 		},
-		{ client: client(api.url), hooks: {}, model: model(), principalId: "alpha" },
-	)
-	expect(runtime.scope.orgId).toBe("org_z")
-	expect(runtime.credential()).toBe(token)
+	])
+	const { scope } = await signed
+	expect(scope.orgId).toBe("org_z")
+	expect(scope.credential).toBe(token)
 }
 
 describe("absolute URL RequestStep + cookie saveAs", () => {
@@ -332,19 +329,19 @@ describe("absolute URL RequestStep + cookie saveAs", () => {
 	it("fails closed when the named cookie is missing", failsClosedOnMissingCookie)
 	it("binds a non-set-cookie response header and fails on a missing header", bindsResponseHeader)
 	it("keeps JSON-path saveAs and saveClaimsFrom.token into the body", keepsJsonPathSaveAs)
+	it("signs in by those steps and places the session cookie by its scheme", placesCookieSession)
 })
 
 describe("resolveOutOfBand extra fields", () => {
-	it("passes scope and headers into the hook", async () => {
-		const seen: Array<{ scope: Record<string, string>; headers: Record<string, string> }> = []
+	it("passes the flow's scope into the hook", async () => {
+		const seen: Array<{ scope: Record<string, string> }> = []
 		const value = await resolveOutOfBandValue(
 			async (request) => {
-				seen.push({ headers: request.headers, scope: request.scope })
+				seen.push({ scope: request.scope })
 				return request.attempt >= 1 ? "tok" : null
 			},
 			"a@x.test",
 			{
-				headers: { authorization: "Bearer live" },
 				kind: "email-verify",
 				label: 'principal "a"',
 				outOfBand: { attempts: 2, initialMs: 1, maxMs: 1 },
@@ -353,12 +350,12 @@ describe("resolveOutOfBand extra fields", () => {
 		)
 		expect(value).toBe("tok")
 		expect(seen[0]?.scope.credential).toBe("live")
-		expect(seen[0]?.headers.authorization).toBe("Bearer live")
 	})
 })
 
 function teardownSpec(): OpenApiDocument {
 	return {
+		...bearerSecurity(),
 		info: { title: "teardown", version: "1" },
 		openapi: "3.1.0",
 		paths: {
@@ -367,6 +364,7 @@ function teardownSpec(): OpenApiDocument {
 					operationId: "auth.register",
 					requestBody: { content: { "application/json": { schema: { type: "object" } } } },
 					responses: { "200": { description: "ok" } },
+					security: [],
 				},
 			},
 			"/v1/notes": {
@@ -394,21 +392,24 @@ function teardownSpec(): OpenApiDocument {
 
 type TeardownPrincipal = NonNullable<NonNullable<Parameters<typeof run>[0]["hooks"]>["teardownPrincipal"]>
 
-/** Runs the note entity as one principal registered at `address`, with `teardownPrincipal` as the hook. */
+/**
+ * Runs the note entity as one principal whose login registers it at `address`, with `teardownPrincipal`
+ * as the hook. The document does not mark the registration, so `created` says the run made it.
+ */
 async function runRegistered(url: string, address: string, teardownPrincipal: TeardownPrincipal): Promise<void> {
 	await run({
 		baseUrl: url,
 		hooks: { teardownPrincipal },
 		only: ["note"],
-		principals: [
-			{
-				auth: {
-					credentialFrom: "$.access_token",
-					steps: [{ bind: { address }, method: "POST", path: "/v1/auth/register" }],
+		principals: { alpha: { address, created: true } },
+		security: {
+			bearer: {
+				login: {
+					from: "$.access_token",
+					steps: [{ body: { address: "{principal.address}" }, method: "POST", path: "/v1/auth/register" }],
 				},
-				id: "alpha",
 			},
-		],
+		},
 		seed: 1,
 		spec: `${url}/openapi`,
 	})
@@ -427,12 +428,13 @@ async function callsTeardownWithLiveHeaders(): Promise<void> {
 		return send(res, 404)
 	})
 	await runRegistered(server.url, "a@x.test", async (address, ctx) => {
-		called.push({ address, credential: ctx.credential, headers: ctx.headers })
+		called.push({ address, credential: ctx.credential, headers: ctx.sends.headers })
 	})
 	expect(called).toHaveLength(1)
 	expect(called[0]?.address).toBe("a@x.test")
 	expect(called[0]?.credential).toBe(token)
-	expect(called[0]?.headers.authorization).toBe(`Bearer ${token}`)
+	/* Placed as the bearer scheme places it, ready to send on the removing request. */
+	expect(called[0]?.headers).toEqual({ Authorization: `Bearer ${token}` })
 	await runRegistered(server.url, "b@x.test", async (address: string) => {
 		oneArg.push(address)
 	})
@@ -440,5 +442,5 @@ async function callsTeardownWithLiveHeaders(): Promise<void> {
 }
 
 describe("teardownPrincipal ctx", () => {
-	it("calls the hook with the last live credential headers", callsTeardownWithLiveHeaders)
+	it("calls the hook with the last live credential, placed by its scheme", callsTeardownWithLiveHeaders)
 })

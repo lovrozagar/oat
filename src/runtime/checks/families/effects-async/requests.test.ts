@@ -8,8 +8,8 @@ import { bodyForOp, forOperation, subject } from "./requests.ts"
 const model = modelOf(baseDocument())
 const create = op(model, "createWidget")
 
-function actor(id: string, roots: Record<string, string>, inviteAs?: string): Actor {
-	return { headers: () => ({}), id, inviteAs, rank: 1, role: undefined, roots, scope: {} }
+function actor(id: string, tenant: string | undefined, inviteAs?: string): Actor {
+	return { id, inviteAs, rank: 1, scope: {}, tenant }
 }
 
 const invite = { granteeField: "email" } as InviteSpec
@@ -35,17 +35,13 @@ describe("bodyForOp", () => {
 	})
 
 	it("puts a peer from another tenant in the invite's grantee field before one from the owner's", () => {
-		const actors = [
-			actor("owner", { org: "a" }),
-			actor("same", { org: "a" }, "same@test"),
-			actor("other", { org: "b" }, "other@test"),
-		]
+		const actors = [actor("owner", "a"), actor("same", "a", "same@test"), actor("other", "b", "other@test")]
 		const { ctx } = contextFor(model, "listWidgets", { respond: () => undefined, fields: { actors, invite } })
 		expect(bodyForOp(ctx, create).email).toBe("other@test")
 	})
 
 	it("falls back to a peer in the owner's tenant when no other tenant has an invitee", () => {
-		const actors = [actor("owner", { org: "a" }, "owner@test"), actor("same", { org: "a" }, "same@test")]
+		const actors = [actor("owner", "a", "owner@test"), actor("same", "a", "same@test")]
 		const { ctx } = contextFor(model, "listWidgets", { respond: () => undefined, fields: { actors, invite } })
 		expect(bodyForOp(ctx, create).email).toBe("same@test")
 	})
@@ -55,14 +51,14 @@ describe("bodyForOp", () => {
 		const { ctx } = contextFor(model, "listWidgets", {
 			respond: () => undefined,
 			fields: {
-				actors: [actor("owner", {}), actor("peer", {}, "peer@test")],
+				actors: [actor("owner", undefined), actor("peer", undefined, "peer@test")],
 				invite,
 			},
 		})
 		expect(bodyForOp(ctx, own)).toMatchObject({ key: "peer@test" })
 		const lonely = contextFor(model, "listWidgets", {
 			respond: () => undefined,
-			fields: { actors: [actor("owner", {})], invite },
+			fields: { actors: [actor("owner", undefined)], invite },
 		})
 		expect(bodyForOp(lonely.ctx, own)).not.toHaveProperty("key")
 	})

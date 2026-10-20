@@ -1,17 +1,33 @@
 import { describe, expect, it } from "vitest"
+import type { AuthStep } from "../../config/types/steps.ts"
 import type { ProgressSnapshot } from "../progress/types.ts"
 import { createdId } from "../proven-id.ts"
 import type { Record_ } from "../world/records.ts"
-import { contextOf, flow, notesApi, notesDoc, optionsFor, withLogin } from "./__fixtures__/api.ts"
+import type { Answer } from "../checks/__fixtures__/harness.ts"
+import { contextOf, EMAIL_LOGIN, notesApi, notesDoc, optionsFor, withLogin, withSignup } from "./__fixtures__/api.ts"
+import { keysApi, MINTED } from "./__fixtures__/keys.ts"
 import type { RunContext } from "./context.ts"
-import { reportUnremovable, teardownPrincipals, trackCreates, unwind } from "./teardown.ts"
+import { reportUnremovable, revokeCredentials, teardownPrincipals, trackCreates, unwind } from "./teardown.ts"
 import type { RunOptions } from "./types.ts"
 
 /*
  * What the run made, it removes: every create a principal sent is ledgered as it, the ledger
- * unwinds after the checks and again after the scenarios, and accounts the run provisioned go
- * last — or are named as left behind.
+ * unwinds after the checks and again after the scenarios, the keys it minted are revoked, and
+ * accounts the run signed up go last — or are named as left behind.
  */
+
+const AS_ALPHA = { as: { principal: "alpha" } }
+
+/** A run whose `fresh` principal signs up as `signup` answers, then signs in by email. */
+function freshRun(extra: Partial<RunOptions> = {}, signup: () => Answer = () => ({ status: 201 })) {
+	return contextOf(
+		optionsFor(withSignup(signup), {
+			principals: { alpha: { email: "alpha@x.test" }, fresh: { fresh: true } },
+			security: EMAIL_LOGIN,
+			...extra,
+		}),
+	)
+}
 
 const id = (value: string) => createdId(value) as NonNullable<ReturnType<typeof createdId>>
 
@@ -39,7 +55,7 @@ describe("trackCreates", () => {
 		const taken = new Set<string>()
 		ctx.state.takenByEntity.set("note", taken)
 		trackCreates(ctx)
-		await ctx.client.request("POST", "/notes", { body: { title: "x" }, headers: ctx.principals.alpha.headers })
+		await ctx.client.request("POST", "/notes", { ...AS_ALPHA, body: { title: "x" } })
 		expect(ctx.ledger.size).toBe(1)
 		expect(taken).toEqual(new Set([String(rows[0]?.id)]))
 	})
@@ -47,7 +63,7 @@ describe("trackCreates", () => {
 	it("ledgers a create of an entity no seeding has started", async () => {
 		const ctx = await contextWith([])
 		trackCreates(ctx)
-		await ctx.client.request("POST", "/notes", { body: { title: "x" }, headers: ctx.principals.alpha.headers })
+		await ctx.client.request("POST", "/notes", { ...AS_ALPHA, body: { title: "x" } })
 		expect(ctx.ledger.size).toBe(1)
 	})
 })
@@ -138,47 +154,151 @@ describe("reportUnremovable", () => {
 	})
 })
 
-describe("teardownPrincipals", () => {
-	it("removes each account the run provisioned through the hook", async () => {
-		const removed: string[] = []
+describe("revokeCredentials", () => {
+	it("revokes what the run minted, and lists each revoke that failed as a record it could not remove", async () => {
 		const ctx = await contextOf(
-			optionsFor(withLogin(), {
-				hooks: { teardownPrincipal: async (address, auth) => void removed.push(`${address} ${auth.credential}`) },
-				principals: [{ headers: { authorization: "Bearer k" }, id: "static" }, flow],
-			}),
+			optionsFor(keysApi(500), { principals: { alpha: { scope: { project_id: "p1" } } }, security: MINTED }),
 		)
-		await teardownPrincipals(ctx)
-		expect(removed).toEqual(["a@x.test token-1"])
+		await ctx.client.request("GET", "/secure", AS_ALPHA)
+		await revokeCredentials(ctx)
+		expect(ctx.state.teardown?.failed).toEqual([
+			{ entity: "credential", id: "alpha/key", principal: "alpha", reason: "revoke keys.revoke answered 500" },
+			{ entity: "credential", id: "alpha/key", principal: "alpha", reason: "revoke keys.revoke answered 500" },
+		])
 	})
 
-	it("names the accounts left behind without a hook, and one the hook could not remove", async () => {
-		const bare = await contextOf(optionsFor(withLogin(), { principals: [flow] }))
+	it("adds nothing when every revoke succeeds, and leaves a secondary origin's to the primary", async () => {
+		const options = optionsFor(keysApi(), { principals: { alpha: { scope: { project_id: "p1" } } }, security: MINTED })
+		const ctx = await contextOf(options)
+		await ctx.client.request("GET", "/secure", AS_ALPHA)
+		const shared = { ...ctx, options: { ...ctx.options, sharedCredentials: { mapping: {}, store: ctx.store } } }
+		await revokeCredentials(shared)
+		expect(options.seen.filter((request) => request.method === "DELETE")).toEqual([])
+		await revokeCredentials(ctx)
+		expect([ctx.state.teardown, options.seen.filter((request) => request.method === "DELETE")]).toMatchObject([
+			null,
+			[{}, {}],
+		])
+	})
+})
+
+describe("teardownPrincipals", () => {
+	it("removes each principal the run signed up through the hook, with its credential as its scheme places it", async () => {
+		const removed: unknown[] = []
+		const ctx = await freshRun({
+			hooks: { teardownPrincipal: async (address, held) => void removed.push([address, held]) },
+		})
+		await teardownPrincipals(ctx)
+		const email = String(ctx.principals.byId.get("fresh")?.identity.email)
+		expect(removed).toEqual([
+			[
+				email,
+				{
+					credential: `login-${email}`,
+					sends: { cookies: {}, headers: { Authorization: `Bearer login-${email}` }, query: {} },
+				},
+			],
+		])
+	})
+
+	it("names the accounts left behind without a hook, one the hook could not remove, and one it holds nothing for", async () => {
+		const bare = await freshRun()
 		await teardownPrincipals(bare)
 		expect(bare.findings.findings[0]).toMatchObject({
 			summary: "1 principal(s) provisioned by this run were not removed",
 		})
-		const failing = await contextOf(
-			optionsFor(withLogin(), {
-				hooks: {
-					teardownPrincipal: async () => {
-						throw new Error("cannot delete")
-					},
+		const failing = await freshRun({
+			hooks: {
+				teardownPrincipal: async () => {
+					throw new Error("cannot delete")
 				},
-				principals: [flow],
-			}),
-		)
+			},
+		})
 		await teardownPrincipals(failing)
-		expect(failing.findings.findings[0]).toMatchObject({
-			detail: "cannot delete",
-			summary: "could not remove provisioned principal a@x.test",
+		expect(failing.findings.findings[0]).toMatchObject({ detail: "cannot delete" })
+		expect(failing.findings.findings[0]?.summary).toMatch(/^could not remove provisioned principal \S+@/)
+		const keyless = await freshRun({
+			hooks: { teardownPrincipal: async () => undefined },
+			principals: { alpha: { email: "alpha@x.test" }, fresh: { fresh: true, security: { bearer: { static: "s" } } } },
+		})
+		await teardownPrincipals(keyless)
+		expect(keyless.findings.findings[0]).toMatchObject({
+			detail: 'principal "fresh" holds no credential to remove it with',
 		})
 	})
 
-	it("leaves the accounts to the primary run, and has nothing to do without provisioned accounts", async () => {
-		const secondary = await contextOf(optionsFor(withLogin(), { principals: [flow], skipPrincipalTeardown: true }))
+	it("leaves the accounts to the primary run, and has nothing to do without signed-up accounts", async () => {
+		const secondary = await freshRun({ skipPrincipalTeardown: true })
 		await teardownPrincipals(secondary)
 		const plain = await contextWith([])
 		await teardownPrincipals(plain)
+		const addressless = await contextOf(
+			optionsFor(
+				withSignup(() => ({ status: 201 })),
+				{ principals: { alpha: { fresh: true } }, security: {} },
+			),
+		)
+		await teardownPrincipals(addressless)
 		expect([...secondary.findings.findings, ...plain.findings.findings]).toEqual([])
+	})
+})
+
+/** The address and credential each hook call was handed, by a run whose principals are `principals`. */
+async function removedBy(principals: RunOptions["principals"], respond = withSignup(() => ({ status: 201 }))) {
+	const removed: string[] = []
+	const ctx = await contextOf(
+		optionsFor(respond, {
+			hooks: { teardownPrincipal: async (address, held) => void removed.push(`${address} ${held.credential}`) },
+			principals,
+			security: EMAIL_LOGIN,
+		}),
+	)
+	await teardownPrincipals(ctx)
+	return { findings: ctx.findings.findings, removed }
+}
+
+describe("teardownPrincipals: only what the run created", () => {
+	it("removes a principal whose login registers it by the marked operation, then signs it in", async () => {
+		const steps: [AuthStep, ...AuthStep[]] = [
+			{ body: { email: "{principal.email}", password: "p4ssw0rd!", tenant: "t1" }, operationId: "auth.signup" },
+			{ body: { email: "{principal.email}" }, operationId: "auth.login" },
+		]
+		const security = { bearer: { login: { from: "$.access_token", steps } } }
+		expect(await removedBy({ alpha: { email: "reg@x.test", security } })).toEqual({
+			findings: [],
+			removed: ["reg@x.test login-reg@x.test"],
+		})
+	})
+
+	it("removes a principal declared created, and never a configured one whose login binds and answers an email", async () => {
+		expect((await removedBy({ alpha: { created: true, email: "c@x.test" } })).removed).toEqual([
+			"c@x.test login-c@x.test",
+		])
+		const binding: [AuthStep] = [
+			{ bind: { address: "{principal.email}" }, body: { email: "{principal.email}" }, operationId: "auth.login" },
+		]
+		const kept = await removedBy(
+			{ alpha: { email: "a@x.test", security: { bearer: { login: { from: "$.token", steps: binding } } } } },
+			withLogin(),
+		)
+		expect(kept).toEqual({ findings: [], removed: [] })
+	})
+
+	it("names a created principal it has no address for by its id, rather than calling the hook without one", async () => {
+		const bare = await contextOf(
+			optionsFor(notesApi(), { principals: { alpha: { created: true } }, security: { bearer: { static: "s" } } }),
+		)
+		await teardownPrincipals(bare)
+		expect(bare.findings.findings[0]?.detail).toMatch(/^oat registered alpha to run this test/)
+		const nameless = await removedBy({ alpha: { created: true, security: { bearer: { static: "s" } } } })
+		expect(nameless).toEqual({
+			findings: [
+				expect.objectContaining({
+					detail: 'principal "alpha" has no address or email to name it by',
+					summary: "could not remove provisioned principal alpha",
+				}),
+			],
+			removed: [],
+		})
 	})
 })

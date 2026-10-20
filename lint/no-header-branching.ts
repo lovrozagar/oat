@@ -5,8 +5,8 @@ import { isTestCode, repoPath } from "./paths.ts"
  * Where a credential goes is the operation's OpenAPI `security` to say: a bearer token, a basic
  * pair, an API key in a header, query or cookie. Code that writes an auth header's name or a
  * scheme's prefix itself sends one header everywhere, which is the bug 0.25.0 removes. Only the
- * security, credential and placement modules, the reference server, the self-test (which plays
- * both a backend and a user configuring principals) and tests name them.
+ * security, credential and placement modules, the reference server and tests name them. The
+ * self-test's backends read a bearer through the reference's own reader.
  */
 const HOMES = [
 	"/src/security/",
@@ -14,7 +14,6 @@ const HOMES = [
 	"/src/credentials/",
 	"/src/client/credentials.ts",
 	"/src/reference/",
-	"/src/conformance/", // until 8.10: the self-test principals carry headers until its configs move to security recipes
 ]
 const HEADERS = new Set(["authorization", "proxy-authorization", "x-api-key"])
 /* A credential template: the scheme, a space, then the credential's slot (`{credential}`, `$TOKEN`,

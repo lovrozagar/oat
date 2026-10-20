@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { adoptPrincipals, resolvePrincipals } from "./principals.ts"
+import { resolvePrincipals } from "./principals.ts"
 import { notesApi, notesDoc, optionsFor, planned } from "./__fixtures__/api.ts"
 import { readVersion } from "./target-version.ts"
 import type { RunOptions } from "./types.ts"
@@ -19,7 +19,9 @@ async function authedWith(extra: Partial<RunOptions>) {
 			extra,
 		),
 	)
-	return adoptPrincipals(run, (await resolvePrincipals(run)) ?? [])
+	const principals = await resolvePrincipals(run)
+	if (principals === null) throw new Error("nobody signed in")
+	return { ...run, principals }
 }
 
 describe("readVersion", () => {

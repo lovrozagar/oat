@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
-import { anyrow, immich, keycloak } from "../../spec/security/__fixtures__/documents.ts"
+import { anyrow, cloudflare, immich, keycloak } from "../../spec/security/__fixtures__/documents.ts"
 import { buildModel } from "../../spec/graph/build.ts"
-import { securityProblems, type SpecView } from "./security.ts"
+import { UsageError } from "../../errors/usage-error.ts"
+import { assertSecurity, securityMapProblems, securityProblems, specView, type SpecView } from "./security.ts"
 
 const view = (doc: typeof anyrow): SpecView => {
 	const model = buildModel(doc)
@@ -65,6 +66,29 @@ describe("security recipes", () => {
 		expect(problems({ security: { api_key: { mint: unscoped }, bearer: { static: "t" } } }, view(immich))).toEqual([
 			"security.api_key.mint.body asks for {scopes}, but no operation needs api_key with scopes",
 		])
+	})
+})
+
+describe("security mints and hooks", () => {
+	it("refuse a mint whose revoke names no operation", () => {
+		const mint = { ...mintWith("jwt"), revoke: "row.revoek" }
+		expect(problems({ security: { apiKey: { mint }, jwt: { login } } })).toEqual([
+			'security.apiKey.mint.revoke "row.revoek" names no operation',
+		])
+		expect(problems({ security: { apiKey: { mint: { ...mint, revoke: "row.list" } }, jwt: { login } } })).toEqual([])
+	})
+
+	it("leave a mint whose with or operationId is not a string to the shape check", () => {
+		const mint = { from: "$.k", operationId: 1, with: 2 }
+		expect(problems({ security: { apiKey: { mint }, jwt: { login } } })).toEqual([
+			"security.apiKey.mint.operationId must be a string",
+			"security.apiKey.mint.with must be a string",
+		])
+	})
+
+	it("accept a hook recipe when the config has hooks.resolveCredential", () => {
+		const hooks = { resolveCredential: () => Promise.resolve("t") }
+		expect(problems({ hooks, security: { jwt: { hook: true } } })).toEqual([])
 	})
 })
 
@@ -222,6 +246,119 @@ describe("principal overrides, on the effective recipe", () => {
 	it("check an override for a scheme with no base recipe as a whole recipe", () => {
 		expect(problems(beta({ apiKey: { format: "ApiKey {credential}" } }, { email: "b@x.test" }))).toEqual([
 			"principals.beta.security.apiKey needs exactly one of login, mint, static, hook, oauth2",
+		])
+	})
+})
+
+describe("specView", () => {
+	it("reads the schemes and operations from the model, and whether the document still has x-auth-flows", () => {
+		const model = buildModel(anyrow)
+		expect(specView(model, anyrow)).toEqual({ authFlows: false, operations: model.operations, schemes: model.schemes })
+		expect(specView(model, { ...anyrow, "x-auth-flows": {} }).authFlows).toBe(true)
+	})
+
+	it("holds a scenario step to a scheme its document declares", () => {
+		const scenarios = [{ covers: [], id: "s1", steps: [{ operationId: "row.list", scheme: "jtw" }] }]
+		expect(problems({ scenarios })).toContain(
+			'scenarios.s1.steps[0].scheme "jtw" names no scheme in the document. Did you mean "jwt"? The document declares: apiKey, jwt',
+		)
+	})
+
+	it("reads the x-fresh-principal operation and the properties its request body names", () => {
+		const signup = {
+			post: {
+				operationId: "auth.signup",
+				requestBody: {
+					content: { "application/json": { schema: { properties: { email: {}, password: {} }, type: "object" } } },
+				},
+				responses: { "201": { description: "made" } },
+				security: [],
+				"x-fresh-principal": true,
+			},
+		}
+		const bare = { post: { ...signup.post, operationId: "auth.bare", requestBody: undefined } }
+		const doc = { ...anyrow, paths: { ...anyrow.paths, "/v1/signup": signup } } as typeof anyrow
+		expect(specView(buildModel(doc), doc).fresh).toEqual({
+			operationId: "auth.signup",
+			properties: ["email", "password"],
+		})
+		const empty = { ...anyrow, paths: { ...anyrow.paths, "/v1/bare": bare } } as typeof anyrow
+		expect(specView(buildModel(empty), empty).fresh).toEqual({ operationId: "auth.bare", properties: [] })
+		const fresh = { email: "f@x.test", fresh: true }
+		expect(problems({ principals: { alpha, fresh } })).toContain(
+			"principals.fresh is fresh, but the document marks no x-fresh-principal operation to sign it up",
+		)
+	})
+})
+
+describe("globalHeaders, against where credentials go", () => {
+	it("refuse a header a declared scheme places its credential in, whatever its case", () => {
+		const globalHeaders = { "x-auth-email": "a@x.test", "X-Request-Id": "r" }
+		expect(securityProblems({ globalHeaders, principals: { alpha } }, view(cloudflare))).toEqual([
+			'globalHeaders.x-auth-email is where scheme "api_email" places its credential; remove it and declare security.api_email',
+		])
+		expect(problems({ globalHeaders: { authorization: "x" } })).toEqual([
+			'globalHeaders.authorization is where scheme "apiKey" places its credential; remove it and declare security.apiKey',
+			'globalHeaders.authorization is where scheme "jwt" places its credential; remove it and declare security.jwt',
+		])
+	})
+
+	it("refuse one an origin's scheme places its credential in, or a recipe's extra placement", () => {
+		expect(problems({ globalHeaders: { "X-Auth-Key": "k" } }, ANYROW, { cf: view(cloudflare) })).toEqual([
+			'globalHeaders.X-Auth-Key is where origins.cf scheme "api_key" places its credential; remove it and map the scheme with origins[].security',
+		])
+		const placements = [
+			{ in: "query", name: "x-tenant" },
+			{ in: "header", name: "X-Tenant", template: "T {credential}" },
+		]
+		expect(problems({ ...jwtWith({ placements }), globalHeaders: { "x-tenant": "t" } })).toEqual([
+			"globalHeaders.x-tenant is where security.jwt.placements[1] places its credential; remove it",
+		])
+	})
+})
+
+describe("securityMapProblems", () => {
+	it("checks the map, each recipe's kind and its options, with no document to name schemes", () => {
+		expect(securityMapProblems({})).toEqual([])
+		expect(securityMapProblems({ security: [] })).toEqual(["security must be a map of scheme → recipe"])
+		expect(
+			securityMapProblems({ security: { anything: { static: "t" }, jwt: "t", o: { holds: 1, static: "t" } } }),
+		).toEqual(["security.jwt must be a recipe object", "security.o.holds must be a list of scope names"])
+		expect(securityMapProblems({ security: { jwt: { hook: true, static: "t" } } })).toEqual([
+			"security.jwt has static and hook; keep exactly one",
+		])
+	})
+})
+
+describe("assertSecurity", () => {
+	const primary = { doc: anyrow, model: buildModel(anyrow) }
+	const config = { principals: { alpha }, security: { jwt: { login } } }
+
+	it("passes a config that fits the document and every origin's", () => {
+		const cdn = { doc: cloudflare, model: buildModel(cloudflare) }
+		expect(() => assertSecurity(config, primary)).not.toThrow()
+		expect(() => assertSecurity(config, primary, new Map([["cdn", cdn]]))).not.toThrow()
+	})
+
+	it("refuses one that does not, naming every problem on a line of its own", () => {
+		expect(() =>
+			assertSecurity({ ...config, security: { jtw: { login }, jwt: { login } } }, primary, new Map([["cdn", primary]])),
+		).toThrow(
+			new UsageError(
+				"the config's credentials do not fit the document:\n" +
+					'  origins.cdn declares scheme "jwt" too; say which recipe it uses: origins[].security: { jwt: "jwt" }\n' +
+					'  security.jtw names no scheme in the document. Did you mean "jwt"? The document declares: apiKey, jwt',
+			),
+		)
+	})
+})
+
+describe("a document that declares no security scheme", () => {
+	it("says so, for a recipe and for a principal's override", () => {
+		const security = { jwt: { static: "t" } }
+		expect(securityProblems({ principals: { alpha: { security } }, security }, view(keycloak))).toEqual([
+			"principals.alpha.security.jwt names no scheme in the document. The document declares no security scheme",
+			"security.jwt names no scheme in the document. The document declares no security scheme",
 		])
 	})
 })

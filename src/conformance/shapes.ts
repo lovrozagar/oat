@@ -17,7 +17,7 @@ import { EXPECTED_FAILURES } from "./expected-failures.ts"
 import { damagedBystanders, leftBehind, ledgeredNotCreated, type StoreSnapshot } from "./leaks.ts"
 import { type CaseResult, judgeDefect } from "./matrix/cases.ts"
 import { defectsFor } from "./matrix/defects.ts"
-import { PRINCIPALS } from "./matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "./matrix/principals.ts"
 import { type DefectName, isDefectName } from "../reference/defects/table.ts"
 import { SHAPES } from "../reference/shapes/catalog.ts"
 import { run, type RunResult } from "../runtime/run/index.ts"
@@ -57,6 +57,7 @@ async function judge(
 		const result = await run({
 			baseUrl: server.url,
 			principals: PRINCIPALS,
+			security: SECURITY,
 			seed: 42,
 			spec: `${server.url}/v1/openapi/spec`,
 			...reach(server),

@@ -1,7 +1,6 @@
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { ReadClient } from "../../../../client/client.ts"
 import type { CheckContext } from "../../core/context.ts"
-import { sameTenantScope } from "../../isolation/scratch.ts"
 import { requestSchemaOf, validBody } from "../../payloads/body.ts"
 
 /** The context a multi-operation check uses for one subject: its findings land on that operation. */
@@ -18,10 +17,7 @@ export function bodyForOp(ctx: CheckContext, op: OperationModel): Record<string,
 	const delegate =
 		ctx.actors.find(
 			(actor) =>
-				actor !== owner &&
-				actor.inviteAs !== undefined &&
-				owner !== undefined &&
-				!sameTenantScope(actor.roots, owner.roots),
+				actor !== owner && actor.inviteAs !== undefined && owner !== undefined && actor.tenant !== owner.tenant,
 		) ?? ctx.actors.find((actor) => actor !== owner && actor.inviteAs !== undefined)
 	if (delegate?.inviteAs !== undefined) body[spec.granteeField] = delegate.inviteAs
 	return body

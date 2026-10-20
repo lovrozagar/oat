@@ -23,6 +23,7 @@ function setup(
 		body: undefined,
 		callerCookie: undefined,
 		credentialNames: credentialHeaderNames(),
+		credentialQuery: new Set(),
 		fence,
 		follow: true,
 		send: wire.fetch,
@@ -106,6 +107,23 @@ describe("sendFollowing across origins and limits", () => {
 		const landed = await sendFollowing(first({ headers }), following)
 		expect(sent[1]?.headers).toEqual({ "x-other": "o" })
 		expect(landed.landing.toString()).toBe("http://cdn.test/f")
+	})
+
+	it("drops a placed query parameter from a hop to another origin, and keeps it on the same one", async () => {
+		const { following, sent } = setup(
+			(request) => {
+				if (request.url.startsWith(`${API}/a`)) return redirect(302, `${API}/b?k=same&x=1`)
+				if (request.url.startsWith(`${API}/b`)) return redirect(302, "http://cdn.test/f?k=echoed&x=1")
+				return json({})
+			},
+			{ credentialQuery: new Set(["k"]) },
+		)
+		await sendFollowing(first({ url: new URL(`${API}/a?k=placed`) }), following)
+		expect(sent.map((request) => request.url)).toEqual([
+			`${API}/a?k=placed`,
+			`${API}/b?k=same&x=1`,
+			"http://cdn.test/f?x=1",
+		])
 	})
 
 	it("stops at a redirect without a location, and after the most hops it follows", async () => {

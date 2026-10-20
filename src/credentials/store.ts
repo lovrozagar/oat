@@ -1,12 +1,25 @@
-import type { PrincipalsConfig, Recipe, SecurityConfig } from "../config/types/security.ts"
+import type { PrincipalsConfig, Recipe } from "../config/types/security.ts"
 import { messageOf } from "../errors/message.ts"
 import type { SecurityScheme } from "../spec/security/schemes.ts"
 import { effectiveRecipe } from "./effective.ts"
-import { type Secrets, sendsFor } from "./placement.ts"
-import type { CredentialPorts, Sends } from "./ports.ts"
+import { expiresAtOf } from "./expiry.ts"
+import { sendsFor } from "./placement.ts"
 import { acquireRecipe, recipeKind } from "./recipes/acquire.ts"
+import { heldLogin } from "./recipes/login.ts"
 import type { AcquireCtx, Issued } from "./recipes/types.ts"
 import { createRenewals, DEFAULT_REFRESH_BUFFER_MS, isStale } from "./refresh.ts"
+import { signsUp } from "./signup.ts"
+import type {
+	Blocked,
+	Credential,
+	CredentialKey,
+	CredentialStore,
+	Held,
+	Adopting,
+	HeldCredential,
+	RevokeFailure,
+	StoreOptions,
+} from "./store-types.ts"
 
 /*
  * The credentials one run holds, keyed principal × scheme × scope set. A store is created per run
@@ -21,62 +34,25 @@ import { createRenewals, DEFAULT_REFRESH_BUFFER_MS, isStale } from "./refresh.ts
  * attempted once per principal and scheme per run. A failed refresh blocks that principal × scheme
  * for every scope set, and other principals carry on. A refresh names the value the refused request
  * carried: when the store already holds a newer one, that is the answer, and nothing is renewed.
+ *
+ * A static credential has nothing to renew: on a 401 its recipe gives the same value again, the one
+ * retry gets the same 401, and that refusal is the finding. The no-op is deliberate.
  */
 
-export interface StoreOptions {
-	security: SecurityConfig
-	principals: PrincipalsConfig
-	/** The document's schemes by name. */
-	schemes: ReadonlyMap<string, SecurityScheme>
-	ports: CredentialPorts
-	/** Epoch ms now. Default: the system clock. */
-	now?: () => number
-	/** How long before it lapses a credential is renewed. Default: 30 s. */
-	refreshBufferMs?: number
-}
-
-/** Which credential: whose, for which scheme, carrying which scopes. */
-export interface CredentialKey {
-	principal: string
-	scheme: string
-	scopes?: readonly string[]
-}
-
-/** A held credential, placed and ready to send. */
-export interface Credential {
-	value: string
-	expiresAt: number | null
-	sends: Sends
-	secrets: Secrets
-	/** The scopes it was issued for, when its recipe asked for them. */
-	scopes?: readonly string[]
-}
-
-/** A credential the run cannot have, and why. It stays blocked for the rest of the run. */
-export interface Blocked {
-	blocked: string
-}
-
-export type Held = Credential | Blocked
-
-/** A credential teardown could not revoke: a record the report lists as unremovable. */
-export interface RevokeFailure {
-	principal: string
-	scheme: string
-	reason: string
-}
-
-export interface CredentialStore {
-	acquire(key: CredentialKey): Promise<Held>
-	/** Renews the credential a refused request carried, once however many requests were refused. */
-	refresh(request: CredentialKey & { sentValue: string }): Promise<Held>
-	/** The principal's identity: its config data, plus what its credentials bound. */
-	identityOf(principal: string): Readonly<Record<string, unknown>>
-	/** Revokes every credential that recorded a revoke; returns the ones that failed. */
-	revokeAll(): Promise<RevokeFailure[]>
-}
+export type {
+	Adopting,
+	Blocked,
+	Credential,
+	CredentialKey,
+	CredentialStore,
+	Held,
+	HeldCredential,
+	RevokeFailure,
+	StoreOptions,
+} from "./store-types.ts"
 
 interface Entry {
+	key: HeldCredential
 	credential: Credential
 	issued: Issued
 	/** Epoch ms the store took it in, which with its expiry gives its lifetime. */
@@ -86,6 +62,8 @@ type Settled = Entry | Blocked
 
 interface StoreCtx {
 	options: StoreOptions
+	/** The config's principals and the ones the run enrolled. */
+	principals: PrincipalsConfig
 	now: () => number
 	bufferMs: number
 	entries: Map<string, Promise<Settled>>
@@ -108,7 +86,7 @@ interface Plan {
 }
 
 /* Config keys that grade a principal rather than identify it. */
-const GRADING: ReadonlySet<string> = /* @__PURE__ */ new Set(["fresh", "inviteAs", "rank", "security"])
+const GRADING: ReadonlySet<string> = /* @__PURE__ */ new Set(["created", "fresh", "inviteAs", "rank", "security"])
 
 /** A credential store for one run. */
 export function createStore(options: StoreOptions): CredentialStore {
@@ -119,14 +97,21 @@ export function createStore(options: StoreOptions): CredentialStore {
 		entries: new Map(),
 		now: options.now ?? Date.now,
 		options,
+		principals: { ...options.principals },
 		renew: createRenewals<Entry, Settled>(),
 		revokes: [],
 	}
 	return {
 		acquire: (key) => acquire(ctx, key),
+		adopt: (input) => adopt(ctx, input),
+		enroll: (id, entry) => {
+			ctx.principals[id] = entry
+		},
 		identityOf: (principal) => identityOf(ctx, principal),
+		principals: ctx.principals,
 		refresh: (request) => refresh(ctx, request),
 		revokeAll: () => revokeAll(ctx),
+		snapshot: () => snapshot(ctx),
 	}
 }
 
@@ -165,26 +150,71 @@ async function renewEntry(ctx: StoreCtx, plan: Plan, held: Entry): Promise<Held>
 	return "blocked" in renewed ? renewed : renewed.credential
 }
 
-/* A credential with no refresh of its own is renewed by acquiring afresh through its recipe. */
+/*
+ * A credential with no refresh of its own is renewed by acquiring afresh through its recipe, unless
+ * that would run the signup again: then it fails closed, never registering a second account.
+ */
 async function renewal(ctx: StoreCtx, plan: Plan, held: Entry): Promise<Settled> {
+	if (held.issued.refresh === undefined && signsUp(plan.recipe, ctx.options.signup)) {
+		return blockPair(ctx, plan, `renewing ${plan.principal}/${plan.scheme} would sign up again; declare a refresh`)
+	}
 	try {
 		const renew = held.issued.refresh ?? (() => acquireRecipe(acquireCtx(ctx, plan), plan.recipe))
 		return record(ctx, plan, await renew())
 	} catch (error) {
-		const blocked = {
-			blocked: `could not refresh the "${plan.scheme}" credential for "${plan.principal}": ${messageOf(error)}`,
-		}
-		ctx.blocked.set(plan.pair, blocked)
-		return blocked
+		return blockPair(ctx, plan, blockedBy("refresh", plan, error))
 	}
+}
+
+/* A renewal that failed blocks the principal × scheme for every scope set, for the rest of the run. */
+function blockPair(ctx: StoreCtx, plan: Plan, reason: string): Blocked {
+	const blocked = { blocked: reason }
+	ctx.blocked.set(plan.pair, blocked)
+	return blocked
 }
 
 async function issue(ctx: StoreCtx, plan: Plan): Promise<Settled> {
 	try {
 		return record(ctx, plan, await acquireRecipe(acquireCtx(ctx, plan), plan.recipe))
 	} catch (error) {
-		return { blocked: `could not acquire the "${plan.scheme}" credential for "${plan.principal}": ${messageOf(error)}` }
+		return { blocked: blockedBy(recipeKind(plan.recipe) ?? "acquire", plan, error) }
 	}
+}
+
+/*
+ * Taken in as a login's would be: an adopted value renews by the principal's own recipe. An empty
+ * value is no credential, so what is held stays.
+ */
+async function adopt(ctx: StoreCtx, input: Adopting): Promise<Held> {
+	const plan = planOf(ctx, { principal: input.principal, scheme: input.scheme }, { adopting: true })
+	if ("blocked" in plan) return plan
+	const { value } = input
+	if (value === "") return { blocked: blockedBy("adopt", plan, new Error("an empty value is no credential")) }
+	let entry: Entry
+	try {
+		entry = record(ctx, plan, heldIssue(ctx, plan, { scope: input.scope ?? {}, value }))
+	} catch (error) {
+		return { blocked: blockedBy("adopt", plan, error) }
+	}
+	ctx.blocked.delete(plan.pair)
+	ctx.entries.set(plan.id, Promise.resolve(entry))
+	return entry.credential
+}
+
+/* An adopted login value renews by the recipe's declared refresh; any other is acquired afresh. */
+function heldIssue(
+	ctx: StoreCtx,
+	plan: Plan,
+	held: { value: string; scope: Readonly<Record<string, string>> },
+): Issued {
+	if (recipeKind(plan.recipe) === "login") return heldLogin(acquireCtx(ctx, plan), held, plan.recipe)
+	const { value } = held
+	return { expiresAt: expiresAtOf({ body: undefined, expiresIn: plan.recipe.expiresIn, now: ctx.now(), value }), value }
+}
+
+/* What blocked a credential, as a report names it: the step (a recipe kind, refresh or adopt), for whom, and why. */
+function blockedBy(step: string, plan: Plan, error: unknown): string {
+	return `${step} for ${plan.principal}/${plan.scheme}: ${messageOf(error)}`
 }
 
 function record(ctx: StoreCtx, plan: Plan, issued: Issued): Entry {
@@ -197,12 +227,14 @@ function record(ctx: StoreCtx, plan: Plan, issued: Issued): Entry {
 	if (issued.revoke !== undefined) {
 		ctx.revokes.push({ principal: plan.principal, revoke: issued.revoke, scheme: plan.scheme })
 	}
-	return { credential, issued, issuedAt: ctx.now() }
+	const key = { principal: plan.principal, scheme: plan.scheme, scopes: plan.scopes }
+	return { credential, issued, issuedAt: ctx.now(), key: { ...key, credential } }
 }
 
-function planOf(ctx: StoreCtx, key: CredentialKey): Plan | Blocked {
-	const { principals, schemes, security } = ctx.options
-	const entry = own(principals, key.principal)
+/* Adopting replaces a credential, so a pair a failed refresh blocked can still take one in. */
+function planOf(ctx: StoreCtx, key: CredentialKey, how: { adopting?: boolean } = {}): Plan | Blocked {
+	const { schemes, security } = ctx.options
+	const entry = own(ctx.principals, key.principal)
 	if (entry === undefined) return { blocked: `no principal "${key.principal}" in the config` }
 	const spec = schemes.get(key.scheme)
 	if (spec === undefined) return { blocked: `the document declares no "${key.scheme}" scheme` }
@@ -212,7 +244,7 @@ function planOf(ctx: StoreCtx, key: CredentialKey): Plan | Blocked {
 	}
 	const pair = `${key.principal}\u0000${key.scheme}`
 	const blocked = ctx.blocked.get(pair)
-	if (blocked !== undefined) return blocked
+	if (blocked !== undefined && how.adopting !== true) return blocked
 	const scopes = recipeKind(recipe) === "login" ? [] : [...(key.scopes ?? [])].sort()
 	return {
 		id: `${pair}\u0000${scopes.join(" ")}`,
@@ -232,22 +264,22 @@ function acquireCtx(ctx: StoreCtx, plan: Plan): AcquireCtx {
 		principal: { id: plan.principal, identity: identityOf(ctx, plan.principal) },
 		scheme: plan.spec,
 		scopes: plan.scopes,
-		sendsOf: async (scheme) => {
-			const held = await acquire(ctx, { principal: plan.principal, scheme })
-			if ("blocked" in held) throw new Error(held.blocked)
-			return held.sends
-		},
 	}
 }
 
 function identityOf(ctx: StoreCtx, principal: string): Readonly<Record<string, unknown>> {
-	const data = Object.entries(own(ctx.options.principals, principal) ?? {}).filter(([key]) => !GRADING.has(key))
+	const data = Object.entries(own(ctx.principals, principal) ?? {}).filter(([key]) => !GRADING.has(key))
 	return { ...Object.fromEntries(data), ...ctx.bound.get(principal) }
 }
 
 /* A config map's own entry: a principal or scheme named `constructor` is not the prototype's. */
 function own<T>(map: Readonly<Record<string, T>>, key: string): T | undefined {
 	return Object.hasOwn(map, key) ? map[key] : undefined
+}
+
+async function snapshot(ctx: StoreCtx): Promise<HeldCredential[]> {
+	const settled = await Promise.all(ctx.entries.values())
+	return settled.flatMap((held) => ("blocked" in held ? [] : [held.key]))
 }
 
 /* One at a time, so a teardown's revokes reach the backend in the order they were minted. */

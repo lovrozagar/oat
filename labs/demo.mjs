@@ -59,24 +59,17 @@ const createServer =
 const server = await createServer({ defects })
 
 /* Two principals in different tenants — the second is what makes the isolation checks possible. */
-const principals = [
-	{
-		auth: {
-			credentialFrom: "$.access_token",
-			steps: [{ body: { key: "key_alpha" }, operationId: "auth.token" }],
-		},
-		id: "alpha",
-		roots: { project_id: "proj_alpha" },
+const principals = {
+	alpha: { key: "key_alpha", scope: { project_id: "proj_alpha" }, tenant: "proj_alpha" },
+	beta: { key: "key_beta", scope: { project_id: "proj_beta" }, tenant: "proj_beta" },
+}
+
+/* The reference's bearer scheme: each principal trades its key at auth.token for the token. */
+const security = {
+	bearer: {
+		login: { from: "$.access_token", steps: [{ body: { key: "{principal.key}" }, operationId: "auth.token" }] },
 	},
-	{
-		auth: {
-			credentialFrom: "$.access_token",
-			steps: [{ body: { key: "key_beta" }, operationId: "auth.token" }],
-		},
-		id: "beta",
-		roots: { project_id: "proj_beta" },
-	},
-]
+}
 
 console.log(`\n  backend  ${backend}`)
 console.log(`  defects  ${defects.length > 0 ? defects.join(", ") : "none — correct backend"}`)
@@ -87,6 +80,7 @@ const { latest, runDir: outDir } = await allocateRunDir(resolve(here, "../.oat/r
 const result = await run({
 	baseUrl: server.url,
 	principals,
+	security,
 	seed: 42,
 	spec: `${server.url}/v1/openapi/spec`,
 })

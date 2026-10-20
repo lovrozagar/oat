@@ -24,6 +24,7 @@ describe("runSelfActions", () => {
 		)
 		expect(await result).toBeNull()
 		expect(sent[0]?.options.query).toEqual({ b: "false", handle: "h", n: "2" })
+		expect(sent[0]?.options.as).toEqual({ principal: "alpha" })
 	})
 
 	it("passes on an answer that names none of the query, or is not a record", async () => {

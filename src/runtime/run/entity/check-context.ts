@@ -1,6 +1,6 @@
 import type { OperationModel } from "../../../spec/graph/types.ts"
 import { type Actor, checkMemo, type WriteContext } from "../../checks/core/context.ts"
-import { isolationOf } from "./actors.ts"
+import { peerOf } from "./actors.ts"
 import { queryOf } from "./capabilities.ts"
 import type { EntityRun, World } from "./state.ts"
 
@@ -21,15 +21,16 @@ export async function checkContext(run: EntityRun, world: World, actors: [Actor,
 	const { ctx, entity, listOp } = run
 	const routes = routesOf(run)
 	const { capabilities, query } = await queryOf(run, world.scope.values)
-	const isolation = isolationOf(actors)
+	const peer = peerOf(actors)
 	return {
 		...declaredOps(run),
 		...writeOps(run, world, routes),
+		actor: actors[0],
 		actors,
-		altAuth: isolation?.headers,
-		altScope: isolation?.scope,
-		auth: ctx.principals.alpha.headers,
+		...(peer === undefined ? {} : { peer }),
+		peerScope: peer?.scope,
 		capabilities,
+		credentials: ctx.store,
 		client: ctx.client.view({ purpose: "assertion", subject: entity.name }),
 		collectionKey: listOp.collection?.key ?? null,
 		createAcknowledged: world.createAcknowledged,
@@ -58,7 +59,6 @@ export async function checkContext(run: EntityRun, world: World, actors: [Actor,
 		uniqueSets: entity.unique ?? [],
 		uploads: ctx.uploads,
 		validator: ctx.validator,
-		...refreshOf(run),
 	}
 }
 
@@ -127,9 +127,4 @@ function softDeleteOf({ ctx, entity, listOp }: EntityRun): string | null {
 		ctx.model.operations.find((op) => op.entity === entity.name && op.softDelete !== null)?.softDelete ??
 		listOp.softDelete
 	)
-}
-
-function refreshOf({ ctx }: EntityRun): Pick<WriteContext, "refreshIfStale"> {
-	const runtime = ctx.principals.alpha.runtime
-	return runtime === undefined ? {} : { refreshIfStale: runtime.refreshIfStale }
 }

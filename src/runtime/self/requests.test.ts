@@ -4,8 +4,6 @@ import { FindingCollector } from "../finding.ts"
 import { me } from "./__fixtures__/me.ts"
 import { operation, pathOf, sendUpdate, throttled } from "./requests.ts"
 
-const auth = (): Record<string, string> => ({ authorization: "Bearer me" })
-
 describe("reaching the caller's routes", () => {
 	const model = modelOf(me({ secondRead: "/me/items/{item_id}" }))
 
@@ -21,9 +19,14 @@ describe("reaching the caller's routes", () => {
 
 	it("sends an update as the caller", async () => {
 		const { client, sent } = fakeClient(() => ({ status: 200 }))
-		expect((await sendUpdate({ auth, client }, { op: op(model, "me.update"), path: "/me" }, { a: 1 })).status).toBe(200)
+		const caller = { client, principal: "alpha" }
+		expect((await sendUpdate(caller, { op: op(model, "me.update"), path: "/me" }, { a: 1 })).status).toBe(200)
 		expect(sent).toEqual([
-			{ method: "PATCH", options: { body: { a: 1 }, headers: auth, operationId: "me.update" }, path: "/me" },
+			{
+				method: "PATCH",
+				options: { as: { principal: "alpha" }, body: { a: 1 }, operationId: "me.update" },
+				path: "/me",
+			},
 		])
 	})
 

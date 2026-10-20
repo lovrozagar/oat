@@ -4,7 +4,7 @@ import type { Exchange } from "../../../exchange.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import type { Record_ } from "../../../world/records.ts"
-import type { WriteContext } from "../../core/context.ts"
+import type { Actor, WriteContext } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { readRecord, scratchRecord, updateRequest } from "../../isolation/scratch.ts"
 import { changedValue, pickWritableStringField } from "../../payloads/body.ts"
@@ -21,37 +21,41 @@ import { tenantBoundary } from "./tenant.ts"
  */
 export const crossTenantItemWrite = defineCheck<{
 	readOp: OperationModel
-	altAuth: () => Record<string, string>
+	peer: Actor
 	updateOp: OperationModel | undefined
 	deleteOp: OperationModel | undefined
 }>({
 	plan: (ctx) => {
-		const { altAuth, readOp } = ctx
-		if (altAuth === undefined || readOp === undefined || ctx.createOp === undefined) return cannot()
+		const { peer, readOp } = ctx
+		if (peer === undefined || readOp === undefined || ctx.createOp === undefined) return cannot()
 		const updateOp = ctx.updateOp !== undefined && tenantBoundary(ctx.updateOp) ? ctx.updateOp : undefined
 		const deleteOp = ctx.deleteOp !== undefined && tenantBoundary(ctx.deleteOp) ? ctx.deleteOp : undefined
 		if (updateOp === undefined && deleteOp === undefined) return cannot()
-		return ready({ altAuth, deleteOp, readOp, updateOp })
+		return ready({ deleteOp, peer, readOp, updateOp })
 	},
 	dependsOn: ["list.read-after-write", "tenant.item-not-readable-cross-tenant"],
 	id: "tenant.item-not-writable-cross-tenant",
 	mutates: true,
 	needs: "a second principal in a different tenant, a create, and a tenant-scoped update or delete",
 	subjects: (entity) => declared(entity.update, entity.delete),
-	async run(ctx, { altAuth, deleteOp, readOp, updateOp }): Promise<Outcome> {
+	async run(ctx, { deleteOp, peer, readOp, updateOp }): Promise<Outcome> {
 		const made = await scratchRecord(ctx, this.id)
 		if ("outcome" in made) return made.outcome
 		const { id, record } = made.scratch
 		const own = { ...ctx.scope, ...itemParamFor(ctx, id) }
 		const probe: Probe = {
-			altAuth,
 			check: this.id,
 			ctx,
-			foreign: { ...(ctx.altScope ?? ctx.scope), ...itemParamFor(ctx, id) },
+			foreign: { ...(ctx.peerScope ?? ctx.scope), ...itemParamFor(ctx, id) },
 			id,
+			peer: peer.id,
 			readOp,
 			record,
-			reread: () => ctx.client.get(fillPath(readOp.path, own), { headers: ctx.auth() }),
+			reread: () =>
+				ctx.client.get(fillPath(readOp.path, own), {
+					as: { principal: ctx.actor.id },
+					operationId: readOp.operationId,
+				}),
 		}
 		const changed = updateOp === undefined ? null : await foreignUpdate(probe, updateOp)
 		if (changed !== null) return changed
@@ -68,7 +72,8 @@ interface Probe {
 	record: Record_
 	readOp: OperationModel
 	foreign: Record<string, string>
-	altAuth: () => Record<string, string>
+	/** The principal of the other tenant, who sends the writes. */
+	peer: string
 	/** The owner's read of the record. */
 	reread: () => Promise<Exchange>
 }
@@ -108,7 +113,7 @@ async function foreignUpdate(probe: Probe, updateOp: OperationModel): Promise<Ou
 	const update = await updateRequest(ctx, updateOp, record, { [field]: value })
 	const attempt = await ctx.client.request(update.method, fillPath(updateOp.path, probe.foreign), {
 		...update.options,
-		headers: probe.altAuth(),
+		as: { principal: probe.peer },
 		operationId: updateOp.operationId,
 	})
 	const after = await probe.reread()
@@ -127,7 +132,7 @@ async function foreignUpdate(probe: Probe, updateOp: OperationModel): Promise<Ou
 async function foreignDelete(probe: Probe, deleteOp: OperationModel): Promise<Outcome | null> {
 	const { ctx } = probe
 	const attempt = await ctx.client.request("DELETE", fillPath(deleteOp.path, probe.foreign), {
-		headers: probe.altAuth(),
+		as: { principal: probe.peer },
 		operationId: deleteOp.operationId,
 	})
 	const after = await probe.reread()

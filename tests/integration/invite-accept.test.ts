@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import { afterEach, describe, expect, it } from "vitest"
 import type { Exchange } from "../../src/runtime/exchange.ts"
+import { bearerSecurity } from "../../src/conformance/harness/security.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import {
@@ -33,10 +34,10 @@ async function serve(routes: readonly Route[]): Promise<{ url: string }> {
 
 const OWNER_LIST = { members: [{ email: "owner@x.test", id: "m1" }] }
 
-/** The spec, the member list and the invite every world answers the same way. */
+/** The spec, bearer-protected, the member list and the invite every world answers the same way. */
 function baseRoutes(spec: OpenApiDocument, list: unknown, invited: unknown): Route[] {
 	return [
-		["GET", "/v1/openapi/spec", (_req, res) => send(res, 200, spec)],
+		["GET", "/v1/openapi/spec", (_req, res) => send(res, 200, { ...spec, ...bearerSecurity() })],
 		["GET", "/v1/orgs/org_1/members", (_req, res) => send(res, 200, list)],
 		["POST", "/v1/orgs/org_1/members", (_req, res) => send(res, 201, invited)],
 	]
@@ -48,20 +49,25 @@ const okRoute = (method: string, path: string, body?: unknown): Route => [
 	(_req, res) => send(res, 200, body),
 ]
 
-const principals = [
-	{ headers: { authorization: "Bearer a" }, id: "alpha", roots: { org_id: "org_1" } },
-	{
-		headers: { authorization: "Bearer b" },
-		id: "beta",
-		inviteAs: "beta@x.test",
-		roots: { org_id: "org_2" },
-	},
-]
+/* The owner of org_1, and another org's member it invites: each sends its own token. */
+const principals = {
+	alpha: { scope: { org_id: "org_1" }, tenant: "org_1", token: "a" },
+	beta: { inviteAs: "beta@x.test", scope: { org_id: "org_2" }, tenant: "org_2", token: "b" },
+}
+const security = { bearer: { static: "{principal.token}" } }
 
 type RunOptions = Parameters<typeof run>[0]
 
 function runMember(url: string, extra: Partial<RunOptions> = {}): ReturnType<typeof run> {
-	return run({ baseUrl: url, only: ["member"], principals, seed: 1, spec: `${url}/v1/openapi/spec`, ...extra })
+	return run({
+		baseUrl: url,
+		only: ["member"],
+		principals,
+		security,
+		seed: 1,
+		spec: `${url}/v1/openapi/spec`,
+		...extra,
+	})
 }
 
 const OOB = { attempts: 2, initialMs: 1, maxMs: 1 }
@@ -232,7 +238,9 @@ async function readsGrantWithAcceptToken(): Promise<void> {
 	)
 	const grantRead = sent(result.client.transcript.slice(acceptAt + 1), "GET", "/v1/orgs/org_1/members/m1")
 	expect(acceptAt).toBeGreaterThanOrEqual(0)
-	expect(grantRead?.requestHeaders.authorization).toBe("Bearer fresh")
+	/* The bearer scheme places it under its canonical name. */
+	expect(grantRead?.requestHeaders["Authorization"]).toBe("Bearer fresh")
+	expect(grantRead?.principal).toBe("beta")
 	expect(grantRead?.status).toBe(200)
 	expect(result.findings.filter((finding) => finding.check === "auth.invite-grants-then-revokes")).toEqual([])
 }
@@ -254,7 +262,7 @@ function consumeLink(grant: () => void): Route {
 async function getsMailedLink(): Promise<void> {
 	const spec = inviteSpecWith({ acceptFrom: "link", tokenFrom: "outOfBand", tokenKind: "org-invite" })
 	let granted = false
-	const oob: Array<{ kind: string; scope: Record<string, string>; headers: Record<string, string> }> = []
+	const oob: Array<{ kind: string; scope: Record<string, string> }> = []
 	const server = await serve([
 		...baseRoutes(spec, OWNER_LIST, { grant_id: "g1", token: "ignored-json" }),
 		okRoute("POST", "/v1/invites/accept", { ok: "json-token-accept-must-not-grant" }),
@@ -276,7 +284,7 @@ async function getsMailedLink(): Promise<void> {
 	const result = await runMember(server.url, {
 		hooks: {
 			resolveOutOfBand: async (request) => {
-				oob.push({ headers: request.headers, kind: request.kind, scope: request.scope })
+				oob.push({ kind: request.kind, scope: request.scope })
 				return `${server.url}/consume?token=mailed-link`
 			},
 		},
@@ -289,7 +297,6 @@ async function getsMailedLink(): Promise<void> {
 	expect(getAccept?.redirects?.[0]?.status).toBe(303)
 	expect(postAccept).toBeUndefined()
 	expect(oob[0]?.kind).toBe("org-invite")
-	expect(oob[0]?.headers.authorization).toBe("Bearer b")
 	expect(result.checksRun).toContain("auth.invite-grants-then-revokes")
 	expect(result.findings.filter((f) => f.check === "auth.invite-grants-then-revokes")).toEqual([])
 }

@@ -21,7 +21,7 @@ export const deleteMissingIs404 = defineCheck<{ deleteOp: OperationModel; missin
 	async run(ctx, { deleteOp, missing }): Promise<Outcome> {
 		const params = { ...ctx.scope, ...itemParamFor(ctx, missing) }
 		const exchange = await asProbe(ctx).client.request("DELETE", fillPath(deleteOp.path, params), {
-			headers: ctx.auth(),
+			as: { principal: ctx.actor.id },
 		})
 		if (standDownForFeatureGate(ctx, deleteOp, exchange, this.id))
 			return standDown("a documented feature gate refused the request")

@@ -19,7 +19,11 @@ describe("tenant.denial-does-not-reveal-existence", () => {
 			"/orgs/o2/notes/n1",
 			expect.stringMatching(/^\/orgs\/o2\/notes\/oat-absent-/),
 		])
-		expect(sent[0]?.options.headers).toEqual({ authorization: "other" })
+		/* Both as the peer, each named so the client sends the read's own credential. */
+		expect(sent.map((s) => s.options)).toEqual([
+			{ as: { principal: "other" }, operationId: "readNote" },
+			{ as: { principal: "other" }, operationId: "readNote" },
+		])
 		expect(findings.findings).toEqual([])
 	})
 
@@ -45,8 +49,8 @@ describe("tenant.denial-does-not-reveal-existence", () => {
 })
 
 describe("tenant.denial-does-not-reveal-existence without a verdict", () => {
-	it("asks under the owner's scope when the other principal has none", async () => {
-		const { ctx, sent } = notesContext(model, denying(404, 404), { altScope: undefined })
+	it("asks under the owner's scope when the peer has none", async () => {
+		const { ctx, sent } = notesContext(model, denying(404, 404), { peerScope: undefined })
 		await runCheck(denialDoesNotRevealExistence, ctx)
 		expect(sent[0]?.path).toBe("/orgs/o1/notes/n1")
 	})
@@ -70,7 +74,7 @@ describe("tenant.denial-does-not-reveal-existence without a verdict", () => {
 	it("stands down without a second tenant, a read, a record or a boundary", async () => {
 		const shared = modelOf(notesDocument({ tenant: false }))
 		for (const { ctx } of [
-			notesContext(model, denying(404, 404), { altAuth: undefined }),
+			notesContext(model, denying(404, 404), { peer: undefined }),
 			notesContext(model, denying(404, 404), { readOp: undefined }),
 			notesContext(model, denying(404, 404), { records: [] }),
 			notesContext(shared, denying(404, 404)),

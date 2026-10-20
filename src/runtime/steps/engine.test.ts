@@ -14,8 +14,8 @@ const answers =
 	(method: string, path: string): Answer | undefined =>
 		table[`${method} ${path}`]
 
-const credentialHeaders = (scope: Record<string, string>) =>
-	scope.credential === undefined ? {} : { "x-cred": `<${scope.credential}>` }
+/* A login or refresh step acts as nobody, and is never refreshed: that is how a refresh deadlocks. */
+const ANON = { as: { anonymous: true }, probe: true }
 
 describe("runSteps: a chain", () => {
 	it("binds literals, sends each step, saves what the answers carry, and returns the last answer", async () => {
@@ -39,7 +39,7 @@ describe("runSteps: a chain", () => {
 				saveClaimsFrom: { bind: { role: "role" }, token: "credential" },
 			},
 		]
-		const out = await runSteps(ctx, steps, { credentialHeaders, scope: { base: "al" } })
+		const out = await runSteps(ctx, steps, { scope: { base: "al" } })
 		expect(out).toEqual({
 			last: {
 				body: { ok: true },
@@ -52,29 +52,26 @@ describe("runSteps: a chain", () => {
 		expect(sent.map(({ method, options, path }) => ({ method, options, path }))).toEqual([
 			{
 				method: "POST",
-				options: { body: { user: "al-1" }, headers: {}, operationId: "auth.token", skipAuthRefresh: true },
+				options: { body: { user: "al-1" }, headers: {}, operationId: "auth.token", ...ANON },
 				path: "/token",
 			},
-			{ method: "GET", options: { headers: {}, operationId: "orgs.get", skipAuthRefresh: true }, path: "/orgs/o1" },
+			{ method: "GET", options: { headers: {}, operationId: "orgs.get", ...ANON }, path: "/orgs/o1" },
 		])
 	})
 })
 
 describe("runSteps: what a step sends", () => {
-	it("sends the bound credential on a raw step that sets its redirect policy, under the step's own headers", async () => {
+	it("sends a raw step's own headers and redirect policy, and never the credential its scope holds", async () => {
 		const { ctx, sent } = stepStage(() => ({ status: 303 }))
 		const steps: AuthStep[] = [
 			{ expect: [303], headers: { h: "1", "x-cred": "own" }, method: "GET", path: "/consume", query: { q: "1" } },
 			{ body: "raw", expect: [303], method: "POST", path: "/two", redirect: "manual" },
 		]
-		await runSteps(ctx, steps, { credentialHeaders, scope: { credential: "c1" } })
+		await runSteps(ctx, steps, { scope: { credential: "c1" } })
 		expect(sent.map((request) => request.options)).toEqual([
-			{ headers: { h: "1", "x-cred": "own" }, query: { q: "1" }, redirect: "follow", skipAuthRefresh: true },
-			{ body: "raw", headers: { "x-cred": "<c1>" }, redirect: "manual", skipAuthRefresh: true },
+			{ headers: { h: "1", "x-cred": "own" }, query: { q: "1" }, redirect: "follow", ...ANON },
+			{ body: "raw", headers: {}, redirect: "manual", ...ANON },
 		])
-		const bare = stepStage(() => ({ status: 200 }))
-		await runSteps(bare.ctx, [{ method: "GET", path: "/p" }], { scope: { credential: "c1" } })
-		expect(bare.sent[0]?.options.headers).toEqual({})
 	})
 
 	it("sends a body under the media type the operation documents", async () => {
@@ -91,7 +88,7 @@ describe("runSteps: what a step sends", () => {
 })
 
 describe("runSteps: out-of-band steps", () => {
-	it("asks the hook with the live credential, the scope and when the triggering request was sent", async () => {
+	it("asks the hook with the scope and when the triggering request was sent, and no credential", async () => {
 		const asked: OutOfBandRequest[] = []
 		const resolveOutOfBand = async (request: OutOfBandRequest) => {
 			asked.push(request)
@@ -103,16 +100,16 @@ describe("runSteps: out-of-band steps", () => {
 			{ outOfBand: { address: "{mail}", as: "first", kind: "otp" } },
 			{ outOfBand: { address: "{mail}", as: "second", kind: "otp", sentEarlier: true } },
 		]
-		const { scope } = await runSteps(ctx, steps, { credentialHeaders, scope: { credential: "c", mail: "a@x.test" } })
+		const { scope } = await runSteps(ctx, steps, { scope: { credential: "c", mail: "a@x.test" } })
 		expect(scope).toMatchObject({ first: "v1", second: "v2" })
-		const base = { address: "a@x.test", attempt: 1, headers: { "x-cred": "<c>" }, kind: "otp" }
+		const base = { address: "a@x.test", attempt: 1, kind: "otp" }
 		expect(asked).toEqual([
 			{ ...base, scope: { credential: "c", mail: "a@x.test" }, since: 0 },
 			{ ...base, scope: { credential: "c", first: "v1", mail: "a@x.test" } },
 		])
 	})
 
-	it("asks with no headers and the default schedule when given neither", async () => {
+	it("asks with the default schedule when given none", async () => {
 		const asked: OutOfBandRequest[] = []
 		const resolveOutOfBand = async (request: OutOfBandRequest) => {
 			asked.push(request)
@@ -121,7 +118,7 @@ describe("runSteps: out-of-band steps", () => {
 		const { ctx } = stepStage(() => ({ status: 200 }), { hooks: { resolveOutOfBand } })
 		const { outOfBand: _, ...plain } = ctx
 		await runSteps(plain, [{ outOfBand: { address: "a", as: "t", kind: "otp" } }])
-		expect(asked).toEqual([{ address: "a", attempt: 1, headers: {}, kind: "otp", scope: {} }])
+		expect(asked).toEqual([{ address: "a", attempt: 1, kind: "otp", scope: {} }])
 	})
 
 	it("names the principal when no hook can answer", async () => {

@@ -221,7 +221,7 @@ describe("Client records a status-0 network exchange and retries", () => {
 				},
 				redactor: new Redactor(),
 			})
-			const exchange = await client.get("/v1/x")
+			const exchange = await client.get("/v1/x", { as: { anonymous: true } })
 			expect(exchange.status).toBe(200)
 			expect(seen).toEqual([0, 200])
 			expect(client.transcript[0]?.network?.kind).toBe("reset")
@@ -233,7 +233,7 @@ describe("Client records a status-0 network exchange and retries", () => {
 	it("throws NetworkError after retries when recovery says no", async () => {
 		await withFetch(failing("ENONET"), async () => {
 			const client = recoveringClient(false)
-			await expect(client.get("/v1/x")).rejects.toSatisfy(
+			await expect(client.get("/v1/x", { as: { anonymous: true } })).rejects.toSatisfy(
 				(error: unknown) => isNetworkError(error) && error.kind === "offline",
 			)
 		})
@@ -247,7 +247,7 @@ describe("Client records a status-0 network exchange and retries", () => {
 			return new Response("{}", { status: 200 })
 		}
 		await withFetch(impl, async () => {
-			expect((await recoveringClient(true).get("/v1/x")).status).toBe(200)
+			expect((await recoveringClient(true).get("/v1/x", { as: { anonymous: true } })).status).toBe(200)
 		})
 	})
 })
@@ -333,7 +333,7 @@ describe("run() names a dead API as net.unreachable", () => {
 		const result = await run({
 			baseUrl: "http://127.0.0.1:1",
 			network: { retries: 0, waitMs: 0 },
-			principals: [{ headers: { authorization: "Bearer t" }, id: "a" }],
+			principals: { a: {} },
 			seed: 1,
 			spec,
 		})

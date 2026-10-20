@@ -4,10 +4,11 @@ import type { RunContext } from "./context.ts"
 import { errorText } from "./errors.ts"
 import { messageOf } from "../../errors/message.ts"
 import type { RunFindingId } from "../check-ids.ts"
+import { createdByRun } from "./principals.ts"
 
 /** Every create a configured principal sends is ledgered as it, whichever view sent it. */
 export function trackCreates(ctx: RunContext): void {
-	const { client, ledger, model, options, principals, state, exclusion } = ctx
+	const { client, ledger, model, principals, state, exclusion } = ctx
 	const tracker = createTracker({
 		client,
 		ledger,
@@ -16,7 +17,7 @@ export function trackCreates(ctx: RunContext): void {
 		owners: new Map(
 			principals.all.map((principal) => [
 				principal.id,
-				{ owner: principals.ownerOf(principal), roots: { ...options.roots, ...principal.roots } },
+				{ owner: principals.ownerOf(principal), roots: { ...principal.scope } },
 			]),
 		),
 		readable: exclusion.readable,
@@ -95,41 +96,68 @@ export function reportUnremovable({ state, findings }: RunContext): void {
 }
 
 /**
- * Removes principals the run provisioned.
- *
- * Where a flow registers a throwaway account, the account itself is a fixture — and usually the
- * only handle that can remove everything it created, since per-record deletes are owner-scoped
- * and the credential dies with the run. A secondary origin's run shares the primary's accounts and
- * leaves them to it.
+ * Revokes every credential the run minted, once its records are gone: a minted key is a fixture
+ * too. A key superseded by a re-mint is revoked as well. Each revoke that fails is a record the run
+ * could not remove. A secondary origin's run leaves this to the primary, whose store it shares.
  */
-export async function teardownPrincipals({ options, hooks, findings, principals }: RunContext): Promise<void> {
+export async function revokeCredentials({ options, store, state }: RunContext): Promise<void> {
+	if (options.sharedCredentials !== undefined) return
+	const failures = await store.revokeAll()
+	if (failures.length === 0) return
+	const failed = failures.map(({ principal, reason, scheme }) => ({
+		entity: "credential",
+		id: `${principal}/${scheme}`,
+		principal,
+		reason,
+	}))
+	state.teardown = merged(state.teardown, { failed, records: [], removed: 0, unidentified: [], unsupported: [] })
+}
+
+/**
+ * Removes the principals the run made (`createdByRun`): signed up `fresh`, registered by a login
+ * recipe through the `x-fresh-principal` operation, or declared `created`. Never a configured
+ * account, whatever its login binds or answers: deleting one is not teardown's to do.
+ *
+ * A made account is a fixture itself, and usually the only handle that can remove everything it
+ * created, since per-record deletes are owner-scoped and the credential dies with the run. The hook
+ * gets the principal's address and its credential as the run last held it, placed as its scheme
+ * places it. A secondary origin's run shares the primary's accounts and leaves them to it.
+ */
+export async function teardownPrincipals(ctx: RunContext): Promise<void> {
+	const { options, hooks, findings, principals, store } = ctx
 	if (options.skipPrincipalTeardown === true) return
-	const provisioned = principals.all.flatMap((principal) => {
-		const address = principal.runtime?.address
-		return principal.runtime === undefined || typeof address !== "string" || address === ""
-			? []
-			: [{ address, principal, runtime: principal.runtime }]
-	})
+	const provisioned = principals.all.filter((principal) => createdByRun(ctx, principal.id))
 	if (provisioned.length === 0) return
 	const teardown = hooks.teardownPrincipal
 	if (teardown === undefined) {
-		const addresses = provisioned.map(({ address }) => address)
+		const names = provisioned.map((principal) => addressOf(principal.identity) ?? principal.id)
 		findings.gap("world.teardown" satisfies RunFindingId, "principal", {
-			summary: `${addresses.length} principal(s) provisioned by this run were not removed`,
+			summary: `${names.length} principal(s) provisioned by this run were not removed`,
 			detail:
-				`oat registered ${addresses.join(", ")} to run this test and has no way to delete them. ` +
+				`oat registered ${names.join(", ")} to run this test and has no way to delete them. ` +
 				"Supply a teardownPrincipal hook, or these accounts accumulate on every run.",
 		})
 		return
 	}
-	for (const { address, principal, runtime } of provisioned) {
+	const held = await store.snapshot()
+	for (const principal of provisioned) {
+		const address = addressOf(principal.identity)
 		try {
-			await teardown(address, { credential: runtime.credential(), headers: principal.headers() })
+			if (address === undefined) throw new Error(`principal "${principal.id}" has no address or email to name it by`)
+			const credential = held.find((entry) => entry.principal === principal.id)?.credential
+			if (credential === undefined) throw new Error(`principal "${principal.id}" holds no credential to remove it with`)
+			await teardown(address, { credential: credential.value, sends: credential.sends })
 		} catch (error) {
 			findings.gap("world.teardown" satisfies RunFindingId, "principal", {
-				summary: `could not remove provisioned principal ${address}`,
+				summary: `could not remove provisioned principal ${address ?? principal.id}`,
 				detail: messageOf(error),
 			})
 		}
 	}
+}
+
+/* The address the hook removes a made principal by. */
+function addressOf(identity: Readonly<Record<string, unknown>>): string | undefined {
+	const address = identity.address ?? identity.email
+	return typeof address === "string" && address !== "" ? address : undefined
 }

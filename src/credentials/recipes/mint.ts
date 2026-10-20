@@ -6,8 +6,8 @@ import { answered, valueAt } from "./answer.ts"
 import type { AcquireCtx, Issued } from "./types.ts"
 
 /*
- * Make a credential by calling an operation with another scheme's credential: an API key created
- * with a session, say. `{scopes}` in the body is the scope set the operation needs, as an array where
+ * Make a credential by calling an operation as the principal with another scheme's credential: an
+ * API key created with a session, say. `{scopes}` in the body is the scope set the operation needs, as an array where
  * it is the whole value and space-joined inside text. The minted credential records how to revoke it.
  */
 
@@ -15,9 +15,8 @@ const SCOPES = "{scopes}"
 
 /** Mints the credential by the mint recipe; `options` are the recipe's shared options. */
 export async function acquireMint(ctx: AcquireCtx, mint: MintRecipe, options: Partial<Recipe>): Promise<Issued> {
-	const sends = await ctx.sendsOf(mint.with)
 	const body = mint.body === undefined ? {} : { body: withScopes(fillPrincipal(ctx.principal, mint.body), ctx.scopes) }
-	const answer = await ctx.ports.operations.call({ operationId: mint.operationId, sends, ...body })
+	const answer = await ctx.ports.operations.call({ as: asWith(ctx, mint), operationId: mint.operationId, ...body })
 	answered(answer, `mint ${mint.operationId}`)
 	const value = valueAt(answer, mint.from, `mint ${mint.operationId}`)
 	const issued: Issued = {
@@ -39,9 +38,13 @@ interface Minted {
 
 /* The revoke operation's path parameters come from the minted value and the mint answer's own fields. */
 async function revokeMinted(ctx: AcquireCtx, { answer, mint, revoke, value }: Minted): Promise<void> {
-	const sends = await ctx.sendsOf(mint.with)
 	const scope = { ...scalarFields(answer.body), credential: value }
-	answered(await ctx.ports.operations.call({ operationId: revoke, scope, sends }), `revoke ${revoke}`)
+	answered(await ctx.ports.operations.call({ as: asWith(ctx, mint), operationId: revoke, scope }), `revoke ${revoke}`)
+}
+
+/* The principal, sending the scheme the recipe mints with. */
+function asWith(ctx: AcquireCtx, mint: MintRecipe): { principal: string; scheme: string } {
+	return { principal: ctx.principal.id, scheme: mint.with }
 }
 
 function scalarFields(body: unknown): Record<string, string> {

@@ -24,21 +24,21 @@ function setup(respond: Responder, tracked: boolean) {
 }
 
 describe("createFresh", () => {
-	it("posts one valid body to the create's path with the headers given", async () => {
+	it("posts one valid body to the create's path as the principal given", async () => {
 		const { createOp, ctx, sent } = setup(answering(201), false)
-		const made = await createFresh(ctx, createOp, WITHOUT_ID, { authorization: "a" })
+		const made = await createFresh(ctx, createOp, WITHOUT_ID, "a")
 		expect(made.exchange.status).toBe(201)
 		expect(sent).toHaveLength(1)
 		expect(sent[0]).toMatchObject({
 			method: "POST",
-			options: { body: made.sent, headers: { authorization: "a" }, operationId: "note.create" },
+			options: { as: { principal: "a" }, body: made.sent, operationId: "note.create" },
 			path: "/notes",
 		})
 	})
 
 	it("tries another client-chosen identity on a 409", async () => {
 		const { createOp, ctx, sent } = setup(answering(409, 201), true)
-		const made = await createFresh(ctx, createOp, WITH_ID, {})
+		const made = await createFresh(ctx, createOp, WITH_ID, "alpha")
 		expect(made.exchange.status).toBe(201)
 		expect(sent).toHaveLength(2)
 		const ids = sent.map((request) => (request.options.body as { id: string }).id)
@@ -48,22 +48,22 @@ describe("createFresh", () => {
 
 	it("gives the 409 back after three identities", async () => {
 		const { createOp, ctx, sent } = setup(answering(409, 409, 409, 201), true)
-		expect((await createFresh(ctx, createOp, WITH_ID, {})).exchange.status).toBe(409)
+		expect((await createFresh(ctx, createOp, WITH_ID, "alpha")).exchange.status).toBe(409)
 		expect(sent).toHaveLength(3)
 	})
 
 	it("gives a 409 straight back when oat does not choose the identity", async () => {
 		const untracked = setup(answering(409), false)
-		expect((await createFresh(untracked.ctx, untracked.createOp, WITH_ID, {})).exchange.status).toBe(409)
+		expect((await createFresh(untracked.ctx, untracked.createOp, WITH_ID, "alpha")).exchange.status).toBe(409)
 		expect(untracked.sent).toHaveLength(1)
 		const noId = setup(answering(409), true)
-		expect((await createFresh(noId.ctx, noId.createOp, WITHOUT_ID, {})).exchange.status).toBe(409)
+		expect((await createFresh(noId.ctx, noId.createOp, WITHOUT_ID, "alpha")).exchange.status).toBe(409)
 		expect(noId.sent).toHaveLength(1)
 	})
 
 	it("gives any other refusal straight back", async () => {
 		const { createOp, ctx, sent } = setup(answering(422), true)
-		expect((await createFresh(ctx, createOp, WITH_ID, {})).exchange.status).toBe(422)
+		expect((await createFresh(ctx, createOp, WITH_ID, "alpha")).exchange.status).toBe(422)
 		expect(sent).toHaveLength(1)
 	})
 })

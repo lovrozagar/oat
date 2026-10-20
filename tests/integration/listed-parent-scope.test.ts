@@ -137,7 +137,7 @@ describe("a listed entity with no create", () => {
 		const url = await serve()
 		const result = await run({
 			baseUrl: url,
-			principals: [{ headers: {}, id: "alpha" }],
+			principals: { alpha: {} },
 			seed: 1,
 			spec: `${url}/openapi.json`,
 		})
@@ -260,7 +260,7 @@ describe("a listed entity under a collection the model names after its parent", 
 		const result = await run({
 			baseUrl: url,
 			ops: ["webhook.deliveries"],
-			principals: [{ headers: {}, id: "alpha", roots: { organization_id: "org_a" } }],
+			principals: { alpha: { scope: { organization_id: "org_a" } } },
 			seed: 1,
 			spec: `${url}/openapi.json`,
 		})

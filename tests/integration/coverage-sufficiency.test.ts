@@ -113,7 +113,7 @@ describe("how far a pass goes", () => {
 		const url = await serve()
 		const result = await run({
 			baseUrl: url,
-			principals: [{ headers: {}, id: "alpha" }],
+			principals: { alpha: {} },
 			seed: 1,
 			spec: `${url}/openapi.json`,
 		})

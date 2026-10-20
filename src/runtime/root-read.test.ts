@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { EntityModel } from "../spec/graph/types.ts"
+import type { EntityModel, SpecModel } from "../spec/graph/types.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
 import { fakeClient, modelOf, type Responder } from "./checks/__fixtures__/harness.ts"
 import { FindingCollector } from "./finding.ts"
@@ -19,39 +19,36 @@ function rootRead(operationId: string, query: string[] = []) {
 	}
 }
 
-const model = modelOf({
-	info: { title: "t", version: "1" },
-	openapi: "3.1.0",
-	paths: {
-		"/projects/{project_id}/overview": rootRead("project.overview"),
-		"/projects/{project_id}/usage": rootRead("project.usage", ["from", "to"]),
-		"/projects/{project_id}/since": rootRead("project.since", ["from"]),
-	},
-} as unknown as OpenApiDocument)
+/* The reads, under a root bearer requirement unless `secured` is false: then the document declares no security. */
+function document(secured: boolean) {
+	return modelOf({
+		info: { title: "t", version: "1" },
+		openapi: "3.1.0",
+		paths: {
+			"/projects/{project_id}/overview": rootRead("project.overview"),
+			"/projects/{project_id}/usage": rootRead("project.usage", ["from", "to"]),
+			"/projects/{project_id}/since": rootRead("project.since", ["from"]),
+		},
+		...(secured
+			? { components: { securitySchemes: { bearer: { scheme: "bearer", type: "http" } } }, security: [{ bearer: [] }] }
+			: {}),
+	} as unknown as OpenApiDocument)
+}
 
+const model = document(true)
 const overview = model.entities.get("overview") as EntityModel
 
-/** Refuses an anonymous read with 401, and answers an authenticated one with 200. */
-const honest: Responder = (_method, _path, options) => {
-	const headers = typeof options.headers === "function" ? options.headers() : (options.headers ?? {})
-	return { status: headers.authorization === undefined ? 401 : 200 }
-}
+/** Refuses the anonymous probe with 401, and answers the read as the caller with 200. */
+const honest: Responder = (_method, _path, options) => ({ status: options.probe === true ? 401 : 200 })
 
 async function judge(
 	entity: EntityModel,
 	respond: Responder = honest,
-	roots: Record<string, string> = { project_id: "p1" },
+	{ roots = { project_id: "p1" }, under = model }: { roots?: Record<string, string>; under?: SpecModel } = {},
 ) {
 	const { client, sent } = fakeClient(respond)
 	const findings = new FindingCollector()
-	const outcome = await runRootRead({
-		auth: () => ({ authorization: "Bearer a" }),
-		client,
-		entity,
-		findings,
-		model,
-		roots,
-	})
+	const outcome = await runRootRead({ client, entity, findings, model: under, principal: "alpha", roots })
 	return { findings, outcome, sent }
 }
 
@@ -71,13 +68,15 @@ describe("runRootRead", () => {
 		const { findings, outcome, sent } = await judge(entity)
 		expect(outcome).toEqual({ kind: "asserted" })
 		expect(findings.findings).toEqual([])
-		expect(sent.map((s) => [s.path, s.options.skipAuthRefresh])).toEqual([
-			["/projects/p1/overview", true],
-			["/projects/p1/overview", undefined],
-			["/projects/p1/usage", true],
-			["/projects/p1/usage", undefined],
-			["/projects/p1/since", true],
-			["/projects/p1/since", undefined],
+		const anonymous = { as: { anonymous: true }, probe: true }
+		const caller = { as: { principal: "alpha" } }
+		expect(sent.map((s) => [s.path, { as: s.options.as, ...(s.options.probe ? { probe: true } : {}) }])).toEqual([
+			["/projects/p1/overview", anonymous],
+			["/projects/p1/overview", caller],
+			["/projects/p1/usage", anonymous],
+			["/projects/p1/usage", caller],
+			["/projects/p1/since", anonymous],
+			["/projects/p1/since", caller],
 		])
 		const query = sent[2]?.options.query as { from: string; to: string }
 		expect(Date.parse(query.to) - Date.parse(query.from)).toBe(7 * 24 * 60 * 60 * 1000)
@@ -103,9 +102,18 @@ describe("runRootRead", () => {
 	})
 
 	it("cannot reach a verdict without the caller's root", async () => {
-		const { findings, outcome } = await judge(overview, honest, {})
+		const { findings, outcome } = await judge(overview, honest, { roots: {} })
 		expect(outcome).toEqual({ kind: "unresolved", reason: "project.overview needs a path id" })
 		expect(findings.inconclusive).toHaveLength(1)
+	})
+
+	it("stands down when the document declares no security, since nothing says the read needs a token", async () => {
+		const unsecured = document(false)
+		const entity = unsecured.entities.get("overview") as EntityModel
+		const { findings, outcome, sent } = await judge(entity, () => ({ status: 200 }), { under: unsecured })
+		expect(outcome).toEqual({ kind: "unresolved", reason: "the document declares no security; add an overlay" })
+		expect(sent).toEqual([])
+		expect(findings.findings).toEqual([])
 	})
 })
 

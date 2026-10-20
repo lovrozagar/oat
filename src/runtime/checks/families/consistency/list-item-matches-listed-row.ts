@@ -28,7 +28,7 @@ export const listedRowIsTheGet = defineCheck<{ id: string; listed: Record<string
 		const op = ctx.readOp
 		if (op === undefined) return standDown("the entity has no read")
 		const item = await ctx.client.get(fillPath(op.path, { ...ctx.scope, ...itemParamFor(ctx, id) }), {
-			headers: ctx.auth(),
+			as: { principal: ctx.actor.id },
 			operationId: op.operationId,
 		})
 		if (item.status >= 300) {

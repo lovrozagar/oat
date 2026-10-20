@@ -3,6 +3,7 @@
  * the two ways to be wrong — no tag, or a tag that disagrees with `vars.feature` — stay failures.
  */
 
+import type { PrincipalsConfig, SecurityConfig } from "../config/types/security.ts"
 import { messageOf } from "../errors/message.ts"
 import { report } from "../report/console/report.ts"
 import type { Finding } from "../runtime/finding.ts"
@@ -28,7 +29,8 @@ interface GateCase {
 	judge: (findings: Finding[]) => Outcome[]
 }
 
-const PRINCIPALS = [{ headers: { authorization: "Bearer tok_alpha" }, id: "alpha", roots: { org_id: "org_1" } }]
+const PRINCIPALS: PrincipalsConfig = { alpha: { scope: { org_id: "org_1" }, tenant: "org_1" } }
+const SECURITY: SecurityConfig = { bearer: { static: "tok_alpha" } }
 
 const TAG = "x-feature-gate: webhooks"
 
@@ -143,6 +145,7 @@ async function against(via: Via, gate: GateCase): Promise<Finding[]> {
 			baseUrl: hosted.url,
 			only: gate.only,
 			principals: PRINCIPALS,
+			security: SECURITY,
 			seed: 1,
 			spec: `${hosted.url}/v1/openapi/spec`,
 			...reach(hosted),

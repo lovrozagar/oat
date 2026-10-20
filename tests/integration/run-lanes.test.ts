@@ -251,7 +251,7 @@ describe("entity lanes", () => {
 			baseUrl: world.url,
 			keepFixtures: true,
 			only: ["apple", "banana"],
-			principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
+			principals: { alpha: {} },
 			seed: 1,
 			spec: `${world.url}/v1/openapi/spec`,
 		})

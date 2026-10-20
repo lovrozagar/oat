@@ -30,7 +30,6 @@ export interface WorldOptions {
 	 */
 	nonce?: string
 	cohortSize?: number
-	authHeaders: () => Record<string, string>
 	uploads?: UploadContext
 	/**
 	 * Called the moment a record exists, before anything else can fail. A record learned about
@@ -41,8 +40,11 @@ export interface WorldOptions {
 	onUnidentified?: (entity: string, operationId: string, exchange: Exchange) => void
 	/** Whether oat may call an operation (a profile can exclude one); omitted means every one. */
 	readable?: (op: OperationModel) => boolean
-	/** Who is creating — keys the ancestor cache, since one principal's parent is not another's. */
-	principal?: string
+	/**
+	 * Who is creating: every request goes `as: { principal }`, and it keys the ancestor cache, since
+	 * one principal's parent is not another's.
+	 */
+	principal: string
 	/** Ancestors already made in this run, by principal, operation and parent path. */
 	ancestors?: AncestorCache
 }

@@ -26,7 +26,6 @@ async function outOfBandStep(run: ScenarioRun, step: OutOfBandStep): Promise<voi
 	const address = String(interpolate(step.outOfBand.address, scope))
 	const since = step.outOfBand.sentEarlier === true ? undefined : triggerSentAt(run.sent, address)
 	scope[step.outOfBand.as] = await resolveOutOfBandValue(input.hooks.resolveOutOfBand, address, {
-		headers: run.headers(),
 		kind: step.outOfBand.kind,
 		label: `scenario "${run.scenario.id}"`,
 		scope: { ...scope },

@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events"
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { UsageError } from "../../errors/usage-error.ts"
@@ -83,6 +83,24 @@ describe("commandRun", () => {
 		}
 		expect(existsSync(join(here, ".oat", "runs", "latest", "oat-report.json"))).toBe(true)
 	})
+
+	it("keeps the credentials beside the runs root, outside every run folder, when asked", async () => {
+		const cwd = process.cwd()
+		const here = folder()
+		const out = folder()
+		const writer = bufferWriter()
+		process.chdir(here)
+		try {
+			await commandRun(writer, { config: notesConfig(folder()), "keep-credentials": true, out, quiet: true }, deps())
+		} finally {
+			process.chdir(cwd)
+		}
+		const kept = join(realpathSync(here), ".oat", "credentials.json")
+		expect(JSON.parse(readFileSync(kept, "utf8"))).toHaveProperty("credentials")
+		expect((statSync(kept).mode & 0o777).toString(8)).toBe("600")
+		expect(writer.text()).toContain(`  credentials: ${kept}\n`)
+		expect(existsSync(join(out, "latest", "credentials.json"))).toBe(false)
+	})
 })
 
 describe("commandRun journaling", () => {
@@ -130,8 +148,8 @@ describe("commandRun refusals", () => {
 		expect(await commandRun(missing, { config: "nowhere.config.ts" }, deps())).toBe(EXIT.usage)
 		expect(missing.text()).toBe("oat: config not found: nowhere.config.ts\n")
 		const nobody = bufferWriter()
-		expect(await commandRun(nobody, { config: notesConfig(folder(), { principals: [] }) }, deps())).toBe(EXIT.usage)
-		expect(nobody.text()).toContain("config.principals is empty")
+		expect(await commandRun(nobody, { config: notesConfig(folder(), { principals: {} }) }, deps())).toBe(EXIT.usage)
+		expect(nobody.text()).toContain("config.principals declares no principal")
 	})
 
 	it("refuses a baseline that is not there, or not one", async () => {

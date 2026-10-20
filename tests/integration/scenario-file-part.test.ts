@@ -72,7 +72,7 @@ describe("a file part in a step body", () => {
 		await run({
 			baseUrl: url,
 			ops: ["file.extract"],
-			principals: [{ headers: {}, id: "alpha" }],
+			principals: { alpha: {} },
 			scenarios: [scenario],
 			seed: 1,
 			spec: `${url}/openapi.json`,

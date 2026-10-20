@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { UnsatisfiedSecurity } from "../../../../client/credential-source.ts"
 import { FencedError } from "../../../fence.ts"
 import { op, type Responder } from "../../__fixtures__/harness.ts"
 import { runCheck } from "../../core/run.ts"
@@ -168,6 +169,12 @@ describe("create.unique-conflict-rejected collisions", () => {
 			expect(sent.filter((s) => s.method === "DELETE")).toEqual([])
 			expect(findings.findings[0]?.summary).toBe("a duplicate unique-set create was accepted")
 		}
+	})
+
+	it("passes a teardown whose security cannot be met on, so the check is untested with the reason", async () => {
+		const unsatisfied = new UnsatisfiedSecurity("unsatisfied", "no credential for jwt")
+		const { ctx } = backend(failing(unsatisfied))
+		await expect(runCheck(uniqueConflictCreate, ctx)).rejects.toBe(unsatisfied)
 	})
 
 	it("swallows a failed teardown but not a fenced one", async () => {

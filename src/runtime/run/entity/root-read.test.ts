@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest"
 import type { OpenApiDocument } from "../../../spec/types.ts"
-import { contextOf, optionsFor } from "../__fixtures__/api.ts"
+import { contextOf, optionsFor, secured } from "../__fixtures__/api.ts"
 import { rootRead } from "./root-read.ts"
 
 /* An entity whose path id is the caller's root: its read, with the root filled in, is its test. */
 
 const org = { properties: { id: { type: "string" } }, type: "object" }
-const doc = {
+const doc = secured({
 	info: { title: "orgs", version: "1" },
 	openapi: "3.1.0",
 	paths: {
@@ -19,7 +19,7 @@ const doc = {
 			},
 		},
 	},
-} as unknown as OpenApiDocument
+}) as unknown as OpenApiDocument
 
 const orgs = (_: string, path: string) =>
 	path === "/openapi.json"
@@ -44,7 +44,7 @@ const broken = (method: string, path: string) => {
 
 describe("rootRead", () => {
 	it("reads the root the first principal holds, and grades the read", async () => {
-		const options = optionsFor(orgs, { roots: { org_id: "o1" } })
+		const options = optionsFor(orgs, { principals: { alpha: { scope: { org_id: "o1" } } } })
 		const ctx = await contextOf(options)
 		const entity = ctx.model.entities.get("org")
 		if (entity === undefined) throw new Error("no org entity")
@@ -54,7 +54,7 @@ describe("rootRead", () => {
 	})
 
 	it("stands down on the network, as every other stage does, when the root read cannot reach the backend", async () => {
-		const ctx = await contextOf(optionsFor(down, { roots: { org_id: "o1" } }))
+		const ctx = await contextOf(optionsFor(down, { principals: { alpha: { scope: { org_id: "o1" } } } }))
 		const entity = ctx.model.entities.get("org")
 		if (entity === undefined) throw new Error("no org entity")
 		await rootRead(ctx, entity)
@@ -65,7 +65,7 @@ describe("rootRead", () => {
 	})
 
 	it("reports any other error as a check that could not complete, with its message", async () => {
-		const ctx = await contextOf(optionsFor(broken, { roots: { org_id: "o1" } }))
+		const ctx = await contextOf(optionsFor(broken, { principals: { alpha: { scope: { org_id: "o1" } } } }))
 		const entity = ctx.model.entities.get("org")
 		if (entity === undefined) throw new Error("no org entity")
 		await rootRead(ctx, entity)

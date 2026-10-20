@@ -183,7 +183,7 @@ export async function seedCohort(createOp: OperationModel, seeding: Seeding, sco
 				: await listExisting(
 						{ listOp, model, values: { ...options.roots, ...scope.values } },
 						client,
-						options.authHeaders,
+						options.principal,
 					)
 		const { ownIdentity } = plan
 		existingIds =

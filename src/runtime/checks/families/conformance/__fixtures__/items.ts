@@ -109,7 +109,7 @@ export function itemOperations(model: SpecModel): Partial<CheckContext> {
 /** An exchange of `operationId` as the transcript holds it, with any field `extra` sets. */
 export function seen(operationId: string, answer: Answer, extra: Partial<Exchange> = {}): Exchange {
 	const path = operationId === "item.create" ? "/items" : "/items/1"
-	return { ...exchangeOf({ method: "GET", options: { operationId }, path }, answer), ...extra }
+	return { ...exchangeOf({ method: "GET", options: { as: { anonymous: true }, operationId }, path }, answer), ...extra }
 }
 
 /** An exchange that names no operation, as a request sent without one is recorded. */

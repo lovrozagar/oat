@@ -1,5 +1,7 @@
+import { bearer } from "../../reference/http/access.ts"
 import type { Handle } from "../../reference/http/node.ts"
 import type { ReferenceRequest, ReferenceResponse } from "../../reference/http/wire.ts"
+import { bearerSecurity } from "../harness/security.ts"
 
 const PUBLIC_CATALOGUE_SPEC = {
 	info: { title: "Public catalogue", version: "1.0" },
@@ -90,6 +92,7 @@ const PUBLIC_CATALOGUE_SPEC = {
 			},
 		},
 	},
+	.../* @__PURE__ */ bearerSecurity(),
 }
 
 function send(status: number, body?: unknown): ReferenceResponse {
@@ -119,9 +122,8 @@ export function publicCatalogue(): Handle {
 	const answer = async (request: ReferenceRequest): Promise<ReferenceResponse> => {
 		const { method, url } = request
 		if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(200, PUBLIC_CATALOGUE_SPEC)
-		const header = request.headers.authorization ?? ""
-		if (!header.startsWith("Bearer ") || !tokens.has(header.slice(7).trim()))
-			return send(401, { error: "unauthorized" })
+		const token = bearer(request)
+		if (token === undefined || !tokens.has(token)) return send(401, { error: "unauthorized" })
 		if (url.pathname === "/v1/templates") {
 			if (method === "GET") return send(200, { templates: listed(rows, url.searchParams.get("filter")) })
 			if (method === "POST") {

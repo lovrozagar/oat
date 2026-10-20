@@ -72,7 +72,12 @@ function context(base: string, schema: Record<string, unknown>) {
 	const createOp = model.byOperationId.get("note.create")
 	if (listOp === undefined || createOp === undefined) throw new Error("operations missing")
 	const ctx = checkContext({
-		client: new Client({ baseUrl: base, redactor: new Redactor() }),
+		/* The document declares no security: alpha's requests send nothing. */
+		client: new Client({
+			baseUrl: base,
+			credentials: { resolve: async () => ({ kind: "anonymous" }) },
+			redactor: new Redactor(),
+		}),
 		createOp,
 		entityName: "note",
 		findings: new FindingCollector(),
@@ -87,7 +92,7 @@ describe("createFresh", () => {
 	it("sends another client-chosen identity when the first is taken", async () => {
 		const { base, sent } = await serve(1)
 		const { createOp, ctx } = context(base, WITH_ID)
-		const created = await createFresh(ctx, createOp, WITH_ID, ctx.auth())
+		const created = await createFresh(ctx, createOp, WITH_ID, ctx.actor.id)
 		expect(created.exchange.status).toBe(201)
 		expect(sent).toHaveLength(2)
 		expect(sent[1]?.id).not.toBe(sent[0]?.id)
@@ -97,7 +102,7 @@ describe("createFresh", () => {
 	it("gives up after three identities, answering the last 409", async () => {
 		const { base, sent } = await serve(10)
 		const { createOp, ctx } = context(base, WITH_ID)
-		const created = await createFresh(ctx, createOp, WITH_ID, ctx.auth())
+		const created = await createFresh(ctx, createOp, WITH_ID, ctx.actor.id)
 		expect(created.exchange.status).toBe(409)
 		expect(new Set(sent.map((body) => body.id)).size).toBe(3)
 	})
@@ -105,7 +110,7 @@ describe("createFresh", () => {
 	it("answers a 409 as it is when the body names no identity of its own", async () => {
 		const { base, sent } = await serve(1)
 		const { createOp, ctx } = context(base, WITHOUT_ID)
-		const created = await createFresh(ctx, createOp, WITHOUT_ID, ctx.auth())
+		const created = await createFresh(ctx, createOp, WITHOUT_ID, ctx.actor.id)
 		expect(created.exchange.status).toBe(409)
 		expect(sent).toHaveLength(1)
 	})

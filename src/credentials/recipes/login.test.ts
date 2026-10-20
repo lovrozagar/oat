@@ -3,7 +3,7 @@ import type { LoginRecipe } from "../../config/types/security.ts"
 import type { AuthStep } from "../../config/types/steps.ts"
 import { jwtOf } from "../__fixtures__/jwt.ts"
 import { answerOf, ctxOf, fakePorts, NOW, rejection } from "../__fixtures__/ports.ts"
-import { acquireLogin } from "./login.ts"
+import { acquireLogin, heldLogin } from "./login.ts"
 
 const steps: [AuthStep, ...AuthStep[]] = [
 	{ outOfBand: { address: "{principal.email}", as: "otp", kind: "otp" } },
@@ -123,5 +123,39 @@ describe("acquireLogin: refresh", () => {
 				[{ body: { by: "ann@x.io", token: "{refreshToken}" }, operationId: "auth.refresh" }],
 			],
 		])
+	})
+})
+
+describe("heldLogin", () => {
+	const refresh: LoginRecipe = {
+		from: "$.token",
+		steps: [{ body: { token: "{refresh_token}" }, operationId: "auth.refresh" }],
+	}
+
+	it("renews a credential the run was handed by the recipe's declared refresh, from the scope it came with", async () => {
+		const { ports, recorded } = fakePorts({
+			run: () => Promise.resolve({ answer: answerOf({ token: "t2" }), scope: { refresh_token: "r2" } }),
+		})
+		const held = heldLogin(
+			ctxOf(ports),
+			{ scope: { refresh_token: "r1" }, value: "t1" },
+			{ expiresIn: 60, login, refresh },
+		)
+		expect([held.value, held.expiresAt]).toEqual(["t1", NOW + 60_000])
+		const renewed = await (held.refresh as () => Promise<{ value: string }>)()
+		expect([renewed.value, recorded.runs.map((run) => [run.steps[0], run.scope])]).toEqual([
+			"t2",
+			[
+				[
+					{ body: { token: "{refresh_token}" }, operationId: "auth.refresh" },
+					{ credential: "t1", refresh_token: "r1" },
+				],
+			],
+		])
+	})
+
+	it("has no refresh of its own when the recipe declares none, so the store signs in again", () => {
+		const { ports } = fakePorts()
+		expect(heldLogin(ctxOf(ports), { scope: {}, value: "t1" }, { login }).refresh).toBeUndefined()
 	})
 })

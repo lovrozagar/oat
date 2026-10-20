@@ -123,6 +123,7 @@ function encodeExtract(input: Pick<EncodeInput, "uploads"> & Partial<EncodeInput
 async function postEncoded(url: string, path: string, encoded: Awaited<ReturnType<typeof encodeRequest>>) {
 	const client = new Client({ baseUrl: url, redactor: new Redactor() })
 	const exchange = await client.request("POST", path, {
+		as: { anonymous: true },
 		body: encoded.body,
 		...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),
 	})

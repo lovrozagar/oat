@@ -1,15 +1,21 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
+import { Client } from "../../src/client/client.ts"
+import type { Resolution } from "../../src/client/credential-source.ts"
+import { bearerSecurity } from "../../src/conformance/harness/security.ts"
+import type { Hooks } from "../../src/config/types/hooks.ts"
+import type { Recipe } from "../../src/config/types/security.ts"
+import type { CredentialPorts, StepRunner } from "../../src/credentials/ports.ts"
+import { recipeKind } from "../../src/credentials/recipes/acquire.ts"
+import { type CredentialStore, createStore } from "../../src/credentials/store.ts"
+import { run } from "../../src/runtime/run/index.ts"
+import { resolveOutOfBandValue } from "../../src/runtime/steps/out-of-band.ts"
+import { stepRunner } from "../../src/runtime/steps/runner.ts"
+import { Redactor } from "../../src/security/redact.ts"
 import { buildModel } from "../../src/spec/graph/build.ts"
 import { dereference } from "../../src/spec/load/dereference.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
-import { createPrincipal, resolvePrincipalAuthValue } from "../../src/runtime/auth.ts"
-import { resolveOutOfBandValue } from "../../src/runtime/steps/out-of-band.ts"
-import { Client } from "../../src/client/client.ts"
-import { run } from "../../src/runtime/run/index.ts"
-import { isAuthFlow, isHookAuth } from "../../src/runtime/auth-kind.ts"
-import { Redactor } from "../../src/security/redact.ts"
 
 const closers: Array<() => Promise<void>> = []
 
@@ -68,7 +74,9 @@ async function listen(handler: (req: IncomingMessage, res: ServerResponse) => vo
 	}
 }
 
+/* Items need a bearer token; registering is public. */
 const AUTH_SPEC = {
+	...bearerSecurity(),
 	info: { title: "hooks", version: "1" },
 	openapi: "3.1.0",
 	paths: {
@@ -77,6 +85,7 @@ const AUTH_SPEC = {
 				operationId: "auth.register",
 				requestBody: { content: { "application/json": { schema: { type: "object" } } } },
 				responses: { "200": { description: "ok" } },
+				security: [],
 			},
 		},
 		"/v1/items": {
@@ -84,6 +93,39 @@ const AUTH_SPEC = {
 		},
 	},
 } as OpenApiDocument
+
+const unused = async (): Promise<never> => {
+	throw new Error("this recipe sends nothing through this port")
+}
+
+/* What a store needs beyond its recipe: a step runner and the credential hook, else ports that refuse. */
+interface StoreParts {
+	steps?: StepRunner
+	resolveCredential?: Hooks["resolveCredential"]
+	/** The store's clock. Default: the system clock. */
+	now?: () => number
+}
+
+/* A store holding alpha's bearer credential by `recipe`, over AUTH_SPEC's schemes. */
+function storeOf(recipe: Recipe, parts: StoreParts = {}): CredentialStore {
+	const { now, resolveCredential, steps } = parts
+	const ports: CredentialPorts = {
+		operations: { call: unused },
+		steps: steps ?? { run: unused },
+		tokens: { post: unused },
+		...(resolveCredential === undefined ? {} : { resolveCredential }),
+	}
+	const { schemes } = buildModel(dereference(AUTH_SPEC).doc)
+	return createStore({
+		...(now === undefined ? {} : { now }),
+		ports,
+		principals: { alpha: {} },
+		schemes,
+		security: { bearer: recipe },
+	})
+}
+
+const ALPHA = { principal: "alpha", scheme: "bearer" }
 
 describe("resolveOutOfBand backoff", () => {
 	it("requires the hook and retries null / empty", async () => {
@@ -115,92 +157,57 @@ describe("resolveOutOfBand backoff", () => {
 	})
 })
 
-describe("resolvePrincipalAuth / fromHook", () => {
-	it("distinguishes hook auth from a step chain", () => {
-		expect(isHookAuth({ fromHook: "oauth-google" })).toBe(true)
-		expect(isAuthFlow({ fromHook: "oauth-google" })).toBe(false)
-		expect(isHookAuth({ credentialFrom: "$.t", steps: [{ method: "POST", path: "/x" }] })).toBe(false)
-		expect(isAuthFlow({ credentialFrom: "$.t", steps: [{ method: "POST", path: "/x" }] })).toBe(true)
+describe("hooks.resolveCredential", () => {
+	it("distinguishes a hooked recipe from a login's steps", () => {
+		expect(recipeKind({ hook: true })).toBe("hook")
+		expect(recipeKind({ login: { from: "$.t", steps: [{ method: "POST", path: "/x" }] } })).toBe("login")
 	})
 
-	it("requires the hook and retries null", async () => {
-		await expect(resolvePrincipalAuthValue(undefined, "oauth-google", { label: 'principal "g"' })).rejects.toThrow(
-			/no resolvePrincipalAuth hook/,
-		)
-
-		await expect(
-			resolvePrincipalAuthValue(async () => null, "oauth-google", {
-				label: 'principal "g"',
-				outOfBand: { attempts: 2, initialMs: 1, maxMs: 1 },
-			}),
-		).rejects.toThrow(/returned no credential/)
-
-		const pair = await resolvePrincipalAuthValue(
-			async () => ({ credential: "tok", expiresIn: 90, refreshToken: "rt" }),
-			"oauth-google",
-			{ label: 'principal "g"', outOfBand: { attempts: 1, initialMs: 1, maxMs: 1 } },
-		)
-		expect(pair.credential).toBe("tok")
+	it("requires the hook, and BLOCKS a principal it gives no credential", async () => {
+		expect(await storeOf({ hook: true }).acquire(ALPHA)).toEqual({
+			blocked: expect.stringMatching(/sets no hooks\.resolveCredential/),
+		})
+		const none = storeOf({ hook: true }, { resolveCredential: async () => null })
+		expect(await none.acquire(ALPHA)).toEqual({ blocked: expect.stringMatching(/gave no credential for "alpha"/) })
+		const given = storeOf({ hook: true }, { resolveCredential: async () => ({ expiresIn: 90, value: "tok" }) })
+		expect(await given.acquire(ALPHA)).toMatchObject({ value: "tok" })
 	})
-})
 
-describe("resolvePrincipalAuth / fromHook", () => {
-	it("creates a principal from the hook and refreshes by calling it again", async () => {
-		const model = buildModel(dereference(AUTH_SPEC).doc)
+	it("acquires from the hook and renews by calling it again", async () => {
 		let n = 0
-		const client = new Client({ baseUrl: "http://127.0.0.1", redactor: new Redactor() })
-		const runtime = await createPrincipal(
-			"google",
-			{ fromHook: "oauth-google", assumeTtlMs: 1, refreshBufferMs: 10_000 },
+		let now = Date.now()
+		const store = storeOf(
+			{ hook: true },
 			{
-				client,
-				hooks: {
-					resolvePrincipalAuth: async (name) => {
-						expect(name).toBe("oauth-google")
-						n += 1
-						if (n === 1) return { credential: "first", expiresIn: 0 }
-						return { credential: "second", expiresIn: 90, refreshToken: "rt" }
-					},
+				now: () => now,
+				resolveCredential: async (scheme, principal) => {
+					expect([scheme, principal.id]).toEqual(["bearer", "alpha"])
+					n += 1
+					return n === 1 ? { expiresIn: 1, value: "first" } : { expiresIn: 90, value: "second" }
 				},
-				model,
-				outOfBand: { attempts: 2, initialMs: 1, maxMs: 1 },
-				principalId: "google",
 			},
 		)
-		expect(runtime.headers().authorization).toBe("Bearer first")
-		await runtime.refreshIfStale(true)
-		expect(runtime.headers().authorization).toBe("Bearer second")
-		expect(runtime.credential()).toBe("second")
-		expect(runtime.scope.refreshToken).toBe("rt")
-		expect(runtime.matches({ authorization: "Bearer first" })).toBe(true)
-		expect(runtime.matches({})).toBe(false)
-		runtime.adoptCredential("")
-		expect(runtime.credential()).toBe("second")
-		await runtime.refreshIfStale(true)
+		expect(await store.acquire(ALPHA)).toMatchObject({ value: "first" })
+		now += 1_000
+		expect(await store.acquire(ALPHA)).toMatchObject({ value: "second" })
+		/* A 401 on what it sent renews it once more, by the hook. */
+		expect(await store.refresh({ ...ALPHA, sentValue: "second" })).toMatchObject({ value: "second" })
 		expect(n).toBe(3)
 	})
 
 	it("does not proactive-refresh when expiry is unknown", async () => {
-		const model = buildModel(dereference(AUTH_SPEC).doc)
 		let n = 0
-		const runtime = await createPrincipal(
-			"google",
-			{ fromHook: "oauth-google" },
+		const store = storeOf(
+			{ hook: true },
 			{
-				client: new Client({ baseUrl: "http://127.0.0.1", redactor: new Redactor() }),
-				hooks: {
-					resolvePrincipalAuth: async () => {
-						n += 1
-						return { credential: "static" }
-					},
+				resolveCredential: async () => {
+					n += 1
+					return "static"
 				},
-				model,
-				outOfBand: { attempts: 1, initialMs: 1, maxMs: 1 },
-				principalId: "google",
 			},
 		)
-		expect(runtime.expiresAt).toBeNull()
-		await runtime.refreshIfStale()
+		expect(await store.acquire(ALPHA)).toMatchObject({ expiresAt: null, value: "static" })
+		await store.acquire(ALPHA)
 		expect(n).toBe(1)
 	})
 })
@@ -215,13 +222,18 @@ describe("resolveHeaders", () => {
 			send(res, 200, { items: [] })
 		})
 		closers.push(server.close)
-		const live = { headers: () => ({ authorization: "Bearer live" }), refreshIfStale: async () => undefined }
+		const live: Resolution = {
+			kind: "sends",
+			principal: "alpha",
+			refresh: async () => live,
+			schemes: ["bearer"],
+			secrets: { cookies: [], headers: ["authorization"], query: [], values: ["Bearer live"] },
+			sends: { bearer: { cookies: {}, headers: { authorization: "Bearer live" }, query: {} } },
+			sentValues: { bearer: "live" },
+		}
 		const client = new Client({
 			baseUrl: server.url,
-			credentials: {
-				credentialFor: ({ headers }) => (headers.authorization === "Bearer live" ? live : undefined),
-				principalOf: () => undefined,
-			},
+			credentials: { resolve: async () => live },
 			headers: { "x-global": "g" },
 			redactor: new Redactor(),
 			resolveHeaders: async ({ method, url, operationId }) => {
@@ -231,10 +243,7 @@ describe("resolveHeaders", () => {
 				return { "cf-turnstile-response": "fresh" }
 			},
 		})
-		await client.get("/v1/items", {
-			headers: { authorization: "Bearer live" },
-			operationId: "item.list",
-		})
+		await client.get("/v1/items", { as: { principal: "alpha" }, operationId: "item.list" })
 		expect(seen).toEqual(["g|fresh|Bearer live"])
 	})
 
@@ -242,7 +251,7 @@ describe("resolveHeaders", () => {
 		const server = await listen((_req, res) => send(res, 200, {}))
 		closers.push(server.close)
 		const client = new Client({ baseUrl: server.url, redactor: new Redactor(), resolveHeaders: async () => null })
-		const exchange = await client.get("/v1/items")
+		const exchange = await client.get("/v1/items", { as: { anonymous: true } })
 		expect(exchange.status).toBe(200)
 	})
 })
@@ -338,33 +347,26 @@ describe("origins and auth-step origin", () => {
 		const model = buildModel(dereference(AUTH_SPEC).doc)
 		const originModel = buildModel(dereference(CDN_TOKEN_SPEC).doc)
 		const originClient = new Client({ baseUrl: cdn.url, redactor: new Redactor() })
-		const runtime = await createPrincipal(
-			"alpha",
-			{
-				credentialFrom: "$.access_token",
-				steps: [{ operationId: "cdn.token", origin: "cdn", body: {} }],
-			},
-			{
-				client: new Client({ baseUrl: api.url, redactor: new Redactor() }),
-				hooks: {},
-				model,
-				originClients: new Map([["cdn", { client: originClient, model: originModel }]]),
-				principalId: "alpha",
-			},
-		)
-		expect(runtime.headers().authorization).toBe("Bearer from-cdn")
+		const steps = stepRunner({
+			client: new Client({ baseUrl: api.url, redactor: new Redactor() }),
+			hooks: {},
+			model,
+			originClients: new Map([["cdn", { client: originClient, model: originModel }]]),
+		})
+		const hop: Recipe = {
+			login: { from: "$.access_token", steps: [{ body: {}, operationId: "cdn.token", origin: "cdn" }] },
+		}
+		const held = await storeOf(hop, { steps }).acquire(ALPHA)
+		expect(held).toMatchObject({ value: "from-cdn" })
+		expect("sends" in held ? Object.values(held.sends.headers) : []).toEqual(["Bearer from-cdn"])
 		expect(cdnHits.some((hit) => hit.startsWith("POST"))).toBe(true)
 
-		await expect(
-			createPrincipal(
-				"alpha",
-				{
-					credentialFrom: "$.access_token",
-					steps: [{ method: "POST", origin: "missing", path: "/x" }],
-				},
-				{ client: new Client({ baseUrl: api.url, redactor: new Redactor() }), hooks: {}, model, principalId: "alpha" },
-			),
-		).rejects.toThrow(/not in config.origins/)
+		const astray: Recipe = {
+			login: { from: "$.access_token", steps: [{ method: "POST", origin: "missing", path: "/x" }] },
+		}
+		expect(await storeOf(astray, { steps }).acquire(ALPHA)).toEqual({
+			blocked: expect.stringMatching(/not in config\.origins/),
+		})
 	})
 })
 
@@ -376,14 +378,14 @@ describe("origins and auth-step origin", () => {
 		const result = await run({
 			baseUrl: api.url,
 			origins: [{ baseUrl: cdn.url, id: "cdn", spec: `${cdn.url}/openapi` }],
-			principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
+			principals: { alpha: {} },
 			seed: 1,
 			spec: `${api.url}/openapi`,
 		})
 		expect(result.entitiesTested.some((name) => name === "note" || name.endsWith(":file") || name === "cdn:file")).toBe(
 			true,
 		)
-		expect(result.principals[0]?.headers.authorization).toBe("Bearer t")
+		expect(result.principals[0]).toMatchObject({ credentials: [], id: "alpha" })
 		expect(cdn.rows.length).toBeGreaterThan(0)
 	})
 })

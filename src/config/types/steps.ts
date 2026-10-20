@@ -120,10 +120,15 @@ export type ScenarioRequestStep = (OperationStep | RequestStep) & {
 	assert?: ScenarioAssert | ScenarioAssert[]
 	/** Re-send until the assert passes or `within` (`"30s"`, `"500ms"`, `"2m"`) runs out. */
 	poll?: { within: string; everyMs?: number }
-	/** Send without the scenario principal's credential. */
+	/** Send with no credential at all. */
 	anonymous?: boolean
 	/** Send as this config principal instead of the scenario's — an invitee accepting, a peer reading. */
 	principal?: string
+	/**
+	 * Send only this scheme's credential, e.g. `apiKey` on an operation that also takes a session.
+	 * Default: the first alternative of the operation's security the principal can satisfy.
+	 */
+	scheme?: string
 }
 
 /**

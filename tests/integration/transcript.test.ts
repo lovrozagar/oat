@@ -343,7 +343,7 @@ async function namesSentRequestBytes() {
 	)
 	const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
 	const body = { rows: Array.from({ length: 4000 }, (_, i) => ({ id: i, name: "n".repeat(60) })) }
-	const exchange = await client.request("POST", "/rows", { body })
+	const exchange = await client.request("POST", "/rows", { as: { anonymous: true }, body })
 	const stored = { ...exchange }
 	await releaseTranscriptBodies(stored, new Redactor())
 	expect(received.byteLength).toBeGreaterThan(INLINE_BODY_LIMIT)
@@ -359,7 +359,7 @@ async function namesServerBytes() {
 	const sent = `{ "rows" : [ ${Array.from({ length: 4000 }, (_, i) => `{ "id" : ${i}, "name" : "${"n".repeat(60)}" }`).join(" , ")} ] }`
 	const server = await serveOnce(sent, "application/json")
 	const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
-	const exchange = await client.request("GET", "/rows")
+	const exchange = await client.request("GET", "/rows", { as: { anonymous: true } })
 	const stored = { ...exchange }
 	await releaseTranscriptBodies(stored, new Redactor())
 	const raw = Buffer.from(sent)

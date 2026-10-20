@@ -25,6 +25,7 @@ describe("createCaller", () => {
 		const created = await createCaller(input, findings)
 		expect(created).toMatchObject({ body: { handle: "Quarterly Report 0 n0" } })
 		expect(sent.map((request) => `${request.method} ${request.path}`)).toEqual(["POST /me"])
+		expect(sent[0]?.options.as).toEqual({ principal: "alpha" })
 	})
 
 	it("sends every field when none is required, and fills in what a hook supplies", async () => {

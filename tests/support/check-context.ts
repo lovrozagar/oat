@@ -13,11 +13,9 @@ export function checkContext<C extends CheckContext["client"]>(
 	fields: Pick<CheckContext<C>, Required_> & Partial<CheckContext<C>>,
 ): CheckContext<C> {
 	return {
+		actor: { id: "alpha", inviteAs: undefined, rank: 0, scope: {}, tenant: undefined },
 		actors: [],
-		altAuth: undefined,
-		altScope: undefined,
 		asyncOps: [],
-		auth: () => ({}),
 		collectionKey: null,
 		createAcknowledged: false,
 		createOp: undefined,
@@ -29,6 +27,7 @@ export function checkContext<C extends CheckContext["client"]>(
 		memo: checkMemo(),
 		nonce: "test",
 		outOfBand: { attempts: 6, initialMs: 200, maxMs: 3000 },
+		peerScope: undefined,
 		query: null,
 		readOp: undefined,
 		records: [],

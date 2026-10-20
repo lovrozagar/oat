@@ -118,7 +118,7 @@ async function judgeCreate(
 		})
 	}
 	const read = await ctx.client.get(fillPath(readOp.path, { ...ctx.scope, ...itemParamFor(ctx, String(sent)) }), {
-		headers: ctx.auth(),
+		as: { principal: ctx.actor.id },
 		operationId: readOp.operationId,
 	})
 	const record = readRecord(readOp, read)

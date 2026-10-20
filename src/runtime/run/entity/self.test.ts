@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest"
 import type { OpenApiDocument } from "../../../spec/types.ts"
 import type { Responder } from "../../checks/__fixtures__/harness.ts"
-import { contextOf, optionsFor } from "../__fixtures__/api.ts"
+import { contextOf, optionsFor, secured } from "../__fixtures__/api.ts"
 import { selfIdentity } from "./self.ts"
 
 /* An entity that is the caller: its read of itself is its test. */
 
 const profile = { properties: { id: { type: "string" }, name: { type: "string" } }, type: "object" }
-const doc = {
+const doc = secured({
 	info: { title: "me", version: "1" },
 	openapi: "3.1.0",
 	paths: {
@@ -19,7 +19,7 @@ const doc = {
 			},
 		},
 	},
-} as unknown as OpenApiDocument
+}) as unknown as OpenApiDocument
 
 const me: Responder = (_, path) =>
 	path === "/openapi.json"

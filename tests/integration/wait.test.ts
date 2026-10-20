@@ -121,8 +121,13 @@ async function pollServer(handler: (req: IncomingMessage, res: ServerResponse) =
 function waitOn(url: string, options: Pick<WaitOptions, "spec"> & Partial<WaitOptions>) {
 	const model = buildModel(dereference(WAIT_SPEC).doc)
 	return driveWait({
-		client: new Client({ baseUrl: url, redactor: new Redactor() }),
-		headers: () => ({}),
+		/* The document declares no security, so every actor sends nothing. */
+		client: new Client({
+			baseUrl: url,
+			credentials: { resolve: async () => ({ kind: "anonymous" }) },
+			redactor: new Redactor(),
+		}),
+		principal: "alpha",
 		pollOp: model.byOperationId.get(options.spec.operationId)!,
 		record: null,
 		scope: {},
@@ -166,7 +171,6 @@ describe("driveWait", () => {
 				return calls >= 2 ? true : null
 			},
 			record: { from: "write" },
-			refreshIfStale: async () => undefined,
 			spec: { operationId: "inbox.list", pollIntervalMs: 1, timeoutMs: 200 },
 		})
 		expect(outcome.timedOut).toBe(false)
@@ -313,7 +317,7 @@ describe("effects.side-effect-arrives", () => {
 		const result = await run({
 			baseUrl: url,
 			only: ["job"],
-			principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
+			principals: { alpha: {} },
 			seed: 1,
 			spec: `${url}/openapi`,
 		})

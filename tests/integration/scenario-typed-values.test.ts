@@ -63,7 +63,7 @@ describe("scenario saved values", () => {
 		const result = await run({
 			baseUrl: url,
 			ops: ["slot.decline"],
-			principals: [{ headers: {}, id: "alpha" }],
+			principals: { alpha: {} },
 			scenarios: [scenario],
 			seed: 1,
 			spec: `${url}/openapi.json`,

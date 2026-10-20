@@ -10,8 +10,9 @@ import { GradeLedger } from "./grades.ts"
 import { documentsSuccess, isPublicGet, PUBLIC_GET_CHECK_ID, publicGetCheck, runPublicGets } from "./one-shot.ts"
 
 const ok = (code = "200") => ({ [code]: { description: "ok" } })
+/* Declared open with `security: []`: the document says no token is needed. */
 const get = (operationId: string, more: Record<string, unknown> = {}) => ({
-	get: { operationId, responses: ok(), ...more },
+	get: { operationId, responses: ok(), security: [], ...more },
 })
 
 const DOCUMENT = {
@@ -27,7 +28,9 @@ const DOCUMENT = {
 		"/hook": { post: { operationId: "hook.post", responses: ok() } },
 		"/items": get("item.list", { "x-entity": { action: "list", name: "item" } }),
 		"/moved": get("moved.get"),
-		"/ping": { head: { operationId: "ping.head", responses: ok("2XX") } },
+		"/ping": { head: { operationId: "ping.head", responses: ok("2XX"), security: [] } },
+		/* No requirement here or at the root: the document says nothing about a token. */
+		"/undeclared": { get: { operationId: "undeclared.get", responses: ok() } },
 		/* A parameter mid-segment names no entity, so only the path rule keeps it out. */
 		"/download/{token}.zip": get("download.get", {
 			parameters: [{ in: "path", name: "token", required: true, schema: { type: "string" } }],
@@ -63,6 +66,7 @@ describe("a public read", () => {
 			"health.get",
 			"moved.get",
 			"ping.head",
+			"undeclared.get",
 		])
 	})
 
@@ -80,6 +84,21 @@ describe("a public read", () => {
 		expect(findings.findings.map((f) => [f.entity, f.detail])).toEqual([
 			["broken.get", "broken.get returned 404. The document says 200 for a request with no token and no id."],
 			["moved.get", "moved.get returned 202. The document says 200 for a request with no token and no id."],
+		])
+		expect(sent.every((request) => !("authorization" in request.headers))).toBe(true)
+	})
+
+	it("stands down on a read whose document declares no security: nothing says it is public", async () => {
+		const { checksRun, client, findings, grades, model, sent } = setup()
+		await runPublicGets({ checksRun, client, findings, grades, inScope: () => false, mode: "full", model })
+		expect(sent.some((request) => new URL(request.url).pathname === "/undeclared")).toBe(false)
+		expect(grades.ran.get("undeclared.get")).toBeUndefined()
+		expect(findings.inconclusive).toMatchObject([
+			{
+				check: PUBLIC_GET_CHECK_ID,
+				entity: "undeclared.get",
+				reason: "the document declares no security; add an overlay",
+			},
 		])
 	})
 

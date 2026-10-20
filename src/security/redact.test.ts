@@ -56,3 +56,67 @@ describe("Redactor", () => {
 		expect(new Redactor().text("first-run-secret")).toBe("first-run-secret")
 	})
 })
+
+describe("Redactor, placed credentials", () => {
+	it("keeps an Authorization header's scheme word and scrubs the credential after it", () => {
+		const headers = new Redactor().headers({
+			Authorization: "ApiKey key_alpha_1",
+			"proxy-authorization": "Basic dXNlcjpwYXNz",
+			"x-api-key": "Bearer looks-like-a-scheme",
+			authorization: "bare-token-value",
+		})
+		expect(headers).toEqual({
+			Authorization: `ApiKey ${REDACTED}`,
+			authorization: REDACTED,
+			"proxy-authorization": `Basic ${REDACTED}`,
+			"x-api-key": REDACTED,
+		})
+	})
+
+	it("scrubs a registered query parameter by name, any value, and keeps the URL's shape", () => {
+		const redactor = new Redactor()
+		redactor.registerQuery("key")
+		const url = new URL(redactor.url("https://x.test/a?key=k1&q=1&key=k2"))
+		expect([...url.searchParams]).toEqual([
+			["key", REDACTED],
+			["q", "1"],
+			["key", REDACTED],
+		])
+		expect(redactor.url("https://x.test/a?KEY=k1")).toBe("https://x.test/a?KEY=k1")
+	})
+
+	it("scrubs a registered cookie by name wherever a cookie pair is written", () => {
+		const redactor = new Redactor()
+		redactor.registerCookie("sid")
+		expect(redactor.text("theme=dark; sid=abc; lang=en")).toBe(`theme=dark; sid=${REDACTED}; lang=en`)
+		expect(redactor.text("sid=abc")).toBe(`sid=${REDACTED}`)
+		expect(redactor.text("xsid=abc")).toBe("xsid=abc")
+		redactor.registerCookie("a.b")
+		expect(redactor.text("a.b=1;aXb=2")).toBe(`a.b=${REDACTED};aXb=2`)
+	})
+})
+
+describe("Redactor, placed credentials in bodies", () => {
+	it("scrubs a form field by its name or its value", () => {
+		const redactor = new Redactor()
+		redactor.registerQuery("key")
+		redactor.registerSecret("issued-credential")
+		expect(redactor.field("password", "hunter2")).toBe(REDACTED)
+		expect(redactor.field("key", "anything")).toBe(REDACTED)
+		expect(redactor.field("note", "sent issued-credential")).toBe(`sent ${REDACTED}`)
+		expect(redactor.field("note", "plain")).toBe("plain")
+	})
+
+	it("registers every name and value a placement sends", () => {
+		const redactor = new Redactor()
+		redactor.registerPlacement({
+			cookies: ["sid"],
+			headers: ["X-Tenant-Credential"],
+			query: ["api"],
+			values: ["placed-secret-value"],
+		})
+		expect(redactor.headers({ "x-tenant-credential": "v" })).toEqual({ "x-tenant-credential": REDACTED })
+		expect(redactor.url("https://x.test/?api=v")).toBe(`https://x.test/?api=${encodeURIComponent(REDACTED)}`)
+		expect(redactor.text("sid=v; echo placed-secret-value")).toBe(`sid=${REDACTED}; echo ${REDACTED}`)
+	})
+})

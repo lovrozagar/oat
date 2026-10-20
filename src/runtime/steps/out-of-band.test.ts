@@ -40,7 +40,7 @@ describe("resolveOutOfBandValue", () => {
 		)
 	})
 
-	it("polls until the value arrives, asking with the address, scope, headers and send time", async () => {
+	it("polls until the value arrives, asking with the address, scope and send time, and no credential", async () => {
 		const asked: OutOfBandRequest[] = []
 		const value = await resolveOutOfBandValue(
 			async (request) => {
@@ -48,23 +48,23 @@ describe("resolveOutOfBandValue", () => {
 				return request.attempt >= 2 ? "tok" : null
 			},
 			"a@x.test",
-			{ headers: { h: "1" }, kind: "otp", label: "x", outOfBand: quick, scope: { s: "1" }, since: 5 },
+			{ kind: "otp", label: "x", outOfBand: quick, scope: { s: "1" }, since: 5 },
 		)
 		expect(value).toBe("tok")
 		expect(asked).toEqual([
-			{ address: "a@x.test", attempt: 1, headers: { h: "1" }, kind: "otp", scope: { s: "1" }, since: 5 },
-			{ address: "a@x.test", attempt: 2, headers: { h: "1" }, kind: "otp", scope: { s: "1" }, since: 5 },
+			{ address: "a@x.test", attempt: 1, kind: "otp", scope: { s: "1" }, since: 5 },
+			{ address: "a@x.test", attempt: 2, kind: "otp", scope: { s: "1" }, since: 5 },
 		])
 	})
 
-	it("asks with an empty scope and headers, and no send time, when given none", async () => {
+	it("asks with an empty scope, and no send time, when given none", async () => {
 		const asked: OutOfBandRequest[] = []
 		const hook = async (request: OutOfBandRequest) => {
 			asked.push(request)
 			return "tok"
 		}
 		await resolveOutOfBandValue(hook, "a@x.test", { kind: "otp", label: "x" })
-		expect(asked).toEqual([{ address: "a@x.test", attempt: 1, headers: {}, kind: "otp", scope: {} }])
+		expect(asked).toEqual([{ address: "a@x.test", attempt: 1, kind: "otp", scope: {} }])
 	})
 
 	it("gives up after the last attempt with the worst-case wait", async () => {

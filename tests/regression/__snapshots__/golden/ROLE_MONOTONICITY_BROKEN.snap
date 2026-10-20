@@ -749,7 +749,7 @@
       "added": [
         {
           "check": "auth.rank-is-monotonic",
-          "detail": "viewer (rank 0) was served job job_ID; member (rank 1) was denied. Privilege must be monotonic — a member who can see what an owner cannot is the lattice inverted, not a finer policy.",
+          "detail": "alpha_viewer (rank 0) was served job job_ID; alpha_member (rank 1) was denied. Privilege must be monotonic — a member who can see what an owner cannot is the lattice inverted, not a finer policy.",
           "entity": "job",
           "operations": [
             "job.get"
@@ -771,7 +771,7 @@
         },
         {
           "check": "auth.rank-is-monotonic",
-          "detail": "viewer (rank 0) was served row row_ID; member (rank 1) was denied. Privilege must be monotonic — a member who can see what an owner cannot is the lattice inverted, not a finer policy.",
+          "detail": "alpha_viewer (rank 0) was served row row_ID; alpha_member (rank 1) was denied. Privilege must be monotonic — a member who can see what an owner cannot is the lattice inverted, not a finer policy.",
           "entity": "row",
           "operations": [
             "row.get"
@@ -793,7 +793,7 @@
         },
         {
           "check": "auth.rank-is-monotonic",
-          "detail": "viewer (rank 0) was served table table_ID; member (rank 1) was denied. Privilege must be monotonic — a member who can see what an owner cannot is the lattice inverted, not a finer policy.",
+          "detail": "alpha_viewer (rank 0) was served table table_ID; alpha_member (rank 1) was denied. Privilege must be monotonic — a member who can see what an owner cannot is the lattice inverted, not a finer policy.",
           "entity": "table",
           "operations": [
             "table.get"

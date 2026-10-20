@@ -1,6 +1,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
+import { bearerSecurity } from "../../src/conformance/harness/security.ts"
+import type { SecurityConfig } from "../../src/config/types/security.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { run } from "../../src/runtime/run/index.ts"
 
@@ -75,6 +77,7 @@ function registerPath(): Record<string, unknown> {
 					description: "created",
 				},
 			},
+			security: [],
 			"x-fresh-principal": true,
 		},
 	}
@@ -82,6 +85,7 @@ function registerPath(): Record<string, unknown> {
 
 function spec(): OpenApiDocument {
 	return {
+		...bearerSecurity(),
 		info: { title: "disposable", version: "1" },
 		openapi: "3.1.0",
 		paths: {
@@ -258,6 +262,7 @@ function refreshSpec(): OpenApiDocument {
 				"200": { description: "renewed" },
 				"401": { description: "unauthorized" },
 			},
+			security: [],
 		},
 	}
 	return document
@@ -281,10 +286,12 @@ async function serveRefresh(refreshLives: boolean): Promise<string> {
 	return listenRoutes(refreshSpec(), routes, { status: 404 })
 }
 
+/* A second user holds the token its signup answered; the suite caller, alpha, a fixed one. */
 async function runDisposable(baseUrl: string) {
 	return run({
 		baseUrl,
-		principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+		principals: { alpha: { security: { bearer: { static: "alpha" } } } },
+		security: { bearer: { login: { from: "$.access_token", steps: [{ operationId: "auth.register" }] } } },
 		seed: 1,
 		spec: `${baseUrl}/openapi.json`,
 	})
@@ -321,29 +328,28 @@ async function startServer(document: OpenApiDocument, handle: Route): Promise<st
 	return listenRoutes(document, [register, handle, profileRoute(names)], { body: { error: "missing" }, status: 404 })
 }
 
-/* The refresh a principal declares in its flow — oat never guesses a refresh route by field name. */
+/* alpha signs up and renews by the refresh token its signup saved. */
+const SAVE_REFRESH = { refresh_token: "$.refresh_token" }
+const REFRESHING: SecurityConfig = {
+	bearer: {
+		login: {
+			from: "$.access_token",
+			steps: [{ body: { email: "suite@example.test" }, operationId: "auth.register", saveAs: SAVE_REFRESH }],
+		},
+		refresh: {
+			from: "$.access_token",
+			steps: [{ body: { refresh_token: "{refresh_token}" }, operationId: "auth.refresh" }],
+		},
+	},
+}
+
+/* The refresh a recipe declares — oat never guesses a refresh route by field name. */
 async function runRefreshFlow(baseUrl: string) {
 	return run({
 		baseUrl,
 		hooks: {},
-		principals: [
-			{
-				auth: {
-					credentialFrom: "$.access_token",
-					refresh: {
-						steps: [{ body: { refresh_token: "{refreshToken}" }, operationId: "auth.refresh" }],
-					},
-					steps: [
-						{
-							body: { email: "suite@example.test" },
-							operationId: "auth.register",
-							saveAs: { credential: "$.access_token", refreshToken: "$.refresh_token" },
-						},
-					],
-				},
-				id: "alpha",
-			},
-		],
+		principals: { alpha: {} },
+		security: REFRESHING,
 		seed: 1,
 		spec: `${baseUrl}/openapi.json`,
 	})
@@ -361,14 +367,11 @@ async function logsOutSecondUser(): Promise<void> {
 		(exchange) => exchange.method === "POST" && exchange.url.endsWith("/v1/logout"),
 	)
 	expect(logoutAt).toBeGreaterThanOrEqual(0)
-	expect(result.client.transcript[logoutAt]?.requestHeaders.authorization).not.toBe("Bearer alpha")
+	expect(result.client.transcript[logoutAt]?.principal).toMatch(/^disposable-/)
 	const after = result.client.transcript.slice(logoutAt + 1)
 	expect(
 		after.some(
-			(exchange) =>
-				exchange.url.endsWith("/v1/me") &&
-				exchange.requestHeaders.authorization === "Bearer alpha" &&
-				exchange.status === 200,
+			(exchange) => exchange.url.endsWith("/v1/me") && exchange.principal === "alpha" && exchange.status === 200,
 		),
 	).toBe(true)
 	const refused = result.client.transcript.find((exchange) => exchange.seq === logout?.evidence?.observation?.seq)

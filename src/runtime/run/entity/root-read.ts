@@ -8,18 +8,18 @@ import { graded, startedTest } from "./direct.ts"
 
 /** An entity whose path id is the caller's root: nothing to create, its read is the whole test. */
 export async function rootRead(ctx: RunContext, entity: EntityModel): Promise<void> {
-	const { principals, client, findings, model, options } = ctx
+	const { principals, client, findings, model } = ctx
 	startedTest(ctx, entity, ROOT_READ_CHECK_ID)
 	const ids = rootReadIds(entity)
 	let outcome: Outcome
 	try {
 		outcome = await runRootRead({
-			auth: principals.alpha.headers,
 			client,
 			entity,
 			findings,
 			model,
-			roots: { ...options.roots, ...principals.alpha.roots },
+			principal: principals.alpha.id,
+			roots: { ...principals.alpha.scope },
 		})
 	} catch (error) {
 		outcome = await stoppedBy(ctx, entity.name, ids, error)

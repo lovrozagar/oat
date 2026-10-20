@@ -61,6 +61,15 @@ describe("assertScenarios", () => {
 		)
 	})
 
+	it("refuses an anonymous step that names a scheme, which it could not send", () => {
+		const step = { anonymous: true, operationId: "notes.list", scheme: "apiKey" }
+		expect(() =>
+			assertScenarios([{ covers: [], id: "x", steps: [{ operationId: "notes.list" }, step] }], main),
+		).toThrow('oat: scenario "x" step 2 is anonymous, so it cannot send the "apiKey" scheme')
+		const named = { operationId: "notes.list", scheme: "apiKey" }
+		expect(() => assertScenarios([{ covers: [], id: "x", steps: [named] }], main)).not.toThrow()
+	})
+
 	it("takes a step with no operation, or an empty origin, as the main document's", () => {
 		expect(() =>
 			assertScenarios(

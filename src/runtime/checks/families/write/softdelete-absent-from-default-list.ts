@@ -27,7 +27,7 @@ export const softDeleteHidden = defineCheck<{ deleteOp: OperationModel }>({
 		const id = made.scratch.id
 		const params = { ...ctx.scope, ...itemParamFor(ctx, id) }
 		const deleted = await ctx.client.request("DELETE", fillPath(deleteOp.path, params), {
-			headers: ctx.auth(),
+			as: { principal: ctx.actor.id },
 		})
 		if (standDownForFeatureGate(ctx, deleteOp, deleted, this.id))
 			return standDown("a documented feature gate refused the request")

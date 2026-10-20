@@ -103,9 +103,9 @@ export function notesModel(paging: Paging = "none", extra: Record<string, unknow
 	return modelOf(notesDoc(paging, extra))
 }
 
-/** A principal by name, sending `Bearer <name>`. */
+/** A principal by name: a record it owns is removed as it. */
 export function owner(id: string): Owner {
-	return { headers: () => ({ authorization: `Bearer ${id}` }), id }
+	return { id }
 }
 
 /** Where a disposable record was made and who made it. */
@@ -118,10 +118,13 @@ export function disposable(entity: string, id: string, { scope = {}, by = "alpha
 	return { entity, id, owner: owner(by), scope }
 }
 
-/** The bearer of a request, as the fake client records it. */
-export function bearerOf(options: RequestOptions): string {
-	const headers = typeof options.headers === "function" ? options.headers() : (options.headers ?? {})
-	return (headers.authorization ?? "").replace("Bearer ", "")
+/**
+ * Who a request acts as, as the fake client hands it on: the principal, or "" for anyone else. The
+ * API keys its tenants by principal, the way a real one keys them by the credential that principal sends.
+ */
+export function actorOf(options: object): string {
+	const as = "as" in options ? options.as : undefined
+	return typeof as === "object" && as !== null && "principal" in as ? String(as.principal) : ""
 }
 
 /** What the API holds, per tenant: note ids, and comment ids by note. */
@@ -130,7 +133,7 @@ export interface Store {
 	/** A page of the list holds at most this many rows. */
 	pageSize: number
 	/** Answers that replace the API's own, by `METHOD /path`, each a fixed answer or one computed. */
-	answers: Record<string, Answer | ((options: RequestOptions) => Answer)>
+	answers: Record<string, Answer | ((options: Omit<RequestOptions, "as">) => Answer)>
 }
 
 export function store(notes: Record<string, string[]> = {}, fields: Partial<Store> = {}): Store {
@@ -142,7 +145,7 @@ export function notesApi(held: Store): Responder {
 	return (method, path, options) => {
 		const fixed = held.answers[`${method} ${path}`]
 		if (fixed !== undefined) return typeof fixed === "function" ? fixed(options) : fixed
-		const who = bearerOf(options)
+		const who = actorOf(options)
 		if (method === "GET" && path === "/notes")
 			return listPage(held.notes.get(who) ?? [], held.pageSize, options.query ?? {})
 		const id = /^\/notes\/([^/]+)$/.exec(path)?.[1]

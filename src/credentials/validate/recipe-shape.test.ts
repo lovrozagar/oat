@@ -86,6 +86,9 @@ describe("static", () => {
 		expect(problems({ header: { static: { password: "p", username: "u" } } }, every)).toEqual([
 			"security.header.static must be a string for an apiKey scheme",
 		])
+		expect(problems({ jwt: { static: { password: "p", username: "u" } } })).toEqual([
+			"security.jwt.static must be a string for a bearer scheme",
+		])
 	})
 })
 

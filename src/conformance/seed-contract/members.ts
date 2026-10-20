@@ -5,6 +5,7 @@
 
 import type { Handle } from "../../reference/http/node.ts"
 import type { OpenApiDocument } from "../../spec/types.ts"
+import { bearerSecurity } from "../harness/security.ts"
 import { answer, guarded, readJson } from "../harness/serve.ts"
 
 const MEMBER = {
@@ -119,6 +120,7 @@ export function memberSpec(): OpenApiDocument {
 			},
 			...grantPaths(),
 		},
+		...bearerSecurity(),
 	} as OpenApiDocument
 }
 

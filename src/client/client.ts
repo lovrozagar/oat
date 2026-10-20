@@ -4,8 +4,8 @@ import type { Redactor } from "../security/redact.ts"
 import type { Exchange } from "../runtime/exchange.ts"
 import { belowBase } from "./curl.ts"
 import { Journal } from "./journal.ts"
-import { afterUnauthorized, type Refresh, refreshing } from "./refresh.ts"
-import type { Prepared, Wire } from "./attempt.ts"
+import { afterUnauthorized } from "./refresh.ts"
+import type { Wire } from "./attempt.ts"
 import { prepare, sendAttempt } from "./request.ts"
 import { DEFAULT_DEADLINE_MS, resilient, untilAnswered } from "./retry.ts"
 import { Slots } from "./slots.ts"
@@ -15,7 +15,7 @@ const SAFE_METHODS: ReadonlySet<string> = /* @__PURE__ */ new Set(["GET", "HEAD"
 
 /** A client that can only read: what a check that does not mutate receives. */
 export interface ReadClient extends Omit<Client, "request" | "view"> {
-	request(method: SafeMethod, path: string, options?: RequestOptions): Promise<Exchange>
+	request(method: SafeMethod, path: string, options: RequestOptions): Promise<Exchange>
 	view(context: ExchangeContext): ReadClient
 }
 
@@ -44,6 +44,7 @@ export class Client {
 			nextSeq: () => ++this.seq,
 			operationResolver: options.operationResolver,
 			rateLimiter: options.rateLimiter,
+			redactor: options.redactor,
 			relativePath: (url) => this.relativePath(url),
 			resolveHeaders: options.resolveHeaders,
 			slots: new Slots(options.maxInFlight ?? 4),
@@ -91,7 +92,7 @@ export class Client {
 	 * an exchange names the check that issued it even while checks run concurrently.
 	 */
 	view(context: ExchangeContext, readOnly = false): Client {
-		const request = (method: string, path: string, options: RequestOptions = {}): Promise<Exchange> => {
+		const request = (method: string, path: string, options: RequestOptions): Promise<Exchange> => {
 			/* The type already forbids it; this catches a cast or an untyped caller. */
 			if (readOnly && !SAFE_METHODS.has(method.toUpperCase())) {
 				return Promise.reject(
@@ -106,7 +107,7 @@ export class Client {
 				if (property === "request") return request
 				/* Through the receiver, so a proxy wrapped around this view still sees the request. */
 				if (property === "get") {
-					return (path: string, options: RequestOptions = {}) => (receiver as Client).request("GET", path, options)
+					return (path: string, options: RequestOptions) => (receiver as Client).request("GET", path, options)
 				}
 				if (property === "view") return view
 				return Reflect.get(target, property, receiver)
@@ -119,7 +120,8 @@ export class Client {
 		return this.view(context, true)
 	}
 
-	async request(method: string, path: string, options: RequestOptions = {}): Promise<Exchange> {
+	/** Sends one request as `options.as`, renewing its credential once after a 401 and asking once more. */
+	async request(method: string, path: string, options: RequestOptions): Promise<Exchange> {
 		if (method.toUpperCase() !== "GET" && method.toUpperCase() !== "HEAD") this.writes += 1
 		const request = prepare(this.wire, method, path, options)
 		const { network, rateLimiter } = this.options
@@ -127,10 +129,8 @@ export class Client {
 		const policy = { deadline, headers: request.callerHeaders, method: request.method, network }
 		const send = (): Promise<Exchange> => resilient((attempt) => sendAttempt(request, attempt, this.wire), policy)
 		const supersede = (exchange: Exchange): void => this.journal.supersede(exchange)
-		const refresh = this.refreshFor(request)
 		const reauthorized = (exchange: Exchange): Promise<Exchange> =>
-			afterUnauthorized(exchange, { refresh, send, supersede })
-		if (refresh !== undefined) await refresh(false)
+			afterUnauthorized(exchange, { renew: request.credential.renew, send, supersede })
 		const exchange = await untilAnswered(await reauthorized(await send()), {
 			again: (previous) => {
 				supersede(previous)
@@ -148,7 +148,7 @@ export class Client {
 		return exchange
 	}
 
-	get(path: string, options: RequestOptions = {}): Promise<Exchange> {
+	get(path: string, options: RequestOptions): Promise<Exchange> {
 		return this.request("GET", path, options)
 	}
 
@@ -160,13 +160,5 @@ export class Client {
 	/** Removes the bodies moved to disk. The client is not used after this. */
 	async dispose(): Promise<void> {
 		await this.journal.dispose()
-	}
-
-	/* The countdown refresh this request runs: the caller's, or its bound credential's. */
-	private refreshFor(request: Prepared): Refresh | undefined {
-		if (request.options.skipAuthRefresh === true) return undefined
-		const refresh = request.options.refreshIfStale ?? request.credential(request.callerHeaders())?.refreshIfStale
-		if (refresh === undefined) return undefined
-		return refreshing(refresh, () => this.options.credentials?.principalOf(request.callerHeaders()))
 	}
 }

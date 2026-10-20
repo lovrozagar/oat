@@ -9,12 +9,12 @@ export async function selfIdentity(ctx: RunContext, entity: EntityModel): Promis
 	const { principals, client, findings, model, nonce, seed, hooks } = ctx
 	startedTest(ctx, entity, SELF_CHECK_ID)
 	const outcome = await runSelfIdentity({
-		auth: principals.alpha.headers,
 		client,
 		entity,
 		findings,
 		model,
 		nonce,
+		principal: principals.alpha.id,
 		...(hooks.resolveInput === undefined ? {} : { resolveInput: hooks.resolveInput }),
 		seed,
 	})

@@ -1,4 +1,4 @@
-import type { RequestOptions } from "../../../../../client/types.ts"
+import type { CredentialStore } from "../../../../../credentials/store-types.ts"
 import { type Answer, contextFor, modelOf, type Responder } from "../../../__fixtures__/harness.ts"
 import type { CheckContext } from "../../../core/context.ts"
 import type { OpenApiDocument } from "../../../../../spec/types.ts"
@@ -6,8 +6,8 @@ import { actor } from "./context.ts"
 
 /*
  * Notes an owner shares by invite: invite, accept and revoke operations around a readable note,
- * and a backend that keeps the grant's state. Options shape the document; switches on the backend
- * reproduce the defects the check exists for.
+ * every one behind a bearer token, and a backend that keeps the grant's state. Options shape the
+ * document; switches on the backend reproduce the defects the check exists for.
  */
 
 export interface InviteDocOptions {
@@ -86,7 +86,13 @@ export function inviteDocument(options: InviteDocOptions = {}): OpenApiDocument 
 		}
 		if (Object.keys(operations).length === 0) delete paths[path]
 	}
-	return { info: { title: "invites", version: "1" }, openapi: "3.1.0", paths } as OpenApiDocument
+	return {
+		components: { securitySchemes: { bearer: { scheme: "bearer", type: "http" } } },
+		info: { title: "invites", version: "1" },
+		openapi: "3.1.0",
+		paths,
+		security: [{ bearer: [] }],
+	} as OpenApiDocument
 }
 
 export interface InviteBackendOptions {
@@ -110,7 +116,7 @@ export interface InviteBackendOptions {
 export const GATED: Answer = { body: { vars: { feature: "sharing", type: "feature_gate" } }, status: 403 }
 
 /** The backend, and who it lets read: the owner always, the delegate as the grant allows. */
-export function inviteBackend(options: InviteBackendOptions = {}) {
+export function inviteBackend(options: InviteBackendOptions = {}): Responder {
 	const state = { accepted: false, invited: false, revoked: false }
 	const delegateMayRead = (): boolean => {
 		if (options.alreadyShared === true) return true
@@ -131,13 +137,32 @@ export function inviteBackend(options: InviteBackendOptions = {}) {
 		state.revoked = true
 		return { status: 204 }
 	}
-	return (method: string, path: string, _options: RequestOptions): Answer =>
-		options.override?.[`${method} ${path}`] ?? step(method, path)
+	return (method, path) => options.override?.[`${method} ${path}`] ?? step(method, path)
 }
 
 /** The owner in org o1; the delegate, invited as bob, in org o2. */
-export const owner = actor("owner", { rank: 1, roots: { org_id: "o1" } })
-export const delegate = actor("delegate", { rank: 1, roots: { org_id: "o2" }, inviteAs: "bob" })
+export const owner = actor("owner", { rank: 1, scope: { org_id: "o1" }, tenant: "o1" })
+export const delegate = actor("delegate", { inviteAs: "bob", rank: 1, scope: { org_id: "o2" }, tenant: "o2" })
+
+/** The run's credentials as the check sees them, recording every value adopted. */
+export function credentialsOf(): {
+	credentials: Pick<CredentialStore, "adopt">
+	adopted: Array<{ principal: string; scheme: string; value: string }>
+} {
+	const adopted: Array<{ principal: string; scheme: string; value: string }> = []
+	const credentials: Pick<CredentialStore, "adopt"> = {
+		adopt: async (input) => {
+			adopted.push(input)
+			return {
+				expiresAt: null,
+				secrets: { cookies: [], headers: [], query: [], values: [] },
+				sends: { cookies: {}, headers: { authorization: `Bearer ${input.value}` }, query: {} },
+				value: input.value,
+			}
+		},
+	}
+	return { adopted, credentials }
+}
 
 /** A context on note n1 with the invite tag the document declares, as the owner. */
 export function inviteContext(doc: OpenApiDocument, respond: Responder, fields: Partial<CheckContext> = {}) {
@@ -146,8 +171,8 @@ export function inviteContext(doc: OpenApiDocument, respond: Responder, fields: 
 	return contextFor(model, "listNotes", {
 		respond,
 		fields: {
+			actor: owner,
 			actors: [owner, delegate],
-			auth: owner.headers,
 			invite: invites?.invite ?? null,
 			readOp: model.byOperationId.get("readNote"),
 			records: [{ id: "n1", title: "first" }],

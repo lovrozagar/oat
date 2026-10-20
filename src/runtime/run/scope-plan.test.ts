@@ -10,7 +10,12 @@ import type { RunOptions } from "./types.ts"
  * operation no document has, or an origin nobody configured, is refused before a request.
  */
 
-const OTHER = { baseUrl: "http://other.test", id: "other", spec: "http://other.test/openapi.json" }
+const OTHER = {
+	baseUrl: "http://other.test",
+	id: "other",
+	security: { bearer: "bearer" },
+	spec: "http://other.test/openapi.json",
+}
 
 /** Notes, plus a tag collection: two entities to target. */
 const twoEntities = notesDoc({

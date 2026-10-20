@@ -1,45 +1,16 @@
-import type { PrincipalSpec } from "../../runtime/run/index.ts"
+import type { PrincipalsConfig, SecurityConfig } from "../../config/types/security.ts"
 
-export const PRINCIPALS: PrincipalSpec[] = [
-	{
-		auth: {
-			credentialFrom: "$.access_token",
-			steps: [{ body: { key: "key_alpha" }, operationId: "auth.token" }],
-		},
-		id: "alpha",
-		rank: 2,
-		role: "owner",
-		roots: { project_id: "proj_alpha" },
+/** The reference's bearer token: what `auth.token` issues for the principal's key. */
+export const SECURITY: SecurityConfig = {
+	bearer: {
+		login: { from: "$.access_token", steps: [{ body: { key: "{principal.key}" }, operationId: "auth.token" }] },
 	},
-	{
-		auth: {
-			credentialFrom: "$.access_token",
-			steps: [{ body: { key: "key_beta" }, operationId: "auth.token" }],
-		},
-		id: "beta",
-		inviteAs: "key_beta",
-		rank: 2,
-		role: "owner",
-		roots: { project_id: "proj_beta" },
-	},
-	{
-		auth: {
-			credentialFrom: "$.access_token",
-			steps: [{ body: { key: "key_alpha_member" }, operationId: "auth.token" }],
-		},
-		id: "alpha_member",
-		rank: 1,
-		role: "member",
-		roots: { project_id: "proj_alpha" },
-	},
-	{
-		auth: {
-			credentialFrom: "$.access_token",
-			steps: [{ body: { key: "key_alpha_viewer" }, operationId: "auth.token" }],
-		},
-		id: "alpha_viewer",
-		rank: 0,
-		role: "viewer",
-		roots: { project_id: "proj_alpha" },
-	},
-]
+}
+
+/** Two tenants' owners, then the first tenant's member and viewer; alpha comes first, so it acts. */
+export const PRINCIPALS: PrincipalsConfig = {
+	alpha: { key: "key_alpha", rank: 2, scope: { project_id: "proj_alpha" }, tenant: "proj_alpha" },
+	beta: { inviteAs: "key_beta", key: "key_beta", rank: 2, scope: { project_id: "proj_beta" }, tenant: "proj_beta" },
+	alpha_member: { key: "key_alpha_member", rank: 1, scope: { project_id: "proj_alpha" }, tenant: "proj_alpha" },
+	alpha_viewer: { key: "key_alpha_viewer", rank: 0, scope: { project_id: "proj_alpha" }, tenant: "proj_alpha" },
+}

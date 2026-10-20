@@ -20,12 +20,12 @@
 
 import { messageOf } from "../errors/message.ts"
 import type { DefectName } from "../reference/defects/table.ts"
-import { type PrincipalSpec, run, type RunResult } from "../runtime/run/index.ts"
+import { run, type RunResult } from "../runtime/run/index.ts"
 import { type FuzzCase, diagnose, falsePositives, type PrecisionCase } from "./fuzz/diagnose.ts"
 import { launch, listening, reach, type Target, type Via } from "./harness/launch.ts"
 import { defectsFor } from "./matrix/defects.ts"
 import type { Backend } from "./matrix/engines.ts"
-import { PRINCIPALS } from "./matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "./matrix/principals.ts"
 
 export type { FuzzCase, PrecisionCase } from "./fuzz/diagnose.ts"
 export { renderFuzz, renderPrecision } from "./fuzz/render.ts"
@@ -110,7 +110,8 @@ async function runAgainst(
 		return {
 			result: await run({
 				baseUrl: server.url,
-				principals: PRINCIPALS as PrincipalSpec[],
+				principals: PRINCIPALS,
+				security: SECURITY,
 				seed,
 				spec: `${server.url}/v1/openapi/spec`,
 				...reach(server),

@@ -44,8 +44,8 @@ export async function recordCreated(run: CohortRun, exchange: Exchange, sent: un
 		client,
 		createOp,
 		exchange,
-		headers: options.authHeaders,
 		model,
+		principal: options.principal,
 		scope: { ...options.roots, ...scope.values },
 		sent,
 		...(options.readable === undefined ? {} : { readable: options.readable }),
@@ -71,7 +71,7 @@ export async function postMember(run: CohortRun, member: CohortMember, nextUploa
 	return seeding.client.request("POST", run.path, {
 		body: encoded.body,
 		...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),
-		headers: seeding.options.authHeaders,
+		as: { principal: seeding.options.principal },
 		operationId: createOp.operationId,
 		...(nextUploads.fixture === undefined ? {} : { fixture: nextUploads.fixture.filename }),
 	})

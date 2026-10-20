@@ -28,7 +28,7 @@ function seeding(respond: Responder, table: Record<string, unknown> = {}, option
 		seeding: {
 			client: fake.client,
 			model,
-			options: { authHeaders: () => ({ authorization: "a" }), roots: { project_id: "p1" }, seed: 1, ...options },
+			options: { principal: "alpha", roots: { project_id: "p1" }, seed: 1, ...options },
 		},
 	}
 }
@@ -41,6 +41,7 @@ describe("createOne", () => {
 			record: { id: "t1", name: "x" },
 		})
 		expect(run.sent.map((request) => `${request.method} ${request.path}`)).toEqual(["POST /projects/p1/tables"])
+		expect(run.sent[0]?.options.as).toEqual({ principal: "alpha" })
 		/* Scaffolding carries the nonce in every string. */
 		const named = seeding(() => ({ body: { id: "t1" }, status: 201 }), {}, { nonce: "n0", readable: () => true })
 		await createOne(named.createOp, named.seeding, scope)
@@ -128,7 +129,7 @@ describe("createOne, refused", () => {
 		const unidentified: string[] = []
 		const { client } = fakeClient(() => ({ body: { ok: true }, status: 200 }))
 		const options = {
-			authHeaders: () => ({}),
+			principal: "alpha",
 			onUnidentified: (entity: string) => unidentified.push(entity),
 			roots: {},
 			seed: 1,

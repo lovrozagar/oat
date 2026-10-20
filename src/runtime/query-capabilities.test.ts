@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { Client } from "../client/client.ts"
+import type { RequestOptions } from "../client/types.ts"
 import { capabilitiesFromTag, resolveEntityCapabilities } from "./query-capabilities.ts"
 import type { OperationModel, SpecModel } from "../spec/graph/types.ts"
 import { emptyCapabilities } from "../spec/query/merge.ts"
@@ -93,9 +94,13 @@ function modelWith(ops: Array<{ id: string; method: string; path: string }>): Sp
 	return { byOperationId, byRoute } as SpecModel
 }
 
-function clientWith(body: unknown): Client {
+/** A client answering every request with `body`, keeping the options each was sent with. */
+function clientWith(body: unknown, sent: RequestOptions[] = []): Client {
 	return {
-		request: async () => ({ responseBody: body }),
+		request: async (_method: string, _path: string, options: RequestOptions) => {
+			sent.push(options)
+			return { responseBody: body }
+		},
 	} as unknown as Client
 }
 
@@ -106,7 +111,7 @@ describe("live harvest and hook", () => {
 
 	it("resolves without harvest when no *From is declared", async () => {
 		const caps = await resolveEntityCapabilities({
-			auth: () => ({}),
+			principal: "alpha",
 			client: clientWith({}),
 			entityName: "row",
 			hook: async () => null,
@@ -141,10 +146,11 @@ describe("live harvest and hook", () => {
 })
 
 describe("live harvest of type paths", () => {
-	it("maps a typePath that mixes strings and junk", async () => {
+	it("maps a typePath that mixes strings and junk, harvested as the principal", async () => {
+		const sent: RequestOptions[] = []
 		const caps = await resolveEntityCapabilities({
-			auth: () => ({}),
-			client: clientWith({ names: ["id", "n"], types: ["text", 1] }),
+			principal: "alpha",
+			client: clientWith({ names: ["id", "n"], types: ["text", 1] }, sent),
 			entityName: "row",
 			model: modelWith([{ id: "table.get", method: "GET", path: "/v1/tables/{id}" }]),
 			scope: { id: "t1" },
@@ -166,6 +172,7 @@ describe("live harvest of type paths", () => {
 			},
 		})
 		expect(caps.filterable).toEqual([{ field: "id", type: "string" }, { field: "n" }])
+		expect(sent).toEqual([{ as: { principal: "alpha" }, operationId: "table.get" }])
 	})
 })
 
@@ -178,7 +185,7 @@ describe("live harvest across every axis", () => {
 			],
 		}
 		const caps = await resolveEntityCapabilities({
-			auth: () => ({}),
+			principal: "alpha",
 			client: clientWith(body),
 			entity: {
 				filterableFrom: {
@@ -225,7 +232,7 @@ describe("live harvest across every axis", () => {
 describe("live harvest by route", () => {
 	it("resolves harvest by route and skips a harvest with no target", async () => {
 		const caps = await resolveEntityCapabilities({
-			auth: () => ({}),
+			principal: "alpha",
 			client: clientWith({ columns: [{ name: "n" }] }),
 			entityName: "row",
 			model: modelWith([{ id: "meta", method: "GET", path: "/v1/meta" }]),
@@ -253,7 +260,7 @@ describe("live harvest failures and route ids", () => {
 	it("throws when harvest names an unknown operation", async () => {
 		await expect(
 			resolveEntityCapabilities({
-				auth: () => ({}),
+				principal: "alpha",
 				client: clientWith({}),
 				entityName: "row",
 				model: modelWith([]),
@@ -270,7 +277,7 @@ describe("live harvest failures and route ids", () => {
 		).rejects.toThrow(/missing.get/)
 		await expect(
 			resolveEntityCapabilities({
-				auth: () => ({}),
+				principal: "alpha",
 				client: clientWith({}),
 				entityName: "row",
 				model: modelWith([]),
@@ -289,7 +296,7 @@ describe("live harvest failures and route ids", () => {
 
 	it("harvests without a typePath and accepts GET /path operation ids", async () => {
 		const caps = await resolveEntityCapabilities({
-			auth: () => ({}),
+			principal: "alpha",
 			client: clientWith({ names: ["a", 1] }),
 			entityName: "row",
 			model: modelWith([{ id: "meta", method: "GET", path: "/v1/meta" }]),

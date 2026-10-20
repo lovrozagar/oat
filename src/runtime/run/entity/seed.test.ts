@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import type { OpenApiDocument } from "../../../spec/types.ts"
 import type { Responder } from "../../checks/__fixtures__/harness.ts"
 import type { Record_ } from "../../world/records.ts"
-import { contextOf, entityRunOf, notesApi, notesDoc, optionsFor } from "../__fixtures__/api.ts"
+import { contextOf, entityRunOf, notesApi, notesDoc, optionsFor, secured } from "../__fixtures__/api.ts"
 import type { RunOptions } from "../types.ts"
 import { seedWorld } from "./seed.ts"
 
@@ -25,7 +25,7 @@ const boardId = { in: "path", name: "board_id", required: true, schema: { type: 
 
 /** Boards oat can make (or not), and cards listed under a board, with no create of their own. */
 function boardsDoc(boardsCreate: boolean): OpenApiDocument {
-	return {
+	return secured({
 		info: { title: "boards", version: "1" },
 		openapi: "3.1.0",
 		paths: {
@@ -52,7 +52,7 @@ function boardsDoc(boardsCreate: boolean): OpenApiDocument {
 				},
 			},
 		},
-	} as unknown as OpenApiDocument
+	}) as unknown as OpenApiDocument
 }
 
 /** Boards made on request as b1, b2, …; cards c1 under any board. */
@@ -139,7 +139,9 @@ describe("seedWorld for an entity read as listed", () => {
 	})
 
 	it("needs no parent when the roots name it, or for an invite-only entity", async () => {
-		const given = await runFor(boardsApi(boardsDoc(true)), "card", { roots: { board_id: "given" } })
+		const given = await runFor(boardsApi(boardsDoc(true)), "card", {
+			principals: { alpha: { scope: { board_id: "given" } } },
+		})
 		expect(await seedWorld(given.run, SEEDS)).toMatchObject({ scope: { values: { board_id: "given" } } })
 		const invited = await runFor(boardsApi(boardsDoc(true)), "card")
 		expect(await seedWorld(invited.run, { ...SEEDS, inviteOnly: true })).toMatchObject({ records: [] })

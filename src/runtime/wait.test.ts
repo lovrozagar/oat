@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import type { SideEffectRequest } from "../config/types/hooks.ts"
 import { type Answer, json, transport } from "../client/__fixtures__/transport.ts"
 import { Client } from "../client/client.ts"
+import { fixedSource, sendingHeaders } from "../client/__fixtures__/source.ts"
 import { Redactor } from "../security/redact.ts"
 import type { WaitSpec } from "../spec/extensions/async.ts"
 import type { OperationModel } from "../spec/graph/types.ts"
@@ -25,15 +26,17 @@ const answers =
 
 function wait(answer: Answer, more: Partial<Omit<WaitDrive, "spec">> & { spec?: Partial<WaitSpec> } = {}) {
 	const wire = transport(answer)
+	const source = fixedSource(sendingHeaders({ authorization: "Bearer t" }))
 	const client = new Client({
 		baseUrl: "http://api.test",
+		credentials: source,
 		network: { fetchImpl: wire.fetch },
 		redactor: new Redactor(),
 	})
 	const { spec, ...rest } = more
 	const outcome = driveWait({
 		client,
-		headers: () => ({}),
+		principal: "alpha",
 		pollOp: POLL,
 		record: { id: "r1" },
 		scope: { user: "u1" },
@@ -41,7 +44,7 @@ function wait(answer: Answer, more: Partial<Omit<WaitDrive, "spec">> & { spec?: 
 		writeOpId: "row.create",
 		...rest,
 	})
-	return { outcome, sent: wire.sent }
+	return { outcome, sent: wire.sent, source }
 }
 
 /* An answer that arrives after a 5ms wait has run out. */
@@ -97,14 +100,12 @@ describe("driveWait, with until or a hook", () => {
 		expect(await missed.outcome).toMatchObject({ matched: undefined, timedOut: true })
 	})
 
-	it("refreshes a stale credential before every poll", async () => {
-		let refreshed = 0
-		const refreshIfStale = (): Promise<void> => {
-			refreshed += 1
-			return Promise.resolve()
-		}
-		const { outcome } = wait(answers([200, [1]]), { refreshIfStale })
+	it("polls the operation as the principal, its credential resolved for every poll", async () => {
+		const { outcome, sent, source } = wait(answers([200, [1]]))
 		await outcome
-		expect(refreshed).toBeGreaterThanOrEqual(1)
+		expect(source.asked).toEqual([
+			{ actor: { principal: "alpha" }, operationId: "inbox.list", probe: false, route: "GET /inbox/u1" },
+		])
+		expect(sent[0]?.headers.authorization).toBe("Bearer t")
 	})
 })

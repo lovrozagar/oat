@@ -111,12 +111,9 @@ describe("polling hooks", () => {
 		expect(awaitSideEffect).toHaveBeenCalledWith({ attempt: 1, operationId: "sendNote", record: { items: [] } })
 	})
 
-	it("refreshes a stale credential while it polls", async () => {
-		const refreshIfStale = vi.fn<NonNullable<CheckContext["refreshIfStale"]>>(async () => undefined)
-		await waited(routes({ "GET /inbox": () => delivered, "POST /notes": () => ({ status: 201 }) }), [sendNote], {
-			refreshIfStale,
-		})
-		expect(refreshIfStale).toHaveBeenCalled()
+	it("writes and polls as the actor, whose credential the client places and renews", async () => {
+		const run = await waited(routes({ "GET /inbox": () => delivered, "POST /notes": () => ({ status: 201 }) }))
+		expect(run.sent.map((sent) => sent.options.as)).toEqual([{ principal: "alpha" }, { principal: "alpha" }])
 	})
 })
 

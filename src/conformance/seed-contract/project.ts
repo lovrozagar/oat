@@ -2,6 +2,7 @@
 
 import type { Handle } from "../../reference/http/node.ts"
 import type { OpenApiDocument } from "../../spec/types.ts"
+import { bearerSecurity } from "../harness/security.ts"
 import { answer, guarded, readJson } from "../harness/serve.ts"
 
 const PROJECT = {
@@ -82,6 +83,7 @@ export function projectSpec(): OpenApiDocument {
 			},
 			"/v1/projects/{project_id}/extract": extract(),
 		},
+		...bearerSecurity(),
 	} as OpenApiDocument
 }
 

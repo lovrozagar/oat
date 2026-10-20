@@ -1,4 +1,4 @@
-import type { Principal } from "../../../config/types/principals.ts"
+import type { SecurityConfig } from "../../../config/types/security.ts"
 import type { OpenApiDocument } from "../../../spec/types.ts"
 import type { RequestOptions } from "../../../client/types.ts"
 import { NetworkError } from "../../../errors/network.ts"
@@ -8,7 +8,7 @@ import { connect } from "../client-setup.ts"
 import type { Connected, Loaded, Planned, RunContext } from "../context.ts"
 import { createExclusion } from "../exclusion.ts"
 import { load } from "../load.ts"
-import { adoptPrincipals, resolvePrincipals } from "../principals.ts"
+import { resolvePrincipals } from "../principals.ts"
 import { planScope } from "../scope-plan.ts"
 import type { RunOptions } from "../types.ts"
 import type { EntityRun } from "../entity/state.ts"
@@ -44,7 +44,7 @@ export function transport(respond: Responder): { fetch: typeof fetch; seen: Seen
 		const query = Object.fromEntries(url.searchParams.entries())
 		const method = init?.method ?? "GET"
 		seen.push({ body, headers, host: url.host, method, path: url.pathname, query })
-		const options: RequestOptions = { body, headers, query }
+		const options: Omit<RequestOptions, "as"> = { body, headers, query }
 		const answer = respond(method, url.pathname, options) ?? { status: 404 }
 		return responseOf(answer)
 	}
@@ -85,9 +85,19 @@ const problem = { properties: { error: { type: "string" } }, type: "object" }
 const refusals = { "404": { description: "no such note" }, "422": { description: "invalid note", ...json(problem) } }
 const itemParam = { in: "path", name: "note_id", required: true, schema: { type: "string" } }
 
-/** The notes document: a list, create, read, update and delete of notes. */
-export function notesDoc(extra: Record<string, unknown> = {}): OpenApiDocument {
+/** `doc` with every operation behind the bearer token the default options send, as the notes document is. */
+export function secured<T extends object>(doc: T): T {
+	/* Made fresh each time: a test that edits a document's schemes edits its own. */
 	return {
+		...doc,
+		components: { securitySchemes: { bearer: { scheme: "bearer", type: "http" } } },
+		security: [{ bearer: [] }],
+	}
+}
+
+/** The notes document: a list, create, read, update and delete of notes, each behind a bearer token. */
+export function notesDoc(extra: Record<string, unknown> = {}): OpenApiDocument {
+	return secured({
 		info: { title: "notes", version: "1" },
 		openapi: "3.1.0",
 		paths: {
@@ -122,7 +132,7 @@ export function notesDoc(extra: Record<string, unknown> = {}): OpenApiDocument {
 			},
 			...extra,
 		},
-	} as unknown as OpenApiDocument
+	}) as unknown as OpenApiDocument
 }
 
 /** A correct notes backend over `rows`, serving `doc` as its document. */
@@ -161,7 +171,11 @@ function valid(body: unknown, create: boolean): boolean {
 	return typeof title === "string" && title.length <= 40
 }
 
-export const ALPHA: Principal = { headers: { authorization: "Bearer alpha-key" }, id: "alpha" }
+/** The key every notes request carries by default: alpha's static bearer token. */
+export const ALPHA_KEY = "alpha-key"
+
+/** The bearer scheme's credential as a static key. */
+export const STATIC: SecurityConfig = { bearer: { static: ALPHA_KEY } }
 
 export const loginDoc = notesDoc({
 	"/login": { post: { operationId: "auth.login", responses: { "200": { description: "ok" } }, security: [] } },
@@ -178,18 +192,53 @@ export function withLogin(state = { failing: false, issued: 0 }): Responder {
 	}
 }
 
-export const flow: Principal = {
-	auth: {
-		credentialFrom: "$.token",
-		expiresInFrom: "$.expires_in",
-		refreshBufferMs: 30_000,
-		steps: [{ operationId: "auth.login", saveAs: { email: "$.email", tenant: "$.tenant" } } as never],
+const signupBody = {
+	properties: {
+		email: { format: "email", type: "string" },
+		password: { minLength: 8, type: "string" },
+		tenant: { type: "string" },
 	},
-	headers: { "x-client": "oat" },
-	id: "flow",
-	roots: { org_id: "o1" },
-	rootsFromFlow: { tenant_id: "tenant", unknown_id: "missing" },
+	required: ["email", "password", "tenant"],
+	type: "object",
 }
+
+/** The notes document with a login, and a signup it marks `x-fresh-principal`. */
+export const signupDoc = notesDoc({
+	"/login": { post: { operationId: "auth.login", responses: { "200": { description: "ok" } }, security: [] } },
+	"/signup": {
+		post: {
+			operationId: "auth.signup",
+			requestBody: { required: true, ...json(signupBody) },
+			responses: { "201": { description: "made" } },
+			security: [],
+			"x-fresh-principal": true,
+		},
+	},
+})
+
+/**
+ * The notes API behind `signupDoc`: a signup answers what `signup` makes of the body it was sent,
+ * and a login answers `login-<email>`.
+ */
+export function withSignup(signup: (body: Record<string, unknown>) => Answer): Responder {
+	const notes = notesApi(signupDoc)
+	return (method, path, request) => {
+		const body = (request.body ?? {}) as Record<string, unknown>
+		if (path === "/signup") return signup(body)
+		if (path === "/login") return { body: { access_token: `login-${String(body.email)}` }, status: 200 }
+		return notes(method, path, request)
+	}
+}
+
+/** The bearer scheme's credential from a login as the principal's email, read where a signup puts it too. */
+export const EMAIL_LOGIN: SecurityConfig = {
+	bearer: {
+		login: { from: "$.access_token", steps: [{ body: { email: "{principal.email}" }, operationId: "auth.login" }] },
+	},
+}
+
+/** The bearer scheme's credential from `withLogin`'s login, which lasts as long as the run. */
+export const LOGIN: SecurityConfig = { bearer: { login: { from: "$.token", steps: [{ operationId: "auth.login" }] } } }
 
 /** Run options against `respond` through the fake transport: no retries, no waiting. */
 export function optionsFor(respond: Responder, extra: Partial<RunOptions> = {}): RunOptions & { seen: Seen[] } {
@@ -197,12 +246,27 @@ export function optionsFor(respond: Responder, extra: Partial<RunOptions> = {}):
 	return {
 		baseUrl: BASE,
 		nonce: "n0nce",
-		principals: [ALPHA],
+		principals: { alpha: {} },
+		security: STATIC,
 		spec: SPEC,
 		...extra,
 		network: { fetch, retries: 0, waitMs: 0, ...extra.network },
 		seen,
 	}
+}
+
+/** `options`, with `doc` served at `url`: a secondary origin with a document of its own. */
+export function servingAt<T extends RunOptions>(options: T, url: string, doc: OpenApiDocument): T {
+	const serve = fetchOf(options)
+	const fetch: typeof globalThis.fetch = (input, init) =>
+		String(input) === url ? Promise.resolve(Response.json(doc)) : serve(input, init)
+	return { ...options, network: { ...options.network, fetch } }
+}
+
+/** The notes document with no security at all: what an origin with nothing to map serves. */
+export function openDoc(): OpenApiDocument {
+	const { components: _schemes, security: _security, ...open } = notesDoc() as unknown as Record<string, unknown>
+	return open as unknown as OpenApiDocument
 }
 
 /** The run, loaded. */
@@ -223,9 +287,9 @@ export async function planned(options: RunOptions): Promise<Planned> {
 /** The run, ready for the stages after authentication. */
 export async function contextOf(options: RunOptions): Promise<RunContext> {
 	const plan = await planned(options)
-	const resolved = await resolvePrincipals(plan)
-	if (resolved === null) throw new Error("the test principals could not be resolved")
-	const authed = adoptPrincipals(plan, resolved)
+	const principals = await resolvePrincipals(plan)
+	if (principals === null) throw new Error("the test principals could not be resolved")
+	const authed = { ...plan, principals }
 	return { ...authed, exclusion: createExclusion(authed), targetVersion: undefined }
 }
 

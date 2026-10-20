@@ -73,7 +73,7 @@ export const declaredInvalidationHappens = defineCheck<{
 			)
 		}
 
-		const { exchange: created } = await createFresh(ctx, createOp, schema, ctx.auth())
+		const { exchange: created } = await createFresh(ctx, createOp, schema, ctx.actor.id)
 		if (standDownForFeatureGate(ctx, createOp, created, this.id))
 			return standDown("a documented feature gate refused the request")
 		if (created.status >= 300) {
@@ -126,7 +126,7 @@ async function snapshot(ctx: CheckContext, probe: Probe): Promise<{ text: string
 		if (read.status !== "ok" || !read.complete) return undefined
 		return { exchange: read.last.exchange, text: JSON.stringify(read.items) }
 	}
-	const exchange = await ctx.client.get(probe.path, { headers: ctx.auth() })
+	const exchange = await ctx.client.get(probe.path, { as: { principal: ctx.actor.id } })
 	return exchange.status >= 400 ? undefined : { exchange, text: JSON.stringify(exchange.responseBody) }
 }
 

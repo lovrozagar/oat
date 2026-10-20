@@ -4,17 +4,9 @@
  * recipe runs its steps through it and reads the credential out of the answer itself.
  */
 
-import type { AuthStep } from "../../config/types/steps.ts"
-import { runSteps, type StepAnswer } from "./engine.ts"
+import type { StepRunner } from "../../credentials/ports.ts"
+import { runSteps } from "./engine.ts"
 import type { StepContext } from "./request.ts"
-
-// matches credentials/ports.ts StepRunner
-export interface StepRunner {
-	run: (
-		steps: readonly AuthStep[],
-		at: { principal: string; scope: Readonly<Record<string, string>> },
-	) => Promise<{ scope: Record<string, string>; answer: StepAnswer }>
-}
 
 /** A runner over `ctx`, running each call's steps as the principal it names. */
 export function stepRunner(ctx: Omit<StepContext, "principalId">): StepRunner {

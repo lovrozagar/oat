@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest"
 import { INLINE_BODY_LIMIT } from "../runtime/exchanges/media.ts"
 import { NetworkError } from "../errors/network.ts"
 import { json, refused, transport } from "./__fixtures__/transport.ts"
+import { fixedSource, sendingHeaders } from "./__fixtures__/source.ts"
 import { BASE, wireOf } from "./__fixtures__/wire.ts"
+import type { Actor } from "./credential-source.ts"
 import { prepare, sendAttempt } from "./request.ts"
+
+const ANON: Actor = { anonymous: true }
 
 const resolver = () => ({
 	entity: "row",
@@ -19,7 +23,9 @@ describe("a failed send", () => {
 	it("is recorded as status 0 under its operation, and raised as a NetworkError", async () => {
 		const wire = transport(() => Promise.reject(refused()))
 		const ctx = wireOf(wire, { operationResolver: resolver })
-		const error = await sendAttempt(prepare(ctx, "GET", "/rows/1", {}), 2, ctx).catch((caught: unknown) => caught)
+		const error = await sendAttempt(prepare(ctx, "GET", "/rows/1", { as: ANON }), 2, ctx).catch(
+			(caught: unknown) => caught,
+		)
 		expect(error).toBeInstanceOf(NetworkError)
 		expect(error).toMatchObject({ attempts: 3, kind: "refused", method: "GET", url: `${BASE}/rows/1` })
 		const [{ exchange, entity }] = ctx.delivered as [(typeof ctx.delivered)[0]]
@@ -36,7 +42,9 @@ describe("a failed send", () => {
 		for (const thrown of [refused(), new Error("unrecognised")]) {
 			const wire = transport(() => Promise.reject(thrown))
 			const ctx = wireOf(wire, { network: { fetchImpl: wire.fetch, interfaces: offline } })
-			await expect(sendAttempt(prepare(ctx, "GET", "/rows", {}), 0, ctx)).rejects.toMatchObject({ kind: "offline" })
+			await expect(sendAttempt(prepare(ctx, "GET", "/rows", { as: ANON }), 0, ctx)).rejects.toMatchObject({
+				kind: "offline",
+			})
 		}
 	})
 
@@ -44,7 +52,7 @@ describe("a failed send", () => {
 		const bug = new Error("unrecognised")
 		const wire = transport(() => Promise.reject(bug))
 		const ctx = wireOf(wire, { network: { fetchImpl: wire.fetch, interfaces: online } })
-		await expect(sendAttempt(prepare(ctx, "GET", "/rows", {}), 0, ctx)).rejects.toBe(bug)
+		await expect(sendAttempt(prepare(ctx, "GET", "/rows", { as: ANON }), 0, ctx)).rejects.toBe(bug)
 		expect(ctx.delivered).toEqual([])
 	})
 })
@@ -53,7 +61,7 @@ describe("an answer", () => {
 	it("records the request and the answer, frozen, under its entity", async () => {
 		const wire = transport(() => json({ id: "1" }, 200, { "x-request-id": "r-1" }))
 		const ctx = wireOf(wire, { operationResolver: resolver })
-		const exchange = await sendAttempt(prepare(ctx, "GET", "/rows/1", {}), 0, ctx)
+		const exchange = await sendAttempt(prepare(ctx, "GET", "/rows/1", { as: ANON }), 0, ctx)
 		expect(Object.isFrozen(exchange)).toBe(true)
 		expect(exchange).toMatchObject({
 			method: "GET",
@@ -69,18 +77,18 @@ describe("an answer", () => {
 		expect(exchange.responseBytes).toBeGreaterThan(0)
 		expect(ctx.delivered.map((item) => item.entity)).toEqual(["row"])
 	})
+})
 
-	it("names who sent it, why, and its fixture", async () => {
+describe("an answer's stamps", () => {
+	it("names who sent it, with which schemes, why, and its fixture", async () => {
 		const ctx = wireOf(
 			transport(() => json({})),
-			{
-				credentials: { credentialFor: () => undefined, principalOf: (headers) => headers["x-who"] },
-			},
+			{ credentials: fixedSource(sendingHeaders({ authorization: "Bearer t" })) },
 		)
 		const options = {
+			as: { principal: "alpha" },
 			context: { check: "list.reads", purpose: "assertion" as const, subject: "row" },
 			fixture: "a.png",
-			headers: { "x-who": "alpha" },
 		}
 		const exchange = await sendAttempt(prepare(ctx, "GET", "/rows", options), 0, ctx)
 		expect(exchange).toMatchObject({
@@ -88,11 +96,26 @@ describe("an answer", () => {
 			fixture: "a.png",
 			principal: "alpha",
 			purpose: "assertion",
+			schemes: ["jwt"],
 			subject: "row",
 		})
-		const plain = await sendAttempt(prepare(wireOf(transport(() => json({}))), "GET", "/rows", {}), 0, ctx)
+		expect(exchange).not.toHaveProperty("forged")
+		const forging = wireOf(
+			transport(() => json({}, 401)),
+			{ credentials: fixedSource({ kind: "forged", schemes: ["jwt"], sends: {} }) },
+		)
+		const forged = await sendAttempt(
+			prepare(forging, "GET", "/rows", { as: { forged: { scheme: "jwt", value: "f" } } }),
+			0,
+			forging,
+		)
+		expect(forged).toMatchObject({ forged: true, schemes: ["jwt"] })
+		expect(forged).not.toHaveProperty("principal")
+		const plain = await sendAttempt(prepare(wireOf(transport(() => json({}))), "GET", "/rows", { as: ANON }), 0, ctx)
 		for (const key of [
 			"principal",
+			"schemes",
+			"forged",
 			"template",
 			"operationId",
 			"fixture",
@@ -110,10 +133,14 @@ describe("an answer's bodies and travels", () => {
 	it("keeps a digest of a large body sent and received", async () => {
 		const big = "z".repeat(INLINE_BODY_LIMIT + 1)
 		const ctx = wireOf(transport(() => new Response(big, { headers: { "content-type": "text/plain" } })))
-		const exchange = await sendAttempt(prepare(ctx, "POST", "/rows", { body: big, contentType: "text/plain" }), 0, ctx)
+		const exchange = await sendAttempt(
+			prepare(ctx, "POST", "/rows", { as: ANON, body: big, contentType: "text/plain" }),
+			0,
+			ctx,
+		)
 		expect(exchange.requestDigest).toMatchObject({ bytes: INLINE_BODY_LIMIT + 1 })
 		expect(exchange.responseDigest).toMatchObject({ bytes: INLINE_BODY_LIMIT + 1 })
-		const small = await sendAttempt(prepare(ctx, "POST", "/rows", { body: "s" }), 0, ctx)
+		const small = await sendAttempt(prepare(ctx, "POST", "/rows", { as: ANON, body: "s" }), 0, ctx)
 		expect(small.requestDigest).toBeUndefined()
 	})
 
@@ -124,7 +151,7 @@ describe("an answer's bodies and travels", () => {
 				: json({}),
 		)
 		const ctx = wireOf(wire)
-		const exchange = await sendAttempt(prepare(ctx, "GET", "/a", { redirect: "follow" }), 0, ctx)
+		const exchange = await sendAttempt(prepare(ctx, "GET", "/a", { as: ANON, redirect: "follow" }), 0, ctx)
 		expect(exchange).toMatchObject({ cookies: { sid: "1" }, finalUrl: `${BASE}/b`, redirects: [{ status: 302 }] })
 	})
 })

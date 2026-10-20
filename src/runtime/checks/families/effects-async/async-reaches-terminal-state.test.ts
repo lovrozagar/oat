@@ -77,7 +77,7 @@ describe("a polled job", () => {
 		expect(run.findings.inconclusive).toEqual([])
 		expect(run.sent.map((s) => `${s.method} ${s.path}`)).toEqual(["POST /jobs", "GET /jobs/j1", "GET /jobs/j1"])
 		expect(run.sent[0]?.options.body).toMatchObject({ name: expect.any(String) })
-		expect(run.recordCreated).toHaveBeenCalledWith({ entity: "job", id: "j1", scope: {} }, undefined)
+		expect(run.recordCreated).toHaveBeenCalledWith({ entity: "job", id: "j1", scope: {} }, "alpha")
 	})
 
 	it("fails a job that never reaches a terminal state, with the start and the last polls as evidence", async () => {
@@ -95,7 +95,7 @@ describe("a polled job", () => {
 		})
 		const run = await watched(respond, [op(model, "startLoose")])
 		expect(run.findings.findings[0]?.detail).toContain('without satisfying "any terminal state"')
-		expect(run.recordCreated).toHaveBeenCalledWith({ entity: "job", id: "j1", scope: {} }, undefined)
+		expect(run.recordCreated).toHaveBeenCalledWith({ entity: "job", id: "j1", scope: {} }, "alpha")
 	})
 
 	it("fails a job the poll route stops serving", async () => {
@@ -134,10 +134,11 @@ describe("a polled job's record", () => {
 		expect(run.recordUnidentified).not.toHaveBeenCalled()
 	})
 
-	it("refreshes a stale credential before polling", async () => {
-		const refreshIfStale = vi.fn<NonNullable<CheckContext["refreshIfStale"]>>(async () => undefined)
-		await watched(started(polls(done)), [startJob], { refreshIfStale })
-		expect(refreshIfStale).toHaveBeenCalled()
+	it("starts the job as the actor, and polls as the actor continuing from the start", async () => {
+		const run = await watched(started(polls(done)))
+		const [start, poll] = run.sent.map((sent) => sent.options.as)
+		expect(start).toEqual({ principal: "alpha" })
+		expect(poll).toEqual({ principal: "alpha", via: expect.objectContaining({ method: "POST", status: 202 }) })
 	})
 })
 

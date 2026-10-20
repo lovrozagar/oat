@@ -5,6 +5,7 @@
 
 import type { Handle } from "../../reference/http/node.ts"
 import type { OpenApiDocument } from "../../spec/types.ts"
+import { bearerSecurity } from "../harness/security.ts"
 import { answer, guarded, readJson } from "../harness/serve.ts"
 
 function register(): Record<string, unknown> {
@@ -30,6 +31,7 @@ function register(): Record<string, unknown> {
 		responses: {
 			"201": { content: { "application/json": { schema: user } }, description: "created" },
 		},
+		security: [],
 		"x-entity": { action: "create", identity: "id", name: "user" },
 		"x-fresh-principal": true,
 	}
@@ -59,6 +61,7 @@ function login(): Record<string, unknown> {
 				description: "ok",
 			},
 		},
+		security: [],
 	}
 }
 
@@ -67,6 +70,7 @@ export function userSpec(): OpenApiDocument {
 		info: { title: "register-is-not-seed", version: "1" },
 		openapi: "3.1.0",
 		paths: { "/v1/auth/register": { post: register() }, "/v1/auth/login": { post: login() } },
+		...bearerSecurity(),
 	} as OpenApiDocument
 }
 

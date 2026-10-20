@@ -69,14 +69,21 @@ export function envelopeLines(model: SpecModel): string[] {
 	)
 }
 
-/** A document that secures its operations but offers no way to obtain a credential. */
+/**
+ * A document that secures its operations but offers no way to obtain a credential: the config's
+ * recipes must say how. One that declares no security leaves the anonymous probes nothing to judge.
+ */
 export function authLines(model: SpecModel): string[] {
-	if (model.hasAuthOperations || model.securitySchemes.length === 0) return []
+	if (model.securitySchemes.length === 0) {
+		return ["  auth", "    the document declares no security; add an overlay.", ""]
+	}
+	if (model.hasAuthOperations) return []
 	return [
 		"  auth",
 		`    document declares ${model.securitySchemes.map((s) => `"${s}"`).join(", ")} but contains no`,
 		"    operation for obtaining a credential. No generic client can bootstrap from",
-		"    this spec. Add the auth operations, or declare x-auth-flows at document root.",
+		"    this spec. Add a security.<scheme> recipe (login, static, mint, hook or oauth2)",
+		"    to the config for each scheme the document declares.",
 		"",
 	]
 }

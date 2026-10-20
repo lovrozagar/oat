@@ -1,7 +1,7 @@
 import { run } from "../../runtime/run/index.ts"
 import { launch, reach, type Via } from "../harness/launch.ts"
 import type { ParserResult } from "../harness/result.ts"
-import { PRINCIPALS } from "../matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../matrix/principals.ts"
 
 /** The checks a clean run against the reference runs, with its tags or without them. */
 async function checksRun(untagged: boolean, via: Via): Promise<Set<string>> {
@@ -10,6 +10,7 @@ async function checksRun(untagged: boolean, via: Via): Promise<Set<string>> {
 		const result = await run({
 			baseUrl: server.url,
 			principals: PRINCIPALS,
+			security: SECURITY,
 			seed: 42,
 			spec: `${server.url}/v1/openapi/spec`,
 			...reach(server),

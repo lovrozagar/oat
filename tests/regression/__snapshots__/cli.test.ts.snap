@@ -23,6 +23,7 @@ Flags
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
   --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
   --keep-fixtures         leave created records in place instead of tearing them down
+  --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
   --quiet                 no live progress on stderr (progress.log still written)
   --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
@@ -107,6 +108,7 @@ Flags
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
   --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
   --keep-fixtures         leave created records in place instead of tearing them down
+  --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
   --quiet                 no live progress on stderr (progress.log still written)
   --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
@@ -167,6 +169,7 @@ Flags
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
   --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
   --keep-fixtures         leave created records in place instead of tearing them down
+  --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
   --quiet                 no live progress on stderr (progress.log still written)
   --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
@@ -251,6 +254,7 @@ Flags
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
   --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
   --keep-fixtures         leave created records in place instead of tearing them down
+  --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
   --quiet                 no live progress on stderr (progress.log still written)
   --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
@@ -301,6 +305,7 @@ Flags
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
   --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
   --keep-fixtures         leave created records in place instead of tearing them down
+  --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
   --quiet                 no live progress on stderr (progress.log still written)
   --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
@@ -353,6 +358,7 @@ Flags
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
   --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
   --keep-fixtures         leave created records in place instead of tearing them down
+  --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
   --quiet                 no live progress on stderr (progress.log still written)
   --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
@@ -403,6 +409,7 @@ Flags
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
   --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
   --keep-fixtures         leave created records in place instead of tearing them down
+  --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
   --quiet                 no live progress on stderr (progress.log still written)
   --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
@@ -463,6 +470,7 @@ Flags
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
   --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
   --keep-fixtures         leave created records in place instead of tearing them down
+  --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
   --quiet                 no live progress on stderr (progress.log still written)
   --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
@@ -531,6 +539,7 @@ Flags
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
   --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
   --keep-fixtures         leave created records in place instead of tearing them down
+  --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
   --quiet                 no live progress on stderr (progress.log still written)
   --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
@@ -583,6 +592,7 @@ Flags
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
   --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
   --keep-fixtures         leave created records in place instead of tearing them down
+  --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
   --quiet                 no live progress on stderr (progress.log still written)
   --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
@@ -648,7 +658,7 @@ exports[`CLI golden > run with no principals 1`] = `
 {
   "code": 2,
   "output": "oat: <dir>/no-principals.json is not a valid config:
-  config.principals is empty
+  config.principals declares no principal
 ",
 }
 `;
@@ -678,6 +688,7 @@ Flags
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
   --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
   --keep-fixtures         leave created records in place instead of tearing them down
+  --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
   --quiet                 no live progress on stderr (progress.log still written)
   --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
@@ -730,6 +741,7 @@ Flags
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
   --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
   --keep-fixtures         leave created records in place instead of tearing them down
+  --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
   --quiet                 no live progress on stderr (progress.log still written)
   --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)
@@ -782,6 +794,7 @@ Flags
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
   --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
   --keep-fixtures         leave created records in place instead of tearing them down
+  --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
   --quiet                 no live progress on stderr (progress.log still written)
   --save-exchanges        persist every HTTP exchange under the run dir (default unless --profile cheap)

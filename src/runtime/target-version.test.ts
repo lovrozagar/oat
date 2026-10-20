@@ -27,7 +27,7 @@ function read(spec: TargetVersionSpec, respond: Responder = answers) {
 	const { client, sent } = fakeClient(respond)
 	const result = readTargetVersion({
 		client,
-		headers: () => ({ authorization: "Bearer a" }),
+		principal: "alpha",
 		model,
 		roots: { projectId: "p 1" },
 		spec,
@@ -39,12 +39,21 @@ describe("readTargetVersion", () => {
 	it("reads the operation's route, filled from the roots, as the first principal", async () => {
 		const { result, sent } = read({ from: "$.build.id", operationId: "meta.version" })
 		expect(await result).toEqual({ value: "42" })
-		expect(sent[0]?.options).toEqual({ headers: { authorization: "Bearer a" }, operationId: "meta.version" })
+		expect(sent[0]?.options).toEqual({ as: { principal: "alpha" }, operationId: "meta.version" })
 	})
 
 	it("reads a configured path, from the body or from a header in any case", async () => {
 		expect(await read({ from: "$.build", path: "/version" }).result).toEqual({ value: "b-7" })
 		expect(await read({ from: "Header: x-build ", path: "/version" }).result).toEqual({ value: "h-9" })
+	})
+
+	it("reads an undocumented path anonymously, or as the first principal under the scheme it names", async () => {
+		const open = read({ from: "$.build", path: "/version" })
+		await open.result
+		expect(open.sent[0]?.options).toEqual({ as: { anonymous: true } })
+		const keyed = read({ from: "$.build", path: "/version", scheme: "bearer" })
+		expect(await keyed.result).toEqual({ value: "b-7" })
+		expect(keyed.sent[0]?.options).toEqual({ as: { principal: "alpha", scheme: "bearer" } })
 	})
 
 	it("says why the version could not be read", async () => {
@@ -67,7 +76,7 @@ describe("readTargetVersion", () => {
 	it("reports a path id the roots lack, and a request the client refused", async () => {
 		const bare = await readTargetVersion({
 			client: fakeClient(answers).client,
-			headers: () => ({}),
+			principal: "alpha",
 			model,
 			roots: {},
 			spec: { from: "$.build", operationId: "meta.version" },
@@ -75,7 +84,7 @@ describe("readTargetVersion", () => {
 		expect(bare).toEqual({ error: "no value for path parameter {projectId}" })
 		const refused = await readTargetVersion({
 			client: { get: () => Promise.reject(new Error("blocked by the fence")) },
-			headers: () => ({}),
+			principal: "alpha",
 			model,
 			roots: {},
 			spec: { from: "$.build", path: "/version" },

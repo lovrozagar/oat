@@ -14,12 +14,6 @@ export function readRecord(op: OperationModel, exchange: Exchange): Record_ | un
 	return recordOf(op, exchange.responseBody)
 }
 
-export function sameTenantScope(a: Record<string, string>, b: Record<string, string>): boolean {
-	const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])]
-	if (keys.length === 0) return true
-	return keys.every((key) => a[key] === b[key])
-}
-
 /** A record created for one mutating check: what it holds, and the create that made it. */
 interface Scratch {
 	id: string
@@ -44,7 +38,7 @@ export async function scratchRecord(
 	if (createOp === undefined || schema === null) {
 		return { outcome: standDown("a create operation with a request body, to make a record this check may change") }
 	}
-	const { exchange, sent } = await createFresh(ctx, createOp, schema, ctx.auth())
+	const { exchange, sent } = await createFresh(ctx, createOp, schema, ctx.actor.id)
 	if (standDownForFeatureGate(ctx, createOp, exchange, check)) {
 		return { outcome: standDown("a documented feature gate refused the request") }
 	}
@@ -57,8 +51,8 @@ export async function scratchRecord(
 					client: ctx.client,
 					createOp,
 					exchange,
-					headers: ctx.auth(),
 					model: ctx.model,
+					principal: ctx.actor.id,
 					readable: (op) => op.operationId === ctx.readOp?.operationId,
 					scope: ctx.scope,
 					sent,

@@ -64,3 +64,14 @@ describe("commandDoctor", () => {
 		expect(await commandDoctor(bufferWriter(), {})).toBe(2)
 	})
 })
+
+describe("commandDoctor and the credentials config", () => {
+	it("exits 2 and names the problem when the config's credentials do not fit the document", async () => {
+		const writer = bufferWriter()
+		const code = await commandDoctor(writer, {
+			config: notesConfig(folder(), { security: { jwt: { static: "t" } } }),
+		})
+		expect(code).toBe(2)
+		expect(writer.text()).toContain("security.jwt names no scheme in the document")
+	})
+})

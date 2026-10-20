@@ -38,7 +38,6 @@ export interface OutOfBandOptions {
 	label: string
 	outOfBand?: Partial<BackoffConfig>
 	scope?: Record<string, string>
-	headers?: Record<string, string>
 	/** When the request this value answers was sent; see `OutOfBandRequest.since`. */
 	since?: number
 }
@@ -63,13 +62,11 @@ export async function resolveOutOfBandValue(
 	}
 	const backoff = resolveBackoff(options.outOfBand)
 	const scope = options.scope ?? {}
-	const headers = options.headers ?? {}
 	const value = await pollWithBackoff(
 		(attempt) =>
 			hook({
 				address,
 				attempt,
-				headers,
 				kind,
 				scope,
 				...(options.since === undefined ? {} : { since: options.since }),

@@ -42,16 +42,7 @@ function buildPaths(ctx: SpecContext, dialect: Dialect): Json {
 
 export function buildSpec(dialect: Dialect = POSTGREST, ctx: SpecContext = DEFAULT_CONTEXT): Json {
 	const paths = buildPaths(ctx, dialect)
-	const rest = {
-		security: [{ bearer: [] }],
-		"x-auth-flows": {
-			default: {
-				acquire: { credential: "$.access_token", operationId: "auth.token" },
-				expiresIn: "$.expires_in",
-				inject: { header: "authorization", template: "Bearer {credential}" },
-			},
-		},
-	}
+	const rest = { security: [{ bearer: [] }] }
 	const head = { info: { title: "oat reference backend", version: "1.0.0" }, openapi: "3.1.0" }
 	/* Key order is the layout: a document is free to define its components before its paths, and
 	 * to declare path parameters once on the path item rather than on every operation. */

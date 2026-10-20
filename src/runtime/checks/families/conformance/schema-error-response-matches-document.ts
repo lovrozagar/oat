@@ -99,7 +99,7 @@ async function probeMissingItemError(judge: ErrorJudge, readOp: OperationModel, 
 	const missing = absentId(ctx)
 	if (missing === null) return
 	const params = { ...ctx.scope, ...itemParamFor(ctx, missing) }
-	const exchange = await asProbe(ctx).client.get(fillPath(readOp.path, params), { headers: ctx.auth() })
+	const exchange = await asProbe(ctx).client.get(fillPath(readOp.path, params), { as: { principal: ctx.actor.id } })
 	if (exchange.status < 400 || !judge.validator.documents(raw, exchange.status)) return
 	const subject = {
 		drift: ctx.findings.attributed([readOp.operationId]),

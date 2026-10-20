@@ -37,6 +37,14 @@ export interface MeOptions {
 	createPath?: string
 	/** A GET action on the caller, with these query parameters. */
 	action?: string[]
+	/** `false` declares no security at all, so every operation's source is "none". */
+	security?: false
+}
+
+/* Every route needs the caller's bearer token, unless the document declares no security. */
+const SECURED = {
+	components: { securitySchemes: { bearer: { scheme: "bearer", type: "http" } } },
+	security: [{ bearer: [] }],
 }
 
 export function me(options: MeOptions = {}): OpenApiDocument {
@@ -80,7 +88,8 @@ export function me(options: MeOptions = {}): OpenApiDocument {
 			"x-entity": { action: "action", identity: "self", name: "profile" },
 		})
 	}
-	return { info: { title: "me", version: "1" }, openapi: "3.1.0", paths } as unknown as OpenApiDocument
+	const security = options.security === false ? {} : SECURED
+	return { info: { title: "me", version: "1" }, openapi: "3.1.0", paths, ...security } as unknown as OpenApiDocument
 }
 
 /** A self check's input over `document`, answered by `respond`, with what it sent and found. */
@@ -91,7 +100,7 @@ export function selfInput(respond: Responder, document: OpenApiDocument = me(), 
 	const entity = model.entities.get("profile")
 	if (entity === undefined) throw new Error("the document has no profile entity")
 	const input: SelfInput = {
-		auth: () => ({ authorization: "Bearer me" }),
+		principal: "alpha",
 		client: fake.client,
 		entity,
 		findings,

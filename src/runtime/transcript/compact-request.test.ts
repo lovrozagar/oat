@@ -20,10 +20,12 @@ describe("compactRequestBody, forms", () => {
 		expect(await compactRequestBody(form, issued)).toEqual({ note: `sent ${REDACTED}`, tag: ["a", "b", "c"] })
 		const multipart = new FormData()
 		multipart.append("password", "hunter2")
+		multipart.append("note", "sent issued-token-value")
 		multipart.append("file", new Blob(["abc"], { type: "text/plain" }), "a.txt")
-		expect(await compactRequestBody(multipart, redactor)).toEqual({
+		expect(await compactRequestBody(multipart, issued)).toEqual({
 			parts: [
 				{ field: "password", value: REDACTED },
+				{ field: "note", value: `sent ${REDACTED}` },
 				{ bytes: 3, field: "file", filename: "a.txt", mediaType: "text/plain", sha256: sha256Hex(utf8Encode("abc")) },
 			],
 		})

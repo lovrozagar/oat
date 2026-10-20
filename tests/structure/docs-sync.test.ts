@@ -150,8 +150,6 @@ const SURFACES: Readonly<Record<string, Surface>> = {
 			"OutOfBandStep",
 			"PathValueRequest",
 			"PayloadPolicy",
-			"PrincipalAuth",
-			"PrincipalAuthResult",
 			"ProfileSpec",
 			"QueryCapabilities",
 			"QueryCapabilitiesRequest",

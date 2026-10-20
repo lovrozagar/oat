@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { run } from "../../runtime/run/index.ts"
@@ -6,7 +6,7 @@ import type { RunResult } from "../../runtime/run/index.ts"
 import { notesApi, optionsFor, overriding } from "../../runtime/run/__fixtures__/api.ts"
 import { bufferWriter } from "../writer.ts"
 import { folder } from "../__fixtures__/files.ts"
-import { type Finished, printSummary, reportInput, writeReports } from "./run-report.ts"
+import { type Finished, keepCredentials, printSummary, reportInput, writeReports } from "./run-report.ts"
 
 /* A finished run, written down: every file of the run folder, and the summary on the terminal. */
 
@@ -87,5 +87,29 @@ describe("writeReports and printSummary", () => {
 		const writer = bufferWriter()
 		printSummary(writer, finished, reportInput(finished))
 		expect(writer.text()).toContain("  network: dns — run incomplete\n")
+	})
+})
+
+describe("credentials", () => {
+	const kept = [{ expiresAt: null, principal: "alpha", scheme: "bearer", scopes: [], value: "alpha-key" }]
+
+	it("writes principals.json readable by its owner alone, holding no credential value", async () => {
+		const finished = await finishedRun({ ...(await run(optionsFor(notesApi()))), credentials: kept })
+		await writeReports(finished, reportInput(finished))
+		const path = join(finished.outDir, "principals.json")
+		expect(statSync(path).mode & 0o777).toBe(0o600)
+		expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({ principals: finished.result.principals })
+		expect(readFileSync(path, "utf8")).not.toContain("alpha-key")
+	})
+
+	it("writes the values a run kept, readable by its owner alone, and nothing for a run that kept none", async () => {
+		const result = await run(optionsFor(notesApi()))
+		const path = join(folder(), ".oat", "credentials.json")
+		expect(await keepCredentials({ ...result, credentials: kept }, path)).toBe(true)
+		expect(statSync(path).mode & 0o777).toBe(0o600)
+		expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({ credentials: kept })
+		const elsewhere = join(folder(), "credentials.json")
+		expect(await keepCredentials(result, elsewhere)).toBe(false)
+		expect(existsSync(elsewhere)).toBe(false)
 	})
 })

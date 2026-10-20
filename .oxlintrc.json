@@ -68,20 +68,6 @@
 			"rules": {
 				"max-lines": ["error", 500]
 			}
-		},
-		{
-			"files": ["src/runtime/auth.ts"],
-			"rules": {
-				"complexity": "off",
-				"max-depth": "off",
-				"max-lines": "off",
-				"max-lines-per-function": "off",
-				"unicorn/consistent-function-scoping": "off",
-				"oat/no-header-branching": "off",
-				"oat/no-module-side-effects": "off",
-				"oat/no-module-state": "off",
-				"oat/max-params": "off"
-			}
 		}
 	]
 }

@@ -55,6 +55,6 @@ describe("worldOptions", () => {
 		const ctx = await contextOf(optionsFor(notesApi()))
 		const options = worldOptions(entityRunOf(ctx))
 		expect(options).toMatchObject({ nonce: "n0nce", principal: "alpha", roots: {}, seed: 1 })
-		expect(options.authHeaders()).toEqual({ authorization: "Bearer alpha-key" })
+		expect(options).not.toHaveProperty("authHeaders")
 	})
 })

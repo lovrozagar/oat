@@ -8,10 +8,9 @@ export interface Created {
 	scope: Record<string, string>
 }
 
-/** The principal a record belongs to, as far as removing it goes. */
+/** The principal a record belongs to, as far as removing it goes: removed as it, `as: { principal: id }`. */
 export interface Owner {
 	id: string
-	headers: () => Record<string, string>
 }
 
 export interface Disposable {

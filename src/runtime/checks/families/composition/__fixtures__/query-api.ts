@@ -103,7 +103,7 @@ export function queryDoc(xQuery: Record<string, unknown> = {}, params: readonly 
 export const REJECT: Answer = { body: { error: "bad query" }, status: 400 }
 
 /** The query a request carried, as strings. */
-export function queryOf(options: RequestOptions): Record<string, string> {
+export function queryOf(options: Omit<RequestOptions, "as">): Record<string, string> {
 	const out: Record<string, string> = {}
 	for (const [key, value] of Object.entries(options.query ?? {})) if (value !== undefined) out[key] = String(value)
 	return out

@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { describe, expect, it } from "vitest"
-import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { run } from "../../src/runtime/run/index.ts"
 
@@ -43,6 +43,7 @@ async function summaries(crashes: (method: string, status: number) => boolean): 
 			baseUrl: proxy.url,
 			only: ["table"],
 			principals: PRINCIPALS,
+			security: SECURITY,
 			seed: 42,
 			spec: `${proxy.url}/v1/openapi/spec`,
 		})

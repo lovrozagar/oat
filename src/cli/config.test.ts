@@ -22,9 +22,9 @@ describe("readConfig", () => {
 
 	it("loads, checks and interpolates a config", async () => {
 		process.env.OAT_CONFIG_TEST_URL = "http://api.test"
-		const path = configFile({ baseUrl: "${OAT_CONFIG_TEST_URL}", principals: [{ id: "a" }], spec: "s.yaml" })
+		const path = configFile({ baseUrl: "${OAT_CONFIG_TEST_URL}", principals: { a: {} }, spec: "s.yaml" })
 		expect(await readConfig(path, true)).toEqual({
-			config: { baseUrl: "http://api.test", principals: [{ id: "a" }], spec: "s.yaml" },
+			config: { baseUrl: "http://api.test", principals: { a: {} }, spec: "s.yaml" },
 		})
 	})
 

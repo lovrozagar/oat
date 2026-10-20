@@ -120,7 +120,7 @@ describe("scenarios start from a clean world", () => {
 		}
 		const result = await run({
 			baseUrl: url,
-			principals: [{ headers: {}, id: "alpha" }],
+			principals: { alpha: {} },
 			scenarios: [scenario],
 			seed: 1,
 			spec: `${url}/openapi.json`,

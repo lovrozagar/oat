@@ -1,15 +1,22 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
+import { UnsatisfiedSecurity } from "../../src/client/credential-source.ts"
+import type { Recipe } from "../../src/config/types/security.ts"
 import { driveAsync } from "../../src/runtime/async.ts"
-import { AuthRefreshRequiredError, createPrincipal, type AcquireSpec } from "../../src/runtime/auth.ts"
-import { Client } from "../../src/client/client.ts"
 import { buildModel } from "../../src/spec/graph/build.ts"
 import { dereference } from "../../src/spec/load/dereference.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
-import { Redactor } from "../../src/security/redact.ts"
+import { actingClient } from "../support/acting-client.ts"
+
+/*
+ * A job outlives the credential it started with. Every poll resolves alpha's credential afresh from
+ * the store, so a lapsed one is renewed before a poll would send it, and a renewal that fails stops
+ * the poll instead of sending the dead token.
+ */
 
 const SPEC = {
+	components: { securitySchemes: { bearer: { scheme: "bearer", type: "http" } } },
 	info: { title: "async-refresh", version: "1" },
 	openapi: "3.1.0",
 	paths: {
@@ -18,6 +25,7 @@ const SPEC = {
 				operationId: "auth.register",
 				requestBody: { content: { "application/json": { schema: { type: "object" } } } },
 				responses: { "200": { description: "ok" } },
+				security: [],
 			},
 		},
 		"/v1/auth/refresh": {
@@ -25,6 +33,7 @@ const SPEC = {
 				operationId: "auth.refreshToken",
 				requestBody: { content: { "application/json": { schema: { type: "object" } } } },
 				responses: { "200": { description: "ok" } },
+				security: [],
 			},
 		},
 		"/v1/jobs": {
@@ -40,6 +49,7 @@ const SPEC = {
 			},
 		},
 	},
+	security: [{ bearer: [] }],
 } as OpenApiDocument
 
 function send(res: ServerResponse, status: number, body?: unknown): void {
@@ -95,26 +105,29 @@ async function listen(handler: (req: IncomingMessage, res: ServerResponse) => vo
 
 const model = buildModel(dereference(SPEC).doc)
 
-const signup: AcquireSpec = {
-	credentialFrom: "$.access_token",
-	expiresInFrom: "$.access_token_expires_in",
+/* Signs up for a token that lives `access_token_expires_in` seconds, and renews it by the refresh token. */
+const signup: Recipe = {
+	expiresIn: { from: "$.access_token_expires_in" },
+	login: {
+		from: "$.access_token",
+		steps: [
+			{
+				body: { email: "oat@example.test" },
+				operationId: "auth.register",
+				saveAs: { refreshToken: "$.refresh_token" },
+			},
+		],
+	},
 	refresh: {
+		from: "$.access_token",
 		steps: [
 			{
 				body: { refresh_token: "{refreshToken}" },
 				operationId: "auth.refreshToken",
-				saveAs: { credential: "$.access_token", refreshToken: "$.refresh_token" },
+				saveAs: { refreshToken: "$.refresh_token" },
 			},
 		],
 	},
-	refreshBufferMs: 30_000,
-	steps: [
-		{
-			body: { email: "oat@example.test" },
-			operationId: "auth.register",
-			saveAs: { credential: "$.access_token", refreshToken: "$.refresh_token" },
-		},
-	],
 }
 
 const closers: Array<() => Promise<void>> = []
@@ -128,7 +141,7 @@ afterEach(async () => {
  * accepted on POST and reads done from its second poll on.
  */
 async function serveJobs(expiresIn: number) {
-	const seen = { pollAuth: [] as string[], refreshHits: [] as string[] }
+	const seen = { pollAuth: [] as string[], refreshHits: [] as string[], startAuth: [] as string[] }
 	let polls = 0
 	const routes: Record<string, (req: IncomingMessage, res: ServerResponse) => Promise<void> | void> = {
 		"GET /v1/jobs/job_1": (req, res) => {
@@ -143,7 +156,10 @@ async function serveJobs(expiresIn: number) {
 		},
 		"POST /v1/auth/register": (_req, res) =>
 			send(res, 200, { access_token: "t1", access_token_expires_in: expiresIn, refresh_token: "rt-1" }),
-		"POST /v1/jobs": (_req, res) => send(res, 202, { id: "job_1" }),
+		"POST /v1/jobs": (req, res) => {
+			seen.startAuth.push(req.headers.authorization ?? "")
+			return send(res, 202, { id: "job_1" })
+		},
 	}
 	const server = await listen((req, res) => {
 		const url = new URL(req.url ?? "/", "http://127.0.0.1")
@@ -155,11 +171,17 @@ async function serveJobs(expiresIn: number) {
 	return { ...seen, url: server.url }
 }
 
-/* A client on `url` and the principal `spec` signs up through it. */
-async function signedUp(url: string, spec: AcquireSpec) {
-	const client = new Client({ baseUrl: url, redactor: new Redactor() })
-	const runtime = await createPrincipal("alpha", spec, { client, hooks: {}, model, principalId: "alpha" })
-	return { client, runtime }
+/* A client on `url` acting as alpha, whose bearer comes from `recipe`, on a clock the test moves. */
+function signedIn(url: string, recipe: Recipe) {
+	const clock = { now: Date.now() }
+	const client = actingClient({
+		baseUrl: url,
+		model,
+		now: () => clock.now,
+		principals: { alpha: {} },
+		security: { bearer: recipe },
+	})
+	return { client, clock }
 }
 
 const POLL_JOB = {
@@ -171,87 +193,95 @@ const POLL_JOB = {
 	until: "status.eq.done",
 }
 
-describe("driveAsync live headers", () => {
-	it("refreshes before the first poll after a POST that outlived remaining TTL", async () => {
-		const { pollAuth, refreshHits, url } = await serveJobs(90)
-		const { client, runtime } = await signedUp(url, signup)
+async function renewsAfterLapse(): Promise<void> {
+	const { pollAuth, refreshHits, url } = await serveJobs(90)
+	const { client, clock } = signedIn(url, signup)
 
-		const start = await client.request("POST", "/v1/jobs", {
-			headers: runtime.headers,
-			refreshIfStale: runtime.refreshIfStale,
-		})
-		expect(start.status).toBe(202)
-		expect(refreshHits).toEqual([])
+	const start = await client.request("POST", "/v1/jobs", { as: { principal: "alpha" } })
+	expect(start.status).toBe(202)
+	expect(start.principal).toBe("alpha")
+	expect(refreshHits).toEqual([])
 
-		/* The POST itself outlived remaining TTL. Next dispatch (first poll) must refresh. */
-		runtime.expiresAt = Date.now() - 1
+	/* The POST itself outlived the token's life. The next dispatch, the first poll, must renew it. */
+	clock.now += 91_000
 
-		const outcome = await driveAsync({
-			client,
-			spec: POLL_JOB,
-			receipt: start.responseBody,
-			scope: {},
-			headers: runtime.headers,
-			refreshIfStale: runtime.refreshIfStale,
-		})
-		expect(outcome.succeeded).toBe(true)
-		expect(refreshHits).toEqual(["rt-1"])
-		expect(pollAuth).toEqual(["Bearer t2", "Bearer t2"])
+	const outcome = await driveAsync({
+		client,
+		principal: "alpha",
+		receipt: start.responseBody,
+		scope: {},
+		spec: POLL_JOB,
+		start,
 	})
+	expect(outcome.succeeded).toBe(true)
+	expect(refreshHits).toEqual(["rt-1"])
+	expect(pollAuth).toEqual(["Bearer t2", "Bearer t2"])
+}
 
-	it("a frozen header snapshot keeps the dead Bearer — getter is required", async () => {
-		const { pollAuth, url } = await serveJobs(20)
-		const { client, runtime } = await signedUp(url, signup)
+async function renewsInsideBuffer(): Promise<void> {
+	const { pollAuth, refreshHits, startAuth, url } = await serveJobs(90)
+	const { client, clock } = signedIn(url, signup)
 
-		const frozen = runtime.headers()
-		await runtime.refreshIfStale()
-		expect(runtime.headers().authorization).toBe("Bearer t2")
-
-		/* Frozen snapshot is the 0.4.0 bug: poll 2 would still send t1. */
-		expect(frozen.authorization).toBe("Bearer t1")
-
-		const outcome = await driveAsync({
-			client,
-			spec: POLL_JOB,
-			receipt: { id: "job_1" },
-			scope: {},
-			headers: runtime.headers,
-			refreshIfStale: runtime.refreshIfStale,
-		})
-		expect(outcome.succeeded).toBe(true)
-		expect(pollAuth).toEqual(["Bearer t2", "Bearer t2"])
-		expect(pollAuth).not.toContain("Bearer t1")
+	const start = await client.request("POST", "/v1/jobs", { as: { principal: "alpha" } })
+	/* Still valid for 25 s, inside the 30 s buffer: the next request renews it rather than risk it. */
+	clock.now += 65_000
+	const outcome = await driveAsync({
+		client,
+		principal: "alpha",
+		receipt: start.responseBody,
+		scope: {},
+		spec: POLL_JOB,
+		start,
 	})
-})
+	expect(outcome.succeeded).toBe(true)
+	expect(startAuth).toEqual(["Bearer t1"])
+	expect(refreshHits).toEqual(["rt-1"])
+	expect(pollAuth).toEqual(["Bearer t2", "Bearer t2"])
+}
 
-describe("driveAsync live headers", () => {
-	it("signup without refresh still fails closed during a poll refresh", async () => {
-		const server = await listen((req, res) => {
-			const url = new URL(req.url ?? "/", "http://127.0.0.1")
-			if (url.pathname === "/v1/auth/register") {
-				return send(res, 200, {
-					access_token: "t1",
-					access_token_expires_in: 20,
-					refresh_token: "rt-1",
-				})
-			}
-			if (url.pathname.startsWith("/v1/jobs/")) return send(res, 200, { status: "running" })
-			return send(res, 404)
-		})
-		closers.push(server.close)
-
-		const { refresh: _refresh, ...noRefresh } = signup
-		const { client, runtime } = await signedUp(server.url, noRefresh)
-
-		await expect(
-			driveAsync({
-				client,
-				spec: { idFrom: "$.id", poll: "GET /v1/jobs/{id}", pollIntervalMs: 1, timeoutMs: 200, until: "status.eq.done" },
-				receipt: { id: "job_1" },
-				scope: {},
-				headers: runtime.headers,
-				refreshIfStale: runtime.refreshIfStale,
-			}),
-		).rejects.toBeInstanceOf(AuthRefreshRequiredError)
+async function stopsOnFailedRenewal(): Promise<void> {
+	const pollAuth: string[] = []
+	const startAuth: string[] = []
+	let signUps = 0
+	const server = await listen((req, res) => {
+		const url = new URL(req.url ?? "/", "http://127.0.0.1")
+		/* Signs up once; the sign-in that would renew the lapsed token is refused. */
+		if (url.pathname === "/v1/auth/register") {
+			signUps += 1
+			if (signUps > 1) return send(res, 500, { error: "down" })
+			return send(res, 200, { access_token: "t1", access_token_expires_in: 90, refresh_token: "rt-1" })
+		}
+		if (url.pathname === "/v1/jobs") {
+			startAuth.push(req.headers.authorization ?? "")
+			return send(res, 202, { id: "job_1" })
+		}
+		pollAuth.push(req.headers.authorization ?? "")
+		return send(res, 200, { status: "running" })
 	})
+	closers.push(server.close)
+
+	const { refresh: _refresh, ...noRefresh } = signup
+	const { client, clock } = signedIn(server.url, noRefresh as Recipe)
+	const start = await client.request("POST", "/v1/jobs", { as: { principal: "alpha" } })
+	expect(startAuth).toEqual(["Bearer t1"])
+	clock.now += 91_000
+
+	const polling = driveAsync({
+		client,
+		principal: "alpha",
+		receipt: start.responseBody,
+		scope: {},
+		spec: { idFrom: "$.id", poll: "GET /v1/jobs/{id}", pollIntervalMs: 1, timeoutMs: 200, until: "status.eq.done" },
+		start,
+	})
+	await expect(polling).rejects.toBeInstanceOf(UnsatisfiedSecurity)
+	await expect(polling).rejects.toMatchObject({ kind: "blocked" })
+	expect(signUps).toBe(2)
+	expect(pollAuth).toEqual([])
+}
+
+describe("polling a job as a principal", () => {
+	it("renews a credential the start outlived before the first poll sends it", renewsAfterLapse)
+	it("renews a credential inside its refresh buffer once, before it lapses", renewsInsideBuffer)
+	it("stops polling when renewing a lapsed credential fails, rather than send the dead one", stopsOnFailedRenewal)
 })

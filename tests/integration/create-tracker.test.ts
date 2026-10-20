@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import type { Scenario } from "../../src/config/define/types.ts"
 import { renderJson } from "../../src/report/render/json.ts"
 import { renderMarkdown } from "../../src/report/render/markdown.ts"
+import { bearerSecurity } from "../../src/conformance/harness/security.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { renderTeardown } from "../../src/runtime/teardown/render.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
@@ -20,6 +21,8 @@ interface Switches {
 	foreignParent?: boolean
 	/* Every DELETE beta sends is refused. */
 	refuseBetaDelete?: boolean
+	/* The document declares no security, and a caller with no credential is in alpha's tenant. */
+	open?: boolean
 }
 
 const TOKENS: Record<string, { project: string; who: string }> = {
@@ -29,10 +32,12 @@ const TOKENS: Record<string, { project: string; who: string }> = {
 	"Bearer s": { project: "a", who: "stranger" },
 }
 
-const PRINCIPALS = [
-	{ headers: { authorization: "Bearer a" }, id: "alpha", roots: { project_id: "a" } },
-	{ headers: { authorization: "Bearer b" }, id: "beta", roots: { project_id: "b" } },
-]
+/* Each principal sends its own tenant's token. */
+const SECURITY = { bearer: { static: "{principal.token}" } }
+const PRINCIPALS = {
+	alpha: { scope: { project_id: "a" }, tenant: "a", token: "a" },
+	beta: { scope: { project_id: "b" }, tenant: "b", token: "b" },
+}
 
 const json = (schema: unknown) => ({ content: { "application/json": { schema } } })
 const ITEM = {
@@ -46,7 +51,7 @@ const REFUSED = { default: { description: "refused" } }
 const PROJECT = { in: "path", name: "project_id", required: true, schema: { type: "string" }, "x-root": true }
 const param = (name: string) => ({ in: "path", name, required: true, schema: { type: "string" } })
 
-function spec(): OpenApiDocument {
+function spec(secured: boolean): OpenApiDocument {
 	const op = (entity: string, action: string, extra: Record<string, unknown> = {}) => ({
 		operationId: `${entity}.${action}`,
 		responses: REFUSED,
@@ -80,6 +85,7 @@ function spec(): OpenApiDocument {
 	const row = [...table, param("row_id")]
 	const thing = [PROJECT, param("thing_id")]
 	return {
+		...(secured ? bearerSecurity() : {}),
 		info: { title: "create-tracker", version: "1" },
 		openapi: "3.1.0",
 		paths: {
@@ -171,10 +177,16 @@ class TenantBackend {
 		]
 	}
 
+	/* Who sent `req`: its token's owner, or alpha's tenant for no credential when the API is open. */
+	#caller(req: IncomingMessage): { project: string; who: string } | undefined {
+		const fallback = this.#switches.open === true ? "Bearer a" : ""
+		return TOKENS[req.headers.authorization ?? fallback]
+	}
+
 	async route(req: IncomingMessage, res: ServerResponse) {
 		const at = new URL(req.url ?? "/", "http://x")
-		if (at.pathname === "/v1/openapi/spec") return send(res, 200, spec())
-		const caller = TOKENS[req.headers.authorization ?? ""]
+		if (at.pathname === "/v1/openapi/spec") return send(res, 200, spec(this.#switches.open !== true))
+		const caller = this.#caller(req)
 		if (caller === undefined) return send(res, 401, { error: "unauthenticated" })
 		const parts = at.pathname.split("/").filter(Boolean).map(decodeURIComponent)
 		/* v1 projects {p} <collection> [{id} [rows [{id}]]] */
@@ -279,6 +291,7 @@ async function runAgainst(switches: Switches, scenarios: Scenario[] = []) {
 		baseUrl: backend.url,
 		principals: PRINCIPALS,
 		...(scenarios.length === 0 ? {} : { scenarios }),
+		security: SECURITY,
 		seed: 1,
 		spec: `${backend.url}/v1/openapi/spec`,
 	})
@@ -409,12 +422,11 @@ describe("a create by a configured principal", () => {
 })
 
 describe("a create by a principal configured with no credential of its own", () => {
-	it("is that principal's, even when every request carries a global key", async () => {
-		const backend = await serve()
+	it("is that principal's, on a document that declares no security", async () => {
+		const backend = await serve({ open: true })
 		const result = await run({
 			baseUrl: backend.url,
-			globalHeaders: { authorization: "Bearer a" },
-			principals: [{ id: "alpha", roots: { project_id: "a" } }],
+			principals: { alpha: { scope: { project_id: "a" }, tenant: "a" } },
 			seed: 1,
 			spec: `${backend.url}/v1/openapi/spec`,
 		})
@@ -430,6 +442,8 @@ describe("a create sent with a credential no principal holds", () => {
 			id: "stranger-makes-a-thing",
 			steps: [
 				{
+					/* Sends none of alpha's credential: only the stranger's own. */
+					anonymous: true,
 					bind: { thing_id: "stranger-1" },
 					body: { name: "theirs" },
 					headers: { authorization: "Bearer s" },

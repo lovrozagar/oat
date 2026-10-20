@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import type { OpenApiDocument } from "../../spec/types.ts"
+import { fakeClient, modelOf } from "../checks/__fixtures__/harness.ts"
 import { notes, runOf } from "./__fixtures__/stage.ts"
 import { ScenarioStopped, StepFailure } from "./failure.ts"
 import { requestStep } from "./request.ts"
@@ -33,17 +35,23 @@ const failure = async (pending: Promise<unknown>): Promise<StepFailure> => {
 }
 
 describe("requestStep: credentials", () => {
-	it("sends as the scenario's principal, another named one, or anonymously", async () => {
+	it("sends as the scenario's principal, another named one, one scheme of either, or anonymously", async () => {
 		const run = runOf(notes())
 		run.objects.set("doc", { text: "kept whole" })
 		await requestStep(run, { body: "{doc}", operationId: "notes.create" }, 0)
 		await requestStep(run, { operationId: "notes.list", principal: "beta" }, 1)
 		await requestStep(run, { anonymous: true, operationId: "notes.list" }, 2)
-		expect(run.requests.map((request) => request.options.headers)).toEqual([
-			{ authorization: "Bearer alpha" },
-			{ authorization: "Bearer beta" },
-			{},
+		await requestStep(run, { operationId: "notes.list", scheme: "apiKey" }, 3)
+		await requestStep(run, { operationId: "notes.list", principal: "beta", scheme: "apiKey" }, 4)
+		expect(run.requests.map((request) => request.options.as)).toEqual([
+			{ principal: "alpha" },
+			{ principal: "beta" },
+			{ anonymous: true },
+			{ principal: "alpha", scheme: "apiKey" },
+			{ principal: "beta", scheme: "apiKey" },
 		])
+		/* The client places the credential: a step's own headers never carry one. */
+		expect(run.requests.map((request) => request.options.headers)).toEqual([{}, {}, {}, {}, {}])
 		expect(run.requests[0]?.options.body).toEqual({ text: "kept whole" })
 		expect(run.calls.get("notes.create")?.status).toBe(201)
 	})
@@ -59,11 +67,30 @@ describe("requestStep: credentials", () => {
 		const run = runOf(notes())
 		await requestStep(run, { headers: { "x-org": "{org}" }, method: "GET", path: "/notes", query: { q: "{org}" } }, 0)
 		expect(run.requests[0]?.options).toMatchObject({
-			headers: { authorization: "Bearer alpha", "x-org": "o1" },
+			as: { principal: "alpha" },
+			headers: { "x-org": "o1" },
 			query: { q: "o1" },
 			redirect: "follow",
 		})
 		expect(run.calls.size).toBe(0)
+	})
+})
+
+describe("requestStep: on another origin", () => {
+	it("goes through that origin's client, which resolves the step's actor against its own document", async () => {
+		const cdnDoc = {
+			info: { title: "cdn", version: "1" },
+			openapi: "3.1.0",
+			paths: { "/files": { post: { operationId: "cdn.upload", responses: { "201": { description: "stored" } } } } },
+		} as unknown as OpenApiDocument
+		const cdn = fakeClient(() => ({ status: 201 }))
+		const originClients = new Map([["cdn", { client: cdn.client, model: modelOf(cdnDoc) }]])
+		const run = runOf(notes(), { originClients })
+		await requestStep(run, { operationId: "cdn.upload", origin: "cdn", scheme: "upload" }, 0)
+		expect(run.requests).toEqual([])
+		expect(cdn.sent.map(({ method, options, path }) => ({ as: options.as, method, path }))).toEqual([
+			{ as: { principal: "alpha", scheme: "upload" }, method: "POST", path: "/files" },
+		])
 	})
 })
 

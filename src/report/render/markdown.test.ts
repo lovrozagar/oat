@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { reportInput } from "../../cli/commands/run-report.ts"
-import { PRINCIPALS } from "../../conformance/matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../../conformance/matrix/principals.ts"
 import { createMemoryReference } from "../../reference/http/engines.ts"
 import { run } from "../../runtime/run/index.ts"
 import { exchange, finding, reportOf, scopeOf } from "./__fixtures__/report.ts"
@@ -71,6 +71,7 @@ describe("renderMarkdown on a real run", () => {
 				baseUrl: ref.url,
 				network,
 				principals: PRINCIPALS,
+				security: SECURITY,
 				seed: 42,
 				spec: `${ref.url}/v1/openapi/spec`,
 			})

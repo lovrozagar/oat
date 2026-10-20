@@ -302,14 +302,19 @@ describe("seed fan-out", () => {
 			const model = extractModel()
 			const createOp = model.byOperationId.get("extract.once")
 			if (createOp === undefined) throw new Error("missing extract.once")
-			const client = new Client({ baseUrl: url, redactor: new Redactor() })
+			/* The document declares no security, so every actor sends nothing. */
+			const client = new Client({
+				baseUrl: url,
+				credentials: { resolve: async () => ({ kind: "anonymous" }) },
+				redactor: new Redactor(),
+			})
 			const seeded = await seedCohort(
 				createOp,
 				{
 					client,
 					model,
 					options: {
-						authHeaders: () => ({}),
+						principal: "alpha",
 						roots: {},
 						seed: 1,
 						uploads: {
@@ -340,7 +345,7 @@ describe("profile skip", () => {
 			const result = await run({
 				baseUrl: url,
 				configDir: dir,
-				principals: [{ headers: {}, id: "alpha" }],
+				principals: { alpha: {} },
 				profile: "cheap",
 				profiles: { cheap: { exclude: ["extract.once"] } },
 				seed: 1,

@@ -7,7 +7,8 @@ import { type ItemsOptions, UNCOMPILABLE, itemOperations, modelOfItems } from ".
 async function judge(created: Answer | null, options: ItemsOptions = {}) {
 	const model = modelOfItems(options)
 	const staged = contextFor(model, "item.list", { respond: () => created ?? undefined, fields: itemOperations(model) })
-	if (created !== null) await staged.ctx.client.request("POST", "/items", { operationId: "item.create" })
+	if (created !== null)
+		await staged.ctx.client.request("POST", "/items", { as: { principal: "alpha" }, operationId: "item.create" })
 	const plan = successSchemaHonoured.plan(staged.ctx)
 	if (!plan.ok) throw new Error("the success-schema plan did not apply")
 	return { ...staged, outcome: await successSchemaHonoured.run(staged.ctx, plan.value) }

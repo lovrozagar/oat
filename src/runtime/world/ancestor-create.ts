@@ -63,7 +63,7 @@ export async function createOne(
 	const exchange = await client.request("POST", fillPath(createOp.path, scope.values), {
 		body: encoded.body,
 		...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),
-		headers: options.authHeaders,
+		as: { principal: options.principal },
 		operationId: createOp.operationId,
 	})
 	if (exchange.status >= 300) {
@@ -87,8 +87,8 @@ export async function createOne(
 		client,
 		createOp,
 		exchange,
-		headers: options.authHeaders,
 		model,
+		principal: options.principal,
 		scope: { ...options.roots, ...scope.values },
 		sent: body,
 		...(options.readable === undefined ? {} : { readable: options.readable }),

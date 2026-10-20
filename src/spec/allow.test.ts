@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { Principal } from "../config/types/principals.ts"
+import type { PrincipalEntry, Recipe } from "../config/types/security.ts"
 import type { Scenario } from "../config/types/steps.ts"
 import { UsageError } from "../errors/usage-error.ts"
 import { assertAllowedReferences, pruneToAllow } from "./allow.ts"
@@ -48,30 +48,41 @@ const step = (operationId: string, origin?: string) => ({ operationId, ...(origi
 
 describe("assertAllowedReferences", () => {
 	it("accepts a config that calls only kept operations, or calls elsewhere", () => {
-		const principals = [
-			{ auth: { refresh: { steps: [step("login")] }, steps: [step("login"), step("sso", "https://idp")] }, id: "a" },
-			{ auth: { token: "t" }, id: "b" },
-			{ id: "c" },
-			{ auth: { steps: [{ request: {} }] }, id: "d" },
-		] as unknown as Principal[]
+		const security: Record<string, Partial<Recipe>> = {
+			apiKey: { mint: { from: "$.k", operationId: "note.list", revoke: "note.list", with: "jwt" } },
+			basic: { static: { password: "p", username: "u" } },
+			jwt: {
+				login: { from: "$.t", steps: [step("login"), step("sso", "https://idp"), { method: "GET", path: "/x" }] },
+				refresh: { from: "$.t", steps: [step("login")] },
+			},
+		}
+		const principals: Record<string, PrincipalEntry> = {
+			a: { security: { jwt: { login: { from: "$.t", steps: [step("login")] } } } },
+			b: {},
+		}
 		const scenarios = [
 			{ covers: ["note.list"], id: "s", steps: [step("note.list"), { wait: 1 }, step("x", "https://other")] },
 			{ covers: ["gone"], id: "remote", origin: "https://other", steps: [step("gone")] },
 		] as unknown as Scenario[]
-		expect(() => assertAllowedReferences(kept, { principals, scenarios })).not.toThrow()
+		expect(() => assertAllowedReferences(kept, { principals, scenarios, security })).not.toThrow()
 		expect(() => assertAllowedReferences(kept, {})).not.toThrow()
 	})
 
 	it("names every removed operation the config still calls, once each", () => {
-		const principals = [
-			{ auth: { refresh: { steps: [step("renew")] }, steps: [step("signin")] }, id: "a" },
-			{ auth: { steps: [step("signin")] }, id: "a" },
-		] as unknown as Principal[]
+		const security: Record<string, Partial<Recipe>> = {
+			apiKey: { mint: { from: "$.k", operationId: "key.create", revoke: "key.revoke", with: "jwt" } },
+			jwt: { login: { from: "$.t", steps: [step("signin")] }, refresh: { from: "$.t", steps: [step("renew")] } },
+		}
+		const principals: Record<string, PrincipalEntry> = {
+			a: { security: { jwt: { login: { from: "$.t", steps: [step("signin"), step("sso")] } } } },
+		}
 		const scenarios = [{ covers: ["note.read"], id: "s", steps: [step("note.create")] }] as unknown as Scenario[]
-		expect(() => assertAllowedReferences(kept, { principals, scenarios })).toThrow(
+		expect(() => assertAllowedReferences(kept, { principals, scenarios, security })).toThrow(
 			new UsageError(
-				'allow removes operations the config still calls: principal "a" auth step "signin"; ' +
-					'principal "a" auth step "renew"; scenario "s" step "note.create"; scenario "s" covers "note.read"',
+				'allow removes operations the config still calls: security.apiKey mint "key.create"; ' +
+					'security.apiKey revoke "key.revoke"; security.jwt login step "signin"; security.jwt refresh step "renew"; ' +
+					'principals.a.security.jwt login step "signin"; principals.a.security.jwt login step "sso"; ' +
+					'scenario "s" step "note.create"; scenario "s" covers "note.read"',
 			),
 		)
 	})

@@ -5,7 +5,7 @@ import { isRedirectStatus, MAX_REDIRECTS, type RedirectHop, redirectTarget } fro
 import { omitHeader, recordResponseHeaders, setCookieHeadersFrom } from "../runtime/cookies/set-cookie.ts"
 import { readResponsePayload } from "../runtime/transcript/payload.ts"
 import type { ResponsePayload } from "../runtime/transcript/types.ts"
-import { stripCredentials } from "../security/strip.ts"
+import { stripCredentials, stripQuery } from "../security/strip.ts"
 import type { FenceAsk } from "./fence.ts"
 
 export interface FirstHop {
@@ -27,6 +27,8 @@ export interface Following {
 	callerCookie: string | undefined
 	/** Headers that carry a credential: stripped before a hop to another origin. */
 	credentialNames: Parameters<typeof stripCredentials>[1]
+	/** Query parameters the request placed a credential in: stripped from a hop to another origin. */
+	credentialQuery: ReadonlySet<string>
 	/** What the caller asked to send, for the fence; a hop that drops the body sends none. */
 	body: unknown
 }
@@ -80,7 +82,10 @@ function prepareHop(
 	hop: { crossOrigin: boolean; dropBody: boolean; jar: CookieJar; url: URL },
 	how: Following,
 ): void {
-	if (hop.crossOrigin) stripCredentials(headers, how.credentialNames)
+	if (hop.crossOrigin) {
+		stripCredentials(headers, how.credentialNames)
+		stripQuery(hop.url, how.credentialQuery)
+	}
 	if (hop.dropBody) {
 		omitHeader(headers, "content-type")
 		omitHeader(headers, "content-length")

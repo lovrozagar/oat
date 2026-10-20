@@ -3,7 +3,7 @@ import type { WriteContext } from "../../checks/core/context.ts"
 import { checkSalts } from "../../checks/core/run.ts"
 import { CHECKS } from "../../checks/registry.ts"
 import type { Client } from "../../../client/client.ts"
-import { AuthRefreshError } from "../../../client/refresh.ts"
+import { UnsatisfiedSecurity } from "../../../client/credential-source.ts"
 import { FencedError } from "../../fence.ts"
 import { type FindingCollector, isRootCause, type Outcome } from "../../finding.ts"
 import { isNetworkError } from "../../../errors/network.ts"
@@ -152,12 +152,14 @@ export async function unresolvedBy(stopped: Stopped, error: unknown): Promise<st
 		return "a request was fenced"
 	}
 	if (error instanceof MissingValueError) return error.message
-	if (!(error instanceof AuthRefreshError)) return undefined
-	attributed.blocked("auth.refresh" satisfies RunFindingId, name, {
-		summary: `refreshing the credential${error.principal === undefined ? "" : ` of "${error.principal}"`} failed`,
-		cause: `${error.message}. ${checkId} could not complete.`,
+	if (!(error instanceof UnsatisfiedSecurity)) return undefined
+	/* No credential meets the operation's security: untested, with the reason. */
+	if (error.kind === "unsatisfied") return error.reason
+	attributed.blocked("auth.blocked" satisfies RunFindingId, name, {
+		summary: `${checkId} needed a credential that is BLOCKED`,
+		cause: `${error.reason}. ${checkId} could not complete.`,
 	})
-	return "a credential could not be refreshed"
+	return "a credential is BLOCKED"
 }
 
 /**

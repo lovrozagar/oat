@@ -87,10 +87,23 @@ describe("create.keeps-submitted-identity", () => {
 		const createOp = model.byOperationId.get("note.create")
 		const readOp = model.byOperationId.get("note.get")
 		if (createOp === undefined || readOp === undefined) throw new Error("fixture incomplete")
-		const client = new Client({ baseUrl: url, redactor: new Redactor() })
+		/* The document declares no security, so every actor sends nothing. */
+		const client = new Client({
+			baseUrl: url,
+			credentials: { resolve: async () => ({ kind: "anonymous" }) },
+			redactor: new Redactor(),
+		})
 		/* The seed's creates, as a run would have sent them before the check. */
-		await client.request("POST", "/notes", { body: { id: 7, title: "first" }, operationId: "note.create" })
-		await client.request("POST", "/notes", { body: { id: 412, title: "second" }, operationId: "note.create" })
+		await client.request("POST", "/notes", {
+			as: { anonymous: true },
+			body: { id: 7, title: "first" },
+			operationId: "note.create",
+		})
+		await client.request("POST", "/notes", {
+			as: { anonymous: true },
+			body: { id: 412, title: "second" },
+			operationId: "note.create",
+		})
 		const findings = new FindingCollector()
 		const ctx = checkContext({
 			client,

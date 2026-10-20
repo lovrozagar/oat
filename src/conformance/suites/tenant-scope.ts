@@ -1,9 +1,10 @@
+import type { PrincipalsConfig } from "../../config/types/security.ts"
 import { messageOf } from "../../errors/message.ts"
 import type { RunResult } from "../../runtime/run/index.ts"
 import { run } from "../../runtime/run/index.ts"
 import { launch, reach, type Via } from "../harness/launch.ts"
 import type { ParserResult } from "../harness/result.ts"
-import { PRINCIPALS } from "../matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../matrix/principals.ts"
 import { publicCatalogue } from "./public-catalogue.ts"
 
 /** One case: what it is called, why it matters, and what it found. */
@@ -13,10 +14,11 @@ interface TenantCase {
 	probe: (via: Via) => Promise<{ ok: boolean; detail: string }>
 }
 
-const CATALOGUE_PRINCIPALS = [
-	{ headers: { authorization: "Bearer tok_alpha" }, id: "alpha", roots: { workspace_id: "ws_a" } },
-	{ headers: { authorization: "Bearer tok_beta" }, id: "beta", roots: { workspace_id: "ws_b" } },
-]
+/** One principal per workspace, each with the token the catalogue knows it by. */
+const CATALOGUE_PRINCIPALS: PrincipalsConfig = {
+	alpha: { scope: { workspace_id: "ws_a" }, tenant: "ws_a", token: "tok_alpha" },
+	beta: { scope: { workspace_id: "ws_b" }, tenant: "ws_b", token: "tok_beta" },
+}
 
 /** oat run once against a fresh public catalogue. */
 async function catalogueRun(via: Via): Promise<RunResult> {
@@ -25,6 +27,7 @@ async function catalogueRun(via: Via): Promise<RunResult> {
 		return await run({
 			baseUrl: hosted.url,
 			principals: CATALOGUE_PRINCIPALS,
+			security: { bearer: { static: "{principal.token}" } },
 			seed: 42,
 			spec: `${hosted.url}/v1/openapi/spec`,
 			...reach(hosted),
@@ -63,6 +66,7 @@ async function leakVerdict(
 			baseUrl: backend.url,
 			only: ["table"],
 			principals: PRINCIPALS,
+			security: SECURITY,
 			seed: 42,
 			spec: `${backend.url}/v1/openapi/spec`,
 			...reach(backend),

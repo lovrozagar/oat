@@ -10,7 +10,8 @@ const AS_WRITTEN = [
 	"globalHeaders",
 	"hooks",
 	"uploads",
-	"roots",
+	"security",
+	"redact",
 	"cohortSize",
 	"profiles",
 	"rateLimits",
@@ -69,15 +70,23 @@ export function runOptionsOf(config: OatConfig, flags: Args["flags"], setting: R
 		keepFixtures: flags["keep-fixtures"] === true || config.keepFixtures === true,
 		maxInFlight: Number.parseInt(str(flags, "max-in-flight") ?? "", 10) || config.maxInFlight || 4,
 		onProgress: setting.onProgress,
-		principals: config.principals ?? [],
+		principals: config.principals ?? {},
 		seed: seed === undefined ? (config.seed ?? 1) : Number.parseInt(seed, 10),
 		signal: setting.signal,
 		spec: config.spec,
 		warn: setting.warn,
-		...(setting.baseline === undefined ? {} : { baseline: setting.baseline }),
+		...(flags["keep-credentials"] === true ? { keepCredentials: true } : {}),
 		...(only === undefined || only.length === 0 ? {} : { only }),
 		...(ops === undefined || ops.length === 0 ? {} : { ops }),
 		...(profile === undefined ? {} : { profile }),
+		...setUp(setting),
+	}
+}
+
+/* What the command set up that a run takes only when it is set: a baseline, and where to journal. */
+function setUp(setting: RunSetting): Partial<RunOptions> {
+	return {
+		...(setting.baseline === undefined ? {} : { baseline: setting.baseline }),
 		...(setting.exchangeDir === undefined ? {} : { exchangeDir: setting.exchangeDir }),
 	}
 }

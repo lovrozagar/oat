@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { MissingValueError } from "../../../errors/missing-value.ts"
-import { AuthRefreshError } from "../../../client/refresh.ts"
+import { UnsatisfiedSecurity } from "../../../client/credential-source.ts"
 import { FencedError } from "../../fence.ts"
 import { checkOf, loopOf } from "../__fixtures__/checks.ts"
 import { contextOf, notesApi, optionsFor, outage } from "../__fixtures__/api.ts"
@@ -72,27 +72,33 @@ describe("runCheck outcomes", () => {
 		const needs = 'a cohort record (the cohort is missing its "max" variant, which failed to seed)'
 		expect(ctx.state.checksSkipped).toEqual([{ check: "c.down", entity: "note", needs }])
 	})
+})
 
+describe("runCheck clients", () => {
 	it("gives a check that does not mutate a client that refuses to write", async () => {
 		const { ctx, outcome } = await ran({
 			id: "c.reader",
 			run: async (view) => {
-				await (view.client as unknown as Client).request("POST", "/notes", { body: { title: "x" } })
+				await (view.client as unknown as Client).request("POST", "/notes", {
+					as: { principal: "alpha" },
+					body: { title: "x" },
+				})
 				return { kind: "asserted" }
 			},
 		})
 		expect(outcome?.kind).toBe("stood-down")
 		expect(ctx.findings.findings[0]?.detail).toMatch(/does not mutate/)
 	})
-})
 
-describe("runCheck clients", () => {
 	it("gives a mutating check a client that writes", async () => {
 		const { outcome } = await ran({
 			id: "c.writer",
 			mutates: true,
 			run: async (view) => {
-				const made = await (view.client as unknown as Client).request("POST", "/notes", { body: { title: "x" } })
+				const made = await (view.client as unknown as Client).request("POST", "/notes", {
+					as: { principal: "alpha" },
+					body: { title: "x" },
+				})
 				return made.status === 201 ? { kind: "asserted" } : { kind: "unresolved", reason: String(made.status) }
 			},
 		})
@@ -120,12 +126,22 @@ describe("runCheck errors", () => {
 		expect(outcome).toEqual({ kind: "unresolved", reason: "oat had no value for no captcha" })
 	})
 
-	it("blocks a check whose credential could not be refreshed, naming the principal when known", async () => {
-		const named = await ran({ id: "c.auth", run: throwing(new AuthRefreshError("alpha", new Error("expired"))) })
-		expect(named.ctx.findings.findings[0]?.summary).toBe('refreshing the credential of "alpha" failed')
-		const unnamed = await ran({ id: "c.auth", run: throwing(new AuthRefreshError(undefined, "gone")) })
-		expect(unnamed.ctx.findings.findings[0]?.summary).toBe("refreshing the credential failed")
-		expect(unnamed.outcome).toEqual({ kind: "unresolved", reason: "a credential could not be refreshed" })
+	it("blocks a check whose credential is BLOCKED, with the store's reason", async () => {
+		const reason = "refresh for alpha/bearer: refresh token reused"
+		const { ctx, outcome } = await ran({ id: "c.auth", run: throwing(new UnsatisfiedSecurity("blocked", reason)) })
+		expect(ctx.findings.findings[0]).toMatchObject({
+			check: "auth.blocked",
+			detail: `blocked by ${reason}. c.auth could not complete.`,
+			summary: "c.auth needed a credential that is BLOCKED",
+			verdict: "BLOCKED",
+		})
+		expect(outcome).toEqual({ kind: "unresolved", reason: "a credential is BLOCKED" })
+	})
+
+	it("leaves a check untested when no credential meets the operation's security, with the reason", async () => {
+		const unmet = new UnsatisfiedSecurity("unsatisfied", "no credential for apiKey")
+		const { ctx, outcome } = await ran({ id: "c.auth", run: throwing(unmet) })
+		expect([outcome, ctx.findings.findings]).toEqual([{ kind: "unresolved", reason: "no credential for apiKey" }, []])
 	})
 
 	it("reports any other error as the check's own gap", async () => {

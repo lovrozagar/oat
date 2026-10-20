@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { modelOf } from "../../__fixtures__/harness.ts"
 import { runCheck } from "../../core/run.ts"
 import { notesBackend } from "./__fixtures__/backend.ts"
-import { caller, notesContext } from "./__fixtures__/context.ts"
+import { type Backend, caller, notesContext } from "./__fixtures__/context.ts"
 import { type NotesOptions, notesDocument } from "./__fixtures__/notes.ts"
 import { crossTenantItemWrite } from "./tenant-item-not-writable-cross-tenant.ts"
 
@@ -20,12 +20,20 @@ describe("tenant.item-not-writable-cross-tenant", () => {
 		const backend = notesBackend({ members: MEMBERS })
 		const { ctx, findings, sent } = notesContext(modelWith(), backend)
 		expect(await runCheck(crossTenantItemWrite, ctx)).toEqual({ kind: "asserted" })
-		expect(sent.map((s) => `${s.method} ${s.path} ${caller(s.options)}`)).toEqual([
+		expect(sent.map((s) => `${s.method} ${s.path} ${caller(s)}`)).toEqual([
 			"POST /orgs/o1/notes owner",
 			"PATCH /orgs/o2/notes/s1 other",
 			"GET /orgs/o1/notes/s1 owner",
 			"DELETE /orgs/o2/notes/s1 other",
 			"GET /orgs/o1/notes/s1 owner",
+		])
+		/* Every request names its operation, so each is sent the credential its own security asks for. */
+		expect(sent.map((s) => s.options.operationId)).toEqual([
+			"createNote",
+			"updateNote",
+			"readNote",
+			"deleteNote",
+			"readNote",
 		])
 		expect(findings.findings).toEqual([])
 		expect(backend.notes.get("o1")?.has("s1")).toBe(true)
@@ -53,7 +61,7 @@ describe("tenant.item-not-writable-cross-tenant", () => {
 describe("tenant.item-not-writable-cross-tenant: writes that did not take", () => {
 	it("does not count a delete the owner still reads past, or a refused one", async () => {
 		const respondLeaky = notesBackend({ members: MEMBERS })
-		const answers = (method: string, path: string, options: object) =>
+		const answers: Backend = (method, path, options) =>
 			method === "DELETE" ? { status: 204 } : respondLeaky(method, path, options)
 		const { ctx, findings } = notesContext(modelWith({ without: ["updateNote"] }), answers)
 		expect(await runCheck(crossTenantItemWrite, ctx)).toEqual({ kind: "asserted" })
@@ -62,7 +70,7 @@ describe("tenant.item-not-writable-cross-tenant: writes that did not take", () =
 
 	it("does not count a change the owner cannot read back", async () => {
 		const backend = notesBackend({ members: MEMBERS, writesById: true })
-		const answers = (method: string, path: string, options: object) =>
+		const answers: Backend = (method, path, options) =>
 			method === "GET" ? { status: 500 } : backend(method, path, options)
 		const { ctx, findings } = notesContext(modelWith({ without: ["deleteNote"] }), answers)
 		expect(await runCheck(crossTenantItemWrite, ctx)).toEqual({ kind: "asserted" })
@@ -90,9 +98,9 @@ describe("tenant.item-not-writable-cross-tenant planning", () => {
 		expect(sent).toHaveLength(1)
 	})
 
-	it("reads under the owner's scope when the other principal has none", async () => {
+	it("writes under the owner's scope when the peer has none", async () => {
 		const backend = notesBackend({ members: MEMBERS })
-		const { ctx, sent } = notesContext(modelWith(), backend, { altScope: undefined })
+		const { ctx, sent } = notesContext(modelWith(), backend, { peerScope: undefined })
 		await runCheck(crossTenantItemWrite, ctx)
 		expect(sent[1]?.path).toBe("/orgs/o1/notes/s1")
 	})
@@ -101,7 +109,7 @@ describe("tenant.item-not-writable-cross-tenant planning", () => {
 		const shared = modelWith({ tenant: false })
 		const backend = notesBackend({ members: MEMBERS })
 		for (const { ctx } of [
-			notesContext(modelWith(), backend, { altAuth: undefined }),
+			notesContext(modelWith(), backend, { peer: undefined }),
 			notesContext(modelWith(), backend, { readOp: undefined }),
 			notesContext(modelWith(), backend, { createOp: undefined }),
 			notesContext(modelWith({ without: ["updateNote", "deleteNote"] }), backend),

@@ -17,7 +17,7 @@ export interface CreatedCaller {
 }
 
 export interface CallerInput {
-	auth: () => Record<string, string>
+	principal: string
 	client: Client
 	entity: EntityModel
 	model: SpecModel
@@ -112,7 +112,7 @@ export async function createCaller(
 	}
 	const exchange = await input.client.request(createOp.method, createPath, {
 		body,
-		headers: input.auth,
+		as: { principal: input.principal },
 		operationId: createOp.operationId,
 	})
 	if (exchange.status < 200 || exchange.status >= 300) {

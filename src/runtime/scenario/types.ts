@@ -8,10 +8,9 @@ import type { FindingCollector } from "../finding.ts"
 import type { BackoffConfig } from "../poll.ts"
 import type { GradeLedger, PassEvidence } from "../grades.ts"
 
-/** A configured principal as a scenario sends as it. */
+/** A configured principal as a scenario sends as it, `as: { principal: id }`: the parameters bound for it. */
 export interface ScenarioPrincipal {
-	headers: () => Record<string, string>
-	roots: Record<string, string>
+	scope: Readonly<Record<string, string>>
 }
 
 export interface ScenarioInput {
@@ -38,10 +37,10 @@ export interface ScenarioRun {
 	input: ScenarioInput
 	scenario: Scenario
 	sleep: (ms: number) => Promise<void>
-	/** The scenario principal's credential. */
-	headers: () => Record<string, string>
+	/** The principal the scenario acts as: a step sends `as` it unless it names another, or none. */
+	principal: string
 	context: StepContext
-	/** `{name}` values, the principal's roots among them from the first step. */
+	/** `{name}` values, the parameters bound for the principal among them from the first step. */
 	scope: Record<string, string>
 	/**
 	 * Values a response or a hook handed back, kept whole: a field that is exactly `{name}` sends

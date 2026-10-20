@@ -1,7 +1,7 @@
 /*
  * 0.25.0 credentials: one recipe per security scheme the document declares, and principals as
  * identity data. Where each credential goes comes from the scheme; a recipe says only how to get
- * the value. The runtime reads these from phase 8 on; until then they are validated, not used.
+ * the value.
  */
 
 import type { AuthStep } from "./steps.ts"
@@ -92,9 +92,16 @@ export interface PrincipalEntry {
 	inviteAs?: string
 	/** Made fresh for the run, by the operation the document marks `x-fresh-principal`. */
 	fresh?: boolean
+	/**
+	 * Registered by its own login recipe, through an operation the document does not mark
+	 * `x-fresh-principal`: the run made the account, so teardown removes it with `teardownPrincipal`.
+	 */
+	created?: boolean
 	/** Per-scheme recipe overrides for this principal alone. */
 	security?: Record<string, Partial<Recipe>>
 }
 
+/** The config's `security`: one recipe per scheme the document declares, by scheme name. */
 export type SecurityConfig = Record<string, Recipe>
+/** The config's `principals`: each principal's identity data, by id. */
 export type PrincipalsConfig = Record<string, PrincipalEntry>

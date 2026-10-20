@@ -76,16 +76,17 @@ describe("envelopeValue", () => {
 })
 
 describe("list", () => {
-	it("reads one page of the context's list with its auth and query", async () => {
+	it("reads one page of the context's list as its actor, with its query", async () => {
 		const rows = [{ id: "1" }, { id: "2" }]
-		const { ctx, sent } = notesContext(() => ({ body: rows, status: 200 }), { auth: () => ({ authorization: "a" }) })
+		const actor = { id: "a", inviteAs: undefined, rank: 0, scope: {}, tenant: undefined }
+		const { ctx, sent } = notesContext(() => ({ body: rows, status: 200 }), { actor })
 		const result = await list(ctx, { limit: 2 })
 		expect(result.items).toEqual(rows)
 		expect(result.exchange.status).toBe(200)
 		expect(sent).toEqual([
 			{
 				method: "GET",
-				options: { headers: { authorization: "a" }, operationId: "note.list", query: { limit: 2 } },
+				options: { as: { principal: "a" }, operationId: "note.list", query: { limit: 2 } },
 				path: "/notes",
 			},
 		])
@@ -100,18 +101,20 @@ describe("list", () => {
 		expect(result.envelope).toEqual({ items: [{ id: "1" }], total: 1 })
 	})
 
-	it("reads another list under that list's own key, with the auth and scope given", async () => {
+	it("reads another list under that list's own key, as the principal and in the scope given", async () => {
 		const model = notesModel(TAGS)
 		const { ctx, sent } = notesContext(() => ({ body: { data: [{ slug: "s" }] }, status: 200 }), {}, model)
-		const result = await list(ctx, {}, { auth: () => ({ who: "b" }), scope: {}, op: op(model, "tag.list") })
+		const result = await list(ctx, {}, { op: op(model, "tag.list"), principal: "b", scope: {} })
 		expect(result.items).toEqual([{ slug: "s" }])
-		expect(sent[0]).toMatchObject({ options: { headers: { who: "b" }, operationId: "tag.list" }, path: "/tags" })
+		expect(sent[0]).toMatchObject({ options: { as: { principal: "b" }, operationId: "tag.list" }, path: "/tags" })
 	})
 
 	it("reads a bare array from a list whose document gives no collection shape", async () => {
 		const { ctx } = notesContext(() => ({ body: [{ id: "9" }], status: 200 }))
 		const orphan = { ...ctx.listOp, collection: null, operationId: "orphan.list" }
-		expect((await list(ctx, {}, { auth: ctx.auth, scope: ctx.scope, op: orphan })).items).toEqual([{ id: "9" }])
+		expect((await list(ctx, {}, { op: orphan, principal: ctx.actor.id, scope: ctx.scope })).items).toEqual([
+			{ id: "9" },
+		])
 	})
 
 	it("takes an empty answer as an empty envelope", async () => {

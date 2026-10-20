@@ -91,7 +91,33 @@ describe("toCurl bodies", () => {
 		expect(compacted).toContain("-F 'title=scan'")
 		expect(compacted).toContain("-F 'file=@a.bin;type=image/png'")
 	})
+})
 
+describe("toCurl form redaction", () => {
+	it("scrubs form fields and multipart parts by a secret or placed name, and by an issued value", () => {
+		const redactor = new Redactor()
+		redactor.registerQuery("k")
+		redactor.registerSecret("issued-value-1")
+		const form = new FormData()
+		form.append("password", "p")
+		form.append("k", "placed")
+		form.append("note", "has issued-value-1")
+		const snapshot = {
+			parts: [
+				{ field: "k", value: "placed" },
+				{ field: "note", value: "issued-value-1" },
+			],
+		}
+		const fields = new URLSearchParams({ k: "placed", note: "issued-value-1" })
+		const written = [form, snapshot, fields].map((body) => toCurl(exchange({ requestBody: body }), { redactor }))
+		for (const curl of written) expect(curl).not.toMatch(/placed|issued-value-1/)
+		expect(written[0]).toContain("-F 'password=<redacted>'")
+		expect(written[0]).toContain("-F 'note=has <redacted>'")
+		expect(written[2]).toContain("--data-urlencode 'k=<redacted>'")
+	})
+})
+
+describe("toCurl raw bodies", () => {
 	it("reads bytes from stdin, and sends no body flag without a body", () => {
 		const redactor = new Redactor()
 		expect(toCurl(exchange({ requestBody: new Uint8Array([1]) }), { redactor })).toContain("--data-binary @-")

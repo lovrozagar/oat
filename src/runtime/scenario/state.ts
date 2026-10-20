@@ -20,24 +20,25 @@ export function startScenario(
 	scenario: Scenario,
 	sleep: (ms: number) => Promise<void>,
 ): ScenarioRun {
-	const own = principalOf(input, scenario, scenario.principal ?? input.defaultPrincipal)
+	const principal = scenario.principal ?? input.defaultPrincipal
+	const own = principalOf(input, scenario, principal)
 	return {
 		calls: new Map(),
 		context: {
 			client: input.client,
 			hooks: input.hooks,
 			model: input.model,
-			principalId: scenario.principal ?? input.defaultPrincipal,
+			principalId: principal,
 			...(input.originClients === undefined ? {} : { originClients: input.originClients }),
 			...(input.outOfBand === undefined ? {} : { outOfBand: input.outOfBand }),
 		},
-		headers: own.headers,
 		input,
 		objects: new Map(),
 		observations: new Map(),
+		principal,
 		scenario,
-		/* The principal's roots (organization, project …) are there from the first step, as in the matrix. */
-		scope: { ...own.roots },
+		/* The parameters bound for the principal (organization, project …) are there from the first step, as in the matrix. */
+		scope: { ...own.scope },
 		sent: [],
 		sleep,
 	}

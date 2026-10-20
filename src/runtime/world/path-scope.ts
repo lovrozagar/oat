@@ -95,7 +95,7 @@ export async function resolvePathScope(
 		await resolvePathScope(createOp, seeding, scope)
 		/* One ancestor per principal and parent path: a row and its siblings share the table oat
 		 * made for the first of them, instead of each leaving another table behind. */
-		const cacheKey = `${options.principal ?? ""}\u0000${createOp.operationId}\u0000${fillPath(createOp.path, scope.values)}`
+		const cacheKey = `${options.principal}\u0000${createOp.operationId}\u0000${fillPath(createOp.path, scope.values)}`
 		const cached = options.ancestors?.made.get(cacheKey)
 		if (cached !== undefined) {
 			scope.values[param] = cached

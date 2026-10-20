@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { vi } from "vitest"
 import { main } from "../../src/cli/main.ts"
-import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer, createSqliteServer } from "../../src/reference/http/engines.ts"
 import type { ReferenceOptions } from "../../src/reference/http/state.ts"
 
@@ -117,7 +117,13 @@ export async function goldenRun(target: GoldenTarget, extraFlags: readonly strin
 	const config = join(dir, "oat.config.json")
 	await writeFile(
 		config,
-		JSON.stringify({ baseUrl: server.url, principals: PRINCIPALS, seed: 42, spec: `${server.url}/v1/openapi/spec` }),
+		JSON.stringify({
+			baseUrl: server.url,
+			principals: PRINCIPALS,
+			security: SECURITY,
+			seed: 42,
+			spec: `${server.url}/v1/openapi/spec`,
+		}),
 	)
 	try {
 		const { code, output } = await runCli([

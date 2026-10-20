@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { driveAsync } from "../../src/runtime/async.ts"
 import { Client } from "../../src/client/client.ts"
+import type { Exchange } from "../../src/runtime/exchange.ts"
 import type { AsyncSpec } from "../../src/spec/extensions/async.ts"
 import { Redactor } from "../../src/security/redact.ts"
 
@@ -30,14 +31,24 @@ afterAll(() => close())
 const spec = (poll: string, timeoutMs = 2000): AsyncSpec =>
 	({ idFrom: "$.id", poll, pollIntervalMs: 5, timeoutMs, until: "status.eq.done" }) as AsyncSpec
 
+/* A client for a document that declares no security, and the request that began the job. */
+async function started(): Promise<{ client: Client; principal: string; start: Exchange }> {
+	const client = new Client({
+		baseUrl: url,
+		credentials: { resolve: async () => ({ kind: "anonymous" }) },
+		redactor: new Redactor(),
+	})
+	const start = await client.request("POST", "/jobs", { as: { principal: "alpha" } })
+	return { client, principal: "alpha", start }
+}
+
 describe("how polling a job ends", () => {
 	it("reaches a terminal state, with poll named by operationId", async () => {
 		const outcome = await driveAsync({
-			client: new Client({ baseUrl: url, redactor: new Redactor() }),
+			...(await started()),
 			spec: spec("job.get"),
 			receipt: { id: "done" },
 			scope: {},
-			headers: () => ({}),
 			operation: (id) => (id === "job.get" ? { method: "get", path: "/jobs/{id}" } : undefined),
 		})
 		expect(outcome.state).toBe("terminal")
@@ -46,30 +57,27 @@ describe("how polling a job ends", () => {
 	it("tells a job that vanished from one that never finished", async () => {
 		served = 0
 		const vanished = await driveAsync({
-			client: new Client({ baseUrl: url, redactor: new Redactor() }),
+			...(await started()),
 			spec: spec("GET /jobs/{id}"),
 			receipt: { id: "vanishing" },
 			scope: {},
-			headers: () => ({}),
 		})
 		expect(vanished.state).toBe("vanished")
 		const slow = await driveAsync({
-			client: new Client({ baseUrl: url, redactor: new Redactor() }),
+			...(await started()),
 			spec: spec("GET /jobs/{id}", 60),
 			receipt: { id: "slow" },
 			scope: {},
-			headers: () => ({}),
 		})
 		expect(slow.state).toBe("timed-out")
 	})
 
 	it("says when the poll route cannot be filled, without asking", async () => {
 		const outcome = await driveAsync({
-			client: new Client({ baseUrl: url, redactor: new Redactor() }),
+			...(await started()),
 			spec: spec("GET /jobs/{id}/{part}"),
 			receipt: {},
 			scope: {},
-			headers: () => ({}),
 		})
 		expect(outcome.state).toBe("unfillable")
 		expect(outcome.polls).toBe(0)

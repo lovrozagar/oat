@@ -51,10 +51,10 @@ export const idempotentReplay = defineCheck<{
 		 * first run's record back, which reads as a pass while proving nothing. */
 		const key = `oat-idem-${ctx.nonce}-${ctx.entityName}`
 		const path = fillPath(createOp.path, ctx.scope)
-		const headers = { ...ctx.auth(), [header]: key }
+		const headers = { [header]: key }
 
 		const encoded = await encodeOpBody(ctx, createOp, body)
-		const first = await ctx.client.request("POST", path, { ...encoded, headers })
+		const first = await ctx.client.request("POST", path, { ...encoded, as: { principal: ctx.actor.id }, headers })
 		const firstRefused = refusal(ctx, this.id, createOp, {
 			exchange: first,
 			reason: (status) => `the first create returned ${status}, so there was nothing to replay`,
@@ -71,7 +71,7 @@ export const idempotentReplay = defineCheck<{
 			)
 		}
 		const before = await readSet(ctx, {}, { fresh: true })
-		const second = await ctx.client.request("POST", path, { ...encoded, headers })
+		const second = await ctx.client.request("POST", path, { ...encoded, as: { principal: ctx.actor.id }, headers })
 		const secondRefused = refusal(ctx, this.id, createOp, {
 			exchange: second,
 			reason: (status) => `the replay returned ${status}; a repeated key must be answered, not refused`,

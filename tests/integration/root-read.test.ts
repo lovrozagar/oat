@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
+import { bearerSecurity } from "../../src/conformance/harness/security.ts"
 import { run } from "../../src/runtime/run/index.ts"
 
 const DEFECT_VERDICTS = new Set(["BACKEND_BUG", "SECURITY", "SPEC_BUG"])
@@ -14,6 +15,7 @@ afterEach(async () => {
 
 function spec(): OpenApiDocument {
 	return {
+		...bearerSecurity(),
 		info: { title: "root-read", version: "1" },
 		openapi: "3.1.0",
 		paths: {
@@ -70,7 +72,8 @@ async function serve(openToAnonymous: boolean): Promise<string> {
 async function runOverview(baseUrl: string) {
 	return run({
 		baseUrl,
-		principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha", roots: { project_id: "proj_alpha" } }],
+		principals: { alpha: { scope: { project_id: "proj_alpha" } } },
+		security: { bearer: { static: "alpha" } },
 		seed: 1,
 		spec: `${baseUrl}/openapi.json`,
 	})

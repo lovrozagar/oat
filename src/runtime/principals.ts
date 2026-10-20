@@ -1,53 +1,92 @@
 /**
- * Snapshot a run's principals so a second config (a CDN host, a second document) can reuse
- * the credentials the first run already acquired — without oat inventing a merged spec.
+ * A run's principals as it leaves them, for `principals.json`: who each is, its tenant, rank and
+ * scope, and what it held, so a second config (a CDN host, a second document) can reuse them. No
+ * credential value is ever written there; the next run acquires its own by the same recipes. Values
+ * leave the run only for `--keep-credentials`, which writes them outside the output directory.
  */
 
 import { readFileSync } from "node:fs"
-import type { Principal } from "../config/types/principals.ts"
+import type { PrincipalEntry, PrincipalsConfig } from "../config/types/security.ts"
+import type { HeldCredential } from "../credentials/store.ts"
+
+/** A credential a principal held when the run ended: which, and until when, never its value. */
+export interface PersistedCredential {
+	scheme: string
+	scopes: string[]
+	/** Epoch ms it lapses, or null when it never does as far as oat could tell. */
+	expiresAt: number | null
+}
 
 export interface PersistedPrincipal {
 	id: string
-	headers: Record<string, string>
-	roots: Record<string, string>
-	role?: string
-	rank?: number
+	/** The data recipes interpolate as `{principal.<key>}`: from config, a fresh signup or a login's claims. */
+	identity: Record<string, unknown>
+	tenant?: string
+	rank: number
+	scope: Record<string, string>
 	inviteAs?: string
+	credentials: PersistedCredential[]
+	/** Why the run went on without it: what blocked its signup or login. Absent for a principal that signed in. */
+	blocked?: string
 }
 
 export interface PersistedPrincipalsFile {
 	principals: PersistedPrincipal[]
 }
 
-export function snapshotPrincipal(input: {
+/** A credential value the run held, kept by `--keep-credentials` for later commands such as teardown replay. */
+export interface KeptCredential extends PersistedCredential {
+	principal: string
+	value: string
+}
+
+/** What a principal is when the run ends. */
+export interface SnapshotInput {
 	id: string
-	headers: () => Record<string, string>
-	roots: Record<string, string>
-	role?: string
-	rank?: number
+	identity: Readonly<Record<string, unknown>>
+	tenant?: string
+	rank: number
+	scope: Readonly<Record<string, string>>
 	inviteAs?: string
-}): PersistedPrincipal {
+	blocked?: string
+}
+
+/* Keys a principal entry grades or authenticates by: never taken from persisted identity data. */
+const RESERVED: ReadonlySet<string> = /* @__PURE__ */ new Set([
+	"fresh",
+	"inviteAs",
+	"rank",
+	"scope",
+	"security",
+	"tenant",
+])
+
+/** The principal as `principals.json` keeps it, with the credentials `held` lists for it. */
+export function snapshotPrincipal(input: SnapshotInput, held: readonly HeldCredential[]): PersistedPrincipal {
 	const snap: PersistedPrincipal = {
-		headers: { ...input.headers() },
+		credentials: held
+			.filter((entry) => entry.principal === input.id)
+			.map(({ credential, scheme, scopes }) => ({ expiresAt: credential.expiresAt, scheme, scopes: [...scopes] })),
 		id: input.id,
-		roots: { ...input.roots },
+		identity: { ...input.identity },
+		rank: input.rank,
+		scope: { ...input.scope },
 	}
-	if (input.role !== undefined) snap.role = input.role
-	if (input.rank !== undefined) snap.rank = input.rank
+	if (input.tenant !== undefined) snap.tenant = input.tenant
 	if (input.inviteAs !== undefined) snap.inviteAs = input.inviteAs
+	if (input.blocked !== undefined) snap.blocked = input.blocked
 	return snap
 }
 
-export function persistedToPrincipal(snap: PersistedPrincipal): Principal {
-	const principal: Principal = {
-		headers: { ...snap.headers },
-		id: snap.id,
-		roots: { ...snap.roots },
-	}
-	if (snap.role !== undefined) principal.role = snap.role
-	if (snap.rank !== undefined) principal.rank = snap.rank
-	if (snap.inviteAs !== undefined) principal.inviteAs = snap.inviteAs
-	return principal
+/** Every value `held` lists, for `--keep-credentials`. */
+export function keptCredentials(held: readonly HeldCredential[]): KeptCredential[] {
+	return held.map(({ credential, principal, scheme, scopes }) => ({
+		expiresAt: credential.expiresAt,
+		principal,
+		scheme,
+		scopes: [...scopes],
+		value: credential.value,
+	}))
 }
 
 /** The principal entries of a parsed file: `{ principals: [...] }` or a bare array. */
@@ -58,22 +97,24 @@ function listOf(parsed: unknown): unknown[] | null {
 	return Array.isArray(principals) ? principals : null
 }
 
-/** One entry as a principal, or undefined when it has no id to go by. */
-function principalOf(item: unknown): Principal | undefined {
+/** One entry as an id and a config principal, or undefined when it has no id to go by. */
+function entryOf(item: unknown): [string, PrincipalEntry] | undefined {
 	if (item === null || typeof item !== "object") return undefined
 	const rec = item as Record<string, unknown>
 	if (typeof rec.id !== "string" || rec.id === "") return undefined
-	return persistedToPrincipal({
-		headers: stringMap(rec.headers),
-		id: rec.id,
-		roots: stringMap(rec.roots),
-		...(typeof rec.role === "string" ? { role: rec.role } : {}),
-		...(typeof rec.rank === "number" ? { rank: rec.rank } : {}),
-		...(typeof rec.inviteAs === "string" ? { inviteAs: rec.inviteAs } : {}),
-	})
+	const identity = isObject(rec.identity) ? rec.identity : {}
+	const entry: PrincipalEntry = {
+		...Object.fromEntries(Object.entries(identity).filter(([key]) => !RESERVED.has(key))),
+		scope: stringMap(rec.scope),
+	}
+	if (typeof rec.tenant === "string") entry.tenant = rec.tenant
+	if (typeof rec.rank === "number") entry.rank = rec.rank
+	if (typeof rec.inviteAs === "string") entry.inviteAs = rec.inviteAs
+	return [rec.id, entry]
 }
 
-export function parsePersistedPrincipals(raw: string, source = "principals.json"): Principal[] {
+/** `principals.json` read back into the config's principals map. */
+export function parsePersistedPrincipals(raw: string, source = "principals.json"): PrincipalsConfig {
 	let parsed: unknown
 	try {
 		parsed = JSON.parse(raw) as unknown
@@ -84,31 +125,32 @@ export function parsePersistedPrincipals(raw: string, source = "principals.json"
 	if (list === null) {
 		throw new Error(`oat: ${source} must be { principals: [...] } or an array of principals`)
 	}
-	const principals = list.map(principalOf).filter((principal) => principal !== undefined)
-	if (principals.length === 0) {
+	const entries = list.map(entryOf).filter((entry) => entry !== undefined)
+	if (entries.length === 0) {
 		throw new Error(`oat: ${source} contains no usable principals`)
 	}
-	return principals
+	return Object.fromEntries(entries)
 }
 
 /** Synchronous so a config file can call it at module load. */
-export function loadPersistedPrincipals(path: string): [Principal, ...Principal[]] {
+export function loadPersistedPrincipals(path: string): PrincipalsConfig {
 	let raw: string
 	try {
 		raw = readFileSync(path, "utf8")
 	} catch (error) {
 		throw new Error(`oat: cannot read persisted principals from ${path}: ${String(error)}`, { cause: error })
 	}
-	const principals = parsePersistedPrincipals(raw, path)
-	return principals as [Principal, ...Principal[]]
+	return parsePersistedPrincipals(raw, path)
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === "object" && !Array.isArray(value)
 }
 
 /** The string entries of a plain object; anything else holds none. */
 function stringMap(value: unknown): Record<string, string> {
-	const out: Record<string, string> = {}
-	if (value === null || typeof value !== "object" || Array.isArray(value)) return out
-	for (const [key, item] of Object.entries(value)) {
-		if (typeof item === "string") out[key] = item
-	}
-	return out
+	if (!isObject(value)) return {}
+	return Object.fromEntries(
+		Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+	)
 }

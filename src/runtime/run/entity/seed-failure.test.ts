@@ -99,7 +99,7 @@ describe("seedFailed on a create that failed", () => {
 		const ctx = await contextOf(
 			optionsFor((method, path, request) => (path === "/boom" ? { status: 502 } : notes(method, path, request))),
 		)
-		await ctx.client.get("/boom")
+		await ctx.client.get("/boom", { as: { principal: "alpha", scheme: "bearer" } })
 		const createOp = ctx.model.byOperationId.get("notes.create")
 		if (createOp === undefined) throw new Error("no create")
 		expect(await seedFailed(entityRunOf(ctx), createOp, "plain failure")).toBeNull()

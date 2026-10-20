@@ -3,7 +3,7 @@
  *
  * This file is the entire coupling surface between oat and one specific backend: which route
  * issues a credential, how a verification *link* that never travels over HTTP is collected, which
- * header carries it, and which path parameters the credential itself identifies. Delete it and
+ * of the document's schemes it fills, and which path parameters the credential itself identifies. Delete it and
  * oat still runs against any other OpenAPI document.
  *
  * The primary chain is the user-visible hop: the mailbox returns a URL, oat GETs it (recorded),
@@ -16,11 +16,11 @@
  * in your own project it is `from "@lovrozagar/oat"`.
  */
 
-import { defineConfig, type AuthFlow, type OutOfBandRequest, type TeardownPrincipalContext } from "../dist/index.js"
+import { defineConfig, env, type OutOfBandRequest, type Recipe, type TeardownPrincipalContext } from "../dist/index.js"
 
 const API = process.env.OAT_API_URL ?? "https://api.example.com"
 const APP = process.env.OAT_APP_URL ?? "https://app.example.com"
-const TESTER_KEY = process.env.OAT_TESTER_KEY ?? ""
+const TESTER_KEY = env("OAT_TESTER_KEY")
 const PASSWORD = "OatSpec123!x"
 
 /** A distinct address per principal per run, so tenants never collide between runs. */
@@ -33,54 +33,46 @@ function freshEmail(label: string): string {
  *
  * Registration provisions an organisation and a project, so each principal arrives owning its
  * own tenant — which is what makes the isolation checks meaningful without a single fixture
- * identifier being configured by hand.
+ * identifier being configured by hand: `claims` reads the tenant and both path parameters out of
+ * the session token. The document's `session` scheme is an apiKey in the `session` cookie, so the
+ * scheme places the credential; nothing here names the cookie header.
  */
-function signUp(label: string): AuthFlow {
-	const email = freshEmail(label)
-	return {
-		credentialFrom: "$.access_token",
-		expiresInFrom: "$.access_token_expires_in",
-		header: "cookie",
-		template: "session={credential}",
-		refresh: {
-			steps: [
-				{
-					body: { refresh_token: "{refreshToken}" },
-					method: "POST",
-					path: "/v1/auth/refresh",
-					saveAs: { credential: "$.access_token", refreshToken: "$.refresh_token" },
-				},
-			],
-		},
+const SESSION: Recipe = {
+	expiresIn: { from: "$.access_token_expires_in" },
+	login: {
+		claims: { "scope.organization_id": "orgs.0.oid", "scope.project_id": "orgs.0.pids.0", tenant: "orgs.0.oid" },
+		from: "cookie:session",
 		steps: [
 			/* Raw paths rather than operationIds: an API document like this commonly contains no
 			 * auth operations at all, so there is nothing in the spec to reference. `oat doctor`
 			 * reports that as a gap — a document describing a protected API should describe how
 			 * to authenticate to it. */
 			{
-				/* Binding the address is what lets teardown cascade the account away afterwards. */
-				bind: { address: email },
-				body: { email, name: `Oat ${label}`, password: PASSWORD },
+				body: { email: "{principal.email}", name: "{principal.name}", password: PASSWORD },
 				method: "POST",
 				path: "/v1/auth/register/email",
 				saveAs: { credential: "$.access_token", refreshToken: "$.refresh_token" },
 			},
-			{ outOfBand: { address: email, as: "verifyLink", kind: "email-verify" } },
+			{ outOfBand: { address: "{principal.email}", as: "verifyLink", kind: "email-verify" } },
 			{
 				expect: [200, 303],
 				method: "GET",
 				path: "{verifyLink}",
-				saveAs: {
-					credential: "cookie:session",
-					refreshToken: "cookie:refresh",
-				},
-				saveClaimsFrom: {
-					bind: { orgId: "orgs.0.oid", projectId: "orgs.0.pids.0" },
-					token: "credential",
-				},
+				saveAs: { refreshToken: "cookie:refresh" },
 			},
 		],
-	}
+	},
+	refresh: {
+		from: "$.access_token",
+		steps: [
+			{
+				body: { refresh_token: "{refreshToken}" },
+				method: "POST",
+				path: "/v1/auth/refresh",
+				saveAs: { refreshToken: "$.refresh_token" },
+			},
+		],
+	},
 }
 
 /*
@@ -93,8 +85,9 @@ function signUp(label: string): AuthFlow {
  *     method: "POST",
  *     path: "/v1/auth/email/verify",
  *     saveAs: { credential: "$.access_token", refreshToken: "$.refresh_token" },
- *     saveClaimsFrom: { token: "$.access_token", bind: { orgId: "orgs.0.oid", projectId: "orgs.0.pids.0" } },
  *   }
+ *
+ * with the login's `from: "credential"`, so its claims are read from that access token.
  */
 
 /**
@@ -126,28 +119,28 @@ async function resolveOutOfBand({ address, kind, scope }: OutOfBandRequest): Pro
 	return null
 }
 
-/** Authenticated delete of the current principal — no tester-key god route. */
-async function teardownPrincipal(_address: string, { headers }: TeardownPrincipalContext): Promise<void> {
-	await fetch(`${API}/v1/auth/account`, { headers, method: "DELETE" })
+/** Authenticated delete of the current principal, sent with its session — no tester-key god route. */
+async function teardownPrincipal(_address: string, { sends }: TeardownPrincipalContext): Promise<void> {
+	const cookie = Object.entries(sends.cookies)
+		.map(([name, value]) => `${name}=${value}`)
+		.join("; ")
+	await fetch(`${API}/v1/auth/account`, { headers: { ...sends.headers, cookie }, method: "DELETE" })
 }
 
 export default defineConfig({
 	baseUrl: API,
-	/* Sent on every request. Opaque to oat — it never inspects these. */
+	/* Sent on every request. Opaque to oat — it never inspects these, and never carries a credential. */
 	globalHeaders: { "x-oat-tester-key": TESTER_KEY },
 	hooks: { resolveOutOfBand, teardownPrincipal },
-	principals: [
-		{
-			auth: signUp("alpha"),
-			id: "alpha",
-			rootsFromFlow: { organization_id: "orgId", project_id: "projectId" },
-		},
-		{
-			auth: signUp("beta"),
-			id: "beta",
-			rootsFromFlow: { organization_id: "orgId", project_id: "projectId" },
-		},
-	],
+	principals: {
+		/* The login registers each account through a route the document does not mark
+		 * x-fresh-principal, so `created` says the run made it and teardown removes it by its email. */
+		alpha: { created: true, email: freshEmail("alpha"), name: "Oat alpha" },
+		beta: { created: true, email: freshEmail("beta"), name: "Oat beta" },
+	},
+	/* The tester key is a secret, not a credential: scrubbed from reports and repro scripts. */
+	redact: { headers: ["x-oat-tester-key"] },
+	security: { session: SESSION },
 	seed: 42,
 	spec: `${API}/v1/openapi/spec`,
 })

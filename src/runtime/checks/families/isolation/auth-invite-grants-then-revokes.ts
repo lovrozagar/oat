@@ -2,11 +2,11 @@ import { defineCheck } from "../../core/define.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
-import { sameTenantScope } from "../../isolation/scratch.ts"
 import { standDownForFeatureGate } from "../../planning/stand-down.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { fillPath } from "../../../fill-path.ts"
 import {
+	adoptIssued,
 	canRead,
 	type Flow,
 	type InvitePlan,
@@ -30,9 +30,8 @@ export const inviteGrantsThenRevokes = defineCheck<InvitePlan>({
 		const owner = ctx.actors[0]
 		if (spec === null || owner === undefined) return cannot()
 		const delegate =
-			ctx.actors.find(
-				(actor) => actor !== owner && actor.inviteAs !== undefined && !sameTenantScope(actor.roots, owner.roots),
-			) ?? ctx.actors.find((actor) => actor !== owner && actor.inviteAs !== undefined)
+			ctx.actors.find((actor) => actor !== owner && actor.inviteAs !== undefined && actor.tenant !== owner.tenant) ??
+			ctx.actors.find((actor) => actor !== owner && actor.inviteAs !== undefined)
 		if (delegate?.inviteAs === undefined) {
 			return cannot("a peer principal declaring inviteAs, so the grantee field need not be invented")
 		}
@@ -63,8 +62,9 @@ export const inviteGrantsThenRevokes = defineCheck<InvitePlan>({
 
 		const { inviteOp, owner, spec } = plan
 		const invited = await ctx.client.request(inviteOp.method, fillPath(inviteOp.path, flow.resource), {
+			as: { principal: owner.id },
 			body: { [spec.granteeField]: plan.inviteAs },
-			headers: { ...owner.headers(), "content-type": "application/json" },
+			headers: { "content-type": "application/json" },
 			operationId: inviteOp.operationId,
 		})
 		if (standDownForFeatureGate(ctx, inviteOp, invited, this.id))
@@ -117,7 +117,7 @@ async function acceptInvite(flow: Flow, invited: Exchange): Promise<{ exchange: 
 	const acceptFailed = spec.acceptFrom === "link" ? status >= 400 : status >= 300
 	if (acceptFailed) return { outcome: ctx.findings.unresolved(check, ctx.entityName, `accept returned ${status}`) }
 	const issued = pointerValue(accepted.exchange.responseBody, spec.credentialFrom)
-	if (issued !== undefined) delegate.adoptCredential?.(issued)
+	if (issued !== undefined) await adoptIssued(flow, issued)
 	if ((await canRead(flow)) === false) {
 		const outcome = ctx.findings.backend(check, ctx.entityName, {
 			summary: "accepting an invite does not grant access",

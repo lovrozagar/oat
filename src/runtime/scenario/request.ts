@@ -3,6 +3,7 @@
  * re-sent within its poll window until what it asserts shows.
  */
 
+import type { Actor } from "../../client/credential-source.ts"
 import type { ScenarioRequestStep } from "../../config/types/steps.ts"
 import { resolveRequest } from "../steps/request.ts"
 import type { Exchange } from "../exchange.ts"
@@ -40,7 +41,7 @@ export async function requestStep(run: ScenarioRun, step: ScenarioRequestStep, i
 	}
 }
 
-/** The step's request, resolved against the scope and sent with the credential it names. */
+/** The step's request, resolved against the scope and sent as the actor it names, through its origin's client. */
 async function send(
 	run: ScenarioRun,
 	at: { step: ScenarioRequestStep; index: number; stepOp: string | undefined },
@@ -55,7 +56,8 @@ async function send(
 	const exchange = await request.client.request(request.method, request.path, {
 		...(request.body === undefined ? {} : { body: request.body }),
 		...(request.contentType === undefined ? {} : { contentType: request.contentType }),
-		headers: { ...credentialOf(run, step), ...request.headers },
+		as: actorOf(run, step),
+		headers: request.headers ?? {},
 		...(request.query === undefined ? {} : { query: request.query }),
 		...(stepOp === undefined ? {} : { operationId: stepOp }),
 		...(request.redirect === undefined ? {} : { redirect: request.redirect }),
@@ -64,11 +66,13 @@ async function send(
 	return { exchange, request }
 }
 
-/** None for an anonymous step, else the principal the step names, else the scenario's. */
-function credentialOf(run: ScenarioRun, step: ScenarioRequestStep): Record<string, string> {
-	if (step.anonymous === true) return {}
-	if (step.principal === undefined) return run.headers()
-	return principalOf(run.input, run.scenario, step.principal).headers()
+/** Nobody for an anonymous step, else the principal the step names or the scenario's, on the scheme it names. */
+function actorOf(run: ScenarioRun, step: ScenarioRequestStep): Actor {
+	if (step.anonymous === true) return { anonymous: true }
+	const principal = step.principal ?? run.principal
+	/* Refuses a principal the config does not have, before anything is sent as it. */
+	principalOf(run.input, run.scenario, principal)
+	return step.scheme === undefined ? { principal } : { principal, scheme: step.scheme }
 }
 
 function succeeded(step: ScenarioRequestStep, exchange: Exchange): boolean {

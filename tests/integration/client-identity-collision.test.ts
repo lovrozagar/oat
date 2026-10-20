@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { run } from "../../src/runtime/run/index.ts"
 
@@ -18,6 +18,7 @@ describe("seeding with client-chosen identities", () => {
 				baseUrl: server.url,
 				nonce: "b7e1c3ac",
 				principals: PRINCIPALS,
+				security: SECURITY,
 				seed: 42,
 				spec: `${server.url}/v1/openapi/spec`,
 			})

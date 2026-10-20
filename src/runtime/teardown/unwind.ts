@@ -51,7 +51,7 @@ export async function unwindQueue(input: UnwindInput): Promise<TeardownReport> {
 	const levels = [...new Set(queue.map(depthOf))].sort((a, b) => b - a)
 	for (const level of levels) {
 		const removing = queue.filter((item) => depthOf(item) === level)
-		/* A record its creator never read back is read once, with the creator's credential. */
+		/* A record its creator never read back is read once, as its creator. */
 		await Promise.all(removing.filter((item) => !ledger.seenByCreator(item)).map((item) => readBack(state, item)))
 		await Promise.all(removing.map((item) => removeOne(state, item)))
 		/* Before the parents go: a removed parent takes with it the list its children are read in. */
@@ -67,13 +67,13 @@ export async function unwindQueue(input: UnwindInput): Promise<TeardownReport> {
 	return report
 }
 
-/* One read of the record with its creator's credential; a 2xx is the sighting it lacked. */
+/* One read of the record as its creator; a 2xx is the sighting it lacked. */
 async function readBack(state: Unwind, item: Disposable): Promise<void> {
 	const read = readPathOf(state.model, item)
 	if (read === null) return
 	try {
 		const exchange = await state.client.get(read.path, {
-			headers: item.owner.headers(),
+			as: { principal: item.owner.id },
 			operationId: read.op.operationId,
 		})
 		if (exchange.status >= 200 && exchange.status < 300) state.ledger.sighted(item.entity, item.id, item.owner.id)

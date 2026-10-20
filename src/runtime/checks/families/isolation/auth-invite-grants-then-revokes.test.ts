@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest"
-import { modelOf, type Sent } from "../../__fixtures__/harness.ts"
+import { modelOf, type Responder, type Sent } from "../../__fixtures__/harness.ts"
 import { runCheck } from "../../core/run.ts"
 import { inviteGrantsThenRevokes } from "./auth-invite-grants-then-revokes.ts"
-import { actor } from "./__fixtures__/context.ts"
+import { actor, caller } from "./__fixtures__/context.ts"
 import { delegate, GATED, inviteBackend, inviteContext, inviteDocument, owner } from "./__fixtures__/invites.ts"
 
-const line = (s: Sent) => `${s.method} ${s.path} ${(s.options.headers as Record<string, string>).authorization}`
+const line = (s: Sent) => `${s.method} ${s.path} ${caller(s)}`
 const FLOW = [
 	"GET /orgs/o1/notes/n1 delegate",
 	"POST /orgs/o1/notes/n1/invites owner",
@@ -22,6 +22,17 @@ describe("auth.invite-grants-then-revokes", () => {
 		expect(await runCheck(inviteGrantsThenRevokes, ctx)).toEqual({ kind: "asserted" })
 		expect(sent.map(line)).toEqual(FLOW)
 		expect(sent[1]?.options.body).toEqual({ key: "bob" })
+		/* The owner's credential is the client's to place: the check sends only the body's type. */
+		expect(sent[1]?.options.headers).toEqual({ "content-type": "application/json" })
+		expect(sent.map((s) => s.options.operationId)).toEqual([
+			"readNote",
+			"inviteNote",
+			"readNote",
+			"acceptInvite",
+			"readNote",
+			"revokeInvite",
+			"readNote",
+		])
 		expect(sent[3]?.options.body).toBeUndefined()
 		expect(findings.findings).toEqual([])
 	})
@@ -144,7 +155,7 @@ describe("auth.invite-grants-then-revokes when the invite answer lacks a value",
 
 	it("returns its finding even when the cleanup revoke fails to send", async () => {
 		const backend = inviteBackend({ grantsBeforeAccept: true })
-		const failing = (method: string, path: string, options: object) => {
+		const failing: Responder = (method, path, options) => {
 			if (method === "DELETE") throw new Error("connection reset")
 			return backend(method, path, options)
 		}
@@ -155,8 +166,9 @@ describe("auth.invite-grants-then-revokes when the invite answer lacks a value",
 
 describe("auth.invite-grants-then-revokes planning", () => {
 	it("picks a delegate in another tenant, else a peer in the same one", () => {
-		const peer = actor("peer", { rank: 1, roots: { org_id: "o1" }, inviteAs: "pat" })
-		const plain = actor("plain", { rank: 1, roots: { org_id: "o2" } })
+		/* Same tenant as the owner, though its scope names another org: tenant decides, not scope. */
+		const peer = actor("peer", { inviteAs: "pat", rank: 1, scope: { org_id: "o3" }, tenant: "o1" })
+		const plain = actor("plain", { rank: 1, scope: { org_id: "o2" }, tenant: "o2" })
 		const across = inviteContext(inviteDocument(), inviteBackend(), { actors: [owner, peer, delegate] })
 		expect(inviteGrantsThenRevokes.plan(across.ctx)).toMatchObject({ ok: true, value: { delegate, inviteAs: "bob" } })
 		const within = inviteContext(inviteDocument(), inviteBackend(), { actors: [owner, plain, peer] })

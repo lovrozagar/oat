@@ -14,9 +14,8 @@ import type { ContractCall, ContractInput } from "./types.ts"
 
 /** Every path parameter's value, or `null` once one cannot be resolved (and the operation is skipped). */
 export async function pathValues(
-	input: Pick<ContractInput, "client" | "grades" | "hooks" | "roots">,
+	input: Pick<ContractInput, "acting" | "client" | "grades" | "hooks" | "principal" | "roots">,
 	{ op, params }: Pick<ContractCall, "op" | "params">,
-	headers: Record<string, string>,
 ): Promise<Record<string, string> | null> {
 	const values: Record<string, string> = {}
 	for (const name of op.pathParams) {
@@ -24,14 +23,7 @@ export async function pathValues(
 		const value =
 			input.roots[name] ??
 			(declared?.schema?.enum === undefined ? undefined : exampleOf(declared.schema)) ??
-			(await input.hooks.resolvePathValue?.({
-				enumValues: (declared?.schema?.enum ?? []).map(String),
-				headers,
-				method: op.method,
-				operationId: op.operationId,
-				param: name,
-				path: op.path,
-			})) ??
+			(await askHook(input, { declared, name, op })) ??
 			seenValue(input.client.transcript, name)
 		if (value === undefined || value === null) {
 			input.grades.skipped([op.operationId], `unresolved param ${name}`)
@@ -40,6 +32,28 @@ export async function pathValues(
 		values[name] = value
 	}
 	return values
+}
+
+/* `hooks.resolvePathValue`, told who acts and what the operation would send as it: never raw headers. */
+async function askHook(
+	input: Pick<ContractInput, "acting" | "hooks" | "principal" | "roots">,
+	asked: { op: ContractCall["op"]; name: string; declared: ContractCall["params"][number] | undefined },
+): Promise<string | null | undefined> {
+	const hook = input.hooks.resolvePathValue
+	if (hook === undefined) return undefined
+	const { op, name, declared } = asked
+	const sending = await input.acting.sending(op.operationId)
+	return hook({
+		enumValues: (declared?.schema?.enum ?? []).map(String),
+		identity: input.acting.identity,
+		method: op.method,
+		operationId: op.operationId,
+		param: name,
+		path: op.path,
+		principal: input.principal,
+		scope: input.roots,
+		...sending,
+	})
 }
 
 /**

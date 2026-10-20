@@ -109,7 +109,7 @@ async function runStream(async: boolean, streamBody: string): Promise<{ polls: s
 	const result = await run({
 		baseUrl: server.url,
 		only: ["batch"],
-		principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
+		principals: { alpha: {} },
 		seed: 1,
 		spec: `${server.url}/v1/openapi/spec`,
 	})
@@ -208,10 +208,7 @@ async function schemaCheckFindings(model: ReturnType<typeof buildModel>): Promis
 			check,
 			checkContext({
 				actors: [],
-				altAuth: undefined,
-				altScope: undefined,
 				asyncOps: [],
-				auth: () => ({}),
 				client: streamedCreateClient(),
 				collectionKey: null,
 				createOp: model.byOperationId.get("batch.create"),
@@ -273,7 +270,9 @@ async function keepsJsonLikeStreamText(): Promise<void> {
 		send(res, 404)
 	})
 	closers.push(server.close)
-	const exchange = await new Client({ baseUrl: server.url, redactor: new Redactor() }).request("GET", "/stream")
+	const exchange = await new Client({ baseUrl: server.url, redactor: new Redactor() }).request("GET", "/stream", {
+		as: { anonymous: true },
+	})
 	expect(exchange.status).toBe(200)
 	expect(typeof exchange.responseBody).toBe("string")
 	expect(exchange.responseBody).toBe('{"ok":true}')

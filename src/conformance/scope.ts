@@ -16,7 +16,7 @@ import type { ParserResult } from "./harness/result.ts"
 import { launch, reach, type Via } from "./harness/launch.ts"
 import { defectsFor } from "./matrix/defects.ts"
 import { judgedOperations, primaryOf } from "./matrix/expected.ts"
-import { PRINCIPALS } from "./matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "./matrix/principals.ts"
 
 const NOT_DEFECTS: ReadonlySet<string> = /* @__PURE__ */ new Set(["COVERAGE_GAP", "BLOCKED"])
 
@@ -30,6 +30,7 @@ async function runOnce(
 		const result = await run({
 			baseUrl: server.url,
 			principals: PRINCIPALS,
+			security: SECURITY,
 			seed: 42,
 			spec: `${server.url}/v1/openapi/spec`,
 			...(ops === undefined ? {} : { ops }),

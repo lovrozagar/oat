@@ -6,7 +6,7 @@ import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { afterAll, describe, expect, it } from "vitest"
 import { leftBehind } from "../../src/conformance/leaks.ts"
-import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import type { ReferenceServer } from "../../src/reference/http/server.ts"
 
@@ -107,6 +107,7 @@ async function interrupted(signal: NodeJS.Signals, phase: string, twice = false)
 		JSON.stringify({
 			baseUrl: base,
 			principals: PRINCIPALS,
+			security: SECURITY,
 			scenarios: [SCENARIO],
 			seed: 42,
 			spec: `${base}/v1/openapi/spec`,

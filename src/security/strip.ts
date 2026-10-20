@@ -11,3 +11,8 @@ export function stripCredentials(headers: Record<string, string>, names: Readonl
 		if (names.has(name.toLowerCase())) delete headers[name]
 	}
 }
+
+/** Removes every placed query parameter, in place, before a request follows a redirect to another origin. */
+export function stripQuery(url: URL, names: ReadonlySet<string>): void {
+	for (const name of names) url.searchParams.delete(name)
+}

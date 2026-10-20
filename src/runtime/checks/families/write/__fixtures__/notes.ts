@@ -133,7 +133,7 @@ export interface NotesServer {
 }
 
 /* A form or multipart body as the client hands it over, read back as fields. */
-function fieldsOf(options: RequestOptions): Note {
+function fieldsOf(options: Omit<RequestOptions, "as">): Note {
 	const body = options.body
 	if (body instanceof URLSearchParams) return Object.fromEntries(body.entries())
 	if (body !== null && typeof body === "object") return body as Note
@@ -144,7 +144,7 @@ function fieldsOf(options: RequestOptions): Note {
 interface ItemRequest {
 	method: string
 	id: string
-	options: RequestOptions
+	options: Omit<RequestOptions, "as">
 }
 
 function writeRoute(server: NotesServer, { method, id, options }: ItemRequest): Answer {

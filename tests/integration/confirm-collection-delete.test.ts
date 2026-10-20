@@ -66,19 +66,21 @@ async function confirm(keeps: boolean) {
 	const model = buildModel(dereference(spec).doc)
 	const client = new Client({
 		baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+		/* The document declares no security: alpha's requests send nothing. */
+		credentials: { resolve: async () => ({ kind: "anonymous" }) },
 		redactor: new Redactor(),
 	})
-	await client.request("DELETE", "/v1/devices", { operationId: "devices.forgetAll" })
+	await client.request("DELETE", "/v1/devices", { as: { principal: "alpha" }, operationId: "devices.forgetAll" })
 	const findings = new FindingCollector()
 	const grades = new GradeLedger()
 	await confirmDeletes({
-		auth: () => ({}),
 		client,
 		findings,
 		grades,
 		inScope: () => true,
 		mode: "full",
 		model,
+		principal: "alpha",
 		stopped: () => false,
 	})
 	return { evidence: grades.evidence.get("devices.forgetAll"), findings: findings.findings }

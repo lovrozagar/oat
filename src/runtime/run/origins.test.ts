@@ -1,17 +1,27 @@
 import { describe, expect, it } from "vitest"
 import type { Exchange } from "../exchange.ts"
 import type { RunContext } from "./context.ts"
-import { contextOf, notesApi, optionsFor } from "./__fixtures__/api.ts"
+import { contextOf, notesApi, openDoc, optionsFor, servingAt } from "./__fixtures__/api.ts"
 import { scopeReport } from "./result.ts"
 import { runSecondaryOrigins } from "./origins.ts"
 import type { RunOptions, RunResult } from "./types.ts"
 
 /*
- * Secondary origins (one transport answers both hosts here): each has a client over its own document, and each runs as a run of its own,
- * with the primary's principals. What it finds joins the primary's result, named by origin.
+ * Secondary origins (one transport answers both hosts here): each has a client over its own document,
+ * and each runs as a run of its own over the primary's store, with the principals that signed in.
+ * What it finds joins the primary's result, named by origin.
  */
 
-const OTHER = { baseUrl: "http://other.test", id: "other", spec: "http://other.test/openapi.json" }
+/* The other host serves the notes document too, so its bearer scheme sends the primary's. */
+const OTHER = {
+	baseUrl: "http://other.test",
+	id: "other",
+	security: { bearer: "bearer" },
+	spec: "http://other.test/openapi.json",
+}
+
+/** A host whose document declares no security, so nothing of the primary's is mapped to it. */
+const OPEN = { baseUrl: "http://open.test", id: "open", spec: "http://open.test/openapi.json" }
 
 /** A secondary run's result, as `run` would give it. */
 function originResult(ctx: RunContext): RunResult {
@@ -63,7 +73,7 @@ describe("loadOriginClients", () => {
 		)
 		const other = ctx.originClients.get("other")
 		expect(other?.model.entities.has("note")).toBe(true)
-		await other?.client.get("/notes")
+		await other?.client.get("/notes", { as: { principal: "alpha" } })
 		expect(asked.at(-1)).toBe("http://other.test/notes")
 		expect(ctx.originClients.has("plain")).toBe(true)
 	})
@@ -76,6 +86,11 @@ describe("runSecondaryOrigins", () => {
 				cohortSize: 2,
 				hooks: { teardownPrincipal: async () => undefined },
 				origins: [{ ...OTHER, maxRps: 5 }],
+				principals: {
+					alpha: { fresh: false, rank: 2, scope: { org_id: "o1" } },
+					blocked: { security: { bearer: { login: { from: "$.t", steps: [{ operationId: "nope" }] } } } },
+				},
+				redact: { headers: ["x-tester-key"] },
 				scenarios: [{ covers: [], id: "s-other", origin: "other", steps: [] } as never],
 			}),
 		)
@@ -83,7 +98,6 @@ describe("runSecondaryOrigins", () => {
 		const asked: RunOptions[] = []
 		await runSecondaryOrigins(ctx, {
 			coverage,
-			persisted: [{ headers: { authorization: "Bearer alpha-key" }, id: "alpha", rank: 0, roots: {} }],
 			runOrigin: async (options) => {
 				asked.push(options)
 				return originResult(ctx)
@@ -93,13 +107,20 @@ describe("runSecondaryOrigins", () => {
 			baseUrl: OTHER.baseUrl,
 			cohortSize: 2,
 			maxRps: 5,
+			redact: { headers: ["x-tester-key"] },
+			security: { bearer: { static: "alpha-key" } },
+			sharedCredentials: { mapping: { bearer: "bearer" }, store: ctx.store },
 			skipPrincipalTeardown: true,
 			spec: OTHER.spec,
 		})
 		expect(asked[0]?.hooks).toEqual({})
 		expect(asked[0]?.scenarios).toEqual([{ covers: [], id: "s-other", steps: [] }])
-		expect(asked[0]?.principals.map((principal) => principal.id)).toEqual(["alpha"])
-		expect(ctx.findings.findings.map((finding) => [finding.origin, finding.check])).toEqual([["other", "c.ran"]])
+		/* Signed in already, none signed up again, and the BLOCKED one left out. */
+		expect(asked[0]?.principals).toEqual({ alpha: { rank: 2, scope: { org_id: "o1" } } })
+		expect(ctx.findings.findings.map((finding) => [finding.origin, finding.check])).toEqual([
+			[undefined, "auth.blocked"],
+			["other", "c.ran"],
+		])
 		expect(ctx.state.entitiesTested).toEqual(["other:note"])
 		expect(ctx.state.checksSkipped).toEqual([{ check: "c.skip", entity: "other:note", needs: "n" }])
 		expect(ctx.state.checksSuppressed[0]?.entity).toBe("other:note")
@@ -110,19 +131,28 @@ describe("runSecondaryOrigins", () => {
 	})
 })
 
+describe("loadOriginClients with nothing to map", () => {
+	it("gives an origin with no mapping an adapter that sends nothing, in a run that names no recipe", async () => {
+		const { security: _none, ...bare } = optionsFor(notesApi(), { origins: [OPEN] })
+		const ctx = await contextOf(servingAt(bare, OPEN.spec, openDoc()))
+		const answer = await ctx.originClients.get("open")?.client.get("/notes", { as: { principal: "alpha" } })
+		expect(answer?.requestHeaders.authorization).toBeUndefined()
+	})
+})
+
 describe("runSecondaryOrigins without", () => {
-	it("passes no hooks to an origin when the primary has none", async () => {
-		const ctx = await contextOf(optionsFor(notesApi(), { origins: [OTHER] }))
+	it("passes no hooks to an origin when the primary has none, nor a mapping it does not declare", async () => {
+		const ctx = await contextOf(servingAt(optionsFor(notesApi(), { origins: [OPEN] }), OPEN.spec, openDoc()))
 		const asked: RunOptions[] = []
 		await runSecondaryOrigins(ctx, {
 			coverage: scopeReport(ctx),
-			persisted: [],
 			runOrigin: async (options) => {
 				asked.push(options)
 				return originResult(ctx)
 			},
 		})
 		expect(asked[0]).not.toHaveProperty("hooks")
+		expect(asked[0]?.sharedCredentials?.mapping).toEqual({})
 		expect(asked[0]).not.toHaveProperty("maxRps")
 		expect(asked[0]).not.toHaveProperty("ops")
 	})
@@ -132,7 +162,6 @@ describe("runSecondaryOrigins without", () => {
 		const asked: RunOptions[] = []
 		await runSecondaryOrigins(ctx, {
 			coverage: scopeReport(ctx),
-			persisted: [],
 			runOrigin: async (options) => {
 				asked.push(options)
 				return originResult(ctx)
@@ -149,7 +178,6 @@ describe("runSecondaryOrigins targeted", () => {
 		const asked: RunOptions[] = []
 		await runSecondaryOrigins(ctx, {
 			coverage,
-			persisted: [],
 			runOrigin: async (options) => {
 				asked.push(options)
 				return originResult(ctx)
@@ -164,7 +192,6 @@ describe("runSecondaryOrigins targeted", () => {
 		const asked: RunOptions[] = []
 		await runSecondaryOrigins(ctx, {
 			coverage: scopeReport(ctx),
-			persisted: [],
 			runOrigin: async (options) => {
 				asked.push(options)
 				return originResult(ctx)

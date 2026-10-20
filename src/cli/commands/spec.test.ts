@@ -36,6 +36,21 @@ describe("modelled", () => {
 		expect(writer.text()).toContain('allow names "no.such"')
 	})
 
+	it("checks the config's credentials against the document and each origin's", async () => {
+		const dir = folder()
+		const origins = [
+			{ baseUrl: "http://cdn.test", id: "cdn", security: { bearer: "bearer" }, spec: notesSpec(folder()) },
+		]
+		const read = await modelled(bufferWriter(), { config: notesConfig(dir, { origins }) })
+		expect(typeof read !== "number" && read.model.byOperationId.has("notes.create")).toBe(true)
+		const writer = bufferWriter()
+		const misfit = notesConfig(folder(), { origins, security: { nope: { static: "x" } } })
+		expect(await modelled(writer, { config: misfit })).toBe(2)
+		expect(writer.text()).toBe(
+			"the config's credentials do not fit the document:\n  security.nope names no scheme in the document. The document declares: bearer\n",
+		)
+	})
+
 	it("passes on an error that is not the caller's to fix", async () => {
 		const missing = { $ref: "#/components/responses/missing" }
 		const doc = {

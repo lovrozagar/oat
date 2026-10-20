@@ -119,7 +119,7 @@ describe("a create a scenario owns", () => {
 		}
 		const result = await run({
 			baseUrl: url,
-			principals: [{ headers: {}, id: "alpha" }],
+			principals: { alpha: {} },
 			scenarios: [scenario],
 			seed: 1,
 			spec: `${url}/openapi.json`,

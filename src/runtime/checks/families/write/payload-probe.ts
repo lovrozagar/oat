@@ -55,7 +55,7 @@ export async function writeField(probe: PayloadProbe, value: unknown, recordId: 
 			fillPath(updateOp.path, { ...ctx.scope, ...itemParamFor(ctx, recordId) }),
 			{
 				...update.options,
-				headers: ctx.auth(),
+				as: { principal: ctx.actor.id },
 				operationId: updateOp.operationId,
 			},
 		)
@@ -63,7 +63,7 @@ export async function writeField(probe: PayloadProbe, value: unknown, recordId: 
 	const createOp = ctx.createOp
 	if (createOp === undefined) throw new Error("payload probe has no write operation")
 	const body = { ...validBody(ctx, requestSchemaOf(ctx, createOp) ?? {}), [field.name]: value }
-	return ctx.client.request("POST", fillPath(createOp.path, ctx.scope), { body, headers: ctx.auth() })
+	return ctx.client.request("POST", fillPath(createOp.path, ctx.scope), { as: { principal: ctx.actor.id }, body })
 }
 
 export async function readField(
@@ -72,7 +72,7 @@ export async function readField(
 ): Promise<{ exchange: Exchange; value: unknown }> {
 	const { ctx, readOp } = probe
 	const exchange = await ctx.client.get(fillPath(readOp.path, { ...ctx.scope, ...itemParamFor(ctx, recordId) }), {
-		headers: ctx.auth(),
+		as: { principal: ctx.actor.id },
 	})
 	return { exchange, value: readRecord(readOp, exchange)?.[probe.field.name] }
 }
@@ -81,7 +81,7 @@ export async function removeRecord(probe: PayloadProbe, recordId: string): Promi
 	const { ctx } = probe
 	if (viaPatch(probe) || ctx.deleteOp === undefined) return
 	await ctx.client.request("DELETE", fillPath(ctx.deleteOp.path, { ...ctx.scope, ...itemParamFor(ctx, recordId) }), {
-		headers: ctx.auth(),
+		as: { principal: ctx.actor.id },
 	})
 }
 

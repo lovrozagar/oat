@@ -26,7 +26,7 @@ export async function confirmDeletes(input: ConfirmInput): Promise<void> {
 		const target = readBackOf(input, op)
 		if (target === null) continue
 		const after = await input.client.request("GET", target.path, {
-			headers: input.auth(),
+			as: { principal: input.principal },
 			operationId: target.read.operationId,
 		})
 		judgeReadBack(input, target, after)

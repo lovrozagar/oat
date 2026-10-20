@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { referenceRequest } from "../../reference/http/wire.ts"
+import { buildModel } from "../../spec/graph/build.ts"
+import { dereference } from "../../spec/load/dereference.ts"
+import { bearerSecurity } from "../harness/security.ts"
 import { userBackend, userSpec } from "./users.ts"
 
 function ask(method: string, path: string, options: { body?: string; headers?: Record<string, string> } = {}) {
@@ -28,5 +31,17 @@ describe("userBackend", () => {
 		const { handle } = userBackend()
 		expect((await handle(ask("GET", "/v1/users"))).status).toBe(404)
 		expect((await handle(ask("POST", "/v1/auth/register", { body: "{" }))).status).toBe(500)
+	})
+})
+
+describe("userSpec security", () => {
+	it("requires the bearer at the root, and signs up and in without one", () => {
+		const doc = userSpec()
+		expect(doc).toMatchObject(bearerSecurity())
+		const model = buildModel(dereference(doc).doc)
+		expect(model.operations.map((op) => [op.operationId, op.security.alternatives, op.security.source])).toEqual([
+			["auth.registerWithEmail", [[]], "operation"],
+			["auth.login", [[]], "operation"],
+		])
 	})
 })

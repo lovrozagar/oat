@@ -4,7 +4,7 @@ import { join } from "node:path"
 import { afterAll, describe, expect, it, vi } from "vitest"
 import { main } from "../../src/cli/main.ts"
 import { UsageError } from "../../src/errors/usage-error.ts"
-import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { baselineFrom, parseBaseline } from "../../src/runtime/baseline.ts"
 import { EXIT, exitCode } from "../../src/runtime/exit.ts"
@@ -27,6 +27,7 @@ async function runWith(defects: string[], baseline?: ReturnType<typeof parseBase
 		return await run({
 			baseUrl: server.url,
 			principals: PRINCIPALS,
+			security: SECURITY,
 			seed: 42,
 			spec: `${server.url}/v1/openapi/spec`,
 			...(baseline === undefined ? {} : { baseline }),
@@ -130,6 +131,7 @@ describe("a config that names a baseline", () => {
 				baseUrl: "http://127.0.0.1:1",
 				baseline: "known.json",
 				principals: PRINCIPALS,
+				security: SECURITY,
 				spec: "http://127.0.0.1:1/openapi.json",
 			}),
 		)

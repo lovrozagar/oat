@@ -164,11 +164,16 @@ describe("driveWait with a bound scope", () => {
 		const model = buildModel(spec)
 		const pollOp = model.byOperationId.get("row.list")
 		if (pollOp === undefined) throw new Error("missing row.list")
-		const client = new Client({ baseUrl: server.url, redactor: new Redactor() })
+		/* The document declares no security, so every actor sends nothing. */
+		const client = new Client({
+			baseUrl: server.url,
+			credentials: { resolve: async () => ({ kind: "anonymous" }) },
+			redactor: new Redactor(),
+		})
 		const unbound = await driveWait({
 			client,
-			headers: () => ({}),
 			pollOp,
+			principal: "a",
 			record: { table_id: "t1" },
 			scope: { project_id: "p1" },
 			spec: { operationId: "row.list", pollIntervalMs: 10, timeoutMs: 30 },
@@ -179,8 +184,8 @@ describe("driveWait with a bound scope", () => {
 
 		const bound = await driveWait({
 			client,
-			headers: () => ({}),
 			pollOp,
+			principal: "a",
 			record: { table_id: "t1" },
 			scope: mergeScope({ project_id: "p1" }, { table_id: "t1" }),
 			spec: { operationId: "row.list", pollIntervalMs: 10, timeoutMs: 200, until: "$.rows.0" },

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import type { OperationModel } from "../../spec/graph/types.ts"
 import { exchange } from "../checks/__fixtures__/harness.ts"
 import type { Answer } from "../checks/__fixtures__/harness.ts"
-import { type Accounts, accounts, accountsApi, accountsDoc, stageOf } from "./__fixtures__/accounts.ts"
+import { type Accounts, accounts, accountsApi, accountsDoc, sessionHolding, stageOf } from "./__fixtures__/accounts.ts"
 import { afterCall } from "./after.ts"
 import type { DisposableInput, Session } from "./types.ts"
 
@@ -22,19 +22,21 @@ async function after(
 	},
 ): Promise<DisposableInput> {
 	state.tokens.add("t1")
-	const { input } = stageOf(accountsDoc(), accountsApi(state))
+	const staged = await stageOf(accountsDoc(), accountsApi(state))
+	const { input } = staged
 	const op = input.model.byOperationId.get(call.operationId) as OperationModel
 	const read = { ...(input.model.byOperationId.get("profile.read") as OperationModel), ...call.read }
 	const renew = call.renew
-	const session: Session = {
-		headers: () => ({ authorization: "Bearer t1" }),
-		known: {},
-		roots: {},
-		...(renew === undefined
+	const session: Session = await sessionHolding(
+		staged,
+		"t1",
+		renew === undefined
 			? {}
-			: { renew: async () => (renew === "nothing" ? undefined : exchange("POST", "/v1/refresh", renew)) }),
+			: { renew: async () => (renew === "nothing" ? undefined : exchange("POST", "/v1/refresh", renew)) },
+	)
+	if (call.operationId === "auth.logout") {
+		accountsApi(state)("POST", "/v1/logout", { headers: { authorization: "Bearer t1" } })
 	}
-	if (call.operationId === "auth.logout") accountsApi(state)("POST", "/v1/logout", { headers: session.headers() })
 	await afterCall(input, {
 		blame: { collector: input.findings.attributed([op.operationId]).ownedBy(CHECK), entity: "profile" },
 		called,
@@ -86,9 +88,14 @@ describe("afterCall: a deleted record", () => {
 })
 
 describe("afterCall: an ended session", () => {
-	it("proves it by the refused read", async () => {
+	it("proves it by the refused read, sent as the ended session and never renewed", async () => {
 		const input = await after(accounts(), { ends: true, operationId: "auth.logout" })
 		expect(input.grades.evidence.get("auth.logout")?.observation).toMatchObject({ status: 401 })
+		const reads = input.client.transcript.filter((sent) => sent.operationId === "profile.read")
+		expect(reads.map((sent) => [sent.principal, sent.status])).toEqual([
+			["alpha", 200],
+			["disposable-t1", 401],
+		])
 		const refusedRenew = await after(accounts(), { ends: true, operationId: "auth.logout", renew: { status: 401 } })
 		expect(refusedRenew.findings.findings).toEqual([])
 	})

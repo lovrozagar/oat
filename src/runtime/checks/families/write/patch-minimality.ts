@@ -33,7 +33,7 @@ export const patchMinimality = defineCheck<{
 		if ("outcome" in made) return made.outcome
 		const id = made.scratch.id
 		const params = { ...ctx.scope, ...itemParamFor(ctx, id) }
-		const read: Read = (at) => ctx.client.get(fillPath(readOp.path, at), { headers: ctx.auth() })
+		const read: Read = (at) => ctx.client.get(fillPath(readOp.path, at), { as: { principal: ctx.actor.id } })
 
 		const before = await read(params)
 		if (before.status >= 300) {
@@ -59,7 +59,7 @@ export const patchMinimality = defineCheck<{
 
 		const patched = await ctx.client.request("PATCH", fillPath(updateOp.path, params), {
 			body: { [field]: next },
-			headers: ctx.auth(),
+			as: { principal: ctx.actor.id },
 		})
 		if (standDownForFeatureGate(ctx, updateOp, patched, this.id))
 			return standDown("a documented feature gate refused the request")

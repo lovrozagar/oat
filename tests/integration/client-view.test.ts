@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { Client } from "../../src/client/client.ts"
+import type { CredentialSource, Resolution } from "../../src/client/credential-source.ts"
 import { isBodyRef } from "../../src/runtime/exchange.ts"
 import { Redactor } from "../../src/security/redact.ts"
 
@@ -33,14 +34,31 @@ beforeAll(async () => {
 })
 afterAll(() => close())
 
-/* A client below the base path that names alpha's token and resolves the table read. */
+/* alpha's bearer token `value`, renewed by `refresh`. */
+function bearer(value: string, refresh: () => Promise<Resolution>): Resolution {
+	const authorization = `Bearer ${value}`
+	return {
+		kind: "sends",
+		principal: "alpha",
+		refresh,
+		schemes: ["bearer"],
+		secrets: { cookies: [], headers: ["authorization"], query: [], values: [authorization] },
+		sends: { bearer: { cookies: {}, headers: { authorization }, query: {} } },
+		sentValues: { bearer: value },
+	}
+}
+
+/* A source that sends alpha's token for alpha, and nothing for anyone else. */
+const alphaSource = (resolution: Resolution): CredentialSource => ({
+	resolve: async ({ actor }) =>
+		"principal" in actor && actor.principal === "alpha" ? resolution : { kind: "anonymous" },
+})
+
+/* A client below the base path that sends alpha's token and resolves the table read. */
 function resolvingClient(): Client {
 	return new Client({
 		baseUrl: url,
-		credentials: {
-			credentialFor: () => undefined,
-			principalOf: (headers) => (headers.authorization === "Bearer a" ? "alpha" : undefined),
-		},
+		credentials: alphaSource(bearer("a", async () => ({ kind: "anonymous" }))),
 		operationResolver: (method, path) =>
 			method === "GET" && /^\/v1\/tables\/[^/]+$/.test(path)
 				? { operationId: "table.get", template: "/v1/tables/{table_id}" }
@@ -59,40 +77,40 @@ describe("exchange model", () => {
 		expect(client.relativePath(sibling.toString())).toBe(sibling.pathname)
 
 		const view = client.view({ check: "c.one", subject: "table" })
-		const exchange = await view.get("/v1/tables/7", {
-			context: { purpose: "probe" },
-			headers: { authorization: "Bearer a" },
-		})
+		const exchange = await view.get("/v1/tables/7", { as: { principal: "alpha" }, context: { purpose: "probe" } })
 		expect(exchange).toMatchObject({
 			check: "c.one",
 			operationId: "table.get",
 			principal: "alpha",
 			purpose: "probe",
+			schemes: ["bearer"],
 			subject: "table",
 			template: "/v1/tables/{table_id}",
 		})
 		expect(client.exchangesFor("table.get")).toHaveLength(1)
 		expect(client.exchangesFor("nothing")).toEqual([])
 		const nested = view.view({ purpose: "assertion" })
-		expect((await nested.request("GET", "/v1/other")).check).toBe("c.one")
+		expect((await nested.request("GET", "/v1/other", { as: { anonymous: true } })).check).toBe("c.one")
 	})
 
 	it("hands the caller the real body and keeps a compact copy", async () => {
 		const client = new Client({ baseUrl: url, redactor: new Redactor() })
-		const exchange = await client.get("/v1/big")
+		const exchange = await client.get("/v1/big", { as: { anonymous: true } })
 		expect(typeof (exchange.responseBody as { items: string }).items).toBe("string")
 		expect(isBodyRef(client.transcript.at(-1)?.responseBody)).toBe(true)
 	})
 
 	it("marks an answer asked again after a refresh as superseded", async () => {
-		const client = new Client({ baseUrl: url, redactor: new Redactor() })
 		let refreshed = 0
-		const exchange = await client.get("/v1/guarded", {
-			refreshIfStale: async (force) => {
-				if (force === true) refreshed++
-			},
+		const renewed = bearer("b", async () => ({ kind: "anonymous" }))
+		const stale = bearer("a", async () => {
+			refreshed++
+			return renewed
 		})
+		const client = new Client({ baseUrl: url, credentials: alphaSource(stale), redactor: new Redactor() })
+		const exchange = await client.get("/v1/guarded", { as: { principal: "alpha" } })
 		expect(refreshed).toBe(1)
+		expect(exchange.requestHeaders.authorization).not.toBe(client.transcript[0]?.requestHeaders.authorization)
 		expect(exchange.status).toBe(200)
 		expect(client.transcript.map((item) => [item.status, item.superseded === true])).toEqual([
 			[401, true],

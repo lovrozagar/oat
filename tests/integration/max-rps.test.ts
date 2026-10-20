@@ -82,7 +82,7 @@ describe("maxRps", () => {
 		const { hits, url } = await serve(spec)
 		const client = pacedClient(spec, url, 4)
 		const started = performance.now()
-		await Promise.all(Array.from({ length: 12 }, () => client.request("GET", "/v1/ping")))
+		await Promise.all(Array.from({ length: 12 }, () => client.request("GET", "/v1/ping", { as: { anonymous: true } })))
 		/* A burst of 4, then 4 a second: the last of 12 leaves no sooner than two seconds in. */
 		expect(performance.now() - started).toBeGreaterThanOrEqual(1_900)
 		expect(peakPerSecond(hits)).toBeLessThanOrEqual(8)
@@ -93,7 +93,11 @@ describe("maxRps", () => {
 		const { url } = await serve(spec)
 		const client = pacedClient(spec, url, 100)
 		const started = performance.now()
-		await Promise.all(Array.from({ length: 6 }, () => client.request("GET", "/v1/ping", { operationId: "ping.get" })))
+		await Promise.all(
+			Array.from({ length: 6 }, () =>
+				client.request("GET", "/v1/ping", { as: { anonymous: true }, operationId: "ping.get" }),
+			),
+		)
 		expect(performance.now() - started).toBeGreaterThanOrEqual(1_900)
 	})
 
@@ -109,7 +113,7 @@ describe("maxRps", () => {
 			baseUrl: url,
 			maxInFlight: 16,
 			maxRps: 3,
-			principals: [{ headers: {}, id: "alpha" }],
+			principals: { alpha: {} },
 			seed: 1,
 			spec: `${url}/openapi.json`,
 		})
@@ -118,7 +122,7 @@ describe("maxRps", () => {
 	})
 
 	it("is a positive number in config, for the main origin and each secondary one", () => {
-		const base = { baseUrl: "http://127.0.0.1:1", principals: [{ id: "a" }], spec: "openapi.json" }
+		const base = { baseUrl: "http://127.0.0.1:1", principals: { a: {} }, spec: "openapi.json" }
 		expect(
 			configProblems({ ...base, maxRps: 15, origins: [{ baseUrl: "x", id: "cdn", maxRps: 5, spec: "y" }] }),
 		).toEqual([])

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { Principal } from "../../config/types/principals.ts"
+import type { PrincipalsConfig, SecurityConfig } from "../../config/types/security.ts"
 import type { OperationModel } from "../../spec/graph/types.ts"
 import { entityOf, referenceModel } from "./__fixtures__/models.ts"
 import {
@@ -39,22 +39,28 @@ describe("staticSubjects", () => {
 })
 
 describe("authStepOperationIds", () => {
-	it("names the operations principals sign in through", () => {
-		const principals = [
-			{ id: "anonymous" },
-			{ auth: { fromHook: "oauth" }, id: "hooked" },
-			{
-				auth: {
-					credentialFrom: "$.token",
+	it("names the operations a recipe's login and refresh steps send, a principal's own overrides among them", () => {
+		const security: SecurityConfig = {
+			jwt: {
+				login: {
+					from: "$.token",
 					steps: [
 						{ body: {}, operationId: "auth.register" },
 						{ method: "GET", path: "/consume" },
 					],
 				},
-				id: "flow",
+				refresh: { from: "$.token", steps: [{ operationId: "auth.refresh" }] },
 			},
-		] as unknown as Principal[]
-		expect([...authStepOperationIds(principals)]).toEqual(["auth.register"])
+			key: { mint: { from: "$.key", operationId: "keys.create", with: "jwt" } },
+			plain: { static: "s" },
+		}
+		const principals: PrincipalsConfig = {
+			alpha: {},
+			beta: { security: { jwt: { login: { from: "$.t", steps: [{ operationId: "auth.otp" }] } } } },
+			gamma: { security: { plain: { holds: ["a"] } } },
+		}
+		expect([...authStepOperationIds({ principals, security })]).toEqual(["auth.register", "auth.refresh", "auth.otp"])
+		expect([...authStepOperationIds({})]).toEqual([])
 	})
 })
 

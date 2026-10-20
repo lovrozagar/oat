@@ -49,7 +49,7 @@ async function status(body: unknown) {
 	const result = await run({
 		baseUrl: url,
 		ops: ["export.get"],
-		principals: [{ headers: {}, id: "alpha" }],
+		principals: { alpha: {} },
 		scenarios: [scenario],
 		seed: 1,
 		spec: `${url}/openapi.json`,

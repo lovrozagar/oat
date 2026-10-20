@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { OpenApiDocument } from "../../../spec/types.ts"
-import { contextOf, entityRunOf, notesApi, notesDoc, optionsFor } from "../__fixtures__/api.ts"
+import { contextOf, entityRunOf, notesApi, notesDoc, optionsFor, secured } from "../__fixtures__/api.ts"
 import { queryOf } from "./capabilities.ts"
 
 /*
@@ -49,7 +49,7 @@ describe("queryOf", () => {
 	})
 
 	it("is no query for a list that returns no collection", async () => {
-		const doc = {
+		const doc = secured({
 			info: { title: "t", version: "1" },
 			openapi: "3.1.0",
 			paths: {
@@ -63,7 +63,7 @@ describe("queryOf", () => {
 					},
 				},
 			},
-		} as unknown as OpenApiDocument
+		}) as unknown as OpenApiDocument
 		const ctx = await contextOf(
 			optionsFor((_, path) => (path === "/openapi.json" ? { body: doc, status: 200 } : { body: {}, status: 200 })),
 		)

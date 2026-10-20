@@ -3,7 +3,7 @@ import { fakeClient, modelOf, op } from "../checks/__fixtures__/harness.ts"
 import { COUNTERS, notes, PAY } from "./__fixtures__/documents.ts"
 import { adoptExisting } from "./adopt.ts"
 
-const options = { authHeaders: () => ({}), roots: { projectId: "p1" }, seed: 1 }
+const options = { principal: "alpha", roots: { projectId: "p1" }, seed: 1 }
 const scope = { created: [], values: {} }
 
 describe("adoptExisting", () => {

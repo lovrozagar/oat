@@ -9,12 +9,13 @@ import type {
 	RateLimitSpec,
 } from "../../config/types/config.ts"
 import type { Hooks, OutOfBandConfig, Uploads } from "../../config/types/hooks.ts"
-import type { Principal } from "../../config/types/principals.ts"
+import type { PrincipalsConfig, SecurityConfig } from "../../config/types/security.ts"
+import type { CredentialStore } from "../../credentials/store.ts"
 import type { Scenario } from "../../config/types/steps.ts"
 import type { FencedRequest } from "../fence.ts"
 import type { Finding, Inconclusive } from "../finding.ts"
 import type { NetworkKind } from "../../errors/network.ts"
-import type { PersistedPrincipal } from "../principals.ts"
+import type { KeptCredential, PersistedPrincipal } from "../principals.ts"
 import type { ProgressHandler } from "../progress/types.ts"
 import type { ScopeReport } from "../scope/types.ts"
 import type { SpecModel } from "../../spec/graph/types.ts"
@@ -22,18 +23,19 @@ import type { SpecOverlay } from "../../spec/overlay.ts"
 import type { TargetVersion, TargetVersionSpec } from "../target-version.ts"
 import type { TeardownReport } from "../teardown/types.ts"
 
-/* The principal shape is the public config's — one definition, checked in both places. */
-export type PrincipalSpec = Principal
-
 export interface RunOptions {
 	spec: string
 	baseUrl: string
-	principals: PrincipalSpec[]
+	/** The config's principals, by id. */
+	principals: PrincipalsConfig
+	/** One recipe per scheme the document declares; see `OatConfig.security`. */
+	security?: SecurityConfig
+	/** Extra secret header names; see `OatConfig.redact`. */
+	redact?: { headers?: string[] }
 	hooks?: Hooks
 	uploads?: Uploads
 	/** Directory of the config file — pool globs are resolved from here. */
 	configDir?: string
-	roots?: Record<string, string>
 	seed?: number
 	cohortSize?: number
 	globalHeaders?: Record<string, string>
@@ -54,6 +56,8 @@ export interface RunOptions {
 	nonce?: string
 	/** Leaves created records in place. Useful when inspecting a failure by hand. */
 	keepFixtures?: boolean
+	/** Returns the credential values the run held as `RunResult.credentials`; the CLI writes them outside the output directory. */
+	keepCredentials?: boolean
 	/** Requests allowed in flight at once, across the whole run. */
 	maxInFlight?: number
 	/** Paces requests per category. Checked before `x-rate-limit` tags for the same request. */
@@ -86,6 +90,12 @@ export interface RunOptions {
 	payloads?: PayloadPolicy
 	/** Skip `teardownPrincipal` — used when this run is a secondary origin sharing accounts. */
 	skipPrincipalTeardown?: boolean
+	/**
+	 * Set when this run is a secondary origin's: the primary run's store, whose principals are already
+	 * signed in, and the origin's `security` mapping. The primary validated the config against this
+	 * document, and the primary revokes what the store minted.
+	 */
+	sharedCredentials?: { store: CredentialStore; mapping: Readonly<Record<string, string>> }
 	/** Global filter catalog defaults, and the filter grammar when oat cannot infer it. */
 	query?: QueryConfig
 	/** Per-entity overlays. */
@@ -154,8 +164,13 @@ export interface RunResult {
 	targetVersion?: TargetVersion
 	/** Requests `hooks.beforeRequest` refused, and whether that alone fails the run. Absent with no hook. */
 	fenced?: { requests: FencedRequest[]; failRun: boolean }
-	/** Credentials as they stood after acquire — written to `<outDir>/<datetime>/principals.json` by the CLI. */
+	/**
+	 * The principals as the run left them, with no credential value — written to
+	 * `<outDir>/<datetime>/principals.json` by the CLI.
+	 */
 	principals: PersistedPrincipal[]
+	/** The credential values the run held, with `keepCredentials` only. */
+	credentials?: KeptCredential[]
 	/** Set when the run was stopped before every entity was tested. */
 	interrupted?: boolean
 	/** Journal size when `exchangeDir` was set. */

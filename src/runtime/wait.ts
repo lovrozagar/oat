@@ -35,11 +35,11 @@ export interface WaitDrive {
 	pollOp: OperationModel
 	spec: WaitSpec
 	scope: Record<string, string>
-	headers: () => Record<string, string>
+	/** Every poll goes `as: { principal }`, its credential resolved afresh. */
+	principal: string
 	writeOpId: string
 	record: unknown
 	awaitSideEffect?: Hooks["awaitSideEffect"]
-	refreshIfStale?: (force?: boolean) => Promise<void>
 }
 
 /** The polls so far, and when waiting began. */
@@ -65,11 +65,9 @@ function waited(run: Waiting, seen: Seen | undefined): WaitOutcome {
 }
 
 async function pollOnce(options: WaitDrive, path: string): Promise<Exchange> {
-	if (options.refreshIfStale !== undefined) await options.refreshIfStale()
 	return options.client.request(options.pollOp.method, path, {
-		headers: options.headers,
+		as: { principal: options.principal },
 		operationId: options.pollOp.operationId,
-		...(options.refreshIfStale === undefined ? {} : { refreshIfStale: options.refreshIfStale }),
 	})
 }
 

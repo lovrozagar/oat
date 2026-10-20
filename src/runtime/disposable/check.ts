@@ -1,9 +1,9 @@
 /**
  * `x-destructive` runs as a second user, never the suite caller. That user signs up through the
- * suite principal's own auth flow with a fresh address, or through the document's
- * `x-fresh-principal` operation. Afterwards the suite caller's own read still answers 200. An
- * operation that invalidates the caller read must leave that second user's credential refused,
- * and a declared refresh must no longer renew it.
+ * document's `x-fresh-principal` operation and is a principal of its own in the run's store.
+ * Afterwards the suite caller's own read still answers 200. An operation that invalidates the
+ * caller read must leave that second user's credential refused, and a declared refresh must no
+ * longer renew it.
  *
  * What a destructive call needs beforehand — a second factor enabled, a credential registered,
  * ownership handed off — is product knowledge. When the call is refused for want of it, the

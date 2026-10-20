@@ -1,6 +1,7 @@
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { fillPath } from "../../../fill-path.ts"
+import type { Actor } from "../../core/context.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { idOf } from "../../../world/records.ts"
 import { cannot, ready } from "../../core/plan.ts"
@@ -10,24 +11,26 @@ import { tenantBoundary } from "./tenant.ts"
 export const crossTenantItemRead = defineCheck<{
 	id: string
 	readOp: OperationModel
-	altAuth: () => Record<string, string>
+	peer: Actor
 }>({
 	plan: (ctx) => {
-		const { altAuth, readOp } = ctx
+		const { peer, readOp } = ctx
 		const target = ctx.records[0]
-		if (altAuth === undefined || readOp === undefined || target === undefined || !tenantBoundary(readOp)) {
+		if (peer === undefined || readOp === undefined || target === undefined || !tenantBoundary(readOp)) {
 			return cannot()
 		}
 		const id = idOf(target, ctx.identity)
-		return id === undefined ? cannot(NO_IDENTITY) : ready({ altAuth, id, readOp })
+		return id === undefined ? cannot(NO_IDENTITY) : ready({ id, peer, readOp })
 	},
 	id: "tenant.item-not-readable-cross-tenant",
 	needs: "a second principal in a different tenant, and a tenant tagged or inferred from the path",
 	subjects: subjectsOf.read,
-	async run(ctx, { altAuth, id, readOp }): Promise<Outcome> {
-		const params = { ...(ctx.altScope ?? ctx.scope), ...itemParamFor(ctx, id) }
+	async run(ctx, { id, peer, readOp }): Promise<Outcome> {
+		/* The actor's record, asked for by the peer under the peer's own scope. */
+		const params = { ...(ctx.peerScope ?? ctx.scope), ...itemParamFor(ctx, id) }
 		const exchange = await ctx.client.get(fillPath(readOp.path, params), {
-			headers: altAuth(),
+			as: { principal: peer.id },
+			operationId: readOp.operationId,
 		})
 		if (exchange.status === 403 || exchange.status === 404) return ASSERTED
 		if (exchange.status >= 400)

@@ -12,7 +12,11 @@ type Pacing = Pick<Exchange, "rateLimitCategory" | "rateLimitHadRoom" | "rateLim
 function sentTo(operationId: string | undefined, status: number, pacing: Pacing = {}): Exchange {
 	return {
 		...exchangeOf(
-			{ method: "GET", options: operationId === undefined ? {} : { operationId }, path: "/widgets" },
+			{
+				method: "GET",
+				options: { as: { anonymous: true }, ...(operationId === undefined ? {} : { operationId }) },
+				path: "/widgets",
+			},
 			{ status },
 		),
 		...pacing,

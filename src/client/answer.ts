@@ -21,7 +21,7 @@ export async function failed(
 	const kind = networkKindOf(error, wire.network?.interfaces)
 	if (kind === null) return error
 	const { request, probe } = sent
-	const url = request.url.toString()
+	const url = sent.url.toString()
 	const message = `${request.method} ${url} failed (${kind}: ${describeNetworkKind(kind)})`
 	const exchange: Exchange = {
 		at: Date.now(),
@@ -38,7 +38,7 @@ export async function failed(
 		seq: wire.nextSeq(),
 		status: 0,
 		url,
-		...stamped(sent, wire),
+		...stamped(sent),
 	}
 	await wire.deliver(exchange, request.resolved?.entity ?? undefined)
 	return new NetworkError({ attempts: sent.attempt + 1, cause: error, kind, message, method: request.method, url })
@@ -58,7 +58,7 @@ export async function answered(
 	sent: Sent & { pacing: Pacing | undefined },
 	wire: Wire,
 ): Promise<Exchange> {
-	const { request, headers, body } = sent
+	const { request, headers, body, url } = sent
 	const { response, bodyBytes, digest } = landed
 	const responseHeaders = recordResponseHeaders(response.headers)
 	const exchange: Exchange = {
@@ -66,7 +66,7 @@ export async function answered(
 		durationMs: Math.round(performance.now() - landed.started),
 		method: request.method,
 		requestBody: request.options.body,
-		requestBytes: requestMessageBytes(request, headers, body),
+		requestBytes: requestMessageBytes({ method: request.method, url }, headers, body),
 		requestHeaders: headers,
 		requestId: requestIdOf(headers, responseHeaders),
 		responseBody: landed.parsed,
@@ -76,10 +76,10 @@ export async function answered(
 		...requestDigestOf(body),
 		seq: wire.nextSeq(),
 		status: response.status,
-		url: request.url.toString(),
+		url: url.toString(),
 		...paced(sent.pacing, landed.room),
-		...stamped(sent, wire),
-		...travelled(landed, request.url),
+		...stamped(sent),
+		...travelled(landed, url),
 	}
 	await wire.deliver(exchange, request.resolved?.entity ?? undefined)
 	return Object.freeze(exchange)
@@ -109,16 +109,18 @@ function travelled(landed: Timed, url: URL): Partial<Exchange> {
 	}
 }
 
-/** Who sent it, for what, and which documented operation it is. */
-function stamped({ request, caller }: Sent, wire: Wire): Partial<Exchange> {
+/** Who sent it, with which credential, for what, and which documented operation it is. */
+function stamped({ request, placement }: Sent): Partial<Exchange> {
 	const { resolved, operationId, options } = request
-	const principal = wire.credentials?.principalOf(caller)
+	const { principal, schemes } = placement
 	const context = options.context ?? {}
 	return {
 		...(operationId === undefined ? {} : { operationId }),
 		...(resolved === null ? {} : { template: resolved.template }),
 		...(resolved?.pathParams === undefined ? {} : { pathParams: resolved.pathParams }),
 		...(principal === undefined ? {} : { principal }),
+		...(schemes.length === 0 ? {} : { schemes }),
+		...(placement.forged ? { forged: true as const } : {}),
 		...(context.purpose === undefined ? {} : { purpose: context.purpose }),
 		...(context.check === undefined ? {} : { check: context.check }),
 		...(context.subject === undefined ? {} : { subject: context.subject }),

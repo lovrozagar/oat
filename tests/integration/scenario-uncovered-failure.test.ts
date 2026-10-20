@@ -50,7 +50,7 @@ async function runScenario(covers: string[]) {
 	}
 	return run({
 		baseUrl: url,
-		principals: [{ headers: {}, id: "alpha" }],
+		principals: { alpha: {} },
 		scenarios: [scenario],
 		seed: 1,
 		spec: `${url}/openapi.json`,

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { UnsatisfiedSecurity } from "../../client/credential-source.ts"
 import { notes, notesApi, scenario, stage } from "./__fixtures__/stage.ts"
 import { runScenarios } from "./run.ts"
 
@@ -50,6 +51,23 @@ describe("runScenarios", () => {
 		await runScenarios(input)
 		expect([...input.checksRun]).toEqual(["scenario.rename", "scenario.support"])
 		expect(sent.filter((request) => request.path === "/token")).toEqual([])
+	})
+
+	it("blocks what a step's unmet security leaves unreached, with the reason, before sending it", async () => {
+		const { input } = stage(
+			() => {
+				throw new UnsatisfiedSecurity("unsatisfied", "no credential for apiKey")
+			},
+			{ scenarios: [rename] },
+		)
+		await runScenarios(input)
+		expect(input.findings.findings.map(({ detail, summary, verdict }) => ({ detail, summary, verdict }))).toEqual([
+			{
+				detail: 'blocked by scenario "rename" stopped at step 1: no credential for apiKey',
+				summary: 'scenario "rename" stopped at step 1 before calling it',
+				verdict: "BLOCKED",
+			},
+		])
 	})
 
 	it("refuses a scenario that names a principal not configured", async () => {

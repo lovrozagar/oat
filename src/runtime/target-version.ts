@@ -9,6 +9,7 @@
 
 import type { SpecModel } from "../spec/graph/types.ts"
 import type { Client } from "../client/client.ts"
+import type { RequestOptions } from "../client/types.ts"
 import { readPath } from "../client/read-path.ts"
 import { fillPath } from "./fill-path.ts"
 import { headerValue } from "./headers.ts"
@@ -32,22 +33,20 @@ export interface TargetVersionRead {
 	spec: TargetVersionSpec
 	model: SpecModel
 	client: Pick<Client, "get">
-	headers: () => Record<string, string>
+	/** The first principal: an operation's security chooses its scheme; a path sends the configured `scheme`. */
+	principal: string
 	/** Path ids for a version operation's parameters. */
 	roots: Record<string, string>
 }
 
 export async function readTargetVersion(read: TargetVersionRead): Promise<TargetVersion> {
-	const { client, headers, spec } = read
+	const { client, principal, spec } = read
 	const target = versionPath(read)
 	if ("error" in target) return target
 	const { path } = target
 	let exchange: Awaited<ReturnType<Client["get"]>>
 	try {
-		exchange = await client.get(path, {
-			headers: headers(),
-			...(spec.operationId === undefined ? {} : { operationId: spec.operationId }),
-		})
+		exchange = await client.get(path, versionRequest(spec, principal))
 	} catch (error) {
 		return { error: messageOf(error) }
 	}
@@ -55,6 +54,15 @@ export async function readTargetVersion(read: TargetVersionRead): Promise<Target
 	const value = versionIn(exchange, spec.from)
 	if (typeof value === "string" || typeof value === "number") return { value: String(value) }
 	return { error: `${spec.from} is not in the response of GET ${path}` }
+}
+
+/*
+ * Who reads the version. A documented operation's security picks the first principal's scheme. An
+ * undocumented path has no security to resolve, so it names its scheme or is read anonymously.
+ */
+function versionRequest(spec: TargetVersionSpec, principal: string): RequestOptions {
+	if (spec.operationId !== undefined) return { as: { principal }, operationId: spec.operationId }
+	return { as: spec.scheme === undefined ? { anonymous: true } : { principal, scheme: spec.scheme } }
 }
 
 /** The path the version is read from: the operation's, filled from the roots, or the configured one. */

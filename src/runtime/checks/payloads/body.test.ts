@@ -91,17 +91,17 @@ describe("pickWritableStringField", () => {
 describe("createExchange", () => {
 	it("is the successful create under this scope's path, read back in full", async () => {
 		const { ctx } = notesContext(() => ({ body: { id: "n1" }, status: 201 }))
-		await ctx.client.request("POST", "/notes", { operationId: "note.create" })
+		await ctx.client.request("POST", "/notes", { as: { principal: "alpha" }, operationId: "note.create" })
 		expect((await createExchange(ctx))?.responseBody).toEqual({ id: "n1" })
 	})
 
 	it("is undefined without a successful create at that path", async () => {
 		const { ctx } = notesContext(() => ({ status: 400 }))
 		expect(await createExchange(ctx)).toBeUndefined()
-		await ctx.client.request("POST", "/notes", { operationId: "note.create" })
+		await ctx.client.request("POST", "/notes", { as: { principal: "alpha" }, operationId: "note.create" })
 		expect(await createExchange(ctx)).toBeUndefined()
 		const elsewhere = notesContext(() => ({ status: 201 })).ctx
-		await elsewhere.client.request("POST", "/other", { operationId: "note.create" })
+		await elsewhere.client.request("POST", "/other", { as: { principal: "alpha" }, operationId: "note.create" })
 		expect(await createExchange(elsewhere)).toBeUndefined()
 	})
 

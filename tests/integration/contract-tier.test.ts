@@ -242,7 +242,8 @@ async function fullRun(options: { keepDeleted?: boolean } = {}) {
 	const url = await serve(options)
 	return run({
 		baseUrl: url,
-		principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+		principals: { alpha: {} },
+		security: { bearer: { static: "alpha" } },
 		seed: 1,
 		spec: `${url}/openapi.json`,
 	})

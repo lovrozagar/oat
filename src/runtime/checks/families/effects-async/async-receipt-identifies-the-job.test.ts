@@ -35,7 +35,7 @@ async function judged(
 }
 
 const start = (ctx: WriteContext, path = "/jobs", operationId = "startJob") =>
-	ctx.client.request("POST", path, { operationId })
+	ctx.client.request("POST", path, { as: { principal: "alpha" }, operationId })
 
 const acknowledged = () => ({ body: {}, status: 202 })
 

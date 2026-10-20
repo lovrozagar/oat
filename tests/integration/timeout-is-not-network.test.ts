@@ -49,7 +49,7 @@ describe("a request that times out on a host that still answers", () => {
 		const result = await run({
 			baseUrl: url,
 			network: { requestTimeoutMs: 300, retries: 0, waitMs: 1_000 },
-			principals: [{ headers: {}, id: "alpha" }],
+			principals: { alpha: {} },
 			seed: 1,
 			spec: `${url}/openapi.json`,
 		})

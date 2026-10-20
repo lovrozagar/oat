@@ -20,7 +20,7 @@ function world(respond: Responder, options: Partial<WorldOptions> = {}, document
 			client: fake.client,
 			model,
 			options: {
-				authHeaders: () => ({}),
+				principal: "alpha",
 				onCreate: (entity: string, id: string) => created.push(`${entity} ${id}`),
 				roots: { project_id: "p1" },
 				seed: 1,

@@ -1,5 +1,4 @@
 import type { Client } from "../../client/client.ts"
-import type { RequestOptions } from "../../client/types.ts"
 import type { OperationModel, SpecModel } from "../../spec/graph/types.ts"
 import { createdRecordOf, resolveCreatedId } from "../created-id.ts"
 import type { Exchange } from "../exchange.ts"
@@ -30,7 +29,8 @@ export async function createdRecord(input: {
 	exchange: Exchange
 	sent: unknown
 	scope: Record<string, string>
-	headers: RequestOptions["headers"]
+	/** The principal that created it, which reads it back: `as: { principal }`. */
+	principal: string
 	readable?: (op: OperationModel) => boolean
 }): Promise<{ record: Record_; acknowledged: boolean } | null> {
 	const { createOp, model } = input
@@ -53,9 +53,9 @@ export async function createdRecord(input: {
 	const confirmed = await confirmSubmitted({
 		client: input.client,
 		entity,
-		headers: input.headers,
 		identity,
 		model,
+		principal: input.principal,
 		scope: input.scope,
 		sent,
 		...(resolved === undefined ? {} : { id: resolved.id }),

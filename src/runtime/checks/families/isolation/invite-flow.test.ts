@@ -2,12 +2,31 @@ import { describe, expect, it, vi } from "vitest"
 import { modelOf, op } from "../../__fixtures__/harness.ts"
 import { runCheck } from "../../core/run.ts"
 import { inviteGrantsThenRevokes } from "./auth-invite-grants-then-revokes.ts"
-import { actor } from "./__fixtures__/context.ts"
-import { delegate, GATED, inviteBackend, inviteContext, inviteDocument, owner } from "./__fixtures__/invites.ts"
+import {
+	credentialsOf,
+	GATED,
+	inviteBackend,
+	inviteContext,
+	inviteDocument,
+	type InviteDocOptions,
+} from "./__fixtures__/invites.ts"
 import { documentedJsonBody, pointerValue } from "./invite-flow.ts"
 
 const LINK = "https://mail.test/accept/t1"
 const QUICK = { attempts: 1, initialMs: 0, maxMs: 0 }
+
+/** The invite document with the accept and the note read open to anyone: `security: []`. */
+function anonymousAccept(options: InviteDocOptions = {}) {
+	const doc = inviteDocument(options)
+	for (const [path, method] of [
+		["/invites/{token}/accept", "post"],
+		["/orgs/{org_id}/notes/{note_id}", "get"],
+	] as const) {
+		const operation = doc.paths?.[path]?.[method] as Record<string, unknown> | undefined
+		if (operation !== undefined) operation.security = []
+	}
+	return doc
+}
 
 describe("the invite token", () => {
 	it("is asked of the out-of-band hook, by grantee and kind, when the tag says so", async () => {
@@ -52,12 +71,22 @@ describe("the invite token", () => {
 describe("accepting by link", () => {
 	const linked = inviteDocument({ tag: { acceptFrom: "link", tokenPointer: "$.link" } })
 
-	it("follows the mailed link as the delegate", async () => {
+	it("follows the mailed link as the delegate, sending the scheme the accept asks for", async () => {
 		const backend = inviteBackend({ invited: { grant_id: "g1", link: LINK } })
 		const { ctx, sent } = inviteContext(linked, backend)
 		expect(await runCheck(inviteGrantsThenRevokes, ctx)).toEqual({ kind: "asserted" })
-		expect(sent[3]).toMatchObject({ method: "GET", options: { redirect: "follow" }, path: LINK })
-		expect(sent[3]?.options.headers).toEqual(delegate.headers())
+		expect(sent[3]).toEqual({
+			method: "GET",
+			options: { as: { principal: "delegate", scheme: "bearer" }, redirect: "follow" },
+			path: LINK,
+		})
+	})
+
+	it("follows the link as the delegate sending nothing when the accept asks for no credential", async () => {
+		const open = anonymousAccept({ tag: { acceptFrom: "link", tokenPointer: "$.link" } })
+		const { ctx, sent } = inviteContext(open, inviteBackend({ invited: { grant_id: "g1", link: LINK } }))
+		expect(await runCheck(inviteGrantsThenRevokes, ctx)).toEqual({ kind: "asserted" })
+		expect(sent[3]?.options.as).toEqual({ anonymous: true })
 	})
 
 	it("accepts a redirect from the link, and fails on an error, even a gate-shaped one", async () => {
@@ -87,14 +116,39 @@ describe("accepting by link", () => {
 })
 
 describe("the credential an accept issues", () => {
-	it("is adopted by a delegate that can take one, and ignored by one that cannot", async () => {
-		const adoptCredential = vi.fn<(token: string) => void>()
-		const adopting = actor("delegate", { rank: 1, roots: { org_id: "o2" }, adoptCredential, inviteAs: "bob" })
+	it("is held as the delegate's, for the scheme the grant's read asks for, before that read", async () => {
+		const { adopted, credentials } = credentialsOf()
 		const issuing = inviteBackend({ accepted: { access_token: "fresh" } })
-		await runCheck(inviteGrantsThenRevokes, inviteContext(inviteDocument(), issuing, { actors: [owner, adopting] }).ctx)
-		expect(adoptCredential).toHaveBeenCalledWith("fresh")
-		const plain = inviteContext(inviteDocument(), inviteBackend({ accepted: { access_token: "fresh" } }))
-		expect(await runCheck(inviteGrantsThenRevokes, plain.ctx)).toEqual({ kind: "asserted" })
+		const { ctx, sent } = inviteContext(inviteDocument(), issuing, { credentials })
+		expect(await runCheck(inviteGrantsThenRevokes, ctx)).toEqual({ kind: "asserted" })
+		expect(adopted).toEqual([{ principal: "delegate", scheme: "bearer", value: "fresh" }])
+		expect(sent[4]).toMatchObject({ options: { as: { principal: "delegate" }, operationId: "readNote" } })
+	})
+
+	it("is left alone when none is issued, there is no read or it asks for no credential, or no store is lent", async () => {
+		const quiet = credentialsOf()
+		await runCheck(
+			inviteGrantsThenRevokes,
+			inviteContext(inviteDocument(), inviteBackend(), { credentials: quiet.credentials }).ctx,
+		)
+		expect(quiet.adopted).toEqual([])
+		const issuing = inviteBackend({ accepted: { access_token: "fresh" } })
+		const open = credentialsOf()
+		await runCheck(
+			inviteGrantsThenRevokes,
+			inviteContext(anonymousAccept(), issuing, { credentials: open.credentials }).ctx,
+		)
+		expect(open.adopted).toEqual([])
+		const unread = credentialsOf()
+		const orgWide = inviteDocument({
+			invitePath: "/orgs/{org_id}/invites",
+			revokePath: "/orgs/{org_id}/invites/{grant_id}",
+		})
+		const readless = { credentials: unread.credentials, readOp: undefined }
+		await runCheck(inviteGrantsThenRevokes, inviteContext(orgWide, issuing, readless).ctx)
+		expect(unread.adopted).toEqual([])
+		const unlent = inviteContext(inviteDocument(), inviteBackend({ accepted: { access_token: "fresh" } }))
+		expect(await runCheck(inviteGrantsThenRevokes, unlent.ctx)).toEqual({ kind: "asserted" })
 	})
 })
 

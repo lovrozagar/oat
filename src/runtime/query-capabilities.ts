@@ -27,7 +27,8 @@ export async function resolveEntityCapabilities(input: {
 	scope: Record<string, string>
 	model: SpecModel
 	client: Client
-	auth: () => Record<string, string>
+	/** The principal it sends as: `as: { principal }`, the operation's security choosing the scheme. */
+	principal: string
 }): Promise<EffectiveQueryCapabilities> {
 	let caps = mergeQueryCapabilities({
 		tag: input.tag,
@@ -42,7 +43,7 @@ export async function resolveEntityCapabilities(input: {
 			throw new Error(`oat: harvest/get target "${operationId}" is not in the document`)
 		}
 		const exchange = await input.client.request(op.method, fillPath(op.path, scope), {
-			headers: input.auth(),
+			as: { principal: input.principal },
 			operationId: op.operationId,
 		})
 		return exchange.responseBody

@@ -49,7 +49,7 @@ async function runWith(assert: ScenarioAssert[]) {
 	const result = await run({
 		baseUrl: url,
 		ops: ["file.request", "file.download"],
-		principals: [{ headers: {}, id: "alpha" }],
+		principals: { alpha: {} },
 		scenarios: [scenario],
 		seed: 1,
 		spec: `${url}/openapi.json`,

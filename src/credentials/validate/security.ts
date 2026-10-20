@@ -1,10 +1,14 @@
-import type { RecipeKind } from "../types/security.ts"
+import type { ExtraPlacement, Recipe, RecipeKind } from "../../config/types/security.ts"
 import { nearest } from "../../errors/suggest.ts"
+import { UsageError } from "../../errors/usage-error.ts"
+import type { SpecModel } from "../../spec/graph/types.ts"
+import { placementOf } from "../../spec/security/placement.ts"
 import type { ResolvedSecurity } from "../../spec/security/requirements.ts"
 import type { SecurityScheme } from "../../spec/security/schemes.ts"
-import { effectiveRecipe } from "../../credentials/effective.ts"
-import type { Recipe } from "../types/security.ts"
-import { principalProblems, removedProblems } from "./principals.ts"
+import type { OpenApiDocument } from "../../spec/types.ts"
+import { effectiveRecipe } from "../effective.ts"
+import { declaredSchemes, type FreshView, freshView, principalProblems, removedProblems } from "./principals.ts"
+import { documentProblems } from "./document.ts"
 import { kindShapeProblems } from "./recipe-shape.ts"
 
 /*
@@ -19,6 +23,18 @@ export interface SpecView {
 	operations: ReadonlyArray<{ operationId: string; security: ResolvedSecurity }>
 	/** The document still carries the removed `x-auth-flows` tag. */
 	authFlows: boolean
+	/** The operation that signs a fresh principal up; absent when the document marks none. */
+	fresh?: FreshView
+}
+
+/** The parts of a document's model validation reads. */
+export type ModelView = Pick<SpecModel, "operations" | "rawOperations" | "schemes">
+
+/** What validation reads from a document: its model, whether it still has `x-auth-flows`, and its signup. */
+export function specView(model: ModelView, doc: OpenApiDocument): SpecView {
+	const fresh = freshView(model)
+	const view = { authFlows: "x-auth-flows" in doc, operations: model.operations, schemes: model.schemes }
+	return fresh === undefined ? view : { ...view, fresh }
 }
 
 type Raw = Record<string, unknown>
@@ -40,7 +56,7 @@ function validExpiry(value: unknown): boolean {
 	return isRecord(value) && typeof value.from === "string"
 }
 
-const validPlacement = (value: unknown): boolean =>
+const validPlacement = (value: unknown): value is ExtraPlacement =>
 	isRecord(value) &&
 	LOCATIONS.has(value.in) &&
 	typeof value.name === "string" &&
@@ -125,14 +141,27 @@ function mintProblems(ctx: Against, path: string, name: string, mint: Raw): stri
 	return problems
 }
 
+const NOT_A_MAP = "security must be a map of scheme → recipe"
+
+/** What is wrong with `config.security` that needs no document: its shape, and each recipe's kind and options. */
+export function securityMapProblems(config: Raw): string[] {
+	if (config.security === undefined) return []
+	if (!isRecord(config.security)) return [NOT_A_MAP]
+	return Object.entries(config.security).flatMap(([name, recipe]) => {
+		const path = `security.${name}`
+		if (!isRecord(recipe)) return [`${path} must be a recipe object`]
+		const kind = kindProblems(path, recipe)
+		return kind.length > 0 ? kind : optionProblems(path, recipe)
+	})
+}
+
 function recipeProblems(ctx: Against, path: string, name: string, recipe: unknown): string[] {
 	const { spec } = ctx
 	const scheme = spec.schemes.get(name)
 	if (scheme === undefined) {
 		const close = nearest(name, spec.schemes.keys())[0]
 		const hint = close === undefined ? "" : ` Did you mean "${close}"?`
-		const declared = [...spec.schemes.keys()].toSorted().join(", ")
-		return [`${path} names no scheme in the document.${hint} The document declares: ${declared}`]
+		return [`${path} names no scheme in the document.${hint} ${declaredSchemes(spec.schemes.keys())}`]
 	}
 	if (scheme.kind === "unsupported") return [`${path}: ${scheme.unsupported}`]
 	if (!isRecord(recipe)) return [`${path} must be a recipe object`]
@@ -179,6 +208,55 @@ function originProblems(
 	})
 }
 
+/** A header a credential is placed in: whose place it is, and what to do instead of sending it from globalHeaders. */
+interface HeaderPlace {
+	name: string
+	owner: string
+	fix: string
+}
+
+/* Every header a declared scheme, an origin's scheme or a recipe's extra placement puts a credential in. */
+function headerPlaces(security: Raw, spec: SpecView, origins: Readonly<Record<string, SpecView>>): HeaderPlace[] {
+	const ofSchemes = (view: SpecView, owner: (scheme: string) => string, fix: (scheme: string) => string) =>
+		[...view.schemes].flatMap(([scheme, declared]) => {
+			const place = placementOf(declared)
+			return place?.in === "header" ? [{ fix: fix(scheme), name: place.name, owner: owner(scheme) }] : []
+		})
+	const extra = Object.entries(security).flatMap(([scheme, recipe]) => {
+		const placements: unknown[] = isRecord(recipe) && Array.isArray(recipe.placements) ? recipe.placements : []
+		return placements.flatMap((placement, index) =>
+			validPlacement(placement) && placement.in === "header"
+				? [{ fix: "remove it", name: placement.name, owner: `security.${scheme}.placements[${index}]` }]
+				: [],
+		)
+	})
+	return [
+		...ofSchemes(
+			spec,
+			(scheme) => `scheme "${scheme}"`,
+			(scheme) => `remove it and declare security.${scheme}`,
+		),
+		...Object.entries(origins).flatMap(([id, view]) =>
+			ofSchemes(
+				view,
+				(scheme) => `origins.${id} scheme "${scheme}"`,
+				() => "remove it and map the scheme with origins[].security",
+			),
+		),
+		...extra,
+	]
+}
+
+/* globalHeaders never carry a credential: an entry in a place a credential goes would collide with it. */
+function globalHeaderProblems(config: Raw, places: readonly HeaderPlace[]): string[] {
+	const headers = isRecord(config.globalHeaders) ? Object.keys(config.globalHeaders) : []
+	return headers.flatMap((header) =>
+		places
+			.filter((place) => place.name.toLowerCase() === header.toLowerCase())
+			.map((place) => `globalHeaders.${header} is where ${place.owner} places its credential; ${place.fix}`),
+	)
+}
+
 /** Every problem with a config's `security` and `principals`, against the primary document and each origin's. */
 export function securityProblems(
 	config: Raw,
@@ -188,17 +266,34 @@ export function securityProblems(
 	const security = isRecord(config.security) ? config.security : {}
 	const hooks = isRecord(config.hooks) ? config.hooks : {}
 	const against: Against = { hasHook: typeof hooks.resolveCredential === "function", security, spec }
-	const shape =
-		config.security === undefined || isRecord(config.security) ? [] : ["security must be a map of scheme → recipe"]
+	const shape = config.security === undefined || isRecord(config.security) ? [] : [NOT_A_MAP]
 	return [
 		...shape,
 		...Object.entries(security).flatMap(([name, recipe]) => recipeProblems(against, `security.${name}`, name, recipe)),
 		...overrideProblems(config, against),
-		...principalProblems(config, new Set(spec.schemes.keys())),
+		...principalProblems(config, new Set(spec.schemes.keys()), spec.fresh),
 		...removedProblems(config),
-		...(spec.authFlows
-			? ["the document's x-auth-flows tag is no longer read: declare a security.<scheme> recipe in config"]
-			: []),
+		...documentProblems(config, spec, origins),
 		...originProblems(config, origins, new Set(Object.keys(security))),
+		...globalHeaderProblems(config, headerPlaces(security, spec, origins)),
 	].toSorted()
+}
+
+/** A document and its model: what a run, `doctor` and `plan` check a config against. */
+export interface ModelledDocument {
+	doc: OpenApiDocument
+	model: ModelView
+}
+
+/** Throws a UsageError naming every `securityProblems` problem against the primary document and each origin's. */
+export function assertSecurity(
+	config: Raw,
+	primary: ModelledDocument,
+	origins: ReadonlyMap<string, ModelledDocument> = new Map(),
+): void {
+	const views = Object.fromEntries([...origins].map(([id, origin]) => [id, specView(origin.model, origin.doc)]))
+	const problems = securityProblems(config, specView(primary.model, primary.doc), views)
+	if (problems.length > 0) {
+		throw new UsageError(`the config's credentials do not fit the document:\n  ${problems.join("\n  ")}`)
+	}
 }

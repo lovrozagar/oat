@@ -51,21 +51,25 @@ export interface ListResult {
 	exchange: Exchange
 }
 
+/**
+ * One page of a list: the context's own, or `op`, read as `principal` (the actor by default) in
+ * `scope` (the context's by default).
+ */
 export async function list(
 	ctx: CheckContext,
 	query: Query = {},
 	{
-		auth = ctx.auth,
+		principal = ctx.actor.id,
 		scope = ctx.scope,
 		op = ctx.listOp,
 	}: {
-		auth?: (() => Record<string, string>) | undefined
+		principal?: string | undefined
 		scope?: Record<string, string> | undefined
 		op?: OperationModel | undefined
 	} = {},
 ): Promise<ListResult> {
 	const exchange = await ctx.client.get(fillPath(op.path, scope), {
-		headers: auth(),
+		as: { principal },
 		operationId: op.operationId,
 		query,
 	})

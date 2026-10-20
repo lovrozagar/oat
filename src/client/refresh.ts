@@ -1,49 +1,18 @@
-/** Keeping a principal's credential alive across a request: refresh when stale, once more on a 401. */
+/** A 401 on a request that carried a principal's credential: renew it once, and ask once more. */
 
-import { messageOf } from "../errors/message.ts"
 import type { Exchange } from "../runtime/exchange.ts"
-
-/** Refreshing a principal's credential failed; `principal` names it when known. */
-export class AuthRefreshError extends Error {
-	constructor(
-		readonly principal: string | undefined,
-		readonly reason: unknown,
-	) {
-		super(
-			`refreshing the credential${principal === undefined ? "" : ` of "${principal}"`} failed: ${messageOf(reason)}`,
-		)
-		this.name = "AuthRefreshError"
-	}
-}
-
-export type Refresh = (force?: boolean) => Promise<void>
-
-/**
- * `refresh`, with its failure raised as the principal's. A refresh that fails is the backend's
- * failure to keep a session alive, not this request's: the run reports it rather than losing it in
- * a check.
- */
-export function refreshing(refresh: Refresh, principal: () => string | undefined): Refresh {
-	return async (force) => {
-		try {
-			await refresh(force)
-		} catch (error) {
-			throw new AuthRefreshError(principal(), error)
-		}
-	}
-}
 
 /** What a request does once more after a 401. */
 export interface Reauthorize {
-	refresh: Refresh | undefined
+	/** Renews the credential the refused attempt carried; false when this request may not renew. */
+	renew: () => Promise<boolean>
 	supersede: (exchange: Exchange) => void
 	send: () => Promise<Exchange>
 }
 
-/** `exchange`, or — when it is a 401 and the credential can be refreshed — the answer after one forced refresh. */
+/** `exchange`, or, when it is a 401 the request may renew its credential for, the answer after the renewal. */
 export async function afterUnauthorized(exchange: Exchange, again: Reauthorize): Promise<Exchange> {
-	if (exchange.status !== 401 || again.refresh === undefined) return exchange
+	if (exchange.status !== 401 || !(await again.renew())) return exchange
 	again.supersede(exchange)
-	await again.refresh(true)
 	return again.send()
 }

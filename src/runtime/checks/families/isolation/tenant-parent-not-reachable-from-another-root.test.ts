@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest"
 import { type Answer, modelOf } from "../../__fixtures__/harness.ts"
-import type { CheckContext } from "../../core/context.ts"
 import { runCheck } from "../../core/run.ts"
-import { notesContext } from "./__fixtures__/context.ts"
+import { caller, notesContext, type NotesFields } from "./__fixtures__/context.ts"
 import { nestedDocument, type Parent } from "./__fixtures__/nested.ts"
 import type { NotesOptions } from "./__fixtures__/notes.ts"
 import { foreignParentRejected } from "./tenant-parent-not-reachable-from-another-root.ts"
 
 const BOOKS: Parent = { list: true, param: "book_id", segment: "books" }
-const SCOPES = { altScope: { book_id: "b2", org_id: "o2" }, scope: { book_id: "b1", org_id: "o1" } }
+const SCOPES = { peerScope: { book_id: "b2", org_id: "o2" }, scope: { book_id: "b1", org_id: "o1" } }
 
 /** Answers by `METHOD path`; anything else is a 404. */
 const table = (answers: Record<string, Answer>) => (method: string, path: string) => answers[`${method} ${path}`]
@@ -17,7 +16,7 @@ const table = (answers: Record<string, Answer>) => (method: string, path: string
 interface Setup {
 	parents?: readonly Parent[]
 	options?: NotesOptions & { prefix?: string }
-	fields?: Partial<CheckContext>
+	fields?: NotesFields
 }
 
 function staged(answers: Record<string, Answer>, { parents = [BOOKS], options = {}, fields = {} }: Setup = {}) {
@@ -31,13 +30,11 @@ describe("tenant.parent-not-reachable-from-another-root", () => {
 	it("passes when the owner's parent is unknown under the other root", async () => {
 		const { ctx, findings, sent } = staged(OWN_BOOKS)
 		expect(await runCheck(foreignParentRejected, ctx)).toEqual({ kind: "asserted" })
-		expect(
-			sent.map((s) => `${s.method} ${s.path} ${(s.options.headers as Record<string, string>).authorization}`),
-		).toEqual([
-			"GET /orgs/o2/books other",
-			"GET /orgs/o2/books/b1/notes other",
-			"GET /orgs/o2/books/b1/notes/n1 other",
-			"POST /orgs/o2/books/b1/notes other",
+		expect(sent.map((s) => `${s.method} ${s.path} ${caller(s)} ${s.options.operationId}`)).toEqual([
+			"GET /orgs/o2/books other list_book",
+			"GET /orgs/o2/books/b1/notes other listNotes",
+			"GET /orgs/o2/books/b1/notes/n1 other readNote",
+			"POST /orgs/o2/books/b1/notes other createNote",
 		])
 		expect(findings.findings).toEqual([])
 	})
@@ -86,7 +83,7 @@ describe("tenant.parent-not-reachable-from-another-root: writes and skipped prob
 		for (const [options, fields] of [
 			[{ bodilessCreate: true }, { readOp: undefined }],
 			[{}, { createOp: undefined, records: [{ title: "first" }] }],
-		] satisfies Array<[NotesOptions, Partial<CheckContext>]>) {
+		] satisfies Array<[NotesOptions, NotesFields]>) {
 			const { ctx, sent } = staged(OWN_BOOKS, { options, fields })
 			expect(await runCheck(foreignParentRejected, ctx)).toEqual({ kind: "asserted" })
 			expect(sent.map((s) => s.method)).toEqual(["GET", "GET"])
@@ -114,7 +111,7 @@ describe("tenant.parent-not-reachable-from-another-root: the other tenant's own 
 			{
 				parents: [BOOKS, PAGES],
 				fields: {
-					altScope: { book_id: "b2", org_id: "o2", page_id: "p2" },
+					peerScope: { book_id: "b2", org_id: "o2", page_id: "p2" },
 					scope: { book_id: "b1", org_id: "o1", page_id: "p1" },
 				},
 			},
@@ -134,7 +131,7 @@ describe("tenant.parent-not-reachable-from-another-root: the other tenant's own 
 			{
 				parents: [BOOKS, PAGES],
 				fields: {
-					altScope: { book_id: "b2", org_id: "o2", page_id: "p2" },
+					peerScope: { book_id: "b2", org_id: "o2", page_id: "p2" },
 					scope: { book_id: "b1", org_id: "o1", page_id: "p1" },
 				},
 			},
@@ -195,7 +192,7 @@ describe("tenant.parent-not-reachable-from-another-root: parents without a list"
 				parents: [],
 				options: { prefix: "/{shelf_id}/orgs/{org_id}" },
 				fields: {
-					altScope: { org_id: "o2", shelf_id: "s2" },
+					peerScope: { org_id: "o2", shelf_id: "s2" },
 					scope: { org_id: "o1", shelf_id: "s1" },
 				},
 			},
@@ -208,11 +205,11 @@ describe("tenant.parent-not-reachable-from-another-root: parents without a list"
 describe("tenant.parent-not-reachable-from-another-root planning", () => {
 	it("stands down without a second tenant, a tenant, or a boundary of its own", () => {
 		for (const [options, fields] of [
-			[{}, { altAuth: undefined }],
-			[{}, { altScope: undefined }],
+			[{}, { peer: undefined }],
+			[{}, { peerScope: undefined }],
 			[{ tenant: false }, {}],
-			[{}, { altScope: { book_id: "b2" } }],
-			[{}, { altScope: { book_id: "b2", org_id: "o1" } }],
+			[{}, { peerScope: { book_id: "b2" } }],
+			[{}, { peerScope: { book_id: "b2", org_id: "o1" } }],
 		] as const) {
 			expect(foreignParentRejected.plan(staged({}, { options, fields }).ctx)).toEqual({ ok: false })
 		}
@@ -223,7 +220,7 @@ describe("tenant.parent-not-reachable-from-another-root planning", () => {
 			needs: "a parent below the tenant in the collection's path",
 			ok: false,
 		})
-		const shared = staged({}, { fields: { altScope: { book_id: "b1", org_id: "o2" } } })
+		const shared = staged({}, { fields: { peerScope: { book_id: "b1", org_id: "o2" } } })
 		expect(foreignParentRejected.plan(shared.ctx)).toEqual({
 			needs: "the other tenant's book_id has the same identity as the owner's",
 			ok: false,

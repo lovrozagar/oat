@@ -1,6 +1,6 @@
 import type { CredentialPrincipal } from "../../config/types/hooks.ts"
 import type { SecurityScheme } from "../../spec/security/schemes.ts"
-import type { CredentialPorts, Sends } from "../ports.ts"
+import type { CredentialPorts } from "../ports.ts"
 
 /** What a recipe acquires a credential with: the run's ports, who it is for, and what it must carry. */
 export interface AcquireCtx {
@@ -12,8 +12,6 @@ export interface AcquireCtx {
 	scopes: readonly string[]
 	/** Epoch ms now; a run passes its clock so tests can move it. */
 	now: () => number
-	/** The sends of the same principal's credential for another scheme, for a mint's `with`. */
-	sendsOf: (scheme: string) => Promise<Sends>
 }
 
 /** A credential a recipe issued. */

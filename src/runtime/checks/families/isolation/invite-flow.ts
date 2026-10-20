@@ -6,6 +6,7 @@ import type { Exchange } from "../../../exchange.ts"
 import { isAbsoluteHttpUrl } from "../../../cookies/redirect.ts"
 import { fillPath } from "../../../fill-path.ts"
 import type { Outcome } from "../../../finding.ts"
+import type { Actor as RequestActor } from "../../../../client/credential-source.ts"
 import { readPath } from "../../../../client/read-path.ts"
 import { idOf } from "../../../world/records.ts"
 import type { Actor, CheckContext, WriteContext } from "../../core/context.ts"
@@ -76,11 +77,29 @@ export function inviteFlow(ctx: WriteContext, check: string, plan: InvitePlan): 
 /** Whether the delegate can read what the grant opens; `null` when there is no read to try. */
 export async function canRead({ ctx, grantRead, plan, resource }: Flow): Promise<boolean | null> {
 	if (grantRead === undefined) return null
-	const exchange = await ctx.client.get(fillPath(grantRead.path, { ...plan.delegate.roots, ...resource }), {
-		headers: plan.delegate.headers(),
+	const exchange = await ctx.client.get(fillPath(grantRead.path, { ...plan.delegate.scope, ...resource }), {
+		as: { principal: plan.delegate.id },
 		operationId: grantRead.operationId,
 	})
 	return exchange.status < 300
+}
+
+/**
+ * The scheme an operation's first alternative that asks for a credential names first, or
+ * `undefined` when it asks for none: where a credential the flow hands a principal goes.
+ */
+export function schemeOf(op: OperationModel | undefined): string | undefined {
+	return op?.security.alternatives.find((alternative) => alternative.length > 0)?.[0]?.scheme
+}
+
+/**
+ * Holds the credential an accept issued as the delegate's, under the scheme the grant's read asks
+ * for, so that read, and every later request as the delegate, sends it.
+ */
+export async function adoptIssued({ ctx, grantRead, plan }: Flow, issued: string): Promise<void> {
+	const scheme = schemeOf(grantRead === undefined ? undefined : ctx.model.byOperationId.get(grantRead.operationId))
+	if (scheme === undefined || ctx.credentials === undefined) return
+	await ctx.credentials.adopt({ principal: plan.delegate.id, scheme, value: issued })
 }
 
 /* The grant is its own record: revoke addresses it, not the record the check read first. */
@@ -97,11 +116,8 @@ export function revoke(flow: Flow, grant: string): Promise<Exchange> {
 	}
 	const revokeBody = documentedJsonBody(ctx, revokeOp, revokeScope)
 	return ctx.client.request(revokeOp.method, fillPath(revokeOp.path, revokeScope), {
-		...(revokeBody === undefined ? {} : { body: revokeBody }),
-		headers: {
-			...owner.headers(),
-			...(revokeBody === undefined ? {} : { "content-type": "application/json" }),
-		},
+		...(revokeBody === undefined ? {} : { body: revokeBody, headers: { "content-type": "application/json" } }),
+		as: { principal: owner.id },
 		operationId: revokeOp.operationId,
 	})
 }
@@ -109,7 +125,7 @@ export function revoke(flow: Flow, grant: string): Promise<Exchange> {
 /** The invite token: delivered out of band, or read from the invite's answer. */
 export async function inviteToken(flow: Flow, invited: Exchange): Promise<string | { outcome: Outcome }> {
 	const { check, ctx, plan, resource } = flow
-	const { delegate, inviteAs, spec } = plan
+	const { inviteAs, spec } = plan
 	if (spec.tokenFrom !== "outOfBand") {
 		const token = pointerValue(invited.responseBody, spec.tokenPointer)
 		if (token !== undefined) return token
@@ -120,7 +136,6 @@ export async function inviteToken(flow: Flow, invited: Exchange): Promise<string
 	const kind = spec.tokenKind ?? `${ctx.entityName}-invite`
 	try {
 		return await resolveOutOfBandValue(ctx.hooks.resolveOutOfBand, inviteAs, {
-			headers: delegate.headers(),
 			kind,
 			label: `invite to ${ctx.entityName}`,
 			outOfBand: ctx.outOfBand,
@@ -143,16 +158,17 @@ export async function sendAccept(flow: Flow, token: string): Promise<{ exchange:
 			const reason = `x-invite.acceptFrom: link needs an absolute http(s) URL, got ${JSON.stringify(token)}`
 			return { outcome: ctx.findings.unresolved(check, ctx.entityName, reason) }
 		}
-		return { exchange: await ctx.client.request("GET", token, { headers: delegate.headers(), redirect: "follow" }) }
+		/* A link names no operation, so the scheme the accept asks for is named outright, and an accept
+		 * that asks for none is sent as nobody: the link itself is the credential. */
+		const scheme = schemeOf(acceptOp)
+		const as: RequestActor = scheme === undefined ? { anonymous: true } : { principal: delegate.id, scheme }
+		return { exchange: await ctx.client.request("GET", token, { as, redirect: "follow" }) }
 	}
 	const acceptScope = { ...resource, token }
 	const acceptBody = documentedJsonBody(ctx, acceptOp, acceptScope)
 	const exchange = await ctx.client.request(acceptOp.method, fillPath(acceptOp.path, acceptScope), {
-		...(acceptBody === undefined ? {} : { body: acceptBody }),
-		headers: {
-			...delegate.headers(),
-			...(acceptBody === undefined ? {} : { "content-type": "application/json" }),
-		},
+		...(acceptBody === undefined ? {} : { body: acceptBody, headers: { "content-type": "application/json" } }),
+		as: { principal: delegate.id },
 		operationId: acceptOp.operationId,
 	})
 	return { exchange }

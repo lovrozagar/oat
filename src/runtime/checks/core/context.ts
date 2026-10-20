@@ -3,6 +3,7 @@
 import type { PayloadPolicy } from "../../../config/types/config.ts"
 import type { Hooks } from "../../../config/types/hooks.ts"
 import type { Client, ReadClient } from "../../../client/client.ts"
+import type { CredentialStore } from "../../../credentials/store.ts"
 import type { Exchange } from "../../exchange.ts"
 import type { FindingCollector } from "../../finding.ts"
 import type { BackoffConfig } from "../../poll.ts"
@@ -15,20 +16,18 @@ import type { QueryCapability } from "../../../spec/extensions/query-tag.ts"
 import type { OperationModel, SpecModel } from "../../../spec/graph/types.ts"
 import type { EffectiveQueryCapabilities } from "../../../spec/query/effective.ts"
 
-/** A resolved principal as checks see it — identity, lattice position, and how to speak as it. */
+/**
+ * A principal as checks see it: who it is, its tenant and its place in the rank lattice, and the
+ * scope it works in. A check sends as it with `as: { principal: actor.id }`; the client places the
+ * credential the operation's security asks for.
+ */
 export interface Actor {
 	id: string
-	role: string | undefined
+	/** Principals of different tenants are what the isolation checks cross. */
+	tenant: string | undefined
 	/** Higher can do everything a lower rank can. Same rank = peers. */
 	rank: number
-	headers: () => Record<string, string>
-	/**
-	 * Replace this actor's credential after a response issues a new one.
-	 * Static principals and auth flows both implement it. Absent means the actor cannot.
-	 */
-	adoptCredential?: (token: string) => void
-	/** Tenant identity from config / the auth flow — not the full path scope. */
-	roots: Record<string, string>
+	/** The path parameters it works in: its principal's scope, and the parents made for it. */
 	scope: Record<string, string>
 	/** Value the owner puts in an invite body for this principal. */
 	inviteAs: string | undefined
@@ -73,17 +72,19 @@ export interface CheckContext<C extends ReadClient = ReadClient> {
 	capabilities?: EffectiveQueryCapabilities
 	softDelete: string | null
 	invite: InviteSpec | null
-	auth: () => Record<string, string>
-	/** Countdown / 401 refresh for the writer principal. Bound onto the client as well. */
-	refreshIfStale?: (force?: boolean) => Promise<void>
+	/** The principal checks act as: the first. */
+	actor: Actor
 	/**
-	 * Every configured principal, primary first. Isolation checks still use `altAuth` (the first
-	 * actor whose scope is a different tenant). Lattice checks walk this list by `rank`.
+	 * Every principal the run signed in, `actor` first. Isolation checks use `peer`; lattice checks
+	 * walk this list by `rank`.
 	 */
 	actors: Actor[]
-	/** Principal in a different tenant, when one is configured. Derived, not `principals[1]`. */
-	altAuth: (() => Record<string, string>) | undefined
-	altScope: Record<string, string> | undefined
+	/** The run's credential store as checks use it: an invite's delegate holds what the accept issued. Optional so a hand-built context still works. */
+	credentials?: Pick<CredentialStore, "adopt">
+	/** The first principal of a tenant other than the actor's, when one is configured. Derived, not `actors[1]`. */
+	peer?: Actor
+	/** The peer's scope: the parameters its records live under. */
+	peerScope: Record<string, string> | undefined
 	validator: SchemaValidator | undefined
 	seed: number
 	/** Per-run token for values that must not collide across runs: unique columns, idempotency keys. */

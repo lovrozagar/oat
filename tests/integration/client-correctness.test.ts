@@ -5,7 +5,7 @@ import { formPairs } from "../../src/runtime/body/form-pairs.ts"
 import { compactResponseBody } from "../../src/runtime/transcript/compact-response.ts"
 import { Client } from "../../src/client/client.ts"
 import { toCurl } from "../../src/client/curl.ts"
-import { AuthRefreshError } from "../../src/client/refresh.ts"
+import { type Resolution, UnsatisfiedSecurity } from "../../src/client/credential-source.ts"
 import { Redactor } from "../../src/security/redact.ts"
 
 describe("repro scripts", () => {
@@ -103,7 +103,7 @@ describe("the client", () => {
 	it("never resends a POST whose connection broke mid-request", async () => {
 		const client = retrying(3)
 		hits = 0
-		await expect(client.request("POST", "/reset", { body: { a: 1 } })).rejects.toThrow(
+		await expect(client.request("POST", "/reset", { as: { anonymous: true }, body: { a: 1 } })).rejects.toThrow(
 			/^POST http:\/\/127\.0\.0\.1:\d+\/reset failed \(reset: the connection was reset\)$/,
 		)
 		expect(hits).toBe(1)
@@ -112,44 +112,68 @@ describe("the client", () => {
 	it("resends a GET, which is safe to repeat", async () => {
 		const client = retrying(1)
 		hits = 0
-		await expect(client.get("/reset")).rejects.toThrow(
+		await expect(client.get("/reset", { as: { anonymous: true } })).rejects.toThrow(
 			/^GET http:\/\/127\.0\.0\.1:\d+\/reset failed \(reset: the connection was reset\)$/,
 		)
 		expect(hits).toBe(2)
 	})
 
 	it("decodes text by its declared charset and counts the bytes on the wire", async () => {
-		const exchange = await new Client({ baseUrl: url, redactor: new Redactor() }).get("/latin1")
+		const exchange = await new Client({ baseUrl: url, redactor: new Redactor() }).get("/latin1", {
+			as: { anonymous: true },
+		})
 		expect(exchange.responseBody).toBe("café")
 		expect(exchange.responseBytes).toBeGreaterThan(0)
 	})
 	it("reads a body whose charset label is unknown as UTF-8", async () => {
-		expect((await new Client({ baseUrl: url, redactor: new Redactor() }).get("/odd-charset")).responseBody).toBe(
-			"plain",
-		)
+		expect(
+			(await new Client({ baseUrl: url, redactor: new Redactor() }).get("/odd-charset", { as: { anonymous: true } }))
+				.responseBody,
+		).toBe("plain")
 	})
 
-	it("raises a failed refresh as its own error, naming the principal", async () => {
-		const client = new Client({
-			baseUrl: url,
-			credentials: { credentialFor: () => undefined, principalOf: () => "alpha" },
-			redactor: new Redactor(),
-		})
-		await expect(
-			client.get("/expired", {
-				refreshIfStale: async (force) => {
-					if (force === true) throw new Error("refresh endpoint said 500")
-				},
-			}),
-		).rejects.toThrow(AuthRefreshError)
-	})
 	it("keeps a binary body as its bytes", async () => {
-		const exchange = await new Client({ baseUrl: url, redactor: new Redactor() }).get("/pdf")
+		const exchange = await new Client({ baseUrl: url, redactor: new Redactor() }).get("/pdf", {
+			as: { anonymous: true },
+		})
 		expect(exchange.responseBody).toBeInstanceOf(Uint8Array)
 		expect(exchange.responseBytes).toBeGreaterThan(5)
 	})
 
 	it("reads an array under text/event-stream as frames only when it is frames", async () => {
 		expect(await compactResponseBody([1, 2], { "content-type": "text/event-stream" })).toEqual([1, 2])
+	})
+})
+
+describe("a principal whose renewal fails", () => {
+	it("blocks the principal when its renewal fails, naming why, and sends nothing more", async () => {
+		let resolved = 0
+		const sending: Resolution = {
+			kind: "sends",
+			principal: "alpha",
+			refresh: async () => ({
+				kind: "blocked",
+				reason: "alpha's refresh for bearer failed: refresh endpoint said 500",
+			}),
+			schemes: ["bearer"],
+			secrets: { cookies: [], headers: ["authorization"], query: [], values: ["Bearer stale"] },
+			sends: { bearer: { cookies: {}, headers: { authorization: "Bearer stale" }, query: {} } },
+			sentValues: { bearer: "stale" },
+		}
+		const client = new Client({
+			baseUrl: url,
+			credentials: {
+				resolve: async () => {
+					resolved += 1
+					return sending
+				},
+			},
+			redactor: new Redactor(),
+		})
+		hits = 0
+		const refused = client.get("/expired", { as: { principal: "alpha" } })
+		await expect(refused).rejects.toBeInstanceOf(UnsatisfiedSecurity)
+		await expect(refused).rejects.toMatchObject({ kind: "blocked", message: expect.stringContaining("said 500") })
+		expect([hits, resolved]).toEqual([1, 1])
 	})
 })

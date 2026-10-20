@@ -57,7 +57,7 @@ export async function stillListed(model: SpecModel, client: Client, group: ListG
 		let exchange: Exchange
 		try {
 			exchange = await client.get(group.path, {
-				headers: group.owner.headers(),
+				as: { principal: group.owner.id },
 				operationId: group.listOp.operationId,
 				query,
 			})

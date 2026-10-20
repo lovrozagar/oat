@@ -4,6 +4,7 @@ import type { Exchange } from "../../../exchange.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { idOf, type Record_ } from "../../../world/records.ts"
+import type { Actor } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { constructedAbsentId } from "../../payloads/identity.ts"
 import { asProbe } from "../../planning/refusal.ts"
@@ -24,15 +25,15 @@ import { tenantBoundary } from "./tenant.ts"
 export const denialDoesNotRevealExistence = defineCheck<{
 	target: Record_
 	readOp: OperationModel
-	altAuth: () => Record<string, string>
+	peer: Actor
 }>({
 	plan: (ctx) => {
-		const { altAuth, readOp } = ctx
+		const { peer, readOp } = ctx
 		const target = ctx.records[0]
-		if (altAuth === undefined || readOp === undefined || target === undefined || !tenantBoundary(readOp)) {
+		if (peer === undefined || readOp === undefined || target === undefined || !tenantBoundary(readOp)) {
 			return cannot()
 		}
-		return ready({ altAuth, readOp, target })
+		return ready({ peer, readOp, target })
 	},
 	dependsOn: [
 		/* If the record is readable across tenants at all, that is the finding — how the denial
@@ -42,7 +43,7 @@ export const denialDoesNotRevealExistence = defineCheck<{
 	id: "tenant.denial-does-not-reveal-existence",
 	needs: "a second principal in a different tenant, and a tenant tagged or inferred from the path",
 	subjects: subjectsOf.read,
-	async run(ctx, { altAuth, readOp, target }): Promise<Outcome> {
+	async run(ctx, { peer, readOp, target }): Promise<Outcome> {
 		const realId = idOf(target, ctx.identity)
 		if (realId === undefined)
 			return ctx.findings.unresolved(this.id, ctx.entityName, `the record carries no "${ctx.identity}"`)
@@ -58,8 +59,9 @@ export const denialDoesNotRevealExistence = defineCheck<{
 		}
 
 		const ask = async (id: string): Promise<Exchange> =>
-			asProbe(ctx).client.get(fillPath(readOp.path, { ...(ctx.altScope ?? ctx.scope), ...itemParamFor(ctx, id) }), {
-				headers: altAuth(),
+			asProbe(ctx).client.get(fillPath(readOp.path, { ...(ctx.peerScope ?? ctx.scope), ...itemParamFor(ctx, id) }), {
+				as: { principal: peer.id },
+				operationId: readOp.operationId,
 			})
 
 		const existing = await ask(realId)

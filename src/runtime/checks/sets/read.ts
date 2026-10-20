@@ -29,7 +29,8 @@ interface ReadOptions {
 	keepRepeats?: boolean
 	/** Page by cursor even where page numbers or offsets exist. */
 	byCursor?: boolean
-	auth?: () => Record<string, string>
+	/** Who reads: the actor by default. */
+	principal?: string
 	scope?: Record<string, string>
 }
 
@@ -70,7 +71,7 @@ export async function readSet(ctx: CheckContext, extra: Query = {}, options: Rea
 	const key = JSON.stringify([
 		ctx.listOp.operationId,
 		fillPath(ctx.listOp.path, options.scope ?? ctx.scope),
-		(options.auth ?? ctx.auth)(),
+		options.principal ?? ctx.actor.id,
 		extra,
 		size,
 		options.order ?? null,
@@ -158,7 +159,7 @@ function fetchPage(walk: Walk, index: number): Promise<ListResult> {
 	if (mode === "page" && c.page !== undefined) query[c.page] = index + 1
 	if (mode === "offset" && c.offset !== undefined) query[c.offset] = walk.items.length
 	if (mode === "cursor" && c.cursor !== undefined && walk.cursor !== undefined) query[c.cursor] = walk.cursor
-	return list(ctx, query, { auth: options.auth, scope: options.scope })
+	return list(ctx, query, { principal: options.principal, scope: options.scope })
 }
 
 /*

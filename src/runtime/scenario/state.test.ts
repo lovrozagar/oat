@@ -5,7 +5,7 @@ import { principalOf, startScenario, withObjects } from "./state.ts"
 describe("principalOf", () => {
 	it("is the configured principal, and refuses one that is not", () => {
 		const { input } = stage(notesApi(notes()))
-		expect(principalOf(input, scenario([]), "beta").roots).toEqual({})
+		expect(principalOf(input, scenario([]), "beta").scope).toEqual({})
 		expect(() => principalOf(input, scenario([]), "gamma")).toThrow(
 			'oat: scenario "flow" names principal "gamma", which is not configured',
 		)
@@ -15,10 +15,10 @@ describe("principalOf", () => {
 const sleep = async (): Promise<void> => undefined
 
 describe("startScenario", () => {
-	it("sends as the default principal, its roots in scope from the start", () => {
+	it("sends as the default principal, the parameters bound for it in scope from the start", () => {
 		const { input } = stage(notesApi(notes()))
 		const run = startScenario(input, scenario([]), sleep)
-		expect(run.headers()).toEqual({ authorization: "Bearer alpha" })
+		expect(run.principal).toBe("alpha")
 		expect(run.scope).toEqual({ org: "o1" })
 		expect(run.context).toEqual({ client: input.client, hooks: input.hooks, model: input.model, principalId: "alpha" })
 		expect(run.sleep).toBe(sleep)
@@ -28,7 +28,7 @@ describe("startScenario", () => {
 		const originClients = new Map()
 		const { input } = stage(notesApi(notes()), { originClients, outOfBand: { attempts: 2 } })
 		const run = startScenario(input, scenario([], { principal: "beta" }), async () => undefined)
-		expect(run.headers()).toEqual({ authorization: "Bearer beta" })
+		expect([run.principal, run.scope]).toEqual(["beta", {}])
 		expect(run.context).toMatchObject({ originClients, outOfBand: { attempts: 2 }, principalId: "beta" })
 	})
 })

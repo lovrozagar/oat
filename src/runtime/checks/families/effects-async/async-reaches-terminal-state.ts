@@ -75,12 +75,12 @@ async function watchJob(run: Invocation, uploads: UploadContext): Promise<void> 
 
 	const outcome = await driveAsync({
 		client: ctx.client,
-		headers: ctx.auth,
 		operation: (operationId) => ctx.model.byOperationId.get(operationId),
+		principal: ctx.actor.id,
 		receipt,
-		refreshIfStale: ctx.refreshIfStale,
 		scope: ctx.scope,
 		spec,
+		start,
 	})
 	recordJob(run, receipt, start)
 	judgePolled(run, start, outcome)
@@ -91,7 +91,7 @@ async function startJob(run: Invocation, uploads: UploadContext): Promise<Exchan
 	const { ctx, op } = run
 	const body = op.hasRequestBody ? bodyForOp(ctx, op) : undefined
 	const start = await ctx.client.request(op.method, fillPath(op.path, ctx.scope), {
-		headers: ctx.auth(),
+		as: { principal: ctx.actor.id },
 		...(body === undefined ? {} : await encodeOpBody(ctx, op, body, { variant: "baseline", index: 0, uploads })),
 	})
 	if (standDownForFeatureGate(ctx, op, start, run.check)) return undefined

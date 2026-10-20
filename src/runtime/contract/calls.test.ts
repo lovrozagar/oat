@@ -56,6 +56,7 @@ describe("runContractCalls", () => {
 			"GET /search",
 		])
 		expect(sent[2]?.options.query).toEqual({ q: "needle" })
+		expect(sent.map((request) => request.options.as)).toEqual(Array.from({ length: 3 }, () => ({ principal: "alpha" })))
 		expect(sent[0]?.options).not.toHaveProperty("query")
 		expect(sent[0]?.options).not.toHaveProperty("body")
 		expect([...(input.grades.needs.get("things.get") ?? [])]).toEqual(["unresolved param thing_id"])
@@ -73,7 +74,7 @@ describe("runContractCalls", () => {
 		})
 		input.client.transcript.push(
 			exchangeOf(
-				{ method: "GET", options: { operationId: "things.list" }, path: "/things" },
+				{ method: "GET", options: { as: { principal: "alpha" }, operationId: "things.list" }, path: "/things" },
 				{ body: [], status: 200 },
 			),
 		)

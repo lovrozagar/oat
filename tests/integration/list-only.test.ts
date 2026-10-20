@@ -97,7 +97,7 @@ async function serve(rows: Array<typeof ROW>): Promise<string> {
 async function runAt(baseUrl: string) {
 	return run({
 		baseUrl,
-		principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+		principals: { alpha: {} },
 		seed: 1,
 		spec: `${baseUrl}/openapi.json`,
 	})

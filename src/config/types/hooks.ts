@@ -1,6 +1,5 @@
 /* The functions a config passes oat, and what each receives and returns. */
 
-import type { PrincipalAuthResult } from "./principals.ts"
 import type { FilterableField, QueryCapabilities } from "./query.ts"
 
 export interface OutOfBandRequest {
@@ -10,8 +9,6 @@ export interface OutOfBandRequest {
 	attempt: number
 	/** Flow scope at this step (interpolated binds + prior `saveAs`). */
 	scope: Record<string, string>
-	/** Principal credential headers as they would be sent now (Authorization or Cookie). */
-	headers: Record<string, string>
 	/**
 	 * When the request this value answers was sent (unix ms): the latest earlier request in the
 	 * flow or scenario that named `address` in its URL or body. An inbox also holds what earlier
@@ -21,11 +18,18 @@ export interface OutOfBandRequest {
 	since?: number
 }
 
-export interface TeardownPrincipalContext {
-	/** Live credential string — the last issued one, not a cleared snapshot. */
-	credential: string
-	/** Live principal header map (Authorization or Cookie, whatever the flow uses). */
+/** Where a credential goes on one request: header, query parameter and cookie values by name, as its scheme places it. */
+export interface Sends {
 	headers: Record<string, string>
+	query: Record<string, string>
+	cookies: Record<string, string>
+}
+
+export interface TeardownPrincipalContext {
+	/** The principal's credential as the run last held it: the latest issued, not a cleared snapshot. */
+	credential: string
+	/** Where that credential goes, as its scheme places it, ready to send on the removing request. */
+	sends: Sends
 }
 
 /** The principal `hooks.resolveCredential` gets a credential for: its id and its identity data. */
@@ -38,7 +42,7 @@ export interface CredentialPrincipal {
 export type CredentialAnswer = string | { value: string; expiresIn?: number }
 
 /**
- * Poll schedule for `resolveOutOfBand` and `resolvePrincipalAuth`.
+ * Poll schedule for `resolveOutOfBand`.
  *
  * Defaults match 0.6.2: 6 attempts, 200 ms first sleep, doubling, cap 3000 ms.
  * Worst-case wait is the sum of every sleep, including after the last miss:
@@ -141,6 +145,12 @@ export interface FenceRequest {
 	operationId?: string
 	/** Why oat is sending it: `load`, `auth`, `seed`, `assertion`, `probe`, `teardown`, or `request`. */
 	phase: string
+	/** The principal whose credential it carries; absent when it carries none, or a forged one. */
+	principal?: string
+	/** The security schemes whose credentials it carries; absent when it carries none. */
+	schemes?: string[]
+	/** Set when the credential is a forged value a probe sends on purpose. */
+	forged?: true
 }
 
 /** Let the request go, or refuse it with a reason the report shows. */
@@ -175,8 +185,8 @@ export interface Hooks {
 	resolveOutOfBand?: (request: OutOfBandRequest) => Promise<string | null>
 	/**
 	 * Removes a principal the run provisioned, and everything that principal created with it.
-	 * `ctx.headers` is the live principal header map so authenticated delete-account is
-	 * expressible without a tester-key god route. Address stays — some backends still key
+	 * `ctx.credential` is its live credential and `ctx.sends` where its scheme places it, so an
+	 * authenticated delete-account is expressible without a tester-key god route. Address stays — some backends still key
 	 * teardown on it. One-argument JavaScript callbacks still run (the second argument is
 	 * extra); TypeScript configs should take `ctx`.
 	 */
@@ -208,11 +218,6 @@ export interface Hooks {
 	 */
 	resolveInput?: (request: InputRequest) => Promise<unknown | null>
 	/**
-	 * Harvested principal: `auth: { fromHook: "oauth-google" }`.
-	 * Return `null` to retry with the `outOfBand` backoff so a human can finish the click.
-	 */
-	resolvePrincipalAuth?: (fromHook: string) => Promise<PrincipalAuthResult | null>
-	/**
 	 * The credential for a `{ hook: true }` recipe: the scheme's name and the principal it is for.
 	 * Called on every acquire, so a TOTP code is fresh each time. Return the value, or the value with
 	 * its lifetime in seconds. `null` blocks that principal for that scheme, with the reason in the report.
@@ -221,7 +226,8 @@ export interface Hooks {
 	/**
 	 * A path parameter the document does not let oat create (an account provider with no row yet).
 	 * Return the value to send, or `null` to leave the operation unresolved. Product doors stay
-	 * in the hook.
+	 * in the hook. The request names the principal, and the credential and placement the operation
+	 * would carry as it, so the hook can decode a token or call the API as that principal.
 	 */
 	resolvePathValue?: (request: PathValueRequest) => Promise<string | null>
 	/**
@@ -248,7 +254,16 @@ export interface PathValueRequest {
 	path: string
 	/** Enum values the path parameter declares. Empty when the document lists none. */
 	enumValues: string[]
-	headers: Record<string, string>
+	/** The principal the value is resolved for, by id, as `resolveCredential` names it. */
+	principal: string
+	/** The parameters bound for that principal (its config `scope`, and what its login's claims bound). */
+	scope: Readonly<Record<string, string>>
+	/** Its identity data: config values, a fresh signup's, a login's claims. */
+	identity: Readonly<Record<string, unknown>>
+	/** The credential the operation would carry as that principal, e.g. a JWT to decode. Absent when it sends none. */
+	credential?: string
+	/** Where that credential goes, as the operation's security places it: enough to call the API as the principal. */
+	sends?: Sends
 }
 
 export interface QueryCapabilitiesRequest {

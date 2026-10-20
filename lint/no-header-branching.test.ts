@@ -21,7 +21,7 @@ describe("oat/no-header-branching", () => {
 		expect(reportsOf(rule, fixture)[0]?.message).toBe(MESSAGE)
 	})
 
-	it("allows the security, spec security and credentials modules, the reference server, the self-test and tests", () => {
+	it("allows the security, spec security and credentials modules, the reference server and tests", () => {
 		const source = 'export const h = "authorization"\nexport const v = `Bearer ${t}`\n'
 		const fixture = {
 			"src/security/credential-names.ts": source,
@@ -29,11 +29,17 @@ describe("oat/no-header-branching", () => {
 			"src/credentials/store.ts": source,
 			"src/client/credentials.ts": source,
 			"src/reference/http/access.ts": source,
-			"src/conformance/suites/tenant-scope.ts": source,
 			"src/runtime/auth.test.ts": source,
 			"tests/integration/auth.test.ts": source,
 		}
 		expect(reportsOf(rule, fixture)).toEqual([])
+	})
+
+	it("flags the self-test too, whose principals send credentials through recipes", () => {
+		const source = 'export const h = "authorization"\nexport const v = `Bearer ${t}`\n'
+		expect(reportsOf(rule, { "src/conformance/suites/tenant-scope.ts": source }).map(({ line }) => line)).toEqual([
+			1, 2,
+		])
 	})
 
 	it("leaves unrelated strings alone", () => {

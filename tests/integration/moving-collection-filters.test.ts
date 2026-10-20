@@ -144,7 +144,12 @@ async function judge(checkId: string, after: number, move: Move): Promise<{ find
 	if (listOp === undefined) throw new Error("no list")
 	const findings = new FindingCollector()
 	const ctx = checkContext({
-		client: new Client({ baseUrl: await serve(after, move), redactor: new Redactor() }),
+		client: new Client({
+			baseUrl: await serve(after, move),
+			/* The served document declares no security: every request goes as nobody. */
+			credentials: { resolve: async () => ({ kind: "anonymous" }) },
+			redactor: new Redactor(),
+		}),
 		collectionKey: "widgets",
 		entityName: "widget",
 		findings,

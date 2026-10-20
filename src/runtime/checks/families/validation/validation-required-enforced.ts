@@ -23,7 +23,7 @@ export const requiredValidated = defineCheck<CreateBody & { field: string }>({
 		const { [field]: _omitted, ...body } = validBody(ctx, schema)
 		const exchange = await asProbe(ctx).client.request("POST", fillPath(createOp.path, ctx.scope), {
 			...(await encodeOpBody(ctx, createOp, body)),
-			headers: ctx.auth(),
+			as: { principal: ctx.actor.id },
 		})
 		if (standDownForFeatureGate(ctx, createOp, exchange, this.id))
 			return standDown("a documented feature gate refused the request")

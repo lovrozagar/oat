@@ -21,7 +21,8 @@ function spec(): OpenApiDocument {
 		info: { title: "one-shot", version: "1" },
 		openapi: "3.1.0",
 		paths: {
-			"/health": { get: { operationId: "gateway.health", responses: ok } },
+			/* Public by declaration: an operation the document leaves unsecured says nothing either way. */
+			"/health": { get: { operationId: "gateway.health", responses: ok, security: [] } },
 			"/v1/needs-query": {
 				get: {
 					operationId: "needs.query",
@@ -76,7 +77,8 @@ async function serve(healthStatus: number): Promise<{ hits: string[]; url: strin
 async function runAt(baseUrl: string) {
 	return run({
 		baseUrl,
-		principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+		principals: { alpha: {} },
+		security: { bearer: { static: "alpha" } },
 		seed: 1,
 		spec: `${baseUrl}/openapi.json`,
 	})

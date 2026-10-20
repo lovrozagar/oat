@@ -8,9 +8,9 @@ export async function readVersion(ctx: Planned & { principals: RunPrincipals }):
 	const { alpha } = principals
 	return readTargetVersion({
 		client: client.view({ check: TARGET_VERSION_READ, purpose: "probe" }),
-		headers: alpha.headers,
 		model,
-		roots: { ...options.roots, ...alpha.roots },
+		principal: alpha.id,
+		roots: { ...alpha.scope },
 		spec: options.targetVersion,
 	})
 }

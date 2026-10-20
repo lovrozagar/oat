@@ -9,7 +9,7 @@ import { damagedBystanders, ledgeredNotCreated, leftBehind, unreportedLeftovers 
 import { checkReproSyntax } from "../suites/repro-syntax.ts"
 import { defectsFor } from "./defects.ts"
 import { acceptableOf, primaryOf } from "./expected.ts"
-import { PRINCIPALS } from "./principals.ts"
+import { PRINCIPALS, SECURITY } from "./principals.ts"
 
 export interface CaseResult {
 	label: string
@@ -71,6 +71,7 @@ async function observe(defects: DefectName[], target: Target, untagged: boolean)
 		const result = await run({
 			baseUrl: server.url,
 			principals: PRINCIPALS,
+			security: SECURITY,
 			seed: 42,
 			spec: `${server.url}/v1/openapi/spec`,
 			...reach(server),

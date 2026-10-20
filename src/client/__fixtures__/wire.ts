@@ -1,6 +1,7 @@
 /** A `Wire` over a scripted transport, keeping what it delivers. */
 
 import type { Exchange } from "../../runtime/exchange.ts"
+import { Redactor } from "../../security/redact.ts"
 import type { Wire } from "../attempt.ts"
 import { Slots } from "../slots.ts"
 import type { Transport } from "./transport.ts"
@@ -29,6 +30,7 @@ export function wireOf(transport: Transport, more: Partial<Wire> = {}): Wire & {
 		nextSeq: () => ++seq,
 		operationResolver: undefined,
 		rateLimiter: undefined,
+		redactor: new Redactor(),
 		relativePath: (url) => url.pathname.replace(/^\/v1/, "") || "/",
 		resolveHeaders: undefined,
 		slots: new Slots(4),

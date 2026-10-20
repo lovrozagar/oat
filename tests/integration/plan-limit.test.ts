@@ -310,7 +310,7 @@ describe("plan-limit adopt", () => {
 			baseUrl: world.url,
 			keepFixtures: true,
 			only: ["table", "row"],
-			principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
+			principals: { alpha: {} },
 			seed: 1,
 			spec: `${world.url}/v1/openapi/spec`,
 		})
@@ -334,7 +334,7 @@ describe("plan-limit adopt", () => {
 			baseUrl: world.url,
 			keepFixtures: true,
 			only: ["table", "row"],
-			principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
+			principals: { alpha: {} },
 			seed: 1,
 			spec: `${world.url}/v1/openapi/spec`,
 		})

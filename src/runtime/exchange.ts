@@ -59,6 +59,10 @@ export interface Exchange {
 	pathParams?: Record<string, string>
 	/** The principal whose credential the request carried, when one did. */
 	principal?: string
+	/** The security schemes whose credentials the request carried, in the order its alternative names them. */
+	schemes?: string[]
+	/** Set when the credential was forged on purpose: a probe that expects the backend to refuse it. */
+	forged?: true
 	/** Why oat sent it — see `Purpose`. */
 	purpose?: Purpose
 	/** The check that issued it, when a check did. */

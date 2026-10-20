@@ -32,7 +32,7 @@ function answeredOther(response: Exchange, query: Record<string, string>): strin
 
 export async function runSelfActions(
 	input: {
-		auth: () => Record<string, string>
+		principal: string
 		client: Client
 		entity: EntityModel
 		model: SpecModel
@@ -53,7 +53,7 @@ export async function runSelfActions(
 			)
 		}
 		const response = await input.client.request(op.method, op.path, {
-			headers: input.auth,
+			as: { principal: input.principal },
 			operationId: op.operationId,
 			query,
 		})

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest"
 import type { Scenario } from "../../src/config/define/types.ts"
 import type { Hooks } from "../../src/config/types/hooks.ts"
+import type { SecurityConfig } from "../../src/config/types/security.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { type Api, serveNotes } from "../support/scenario-api.ts"
 
@@ -33,6 +34,9 @@ const RENAME: Scenario = {
 	],
 }
 
+/* Each principal's bearer token is its `token`: the notes API admits only alpha's. */
+const SECURITY: SecurityConfig = { bearer: { static: "{principal.token}" } }
+
 /* The scenarios a run plays, the operations it covers, and the hooks it calls out to. */
 interface ScenarioRun {
 	scenarios: Scenario[]
@@ -45,8 +49,9 @@ async function runWith(api: Api, { hooks = {}, ops, scenarios }: ScenarioRun) {
 		baseUrl: api.url,
 		hooks,
 		ops,
-		principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+		principals: { alpha: { token: "alpha" } },
 		scenarios,
+		security: SECURITY,
 		seed: 1,
 		spec: `${api.url}/openapi.json`,
 	})
@@ -271,11 +276,11 @@ async function refusesSelfProof(): Promise<void> {
 	expect(row(result, "checkout.open")?.tier).toBe("contract")
 }
 
-async function startsWithPrincipalRoots(): Promise<void> {
+async function startsWithPrincipalScope(): Promise<void> {
 	const api = await serve()
 	const scenario: Scenario = {
 		covers: ["user.get"],
-		id: "roots",
+		id: "scope",
 		steps: [
 			{ expect: [401], operationId: "notes.list", principal: "nobody" },
 			{ assert: { equals: "usr_42", from: "$.id" }, bind: { user_id: "{owner_id}" }, operationId: "user.get" },
@@ -284,11 +289,9 @@ async function startsWithPrincipalRoots(): Promise<void> {
 	const result = await run({
 		baseUrl: api.url,
 		ops: ["user.get"],
-		principals: [
-			{ headers: { authorization: "Bearer alpha" }, id: "alpha", roots: { owner_id: "usr_42" } },
-			{ headers: { authorization: "Bearer nobody" }, id: "nobody" },
-		],
+		principals: { alpha: { scope: { owner_id: "usr_42" }, token: "alpha" }, nobody: { token: "nobody" } },
 		scenarios: [scenario],
+		security: SECURITY,
 		seed: 1,
 		spec: `${api.url}/openapi.json`,
 	})
@@ -296,7 +299,8 @@ async function startsWithPrincipalRoots(): Promise<void> {
 	const refused = result.client.transcript.find(
 		(exchange) => exchange.operationId === "notes.list" && exchange.status === 401,
 	)
-	expect(refused?.requestHeaders.authorization).toBe("Bearer nobody")
+	expect(refused?.principal).toBe("nobody")
+	expect(refused?.schemes).toEqual(["bearer"])
 }
 
 async function sendsNamedMediaType(): Promise<void> {
@@ -342,8 +346,8 @@ describe("scenarios", () => {
 	it("keeps each observation with the call it saw, when an operation is called again", keepsObservationWithItsCall)
 	it("does not let a write's own response prove that write", refusesSelfProof)
 	it(
-		"starts each scenario with its principal's roots, and lets a step speak as another principal",
-		startsWithPrincipalRoots,
+		"starts each scenario with its principal's scope, and lets a step speak as another principal",
+		startsWithPrincipalScope,
 	)
 	it("sends the request media type a step names, among those the operation documents", sendsNamedMediaType)
 	it("refuses a scenario that covers an operation it never calls", refusesUncalledCover)

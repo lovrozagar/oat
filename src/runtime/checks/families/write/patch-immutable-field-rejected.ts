@@ -39,7 +39,7 @@ export const immutableRejected = defineCheck<{
 		const update = await updateRequest(ctx, updateOp, target, { [field]: probe })
 		const patched = await ctx.client.request(update.method, fillPath(updateOp.path, params), {
 			...update.options,
-			headers: ctx.auth(),
+			as: { principal: ctx.actor.id },
 			operationId: updateOp.operationId,
 		})
 		if (standDownForFeatureGate(ctx, updateOp, patched, this.id))
@@ -58,7 +58,7 @@ export const immutableRejected = defineCheck<{
 		 * a tenant key, for instance, moves the record out of the caller's scope — and that
 		 * failure would otherwise mask the very defect being probed. */
 		const echoed = readRecord(updateOp, patched) ?? {}
-		const after = await ctx.client.get(fillPath(readOp.path, params), { headers: ctx.auth() })
+		const after = await ctx.client.get(fillPath(readOp.path, params), { as: { principal: ctx.actor.id } })
 		const current = readRecord(readOp, after) ?? {}
 		const accepted = echoed[field] === probe || current[field] === probe
 		if (!accepted) return ASSERTED

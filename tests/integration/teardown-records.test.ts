@@ -128,7 +128,7 @@ describe("teardown records", () => {
 		const result = await run({
 			baseUrl: url,
 			cohortSize: 3,
-			principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+			principals: { alpha: {} },
 			seed: 1,
 			spec: `${url}/openapi.json`,
 		})

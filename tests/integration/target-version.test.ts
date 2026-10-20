@@ -68,7 +68,7 @@ afterAll(() => close())
 const runWith = (targetVersion: { operationId?: string; path?: string; from: string }) =>
 	run({
 		baseUrl: url,
-		principals: [{ headers: { authorization: "Bearer alpha" }, id: "alpha" }],
+		principals: { alpha: {} },
 		seed: 1,
 		spec: `${url}/openapi.json`,
 		targetVersion,

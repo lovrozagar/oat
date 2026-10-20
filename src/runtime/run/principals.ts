@@ -1,160 +1,154 @@
-import type { Principal } from "../../config/types/principals.ts"
-import { isSecretHeaderName } from "../../security/credential-names.ts"
-import { credentialHeaderNames } from "../../security/strip.ts"
-import { createPrincipal, holdHeaders } from "../auth.ts"
-import type { Client } from "../../client/client.ts"
+import type { PrincipalEntry } from "../../config/types/security.ts"
+import type { AuthStep } from "../../config/types/steps.ts"
+import { effectiveRecipe } from "../../credentials/effective.ts"
+import type { CredentialStore } from "../../credentials/store.ts"
+import { recipeKind } from "../../credentials/recipes/acquire.ts"
 import { isNetworkError } from "../../errors/network.ts"
-import type { Owner } from "../teardown/types.ts"
-import type { Planned, ResolvedPrincipal, RunPrincipals } from "./context.ts"
-import { messageOf } from "../../errors/message.ts"
 import type { RunFindingId } from "../check-ids.ts"
+import type { OperationModel } from "../../spec/graph/types.ts"
+import type { Owner } from "../teardown/types.ts"
+import type { Planned, RunPrincipal, RunPrincipals } from "./context.ts"
+import { provision } from "./fresh.ts"
+import { boundOf } from "./identity.ts"
+
+/*
+ * The principals stage, at run start. A fresh principal is signed up first (D7). Then every login a
+ * principal's recipes name is run, before anything is planned, so a tenant or `scope.<param>` its
+ * claims bind is what isolation and the parents are planned from; a mint or an OAuth 2 grant waits
+ * until a request needs it. A principal whose signup or login fails is BLOCKED: reported once with
+ * the reason, and the run goes on without it.
+ */
+
+type Blocked = RunPrincipals["blocked"][number]
 
 /**
- * Resolves every configured principal. `null` when the network went away while doing it: the
- * outage is noted, and the run has nobody to act as.
+ * The run's principals, signed in. `null` when the network went away while signing them in (the
+ * outage is noted), or when none of them could be: the run has nobody to act as.
  */
-export async function resolvePrincipals(planned: Planned): Promise<ResolvedPrincipal[] | null> {
-	const resolved: ResolvedPrincipal[] = []
-	try {
-		for (const principal of planned.options.principals) resolved.push(await resolvePrincipal(planned, principal))
-	} catch (error) {
-		if (!isNetworkError(error)) throw error
-		await planned.network.note(error, "auth")
-		return null
+export async function resolvePrincipals(planned: Planned): Promise<RunPrincipals | null> {
+	const { findings, network, options, progress } = planned
+	const all: RunPrincipal[] = []
+	const blocked: Blocked[] = []
+	for (const [id, entry] of Object.entries(options.principals)) {
+		let reason: string | undefined
+		try {
+			reason = await signIn(planned, id, entry)
+		} catch (error) {
+			if (!isNetworkError(error)) throw error
+			await network.note(error, "auth")
+		}
+		if (network.outcome !== undefined) return null
+		if (reason === undefined) {
+			all.push(runPrincipal(planned.store, id))
+			continue
+		}
+		blocked.push({ id, reason })
+		findings.blocked("auth.blocked" satisfies RunFindingId, id, {
+			summary: `principal "${id}" is BLOCKED`,
+			cause: reason,
+		})
 	}
-	return resolved
-}
-
-/** The resolved principals bound to the run: each exchange names its sender, each create its owner. */
-export function adoptPrincipals(planned: Planned, all: ResolvedPrincipal[]): Planned & { principals: RunPrincipals } {
-	const { credentials, progress } = planned
 	progress.tick({ message: `${all.length} principal(s)`, phase: "auth", requests: progress.requests })
-	credentials.nameSenders((sent) => senderOf(all, sent))
-	return { ...planned, principals: runPrincipals(planned, all) }
+	return all.length === 0 ? null : runPrincipals(planned, { all, blocked })
 }
 
-function runPrincipals(planned: Planned, all: ResolvedPrincipal[]): RunPrincipals {
-	const { ledger, findings } = planned
-	const alpha = all[0] as ResolvedPrincipal
+/* Signs the principal up when it is fresh, then runs each login it has; the first failure's reason. */
+async function signIn(planned: Planned, id: string, entry: PrincipalEntry): Promise<string | undefined> {
+	if (entry.fresh === true) {
+		const made = await provision(planned, { entry, id, label: id })
+		if ("blocked" in made) return made.blocked
+	}
+	return logIn(planned, id, entry)
+}
+
+/** Runs each login the principal's recipes name, as the principals stage does; the first failure's reason. */
+export async function logIn(planned: Planned, id: string, entry: PrincipalEntry): Promise<string | undefined> {
+	const { options, store } = planned
+	const security = options.security ?? {}
+	for (const scheme of new Set([...Object.keys(security), ...Object.keys(entry.security ?? {})])) {
+		const recipe = effectiveRecipe(security[scheme], entry.security?.[scheme])
+		if (recipe === undefined || recipeKind(recipe) !== "login") continue
+		const held = await store.acquire({ principal: id, scheme })
+		if ("blocked" in held) return held.blocked
+	}
+	return undefined
+}
+
+/**
+ * Whether the run made this principal's account, so teardown removes it: a `fresh` one, one declared
+ * `created`, or one whose login recipe registers it through the operation the document marks
+ * `x-fresh-principal`. Never a configured account, whatever its login binds or answers.
+ */
+export function createdByRun(planned: Pick<Planned, "model" | "options" | "store">, id: string): boolean {
+	const entry = planned.store.principals[id] as PrincipalEntry
+	if (entry.fresh === true || entry.created === true) return true
+	const signup = planned.model.operations.find((op) => op.freshPrincipal)
+	if (signup === undefined) return false
+	const security = planned.options.security ?? {}
+	return [...new Set([...Object.keys(security), ...Object.keys(entry.security ?? {})])].some((scheme) => {
+		const recipe = effectiveRecipe(security[scheme], entry.security?.[scheme])
+		return recipe?.login?.steps.some((step) => calls(step, signup)) === true
+	})
+}
+
+/* A step sends `op` by its operationId, or by its method and path on the primary origin. */
+function calls(step: AuthStep, op: OperationModel): boolean {
+	if ("operationId" in step) return step.operationId === op.operationId
+	if (!("path" in step) || step.origin !== undefined) return false
+	return step.method.toUpperCase() === op.method.toUpperCase() && step.path === op.path
+}
+
+/** The principal as the store holds it, once its logins bound their claims. */
+export function runPrincipal(store: CredentialStore, id: string): RunPrincipal {
+	const entry = store.principals[id] as PrincipalEntry
+	const { identity, scope, tenant } = boundOf(store.identityOf(id))
+	return {
+		fresh: entry.fresh === true,
+		id,
+		identity,
+		rank: entry.rank ?? 0,
+		scope,
+		...(tenant === undefined ? {} : { tenant }),
+		...(entry.inviteAs === undefined ? {} : { inviteAs: entry.inviteAs }),
+	}
+}
+
+function runPrincipals(planned: Planned, signed: { all: RunPrincipal[]; blocked: Blocked[] }): RunPrincipals {
+	const { ledger } = planned
+	const { all, blocked } = signed
+	const alpha = all[0] as RunPrincipal
+	const byId = new Map(all.map((principal) => [principal.id, principal]))
 	return {
 		all,
 		alpha,
+		blocked,
+		byId,
 		fallbackDeleters: (owner) => {
-			const creator = all.find((principal) => principal.id === owner.id)
+			const creator = byId.get(owner.id)
 			if (creator === undefined) return []
 			return all
-				.filter((principal) => principal.id !== creator.id && sameTenant(principal.roots, creator.roots))
+				.filter((principal) => principal.id !== creator.id && sameTenant(principal, creator))
 				.sort((a, b) => b.rank - a.rank)
 				.map(ownerOf)
 		},
 		ownerOf,
+		peerOf: (principal) => all.find((other) => !sameTenant(principal, other)),
 		recordCreated: (created, principal) => {
-			const sender = principal === undefined ? undefined : all.find((candidate) => candidate.id === principal)
+			const sender = principal === undefined ? undefined : byId.get(principal)
 			ledger.record(created, ownerOf(sender ?? alpha))
 		},
 		recorder: (owner) => (entity, id, scope) => ledger.record({ entity, id, scope }, owner),
-		/*
-		 * Proactive refreshes, before each entity and before the credentials are persisted. A
-		 * failure is reported — the backend would not renew a session — and the run carries on to
-		 * teardown, where an exception here used to end it with every record still in place.
-		 */
-		refreshAll: async (where) => {
-			for (const principal of all) {
-				try {
-					await principal.runtime?.refreshIfStale()
-				} catch (error) {
-					findings.blocked("auth.refresh" satisfies RunFindingId, where, {
-						summary: `refreshing the credential of "${principal.id}" failed`,
-						cause: messageOf(error),
-					})
-					return false
-				}
-			}
-			return true
-		},
+		sameTenant,
 		unidentified: (entity, operationId, exchange) => ledger.unidentified(entity, operationId, exchange),
 	}
 }
 
-/** Who owns what a principal creates: removed as it, with its credential. */
-function ownerOf(principal: ResolvedPrincipal): Owner {
-	return { headers: principal.headers, id: principal.id }
+/** Two principals are of one tenant when their tenants agree: no tenant at all is one tenant too. */
+function sameTenant(a: RunPrincipal, b: RunPrincipal): boolean {
+	return a.tenant === b.tenant
 }
 
-/**
- * Who sent a request, by the credential it carried. A principal configured with no credential —
- * an API without auth — sent whatever carries none.
- */
-function senderOf(all: readonly ResolvedPrincipal[], sent: Record<string, string>): string | undefined {
-	const holder = all.find((principal) => {
-		const own = principal.headers()
-		return Object.keys(own).length > 0 && Object.entries(own).every(([key, value]) => sent[key] === value)
-	})
-	if (holder !== undefined) return holder.id
-	const credentials = credentialHeaderNames(all.flatMap((principal) => Object.keys(principal.headers())))
-	const carries = Object.keys(sent).some((name) => credentials.has(name.toLowerCase()) || isSecretHeaderName(name))
-	return carries ? undefined : all.find((principal) => Object.keys(principal.headers()).length === 0)?.id
-}
-
-/** Two sets of roots name the same tenant when every root either names agrees. */
-export function sameTenant(a: Record<string, string>, b: Record<string, string>): boolean {
-	const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])]
-	return keys.every((key) => a[key] === b[key])
-}
-
-/**
- * Resolves a principal to something that can produce headers on demand.
- *
- * Static headers stay static; acquired credentials refresh themselves. Returning a function
- * rather than a snapshot is what lets a long run outlive a short-lived token — a five-minute TTL
- * would otherwise turn the back half of every run into spurious 401s.
- */
-async function resolvePrincipal(planned: Planned, principal: Principal): Promise<ResolvedPrincipal> {
-	const client = planned.client.view({ purpose: "auth" })
-	/* A principal without a flow authenticates by static header — a long-lived API key needs no
-	 * acquisition at all, and forcing one would be ceremony. */
-	if (principal.auth === undefined) return staticPrincipal(principal, client)
-	const { model, hooks, outOfBand, originClients } = planned
-	const runtime = await createPrincipal(principal.id, principal.auth, {
-		client,
-		hooks,
-		model,
-		outOfBand,
-		principalId: principal.id,
-		...(originClients.size === 0 ? {} : { originClients }),
-	})
-	/* A flow that provisions a tenant produces its own roots — the run then needs no fixture
-	 * identifiers configured at all. */
-	const discovered: Record<string, string> = {}
-	for (const [param, key] of Object.entries(principal.rootsFromFlow ?? {})) {
-		const value = runtime.scope[key]
-		if (value !== undefined) discovered[param] = value
-	}
-	const headers = (): Record<string, string> => ({ ...principal.headers, ...runtime.headers() })
-	planned.credentials.bind({
-		headers,
-		matches: (sent) => runtime.matches(sent),
-		refreshIfStale: runtime.refreshIfStale,
-	})
-	return {
-		...described(principal),
-		adoptCredential: (token) => runtime.adoptCredential(token),
-		headers,
-		roots: { ...discovered, ...principal.roots },
-		runtime,
-	}
-}
-
-function staticPrincipal(principal: Principal, client: Client): ResolvedPrincipal {
-	/* A static key is a credential like any other: never written down in clear. */
-	for (const [name, value] of Object.entries(principal.headers ?? {})) {
-		if (!isSecretHeaderName(name) && !/key|token|secret|auth/i.test(name)) continue
-		client.redactor.registerHeader(name)
-		client.redactor.registerSecret(value)
-	}
-	return { ...described(principal), ...holdHeaders(principal.headers, client.redactor), roots: principal.roots ?? {} }
-}
-
-function described(principal: Principal): Pick<ResolvedPrincipal, "id" | "inviteAs" | "rank" | "role"> {
-	return { id: principal.id, inviteAs: principal.inviteAs, rank: principal.rank ?? 0, role: principal.role }
+/** Who owns what a principal creates: removed as it. */
+function ownerOf(principal: RunPrincipal): Owner {
+	return { id: principal.id }
 }

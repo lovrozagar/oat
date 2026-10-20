@@ -1,6 +1,7 @@
 /** The two documents the rate-limit suite serves: untagged things, and tables behind a plan limit. */
 
 import type { OpenApiDocument } from "../../spec/types.ts"
+import { bearerSecurity } from "../harness/security.ts"
 
 const ITEM = {
 	properties: { id: { type: "string" }, name: { type: "string" } },
@@ -67,7 +68,7 @@ function resource(entity: string, { collection, item, created }: Resource): [obj
 }
 
 function document(title: string, paths: Record<string, object>): OpenApiDocument {
-	return { info: { title, version: "1" }, openapi: "3.1.0", paths } as OpenApiDocument
+	return { info: { title, version: "1" }, openapi: "3.1.0", paths, ...bearerSecurity() } as OpenApiDocument
 }
 
 /** Things with no `x-rate-limit` tag: a 429 can only be met reactively. */

@@ -96,7 +96,7 @@ async function reportLostWrite(ctx: CheckContext, check: string, id: string, las
 	let detail = `created ${ctx.entityName} ${id} is absent from the list projection`
 	if (ctx.readOp !== undefined) {
 		const item = await ctx.client.get(fillPath(ctx.readOp.path, { ...ctx.scope, ...itemParamFor(ctx, id) }), {
-			headers: ctx.auth(),
+			as: { principal: ctx.actor.id },
 		})
 		evidence.push(item)
 		if (item.status < 300) {

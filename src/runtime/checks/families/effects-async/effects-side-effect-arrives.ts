@@ -62,7 +62,7 @@ async function invokeAndWait(run: Invocation, uploads: UploadContext): Promise<v
 	const { ctx, op, pollOp, spec, fixture } = run
 	const body = op.hasRequestBody ? bodyForOp(ctx, op) : undefined
 	const invoked = await ctx.client.request(op.method, fillPath(op.path, ctx.scope), {
-		headers: ctx.auth(),
+		as: { principal: ctx.actor.id },
 		operationId: op.operationId,
 		...(fixture === undefined ? {} : { fixture }),
 		...(body === undefined ? {} : await encodeOpBody(ctx, op, body, { variant: "baseline", index: 0, uploads })),
@@ -82,13 +82,12 @@ async function invokeAndWait(run: Invocation, uploads: UploadContext): Promise<v
 	const outcome = await driveWait({
 		awaitSideEffect: ctx.hooks.awaitSideEffect,
 		client: ctx.client,
-		headers: ctx.auth,
 		pollOp,
+		principal: ctx.actor.id,
 		record: invoked.responseBody,
 		scope,
 		spec,
 		writeOpId: op.operationId,
-		...(ctx.refreshIfStale === undefined ? {} : { refreshIfStale: ctx.refreshIfStale }),
 	})
 	if (!outcome.timedOut) return
 	ctx.findings.backend(run.check, subject(ctx.entityName, op.operationId, fixture), {

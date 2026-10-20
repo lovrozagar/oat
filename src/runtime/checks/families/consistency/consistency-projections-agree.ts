@@ -83,7 +83,7 @@ export const projectionsAgree = defineCheck<{
 	subjects: subjectsOf.readAndList,
 	async run(ctx, { field, id, readOp }): Promise<Outcome> {
 		const detail = await ctx.client.get(fillPath(readOp.path, { ...ctx.scope, ...itemParamFor(ctx, id) }), {
-			headers: ctx.auth(),
+			as: { principal: ctx.actor.id },
 		})
 		if (detail.status >= 300) {
 			return ctx.findings.unresolved(

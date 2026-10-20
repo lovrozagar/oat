@@ -33,4 +33,17 @@ describe("prepareDocument", () => {
 			'allow removes operations the config still calls: scenario "s" step "notes.create"',
 		)
 	})
+
+	it("refuses an allowlist that removes an operation a recipe or a principal's override calls", () => {
+		expect(() =>
+			prepareDocument(source, {
+				allow: ["notes.list"],
+				principals: { alpha: { security: { jwt: { mint: { from: "$.k", operationId: "tags.list", with: "x" } } } } },
+				security: { jwt: { login: { from: "$.t", steps: [{ operationId: "notes.create" }] } } },
+			}),
+		).toThrow(
+			'allow removes operations the config still calls: security.jwt login step "notes.create"; ' +
+				'principals.alpha.security.jwt mint "tags.list"',
+		)
+	})
 })

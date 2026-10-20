@@ -82,7 +82,7 @@ async function readBack(
 	failed: (status: number) => string,
 ): Promise<{ record: Record_; exchange: Exchange } | { outcome: Outcome }> {
 	const { check, ctx } = race
-	const exchange = await ctx.client.get(race.readPath, { headers: ctx.auth() })
+	const exchange = await ctx.client.get(race.readPath, { as: { principal: ctx.actor.id } })
 	if (exchange.status >= 300)
 		return { outcome: ctx.findings.unresolved(check, ctx.entityName, failed(exchange.status)) }
 	const record = readRecord(race.readOp, exchange)
@@ -113,11 +113,11 @@ async function raceAndJudge(race: Race, path: string, [first, second]: [string, 
 	const [firstWrite, secondWrite] = await Promise.all([
 		ctx.client.request("PATCH", path, {
 			body: { [first]: "oat-concurrent-a" },
-			headers: ctx.auth(),
+			as: { principal: ctx.actor.id },
 		}),
 		ctx.client.request("PATCH", path, {
 			body: { [second]: "oat-concurrent-b" },
-			headers: ctx.auth(),
+			as: { principal: ctx.actor.id },
 		}),
 	])
 	const refused = raceRefusal(race, firstWrite, secondWrite)

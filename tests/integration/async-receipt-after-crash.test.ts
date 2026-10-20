@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
-import { type PrincipalSpec, run } from "../../src/runtime/run/index.ts"
+import { run } from "../../src/runtime/run/index.ts"
 
 /*
  * An action that crashes never hands back a receipt, so the receipt check cannot judge it. It
@@ -14,7 +14,8 @@ describe("async.receipt-identifies-the-job when the action crashes", () => {
 		try {
 			const result = await run({
 				baseUrl: server.url,
-				principals: PRINCIPALS as PrincipalSpec[],
+				principals: PRINCIPALS,
+				security: SECURITY,
 				seed: 42,
 				spec: `${server.url}/v1/openapi/spec`,
 			})
@@ -34,7 +35,8 @@ describe("async.reaches-terminal-state when the action crashes", () => {
 		try {
 			const result = await run({
 				baseUrl: server.url,
-				principals: PRINCIPALS as PrincipalSpec[],
+				principals: PRINCIPALS,
+				security: SECURITY,
 				seed: 42,
 				spec: `${server.url}/v1/openapi/spec`,
 			})

@@ -6,7 +6,6 @@ import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { idOf } from "../../../world/records.ts"
 import type { Actor } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
-import { sameTenantScope } from "../../isolation/scratch.ts"
 import { itemParamFor, NO_IDENTITY, subjectsOf } from "../../planning/subjects.ts"
 
 /**
@@ -24,7 +23,7 @@ export const rankIsMonotonic = defineCheck<{ id: string; readOp: OperationModel;
 		const primary = ctx.actors[0]
 		const readOp = ctx.readOp
 		if (readOp === undefined || target === undefined || primary === undefined) return cannot()
-		const home = ctx.actors.filter((actor) => sameTenantScope(actor.roots, primary.roots))
+		const home = ctx.actors.filter((actor) => actor.tenant === primary.tenant)
 		if (new Set(home.map((actor) => actor.rank)).size < 2) return cannot()
 		const id = idOf(target, ctx.identity)
 		return id === undefined ? cannot(NO_IDENTITY) : ready({ home, id, readOp })
@@ -36,10 +35,11 @@ export const rankIsMonotonic = defineCheck<{ id: string; readOp: OperationModel;
 	async run(ctx, { home, id, readOp }): Promise<Outcome> {
 		const seen = new Map<string, Exchange>()
 		const probe = async (actor: Actor): Promise<"allow" | "deny" | "error"> => {
-			/* Tenant from the actor; remaining path params (parent ids) from the seeded scope. */
-			const params = { ...ctx.scope, ...actor.roots, ...itemParamFor(ctx, id) }
+			/* Where the record lives: every actor here shares its tenant. */
+			const params = { ...ctx.scope, ...itemParamFor(ctx, id) }
 			const exchange = await ctx.client.get(fillPath(readOp.path, params), {
-				headers: actor.headers(),
+				as: { principal: actor.id },
+				operationId: readOp.operationId,
 			})
 			seen.set(actor.id, exchange)
 			if (exchange.status < 300) return "allow"
@@ -61,8 +61,8 @@ export const rankIsMonotonic = defineCheck<{ id: string; readOp: OperationModel;
 				return ctx.findings.backend(this.id, ctx.entityName, {
 					summary: "a lower-ranked role can read a record a higher-ranked role cannot",
 					detail:
-						`${lower.role ?? lower.id} (rank ${lower.rank}) was served ${ctx.entityName} ${id}; ` +
-						`${higher.role ?? higher.id} (rank ${higher.rank}) was denied. Privilege must be ` +
+						`${lower.id} (rank ${lower.rank}) was served ${ctx.entityName} ${id}; ` +
+						`${higher.id} (rank ${higher.rank}) was denied. Privilege must be ` +
 						"monotonic — a member who can see what an owner cannot is the lattice inverted, " +
 						"not a finer policy.",
 					evidence: [seen.get(lower.id), seen.get(higher.id)].filter((exchange) => exchange !== undefined),

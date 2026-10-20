@@ -4,7 +4,9 @@ import type { Exchange } from "../runtime/exchange.ts"
 import type { Fence } from "../runtime/fence.ts"
 import type { CompiledRateLimitRule } from "../runtime/rate-limit/rules.ts"
 import type { RateLimiter } from "../runtime/rate-limit/limiter.ts"
-import type { Credential, CredentialSource } from "./credential-source.ts"
+import type { Redactor } from "../security/redact.ts"
+import type { CredentialSource } from "./credential-source.ts"
+import type { Placement, RequestCredential } from "./placing.ts"
 import type { Landed } from "./redirect.ts"
 import type { EncodedBody } from "./serialize.ts"
 import type { Slots } from "./slots.ts"
@@ -27,10 +29,12 @@ export interface Prepared {
 	options: RequestOptions
 	resolved: ResolvedOperation | null
 	operationId: string | undefined
-	/** The caller's headers, read afresh: a getter returns the live credential on a retry. */
+	/** Query parameters the caller set, before the operation's required ones were added. */
+	callerQuery: ReadonlySet<string>
+	/** The caller's headers, read afresh on every attempt. */
 	callerHeaders: () => Record<string, string>
-	/** The bound credential the caller's headers carry, unless auth refresh is skipped. */
-	credential: (headers: Record<string, string>) => Credential | undefined
+	/** What each attempt places, and the one renewal a 401 allows. */
+	credential: RequestCredential
 }
 
 /** What the client lends each attempt. */
@@ -40,6 +44,8 @@ export interface Wire {
 	resolveHeaders: HeaderResolver | undefined
 	operationResolver: OperationResolver | undefined
 	credentials: CredentialSource | undefined
+	/** Every credential a request places registers here; one per run. */
+	redactor: Redactor
 	fence: Fence | undefined
 	rateLimiter: RateLimiter | undefined
 	slots: Slots
@@ -55,9 +61,11 @@ export interface Wire {
 export interface Sent {
 	request: Prepared
 	attempt: number
+	/** The URL this attempt went to: the request's, with any query credential placed. */
+	url: URL
 	headers: Record<string, string>
-	/** The caller's headers with the credential: whose they are names the principal. */
-	caller: Record<string, string>
+	/** The credential the attempt carried, which names its principal and schemes on the exchange. */
+	placement: Placement
 	body: EncodedBody
 }
 

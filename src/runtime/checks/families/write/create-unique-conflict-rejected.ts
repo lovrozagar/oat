@@ -1,4 +1,5 @@
 import { defineCheck } from "../../core/define.ts"
+import { UnsatisfiedSecurity } from "../../../../client/credential-source.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { FencedError } from "../../../fence.ts"
@@ -30,11 +31,12 @@ async function teardownCreatedId(ctx: WriteContext, id: string): Promise<void> {
 	if (deleteOp === undefined) return
 	try {
 		await ctx.client.request("DELETE", fillPath(deleteOp.path, { ...ctx.scope, ...itemParamFor(ctx, id) }), {
-			headers: ctx.auth(),
+			as: { principal: ctx.actor.id },
 		})
 	} catch (error) {
-		/* A fenced delete is reported, not skipped: the global teardown lists it as a leftover. */
-		if (error instanceof FencedError) throw error
+		/* A fenced delete, or one no credential could be sent for, is reported, not skipped: the
+		 * global teardown lists it as a leftover. */
+		if (error instanceof FencedError || error instanceof UnsatisfiedSecurity) throw error
 		/* A leftover row is worse than a teardown 404. */
 	}
 }
@@ -127,13 +129,18 @@ async function sendCollision(
 		set,
 	})
 	if (body === null) return null
-	const headers = uniqueProbeHeaders(ctx.auth(), {
+	const headers = uniqueProbeHeaders({
 		header: createOp.idempotencyHeader,
 		required: probe.required,
 		fresh: `oat-unique-${ctx.entityName}-${ctx.seed}-${index}`,
 	})
 	const encoded = await encodeOpBody(ctx, createOp, body)
-	return ctx.client.request("POST", probe.path, { ...encoded, headers, operationId: createOp.operationId })
+	return ctx.client.request("POST", probe.path, {
+		...encoded,
+		as: { principal: ctx.actor.id },
+		headers,
+		operationId: createOp.operationId,
+	})
 }
 
 async function probeCreateSet(ctx: WriteContext, probe: CreateProbe, set: string[], index: number): Promise<void> {

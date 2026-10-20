@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { NetworkError } from "../../errors/network.ts"
-import { disposable, notesModel, owner, store, unwindOf } from "./__fixtures__/notes.ts"
+import { actorOf, disposable, notesModel, owner, store, unwindOf } from "./__fixtures__/notes.ts"
 import { leftover, removeOne } from "./remove.ts"
 
 const model = notesModel()
@@ -36,11 +36,15 @@ describe("removeOne", () => {
 		const held = store({ alpha: ["n1"] }, { answers: {} })
 		const state = unwindOf(held, [note], { model, fallbacks: () => [owner("member"), owner("root")] })
 		held.answers["DELETE /notes/n1"] = (options) => {
-			const who = (options.headers as () => Record<string, string>)().authorization
-			return who === "Bearer root" ? { status: 204 } : { status: who === "Bearer beta" ? 403 : 401 }
+			const who = actorOf(options)
+			return who === "root" ? { status: 204 } : { status: who === "beta" ? 403 : 401 }
 		}
 		await removeOne(state, note)
-		expect(state.sent.map((request) => request.method)).toEqual(["DELETE", "DELETE", "DELETE"])
+		expect(state.sent.map((request) => [request.method, request.options.as])).toEqual([
+			["DELETE", { principal: "beta" }],
+			["DELETE", { principal: "member" }],
+			["DELETE", { principal: "root" }],
+		])
 		expect(state.report.removed).toBe(1)
 		const failing = unwindOf(store({}, { answers: { "DELETE /notes/n1": { status: 500 } } }), [note], {
 			model,

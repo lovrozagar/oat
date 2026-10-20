@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it, vi } from "vitest"
 import { main } from "../../src/cli/main.ts"
-import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
+import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
 import { UsageError } from "../../src/errors/usage-error.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { run } from "../../src/runtime/run/index.ts"
@@ -91,6 +91,7 @@ async function checksRunWith(overlay?: Parameters<typeof applyOverlay>[1]): Prom
 		const result = await run({
 			baseUrl: server.url,
 			principals: PRINCIPALS,
+			security: SECURITY,
 			seed: 42,
 			spec: `${server.url}/v1/openapi/spec`,
 			...(overlay === undefined ? {} : { overlay }),
@@ -117,6 +118,7 @@ describe("run with an overlay", () => {
 					baseUrl: server.url,
 					overlay: { operations: { "table.creat": {} } },
 					principals: PRINCIPALS,
+					security: SECURITY,
 					seed: 42,
 					spec: `${server.url}/v1/openapi/spec`,
 				}),

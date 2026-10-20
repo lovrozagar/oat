@@ -34,7 +34,8 @@ function runOptions(hosted: Hosted, only: string[]): RunOptions {
 		baseUrl: hosted.url,
 		keepFixtures: true,
 		only,
-		principals: [{ headers: { authorization: "Bearer t" }, id: "alpha" }],
+		principals: { alpha: {} },
+		security: { bearer: { static: "t" } },
 		seed: 1,
 		spec: `${hosted.url}/v1/openapi/spec`,
 		...reach(hosted),
@@ -73,7 +74,7 @@ const HOSTED: readonly HostedCases[] = [
 			/* No network retries, as with no network options at all: only the 429 is retried. */
 			const network = { ...transportOpt(options), retries: 0 }
 			const client = new Client({ baseUrl: hosted.url, network, redactor: new Redactor() })
-			const first = await client.request("POST", "/v1/things", { body: { name: "n" } })
+			const first = await client.request("POST", "/v1/things", { as: { anonymous: true }, body: { name: "n" } })
 			const statuses = client.transcript.map((e) => e.status).join(",")
 			push({
 				detail: `status=${first.status} seq=${statuses}`,

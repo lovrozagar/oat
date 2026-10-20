@@ -10,10 +10,10 @@ const mint: MintRecipe = {
 	revoke: "apiKey.revoke",
 	with: "jwt",
 }
-const JWT_SENDS = { cookies: {}, headers: { Authorization: "Bearer jwt-token" }, query: {} }
+const AS_JWT = { principal: "ann", scheme: "jwt" }
 
 describe("acquireMint", () => {
-	it("calls the operation with the `with` scheme's sends and the scope set in the body", async () => {
+	it("calls the operation as the principal with the `with` scheme, and the scope set in the body", async () => {
 		const { ports, recorded } = fakePorts({ call: () => Promise.resolve(answerOf({ id: 7, key: "k1" }, 201)) })
 		const issued = await acquireMint(ctxOf(ports, { scopes: ["rows:read", "rows:write"] }), mint, {})
 		expect([issued.value, issued.expiresAt, issued.scopes]).toEqual(["k1", null, ["rows:read", "rows:write"]])
@@ -25,8 +25,8 @@ describe("acquireMint", () => {
 					scopes: ["rows:read", "rows:write"],
 					tags: ["oat", 1, null],
 				},
+				as: AS_JWT,
 				operationId: "apiKey.create",
-				sends: JWT_SENDS,
 			},
 		])
 	})
@@ -38,7 +38,7 @@ describe("acquireMint", () => {
 		expect([issued.expiresAt, issued.revoke, recorded.calls[0]]).toEqual([
 			NOW + 60_000,
 			undefined,
-			{ operationId: "apiKey.create", sends: JWT_SENDS },
+			{ as: AS_JWT, operationId: "apiKey.create" },
 		])
 	})
 })
@@ -50,9 +50,9 @@ describe("acquireMint: revoke and failures", () => {
 		const issued = await acquireMint(ctxOf(ports), mint, {})
 		await (issued.revoke as () => Promise<void>)()
 		expect(recorded.calls[1]).toEqual({
+			as: AS_JWT,
 			operationId: "apiKey.revoke",
 			scope: { credential: "k1", id: "7", key: "k1" },
-			sends: JWT_SENDS,
 		})
 		expect((await rejection((issued.revoke as () => Promise<void>)())).message).toBe(
 			"revoke apiKey.revoke answered 404",
@@ -77,10 +77,8 @@ describe("acquireMint: revoke and failures", () => {
 		)
 	})
 
-	it("fails when the `with` scheme has no credential", async () => {
-		const { ports, recorded } = fakePorts()
-		const blocked = ctxOf(ports, { sendsOf: () => Promise.reject(new Error('principal "ann" is blocked for jwt')) })
-		expect((await rejection(acquireMint(blocked, mint, {}))).message).toBe('principal "ann" is blocked for jwt')
-		expect(recorded.calls).toEqual([])
+	it("fails with the caller's reason when the `with` scheme has no credential", async () => {
+		const { ports } = fakePorts({ call: () => Promise.reject(new Error('principal "ann" is blocked for jwt')) })
+		expect((await rejection(acquireMint(ctxOf(ports), mint, {}))).message).toBe('principal "ann" is blocked for jwt')
 	})
 })

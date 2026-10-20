@@ -32,7 +32,7 @@ export async function persistRequestBody(body: unknown, store: BlobStore): Promi
 		const parts: unknown[] = []
 		for (const [field, value] of body.entries()) {
 			if (typeof value === "string") {
-				parts.push(formFieldPart(field, value))
+				parts.push(formFieldPart(field, value, store.redactor))
 				continue
 			}
 			const bytes = new Uint8Array(await value.arrayBuffer())

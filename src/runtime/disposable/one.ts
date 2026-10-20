@@ -32,8 +32,8 @@ export async function runOne(input: DisposableInput, call: DisposableCall): Prom
 	if (values === null) return
 	const body = await destructiveBody(input, op, session)
 	const called = await input.client.request(op.method, fillPath(op.path, values), {
+		as: { principal: session.principal },
 		...(body === undefined ? {} : { body }),
-		headers: session.headers,
 		operationId: op.operationId,
 	})
 	if (called.status >= 500) {
@@ -53,13 +53,13 @@ export async function runOne(input: DisposableInput, call: DisposableCall): Prom
 	await afterCall(input, { ...call, blame, called, values })
 }
 
-/** The path, each parameter the session's roots lack read from the list one level up; `null` once one cannot be. */
+/** The path, each parameter the session's scope lacks read from the list one level up; `null` once one cannot be. */
 async function pathValues(
 	input: DisposableInput,
 	op: OperationModel,
 	session: Session,
 ): Promise<Record<string, string> | null> {
-	const values: Record<string, string> = { ...session.roots }
+	const values: Record<string, string> = { ...session.scope }
 	for (const param of op.pathParams) {
 		if (values[param] !== undefined) continue
 		const list = parentList(input.model, op)
@@ -68,7 +68,7 @@ async function pathValues(
 			return null
 		}
 		const listed = await input.client.request(list.method, fillPath(list.path, values), {
-			headers: session.headers,
+			as: { principal: session.principal },
 			operationId: list.operationId,
 		})
 		const field = identityOf(list, input.model, param)

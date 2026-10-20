@@ -35,7 +35,7 @@ describe("redaction helpers", () => {
 		expect(isSecretHeaderName("content-type")).toBe(false)
 		expect(new Redactor().headers({ Authorization: "Bearer secret", Accept: "application/json" })).toEqual({
 			Accept: "application/json",
-			Authorization: "<redacted>",
+			Authorization: "Bearer <redacted>",
 		})
 		expect(
 			new Redactor().json({
@@ -187,7 +187,7 @@ async function writesJoinableJson(): Promise<void> {
 		status: number
 	}
 	expect(file.status).toBe(201)
-	expect(file.requestHeaders.authorization).toBe("<redacted>")
+	expect(file.requestHeaders.authorization).toBe("Bearer <redacted>")
 	expect(file.requestBody.access_token).toBe("<redacted>")
 	expect(file.requestBody.name).toBe("n")
 	const disk = await readFile(join(dir, "exchanges/req-json.json"), "utf8")

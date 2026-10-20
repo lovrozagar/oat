@@ -1,9 +1,10 @@
 import { applyBaseline } from "../baseline.ts"
-import { type PersistedPrincipal, snapshotPrincipal } from "../principals.ts"
+import { type KeptCredential, keptCredentials, type PersistedPrincipal, snapshotPrincipal } from "../principals.ts"
 import { buildScopeReport } from "../scope/report.ts"
 import { type ScopeReport } from "../scope/types.ts"
 import type { TeardownReport } from "../teardown/types.ts"
 import type { Planned, RunContext } from "./context.ts"
+import { runPrincipal } from "./principals.ts"
 import type { RunResult } from "./types.ts"
 
 /** What the run graded, per operation, from the transcript and the grades as they stand. */
@@ -20,25 +21,29 @@ export function scopeReport({ authCreates, options, findings, grades, model, sco
 	})
 }
 
+/** The principals as the run leaves them, and with `keepCredentials` the values they held. */
+export interface Settled {
+	principals: PersistedPrincipal[]
+	credentials?: KeptCredential[]
+}
+
 /**
- * The run's last requests and writes: credentials refreshed once more, bodies moved out of memory
- * released, the journal flushed. Returns the credentials as they stand, for `principals.json`.
+ * The run's last writes: bodies moved out of memory released, the journal flushed. Returns the
+ * principals as they stand for `principals.json`, the BLOCKED ones with why, holding no credential
+ * value; the values come back only when the run was asked to keep them.
  */
-export async function settle(ctx: RunContext): Promise<PersistedPrincipal[]> {
-	await ctx.principals.refreshAll("run")
+export async function settle(ctx: RunContext): Promise<Settled> {
 	/* Every check has judged the transcript; bodies moved out of memory are no longer needed. */
 	await ctx.client.dispose()
 	await ctx.journal?.flush().catch(() => undefined)
-	return ctx.principals.all.map((principal) =>
-		snapshotPrincipal({
-			headers: principal.headers,
-			id: principal.id,
-			roots: principal.roots,
-			...(principal.role === undefined ? {} : { role: principal.role }),
-			rank: principal.rank,
-			...(principal.inviteAs === undefined ? {} : { inviteAs: principal.inviteAs }),
-		}),
-	)
+	const { principals, store } = ctx
+	const held = await store.snapshot()
+	/* A BLOCKED principal is kept too, with why: a persisted run says who it went on without. */
+	const blocked = principals.blocked.map(({ id, reason }) => ({ ...runPrincipal(store, id), blocked: reason }))
+	return {
+		principals: [...principals.all, ...blocked].map((principal) => snapshotPrincipal(principal, held)),
+		...(ctx.options.keepCredentials === true ? { credentials: keptCredentials(held) } : {}),
+	}
 }
 
 /** The result of a run the network cut short before any principal could act. */
@@ -48,7 +53,7 @@ export async function earlyResult(planned: Planned): Promise<RunResult> {
 }
 
 /** The result of a run that went the whole way. */
-export function finalResult(ctx: RunContext, persisted: PersistedPrincipal[], coverage: ScopeReport): RunResult {
+export function finalResult(ctx: RunContext, settled: Settled, coverage: ScopeReport): RunResult {
 	const { options, findings, state, ledger, targetVersion } = ctx
 	const baselined = options.baseline === undefined ? undefined : applyBaseline(findings.findings, options.baseline)
 	return {
@@ -56,7 +61,8 @@ export function finalResult(ctx: RunContext, persisted: PersistedPrincipal[], co
 		...(baselined === undefined ? {} : { baseline: baselined }),
 		...(targetVersion === undefined ? {} : { targetVersion }),
 		created: ledger.recorded,
-		principals: persisted,
+		principals: settled.principals,
+		...(settled.credentials === undefined ? {} : { credentials: settled.credentials }),
 		scope: coverage,
 		teardown: withUnidentified(state.teardown, ledger.unidentifiedCreates),
 		...(state.interrupted ? { interrupted: true } : {}),

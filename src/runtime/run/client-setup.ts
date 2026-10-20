@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto"
+import { createCredentialSource } from "../../client/credentials.ts"
 import { operationResolver } from "../../spec/graph/resolver.ts"
 import { Redactor } from "../../security/redact.ts"
 import { Client } from "../../client/client.ts"
@@ -10,25 +11,35 @@ import { RateLimiter } from "../rate-limit/limiter.ts"
 import { Ledger } from "../teardown/ledger.ts"
 import { SchemaValidator } from "../validate.ts"
 import type { Connected, Loaded } from "./context.ts"
-import { RunCredentials } from "./credentials.ts"
 import { createRunNetwork } from "./network.ts"
 import { loadOriginClients } from "./origins.ts"
 import type { RunProgress } from "./progress.ts"
+import { runStore } from "./store.ts"
 
 /**
  * The run's client, and what watches it: one redactor every client, the journal and the report
- * scrub with, the exchange journal, the network gate, and the clients of the secondary origins.
+ * scrub with, the exchange journal, the network gate, the run's credential store, and the clients of
+ * the secondary origins, each resolving its actors over that store against its own document.
  */
-export async function connect(loaded: Loaded): Promise<Connected> {
+export function connect(loaded: Loaded): Connected {
 	const { options, hooks, model, fence, progress } = loaded
 	const redactor = new Redactor()
+	for (const name of options.redact?.headers ?? []) redactor.registerHeader(name)
 	const journal = options.exchangeDir === undefined ? null : createExchangeJournal(options.exchangeDir, redactor)
 	const onExchange = answered(journal, progress)
 	const network = createRunNetwork(loaded)
-	const credentials = new RunCredentials()
+	/* The ports reach the clients only when they send, by which time both exist. */
+	const store = runStore(loaded, { clients: () => ({ client, origins: originClients }), network })
+	const mapping = options.sharedCredentials?.mapping
 	const client = new Client({
 		baseUrl: options.baseUrl,
-		credentials,
+		credentials: createCredentialSource({
+			model,
+			principals: store.principals,
+			security: options.security ?? {},
+			store,
+			...(mapping === undefined ? {} : { mapping }),
+		}),
 		fence,
 		headers: options.globalHeaders ?? {},
 		httpHooks: progress.httpHooks,
@@ -44,12 +55,10 @@ export async function connect(loaded: Loaded): Promise<Connected> {
 		resolveHeaders: hooks.resolveHeaders,
 	})
 	progress.countRequests(() => client.transcript.length)
-	if (options.principals[0] === undefined) throw new Error("oat: at least one principal is required")
-	const originClients = await loadOriginClients(loaded, { network: network.client, onExchange, redactor })
+	const originClients = loadOriginClients(loaded, { network: network.client, onExchange, redactor, store })
 	return {
 		...loaded,
 		client,
-		credentials,
 		journal,
 		ledger: new Ledger(),
 		network,
@@ -57,6 +66,7 @@ export async function connect(loaded: Loaded): Promise<Connected> {
 		originClients,
 		outOfBand: resolveBackoff(options.outOfBand),
 		seed: options.seed ?? 1,
+		store,
 		validator: new SchemaValidator(model.defs),
 	}
 }

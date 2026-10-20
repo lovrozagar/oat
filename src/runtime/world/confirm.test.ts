@@ -10,7 +10,6 @@ import { confirmSubmitted } from "./confirm.ts"
  */
 
 const scope = { projectId: "p1" }
-const headers = { authorization: "Bearer alpha" }
 
 function confirm(
 	answer: Answer,
@@ -20,16 +19,15 @@ function confirm(
 		id?: string
 		ignore?: readonly string[]
 		readable?: (op: OperationModel) => boolean
-		headers?: undefined
 	} = {},
 ) {
 	const fake = fakeClient(() => answer)
 	const result = confirmSubmitted({
 		client: fake.client,
 		entity: "note",
-		headers: "headers" in extra ? undefined : headers,
 		identity: "id",
 		model: modelOf(notes(extra.document)),
+		principal: "alpha",
 		scope,
 		sent,
 		...(extra.id === undefined ? {} : { id: extra.id }),
@@ -45,15 +43,19 @@ describe("confirmSubmitted", () => {
 		const { result, sent } = confirm({ body: stored, status: 200 }, { id: "n1", name: "first", size: 3 })
 		expect(await result).toEqual(stored)
 		expect(sent).toEqual([
-			{ method: "GET", options: { headers, operationId: "note.get" }, path: "/projects/p1/notes/n1" },
+			{
+				method: "GET",
+				options: { as: { principal: "alpha" }, operationId: "note.get" },
+				path: "/projects/p1/notes/n1",
+			},
 		])
 	})
 
-	it("reads under the id the answer suggested, and without headers when it has none", async () => {
+	it("reads under the id the answer suggested", async () => {
 		const stored = { id: "n9", name: "first" }
-		const { result, sent } = confirm({ body: stored, status: 200 }, { name: "first" }, { headers: undefined, id: "n9" })
+		const { result, sent } = confirm({ body: stored, status: 200 }, { name: "first" }, { id: "n9" })
 		expect(await result).toEqual(stored)
-		expect(sent[0]).toEqual({ method: "GET", options: { operationId: "note.get" }, path: "/projects/p1/notes/n9" })
+		expect(sent[0]?.path).toBe("/projects/p1/notes/n9")
 	})
 
 	it("refuses a read that shows another record's fields under that id", async () => {

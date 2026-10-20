@@ -29,7 +29,7 @@ function cohortRun(respond: Responder, document: NotesOptions = {}, options: Par
 			client: fake.client,
 			model,
 			options: {
-				authHeaders: () => ({}),
+				principal: "alpha",
 				onCreate: (entity, id) => events.push(`created ${entity} ${id}`),
 				onUnidentified: (entity, operationId) => events.push(`unidentified ${entity} ${operationId}`),
 				roots: { projectId: "p1" },
@@ -73,7 +73,7 @@ describe("recordCreated", () => {
 		expect(await recordCreated(run, exchange("POST", run.path, { body: { ok: 1 }, status: 200 }), {})).toBeNull()
 		expect(events).toEqual(["unidentified note note.create"])
 		const quiet = cohortRun(() => undefined).run
-		quiet.seeding.options = { authHeaders: () => ({}), roots: {}, seed: 1 }
+		quiet.seeding.options = { principal: "alpha", roots: {}, seed: 1 }
 		expect(await recordCreated(quiet, exchange("POST", quiet.path, { body: { ok: 1 }, status: 200 }), {})).toBeNull()
 		expect(await recordCreated(quiet, exchange("POST", quiet.path, { body: { id: "n3" }, status: 200 }), {})).toEqual({
 			id: "n3",

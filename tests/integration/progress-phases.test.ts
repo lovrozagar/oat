@@ -50,7 +50,7 @@ describe("progress phases after the matrix", () => {
 		await run({
 			baseUrl,
 			onProgress: (snap) => snaps.push(structuredClone(snap)),
-			principals: [{ headers: {}, id: "alpha" }],
+			principals: { alpha: {} },
 			scenarios: [{ covers: ["scene.get"], id: "scene", steps: [{ operationId: "scene.get" }] }],
 			seed: 1,
 			spec: `${baseUrl}/openapi.json`,

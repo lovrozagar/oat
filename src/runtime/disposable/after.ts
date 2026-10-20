@@ -38,7 +38,7 @@ const BLAMED = "blamed"
 export async function afterCall(input: DisposableInput, call: Accepted): Promise<void> {
 	const { op, read, blame, called } = call
 	const caller = await input.client.request(read.method, read.path, {
-		headers: input.auth,
+		as: { principal: input.principal },
 		operationId: read.operationId,
 	})
 	if (caller.status !== 200) {
@@ -68,7 +68,7 @@ async function listedGone(input: DisposableInput, call: Accepted): Promise<Obser
 	const list = parentList(input.model, op)
 	if (op.method.toUpperCase() !== "DELETE" || param === undefined || list === undefined) return undefined
 	const listed = await input.client.request(list.method, fillPath(list.path, values), {
-		headers: session.headers,
+		as: { principal: session.principal },
 		operationId: list.operationId,
 	})
 	const field = identityOf(list, input.model, param)
@@ -89,9 +89,11 @@ async function listedGone(input: DisposableInput, call: Accepted): Promise<Obser
 /** The ended session read again, and its refresh tried: both must be refused. */
 async function sessionEnded(input: DisposableInput, call: Accepted): Promise<Observation | typeof BLAMED> {
 	const { op, session, read, blame, called } = call
+	/* A probe: the refusal is the answer, never renewed and retried, or the session would look alive. */
 	const gone = await input.client.request(read.method, read.path, {
-		headers: session.headers,
+		as: { principal: session.principal },
 		operationId: read.operationId,
+		probe: true,
 	})
 	const renewed = session.renew === undefined ? undefined : await session.renew()
 	const refused = gone.status === 401 || gone.status === 403 || gone.status === 404

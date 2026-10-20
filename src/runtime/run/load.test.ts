@@ -3,7 +3,8 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import type { ProgressSnapshot } from "../progress/types.ts"
-import { fetchOf, notesApi, notesDoc, optionsFor, unreachable } from "./__fixtures__/api.ts"
+import { UsageError } from "../../errors/usage-error.ts"
+import { connected, fetchOf, notesApi, notesDoc, optionsFor, unreachable } from "./__fixtures__/api.ts"
 import { load } from "./load.ts"
 
 /*
@@ -66,5 +67,47 @@ describe("load", () => {
 		expect(loaded.model.entities.has("note")).toBe(true)
 		expect(snaps.map((snap) => snap.message)).toContain("waiting for network (refused, 5s left)")
 		expect(snaps.every((snap) => snap.phase === "load" && snap.requests === 0)).toBe(true)
+	})
+})
+
+describe("load, the secondary origins and the credentials config", () => {
+	const cdn = {
+		baseUrl: "http://cdn.test",
+		id: "cdn",
+		security: { bearer: "bearer" },
+		spec: "http://cdn.test/openapi.json",
+	}
+
+	it("reads each origin's document once, with its overlay, and carries it modelled", async () => {
+		const overlay = { operations: { "notes.list": { operationId: "cdn.notes.list" } } }
+		const options = optionsFor(notesApi(), {
+			origins: [
+				{ ...cdn, overlay },
+				{ ...cdn, id: "plain" },
+			],
+		})
+		const loaded = await load(options)
+		expect(options.seen.filter((seen) => seen.host === "cdn.test").map((seen) => seen.path)).toEqual([
+			"/openapi.json",
+			"/openapi.json",
+		])
+		expect(loaded.origins.get("cdn")?.model.byOperationId.has("cdn.notes.list")).toBe(true)
+		expect(loaded.origins.get("plain")?.model.byOperationId.has("notes.list")).toBe(true)
+		expect("x-auth-flows" in (loaded.origins.get("plain")?.doc ?? {})).toBe(false)
+	})
+
+	it("refuses credentials that do not fit the document, naming each problem", async () => {
+		const refused = load(optionsFor(notesApi(), { origins: [cdn], security: { nope: { static: "x" } } }))
+		await expect(refused).rejects.toThrow(UsageError)
+		await expect(refused).rejects.toThrow(/security\.nope names no scheme in the document/)
+	})
+
+	it("leaves a secondary origin's run unchecked: the primary checked the config against its document", async () => {
+		const primary = await connected(optionsFor(notesApi()))
+		const shared = { mapping: {}, store: primary.store }
+		const loaded = await load(
+			optionsFor(notesApi(), { security: { nope: { static: "x" } }, sharedCredentials: shared }),
+		)
+		expect(loaded.model.entities.has("note")).toBe(true)
 	})
 })

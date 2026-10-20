@@ -17,7 +17,7 @@ export async function currentRecords(ctx: CheckContext, scope: Record<string, st
 	const readOp = ctx.readOp
 	if (readOp === undefined || !canFillPath(readOp.path, scope)) return ctx.records
 	const read = await ctx.client.get(fillPath(readOp.path, scope), {
-		headers: ctx.auth(),
+		as: { principal: ctx.actor.id },
 		operationId: readOp.operationId,
 	})
 	const body = read.responseBody

@@ -1,14 +1,15 @@
 import type { RequestOptions } from "../../../../../client/types.ts"
-import type { Answer, Responder } from "../../../__fixtures__/harness.ts"
+import type { Answer } from "../../../__fixtures__/harness.ts"
+import type { Asked, Backend } from "./context.ts"
 
 /*
- * An in-memory notes backend under `/orgs/{org}/notes`. Each credential belongs to one org; a
+ * An in-memory notes backend under `/orgs/{org}/notes`. Each principal belongs to one org; a
  * correct backend serves and changes a note only for a caller in the note's org, through that
  * org's path. The switches turn on one defect each, the way the reference server misbehaves.
  */
 
 export interface BackendOptions {
-	/** Credential → the org it belongs to. */
+	/** Principal → the org it belongs to. */
 	members: Record<string, string>
 	/** Writes look the note up by id alone, in any org, for any caller. */
 	writesById?: boolean
@@ -20,7 +21,9 @@ export interface BackendOptions {
 
 type Note = Record<string, unknown>
 
-function bodyOf(options: RequestOptions): Note {
+type Request = Omit<RequestOptions, "as">
+
+function bodyOf(options: Request): Note {
 	const body = options.body
 	if (typeof body === "string") return JSON.parse(body) as Note
 	return (body ?? {}) as Note
@@ -34,7 +37,7 @@ interface Call {
 	org: string
 	id: string | undefined
 	member: boolean
-	request: RequestOptions
+	request: Request
 }
 
 /** The backend's notes, by org, and how a write finds one. */
@@ -92,10 +95,10 @@ function kindOf(method: string): Kind {
 	return method === "DELETE" ? "delete" : "update"
 }
 
-export function notesBackend(options: BackendOptions): Responder & { notes: Map<string, Map<string, Note>> } {
+export function notesBackend(options: BackendOptions): Backend & { notes: Map<string, Map<string, Note>> } {
 	const store = new Store(options)
-	const respond = (method: string, path: string, request: RequestOptions): Answer => {
-		const caller = (request.headers as Record<string, string> | undefined)?.authorization ?? ""
+	const respond = (method: string, path: string, request: Asked): Answer => {
+		const caller = request.who
 		const [, , org = "", , id] = path.split("/")
 		const call = { id, member: options.members[caller] === org, method, org, request }
 		if (method === "GET") return store.read(call)

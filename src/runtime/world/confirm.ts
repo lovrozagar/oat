@@ -1,5 +1,4 @@
 import type { Client } from "../../client/client.ts"
-import type { RequestOptions } from "../../client/types.ts"
 import type { OperationModel, SpecModel } from "../../spec/graph/types.ts"
 import { fillPath } from "../fill-path.ts"
 import { idOf, isPlainRecord, type Record_, recordOf } from "./records.ts"
@@ -13,7 +12,8 @@ export interface ConfirmInput {
 	/** The id to read under, when the answer suggested one; otherwise the identity oat sent. */
 	id?: string
 	scope: Record<string, string>
-	headers: RequestOptions["headers"]
+	/** The principal it reads as: `as: { principal }`. */
+	principal: string
 	ignore?: readonly string[]
 	readable?: (op: OperationModel) => boolean
 }
@@ -61,7 +61,7 @@ export async function confirmSubmitted(input: ConfirmInput): Promise<Record_ | n
 		return null
 	}
 	const read = await input.client.get(path, {
-		...(input.headers === undefined ? {} : { headers: input.headers }),
+		as: { principal: input.principal },
 		operationId: route.readOp.operationId,
 	})
 	const record = read.status < 200 || read.status >= 300 ? undefined : recordOf(route.readOp, read.responseBody)

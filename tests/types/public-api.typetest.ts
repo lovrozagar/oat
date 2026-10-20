@@ -2,8 +2,6 @@ import { expectTypeOf } from "vitest"
 import type * as oat from "../../src/index.ts"
 import type {
 	Actor,
-	AuthFlow,
-	AuthRefresh,
 	AuthStep,
 	EntityConfig,
 	EntityModel,
@@ -14,7 +12,6 @@ import type {
 	FilterOp,
 	Finding,
 	HeaderRequest,
-	HookAuth,
 	Hooks,
 	InputRequest,
 	OatConfig,
@@ -27,13 +24,13 @@ import type {
 	OutOfBandStep,
 	PathValueRequest,
 	PayloadPolicy,
-	Principal,
-	PrincipalAuth,
-	PrincipalAuthResult,
+	PrincipalEntry,
+	PrincipalsConfig,
 	ProfileSpec,
 	QueryCapabilities,
 	QueryCapabilitiesRequest,
 	RateLimitSpec,
+	Recipe,
 	ReportInput,
 	RequestStep,
 	RunOptions,
@@ -42,6 +39,7 @@ import type {
 	ScenarioAssert,
 	ScenarioRequestStep,
 	ScenarioStep,
+	SecurityConfig,
 	SideEffectRequest,
 	SpecModel,
 	TeardownPrincipalContext,
@@ -59,7 +57,6 @@ import type {
  */
 expectTypeOf<keyof typeof oat>().toEqualTypeOf<
 	| "allocateRunDir"
-	| "AuthRefreshRequiredError"
 	| "buildModel"
 	| "DEFAULT_RUNS_ROOT"
 	| "defineConfig"
@@ -83,8 +80,6 @@ expectTypeOf<keyof typeof oat>().toEqualTypeOf<
 
 export type PublicTypes = [
 	Actor,
-	AuthFlow,
-	AuthRefresh,
 	AuthStep,
 	EntityConfig,
 	EntityModel,
@@ -95,7 +90,6 @@ export type PublicTypes = [
 	FilterOp,
 	Finding,
 	HeaderRequest,
-	HookAuth,
 	Hooks,
 	InputRequest,
 	OatConfig,
@@ -108,13 +102,13 @@ export type PublicTypes = [
 	OutOfBandStep,
 	PathValueRequest,
 	PayloadPolicy,
-	Principal,
-	PrincipalAuth,
-	PrincipalAuthResult,
+	PrincipalEntry,
+	PrincipalsConfig,
 	ProfileSpec,
 	QueryCapabilities,
 	QueryCapabilitiesRequest,
 	RateLimitSpec,
+	Recipe,
 	ReportInput,
 	RequestStep,
 	RunOptions,
@@ -123,6 +117,7 @@ export type PublicTypes = [
 	ScenarioAssert,
 	ScenarioRequestStep,
 	ScenarioStep,
+	SecurityConfig,
 	SideEffectRequest,
 	SpecModel,
 	TeardownPrincipalContext,

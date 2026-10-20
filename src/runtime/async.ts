@@ -126,14 +126,19 @@ export function inspectStreamAsync(receipt: unknown, spec: AsyncSpec): StreamAsy
 	return { events, id, idRecord, terminal }
 }
 
-/** What a job's poll needs: the start's receipt, where to poll, and how each poll authenticates. */
+/** What a job's poll needs: the start's receipt, where to poll, and who polls. */
 export interface AsyncDrive {
 	client: Client
 	spec: AsyncSpec
 	receipt: unknown
 	scope: Record<string, string>
-	headers: () => Record<string, string>
-	refreshIfStale?: ((force?: boolean) => Promise<void>) | undefined
+	/**
+	 * Every poll goes as this principal continuing from `start`, its credential resolved afresh, so a long
+	 * job never sends a dead one, and an undocumented poll URL sends what the start sent.
+	 */
+	principal: string
+	/** The request that began the job. */
+	start: Exchange
 	/** Resolves a `poll` that names an operation rather than spelling `"GET /path"`. */
 	operation?: ((operationId: string) => { method: string; path: string } | undefined) | undefined
 }
@@ -167,13 +172,7 @@ function pollRoute(input: AsyncDrive): { method: string; template: string } {
 }
 
 async function pollOnce(input: AsyncDrive, method: string, path: string): Promise<Exchange> {
-	/* Live headers + countdown refresh per poll: a long POST can outlive remaining TTL,
-	 * and a snapshot taken before the loop would keep sending the dead Bearer. */
-	if (input.refreshIfStale !== undefined) await input.refreshIfStale()
-	return input.client.request(method, path, {
-		headers: input.headers,
-		...(input.refreshIfStale === undefined ? {} : { refreshIfStale: input.refreshIfStale }),
-	})
+	return input.client.request(method, path, { as: { principal: input.principal, via: input.start } })
 }
 
 function terminalOutcome(spec: AsyncSpec, record: Record<string, unknown>, run: Polling): AsyncOutcome {

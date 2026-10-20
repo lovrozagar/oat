@@ -26,25 +26,17 @@ export interface StepAnswer {
 	cookies: Record<string, string>
 }
 
-/** How a chain starts, and the credential it sends where a step needs one. */
+/** How a chain starts. */
 export interface RunStepsOptions {
 	/** Bindings the chain starts from; copied, never written. */
 	scope?: Readonly<Scope>
-	/**
-	 * The headers carrying the credential the scope holds so far. The out-of-band hook is told
-	 * them, and a raw step that sets its redirect policy sends them under its own headers.
-	 */
-	credentialHeaders?: (scope: Scope) => Record<string, string>
 }
 
 /** One step's place in the chain and the state it reads and writes. */
 interface Turn {
 	index: number
 	scope: Scope
-	credentialHeaders: (scope: Scope) => Record<string, string>
 }
-
-const NO_HEADERS = (): Record<string, string> => ({})
 
 /** Runs `steps` in order, returning the bound scope and the last answer (none when nothing was sent). */
 export async function runSteps(
@@ -53,11 +45,10 @@ export async function runSteps(
 	options: RunStepsOptions = {},
 ): Promise<{ scope: Scope; last: StepAnswer | undefined }> {
 	const scope: Scope = { ...options.scope }
-	const credentialHeaders = options.credentialHeaders ?? NO_HEADERS
 	const sent: Exchange[] = []
 	let last: StepAnswer | undefined
 	for (const [index, step] of steps.entries()) {
-		const turn: Turn = { credentialHeaders, index, scope }
+		const turn: Turn = { index, scope }
 		bindLiterals(step, scope)
 		if ("outOfBand" in step) {
 			scope[step.outOfBand.as] = await awaitDelivery(ctx, step, { sent, turn })
@@ -89,7 +80,6 @@ async function awaitDelivery(
 	const address = String(interpolate(step.outOfBand.address, scope))
 	const since = step.outOfBand.sentEarlier === true ? undefined : triggerSentAt(at.sent, address)
 	return resolveOutOfBandValue(ctx.hooks.resolveOutOfBand, address, {
-		headers: at.turn.credentialHeaders(scope),
 		kind: step.outOfBand.kind,
 		label: `principal "${ctx.principalId}"`,
 		scope: { ...scope },
@@ -101,14 +91,15 @@ async function awaitDelivery(
 /** Sends an HTTP step and fails closed on a status it does not accept. */
 async function send(ctx: StepContext, step: AuthStep, turn: Turn): Promise<Exchange> {
 	const request = await resolveRequest(ctx, step, turn.scope, turn.index)
-	const liveHeaders = request.redirect === undefined ? {} : turn.credentialHeaders(turn.scope)
 	const exchange = await request.client.request(request.method, request.path, {
 		...(request.body === undefined ? {} : { body: request.body }),
 		...(request.contentType === undefined ? {} : { contentType: request.contentType }),
-		headers: { ...liveHeaders, ...request.headers },
+		headers: request.headers ?? {},
 		...(request.query === undefined ? {} : { query: request.query }),
-		/* Auth hops must not trigger refresh / 401-retry — that is how a refresh deadlocks. */
-		skipAuthRefresh: true,
+		/* A login or refresh hop acts as nobody, and is never refreshed or retried: a hop that
+		 * refreshed would wait on its own login. What it sends is what the step names. */
+		as: { anonymous: true },
+		probe: true,
 		...("operationId" in step ? { operationId: step.operationId } : {}),
 		...(request.redirect === undefined ? {} : { redirect: request.redirect }),
 	})
@@ -134,8 +125,8 @@ function accept(
 	)
 }
 
-/** The answer an exchange drew, with the cookies its hops set. */
-function answerOf(exchange: Exchange): StepAnswer {
+/** An exchange as a step, or a recipe, reads its answer, with the cookies its hops set. */
+export function answerOf(exchange: Exchange): StepAnswer {
 	return {
 		body: exchange.responseBody,
 		cookies: exchange.cookies ?? cookiesFromRecordedHeaders(exchange.responseHeaders),

@@ -39,13 +39,16 @@ describe("persistRequestBody", () => {
 		expect(await persistRequestBody(snapshot, store)).toBe(snapshot)
 	})
 
-	it("writes a form field by field, its files as blobs", async () => {
+	it("writes a form field by field, scrubbing what the run was issued, its files as blobs", async () => {
+		store.redactor.registerSecret("issued-token-value")
 		const form = new FormData()
 		form.append("password", "hunter2")
+		form.append("note", "sent issued-token-value")
 		form.append("doc", new Blob(["abc"], { type: "text/plain" }), "a.txt")
 		expect(await persistRequestBody(form, store)).toEqual({
 			parts: [
 				{ field: "password", value: REDACTED },
+				{ field: "note", value: `sent ${REDACTED}` },
 				{ field: "doc", filename: "a.txt", ...ref("abc", "text/plain") },
 			],
 		})

@@ -50,7 +50,7 @@ export async function compactRequestBody(body: unknown, redactor: Redactor, sent
 		const parts: FormPart[] = []
 		for (const [field, value] of body.entries()) {
 			if (typeof value === "string") {
-				parts.push(formFieldPart(field, value))
+				parts.push(formFieldPart(field, value, redactor))
 				continue
 			}
 			const bytes = new Uint8Array(await value.arrayBuffer())

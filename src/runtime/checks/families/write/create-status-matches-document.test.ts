@@ -11,7 +11,11 @@ function stage(respond: Responder, options: WidgetDocOptions = {}) {
 
 /** What the transcript holds once the run's own create has gone through. */
 async function created(ctx: ReturnType<typeof stage>["ctx"], path = "/widgets"): Promise<void> {
-	await ctx.client.request("POST", path, { body: { name: "a" }, operationId: "createWidget" })
+	await ctx.client.request("POST", path, {
+		as: { principal: "alpha" },
+		body: { name: "a" },
+		operationId: "createWidget",
+	})
 }
 
 describe("create.status-matches-document", () => {

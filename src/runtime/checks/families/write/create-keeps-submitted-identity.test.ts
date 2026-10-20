@@ -25,7 +25,8 @@ type Staged = ReturnType<typeof stage>
 
 /** The run's creates, as the transcript holds them: each body as sent, on the create's own path. */
 async function creates(ctx: Staged["ctx"], bodies: unknown[], path = "/widgets"): Promise<void> {
-	for (const body of bodies) await ctx.client.request("POST", path, { body, operationId: "createWidget" })
+	for (const body of bodies)
+		await ctx.client.request("POST", path, { as: { principal: "alpha" }, body, operationId: "createWidget" })
 }
 
 const reads = (sent: Staged["sent"]) => sent.filter((s) => s.method === "GET").map((s) => s.path)

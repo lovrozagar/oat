@@ -1,16 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { OpenApiDocument } from "../../../spec/types.ts"
 import type { Actor } from "../../checks/core/context.ts"
-import {
-	contextOf,
-	entityRunOf,
-	flow,
-	notesApi,
-	notesDoc,
-	operationAt,
-	optionsFor,
-	withLogin,
-} from "../__fixtures__/api.ts"
+import { contextOf, entityRunOf, notesApi, notesDoc, operationAt, optionsFor } from "../__fixtures__/api.ts"
 import type { RunOptions } from "../types.ts"
 import { unwind } from "../teardown.ts"
 import { createdId } from "../../proven-id.ts"
@@ -33,14 +24,11 @@ const fresh: World = {
 	uniqueAdopted: false,
 }
 const actor = (id: string, org: string): Actor => ({
-	adoptCredential: () => undefined,
-	headers: () => ({ authorization: `Bearer ${id}` }),
 	id,
 	inviteAs: undefined,
 	rank: 0,
-	role: undefined,
-	roots: { org_id: org },
 	scope: { org_id: org },
+	tenant: org,
 })
 
 /** The notes document with its operations' tags edited. */
@@ -65,15 +53,18 @@ describe("checkContext", () => {
 			"notes.delete",
 		])
 		expect(checks).toMatchObject({
-			altAuth: undefined,
+			actor: { id: "alpha" },
 			entityName: "note",
+			peerScope: undefined,
 			identity: "id",
 			records: [{ id: "n1" }],
 			scope: { a: "1" },
 		})
 		expect(checks.uniqueCreateOp).toBeUndefined()
 		expect(checks.inScope?.(ctx.model.byOperationId.get("notes.list") as never)).toBe(true)
-		expect(checks).not.toHaveProperty("refreshIfStale")
+		expect(checks).not.toHaveProperty("peer")
+		/* An invite's delegate holds what the accept issued, in the run's own store. */
+		expect(checks.credentials).toBe(ctx.store)
 	})
 
 	it("withdraws the write routes from records oat did not create", async () => {
@@ -127,16 +118,12 @@ describe("checkContext declared operations", () => {
 		expect(checks.softDelete).toBe("deleted_at")
 	})
 
-	it("crosses into the first principal of another tenant, and renews the first principal's flow", async () => {
-		const ctx = await contextOf(optionsFor(withLogin(), { principals: [flow] }))
-		const checks = await checkContext(entityRunOf(ctx), fresh, [
-			actor("alpha", "o1"),
-			actor("same", "o1"),
-			actor("other", "o2"),
-		])
-		expect(checks.altScope).toEqual({ org_id: "o2" })
-		expect(checks.altAuth?.()).toEqual({ authorization: "Bearer other" })
-		expect(typeof checks.refreshIfStale).toBe("function")
+	it("acts as the first principal, and crosses into the first principal of another tenant", async () => {
+		const ctx = await contextOf(optionsFor(notesApi()))
+		const actors = [actor("alpha", "o1"), actor("same", "o1"), actor("other", "o2")] as const
+		const checks = await checkContext(entityRunOf(ctx), fresh, [...actors])
+		expect([checks.actor, checks.peer, checks.peerScope]).toEqual([actors[0], actors[2], { org_id: "o2" }])
+		expect(checks.actors).toEqual(actors)
 	})
 })
 
@@ -180,7 +167,9 @@ describe("checkContext extras", () => {
 			},
 		} as unknown as OpenApiDocument
 		const ctx = await contextOf(
-			optionsFor((_, path) => (path === "/openapi.json" ? { body: doc, status: 200 } : { body: {}, status: 200 })),
+			optionsFor((_, path) => (path === "/openapi.json" ? { body: doc, status: 200 } : { body: {}, status: 200 }), {
+				security: {},
+			}),
 		)
 		const checks = await checkContext(entityRunOf(ctx), fresh, [actor("alpha", "o1")])
 		expect([checks.readOp, checks.updateOp, checks.deleteOp, checks.collectionKey]).toEqual([
