@@ -109,6 +109,16 @@ describe("sendFollowing across origins and limits", () => {
 		expect(landed.landing.toString()).toBe("http://cdn.test/f")
 	})
 
+	it("strips a credential header across origins whatever case it was placed in", async () => {
+		const { following, sent } = setup(
+			(request) => (request.url.startsWith(API) ? redirect(302, "http://cdn.test/f") : json({})),
+			{ credentialNames: credentialHeaderNames(["x-key"]) },
+		)
+		const headers = { Authorization: "Bearer t", "X-Key": "k", "X-Other": "o" }
+		await sendFollowing(first({ headers }), following)
+		expect(sent[1]?.headers).toEqual({ "X-Other": "o" })
+	})
+
 	it("drops a placed query parameter from a hop to another origin, and keeps it on the same one", async () => {
 		const { following, sent } = setup(
 			(request) => {
