@@ -13,7 +13,7 @@ import { run } from "../../src/runtime/run/index.ts"
  */
 
 describe("delete.absent-record-returns-404 when the read-back is refused", () => {
-	it("says it could not see whether the record is gone", async () => {
+	it("blocks the caller the server refuses everywhere, and names the read-back it could not send", async () => {
 		const server = await createMemoryServer({ defects: ["DELETE_KEEPS_ROW", "DISPOSABLE_KILLS_CALLER"] })
 		try {
 			const result = await run({
@@ -23,14 +23,21 @@ describe("delete.absent-record-returns-404 when the read-back is refused", () =>
 				seed: 42,
 				spec: `${server.url}/v1/openapi/spec`,
 			})
-			const judged = result.findings.some((finding) => finding.check === "delete.absent-record-returns-404")
-			const unjudged = result.inconclusive.filter((entry) => entry.check === "delete.absent-record-returns-404")
-			const blocked = result.findings.filter(
-				(finding) => finding.check === "auth.blocked" && finding.summary.startsWith("delete.absent-record-returns-404"),
+			const own = (check: string) => result.findings.filter((finding) => finding.check === check)
+			const blocked = own("auth.blocked").filter((finding) =>
+				finding.summary.startsWith("delete.absent-record-returns-404"),
 			)
-			expect(judged || unjudged.length > 0 || blocked.length > 0).toBe(true)
-			const why = judged ? "judged" : (unjudged[0]?.reason ?? blocked[0]?.detail)
-			expect(why).toMatch(/^judged$|answered 40[13]|was not sent to read .+ back after/)
+			expect(own("delete.absent-record-returns-404")).toEqual([])
+			expect(result.inconclusive.filter((entry) => entry.check === "delete.absent-record-returns-404")).toEqual([])
+			expect(blocked.map((finding) => [finding.entity, finding.operations])).toEqual([
+				["row", ["row.delete"]],
+				["job", ["job.delete"]],
+			])
+			for (const finding of blocked) {
+				expect(finding.detail).toMatch(
+					/^blocked by signed in again, and the new credential is refused where the old one was accepted \(job\.get\)\. (row|job)\.get was not sent to read \S+ back after (row|job)\.delete\.$/,
+				)
+			}
 		} finally {
 			await server.close()
 		}
