@@ -80,20 +80,11 @@ describe("auth.anonymous-operation-open", () => {
 })
 
 describe("auth.anonymous-operation-open on an open write that applied", () => {
-	it("reports an open write that accepted the unreadable body: a validation defect, not a security one", async () => {
+	it("passes: the route is open as declared, and its validation is request.invalid-body-refused's to judge", async () => {
 		for (const status of [200, 201]) {
 			const { ctx, findings } = operationContextFor(model, "auth.login", { respond: answering(status) })
-			expect(await runOperationCheck(anonymousOperationOpen, ctx)).toEqual({ kind: "finding", verdict: "BACKEND_BUG" })
-			expect(findings.findings.map((f) => [f.check, f.verdict, f.summary, f.detail])).toEqual([
-				[
-					"auth.anonymous-operation-open",
-					"BACKEND_BUG",
-					"an open write accepted a body it could not have read: a validation defect",
-					`auth.login answered ${status} to a body that is not JSON, so it accepted input it could not have ` +
-						"read. The route is open, as the document declares; its validation is the defect. The write is " +
-						"taken as applied: teardown removes what it made, or reports it as a record that may remain.",
-				],
-			])
+			expect(await runOperationCheck(anonymousOperationOpen, ctx)).toEqual({ kind: "asserted" })
+			expect(findings.findings).toEqual([])
 		}
 	})
 })

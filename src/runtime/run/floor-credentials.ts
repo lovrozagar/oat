@@ -22,13 +22,20 @@ type FloorContext = Pick<RunContext, "store" | "model" | "options">
 /** The floor's credential operations, and a dedicated actor of `principal`'s for each. */
 export function floorCredentials(ctx: FloorContext, principal: string): FloorCredentials {
 	const probe = probeCredentials(ctx)
-	const recipes = recipesOf(ctx)
-	const operationOf = stepOperation(ctx.model)
 	return {
 		actorFor: (op) => actorFor(probe, principal, op),
-		identityFields: identityFieldsOf(recipes, operationOf),
-		operations: new Set(recipes.flatMap((recipe) => namedBy(recipe, operationOf))),
+		identityFields: identityFieldsOf(recipesOf(ctx), stepOperation(ctx.model)),
+		operations: credentialOperations(ctx),
 	}
+}
+
+/**
+ * Every operation a principal's effective recipe names, however a step names it (by operationId, or by
+ * method and path): its login and refresh steps, its revokes, and its mint. No probe sends one.
+ */
+export function credentialOperations(ctx: FloorContext): Set<string> {
+	const operationOf = stepOperation(ctx.model)
+	return new Set(recipesOf(ctx).flatMap((recipe) => namedBy(recipe, operationOf)))
 }
 
 /* Every principal's effective recipe, for every scheme the config covers. */

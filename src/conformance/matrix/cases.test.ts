@@ -115,6 +115,18 @@ describe("judgeDefect's judging", () => {
 		expect(result).toMatchObject({ detected: true, expected: "auth.destructive-spares-the-caller", spurious: [] })
 	}, 120_000)
 
+	it("detects an update that applies an invalid body, with nothing spurious and nothing left behind", async () => {
+		const result = await judgeDefect("WRITE_BODY_NOT_VALIDATED", MEMORY)
+		expect(result).toMatchObject({
+			bystanders: [],
+			detected: true,
+			expected: "request.invalid-body-refused",
+			spurious: [],
+			strayLedger: [],
+			unreported: [],
+		})
+	}, 120_000)
+
 	it("holds no excused defect to the bystander rule", async () => {
 		const result = await judgeDefect("STALE_LIST", MEMORY, { excused: new Set(["STALE_LIST"]), label: "stale" })
 		expect(result).toMatchObject({ bystanders: [], detected: true })

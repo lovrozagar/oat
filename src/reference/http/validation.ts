@@ -16,6 +16,8 @@ export interface BodyRules {
 	entity: EntityDef
 	mode: "create" | "update" | "replace"
 	defects: DefectSet
+	/** Under WRITE_BODY_NOT_VALIDATED: nothing is required, and a value its field refuses is dropped. */
+	lenient?: boolean
 }
 
 export function validateBody(body: unknown, rules: BodyRules): Row {
@@ -27,16 +29,27 @@ export function validateBody(body: unknown, rules: BodyRules): Row {
 	const allowed = new Map(writableFields(entity, mode === "create" ? "create" : "update").map((f) => [f.name, f]))
 	for (const key of Object.keys(input)) admit(key, allowed, rules)
 	/* A create, and a replacing update, must carry every required field. */
-	if (mode !== "update" && !defects.has("REQUIRED_NOT_VALIDATED")) {
+	if (mode !== "update" && !defects.has("REQUIRED_NOT_VALIDATED") && rules.lenient !== true) {
 		const missing = [...allowed.values()].find((field) => field.required === true && input[field.name] === undefined)
 		if (missing !== undefined) throw invalid(`field "${missing.name}" is required`)
 	}
 	const out: Row = {}
 	for (const [key, value] of Object.entries(input)) {
 		const field = allowed.get(key)
-		if (field !== undefined) out[key] = coerceField(field, value, defects)
+		if (field === undefined) continue
+		const kept = rules.lenient === true ? parsed(field, value, defects) : { value: coerceField(field, value, defects) }
+		if (kept !== undefined) out[key] = kept.value
 	}
 	return out
+}
+
+/* The value as the field takes it, or undefined when it refuses it: a lenient update drops that one. */
+function parsed(field: FieldDef, value: unknown, defects: DefectSet): { value: unknown } | undefined {
+	try {
+		return { value: coerceField(field, value, defects) }
+	} catch {
+		return undefined
+	}
 }
 
 /* A key the body may carry: writable, or — under the defect — immutable or generated too. */

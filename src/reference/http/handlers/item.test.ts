@@ -94,6 +94,32 @@ describe("updating a record", () => {
 	})
 })
 
+describe("an update under WRITE_BODY_NOT_VALIDATED", () => {
+	it("applies what parses of a table's or a row's update and drops the rest; a job's update still refuses", async () => {
+		const { call, item, made } = await withTable({ defects: ["WRITE_BODY_NOT_VALIDATED"] })
+		const table = await call("PATCH", item, { body: { description: "kept", name: 7 } })
+		expect(table).toMatchObject({ body: { description: "kept", name: "t" }, status: 200 })
+		const rows = rowsOf(made.id)
+		const row = (await call("POST", rows, { body: { amount: 3, label: "r" } })).body
+		const patched = await call("PATCH", `${rows}/${String(row.id)}`, { body: { amount: "many", label: "s" } })
+		expect(patched).toMatchObject({ body: { amount: 3, label: "s" }, status: 200 })
+		const job = (await call("POST", JOBS, { body: { name: "j" } })).body
+		expect((await call("PATCH", `${JOBS}/${String(job.id)}`, { body: { name: 7 } })).status).toBe(400)
+	})
+
+	it("still refuses a field no writer may send, and validates nothing it was not asked to skip", async () => {
+		const { call, item } = await withTable({ defects: ["WRITE_BODY_NOT_VALIDATED"] })
+		expect((await call("PATCH", item, { body: { project_id: "proj_beta" } })).status).toBe(400)
+		expect((await call("PATCH", item, { body: { unknown: 1 } })).status).toBe(400)
+		expect((await call("POST", TABLES, { body: { name: 7 } })).status).toBe(400)
+	})
+
+	it("refuses the same invalid update on a correct backend", async () => {
+		const { call, item } = await withTable()
+		expect((await call("PATCH", item, { body: { description: "kept", name: 7 } })).status).toBe(400)
+	})
+})
+
 describe("an update without a lock", () => {
 	it("writes back the whole record it read under CONCURRENT_WRITE_LOST", async () => {
 		const { call, item } = await withTable({ defects: ["CONCURRENT_WRITE_LOST"] })

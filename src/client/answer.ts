@@ -3,7 +3,7 @@
 import { networkInterfaces } from "node:os"
 import type { Exchange } from "../runtime/exchange.ts"
 import { INLINE_BODY_LIMIT } from "../runtime/exchanges/media.ts"
-import { readSaveAs } from "../runtime/cookies/save-as.ts"
+import { answerBody, readSaveAs } from "../runtime/cookies/save-as.ts"
 import { recordResponseHeaders } from "../runtime/cookies/set-cookie.ts"
 import { classifyNetworkError, describeNetworkKind, NetworkError, type NetworkKind } from "../errors/network.ts"
 import { hasUsableInterface, refineNetworkKind } from "../runtime/network/interfaces.ts"
@@ -88,9 +88,15 @@ export async function answered(
 	return Object.freeze(exchange)
 }
 
-/* The credentials a recipe will read from this answer, scrubbed before anything records it. */
+/* The credentials a recipe will read from this answer, a form's included, scrubbed before anything records it. */
 function registerSecrets(wire: Wire, exchange: Exchange, addresses: readonly string[]): void {
-	const source = { body: exchange.responseBody, cookies: {}, headers: exchange.responseHeaders, readJson: readPath }
+	const headers = exchange.responseHeaders
+	const source = {
+		body: answerBody({ body: exchange.responseBody, headers }),
+		cookies: {},
+		headers,
+		readJson: readPath,
+	}
 	for (const address of addresses) {
 		const value = readSaveAs(address, source)
 		if (typeof value === "string") wire.redactor.registerSecret(value)

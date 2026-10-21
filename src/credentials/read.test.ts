@@ -35,4 +35,20 @@ describe("readAnswer", () => {
 			readAnswer(answer, "$.missing"),
 		]).toEqual(["7", undefined, undefined, undefined])
 	})
+
+	it("reads a form answer's top-level fields by the same address forms, and nothing deeper", () => {
+		const headers = { "content-type": "application/x-www-form-urlencoded; charset=utf-8" }
+		const form = { ...answer, body: "access_token=a1&expires_in=3600", headers }
+		expect([
+			readAnswer(form, "$.access_token"),
+			readAnswer(form, "access_token"),
+			readAnswer(form, "/expires_in"),
+			readAnswer(form, "$.access_token.length"),
+		]).toEqual(["a1", "a1", "3600", undefined])
+	})
+
+	it("reads no form out of an answer that does not say it is one", () => {
+		const plain = { ...answer, body: "access_token=a1", headers: { "content-type": "text/plain" } }
+		expect(readAnswer(plain, "access_token")).toBeUndefined()
+	})
 })

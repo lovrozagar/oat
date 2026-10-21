@@ -105,6 +105,22 @@ describe("acquireOAuth2: renewal", () => {
 	})
 })
 
+describe("acquireOAuth2: a form answer", () => {
+	it("reads the access token, its lifetime and the refresh token it renews by from a form answer", async () => {
+		const headers = { "content-type": "application/x-www-form-urlencoded; charset=utf-8" }
+		const form = { ...answerOf("access_token=a-form&refresh_token=r-form&expires_in=3600"), headers }
+		const { ports, recorded } = fakePorts({ post: () => Promise.resolve(form) })
+		const issued = await acquireOAuth2(
+			ctxOf(ports, { scheme: OAUTH }),
+			{ clientId: "c", flow: "clientCredentials" },
+			{},
+		)
+		expect([issued.value, issued.expiresAt]).toEqual(["a-form", NOW + 3_600_000])
+		await issued.refresh?.()
+		expect(recorded.posts[1]?.form).toEqual({ client_id: "c", grant_type: "refresh_token", refresh_token: "r-form" })
+	})
+})
+
 describe("acquireOAuth2: failures", () => {
 	it("fails with the reason on a refused grant or an answer with no access_token", async () => {
 		const answers = [answerOf({ error: "invalid_client" }, 401), answerOf({ token_type: "bearer" })]
@@ -113,7 +129,7 @@ describe("acquireOAuth2: failures", () => {
 		const recipe = { clientId: "c", flow: "clientCredentials" as const }
 		expect((await rejection(acquireOAuth2(ctx, recipe, {}))).message).toBe("oauth2 token request answered 401")
 		expect((await rejection(acquireOAuth2(ctx, recipe, {}))).message).toBe(
-			"oauth2 token request answered no credential at $.access_token",
+			"oauth2 token request answered no credential at $.access_token (its answer names no content type)",
 		)
 	})
 

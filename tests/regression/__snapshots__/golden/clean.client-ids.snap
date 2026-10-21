@@ -89,6 +89,7 @@
       "query.sort-and-select-compose",
       "query.unknown-parameter-consistent",
       "read.matches-caller-root",
+      "request.invalid-body-refused",
       "response.contract-call",
       "response.no-server-error",
       "response.public-get-returns-success",
@@ -2522,6 +2523,161 @@
         "needs": "x-entity.identity: root and a read"
       },
       {
+        "check": "request.invalid-body-refused",
+        "entity": "apiKey.create",
+        "needs": "an operation no credential recipe names; apiKey.create is a step of one"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "apiKey.get",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "apiKey.revoke",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "auth.login",
+        "needs": "an open POST the document marks x-fresh-principal; any other could be a sign-in, where a malformed body can count toward a lockout"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "auth.logout",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "auth.refresh",
+        "needs": "an operation no credential recipe names; auth.refresh is a step of one"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "auth.revoke",
+        "needs": "an action outside a run-created record could apply a side effect the run cannot undo"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "auth.token",
+        "needs": "an operation no credential recipe names; auth.token is a step of one"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "gateway.health",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "invite.accept",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "job.create",
+        "needs": "a write other than its entity's create; job.create is job's create"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "job.delete",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "job.get",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "job.inbox",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "job.list",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "job.notify",
+        "needs": "an action outside a run-created record could apply a side effect the run cannot undo"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "job.start",
+        "needs": "an action outside a run-created record could apply a side effect the run cannot undo"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "notice.get",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "notice.list",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "profile.get",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "profile.update",
+        "needs": "an action outside a run-created record could apply a side effect the run cannot undo"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "project.overview",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "row.create",
+        "needs": "a write other than its entity's create; row.create is row's create"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "row.delete",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "row.get",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "row.list",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "table.create",
+        "needs": "a write other than its entity's create; table.create is table's create"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "table.delete",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "table.get",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "table.list",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "table.revoke",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
         "check": "response.contract-call",
         "entity": "job",
         "needs": "an operation nothing else graded, with every path parameter resolvable"
@@ -2956,6 +3112,7 @@
               "concurrency.no-lost-update",
               "patch.immutable-field-rejected",
               "patch.minimality",
+              "request.invalid-body-refused",
               "response.status-is-documented",
               "tenant.item-not-writable-cross-tenant",
               "update.unique-conflict-rejected"
@@ -2988,6 +3145,7 @@
               "concurrency.no-lost-update",
               "patch.immutable-field-rejected",
               "patch.minimality",
+              "request.invalid-body-refused",
               "response.status-is-documented",
               "tenant.item-not-writable-cross-tenant"
             ],
@@ -3259,6 +3417,7 @@
             "inconclusive": [],
             "passed": [
               "auth.anonymous-operation-open",
+              "request.invalid-body-refused",
               "response.contract-call"
             ],
             "suppressed": []
@@ -3326,6 +3485,7 @@
               "auth.missing-credential-refused",
               "auth.role-enforced",
               "auth.wrong-scheme-refused",
+              "request.invalid-body-refused",
               "response.status-is-documented"
             ],
             "suppressed": []
@@ -3355,6 +3515,7 @@
               "patch.immutable-field-rejected",
               "patch.minimality",
               "payload.string-survives",
+              "request.invalid-body-refused",
               "response.status-is-documented",
               "tenant.item-not-writable-cross-tenant"
             ],
@@ -4714,6 +4875,9 @@
         "check": "query.unknown-parameter-consistent"
       },
       {
+        "check": "request.invalid-body-refused"
+      },
+      {
         "check": "response.status-is-documented"
       },
       {
@@ -4878,7 +5042,8 @@
         "auth.revoked-credential-refused",
         "auth.role-enforced",
         "auth.scope-enforced",
-        "auth.wrong-scheme-refused"
+        "auth.wrong-scheme-refused",
+        "request.invalid-body-refused"
       ],
       "partial": [
         {

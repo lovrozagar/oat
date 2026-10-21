@@ -1,6 +1,7 @@
 import type { ExpiresIn, OAuth2Recipe, Recipe } from "../../config/types/security.ts"
 import { expiresAtOf } from "../expiry.ts"
 import { fillPrincipal } from "../interpolate.ts"
+import { answerBody } from "../../runtime/cookies/save-as.ts"
 import type { Hop } from "../ports.ts"
 import { readAnswer } from "../read.ts"
 import { answered, valueAt } from "./answer.ts"
@@ -50,7 +51,7 @@ async function token(ctx: AcquireCtx, grant: Grant, form: Record<string, string>
 	const answer = await ctx.ports.tokens.post(grant.tokenUrl, form, hop)
 	answered(answer, "oauth2 token request")
 	const value = valueAt(answer, "$.access_token", "oauth2 token request")
-	const expiresAt = expiresAtOf({ body: answer.body, expiresIn: grant.expiresIn, now: ctx.now(), value })
+	const expiresAt = expiresAtOf({ body: answerBody(answer), expiresIn: grant.expiresIn, now: ctx.now(), value })
 	const issued: Issued = { expiresAt, scopes: grant.scopes, value }
 	const refreshToken = readAnswer(answer, "$.refresh_token") ?? grant.refreshToken
 	if (refreshToken !== undefined) {

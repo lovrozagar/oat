@@ -69,12 +69,20 @@ describe("acquireMint: revoke and failures", () => {
 		expect([issued.value, recorded.calls[1]?.scope]).toEqual(["k2", { credential: "k2" }])
 	})
 
+	it("reads the minted key and its lifetime from a form answer, by its media type", async () => {
+		const headers = { "content-type": "application/x-www-form-urlencoded; charset=utf-8" }
+		const answer = { ...answerOf("key=k-form&ttl=60", 201), headers }
+		const { ports } = fakePorts({ call: () => Promise.resolve(answer) })
+		const issued = await acquireMint(ctxOf(ports), { ...mint, from: "key" }, { expiresIn: { from: "ttl" } })
+		expect([issued.value, issued.expiresAt]).toEqual(["k-form", NOW + 60_000])
+	})
+
 	it("fails with the reason on a refused mint or one that answers no credential", async () => {
 		const answers = [answerOf({ error: "nope" }, 403), answerOf({})]
 		const { ports } = fakePorts({ call: () => Promise.resolve(answers.shift() ?? answerOf({})) })
 		expect((await rejection(acquireMint(ctxOf(ports), mint, {}))).message).toBe("mint apiKey.create answered 403")
 		expect((await rejection(acquireMint(ctxOf(ports), mint, {}))).message).toBe(
-			"mint apiKey.create answered no credential at $.key",
+			"mint apiKey.create answered no credential at $.key (its answer names no content type)",
 		)
 	})
 

@@ -116,6 +116,10 @@ export interface OperationContext<C extends ReadClient = ReadClient> {
 	placement: ProbePlacement
 	/** The run's nonce: what keeps a probe's made-up values, an address that cannot exist, the run's own. */
 	nonce: string
+	/** The run's seed: what a body a probe generates is drawn under, so a run reproduces. */
+	seed: number
+	/** Every operation a credential recipe names: its login, token, refresh, revoke and mint steps. */
+	recipeOperations: ReadonlySet<string>
 	/**
 	 * For an `item-read` or `write` probe: a record this run created, read back, to send to. Absent
 	 * when the run created none of the operation's entity, or the operation names no single record;

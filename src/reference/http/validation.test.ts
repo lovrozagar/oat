@@ -64,6 +64,12 @@ describe("validateBody", () => {
 		expect(validateBody({}, { ...CREATE, mode: "update" })).toEqual({})
 		expect(validateBody({}, { ...CREATE, defects: defects("REQUIRED_NOT_VALIDATED") })).toEqual({})
 	})
+
+	it("leniently, requires nothing and drops each value its field refuses, applying the rest", () => {
+		const lenient: BodyRules = { ...CREATE, lenient: true, mode: "replace" }
+		expect(validateBody({ description: "d", name: 7, position: "high" }, lenient)).toEqual({ description: "d" })
+		expect(() => validateBody({ nope: 1 }, lenient)).toThrow('unknown field "nope"')
+	})
 })
 
 describe("coerceField", () => {

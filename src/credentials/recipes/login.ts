@@ -5,6 +5,7 @@ import { fillCredential, fillPrincipal } from "../interpolate.ts"
 import { jwtClaims } from "../jwt.ts"
 import { unfilledIn } from "../placeholders.ts"
 import { readPath } from "../../client/read-path.ts"
+import { answerBody, describeAnswerType } from "../../runtime/cookies/save-as.ts"
 import { readAnswer } from "../read.ts"
 import type { Hop, StepAnswer } from "../ports.ts"
 import { answered } from "./answer.ts"
@@ -79,9 +80,10 @@ function issue(ctx: AcquireCtx, issuing: Issuing, from: string): Issued {
 	const { login, options, ran } = issuing
 	const value = readAnswer(ran.answer, from) ?? ran.scope[from]
 	if (value === undefined || value === "") {
-		throw new Error(`login for "${ctx.principal.id}" answered no credential at ${from}`)
+		const type = describeAnswerType(ran.answer.headers)
+		throw new Error(`login for "${ctx.principal.id}" answered no credential at ${from} (${type})`)
 	}
-	const expiresAt = expiresAtOf({ body: ran.answer.body, expiresIn: options.expiresIn, now: ctx.now(), value })
+	const expiresAt = expiresAtOf({ body: answerBody(ran.answer), expiresIn: options.expiresIn, now: ctx.now(), value })
 	const issued: Issued = { expiresAt, value }
 	if (login.claims !== undefined) issued.identity = claimsOf(ctx, login.claims, value)
 	const { revoke } = login

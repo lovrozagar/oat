@@ -70,6 +70,10 @@ export interface OperationStage {
 	checks?: OperationWriteContext["options"]["checks"]
 	/** Where the probe runs; by default, where the stage places an operation by its method and path. */
 	placement?: OperationWriteContext["placement"]
+	/** The operations the run's credential recipes name; none by default. */
+	recipeOperations?: readonly string[]
+	/** The run's seed; 42 by default. */
+	seed?: number
 }
 
 /** A full operation context for `operationId` of `model`, with the fake client, the probe and fresh findings. */
@@ -98,7 +102,9 @@ export function operationContextFor(
 		options: { checks: stage.checks ?? {} },
 		principals,
 		probe: probeOf(stage.probe ?? {}, calls),
+		recipeOperations: new Set(stage.recipeOperations ?? []),
 		security: operation.security,
+		seed: stage.seed ?? 42,
 		subject: operationId,
 		...(stage.peer === undefined ? {} : { peer: stage.peer }),
 		...(stage.target === undefined ? {} : { target: stage.target }),

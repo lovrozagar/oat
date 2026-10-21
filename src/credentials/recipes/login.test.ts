@@ -66,7 +66,7 @@ describe("acquireLogin", () => {
 	it("fails with the reason when neither the answer nor the scope has a credential", async () => {
 		const { ports } = fakePorts({ run: () => Promise.resolve({ answer: answerOf({}), scope: {} }) })
 		expect((await rejection(acquireLogin(ctxOf(ports), login, {}))).message).toBe(
-			'login for "ann" answered no credential at $.token',
+			'login for "ann" answered no credential at $.token (its answer names no content type)',
 		)
 	})
 })
@@ -98,6 +98,14 @@ describe("acquireLogin: claims, lifetime and refresh", () => {
 			run: () => Promise.resolve({ answer: answerOf({ expires: 60, token: "t" }), scope: {} }),
 		})
 		expect((await acquireLogin(ctxOf(ports), login, { expiresIn: { from: "$.expires" } })).expiresAt).toBe(NOW + 60_000)
+	})
+
+	it("reads the credential and its lifetime from a form answer, by its media type", async () => {
+		const headers = { "content-type": "application/x-www-form-urlencoded; charset=utf-8" }
+		const answer = { ...answerOf("token=t-form&expires=60"), headers }
+		const { ports } = fakePorts({ run: () => Promise.resolve({ answer, scope: {} }) })
+		const issued = await acquireLogin(ctxOf(ports), { from: "token", steps }, { expiresIn: { from: "expires" } })
+		expect([issued.value, issued.expiresAt]).toEqual(["t-form", NOW + 60_000])
 	})
 })
 

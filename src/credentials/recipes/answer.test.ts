@@ -13,7 +13,11 @@ describe("answered", () => {
 describe("valueAt", () => {
 	it("is the credential at the address, or a reason naming the address", () => {
 		expect(valueAt(answerOf({ key: "k" }), "$.key", "mint")).toBe("k")
-		expect(() => valueAt(answerOf({}), "$.key", "mint")).toThrow("mint answered no credential at $.key")
+		expect(() => valueAt(answerOf({}), "$.key", "mint")).toThrow(
+			"mint answered no credential at $.key (its answer names no content type)",
+		)
+		const plain = { ...answerOf("key=k"), headers: { "content-type": "text/plain" } }
+		expect(() => valueAt(plain, "key", "mint")).toThrow("mint answered no credential at key (its answer is text/plain)")
 	})
 })
 

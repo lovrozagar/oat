@@ -64,7 +64,7 @@ export default defineConfig({
 	baseUrl: "http://127.0.0.1:8787",
 	seed: 42,
 	security: {
-		bearer: {
+		jwt: {
 			login: { steps: [{ operationId: "auth.token", body: { key: "{principal.key}" } }], from: "$.access_token" },
 		},
 	},
@@ -327,6 +327,8 @@ Later steps interpolate `{name}` from the flow scope, `saveAs` addresses include
 - `$.foo.bar` / `$.orgs.0.id` — JSON body (dot + numeric index only; no JSON Pointer, no filters)
 - `cookie:<name>` — that cookie on `Set-Cookie` for this hop, including followed hops
 - `header:<name>` — a non-set-cookie response header, case-insensitive
+
+A login or refresh `from` and its steps' `saveAs`, an `oauth2` grant's tokens, and `expiresIn: { from }` read an answer whose media type is `application/x-www-form-urlencoded` (parameters such as `; charset=utf-8` ignored) as a form: `access_token` or `$.access_token` names a field. Form answers support top-level keys only. Any other answer is read as JSON, never sniffed, and a value it does not hold fails with a reason that names its type. Every value read from a form is a secret before the answer is recorded, as from JSON.
 
 Missing cookie / header / JSON path fails the step closed. Bind `saveAs.refreshToken` from `$.refresh_token` or `cookie:refresh` so `{refreshToken}` interpolates in `refresh`. A `{name}` in a login or refresh step that nothing fills (an earlier `saveAs`, `bind`, `saveClaimsFrom` or out-of-band `as`; for a refresh, also what the login saved and `{credential}`) is a config error naming it; where only the run knows the value, a signup's answer say, the step is refused before it is sent and the principal is BLOCKED for that scheme. `saveClaimsFrom.token` is a JSON path into the response body (`$.access_token`) or a scope key already bound by `saveAs` (`credential`). Signature is not verified — oat is reading its own credential.
 

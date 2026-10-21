@@ -1027,6 +1027,13 @@
     "needs": "a login recipe whose login step the document declares, with a request body schema"
   },
   {
+    "id": "request.invalid-body-refused",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a write other than a create that takes a JSON request body"
+  },
+  {
     "id": "tenant.item-not-readable-cross-tenant",
     "dependsOn": [],
     "mutates": false,

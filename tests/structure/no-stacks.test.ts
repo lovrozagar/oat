@@ -75,8 +75,8 @@ function tokenAnswer(text: string): boolean {
 /*
  * The token endpoint's answer, carrying an access and a refresh token, and every such token read
  * off the wire before oat sees it. `form` re-encodes the pair as
- * `application/x-www-form-urlencoded`, as some token endpoints answer: oat cannot read a credential
- * from it, yet the answer is journaled all the same.
+ * `application/x-www-form-urlencoded`, as some token endpoints answer: oat reads it by its media
+ * type, and journals the answer all the same.
  */
 function tokenWire(server: Hosted, form: boolean): { fetch: typeof fetch; issued: Set<string> } {
 	const issued = new Set<string>()
@@ -150,17 +150,21 @@ describe("a run's output directory", () => {
 	})
 
 	it(
-		"holds neither token of a sign-in answered as a form, though oat could not read it",
+		"signs in from a token answered as a form, and holds neither token in any file it wrote",
 		{ timeout: 60_000 },
 		async () => {
 			const server = await launch({ backend: "memory", dialect: "postgrest", via: inProcess }, {})
 			const wire = tokenWire(server, true)
 			try {
-				const { files } = await runThrough(server, wire)
+				const { files, result } = await runThrough(server, wire)
+				/* Both principals signed in from the form, so neither is BLOCKED. */
+				const values = (result.credentials ?? []).map((credential) => credential.value)
+				expect(values.length).toBeGreaterThanOrEqual(2)
+				expect(values.every((value) => wire.issued.has(value))).toBe(true)
 				const journal = files.find((file) => file.path.endsWith("exchanges.jsonl"))?.text ?? ""
 				expect(journal).toContain('"operationId":"auth.token"')
-				expect(wire.issued.size).toBeGreaterThanOrEqual(2)
-				expect(holding(files, [...wire.issued])).toEqual([])
+				expect(wire.issued.size).toBeGreaterThanOrEqual(4)
+				expect(holding(files, [...values, ...wire.issued])).toEqual([])
 			} finally {
 				await server.close()
 			}

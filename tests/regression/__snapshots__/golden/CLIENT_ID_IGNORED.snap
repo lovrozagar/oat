@@ -383,6 +383,21 @@
           "needs": "a listing and at least one record"
         },
         {
+          "check": "request.invalid-body-refused",
+          "entity": "row.update",
+          "needs": "a record this run created that row.update can be sent to"
+        },
+        {
+          "check": "request.invalid-body-refused",
+          "entity": "table.invite",
+          "needs": "a record this run created that table.invite can be sent to"
+        },
+        {
+          "check": "request.invalid-body-refused",
+          "entity": "table.update",
+          "needs": "a record this run created that table.update can be sent to"
+        },
+        {
           "check": "search.case-insensitive",
           "entity": "table",
           "needs": "a searchable string with a letter"
@@ -1029,6 +1044,7 @@
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
+                "request.invalid-body-refused",
                 "response.status-is-documented",
                 "tenant.item-not-writable-cross-tenant",
                 "update.unique-conflict-rejected"
@@ -1061,6 +1077,7 @@
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
+                "request.invalid-body-refused",
                 "response.status-is-documented",
                 "tenant.item-not-writable-cross-tenant"
               ],
@@ -1182,6 +1199,7 @@
                 "auth.missing-credential-refused",
                 "auth.role-enforced",
                 "auth.wrong-scheme-refused",
+                "request.invalid-body-refused",
                 "response.status-is-documented"
               ],
               "suppressed": []

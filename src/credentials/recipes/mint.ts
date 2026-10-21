@@ -1,6 +1,7 @@
 import type { MintRecipe, Recipe } from "../../config/types/security.ts"
 import { expiresAtOf } from "../expiry.ts"
 import { fillPrincipal } from "../interpolate.ts"
+import { answerBody } from "../../runtime/cookies/save-as.ts"
 import type { StepAnswer } from "../ports.ts"
 import { answered, valueAt } from "./answer.ts"
 import type { AcquireCtx, Issued } from "./types.ts"
@@ -21,7 +22,7 @@ export async function acquireMint(ctx: AcquireCtx, mint: MintRecipe, options: Pa
 	answered(answer, `mint ${mint.operationId}`)
 	const value = valueAt(answer, mint.from, `mint ${mint.operationId}`)
 	const issued: Issued = {
-		expiresAt: expiresAtOf({ body: answer.body, expiresIn: options.expiresIn, now: ctx.now(), value }),
+		expiresAt: expiresAtOf({ body: answerBody(answer), expiresIn: options.expiresIn, now: ctx.now(), value }),
 		scopes: ctx.scopes,
 		value,
 	}

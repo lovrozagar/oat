@@ -84,6 +84,11 @@ export const RECORD_DEFECTS = {
 	REQUIRED_NOT_VALIDATED: "create succeeds with a required field missing",
 	/** A non-JSON content type is accepted on a JSON endpoint. */
 	CONTENT_TYPE_NOT_ENFORCED: "request body is parsed regardless of content type",
+	/**
+	 * A table's or a row's update skips validation: it applies what parses and drops the rest, so an
+	 * invalid body answers 200. Creates and every other entity's update still validate.
+	 */
+	WRITE_BODY_NOT_VALIDATED: "an update applies what parses of an invalid body instead of refusing it",
 	/** Error bodies do not match the documented error schema. */
 	ERROR_SCHEMA_DRIFT: "error response does not match its documented schema",
 	/** Success bodies carry fields the schema does not declare. */

@@ -236,6 +236,26 @@
           "check": "auth.wrong-scheme-refused",
           "entity": "table.invite",
           "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "request.invalid-body-refused",
+          "entity": "job.update",
+          "needs": "job.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "request.invalid-body-refused",
+          "entity": "row.update",
+          "needs": "row.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "request.invalid-body-refused",
+          "entity": "table.invite",
+          "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "request.invalid-body-refused",
+          "entity": "table.update",
+          "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
         }
       ]
     },
@@ -655,6 +675,7 @@
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
+                "request.invalid-body-refused",
                 "response.status-is-documented",
                 "tenant.item-not-writable-cross-tenant",
                 "update.unique-conflict-rejected"
@@ -687,6 +708,7 @@
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
+                "request.invalid-body-refused",
                 "response.status-is-documented",
                 "tenant.item-not-writable-cross-tenant"
               ],
@@ -786,6 +808,7 @@
                 "auth.missing-credential-refused",
                 "auth.role-enforced",
                 "auth.wrong-scheme-refused",
+                "request.invalid-body-refused",
                 "response.status-is-documented"
               ],
               "suppressed": []
@@ -815,6 +838,7 @@
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
+                "request.invalid-body-refused",
                 "response.status-is-documented",
                 "tenant.item-not-writable-cross-tenant"
               ],

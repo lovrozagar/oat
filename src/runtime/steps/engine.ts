@@ -6,7 +6,7 @@
  */
 
 import type { AuthStep, OutOfBandStep } from "../../config/types/steps.ts"
-import { readSaveAs } from "../cookies/save-as.ts"
+import { answerBody, describeAnswerType, readSaveAs } from "../cookies/save-as.ts"
 import { cookiesFromRecordedHeaders } from "../cookies/set-cookie.ts"
 import type { Exchange } from "../exchange.ts"
 import { readPath } from "../../client/read-path.ts"
@@ -139,14 +139,14 @@ export function answerOf(exchange: Exchange): StepAnswer {
 	}
 }
 
-/** Binds a step's `saveAs` paths, then its `saveClaimsFrom` claims, from the answer. */
+/** Binds a step's `saveAs` paths, then its `saveClaimsFrom` claims, from the answer: a form answer's by its fields. */
 function saveAnswer(ctx: StepContext, step: AuthStep, at: { answer: StepAnswer; turn: Turn }): void {
 	const { answer, turn } = at
 	const saveAs = "saveAs" in step ? step.saveAs : undefined
 	for (const [name, template] of Object.entries(saveAs ?? {})) {
 		const path = String(interpolate(template, turn.scope))
 		const value = readSaveAs(path, {
-			body: answer.body,
+			body: answerBody(answer),
 			cookies: answer.cookies,
 			headers: answer.headers,
 			readJson: readPath,
@@ -154,7 +154,7 @@ function saveAnswer(ctx: StepContext, step: AuthStep, at: { answer: StepAnswer; 
 		if (value === undefined || value === null) {
 			throw new Error(
 				`oat: auth step ${turn.index + 1} for "${ctx.principalId}" declares saveAs.${name} = ` +
-					`"${path}", which is not present in the response`,
+					`"${path}", which is not present in the response (${describeAnswerType(answer.headers)})`,
 			)
 		}
 		turn.scope[name] = String(value)

@@ -4,7 +4,7 @@
 
 ## Checks
 
-122 checks: 110 judge an entity, and the [12 security checks](#security-checks) judge an operation. A check that cannot run says so (`did not apply` + `needs`). A check that depends on a broken primitive is `BLOCKED`. A check that ran and stopped is inconclusive, not a pass.
+123 checks: 110 judge an entity, and 13 judge an operation: the [12 security checks](#security-checks) and [`request.invalid-body-refused`](#validation-of-other-writes). A check that cannot run says so (`did not apply` + `needs`). A check that depends on a broken primitive is `BLOCKED`. A check that ran and stopped is inconclusive, not a pass.
 
 Order is fixed (foundations first) so cascade suppression has a cause to point at. Mutating checks run alone; read-only checks may share in-flight requests under `maxInFlight`.
 
@@ -148,8 +148,22 @@ What each needs, and where each route is judged:
 - **Roles.** `auth.role-enforced` needs a principal marked [`readOnly: true`](configuration.md). Rank alone never makes a principal read-only. It differs from `auth.rank-is-monotonic-on-writes`: where every rank may write, the ranks are still monotonic, and only this check fires.
 - **Login throttling.** `auth.login-throttled` runs only with the opt-in `checks: { "auth.login-throttled": true }`. It sends failed logins for an identity that does not exist, never a configured principal's, and stops at the first 429 or after 8 attempts. A throttle that counts by address can slow every login from the machine running oat for a while, which is why it is off by default.
 - **Targets.** A probe of one record fills each path parameter only from a record the run created of that parameter's own entity: `{token}` in `/invites/{token}/accept` takes an invite the run created, never the table the operation is filed under. With none, the operation is untested with the reason. Each probe kind sends to one target per operation.
-- **Open writes.** A 2xx to `auth.anonymous-operation-open`'s unreadable body is noted as a validation defect, and taken as applied: what it made is ledgered and removed when its answer names a new id that reads back, and otherwise reported as a record that may remain.
+- **Open writes.** A 2xx to `auth.anonymous-operation-open`'s unreadable body passes: the route is open, as declared. Whether it validates what it accepts is [`request.invalid-body-refused`](#validation-of-other-writes)'s to judge. The write is taken as applied: what it made is ledgered and removed when its answer names a new id that reads back, and otherwise reported as a record that may remain.
 - **Privileged fields.** `auth.privileged-field-ignored` needs a request body property marked [`x-privileged: true`](tags.md#x-privileged). With no marker anywhere, it is untested with "no property is marked x-privileged". A document that lacks the marker takes it by [overlay](configuration.md): `overlay: { schemas: { Table: { properties: { verified: { "x-privileged": true } } } } }`.
+
+### Validation of other writes
+
+The `validation.*-enforced` checks grade creates. `request.invalid-body-refused` grades every other write that takes a JSON request body. Like the security checks, it judges an operation and runs in their stage, after them, alone and in order; its findings name the operation.
+
+| id                             | asserts                                                                                                                                                                                     | needs                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `request.invalid-body-refused` | one invalid body is refused with a 4xx: the first required property left out, else the first typed property, in document order, sent a value of another type. A 2xx or a 5xx is BACKEND_BUG | a write other than a create that takes a JSON request body |
+
+- **Targets.** A write to one record goes only to a record the run created, as its creator, with the record's current state as the rest of the body. With none, the operation is untested with the reason.
+- **Collections.** A write outside a record is not sent: "an action outside a run-created record could apply a side effect the run cannot undo". The one exception is a POST open to all (`security: []`) that the document declares a signup with [`x-fresh-principal`](tags.md), sent anonymously with the rest of its body drawn under the run's seed. Its 2xx is taken as applied: what it made is ledgered and removed when its answer names a new id that reads back, and otherwise reported as a record that may remain. Any other open POST could be a sign-in, where even a malformed body can count toward a lockout, so it is never sent.
+- **Open sign-ins.** `auth.anonymous-operation-open` still sends its one unreadable body to every open POST, `auth.login` included: proving the route open is its purpose (`PUBLIC_ROUTE_GUARDED` lives on `auth.login`), and a malformed body answered 400 is the least lockout-prone request there is. This check adds nothing there, so the two never send twice.
+- **Credential steps.** An operation a credential recipe names (a login, token, refresh, revoke or mint step, by `operationId` or by method and path) is never sent.
+- **Addresses.** An action on a record (a POST that is not its entity's update, an invite say) carries no deliverable address: every email-format value is `oat-nonexistent-<nonce>@example.invalid`, and every URL-format value has an `.invalid` host.
 
 On a typical untagged CRUD document (create, list, item, `page`/`limit`, maybe `sort`):
 

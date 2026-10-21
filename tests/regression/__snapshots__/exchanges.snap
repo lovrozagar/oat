@@ -237,6 +237,7 @@
   ],
   "table.invite": [
     "POST /v1/projects/proj_alpha/tables/table_ID/invites [Authorization,content-type] → 201",
+    "POST /v1/projects/proj_alpha/tables/table_ID/invites [Authorization,content-type] → 400",
     "POST /v1/projects/proj_alpha/tables/table_ID/invites [Authorization,content-type] → 401",
     "POST /v1/projects/proj_alpha/tables/table_ID/invites [Authorization,content-type] → 403",
     "POST /v1/projects/proj_alpha/tables/table_ID/invites [content-type] → 401"

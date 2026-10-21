@@ -105,6 +105,7 @@ import { declaredRateLimitHonoured } from "./families/spec-declarations/spec-dec
 import { declaredSelectableWorks } from "./families/spec-declarations/spec-declared-selectable-is-selectable.ts"
 import { declaredSortableWorks } from "./families/spec-declarations/spec-declared-sortable-is-sortable.ts"
 import { declaredSortableNullsAccepted } from "./families/spec-declarations/spec-declared-sortable-nulls-accepted.ts"
+import { invalidBodyRefused } from "./families/validation/request-invalid-body-refused.ts"
 import { contentTypeEnforced } from "./families/validation/validation-content-type-enforced.ts"
 import { enumValidated } from "./families/validation/validation-enum-enforced.ts"
 import { maxLengthValidated } from "./families/validation/validation-max-length-enforced.ts"
@@ -241,6 +242,9 @@ export const CHECKS: readonly RegisteredCheck[] = [
 	crossTenantKeyRefused,
 	privilegedFieldIgnored,
 	loginThrottled,
+	/* input validation of every other write, planned per operation by the same stage, after the
+	 * security probes so none of theirs moves */
+	invalidBodyRefused,
 
 	/* isolation */
 	crossTenantItemRead,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { headerValue } from "../headers.ts"
-import { describeSaveAs, readSaveAs, type SaveAsSource } from "./save-as.ts"
+import { answerBody, describeAnswerType, describeSaveAs, readSaveAs, type SaveAsSource } from "./save-as.ts"
 
 function jsonPath(body: unknown, path: string): unknown {
 	let node: unknown = body
@@ -54,5 +54,38 @@ describe("readSaveAs", () => {
 
 	it("reads anything else as a JSON path of the body", () => {
 		expect(readSaveAs("$.access_token", source)).toBe("from-json")
+	})
+})
+
+const FORM = "access_token=a%2Fb&refresh_token=r+1&expires_in=3600"
+
+/* The form text above, answered under `type`. */
+const typed = (type: string) => answerBody({ body: FORM, headers: { "Content-Type": type } })
+
+describe("answerBody", () => {
+	it("reads a form answer's fields by name, whatever parameters its media type carries", () => {
+		const fields = { access_token: "a/b", expires_in: "3600", refresh_token: "r 1" }
+		expect(typed("application/x-www-form-urlencoded")).toEqual(fields)
+		expect(typed("Application/X-WWW-Form-Urlencoded; charset=utf-8")).toEqual(fields)
+	})
+
+	it("reads a form answer with no text, an empty or a JSON-looking one, as no fields", () => {
+		const form = { "content-type": "application/x-www-form-urlencoded" }
+		expect(answerBody({ body: null, headers: form })).toEqual({})
+		expect(answerBody({ body: 3600, headers: form })).toEqual({})
+	})
+
+	it("keeps any other answer's body as it was parsed: JSON by default, and no sniffing", () => {
+		expect(answerBody({ body: { a: 1 }, headers: { "content-type": "application/json" } })).toEqual({ a: 1 })
+		expect(answerBody({ body: FORM, headers: { "content-type": "text/plain" } })).toBe(FORM)
+		expect(answerBody({ body: FORM, headers: {} })).toBe(FORM)
+	})
+})
+
+describe("describeAnswerType", () => {
+	it("names an answer's media type without its parameters, or says it names none", () => {
+		expect(describeAnswerType({ "Content-Type": "text/plain; charset=utf-8" })).toBe("its answer is text/plain")
+		expect(describeAnswerType({})).toBe("its answer names no content type")
+		expect(describeAnswerType({ "content-type": " " })).toBe("its answer names no content type")
 	})
 })

@@ -30,6 +30,7 @@
                 "auth.missing-credential-refused",
                 "auth.role-enforced",
                 "auth.wrong-scheme-refused",
+                "request.invalid-body-refused",
                 "response.status-is-documented"
               ],
               "suppressed": []
@@ -89,6 +90,7 @@
                 "auth.missing-credential-refused",
                 "auth.role-enforced",
                 "auth.wrong-scheme-refused",
+                "request.invalid-body-refused",
                 "response.status-is-documented"
               ],
               "suppressed": []

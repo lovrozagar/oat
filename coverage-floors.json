@@ -1025,6 +1025,24 @@
 		"functions": 100,
 		"lines": 100
 	},
+	"src/runtime/checks/families/validation/invalid-body.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/validation/request-invalid-body-refused.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/validation/undeliverable.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
 	"src/runtime/checks/families/validation/validation-content-type-enforced.ts": {
 		"statements": 100,
 		"branches": 100,

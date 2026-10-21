@@ -21,9 +21,9 @@ export default defineConfig({
 		 * possible. Without one they are skipped rather than silently passed. */
 		beta: { key: "key_beta", scope: { project_id: "proj_beta" }, tenant: "proj_beta" },
 	},
-	/* The demo API's bearer scheme: each principal trades its key at auth.token for the token. */
+	/* The demo API's jwt scheme: each principal trades its key at auth.token for the token. */
 	security: {
-		bearer: {
+		jwt: {
 			login: { from: "$.access_token", steps: [{ body: { key: "{principal.key}" }, operationId: "auth.token" }] },
 		},
 	},

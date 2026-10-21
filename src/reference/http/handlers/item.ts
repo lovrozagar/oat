@@ -1,5 +1,6 @@
 /** One record: read, updated in place or replaced, and deleted outright or softly. */
 
+import { ROW } from "../../model/row.ts"
 import type { Row } from "../../store-api.ts"
 import { assertWrite, findItem } from "../access.ts"
 import { readJson, requireJson } from "../body.ts"
@@ -34,7 +35,9 @@ export async function update(
 	requireJson(request, defects)
 	const existing = await findItem(state, call, "write")
 	const replace = request.method === "PUT"
-	const patch = validateBody(await readJson(request), { defects, entity, mode: replace ? "replace" : "update" })
+	const lenient = defects.has("WRITE_BODY_NOT_VALIDATED") && [state.table.name, ROW.name].includes(entity.name)
+	const mode = replace ? "replace" : "update"
+	const patch = validateBody(await readJson(request), { defects, entity, lenient, mode })
 	assertPrivileged(state, call, patch)
 	const changes = keepPrivileged(state, call, changesOf(state, call, { patch, replace }))
 	await assertUnique(state, { entity, record: { ...existing, ...changes } }, String(itemId))

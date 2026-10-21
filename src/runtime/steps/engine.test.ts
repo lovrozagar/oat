@@ -147,7 +147,21 @@ describe("runSteps: failures", () => {
 		await expect(
 			runSteps(ctx, [{ operationId: "ping", saveAs: { b: "$.{field}" } }], { scope: { field: "a" } }),
 		).rejects.toThrow('oat: auth step 1 for "alice" declares saveAs.b = "$.a", which is not present in the response')
-		await expect(runSteps(ctx, [{ operationId: "ping", saveAs: { b: "$.z" } }])).rejects.toThrow("saveAs.b")
+		await expect(runSteps(ctx, [{ operationId: "ping", saveAs: { b: "$.z" } }])).rejects.toThrow(
+			'saveAs.b = "$.z", which is not present in the response (its answer names no content type)',
+		)
+	})
+
+	it("reads a form answer's saveAs by its media type, and names any other type it cannot read", async () => {
+		const text = "refresh_token=r-form&expires_in=3600"
+		const typed = (type: string): Answer => ({ body: text, headers: { "content-type": type }, status: 200 })
+		const form = stepStage(answers({ "GET /ping": typed("application/x-www-form-urlencoded; charset=utf-8") }))
+		const saved = await runSteps(form.ctx, [{ operationId: "ping", saveAs: { refresh: "refresh_token" } }])
+		expect(saved.scope).toEqual({ refresh: "r-form" })
+		const plain = stepStage(answers({ "GET /ping": typed("text/plain") }))
+		await expect(runSteps(plain.ctx, [{ operationId: "ping", saveAs: { refresh: "refresh_token" } }])).rejects.toThrow(
+			'saveAs.refresh = "refresh_token", which is not present in the response (its answer is text/plain)',
+		)
 	})
 
 	it("fails a claim binding without a decodable token or the claim it names", async () => {

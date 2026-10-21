@@ -3,10 +3,14 @@
 	"compilerOptions": {
 		"noEmit": true,
 		"rootDir": ".",
+		/* The labs configs import the build ("../dist/index.js"); with no build, as in CI's check, that resolves to the
+		 * source. A build that exists is still read first, whatever this order: tests/structure/labs-typecheck.test.ts
+		 * checks labs against the source with the build hidden. */
+		"rootDirs": ["src", "dist"],
 		"declaration": false,
 		"declarationMap": false,
 		"sourceMap": false
 	},
-	"include": ["src/**/*.ts", "tests/**/*.ts", "lint/**/*.ts"],
+	"include": ["src/**/*.ts", "tests/**/*.ts", "lint/**/*.ts", "labs/**/*.ts"],
 	"exclude": ["dist", "node_modules"]
 }

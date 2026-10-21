@@ -21,6 +21,7 @@ import { type Outcome, standDown } from "../finding.ts"
 import type { OperationModel } from "../../spec/graph/types.ts"
 import type { RunContext } from "./context.ts"
 import { unresolvedBy } from "./entity/run-check.ts"
+import { credentialOperations } from "./floor-credentials.ts"
 import { probeCredentials } from "./probe-credentials.ts"
 import { recordTarget, type TargetReads, targetReads } from "./security-target.ts"
 import { isDelete, settle, throwawayTarget, type Throwaways, throwaways } from "./security-throwaway.ts"
@@ -124,7 +125,9 @@ async function contextOf(ctx: RunContext, probe: Probe, stage?: Stage): Promise<
 		placement,
 		principals: actors,
 		probe: probeCredentials(ctx),
+		recipeOperations: credentialOperations(ctx),
 		security: operation.security,
+		seed: ctx.seed,
 		subject: operation.operationId,
 	}
 	const peer = actors.find((actor) => actor.tenant !== actors[0].tenant)

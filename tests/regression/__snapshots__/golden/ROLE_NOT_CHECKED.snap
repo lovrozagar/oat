@@ -48,6 +48,7 @@
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
+                "request.invalid-body-refused",
                 "response.status-is-documented",
                 "tenant.item-not-writable-cross-tenant",
                 "update.unique-conflict-rejected"
@@ -77,6 +78,7 @@
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
+                "request.invalid-body-refused",
                 "response.status-is-documented",
                 "tenant.item-not-writable-cross-tenant"
               ],
@@ -104,6 +106,7 @@
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
+                "request.invalid-body-refused",
                 "response.status-is-documented",
                 "tenant.item-not-writable-cross-tenant"
               ],
@@ -200,6 +203,7 @@
                 "auth.invite-grants-then-revokes",
                 "auth.missing-credential-refused",
                 "auth.wrong-scheme-refused",
+                "request.invalid-body-refused",
                 "response.status-is-documented"
               ],
               "suppressed": []
@@ -233,6 +237,7 @@
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
+                "request.invalid-body-refused",
                 "response.status-is-documented",
                 "tenant.item-not-writable-cross-tenant",
                 "update.unique-conflict-rejected"
@@ -265,6 +270,7 @@
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
+                "request.invalid-body-refused",
                 "response.status-is-documented",
                 "tenant.item-not-writable-cross-tenant"
               ],
@@ -291,6 +297,7 @@
                 "auth.missing-credential-refused",
                 "auth.role-enforced",
                 "auth.wrong-scheme-refused",
+                "request.invalid-body-refused",
                 "response.status-is-documented"
               ],
               "suppressed": []
@@ -320,6 +327,7 @@
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
+                "request.invalid-body-refused",
                 "response.status-is-documented",
                 "tenant.item-not-writable-cross-tenant"
               ],

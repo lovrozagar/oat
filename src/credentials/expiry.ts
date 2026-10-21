@@ -6,7 +6,7 @@ import { readPath } from "../client/read-path.ts"
 export interface ExpiryInput {
 	/** The recipe's lifetime: seconds, or where the issuing answer states them. */
 	expiresIn?: ExpiresIn | undefined
-	/** The body of the answer that issued the value. */
+	/** The body of the answer that issued the value, a form answer's as its fields by name. */
 	body: unknown
 	value: string
 	/** Epoch ms when the value was issued. */

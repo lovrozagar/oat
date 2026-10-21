@@ -1,5 +1,6 @@
 /** saveAs addressing: a value bound from a cookie, a header, or a JSON path of the body. */
 
+import { primaryMediaType } from "../exchanges/media.ts"
 import { headerValue } from "../headers.ts"
 import { cookieValue } from "./set-cookie.ts"
 
@@ -36,4 +37,27 @@ export function readSaveAs(address: string, source: SaveAsSource): unknown {
 		return value === undefined || value === "" ? undefined : value
 	}
 	return source.readJson(source.body, described.path)
+}
+
+/* The one media type an answer is read as a form for; JSON is the default, and nothing is sniffed. */
+const FORM = "application/x-www-form-urlencoded"
+
+/* An answer's media type, lowercased and without its parameters; "" when it names none. */
+function mediaTypeOf(headers: Readonly<Record<string, string>>): string {
+	return primaryMediaType(headerValue(headers, "content-type") ?? "", "").toLowerCase()
+}
+
+/**
+ * The body an answer's credentials are read from: a form answer's top-level fields by name, else the
+ * body as it was parsed. A form with no text, or text that also parsed as JSON, has no fields.
+ */
+export function answerBody(answer: { body: unknown; headers: Readonly<Record<string, string>> }): unknown {
+	if (mediaTypeOf(answer.headers) !== FORM) return answer.body
+	return typeof answer.body === "string" ? Object.fromEntries(new URLSearchParams(answer.body)) : {}
+}
+
+/** An answer's media type, for a reason that says why nothing could be read from it. */
+export function describeAnswerType(headers: Readonly<Record<string, string>>): string {
+	const type = mediaTypeOf(headers)
+	return type === "" ? "its answer names no content type" : `its answer is ${type}`
 }

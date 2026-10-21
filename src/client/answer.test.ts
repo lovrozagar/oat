@@ -172,6 +172,22 @@ describe("the credentials a recipe reads from an answer", () => {
 		expect(redactor.text("tok-secret-9")).toBe("<redacted>")
 		expect(redactor.text("60")).toBe("60")
 	})
+
+	it("registers a form answer's values by the same addresses, by its media type alone", async () => {
+		const text = "access_token=tok-form-9&refresh_token=ref-form-9"
+		const sendTyped = async (type: string) => {
+			const redactor = new Redactor()
+			const ctx = wireOf(
+				transport(() => new Response(text, { headers: { "content-type": type } })),
+				{ redactor },
+			)
+			const context = { issuedBy: "credentials", secrets: ["$.access_token", "refresh_token"] } as const
+			await sendAttempt(prepare(ctx, "POST", "/token", { as: ANON, context }), 0, ctx)
+			return redactor.text("tok-form-9 ref-form-9")
+		}
+		expect(await sendTyped("application/x-www-form-urlencoded; charset=utf-8")).toBe("<redacted> <redacted>")
+		expect(await sendTyped("text/plain")).toBe("tok-form-9 ref-form-9")
+	})
 })
 
 describe("a paced answer", () => {
