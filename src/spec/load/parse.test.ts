@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { UsageError } from "../../errors/usage-error.ts"
 import { assertOpenApi, parseDocument } from "./parse.ts"
 
 const DOC = { info: { title: "t", version: "1" }, openapi: "3.1.0", paths: {} }
@@ -30,6 +31,17 @@ describe("assertOpenApi", () => {
 	it("accepts an OpenAPI 3.x document", () => {
 		expect(assertOpenApi(DOC, "s")).toBe(DOC)
 		expect(assertOpenApi({ ...DOC, openapi: "3.0" }, "s")).toBeDefined()
+		expect(assertOpenApi({ ...DOC, openapi: "3.2.0" }, "s")).toBeDefined()
+	})
+
+	it("refuses Swagger 2 and an OpenAPI newer than 3.2 as the caller's mistake, naming the version", () => {
+		expect(() => assertOpenApi({ paths: {}, swagger: "2.0" }, "s")).toThrow(
+			new UsageError("oat: s is Swagger 2.0; oat reads OpenAPI 3.x — convert it first"),
+		)
+		expect(() => assertOpenApi({ ...DOC, openapi: "3.3.0" }, "s")).toThrow(
+			new UsageError("oat: s is OpenAPI 3.3.0, newer than the 3.2 oat reads"),
+		)
+		expect(() => assertOpenApi({ ...DOC, openapi: "3.10" }, "s")).toThrow(UsageError)
 	})
 
 	it("refuses what parsed as something other than an object, showing what it was", () => {

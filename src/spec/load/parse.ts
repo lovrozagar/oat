@@ -1,6 +1,7 @@
 /** A specification's text read as an OpenAPI 3.x document, JSON or YAML. */
 
 import { messageOf } from "../../errors/message.ts"
+import { UsageError } from "../../errors/usage-error.ts"
 import type { OpenApiDocument } from "../types.ts"
 
 /** Parses `text` read from `source`; every failure names the source and what went wrong. */
@@ -34,7 +35,8 @@ async function parseYaml(text: string, source: string): Promise<unknown> {
 }
 
 /**
- * Accepts an OpenAPI 3.x document and nothing else.
+ * Accepts an OpenAPI 3.0–3.2 document and nothing else. Swagger 2 and a later 3.x are the caller's
+ * to convert, so they are a `UsageError`.
  *
  * YAML parses almost any text — a `Not Found` page is a valid YAML string — so "it parsed" says
  * nothing about whether this is a document oat can test. Accepting it produced a run that graded
@@ -47,10 +49,15 @@ export function assertOpenApi(parsed: unknown, source: string): OpenApiDocument 
 	}
 	const doc = parsed as Record<string, unknown>
 	if (typeof doc.swagger === "string") {
-		throw new Error(`oat: ${source} is Swagger ${doc.swagger}; oat reads OpenAPI 3.x — convert it first`)
+		throw new UsageError(`oat: ${source} is Swagger ${doc.swagger}; oat reads OpenAPI 3.x — convert it first`)
 	}
-	if (typeof doc.openapi !== "string" || !/^3\.\d+(\.\d+)?/.test(doc.openapi)) {
+	const version = typeof doc.openapi === "string" ? doc.openapi : ""
+	const minor = /^3\.(\d+)/.exec(version)?.[1]
+	if (minor === undefined) {
 		throw new Error(`oat: ${source} has no "openapi: 3.x" version field, so it is not an OpenAPI 3 document`)
+	}
+	if (Number(minor) > 2) {
+		throw new UsageError(`oat: ${source} is OpenAPI ${version}, newer than the 3.2 oat reads`)
 	}
 	if (doc.paths === null || typeof doc.paths !== "object" || Array.isArray(doc.paths)) {
 		throw new Error(`oat: ${source} has no "paths" object, so there is nothing to test`)

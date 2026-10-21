@@ -65,6 +65,15 @@ describe("commandDoctor", () => {
 	})
 })
 
+describe("commandDoctor and a document oat does not read", () => {
+	it("exits 2 on a Swagger 2.0 document, naming it", async () => {
+		const writer = bufferWriter()
+		const spec = json(folder(), "swagger.json", { info: { title: "t", version: "1" }, paths: {}, swagger: "2.0" })
+		expect(await commandDoctor(writer, { spec })).toBe(2)
+		expect(writer.text()).toBe(`oat: ${spec} is Swagger 2.0; oat reads OpenAPI 3.x — convert it first\n`)
+	})
+})
+
 describe("commandDoctor and the credentials config", () => {
 	it("exits 2 and names the problem when the config's credentials do not fit the document", async () => {
 		const writer = bufferWriter()

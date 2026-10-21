@@ -43,12 +43,12 @@ export async function modelled(writer: Writer, flags: Args["flags"]): Promise<Mo
 		writer.err(`oat: --spec (or --config) is required\n\n${USAGE}`)
 		return EXIT.usage
 	}
-	const raw = await loadSpec(source, {
-		baseUrl: str(flags, "base-url") ?? config?.baseUrl,
-		fetchText: fetchSpecText,
-	})
 	let removed: string[] = []
 	try {
+		const raw = await loadSpec(source, {
+			baseUrl: str(flags, "base-url") ?? config?.baseUrl,
+			fetchText: fetchSpecText,
+		})
 		const { doc, externalRefs } = dereference(prepareDocument(raw, config ?? {}, (ids) => (removed = ids)))
 		const model = buildModel(doc)
 		if (config !== undefined) {

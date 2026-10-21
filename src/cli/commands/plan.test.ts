@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { bufferWriter } from "../writer.ts"
-import { folder, notesConfig, notesSpec, referenceConfig, signupConfig } from "../__fixtures__/files.ts"
+import { folder, json, notesConfig, notesSpec, referenceConfig, signupConfig } from "../__fixtures__/files.ts"
 import { commandPlan, targetedScope } from "./plan.ts"
 
 /* The test model, offline: in full, or narrowed to what --ops or --only (or the config) target. */
@@ -53,6 +53,13 @@ describe("commandPlan", () => {
 		expect(await commandPlan(writer, { ops: "no.such", spec: notesSpec() })).toBe(2)
 		expect(writer.text()).toMatch(/no\.such/)
 		expect(await commandPlan(bufferWriter(), {})).toBe(2)
+	})
+
+	it("exits 2 on a Swagger 2.0 document, naming it", async () => {
+		const writer = bufferWriter()
+		const spec = json(folder(), "swagger.json", { info: { title: "t", version: "1" }, paths: {}, swagger: "2.0" })
+		expect(await commandPlan(writer, { spec })).toBe(2)
+		expect(writer.text()).toBe(`oat: ${spec} is Swagger 2.0; oat reads OpenAPI 3.x — convert it first\n`)
 	})
 })
 
