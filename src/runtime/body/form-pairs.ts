@@ -17,12 +17,15 @@ interface Serialization {
 	explode: boolean
 }
 
-/** An object field: `name[key]` under deepObject, its own keys when exploded, one joined pair otherwise. */
+/**
+ * An object field: `name[key]` under deepObject, its own keys when exploded, otherwise one pair of
+ * keys and values joined with the style's delimiter.
+ */
 function objectPairs(name: string, value: object, { style, explode }: Serialization): Array<[string, string]> {
 	const entries = Object.entries(value as Record<string, unknown>).filter(([, item]) => item !== undefined)
 	if (style === "deepObject") return entries.map(([key, item]) => [`${name}[${key}]`, scalar(item)])
 	if (explode) return entries.map(([key, item]) => [key, scalar(item)])
-	return [[name, entries.flatMap(([key, item]) => [key, scalar(item)]).join(",")]]
+	return [[name, entries.flatMap(([key, item]) => [key, scalar(item)]).join(delimiterOf(style))]]
 }
 
 /**
