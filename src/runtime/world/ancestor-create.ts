@@ -4,7 +4,15 @@ import { type CohortMember, buildCohort, overflowFrom } from "../fixture.ts"
 import { fillPath } from "../fill-path.ts"
 import { SeedError } from "../seed-error.ts"
 import { isUniqueConflictResponse, uniquifyProbeBody } from "../unique.ts"
+import type { Exchange } from "../exchange.ts"
 import { adoptExisting } from "./adopt.ts"
+import {
+	bodyIdentity,
+	type ClientIdCreate,
+	createWithClientId,
+	identitiesRefused,
+	takenFor,
+} from "./client-identity.ts"
 import { createdRecord } from "./created-record.ts"
 import { isPlanLimitResponse } from "./plan-limit.ts"
 import type { Record_ } from "./records.ts"
@@ -46,43 +54,88 @@ function ancestorBody(
 	return { body, member }
 }
 
-/** Creates one ancestor record, or adopts a listed one when the create is refused for a limit or a conflict. */
-export async function createOne(
+/* Sends one ancestor body to the create, as the seeding principal. */
+async function post(
 	createOp: OperationModel,
-	seeding: Seeding,
-	scope: Scope,
-): Promise<{ record: Record_; adopted: boolean }> {
+	{ seeding, scope }: { seeding: Seeding; scope: Scope },
+	{ body, member }: { body: Record<string, unknown>; member: CohortMember },
+): Promise<Exchange> {
 	const { model, client, options } = seeding
-	const { body, member } = ancestorBody(createOp, seeding)
 	const encoded = await encodeForOperation(createOp, model, {
 		fields: body,
 		index: 0,
 		uploads: uploadContext(options),
 		variant: member.variant,
 	})
-	const exchange = await client.request("POST", fillPath(createOp.path, scope.values), {
+	return client.request("POST", fillPath(createOp.path, scope.values), {
 		body: encoded.body,
 		...(encoded.contentType === undefined ? {} : { contentType: encoded.contentType }),
 		as: { principal: options.principal },
 		operationId: createOp.operationId,
 	})
-	if (exchange.status >= 300) {
-		/* Plan limit after an effect (or a sibling create) already filled the quota: reuse a
-		 * same-tenant row from the list. Do not invent an id. */
-		if (isPlanLimitResponse(exchange.status, exchange.responseBody)) {
-			const reused = await adoptExisting(createOp, seeding, scope)
-			if (reused !== null) return { adopted: true, record: reused }
-		}
-		if (isUniqueConflictResponse(createOp, exchange.status)) {
-			const reused = await adoptExisting(createOp, seeding, scope)
-			if (reused !== null) return { adopted: true, record: reused }
-		}
-		throw new SeedError(
-			createOp.operationId,
-			`${createOp.operationId} returned ${exchange.status}: ${JSON.stringify(exchange.responseBody).slice(0, 300)}`,
-			{ exchange, operationId: createOp.operationId, status: exchange.status },
-		)
+}
+
+/*
+ * The ancestor's create, sent through `createWithClientId`: a body naming its own identity is sent
+ * again under a fresh one when another record holds it.
+ */
+function postFresh(createOp: OperationModel, seeding: Seeding, scope: Scope): Promise<ClientIdCreate> {
+	const { model, options } = seeding
+	const drawn = ancestorBody(createOp, seeding)
+	const schema = requestSchemaOf(createOp, model) ?? {}
+	return createWithClientId(
+		drawn.body,
+		(fields) => post(createOp, { scope, seeding }, { body: fields, member: drawn.member }),
+		{
+			identity: bodyIdentity(model, createOp, schema),
+			schema,
+			taken: takenFor(options, createOp),
+			token: `anc${options.seed}-${options.nonce ?? ""}`,
+		},
+	)
+}
+
+/*
+ * A refused create: a listed row adopted under a plan limit or a unique conflict, else the refusal.
+ * Identities refused every time adopt nothing: the seed fails, saying so.
+ */
+async function adoptOrFail(
+	createOp: OperationModel,
+	{ scope, seeding }: { scope: Scope; seeding: Seeding },
+	{ exchange, exhausted }: ClientIdCreate,
+): Promise<{ record: Record_; adopted: boolean }> {
+	if (exhausted !== undefined) throw identitiesRefused(createOp.operationId, exchange, exhausted)
+	/* Plan limit after an effect (or a sibling create) already filled the quota: reuse a
+	 * same-tenant row from the list. Do not invent an id. */
+	if (isPlanLimitResponse(exchange.status, exchange.responseBody)) {
+		const reused = await adoptExisting(createOp, seeding, scope)
+		if (reused !== null) return { adopted: true, record: reused }
 	}
+	if (isUniqueConflictResponse(createOp, exchange.status)) {
+		const reused = await adoptExisting(createOp, seeding, scope)
+		if (reused !== null) return { adopted: true, record: reused }
+	}
+	throw new SeedError(
+		createOp.operationId,
+		`${createOp.operationId} returned ${exchange.status}: ${JSON.stringify(exchange.responseBody).slice(0, 300)}`,
+		{ exchange, operationId: createOp.operationId, status: exchange.status },
+	)
+}
+
+/**
+ * Creates one ancestor record, or adopts a listed one when the create is refused for a limit or a
+ * conflict. A body naming its own identity is sent again under a fresh one when another record holds
+ * it, and adopts nothing: after the last refusal, the seed fails with why.
+ */
+export async function createOne(
+	createOp: OperationModel,
+	seeding: Seeding,
+	scope: Scope,
+): Promise<{ record: Record_; adopted: boolean }> {
+	const { model, client, options } = seeding
+	const created = await postFresh(createOp, seeding, scope)
+	const { exchange, sent } = created
+	if (exchange.status >= 300) return adoptOrFail(createOp, { scope, seeding }, created)
 	const made = await createdRecord({
 		client,
 		createOp,
@@ -90,7 +143,7 @@ export async function createOne(
 		model,
 		principal: options.principal,
 		scope: { ...options.roots, ...scope.values },
-		sent: body,
+		sent,
 		...(options.readable === undefined ? {} : { readable: options.readable }),
 	})
 	if (made !== null) return { adopted: false, record: made.record }

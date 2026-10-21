@@ -141,3 +141,51 @@ describe("createOne, refused", () => {
 		expect(unidentified).toEqual(["pay.start"])
 	})
 })
+
+/* A table the client names, by an integer id, among names kept unique: the client-ids shape. */
+const CLIENT_ID = {
+	requestBody: {
+		content: {
+			"application/json": {
+				schema: {
+					properties: { id: { maximum: 999, minimum: 1, type: "integer" }, name: { type: "string" } },
+					required: ["id", "name"],
+					type: "object",
+				},
+			},
+		},
+	},
+	"x-unique": [["name"]],
+}
+
+/* Creates answer each status in turn, echoing the id they were sent; the list holds one row to adopt. */
+const answering =
+	(...statuses: number[]): Responder =>
+	(method, _path, options) =>
+		method === "POST"
+			? { body: { id: (options.body as { id: unknown }).id }, status: statuses.shift() ?? 409 }
+			: { body: [{ id: "t9" }], status: 200 }
+
+describe("createOne, a client-chosen identity", () => {
+	it("makes the ancestor under a fresh identity when the first is refused with 409, and keeps the refused one taken", async () => {
+		const taken = new Set<string>()
+		const run = seeding(answering(409, 201), CLIENT_ID, { taken: () => taken })
+		const made = await createOne(run.createOp, run.seeding, scope)
+		const ids = run.sent.map((request) => String((request.options.body as { id: unknown }).id))
+		expect(run.sent.map((request) => request.method)).toEqual(["POST", "POST"])
+		expect(new Set(ids).size).toBe(2)
+		expect(made).toEqual({ adopted: false, record: { id: Number(ids[1]) } })
+		expect(taken.has(ids[0] as string)).toBe(true)
+	})
+
+	it("records the gap after three refusals, adopting nothing and sending no fourth create", async () => {
+		const run = seeding(answering(409, 409, 409, 201), CLIENT_ID)
+		const refused = await createOne(run.createOp, run.seeding, scope).catch((error: unknown) => error)
+		const ids = run.sent.map((request) => String((request.options.body as { id: unknown }).id))
+		expect(run.sent.map((request) => request.method)).toEqual(["POST", "POST", "POST"])
+		expect(refused).toBeInstanceOf(SeedError)
+		expect((refused as SeedError).message).toBe(
+			`table.create: every client-chosen "id" sent was refused with 409 (${ids.join(", ")}); no fourth create was sent`,
+		)
+	})
+})

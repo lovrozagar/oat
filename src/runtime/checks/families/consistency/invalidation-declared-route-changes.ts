@@ -73,14 +73,14 @@ export const declaredInvalidationHappens = defineCheck<{
 			)
 		}
 
-		const { exchange: created } = await createFresh(ctx, createOp, schema, ctx.actor.id)
+		const { exchange: created, exhausted } = await createFresh(ctx, createOp, schema, ctx.actor.id)
 		if (standDownForFeatureGate(ctx, createOp, created, this.id))
 			return standDown("a documented feature gate refused the request")
 		if (created.status >= 300) {
 			return ctx.findings.unresolved(
 				this.id,
 				ctx.entityName,
-				`the create returned ${created.status}, so nothing was invalidated`,
+				`${exhausted ?? `the create returned ${created.status}`}, so nothing was invalidated`,
 			)
 		}
 

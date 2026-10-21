@@ -7,9 +7,10 @@ import { describeFeatureGate, isDocumentedFeatureGateDenial } from "../feature-g
 import type { CohortMember } from "../fixture.ts"
 import { returnedId } from "../proven-id.ts"
 import { SeedError } from "../seed-error.ts"
-import { isUniqueConflictResponse, uniquifyProbeBody } from "../unique.ts"
+import { isUniqueConflictResponse } from "../unique.ts"
 import type { UploadContext } from "../upload.ts"
 import { adoptExisting } from "./adopt.ts"
+import { createWithClientId, takenFor } from "./client-identity.ts"
 import { createdRecord } from "./created-record.ts"
 import { isPlanLimitResponse } from "./plan-limit.ts"
 import type { Record_ } from "./records.ts"
@@ -77,24 +78,26 @@ export async function postMember(run: CohortRun, member: CohortMember, nextUploa
 	})
 }
 
-/* A client-chosen identity is unique across every tenant, and this principal lists only its own:
- * one another tenant holds comes back 409. That identity is drawn again, from its own schema,
- * a few times before the 409 is taken as the answer. */
+/*
+ * A client-chosen identity is unique across every tenant, and this principal lists only its own:
+ * one another tenant holds comes back 409. It is sent again under a fresh one (`createWithClientId`),
+ * and `exhausted` says why when the last attempt was refused too.
+ */
 export async function postFresh(
 	run: CohortRun,
 	member: CohortMember,
 	nextUploads: UploadContext,
-): Promise<{ exchange: Exchange; sent: CohortMember }> {
-	const { ownIdentity } = run
-	let sent = member
-	let exchange = await postMember(run, sent, nextUploads)
-	for (let attempt = 0; attempt < 3 && exchange.status === 409; attempt++) {
-		if (ownIdentity === null || !Object.hasOwn(sent.body, ownIdentity)) break
-		const token = `id${attempt}-${sent.variant}-${run.seeding.options.nonce ?? ""}`
-		sent = { ...sent, body: uniquifyProbeBody(sent.body, [[ownIdentity]], { schema: run.schema, token }) }
-		exchange = await postMember(run, sent, nextUploads)
-	}
-	return { exchange, sent }
+): Promise<{ exchange: Exchange; sent: CohortMember; exhausted?: string }> {
+	const { createOp, ownIdentity, schema, seeding } = run
+	const { options } = seeding
+	const made = await createWithClientId(member.body, (body) => postMember(run, { ...member, body }, nextUploads), {
+		identity: ownIdentity,
+		schema,
+		taken: takenFor(options, createOp),
+		token: `id-${member.variant}-${options.nonce ?? ""}`,
+	})
+	const sent = made.sent === member.body ? member : { ...member, body: made.sent }
+	return { exchange: made.exchange, sent, ...(made.exhausted === undefined ? {} : { exhausted: made.exhausted }) }
 }
 
 /** The cohort with what the run learned along the way: gaps, lost variants, acknowledgements, existing ids. */

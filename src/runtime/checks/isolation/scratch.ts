@@ -38,7 +38,7 @@ export async function scratchRecord(
 	if (createOp === undefined || schema === null) {
 		return { outcome: standDown("a create operation with a request body, to make a record this check may change") }
 	}
-	const { exchange, sent } = await createFresh(ctx, createOp, schema, ctx.actor.id)
+	const { exchange, exhausted, sent } = await createFresh(ctx, createOp, schema, ctx.actor.id)
 	if (standDownForFeatureGate(ctx, createOp, exchange, check)) {
 		return { outcome: standDown("a documented feature gate refused the request") }
 	}
@@ -64,7 +64,7 @@ export async function scratchRecord(
 			outcome: ctx.findings.unresolved(
 				check,
 				ctx.entityName,
-				`a record for this check could not be made: the create answered ${exchange.status}` +
+				`a record for this check could not be made: ${exhausted ?? `the create answered ${exchange.status}`}` +
 					(exchange.status < 300 ? ` without an id oat could read` : ""),
 			),
 		}

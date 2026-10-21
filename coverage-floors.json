@@ -1235,6 +1235,7 @@
 	"src/runtime/wait.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/world/adopt.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/world/ancestor-create.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/world/client-identity.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/world/cohort.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/world/confirm.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/world/created-record.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },

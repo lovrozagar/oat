@@ -196,6 +196,17 @@ describe("invalidation.declared-route-changes create", () => {
 		})
 	})
 
+	it("says why when every client-chosen identity the create drew was refused with 409", async () => {
+		const refusing = derived({ override: (method) => (method === "POST" ? { status: 409 } : undefined) })
+		const staged = stage(refusing, { takenIdentities: new Set() })
+		const outcome = await drive(staged)
+		expect(outcome).toMatchObject({ kind: "unresolved" })
+		expect((outcome as { reason: string }).reason).toMatch(
+			/^every client-chosen "id" sent was refused with 409 \(.+\); no fourth create was sent, so nothing was invalidated$/,
+		)
+		expect(staged.sent.filter((request) => request.method === "POST")).toHaveLength(3)
+	})
+
 	it("stands down on a documented feature gate", async () => {
 		const gate = { body: { vars: { type: "feature_gate" } }, status: 403 }
 		const staged = stage(derived({ override: (method) => (method === "POST" ? gate : undefined) }))

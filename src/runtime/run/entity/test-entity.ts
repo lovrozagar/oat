@@ -3,6 +3,7 @@ import { rootReadIds } from "../../root-read.ts"
 import { createIsAuthProvisioned, staticSubjects } from "../../scope/entities.ts"
 import { entityIsSelf } from "../../self/operations.ts"
 import type { RunContext } from "../context.ts"
+import { takenOf } from "../state.ts"
 import { actorsOf } from "./actors.ts"
 import { checkContext } from "./check-context.ts"
 import { runChecks } from "./check-loop.ts"
@@ -55,8 +56,7 @@ export function entityRun(ctx: RunContext, entity: EntityModel, listOp: Operatio
 				? []
 				: [createOp.operationId]
 			: [...staticSubjects(entity, model)].filter((id) => scope.inScope(id))
-	const taken = new Set<string>()
-	state.takenByEntity.set(entity.name, taken)
+	const taken = takenOf(state, entity.name)
 	return {
 		ancestors: { creating: new Map(), made: new Map() },
 		createOp,

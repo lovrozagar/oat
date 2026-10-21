@@ -47,6 +47,11 @@ export interface WorldOptions {
 	principal: string
 	/** Ancestors already made in this run, by principal, operation and parent path. */
 	ancestors?: AncestorCache
+	/**
+	 * The identities an entity's records hold, by entity: a client-chosen identity is drawn from
+	 * outside them, and one refused with 409 joins them. Omitted, each create keeps its own.
+	 */
+	taken?: (entity: string) => Set<string>
 }
 
 /** Where seeding happens: the model, the client it sends through, and the run's options. */

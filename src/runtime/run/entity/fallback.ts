@@ -2,12 +2,13 @@ import type { Exchange } from "../../exchange.ts"
 import { listExisting } from "../../world/list-existing.ts"
 import { type Record_ } from "../../world/records.ts"
 import { type WorldOptions } from "../../world/types.ts"
+import { takenOf } from "../state.ts"
 import { degradedWorld, type EntityRun, type World } from "./state.ts"
 
 /** How the first principal builds this entity's world: its credential, its records, its parents. */
 export function worldOptions(run: EntityRun): WorldOptions {
 	const { ctx, ancestors, roots } = run
-	const { principals, exclusion, nonce, seed, uploads } = ctx
+	const { principals, exclusion, nonce, seed, state, uploads } = ctx
 	return {
 		ancestors,
 		nonce,
@@ -17,6 +18,7 @@ export function worldOptions(run: EntityRun): WorldOptions {
 		readable: exclusion.readable,
 		roots,
 		seed,
+		taken: (entity) => takenOf(state, entity),
 		uploads,
 	}
 }

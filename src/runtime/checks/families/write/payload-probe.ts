@@ -4,10 +4,12 @@ import { fillPath } from "../../../fill-path.ts"
 import { type Outcome, standDown } from "../../../finding.ts"
 import type { StringPayload } from "../../../payloads.ts"
 import { createdRecordOf } from "../../../created-id.ts"
+import { createWithClientId } from "../../../world/client-identity.ts"
 import { type Record_ } from "../../../world/records.ts"
 import type { WriteContext } from "../../core/context.ts"
 import { readRecord, scratchRecord, updateRequest } from "../../isolation/scratch.ts"
 import { requestSchemaOf, validBody } from "../../payloads/body.ts"
+import { clientIdentityOf } from "../../payloads/identity.ts"
 import { payloadLanes } from "../../payloads/lanes.ts"
 import { standDownForFeatureGate, standDownForRateLimit } from "../../planning/stand-down.ts"
 import { itemParamFor } from "../../planning/subjects.ts"
@@ -62,8 +64,14 @@ export async function writeField(probe: PayloadProbe, value: unknown, recordId: 
 	}
 	const createOp = ctx.createOp
 	if (createOp === undefined) throw new Error("payload probe has no write operation")
-	const body = { ...validBody(ctx, requestSchemaOf(ctx, createOp) ?? {}), [field.name]: value }
-	return ctx.client.request("POST", fillPath(createOp.path, ctx.scope), { as: { principal: ctx.actor.id }, body })
+	const schema = requestSchemaOf(ctx, createOp) ?? {}
+	const body = { ...validBody(ctx, schema), [field.name]: value }
+	const send = (fields: Record<string, unknown>): Promise<Exchange> =>
+		ctx.client.request("POST", fillPath(createOp.path, ctx.scope), { as: { principal: ctx.actor.id }, body: fields })
+	/* A client-chosen identity refused with 409 is drawn again, unless it is the value under test. */
+	const drawn = clientIdentityOf(ctx, schema, `pp${ctx.nonce ?? ""}`)
+	const at = field.name === drawn.identity ? { ...drawn, identity: null } : drawn
+	return (await createWithClientId(body, send, at)).exchange
 }
 
 export async function readField(

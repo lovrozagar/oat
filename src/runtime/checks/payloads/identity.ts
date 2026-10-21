@@ -1,8 +1,6 @@
 import { absentIdentifier } from "../../generate/identifiers.ts"
-import { uniquifyProbeBody } from "../../unique.ts"
-import { idOf } from "../../world/records.ts"
+import { type ClientIdentity, reserveIdentity } from "../../world/client-identity.ts"
 import type { CheckContext } from "../core/context.ts"
-import { NO_KEY } from "../planning/subjects.ts"
 
 /* ------------------------------------------------------------------- invented values */
 
@@ -74,18 +72,21 @@ export function reserveClientIdentity(
 	salt: string,
 ): Record<string, unknown> {
 	/* A client-chosen identity a record already holds would overwrite or collide with that record. */
+	return reserveIdentity(body, clientIdentityOf(ctx, schema, `i${salt}`))
+}
+
+/**
+ * How a check's create draws its client-chosen identity, and draws it again after a 409: from
+ * outside the run's taken identities, when oat chooses one (`choosesIdentity`); else not at all.
+ */
+export function clientIdentityOf(ctx: CheckContext, schema: Record<string, unknown>, token: string): ClientIdentity {
 	const taken = ctx.takenIdentities
-	if (taken === undefined || !choosesIdentity(ctx, schema)) return body
-	let reserved = body
-	const held = (): boolean => taken.has(idOf(reserved, ctx.identity) ?? NO_KEY)
-	for (let token = 0; token < 16 && held(); token++) {
-		reserved = uniquifyProbeBody(reserved, [[ctx.identity]], { schema, token: `i${salt}t${token}` })
+	return {
+		identity: taken !== undefined && choosesIdentity(ctx, schema) ? ctx.identity : null,
+		schema,
+		taken: taken ?? new Set(),
+		token,
 	}
-	if (held()) throw new Error(`no "${ctx.identity}" is left that names no existing record`)
-	/* Reserved now, before the request goes out, so a body made meanwhile picks another. */
-	const id = idOf(reserved, ctx.identity)
-	if (id !== undefined) taken.add(id)
-	return reserved
 }
 
 /** Whether a create body carries an identity oat chooses and reserves. */

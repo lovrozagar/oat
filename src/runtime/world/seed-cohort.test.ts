@@ -155,6 +155,24 @@ describe("seedCohort beside listed records", () => {
 	})
 })
 
+/* Every create refused with 409; the list holds one row another principal made. */
+const refusing: Responder = (method) =>
+	method === "POST" ? { body: { error: "taken" }, status: 409 } : { body: [{ id: "theirs" }], status: 200 }
+
+describe("seedCohort refused for its client-chosen identity", () => {
+	it("records the gap after three refused identities, adopting nothing and sending no fourth create", async () => {
+		const { result, sent } = seed(refusing, { create: { "x-unique": [["name"]] } }, { cohortSize: 1 })
+		const failed = await result.catch((error: unknown) => error)
+		const posts = sent.filter((request) => request.method === "POST")
+		const ids = posts.map((request) => String(bodyOf(request.options).id))
+		expect(posts).toHaveLength(3)
+		expect(failed).toBeInstanceOf(SeedError)
+		expect((failed as SeedError).message).toBe(
+			`note.create: every client-chosen "id" sent was refused with 409 (${ids.join(", ")}); no fourth create was sent`,
+		)
+	})
+})
+
 describe("seedCohort with no entity identity", () => {
 	it("seeds an entity with no identity of its own, and an operation no entity owns", async () => {
 		const counters = await seed(

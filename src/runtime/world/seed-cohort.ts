@@ -11,7 +11,8 @@ import { SeedError } from "../seed-error.ts"
 import { uniqueTupleCollides, uniquifyProbeBody } from "../unique.ts"
 import type { UploadContext } from "../upload.ts"
 import { forEachInvocation } from "../upload-each.ts"
-import { type CohortRun, failOrAdopt, postFresh, postMember, recordCreated, withGap } from "./cohort.ts"
+import { identitiesRefused } from "./client-identity.ts"
+import { type CohortRun, failOrAdopt, postFresh, recordCreated, withGap } from "./cohort.ts"
 import { listExisting } from "./list-existing.ts"
 import { isScalarId, type Record_ } from "./records.ts"
 import { requestSchemaOf } from "./schema.ts"
@@ -99,8 +100,11 @@ function avoidExisting(
 /** One create per fixture slot, from the baseline member. */
 async function seedSlot(run: CohortRun, members: CohortMember[], nextUploads: UploadContext): Promise<null> {
 	const [baseline] = members
-	const member = baseline ?? { body: {}, variant: "baseline" as const }
-	const exchange = await postMember(run, member, nextUploads)
+	const { exchange, sent: member } = await postFresh(
+		run,
+		baseline ?? { body: {}, variant: "baseline" as const },
+		nextUploads,
+	)
 	if (exchange.status >= 300) {
 		run.lastFail = { exchange, member }
 		return null
@@ -119,10 +123,13 @@ async function seedPlanned(
 	nextUploads: UploadContext,
 ): Promise<SeededCohort | null> {
 	for (const planned of members) {
-		const { exchange, sent: member } = await postFresh(run, planned, nextUploads)
+		const { exchange, exhausted, sent: member } = await postFresh(run, planned, nextUploads)
 		if (exchange.status >= 300) {
 			/* The first create decides whether there is a cohort at all; a later one failing
-			 * is a variant lost, reported rather than ending the cohort in silence. */
+			 * is a variant lost, reported rather than ending the cohort in silence. Identities
+			 * refused every time adopt nothing: the seed fails, saying so. */
+			if (run.records.length === 0 && exhausted !== undefined)
+				throw identitiesRefused(run.createOp.operationId, exchange, exhausted)
 			if (run.records.length === 0) return failOrAdopt(run, member, exchange)
 			run.failedVariants.push({ exchange, variant: member.variant })
 			continue

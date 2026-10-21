@@ -107,9 +107,14 @@ describe("posting members", () => {
 		expect(posted.exchange.status).toBe(201)
 		expect(fresh.sent.map((request) => (request.options.body as { id: string }).id)).toHaveLength(3)
 		expect(posted.sent.body.id).not.toBe("taken")
-		const stubborn = cohortRun(() => ({ status: 409 }), {}, { nonce: "n0" })
-		expect((await postFresh(stubborn.run, member({ id: "taken", name: "a" }), { seed: 1 })).exchange.status).toBe(409)
-		expect(stubborn.sent).toHaveLength(4)
+		const taken = new Set<string>()
+		const stubborn = cohortRun(() => ({ status: 409 }), {}, { nonce: "n0", taken: () => taken })
+		const refused = await postFresh(stubborn.run, member({ id: "taken", name: "a" }), { seed: 1 })
+		const ids = stubborn.sent.map((request) => (request.options.body as { id: string }).id)
+		expect(refused.exchange.status).toBe(409)
+		expect(ids).toHaveLength(3)
+		expect([...taken].toSorted()).toEqual(ids.toSorted())
+		expect(refused.exhausted).toMatch(/^every client-chosen "id" sent was refused with 409/)
 	})
 
 	it("takes a 409 as the answer when the body names no identity of its own", async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { exchange, type Responder } from "../__fixtures__/harness.ts"
-import { notesContext } from "../query/__fixtures__/notes.ts"
+import { notesContext, notesModel } from "../query/__fixtures__/notes.ts"
 import { readRecord, scratchRecord, updateRequest } from "./scratch.ts"
 
 /*
@@ -96,6 +96,22 @@ describe("scratchRecord, when no record can be made", () => {
 			outcome: { kind: "unresolved", reason: "a record for this check could not be made: the create answered 500" },
 		})
 		expect(findings.inconclusive).toHaveLength(1)
+	})
+
+	it("says why when every client-chosen identity the create drew was refused with 409", async () => {
+		const model = notesModel()
+		const raw = structuredClone(model.rawOperations.get("note.create")) as { requestBody: unknown }
+		raw.requestBody = { content: { "application/json": { schema: { properties: { id: { type: "string" } } } } } }
+		const clientIds = { ...model, rawOperations: new Map([...model.rawOperations, ["note.create", raw as never]]) }
+		const { ctx, sent } = notesContext(creating({ status: 409 }), { takenIdentities: new Set() }, clientIds)
+		const ids = (): string[] => sent.map((request) => (request.options.body as { id: string }).id)
+		const made = await scratchRecord(ctx, CHECK)
+		expect(made).toEqual({
+			outcome: {
+				kind: "unresolved",
+				reason: `a record for this check could not be made: every client-chosen "id" sent was refused with 409 (${ids().join(", ")}); no fourth create was sent`,
+			},
+		})
 	})
 
 	it("is unresolved when the create names no id oat could read", async () => {

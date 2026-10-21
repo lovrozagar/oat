@@ -46,10 +46,23 @@ describe("createFresh", () => {
 		expect(made.sent.id).toBe(ids[1])
 	})
 
-	it("gives the 409 back after three identities", async () => {
+	it("gives the 409 back after three identities, says why, and keeps every refused one taken", async () => {
 		const { createOp, ctx, sent } = setup(answering(409, 409, 409, 201), true)
-		expect((await createFresh(ctx, createOp, WITH_ID, "alpha")).exchange.status).toBe(409)
+		const made = await createFresh(ctx, createOp, WITH_ID, "alpha")
+		const ids = sent.map((request) => (request.options.body as { id: string }).id)
+		expect(made.exchange.status).toBe(409)
 		expect(sent).toHaveLength(3)
+		expect(made.exhausted).toBe(
+			`every client-chosen "id" sent was refused with 409 (${ids.join(", ")}); no fourth create was sent`,
+		)
+		expect(ids.every((id) => ctx.takenIdentities?.has(id))).toBe(true)
+	})
+
+	it("draws its fresh identities without a nonce when the run has none", async () => {
+		const { createOp, ctx, sent } = setup(answering(409, 201), true)
+		delete (ctx as { nonce?: string }).nonce
+		expect((await createFresh(ctx, createOp, WITH_ID, "alpha")).exchange.status).toBe(201)
+		expect(sent).toHaveLength(2)
 	})
 
 	it("gives a 409 straight back when oat does not choose the identity", async () => {

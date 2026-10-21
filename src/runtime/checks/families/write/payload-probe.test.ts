@@ -34,6 +34,36 @@ function probeOf(
 	}
 }
 
+/* The widget backend, refusing the first create with 409. */
+function refusingOnce(): Responder {
+	let refused = false
+	return (method, path, options) => {
+		if (method !== "POST" || refused) return widgetApi()(method, path, options)
+		refused = true
+		return { status: 409 }
+	}
+}
+
+describe("payload probe, a client-chosen identity", () => {
+	it("sends a create refused for its client-chosen identity again under a fresh one, keeping the value", async () => {
+		const item = { properties: { id: { type: "string" }, note: { type: "string" } }, type: "object" }
+		const { probe, sent } = probeOf(refusingOnce(), { item, update: null })
+		probe.ctx.takenIdentities = new Set()
+		expect((await writeField(probe, "value", "")).status).toBe(201)
+		const bodies = sent.map((s) => s.options.body as { id: string; note: string })
+		expect(bodies.map((body) => body.note)).toEqual(["value", "value"])
+		expect(bodies[1]?.id).not.toBe(bodies[0]?.id)
+		/* The identity under test is the value itself: never drawn again. */
+		const asIdentity = probeOf(refusingOnce(), { item, update: null })
+		asIdentity.probe.ctx.takenIdentities = new Set()
+		/* A run with no nonce draws all the same. */
+		delete (asIdentity.probe.ctx as { nonce?: string }).nonce
+		const probed = { ...asIdentity.probe, field: { ...asIdentity.probe.field, name: "id" } }
+		expect((await writeField(probed, "mangled", "")).status).toBe(409)
+		expect(asIdentity.sent.map((s) => (s.options.body as { id: string }).id)).toEqual(["mangled"])
+	})
+})
+
 describe("payload probe", () => {
 	it("writes a PUT over an empty representation when it holds no record to carry", async () => {
 		const { probe, sent } = probeOf(widgetApi(), { update: "put" })

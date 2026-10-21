@@ -28,6 +28,19 @@ export interface RunState {
 	verifyHookFailed: boolean
 }
 
+/**
+ * The identities `entity`'s records hold, one set for the whole run: what its own lane, the
+ * ancestors other lanes make of it, and every 409-refused client-chosen identity add to.
+ */
+export function takenOf(state: Pick<RunState, "takenByEntity">, entity: string): Set<string> {
+	let taken = state.takenByEntity.get(entity)
+	if (taken === undefined) {
+		taken = new Set()
+		state.takenByEntity.set(entity, taken)
+	}
+	return taken
+}
+
 export function emptyState(): RunState {
 	return {
 		checkNotes: [],

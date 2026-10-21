@@ -57,4 +57,15 @@ describe("worldOptions", () => {
 		expect(options).toMatchObject({ nonce: "n0nce", principal: "alpha", roots: {}, seed: 1 })
 		expect(options).not.toHaveProperty("authHeaders")
 	})
+
+	it("hands seeding and ancestors the run's identities per entity, which a later run of the entity keeps", async () => {
+		const ctx = await contextOf(optionsFor(notesApi()))
+		const run = entityRunOf(ctx)
+		const { taken } = worldOptions(run)
+		expect(taken?.("note")).toBe(run.taken)
+		taken?.("table").add("7")
+		run.taken.add("n9")
+		expect(ctx.state.takenByEntity.get("table")).toEqual(new Set(["7"]))
+		expect(entityRunOf(ctx).taken).toEqual(new Set(["n9"]))
+	})
 })
