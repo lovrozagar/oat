@@ -6,21 +6,29 @@ import type { EntityDef } from "../model/types.ts"
 import type { QueryConventions } from "../query/conventions.ts"
 import type { ReferenceShape } from "../shapes/types.ts"
 import type { Row, Store } from "../store-api.ts"
+import type { Account, AuthState } from "./auth/types.ts"
 import type { Ids } from "./ids.ts"
 
-export interface Principal {
-	key: string
-	token: string
-	projectId: string
-	/** Higher can do everything a lower rank can. Viewer 0, member 1, owner 2. */
-	rank: number
-}
+export type { Account, Principal } from "./auth/types.ts"
 
-export const PRINCIPALS: readonly Principal[] = [
-	{ key: "key_alpha", projectId: "proj_alpha", rank: 2, token: "tok_alpha" },
-	{ key: "key_beta", projectId: "proj_beta", rank: 2, token: "tok_beta" },
-	{ key: "key_alpha_member", projectId: "proj_alpha", rank: 1, token: "tok_alpha_member" },
-	{ key: "key_alpha_viewer", projectId: "proj_alpha", rank: 0, token: "tok_alpha_viewer" },
+/** Two tenants' admins, then the first tenant's member and viewer: each signs in by key, or by email and password. */
+export const PRINCIPALS: readonly Account[] = [
+	{ email: "alpha@reference.test", key: "key_alpha", password: "alpha-password", projectId: "proj_alpha", rank: 2 },
+	{ email: "beta@reference.test", key: "key_beta", password: "beta-password", projectId: "proj_beta", rank: 2 },
+	{
+		email: "alpha.member@reference.test",
+		key: "key_alpha_member",
+		password: "member-password",
+		projectId: "proj_alpha",
+		rank: 1,
+	},
+	{
+		email: "alpha.viewer@reference.test",
+		key: "key_alpha_viewer",
+		password: "viewer-password",
+		projectId: "proj_alpha",
+		rank: 0,
+	},
 ]
 
 export const TENANT_FIELD = "project_id"
@@ -52,6 +60,10 @@ export interface ReferenceOptions {
 	dialect?: string
 	/** A correct API shape oat was not written against — by name, or spelled out. */
 	shape?: string | ReferenceShape
+	/** Answer 429 with Retry-After once one identity fails 5 logins within a minute. */
+	throttleLogins?: boolean
+	/** Milliseconds since the epoch, for token expiry and the login throttle. Default: the wall clock. */
+	clock?: () => number
 }
 
 /** An invitation to a table: readable by the invitee once accepted, until revoked. */
@@ -90,10 +102,10 @@ export interface ReferenceState {
 	/** Delivered notifications, per project. */
 	inboxes: Map<string, Array<{ id: string; message: string }>>
 	grants: Map<string, Grant>
-	/** The caller's own profile, per token. */
+	/** The caller's own profile, per principal key. */
 	profiles: Map<string, { first_name: string }>
-	/** Tokens a request may present: the principals', and any a registration issued since. */
-	liveTokens: Set<string>
+	/** Accounts, issued and revoked tokens, API keys and failed logins. */
+	auth: AuthState
 	/** Under `tableKey: "slug"`, each table's slug by its internal id: the identity a client knows. */
 	slugOf: Map<string, string>
 }

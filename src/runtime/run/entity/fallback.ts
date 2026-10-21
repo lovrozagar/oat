@@ -1,4 +1,5 @@
 import type { Exchange } from "../../exchange.ts"
+import { privilegedBar } from "../../privileged-create.ts"
 import { listExisting } from "../../world/list-existing.ts"
 import { type Record_ } from "../../world/records.ts"
 import { type WorldOptions } from "../../world/types.ts"
@@ -20,6 +21,7 @@ export function worldOptions(run: EntityRun): WorldOptions {
 		seed,
 		taken: (entity) => takenOf(state, entity),
 		uploads,
+		withheld: (createOp) => privilegedBar(createOp, principals.alpha, principals.all),
 	}
 }
 

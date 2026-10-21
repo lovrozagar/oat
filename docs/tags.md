@@ -26,6 +26,7 @@ What each tag **unlocks** (otherwise the check cannot run):
 | `x-invite`      | `auth.invite-grants-then-revokes`                                                                                                                                                                             |
 | `x-wait`        | `effects.side-effect-arrives`                                                                                                                                                                                 |
 | `x-unique`      | `create.unique-conflict-rejected`, `update.unique-conflict-rejected`                                                                                                                                          |
+| `x-privileged`  | `auth.privileged-field-ignored`                                                                                                                                                                               |
 
 What each tag **sharpens** (the check already runs, but the verdict changes):
 
@@ -410,6 +411,17 @@ Do not infer uniqueness from 409s, unique-looking names, or JSON Schema `uniqueI
 `update.unique-conflict-rejected` — PATCH a **different** row onto another row's unique-set values is 409 (same scoring). PATCH of a row's own unique values unchanged is not this check. Skip update sets whose columns are all `x-immutable`.
 
 **Fallback:** none. Without the tag, unique checks do not run, and a seed 409 is a failed create.
+
+### `x-privileged`
+
+```yaml
+properties:
+  verified:
+    type: boolean
+    x-privileged: true
+```
+
+On a request body property: only the highest-rank principal may set it. A lower-rank principal's write that includes it must be refused, or leave it unchanged. Nested properties are named by dotted path. Every body oat makes for its own creates and updates leaves an optional marked property out; only `auth.privileged-field-ignored` sends one. When a create's body requires one, only the highest rank of each tenant sends that create, and a lower rank's create of it is untested with the reason. The marker is a boolean on a schema property; on the operation, on the body itself, or of any other type, it is a gap `doctor` shows, and oat ignores it. A document that lacks it takes it by overlay: `overlay: { schemas: { Table: { properties: { verified: { "x-privileged": true } } } } }`.
 
 ### `--profile` — cost gating
 

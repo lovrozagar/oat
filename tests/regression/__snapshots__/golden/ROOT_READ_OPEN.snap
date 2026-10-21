@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "1 root-cause finding",
+        "now": "5 root-cause findings",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -21,6 +21,9 @@
           {
             "checks": {
               "failed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.wrong-scheme-refused",
                 "read.matches-caller-root"
               ],
               "gaps": [],
@@ -29,7 +32,7 @@
               "suppressed": []
             },
             "entity": "overview",
-            "findings": 1,
+            "findings": 5,
             "operationId": "project.overview",
             "reason": null,
             "status": "failed"
@@ -42,6 +45,9 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.wrong-scheme-refused",
                 "read.matches-caller-root"
               ],
               "suppressed": []
@@ -61,6 +67,74 @@
     },
     "findings": {
       "added": [
+        {
+          "check": "auth.invalid-credential-refused",
+          "detail": "project.overview answered 200 to alpha's jwt JWT with its signature altered. The document requires jwt.",
+          "entity": "project.overview",
+          "operations": [
+            "project.overview"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/overview"
+            }
+          ],
+          "summary": "a secured operation accepted a JWT whose signature was altered",
+          "verdict": "SECURITY"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "detail": "project.overview answered 200 to an invalid jwt credential. The document requires jwt.",
+          "entity": "project.overview",
+          "operations": [
+            "project.overview"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/overview"
+            }
+          ],
+          "summary": "a secured operation accepted an invalid credential",
+          "verdict": "SECURITY"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "detail": "project.overview answered 200 to a request with no credential. The document requires jwt.",
+          "entity": "project.overview",
+          "operations": [
+            "project.overview"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/overview"
+            }
+          ],
+          "summary": "a secured operation answered a request with no credential",
+          "verdict": "SECURITY"
+        },
+        {
+          "check": "auth.wrong-scheme-refused",
+          "detail": "project.overview answered 200 to alpha's apiKey credential, a scheme it does not list. The document requires jwt.",
+          "entity": "project.overview",
+          "operations": [
+            "project.overview"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/overview"
+            }
+          ],
+          "summary": "an operation accepted a credential of a scheme it does not list",
+          "verdict": "SECURITY"
+        },
         {
           "check": "read.matches-caller-root",
           "detail": "project.overview returned 200 with no credential.",
@@ -82,7 +156,7 @@
     },
     "summary": {
       "SECURITY": {
-        "now": 1,
+        "now": 5,
         "was": null
       }
     }

@@ -39,10 +39,14 @@ describe("reports", () => {
 	})
 })
 
-/* The reference's bearer login, by each principal's own key: the pair the token endpoint answers. */
+/* The reference's jwt login, by each principal's own key: the pair the token endpoint answers. */
 const SECURITY: SecurityConfig = {
-	bearer: {
+	jwt: {
 		login: { from: "$.access_token", steps: [{ body: { key: "{principal.key}" }, operationId: "auth.token" }] },
+		refresh: {
+			from: "$.access_token",
+			steps: [{ body: { refresh_token: "{credential}" }, operationId: "auth.refresh" }],
+		},
 	},
 }
 const PRINCIPALS: PrincipalsConfig = {

@@ -33,16 +33,18 @@ export function judgeSkipped(writer: Writer, flags: Args["flags"], skipped: read
  * so far — silent bail-outs, non-transitive suppression, a probe writing into a constrained field —
  * was invisible to the one-at-a-time matrix. A fixed seed tests the same 40 combinations forever;
  * CI passes a fresh one per run, and the seed is printed so any failure replays exactly. The flag
- * parser has already refused a seed that is not a positive integer. Returns the failures.
+ * parser has already refused a seed that is not a positive integer. The pass ends with the requests
+ * its combinations sent, by source. Returns the failures.
  */
 export async function runCombinations(writer: Writer, flags: Args["flags"], toolkit: Toolkit): Promise<number> {
 	writer.out(`\n  ── combinations ${"─".repeat(46)}\n`)
 	const seed = Number.parseInt(str(flags, "fuzz-seed") ?? "1", 10)
 	writer.out(`  fuzz seed ${seed} — replay with --fuzz 40 --max-defects 6 --seed ${seed}\n`)
+	const counted = toolkit.suite.counting(toolkit.suite.listening)
 	const smoke = toolkit.fuzz.renderFuzz(
-		await toolkit.fuzz.runFuzz({ backend: "memory", cases: 40, maxDefects: 6, seed }),
+		await toolkit.fuzz.runFuzz({ backend: "memory", cases: 40, maxDefects: 6, seed, via: counted.via }),
 	)
-	writer.out(smoke.text)
+	writer.out(`${smoke.text}${toolkit.suite.requestLines(counted.requests())}`)
 	return smoke.failures
 }
 

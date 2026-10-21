@@ -2,12 +2,15 @@
 
 import type { CheckId } from "../../check-ids.ts"
 import type { CheckContext, WriteContext } from "./context.ts"
+import type { OperationContext, OperationWriteContext } from "./operation-context.ts"
 import type { Plan } from "./plan.ts"
 import type { Outcome } from "../../finding.ts"
 import type { EntityModel, SpecModel } from "../../../spec/graph/types.ts"
 
 export interface CheckBase<T> {
 	id: CheckId
+	/** What the check is planned on: an entity and its cohort. The default; see `OperationCheck`. */
+	subject?: "entity"
 	/** Decides whether the check applies to this entity, and gathers what `run` needs if it does. */
 	plan(ctx: CheckContext): Plan<T>
 	/**
@@ -51,3 +54,37 @@ export type Check<T = unknown> = CheckBase<T> &
 		| { mutates: true; run(ctx: WriteContext, plan: T): Promise<Outcome> }
 		| { mutates?: false; run(ctx: CheckContext, plan: T): Promise<Outcome> }
 	)
+
+/**
+ * A check planned on one operation rather than on an entity: the security family's. The security
+ * stage (run/security.ts) schedules each probe, the check on one operation, by its placement
+ * (`placementOf`): a collection read before the entity lanes, concurrently; a read of one record
+ * after them, concurrently, on a record the run created (`ctx.target`); a write, or any probe of a
+ * check that changes a credential, after them alone and in order. `mutates` says only that some
+ * probe of the check writes, which types its client. Findings are attributed to the operation.
+ */
+export interface OperationCheckBase<T> {
+	id: CheckId
+	subject: "operation"
+	/** Decides whether the check applies to this operation, and gathers what `run` needs if it does. */
+	plan(ctx: OperationContext): Plan<T>
+	/** What the check needs in order to run at all, in the reader's terms; see `CheckBase.needs`. */
+	needs?: string
+	/** Planned only when the config's `checks` switches it on; otherwise skipped, saying how to opt in. */
+	optIn?: true
+	/**
+	 * The check changes a credential (revokes it, rotates it, spends a login's attempts): every one of
+	 * its probes runs after the lanes, alone and in order, whatever its method.
+	 */
+	mutatesCredentials?: true
+}
+
+/** An operation check, by whether it changes server state or a credential: see `Check`. */
+export type OperationCheck<T = unknown> = OperationCheckBase<T> &
+	(
+		| { mutates: true; run(ctx: OperationWriteContext, plan: T): Promise<Outcome> }
+		| { mutates?: false; run(ctx: OperationContext, plan: T): Promise<Outcome> }
+	)
+
+/** What the registry holds: entity checks and operation checks, in one list, in run order. */
+export type RegisteredCheck = Check | OperationCheck

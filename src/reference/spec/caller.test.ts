@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { ENTITIES } from "../model/entities.ts"
-import { authTokenPaths, callerProfilePaths, callerRootPaths } from "./caller.ts"
+import { callerProfilePaths, callerRootPaths } from "./caller.ts"
 import type { Json } from "./types.ts"
 
 const CTX = { entities: ENTITIES, shape: {} }
@@ -28,9 +28,14 @@ describe("callerRootPaths", () => {
 		expect(Object.keys(paths)).toEqual(["/v1/logout", "/v1/projects/{project_id}/overview", "/v1/register"])
 	})
 
-	it("marks the logout destructive and the register as minting a fresh principal", () => {
+	it("marks the logout destructive, and the register public and minting a fresh principal", () => {
 		expect(paths["/v1/logout"]?.post).toMatchObject({ operationId: "auth.logout", "x-destructive": true })
-		expect(paths["/v1/register"]?.post).toMatchObject({ operationId: "auth.register", "x-fresh-principal": true })
+		expect(paths["/v1/register"]?.post).toMatchObject({
+			operationId: "auth.register",
+			security: [],
+			"x-fresh-principal": true,
+		})
+		expect(paths["/v1/logout"]?.post).not.toHaveProperty("security")
 		expect(Object.keys(paths["/v1/register"]?.post?.responses ?? {})).toEqual(["201"])
 	})
 
@@ -39,15 +44,5 @@ describe("callerRootPaths", () => {
 			operationId: "project.overview",
 			"x-entity": { action: "read", identity: "root", name: "overview" },
 		})
-	})
-})
-
-describe("authTokenPaths", () => {
-	it("exchanges a key for a token without needing one", () => {
-		const token = (authTokenPaths(CTX) as Paths)["/v1/auth/token"]?.post
-		expect(token).toMatchObject({ operationId: "auth.token", security: [], tags: ["Auth"] })
-		expect(Object.keys(token?.responses ?? {})).toEqual(["200", "400", "401", "415"])
-		const ranged = (authTokenPaths({ entities: ENTITIES, shape: { rangeStatuses: true } }) as Paths)["/v1/auth/token"]
-		expect(Object.keys(ranged?.post?.responses ?? {})).toEqual(["2XX", "default"])
 	})
 })

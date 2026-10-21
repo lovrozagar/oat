@@ -1,12 +1,14 @@
 /*
  * The conformance pool's protocol: a task is a slice of a leg, small enough that the pool can
  * spread a long leg across its workers, and its answer is plain data the parent assembles and
- * prints in order. Every answer says how much memory its worker held after the task.
+ * prints in order. Every answer says how much memory its worker held after the task, and how many
+ * requests the task sent, by source.
  */
 
 import { writeHeapSnapshot } from "node:v8"
 import { join } from "node:path"
 import type { DefectName } from "../reference/defects/table.ts"
+import { counting, type Requests } from "./harness/counting.ts"
 import { runScopeSuite } from "./scope.ts"
 import { judgeShape, recallBehind, type ShapeCase, shapeReference, shapeTarget } from "./shapes.ts"
 import type { Via } from "./harness/launch.ts"
@@ -37,7 +39,7 @@ export type ConformanceAnswer = (
 	| { kind: "leg"; results: CaseResult[] }
 	| { kind: "results"; results: ParserResult[] }
 	| { kind: "reference"; checks: string[] | null }
-) & { memory: MemoryUse }
+) & { memory: MemoryUse; requests: Requests }
 
 /** The answer a task gets. */
 export type AnswerFor<T extends ConformanceTask> = Extract<
@@ -53,7 +55,11 @@ export type AnswerFor<T extends ConformanceTask> = Extract<
 	}
 >
 
-type Unmeasured = ConformanceAnswer extends infer A ? (A extends unknown ? Omit<A, "memory"> : never) : never
+type Unmeasured = ConformanceAnswer extends infer A
+	? A extends unknown
+		? Omit<A, "memory" | "requests">
+		: never
+	: never
 
 async function answered(task: ConformanceTask, via: Via): Promise<Unmeasured> {
 	const shapes = shapeTarget("memory", via)
@@ -84,13 +90,15 @@ async function answered(task: ConformanceTask, via: Via): Promise<Unmeasured> {
 /**
  * Runs a task, then measures what the process holds. With `OAT_HEAP_SNAPSHOTS` set to a folder,
  * a heap snapshot is written there after each task: what a leg left behind is in the next one.
- * `via` says how the reference is reached: the gate's workers reach it behind a socket.
+ * `via` says how the reference is reached: the gate's workers reach it behind a socket. Every request
+ * the task sends through it is counted.
  */
 export async function runTask(task: ConformanceTask, sequence: number, via: Via): Promise<ConformanceAnswer> {
-	const answer = await answered(task, via)
+	const counted = counting(via)
+	const answer = await answered(task, counted.via)
 	const dir = process.env.OAT_HEAP_SNAPSHOTS
 	if (dir !== undefined && dir !== "")
 		writeHeapSnapshot(join(dir, `${process.pid}-${String(sequence).padStart(4, "0")}-${task.kind}.heapsnapshot`))
 	const { heapUsed, rss } = process.memoryUsage()
-	return { ...answer, memory: { heapUsed, rss } } as ConformanceAnswer
+	return { ...answer, memory: { heapUsed, rss }, requests: counted.requests() } as ConformanceAnswer
 }

@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "1 root-cause finding",
+        "now": "2 root-cause findings",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -25,7 +25,28 @@
               ],
               "gaps": [],
               "inconclusive": [],
-              "passed": [],
+              "passed": [
+                "auth.anonymous-operation-open",
+                "auth.refresh-reuse-refused"
+              ],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 1,
+            "operationId": "auth.refresh",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "response.contract-call"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.anonymous-operation-open"
+              ],
               "suppressed": []
             },
             "entity": null,
@@ -42,6 +63,29 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.anonymous-operation-open",
+                "auth.refresh-reuse-refused",
+                "response.contract-call"
+              ],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 0,
+            "operationId": "auth.refresh",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "unproven",
+            "tier": "contract",
+            "why": "met its contract, but no later read observed what it changed"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.anonymous-operation-open",
                 "response.contract-call"
               ],
               "suppressed": []
@@ -63,6 +107,23 @@
       "added": [
         {
           "check": "response.contract-call",
+          "detail": "auth.refresh returned 200 with a body that fails the declared schema: /expires_in must be integer",
+          "entity": "auth.refresh",
+          "operations": [
+            "auth.refresh"
+          ],
+          "evidence": [
+            {
+              "method": "POST",
+              "status": 200,
+              "url": "http://reference.test/v1/auth/refresh"
+            }
+          ],
+          "summary": "success response does not match its documented schema",
+          "verdict": "SPEC_BUG"
+        },
+        {
+          "check": "response.contract-call",
           "detail": "auth.token returned 200 with a body that fails the declared schema: /expires_in must be integer",
           "entity": "auth.token",
           "operations": [
@@ -82,7 +143,7 @@
     },
     "summary": {
       "SPEC_BUG": {
-        "now": 1,
+        "now": 2,
         "was": null
       }
     }

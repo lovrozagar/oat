@@ -13,6 +13,12 @@ describe("judgeSkipped", () => {
 		expect(judgeSkipped(none, {}, [])).toBe(0)
 		expect(none.text()).toBe("")
 	})
+
+	it("fails every missing engine when none was left out", () => {
+		const writer = bufferWriter()
+		expect(judgeSkipped(writer, {}, ["postgres"])).toBe(1)
+		expect(writer.text()).toContain("✗ postgres backend unavailable")
+	})
 })
 
 describe("runCombinations", () => {
@@ -22,6 +28,13 @@ describe("runCombinations", () => {
 		expect(await runCombinations(writer, { "fuzz-seed": "12" }, toolkit)).toBe(1)
 		expect(log).toEqual(['fuzz {"backend":"memory","cases":40,"maxDefects":6,"seed":12}'])
 		expect(writer.text()).toContain("fuzz seed 12 — replay with --fuzz 40 --max-defects 6 --seed 12")
+		expect(writer.text()).toMatch(/\n {2}requests: 7\n {2}requests by source:\n {4}check a: 4\n {4}seed: 3\n$/)
+	})
+
+	it("runs on seed 1 when none is given", async () => {
+		const { toolkit, log } = fakeToolkit()
+		expect(await runCombinations(bufferWriter(), {}, toolkit)).toBe(0)
+		expect(log).toEqual(['fuzz {"backend":"memory","cases":40,"maxDefects":6,"seed":1}'])
 	})
 })
 

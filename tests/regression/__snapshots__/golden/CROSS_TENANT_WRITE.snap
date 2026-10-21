@@ -28,7 +28,12 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.privileged-field-ignored",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
@@ -53,7 +58,11 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
@@ -75,7 +84,11 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
@@ -98,7 +111,11 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "delete.absent-record-returns-404",
                 "response.status-is-documented",
                 "softdelete.absent-from-default-list"
@@ -119,7 +136,11 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "delete.absent-record-returns-404",
                 "response.status-is-documented"
               ],
@@ -139,7 +160,11 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "delete.absent-record-returns-404",
                 "response.status-is-documented"
               ],
@@ -161,7 +186,12 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.privileged-field-ignored",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
@@ -189,7 +219,11 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
@@ -214,7 +248,11 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
@@ -240,7 +278,11 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "delete.absent-record-returns-404",
                 "response.status-is-documented",
                 "softdelete.absent-from-default-list",
@@ -264,7 +306,11 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "delete.absent-record-returns-404",
                 "response.status-is-documented",
                 "tenant.item-not-writable-cross-tenant"
@@ -287,7 +333,11 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "delete.absent-record-returns-404",
                 "response.status-is-documented",
                 "tenant.item-not-writable-cross-tenant"

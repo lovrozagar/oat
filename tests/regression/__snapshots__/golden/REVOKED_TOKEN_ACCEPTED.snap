@@ -1,0 +1,184 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "3 root-cause findings",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "auth.destructive-spares-the-caller",
+                "auth.revoked-credential-refused"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 2,
+            "operationId": "auth.logout",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "auth.revoked-credential-refused"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "delete.absent-record-returns-404"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 1,
+            "operationId": "apiKey.revoke",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.destructive-spares-the-caller",
+                "auth.revoked-credential-refused"
+              ],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 0,
+            "operationId": "auth.logout",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.revoked-credential-refused",
+                "delete.absent-record-returns-404"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 0,
+            "operationId": "apiKey.revoke",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "auth.destructive-spares-the-caller",
+          "detail": "auth.logout invalidates profile.get, and that read then returned 200 with the second user's credential.",
+          "entity": "profile",
+          "operations": [
+            "auth.logout"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/me"
+            },
+            {
+              "method": "POST",
+              "status": 200,
+              "url": "http://reference.test/v1/logout"
+            }
+          ],
+          "summary": "the disposable session was still accepted",
+          "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "auth.revoked-credential-refused",
+          "detail": "alpha's apiKey credential, issued for this probe alone and revoked through apiKey.revoke, was still accepted: table.list answered 200. A credential that survives its revoke cannot be taken back from whoever holds it.",
+          "entity": "apiKey.revoke",
+          "operations": [
+            "apiKey.revoke"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables"
+            },
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables"
+            }
+          ],
+          "summary": "a revoked apiKey credential still authenticates",
+          "verdict": "SECURITY"
+        },
+        {
+          "check": "auth.revoked-credential-refused",
+          "detail": "alpha's jwt credential, issued for this probe alone and revoked through auth.logout, was still accepted: table.list answered 200. A credential that survives its revoke cannot be taken back from whoever holds it.",
+          "entity": "auth.logout",
+          "operations": [
+            "auth.logout"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables"
+            },
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables"
+            }
+          ],
+          "summary": "a revoked jwt credential still authenticates",
+          "verdict": "SECURITY"
+        }
+      ]
+    },
+    "summary": {
+      "SECURITY": {
+        "now": 2,
+        "was": null
+      },
+      "BACKEND_BUG": {
+        "now": 1,
+        "was": null
+      }
+    }
+  }
+}

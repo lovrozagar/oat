@@ -1,9 +1,30 @@
 /**
+ * The security family: per-operation checks of what a request's credentials must and must not get
+ * it. An explicit set rather than a prefix, so the `auth.rank-*` and `auth.invite-*` checks stay in
+ * isolation. A security check's id is added here alone: `CHECK_IDS` takes it from this list.
+ */
+export const SECURITY_CHECK_IDS = [
+	"auth.missing-credential-refused",
+	"auth.invalid-credential-refused",
+	"auth.wrong-scheme-refused",
+	"auth.scope-enforced",
+	"auth.alternative-accepted",
+	"auth.anonymous-operation-open",
+	"auth.revoked-credential-refused",
+	"auth.refresh-reuse-refused",
+	"auth.role-enforced",
+	"auth.cross-tenant-key-refused",
+	"auth.privileged-field-ignored",
+	"auth.login-throttled",
+] as const
+
+/**
  * Every registered check id. `Check.id` and `dependsOn` are typed against this list, so a
  * misspelled dependency fails to compile instead of silently never suppressing anything; the
  * registry is checked against it again when it loads.
  */
 export const CHECK_IDS = [
+	...SECURITY_CHECK_IDS,
 	"async.reaches-terminal-state",
 	"async.receipt-identifies-the-job",
 	"auth.invite-grants-then-revokes",
@@ -132,6 +153,7 @@ export type CheckFamily =
 	| "conformance"
 	| "spec declarations"
 	| "consistency"
+	| "security"
 
 type Prefix<Id> = Id extends `${infer Head}.${string}` ? Head : never
 
@@ -191,6 +213,7 @@ export type RunFindingId = (typeof RUN_FINDING_IDS)[number]
 /** What a finding names: the check that raised it, or the run itself. */
 export type FindingId = CheckId | RunFindingId
 
-export function familyOf(id: CheckId): CheckFamily {
-	return FAMILY_OF_PREFIX[id.slice(0, id.indexOf(".")) as Prefix<CheckId>]
+/** The family of `id`: `security` when the security set names it, else its prefix's family. */
+export function familyOf(id: CheckId, security: readonly string[] = SECURITY_CHECK_IDS): CheckFamily {
+	return security.includes(id) ? "security" : FAMILY_OF_PREFIX[id.slice(0, id.indexOf(".")) as Prefix<CheckId>]
 }

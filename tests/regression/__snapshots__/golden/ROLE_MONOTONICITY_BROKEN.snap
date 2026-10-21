@@ -52,6 +52,10 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.scope-enforced",
                 "consistency.projections-agree",
                 "invalidation.declared-route-changes",
                 "response.status-is-documented",
@@ -77,6 +81,10 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.scope-enforced",
                 "consistency.projections-agree",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -100,6 +108,10 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.scope-enforced",
                 "consistency.projections-agree",
                 "payload.string-survives",
                 "response.status-is-documented",
@@ -123,6 +135,11 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.privileged-field-ignored",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
@@ -152,6 +169,10 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
@@ -178,6 +199,10 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
@@ -192,6 +217,91 @@
             "entity": "job",
             "findings": 0,
             "operationId": "job.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "softdelete.absent-from-default-list",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": [
+                "auth.rank-is-monotonic-on-writes"
+              ]
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.delete",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": [
+                "auth.rank-is-monotonic-on-writes"
+              ]
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.delete",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": [
+                "auth.rank-is-monotonic-on-writes"
+              ]
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.delete",
             "reason": null,
             "status": "passed",
             "evidence": {},
@@ -285,79 +395,6 @@
             "entity": "job",
             "findings": 0,
             "operationId": "job.create",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "verified",
-            "tier": "verified",
-            "why": "a later exchange shows what this call did"
-          },
-          {
-            "checks": {
-              "failed": [],
-              "gaps": [],
-              "inconclusive": [],
-              "passed": [
-                "delete.absent-record-returns-404",
-                "response.status-is-documented",
-                "softdelete.absent-from-default-list",
-                "tenant.item-not-writable-cross-tenant"
-              ],
-              "suppressed": [
-                "auth.rank-is-monotonic-on-writes"
-              ]
-            },
-            "entity": "table",
-            "findings": 0,
-            "operationId": "table.delete",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "verified",
-            "tier": "verified",
-            "why": "a later exchange shows what this call did"
-          },
-          {
-            "checks": {
-              "failed": [],
-              "gaps": [],
-              "inconclusive": [],
-              "passed": [
-                "delete.absent-record-returns-404",
-                "response.status-is-documented",
-                "tenant.item-not-writable-cross-tenant"
-              ],
-              "suppressed": [
-                "auth.rank-is-monotonic-on-writes"
-              ]
-            },
-            "entity": "job",
-            "findings": 0,
-            "operationId": "job.delete",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "verified",
-            "tier": "verified",
-            "why": "a later exchange shows what this call did"
-          },
-          {
-            "checks": {
-              "failed": [],
-              "gaps": [],
-              "inconclusive": [],
-              "passed": [
-                "delete.absent-record-returns-404",
-                "response.status-is-documented",
-                "tenant.item-not-writable-cross-tenant"
-              ],
-              "suppressed": [
-                "auth.rank-is-monotonic-on-writes"
-              ]
-            },
-            "entity": "row",
-            "findings": 0,
-            "operationId": "row.delete",
             "reason": null,
             "status": "passed",
             "evidence": {},
@@ -375,7 +412,11 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
+                "auth.scope-enforced",
                 "consistency.projections-agree",
                 "invalidation.declared-route-changes",
                 "response.status-is-documented",
@@ -403,7 +444,11 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
+                "auth.scope-enforced",
                 "consistency.projections-agree",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -431,7 +476,12 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.privileged-field-ignored",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
@@ -459,7 +509,11 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
@@ -484,7 +538,11 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
+                "auth.scope-enforced",
                 "consistency.projections-agree",
                 "payload.string-survives",
                 "response.status-is-documented",
@@ -510,7 +568,11 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
@@ -523,6 +585,88 @@
             "entity": "job",
             "findings": 0,
             "operationId": "job.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "softdelete.absent-from-default-list",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.delete",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.delete",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.delete",
             "reason": null,
             "status": "passed",
             "evidence": {},
@@ -613,76 +757,6 @@
             "entity": "job",
             "findings": 0,
             "operationId": "job.create",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "verified",
-            "tier": "verified",
-            "why": "a later exchange shows what this call did"
-          },
-          {
-            "checks": {
-              "failed": [],
-              "gaps": [],
-              "inconclusive": [],
-              "passed": [
-                "auth.rank-is-monotonic-on-writes",
-                "delete.absent-record-returns-404",
-                "response.status-is-documented",
-                "softdelete.absent-from-default-list",
-                "tenant.item-not-writable-cross-tenant"
-              ],
-              "suppressed": []
-            },
-            "entity": "table",
-            "findings": 0,
-            "operationId": "table.delete",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "verified",
-            "tier": "verified",
-            "why": "a later exchange shows what this call did"
-          },
-          {
-            "checks": {
-              "failed": [],
-              "gaps": [],
-              "inconclusive": [],
-              "passed": [
-                "auth.rank-is-monotonic-on-writes",
-                "delete.absent-record-returns-404",
-                "response.status-is-documented",
-                "tenant.item-not-writable-cross-tenant"
-              ],
-              "suppressed": []
-            },
-            "entity": "job",
-            "findings": 0,
-            "operationId": "job.delete",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "verified",
-            "tier": "verified",
-            "why": "a later exchange shows what this call did"
-          },
-          {
-            "checks": {
-              "failed": [],
-              "gaps": [],
-              "inconclusive": [],
-              "passed": [
-                "auth.rank-is-monotonic-on-writes",
-                "delete.absent-record-returns-404",
-                "response.status-is-documented",
-                "tenant.item-not-writable-cross-tenant"
-              ],
-              "suppressed": []
-            },
-            "entity": "row",
-            "findings": 0,
-            "operationId": "row.delete",
             "reason": null,
             "status": "passed",
             "evidence": {},
@@ -741,8 +815,8 @@
         ]
       },
       "removed": {
-        "now": 55,
-        "was": 80
+        "now": 58,
+        "was": 83
       }
     },
     "findings": {

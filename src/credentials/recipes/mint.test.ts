@@ -27,6 +27,7 @@ describe("acquireMint", () => {
 				},
 				as: AS_JWT,
 				operationId: "apiKey.create",
+				secrets: ["$.key"],
 			},
 		])
 	})
@@ -38,7 +39,7 @@ describe("acquireMint", () => {
 		expect([issued.expiresAt, issued.revoke, recorded.calls[0]]).toEqual([
 			NOW + 60_000,
 			undefined,
-			{ as: AS_JWT, operationId: "apiKey.create" },
+			{ as: AS_JWT, operationId: "apiKey.create", secrets: ["$.key"] },
 		])
 	})
 })

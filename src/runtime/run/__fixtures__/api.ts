@@ -2,6 +2,7 @@ import type { SecurityConfig } from "../../../config/types/security.ts"
 import type { OpenApiDocument } from "../../../spec/types.ts"
 import type { RequestOptions } from "../../../client/types.ts"
 import { NetworkError } from "../../../errors/network.ts"
+import { listedIds } from "../../proven-id.ts"
 import type { Record_ } from "../../world/records.ts"
 import type { Answer, Responder } from "../../checks/__fixtures__/harness.ts"
 import { connect } from "../client-setup.ts"
@@ -159,6 +160,21 @@ export function notesApi(doc: OpenApiDocument = notesDoc(), rows: Record_[] = []
 		if (!valid(options.body, false)) return { body: { error: "invalid note" }, status: 422 }
 		rows[at] = { ...rows[at], ...(options.body as Record_), id: rows[at]?.id }
 		return { body: rows[at], status: 200 }
+	}
+}
+
+/**
+ * `respond` behind the bearer token its document requires: every request but the document's own
+ * answers 401 unless it carries `key`. `notesApi` answers whoever asks, so a run that probes its
+ * security would rightly find it open; this is the notes API that holds to its whole document.
+ */
+export function bearerOnly(respond: Responder, key = ALPHA_KEY): Responder {
+	return (method, path, options) => {
+		/* `transport` hands every request its headers as a record. */
+		const headers = options.headers as Record<string, string> | undefined
+		return path === "/openapi.json" || headers?.authorization === `Bearer ${key}`
+			? respond(method, path, options)
+			: { body: { error: "unauthorized" }, status: 401 }
 	}
 }
 
@@ -332,4 +348,16 @@ export function entityRunOf(ctx: RunContext, name = "note"): EntityRun {
 	const listOp = ctx.model.byOperationId.get(entity?.list ?? "")
 	if (entity === undefined || listOp === undefined) throw new Error(`the test document has no listed ${name}`)
 	return entityRun(ctx, entity, listOp)
+}
+
+/** Ledgers each id as a note `owner` (default: the first principal) created, as the lanes would. */
+export function ledgerNotes(
+	ctx: RunContext,
+	ids: readonly string[],
+	owner: { id: string } = ctx.principals.alpha,
+): void {
+	const record = ctx.principals.recorder(
+		ctx.principals.ownerOf(ctx.principals.byId.get(owner.id) ?? ctx.principals.alpha),
+	)
+	for (const id of listedIds(ids)) record("note", id, {})
 }

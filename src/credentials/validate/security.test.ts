@@ -78,6 +78,16 @@ describe("security mints and hooks", () => {
 		expect(problems({ security: { apiKey: { mint: { ...mint, revoke: "row.list" } }, jwt: { login } } })).toEqual([])
 	})
 
+	it("refuse a login whose revoke names no operation, as a mint's", () => {
+		expect(problems(jwtWith({ login: { ...login, revoke: "auth.logot" } }))).toEqual([
+			'security.jwt.login.revoke "auth.logot" names no operation',
+		])
+		expect(problems(jwtWith({ login: { ...login, revoke: "row.list" } }))).toEqual([])
+		expect(problems(jwtWith({ login: { ...login, revoke: { operationId: "auth.revok" } } }))).toEqual([
+			'security.jwt.login.revoke "auth.revok" names no operation',
+		])
+	})
+
 	it("leave a mint whose with or operationId is not a string to the shape check", () => {
 		const mint = { from: "$.k", operationId: 1, with: 2 }
 		expect(problems({ security: { apiKey: { mint }, jwt: { login } } })).toEqual([

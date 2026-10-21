@@ -1,11 +1,12 @@
 import { requestContent } from "../../../spec/collection/request.ts"
+import { isProbeExchange } from "../../probe-judging.ts"
 import type { OperationModel } from "../../../spec/graph/types.ts"
 import { normalizeSchema } from "../../../spec/schema.ts"
 import { encodeForOperation } from "../../body/encode.ts"
 import type { RequestOptions } from "../../../client/types.ts"
 import type { Exchange } from "../../exchange.ts"
 import { fillPath } from "../../fill-path.ts"
-import { buildCohort, type CohortMember } from "../../fixture.ts"
+import { buildCohort, type CohortMember, ordinaryRequestSchema } from "../../fixture.ts"
 import { distinctValue } from "../../generate/probes.ts"
 import { uniquifyProbeBody } from "../../unique.ts"
 import type { UploadContext } from "../../upload.ts"
@@ -35,8 +36,25 @@ export function changedValue(ctx: CheckContext, field: string, current: unknown,
 	return made.ok ? made.value : undefined
 }
 
+/**
+ * The properties `op`'s request schema declares that an ordinary body leaves out: readOnly ones, and
+ * optional ones marked x-privileged, which only the highest rank may set (`ordinaryRequestSchema`).
+ */
+export function withheldProperties(ctx: CheckContext, op: OperationModel | undefined): Set<string> {
+	const schema = op === undefined ? null : requestSchemaOf(ctx, op)
+	if (schema === null) return new Set()
+	const ordinary = ordinaryRequestSchema(schema) as { properties?: Record<string, unknown> }
+	const kept = ordinary.properties ?? {}
+	return new Set(Object.keys((schema.properties ?? {}) as object).filter((name) => !Object.hasOwn(kept, name)))
+}
+
+/** The first non-empty string field of `record` the update may change: not fixed, not withheld. */
 export function pickWritableStringField(ctx: CheckContext, record: Record_): string | null {
-	const immutable = new Set([...(ctx.updateOp?.immutable ?? []), ...(ctx.updateOp?.generated ?? [])])
+	const immutable = new Set([
+		...(ctx.updateOp?.immutable ?? []),
+		...(ctx.updateOp?.generated ?? []),
+		...withheldProperties(ctx, ctx.updateOp),
+	])
 	for (const [key, value] of Object.entries(record)) {
 		if (immutable.has(key) || key === ctx.identity) continue
 		if (/_at$|_id$/.test(key)) continue
@@ -56,9 +74,10 @@ export async function createExchange(ctx: CheckContext): Promise<Exchange | unde
 	}
 	/* By operation, then by the resolved path below the base URL: a pathname comparison misses
 	 * every exchange once the API is mounted under a prefix. */
+	/* The lane's own create, never a security probe that a broken API let through. */
 	const found = ctx.client
 		.exchangesFor(createOp.operationId)
-		.find((e) => e.status < 300 && ctx.client.relativePath(e.url) === resolved)
+		.find((e) => !isProbeExchange(e) && e.status < 300 && ctx.client.relativePath(e.url) === resolved)
 	return found === undefined ? undefined : ctx.client.hydrate(found)
 }
 

@@ -59,8 +59,19 @@ function chunked<T>(items: readonly T[]): T[][] {
 }
 
 type Pool = ReturnType<Toolkit["pool"]["createPool"]>
-type PassAnswer = ReturnType<Toolkit["suite"]["passAnswer"]> & { seconds: number }
+type Requests = ReturnType<Toolkit["suite"]["sumRequests"]>
+type PassAnswer = ReturnType<Toolkit["suite"]["passAnswer"]> & { seconds: number; requests: Requests }
 type ShapeCase = Parameters<Toolkit["shapes"]["renderShapeSuite"]>[0][number]
+/** A leg's cases, and every request its tasks sent. */
+interface Tallied<T> {
+	cases: T[]
+	requests: Requests
+}
+
+/** The requests a leg's task answers sent, summed source by source. */
+function requestsOf(toolkit: Toolkit, answers: ReadonlyArray<{ requests: Requests }>): Requests {
+	return toolkit.suite.sumRequests(answers.map((answer) => answer.requests))
+}
 
 /** The matrix as it runs: its printer, its pool, what it has failed and proven, and the largest worker it saw. */
 interface MatrixRun {
@@ -94,12 +105,13 @@ function queuePasses(run: MatrixRun): Array<Promise<PassAnswer>> {
 		])
 		for (const answer of answers) run.peakRss = Math.max(run.peakRss, answer.memory.rss)
 		const results = answers.flatMap((answer) => answer.results)
-		return { ...toolkit.suite.passAnswer(results, pass.backend, pass.dialect), seconds: seconds(run.started) }
+		const answer = toolkit.suite.passAnswer(results, pass.backend, pass.dialect)
+		return { ...answer, requests: requestsOf(toolkit, answers), seconds: seconds(run.started) }
 	})
 }
 
 /** The default shape's checks, then every shape on its own task, judged against them. */
-async function queueShapes(run: MatrixRun): Promise<ShapeCase[]> {
+async function queueShapes(run: MatrixRun): Promise<Tallied<ShapeCase>> {
 	const { pool, toolkit } = run
 	const reference = await pool.run({ kind: "shape-reference" })
 	const answers = await Promise.all(
@@ -108,17 +120,18 @@ async function queueShapes(run: MatrixRun): Promise<ShapeCase[]> {
 		),
 	)
 	for (const answer of [reference, ...answers]) run.peakRss = Math.max(run.peakRss, answer.memory.rss)
-	return answers.flatMap((answer) => answer.cases)
+	return { cases: answers.flatMap((answer) => answer.cases), requests: requestsOf(toolkit, [reference, ...answers]) }
 }
 
 /**
  * Recall behind each shape that runs clean, a chunk of defects per task; a shape that does not
  * waits on itself. Each shape says on stderr when its recall is done, so a long step shows it moves.
  */
-async function queueRecall(run: MatrixRun, shapes: Promise<ShapeCase[]>): Promise<ShapeCase[]> {
+async function queueRecall(run: MatrixRun, shapes: Promise<Tallied<ShapeCase>>): Promise<Tallied<ShapeCase>> {
 	const { pool, toolkit, writer } = run
-	const perShape = (await shapes).map(async (shape) => {
-		if (shape.problems.length > 0) return [toolkit.shapes.waitingRecall(shape)]
+	const perShape = (await shapes).cases.map(async (shape): Promise<Tallied<ShapeCase>> => {
+		if (shape.problems.length > 0)
+			return { cases: [toolkit.shapes.waitingRecall(shape)], requests: toolkit.suite.sumRequests([]) }
 		const name = shape.label.replace(/^shape:/, "")
 		const began = performance.now()
 		const answers = await Promise.all(
@@ -130,16 +143,19 @@ async function queueRecall(run: MatrixRun, shapes: Promise<ShapeCase[]>): Promis
 		const cases = answers.flatMap((answer) => answer.cases)
 		const unexpected = toolkit.shapes.renderShapeSuite(cases, true).failures
 		writer.err(`  recall behind ${name}: ${cases.length} case(s), ${unexpected} not as expected · ${seconds(began)}s\n`)
-		return cases
+		return { cases, requests: requestsOf(toolkit, answers) }
 	})
-	return (await Promise.all(perShape)).flat()
+	const tallies = await Promise.all(perShape)
+	return { cases: tallies.flatMap((tally) => tally.cases), requests: requestsOf(toolkit, tallies) }
 }
 
 /** What only a whole matrix can judge, queued beside the passes. */
 interface Extras {
-	shapes: Promise<ShapeCase[]> | undefined
-	recall: Promise<ShapeCase[]> | undefined
-	scope: Promise<Array<{ results: Parameters<Toolkit["suite"]["renderParserSuite"]>[0] }>> | undefined
+	shapes: Promise<Tallied<ShapeCase>> | undefined
+	recall: Promise<Tallied<ShapeCase>> | undefined
+	scope:
+		| Promise<Array<{ results: Parameters<Toolkit["suite"]["renderParserSuite"]>[0]; requests: Requests }>>
+		| undefined
 }
 
 /** The default pass: memory on the default dialect, whose runs the tag-unlock and `--ops` claims are judged from. */
@@ -199,7 +215,7 @@ export async function runMatrix(
 		for (const [index, pass] of matrix.passes.entries()) {
 			writer.out(`\n  ── ${pass.backend} · ${pass.dialect} ${"─".repeat(46)}\n`)
 			const answer = await (answers[index] as Promise<PassAnswer>)
-			writer.out(`${answer.text}  done in ${answer.seconds}s\n`)
+			writer.out(`${answer.text}${toolkit.suite.requestLines(answer.requests)}  done in ${answer.seconds}s\n`)
 			run.failures += answer.failures
 			for (const id of answer.proven) run.proven.add(id)
 		}
@@ -222,11 +238,14 @@ async function judgeWhole(run: MatrixRun, answers: Array<Promise<PassAnswer>>, e
 				(await (answers[index] as Promise<PassAnswer>)).baselines,
 			),
 		)
-	if (extras.scope !== undefined)
+	if (extras.scope !== undefined) {
+		const scoped = await extras.scope
 		print(
 			run,
-			(await extras.scope).flatMap((answer) => answer.results),
+			scoped.flatMap((answer) => answer.results),
 		)
+		run.writer.out(run.toolkit.suite.requestLines(requestsOf(run.toolkit, scoped)))
+	}
 	if (extras.shapes !== undefined) await judgeShapes(run, extras.shapes)
 	if (extras.recall !== undefined) await judgeRecall(run, extras.recall)
 }
@@ -237,20 +256,21 @@ function print(run: MatrixRun, cases: Parameters<Toolkit["suite"]["renderParserS
 	run.failures += rendered.failures
 }
 
-async function judgeShapes(run: MatrixRun, shapes: Promise<ShapeCase[]>): Promise<void> {
+async function judgeShapes(run: MatrixRun, shapes: Promise<Tallied<ShapeCase>>): Promise<void> {
 	run.writer.out(`\n  ── shapes · memory ${"─".repeat(46)}\n`)
-	const rendered = run.toolkit.shapes.renderShapeSuite(await shapes)
-	run.writer.out(`${rendered.text}  done in ${seconds(run.started)}s\n`)
+	const { cases, requests } = await shapes
+	const rendered = run.toolkit.shapes.renderShapeSuite(cases)
+	run.writer.out(`${rendered.text}${run.toolkit.suite.requestLines(requests)}  done in ${seconds(run.started)}s\n`)
 	run.failures += rendered.failures
 }
 
 /** Recall behind the shapes: a defect only a shape can show proves its check there. */
-async function judgeRecall(run: MatrixRun, recall: Promise<ShapeCase[]>): Promise<void> {
+async function judgeRecall(run: MatrixRun, recall: Promise<Tallied<ShapeCase>>): Promise<void> {
 	const { writer, toolkit } = run
 	writer.out(`\n  ── recall behind shapes · memory ${"─".repeat(32)}\n`)
-	const cases = await recall
+	const { cases, requests } = await recall
 	const rendered = toolkit.shapes.renderShapeSuite(cases, true)
-	writer.out(`${rendered.text}  done in ${seconds(run.started)}s\n`)
+	writer.out(`${rendered.text}${toolkit.suite.requestLines(requests)}  done in ${seconds(run.started)}s\n`)
 	run.failures += rendered.failures
 	const expected = toolkit.suite.EXPECTED as Record<string, string | string[]>
 	for (const recalled of cases) {

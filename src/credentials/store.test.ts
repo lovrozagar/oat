@@ -1,92 +1,8 @@
 import { describe, expect, it } from "vitest"
-import type { PrincipalsConfig, SecurityConfig } from "../config/types/security.ts"
-import type { SecurityScheme } from "../spec/security/schemes.ts"
-import { jwtOf } from "./__fixtures__/jwt.ts"
-import { answerOf, BEARER, fakePorts, NOW, type RunCall } from "./__fixtures__/ports.ts"
+import type { SecurityConfig } from "../config/types/security.ts"
+import { answerOf, BEARER, fakePorts, NOW } from "./__fixtures__/ports.ts"
+import { harness, SCHEMES } from "./__fixtures__/store.ts"
 import { type Credential, createStore, type Held } from "./store.ts"
-
-const KEY: SecurityScheme = { deprecated: false, in: "header", kind: "apiKey", name: "key", param: "Authorization" }
-const SCHEMES: ReadonlyMap<string, SecurityScheme> = new Map<string, SecurityScheme>([
-	["jwt", BEARER],
-	["key", KEY],
-	["basic", { deprecated: false, kind: "basic", name: "basic" }],
-	["digest", { deprecated: false, kind: "unsupported", name: "digest", unsupported: "http digest" }],
-])
-const SECURITY: SecurityConfig = {
-	digest: { static: "d" },
-	jwt: {
-		expiresIn: 60,
-		login: { from: "$.token", steps: [{ body: { email: "{principal.email}" }, operationId: "auth.login" }] },
-		refresh: { from: "$.token", steps: [{ operationId: "auth.refresh" }] },
-	},
-	key: {
-		format: "ApiKey {credential}",
-		mint: {
-			body: { scopes: "{scopes}" },
-			from: "$.key",
-			operationId: "apiKey.create",
-			revoke: "apiKey.revoke",
-			with: "jwt",
-		},
-	},
-}
-const PRINCIPALS: PrincipalsConfig = {
-	ann: { created: true, email: "ann@x.io", rank: 2, tenant: "t1" },
-	bob: { email: "bob@x.io", security: { jwt: { static: "bob-static" } } },
-	cy: { email: "cy@x.io" },
-	dee: {
-		email: "dee@x.io",
-		security: {
-			jwt: { login: { claims: { tenant: "org_id" }, from: "$.token", steps: [{ operationId: "auth.login" }] } },
-		},
-	},
-}
-
-interface Faults {
-	login?: Set<string>
-	refresh?: Set<string>
-	mint?: (count: number) => boolean
-	revoke?: (scope: Readonly<Record<string, string>> | undefined) => number
-}
-
-/** A store over counting fakes: a login or refresh issues `<principal>-<n>`, a mint issues `k<n>`. */
-function harness(faults: Faults = {}) {
-	const clock = { now: NOW }
-	let issued = 0
-	let mints = 0
-	const signIn = (call: RunCall) => {
-		const refreshing = "operationId" in call.steps[0]! && call.steps[0].operationId === "auth.refresh"
-		if ((refreshing ? faults.refresh : faults.login)?.has(call.principal)) {
-			return Promise.reject(new Error(refreshing ? "refresh token reused" : "auth step 1 answered 401"))
-		}
-		issued++
-		const token = call.principal === "dee" ? jwtOf({ org_id: "o7" }) : `${call.principal}-${issued}`
-		return Promise.resolve({ answer: answerOf({ token }), scope: {} })
-	}
-	const { ports, recorded } = fakePorts({
-		call: (operationId, _body, as) => {
-			/* As the run's client does: a principal blocked for the `with` scheme sends nothing. */
-			if (faults.login?.has(as.principal))
-				return Promise.reject(new Error(`"${as.principal}" is BLOCKED for ${as.scheme}`))
-			if (operationId === "apiKey.revoke") {
-				const scope = recorded.calls.at(-1)?.scope
-				return Promise.resolve(answerOf(null, faults.revoke?.(scope) ?? 204))
-			}
-			mints++
-			return Promise.resolve(faults.mint?.(mints) ? answerOf({}, 500) : answerOf({ id: mints, key: `k${mints}` }))
-		},
-		run: signIn,
-	})
-	const store = createStore({
-		now: () => clock.now,
-		ports,
-		principals: PRINCIPALS,
-		schemes: SCHEMES,
-		security: SECURITY,
-	})
-	const mintCalls = () => recorded.calls.filter((call) => call.operationId === "apiKey.create")
-	return { clock, mintCalls, recorded, store }
-}
 
 const valueOf = (held: Held): string => (held as Credential).value
 
@@ -487,5 +403,56 @@ describe("createStore: enroll and snapshot", () => {
 			{ credential: jwt, principal: "ann", scheme: "jwt", scopes: [] },
 			{ credential: key, principal: "ann", scheme: "key", scopes: ["a", "b"] },
 		])
+	})
+})
+
+describe("createStore: a dedicated credential", () => {
+	it("is acquired through the store, under a probe principal", async () => {
+		const { store } = harness()
+		expect(await store.acquireDedicated({ principal: "ann", scheme: "jwt" })).toMatchObject({
+			principal: "ann#probe-1",
+		})
+	})
+})
+
+describe("createStore: a principal's own session", () => {
+	it("is never revoked by its login's declared revoke: only a dedicated session is", async () => {
+		const { recorded, store } = harness()
+		await store.acquire({ principal: "ann", scheme: "jwt" })
+		expect(await store.revokeAll()).toEqual([])
+		expect(recorded.calls).toEqual([])
+	})
+})
+
+describe("createStore: revoking principals' own sessions at the very end", () => {
+	it("revokes each principal's login session once by its declared revoke, never a dedicated or other credential", async () => {
+		const { recorded, store } = harness()
+		const ann = await store.acquire({ principal: "ann", scheme: "jwt" })
+		await store.acquire({ principal: "ann", scheme: "key", scopes: ["a"] })
+		await store.acquire({ principal: "bob", scheme: "jwt" })
+		await store.acquireDedicated({ principal: "cy", scheme: "jwt" })
+		expect(await store.revokeSessions(() => true)).toEqual([])
+		const logouts = recorded.calls.filter((call) => call.operationId === "auth.logout")
+		expect(logouts.map((call) => [call.as, call.value])).toEqual([
+			[{ principal: "ann", scheme: "jwt" }, (ann as Credential).value],
+		])
+	})
+
+	it("leaves a principal the predicate excludes, and names a failure by principal and scheme", async () => {
+		const { recorded, store } = harness({ logout: () => 500 })
+		await store.acquire({ principal: "ann", scheme: "jwt" })
+		await store.acquire({ principal: "cy", scheme: "jwt" })
+		expect(await store.revokeSessions((principal) => principal !== "cy")).toEqual([
+			{ principal: "ann", reason: "revoke auth.logout answered 500", scheme: "jwt" },
+		])
+		expect(recorded.calls.filter((call) => call.operationId === "auth.logout")).toHaveLength(1)
+	})
+
+	it("sends nothing for a login that declares no revoke, or one that failed", async () => {
+		const { recorded, store } = harness({ login: new Set(["cy"]) })
+		await store.acquire({ principal: "dee", scheme: "jwt" })
+		await store.acquire({ principal: "cy", scheme: "jwt" })
+		expect(await store.revokeSessions(() => true)).toEqual([])
+		expect(recorded.calls).toEqual([])
 	})
 })

@@ -9,7 +9,6 @@ import {
 	type EntityRecord,
 	type Grant,
 	type Principal,
-	PRINCIPALS,
 	type ReferenceState,
 	type Scope,
 	TENANT_FIELD,
@@ -19,21 +18,15 @@ import type { ReferenceRequest } from "./wire.ts"
 const notFound = (entity: EntityDef, id: unknown, why = "does not exist"): HttpError =>
 	new HttpError(404, "not_found", `${entity.name} ${String(id)} ${why}`)
 
-/** The bearer token a request carries, or `undefined`. */
+/** The bearer value a request carries, or `undefined`: what the conformance's own small backends read. */
 export function bearer(request: ReferenceRequest): string | undefined {
 	const header = request.headers.authorization
 	return header?.startsWith("Bearer ") === true ? header.slice(7).trim() : undefined
 }
 
-export function authenticate(state: ReferenceState, request: ReferenceRequest): Principal {
-	const token = bearer(request)
-	if (token === undefined) throw new HttpError(401, "unauthorized", "missing bearer credential")
-	if (!state.liveTokens.has(token)) throw new HttpError(401, "unauthorized", "unrecognised credential")
-	return PRINCIPALS.find((item) => item.token === token) ?? { key: token, projectId: "proj_alpha", rank: 2, token }
-}
-
-/** Viewer cannot write; member cannot delete; owner can do everything. */
+/** Viewer cannot write; member cannot delete; admin can do everything. Under ROLE_NOT_CHECKED anyone can. */
 export function assertWrite(state: ReferenceState, principal: Principal, kind: "create" | "update" | "delete"): void {
+	if (state.defects.has("ROLE_NOT_CHECKED")) return
 	if (kind === "update" && state.defects.has("ROLE_WRITE_INVERTED")) {
 		/* The lattice turned over for updates: the viewer may, the member may not. */
 		if (principal.rank === 1) throw new HttpError(403, "forbidden", "role cannot write")

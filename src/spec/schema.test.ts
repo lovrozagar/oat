@@ -155,3 +155,22 @@ describe("scalarKinds", () => {
 		expect(scalarKinds({ allOf: [{ description: "x" }] })).toBeUndefined()
 	})
 })
+
+describe("normalizeSchema for an ordinary writer", () => {
+	it("drops an optional x-privileged property for an ordinary writer alone, and keeps a required one", () => {
+		const schema = {
+			properties: { name: {}, plan: { "x-privileged": true }, verified: { "x-privileged": true } },
+			required: ["name", "plan"],
+		}
+		expect(normalizeSchema(schema, { direction: "request", ordinary: true })).toEqual({
+			properties: { name: {}, plan: { "x-privileged": true } },
+			required: ["name", "plan"],
+		})
+		expect(normalizeSchema(schema, request)).toEqual(schema)
+		expect(
+			normalizeSchema({ properties: { verified: { "x-privileged": true } } }, { direction: "request", ordinary: true }),
+		).toEqual({
+			properties: {},
+		})
+	})
+})

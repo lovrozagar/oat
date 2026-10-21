@@ -1,6 +1,7 @@
 import type { ExpiresIn, OAuth2Recipe, Recipe } from "../../config/types/security.ts"
 import { expiresAtOf } from "../expiry.ts"
 import { fillPrincipal } from "../interpolate.ts"
+import type { Hop } from "../ports.ts"
 import { readAnswer } from "../read.ts"
 import { answered, valueAt } from "./answer.ts"
 import type { AcquireCtx, Issued } from "./types.ts"
@@ -45,8 +46,8 @@ interface Grant {
 }
 
 /* One token request. A refresh token, new or carried forward, renews by the refresh_token grant (§6). */
-async function token(ctx: AcquireCtx, grant: Grant, form: Record<string, string>): Promise<Issued> {
-	const answer = await ctx.ports.tokens.post(grant.tokenUrl, form)
+async function token(ctx: AcquireCtx, grant: Grant, form: Record<string, string>, hop?: Hop): Promise<Issued> {
+	const answer = await ctx.ports.tokens.post(grant.tokenUrl, form, hop)
 	answered(answer, "oauth2 token request")
 	const value = valueAt(answer, "$.access_token", "oauth2 token request")
 	const expiresAt = expiresAtOf({ body: answer.body, expiresIn: grant.expiresIn, now: ctx.now(), value })
@@ -54,7 +55,7 @@ async function token(ctx: AcquireCtx, grant: Grant, form: Record<string, string>
 	const refreshToken = readAnswer(answer, "$.refresh_token") ?? grant.refreshToken
 	if (refreshToken !== undefined) {
 		const renewal = { ...grant.client, grant_type: "refresh_token", refresh_token: refreshToken }
-		issued.refresh = () => token(ctx, { ...grant, refreshToken }, renewal)
+		issued.refresh = (again) => token(ctx, { ...grant, refreshToken }, renewal, again)
 	}
 	return issued
 }

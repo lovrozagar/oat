@@ -12,7 +12,8 @@ type Suite = typeof import("../../conformance/suites/parser.ts") &
 	typeof import("../../conformance/matrix/defects.ts") &
 	typeof import("../../conformance/matrix/engines.ts") &
 	typeof import("../../conformance/matrix/render.ts") &
-	typeof import("../../conformance/harness/launch.ts")
+	typeof import("../../conformance/harness/launch.ts") &
+	typeof import("../../conformance/harness/counting.ts")
 
 export interface Toolkit {
 	suite: Suite
@@ -45,6 +46,7 @@ export async function loadToolkit(): Promise<Toolkit> {
 			import("../../conformance/matrix/engines.ts"),
 			import("../../conformance/matrix/render.ts"),
 			import("../../conformance/harness/launch.ts"),
+			import("../../conformance/harness/counting.ts"),
 		])),
 	) as Suite
 	const [pool, fuzz, shapes, seedContract, effects, featureGate, rateLimit, unique, dialect, defects] =

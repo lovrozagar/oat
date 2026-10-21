@@ -117,6 +117,45 @@ describe("bar 4: redaction derives from placements", () => {
 	})
 })
 
+describe("BLOCKING 2: a forged value derived from a real credential is a secret", () => {
+	it("scrubs a derived value from the journal and the repro script, by value as well as by name", async () => {
+		const derived = "jwt-secret-value-1.tampered"
+		const { client, sent } = clientOf({ answer: () => json({ echo: derived }, 401), doc: placesDoc, security: places })
+		const forged = await client.get("/all", { as: { forged: { derived: true, scheme: "jwt", value: derived } } })
+		expect(sent[0]?.headers).toMatchObject({ Authorization: `Bearer ${derived}` })
+		const file = await journalled(forged, client.redactor)
+		const script = toCurl(forged, { redactor: client.redactor })
+		for (const written of [file, script]) expect(written).not.toContain(derived)
+		expect((JSON.parse(file) as { requestHeaders: object }).requestHeaders).toMatchObject({
+			Authorization: `Bearer ${REDACTED}`,
+		})
+	})
+})
+
+describe("every value a recipe extracts is a secret before its answer is recorded", () => {
+	it("scrubs a sign-in answer's tokens from the journal's response body, and from a later repro script", async () => {
+		const answer = { access_token: "at-secret-123", data: { jwt: "jwt-neutral-key-1" }, refresh_token: "rt-secret-123" }
+		const { client } = clientOf({ answer: () => json(answer), doc: placesDoc, security: places })
+		const secrets = ["$.access_token", "$.refresh_token", "$.data.jwt", "$.absent"]
+		const signIn = await client.request("POST", "/login", {
+			as: { anonymous: true },
+			context: { purpose: "auth", secrets },
+		})
+		const file = await journalled(signIn, client.redactor)
+		for (const value of ["at-secret-123", "rt-secret-123", "jwt-neutral-key-1"]) expect(file).not.toContain(value)
+		expect((JSON.parse(file) as { responseBody: unknown }).responseBody).toEqual({
+			access_token: REDACTED,
+			data: { jwt: REDACTED },
+			refresh_token: REDACTED,
+		})
+		const later = await client.request("POST", "/echo", {
+			as: { anonymous: true },
+			body: { note: "jwt-neutral-key-1" },
+		})
+		expect(toCurl(later, { redactor: client.redactor })).not.toContain("jwt-neutral-key-1")
+	})
+})
+
 describe("bar 5: refresh is single-flight", () => {
 	it("renews once for 10 parallel 401s, and retries each request once", async () => {
 		let issued = 0

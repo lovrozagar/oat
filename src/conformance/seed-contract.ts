@@ -8,7 +8,8 @@
 
 import { messageOf } from "../errors/message.ts"
 import type { Handle } from "../reference/http/node.ts"
-import { run, type RunOptions, type RunResult } from "../runtime/run/index.ts"
+import type { RunOptions, RunResult } from "../runtime/run/index.ts"
+import { run } from "./harness/counting.ts"
 import { buildModel } from "../spec/graph/build.ts"
 import { dereference } from "../spec/load/dereference.ts"
 import { listening, reach, type Via } from "./harness/launch.ts"

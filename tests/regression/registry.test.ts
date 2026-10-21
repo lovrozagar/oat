@@ -7,9 +7,9 @@ describe("check registry golden", () => {
 	it("ids, order, dependencies, mutation and transcript judging", async () => {
 		const rows = CHECKS.map((check) => ({
 			id: check.id,
-			dependsOn: check.dependsOn ?? [],
+			dependsOn: check.subject === "operation" ? [] : (check.dependsOn ?? []),
 			mutates: check.mutates === true,
-			judgesTranscript: check.judgesTranscript === true,
+			judgesTranscript: check.subject !== "operation" && check.judgesTranscript === true,
 			...(check.needs === undefined ? {} : { needs: check.needs }),
 		}))
 		await expect(`${JSON.stringify(rows, null, 2)}\n`).toMatchFileSnapshot("__snapshots__/registry.snap")

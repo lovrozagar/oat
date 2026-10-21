@@ -1,4 +1,4 @@
-/** Routes about the caller: its token, its profile, its own project, a register and a logout. */
+/** Routes about the caller: its profile, its own project, a register and a logout. */
 
 import { errorResponses } from "./errors.ts"
 import { jsonResponse, ok } from "./operation.ts"
@@ -115,6 +115,7 @@ function registerOperation(ctx: SpecContext): Json {
 				type: "object",
 			}),
 		},
+		security: [],
 		summary: "Register a caller",
 		tags: ["Profile"],
 		"x-fresh-principal": true,
@@ -127,45 +128,5 @@ export function callerRootPaths(ctx: SpecContext): Json {
 		"/v1/logout": { post: logoutOperation(ctx) },
 		"/v1/projects/{project_id}/overview": { get: overviewOperation(ctx) },
 		"/v1/register": { post: registerOperation(ctx) },
-	}
-}
-
-/** The token exchange every other operation authenticates with; it needs no token itself. */
-export function authTokenPaths(ctx: SpecContext): Json {
-	return {
-		"/v1/auth/token": {
-			post: {
-				operationId: "auth.token",
-				requestBody: {
-					content: {
-						"application/json": {
-							schema: {
-								additionalProperties: false,
-								properties: { key: { type: "string" } },
-								required: ["key"],
-								type: "object",
-							},
-						},
-					},
-					required: true,
-				},
-				responses: {
-					[ok(ctx, 200)]: jsonResponse("Access token", {
-						additionalProperties: false,
-						properties: {
-							access_token: { type: "string" },
-							expires_in: { type: "integer" },
-							project_id: { type: "string" },
-						},
-						required: ["access_token", "expires_in", "project_id"],
-						type: "object",
-					}),
-					...errorResponses(ctx, [400, 401, 415]),
-				},
-				security: [],
-				summary: "Exchange an API key for an access token",
-				tags: ["Auth"],
-			},
-		},
 	}
 }

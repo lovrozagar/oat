@@ -1,3 +1,4 @@
+import { requestLines, sumRequests } from "../../conformance/harness/counting.ts"
 import type { Toolkit } from "../commands/conformance-toolkit.ts"
 
 /*
@@ -54,7 +55,11 @@ export function fakeToolkit(options: ToolkitOptions = {}): { toolkit: Toolkit; l
 		fuzz: {
 			renderFuzz: (results: Case[]) => rendered(results),
 			renderPrecision: (results: Case[]) => rendered(results),
-			runFuzz: async (input: unknown) => (log.push(`fuzz ${JSON.stringify(input)}`), cases),
+			runFuzz: async ({ via, ...input }: { via?: unknown }) => (
+				via === undefined ? undefined : reachedBySocket(via),
+				log.push(`fuzz ${JSON.stringify(input)}`),
+				cases
+			),
 			runPrecision: async (input: unknown) => (log.push(`precision ${JSON.stringify(input)}`), cases),
 		},
 		pool: { createPool: (jobs: number) => fakePool(jobs, options, log), defaultJobs: () => 3 },
@@ -88,6 +93,11 @@ function fakeSuite(options: ToolkitOptions, log: string[]) {
 	}
 	return {
 		EXPECTED: { A: "check.a", B: ["check.b", "check.b2"] },
+		/* A counter that has seen 7 requests, from two sources, on the transport it wraps. */
+		counting: (via: unknown) => ({
+			requests: () => ({ sources: { "check a": 4, seed: 3 }, total: 7 }),
+			via: { counted: via },
+		}),
 		d1Available: () => options.d1 === true,
 		defectsFor: (_backend: string, _dialect: string, only: string[] | undefined) =>
 			only ?? ["A", "B", "C", "D", "E", "F", "G"],
@@ -100,6 +110,7 @@ function fakeSuite(options: ToolkitOptions, log: string[]) {
 		}),
 		postgresAvailable: async () => options.postgres === true,
 		renderParserSuite: (results: Case[]) => rendered(results),
+		requestLines,
 		renderUnproven: (proven: Set<string>) => ({
 			failures: (options.unproven ?? []).filter((id) => !proven.has(id)).length,
 			text: `unproven ${[...proven].sort().join(",")}\n`,
@@ -116,20 +127,25 @@ function fakeSuite(options: ToolkitOptions, log: string[]) {
 		),
 		runTenantScopeSuite: async (via: unknown) => (reachedBySocket(via), suite("tenant")()),
 		sqliteAvailable: async () => options.sqlite === true,
+		sumRequests,
 	}
 }
 
 /* The commands run the suites behind a socket: the transport the gate tests. */
 const LISTENING = { host: async () => undefined, launch: async () => undefined }
 
+/* Reached behind the socket, counted or not. */
 function reachedBySocket(via: unknown): void {
-	if (via !== LISTENING) throw new Error("a suite was not given the socket transport")
+	const inner = (via as { counted?: unknown } | undefined)?.counted ?? via
+	if (inner !== LISTENING) throw new Error("a suite was not given the socket transport")
 }
 
 /** A pool that answers each task by its kind, and records it. */
 function fakePool(jobs: number, options: ToolkitOptions, log: string[]) {
 	log.push(`pool ${jobs}`)
 	const memory = { heapUsed: 50 * 2 ** 20, rss: 300 * 2 ** 20 }
+	/* Every task sent 10 requests, from two sources. */
+	const requests = { sources: { "check a": 6, seed: 4 }, total: 10 }
 	return {
 		close: async () => void log.push("pool closed"),
 		run: async (task: {
@@ -144,20 +160,20 @@ function fakePool(jobs: number, options: ToolkitOptions, log: string[]) {
 			log.push(
 				`task ${task.kind}${where}${task.name === undefined ? "" : ` ${task.name}`}${task.shape === undefined ? "" : ` ${task.shape}`}${task.defects === undefined ? "" : ` ${task.defects.length}`}`,
 			)
-			if (task.kind === "shape-reference") return { checks: ["c1"], kind: "reference", memory }
+			if (task.kind === "shape-reference") return { checks: ["c1"], kind: "reference", memory, requests }
 			if (task.kind === "shape") {
 				const shape = (options.shapes ?? []).find((one) => one.label === `shape:${task.name}`)
-				return { cases: shape === undefined ? [] : [shape], kind: "cases", memory }
+				return { cases: shape === undefined ? [] : [shape], kind: "cases", memory, requests }
 			}
 			if (task.kind === "recall") {
 				const cases = (task.defects ?? []).map((defect) => ({
 					label: `recall:${task.shape}:${defect}`,
 					problems: options.recallProblems?.[defect] ?? [],
 				}))
-				return { cases, kind: "cases", memory }
+				return { cases, kind: "cases", memory, requests }
 			}
-			if (task.kind === "scope") return { kind: "results", memory, results: options.cases ?? [] }
-			return { kind: "leg", memory, results: (task.defects ?? ["baseline"]).map((label) => ({ label })) }
+			if (task.kind === "scope") return { kind: "results", memory, requests, results: options.cases ?? [] }
+			return { kind: "leg", memory, requests, results: (task.defects ?? ["baseline"]).map((label) => ({ label })) }
 		},
 	}
 }

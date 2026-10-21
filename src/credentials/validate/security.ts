@@ -1,4 +1,4 @@
-import type { ExtraPlacement, Recipe, RecipeKind } from "../../config/types/security.ts"
+import type { ExtraPlacement, Recipe } from "../../config/types/security.ts"
 import { nearest } from "../../errors/suggest.ts"
 import { UsageError } from "../../errors/usage-error.ts"
 import type { SpecModel } from "../../spec/graph/types.ts"
@@ -9,7 +9,7 @@ import type { OpenApiDocument } from "../../spec/types.ts"
 import { effectiveRecipe } from "../effective.ts"
 import { declaredSchemes, type FreshView, freshView, principalProblems, removedProblems } from "./principals.ts"
 import { documentProblems } from "./document.ts"
-import { kindShapeProblems } from "./recipe-shape.ts"
+import { kindProblems, kindShapeProblems } from "./recipe-shape.ts"
 
 /*
  * The 0.25.0 credentials config, checked against the documents it runs on: one recipe of one kind
@@ -39,22 +39,12 @@ export function specView(model: ModelView, doc: OpenApiDocument): SpecView {
 
 type Raw = Record<string, unknown>
 
-const KINDS: readonly RecipeKind[] = ["login", "mint", "static", "hook", "oauth2"]
 const LOCATIONS: ReadonlySet<unknown> = /* @__PURE__ */ new Set(["header", "query", "cookie"])
 
 const isRecord = (value: unknown): value is Raw => value !== null && typeof value === "object" && !Array.isArray(value)
 
-function kindProblems(path: string, recipe: Raw): string[] {
-	const present = KINDS.filter((kind) => recipe[kind] !== undefined)
-	if (present.length === 1) return []
-	if (present.length === 0) return [`${path} needs exactly one of ${KINDS.join(", ")}`]
-	return [`${path} has ${present.join(" and ")}; keep exactly one`]
-}
-
-function validExpiry(value: unknown): boolean {
-	if (typeof value === "number") return value > 0
-	return isRecord(value) && typeof value.from === "string"
-}
+const validExpiry = (value: unknown): boolean =>
+	typeof value === "number" ? value > 0 : isRecord(value) && typeof value.from === "string"
 
 const validPlacement = (value: unknown): value is ExtraPlacement =>
 	isRecord(value) &&
@@ -115,6 +105,11 @@ interface Against {
 
 const names = (spec: SpecView, operationId: string): boolean =>
 	spec.operations.some((op) => op.operationId === operationId)
+/* A declared revoke, a mint's or a login's (alone, or `{ operationId, body }`), names an operation of the document. */
+function revokeProblems(spec: SpecView, path: string, revoke: unknown): string[] {
+	const id = isRecord(revoke) ? revoke.operationId : revoke
+	return typeof id === "string" && !names(spec, id) ? [`${path}.revoke "${id}" names no operation`] : []
+}
 
 /* References a mint makes, once its fields are strings: the shape check reports them otherwise. */
 function mintProblems(ctx: Against, path: string, name: string, mint: Raw): string[] {
@@ -126,9 +121,7 @@ function mintProblems(ctx: Against, path: string, name: string, mint: Raw): stri
 		const chain = mintChain(name, security)
 		if (chain.at(-1) === name) problems.push(`${path}.mint.with forms a loop: ${chain.join(" → ")}`)
 	}
-	if (typeof mint.revoke === "string" && !names(spec, mint.revoke)) {
-		problems.push(`${path}.mint.revoke "${mint.revoke}" names no operation`)
-	}
+	problems.push(...revokeProblems(spec, `${path}.mint`, mint.revoke))
 	if (typeof mint.operationId !== "string") return problems
 	if (!names(spec, mint.operationId)) {
 		problems.push(`${path}.mint.operationId "${mint.operationId}" names no operation`)
@@ -172,6 +165,7 @@ function recipeProblems(ctx: Against, path: string, name: string, recipe: unknow
 		...kindShapeProblems(path, recipe, { hasHook: ctx.hasHook, scheme, signsUp: spec.fresh !== undefined }),
 		...(isRecord(recipe.oauth2) ? oauth2Problems(path, recipe.oauth2, scheme) : []),
 		...(isRecord(recipe.mint) ? mintProblems(ctx, path, name, recipe.mint) : []),
+		...(isRecord(recipe.login) ? revokeProblems(ctx.spec, `${path}.login`, recipe.login.revoke) : []),
 	]
 }
 

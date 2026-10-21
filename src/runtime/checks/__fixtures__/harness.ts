@@ -64,6 +64,8 @@ export function exchangeOf(sent: Sent, answer: Answer): Exchange {
 		url: `http://api.test${path}`,
 		...(options.operationId === undefined ? {} : { operationId: options.operationId }),
 		...principalOf(options),
+		/* As the client records a request sent to be refused. */
+		...(options.probe === true ? { probe: true as const } : {}),
 	}
 }
 

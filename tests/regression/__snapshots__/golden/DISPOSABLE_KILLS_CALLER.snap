@@ -7,13 +7,237 @@
         "was": 0
       },
       "reason": {
-        "now": "records may remain: 76 teardown could not show gone",
+        "now": "records may remain: 81 teardown could not show gone",
         "was": "no defects found in what was graded"
       },
       "result": {
         "now": "leftovers",
         "was": "clean"
       }
+    },
+    "checksSkipped": {
+      "added": [
+        {
+          "check": "auth.alternative-accepted",
+          "entity": "job.get",
+          "needs": "job.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.alternative-accepted",
+          "entity": "row.get",
+          "needs": "row.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.alternative-accepted",
+          "entity": "table.get",
+          "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "job.delete",
+          "needs": "a throwaway job for job.delete: signed in again, and the new credential is refused where the old one was accepted (job.get)"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "job.get",
+          "needs": "job.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "job.update",
+          "needs": "job.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "row.delete",
+          "needs": "a throwaway row for row.delete: signed in again, and the new credential is refused where the old one was accepted (job.get)"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "row.get",
+          "needs": "row.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "row.update",
+          "needs": "row.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "table.delete",
+          "needs": "a throwaway table for table.delete: signed in again, and the new credential is refused where the old one was accepted (job.get)"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "table.get",
+          "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "table.invite",
+          "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "table.update",
+          "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "job.delete",
+          "needs": "a throwaway job for job.delete: signed in again, and the new credential is refused where the old one was accepted (job.get)"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "job.get",
+          "needs": "job.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "job.update",
+          "needs": "job.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "row.delete",
+          "needs": "a throwaway row for row.delete: signed in again, and the new credential is refused where the old one was accepted (job.get)"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "row.get",
+          "needs": "row.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "row.update",
+          "needs": "row.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "table.delete",
+          "needs": "a throwaway table for table.delete: signed in again, and the new credential is refused where the old one was accepted (job.get)"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "table.get",
+          "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "table.invite",
+          "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "table.update",
+          "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.privileged-field-ignored",
+          "entity": "table.update",
+          "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.refresh-reuse-refused",
+          "entity": "auth.refresh",
+          "needs": "jwt: signed in again, and the new credential is refused where the old one was accepted (job.get)"
+        },
+        {
+          "check": "auth.revoked-credential-refused",
+          "entity": "apiKey.revoke",
+          "needs": "apiKey: mint for alpha/apiKey: signed in again, and the new credential is refused where the old one was accepted (job.get)"
+        },
+        {
+          "check": "auth.revoked-credential-refused",
+          "entity": "auth.logout",
+          "needs": "jwt: signed in again, and the new credential is refused where the old one was accepted (job.get)"
+        },
+        {
+          "check": "auth.role-enforced",
+          "entity": "job.delete",
+          "needs": "a throwaway job for job.delete: signed in again, and the new credential is refused where the old one was accepted (job.get)"
+        },
+        {
+          "check": "auth.role-enforced",
+          "entity": "job.update",
+          "needs": "job.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.role-enforced",
+          "entity": "row.delete",
+          "needs": "a throwaway row for row.delete: signed in again, and the new credential is refused where the old one was accepted (job.get)"
+        },
+        {
+          "check": "auth.role-enforced",
+          "entity": "row.update",
+          "needs": "row.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.role-enforced",
+          "entity": "table.delete",
+          "needs": "a throwaway table for table.delete: signed in again, and the new credential is refused where the old one was accepted (job.get)"
+        },
+        {
+          "check": "auth.role-enforced",
+          "entity": "table.invite",
+          "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.role-enforced",
+          "entity": "table.update",
+          "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.scope-enforced",
+          "entity": "job.delete",
+          "needs": "a throwaway job for job.delete: signed in again, and the new credential is refused where the old one was accepted (job.get)"
+        },
+        {
+          "check": "auth.scope-enforced",
+          "entity": "job.get",
+          "needs": "job.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.scope-enforced",
+          "entity": "job.update",
+          "needs": "job.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.scope-enforced",
+          "entity": "row.delete",
+          "needs": "a throwaway row for row.delete: signed in again, and the new credential is refused where the old one was accepted (job.get)"
+        },
+        {
+          "check": "auth.scope-enforced",
+          "entity": "row.get",
+          "needs": "row.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.scope-enforced",
+          "entity": "row.update",
+          "needs": "row.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.scope-enforced",
+          "entity": "table.delete",
+          "needs": "a throwaway table for table.delete: signed in again, and the new credential is refused where the old one was accepted (job.get)"
+        },
+        {
+          "check": "auth.scope-enforced",
+          "entity": "table.get",
+          "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.scope-enforced",
+          "entity": "table.update",
+          "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        },
+        {
+          "check": "auth.wrong-scheme-refused",
+          "entity": "table.invite",
+          "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (job.get))"
+        }
+      ]
     },
     "scope": {
       "operations": {
@@ -37,6 +261,214 @@
           {
             "checks": {
               "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "consistency.projections-agree",
+                "invalidation.declared-route-changes",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "consistency.projections-agree",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant",
+                "tenant.parent-not-reachable-from-another-root"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant",
+                "update.unique-conflict-rejected"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invite-grants-then-revokes",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.invite",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "unproven",
+            "tier": "contract",
+            "why": "met its contract, but no later read observed what it changed"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "consistency.projections-agree",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "softdelete.absent-from-default-list",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.delete",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
               "gaps": [],
               "inconclusive": [],
               "passed": [
@@ -47,31 +479,9 @@
               ],
               "suppressed": []
             },
-            "entity": "row",
+            "entity": "job",
             "findings": 0,
-            "operationId": "row.delete",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "unproven",
-            "tier": "contract",
-            "why": "met its contract, but no later read observed what it changed"
-          }
-        ],
-        "removed": [
-          {
-            "checks": {
-              "failed": [],
-              "gaps": [],
-              "inconclusive": [],
-              "passed": [
-                "auth.destructive-spares-the-caller"
-              ],
-              "suppressed": []
-            },
-            "entity": null,
-            "findings": 0,
-            "operationId": "auth.logout",
+            "operationId": "job.delete",
             "reason": null,
             "status": "passed",
             "evidence": {},
@@ -98,9 +508,465 @@
             "reason": null,
             "status": "passed",
             "evidence": {},
+            "sufficiency": "unproven",
+            "tier": "contract",
+            "why": "met its contract, but no later read observed what it changed"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 0,
+            "operationId": "apiKey.get",
+            "reason": "entity-not-testable: \"api-key\" holds credentials: a security recipe calls apiKey.revoke, so no check may; contract call could not be sent: signed in again, and the new credential is refused where the old one was accepted (job.get)",
+            "status": "untested",
+            "why": "entity-not-testable: \"api-key\" holds credentials: a security recipe calls apiKey.revoke, so no check may; contract call could not be sent: signed in again, and the new credential is refused where the old one was accepted (job.get)"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 0,
+            "operationId": "apiKey.revoke",
+            "reason": "entity-not-testable: \"api-key\" holds credentials: a security recipe calls apiKey.revoke, so no check may; unresolved param id: a write is sent only to a record this run created",
+            "status": "untested",
+            "why": "entity-not-testable: \"api-key\" holds credentials: a security recipe calls apiKey.revoke, so no check may; unresolved param id: a write is sent only to a record this run created"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 0,
+            "operationId": "auth.refresh",
+            "reason": "graded by checks, but no request to auth.refresh succeeded",
+            "status": "untested",
+            "why": "graded by checks, but no request to auth.refresh succeeded"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 0,
+            "operationId": "auth.revoke",
+            "reason": "unmodeled: no entity owns POST /v1/auth/revoke; contract call could not be sent: signed in again, and the new credential is refused where the old one was accepted (job.get)",
+            "status": "untested",
+            "why": "unmodeled: no entity owns POST /v1/auth/revoke; contract call could not be sent: signed in again, and the new credential is refused where the old one was accepted (job.get)"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.scope-enforced",
+                "consistency.projections-agree",
+                "invalidation.declared-route-changes",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
             "sufficiency": "verified",
             "tier": "verified",
             "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.scope-enforced",
+                "consistency.projections-agree",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant",
+                "tenant.parent-not-reachable-from-another-root"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.privileged-field-ignored",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant",
+                "update.unique-conflict-rejected"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.scope-enforced",
+                "consistency.projections-agree",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.anonymous-operation-open",
+                "auth.refresh-reuse-refused",
+                "response.contract-call"
+              ],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 0,
+            "operationId": "auth.refresh",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "unproven",
+            "tier": "contract",
+            "why": "met its contract, but no later read observed what it changed"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.destructive-spares-the-caller",
+                "auth.revoked-credential-refused"
+              ],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 0,
+            "operationId": "auth.logout",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.invite-grants-then-revokes",
+                "auth.missing-credential-refused",
+                "auth.role-enforced",
+                "auth.wrong-scheme-refused",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.invite",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "unproven",
+            "tier": "contract",
+            "why": "met its contract, but no later read observed what it changed"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "softdelete.absent-from-default-list",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.delete",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.delete",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.delete",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.revoked-credential-refused",
+                "delete.absent-record-returns-404"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 0,
+            "operationId": "apiKey.revoke",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "response.contract-call"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 0,
+            "operationId": "apiKey.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "complete",
+            "tier": "contract",
+            "why": "a read with no declared effects: its contract is the whole promise"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 0,
+            "operationId": "auth.revoke",
+            "reason": "unmodeled: no entity owns POST /v1/auth/revoke; contract call returned 400 ({\"error_key\":\"invalid_input\",\"message\":\"the token is not one this server issued\",\"status\":400,\"success\":false}); a scenario must set the scene",
+            "status": "untested",
+            "why": "unmodeled: no entity owns POST /v1/auth/revoke; contract call returned 400 ({\"error_key\":\"invalid_input\",\"message\":\"the token is not one this server issued\",\"status\":400,\"success\":false}); a scenario must set the scene"
           }
         ]
       }
@@ -108,6 +974,36 @@
     "teardown": {
       "failed": {
         "added": [
+          {
+            "entity": "credential",
+            "id": "alpha/apiKey",
+            "principal": "alpha",
+            "reason": "signed in again, and the new credential is refused where the old one was accepted (job.get)"
+          },
+          {
+            "entity": "credential",
+            "id": "alpha/apiKey",
+            "principal": "alpha",
+            "reason": "signed in again, and the new credential is refused where the old one was accepted (job.get)"
+          },
+          {
+            "entity": "credential",
+            "id": "alpha/apiKey",
+            "principal": "alpha",
+            "reason": "signed in again, and the new credential is refused where the old one was accepted (job.get)"
+          },
+          {
+            "entity": "credential",
+            "id": "beta/apiKey",
+            "principal": "beta",
+            "reason": "signed in again, and the new credential is refused where the old one was accepted (table.get)"
+          },
+          {
+            "entity": "credential",
+            "id": "beta/apiKey",
+            "principal": "beta",
+            "reason": "signed in again, and the new credential is refused where the old one was accepted (table.get)"
+          },
           {
             "entity": "job",
             "id": "job_ID",
@@ -1060,7 +1956,7 @@
       },
       "removed": {
         "now": 4,
-        "was": 80
+        "was": 83
       }
     },
     "findings": {
@@ -1097,6 +1993,22 @@
           ],
           "summary": "the suite caller was logged out",
           "verdict": "BACKEND_BUG"
+        }
+      ]
+    },
+    "costByCheck": {
+      "removed": [
+        {
+          "check": "auth.privileged-field-ignored"
+        },
+        {
+          "check": "auth.refresh-reuse-refused"
+        },
+        {
+          "check": "auth.revoked-credential-refused"
+        },
+        {
+          "check": "auth.role-enforced"
         }
       ]
     },

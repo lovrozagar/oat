@@ -943,6 +943,90 @@
     "needs": "a documented 415 response"
   },
   {
+    "id": "auth.missing-credential-refused",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "an operation whose security requires a credential"
+  },
+  {
+    "id": "auth.invalid-credential-refused",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "an operation whose security requires a credential"
+  },
+  {
+    "id": "auth.wrong-scheme-refused",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "an operation whose security requires a credential, and a scheme it does not list"
+  },
+  {
+    "id": "auth.scope-enforced",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "an operation that requires a scope, of a scheme a mint recipe issues"
+  },
+  {
+    "id": "auth.alternative-accepted",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a read whose security documents a second alternative of one scheme"
+  },
+  {
+    "id": "auth.anonymous-operation-open",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "an operation whose security lets anonymous callers in"
+  },
+  {
+    "id": "auth.revoked-credential-refused",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a recipe that declares a revoke, and a GET the credential authenticates"
+  },
+  {
+    "id": "auth.refresh-reuse-refused",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a recipe that declares a refresh, and a GET the credential authenticates"
+  },
+  {
+    "id": "auth.role-enforced",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a principal marked readOnly, and a run-created record in its tenant to write to"
+  },
+  {
+    "id": "auth.cross-tenant-key-refused",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": false,
+    "needs": "a peer tenant, and a tenant-scoped GET that takes an API key"
+  },
+  {
+    "id": "auth.privileged-field-ignored",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a property marked x-privileged, a principal ranked below the highest, and a run-created record"
+  },
+  {
+    "id": "auth.login-throttled",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a login recipe whose login step the document declares, with a request body schema"
+  },
+  {
     "id": "tenant.item-not-readable-cross-tenant",
     "dependsOn": [],
     "mutates": false,

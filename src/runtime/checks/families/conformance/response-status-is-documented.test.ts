@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest"
+import { fixedSource } from "../../../../client/__fixtures__/source.ts"
+import { json as answer, transport } from "../../../../client/__fixtures__/transport.ts"
+import { wireOf } from "../../../../client/__fixtures__/wire.ts"
+import { prepare, sendAttempt } from "../../../../client/request.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { contextFor } from "../../__fixtures__/harness.ts"
 import { describeUndeclared, documentedStatusHonoured } from "./response-status-is-documented.ts"
@@ -62,6 +66,16 @@ describe("response.status-is-documented run", () => {
 		expect(finding?.evidence).toEqual([first])
 	})
 
+	it("leaves a security probe's 401 to the security checks, and still grades the same 401 on a normal request", async () => {
+		const probed = await judge([
+			seen("item.read", { status: 401 }, { probe: true }),
+			seen("item.read", { status: 401 }, { forged: true }),
+		])
+		expect([probed.outcome, probed.findings.findings]).toEqual([{ kind: "asserted" }, []])
+		const normal = await judge([seen("item.read", { status: 401 })])
+		expect(normal.outcome).toEqual({ kind: "finding", verdict: "SPEC_BUG" })
+	})
+
 	it("reports what deliberately invalid probes drew apart from ordinary traffic", async () => {
 		const probe = seen("item.read", { status: 400 }, { purpose: "probe" })
 		const alone = await judge([probe])
@@ -76,6 +90,32 @@ describe("response.status-is-documented run", () => {
 		const both = await judge([probe, seen("item.update", { status: 502 })])
 		expect(both.outcome).toEqual({ kind: "finding", verdict: "SPEC_BUG" })
 		expect(both.findings.findings.map((f) => f.operations)).toEqual([["item.read"], ["item.update"]])
+	})
+})
+
+describe("response.status-is-documented and a dedicated credential", () => {
+	it("judges the contract floor's call sent with a dedicated credential: a dedicated actor alone is no probe", async () => {
+		const wire = wireOf(
+			transport(() => answer({}, 418)),
+			{
+				credentials: fixedSource({
+					block: () => undefined,
+					kind: "sends",
+					principal: "alpha",
+					schemes: [],
+					secrets: { cookies: [], headers: [], query: [], values: [] },
+					sends: {},
+					sentValues: {},
+					refresh: async () => ({ kind: "anonymous" }),
+				}),
+				operationResolver: () => ({ entity: "item", operationId: "item.read", template: "/items/{item_id}" }),
+			},
+		)
+		const floor = { as: { principal: "alpha#probe-1" }, operationId: "item.read" }
+		const sent = await sendAttempt(prepare(wire, "GET", "/items/1", floor), 0, wire)
+		const { findings, outcome } = await judge([sent])
+		expect(outcome).toEqual({ kind: "finding", verdict: "SPEC_BUG" })
+		expect(findings.findings[0]?.detail).toContain("item.read returned 418")
 	})
 })
 

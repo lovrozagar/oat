@@ -97,3 +97,26 @@ describe("provision, when it cannot or need not read a credential", () => {
 		expect((resolved as Provisioned).known.email).toBe("chosen@x.test")
 	})
 })
+
+describe("provision: what a signup body cannot set", () => {
+	it("never lets a signup body's readOnly mark the principal read-only", async () => {
+		const body = { properties: { readOnly: { const: true, type: "boolean" } }, required: ["readOnly"], type: "object" }
+		const doc = notesDoc({
+			"/signup": {
+				post: {
+					operationId: "auth.signup",
+					requestBody: { content: { "application/json": { schema: body } }, required: true },
+					responses: { "201": { description: "made" } },
+					security: [],
+					"x-fresh-principal": true,
+				},
+			},
+		})
+		const respond = (method: string, path: string) =>
+			path === "/signup" ? { body: { access_token: "t" }, status: 201 } : notesApi(doc)(method, path, {})
+		const ctx = await connected(optionsFor(respond, { principals: ALPHA, security: EMAIL_LOGIN }))
+		const made = (await provision(ctx, { entry: {}, id: "fresh-5", label: "five" })) as Provisioned
+		expect(made.known.readOnly).toBe(true)
+		expect(ctx.store.principals["fresh-5"]).not.toHaveProperty("readOnly")
+	})
+})

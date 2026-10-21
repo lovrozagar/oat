@@ -18,6 +18,14 @@ export interface ExchangeContext {
 	check?: string
 	subject?: string
 	purpose?: Purpose
+	/**
+	 * Where each answer holds a credential, as a recipe's `from` or `saveAs` addresses it: a JSON path
+	 * of the body, `header:<name>` or `cookie:<name>`. What is there registers on the redactor before
+	 * the exchange is recorded, so the journal never writes it down, whatever its key is called.
+	 */
+	secrets?: readonly string[]
+	/** The credential store sent it: what it creates is the store's to revoke, never a ledgered record. */
+	issuedBy?: "credentials"
 }
 
 /** The documented operation a request is an instance of. */

@@ -46,6 +46,23 @@ describe("config validation", () => {
 	})
 })
 
+describe("checks switched on", () => {
+	it("accepts auth.login-throttled as true or false", () => {
+		expect(configProblems({ ...valid, checks: { "auth.login-throttled": true } })).toEqual([])
+		expect(configProblems({ ...valid, checks: {} })).toEqual([])
+	})
+
+	it("names an unknown check, a switch that is not a boolean, and checks that are not an object", () => {
+		expect(configProblems({ ...valid, checks: { "auth.login-throttle": true } })).toEqual([
+			"config.checks.auth.login-throttle is not a config key",
+		])
+		expect(configProblems({ ...valid, checks: { "auth.login-throttled": "yes" } })).toEqual([
+			"config.checks.auth.login-throttled must be true or false",
+		])
+		expect(configProblems({ ...valid, checks: ["auth.login-throttled"] })).toEqual(["config.checks must be an object"])
+	})
+})
+
 describe("config validation by kind of key", () => {
 	it("names the expected type of every kind of key", () => {
 		const wrong = {

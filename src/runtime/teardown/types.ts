@@ -6,6 +6,11 @@ export interface Created {
 	entity: string
 	id: ProvenId
 	scope: Record<string, string>
+	/**
+	 * Ledgered from a POST that is not the entity's create, whose answer named a new `<entity>_id`
+	 * that a read then showed: inferred, not declared.
+	 */
+	inferred?: true
 }
 
 /** The principal a record belongs to, as far as removing it goes: removed as it, `as: { principal: id }`. */
@@ -20,6 +25,8 @@ export interface Disposable {
 	scope: Record<string, string>
 	/** Who created it. Only the creator's view of the record decides whether it is gone. */
 	owner: Owner
+	/** Ledgered from an answer that named a new id, not from a declared create. */
+	inferred?: true
 }
 
 /** A create that answered 2xx without an id oat could read: what it made may remain. */
@@ -39,7 +46,7 @@ export interface TeardownReport {
 	failed: Array<{ entity: string; id: string; principal: string; reason: string }>
 	unsupported: string[]
 	/** Every record the unwind was given, in creation order, its creator, and whether it is gone now. */
-	records: Array<{ entity: string; id: string; principal: string; removed: boolean }>
+	records: Array<{ entity: string; id: string; principal: string; removed: boolean; inferred?: true }>
 	/** Creates whose record oat could not identify, so could not remove. Each fails the run. */
 	unidentified: UnidentifiedCreate[]
 	/** What `hooks.verifyRemoved` threw, once per call that did; those records keep teardown's verdict. */

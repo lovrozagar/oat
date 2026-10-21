@@ -205,6 +205,17 @@ describe("which operations are proven", () => {
 		expect(grades.evidence.get("row.list")).toEqual({ call: 9, observation: { seq: 9, status: 404 } })
 		expect(grades.evidence.has("row.create")).toBe(false)
 	})
+
+	it("takes no evidence for an operation only a security probe graded", async () => {
+		const grades = new GradeLedger()
+		grades.probedBy(["row.create"], "auth.anonymous-operation-open")
+		const client = {
+			hydrate: async (e: Exchange) => e,
+			transcript: [exchange(1, "POST /v1/rows", { op: "row.create" })],
+		}
+		await proveFromTranscript({ client: client as unknown as Client, grades, model: buildModel(dereference(spec).doc) })
+		expect(grades.evidence.has("row.create")).toBe(false)
+	})
 })
 
 describe("pathTo", () => {

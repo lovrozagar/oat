@@ -99,7 +99,16 @@ describe("principalMapProblems, entry by entry", () => {
 	})
 
 	it("names the replacement for a principal's auth and headers, and checks each graded field", () => {
-		const alpha = { auth: {}, created: 1, fresh: "yes", headers: {}, inviteAs: 1, rank: 1.5, tenant: 2 }
+		const alpha = {
+			auth: {},
+			created: 1,
+			fresh: "yes",
+			headers: {},
+			inviteAs: 1,
+			rank: 1.5,
+			readOnly: false,
+			tenant: 2,
+		}
 		expect(principalMapProblems({ principals: { alpha } })).toEqual([
 			"principals.alpha.auth was removed in 0.25.0: put the flow in security.<scheme>: { login: { steps, from } }",
 			"principals.alpha.headers was removed in 0.25.0: a fixed credential is security.<scheme>: { static: … }",
@@ -107,9 +116,10 @@ describe("principalMapProblems, entry by entry", () => {
 			"principals.alpha.fresh must be true or false",
 			"principals.alpha.inviteAs must be a string",
 			"principals.alpha.rank must be an integer",
+			"principals.alpha.readOnly must be true, or left out",
 			"principals.alpha.tenant must be a string",
 		])
-		const fine = { created: false, fresh: true, inviteAs: "a@x.test", rank: 2, tenant: "t1" }
+		const fine = { created: false, fresh: true, inviteAs: "a@x.test", rank: 2, readOnly: true, tenant: "t1" }
 		expect(principalMapProblems({ principals: { alpha: fine } })).toEqual([])
 	})
 

@@ -101,6 +101,17 @@ describe("seedCohort", () => {
 	})
 })
 
+/* Withholds every create, as a lower rank's create of a body that requires a privileged property is. */
+const barred = () => "note.create requires plan, marked x-privileged"
+
+describe("seedCohort as a principal that must not send the create", () => {
+	it("sends nothing and stops with the reason it is withheld", async () => {
+		const { result, sent } = seed(echo, {}, { withheld: barred })
+		await expect(result).rejects.toThrow(new SeedError("note.create", "note.create requires plan, marked x-privileged"))
+		expect(sent).toEqual([])
+	})
+})
+
 describe("seedCohort beside listed records", () => {
 	it("adopts a listed record under a plan limit instead of inventing one", async () => {
 		const { result, sent } = seed((method) =>

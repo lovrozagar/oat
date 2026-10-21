@@ -104,6 +104,24 @@ describe("removeOne: other ways a record goes or stays", () => {
 	})
 })
 
+describe("removeOne: an inferred record", () => {
+	it("reports an inferred record whose entity has no delete as left in place, with the reason", async () => {
+		const tag = { ...disposable("tag", "t1"), inferred: true as const }
+		const state = unwindOf(store(), [tag], { model })
+		await removeOne(state, tag)
+		expect([...state.unsupported]).toEqual([])
+		expect(state.report.failed).toEqual([
+			{
+				entity: "tag",
+				id: "t1",
+				principal: "alpha",
+				reason: "inferred from an answer that named a new tag_id; the document declares no delete for tag",
+			},
+		])
+		expect(state.done).toBe(1)
+	})
+})
+
 describe("removeOne: other routes and throws", () => {
 	it("removes through a cleanup route that names no id, with the method the route names", async () => {
 		const widgets = notesModel("none", {

@@ -4,18 +4,33 @@ import { COMPOSITION_DEFECTS } from "./composition.ts"
 import { CORE_DEFECTS } from "./core.ts"
 import { QUERY_DEFECTS } from "./query.ts"
 import { RECORD_DEFECTS } from "./records.ts"
+import { SECURITY_DEFECTS } from "./security.ts"
 import { DEFECTS, isDefectName } from "./table.ts"
 
 describe("DEFECTS", () => {
 	it("merges the families in order, so every reader sees one stable name order", () => {
-		const families = [CORE_DEFECTS, COMPOSITION_DEFECTS, QUERY_DEFECTS, RECORD_DEFECTS, CATALOG_DEFECTS]
+		const families = [
+			CORE_DEFECTS,
+			COMPOSITION_DEFECTS,
+			QUERY_DEFECTS,
+			RECORD_DEFECTS,
+			CATALOG_DEFECTS,
+			SECURITY_DEFECTS,
+		]
 		expect(Object.keys(DEFECTS)).toEqual(families.flatMap((family) => Object.keys(family)))
-		expect(Object.keys(DEFECTS)).toHaveLength(116)
+		expect(Object.keys(DEFECTS)).toHaveLength(128)
 		expect(DEFECTS.UNSTABLE_SORT).toBe(CORE_DEFECTS.UNSTABLE_SORT)
 	})
 
 	it("names no defect twice across the families", () => {
-		const families = [CORE_DEFECTS, COMPOSITION_DEFECTS, QUERY_DEFECTS, RECORD_DEFECTS, CATALOG_DEFECTS]
+		const families = [
+			CORE_DEFECTS,
+			COMPOSITION_DEFECTS,
+			QUERY_DEFECTS,
+			RECORD_DEFECTS,
+			CATALOG_DEFECTS,
+			SECURITY_DEFECTS,
+		]
 		const total = families.reduce((sum, family) => sum + Object.keys(family).length, 0)
 		expect(total).toBe(Object.keys(DEFECTS).length)
 	})

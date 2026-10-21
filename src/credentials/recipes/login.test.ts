@@ -135,6 +135,49 @@ describe("acquireLogin: refresh", () => {
 	})
 })
 
+describe("acquireLogin: revoke", () => {
+	it("revokes the session it opened by the declared operation, sending exactly that session's value", async () => {
+		const { ports, recorded } = fakePorts({
+			call: () => Promise.resolve(answerOf({}, 204)),
+			run: () => Promise.resolve({ answer: answerOf({ token: "t1" }), scope: { refreshToken: "r1" } }),
+		})
+		const issued = await acquireLogin(ctxOf(ports), { ...login, revoke: "auth.logout" }, {})
+		await issued.revoke?.()
+		expect(recorded.calls).toEqual([
+			{
+				as: { principal: "ann", scheme: "jwt" },
+				operationId: "auth.logout",
+				scope: { credential: "t1", refreshToken: "r1" },
+				value: "t1",
+			},
+		])
+	})
+
+	it("sends a declared body with the session's value in it, as a token revoke takes one", async () => {
+		const { ports, recorded } = fakePorts({
+			call: () => Promise.resolve(answerOf({}, 200)),
+			run: () => Promise.resolve({ answer: answerOf({ token: "t1" }), scope: {} }),
+		})
+		const revoke = { body: { token: "{credential}" }, operationId: "auth.revoke" }
+		await (await acquireLogin(ctxOf(ports), { ...login, revoke }, {})).revoke?.()
+		expect(recorded.calls[0]).toMatchObject({ body: { token: "t1" }, operationId: "auth.revoke", value: "t1" })
+	})
+
+	it("counts a 401 as revoked, since it carried that very session, and fails on any other refusal", async () => {
+		const statuses = [401, 403, 500]
+		const { ports } = fakePorts({
+			call: () => Promise.resolve(answerOf({}, statuses.shift() ?? 200)),
+			run: () => Promise.resolve({ answer: answerOf({ token: "t1" }), scope: {} }),
+		})
+		const issued = await acquireLogin(ctxOf(ports), { ...login, revoke: "auth.logout" }, {})
+		const revoke = issued.revoke as () => Promise<void>
+		await expect(revoke()).resolves.toBeUndefined()
+		expect((await rejection(revoke())).message).toBe("revoke auth.logout answered 403")
+		expect((await rejection(revoke())).message).toBe("revoke auth.logout answered 500")
+		expect((await acquireLogin(ctxOf(ports), login, {})).revoke).toBeUndefined()
+	})
+})
+
 describe("heldLogin", () => {
 	const refresh: LoginRecipe = {
 		from: "$.token",

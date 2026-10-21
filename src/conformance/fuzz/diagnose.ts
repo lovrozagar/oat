@@ -4,6 +4,7 @@
  */
 
 import type { DefectName } from "../../reference/defects/table.ts"
+import { entityChecks } from "../../runtime/checks/core/registry.ts"
 import { CHECKS } from "../../runtime/checks/registry.ts"
 import type { RunResult } from "../../runtime/run/index.ts"
 import { EXPECTED } from "../expected/table.ts"
@@ -55,7 +56,7 @@ export type Diagnosis = Pick<FuzzCase, "cascaded" | "findings" | "missed" | "ok"
 
 /** Every check id reachable from `id` by following `dependsOn`, transitively. */
 export function ancestorsOf(id: string, seen = new Set<string>()): Set<string> {
-	const check = CHECKS.find((candidate) => candidate.id === id)
+	const check = entityChecks(CHECKS).find((candidate) => candidate.id === id)
 	for (const parent of check?.dependsOn ?? []) {
 		if (seen.has(parent)) continue
 		seen.add(parent)

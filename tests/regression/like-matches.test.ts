@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { entityChecks } from "../../src/runtime/checks/core/registry.ts"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"
 import { Client } from "../../src/client/client.ts"
 import { FindingCollector } from "../../src/runtime/finding.ts"
@@ -48,7 +49,7 @@ function planFor(grammar: Record<string, unknown>) {
 	} as unknown as OpenApiDocument
 	const model = buildModel(dereference(doc).doc)
 	const listOp = model.byOperationId.get("notes.list")
-	const check = CHECKS.find((candidate) => candidate.id === "filter.like-metacharacters-escaped")
+	const check = entityChecks(CHECKS).find((candidate) => candidate.id === "filter.like-metacharacters-escaped")
 	if (listOp === undefined || check === undefined || listOp.query === null) throw new Error("fixture incomplete")
 	const ctx = checkContext({
 		client: new Client({ baseUrl: "http://127.0.0.1:1", redactor: new Redactor() }),

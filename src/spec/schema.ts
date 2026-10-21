@@ -11,12 +11,18 @@
  * `readOnly` properties never appear in a request and `writeOnly` ones never in a response.
  */
 
+import { PRIVILEGED } from "./extensions/privileged.ts"
 import type { SchemaObject } from "./types.ts"
 
 export type Direction = "request" | "response"
 
 export interface NormalizeOptions {
 	direction: Direction
+	/**
+	 * A request as any writer may send it: an optional property marked `x-privileged`, which only the
+	 * highest rank may set, is left out. A required one stays, and only the highest rank sends it.
+	 */
+	ordinary?: boolean
 }
 
 /** Keywords whose value is one subschema. */
@@ -64,6 +70,7 @@ const BOUNDS = [
 /** One translation in progress: each source node is translated once, so a cycle stays a cycle. */
 interface Normalizing {
 	direction: Direction
+	ordinary: boolean
 	seen: Map<object, SchemaObject>
 }
 
@@ -73,7 +80,7 @@ function isSchema(value: unknown): value is SchemaObject {
 
 /** Translates `schema` into JSON Schema 2020-12 as seen in `direction`. Never mutates its input. */
 export function normalizeSchema(schema: SchemaObject, options: NormalizeOptions): SchemaObject {
-	return visit({ direction: options.direction, seen: new Map() }, schema)
+	return visit({ direction: options.direction, ordinary: options.ordinary === true, seen: new Map() }, schema)
 }
 
 function visit(ctx: Normalizing, node: SchemaObject): SchemaObject {
@@ -87,6 +94,7 @@ function visit(ctx: Normalizing, node: SchemaObject): SchemaObject {
 	resolveExclusiveBounds(out)
 	/* Properties that do not travel in this direction are neither allowed nor required. */
 	dropProperties(out, ctx.direction === "request" ? "readOnly" : "writeOnly")
+	if (ctx.ordinary) dropPrivileged(out)
 	/* `nullable` widens whatever the schema otherwise allows. 3.1 has no such keyword, but
 	 * generators still emit it, and reading it there costs nothing. */
 	if (node.nullable === true) return nullable(out)
@@ -129,6 +137,17 @@ function dropProperties(out: SchemaObject, hidden: "readOnly" | "writeOnly"): vo
 	for (const name of dropped) delete properties[name]
 	out.properties = properties
 	if (Array.isArray(out.required)) out.required = out.required.filter((name) => !dropped.includes(String(name)))
+}
+
+/* An optional property marked x-privileged: an ordinary writer never sends it. */
+function dropPrivileged(out: SchemaObject): void {
+	if (!isSchema(out.properties)) return
+	const required = Array.isArray(out.required) ? out.required : []
+	out.properties = Object.fromEntries(
+		Object.entries(out.properties).filter(
+			([name, sub]) => !isSchema(sub) || sub[PRIVILEGED] !== true || required.includes(name),
+		),
+	)
 }
 
 /** `schema` or null — by widening `type` and `enum` where that is exact, by a union where not. */

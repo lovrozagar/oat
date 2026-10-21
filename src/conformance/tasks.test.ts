@@ -20,7 +20,7 @@ afterEach(() => {
 describe("runTask", () => {
 	it("answers with what the process holds after the task", async () => {
 		const answer = await runTask({ ...nothing, defects: [...nothing.defects] }, 1, inProcess)
-		expect(answer).toMatchObject({ kind: "results", results: [] })
+		expect(answer).toMatchObject({ kind: "results", requests: { sources: {}, total: 0 }, results: [] })
 		expect(answer.memory.rss).toBeGreaterThan(answer.memory.heapUsed)
 	})
 
@@ -48,6 +48,11 @@ describe("a leg's tasks", () => {
 			["baseline (untagged spec)", true, undefined],
 		])
 		expect(results[0]?.findings.every((finding) => finding.evidence.length === 0)).toBe(true)
+		/* Every request both runs sent, counted where it left, and each by who sent it. */
+		const { sources, total } = answer.requests
+		expect(total).toBeGreaterThan(1000)
+		expect(Object.values(sources).reduce((sum, count) => sum + count, 0)).toBe(total)
+		expect(sources).toMatchObject({ seed: expect.any(Number), teardown: expect.any(Number) })
 	}, 120_000)
 
 	it("judges its defects one by one", async () => {

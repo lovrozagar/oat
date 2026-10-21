@@ -1,4 +1,5 @@
 import type { Actor } from "../../checks/core/context.ts"
+import { privilegedBar } from "../../privileged-create.ts"
 import { resolvePathScope } from "../../world/path-scope.ts"
 import type { RunPrincipal } from "../context.ts"
 import type { EntityRun, World } from "./state.ts"
@@ -42,6 +43,7 @@ async function scopedActor(run: EntityRun, principal: RunPrincipal, offset: numb
 				roots,
 				seed: seed + offset,
 				uploads: { ...uploads, seed: seed + offset },
+				withheld: (createOp) => privilegedBar(createOp, principal, principals.all),
 			},
 		})
 		return actor(principal, { ...roots, ...next.values })
@@ -51,5 +53,12 @@ async function scopedActor(run: EntityRun, principal: RunPrincipal, offset: numb
 }
 
 function actor(principal: RunPrincipal, scope: Record<string, string>): Actor {
-	return { id: principal.id, inviteAs: principal.inviteAs, rank: principal.rank, scope, tenant: principal.tenant }
+	const acting = {
+		id: principal.id,
+		inviteAs: principal.inviteAs,
+		rank: principal.rank,
+		scope,
+		tenant: principal.tenant,
+	}
+	return principal.readOnly === true ? { ...acting, readOnly: true } : acting
 }

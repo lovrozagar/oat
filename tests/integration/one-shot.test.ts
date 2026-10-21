@@ -43,7 +43,10 @@ async function serve(healthStatus: number): Promise<{ hits: string[]; url: strin
 	const server = createServer((req: IncomingMessage, res: ServerResponse) => {
 		const url = new URL(req.url ?? "/", "http://127.0.0.1")
 		const method = (req.method ?? "GET").toUpperCase()
-		hits.push(`${method} ${url.pathname}`)
+		const authed = req.headers.authorization === "Bearer alpha"
+		/* A request to the private read without alpha's credential is a security probe's: it is refused. */
+		const refused = url.pathname === "/v1/private" && !authed
+		hits.push(`${method} ${url.pathname}${refused ? " refused" : ""}`)
 		if (url.pathname === "/openapi.json" && method === "GET") {
 			res.writeHead(200, { "content-type": "application/json" })
 			res.end(JSON.stringify(document))
@@ -54,8 +57,12 @@ async function serve(healthStatus: number): Promise<{ hits: string[]; url: strin
 			res.end(JSON.stringify({ ok: healthStatus === 200 }))
 			return
 		}
-		const authed = req.headers.authorization === "Bearer alpha"
-		if (url.pathname === "/v1/private" && method === "GET" && authed) {
+		if (refused) {
+			res.writeHead(401, { "content-type": "application/json" })
+			res.end(JSON.stringify({ error: "unauthorized" }))
+			return
+		}
+		if (url.pathname === "/v1/private" && method === "GET") {
 			res.writeHead(200, { "content-type": "application/json" })
 			res.end(JSON.stringify({ ok: true }))
 			return
@@ -93,10 +100,14 @@ describe("a public read with no id", () => {
 		const health = result.scope.operations.find((op) => op.operationId === "gateway.health")
 		expect(health?.status).toBe("passed")
 		expect(health?.checks.passed).toContain("response.public-get-returns-success")
+		/* Each operation is called once as alpha; the private read is also probed without a credential
+		 * and with an invalid one, and both probes are refused. */
 		expect(hits.filter((hit) => hit !== "GET /openapi.json").sort()).toEqual([
 			"GET /health",
 			"GET /v1/needs-query",
 			"GET /v1/private",
+			"GET /v1/private refused",
+			"GET /v1/private refused",
 		])
 		for (const id of ["needs.query", "private.read"]) {
 			const row = result.scope.operations.find((op) => op.operationId === id)

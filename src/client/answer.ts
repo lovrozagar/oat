@@ -3,12 +3,14 @@
 import { networkInterfaces } from "node:os"
 import type { Exchange } from "../runtime/exchange.ts"
 import { INLINE_BODY_LIMIT } from "../runtime/exchanges/media.ts"
+import { readSaveAs } from "../runtime/cookies/save-as.ts"
 import { recordResponseHeaders } from "../runtime/cookies/set-cookie.ts"
 import { classifyNetworkError, describeNetworkKind, NetworkError, type NetworkKind } from "../errors/network.ts"
 import { hasUsableInterface, refineNetworkKind } from "../runtime/network/interfaces.ts"
 import { sha256Hex } from "../runtime/exchanges/bytes.ts"
 import type { Pacing, Sent, Timed, Wire } from "./attempt.ts"
 import { requestIdOf, requestMessageBytes, responseMessageBytes } from "./message.ts"
+import { readPath } from "./read-path.ts"
 import type { EncodedBody } from "./serialize.ts"
 import type { NetworkClientOptions, RequestStart } from "./types.ts"
 
@@ -81,8 +83,18 @@ export async function answered(
 		...stamped(sent),
 		...travelled(landed, url),
 	}
+	registerSecrets(wire, exchange, request.options.context?.secrets ?? [])
 	await wire.deliver(exchange, request.resolved?.entity ?? undefined)
 	return Object.freeze(exchange)
+}
+
+/* The credentials a recipe will read from this answer, scrubbed before anything records it. */
+function registerSecrets(wire: Wire, exchange: Exchange, addresses: readonly string[]): void {
+	const source = { body: exchange.responseBody, cookies: {}, headers: exchange.responseHeaders, readJson: readPath }
+	for (const address of addresses) {
+		const value = readSaveAs(address, source)
+		if (typeof value === "string") wire.redactor.registerSecret(value)
+	}
 }
 
 /* A body that will be stored by reference is hashed once, from the text that was sent. */
@@ -115,6 +127,8 @@ function stamped({ request, placement }: Sent): Partial<Exchange> {
 	const { principal, schemes } = placement
 	const context = options.context ?? {}
 	return {
+		/* Only a request meant to be refused is a probe; a dedicated credential alone is ordinary traffic. */
+		...(options.probe === true ? { probe: true as const } : {}),
 		...(operationId === undefined ? {} : { operationId }),
 		...(resolved === null ? {} : { template: resolved.template }),
 		...(resolved?.pathParams === undefined ? {} : { pathParams: resolved.pathParams }),
@@ -122,6 +136,7 @@ function stamped({ request, placement }: Sent): Partial<Exchange> {
 		...(schemes.length === 0 ? {} : { schemes }),
 		...(placement.forged ? { forged: true as const } : {}),
 		...(context.purpose === undefined ? {} : { purpose: context.purpose }),
+		...(context.issuedBy === undefined ? {} : { issuedBy: context.issuedBy }),
 		...(context.check === undefined ? {} : { check: context.check }),
 		...(context.subject === undefined ? {} : { subject: context.subject }),
 		...(options.fixture === undefined ? {} : { fixture: options.fixture }),

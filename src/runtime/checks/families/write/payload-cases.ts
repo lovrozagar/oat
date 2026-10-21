@@ -2,7 +2,7 @@ import { requestContent } from "../../../../spec/collection/request.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { payloadFits, REQUIRED_IDS, STRING_PAYLOADS, type StringPayload } from "../../../payloads.ts"
 import type { CheckContext } from "../../core/context.ts"
-import { propertySchemaOf, requestSchemaOf } from "../../payloads/body.ts"
+import { propertySchemaOf, requestSchemaOf, withheldProperties } from "../../payloads/body.ts"
 
 export const ASCII_PAYLOAD_PROBE = "oat-payload-probe"
 
@@ -40,9 +40,11 @@ function isNullable(propertySchema: Schema, union: unknown): boolean {
 	)
 }
 
-/** The property as a payload target, scored so nullable and roomier fields win; `null` when it cannot be one. */
+/**
+ * The property as a payload target, scored so nullable and roomier fields win; `null` when it cannot
+ * be one. A readOnly property never reaches here: `untouchableFields` withholds it.
+ */
 function payloadCandidate(name: string, propertySchema: Schema): (PayloadField & { score: number }) | null {
-	if (propertySchema.readOnly === true) return null
 	const union = propertySchema.oneOf ?? propertySchema.anyOf
 	const stringSchema = unionBranchOf(union, "string") ?? propertySchema
 	if (!isUnconstrainedString(stringSchema)) return null
@@ -53,12 +55,16 @@ function payloadCandidate(name: string, propertySchema: Schema): (PayloadField &
 	return { maxLength, minLength, name, score }
 }
 
-/** Fields a write cannot set to an arbitrary value: immutable, server-generated, or the identity. */
-function untouchableFields(ctx: CheckContext): ReadonlySet<string> {
+/**
+ * Fields a write through `op` cannot set to an arbitrary value: immutable, server-generated, the
+ * identity, or one an ordinary body leaves out (`withheldProperties`).
+ */
+function untouchableFields(ctx: CheckContext, op: OperationModel): ReadonlySet<string> {
 	return new Set([
 		...(ctx.updateOp?.immutable ?? []),
 		...(ctx.updateOp?.generated ?? []),
 		...(ctx.createOp?.generated ?? []),
+		...withheldProperties(ctx, op),
 		ctx.identity,
 	])
 }
@@ -66,7 +72,7 @@ function untouchableFields(ctx: CheckContext): ReadonlySet<string> {
 export function pickPayloadField(ctx: CheckContext, op: OperationModel): PayloadField | null {
 	const schema = requestSchemaOf(ctx, op)
 	const properties = (schema?.properties ?? {}) as Record<string, Schema>
-	const immutable = untouchableFields(ctx)
+	const immutable = untouchableFields(ctx, op)
 	let best: (PayloadField & { score: number }) | null = null
 	for (const [name, propertySchema] of Object.entries(properties)) {
 		if (immutable.has(name) || /_at$|_id$/.test(name)) continue

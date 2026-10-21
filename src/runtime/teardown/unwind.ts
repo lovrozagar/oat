@@ -32,7 +32,16 @@ export async function unwindQueue(input: UnwindInput): Promise<TeardownReport> {
 	const { verify = true } = options
 	const report: TeardownReport = { failed: [], records: [], removed: 0, unidentified: [], unsupported: [] }
 	const records = new Map<Disposable, RecordState>(
-		queue.map((item) => [item, { entity: item.entity, id: item.id, principal: item.owner.id, removed: false }]),
+		queue.map((item) => [
+			item,
+			{
+				entity: item.entity,
+				id: item.id,
+				principal: item.owner.id,
+				removed: false,
+				...(item.inferred === true ? { inferred: true as const } : {}),
+			},
+		]),
 	)
 	const state: Unwind = {
 		client,

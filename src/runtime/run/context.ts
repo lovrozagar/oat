@@ -104,6 +104,8 @@ export interface RunPrincipal {
 	scope: Readonly<Record<string, string>>
 	/** What an owner puts in an invite body for it. */
 	inviteAs?: string
+	/** The config marks the account read-only: a viewer, whose every write must be refused. */
+	readOnly?: true
 	/** Signed up by this run through the document's `x-fresh-principal` operation. */
 	fresh: boolean
 }

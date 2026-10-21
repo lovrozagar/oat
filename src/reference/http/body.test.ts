@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { DefectSet } from "../defects/defect-set.ts"
-import { readJson, requireForm, requireJson } from "./body.ts"
+import { readFields, readJson, requireForm, requireJson } from "./body.ts"
 import { HttpError } from "./errors.ts"
 import { referenceRequest } from "./wire.ts"
 
@@ -48,5 +48,34 @@ describe("requireJson and requireForm", () => {
 	it("admit any type under CONTENT_TYPE_NOT_ENFORCED", () => {
 		expect(() => requireJson(request("", "text/plain"), LAX)).not.toThrow()
 		expect(() => requireForm(request(""), LAX)).not.toThrow()
+	})
+})
+
+describe("readFields", () => {
+	const JSON_TYPE = "application/json"
+	const shape = { email: "string", scopes: "strings" } as const
+
+	it("reads a JSON object holding exactly the named fields, each of its kind", async () => {
+		const body = await readFields(request('{"email":"a@b.c","scopes":["x"]}', JSON_TYPE), CLEAN, shape)
+		expect(body).toEqual({ email: "a@b.c", scopes: ["x"] })
+	})
+
+	it("refuses a missing field, an unknown one, a field of the wrong kind, and a body that is no object", async () => {
+		for (const text of [
+			'{"email":"a"}',
+			'{"email":"a","scopes":[],"extra":1}',
+			'{"email":1,"scopes":[]}',
+			'{"email":"a","scopes":"x"}',
+			'{"email":"a","scopes":[1]}',
+			"[]",
+			"null",
+		]) {
+			await expect(readFields(request(text, JSON_TYPE), CLEAN, shape)).rejects.toMatchObject({ status: 400 })
+		}
+		await expect(readFields(request("{}", JSON_TYPE), CLEAN, shape)).rejects.toThrow('field "email" is required')
+	})
+
+	it("refuses a body that is not JSON with a 415", async () => {
+		await expect(readFields(request("{}", "text/plain"), CLEAN, {})).rejects.toMatchObject({ status: 415 })
 	})
 })

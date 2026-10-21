@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { run } from "../../src/runtime/run/index.ts"
+import { jsonBody } from "../support/json-body.ts"
 
 /*
  * oat grades what the document declares, never what a route happens to be called. The same API
@@ -230,12 +231,14 @@ async function serve(names: Names): Promise<string> {
 		const method = (req.method ?? "GET").toUpperCase()
 		let raw = ""
 		for await (const chunk of req) raw += chunk
-		const body = raw === "" ? {} : (JSON.parse(raw) as Record<string, unknown>)
+		const body = jsonBody(raw)
 		const send = (status: number, value?: unknown) => {
 			res.writeHead(status, { "content-type": "application/json" })
 			res.end(value === undefined ? "" : JSON.stringify(value))
 		}
 		if (url.pathname === "/openapi.json") return send(200, doc)
+		/* A body that is not JSON is refused, as any server would. */
+		if (body === undefined) return send(400, { error: "malformed json" })
 		const token = (req.headers.authorization ?? "").replace(/^Bearer /, "")
 		const exchange = { body, method, pathname: url.pathname, send, token }
 		if (url.pathname === `/v1/${names.signUp}` && method === "POST") return signUp(world, exchange)

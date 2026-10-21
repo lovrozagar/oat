@@ -145,7 +145,9 @@ async function runWithCdn(seeded: string[], ops: string[]): Promise<RunResult> {
 	return run({
 		baseUrl: primary.url,
 		ops,
-		origins: [{ baseUrl: cdn.url, id: "cdn", security: { bearer: "bearer" }, spec: `${cdn.url}/v1/openapi/spec` }],
+		origins: [
+			{ baseUrl: cdn.url, id: "cdn", security: { apiKey: "apiKey", jwt: "jwt" }, spec: `${cdn.url}/v1/openapi/spec` },
+		],
 		principals: PRINCIPALS,
 		security: SECURITY,
 		seed: 42,

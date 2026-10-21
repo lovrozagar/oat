@@ -82,6 +82,8 @@ export function configRules(): Record<string, Rule> {
 	const overlay = overlayRule()
 	return {
 		baseUrl: string,
+		/* Opt-in checks by id: an unknown id is named, so a misspelled switch never reads as off. */
+		checks: shape({ "auth.login-throttled": boolean }),
 		cohortSize: integer(1),
 		entities: recordOf(object),
 		globalHeaders: recordOf(string),

@@ -7,6 +7,7 @@ import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { Ledger } from "../../src/runtime/teardown/ledger.ts"
+import { referenceToken } from "../support/reference-auth.ts"
 
 describe("a run that is stopped", () => {
 	it("stops testing, still removes what it made, and says it was interrupted", async () => {
@@ -63,19 +64,23 @@ describe("principals that authenticate with a static key", () => {
 	it("have their keys redacted from everything oat writes", async () => {
 		const server = await createMemoryServer()
 		try {
+			/* Each key is a jwt the reference issued, so every request the run sends is accepted. */
+			const alpha = await referenceToken(server.url, "key_alpha")
+			const beta = await referenceToken(server.url, "key_beta")
 			const result = await run({
 				baseUrl: server.url,
 				only: ["job"],
 				principals: {
-					alpha: { scope: { project_id: "proj_alpha" }, tenant: "proj_alpha", token: "tok_alpha" },
-					beta: { scope: { project_id: "proj_beta" }, tenant: "proj_beta", token: "tok_beta" },
+					alpha: { scope: { project_id: "proj_alpha" }, tenant: "proj_alpha", token: alpha },
+					beta: { scope: { project_id: "proj_beta" }, tenant: "proj_beta", token: beta },
 				},
-				security: { bearer: { static: "{principal.token}" } },
+				security: { jwt: { static: "{principal.token}" } },
 				seed: 42,
 				spec: `${server.url}/v1/openapi/spec`,
 			})
-			const scrubbed = result.client.redactor.text("sent Bearer tok_alpha and tok_beta")
-			expect(scrubbed).not.toMatch(/tok_(alpha|beta)/)
+			const scrubbed = result.client.redactor.text(`sent Bearer ${alpha} and ${beta}`)
+			expect(scrubbed).not.toContain(alpha)
+			expect(scrubbed).not.toContain(beta)
 		} finally {
 			await server.close()
 		}
@@ -87,6 +92,7 @@ describe("a credential that cannot be renewed", () => {
 		const server = await createMemoryServer()
 		let calls = 0
 		try {
+			const token = await referenceToken(server.url, "key_alpha")
 			const result = await run({
 				baseUrl: server.url,
 				hooks: {
@@ -94,12 +100,12 @@ describe("a credential that cannot be renewed", () => {
 					resolveCredential: async () => {
 						calls += 1
 						if (calls > 1) throw new Error("the identity provider is down")
-						return { expiresIn: 1, value: "tok_alpha" }
+						return { expiresIn: 1, value: token }
 					},
 				},
 				only: ["job"],
 				principals: { alpha: { scope: { project_id: "proj_alpha" }, tenant: "proj_alpha" } },
-				security: { bearer: { hook: true } },
+				security: { jwt: { hook: true } },
 				seed: 42,
 				spec: `${server.url}/v1/openapi/spec`,
 			})

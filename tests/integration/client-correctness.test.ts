@@ -5,8 +5,14 @@ import { formPairs } from "../../src/runtime/body/form-pairs.ts"
 import { compactResponseBody } from "../../src/runtime/transcript/compact-response.ts"
 import { Client } from "../../src/client/client.ts"
 import { toCurl } from "../../src/client/curl.ts"
-import type { Resolution } from "../../src/client/credential-source.ts"
+import { type Resolution, UnsatisfiedSecurity } from "../../src/client/credential-source.ts"
+import { createCredentialSource } from "../../src/client/credentials.ts"
+import type { SecurityConfig } from "../../src/config/types/security.ts"
+import type { CredentialPorts } from "../../src/credentials/ports.ts"
+import { createStore } from "../../src/credentials/store.ts"
 import { Redactor } from "../../src/security/redact.ts"
+import { buildModel } from "../../src/spec/graph/build.ts"
+import type { OpenApiDocument } from "../../src/spec/types.ts"
 
 describe("repro scripts", () => {
 	it("keeps secrets out of repro scripts, and sends a form field by field", () => {
@@ -145,6 +151,44 @@ describe("the client", () => {
 	})
 })
 
+/* One secured operation the local server answers 401, as an expired session would be. */
+const EXPIRED_DOC = {
+	components: { securitySchemes: { jwt: { scheme: "bearer", type: "http" } } },
+	info: { title: "expired", version: "1" },
+	openapi: "3.1.0",
+	paths: {
+		"/expired": {
+			get: { operationId: "expired.get", responses: { "401": { description: "expired" } }, security: [{ jwt: [] }] },
+		},
+	},
+} as unknown as OpenApiDocument
+
+/* A jwt with a login and a refresh of its own. */
+const RENEWABLE: SecurityConfig = {
+	jwt: {
+		login: { from: "$.token", steps: [{ operationId: "auth.login" }] },
+		refresh: { from: "$.token", steps: [{ operationId: "auth.refresh" }] },
+	},
+}
+
+const unexpected = (what: string) => Promise.reject(new Error(`unexpected ${what}`))
+
+/* Ports whose first login issues a token, and whose every later step (the refresh, the fallback login) is refused. */
+function renewalRefused(steps: string[]): CredentialPorts {
+	return {
+		operations: { call: () => unexpected("call") },
+		steps: {
+			run: async (run) => {
+				const step = run.map((one) => ("operationId" in one ? one.operationId : "?")).join(",")
+				steps.push(step)
+				if (steps.length > 1) throw new Error(`${step} answered 401`)
+				return { answer: { body: { token: "token-1" }, cookies: {}, headers: {}, status: 200 }, scope: {} }
+			},
+		},
+		tokens: { post: () => unexpected("post") },
+	}
+}
+
 describe("a principal whose renewal fails", () => {
 	it("answers the refusal as it is when its renewal fails, and sends nothing more", async () => {
 		let resolved = 0
@@ -175,5 +219,31 @@ describe("a principal whose renewal fails", () => {
 		const refused = await client.get("/expired", { as: { principal: "alpha" } })
 		expect(refused.status).toBe(401)
 		expect([hits, resolved]).toEqual([1, 1])
+	})
+
+	it("blocks its principal through the real store: the next request is refused before it is sent", async () => {
+		const steps: string[] = []
+		const ports = renewalRefused(steps)
+		const model = buildModel(EXPIRED_DOC)
+		const principals = { alpha: {} }
+		const store = createStore({ ports, principals, schemes: model.schemes, security: RENEWABLE })
+		const client = new Client({
+			baseUrl: url,
+			credentials: createCredentialSource({ model, principals, security: RENEWABLE, store }),
+			operationResolver: (method, path) =>
+				method === "GET" && path === "/expired" ? { operationId: "expired.get", template: path } : null,
+			redactor: new Redactor(),
+		})
+		hits = 0
+		expect((await client.get("/expired", { as: { principal: "alpha" } })).status).toBe(401)
+		expect([hits, steps]).toEqual([1, ["auth.login", "auth.refresh", "auth.login"]])
+		const next = client.get("/expired", { as: { principal: "alpha" } })
+		await expect(next).rejects.toBeInstanceOf(UnsatisfiedSecurity)
+		await expect(next).rejects.toMatchObject({
+			kind: "blocked",
+			reason:
+				"renewal for alpha/jwt: the refresh failed (auth.refresh answered 401), then acquiring afresh failed (auth.login answered 401)",
+		})
+		expect(hits).toBe(1)
 	})
 })

@@ -10,12 +10,13 @@
 import { messageOf } from "../errors/message.ts"
 import type { DefectName } from "../reference/defects/table.ts"
 import type { Finding } from "../runtime/finding.ts"
-import { run } from "../runtime/run/index.ts"
+import { run } from "./harness/counting.ts"
 import { EXPECTED } from "./expected/table.ts"
 import type { ParserResult } from "./harness/result.ts"
 import { launch, reach, type Via } from "./harness/launch.ts"
 import { defectsFor } from "./matrix/defects.ts"
 import { judgedOperations, primaryOf } from "./matrix/expected.ts"
+import { optInFor } from "./matrix/opt-in.ts"
 import { PRINCIPALS, SECURITY } from "./matrix/principals.ts"
 
 const NOT_DEFECTS: ReadonlySet<string> = /* @__PURE__ */ new Set(["COVERAGE_GAP", "BLOCKED"])
@@ -25,9 +26,12 @@ async function runOnce(
 	ops: string[] | undefined,
 	via: Via,
 ): Promise<{ findings: Finding[]; statuses: Map<string, string> }> {
-	const server = await launch({ backend: "memory", dialect: "postgrest", via }, { defects })
+	/* A defect behind an opt-in shows only with it on, in the reference and in oat both. */
+	const optIn = optInFor(defects)
+	const server = await launch({ backend: "memory", dialect: "postgrest", via }, { defects, ...optIn.reference })
 	try {
 		const result = await run({
+			...optIn.run,
 			baseUrl: server.url,
 			principals: PRINCIPALS,
 			security: SECURITY,

@@ -39,6 +39,7 @@ describe("fieldSchema", () => {
 		expect(field("start")).toEqual({ $ref: "#/components/schemas/Point" })
 		expect(field("secret")).toEqual({ maxLength: 64, type: "string", writeOnly: true })
 		expect(field("id")).toEqual({ readOnly: true, type: "string" })
+		expect(field("verified")).toEqual({ type: "boolean", "x-privileged": true })
 	})
 
 	it("declares an enum, and a nullable field as one of its schema or null", () => {

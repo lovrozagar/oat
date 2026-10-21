@@ -7,6 +7,7 @@ import { FILTER_EXPECTED } from "./filter.ts"
 import { ISOLATION_EXPECTED } from "./isolation.ts"
 import { OTHER_EXPECTED } from "./other.ts"
 import { PAGINATION_EXPECTED } from "./pagination.ts"
+import { SECURITY_EXPECTED } from "./security.ts"
 import { SORT_EXPECTED } from "./sort.ts"
 import { EXPECTED } from "./table.ts"
 import { VALIDATION_EXPECTED } from "./validation.ts"
@@ -20,6 +21,7 @@ const FAMILIES = [
 	ISOLATION_EXPECTED,
 	OTHER_EXPECTED,
 	PAGINATION_EXPECTED,
+	SECURITY_EXPECTED,
 	SORT_EXPECTED,
 	VALIDATION_EXPECTED,
 	WRITE_EXPECTED,

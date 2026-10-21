@@ -4,6 +4,7 @@ import type { Row } from "../../store-api.ts"
 import { assertWrite, findItem } from "../access.ts"
 import { readJson, requireJson } from "../body.ts"
 import { HttpError } from "../errors.ts"
+import { assertPrivileged, keepPrivileged } from "../privileged.ts"
 import { answerRead, answerWritten, hiddenFromCreator, present, replacementDefaults, withDefaults } from "../records.ts"
 import type { ReferenceState } from "../state.ts"
 import { assertUnique, readModifyWrite, refreshParentCount } from "../store-ops.ts"
@@ -34,7 +35,8 @@ export async function update(
 	const existing = await findItem(state, call, "write")
 	const replace = request.method === "PUT"
 	const patch = validateBody(await readJson(request), { defects, entity, mode: replace ? "replace" : "update" })
-	const changes = changesOf(state, call, { patch, replace })
+	assertPrivileged(state, call, patch)
+	const changes = keepPrivileged(state, call, changesOf(state, call, { patch, replace }))
 	await assertUnique(state, { entity, record: { ...existing, ...changes } }, String(itemId))
 	const updated = defects.has("CONCURRENT_WRITE_LOST")
 		? await readModifyWrite(state, { entity, id: itemId }, changes)

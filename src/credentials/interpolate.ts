@@ -31,6 +31,14 @@ function fill(principal: CredentialPrincipal, value: unknown): unknown {
 	return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, fill(principal, item)]))
 }
 
+/** The value with the credential wherever `{credential}` stands, deep through arrays and plain objects. */
+export function fillCredential(value: unknown, credential: string): unknown {
+	if (typeof value === "string") return value.replaceAll("{credential}", credential)
+	if (Array.isArray(value)) return value.map((item) => fillCredential(item, credential))
+	if (value === null || typeof value !== "object") return value
+	return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, fillCredential(item, credential)]))
+}
+
 function textOf(principal: CredentialPrincipal, key: string): string {
 	const value = principal.identity[key] ?? (key === "id" ? principal.id : undefined)
 	if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value)

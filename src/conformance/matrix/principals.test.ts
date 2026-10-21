@@ -11,14 +11,49 @@ describe("PRINCIPALS", () => {
 			["alpha_member", "key_alpha_member", 1, "proj_alpha", "proj_alpha", undefined],
 			["alpha_viewer", "key_alpha_viewer", 0, "proj_alpha", "proj_alpha", undefined],
 		])
+		expect(
+			Object.entries(PRINCIPALS)
+				.filter(([, p]) => p.readOnly === true)
+				.map(([id]) => id),
+		).toEqual(["alpha_viewer"])
 	})
 })
 
 describe("SECURITY", () => {
-	it("signs each principal in by trading its key at auth.token for the bearer token", () => {
+	it("signs each principal in at auth.token for the jwt, rotates it, ends it at auth.logout, and mints a scoped apiKey", () => {
 		expect(SECURITY).toEqual({
-			bearer: {
-				login: { from: "$.access_token", steps: [{ body: { key: "{principal.key}" }, operationId: "auth.token" }] },
+			apiKey: {
+				format: "ApiKey {credential}",
+				mint: {
+					body: { scopes: "{scopes}" },
+					from: "$.key",
+					operationId: "apiKey.create",
+					revoke: "apiKey.revoke",
+					with: "jwt",
+				},
+			},
+			jwt: {
+				login: {
+					from: "$.access_token",
+					revoke: "auth.logout",
+					steps: [
+						{
+							body: { key: "{principal.key}" },
+							operationId: "auth.token",
+							saveAs: { refresh_token: "$.refresh_token" },
+						},
+					],
+				},
+				refresh: {
+					from: "$.access_token",
+					steps: [
+						{
+							body: { refresh_token: "{refresh_token}" },
+							operationId: "auth.refresh",
+							saveAs: { refresh_token: "$.refresh_token" },
+						},
+					],
+				},
 			},
 		})
 	})

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import type { OperationModel } from "../../../spec/graph/types.ts"
 import { contextOf, entityRunOf, notesApi, notesDoc, optionsFor } from "../__fixtures__/api.ts"
 import { existingOrBlocked, readExisting, worldOptions } from "./fallback.ts"
 
@@ -56,6 +57,20 @@ describe("worldOptions", () => {
 		const options = worldOptions(entityRunOf(ctx))
 		expect(options).toMatchObject({ nonce: "n0nce", principal: "alpha", roots: {}, seed: 1 })
 		expect(options).not.toHaveProperty("authHeaders")
+	})
+
+	it("withholds a create only a higher rank of the first principal's tenant may send", async () => {
+		const higher = { alpha: { rank: 1, tenant: "t1" }, root: { rank: 2, tenant: "t1" } }
+		const ctx = await contextOf(optionsFor(notesApi(), { principals: higher }))
+		const required = {
+			...(ctx.model.byOperationId.get("notes.create") as OperationModel),
+			privilegedRequired: ["plan"],
+		}
+		expect(worldOptions(entityRunOf(ctx)).withheld?.(required)).toMatch(
+			/^notes\.create requires plan, .* only root \(rank 2\)/,
+		)
+		const top = worldOptions(entityRunOf(await contextOf(optionsFor(notesApi()))))
+		expect(top.withheld?.(required)).toBeUndefined()
 	})
 
 	it("hands seeding and ancestors the run's identities per entity, which a later run of the entity keeps", async () => {

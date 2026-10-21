@@ -27,10 +27,11 @@ describe("userBackend", () => {
 		expect(backend.registerFrom).toEqual(["auth", "other", "other"])
 	})
 
-	it("answers 404 off its routes and a bare 500 on a body it cannot parse", async () => {
-		const { handle } = userBackend()
-		expect((await handle(ask("GET", "/v1/users"))).status).toBe(404)
-		expect((await handle(ask("POST", "/v1/auth/register", { body: "{" }))).status).toBe(500)
+	it("answers 404 off its routes, and 400 to a body it cannot parse, which registers no one", async () => {
+		const backend = userBackend()
+		expect((await backend.handle(ask("GET", "/v1/users"))).status).toBe(404)
+		expect((await backend.handle(ask("POST", "/v1/auth/register", { body: "{" }))).status).toBe(400)
+		expect(backend.registerFrom).toEqual([])
 	})
 })
 

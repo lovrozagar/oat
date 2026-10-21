@@ -3,7 +3,6 @@ import type { Recipe } from "../../config/types/security.ts"
 import type { Responder } from "../checks/__fixtures__/harness.ts"
 import {
 	contextOf,
-	EMAIL_LOGIN,
 	LOGIN,
 	notesApi,
 	notesDoc,
@@ -15,6 +14,15 @@ import {
 import { keysApi, keysDoc, MINTED } from "./__fixtures__/keys.ts"
 import { closeOut, run } from "./pipeline.ts"
 import { scopeReport } from "./result.ts"
+
+/* The email login, whose session the login operation itself ends when sent with it. */
+const REVOCABLE_EMAIL: Recipe = {
+	login: {
+		from: "$.access_token",
+		revoke: "auth.login",
+		steps: [{ body: { email: "{principal.email}" }, operationId: "auth.login" }],
+	},
+}
 
 const ORIGIN = { baseUrl: "http://other.test", id: "other", spec: "http://other.test/openapi.json" }
 
@@ -103,7 +111,7 @@ describe("run with secondary origins", () => {
 })
 
 describe("closeOut", () => {
-	it("runs the origins, then revokes what was minted, then removes the accounts the run signed up", async () => {
+	it("runs the origins, revokes what was minted, removes the accounts the run signed up, then ends the sessions", async () => {
 		const events: string[] = []
 		const doc = keysDoc() as unknown as { paths: Record<string, unknown> }
 		const { "/login": login, "/signup": signup } = signupDoc.paths as Record<string, unknown>
@@ -112,6 +120,8 @@ describe("closeOut", () => {
 		const respond: Responder = (method, path, request) => {
 			if (path === "/openapi.json") return { body: doc, status: 200 }
 			if (path === "/signup") return { status: 201 }
+			if (path === "/login" && request.headers?.["authorization" as never] !== undefined)
+				events.push("revoke alpha's session")
 			if (path === "/login") return { body: { access_token: "session" }, status: 200 }
 			if (method === "DELETE") events.push(`revoke ${path}`)
 			return keys(method, path, request)
@@ -124,7 +134,7 @@ describe("closeOut", () => {
 					alpha: { email: "a@x.test", scope: { project_id: "p1" } },
 					fresh: { fresh: true, scope: { project_id: "p1" } },
 				},
-				security: { bearer: EMAIL_LOGIN.bearer as Recipe, key: MINTED.key as Recipe },
+				security: { bearer: REVOCABLE_EMAIL, key: MINTED.key as Recipe },
 			}),
 		)
 		await ctx.client.request("GET", "/secure", { as: { principal: "fresh" } })
@@ -134,6 +144,12 @@ describe("closeOut", () => {
 		}
 		await closeOut(ctx, { coverage: scopeReport(ctx), runOrigin })
 		const email = String(ctx.principals.byId.get("fresh")?.identity.email)
-		expect(events).toEqual(["origin", "revoke /projects/p1/keys/1", "revoke /projects/p1/keys/2", `teardown ${email}`])
+		expect(events).toEqual([
+			"origin",
+			"revoke /projects/p1/keys/1",
+			"revoke /projects/p1/keys/2",
+			`teardown ${email}`,
+			"revoke alpha's session",
+		])
 	})
 })

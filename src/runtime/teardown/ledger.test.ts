@@ -12,14 +12,6 @@ function id(value: string): ProvenId {
 }
 
 describe("Ledger: recording", () => {
-	it("says which records it holds, whoever made them, removed since or not", () => {
-		const ledger = new Ledger()
-		ledger.record({ entity: "job", id: id("j1"), scope: {} }, owner("beta"))
-		expect(ledger.holds("job", "j1")).toBe(true)
-		expect(ledger.holds("job", "j2")).toBe(false)
-		expect(ledger.holds("note", "j1")).toBe(false)
-	})
-
 	it("records each record once per creator, and never an empty id", () => {
 		const ledger = new Ledger()
 		ledger.record({ entity: "note", id: id("n1"), scope: { org: "o1" } }, owner("alpha"))
@@ -31,6 +23,15 @@ describe("Ledger: recording", () => {
 		expect(ledger.recorded).toBe(2)
 		expect(ledger.entries().map((item) => `${item.id} ${item.owner.id}`)).toEqual(["n1 alpha", "n1 beta"])
 		expect(ledger.entries()[0]?.scope).toEqual({ org: "o1" })
+	})
+
+	it("keeps an inferred record's mark, and says which records it holds whoever made them", () => {
+		const ledger = new Ledger()
+		ledger.record({ entity: "job", id: id("j1"), inferred: true, scope: {} }, owner("beta"))
+		expect(ledger.entries()).toEqual([{ entity: "job", id: "j1", inferred: true, owner: owner("beta"), scope: {} }])
+		expect(ledger.holds("job", "j1")).toBe(true)
+		expect(ledger.holds("job", "j2")).toBe(false)
+		expect(ledger.holds("note", "j1")).toBe(false)
 	})
 
 	it("reports each unidentified create once, in the order it was sent", () => {

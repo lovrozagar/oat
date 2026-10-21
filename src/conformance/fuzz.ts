@@ -20,11 +20,13 @@
 
 import { messageOf } from "../errors/message.ts"
 import type { DefectName } from "../reference/defects/table.ts"
-import { run, type RunResult } from "../runtime/run/index.ts"
+import type { RunResult } from "../runtime/run/index.ts"
+import { run } from "./harness/counting.ts"
 import { type FuzzCase, diagnose, falsePositives, type PrecisionCase } from "./fuzz/diagnose.ts"
 import { launch, listening, reach, type Target, type Via } from "./harness/launch.ts"
 import { defectsFor } from "./matrix/defects.ts"
 import type { Backend } from "./matrix/engines.ts"
+import { optInFor } from "./matrix/opt-in.ts"
 import { PRINCIPALS, SECURITY } from "./matrix/principals.ts"
 
 export type { FuzzCase, PrecisionCase } from "./fuzz/diagnose.ts"
@@ -105,10 +107,13 @@ async function runAgainst(
 	defects: DefectName[],
 	seed: number,
 ): Promise<{ result: RunResult } | { error: string }> {
-	const server = await launch(target, { defects })
+	/* A defect behind an opt-in shows only with it on, in the reference and in oat both. */
+	const optIn = optInFor(defects)
+	const server = await launch(target, { defects, ...optIn.reference })
 	try {
 		return {
 			result: await run({
+				...optIn.run,
 				baseUrl: server.url,
 				principals: PRINCIPALS,
 				security: SECURITY,

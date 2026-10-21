@@ -3,6 +3,7 @@ import { anyrow, everyScheme, keycloak } from "../../spec/security/__fixtures__/
 import { buildModel } from "../../spec/graph/build.ts"
 import type { OpenApiDocument } from "../../spec/types.ts"
 import { securityProblems, type SpecView } from "./security.ts"
+import { kindProblems } from "./recipe-shape.ts"
 
 /* Each recipe kind's own shape. A .json or .mjs config skips TypeScript, so this is the only check. */
 
@@ -83,6 +84,19 @@ describe("login claims", () => {
 			"security.jwt.login.claims.tenant must be a claim name or JSON path string",
 		])
 		expect(problems(withClaims("org_id"))).toEqual(["security.jwt.login.claims must be a map of target → claim"])
+	})
+})
+
+describe("login revoke", () => {
+	it("is an operation id, or one with a body", () => {
+		expect(problems({ jwt: { login: { from: "$.t", revoke: 3, steps } } })).toEqual([
+			"security.jwt.login.revoke must be an operationId, or { operationId, body? }",
+		])
+		expect(problems({ jwt: { login: { from: "$.t", revoke: { body: {} }, steps } } })).toEqual([
+			"security.jwt.login.revoke must be an operationId, or { operationId, body? }",
+		])
+		const revoke = { body: { token: "{credential}" }, operationId: "row.list" }
+		expect(problems({ jwt: { login: { from: "$.t", revoke, steps } } })).toEqual([])
 	})
 })
 
@@ -187,6 +201,18 @@ describe("options and the kinds they fit", () => {
 		expect(override({ jwt: { static: "t" } })).toEqual([])
 		expect(override({ jwt: { expiresIn: { from: "$.x" }, static: "t" } })).toEqual([
 			"principals.alpha.security.jwt.expiresIn.from reads the answer that issued the credential; a static recipe has none",
+		])
+	})
+})
+
+describe("kindProblems", () => {
+	it("passes a recipe of exactly one kind, names one of none, and refuses more than one", () => {
+		expect(kindProblems("security.jwt", { login: {} })).toEqual([])
+		expect(kindProblems("security.jwt", { format: "x" })).toEqual([
+			"security.jwt needs exactly one of login, mint, static, hook, oauth2",
+		])
+		expect(kindProblems("security.jwt", { login: {}, static: "s" })).toEqual([
+			"security.jwt has login and static; keep exactly one",
 		])
 	})
 })

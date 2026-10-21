@@ -33,7 +33,7 @@ describe("gateBody", () => {
 })
 
 describe("featureGateHarness", () => {
-	it("serves its document without a token, and nothing else", async () => {
+	it("serves its document without a token, and nothing else without the token it issued", async () => {
 		const handle = featureGateHarness({ create: "created", specTag: "webhooks" })
 		const spec = await ask(handle, "GET /v1/openapi/spec", { headers: {} })
 		expect(spec.status).toBe(200)
@@ -43,6 +43,7 @@ describe("featureGateHarness", () => {
 			status: 401,
 		})
 		expect((await ask(handle, `GET ${WEBHOOKS}`, { headers: { authorization: "Basic x" } })).status).toBe(401)
+		expect((await ask(handle, `GET ${WEBHOOKS}`, { headers: { authorization: "Bearer forged" } })).status).toBe(401)
 	})
 
 	it("answers webhook create as its mode says", async () => {

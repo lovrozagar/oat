@@ -7,11 +7,12 @@
 
 import { messageOf } from "../errors/message.ts"
 import type { Finding } from "../runtime/finding.ts"
-import { run, type RunResult } from "../runtime/run/index.ts"
+import type { RunResult } from "../runtime/run/index.ts"
+import { run } from "./harness/counting.ts"
 import { buildModel } from "../spec/graph/build.ts"
 import { readEffects } from "../spec/extensions/effects.ts"
 import { GapCollector } from "../spec/extensions/gaps.ts"
-import { extractBackend } from "./effects/backend.ts"
+import { EXTRACT_TOKEN, extractBackend } from "./effects/backend.ts"
 import { extractSpec } from "./effects/spec.ts"
 import { listening, reach, type Via } from "./harness/launch.ts"
 import type { ParserResult } from "./harness/result.ts"
@@ -93,7 +94,7 @@ async function runExtract(via: Via, rowCount: number): Promise<RunResult> {
 			cohortSize: 1,
 			only: ["table"],
 			principals: { alpha: { scope: { project_id: "p1" }, tenant: "p1" } },
-			security: { bearer: { static: "t" } },
+			security: { bearer: { static: EXTRACT_TOKEN } },
 			seed: 1,
 			spec: `${hosted.url}/v1/openapi/spec`,
 			...reach(hosted),

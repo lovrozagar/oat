@@ -5,6 +5,7 @@ import type { Exchange } from "../../../exchange.ts"
 import { isDocumentedFeatureGateDenial } from "../../../feature-gate.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { ASSERTED, type FindingCollector, type Outcome, standDown } from "../../../finding.ts"
+import { judges } from "../../../probe-judging.ts"
 import type { SchemaValidator } from "../../../validate.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
@@ -71,6 +72,8 @@ async function judgeExpectedRefusals(judge: ErrorJudge): Promise<string[]> {
 	const { ctx } = judge
 	const judged: string[] = []
 	for (const listed of ctx.client.exchangesForEntity(ctx.entityName)) {
+		/* A security probe's answer is the security checks' to judge; see probe-judging.ts. */
+		if (!judges("schema.error-response-matches-document", listed)) continue
 		/* Error bodies are what this judges; one moved out of memory is read back. */
 		const exchange = listed.status >= 400 ? await ctx.client.hydrate(listed) : listed
 		if (exchange.superseded === true) continue

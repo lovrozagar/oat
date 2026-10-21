@@ -145,6 +145,11 @@ describe("schema.error-response-matches-document over the transcript", () => {
 		expect(fits.judged).toEqual([["item.read", "item.create"]])
 	})
 
+	it("leaves a security probe's error body to the security checks", async () => {
+		const probed = await judge([seen("item.create", { body: { code: 1 }, status: 409 }, { probe: true })], fine)
+		expect(probed.findings.findings).toEqual([])
+	})
+
 	it("reports a conflict schema AJV cannot compile as a gap on its operation", async () => {
 		const { findings } = await judge([seen("item.create", { body: "x", status: 409 })], fine, {
 			document: { conflict: UNCOMPILABLE },

@@ -2,6 +2,7 @@ import type { OperationModel } from "../../../spec/graph/types.ts"
 import type { RequestOptions } from "../../../client/types.ts"
 import type { Exchange } from "../../exchange.ts"
 import { type Outcome, standDown } from "../../finding.ts"
+import { ordinaryRequestSchema } from "../../fixture.ts"
 import { createdRecord } from "../../world/created-record.ts"
 import { type Record_, recordOf } from "../../world/records.ts"
 import type { CheckContext, WriteContext } from "../core/context.ts"
@@ -38,7 +39,9 @@ export async function scratchRecord(
 	if (createOp === undefined || schema === null) {
 		return { outcome: standDown("a create operation with a request body, to make a record this check may change") }
 	}
-	const { exchange, exhausted, sent } = await createFresh(ctx, createOp, schema, ctx.actor.id)
+	const fresh = await createFresh(ctx, createOp, schema, ctx.actor.id)
+	if ("withheld" in fresh) return { outcome: standDown(fresh.withheld) }
+	const { exchange, exhausted, sent } = fresh
 	if (standDownForFeatureGate(ctx, createOp, exchange, check)) {
 		return { outcome: standDown("a documented feature gate refused the request") }
 	}
@@ -86,7 +89,9 @@ export async function updateRequest(
 	const method = updateOp.method.toUpperCase()
 	if (method !== "PUT") return { method, options: await encodeOpBody(ctx, updateOp, changes) }
 	const schema = requestSchemaOf(ctx, updateOp)
-	const properties = Object.keys((schema?.properties ?? {}) as Record<string, unknown>)
+	/* What any writer may send: never a readOnly property, nor an optional x-privileged one. */
+	const ordinary = schema === null ? {} : (ordinaryRequestSchema(schema) as Record<string, unknown>)
+	const properties = Object.keys((ordinary.properties ?? {}) as Record<string, unknown>)
 	const kept = Object.fromEntries(
 		properties.filter((key) => current[key] !== undefined).map((key) => [key, current[key]]),
 	)

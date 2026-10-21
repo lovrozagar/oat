@@ -73,7 +73,9 @@ export const declaredInvalidationHappens = defineCheck<{
 			)
 		}
 
-		const { exchange: created, exhausted } = await createFresh(ctx, createOp, schema, ctx.actor.id)
+		const fresh = await createFresh(ctx, createOp, schema, ctx.actor.id)
+		if ("withheld" in fresh) return standDown(fresh.withheld)
+		const { exchange: created, exhausted } = fresh
 		if (standDownForFeatureGate(ctx, createOp, created, this.id))
 			return standDown("a documented feature gate refused the request")
 		if (created.status >= 300) {

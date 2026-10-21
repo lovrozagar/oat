@@ -26,6 +26,13 @@ export interface LoginRecipe {
 	 * name or a JSON path into the answer, e.g. `{ tenant: "org_id", "scope.project_id": "$.project.id" }`.
 	 */
 	claims?: Record<string, string>
+	/**
+	 * The operation that revokes a session this recipe opened, sent with that session: a logout, or a
+	 * token revoke with a `body` in which `{credential}` is the session's value, e.g.
+	 * `{ operationId: "auth.revoke", body: { token: "{credential}" } }`. oat calls it for the dedicated
+	 * sessions its security probes open, never for a principal's own.
+	 */
+	revoke?: string | { operationId: string; body?: unknown }
 }
 
 /** Make the credential by calling an operation with another scheme's credential. */
@@ -90,6 +97,11 @@ export interface PrincipalEntry {
 	rank?: number
 	/** What an owner puts in an invite body for this principal. */
 	inviteAs?: string
+	/**
+	 * The account may only read: a viewer. The security checks send its writes to a record the run
+	 * created and expect each to be refused.
+	 */
+	readOnly?: true
 	/** Made fresh for the run, by the operation the document marks `x-fresh-principal`. */
 	fresh?: boolean
 	/**

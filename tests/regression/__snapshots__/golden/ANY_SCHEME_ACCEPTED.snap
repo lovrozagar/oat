@@ -1,0 +1,342 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "4 root-cause findings",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "inconclusive": {
+      "added": [
+        {
+          "check": "auth.wrong-scheme-refused",
+          "entity": "table.invite",
+          "reason": "table.invite answered 400 to alpha's apiKey credential, a scheme it does not list: refused by validation before authorization could be observed",
+          "operations": [
+            "table.invite"
+          ]
+        }
+      ]
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "auth.wrong-scheme-refused"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.self-is-the-caller"
+              ],
+              "suppressed": []
+            },
+            "entity": "profile",
+            "findings": 1,
+            "operationId": "profile.get",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "auth.wrong-scheme-refused"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "query.unknown-parameter-consistent",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "notice",
+            "findings": 1,
+            "operationId": "notice.list",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "auth.wrong-scheme-refused"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "read.matches-caller-root"
+              ],
+              "suppressed": []
+            },
+            "entity": "overview",
+            "findings": 1,
+            "operationId": "project.overview",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "auth.wrong-scheme-refused"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 1,
+            "operationId": "job.inbox",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [
+                "auth.wrong-scheme-refused"
+              ],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.invite-grants-then-revokes",
+                "auth.missing-credential-refused",
+                "auth.role-enforced",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.invite",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "unproven",
+            "tier": "contract",
+            "why": "met its contract, but no later read observed what it changed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.invite-grants-then-revokes",
+                "auth.missing-credential-refused",
+                "auth.role-enforced",
+                "auth.wrong-scheme-refused",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.invite",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "unproven",
+            "tier": "contract",
+            "why": "met its contract, but no later read observed what it changed"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.self-is-the-caller",
+                "auth.wrong-scheme-refused"
+              ],
+              "suppressed": []
+            },
+            "entity": "profile",
+            "findings": 0,
+            "operationId": "profile.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "complete",
+            "tier": "contract",
+            "why": "a read with no declared effects: its contract is the whole promise"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.wrong-scheme-refused",
+                "query.unknown-parameter-consistent",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "notice",
+            "findings": 0,
+            "operationId": "notice.list",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "complete",
+            "tier": "contract",
+            "why": "a read with no declared effects: its contract is the whole promise"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.wrong-scheme-refused",
+                "read.matches-caller-root"
+              ],
+              "suppressed": []
+            },
+            "entity": "overview",
+            "findings": 0,
+            "operationId": "project.overview",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.wrong-scheme-refused",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "job",
+            "findings": 0,
+            "operationId": "job.inbox",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "auth.wrong-scheme-refused",
+          "detail": "job.inbox answered 200 to alpha's apiKey credential, a scheme it does not list. The document requires jwt.",
+          "entity": "job.inbox",
+          "operations": [
+            "job.inbox"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/inbox"
+            }
+          ],
+          "summary": "an operation accepted a credential of a scheme it does not list",
+          "verdict": "SECURITY"
+        },
+        {
+          "check": "auth.wrong-scheme-refused",
+          "detail": "notice.list answered 200 to alpha's apiKey credential, a scheme it does not list. The document requires jwt.",
+          "entity": "notice.list",
+          "operations": [
+            "notice.list"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/notices"
+            }
+          ],
+          "summary": "an operation accepted a credential of a scheme it does not list",
+          "verdict": "SECURITY"
+        },
+        {
+          "check": "auth.wrong-scheme-refused",
+          "detail": "profile.get answered 200 to alpha's apiKey credential, a scheme it does not list. The document requires jwt.",
+          "entity": "profile.get",
+          "operations": [
+            "profile.get"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/me"
+            }
+          ],
+          "summary": "an operation accepted a credential of a scheme it does not list",
+          "verdict": "SECURITY"
+        },
+        {
+          "check": "auth.wrong-scheme-refused",
+          "detail": "project.overview answered 200 to alpha's apiKey credential, a scheme it does not list. The document requires jwt.",
+          "entity": "project.overview",
+          "operations": [
+            "project.overview"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/overview"
+            }
+          ],
+          "summary": "an operation accepted a credential of a scheme it does not list",
+          "verdict": "SECURITY"
+        }
+      ]
+    },
+    "summary": {
+      "SECURITY": {
+        "now": 4,
+        "was": null
+      }
+    }
+  }
+}

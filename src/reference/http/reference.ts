@@ -21,10 +21,11 @@ import { shapedDialect } from "../shapes/dialect.ts"
 import { shapeNamed } from "../shapes/named.ts"
 import type { Row, Store } from "../store-api.ts"
 import { asFetch } from "./fetch.ts"
+import { newAuthState } from "./auth/sessions.ts"
 import { Ids } from "./ids.ts"
 import { hiddenFromCreator } from "./records.ts"
 import { handle } from "./router.ts"
-import { type Principal, PRINCIPALS, type ReferenceOptions, type ReferenceState } from "./state.ts"
+import { type Account, PRINCIPALS, type ReferenceOptions, type ReferenceState } from "./state.ts"
 import { prepopulate } from "./store-ops.ts"
 
 /** Builds the store for the entities a shape serves, with the defects it carries. */
@@ -39,7 +40,7 @@ export interface Reference {
 	/** The reference as a transport: hand it to the client as its `fetch`. */
 	fetch: typeof fetch
 	defects: DefectSet
-	principals: readonly Principal[]
+	principals: readonly Account[]
 	/** Every record currently stored, per entity, for leak accounting. Reads the store directly. */
 	snapshot: () => Promise<Record<string, Row[]>>
 	/** Every id the server issued or stored since it started serving, per entity, deleted since or not. */
@@ -84,6 +85,7 @@ export async function referenceState(options: ReferenceOptions, createStore: Sto
 	const entities = shapedEntities(shape)
 	const store = await createStore(defects, entities)
 	const state: ReferenceState = {
+		auth: newAuthState(options),
 		basePath: shape.basePath ?? "",
 		conventions: { ...DEFAULT_CONVENTIONS, ...shape.conventions },
 		defects,
@@ -96,7 +98,6 @@ export async function referenceState(options: ReferenceOptions, createStore: Sto
 		job: entities.find((entity) => entity.name === "job") as EntityDef,
 		jobStartedAt: new Map(),
 		listingStore: defects.has("HIDDEN_FROM_CREATOR") ? withoutHidden(defects, store) : store,
-		liveTokens: new Set(PRINCIPALS.map((principal) => principal.token)),
 		profiles: new Map(),
 		shape,
 		slugOf: new Map(),

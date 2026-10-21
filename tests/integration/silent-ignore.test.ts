@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { judgeDefect } from "../../src/conformance/matrix/cases.ts"
 import { TEMPLATE } from "../../src/reference/dialect/presets.ts"
 import { toCanonicalFilter } from "../../src/reference/dialect/canonical.ts"
+import { entityChecks } from "../../src/runtime/checks/core/registry.ts"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"
 import { Client } from "../../src/client/client.ts"
 import { FindingCollector } from "../../src/runtime/finding.ts"
@@ -72,7 +73,7 @@ function context(query: Record<string, unknown>, parameterDescription = "") {
 }
 
 function plan(id: string, ctx: ReturnType<typeof context>) {
-	const check = CHECKS.find((candidate) => candidate.id === id)
+	const check = entityChecks(CHECKS).find((candidate) => candidate.id === id)
 	if (check === undefined) throw new Error(`no check ${id}`)
 	return check.plan(ctx)
 }

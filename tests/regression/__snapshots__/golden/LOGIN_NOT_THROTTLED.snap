@@ -1,0 +1,497 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "1 root-cause finding",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "checksSkipped": {
+      "added": [
+        {
+          "check": "auth.login-throttled",
+          "entity": "apiKey.create",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "apiKey.get",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "apiKey.revoke",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "auth.login",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "auth.logout",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "auth.refresh",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "auth.register",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "auth.revoke",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "gateway.health",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "invite.accept",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "job.create",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "job.delete",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "job.get",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "job.inbox",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "job.list",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "job.notify",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "job.start",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "job.update",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "notice.get",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "notice.list",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "profile.get",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "profile.update",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "project.overview",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "row.create",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "row.delete",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "row.get",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "row.list",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "row.update",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "table.create",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "table.delete",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "table.get",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "table.invite",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "table.list",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "table.revoke",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "table.update",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        }
+      ],
+      "removed": [
+        {
+          "check": "auth.login-throttled",
+          "entity": "apiKey.create",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "apiKey.get",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "apiKey.revoke",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "auth.login",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "auth.logout",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "auth.refresh",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "auth.register",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "auth.revoke",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "auth.token",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "gateway.health",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "invite.accept",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "job.create",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "job.delete",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "job.get",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "job.inbox",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "job.list",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "job.notify",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "job.start",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "job.update",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "notice.get",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "notice.list",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "profile.get",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "profile.update",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "project.overview",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "row.create",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "row.delete",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "row.get",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "row.list",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "row.update",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "table.create",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "table.delete",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "table.get",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "table.invite",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "table.list",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "table.revoke",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "table.update",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        }
+      ]
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "auth.login-throttled"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.anonymous-operation-open",
+                "response.contract-call"
+              ],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 1,
+            "operationId": "auth.token",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.anonymous-operation-open",
+                "response.contract-call"
+              ],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 0,
+            "operationId": "auth.token",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "unproven",
+            "tier": "contract",
+            "why": "met its contract, but no later read observed what it changed"
+          }
+        ]
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "auth.login-throttled",
+          "detail": "8 failed logins for one identity that does not exist, sent to auth.token back to back, drew no 429. Without a throttle a password can be guessed at the server's full speed.",
+          "entity": "auth.token",
+          "operations": [
+            "auth.token"
+          ],
+          "evidence": [
+            {
+              "method": "POST",
+              "status": 401,
+              "url": "http://reference.test/v1/auth/token"
+            },
+            {
+              "method": "POST",
+              "status": 401,
+              "url": "http://reference.test/v1/auth/token"
+            },
+            {
+              "method": "POST",
+              "status": 401,
+              "url": "http://reference.test/v1/auth/token"
+            },
+            {
+              "method": "POST",
+              "status": 401,
+              "url": "http://reference.test/v1/auth/token"
+            },
+            {
+              "method": "POST",
+              "status": 401,
+              "url": "http://reference.test/v1/auth/token"
+            },
+            {
+              "method": "POST",
+              "status": 401,
+              "url": "http://reference.test/v1/auth/token"
+            },
+            {
+              "method": "POST",
+              "status": 401,
+              "url": "http://reference.test/v1/auth/token"
+            },
+            {
+              "method": "POST",
+              "status": 401,
+              "url": "http://reference.test/v1/auth/token"
+            }
+          ],
+          "summary": "repeated failed logins are never throttled",
+          "verdict": "SECURITY"
+        }
+      ]
+    },
+    "costByCheck": {
+      "added": [
+        {
+          "check": "auth.login-throttled"
+        }
+      ]
+    },
+    "summary": {
+      "SECURITY": {
+        "now": 1,
+        "was": null
+      }
+    }
+  }
+}

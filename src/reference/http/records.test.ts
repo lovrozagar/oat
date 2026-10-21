@@ -119,6 +119,7 @@ describe("withDefaults", () => {
 			slug: "",
 			status: "active",
 			updated_at: 1_700_000_001_000,
+			verified: false,
 		})
 	})
 
@@ -143,7 +144,14 @@ describe("withDefaults", () => {
 
 describe("replacementDefaults and snapshotKey", () => {
 	it("resets every writable field", () => {
-		expect(replacementDefaults(TABLE)).toEqual({ description: null, name: "", position: 0, slug: "", status: "active" })
+		expect(replacementDefaults(TABLE)).toEqual({
+			description: null,
+			name: "",
+			position: 0,
+			slug: "",
+			status: "active",
+			verified: false,
+		})
 	})
 
 	it("keys a snapshot by entity, project and table", () => {

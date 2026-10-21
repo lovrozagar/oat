@@ -221,3 +221,21 @@ describe("invalidation.declared-route-changes create", () => {
 		expect(staged.findings.findings[0]).toMatchObject({ verdict: "COVERAGE_GAP" })
 	})
 })
+
+describe("invalidation.declared-route-changes as a principal a higher rank outranks", () => {
+	it("stands down without sending a create whose body requires a property only the highest rank sets", async () => {
+		const staged = stage(derived())
+		const low = { ...staged.ctx.actor, id: "low", rank: 0 }
+		const createOp = { ...(staged.ctx.createOp as OperationModel), privilegedRequired: ["title"] }
+		const outranked = {
+			...staged,
+			ctx: { ...staged.ctx, actor: low, actors: [{ ...low, id: "top", rank: 2 }, low], createOp },
+		}
+		expect(await drive(outranked)).toEqual({
+			kind: "stood-down",
+			reason:
+				"notes.create requires title, marked x-privileged, which only top (rank 2) may set; low (rank 0) does not send it",
+		})
+		expect(staged.sent.map((sent) => sent.method)).toEqual(["GET", "GET"])
+	})
+})

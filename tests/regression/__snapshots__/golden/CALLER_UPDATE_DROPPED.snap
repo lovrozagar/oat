@@ -25,7 +25,11 @@
               ],
               "gaps": [],
               "inconclusive": [],
-              "passed": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.wrong-scheme-refused"
+              ],
               "suppressed": []
             },
             "entity": "profile",
@@ -58,7 +62,10 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
-                "auth.self-is-the-caller"
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.self-is-the-caller",
+                "auth.wrong-scheme-refused"
               ],
               "suppressed": []
             },

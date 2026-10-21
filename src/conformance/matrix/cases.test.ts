@@ -69,11 +69,35 @@ describe("judgeDefect", () => {
 		expect(result).toMatchObject({ bystanders: [], detected: true, label: "patch" })
 	}, 120_000)
 
+	it("switches on what a defect needs to show: the reference's throttle, and oat's opt-in check", async () => {
+		const result = await judgeDefect("LOGIN_NOT_THROTTLED", MEMORY, { checkRepros: async () => [] })
+		expect(result).toMatchObject({ detected: true, expected: "auth.login-throttled", spurious: [] })
+	}, 120_000)
+
 	it("reports why a case could not run", async () => {
 		for (const name of D1) delete process.env[name]
 		const result = await judgeDefect("STALE_LIST", UNREACHABLE)
 		expect(result).toMatchObject({ checksRun: [], detected: false, error: expect.stringMatching(/D1 backend needs/) })
 	})
+})
+
+describe("judgeDefect under a refusal probe's DELETE that goes through", () => {
+	/* A DELETE probe goes to a throwaway: the shared table_000001 is removed by teardown alone, after its rows. */
+	for (const defect of ["TOKEN_NOT_VERIFIED", "SCOPE_NOT_CHECKED", "ROLE_NOT_CHECKED"] as const) {
+		it(`keeps the shared table and its rows whole, judged clean and detected: ${defect}`, async () => {
+			const removed: string[] = []
+			const recording = rewriting(async (request, inner) => {
+				const answer = await inner(request)
+				if (request.method === "DELETE" && answer.ok) removed.push(new URL(request.url).pathname)
+				return answer
+			})
+			const result = await judgeDefect(defect, recording, { checkRepros: async () => [] })
+			expect(result).toMatchObject({ bystanders: [], detected: true, spurious: [], strayLedger: [], unreported: [] })
+			const table = removed.indexOf("/v1/projects/proj_alpha/tables/table_000001")
+			const lastRow = removed.findLastIndex((path) => path.startsWith("/v1/projects/proj_alpha/tables/table_000001/"))
+			expect(table).toBeGreaterThan(lastRow)
+		}, 120_000)
+	}
 })
 
 describe("judgeDefect's judging", () => {
@@ -88,7 +112,7 @@ describe("judgeDefect's judging", () => {
 
 	it("expects the caller a destructive call killed to be blocked, not a spurious finding", async () => {
 		const result = await judgeDefect("DISPOSABLE_KILLS_CALLER", MEMORY, { checkRepros: async () => [] })
-		expect(result).toMatchObject({ detected: true, spurious: [] })
+		expect(result).toMatchObject({ detected: true, expected: "auth.destructive-spares-the-caller", spurious: [] })
 	}, 120_000)
 
 	it("holds no excused defect to the bystander rule", async () => {
@@ -107,6 +131,15 @@ describe("runBaselines", () => {
 
 	it("ledgers nothing against a backend that makes nothing", async () => {
 		const [tagged] = await runBaselines(READ_ONLY)
+		expect(tagged).toMatchObject({ leaked: 0, strayLedger: [], unreported: [] })
+	}, 180_000)
+
+	it("ledgers nothing when the network drops after the document, before any principal acts", async () => {
+		const cut = rewriting(async (request, inner) => {
+			if (new URL(request.url).pathname.endsWith("/openapi/spec")) return inner(request)
+			throw new TypeError("fetch failed")
+		})
+		const [tagged] = await runBaselines(cut)
 		expect(tagged).toMatchObject({ leaked: 0, strayLedger: [], unreported: [] })
 	}, 180_000)
 

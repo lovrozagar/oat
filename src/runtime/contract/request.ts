@@ -8,6 +8,7 @@
 import { requestContent } from "../../spec/collection/request.ts"
 import { applyActionBind } from "../effects/bind.ts"
 import { buildCohort, type CohortMember } from "../fixture.ts"
+import { nonexistentIdentity } from "../nonexistent-identity.ts"
 import type { Exchange } from "../exchange.ts"
 import type { GradeLedger } from "../grades.ts"
 import { exampleOf, newestSeen, seenValue } from "./params.ts"
@@ -60,7 +61,8 @@ interface Seen {
  * the record of the body it sits in, so only an answer about the parameter's own collection holds
  * one: its list or create, or one of its items. Any other resource's newest record answers `id`
  * too, and is the wrong record. A qualified name (`thing_id`, `thingId`) names its entity, and any
- * answer's value under it will do. A write takes only a record the run made (`madeValue`).
+ * answer's value under it will do. A read prefers a live record (`liveValue`); a write takes only a
+ * record the run made (`madeValue`).
  */
 function seenFor(
 	input: Pick<ContractInput, "client" | "madeByRun" | "model">,
@@ -68,8 +70,21 @@ function seenFor(
 	name: string,
 ): string | undefined {
 	const seen = seenOf(input, op, name)
-	if (READS.has(op.method)) return seenValue(seen.pool, name, input.client.redactor)
+	if (READS.has(op.method)) return liveValue(input, seen)
 	return madeValue(input, seen)
+}
+
+/*
+ * A read's value: a record the run has not deleted, else a deleted one. A read of a deleted record
+ * can only answer 404, and a live one can answer what the document promises.
+ */
+function liveValue(input: Pick<ContractInput, "client" | "model">, seen: Seen): string | undefined {
+	const { redactor } = input.client
+	const gone = deletedIn(input, seen.collection)
+	return (
+		newestSeen(seen.pool, seen.name, (value) => !redactor.holdsSecret(value) && !gone.has(value)) ??
+		seenValue(seen.pool, seen.name, redactor)
+	)
 }
 
 /* Whether a write's parameter went unresolved though an answer showed a value: one the run did not make. */
@@ -176,9 +191,14 @@ export function queryValues(
 	return query
 }
 
-/** The request body, or `null` when the operation needs one oat cannot build (and is skipped). */
+/**
+ * The request body, or `null` when the operation needs one oat cannot build (and is skipped). A
+ * sign-in's fields that name the principal carry an identity no account holds: a generated value
+ * can be a real account's (a documented `enum` of one admin address), and failed sign-ins count
+ * toward its lockout.
+ */
 export function bodyOf(
-	input: Pick<ContractInput, "grades" | "model" | "nonce" | "seed">,
+	input: Pick<ContractInput, "credentials" | "grades" | "model" | "nonce" | "seed">,
 	{ op, raw, bind }: Pick<ContractCall, "bind" | "op" | "raw">,
 ): { body: unknown } | null {
 	const { model } = input
@@ -197,5 +217,23 @@ export function bodyOf(
 		nonce: `${input.nonce}c${op.operationId}`,
 		operationId: op.operationId,
 	}) as [CohortMember]
-	return { body: applyActionBind(bind, { records: [], beforeBody: undefined }, member.body).body }
+	const body = applyActionBind(bind, { records: [], beforeBody: undefined }, member.body).body
+	const fields = input.credentials.identityFields.get(op.operationId) ?? []
+	for (const path of fields) placeIdentity(body, { nonce: input.nonce, path, schema: content.schema })
+	return { body }
+}
+
+/* The nonexistent identity at `path`, made where the generated body left the field out. */
+function placeIdentity(body: unknown, at: { nonce: string; path: readonly string[]; schema: unknown }): void {
+	const [name, ...rest] = at.path as [string, ...string[]]
+	/* A dereferenced request schema; a field it does not declare has no schema to read. */
+	const schema = (at.schema as { properties?: Record<string, unknown> }).properties?.[name]
+	const record = body as Record<string, unknown>
+	if (rest.length === 0) {
+		record[name] = nonexistentIdentity({ name, schema }, at.nonce)
+		return
+	}
+	const inner = record[name]
+	if (inner === null || typeof inner !== "object" || Array.isArray(inner)) record[name] = {}
+	placeIdentity(record[name], { nonce: at.nonce, path: rest, schema: schema ?? {} })
 }

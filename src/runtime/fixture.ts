@@ -92,14 +92,21 @@ export interface CohortOptions {
 	distinct?: ReadonlySet<string>
 }
 
-function requestSchema(schema: Schema | boolean): Schema | boolean {
-	return typeof schema === "object" && schema !== null ? normalizeSchema(schema, { direction: "request" }) : schema
+/**
+ * The request schema as any writer may fill it: readOnly properties gone, and an optional property
+ * marked x-privileged left out, since only the highest rank may set it (`ordinary`). Every body oat
+ * makes or cuts from a record is read through this.
+ */
+export function ordinaryRequestSchema(schema: Schema | boolean): Schema | boolean {
+	return typeof schema === "object" && schema !== null
+		? normalizeSchema(schema, { direction: "request", ordinary: true })
+		: schema
 }
 
 /* The request schema as generation reads it; one that cannot even be read is an overflow naming why. */
 function readable(schema: Schema | boolean, operationId: string): Schema | boolean {
 	try {
-		return requestSchema(schema)
+		return ordinaryRequestSchema(schema)
 	} catch (error) {
 		throw new FixtureOverflow(operationId, "/", `the schema could not be read: ${messageOf(error)}`)
 	}
@@ -149,7 +156,7 @@ export function generateBody(
 	bodySchema: Schema | boolean,
 	draw: BodyDraw,
 ): { body: Record<string, unknown>; missingRequired: string[] } {
-	const schema = requestSchema(bodySchema)
+	const schema = ordinaryRequestSchema(bodySchema)
 	const { index, rand, variant } = draw
 	const result = generate(schema, { index, rand, variant })
 	if (result.ok) return { body: isObject(result.value) ? result.value : {}, missingRequired: [] }
@@ -194,7 +201,7 @@ export function ensureDistinctUniqueValues(
 	{ schema, ...options }: Redrawing,
 ): { members: CohortMember[]; gap: string | null } {
 	if (sets.length === 0 || members.length <= 1) return { gap: null, members }
-	const normalized = requestSchema(schema)
+	const normalized = ordinaryRequestSchema(schema)
 	const properties = typeof normalized === "object" && isObject(normalized.properties) ? normalized.properties : {}
 	const kept: CohortMember[] = []
 	for (const member of members) {

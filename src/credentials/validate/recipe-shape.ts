@@ -64,6 +64,13 @@ function claimsShape(path: string, login: unknown): string[] {
 	})
 }
 
+/** `login.revoke`: the operation that revokes a session, for the dedicated sessions probes open. */
+function revokeShape(path: string, login: unknown): string[] {
+	if (!isRecord(login) || login.revoke === undefined || isString(login.revoke)) return []
+	if (isRecord(login.revoke) && isString(login.revoke.operationId)) return []
+	return [`${path}.revoke must be an operationId, or { operationId, body? }`]
+}
+
 function mintShape(path: string, mint: Raw): string[] {
 	return ["with", "operationId"]
 		.filter((field) => !isString(mint[field]))
@@ -99,6 +106,14 @@ function hookShape(path: string, hook: unknown, hasHook: boolean): string[] {
 }
 
 const KINDS = ["login", "mint", "static", "hook", "oauth2"] as const
+
+/** What is wrong with a recipe that names no kind, or more than one. */
+export function kindProblems(path: string, recipe: Raw): string[] {
+	const present = KINDS.filter((kind) => recipe[kind] !== undefined)
+	if (present.length === 1) return []
+	if (present.length === 0) return [`${path} needs exactly one of ${KINDS.join(", ")}`]
+	return [`${path} has ${present.join(" and ")}; keep exactly one`]
+}
 type Kind = (typeof KINDS)[number]
 
 /* Why `holds` does not fit a kind whose credential's scopes come from elsewhere. */
@@ -134,6 +149,7 @@ export function kindShapeProblems(path: string, recipe: Raw, { hasHook, scheme, 
 		...fitProblems(path, recipe),
 		...(recipe.login === undefined ? [] : stepsShape(`${path}.login`, recipe.login)),
 		...claimsShape(`${path}.login`, recipe.login),
+		...revokeShape(`${path}.login`, recipe.login),
 		...(recipe.refresh === undefined ? [] : stepsShape(`${path}.refresh`, recipe.refresh)),
 		...placeholderProblems(path, recipe, signsUp),
 		...(isRecord(recipe.mint) ? mintShape(path, recipe.mint) : []),

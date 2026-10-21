@@ -62,6 +62,36 @@ export interface Adopting {
 	scope?: Readonly<Record<string, string>>
 }
 
+/** A dedicated session after its recipe's refresh rotated it. */
+export interface Rotated {
+	credential: Credential
+	/** Runs the refresh again from before the rotation; rejects with the reason when it is refused. */
+	replay(): Promise<void>
+}
+
+/**
+ * How a probe uses a dedicated credential. `reusable`: it never spends it (no revoke, no rotation),
+ * so one per principal, scheme and scope set serves every such probe of the run.
+ */
+export interface DedicatedUse {
+	reusable?: boolean
+}
+
+/**
+ * A credential for a probe alone, never the owner's own session: held under the probe principal
+ * `<owner>#probe-<n>`, and revoked at teardown when its recipe declares how.
+ */
+export interface DedicatedHeld {
+	principal: string
+	owner: string
+	scheme: string
+	credential: Credential
+	/** Revokes it now through the declared revoke; absent without one. Rejects with the reason, and teardown tries again. */
+	revoke?: () => Promise<void>
+	/** Rotates it by the recipe's declared refresh; absent without one. */
+	rotate?: () => Promise<Rotated>
+}
+
 /** A credential teardown could not revoke: a record the report lists as unremovable. */
 export interface RevokeFailure {
 	principal: string
@@ -71,6 +101,11 @@ export interface RevokeFailure {
 
 export interface CredentialStore {
 	acquire(key: CredentialKey): Promise<Held>
+	/**
+	 * A credential of the principal's own that is not its session: a second login, a fresh mint, a new
+	 * token grant, under a probe principal the store enrolls. Static and hook recipes cannot issue one.
+	 */
+	acquireDedicated(key: CredentialKey, use?: DedicatedUse): Promise<DedicatedHeld | Blocked>
 	/** Renews the credential a refused request carried, once however many requests were refused. */
 	refresh(request: CredentialKey & { sentValue: string }): Promise<Held>
 	/**
@@ -94,4 +129,10 @@ export interface CredentialStore {
 	snapshot(): Promise<HeldCredential[]>
 	/** Revokes every credential that recorded a revoke; returns the ones that failed. */
 	revokeAll(): Promise<RevokeFailure[]>
+	/**
+	 * Ends each principal's own login session that `of` admits, by the login recipe's declared
+	 * `revoke`, once per principal and scheme; returns the ones that failed. Nothing is sent for a
+	 * login that declares no revoke.
+	 */
+	revokeSessions(of: (principal: string) => boolean): Promise<RevokeFailure[]>
 }

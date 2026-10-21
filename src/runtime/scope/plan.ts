@@ -1,5 +1,6 @@
 import { owningEntityOf } from "../../spec/graph/roots.ts"
 import type { OperationModel, SpecModel } from "../../spec/graph/types.ts"
+import { entityChecks } from "../checks/core/registry.ts"
 import { CHECKS } from "../checks/registry.ts"
 import type { ScopePlan, TargetScope } from "./types.ts"
 
@@ -7,7 +8,7 @@ import type { ScopePlan, TargetScope } from "./types.ts"
 function checksFor(model: SpecModel, scope: TargetScope): Map<string, Set<string>> {
 	const checks = new Map<string, Set<string>>()
 	for (const entity of scope.entities) {
-		for (const check of CHECKS) {
+		for (const check of entityChecks(CHECKS)) {
 			for (const id of check.subjects(entity, model)) {
 				if (!scope.inScope(id)) continue
 				const set = checks.get(id) ?? new Set<string>()

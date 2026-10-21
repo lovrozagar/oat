@@ -28,6 +28,11 @@ describe("a principal the server refuses anywhere, after DISPOSABLE_KILLS_CALLER
 			expect(blocked.length).toBeGreaterThan(0)
 			expect(blocked.every((finding) => REASON.test(finding.detail))).toBe(true)
 			expect(result.findings.some((finding) => finding.check === "auth.destructive-spares-the-caller")).toBe(true)
+			/* The write probes that could not read their target say why. */
+			const citing = result.checksSkipped.filter((skipped) =>
+				skipped.needs.includes("credential is BLOCKED (signed in again"),
+			)
+			expect(citing.length).toBeGreaterThan(0)
 			const transcript = result.client.transcript
 			const kill = transcript.findIndex((exchange) => exchange.operationId === "auth.logout")
 			/* Logins that issued a credential: a probe's refused login is not a renewal. */
@@ -36,6 +41,26 @@ describe("a principal the server refuses anywhere, after DISPOSABLE_KILLS_CALLER
 				.filter((exchange) => exchange.operationId === "auth.token" && exchange.status === 200)
 			expect(renewals.length).toBeGreaterThan(0)
 			expect(renewals.length).toBeLessThanOrEqual(Object.keys(PRINCIPALS).length)
+		} finally {
+			await reference.close()
+		}
+	}, 600_000)
+})
+
+describe("a route that refuses a valid credential, APIKEY_ALTERNATIVE_BROKEN", () => {
+	it("blocks nothing: the control read accepts the renewed key, and the defect's finding stays", async () => {
+		const reference = await createMemoryReference({ defects: ["APIKEY_ALTERNATIVE_BROKEN"] })
+		try {
+			const result = await run({
+				baseUrl: reference.url,
+				network: { fetch: reference.fetch },
+				principals: PRINCIPALS,
+				security: SECURITY,
+				seed: 42,
+				spec: `${reference.url}/v1/openapi/spec`,
+			})
+			expect(result.findings.filter((finding) => finding.check === "auth.blocked")).toEqual([])
+			expect(result.findings.some((finding) => finding.check === "auth.alternative-accepted")).toBe(true)
 		} finally {
 			await reference.close()
 		}

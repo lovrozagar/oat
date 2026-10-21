@@ -10,11 +10,23 @@
     "checksRun": [
       "async.reaches-terminal-state",
       "async.receipt-identifies-the-job",
+      "auth.alternative-accepted",
+      "auth.anonymous-operation-open",
+      "auth.cross-tenant-key-refused",
       "auth.destructive-spares-the-caller",
+      "auth.invalid-credential-refused",
       "auth.invite-grants-then-revokes",
+      "auth.login-throttled",
+      "auth.missing-credential-refused",
+      "auth.privileged-field-ignored",
       "auth.rank-is-monotonic",
       "auth.rank-is-monotonic-on-writes",
+      "auth.refresh-reuse-refused",
+      "auth.revoked-credential-refused",
+      "auth.role-enforced",
+      "auth.scope-enforced",
       "auth.self-is-the-caller",
+      "auth.wrong-scheme-refused",
       "concurrency.no-lost-update",
       "consistency.projections-agree",
       "count.consistent-with-returned-page",
@@ -150,6 +162,491 @@
         "needs": "x-async with an idFrom pointer"
       },
       {
+        "check": "auth.alternative-accepted",
+        "entity": "apiKey.create",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "apiKey.get",
+        "needs": "an alternative of one scheme besides the first"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "apiKey.revoke",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "auth.login",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "auth.logout",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "auth.refresh",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "auth.register",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "auth.revoke",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "auth.token",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "gateway.health",
+        "needs": "an alternative of one scheme besides the first"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "invite.accept",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "job.create",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "job.delete",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "job.inbox",
+        "needs": "an alternative of one scheme besides the first"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "job.notify",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "job.start",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "job.update",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "notice.get",
+        "needs": "an alternative of one scheme besides the first"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "notice.list",
+        "needs": "an alternative of one scheme besides the first"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "profile.get",
+        "needs": "an alternative of one scheme besides the first"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "profile.update",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "project.overview",
+        "needs": "an alternative of one scheme besides the first"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "row.create",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "row.delete",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "row.list",
+        "needs": "a value for table_id in row.list's path"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "row.update",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "table.create",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "table.delete",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "table.invite",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "table.revoke",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "table.update",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "apiKey.create",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "apiKey.get",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "apiKey.revoke",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "auth.logout",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "auth.revoke",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "gateway.health",
+        "needs": "an open operation response.public-get-returns-success does not already read; it grades gateway.health"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "invite.accept",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "job.create",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "job.delete",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "job.get",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "job.inbox",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "job.list",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "job.notify",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "job.start",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "job.update",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "notice.get",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "notice.list",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "profile.get",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "profile.update",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "project.overview",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "row.create",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "row.delete",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "row.get",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "row.list",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "row.update",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "table.create",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "table.delete",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "table.get",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "table.invite",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "table.list",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "table.revoke",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "table.update",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "apiKey.create",
+        "needs": "a GET; apiKey.create is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "apiKey.get",
+        "needs": "an alternative that takes an API key alone"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "apiKey.revoke",
+        "needs": "a GET; apiKey.revoke is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "auth.login",
+        "needs": "a GET; auth.login is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "auth.logout",
+        "needs": "a GET; auth.logout is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "auth.refresh",
+        "needs": "a GET; auth.refresh is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "auth.register",
+        "needs": "a GET; auth.register is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "auth.revoke",
+        "needs": "a GET; auth.revoke is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "auth.token",
+        "needs": "a GET; auth.token is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "gateway.health",
+        "needs": "an alternative that takes an API key alone"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "invite.accept",
+        "needs": "a GET; invite.accept is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "job.create",
+        "needs": "a GET; job.create is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "job.delete",
+        "needs": "a GET; job.delete is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "job.get",
+        "needs": "a path the actor's and the peer's scopes each fill, differently"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "job.inbox",
+        "needs": "an alternative that takes an API key alone"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "job.notify",
+        "needs": "a GET; job.notify is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "job.start",
+        "needs": "a GET; job.start is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "job.update",
+        "needs": "a GET; job.update is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "notice.get",
+        "needs": "an alternative that takes an API key alone"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "notice.list",
+        "needs": "an alternative that takes an API key alone"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "profile.get",
+        "needs": "an alternative that takes an API key alone"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "profile.update",
+        "needs": "a GET; profile.update is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "project.overview",
+        "needs": "an alternative that takes an API key alone"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "row.create",
+        "needs": "a GET; row.create is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "row.delete",
+        "needs": "a GET; row.delete is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "row.get",
+        "needs": "a path the actor's and the peer's scopes each fill, differently"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "row.list",
+        "needs": "a path the actor's and the peer's scopes each fill, differently"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "row.update",
+        "needs": "a GET; row.update is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "table.create",
+        "needs": "a GET; table.create is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "table.delete",
+        "needs": "a GET; table.delete is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "table.get",
+        "needs": "a path the actor's and the peer's scopes each fill, differently"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "table.invite",
+        "needs": "a GET; table.invite is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "table.revoke",
+        "needs": "a GET; table.revoke is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "table.update",
+        "needs": "a GET; table.update is probed by the write stage's checks"
+      },
+      {
         "check": "auth.destructive-spares-the-caller",
         "entity": "job",
         "needs": "x-destructive, a way to sign up a second user, and a caller read"
@@ -170,6 +667,106 @@
         "needs": "x-destructive, a way to sign up a second user, and a caller read"
       },
       {
+        "check": "auth.invalid-credential-refused",
+        "entity": "apiKey.create",
+        "needs": "a record this run created that apiKey.create can be sent to"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "apiKey.get",
+        "needs": "a record this run created that apiKey.get can be sent to"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "apiKey.revoke",
+        "needs": "a record this run created that apiKey.revoke can be sent to"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "auth.login",
+        "needs": "an operation that requires a credential; auth.login lets anonymous callers in"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "auth.logout",
+        "needs": "a record this run created that auth.logout can be sent to"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "auth.refresh",
+        "needs": "an operation that requires a credential; auth.refresh lets anonymous callers in"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "auth.register",
+        "needs": "an operation that requires a credential; auth.register lets anonymous callers in"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "auth.revoke",
+        "needs": "a record this run created that auth.revoke can be sent to"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "auth.token",
+        "needs": "an operation that requires a credential; auth.token lets anonymous callers in"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "gateway.health",
+        "needs": "an operation that requires a credential; gateway.health lets anonymous callers in"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "invite.accept",
+        "needs": "a record this run created that invite.accept can be sent to"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "job.create",
+        "needs": "a record this run created that job.create can be sent to"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "job.notify",
+        "needs": "a record this run created that job.notify can be sent to"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "job.start",
+        "needs": "a record this run created that job.start can be sent to"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "notice.get",
+        "needs": "a record this run created that notice.get can be sent to"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "profile.update",
+        "needs": "a record this run created that profile.update can be sent to"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "row.create",
+        "needs": "a record this run created that row.create can be sent to"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "row.list",
+        "needs": "a value for table_id in row.list's path"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "table.create",
+        "needs": "a record this run created that table.create can be sent to"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "table.revoke",
+        "needs": "a record this run created that table.revoke can be sent to"
+      },
+      {
         "check": "auth.invite-grants-then-revokes",
         "entity": "job",
         "needs": "x-invite naming invite/accept/revoke, a peer principal with inviteAs, and an item or list route"
@@ -183,6 +780,461 @@
         "check": "auth.invite-grants-then-revokes",
         "entity": "row",
         "needs": "x-invite naming invite/accept/revoke, a peer principal with inviteAs, and an item or list route"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "apiKey.create",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "apiKey.get",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "apiKey.revoke",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "auth.login",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "auth.logout",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "auth.refresh",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "auth.register",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "auth.revoke",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "auth.token",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "gateway.health",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "invite.accept",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "job.create",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "job.delete",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "job.get",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "job.inbox",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "job.list",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "job.notify",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "job.start",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "job.update",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "notice.get",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "notice.list",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "profile.get",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "profile.update",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "project.overview",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "row.create",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "row.delete",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "row.get",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "row.list",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "row.update",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "table.create",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "table.delete",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "table.get",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "table.invite",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "table.list",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "table.revoke",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "table.update",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "apiKey.create",
+        "needs": "a record this run created that apiKey.create can be sent to"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "apiKey.get",
+        "needs": "a record this run created that apiKey.get can be sent to"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "apiKey.revoke",
+        "needs": "a record this run created that apiKey.revoke can be sent to"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "auth.login",
+        "needs": "an operation that requires a credential; auth.login lets anonymous callers in"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "auth.logout",
+        "needs": "a record this run created that auth.logout can be sent to"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "auth.refresh",
+        "needs": "an operation that requires a credential; auth.refresh lets anonymous callers in"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "auth.register",
+        "needs": "an operation that requires a credential; auth.register lets anonymous callers in"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "auth.revoke",
+        "needs": "a record this run created that auth.revoke can be sent to"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "auth.token",
+        "needs": "an operation that requires a credential; auth.token lets anonymous callers in"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "gateway.health",
+        "needs": "an operation that requires a credential; gateway.health lets anonymous callers in"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "invite.accept",
+        "needs": "a record this run created that invite.accept can be sent to"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "job.create",
+        "needs": "a record this run created that job.create can be sent to"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "job.notify",
+        "needs": "a record this run created that job.notify can be sent to"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "job.start",
+        "needs": "a record this run created that job.start can be sent to"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "notice.get",
+        "needs": "a record this run created that notice.get can be sent to"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "profile.update",
+        "needs": "a record this run created that profile.update can be sent to"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "row.create",
+        "needs": "a record this run created that row.create can be sent to"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "row.list",
+        "needs": "a value for table_id in row.list's path"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "table.create",
+        "needs": "a record this run created that table.create can be sent to"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "table.revoke",
+        "needs": "a record this run created that table.revoke can be sent to"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "apiKey.create",
+        "needs": "a request body property marked x-privileged; apiKey.create marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "apiKey.get",
+        "needs": "a request body property marked x-privileged; apiKey.get marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "apiKey.revoke",
+        "needs": "a request body property marked x-privileged; apiKey.revoke marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "auth.login",
+        "needs": "a request body property marked x-privileged; auth.login marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "auth.logout",
+        "needs": "a request body property marked x-privileged; auth.logout marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "auth.refresh",
+        "needs": "a request body property marked x-privileged; auth.refresh marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "auth.register",
+        "needs": "a request body property marked x-privileged; auth.register marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "auth.revoke",
+        "needs": "a request body property marked x-privileged; auth.revoke marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "auth.token",
+        "needs": "a request body property marked x-privileged; auth.token marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "gateway.health",
+        "needs": "a request body property marked x-privileged; gateway.health marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "invite.accept",
+        "needs": "a request body property marked x-privileged; invite.accept marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "job.create",
+        "needs": "a request body property marked x-privileged; job.create marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "job.delete",
+        "needs": "a request body property marked x-privileged; job.delete marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "job.get",
+        "needs": "a request body property marked x-privileged; job.get marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "job.inbox",
+        "needs": "a request body property marked x-privileged; job.inbox marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "job.list",
+        "needs": "a request body property marked x-privileged; job.list marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "job.notify",
+        "needs": "a request body property marked x-privileged; job.notify marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "job.start",
+        "needs": "a request body property marked x-privileged; job.start marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "job.update",
+        "needs": "a request body property marked x-privileged; job.update marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "notice.get",
+        "needs": "a request body property marked x-privileged; notice.get marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "notice.list",
+        "needs": "a request body property marked x-privileged; notice.list marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "profile.get",
+        "needs": "a request body property marked x-privileged; profile.get marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "profile.update",
+        "needs": "a request body property marked x-privileged; profile.update marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "project.overview",
+        "needs": "a request body property marked x-privileged; project.overview marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "row.create",
+        "needs": "a request body property marked x-privileged; row.create marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "row.delete",
+        "needs": "a request body property marked x-privileged; row.delete marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "row.get",
+        "needs": "a request body property marked x-privileged; row.get marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "row.list",
+        "needs": "a request body property marked x-privileged; row.list marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "row.update",
+        "needs": "a request body property marked x-privileged; row.update marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "table.create",
+        "needs": "a record this run created that table.create can be sent to"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "table.delete",
+        "needs": "a request body property marked x-privileged; table.delete marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "table.get",
+        "needs": "a request body property marked x-privileged; table.get marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "table.invite",
+        "needs": "a request body property marked x-privileged; table.invite marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "table.list",
+        "needs": "a request body property marked x-privileged; table.list marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "table.revoke",
+        "needs": "a request body property marked x-privileged; table.revoke marks none"
       },
       {
         "check": "auth.rank-is-monotonic-on-writes",
@@ -190,6 +1242,621 @@
         "needs": "two same-tenant principals at different ranks, and a create"
       },
       {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "apiKey.create",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "apiKey.get",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "apiKey.revoke",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "auth.login",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "auth.logout",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "auth.register",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "auth.revoke",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "auth.token",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "gateway.health",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "invite.accept",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "job.create",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "job.delete",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "job.get",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "job.inbox",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "job.list",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "job.notify",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "job.start",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "job.update",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "notice.get",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "notice.list",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "profile.get",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "profile.update",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "project.overview",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "row.create",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "row.delete",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "row.get",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "row.list",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "row.update",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "table.create",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "table.delete",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "table.get",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "table.invite",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "table.list",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "table.revoke",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "table.update",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "apiKey.create",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "apiKey.get",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "auth.login",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "auth.refresh",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "auth.register",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "auth.revoke",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "auth.token",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "gateway.health",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "invite.accept",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "job.create",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "job.delete",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "job.get",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "job.inbox",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "job.list",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "job.notify",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "job.start",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "job.update",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "notice.get",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "notice.list",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "profile.get",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "profile.update",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "project.overview",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "row.create",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "row.delete",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "row.get",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "row.list",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "row.update",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "table.create",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "table.delete",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "table.get",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "table.invite",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "table.list",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "table.revoke",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "table.update",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "apiKey.create",
+        "needs": "a record this run created that apiKey.create can be sent to"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "apiKey.get",
+        "needs": "a write method"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "apiKey.revoke",
+        "needs": "a record this run created that apiKey.revoke can be sent to"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "auth.login",
+        "needs": "a write the document secures"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "auth.logout",
+        "needs": "a record this run created that auth.logout can be sent to"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "auth.refresh",
+        "needs": "a write the document secures"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "auth.register",
+        "needs": "a write the document secures"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "auth.revoke",
+        "needs": "a record this run created that auth.revoke can be sent to"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "auth.token",
+        "needs": "a write the document secures"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "gateway.health",
+        "needs": "a write method"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "invite.accept",
+        "needs": "a record this run created that invite.accept can be sent to"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "job.create",
+        "needs": "a record this run created that job.create can be sent to"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "job.get",
+        "needs": "a write method"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "job.inbox",
+        "needs": "a write method"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "job.list",
+        "needs": "a write method"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "job.notify",
+        "needs": "a record this run created that job.notify can be sent to"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "job.start",
+        "needs": "a record this run created that job.start can be sent to"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "notice.get",
+        "needs": "a write method"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "notice.list",
+        "needs": "a write method"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "profile.get",
+        "needs": "a write method"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "profile.update",
+        "needs": "a record this run created that profile.update can be sent to"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "project.overview",
+        "needs": "a write method"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "row.create",
+        "needs": "a record this run created that row.create can be sent to"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "row.get",
+        "needs": "a write method"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "row.list",
+        "needs": "a write method"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "table.create",
+        "needs": "a record this run created that table.create can be sent to"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "table.get",
+        "needs": "a write method"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "table.list",
+        "needs": "a write method"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "table.revoke",
+        "needs": "a record this run created that table.revoke can be sent to"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "apiKey.create",
+        "needs": "an alternative that requires a scope"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "apiKey.get",
+        "needs": "an alternative that requires a scope"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "apiKey.revoke",
+        "needs": "an alternative that requires a scope"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "auth.login",
+        "needs": "an operation that requires a credential; auth.login lets anonymous callers in"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "auth.logout",
+        "needs": "an alternative that requires a scope"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "auth.refresh",
+        "needs": "an operation that requires a credential; auth.refresh lets anonymous callers in"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "auth.register",
+        "needs": "an operation that requires a credential; auth.register lets anonymous callers in"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "auth.revoke",
+        "needs": "an alternative that requires a scope"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "auth.token",
+        "needs": "an operation that requires a credential; auth.token lets anonymous callers in"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "gateway.health",
+        "needs": "an operation that requires a credential; gateway.health lets anonymous callers in"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "invite.accept",
+        "needs": "an alternative that requires a scope"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "job.create",
+        "needs": "a record this run created that job.create can be sent to"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "job.inbox",
+        "needs": "an alternative that requires a scope"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "job.notify",
+        "needs": "an alternative that requires a scope"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "job.start",
+        "needs": "an alternative that requires a scope"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "notice.get",
+        "needs": "an alternative that requires a scope"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "notice.list",
+        "needs": "an alternative that requires a scope"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "profile.get",
+        "needs": "an alternative that requires a scope"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "profile.update",
+        "needs": "an alternative that requires a scope"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "project.overview",
+        "needs": "an alternative that requires a scope"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "row.create",
+        "needs": "a record this run created that row.create can be sent to"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "row.list",
+        "needs": "a value for table_id in row.list's path"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "table.create",
+        "needs": "a record this run created that table.create can be sent to"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "table.invite",
+        "needs": "an alternative that requires a scope"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "table.revoke",
+        "needs": "an alternative that requires a scope"
+      },
+      {
         "check": "auth.self-is-the-caller",
         "entity": "job",
         "needs": "x-entity.identity: self, and a read or an update"
@@ -208,6 +1875,161 @@
         "check": "auth.self-is-the-caller",
         "entity": "table",
         "needs": "x-entity.identity: self, and a read or an update"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "apiKey.create",
+        "needs": "a record this run created that apiKey.create can be sent to"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "apiKey.get",
+        "needs": "a record this run created that apiKey.get can be sent to"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "apiKey.revoke",
+        "needs": "a record this run created that apiKey.revoke can be sent to"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "auth.login",
+        "needs": "an operation that requires a credential; auth.login lets anonymous callers in"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "auth.logout",
+        "needs": "a record this run created that auth.logout can be sent to"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "auth.refresh",
+        "needs": "an operation that requires a credential; auth.refresh lets anonymous callers in"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "auth.register",
+        "needs": "an operation that requires a credential; auth.register lets anonymous callers in"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "auth.revoke",
+        "needs": "a record this run created that auth.revoke can be sent to"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "auth.token",
+        "needs": "an operation that requires a credential; auth.token lets anonymous callers in"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "gateway.health",
+        "needs": "an operation that requires a credential; gateway.health lets anonymous callers in"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "invite.accept",
+        "needs": "a record this run created that invite.accept can be sent to"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "job.create",
+        "needs": "a scheme the document uses that job.create does not list"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "job.delete",
+        "needs": "a scheme the document uses that job.delete does not list"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "job.get",
+        "needs": "a scheme the document uses that job.get does not list"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "job.list",
+        "needs": "a scheme the document uses that job.list does not list"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "job.notify",
+        "needs": "a record this run created that job.notify can be sent to"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "job.start",
+        "needs": "a record this run created that job.start can be sent to"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "job.update",
+        "needs": "a scheme the document uses that job.update does not list"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "notice.get",
+        "needs": "a record this run created that notice.get can be sent to"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "profile.update",
+        "needs": "a record this run created that profile.update can be sent to"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "row.create",
+        "needs": "a scheme the document uses that row.create does not list"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "row.delete",
+        "needs": "a scheme the document uses that row.delete does not list"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "row.get",
+        "needs": "a scheme the document uses that row.get does not list"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "row.list",
+        "needs": "a scheme the document uses that row.list does not list"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "row.update",
+        "needs": "a scheme the document uses that row.update does not list"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "table.create",
+        "needs": "a scheme the document uses that table.create does not list"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "table.delete",
+        "needs": "a scheme the document uses that table.delete does not list"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "table.get",
+        "needs": "a scheme the document uses that table.get does not list"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "table.list",
+        "needs": "a scheme the document uses that table.list does not list"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "table.revoke",
+        "needs": "a record this run created that table.revoke can be sent to"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "table.update",
+        "needs": "a scheme the document uses that table.update does not list"
       },
       {
         "check": "concurrency.no-lost-update",
@@ -1061,7 +2883,11 @@
             ],
             "inconclusive": [],
             "passed": [
+              "auth.alternative-accepted",
+              "auth.invalid-credential-refused",
+              "auth.missing-credential-refused",
               "auth.rank-is-monotonic",
+              "auth.scope-enforced",
               "consistency.projections-agree",
               "invalidation.declared-route-changes",
               "response.status-is-documented",
@@ -1089,7 +2915,11 @@
             ],
             "inconclusive": [],
             "passed": [
+              "auth.alternative-accepted",
+              "auth.invalid-credential-refused",
+              "auth.missing-credential-refused",
               "auth.rank-is-monotonic",
+              "auth.scope-enforced",
               "consistency.projections-agree",
               "response.status-is-documented",
               "schema.error-response-matches-document",
@@ -1117,7 +2947,12 @@
             ],
             "inconclusive": [],
             "passed": [
+              "auth.invalid-credential-refused",
+              "auth.missing-credential-refused",
+              "auth.privileged-field-ignored",
               "auth.rank-is-monotonic-on-writes",
+              "auth.role-enforced",
+              "auth.scope-enforced",
               "concurrency.no-lost-update",
               "patch.immutable-field-rejected",
               "patch.minimality",
@@ -1145,7 +2980,11 @@
             ],
             "inconclusive": [],
             "passed": [
+              "auth.invalid-credential-refused",
+              "auth.missing-credential-refused",
               "auth.rank-is-monotonic-on-writes",
+              "auth.role-enforced",
+              "auth.scope-enforced",
               "concurrency.no-lost-update",
               "patch.immutable-field-rejected",
               "patch.minimality",
@@ -1193,13 +3032,512 @@
             "gaps": [],
             "inconclusive": [],
             "passed": [
-              "auth.destructive-spares-the-caller"
+              "auth.alternative-accepted",
+              "auth.cross-tenant-key-refused",
+              "auth.invalid-credential-refused",
+              "auth.missing-credential-refused",
+              "auth.scope-enforced",
+              "consistency.projections-agree",
+              "count.consistent-with-returned-page",
+              "count.matches-filtered-set",
+              "error.malformed-filter-not-5xx",
+              "filter.alias-matches-canonical",
+              "filter.and-composes-as-intersection",
+              "filter.condition-cap-rejected",
+              "filter.empty-in",
+              "filter.equality-selects-exactly-one",
+              "filter.gte-is-gt-or-eq",
+              "filter.ilike-is-case-insensitive",
+              "filter.illegal-op-rejected",
+              "filter.in-is-union-of-eq",
+              "filter.in-over-limit-rejected",
+              "filter.is-null-selects-nulls",
+              "filter.like-metacharacters-escaped",
+              "filter.lte-is-lt-or-eq",
+              "filter.malformed-term-rejected",
+              "filter.negation-partitions-the-set",
+              "filter.nested-and-or-distributes",
+              "filter.nin-complements-in",
+              "filter.numeric-comparison-is-numeric",
+              "filter.or-composes-as-union",
+              "filter.ordered-triple-partitions",
+              "filter.unknown-field-rejected",
+              "filter.zero-match-returns-none",
+              "invalidation.declared-route-changes",
+              "list.read-after-write",
+              "pagination.bounds-handled",
+              "pagination.cursor-agrees-with-page",
+              "pagination.has-more-is-accurate",
+              "pagination.limit-bounds-enforced",
+              "pagination.limit-bounds-page-size",
+              "pagination.page-walk-covers-set",
+              "query.axes-compose",
+              "query.filter-and-select-compose",
+              "query.filter-search-select-compose",
+              "query.filter-search-sort-compose",
+              "query.filter-search-sort-select-compose",
+              "query.filter-selects-from-whole-set",
+              "query.filter-sort-select-compose",
+              "query.search-and-filter-compose",
+              "query.search-and-select-compose",
+              "query.search-and-sort-compose",
+              "query.sort-and-select-compose",
+              "query.unknown-parameter-consistent",
+              "response.status-is-documented",
+              "search.case-insensitive",
+              "search.empty-q",
+              "search.mode-accepted",
+              "search.q-narrows-result",
+              "search.tokens-and",
+              "select.projection-honoured",
+              "select.requested-fields-present",
+              "select.unknown-field-rejected",
+              "softdelete.absent-from-default-list",
+              "sort.default-order-applied",
+              "sort.multi-key-tiebreak",
+              "sort.nulls-first-last",
+              "sort.numeric-order-is-numeric",
+              "sort.order-is-applied",
+              "sort.reverse-symmetry",
+              "sort.stable-tiebreak",
+              "sort.unknown-field-rejected",
+              "spec.declared-filterable-is-filterable",
+              "spec.declared-filterable-ops-accepted",
+              "spec.declared-rate-limit-is-honoured",
+              "spec.declared-selectable-is-selectable",
+              "spec.declared-sortable-is-sortable",
+              "spec.declared-sortable-nulls-accepted",
+              "tenant.filter-does-not-bypass-scope"
+            ],
+            "suppressed": []
+          },
+          "entity": "table",
+          "findings": 0,
+          "operationId": "table.list",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "verified",
+          "tier": "verified",
+          "why": "a later exchange shows what this call did"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.alternative-accepted",
+              "auth.cross-tenant-key-refused",
+              "auth.invalid-credential-refused",
+              "auth.missing-credential-refused",
+              "auth.scope-enforced",
+              "consistency.projections-agree",
+              "count.consistent-with-returned-page",
+              "count.matches-filtered-set",
+              "error.malformed-filter-not-5xx",
+              "filter.and-composes-as-intersection",
+              "filter.equality-selects-exactly-one",
+              "filter.gte-is-gt-or-eq",
+              "filter.illegal-op-rejected",
+              "filter.like-metacharacters-escaped",
+              "filter.lte-is-lt-or-eq",
+              "filter.malformed-term-rejected",
+              "filter.negation-partitions-the-set",
+              "filter.nested-and-or-distributes",
+              "filter.or-composes-as-union",
+              "filter.ordered-triple-partitions",
+              "filter.unknown-field-rejected",
+              "filter.zero-match-returns-none",
+              "list.read-after-write",
+              "pagination.bounds-handled",
+              "pagination.cursor-agrees-with-page",
+              "pagination.has-more-is-accurate",
+              "pagination.limit-bounds-enforced",
+              "pagination.limit-bounds-page-size",
+              "pagination.page-walk-covers-set",
+              "query.axes-compose",
+              "query.filter-and-select-compose",
+              "query.filter-search-select-compose",
+              "query.filter-search-sort-compose",
+              "query.filter-search-sort-select-compose",
+              "query.filter-selects-from-whole-set",
+              "query.filter-sort-select-compose",
+              "query.search-and-filter-compose",
+              "query.search-and-select-compose",
+              "query.search-and-sort-compose",
+              "query.sort-and-select-compose",
+              "query.unknown-parameter-consistent",
+              "response.status-is-documented",
+              "search.case-insensitive",
+              "search.empty-q",
+              "search.mode-accepted",
+              "search.q-narrows-result",
+              "search.tokens-and",
+              "select.projection-honoured",
+              "select.requested-fields-present",
+              "sort.default-order-applied",
+              "sort.multi-key-tiebreak",
+              "sort.order-is-applied",
+              "sort.reverse-symmetry",
+              "sort.stable-tiebreak",
+              "sort.unknown-field-rejected",
+              "spec.declared-filterable-is-filterable",
+              "spec.declared-rate-limit-is-honoured",
+              "spec.declared-selectable-is-selectable",
+              "spec.declared-sortable-is-sortable",
+              "tenant.filter-does-not-bypass-scope"
+            ],
+            "suppressed": []
+          },
+          "entity": "job",
+          "findings": 0,
+          "operationId": "job.list",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "verified",
+          "tier": "verified",
+          "why": "a later exchange shows what this call did"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.alternative-accepted",
+              "auth.invalid-credential-refused",
+              "auth.missing-credential-refused",
+              "auth.rank-is-monotonic",
+              "auth.scope-enforced",
+              "consistency.projections-agree",
+              "payload.string-survives",
+              "response.status-is-documented",
+              "schema.error-response-matches-document",
+              "tenant.denial-does-not-reveal-existence",
+              "tenant.item-not-readable-cross-tenant"
+            ],
+            "suppressed": []
+          },
+          "entity": "job",
+          "findings": 0,
+          "operationId": "job.get",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "verified",
+          "tier": "verified",
+          "why": "a later exchange shows what this call did"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.anonymous-operation-open",
+              "auth.refresh-reuse-refused",
+              "response.contract-call"
+            ],
+            "suppressed": []
+          },
+          "entity": null,
+          "findings": 0,
+          "operationId": "auth.refresh",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "unproven",
+          "tier": "contract",
+          "why": "met its contract, but no later read observed what it changed"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.anonymous-operation-open",
+              "response.contract-call"
+            ],
+            "suppressed": []
+          },
+          "entity": null,
+          "findings": 0,
+          "operationId": "auth.register",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "unproven",
+          "tier": "contract",
+          "why": "met its contract, but no later read observed what it changed"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.anonymous-operation-open",
+              "response.contract-call"
+            ],
+            "suppressed": []
+          },
+          "entity": null,
+          "findings": 0,
+          "operationId": "auth.token",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "unproven",
+          "tier": "contract",
+          "why": "met its contract, but no later read observed what it changed"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.destructive-spares-the-caller",
+              "auth.revoked-credential-refused"
             ],
             "suppressed": []
           },
           "entity": null,
           "findings": 0,
           "operationId": "auth.logout",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "verified",
+          "tier": "verified",
+          "why": "a later exchange shows what this call did"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.invalid-credential-refused",
+              "auth.invite-grants-then-revokes",
+              "auth.missing-credential-refused",
+              "auth.role-enforced",
+              "auth.wrong-scheme-refused",
+              "response.status-is-documented"
+            ],
+            "suppressed": []
+          },
+          "entity": "table",
+          "findings": 0,
+          "operationId": "table.invite",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "unproven",
+          "tier": "contract",
+          "why": "met its contract, but no later read observed what it changed"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.invalid-credential-refused",
+              "auth.missing-credential-refused",
+              "auth.rank-is-monotonic-on-writes",
+              "auth.role-enforced",
+              "auth.scope-enforced",
+              "concurrency.no-lost-update",
+              "patch.immutable-field-rejected",
+              "patch.minimality",
+              "payload.string-survives",
+              "response.status-is-documented",
+              "tenant.item-not-writable-cross-tenant"
+            ],
+            "suppressed": []
+          },
+          "entity": "job",
+          "findings": 0,
+          "operationId": "job.update",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "verified",
+          "tier": "verified",
+          "why": "a later exchange shows what this call did"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.invalid-credential-refused",
+              "auth.missing-credential-refused",
+              "auth.rank-is-monotonic-on-writes",
+              "auth.role-enforced",
+              "auth.scope-enforced",
+              "delete.absent-record-returns-404",
+              "response.status-is-documented",
+              "softdelete.absent-from-default-list",
+              "tenant.item-not-writable-cross-tenant"
+            ],
+            "suppressed": []
+          },
+          "entity": "table",
+          "findings": 0,
+          "operationId": "table.delete",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "verified",
+          "tier": "verified",
+          "why": "a later exchange shows what this call did"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.invalid-credential-refused",
+              "auth.missing-credential-refused",
+              "auth.rank-is-monotonic-on-writes",
+              "auth.role-enforced",
+              "auth.scope-enforced",
+              "delete.absent-record-returns-404",
+              "response.status-is-documented",
+              "tenant.item-not-writable-cross-tenant"
+            ],
+            "suppressed": []
+          },
+          "entity": "job",
+          "findings": 0,
+          "operationId": "job.delete",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "verified",
+          "tier": "verified",
+          "why": "a later exchange shows what this call did"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.invalid-credential-refused",
+              "auth.missing-credential-refused",
+              "auth.rank-is-monotonic-on-writes",
+              "auth.role-enforced",
+              "auth.scope-enforced",
+              "delete.absent-record-returns-404",
+              "response.status-is-documented",
+              "tenant.item-not-writable-cross-tenant"
+            ],
+            "suppressed": []
+          },
+          "entity": "row",
+          "findings": 0,
+          "operationId": "row.delete",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "verified",
+          "tier": "verified",
+          "why": "a later exchange shows what this call did"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.invalid-credential-refused",
+              "auth.missing-credential-refused",
+              "auth.self-is-the-caller",
+              "auth.wrong-scheme-refused"
+            ],
+            "suppressed": []
+          },
+          "entity": "profile",
+          "findings": 0,
+          "operationId": "profile.get",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "complete",
+          "tier": "contract",
+          "why": "a read with no declared effects: its contract is the whole promise"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.invalid-credential-refused",
+              "auth.missing-credential-refused",
+              "auth.wrong-scheme-refused",
+              "query.unknown-parameter-consistent",
+              "response.status-is-documented"
+            ],
+            "suppressed": []
+          },
+          "entity": "notice",
+          "findings": 0,
+          "operationId": "notice.list",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "complete",
+          "tier": "contract",
+          "why": "a read with no declared effects: its contract is the whole promise"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.invalid-credential-refused",
+              "auth.missing-credential-refused",
+              "auth.wrong-scheme-refused",
+              "read.matches-caller-root"
+            ],
+            "suppressed": []
+          },
+          "entity": "overview",
+          "findings": 0,
+          "operationId": "project.overview",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "verified",
+          "tier": "verified",
+          "why": "a later exchange shows what this call did"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.invalid-credential-refused",
+              "auth.missing-credential-refused",
+              "auth.wrong-scheme-refused",
+              "response.status-is-documented"
+            ],
+            "suppressed": []
+          },
+          "entity": "job",
+          "findings": 0,
+          "operationId": "job.inbox",
           "reason": null,
           "status": "passed",
           "evidence": {},
@@ -1241,27 +3579,6 @@
           },
           "entity": "table",
           "findings": 0,
-          "operationId": "table.invite",
-          "reason": null,
-          "status": "passed",
-          "evidence": {},
-          "sufficiency": "unproven",
-          "tier": "contract",
-          "why": "met its contract, but no later read observed what it changed"
-        },
-        {
-          "checks": {
-            "failed": [],
-            "gaps": [],
-            "inconclusive": [],
-            "passed": [
-              "auth.invite-grants-then-revokes",
-              "response.status-is-documented"
-            ],
-            "suppressed": []
-          },
-          "entity": "table",
-          "findings": 0,
           "operationId": "table.revoke",
           "reason": null,
           "status": "passed",
@@ -1269,32 +3586,6 @@
           "sufficiency": "unproven",
           "tier": "contract",
           "why": "met its contract, but no later read observed what it changed"
-        },
-        {
-          "checks": {
-            "failed": [],
-            "gaps": [],
-            "inconclusive": [],
-            "passed": [
-              "auth.rank-is-monotonic",
-              "consistency.projections-agree",
-              "payload.string-survives",
-              "response.status-is-documented",
-              "schema.error-response-matches-document",
-              "tenant.denial-does-not-reveal-existence",
-              "tenant.item-not-readable-cross-tenant"
-            ],
-            "suppressed": []
-          },
-          "entity": "job",
-          "findings": 0,
-          "operationId": "job.get",
-          "reason": null,
-          "status": "passed",
-          "evidence": {},
-          "sufficiency": "verified",
-          "tier": "verified",
-          "why": "a later exchange shows what this call did"
         },
         {
           "checks": {
@@ -1318,32 +3609,6 @@
           "sufficiency": "complete",
           "tier": "contract",
           "why": "a read with no declared effects: its contract is the whole promise"
-        },
-        {
-          "checks": {
-            "failed": [],
-            "gaps": [],
-            "inconclusive": [],
-            "passed": [
-              "auth.rank-is-monotonic-on-writes",
-              "concurrency.no-lost-update",
-              "patch.immutable-field-rejected",
-              "patch.minimality",
-              "payload.string-survives",
-              "response.status-is-documented",
-              "tenant.item-not-writable-cross-tenant"
-            ],
-            "suppressed": []
-          },
-          "entity": "job",
-          "findings": 0,
-          "operationId": "job.update",
-          "reason": null,
-          "status": "passed",
-          "evidence": {},
-          "sufficiency": "verified",
-          "tier": "verified",
-          "why": "a later exchange shows what this call did"
         },
         {
           "checks": {
@@ -1441,89 +3706,20 @@
             "gaps": [],
             "inconclusive": [],
             "passed": [
-              "auth.rank-is-monotonic-on-writes",
-              "delete.absent-record-returns-404",
-              "response.status-is-documented",
-              "softdelete.absent-from-default-list",
-              "tenant.item-not-writable-cross-tenant"
+              "auth.revoked-credential-refused",
+              "delete.absent-record-returns-404"
             ],
             "suppressed": []
           },
-          "entity": "table",
+          "entity": "api-key",
           "findings": 0,
-          "operationId": "table.delete",
+          "operationId": "apiKey.revoke",
           "reason": null,
           "status": "passed",
           "evidence": {},
           "sufficiency": "verified",
           "tier": "verified",
           "why": "a later exchange shows what this call did"
-        },
-        {
-          "checks": {
-            "failed": [],
-            "gaps": [],
-            "inconclusive": [],
-            "passed": [
-              "auth.rank-is-monotonic-on-writes",
-              "delete.absent-record-returns-404",
-              "response.status-is-documented",
-              "tenant.item-not-writable-cross-tenant"
-            ],
-            "suppressed": []
-          },
-          "entity": "job",
-          "findings": 0,
-          "operationId": "job.delete",
-          "reason": null,
-          "status": "passed",
-          "evidence": {},
-          "sufficiency": "verified",
-          "tier": "verified",
-          "why": "a later exchange shows what this call did"
-        },
-        {
-          "checks": {
-            "failed": [],
-            "gaps": [],
-            "inconclusive": [],
-            "passed": [
-              "auth.rank-is-monotonic-on-writes",
-              "delete.absent-record-returns-404",
-              "response.status-is-documented",
-              "tenant.item-not-writable-cross-tenant"
-            ],
-            "suppressed": []
-          },
-          "entity": "row",
-          "findings": 0,
-          "operationId": "row.delete",
-          "reason": null,
-          "status": "passed",
-          "evidence": {},
-          "sufficiency": "verified",
-          "tier": "verified",
-          "why": "a later exchange shows what this call did"
-        },
-        {
-          "checks": {
-            "failed": [],
-            "gaps": [],
-            "inconclusive": [],
-            "passed": [
-              "auth.self-is-the-caller"
-            ],
-            "suppressed": []
-          },
-          "entity": "profile",
-          "findings": 0,
-          "operationId": "profile.get",
-          "reason": null,
-          "status": "passed",
-          "evidence": {},
-          "sufficiency": "complete",
-          "tier": "contract",
-          "why": "a read with no declared effects: its contract is the whole promise"
         },
         {
           "checks": {
@@ -1544,96 +3740,6 @@
           "sufficiency": "unproven",
           "tier": "contract",
           "why": "met its contract, but no later read observed what it changed"
-        },
-        {
-          "checks": {
-            "failed": [],
-            "gaps": [],
-            "inconclusive": [],
-            "passed": [
-              "consistency.projections-agree",
-              "count.consistent-with-returned-page",
-              "count.matches-filtered-set",
-              "error.malformed-filter-not-5xx",
-              "filter.alias-matches-canonical",
-              "filter.and-composes-as-intersection",
-              "filter.condition-cap-rejected",
-              "filter.empty-in",
-              "filter.equality-selects-exactly-one",
-              "filter.gte-is-gt-or-eq",
-              "filter.ilike-is-case-insensitive",
-              "filter.illegal-op-rejected",
-              "filter.in-is-union-of-eq",
-              "filter.in-over-limit-rejected",
-              "filter.is-null-selects-nulls",
-              "filter.like-metacharacters-escaped",
-              "filter.lte-is-lt-or-eq",
-              "filter.malformed-term-rejected",
-              "filter.negation-partitions-the-set",
-              "filter.nested-and-or-distributes",
-              "filter.nin-complements-in",
-              "filter.numeric-comparison-is-numeric",
-              "filter.or-composes-as-union",
-              "filter.ordered-triple-partitions",
-              "filter.unknown-field-rejected",
-              "filter.zero-match-returns-none",
-              "invalidation.declared-route-changes",
-              "list.read-after-write",
-              "pagination.bounds-handled",
-              "pagination.cursor-agrees-with-page",
-              "pagination.has-more-is-accurate",
-              "pagination.limit-bounds-enforced",
-              "pagination.limit-bounds-page-size",
-              "pagination.page-walk-covers-set",
-              "query.axes-compose",
-              "query.filter-and-select-compose",
-              "query.filter-search-select-compose",
-              "query.filter-search-sort-compose",
-              "query.filter-search-sort-select-compose",
-              "query.filter-selects-from-whole-set",
-              "query.filter-sort-select-compose",
-              "query.search-and-filter-compose",
-              "query.search-and-select-compose",
-              "query.search-and-sort-compose",
-              "query.sort-and-select-compose",
-              "query.unknown-parameter-consistent",
-              "response.status-is-documented",
-              "search.case-insensitive",
-              "search.empty-q",
-              "search.mode-accepted",
-              "search.q-narrows-result",
-              "search.tokens-and",
-              "select.projection-honoured",
-              "select.requested-fields-present",
-              "select.unknown-field-rejected",
-              "softdelete.absent-from-default-list",
-              "sort.default-order-applied",
-              "sort.multi-key-tiebreak",
-              "sort.nulls-first-last",
-              "sort.numeric-order-is-numeric",
-              "sort.order-is-applied",
-              "sort.reverse-symmetry",
-              "sort.stable-tiebreak",
-              "sort.unknown-field-rejected",
-              "spec.declared-filterable-is-filterable",
-              "spec.declared-filterable-ops-accepted",
-              "spec.declared-rate-limit-is-honoured",
-              "spec.declared-selectable-is-selectable",
-              "spec.declared-sortable-is-sortable",
-              "spec.declared-sortable-nulls-accepted",
-              "tenant.filter-does-not-bypass-scope"
-            ],
-            "suppressed": []
-          },
-          "entity": "table",
-          "findings": 0,
-          "operationId": "table.list",
-          "reason": null,
-          "status": "passed",
-          "evidence": {},
-          "sufficiency": "verified",
-          "tier": "verified",
-          "why": "a later exchange shows what this call did"
         },
         {
           "checks": {
@@ -1721,80 +3827,6 @@
             "gaps": [],
             "inconclusive": [],
             "passed": [
-              "consistency.projections-agree",
-              "count.consistent-with-returned-page",
-              "count.matches-filtered-set",
-              "error.malformed-filter-not-5xx",
-              "filter.and-composes-as-intersection",
-              "filter.equality-selects-exactly-one",
-              "filter.gte-is-gt-or-eq",
-              "filter.illegal-op-rejected",
-              "filter.like-metacharacters-escaped",
-              "filter.lte-is-lt-or-eq",
-              "filter.malformed-term-rejected",
-              "filter.negation-partitions-the-set",
-              "filter.nested-and-or-distributes",
-              "filter.or-composes-as-union",
-              "filter.ordered-triple-partitions",
-              "filter.unknown-field-rejected",
-              "filter.zero-match-returns-none",
-              "list.read-after-write",
-              "pagination.bounds-handled",
-              "pagination.cursor-agrees-with-page",
-              "pagination.has-more-is-accurate",
-              "pagination.limit-bounds-enforced",
-              "pagination.limit-bounds-page-size",
-              "pagination.page-walk-covers-set",
-              "query.axes-compose",
-              "query.filter-and-select-compose",
-              "query.filter-search-select-compose",
-              "query.filter-search-sort-compose",
-              "query.filter-search-sort-select-compose",
-              "query.filter-selects-from-whole-set",
-              "query.filter-sort-select-compose",
-              "query.search-and-filter-compose",
-              "query.search-and-select-compose",
-              "query.search-and-sort-compose",
-              "query.sort-and-select-compose",
-              "query.unknown-parameter-consistent",
-              "response.status-is-documented",
-              "search.case-insensitive",
-              "search.empty-q",
-              "search.mode-accepted",
-              "search.q-narrows-result",
-              "search.tokens-and",
-              "select.projection-honoured",
-              "select.requested-fields-present",
-              "sort.default-order-applied",
-              "sort.multi-key-tiebreak",
-              "sort.order-is-applied",
-              "sort.reverse-symmetry",
-              "sort.stable-tiebreak",
-              "sort.unknown-field-rejected",
-              "spec.declared-filterable-is-filterable",
-              "spec.declared-rate-limit-is-honoured",
-              "spec.declared-selectable-is-selectable",
-              "spec.declared-sortable-is-sortable",
-              "tenant.filter-does-not-bypass-scope"
-            ],
-            "suppressed": []
-          },
-          "entity": "job",
-          "findings": 0,
-          "operationId": "job.list",
-          "reason": null,
-          "status": "passed",
-          "evidence": {},
-          "sufficiency": "verified",
-          "tier": "verified",
-          "why": "a later exchange shows what this call did"
-        },
-        {
-          "checks": {
-            "failed": [],
-            "gaps": [],
-            "inconclusive": [],
-            "passed": [
               "effects.side-effect-arrives",
               "response.status-is-documented"
             ],
@@ -1816,80 +3848,39 @@
             "gaps": [],
             "inconclusive": [],
             "passed": [
-              "query.unknown-parameter-consistent",
-              "response.status-is-documented"
+              "response.contract-call"
             ],
             "suppressed": []
           },
-          "entity": "notice",
+          "entity": "api-key",
           "findings": 0,
-          "operationId": "notice.list",
+          "operationId": "apiKey.create",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "unproven",
+          "tier": "contract",
+          "why": "met its contract, but no later read observed what it changed"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "response.contract-call"
+            ],
+            "suppressed": []
+          },
+          "entity": "api-key",
+          "findings": 0,
+          "operationId": "apiKey.get",
           "reason": null,
           "status": "passed",
           "evidence": {},
           "sufficiency": "complete",
           "tier": "contract",
           "why": "a read with no declared effects: its contract is the whole promise"
-        },
-        {
-          "checks": {
-            "failed": [],
-            "gaps": [],
-            "inconclusive": [],
-            "passed": [
-              "read.matches-caller-root"
-            ],
-            "suppressed": []
-          },
-          "entity": "overview",
-          "findings": 0,
-          "operationId": "project.overview",
-          "reason": null,
-          "status": "passed",
-          "evidence": {},
-          "sufficiency": "verified",
-          "tier": "verified",
-          "why": "a later exchange shows what this call did"
-        },
-        {
-          "checks": {
-            "failed": [],
-            "gaps": [],
-            "inconclusive": [],
-            "passed": [
-              "response.contract-call"
-            ],
-            "suppressed": []
-          },
-          "entity": null,
-          "findings": 0,
-          "operationId": "auth.register",
-          "reason": null,
-          "status": "passed",
-          "evidence": {},
-          "sufficiency": "unproven",
-          "tier": "contract",
-          "why": "met its contract, but no later read observed what it changed"
-        },
-        {
-          "checks": {
-            "failed": [],
-            "gaps": [],
-            "inconclusive": [],
-            "passed": [
-              "response.contract-call"
-            ],
-            "suppressed": []
-          },
-          "entity": null,
-          "findings": 0,
-          "operationId": "auth.token",
-          "reason": null,
-          "status": "passed",
-          "evidence": {},
-          "sufficiency": "unproven",
-          "tier": "contract",
-          "why": "met its contract, but no later read observed what it changed"
         },
         {
           "checks": {
@@ -1916,20 +3907,30 @@
             "failed": [],
             "gaps": [],
             "inconclusive": [],
-            "passed": [
-              "response.status-is-documented"
-            ],
+            "passed": [],
             "suppressed": []
           },
-          "entity": "job",
+          "entity": null,
           "findings": 0,
-          "operationId": "job.inbox",
-          "reason": null,
-          "status": "passed",
-          "evidence": {},
-          "sufficiency": "verified",
-          "tier": "verified",
-          "why": "a later exchange shows what this call did"
+          "operationId": "auth.login",
+          "reason": "graded by checks, but no request to auth.login succeeded",
+          "status": "untested",
+          "why": "graded by checks, but no request to auth.login succeeded"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [],
+            "suppressed": []
+          },
+          "entity": null,
+          "findings": 0,
+          "operationId": "auth.revoke",
+          "reason": "unmodeled: no entity owns POST /v1/auth/revoke; contract call returned 400 ({\"error_key\":\"invalid_input\",\"message\":\"the token is not one this server issued\",\"status\":400,\"success\":false}); a scenario must set the scene",
+          "status": "untested",
+          "why": "unmodeled: no entity owns POST /v1/auth/revoke; contract call returned 400 ({\"error_key\":\"invalid_input\",\"message\":\"the token is not one this server issued\",\"status\":400,\"success\":false}); a scenario must set the scene"
         }
       ],
       "originsSkipped": [],
@@ -2104,6 +4105,12 @@
         {
           "entity": "job",
           "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "job",
+          "id": "ID",
           "principal": "alpha_member",
           "removed": true
         },
@@ -2254,7 +4261,19 @@
         {
           "entity": "row",
           "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "row",
+          "id": "ID",
           "principal": "alpha_member",
+          "removed": true
+        },
+        {
+          "entity": "table",
+          "id": "ID",
+          "principal": "alpha",
           "removed": true
         },
         {
@@ -2432,7 +4451,7 @@
           "removed": true
         }
       ],
-      "removed": 80,
+      "removed": 83,
       "unidentified": [],
       "unsupported": []
     },
@@ -2470,13 +4489,46 @@
         "check": "async.receipt-identifies-the-job"
       },
       {
+        "check": "auth.alternative-accepted"
+      },
+      {
+        "check": "auth.anonymous-operation-open"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused"
+      },
+      {
+        "check": "auth.invalid-credential-refused"
+      },
+      {
         "check": "auth.invite-grants-then-revokes"
+      },
+      {
+        "check": "auth.missing-credential-refused"
+      },
+      {
+        "check": "auth.privileged-field-ignored"
       },
       {
         "check": "auth.rank-is-monotonic"
       },
       {
         "check": "auth.rank-is-monotonic-on-writes"
+      },
+      {
+        "check": "auth.refresh-reuse-refused"
+      },
+      {
+        "check": "auth.revoked-credential-refused"
+      },
+      {
+        "check": "auth.role-enforced"
+      },
+      {
+        "check": "auth.scope-enforced"
+      },
+      {
+        "check": "auth.wrong-scheme-refused"
       },
       {
         "check": "concurrency.no-lost-update"
@@ -2814,7 +4866,20 @@
       "COVERAGE_GAP": 2
     },
     "coverage": {
-      "neverApplied": [],
+      "neverApplied": [
+        "auth.alternative-accepted",
+        "auth.anonymous-operation-open",
+        "auth.cross-tenant-key-refused",
+        "auth.invalid-credential-refused",
+        "auth.login-throttled",
+        "auth.missing-credential-refused",
+        "auth.privileged-field-ignored",
+        "auth.refresh-reuse-refused",
+        "auth.revoked-credential-refused",
+        "auth.role-enforced",
+        "auth.scope-enforced",
+        "auth.wrong-scheme-refused"
+      ],
       "partial": [
         {
           "check": "async.reaches-terminal-state",

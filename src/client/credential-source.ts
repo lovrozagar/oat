@@ -25,8 +25,17 @@ export type Actor =
 	| { principal: string; via: Exchange }
 	/** Nobody: nothing is sent. */
 	| { anonymous: true }
-	/** A value placed exactly like the scheme's credential, though no principal holds it: implicitly a probe. */
-	| { forged: { scheme: string; value: string } }
+	/**
+	 * A value placed exactly like the scheme's credential, though no principal holds it: implicitly a
+	 * probe. A `derived` one is built from a held credential (a real JWT with its signature flipped,
+	 * another principal's real value), so it is a secret and redacted like one; garbage stays visible.
+	 */
+	| { forged: { scheme: string; value: string; derived?: true } }
+	/**
+	 * A principal sending exactly `value` as the scheme's credential, one it holds or held: the session a
+	 * revoke ends. Placed and redacted like its own credential, and never renewed: a 401 is the answer.
+	 */
+	| { principal: string; scheme: string; value: string }
 
 /** What the client knows about a request when it resolves its credential. */
 export interface CredentialRequest {
@@ -57,11 +66,22 @@ export interface Sending {
 	block(reason: string): void
 }
 
-/** A forged value, placed like the scheme's credential. Not a secret, so never redacted. */
+/** A forged value, placed like the scheme's credential. Redacted only when derived from a real one. */
 export interface Forged {
 	kind: "forged"
 	schemes: [string]
 	sends: SendsByScheme
+	/** What a derived value places, for the run's redactor: absent for garbage, which is no secret. */
+	secrets?: PlacedSecrets
+}
+
+/** A value a principal holds, sent as given: a real exchange of that principal's, never renewed. */
+export interface HeldValue {
+	kind: "held"
+	principal: string
+	schemes: [string]
+	sends: SendsByScheme
+	secrets: PlacedSecrets
 }
 
 export type Resolution =
@@ -75,6 +95,7 @@ export type Resolution =
 	/** The principal is BLOCKED for a scheme it needs: its login or refresh failed. */
 	| { kind: "blocked"; reason: string }
 	| Sending
+	| HeldValue
 	| Forged
 
 export interface CredentialSource {

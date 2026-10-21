@@ -13,4 +13,14 @@ describe("normalizeText", () => {
 	it("does not start an id in the middle of a word", () => {
 		expect(normalizeText("abcDef_000001")).toBe("abcDef_000001")
 	})
+
+	it("hides a JWT whole, header, claims and signature, wherever it stands", () => {
+		expect(normalizeText("Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhIn0.Xy_z-09 next")).toBe("Bearer JWT next")
+		expect(normalizeText('"access_token":"eyJa.eyJb.c"')).toBe('"access_token":"JWT"')
+	})
+
+	it("hides an issued API key, and leaves a shorter one alone", () => {
+		expect(normalizeText("ApiKey ak_0123456789abcdef0123456789abcdef")).toBe("ApiKey ak_KEY")
+		expect(normalizeText("ak_0123")).toBe("ak_0123")
+	})
 })

@@ -1,7 +1,7 @@
 import type { PrincipalsConfig } from "../../config/types/security.ts"
 import { messageOf } from "../../errors/message.ts"
 import type { RunResult } from "../../runtime/run/index.ts"
-import { run } from "../../runtime/run/index.ts"
+import { run } from "../harness/counting.ts"
 import { launch, reach, type Via } from "../harness/launch.ts"
 import type { ParserResult } from "../harness/result.ts"
 import { PRINCIPALS, SECURITY } from "../matrix/principals.ts"

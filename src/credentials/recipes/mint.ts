@@ -16,7 +16,8 @@ const SCOPES = "{scopes}"
 /** Mints the credential by the mint recipe; `options` are the recipe's shared options. */
 export async function acquireMint(ctx: AcquireCtx, mint: MintRecipe, options: Partial<Recipe>): Promise<Issued> {
 	const body = mint.body === undefined ? {} : { body: withScopes(fillPrincipal(ctx.principal, mint.body), ctx.scopes) }
-	const answer = await ctx.ports.operations.call({ as: asWith(ctx, mint), operationId: mint.operationId, ...body })
+	const call = { as: asWith(ctx, mint), operationId: mint.operationId, secrets: [mint.from], ...body }
+	const answer = await ctx.ports.operations.call(call)
 	answered(answer, `mint ${mint.operationId}`)
 	const value = valueAt(answer, mint.from, `mint ${mint.operationId}`)
 	const issued: Issued = {

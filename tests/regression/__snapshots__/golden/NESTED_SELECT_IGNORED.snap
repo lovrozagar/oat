@@ -184,7 +184,7 @@
       "added": [
         {
           "check": "select.nested-honoured",
-          "detail": "select=table(name) returned name, slug, status, position, description, id, project_id, created_at, updated_at, deleted_at, row_count.",
+          "detail": "select=table(name) returned name, slug, status, position, description, id, project_id, created_at, updated_at, deleted_at, verified, row_count.",
           "entity": "row",
           "operations": [
             "row.list"

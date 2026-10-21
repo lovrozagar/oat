@@ -48,6 +48,11 @@ export interface WorldOptions {
 	/** Ancestors already made in this run, by principal, operation and parent path. */
 	ancestors?: AncestorCache
 	/**
+	 * Why `principal` must not send a create, when it must not (`privilegedBar`): the create is then
+	 * never sent, and seeding stops with the reason. Omitted means every create may be sent.
+	 */
+	withheld?: (createOp: OperationModel) => string | undefined
+	/**
 	 * The identities an entity's records hold, by entity: a client-chosen identity is drawn from
 	 * outside them, and one refused with 409 joins them. Omitted, each create keeps its own.
 	 */

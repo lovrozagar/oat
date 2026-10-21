@@ -216,7 +216,11 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
+                "auth.scope-enforced",
                 "invalidation.declared-route-changes",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -245,7 +249,12 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.privileged-field-ignored",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "response.status-is-documented",
@@ -272,6 +281,11 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.cross-tenant-key-refused",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.scope-enforced",
                 "count.consistent-with-returned-page",
                 "count.matches-filtered-set",
                 "error.malformed-filter-not-5xx",
@@ -365,7 +379,11 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
+                "auth.scope-enforced",
                 "consistency.projections-agree",
                 "invalidation.declared-route-changes",
                 "response.status-is-documented",
@@ -393,7 +411,12 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.privileged-field-ignored",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
@@ -419,37 +442,11 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
-                "auth.rank-is-monotonic-on-writes",
-                "create.persists-submitted-fields",
-                "create.status-matches-document",
-                "create.unique-conflict-rejected",
-                "idempotency.replay-does-not-duplicate",
-                "list.read-after-write",
-                "schema.error-response-matches-document",
-                "schema.success-response-matches-document",
-                "validation.content-type-enforced",
-                "validation.enum-enforced",
-                "validation.max-length-enforced",
-                "validation.required-enforced"
-              ],
-              "suppressed": []
-            },
-            "entity": "table",
-            "findings": 0,
-            "operationId": "table.create",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "verified",
-            "tier": "verified",
-            "why": "a later exchange shows what this call did"
-          },
-          {
-            "checks": {
-              "failed": [],
-              "gaps": [],
-              "inconclusive": [],
-              "passed": [
+                "auth.alternative-accepted",
+                "auth.cross-tenant-key-refused",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.scope-enforced",
                 "consistency.projections-agree",
                 "count.consistent-with-returned-page",
                 "count.matches-filtered-set",
@@ -533,6 +530,37 @@
             "sufficiency": "verified",
             "tier": "verified",
             "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "create.unique-conflict-rejected",
+                "idempotency.replay-does-not-duplicate",
+                "list.read-after-write",
+                "schema.error-response-matches-document",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
           }
         ]
       }
@@ -540,8 +568,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 78,
-        "was": 80
+        "now": 81,
+        "was": 83
       }
     },
     "findings": {

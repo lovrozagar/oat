@@ -15,7 +15,7 @@ const answers =
 		table[`${method} ${path}`]
 
 /* A login or refresh step acts as nobody, and is never refreshed: that is how a refresh deadlocks. */
-const ANON = { as: { anonymous: true }, probe: true }
+const ANON = { as: { anonymous: true } }
 
 describe("runSteps: a chain", () => {
 	it("binds literals, sends each step, saves what the answers carry, and returns the last answer", async () => {

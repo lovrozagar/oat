@@ -1,6 +1,8 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { PRINCIPALS, SECURITY } from "../../conformance/matrix/principals.ts"
+import { buildSpec } from "../../reference/spec/build.ts"
 import { notesDoc } from "../../runtime/run/__fixtures__/api.ts"
 
 /* Files a command reads, written to a fresh folder per test: a document, a config, a saved report. */
@@ -32,6 +34,16 @@ export function notesConfig(dir: string = folder(), extra: Record<string, unknow
 		security: { bearer: { static: "t" } },
 		spec,
 		...extra,
+	})
+}
+
+/** The reference's document on disk, and the config it is run with: its jwt login and its minted API key. */
+export function referenceConfig(dir: string = folder()): string {
+	return json(dir, "oat.config.json", {
+		baseUrl: "http://api.test",
+		principals: PRINCIPALS,
+		security: SECURITY,
+		spec: notesSpec(dir, buildSpec()),
 	})
 }
 

@@ -11,6 +11,7 @@
  */
 
 import { effectiveRecipe, own } from "../credentials/effective.ts"
+import { probeOwner } from "../credentials/probe-principal.ts"
 import { sendsFor } from "../credentials/placement.ts"
 import type { PrincipalsConfig, Recipe, SecurityConfig } from "../config/types/security.ts"
 import type { Sends } from "../credentials/ports.ts"
@@ -55,6 +56,7 @@ async function resolve(ctx: CredentialSourceOptions, request: CredentialRequest)
 	const { actor } = request
 	if ("anonymous" in actor) return ANONYMOUS
 	if ("forged" in actor) return forge(ctx, actor.forged)
+	if ("value" in actor) return hold(ctx, actor)
 	const offered = alternativesFor(ctx, request, actor)
 	if ("unsatisfied" in offered) return { kind: "unsatisfied", reason: offered.unsatisfied }
 	const recipesFor = (scheme: string): Partial<Recipe> | undefined => recipeOf(ctx, actor.principal, scheme)
@@ -65,7 +67,7 @@ async function resolve(ctx: CredentialSourceOptions, request: CredentialRequest)
 }
 
 /* A principal acting through its own credentials. */
-type Acting = Exclude<Actor, { anonymous: true } | { forged: unknown }>
+type Acting = Exclude<Actor, { anonymous: true } | { forged: unknown } | { value: string }>
 
 /*
  * What the principal may send: the named scheme, else the operation's security, else for a URL a
@@ -126,7 +128,8 @@ async function settle(ctx: CredentialSourceOptions, settling: Settling): Promise
 			}
 		},
 		kind: "sends",
-		principal,
+		/* A dedicated credential is the owner's own account: the exchange names the owner, never the probe. */
+		principal: probeOwner(principal),
 		refresh: () => settle(ctx, { alternative, principal, renew: sending.sentValues }),
 		schemes: alternative.map((requirement) => requirement.scheme),
 		secrets: { cookies: [], headers: [], query: [], values: [] },
@@ -166,12 +169,27 @@ function placeHeld(ctx: CredentialSourceOptions, scheme: string, credential: Cre
 	return { secrets: { ...placed.secrets, values }, sends: placed.sends }
 }
 
-function forge(ctx: CredentialSourceOptions, forged: { scheme: string; value: string }): Resolution {
-	const { scheme, value } = forged
-	const recipe = ctx.mapping === undefined ? (own(ctx.security, scheme) ?? {}) : {}
-	const placed = place(ctx.model.schemes.get(scheme), { name: scheme, recipe, value })
+function forge(ctx: CredentialSourceOptions, forged: { scheme: string; value: string; derived?: true }): Resolution {
+	const { scheme } = forged
+	const placed = placeValue(ctx, forged)
 	if ("unsatisfied" in placed) return { kind: "unsatisfied", reason: placed.unsatisfied }
-	return { kind: "forged", schemes: [scheme], sends: { [scheme]: placed.sends } }
+	const forging: Resolution = { kind: "forged", schemes: [scheme], sends: { [scheme]: placed.sends } }
+	return forged.derived === true ? { ...forging, secrets: placed.secrets } : forging
+}
+
+/* A value the principal holds, sent as given and placed as the scheme places its credential. */
+function hold(ctx: CredentialSourceOptions, held: { principal: string; scheme: string; value: string }): Resolution {
+	const { principal, scheme } = held
+	const placed = placeValue(ctx, held)
+	if ("unsatisfied" in placed) return { kind: "unsatisfied", reason: placed.unsatisfied }
+	return { kind: "held", principal, schemes: [scheme], secrets: placed.secrets, sends: { [scheme]: placed.sends } }
+}
+
+/* A given value, placed by the scheme and its config format: a secondary origin's own scheme takes none. */
+function placeValue(ctx: CredentialSourceOptions, given: { scheme: string; value: string }): Placed {
+	const { scheme, value } = given
+	const recipe = ctx.mapping === undefined ? (own(ctx.security, scheme) ?? {}) : {}
+	return place(ctx.model.schemes.get(scheme), { name: scheme, recipe, value })
 }
 
 function place(

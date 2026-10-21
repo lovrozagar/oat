@@ -27,7 +27,11 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
+                "auth.scope-enforced",
                 "invalidation.declared-route-changes",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -50,6 +54,11 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.cross-tenant-key-refused",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.scope-enforced",
                 "count.consistent-with-returned-page",
                 "count.matches-filtered-set",
                 "error.malformed-filter-not-5xx",
@@ -137,7 +146,12 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.privileged-field-ignored",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
@@ -163,7 +177,11 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
+                "auth.scope-enforced",
                 "consistency.projections-agree",
                 "invalidation.declared-route-changes",
                 "response.status-is-documented",
@@ -191,7 +209,12 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.privileged-field-ignored",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
@@ -217,6 +240,11 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.cross-tenant-key-refused",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.scope-enforced",
                 "consistency.projections-agree",
                 "count.consistent-with-returned-page",
                 "count.matches-filtered-set",
@@ -307,8 +335,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 77,
-        "was": 80
+        "now": 80,
+        "was": 83
       }
     },
     "findings": {

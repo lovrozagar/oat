@@ -2,13 +2,14 @@ import { messageOf } from "../../errors/message.ts"
 import { DAMAGES_BYSTANDERS } from "../../reference/defects/bystanders.ts"
 import type { DefectName } from "../../reference/defects/table.ts"
 import type { Finding, Inconclusive } from "../../runtime/finding.ts"
-import { run } from "../../runtime/run/index.ts"
+import { run } from "../harness/counting.ts"
 import { EXPECTED } from "../expected/table.ts"
 import { launch, reach, type Target } from "../harness/launch.ts"
 import { damagedBystanders, ledgeredNotCreated, leftBehind, unreportedLeftovers } from "../leaks.ts"
 import { checkReproSyntax } from "../suites/repro-syntax.ts"
 import { defectsFor } from "./defects.ts"
 import { acceptableOf, primaryOf } from "./expected.ts"
+import { optInFor } from "./opt-in.ts"
 import { PRINCIPALS, SECURITY } from "./principals.ts"
 
 export interface CaseResult {
@@ -65,10 +66,13 @@ export function missingValuesOf(inconclusive: readonly Inconclusive[]): string[]
 
 /** oat run once against the reference with `defects` injected, and what it left in the backend. */
 async function observe(defects: DefectName[], target: Target, untagged: boolean): Promise<Observed> {
-	const server = await launch(target, { defects, untagged })
+	/* A defect behind an opt-in shows only with it on, in the reference and in oat both. */
+	const optIn = optInFor(defects)
+	const server = await launch(target, { defects, untagged, ...optIn.reference })
 	try {
 		const before = await server.snapshot()
 		const result = await run({
+			...optIn.run,
 			baseUrl: server.url,
 			principals: PRINCIPALS,
 			security: SECURITY,

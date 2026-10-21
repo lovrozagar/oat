@@ -8,7 +8,7 @@
  */
 
 import type { Client } from "../../client/client.ts"
-import type { CredentialPorts, StepAnswer } from "../../credentials/ports.ts"
+import type { CredentialPorts, Hop, StepAnswer } from "../../credentials/ports.ts"
 import { createStore, type CredentialStore } from "../../credentials/store.ts"
 import { signupOf } from "../../credentials/signup.ts"
 import { isNetworkError } from "../../errors/network.ts"
@@ -48,6 +48,9 @@ export function runStore(loaded: Loaded, wiring: StoreWiring): CredentialStore {
 	return store
 }
 
+/* What an OAuth 2 token answer holds (RFC 6749 §5.1), a rotated refresh token included. */
+const OAUTH2_TOKENS: readonly string[] = ["$.access_token", "$.refresh_token", "$.id_token"]
+
 interface PortWiring extends StoreWiring {
 	/** The parameters bound for a principal: its config scope and what its login's claims bound. */
 	scopeOf: (principal: string) => Readonly<Record<string, string>>
@@ -55,7 +58,13 @@ interface PortWiring extends StoreWiring {
 
 function runPorts(loaded: Loaded, wiring: PortWiring): CredentialPorts {
 	const { hooks, model, options } = loaded
-	const auth = (): Client => wiring.clients().client.view({ purpose: "auth" })
+	/* Every credential an answer holds is a secret before the answer is recorded. */
+	const auth = (secrets: readonly string[] = []): Client =>
+		wiring.clients().client.view({
+			issuedBy: "credentials",
+			purpose: "auth",
+			...(secrets.length === 0 ? {} : { secrets }),
+		})
 	const noted = <T>(work: () => Promise<T>): Promise<T> => noteOutage(wiring.network, work)
 	return {
 		operations: {
@@ -65,19 +74,22 @@ function runPorts(loaded: Loaded, wiring: PortWiring): CredentialPorts {
 					const op = model.byOperationId.get(input.operationId) as OperationModel
 					const path = fillPath(op.path, { ...wiring.scopeOf(input.as.principal), ...input.scope })
 					const body = input.body === undefined ? {} : { body: input.body }
-					return answerOf(await auth().request(op.method, path, { as: input.as, operationId: op.operationId, ...body }))
+					/* A value of its own is the one session a revoke ends: sent as the principal's, exactly that value. */
+					const as = input.value === undefined ? input.as : { ...input.as, value: input.value }
+					const sent = { as, operationId: op.operationId, ...body }
+					return answerOf(await auth(input.secrets).request(op.method, path, sent))
 				}),
 		},
 		steps: {
-			run: (steps, at) =>
+			run: (steps, { secrets, ...at }) =>
 				noted(() => {
 					const { origins } = wiring.clients()
-					const shared = { client: auth(), hooks, model, outOfBand: resolveBackoff(options.outOfBand) }
+					const shared = { client: auth(secrets), hooks, model, outOfBand: resolveBackoff(options.outOfBand) }
 					return stepRunner({ ...shared, originClients: origins }).run(steps, at)
 				}),
 		},
 		tokens: {
-			post: (url, form) => noted(() => postForm(auth(), { form, url })),
+			post: (url, form, hop) => noted(() => postForm(auth(OAUTH2_TOKENS), { form, url, ...hop })),
 		},
 		...(hooks.resolveCredential === undefined ? {} : { resolveCredential: hooks.resolveCredential }),
 	}
@@ -85,13 +97,14 @@ function runPorts(loaded: Loaded, wiring: PortWiring): CredentialPorts {
 
 async function postForm(
 	client: Client,
-	post: { url: string; form: Readonly<Record<string, string>> },
+	post: { url: string; form: Readonly<Record<string, string>> } & Hop,
 ): Promise<StepAnswer> {
 	const exchange = await client.request("POST", post.url, {
 		as: { anonymous: true },
 		body: new URLSearchParams(post.form),
 		contentType: "application/x-www-form-urlencoded",
-		probe: true,
+		/* A real exchange of the token URL, labeled a probe only when it is meant to be refused. */
+		...(post.probe ? { probe: post.probe } : {}),
 	})
 	return answerOf(exchange)
 }

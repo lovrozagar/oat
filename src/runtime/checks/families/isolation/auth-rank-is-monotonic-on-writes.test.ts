@@ -22,6 +22,30 @@ const blank = (method: string) => (method === "POST" ? { body: { id: "s1", title
 const policy = (allowed: (who: string, kind: string) => boolean) =>
 	notesBackend({ may: (who, kind) => allowed(who, kind), members: MEMBERS })
 
+/* Notes whose create requires a title only the highest rank may set. */
+function privilegedTitle() {
+	const doc = structuredClone(notesDocument())
+	type Create = { requestBody: { content: Record<string, { schema: { properties: Record<string, object> } }> } }
+	const create = (doc.paths as Record<string, Record<string, Create>>)["/orgs/{org_id}/notes"]?.post as Create
+	const title = create.requestBody.content["application/json"]?.schema.properties.title as Record<string, unknown>
+	title["x-privileged"] = true
+	return modelOf(doc)
+}
+
+describe("auth.rank-is-monotonic-on-writes on a create only the highest rank may send", () => {
+	it("never sends a lower rank's create, and notes it untested with the reason", async () => {
+		const backend = policy((who) => who === "owner")
+		const { ctx, sent } = notesContext(privilegedTitle(), backend, { actors: [owner, viewer] })
+		expect(await runCheck(rankIsMonotonicOnWrites, ctx)).toEqual({
+			kind: "asserted",
+			note:
+				"createNote requires title, marked x-privileged, which only owner (rank 2) may set; viewer (rank 0) " +
+				"does not send it, so its create is untested",
+		})
+		expect(sent.filter((s) => s.method === "POST" && caller(s) === "viewer")).toEqual([])
+	})
+})
+
 describe("auth.rank-is-monotonic-on-writes", () => {
 	it("passes when the higher rank may write and the lower may not", async () => {
 		const backend = policy((who) => who === "owner")

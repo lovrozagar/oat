@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { CHECK_IDS } from "../../check-ids.ts"
-import type { Check } from "./check.ts"
+import type { Check, OperationCheck } from "./check.ts"
 import { buildRegistry, defineCheck } from "./define.ts"
 
 const check = (id: string, dependsOn?: string[]): Check =>
@@ -21,6 +21,20 @@ describe("defineCheck", () => {
 			subjects: () => [],
 		})
 		expect(defined.id).toBe("list.read-after-write")
+		expect(defined.subjects({} as never, {} as never)).toEqual([])
+	})
+
+	it("defines an operation check, planned on the operation it probes", () => {
+		const defined: OperationCheck<string> = defineCheck<string>({
+			id: "response.no-server-error",
+			plan: (ctx) => ({ ok: true, value: ctx.operation.operationId }),
+			run: async () => ({ kind: "asserted" }),
+			subject: "operation",
+		})
+		expect(defined.plan({ operation: { operationId: "notes.list" } } as never)).toEqual({
+			ok: true,
+			value: "notes.list",
+		})
 	})
 })
 

@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { runCheck as planAndRun } from "../../src/runtime/checks/core/run.ts"
+import { entityChecks } from "../../src/runtime/checks/core/registry.ts"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"
 import { Client } from "../../src/client/client.ts"
 import { FindingCollector } from "../../src/runtime/finding.ts"
@@ -104,7 +105,7 @@ async function listen(handler: (req: IncomingMessage, res: ServerResponse) => vo
 
 async function run(opts: { grows: boolean; caseSensitive: boolean }): Promise<FindingCollector> {
 	const id = "search.case-insensitive"
-	const check = CHECKS.find((item) => item.id === id)
+	const check = entityChecks(CHECKS).find((item) => item.id === id)
 	if (check === undefined) throw new Error(`no check ${id}`)
 	const model = buildModel(dereference(spec()).doc)
 	const listOp = model.byOperationId.get("template.list")

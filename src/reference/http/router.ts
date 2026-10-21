@@ -1,11 +1,14 @@
 /** One request in, one answer out: the fixed routes in order, then the entity model's. */
 
-import { assertParents, assertTenant, authenticate } from "./access.ts"
+import { assertParents, assertTenant } from "./access.ts"
+import { authenticate } from "./auth/credentials.ts"
 import { errorResponse, HttpError } from "./errors.ts"
 import { inbox, notify, startJob } from "./handlers/actions.ts"
 import { create } from "./handlers/create.ts"
 import type { ItemCall } from "./handlers/entity.ts"
-import { document, health, logout, me, notices, overview, register, type Route, token } from "./handlers/fixed.ts"
+import { createKey, readKey, revokeKey } from "./handlers/api-keys.ts"
+import { login, logout, refresh, register, revokeToken, token } from "./handlers/auth.ts"
+import { document, health, me, notices, overview, type Route } from "./handlers/fixed.ts"
 import { accept, invite, revoke } from "./handlers/grants.ts"
 import { read, remove, update } from "./handlers/item.ts"
 import { list } from "./handlers/list.ts"
@@ -18,6 +21,12 @@ import type { ReferenceRequest, ReferenceResponse } from "./wire.ts"
 const FIXED: readonly Route[] = [
 	document,
 	token,
+	login,
+	refresh,
+	revokeToken,
+	createKey,
+	readKey,
+	revokeKey,
 	startJob,
 	notify,
 	inbox,
@@ -61,8 +70,13 @@ async function entityRoute(state: ReferenceState, request: ReferenceRequest): Pr
 	const { method, url } = request
 	const match = matchRoute(url.pathname, state.entities)
 	if (match === null) throw new HttpError(404, "not_found", `no route for ${url.pathname}`)
-	const principal = authenticate(state, request)
 	const { entity } = match
+	/* A record route takes a bearer JWT, or an API key holding the entity's read or write scope. */
+	const access = method === "GET" ? "read" : "write"
+	const principal = authenticate(state, request, {
+		projectId: match.scope.project_id,
+		scope: `${entity.name}:${access}`,
+	})
 	const scope = await typedScope(state, match.scope)
 	const itemId = match.itemId === null ? null : (scope[entity.itemParam] as string | number)
 	const call = { entity, principal, scope }

@@ -3,7 +3,9 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { vi } from "vitest"
 import { main } from "../../src/cli/main.ts"
+import { optInFor } from "../../src/conformance/matrix/opt-in.ts"
 import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
+import type { DefectName } from "../../src/reference/defects/table.ts"
 import { createMemoryServer, createSqliteServer } from "../../src/reference/http/engines.ts"
 import type { ReferenceOptions } from "../../src/reference/http/state.ts"
 
@@ -31,12 +33,16 @@ const UNSTABLE_KEYS = new Set([
 /**
  * Stable text for a value that names a port, a record id, a probe nonce, an invite token or grant
  * id the reference server draws at random, a reading of the server's clock (which advances per
- * write, so concurrent lanes move it), how many polls fit in a wait, or an opaque cursor (which
- * encodes whichever record id a lane reached).
+ * write, so concurrent lanes move it), how many polls fit in a wait, an opaque cursor (which
+ * encodes whichever record id a lane reached), or an issued JWT or API key (whose claims hold the
+ * clock and a random token id, and whose key is derived from a random id).
  */
 export function normalizeText(text: string): string {
 	return (
 		text
+			/* A token first, whole, before any rule below can rewrite a piece of it. */
+			.replaceAll(/\beyJ[\w-]+\.eyJ[\w-]+\.[\w-]+/g, "JWT")
+			.replaceAll(/\bak_[0-9a-f]{32}\b/g, "ak_KEY")
 			.replaceAll(/http:\/\/127\.0\.0\.1:\d+/g, "http://reference.test")
 			/* An encoded separator (`%2C`) ends in a letter, and is still a separator. */
 			.replaceAll(/(?<=^|[^A-Za-z]|%[0-9A-F]{2})([a-z]+)_\d{6}\b/g, "$1_ID")
@@ -108,16 +114,20 @@ export interface GoldenTarget extends ReferenceOptions {
 
 /**
  * One `oat run` through the CLI against a fresh reference server, the way a user runs it: config
- * file, `--out`, the report files on disk.
+ * file, `--out`, the report files on disk. A defect behind an opt-in runs with it on, in the
+ * reference and in the config, as the conformance matrix runs it.
  */
 export async function goldenRun(target: GoldenTarget, extraFlags: readonly string[] = []): Promise<GoldenRun> {
-	const { backend, ...options } = target
+	const { backend, ...rest } = target
+	const optIn = optInFor((rest.defects ?? []) as DefectName[])
+	const options = { ...rest, ...optIn.reference }
 	const server = await (backend === "sqlite" ? createSqliteServer(options) : createMemoryServer(options))
 	const dir = await mkdtemp(join(tmpdir(), "oat-golden-"))
 	const config = join(dir, "oat.config.json")
 	await writeFile(
 		config,
 		JSON.stringify({
+			...optIn.run,
 			baseUrl: server.url,
 			principals: PRINCIPALS,
 			security: SECURITY,

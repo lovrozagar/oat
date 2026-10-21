@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { UsageError } from "../../src/errors/usage-error.ts"
-import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
+import { PRINCIPALS } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { run } from "../../src/runtime/run/index.ts"
 import { pruneToAllow } from "../../src/spec/allow.ts"
@@ -8,6 +8,7 @@ import { buildModel } from "../../src/spec/graph/build.ts"
 import { operationResolver } from "../../src/spec/graph/resolver.ts"
 import { dereference } from "../../src/spec/load/dereference.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
+import { JWT_LOGIN } from "../support/reference-auth.ts"
 
 /*
  * Against a shared backend, some operations must never be called — not by the matrix, the
@@ -16,7 +17,10 @@ import type { OpenApiDocument } from "../../src/spec/types.ts"
  * that still needs a removed operation says so before anything is sent.
  */
 
-/* `auth.token` is how every reference principal logs in; it must stay callable. */
+/*
+ * `auth.token` is how every reference principal logs in; it must stay callable. The runs sign in
+ * by it alone (`JWT_LOGIN`): no refresh and no apiKey mint, so the config calls nothing outside allow.
+ */
 const ALLOW = ["auth.token", "table.list", "table.get", "table.create", "table.delete"]
 
 async function fullModel(url: string) {
@@ -68,7 +72,7 @@ describe("a run under allow", () => {
 				allow: ALLOW,
 				baseUrl: server.url,
 				principals: PRINCIPALS,
-				security: SECURITY,
+				security: JWT_LOGIN,
 				seed: 42,
 				spec: `${server.url}/v1/openapi/spec`,
 			})
@@ -86,7 +90,7 @@ describe("a run under allow", () => {
 			allow: ALLOW,
 			baseUrl: server.url,
 			principals: PRINCIPALS,
-			security: SECURITY,
+			security: JWT_LOGIN,
 			seed: 42,
 			spec: `${server.url}/v1/openapi/spec`,
 		}
@@ -102,7 +106,7 @@ describe("a run under allow", () => {
 			await expect(
 				run({
 					...base,
-					principals: { ...PRINCIPALS, alpha: { ...PRINCIPALS["alpha"], security: { bearer: { login } } } },
+					principals: { ...PRINCIPALS, alpha: { ...PRINCIPALS["alpha"], security: { jwt: { login } } } },
 				}),
 			).rejects.toThrow(/table\.invite/)
 		} finally {

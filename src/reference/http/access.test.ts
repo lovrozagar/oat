@@ -1,16 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { ROW } from "../model/row.ts"
 import { api, BETA, rowsOf, TABLES } from "./__fixtures__/api.ts"
-import {
-	assertParents,
-	assertTenant,
-	assertWrite,
-	authenticate,
-	bearer,
-	findItem,
-	ownedByTenant,
-	underPath,
-} from "./access.ts"
+import { assertParents, assertTenant, assertWrite, bearer, findItem, ownedByTenant, underPath } from "./access.ts"
 import { PRINCIPALS } from "./state.ts"
 import { referenceRequest } from "./wire.ts"
 
@@ -22,12 +13,6 @@ const [OWNER, OTHER, MEMBER, VIEWER] = PRINCIPALS as [
 ]
 const ALPHA = { project_id: "proj_alpha" }
 
-const request = (authorization?: string) =>
-	referenceRequest("GET", new URL("http://reference.test/"), {
-		headers: authorization === undefined ? {} : { authorization },
-		read: async () => "",
-	})
-
 /* A row under one of alpha's tables, and the scope that names it. */
 async function rowWorld(options = {}) {
 	const world = await api(options)
@@ -36,31 +21,17 @@ async function rowWorld(options = {}) {
 	return { ...world, row, rowScope: { ...ALPHA, table_id: String(table.id) }, tableId: String(table.id) }
 }
 
-describe("bearer and authenticate", () => {
+const request = (authorization?: string) =>
+	referenceRequest("GET", new URL("http://reference.test/"), {
+		headers: authorization === undefined ? {} : { authorization },
+		read: async () => "",
+	})
+
+describe("bearer", () => {
 	it("reads a bearer token, and nothing else", () => {
 		expect(bearer(request("Bearer  tok "))).toBe("tok")
 		expect(bearer(request("Basic abc"))).toBeUndefined()
 		expect(bearer(request())).toBeUndefined()
-	})
-
-	it("refuses a missing or unknown credential with a 401", async () => {
-		const { state } = await api()
-		expect(() => authenticate(state, request())).toThrow("missing bearer credential")
-		expect(() => authenticate(state, request("Bearer nope"))).toThrow(
-			expect.objectContaining({ message: "unrecognised credential", status: 401 }),
-		)
-	})
-
-	it("knows each principal, and a registered token as an owner in alpha", async () => {
-		const { state } = await api()
-		expect(authenticate(state, request("Bearer tok_beta"))).toBe(OTHER)
-		state.liveTokens.add("tok_new")
-		expect(authenticate(state, request("Bearer tok_new"))).toEqual({
-			key: "tok_new",
-			projectId: "proj_alpha",
-			rank: 2,
-			token: "tok_new",
-		})
 	})
 })
 
@@ -81,6 +52,13 @@ describe("assertWrite", () => {
 			[true, true, false],
 			[false, false, false],
 		])
+	})
+
+	it("lets every rank do everything under ROLE_NOT_CHECKED", async () => {
+		const { state } = await api({ defects: ["ROLE_NOT_CHECKED"] })
+		for (const kind of ["create", "update", "delete"] as const) {
+			expect(() => assertWrite(state, VIEWER, kind)).not.toThrow()
+		}
 	})
 
 	it("turns the lattice over for updates under ROLE_WRITE_INVERTED", async () => {

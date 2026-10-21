@@ -79,6 +79,16 @@ export interface RateLimitSpec {
 /** How much of the string payload catalog a run sends. */
 export type PayloadPolicy = "full" | "per-write-path"
 
+/** Checks that run only when switched on, by check id. Every other check runs wherever it applies. */
+export interface CheckSwitches {
+	/**
+	 * Sends failed logins, for an identity that does not exist, until the login answers 429 or a cap
+	 * is reached. Off by default: a throttle that counts by address or client can still slow every
+	 * login from the machine running oat for a while.
+	 */
+	"auth.login-throttled"?: boolean
+}
+
 export interface OatConfig {
 	/** Declared flows for operations the matrix cannot reach. See `Scenario`. */
 	scenarios?: Scenario[]
@@ -152,6 +162,8 @@ export interface OatConfig {
 	 * representative family of each kind elsewhere; `"full"` sends all of it to every field.
 	 */
 	payloads?: PayloadPolicy
+	/** Checks switched on that do not run by default: `{ "auth.login-throttled": true }`. */
+	checks?: CheckSwitches
 	/** Fixture generation derives from this, so a failing run is exactly reproducible. */
 	seed?: number
 	/** Instances seeded per entity. Larger cohorts discriminate more, and cost more. */

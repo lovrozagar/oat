@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { INLINE_BODY_LIMIT } from "../runtime/exchanges/media.ts"
 import { NetworkError } from "../errors/network.ts"
+import { RateLimiter } from "../runtime/rate-limit/limiter.ts"
 import { json, refused, transport } from "./__fixtures__/transport.ts"
 import { fixedSource, sendingHeaders } from "./__fixtures__/source.ts"
 import { BASE, wireOf } from "./__fixtures__/wire.ts"
+import { Redactor } from "../security/redact.ts"
 import type { Actor } from "./credential-source.ts"
 import { prepare, sendAttempt } from "./request.ts"
 
@@ -153,5 +155,66 @@ describe("an answer's bodies and travels", () => {
 		const ctx = wireOf(wire)
 		const exchange = await sendAttempt(prepare(ctx, "GET", "/a", { as: ANON, redirect: "follow" }), 0, ctx)
 		expect(exchange).toMatchObject({ cookies: { sid: "1" }, finalUrl: `${BASE}/b`, redirects: [{ status: 302 }] })
+	})
+})
+
+describe("the credentials a recipe reads from an answer", () => {
+	it("registers each string value at a named address, and ignores an address with no string", async () => {
+		const redactor = new Redactor()
+		const ctx = wireOf(
+			transport(() => json({ access_token: "tok-secret-9", expires_in: 60 })),
+			{ redactor },
+		)
+		const secrets = ["$.access_token", "$.expires_in", "$.absent"]
+		const context = { issuedBy: "credentials", secrets } as const
+		const sent = await sendAttempt(prepare(ctx, "POST", "/token", { as: ANON, context }), 0, ctx)
+		expect(sent.issuedBy).toBe("credentials")
+		expect(redactor.text("tok-secret-9")).toBe("<redacted>")
+		expect(redactor.text("60")).toBe("60")
+	})
+})
+
+describe("a paced answer", () => {
+	it("records the rule it was paced by and whether it had room", async () => {
+		const writes = {
+			category: "writes",
+			rps: 1000,
+			source: "tag" as const,
+			test: (method: string) => method === "POST",
+		}
+		const ctx = wireOf(
+			transport(() => json({})),
+			{ rateLimiter: new RateLimiter([writes], { maxRps: 1000 }) },
+		)
+		const sent = await sendAttempt(prepare(ctx, "POST", "/rows", { as: ANON, body: {} }), 0, ctx)
+		expect(sent).toMatchObject({ rateLimitCategory: "writes", rateLimitHadRoom: true, rateLimitSource: "tag" })
+	})
+})
+
+describe("an exchange sent as a probe", () => {
+	it("records probe only for a request sent as one: a dedicated actor alone is no probe", async () => {
+		const ctx = wireOf(transport(() => json({}, 401)))
+		const send = (options: Parameters<typeof prepare>[3]) => sendAttempt(prepare(ctx, "GET", "/rows", options), 0, ctx)
+		expect((await send({ as: ANON, probe: true })).probe).toBe(true)
+		expect(await send({ as: ANON })).not.toHaveProperty("probe")
+		const probing = wireOf(
+			transport(() => json({})),
+			{
+				credentials: fixedSource({
+					block: () => undefined,
+					kind: "sends",
+					principal: "alpha",
+					schemes: [],
+					secrets: { cookies: [], headers: [], query: [], values: [] },
+					sends: {},
+					sentValues: {},
+					refresh: async () => ({ kind: "anonymous" }),
+				}),
+			},
+		)
+		const sent = await sendAttempt(prepare(probing, "GET", "/rows", { as: { principal: "alpha#probe-1" } }), 0, probing)
+		expect(sent.principal).toBe("alpha")
+		expect(sent).not.toHaveProperty("probe")
+		expect(sent).not.toHaveProperty("forged")
 	})
 })

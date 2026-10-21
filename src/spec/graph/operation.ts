@@ -21,6 +21,7 @@ import {
 import { readCreatedIdFrom, readEntity, readRecordPath } from "../extensions/entity.ts"
 import { readEffects } from "../extensions/effects.ts"
 import { readInvite } from "../extensions/invite.ts"
+import { readPrivileged, requiredPrivileged } from "../extensions/privileged.ts"
 import { readQueryCapability } from "../extensions/query-tag.ts"
 import { readUnique } from "../extensions/unique.ts"
 import { resolveSecurity } from "../security/requirements.ts"
@@ -156,7 +157,15 @@ function behaviourFacts(reading: Reading) {
 		operationId,
 		path,
 		pathParams: reading.pathParams,
+		...privilegedFacts(reading),
 	}
+}
+
+/* The request body properties marked x-privileged, and those of them the body requires. */
+function privilegedFacts(reading: Reading): { privileged: string[]; privilegedRequired: string[] } {
+	const { bodySchema: body, endpoint, gaps } = reading
+	const privileged = readPrivileged(endpoint.op, { body, gaps, operationId: endpoint.operationId })
+	return { privileged, privilegedRequired: requiredPrivileged(body, privileged) }
 }
 
 function requestFacts(reading: Reading) {

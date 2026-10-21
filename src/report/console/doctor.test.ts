@@ -54,15 +54,16 @@ describe("doctor as JSON", () => {
 			"trackableEntities",
 			"unknownEntities",
 		])
+		/* The reference reads its API keys back (apiKey.get), so api-key is a trackable entity of its own. */
 		expect(json).toMatchObject({
 			allowRemoved: ["a.b"],
 			blocking,
-			entities: 6,
+			entities: 7,
 			externalRefs: ["x.yaml"],
 			invites: [{ accept: "invite.accept", acceptFrom: "token", entity: "table" }],
 			listableEntities: 4,
-			testableEntities: 6,
-			trackableEntities: 6,
+			testableEntities: 7,
+			trackableEntities: 7,
 			unknownEntities: ["ghost"],
 		})
 		expect(text.endsWith("}\n")).toBe(true)

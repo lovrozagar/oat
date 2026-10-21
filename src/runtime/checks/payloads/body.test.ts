@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { CheckContext } from "../core/context.ts"
-import { op } from "../__fixtures__/harness.ts"
-import { notesContext, notesModel } from "../query/__fixtures__/notes.ts"
+import { modelOf, op } from "../__fixtures__/harness.ts"
+import { notesContext, notesDoc, notesModel } from "../query/__fixtures__/notes.ts"
 import {
 	changedValue,
 	createExchange,
@@ -10,6 +10,7 @@ import {
 	propertySchemaOf,
 	requestSchemaOf,
 	validBody,
+	withheldProperties,
 } from "./body.ts"
 
 /*
@@ -86,6 +87,27 @@ describe("pickWritableStringField", () => {
 		expect(pickWritableStringField(guarded, { name: "a", slug: "s" })).toBeNull()
 		expect(pickWritableStringField({ ...ctx, updateOp: undefined }, { name: "a" })).toBe("name")
 	})
+
+	it("passes over a property only the highest rank may set: an ordinary writer never changes it", () => {
+		const doc = structuredClone(notesDoc())
+		const paths = doc.paths as Record<string, Record<string, { requestBody: unknown }>>
+		const update = paths["/notes/{noteId}"]?.patch as { requestBody: unknown }
+		const properties = { name: { type: "string" }, plan: { type: "string", "x-privileged": true } }
+		update.requestBody = { content: { "application/json": { schema: { properties, type: "object" } } } }
+		const { ctx } = notesContext(undefined, {}, modelOf(doc))
+		expect(pickWritableStringField(ctx, { name: "a", plan: "gold" })).toBe("name")
+		expect(pickWritableStringField(ctx, { plan: "gold" })).toBeNull()
+	})
+
+	it("withholds nothing from a request schema that names no properties, or an operation with none", () => {
+		const doc = structuredClone(notesDoc())
+		const paths = doc.paths as Record<string, Record<string, { requestBody: unknown }>>
+		const update = paths["/notes/{noteId}"]?.patch as { requestBody: unknown }
+		update.requestBody = { content: { "application/json": { schema: { type: "object" } } } }
+		const { ctx } = notesContext(undefined, {}, modelOf(doc))
+		expect(withheldProperties(ctx, ctx.updateOp)).toEqual(new Set())
+		expect(withheldProperties(ctx, undefined)).toEqual(new Set())
+	})
 })
 
 describe("createExchange", () => {
@@ -93,6 +115,12 @@ describe("createExchange", () => {
 		const { ctx } = notesContext(() => ({ body: { id: "n1" }, status: 201 }))
 		await ctx.client.request("POST", "/notes", { as: { principal: "alpha" }, operationId: "note.create" })
 		expect((await createExchange(ctx))?.responseBody).toEqual({ id: "n1" })
+	})
+
+	it("is never a security probe's create that a broken API let through", async () => {
+		const { ctx } = notesContext(() => ({ body: { id: "p1" }, status: 201 }))
+		await ctx.client.request("POST", "/notes", { as: { anonymous: true }, operationId: "note.create", probe: true })
+		expect(await createExchange(ctx)).toBeUndefined()
 	})
 
 	it("is undefined without a successful create at that path", async () => {

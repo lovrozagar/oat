@@ -4,7 +4,7 @@ import { publicGetCheck } from "../one-shot.ts"
 import { rootReadCheck } from "../root-read.ts"
 import { selfIdentityCheck } from "../self/check.ts"
 import { serverErrorCheck } from "../server-errors.ts"
-import type { Check } from "./core/check.ts"
+import type { RegisteredCheck } from "./core/check.ts"
 import { queryAxesCompose } from "./families/composition/query-axes-compose.ts"
 import { filterAndSelectCompose } from "./families/composition/query-filter-and-select-compose.ts"
 import { filterSearchSelectCompose } from "./families/composition/query-filter-search-select-compose.ts"
@@ -52,6 +52,18 @@ import { filterOrComposesAsUnion } from "./families/filter/filter-or-composes-as
 import { filterOrderedTriplePartitions } from "./families/filter/filter-ordered-triple-partitions.ts"
 import { unknownFilterRejected } from "./families/filter/filter-unknown-field-rejected.ts"
 import { zeroMatchFilter } from "./families/filter/filter-zero-match-returns-none.ts"
+import { alternativeAccepted } from "./families/security/auth-alternative-accepted.ts"
+import { anonymousOperationOpen } from "./families/security/auth-anonymous-operation-open.ts"
+import { crossTenantKeyRefused } from "./families/security/auth-cross-tenant-key-refused.ts"
+import { invalidCredentialRefused } from "./families/security/auth-invalid-credential-refused.ts"
+import { loginThrottled } from "./families/security/auth-login-throttled.ts"
+import { missingCredentialRefused } from "./families/security/auth-missing-credential-refused.ts"
+import { privilegedFieldIgnored } from "./families/security/auth-privileged-field-ignored.ts"
+import { refreshReuseRefused } from "./families/security/auth-refresh-reuse-refused.ts"
+import { revokedCredentialRefused } from "./families/security/auth-revoked-credential-refused.ts"
+import { roleEnforced } from "./families/security/auth-role-enforced.ts"
+import { scopeEnforced } from "./families/security/auth-scope-enforced.ts"
+import { wrongSchemeRefused } from "./families/security/auth-wrong-scheme-refused.ts"
 import { inviteGrantsThenRevokes } from "./families/isolation/auth-invite-grants-then-revokes.ts"
 import { rankIsMonotonicOnWrites } from "./families/isolation/auth-rank-is-monotonic-on-writes.ts"
 import { rankIsMonotonic } from "./families/isolation/auth-rank-is-monotonic.ts"
@@ -110,7 +122,7 @@ import { stringPayloadSurvives } from "./families/write/payload-string-survives.
 import { softDeleteHidden } from "./families/write/softdelete-absent-from-default-list.ts"
 import { uniqueConflictUpdate } from "./families/write/update-unique-conflict-rejected.ts"
 
-export const CHECKS: readonly Check[] = [
+export const CHECKS: readonly RegisteredCheck[] = [
 	/* foundations — did the write land, is it visible, and do the paging primitives work at all.
 	 * Everything below assumes these hold, so they must be evaluated first for cascade
 	 * suppression to have anything to consult. */
@@ -215,6 +227,20 @@ export const CHECKS: readonly Check[] = [
 	maxLengthValidated,
 	requiredValidated,
 	contentTypeEnforced,
+
+	/* security: planned per operation by the security stage, not by the entity lanes */
+	missingCredentialRefused,
+	invalidCredentialRefused,
+	wrongSchemeRefused,
+	scopeEnforced,
+	alternativeAccepted,
+	anonymousOperationOpen,
+	revokedCredentialRefused,
+	refreshReuseRefused,
+	roleEnforced,
+	crossTenantKeyRefused,
+	privilegedFieldIgnored,
+	loginThrottled,
 
 	/* isolation */
 	crossTenantItemRead,

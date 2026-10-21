@@ -2,6 +2,7 @@ import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { runCheck } from "../../src/runtime/checks/core/run.ts"
+import { entityChecks } from "../../src/runtime/checks/core/registry.ts"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"
 import { Client } from "../../src/client/client.ts"
 import { FindingCollector } from "../../src/runtime/finding.ts"
@@ -72,7 +73,7 @@ function spec(): OpenApiDocument {
 
 describe("sort.multi-key-tiebreak on a field the rows do not carry", () => {
 	it("does not read the missing field as a tie", async () => {
-		const check = CHECKS.find((candidate) => candidate.id === "sort.multi-key-tiebreak")
+		const check = entityChecks(CHECKS).find((candidate) => candidate.id === "sort.multi-key-tiebreak")
 		if (check === undefined) throw new Error("no check")
 		const model = buildModel(dereference(spec()).doc)
 		const listOp = model.byOperationId.get("profile.list")

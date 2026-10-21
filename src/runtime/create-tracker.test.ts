@@ -48,12 +48,27 @@ const DOCUMENT = {
 				...entity("create"),
 			},
 		},
+		"/keys": {
+			post: {
+				operationId: "keys.create",
+				requestBody: { ...json(ITEM), required: true },
+				responses: { "201": { ...json(ITEM), description: "minted" } },
+				...entity("create", "key"),
+			},
+		},
 		"/columns/{column_id}": {
 			get: {
 				operationId: "column.read",
 				parameters: [{ in: "path", name: "column_id", required: true, schema: { type: "string" } }],
 				responses: { "200": { ...json(ITEM), description: "ok" } },
 				...entity("read", "column"),
+			},
+		},
+		"/columns/import": {
+			post: {
+				operationId: "column.import",
+				responses: { "202": { ...json(ITEM), description: "accepted" } },
+				...entity("action", "column"),
 			},
 		},
 		"/logs": {
@@ -96,9 +111,12 @@ function setup() {
 	const model = buildModel(dereference(DOCUMENT).doc)
 	const ledger = new WatchedLedger()
 	const recorded: string[] = []
-	/* No read is needed: every answer here names its own id. */
+	/* No read is needed but an inferred create's: every other answer here names its own id. */
 	const client = {
-		get: () => Promise.reject(new Error("no read expected")),
+		get: (path: string) =>
+			path === "/columns/c9" ? Promise.resolve({ status: 200 }) : Promise.reject(new Error("no read expected")),
+		hydrate: async (sent: Exchange) => sent,
+		transcript: [],
 		relativePath: (url: string) => new URL(url).pathname,
 		view: () => client,
 	} as unknown as Client
@@ -112,6 +130,7 @@ function setup() {
 			["beta", { owner: owner("beta"), roots: { project_id: "b" } }],
 		]),
 		readable: () => true,
+		stranger: { owner: owner("alpha"), roots: { project_id: "a", region: "eu" } },
 	})
 	return { ledger, recorded, tracker }
 }
@@ -172,7 +191,85 @@ describe("createTracker", () => {
 	})
 })
 
+/* A probe sent with no configured principal's credential: anonymous, as the open-operation probe sends. */
+function anonymousProbe(over: Partial<Exchange>): Exchange {
+	const sent: Partial<Exchange> = exchange({ probe: true, ...over })
+	delete sent.principal
+	return sent as Exchange
+}
+
+describe("createTracker, on a probe write no configured principal sent", () => {
+	it("takes a 2xx POST as applied: ledgered under the first principal on a new id that reads back", async () => {
+		const { ledger, tracker } = setup()
+		const imported = { operationId: "column.import", pathParams: {}, template: "/columns/import" }
+		await tracker.observe(
+			anonymousProbe({ ...imported, responseBody: { column_id: "c9" }, url: "http://x/columns/import" }),
+		)
+		await tracker.observe(anonymousProbe({}))
+		expect(ledger.entries()).toMatchObject([
+			{ entity: "column", id: "c9", inferred: true, owner: { id: "alpha" } },
+			{ entity: "table", id: "t1", owner: { id: "alpha" }, scope: { project_id: "b", region: "eu" } },
+		])
+		expect(ledger.unidentifiedCreates).toEqual([])
+	})
+
+	it("reports one with no such evidence as a record that may remain, naming the operation and status", async () => {
+		const { ledger, tracker } = setup()
+		const registered = anonymousProbe({
+			operationId: "column.import",
+			pathParams: {},
+			responseBody: { access_token: "t" },
+			template: "/columns/import",
+			url: "http://x/columns/import",
+		})
+		await tracker.observe(registered)
+		await tracker.observe(anonymousProbe({ operationId: "nobody.knows", responseBody: {} }))
+		const unnamed: Partial<Exchange> = anonymousProbe({ responseBody: {} })
+		delete unnamed.operationId
+		await tracker.observe(unnamed as Exchange)
+		expect(ledger.entries()).toEqual([])
+		expect(ledger.unidentifiedCreates).toMatchObject([
+			{ entity: "column", operationId: "column.import", seq: registered.seq, status: 201 },
+			{ entity: "nobody.knows", operationId: "nobody.knows", status: 201 },
+			{ entity: "POST /projects/b/tables", operationId: "POST /projects/b/tables", status: 201 },
+		])
+	})
+
+	it("leaves alone a write that makes nothing, one refused, and traffic that is not a probe", async () => {
+		const { ledger, tracker } = setup()
+		await tracker.observe(anonymousProbe({ method: "PATCH", operationId: "table.delete", status: 200 }))
+		await tracker.observe(anonymousProbe({ status: 401 }))
+		await tracker.observe(anonymousProbe({ method: "GET", operationId: "table.list", status: 200 }))
+		const plain: Partial<Exchange> = exchange({})
+		delete plain.principal
+		await tracker.observe(plain as Exchange)
+		expect(ledger.entries()).toEqual([])
+		expect(ledger.unidentifiedCreates).toEqual([])
+	})
+})
+
+describe("createTracker, on a POST that is not a create", () => {
+	it("ledgers it as inferred when its answer names a new id that reads back", async () => {
+		const { ledger, recorded, tracker } = setup()
+		const imported = { operationId: "column.import", pathParams: {}, template: "/columns/import" }
+		await tracker.observe(exchange({ ...imported, responseBody: { column_id: "c9" }, url: "http://x/columns/import" }))
+		await tracker.observe(exchange({ ...imported, responseBody: { column_id: "c9" }, url: "http://x/other" }))
+		await tracker.observe(exchange({ ...imported, operationId: "nothing.known", responseBody: { column_id: "c8" } }))
+		expect(ledger.entries()).toMatchObject([{ entity: "column", id: "c9", inferred: true, owner: { id: "beta" } }])
+		expect(recorded).toEqual(["column c9"])
+	})
+})
+
 describe("createTracker, on what it does not ledger", () => {
+	it("leaves what the credential store issued to the store, and ledgers the same create sent any other way", async () => {
+		const { ledger, tracker } = setup()
+		const mint = { operationId: "keys.create", pathParams: {}, template: "/keys", url: "http://x/keys" }
+		await tracker.observe(exchange({ ...mint, issuedBy: "credentials", responseBody: { id: "k1", name: "key" } }))
+		await tracker.observe(exchange({ ...mint, responseBody: { id: "k2", name: "key" } }))
+		expect(ledger.entries().map((entry) => `${entry.entity} ${entry.id}`)).toEqual(["key k2"])
+		expect(ledger.unidentifiedCreates).toEqual([])
+	})
+
 	it("leaves teardown's and seeding's own traffic to them", async () => {
 		const { ledger, tracker } = setup()
 		await tracker.observe(exchange({ purpose: "teardown" }))

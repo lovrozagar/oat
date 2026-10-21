@@ -1,10 +1,12 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
+import { text } from "node:stream/consumers"
 import { afterEach, describe, expect, it } from "vitest"
 import { bearerSecurity } from "../../src/conformance/harness/security.ts"
 import type { SecurityConfig } from "../../src/config/types/security.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { run } from "../../src/runtime/run/index.ts"
+import { jsonBody } from "../support/json-body.ts"
 
 const DEFECT_VERDICTS = new Set(["BACKEND_BUG", "SECURITY", "SPEC_BUG"])
 
@@ -149,13 +151,10 @@ function write(res: ServerResponse, reply: Reply): void {
 	res.end(JSON.stringify(reply.body))
 }
 
-async function readHit(req: IncomingMessage, url: URL, method: string): Promise<Hit> {
-	const chunks: Buffer[] = []
-	for await (const chunk of req) chunks.push(chunk as Buffer)
-	const raw = Buffer.concat(chunks).toString("utf8")
-	const body = raw === "" ? {} : (JSON.parse(raw) as Record<string, unknown>)
+async function readHit(req: IncomingMessage, url: URL, method: string): Promise<Hit | undefined> {
+	const body = jsonBody(await text(req))
 	const token = typeof req.headers.authorization === "string" ? req.headers.authorization.slice(7).trim() : ""
-	return { body, method, path: url.pathname, token }
+	return body === undefined ? undefined : { body, method, path: url.pathname, token }
 }
 
 /** Serves `document` at /openapi.json and answers every other request by the first route that does, else `notFound`. */
@@ -166,6 +165,7 @@ async function listenRoutes(document: OpenApiDocument, routes: Route[], notFound
 			const method = (req.method ?? "GET").toUpperCase()
 			if (url.pathname === "/openapi.json" && method === "GET") return write(res, { body: document, status: 200 })
 			const hit = await readHit(req, url, method)
+			if (hit === undefined) return write(res, { body: { error: "malformed json" }, status: 400 })
 			for (const route of routes) {
 				const reply = route(hit)
 				if (reply !== undefined) return write(res, reply)

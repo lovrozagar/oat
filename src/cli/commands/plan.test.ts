@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { bufferWriter } from "../writer.ts"
-import { folder, notesConfig, notesSpec, signupConfig } from "../__fixtures__/files.ts"
+import { folder, notesConfig, notesSpec, referenceConfig, signupConfig } from "../__fixtures__/files.ts"
 import { commandPlan, targetedScope } from "./plan.ts"
 
 /* The test model, offline: in full, or narrowed to what --ops or --only (or the config) target. */
@@ -25,6 +25,17 @@ describe("commandPlan", () => {
 		const byOps = bufferWriter()
 		expect(await commandPlan(byOps, { config: notesConfig(folder(), { ops: ["notes.get"] }) })).toBe(0)
 		expect(byOps.text()).toContain("notes.get")
+	})
+
+	it("leaves out the entity whose operations mint and revoke the config's key, as a run does", async () => {
+		const writer = bufferWriter()
+		expect(await commandPlan(writer, { config: referenceConfig() })).toBe(0)
+		expect(writer.text()).toMatch(/ operations · 6 entities\n/)
+		expect(writer.text()).not.toContain("api-key")
+		const machine = bufferWriter()
+		await commandPlan(machine, { config: referenceConfig(), json: true })
+		const plan = JSON.parse(machine.text()) as { entities: Array<{ name: string }> }
+		expect(plan.entities.map((entity) => entity.name)).not.toContain("api-key")
 	})
 
 	it("leaves out the account a login signs up, as a run does", async () => {

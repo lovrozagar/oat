@@ -8,6 +8,7 @@ import { errorText } from "./errors.ts"
 import { createExclusion } from "./exclusion.ts"
 import { noteLateStop } from "./interrupt.ts"
 import { runLanes } from "./lanes.ts"
+import { runReadSecurity, runWriteSecurity } from "./security.ts"
 import { load } from "./load.ts"
 import { type OriginRuns, runSecondaryOrigins } from "./origins.ts"
 import { resolvePrincipals } from "./principals.ts"
@@ -17,7 +18,14 @@ import { scenarios } from "./scenarios.ts"
 import { planScope } from "./scope-plan.ts"
 import { serverErrors } from "./server-errors.ts"
 import { readVersion } from "./target-version.ts"
-import { reportUnremovable, revokeCredentials, teardownPrincipals, trackCreates, unwind } from "./teardown.ts"
+import {
+	reportUnremovable,
+	revokeCredentials,
+	revokeSessions,
+	teardownPrincipals,
+	trackCreates,
+	unwind,
+} from "./teardown.ts"
 import type { RunOptions, RunResult } from "./types.ts"
 import type { RunFindingId } from "../check-ids.ts"
 
@@ -49,8 +57,12 @@ async function runConnected(connected: Connected): Promise<RunResult> {
 	const ctx: RunContext = { ...authed, exclusion: createExclusion(authed), targetVersion: await readVersion(authed) }
 	trackCreates(ctx)
 	await publicGets(ctx)
+	/* Read-only security probes before the lanes; the write and mutating ones after, while the
+	 * records the lanes and disposable sessions created are still there to be targeted. */
+	await runReadSecurity(ctx)
 	await runLanes(ctx)
 	await disposable(ctx)
+	await runWriteSecurity(ctx)
 	await unwind(ctx)
 	await scenarios(ctx)
 	await contractFloor(ctx)
@@ -69,13 +81,14 @@ async function runConnected(connected: Connected): Promise<RunResult> {
 /**
  * The run's last calls, in this order: the secondary origins, which send its minted keys too; then
  * the revokes of every key minted; then the accounts it signed up, whose sessions those revokes
- * were sent with.
+ * were sent with; and last, the configured principals' own sessions, where the login declares how.
  */
 export async function closeOut(ctx: RunContext, runs: OriginRuns): Promise<void> {
 	const { options } = ctx
 	if ((options.origins ?? []).length > 0 && options.skipPrincipalTeardown !== true) await secondaryOrigins(ctx, runs)
 	await revokeCredentials(ctx)
 	await teardownPrincipals(ctx)
+	await revokeSessions(ctx)
 }
 
 async function secondaryOrigins(ctx: RunContext, runs: OriginRuns): Promise<void> {

@@ -1,7 +1,8 @@
-/** The document's `components`: its shared schemas and its security scheme. */
+/** The document's `components`: its shared schemas and its security schemes. */
 
 import { errorSchemas } from "./errors.ts"
 import { itemSchema, schemaName } from "./schemas.ts"
+import { SECURITY_SCHEMES } from "./security.ts"
 import type { Json, SpecContext } from "./types.ts"
 
 function componentSchemas(ctx: SpecContext): Json {
@@ -31,6 +32,6 @@ function componentSchemas(ctx: SpecContext): Json {
 export function components(ctx: SpecContext): Json {
 	return {
 		schemas: componentSchemas(ctx),
-		securitySchemes: { bearer: { bearerFormat: "JWT", scheme: "bearer", type: "http" } },
+		securitySchemes: SECURITY_SCHEMES,
 	}
 }

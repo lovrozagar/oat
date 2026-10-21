@@ -17,6 +17,11 @@ export interface StepAnswer {
 	cookies: Readonly<Record<string, string>>
 }
 
+/** How a credential hop is sent: `probe` when it is meant to be refused, so its exchange is labeled one. */
+export interface Hop {
+	probe?: true
+}
+
 /**
  * Runs login and refresh steps, each once: `bind`, `saveAs`, `saveClaimsFrom` and `outOfBand` as in a
  * scenario. It resolves with the scope the steps bound and the last answer, and rejects with an Error
@@ -25,7 +30,12 @@ export interface StepAnswer {
 export interface StepRunner {
 	run(
 		steps: readonly AuthStep[],
-		input: { principal: string; scope: Readonly<Record<string, string>> },
+		input: {
+			principal: string
+			scope: Readonly<Record<string, string>>
+			/** Where each answer holds a credential: registered as secrets before the answer is recorded. */
+			secrets?: readonly string[]
+		} & Hop,
 	): Promise<{ scope: Record<string, string>; answer: StepAnswer }>
 }
 
@@ -41,12 +51,19 @@ export interface OperationCaller {
 		body?: unknown
 		as: { principal: string; scheme: string }
 		scope?: Readonly<Record<string, string>>
+		/**
+		 * Send this value as the scheme's credential, placed and redacted like it, instead of what the
+		 * principal holds: the one session a revoke ends. Never renewed on a 401.
+		 */
+		value?: string
+		/** Where the answer holds a credential, as `from` addresses it: a secret before the answer is recorded. */
+		secrets?: readonly string[]
 	}): Promise<StepAnswer>
 }
 
 /** POSTs a form, `application/x-www-form-urlencoded`, to an OAuth 2 token URL. */
 export interface TokenPoster {
-	post(url: string, form: Readonly<Record<string, string>>): Promise<StepAnswer>
+	post(url: string, form: Readonly<Record<string, string>>, hop?: Hop): Promise<StepAnswer>
 }
 
 /** `hooks.resolveCredential`, as a `{ hook: true }` recipe calls it. */

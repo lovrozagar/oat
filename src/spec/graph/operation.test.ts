@@ -35,6 +35,8 @@ const FIELDS = [
 	"operationId",
 	"path",
 	"pathParams",
+	"privileged",
+	"privilegedRequired",
 	"query",
 	"conventions",
 	"queryParamNames",
@@ -91,6 +93,29 @@ describe("modelOperation", () => {
 			route: "POST /notes",
 			securitySchemes: ["jwt"],
 		})
+	})
+})
+
+describe("modelOperation privileged", () => {
+	it("names the request body properties marked x-privileged, and reports a misplaced marker", () => {
+		const body = {
+			properties: { name: { type: "string" }, verified: { type: "boolean", "x-privileged": true } },
+			type: "object",
+		}
+		const { gaps, operations } = operationsOf({
+			"/tables/{id}": {
+				patch: {
+					operationId: "table.update",
+					requestBody: { content: { "application/json": { schema: body } } },
+					responses: { "200": { description: "ok" } },
+					"x-privileged": true,
+				},
+			},
+		})
+		expect(operations[0]?.privileged).toEqual(["verified"])
+		expect(details(gaps, "x-privileged")).toEqual([
+			"x-privileged belongs on a request body property, not on the operation; oat cannot use it",
+		])
 	})
 })
 

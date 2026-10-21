@@ -222,6 +222,23 @@ describe("createCredentialSource: refresh", () => {
 	})
 })
 
+describe("createCredentialSource: a held value, sent as given", () => {
+	it("places it as the principal's own credential, its secrets named, and asks the store nothing", async () => {
+		const { calls, source } = sourceOf()
+		const actor = { principal: "alpha", scheme: "apiKey", value: "session-1" }
+		expect(await source.resolve({ route: ROUTE, actor })).toEqual({
+			kind: "held",
+			principal: "alpha",
+			schemes: ["apiKey"],
+			secrets: expect.objectContaining({ headers: ["Authorization"], values: expect.arrayContaining(["session-1"]) }),
+			sends: { apiKey: { cookies: {}, headers: { Authorization: "ApiKey session-1" }, query: {} } },
+		})
+		const unknown = await source.resolve({ route: ROUTE, actor: { ...actor, scheme: "nope" } })
+		expect(unknown).toEqual({ kind: "unsatisfied", reason: 'the document declares no "nope" scheme' })
+		expect(calls).toEqual([])
+	})
+})
+
 describe("createCredentialSource: forged", () => {
 	it("places a forged value exactly like the scheme's credential, under the config's format", async () => {
 		const { calls, source } = sourceOf()
@@ -237,6 +254,17 @@ describe("createCredentialSource: forged", () => {
 		expect(calls).toEqual([])
 	})
 
+	it("names what a derived value places as secrets, and a garbage one as none", async () => {
+		const { source } = sourceOf()
+		const derived = { forged: { derived: true, scheme: "apiKey", value: "derived-1" } } as const
+		expect(await source.resolve({ route: ROUTE, actor: derived })).toMatchObject({
+			kind: "forged",
+			secrets: { headers: ["Authorization"], values: expect.arrayContaining(["derived-1"]) },
+		})
+		const garbage = await source.resolve({ route: ROUTE, actor: { forged: { scheme: "apiKey", value: "x" } } })
+		expect(garbage).not.toHaveProperty("secrets")
+	})
+
 	it("cannot forge a scheme the document does not declare, or one oat cannot send", async () => {
 		const { source } = sourceOf()
 		const unknown = await source.resolve({ route: ROUTE, actor: { forged: { scheme: "nope", value: "f" } } })
@@ -249,6 +277,17 @@ describe("createCredentialSource: forged", () => {
 			kind: "unsatisfied",
 			reason: expect.stringMatching(/cannot send the "tls" scheme/),
 		})
+	})
+})
+
+describe("createCredentialSource: a dedicated credential's probe principal", () => {
+	it("acquires under the probe principal, and names the principal it was made for as the sender", async () => {
+		const { calls, source } = sourceOf({ principals: { ...principals, "alpha#probe-1": {} } })
+		const sent = sending(
+			await source.resolve({ route: ROUTE, actor: { principal: "alpha#probe-1", scheme: "apiKey" } }),
+		)
+		expect(sent.principal).toBe("alpha")
+		expect(calls).toEqual(["acquire alpha#probe-1 apiKey []"])
 	})
 })
 

@@ -1,6 +1,7 @@
 /** Sharing a table with another principal: invite, accept, revoke. */
 
-import { assertTenant, assertWrite, authenticate, findItem } from "../access.ts"
+import { assertTenant, assertWrite, findItem } from "../access.ts"
+import { authenticate } from "../auth/credentials.ts"
 import { readJson, requireJson } from "../body.ts"
 import { HttpError } from "../errors.ts"
 import { type Grant, PRINCIPALS } from "../state.ts"

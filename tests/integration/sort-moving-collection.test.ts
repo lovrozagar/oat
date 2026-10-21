@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { runCheck as planAndRun } from "../../src/runtime/checks/core/run.ts"
+import { entityChecks } from "../../src/runtime/checks/core/registry.ts"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"
 import { Client } from "../../src/client/client.ts"
 import { FindingCollector } from "../../src/runtime/finding.ts"
@@ -108,7 +109,7 @@ async function listen(handler: (req: IncomingMessage, res: ServerResponse) => vo
 }
 
 async function run(checkId: string, opts: { grows: boolean; shuffleTies?: boolean }): Promise<FindingCollector> {
-	const check = CHECKS.find((item) => item.id === checkId)
+	const check = entityChecks(CHECKS).find((item) => item.id === checkId)
 	if (check === undefined) throw new Error(`no check ${checkId}`)
 	const model = buildModel(dereference(spec()).doc)
 	const listOp = model.byOperationId.get("log.list")

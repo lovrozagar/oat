@@ -8,7 +8,7 @@ import type { PrincipalsConfig, SecurityConfig } from "../../config/types/securi
 import { bearer } from "../../reference/http/access.ts"
 import type { Handle } from "../../reference/http/node.ts"
 import type { ReferenceRequest, ReferenceResponse } from "../../reference/http/wire.ts"
-import { run } from "../../runtime/run/index.ts"
+import { run } from "../harness/counting.ts"
 import type { RunResult } from "../../runtime/run/types.ts"
 import { readUnique } from "../../spec/extensions/unique.ts"
 import type { OpenApiDocument, OperationObject } from "../../spec/types.ts"

@@ -110,6 +110,7 @@ export function runPrincipal(store: CredentialStore, id: string): RunPrincipal {
 		scope,
 		...(tenant === undefined ? {} : { tenant }),
 		...(entry.inviteAs === undefined ? {} : { inviteAs: entry.inviteAs }),
+		...(entry.readOnly === true ? { readOnly: true } : {}),
 	}
 }
 

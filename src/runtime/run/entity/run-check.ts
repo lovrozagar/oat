@@ -1,5 +1,7 @@
 import { MissingValueError } from "../../../errors/missing-value.ts"
 import type { WriteContext } from "../../checks/core/context.ts"
+import type { Check } from "../../checks/core/check.ts"
+import { entityChecks } from "../../checks/core/registry.ts"
 import { checkSalts } from "../../checks/core/run.ts"
 import { CHECKS } from "../../checks/registry.ts"
 import type { Client } from "../../../client/client.ts"
@@ -12,7 +14,7 @@ import type { EntityRun } from "./state.ts"
 import { messageOf } from "../../../errors/message.ts"
 import type { RunFindingId } from "../../check-ids.ts"
 
-export type Check = (typeof CHECKS)[number]
+export type { Check }
 
 /** One entity's check run: what each check grades, what its plan gathered, how each ended. */
 export interface CheckLoop {
@@ -93,7 +95,7 @@ function viewFor(
 		client: check.mutates === true ? client.view(stamp) : (client.readOnlyView(stamp) as Client),
 		findings: attributed.ownedBy(check.id),
 		judged,
-		nextSalt: checkSalts(CHECKS.indexOf(check), loop.run.index),
+		nextSalt: checkSalts(saltIndex(check), loop.run.index),
 	}
 }
 
@@ -198,6 +200,14 @@ function judge(run: EntityRun, check: Check, subjects: Ended): void {
  * What a check that stands down for want of cohort data needed, naming the variants that never
  * arrived: the gap points at the seed rather than the API.
  */
+/**
+ * The check's place among the entity checks, which its salts are drawn from. Operation checks are
+ * left out, so registering one never moves an entity check's salts, nor what that check sends.
+ */
+export function saltIndex(check: Check): number {
+	return entityChecks(CHECKS).indexOf(check)
+}
+
 export function withLostVariants(run: EntityRun, needs: string): string {
 	const lost = run.lostVariants
 	if (lost.length === 0 || !/cohort|record/.test(needs)) return needs

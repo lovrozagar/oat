@@ -6,13 +6,17 @@ import { components } from "./components.ts"
 import { itemSchema } from "./schemas.ts"
 
 describe("components", () => {
-	it("declares the error schemas, the shared Point and recursive TreeNode, and bearer auth", () => {
-		const declared = components({ entities: ENTITIES, shape: {} }) as { schemas: Record<string, unknown> }
+	it("declares the error schemas, the shared Point and recursive TreeNode, and the jwt and apiKey schemes", () => {
+		const declared = components({ entities: ENTITIES, shape: {} }) as {
+			schemas: Record<string, unknown>
+			securitySchemes: unknown
+		}
 		expect(Object.keys(declared.schemas).slice(-3)).toEqual(["Error", "Point", "TreeNode"])
 		expect(declared.schemas.TreeNode).toHaveProperty("properties.children.items", {
 			$ref: "#/components/schemas/TreeNode",
 		})
-		expect(declared).toHaveProperty("securitySchemes.bearer", { bearerFormat: "JWT", scheme: "bearer", type: "http" })
+		expect(Object.keys(declared.securitySchemes as object)).toEqual(["apiKey", "jwt"])
+		expect(declared).toHaveProperty("securitySchemes.jwt", { bearerFormat: "JWT", scheme: "bearer", type: "http" })
 	})
 
 	it("declares each entity's record schema under the layout shape", () => {

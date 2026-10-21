@@ -9,7 +9,8 @@ import type { Dialect } from "../dialect/types.ts"
 import { POSTGREST } from "../dialect/presets.ts"
 import { ENTITIES } from "../model/entities.ts"
 import type { EntityDef } from "../model/types.ts"
-import { authTokenPaths, callerProfilePaths, callerRootPaths } from "./caller.ts"
+import { authPaths } from "./auth.ts"
+import { callerProfilePaths, callerRootPaths } from "./caller.ts"
 import { collectionPathItem } from "./collection.ts"
 import { components } from "./components.ts"
 import { invitePaths } from "./invites.ts"
@@ -17,6 +18,7 @@ import { itemPathItem } from "./item.ts"
 import { jobPaths } from "./jobs.ts"
 import { hoistPathParameters } from "./layout.ts"
 import { noticePaths, publicReadPaths } from "./public.ts"
+import { ROOT_SECURITY, securedByEntity } from "./security.ts"
 import type { Json, SpecContext } from "./types.ts"
 
 export type { SpecContext } from "./types.ts"
@@ -31,18 +33,18 @@ function buildPaths(ctx: SpecContext, dialect: Dialect): Json {
 	const paths: Json = {}
 	for (const entity of ctx.entities) {
 		Object.assign(paths, {
-			[entity.collectionPath]: collectionPathItem(ctx, entity, dialect),
-			[entity.itemPath]: itemPathItem(ctx, entity),
+			[entity.collectionPath]: securedByEntity(entity, collectionPathItem(ctx, entity, dialect)),
+			[entity.itemPath]: securedByEntity(entity, itemPathItem(ctx, entity)),
 		})
 	}
 	Object.assign(paths, callerProfilePaths(ctx), publicReadPaths(ctx), noticePaths(ctx), callerRootPaths(ctx))
 	Object.assign(paths, invitePaths(ctx, entityNamed(ctx, "table")), jobPaths(ctx, entityNamed(ctx, "job")))
-	return Object.assign(paths, authTokenPaths(ctx))
+	return Object.assign(paths, authPaths(ctx))
 }
 
 export function buildSpec(dialect: Dialect = POSTGREST, ctx: SpecContext = DEFAULT_CONTEXT): Json {
 	const paths = buildPaths(ctx, dialect)
-	const rest = { security: [{ bearer: [] }] }
+	const rest = { security: ROOT_SECURITY }
 	const head = { info: { title: "oat reference backend", version: "1.0.0" }, openapi: "3.1.0" }
 	/* Key order is the layout: a document is free to define its components before its paths, and
 	 * to declare path parameters once on the path item rather than on every operation. */

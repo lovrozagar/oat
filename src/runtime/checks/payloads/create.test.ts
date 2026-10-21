@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { Responder } from "../__fixtures__/harness.ts"
 import { notesContext } from "../query/__fixtures__/notes.ts"
-import { createFresh } from "./create.ts"
+import { createFresh, type Fresh } from "./create.ts"
 
 /*
  * A create meant to succeed. A client-chosen identity oat never saw can still be taken by another
@@ -16,6 +16,12 @@ const answering =
 	(...statuses: number[]): Responder =>
 	() => ({ status: statuses.shift() ?? 201 })
 
+/* The create a test expects was sent. */
+function sentOf(fresh: Fresh): Extract<Fresh, { exchange: unknown }> {
+	if ("withheld" in fresh) throw new Error(fresh.withheld)
+	return fresh
+}
+
 function setup(respond: Responder, tracked: boolean) {
 	const { ctx, sent } = notesContext(respond, tracked ? { takenIdentities: new Set<string>() } : {})
 	const createOp = ctx.createOp
@@ -26,7 +32,7 @@ function setup(respond: Responder, tracked: boolean) {
 describe("createFresh", () => {
 	it("posts one valid body to the create's path as the principal given", async () => {
 		const { createOp, ctx, sent } = setup(answering(201), false)
-		const made = await createFresh(ctx, createOp, WITHOUT_ID, "a")
+		const made = sentOf(await createFresh(ctx, createOp, WITHOUT_ID, "a"))
 		expect(made.exchange.status).toBe(201)
 		expect(sent).toHaveLength(1)
 		expect(sent[0]).toMatchObject({
@@ -38,7 +44,7 @@ describe("createFresh", () => {
 
 	it("tries another client-chosen identity on a 409", async () => {
 		const { createOp, ctx, sent } = setup(answering(409, 201), true)
-		const made = await createFresh(ctx, createOp, WITH_ID, "alpha")
+		const made = sentOf(await createFresh(ctx, createOp, WITH_ID, "alpha"))
 		expect(made.exchange.status).toBe(201)
 		expect(sent).toHaveLength(2)
 		const ids = sent.map((request) => (request.options.body as { id: string }).id)
@@ -48,7 +54,7 @@ describe("createFresh", () => {
 
 	it("gives the 409 back after three identities, says why, and keeps every refused one taken", async () => {
 		const { createOp, ctx, sent } = setup(answering(409, 409, 409, 201), true)
-		const made = await createFresh(ctx, createOp, WITH_ID, "alpha")
+		const made = sentOf(await createFresh(ctx, createOp, WITH_ID, "alpha"))
 		const ids = sent.map((request) => (request.options.body as { id: string }).id)
 		expect(made.exchange.status).toBe(409)
 		expect(sent).toHaveLength(3)
@@ -61,22 +67,42 @@ describe("createFresh", () => {
 	it("draws its fresh identities without a nonce when the run has none", async () => {
 		const { createOp, ctx, sent } = setup(answering(409, 201), true)
 		delete (ctx as { nonce?: string }).nonce
-		expect((await createFresh(ctx, createOp, WITH_ID, "alpha")).exchange.status).toBe(201)
+		expect(sentOf(await createFresh(ctx, createOp, WITH_ID, "alpha")).exchange.status).toBe(201)
 		expect(sent).toHaveLength(2)
 	})
 
 	it("gives a 409 straight back when oat does not choose the identity", async () => {
 		const untracked = setup(answering(409), false)
-		expect((await createFresh(untracked.ctx, untracked.createOp, WITH_ID, "alpha")).exchange.status).toBe(409)
+		expect(sentOf(await createFresh(untracked.ctx, untracked.createOp, WITH_ID, "alpha")).exchange.status).toBe(409)
 		expect(untracked.sent).toHaveLength(1)
 		const noId = setup(answering(409), true)
-		expect((await createFresh(noId.ctx, noId.createOp, WITHOUT_ID, "alpha")).exchange.status).toBe(409)
+		expect(sentOf(await createFresh(noId.ctx, noId.createOp, WITHOUT_ID, "alpha")).exchange.status).toBe(409)
 		expect(noId.sent).toHaveLength(1)
 	})
 
 	it("gives any other refusal straight back", async () => {
 		const { createOp, ctx, sent } = setup(answering(422), true)
-		expect((await createFresh(ctx, createOp, WITH_ID, "alpha")).exchange.status).toBe(422)
+		expect(sentOf(await createFresh(ctx, createOp, WITH_ID, "alpha")).exchange.status).toBe(422)
 		expect(sent).toHaveLength(1)
+	})
+})
+
+describe("createFresh as a principal a higher rank outranks", () => {
+	it("withholds a create a higher rank alone may send, sending nothing", async () => {
+		const { createOp, ctx, sent } = setup(answering(201), false)
+		const ranked = {
+			...ctx,
+			actors: [
+				{ ...ctx.actor, id: "top", rank: 2 },
+				{ ...ctx.actor, id: "low", rank: 0 },
+			],
+		}
+		const required = { ...createOp, privilegedRequired: ["name"] }
+		expect(await createFresh(ranked, required, WITHOUT_ID, "low")).toEqual({
+			withheld:
+				"note.create requires name, marked x-privileged, which only top (rank 2) may set; low (rank 0) does not send it",
+		})
+		expect(sent).toEqual([])
+		expect("exchange" in (await createFresh(ranked, required, WITHOUT_ID, "top"))).toBe(true)
 	})
 })

@@ -1,0 +1,85 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "1 root-cause finding",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "auth.anonymous-operation-open"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 1,
+            "operationId": "auth.login",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 0,
+            "operationId": "auth.login",
+            "reason": "graded by checks, but no request to auth.login succeeded",
+            "status": "untested",
+            "why": "graded by checks, but no request to auth.login succeeded"
+          }
+        ]
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "auth.anonymous-operation-open",
+          "detail": "auth.login answered 401 to a request with no credential, though the document declares it open. The body was malformed JSON, so the refusal came before the body was read.",
+          "entity": "auth.login",
+          "operations": [
+            "auth.login"
+          ],
+          "evidence": [
+            {
+              "method": "POST",
+              "status": 401,
+              "url": "http://reference.test/v1/auth/login"
+            }
+          ],
+          "summary": "an operation the document declares open demanded a credential",
+          "verdict": "BACKEND_BUG"
+        }
+      ]
+    },
+    "summary": {
+      "BACKEND_BUG": {
+        "now": 1,
+        "was": null
+      }
+    }
+  }
+}

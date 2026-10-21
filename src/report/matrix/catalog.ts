@@ -3,6 +3,7 @@
  * every check grouped into the strips the poster lists.
  */
 
+import { entityChecks } from "../../runtime/checks/core/registry.ts"
 import { CHECKS } from "../../runtime/checks/registry.ts"
 import type { MatrixGraphEdge, MatrixLayer } from "./types.ts"
 
@@ -169,7 +170,7 @@ export function checkCatalog(): CheckCatalog {
 	const stripOf = new Map(STRIPS.flatMap((strip) => strip.ids.map((id) => [id, strip] as const)))
 	return {
 		edges: [
-			...CHECKS.flatMap((check) =>
+			...entityChecks(CHECKS).flatMap((check) =>
 				(check.dependsOn ?? []).map((dep): MatrixGraphEdge => ({ from: dep, kind: "dependsOn", to: check.id })),
 			),
 			...USES.map((use): MatrixGraphEdge => ({ ...use, kind: "uses" })),

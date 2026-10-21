@@ -40,7 +40,12 @@ export class Ids {
 	}
 
 	note(entity: EntityDef, id: unknown): void {
-		if (this.serving) (this.caused[entity.name] ??= []).push(String(id))
+		this.noteNamed(entity.name, id)
+	}
+
+	/** Like `note`, for what the server issues outside the entity model, such as an API key. */
+	noteNamed(name: string, id: unknown): void {
+		if (this.serving) (this.caused[name] ??= []).push(String(id))
 	}
 
 	now(): number {

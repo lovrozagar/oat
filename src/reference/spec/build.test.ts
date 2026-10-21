@@ -28,7 +28,7 @@ describe("buildSpec", () => {
 		expect(spec).toMatchObject({ info: { title: "oat reference backend", version: "1.0.0" }, openapi: "3.1.0" })
 	})
 
-	it("routes every entity, then the caller, public, invite, job and token routes", () => {
+	it("routes every entity, then the caller, public, invite, job, auth and API key routes", () => {
 		const routes = Object.keys(spec.paths as Json)
 		expect(routes.slice(0, 6)).toEqual([TABLE, ROW, JOB].flatMap((entity) => [entity.collectionPath, entity.itemPath]))
 		expect(routes.slice(6)).toEqual([
@@ -46,15 +46,43 @@ describe("buildSpec", () => {
 			"/v1/projects/{project_id}/notifications",
 			"/v1/projects/{project_id}/inbox",
 			"/v1/auth/token",
+			"/v1/auth/login",
+			"/v1/auth/refresh",
+			"/v1/auth/revoke",
+			"/v1/api-keys",
+			"/v1/api-keys/{id}",
 		])
 	})
+})
 
-	it("declares bearer auth, and leaves how to obtain it to the config's recipe", () => {
+describe("buildSpec security", () => {
+	const spec = buildSpec()
+
+	it("declares jwt auth at the root, and leaves how to obtain it to the config's recipe", () => {
 		expect(Object.keys(spec)).toEqual(["info", "openapi", "paths", "components", "security"])
-		expect(spec.security).toEqual([{ bearer: [] }])
+		expect(spec.security).toEqual([{ jwt: [] }])
 		expect(spec).not.toHaveProperty("x-auth-flows")
 	})
 
+	it("lets each record operation take a jwt or an API key scoped to its entity and access", () => {
+		const paths = spec.paths as Record<string, Record<string, Json>>
+		expect(paths[TABLE.collectionPath]?.get?.security).toEqual([{ jwt: [] }, { apiKey: ["table:read"] }])
+		expect(paths[ROW.collectionPath]?.post?.security).toEqual([{ jwt: [] }, { apiKey: ["row:write"] }])
+		expect(paths[JOB.itemPath]?.delete?.security).toEqual([{ jwt: [] }, { apiKey: ["job:write"] }])
+		expect(paths["/v1/me"]?.get).not.toHaveProperty("security")
+		expect(paths["/health"]?.get?.security).toEqual([])
+	})
+
+	it("marks the table's verified flag x-privileged", () => {
+		const table = (spec.paths as Record<string, Record<string, Json>>)[TABLE.itemPath]?.get
+		expect(table).toHaveProperty("responses.200.content.application/json.schema.properties.verified", {
+			type: "boolean",
+			"x-privileged": true,
+		})
+	})
+})
+
+describe("buildSpec dialects and layout", () => {
 	it("follows the dialect it is given", () => {
 		const linked = buildSpec(LINKED)
 		expect(linked).toHaveProperty(["paths", TABLE.collectionPath, "get", "responses", "200", "headers", "Link"])
@@ -81,7 +109,7 @@ describe("buildUntaggedSpec", () => {
 	it("keeps everything else, nulls and arrays included", () => {
 		const untagged = buildUntaggedSpec(POSTGREST, { entities: ENTITIES, shape: {} })
 		expect(untagged.paths).toHaveProperty([TABLE.collectionPath, "get", "operationId"], "table.list")
-		expect(untagged.security).toEqual([{ bearer: [] }])
+		expect(untagged.security).toEqual([{ jwt: [] }])
 		expect(untagged).not.toHaveProperty("x-auth-flows")
 	})
 })

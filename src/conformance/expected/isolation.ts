@@ -18,11 +18,22 @@ export const ISOLATION_EXPECTED = {
 		 * blocks it: the defect's own consequence, named, not a second defect. */
 		"auth.blocked",
 	],
-	ROOT_READ_OPEN: "read.matches-caller-root",
+	ROOT_READ_OPEN: [
+		"read.matches-caller-root",
+		/* A root read open to every caller is open to a caller with no credential, a bad one, or
+		 * another scheme's: the security probes on that route see the same hole. */
+		"auth.missing-credential-refused",
+		"auth.invalid-credential-refused",
+		"auth.wrong-scheme-refused",
+	],
 	ROLE_MONOTONICITY_BROKEN: "auth.rank-is-monotonic",
 	INVITE_NEVER_GRANTS: "auth.invite-grants-then-revokes",
 	REVOKE_IGNORED: "auth.invite-grants-then-revokes",
 	CROSS_TENANT_WRITE: "tenant.item-not-writable-cross-tenant",
-	ROLE_WRITE_INVERTED: "auth.rank-is-monotonic-on-writes",
+	ROLE_WRITE_INVERTED: [
+		"auth.rank-is-monotonic-on-writes",
+		/* The lowest rank writing where a higher one cannot is the read-only viewer's write accepted. */
+		"auth.role-enforced",
+	],
 	FOREIGN_PARENT_ACCEPTED: "tenant.parent-not-reachable-from-another-root",
 } satisfies Partial<Record<DefectName, FindingId | FindingId[]>>

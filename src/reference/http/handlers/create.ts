@@ -4,6 +4,7 @@ import type { Row } from "../../store-api.ts"
 import { assertWrite } from "../access.ts"
 import { readJson, requireForm, requireJson } from "../body.ts"
 import { HttpError } from "../errors.ts"
+import { assertPrivileged } from "../privileged.ts"
 import { answerCreated, present, snapshotKey, withDefaults } from "../records.ts"
 import { type ReferenceState, TENANT_FIELD } from "../state.ts"
 import { assertUnique, liveRows, refreshParentCount } from "../store-ops.ts"
@@ -40,6 +41,7 @@ export async function create(
 		throw new Error("encoding error: could not write row")
 	}
 	const input = validateBody(received, { defects, entity, mode: "create" })
+	assertPrivileged(state, call, input)
 	const scope = { ...call.scope, project_id: principal.projectId }
 	const key = snapshotKey(entity, call.scope)
 	if (defects.has("STALE_LIST") && !state.staleSnapshot.has(key)) {

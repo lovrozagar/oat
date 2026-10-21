@@ -5,7 +5,7 @@ import { memoryStore } from "./engines.ts"
 import { createReferenceServer } from "./server.ts"
 import { PRINCIPALS } from "./state.ts"
 
-const owner = { authorization: "Bearer tok_alpha", "content-type": "application/json" }
+const JSON_TYPE = { "content-type": "application/json" }
 
 describe("createReferenceServer", () => {
 	it("serves the reference on a local port, under the shape's base path", async () => {
@@ -19,6 +19,16 @@ describe("createReferenceServer", () => {
 		expect(reference.principals).toBe(PRINCIPALS)
 		expect(reference.defects.list()).toEqual(["STALE_LIST"])
 		const listener = (servers[0] as FakeServer).listener
+		const signedIn = await serve(listener, {
+			chunks: [JSON.stringify({ key: "key_alpha" })],
+			headers: JSON_TYPE,
+			method: "POST",
+			url: "/api/v1/auth/token",
+		})
+		const owner = {
+			...JSON_TYPE,
+			authorization: `Bearer ${(JSON.parse(signedIn.body) as { access_token: string }).access_token}`,
+		}
 		const created = await serve(listener, {
 			chunks: [JSON.stringify({ name: "t" })],
 			headers: owner,

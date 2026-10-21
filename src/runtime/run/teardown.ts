@@ -6,7 +6,10 @@ import { messageOf } from "../../errors/message.ts"
 import type { RunFindingId } from "../check-ids.ts"
 import { createdByRun } from "./principals.ts"
 
-/** Every create a configured principal sends is ledgered as it, whichever view sent it. */
+/**
+ * Every create a configured principal sends is ledgered as it, whichever view sent it; a probe's POST
+ * that carried no principal's credential and was let through, as the first principal's.
+ */
 export function trackCreates(ctx: RunContext): void {
 	const { client, ledger, model, principals, state, exclusion } = ctx
 	const tracker = createTracker({
@@ -21,6 +24,9 @@ export function trackCreates(ctx: RunContext): void {
 			]),
 		),
 		readable: exclusion.readable,
+		/* A probe write a backend let through with no credential is applied all the same: the first
+		 * principal reads it back and removes it, or teardown reports it as a record that may remain. */
+		stranger: { owner: principals.ownerOf(principals.alpha), roots: { ...principals.alpha.scope } },
 	})
 	client.setAfterExchange(tracker.observe)
 }
@@ -102,7 +108,26 @@ export function reportUnremovable({ state, findings }: RunContext): void {
  */
 export async function revokeCredentials({ options, store, state }: RunContext): Promise<void> {
 	if (options.sharedCredentials !== undefined) return
-	const failures = await store.revokeAll()
+	recordUnrevoked(state, await store.revokeAll())
+}
+
+/**
+ * The run's very last calls: each configured principal's own login session, ended by the login's
+ * declared `revoke`, after teardownPrincipal is done with it. A principal the run made is gone with
+ * its account already. With no declared revoke nothing is sent, and `--keep-credentials` keeps the
+ * sessions for the commands that replay them. A secondary origin's run leaves it to the primary.
+ */
+export async function revokeSessions(ctx: RunContext): Promise<void> {
+	const { options, store, state } = ctx
+	if (options.keepCredentials === true || options.sharedCredentials !== undefined) return
+	recordUnrevoked(state, await store.revokeSessions((principal) => !createdByRun(ctx, principal)))
+}
+
+/* Each revoke that failed is a credential the run could not remove. */
+function recordUnrevoked(
+	state: RunContext["state"],
+	failures: ReadonlyArray<{ principal: string; scheme: string; reason: string }>,
+): void {
 	if (failures.length === 0) return
 	const failed = failures.map(({ principal, reason, scheme }) => ({
 		entity: "credential",

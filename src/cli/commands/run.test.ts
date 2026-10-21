@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest"
 import { UsageError } from "../../errors/usage-error.ts"
 import { EXIT } from "../../runtime/exit.ts"
 import { FencedError } from "../../runtime/fence.ts"
-import { notesApi, optionsFor } from "../../runtime/run/__fixtures__/api.ts"
+import { bearerOnly, notesApi, optionsFor } from "../../runtime/run/__fixtures__/api.ts"
 import type { RunOptions } from "../../runtime/run/index.ts"
 import { bufferWriter } from "../writer.ts"
 import { folder, json, notesConfig } from "../__fixtures__/files.ts"
@@ -31,10 +31,13 @@ function signals() {
 	return { emitter, source }
 }
 
-/** The real run, its requests through the notes API; `during` sees the options as it starts. */
+/**
+ * The real run, its requests through the notes API behind the token `notesConfig` sends, so a clean
+ * run is clean on security too; `during` sees the options as it starts.
+ */
 function deps(during: (options: RunOptions) => void = () => undefined): RunDeps & { asked: RunOptions[] } {
 	const asked: RunOptions[] = []
-	const transport = optionsFor(notesApi()).network
+	const transport = optionsFor(bearerOnly(notesApi(), "t")).network
 	return {
 		asked,
 		run: async (options) => {

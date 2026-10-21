@@ -42,6 +42,9 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.wrong-scheme-refused",
                 "response.status-is-documented"
               ],
               "suppressed": []
@@ -64,14 +67,16 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
-                "effects.side-effect-arrives",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.wrong-scheme-refused",
                 "response.status-is-documented"
               ],
               "suppressed": []
             },
             "entity": "job",
             "findings": 0,
-            "operationId": "job.notify",
+            "operationId": "job.inbox",
             "reason": null,
             "status": "passed",
             "evidence": {},
@@ -85,13 +90,14 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "effects.side-effect-arrives",
                 "response.status-is-documented"
               ],
               "suppressed": []
             },
             "entity": "job",
             "findings": 0,
-            "operationId": "job.inbox",
+            "operationId": "job.notify",
             "reason": null,
             "status": "passed",
             "evidence": {},

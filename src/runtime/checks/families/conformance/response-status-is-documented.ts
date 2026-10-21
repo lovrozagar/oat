@@ -1,4 +1,5 @@
 import { defineCheck } from "../../core/define.ts"
+import { judges } from "../../../probe-judging.ts"
 import { documentsStatus, readStatuses } from "../../../../spec/graph/statuses.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { OperationObject } from "../../../../spec/types.ts"
@@ -88,6 +89,8 @@ export const documentedStatusHonoured = defineCheck({
 		const probes = new Map<string, Exchange[]>()
 		const observed = new Set<string>()
 		for (const listed of ctx.client.exchangesForEntity(ctx.entityName)) {
+			/* A security probe's answer is the security checks' to judge; see probe-judging.ts. */
+			if (!judges(this.id, listed)) continue
 			const reading = await readExchange(ctx, listed)
 			if (reading === null) continue
 			observed.add(reading.operationId)

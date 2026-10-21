@@ -33,6 +33,53 @@ function seeding(respond: Responder, table: Record<string, unknown> = {}, option
 	}
 }
 
+/* A backend that refuses a member's body naming "verified": only its admin may set it. */
+const adminSetsVerified: Responder = (method, _path, options) => {
+	if (method !== "POST") return undefined
+	const named = typeof options.body === "object" && options.body !== null && "verified" in options.body
+	return named
+		? { body: { message: 'only admin may set "verified"' }, status: 403 }
+		: { body: { id: "t1" }, status: 201 }
+}
+
+const verifiedBody = (required: string[]) => ({
+	requestBody: {
+		content: {
+			"application/json": {
+				schema: {
+					properties: { name: { type: "string" }, verified: { type: "boolean", "x-privileged": true } },
+					required: ["name", ...required],
+					type: "object",
+				},
+			},
+		},
+	},
+})
+
+/* Withholds every create, as a lower rank's create of a body that requires a privileged property is. */
+const barred = () => "table.create requires verified, marked x-privileged"
+
+describe("createOne: a property only the highest rank may set", () => {
+	it("leaves an optional x-privileged property out of a member's create, which succeeds", async () => {
+		const run = seeding(adminSetsVerified, verifiedBody([]), { principal: "alpha_member" })
+		expect(await createOne(run.createOp, run.seeding, scope)).toEqual({ adopted: false, record: { id: "t1" } })
+		expect(run.sent[0]?.options.body).not.toHaveProperty("verified")
+	})
+
+	it("never sends a create whose body requires one as a principal it withholds, and says why", async () => {
+		const run = seeding(adminSetsVerified, verifiedBody(["verified"]), { principal: "alpha_member", withheld: barred })
+		await expect(createOne(run.createOp, run.seeding, scope)).rejects.toThrow(
+			new SeedError("table.create", "table.create requires verified, marked x-privileged"),
+		)
+		expect(run.sent).toEqual([])
+		const top = seeding(() => ({ body: { id: "t1" }, status: 201 }), verifiedBody(["verified"]), {
+			withheld: () => undefined,
+		})
+		await createOne(top.createOp, top.seeding, scope)
+		expect(top.sent[0]?.options.body).toHaveProperty("verified")
+	})
+})
+
 describe("createOne", () => {
 	it("creates the ancestor and reads the record it answers with", async () => {
 		const run = seeding((method) => (method === "POST" ? { body: { id: "t1", name: "x" }, status: 201 } : undefined))

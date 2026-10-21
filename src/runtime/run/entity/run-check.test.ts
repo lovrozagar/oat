@@ -6,7 +6,9 @@ import { checkOf, loopOf } from "../__fixtures__/checks.ts"
 import { contextOf, notesApi, optionsFor, outage } from "../__fixtures__/api.ts"
 import type { Client } from "../../../client/client.ts"
 import type { CheckSpec } from "../__fixtures__/checks.ts"
-import { runCheck, withLostVariants } from "./run-check.ts"
+import { entityChecks } from "../../checks/core/registry.ts"
+import { CHECKS } from "../../checks/registry.ts"
+import { runCheck, saltIndex, withLostVariants } from "./run-check.ts"
 
 /*
  * One check on one entity: it runs with a view of its own, its outcome is what it reported, an
@@ -162,5 +164,13 @@ describe("withLostVariants", () => {
 		expect(withLostVariants(run, "a record")).toBe(
 			'a record (the cohort is missing its "min", "max" variants, which failed to seed)',
 		)
+	})
+})
+
+describe("saltIndex", () => {
+	it("is a check's place among the entity checks, so an operation check registered before it moves no salt", () => {
+		const entity = entityChecks(CHECKS)
+		expect(CHECKS.some((check) => check.subject === "operation")).toBe(true)
+		entity.forEach((check, index) => expect(saltIndex(check)).toBe(index))
 	})
 })

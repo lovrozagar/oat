@@ -13,6 +13,7 @@ import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { type ProvenId, answeredId, listedIds } from "../../src/runtime/proven-id.ts"
 import { Redactor } from "../../src/security/redact.ts"
 import { actingClient } from "../support/acting-client.ts"
+import { JWT_LOGIN } from "../support/reference-auth.ts"
 
 /* Ids as the backend gave them back; the ledger takes nothing else. */
 function proven(id: ProvenId | undefined): ProvenId {
@@ -37,8 +38,8 @@ describe("teardown", () => {
 			const client = actingClient({
 				baseUrl: server.url,
 				model,
-				principals: { alpha: {} },
-				security: { bearer: { static: "tok_alpha" } },
+				principals: PRINCIPALS,
+				security: JWT_LOGIN,
 			})
 			const table = await client.request("POST", "/v1/projects/proj_alpha/tables", {
 				as: { principal: "alpha" },

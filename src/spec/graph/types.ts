@@ -32,6 +32,13 @@ export interface OperationModel {
 	/** Whether tenancy was declared via `x-tenant` or merely guessed from the path. */
 	tenantSource: "tag" | "heuristic" | null
 	pathParams: string[]
+	/**
+	 * Request body properties marked `x-privileged: true`, nested ones by dotted path: only the
+	 * highest-rank principal may set them.
+	 */
+	privileged: string[]
+	/** The `privileged` paths the body requires: a create only the highest rank can send. */
+	privilegedRequired: string[]
 	rootParams: string[]
 	queryParamNames: string[]
 	/**

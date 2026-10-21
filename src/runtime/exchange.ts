@@ -63,8 +63,16 @@ export interface Exchange {
 	schemes?: string[]
 	/** Set when the credential was forged on purpose: a probe that expects the backend to refuse it. */
 	forged?: true
+	/**
+	 * Sent as a probe: meant to be refused (`probe: true`). A forged credential is a probe too, and says
+	 * so in `forged`. A dedicated credential alone is not: the contract floor's calls with one are
+	 * ordinary traffic. A probe's answer is the security checks' to judge.
+	 */
+	probe?: true
 	/** Why oat sent it — see `Purpose`. */
 	purpose?: Purpose
+	/** Sent by the credential store's own ports (a login, a mint, a revoke): what it issues is the store's. */
+	issuedBy?: "credentials"
 	/** The check that issued it, when a check did. */
 	check?: string
 	/** The entity under test when it was issued. */

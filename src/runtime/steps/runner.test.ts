@@ -26,6 +26,18 @@ describe("stepRunner", () => {
 		expect(sent[0]?.options.body).toEqual({ user: "b" })
 	})
 
+	it("sends a real exchange of each step, and labels every hop a probe only when asked, as a replay is", async () => {
+		const { ctx, sent } = stepStage(() => ({ body: { token: "t1" }, status: 200 }))
+		const runner = stepRunner(ctx)
+		await runner.run([{ operationId: "auth.token" }], { principal: "bob", scope: {} })
+		await runner.run([{ operationId: "auth.token" }, { operationId: "auth.token" }], {
+			principal: "bob",
+			probe: true,
+			scope: {},
+		})
+		expect(sent.map((request) => request.options.probe)).toEqual([undefined, true, true])
+	})
+
 	it("labels a failure with the principal it ran for", async () => {
 		const { ctx } = stepStage(() => ({ status: 500 }))
 		await expect(stepRunner(ctx).run([{ operationId: "ping" }], { principal: "bob", scope: {} })).rejects.toThrow(

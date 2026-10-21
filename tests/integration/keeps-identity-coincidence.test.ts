@@ -1,6 +1,7 @@
 import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
+import { entityChecks } from "../../src/runtime/checks/core/registry.ts"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"
 import { Client } from "../../src/client/client.ts"
 import { FindingCollector } from "../../src/runtime/finding.ts"
@@ -114,7 +115,7 @@ describe("create.keeps-submitted-identity", () => {
 			model,
 			readOp,
 		})
-		const check = CHECKS.find((candidate) => candidate.id === "create.keeps-submitted-identity")
+		const check = entityChecks(CHECKS).find((candidate) => candidate.id === "create.keeps-submitted-identity")
 		if (check === undefined) throw new Error("no check")
 		const planned = check.plan(ctx)
 		expect(planned.ok).toBe(true)

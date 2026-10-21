@@ -1,4 +1,4 @@
-import { run } from "../../runtime/run/index.ts"
+import { run } from "../harness/counting.ts"
 import { launch, reach, type Via } from "../harness/launch.ts"
 import type { ParserResult } from "../harness/result.ts"
 import { PRINCIPALS, SECURITY } from "../matrix/principals.ts"

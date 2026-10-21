@@ -320,6 +320,38 @@ describe("generateBody's partial bodies", () => {
 	})
 })
 
+/* A body schema with an optional x-privileged property, a nested one, and `required` besides. */
+const marked = (required: string[]) => ({
+	properties: {
+		name: { type: "string" },
+		nested: {
+			properties: { plan: { type: "string", "x-privileged": true }, title: { type: "string" } },
+			required: ["title"],
+			type: "object",
+		},
+		verified: { type: "boolean", "x-privileged": true },
+	},
+	required: ["name", "nested", ...required],
+	type: "object",
+})
+
+describe("bodies an ordinary writer sends", () => {
+	const draw = { index: 0, rand: mulberry32(1), variant: "baseline" } as const
+
+	it("leaves out every optional property marked x-privileged, nested ones too, in every member", () => {
+		for (const { body } of buildCohort(marked([]), 7)) {
+			expect(body).not.toHaveProperty("verified")
+			expect(body.nested).not.toHaveProperty("plan")
+		}
+		expect(generateBody(marked([]), draw).body).not.toHaveProperty("verified")
+	})
+
+	it("keeps a required one at a schema-valid value: only the highest rank may send that create", () => {
+		const [member] = buildCohort(marked(["verified"]), 7, { variants: ["baseline"] })
+		expect(typeof member?.body.verified).toBe("boolean")
+	})
+})
+
 const cohort = (...bodies: Record<string, unknown>[]): CohortMember[] =>
 	bodies.map((body, index) => ({ body, variant: COHORT[index] ?? "baseline" }))
 

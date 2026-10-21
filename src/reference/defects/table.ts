@@ -14,6 +14,7 @@ import { COMPOSITION_DEFECTS } from "./composition.ts"
 import { CORE_DEFECTS } from "./core.ts"
 import { QUERY_DEFECTS } from "./query.ts"
 import { RECORD_DEFECTS } from "./records.ts"
+import { SECURITY_DEFECTS } from "./security.ts"
 
 /* The families in the table's order: every reader of the names (the matrix, the docs, the goldens) sees this order. */
 export const DEFECTS = {
@@ -22,6 +23,7 @@ export const DEFECTS = {
 	...QUERY_DEFECTS,
 	...RECORD_DEFECTS,
 	...CATALOG_DEFECTS,
+	...SECURITY_DEFECTS,
 } as const
 
 export type DefectName = keyof typeof DEFECTS

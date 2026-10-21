@@ -45,7 +45,10 @@ describe("planPasses", () => {
 describe("runMatrix passes", () => {
 	it("prints each pass in order with its time, sends its defects in chunks, and judges the tag unlocks from it", async () => {
 		const { failures, log, proven, text } = await matrix(matrixOf(["passes"]), { proven: ["check.a"] })
-		expect(text).toMatch(/── memory · postgrest[\s\S]*leg memory\/postgrest 8\n {2}done in [\d.]+s\n/)
+		/* Its baselines and two chunks of defects: three tasks of 10 requests each. */
+		expect(text).toMatch(
+			/── memory · postgrest[\s\S]*leg memory\/postgrest 8\n {2}requests: 30\n {2}requests by source:\n {4}check a: 18\n {4}seed: 12\n {2}done in [\d.]+s\n/,
+		)
 		expect(log.filter((entry) => entry.startsWith("task defects"))).toEqual([
 			"task defects memory/postgrest 6",
 			"task defects memory/postgrest 1",
@@ -65,8 +68,11 @@ describe("runMatrix passes", () => {
 	})
 
 	it("recalls --ops scope in lanes from the default pass's runs", async () => {
-		const { log } = await matrix(matrixOf(["passes", "scope"]), { cases: [{ label: "scope" }] })
+		const { log, text } = await matrix(matrixOf(["passes", "scope"]), { cases: [{ label: "scope" }] })
 		expect(log.filter((entry) => entry.startsWith("task scope"))).toEqual(["task scope 2", "task scope 1"])
+		expect(text).toContain(
+			"  ✓ scope\n  ✓ scope\n  requests: 20\n  requests by source:\n    check a: 12\n    seed: 8\n",
+		)
 	})
 
 	it("closes the pool even when a pass fails", async () => {
@@ -99,6 +105,10 @@ describe("runMatrix shapes and recall", () => {
 			"task shape broken",
 		])
 		expect(text).toContain("── shapes · memory")
+		/* The default shape's task and each shape's own. */
+		expect(text).toMatch(
+			/shapes 2\n {2}requests: 30\n {2}requests by source:\n {4}check a: 18\n {4}seed: 12\n {2}done in/,
+		)
 		expect(text).not.toContain("recall behind")
 		expect(failures).toBe(1)
 	})
@@ -119,6 +129,9 @@ describe("runMatrix shapes and recall", () => {
 		])
 		expect(writer.text()).toMatch(/ {2}recall behind prefix: 7 case\(s\), 1 not as expected · [\d.]+s\n/)
 		expect(writer.text()).toContain("── recall behind shapes · memory")
+		expect(writer.text()).toMatch(
+			/recall 8\n {2}requests: 20\n {2}requests by source:\n {4}check a: 12\n {4}seed: 8\n {2}done in/,
+		)
 		expect([...proven].sort()).toEqual(["check.a", "check.b"])
 		/* The broken shape's own case, its waiting recall case, and the missed defect. */
 		expect(failures).toBe(3)

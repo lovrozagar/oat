@@ -41,7 +41,8 @@ describe("plan as text", () => {
 	it("tables each entity with its lifecycle, identity, cost and read surface, then what a run needs", async () => {
 		const { model } = await referenceModel({ dialect: "template" })
 		const lines = plan(model, false).split("\n")
-		expect(lines[1]).toBe(`  ${model.operations.length} operations · 6 entities`)
+		/* The reference reads its API keys back (apiKey.get), so api-key is a trackable entity of its own. */
+		expect(lines[1]).toBe(`  ${model.operations.length} operations · 7 entities`)
 		expect(lines.find((line) => line.startsWith("  notice "))).toMatch(
 			/ ·LR·· {2}id +\d+ {2}2 route\(s\) \(inferred\)$/,
 		)
@@ -107,6 +108,19 @@ describe("plan as text, for an entity nothing reads", () => {
 			},
 		})
 		expect(plan(modelOf(doc).model, false)).toMatch(/\n {2}c {19}C···· {2}— {10}\s*\d+ {2}— none\n/)
+	})
+})
+
+describe("plan and the operations a recipe names", () => {
+	it("leaves out an entity whose operations a security recipe calls, in text and JSON, as a run does", async () => {
+		const { model } = await referenceModel()
+		const authCreates = new Set(["apiKey.create", "apiKey.revoke"])
+		expect(plan(model, false, { authCreates }).split("\n")[1]).toBe(
+			`  ${model.operations.length} operations · 6 entities`,
+		)
+		const json = JSON.parse(plan(model, true, { authCreates })) as { entities: Array<{ name: string }> }
+		expect(json.entities.map((entity) => entity.name)).not.toContain("api-key")
+		expect(json.entities).toHaveLength(6)
 	})
 })
 

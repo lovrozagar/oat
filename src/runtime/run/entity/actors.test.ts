@@ -57,7 +57,7 @@ describe("actorsOf", () => {
 	it("acts as the first principal in the world, and as each other in a scope of its own", async () => {
 		const ctx = await contextOf(
 			optionsFor(notesApi(), {
-				principals: { alpha: member("o1"), beta: member("o2", { inviteAs: "b@x", rank: 1 }) },
+				principals: { alpha: member("o1"), beta: member("o2", { inviteAs: "b@x", rank: 1, readOnly: true }) },
 			}),
 		)
 		const actors = await actorsOf(entityRunOf(ctx), world)
@@ -65,7 +65,15 @@ describe("actorsOf", () => {
 			["alpha", { w: "1" }],
 			["beta", { org_id: "o2" }],
 		])
-		expect(actors[1]).toEqual({ id: "beta", inviteAs: "b@x", rank: 1, scope: { org_id: "o2" }, tenant: "o2" })
+		expect(actors[1]).toEqual({
+			id: "beta",
+			inviteAs: "b@x",
+			rank: 1,
+			readOnly: true,
+			scope: { org_id: "o2" },
+			tenant: "o2",
+		})
+		expect(actors[0]).not.toHaveProperty("readOnly")
 		expect(peerOf(actors)?.id).toBe("beta")
 	})
 
@@ -75,6 +83,52 @@ describe("actorsOf", () => {
 		)
 		const actors = await actorsOf(entityRunOf(ctx, "card"), world)
 		expect(actors[1]?.scope).toEqual({ org_id: "o2" })
+	})
+})
+
+/* Cards under boards, whose create requires a property only the highest rank may set. */
+const verifiedBoards = {
+	...boardless,
+	paths: {
+		...boardless.paths,
+		"/boards": {
+			post: {
+				operationId: "boards.create",
+				requestBody: {
+					content: {
+						"application/json": {
+							schema: {
+								properties: { verified: { type: "boolean", "x-privileged": true } },
+								required: ["verified"],
+								type: "object",
+							},
+						},
+					},
+				},
+				responses: { "201": { description: "made" } },
+				"x-entity": { action: "create", name: "board" },
+			},
+		},
+	},
+} as unknown as OpenApiDocument
+
+/* Serves the document, and makes a board for any create that reaches it. */
+const servingVerified = (method: string, path: string) =>
+	path === "/openapi.json"
+		? { body: verifiedBoards, status: 200 }
+		: method === "POST"
+			? { body: { id: "b1" }, status: 201 }
+			: undefined
+
+describe("actorsOf: a parent only the highest rank may create", () => {
+	it("never sends a lower rank's create of it: that principal acts in its own scope alone", async () => {
+		const options = optionsFor(servingVerified, {
+			principals: { alpha: member("o1", { rank: 2 }), member: member("o1", { rank: 1 }) },
+		})
+		const ctx = await contextOf(options)
+		const actors = await actorsOf(entityRunOf(ctx, "card"), world)
+		expect(actors[1]?.scope).toEqual({ org_id: "o1" })
+		expect(options.seen.filter((request) => request.method === "POST")).toEqual([])
 	})
 })
 

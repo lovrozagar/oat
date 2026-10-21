@@ -1,4 +1,5 @@
 import type { WriteContext } from "../../checks/core/context.ts"
+import { entityChecks } from "../../checks/core/registry.ts"
 import { CHECKS } from "../../checks/registry.ts"
 import { isRootCause } from "../../finding.ts"
 import { type Check, type CheckLoop, type PlannedCheck, runCheck, withLostVariants } from "./run-check.ts"
@@ -17,7 +18,7 @@ export async function runChecks(
 	run: EntityRun,
 	context: WriteContext,
 	/** The registry, in order; a test passes checks of its own. */
-	checks: readonly Check[] = CHECKS,
+	checks: readonly Check[] = entityChecks(CHECKS),
 ): Promise<void> {
 	const loop: SuppressingLoop = {
 		context,

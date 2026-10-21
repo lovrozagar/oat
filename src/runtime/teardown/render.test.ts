@@ -52,6 +52,20 @@ describe("renderTeardown", () => {
 		])
 	})
 
+	it("names each inferred record, removed or not", () => {
+		const records = [
+			{ entity: "note", id: "n1", principal: "alpha", removed: true },
+			{ entity: "job", id: "j1", inferred: true as const, principal: "alpha", removed: true },
+			{ entity: "job", id: "j2", inferred: true as const, principal: "beta", removed: false },
+		]
+		expect(renderTeardown(report({ records, removed: 2 }), 3)).toEqual([
+			"  cleaned up 2/3 created record(s)",
+			"  inferred: 2 record(s) ledgered from an answer that named a new id, not from a declared create",
+			"    job j1 (as alpha): removed",
+			"    job j2 (as beta): left in place",
+		])
+	})
+
 	it("lists creates whose record could not be identified, even with nothing else created", () => {
 		const unidentified = Array.from({ length: 6 }, (_, at) => create(at + 1))
 		const lines = renderTeardown(report({ unidentified }), 0)

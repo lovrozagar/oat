@@ -5,6 +5,7 @@
  */
 import type { EntityModel, SpecModel } from "../spec/graph/types.ts"
 import type { CheckId } from "./check-ids.ts"
+import { entityChecks } from "./checks/core/registry.ts"
 import { CHECKS } from "./checks/registry.ts"
 
 export const TYPICAL_REQUESTS: Partial<Record<CheckId, number>> = {
@@ -125,7 +126,7 @@ const DEFAULT_CHECK_COST = 2
 export function estimateRequests(entity: EntityModel, model: SpecModel, cohortSize = 7): number {
 	const seeding = entity.create === undefined ? 1 : cohortSize + 1
 	let checks = 0
-	for (const check of CHECKS) {
+	for (const check of entityChecks(CHECKS)) {
 		if (check.subjects(entity, model).length === 0) continue
 		checks += TYPICAL_REQUESTS[check.id] ?? DEFAULT_CHECK_COST
 	}

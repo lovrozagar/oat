@@ -46,10 +46,11 @@ describe("block", () => {
 describe("summaryLines", () => {
 	it("draws how many entities a run can follow and list", async () => {
 		const facts = doctorFacts((await referenceModel()).model)
+		/* The reference reads its API keys back (apiKey.get), so api-key is a trackable entity of its own. */
 		expect(summaryLines(facts)).toEqual([
 			"",
-			`  trackable  ${"█".repeat(24)}  6/6 entities have an identity and a read`,
-			`  listable   ${"█".repeat(16)}${"░".repeat(8)}  4/6 entities have a list, so query checks can run`,
+			`  trackable  ${"█".repeat(24)}  7/7 entities have an identity and a read`,
+			`  listable   ${"█".repeat(14)}${"░".repeat(10)}  4/7 entities have a list, so query checks can run`,
 			"",
 		])
 	})

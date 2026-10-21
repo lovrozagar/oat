@@ -38,14 +38,159 @@
     "checksSkipped": {
       "added": [
         {
+          "check": "auth.alternative-accepted",
+          "entity": "row.get",
+          "needs": "a record this run created that row.get can be sent to"
+        },
+        {
+          "check": "auth.alternative-accepted",
+          "entity": "table.get",
+          "needs": "a record this run created that table.get can be sent to"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "row.delete",
+          "needs": "a record this run created that row.delete can be sent to"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "row.get",
+          "needs": "a record this run created that row.get can be sent to"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "row.update",
+          "needs": "a record this run created that row.update can be sent to"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "table.delete",
+          "needs": "a record this run created that table.delete can be sent to"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "table.get",
+          "needs": "a record this run created that table.get can be sent to"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "table.invite",
+          "needs": "a record this run created that table.invite can be sent to"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "table.update",
+          "needs": "a record this run created that table.update can be sent to"
+        },
+        {
           "check": "auth.invite-grants-then-revokes",
           "entity": "table",
           "needs": "check \"auth.invite-grants-then-revokes\" could not complete"
         },
         {
+          "check": "auth.missing-credential-refused",
+          "entity": "row.delete",
+          "needs": "a record this run created that row.delete can be sent to"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "row.get",
+          "needs": "a record this run created that row.get can be sent to"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "row.update",
+          "needs": "a record this run created that row.update can be sent to"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "table.delete",
+          "needs": "a record this run created that table.delete can be sent to"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "table.get",
+          "needs": "a record this run created that table.get can be sent to"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "table.invite",
+          "needs": "a record this run created that table.invite can be sent to"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "table.update",
+          "needs": "a record this run created that table.update can be sent to"
+        },
+        {
+          "check": "auth.privileged-field-ignored",
+          "entity": "table.update",
+          "needs": "a record this run created that table.update can be sent to"
+        },
+        {
           "check": "auth.rank-is-monotonic",
           "entity": "table",
           "needs": "two same-tenant principals at different ranks, and an item route"
+        },
+        {
+          "check": "auth.role-enforced",
+          "entity": "row.delete",
+          "needs": "a record this run created that row.delete can be sent to"
+        },
+        {
+          "check": "auth.role-enforced",
+          "entity": "row.update",
+          "needs": "a record this run created that row.update can be sent to"
+        },
+        {
+          "check": "auth.role-enforced",
+          "entity": "table.delete",
+          "needs": "a record this run created that table.delete can be sent to"
+        },
+        {
+          "check": "auth.role-enforced",
+          "entity": "table.invite",
+          "needs": "a record this run created that table.invite can be sent to"
+        },
+        {
+          "check": "auth.role-enforced",
+          "entity": "table.update",
+          "needs": "a record this run created that table.update can be sent to"
+        },
+        {
+          "check": "auth.scope-enforced",
+          "entity": "row.delete",
+          "needs": "a record this run created that row.delete can be sent to"
+        },
+        {
+          "check": "auth.scope-enforced",
+          "entity": "row.get",
+          "needs": "a record this run created that row.get can be sent to"
+        },
+        {
+          "check": "auth.scope-enforced",
+          "entity": "row.update",
+          "needs": "a record this run created that row.update can be sent to"
+        },
+        {
+          "check": "auth.scope-enforced",
+          "entity": "table.delete",
+          "needs": "a record this run created that table.delete can be sent to"
+        },
+        {
+          "check": "auth.scope-enforced",
+          "entity": "table.get",
+          "needs": "a record this run created that table.get can be sent to"
+        },
+        {
+          "check": "auth.scope-enforced",
+          "entity": "table.update",
+          "needs": "a record this run created that table.update can be sent to"
+        },
+        {
+          "check": "auth.wrong-scheme-refused",
+          "entity": "table.invite",
+          "needs": "a record this run created that table.invite can be sent to"
         },
         {
           "check": "consistency.projections-agree",
@@ -646,6 +791,11 @@
                 "softdelete.absent-from-default-list"
               ],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.cross-tenant-key-refused",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.scope-enforced",
                 "error.malformed-filter-not-5xx",
                 "filter.alias-matches-canonical",
                 "filter.condition-cap-rejected",
@@ -806,7 +956,11 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
+                "auth.scope-enforced",
                 "consistency.projections-agree",
                 "invalidation.declared-route-changes",
                 "response.status-is-documented",
@@ -834,7 +988,11 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
+                "auth.scope-enforced",
                 "consistency.projections-agree",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -862,7 +1020,12 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.privileged-field-ignored",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
@@ -890,7 +1053,11 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
@@ -915,20 +1082,174 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.cross-tenant-key-refused",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.scope-enforced",
+                "consistency.projections-agree",
+                "count.consistent-with-returned-page",
+                "count.matches-filtered-set",
+                "error.malformed-filter-not-5xx",
+                "filter.alias-matches-canonical",
+                "filter.and-composes-as-intersection",
+                "filter.condition-cap-rejected",
+                "filter.empty-in",
+                "filter.equality-selects-exactly-one",
+                "filter.gte-is-gt-or-eq",
+                "filter.ilike-is-case-insensitive",
+                "filter.illegal-op-rejected",
+                "filter.in-is-union-of-eq",
+                "filter.in-over-limit-rejected",
+                "filter.is-null-selects-nulls",
+                "filter.like-metacharacters-escaped",
+                "filter.lte-is-lt-or-eq",
+                "filter.malformed-term-rejected",
+                "filter.negation-partitions-the-set",
+                "filter.nested-and-or-distributes",
+                "filter.nin-complements-in",
+                "filter.numeric-comparison-is-numeric",
+                "filter.or-composes-as-union",
+                "filter.ordered-triple-partitions",
+                "filter.unknown-field-rejected",
+                "filter.zero-match-returns-none",
+                "invalidation.declared-route-changes",
+                "list.read-after-write",
+                "pagination.bounds-handled",
+                "pagination.cursor-agrees-with-page",
+                "pagination.has-more-is-accurate",
+                "pagination.limit-bounds-enforced",
+                "pagination.limit-bounds-page-size",
+                "pagination.page-walk-covers-set",
+                "query.axes-compose",
+                "query.filter-and-select-compose",
+                "query.filter-search-select-compose",
+                "query.filter-search-sort-compose",
+                "query.filter-search-sort-select-compose",
+                "query.filter-selects-from-whole-set",
+                "query.filter-sort-select-compose",
+                "query.search-and-filter-compose",
+                "query.search-and-select-compose",
+                "query.search-and-sort-compose",
+                "query.sort-and-select-compose",
+                "query.unknown-parameter-consistent",
+                "response.status-is-documented",
+                "search.case-insensitive",
+                "search.empty-q",
+                "search.mode-accepted",
+                "search.q-narrows-result",
+                "search.tokens-and",
+                "select.projection-honoured",
+                "select.requested-fields-present",
+                "select.unknown-field-rejected",
+                "softdelete.absent-from-default-list",
+                "sort.default-order-applied",
+                "sort.multi-key-tiebreak",
+                "sort.nulls-first-last",
+                "sort.numeric-order-is-numeric",
+                "sort.order-is-applied",
+                "sort.reverse-symmetry",
+                "sort.stable-tiebreak",
+                "sort.unknown-field-rejected",
+                "spec.declared-filterable-is-filterable",
+                "spec.declared-filterable-ops-accepted",
+                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-selectable-is-selectable",
+                "spec.declared-sortable-is-sortable",
+                "spec.declared-sortable-nulls-accepted",
+                "tenant.filter-does-not-bypass-scope"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.list",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
                 "auth.invite-grants-then-revokes",
+                "auth.missing-credential-refused",
+                "auth.role-enforced",
+                "auth.wrong-scheme-refused",
                 "response.status-is-documented"
               ],
               "suppressed": []
             },
             "entity": "table",
             "findings": 0,
-            "operationId": "invite.accept",
+            "operationId": "table.invite",
             "reason": null,
             "status": "passed",
             "evidence": {},
             "sufficiency": "unproven",
             "tier": "contract",
             "why": "met its contract, but no later read observed what it changed"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "softdelete.absent-from-default-list",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.delete",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.delete",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
           },
           {
             "checks": {
@@ -943,7 +1264,7 @@
             },
             "entity": "table",
             "findings": 0,
-            "operationId": "table.invite",
+            "operationId": "invite.accept",
             "reason": null,
             "status": "passed",
             "evidence": {},
@@ -1026,143 +1347,6 @@
             "entity": "row",
             "findings": 0,
             "operationId": "row.create",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "verified",
-            "tier": "verified",
-            "why": "a later exchange shows what this call did"
-          },
-          {
-            "checks": {
-              "failed": [],
-              "gaps": [],
-              "inconclusive": [],
-              "passed": [
-                "auth.rank-is-monotonic-on-writes",
-                "delete.absent-record-returns-404",
-                "response.status-is-documented",
-                "softdelete.absent-from-default-list",
-                "tenant.item-not-writable-cross-tenant"
-              ],
-              "suppressed": []
-            },
-            "entity": "table",
-            "findings": 0,
-            "operationId": "table.delete",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "verified",
-            "tier": "verified",
-            "why": "a later exchange shows what this call did"
-          },
-          {
-            "checks": {
-              "failed": [],
-              "gaps": [],
-              "inconclusive": [],
-              "passed": [
-                "auth.rank-is-monotonic-on-writes",
-                "delete.absent-record-returns-404",
-                "response.status-is-documented",
-                "tenant.item-not-writable-cross-tenant"
-              ],
-              "suppressed": []
-            },
-            "entity": "row",
-            "findings": 0,
-            "operationId": "row.delete",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "verified",
-            "tier": "verified",
-            "why": "a later exchange shows what this call did"
-          },
-          {
-            "checks": {
-              "failed": [],
-              "gaps": [],
-              "inconclusive": [],
-              "passed": [
-                "consistency.projections-agree",
-                "count.consistent-with-returned-page",
-                "count.matches-filtered-set",
-                "error.malformed-filter-not-5xx",
-                "filter.alias-matches-canonical",
-                "filter.and-composes-as-intersection",
-                "filter.condition-cap-rejected",
-                "filter.empty-in",
-                "filter.equality-selects-exactly-one",
-                "filter.gte-is-gt-or-eq",
-                "filter.ilike-is-case-insensitive",
-                "filter.illegal-op-rejected",
-                "filter.in-is-union-of-eq",
-                "filter.in-over-limit-rejected",
-                "filter.is-null-selects-nulls",
-                "filter.like-metacharacters-escaped",
-                "filter.lte-is-lt-or-eq",
-                "filter.malformed-term-rejected",
-                "filter.negation-partitions-the-set",
-                "filter.nested-and-or-distributes",
-                "filter.nin-complements-in",
-                "filter.numeric-comparison-is-numeric",
-                "filter.or-composes-as-union",
-                "filter.ordered-triple-partitions",
-                "filter.unknown-field-rejected",
-                "filter.zero-match-returns-none",
-                "invalidation.declared-route-changes",
-                "list.read-after-write",
-                "pagination.bounds-handled",
-                "pagination.cursor-agrees-with-page",
-                "pagination.has-more-is-accurate",
-                "pagination.limit-bounds-enforced",
-                "pagination.limit-bounds-page-size",
-                "pagination.page-walk-covers-set",
-                "query.axes-compose",
-                "query.filter-and-select-compose",
-                "query.filter-search-select-compose",
-                "query.filter-search-sort-compose",
-                "query.filter-search-sort-select-compose",
-                "query.filter-selects-from-whole-set",
-                "query.filter-sort-select-compose",
-                "query.search-and-filter-compose",
-                "query.search-and-select-compose",
-                "query.search-and-sort-compose",
-                "query.sort-and-select-compose",
-                "query.unknown-parameter-consistent",
-                "response.status-is-documented",
-                "search.case-insensitive",
-                "search.empty-q",
-                "search.mode-accepted",
-                "search.q-narrows-result",
-                "search.tokens-and",
-                "select.projection-honoured",
-                "select.requested-fields-present",
-                "select.unknown-field-rejected",
-                "softdelete.absent-from-default-list",
-                "sort.default-order-applied",
-                "sort.multi-key-tiebreak",
-                "sort.nulls-first-last",
-                "sort.numeric-order-is-numeric",
-                "sort.order-is-applied",
-                "sort.reverse-symmetry",
-                "sort.stable-tiebreak",
-                "sort.unknown-field-rejected",
-                "spec.declared-filterable-is-filterable",
-                "spec.declared-filterable-ops-accepted",
-                "spec.declared-rate-limit-is-honoured",
-                "spec.declared-selectable-is-selectable",
-                "spec.declared-sortable-is-sortable",
-                "spec.declared-sortable-nulls-accepted",
-                "tenant.filter-does-not-bypass-scope"
-              ],
-              "suppressed": []
-            },
-            "entity": "table",
-            "findings": 0,
-            "operationId": "table.list",
             "reason": null,
             "status": "passed",
             "evidence": {},
@@ -1408,7 +1592,19 @@
           {
             "entity": "row",
             "id": "ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "ID",
             "principal": "alpha_member",
+            "removed": true
+          },
+          {
+            "entity": "table",
+            "id": "ID",
+            "principal": "alpha",
             "removed": true
           },
           {
@@ -1588,8 +1784,8 @@
         ]
       },
       "removed": {
-        "now": 26,
-        "was": 80
+        "now": 27,
+        "was": 83
       },
       "unidentified": {
         "added": [
@@ -1793,6 +1989,9 @@
     },
     "costByCheck": {
       "removed": [
+        {
+          "check": "auth.privileged-field-ignored"
+        },
         {
           "check": "create.unique-conflict-rejected"
         },

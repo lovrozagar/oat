@@ -16,6 +16,8 @@ import { returnedId } from "./proven-id.ts"
 import { SELF_IDENTITY } from "./self/operations.ts"
 import type { Ledger } from "./teardown/ledger.ts"
 import type { Owner } from "./teardown/types.ts"
+import { inferredCreate } from "./inferred-create.ts"
+import { isProbeExchange } from "./probe-judging.ts"
 import { createdRecord } from "./world/created-record.ts"
 import { idOf, recordsFromList } from "./world/records.ts"
 
@@ -36,6 +38,12 @@ export interface TrackerInput {
 	readable: (op: OperationModel) => boolean
 	/** Called with every record the tracker ledgers. */
 	onRecorded?: (entity: string, id: string) => void
+	/**
+	 * Who reads back, and removes, what a probe made with no configured principal's credential: an
+	 * anonymous or forged write a backend let through. The first principal; without one, such a write
+	 * is never tracked.
+	 */
+	stranger?: TrackedOwner
 }
 
 /** Each entity's create, read and list, by operation. */
@@ -99,7 +107,10 @@ async function recordCreate(tracker: Tracker, exchange: Exchange, owned: Tracked
 	const { input, routes } = tracker
 	const { ledger } = input
 	const create = exchange.operationId === undefined ? undefined : routes.creates.get(exchange.operationId)
-	if (create === undefined) return
+	if (create === undefined) {
+		await recordInferred(tracker, exchange, owned)
+		return
+	}
 	const { entity, identity, op } = create
 	/* The exchange's parameters belong to the template it resolved to: the create's, unless the
 	 * caller named the create for another path. */
@@ -130,13 +141,42 @@ async function recordCreate(tracker: Tracker, exchange: Exchange, owned: Tracked
 	input.onRecorded?.(entity, id)
 }
 
+/*
+ * A POST that is not a create, ledgered as its sender's when its answer shows it made a record. One a
+ * stranger's probe sent was applied whatever it made, so without that evidence it is reported as a
+ * record that may remain.
+ */
+async function recordInferred(tracker: Tracker, exchange: Exchange, owned: TrackedOwner): Promise<void> {
+	const { input } = tracker
+	const stranger = exchange.principal === undefined || !input.owners.has(exchange.principal)
+	const op = exchange.operationId === undefined ? undefined : input.model.byOperationId.get(exchange.operationId)
+	const params = op === undefined ? null : paramsOf(input.client, exchange, op)
+	const sender = { principal: owned.owner.id, roots: owned.roots }
+	const made =
+		op === undefined || params === null ? undefined : await inferredCreate(input, { exchange, op, params, sender })
+	if (made !== undefined) {
+		input.ledger.record(made, owned.owner)
+		input.onRecorded?.(made.entity, made.id)
+	} else if (stranger) {
+		const operationId = exchange.operationId ?? `${exchange.method} ${input.client.relativePath(exchange.url)}`
+		input.ledger.unidentified(op?.entity ?? operationId, operationId, exchange)
+	}
+}
+
+/* Whose read and removal an answer falls to: its sender's, or the stranger's for a probe POST no principal sent. */
+function ownerOf(input: TrackerInput, exchange: Exchange): TrackedOwner | undefined {
+	if (exchange.principal !== undefined && input.owners.has(exchange.principal))
+		return input.owners.get(exchange.principal)
+	return isProbeExchange(exchange) && exchange.method === "POST" ? input.stranger : undefined
+}
+
 export function createTracker(input: TrackerInput): { observe: (exchange: Exchange) => Promise<void> } {
 	const tracker: Tracker = { input, routes: routesOf(input.model) }
 	const observe = async (exchange: Exchange): Promise<void> => {
 		if (exchange.status < 200 || exchange.status >= 300) return
 		/* Teardown reads back what it needs itself. */
 		if (exchange.purpose === "teardown") return
-		const owned = exchange.principal === undefined ? undefined : input.owners.get(exchange.principal)
+		const owned = ownerOf(input, exchange)
 		if (owned === undefined) return
 		if (exchange.method === "GET") {
 			sight(tracker, exchange, owned.owner.id)
@@ -144,6 +184,9 @@ export function createTracker(input: TrackerInput): { observe: (exchange: Exchan
 		}
 		/* Seeding ledgers each create it makes through its own callbacks. */
 		if (exchange.purpose === "seed") return
+		/* What the credential store issued, a mint say, is the store's to revoke, never the ledger's. The
+		 * same operation sent any other way, by a scenario or a raw request, is ledgered as usual. */
+		if (exchange.issuedBy === "credentials") return
 		await recordCreate(tracker, exchange, owned)
 	}
 	return { observe }

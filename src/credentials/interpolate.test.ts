@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { fillPrincipal, MissingIdentityError } from "./interpolate.ts"
+import { fillCredential, fillPrincipal, MissingIdentityError } from "./interpolate.ts"
 
 const principal = { id: "ann", identity: { age: 30, email: "ann@x.io", verified: true } }
 
@@ -24,5 +24,18 @@ describe("fillPrincipal", () => {
 		expect(() => fillPrincipal(nested, "{principal.org}")).toThrow(
 			'principal "ann" has no text value for {principal.org}',
 		)
+	})
+})
+
+describe("fillCredential", () => {
+	it("puts the credential wherever {credential} stands, deep through arrays and objects", () => {
+		expect(fillCredential({ list: ["{credential}", 2], token: "{credential}", why: "end {credential}" }, "t1")).toEqual(
+			{
+				list: ["t1", 2],
+				token: "t1",
+				why: "end t1",
+			},
+		)
+		expect(fillCredential(null, "t1")).toBeNull()
 	})
 })

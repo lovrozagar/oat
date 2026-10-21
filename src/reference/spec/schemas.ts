@@ -20,6 +20,7 @@ export function fieldSchema(field: FieldDef): Json {
 	if (field.maxLength !== undefined) base.maxLength = field.maxLength
 	if (field.generated === true) base.readOnly = true
 	if (field.writeOnly === true) base.writeOnly = true
+	if (field.privileged === true) base["x-privileged"] = true
 	if (field.nullable === true) return { oneOf: [base, { type: "null" }] }
 	return base
 }

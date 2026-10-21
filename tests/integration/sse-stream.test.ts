@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { runCheck } from "../../src/runtime/checks/core/run.ts"
+import { entityChecks } from "../../src/runtime/checks/core/registry.ts"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"
 import { Client } from "../../src/client/client.ts"
 import { type Finding, FindingCollector } from "../../src/runtime/finding.ts"
@@ -202,7 +203,7 @@ async function schemaCheckFindings(model: ReturnType<typeof buildModel>): Promis
 	findings: Finding[]
 }> {
 	const findings = new FindingCollector()
-	const check = CHECKS.find((c) => c.id === SCHEMA_CHECK)
+	const check = entityChecks(CHECKS).find((c) => c.id === SCHEMA_CHECK)
 	if (check !== undefined)
 		await runCheck(
 			check,

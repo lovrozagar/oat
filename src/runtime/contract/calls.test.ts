@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { exchangeOf } from "../checks/__fixtures__/harness.ts"
 import { runContractCalls } from "./calls.ts"
+import { madeByRun } from "./made-by-run.ts"
 import { doc, json, ok, pathParam, stage } from "./__fixtures__/stage.ts"
 
 const item = { properties: { id: { type: "string" } }, type: "object" }
@@ -84,6 +85,127 @@ describe("runContractCalls", () => {
 	})
 })
 
+describe("runContractCalls and security probes", () => {
+	it("never takes a security probe's success for the operation's contract call, and calls it itself", async () => {
+		const { input, sent } = stage(things, () => ({ status: 200 }), {
+			mode: "targeted",
+			inScope: (id) => id === "things.list",
+		})
+		const probe = { as: { anonymous: true }, operationId: "things.list", probe: true } as const
+		input.client.transcript.push(
+			exchangeOf({ method: "GET", options: probe, path: "/things" }, { body: [], status: 200 }),
+		)
+		await runContractCalls(input)
+		expect(sent.map((request) => `${request.method} ${request.path}`)).toEqual(["GET /things"])
+	})
+
+	it("still calls an operation only security probes graded", async () => {
+		const { input, sent } = stage(things, () => ({ status: 200 }), {
+			mode: "targeted",
+			inScope: (id) => id === "things.list",
+		})
+		input.grades.probedBy(["things.list"], "auth.anonymous-operation-open")
+		await runContractCalls(input)
+		expect(sent.map((request) => `${request.method} ${request.path}`)).toEqual(["GET /things"])
+	})
+})
+
+describe("runContractCalls and credential operations", () => {
+	it("sends a credential operation as the actor the credentials give, never the principal", async () => {
+		const { input, sent } = stage(things, () => ({ body: [], status: 200 }), {
+			credentials: {
+				actorFor: async (op) => ({ as: { principal: `alpha#probe-1 for ${op.operationId}`, scheme: "jwt" } }),
+				identityFields: new Map(),
+				operations: new Set(["things.list"]),
+			},
+			inScope: (id) => id === "things.list" || id === "things.search",
+			mode: "targeted",
+		})
+		await runContractCalls(input)
+		expect(sent.map((request) => [request.path, request.options.as])).toEqual([
+			["/things", { principal: "alpha#probe-1 for things.list", scheme: "jwt" }],
+			["/search", { principal: "alpha" }],
+		])
+	})
+
+	it("leaves a credential operation untested, with the reason, when no actor can send it", async () => {
+		const { input, sent } = stage(things, () => ({ status: 200 }), {
+			credentials: {
+				actorFor: async () => ({ untested: "static recipes cannot issue a dedicated credential" }),
+				identityFields: new Map(),
+				operations: new Set(["things.list"]),
+			},
+			inScope: (id) => id === "things.list",
+			mode: "targeted",
+		})
+		await runContractCalls(input)
+		expect(sent).toEqual([])
+		expect([...(input.grades.needs.get("things.list") ?? [])]).toEqual([
+			"static recipes cannot issue a dedicated credential",
+		])
+	})
+})
+
+/* A sign-in whose document examples name a real-looking account, which failed attempts could lock. */
+const signIn = doc({
+	"/auth/login": {
+		post: {
+			operationId: "auth.login",
+			requestBody: json({
+				properties: {
+					client: { type: "string" },
+					email: { enum: ["admin@company.com"], example: "admin@company.com", format: "email", type: "string" },
+					password: { example: "Admin123!", type: "string" },
+				},
+				required: ["client", "email", "password"],
+				type: "object",
+			}),
+			responses: ok({ properties: { token: { type: "string" } }, type: "object" }),
+			security: [],
+		},
+	},
+})
+
+const signInCredentials = {
+	actorFor: async () => ({ as: { anonymous: true } as const }),
+	identityFields: new Map([["auth.login", [["email"], ["password"]]]]),
+	operations: new Set(["auth.login"]),
+}
+
+describe("runContractCalls and sign-in operations", () => {
+	it("signs in as an identity no account holds, never a documented example account", async () => {
+		const bodyOf = async (identityFields: typeof signInCredentials.identityFields) => {
+			const { input, sent } = stage(signIn, () => ({ status: 401 }), {
+				credentials: { ...signInCredentials, identityFields },
+			})
+			await runContractCalls(input)
+			expect(sent).toHaveLength(1)
+			return sent[0]?.options.body as Record<string, unknown>
+		}
+		const generated = await bodyOf(new Map())
+		expect(generated.email).toBe("admin@company.com")
+		const body = await bodyOf(signInCredentials.identityFields)
+		expect(JSON.stringify(body)).not.toContain("admin@company.com")
+		expect(body).toEqual({
+			client: generated.client,
+			email: "oat-nonexistent-n0@example.invalid",
+			password: "oat-nonexistent-n0",
+		})
+	})
+
+	it("takes the store's own sign-in as its contract evidence: no second call, and still judged", async () => {
+		const { input, sent } = stage(signIn, () => ({ status: 200 }), { credentials: signInCredentials })
+		const login = { as: { anonymous: true }, body: { email: "a@x.test" }, operationId: "auth.login" } as const
+		input.client.transcript.push(
+			exchangeOf({ method: "POST", options: login, path: "/auth/login" }, { body: { token: "t" }, status: 200 }),
+		)
+		await runContractCalls(input)
+		expect(sent).toEqual([])
+		expect(input.grades.judged("auth.login")).toBe(true)
+		expect(input.grades.evidence.has("auth.login")).toBe(true)
+	})
+})
+
 /* Records the API already held, listed, and a delete that would remove one. */
 const held = doc({
 	"/records": { get: { operationId: "records.list", responses: ok({ items: item, type: "array" }) } },
@@ -106,6 +228,38 @@ describe("runContractCalls and records the run did not make", () => {
 		await runContractCalls(input)
 		expect(sent).toEqual([])
 		expect([...(input.grades.needs.get("records.delete") ?? [])]).toEqual([
+			"unresolved param id: a write is sent only to a record this run created",
+		])
+	})
+})
+
+/* Keys the credential store mints, and the revoke the floor would call. */
+const minted = doc({
+	"/keys": { post: { operationId: "keys.create", responses: { "201": { description: "made" } } } },
+	"/keys/{id}": { delete: { operationId: "keys.revoke", parameters: [pathParam("id")], responses: ok() } },
+})
+
+describe("runContractCalls and the credentials the store holds", () => {
+	it("never revokes a key the store holds live for a principal, when no key the run made was revoked", async () => {
+		const { input, model, sent } = stage(minted, () => ({ status: 200 }), {
+			inScope: (id) => id === "keys.revoke",
+			mode: "targeted",
+		})
+		const mint = exchangeOf(
+			{ method: "POST", options: { as: { principal: "alpha" }, operationId: "keys.create" }, path: "/keys" },
+			{ body: { id: "key_alpha", key: "v-alpha" }, status: 201 },
+		)
+		input.client.transcript.push({ ...mint, issuedBy: "credentials" })
+		const alpha = {
+			credential: { expiresAt: null, value: "v-alpha" },
+			principal: "alpha",
+			scheme: "apiKey",
+			scopes: [],
+		}
+		input.madeByRun = madeByRun({ client: input.client, held: [alpha as never], ledger: { holds: () => false }, model })
+		await runContractCalls(input)
+		expect(sent).toEqual([])
+		expect([...(input.grades.needs.get("keys.revoke") ?? [])]).toEqual([
 			"unresolved param id: a write is sent only to a record this run created",
 		])
 	})

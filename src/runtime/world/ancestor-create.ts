@@ -133,6 +133,8 @@ export async function createOne(
 	scope: Scope,
 ): Promise<{ record: Record_; adopted: boolean }> {
 	const { model, client, options } = seeding
+	const withheld = options.withheld?.(createOp)
+	if (withheld !== undefined) throw new SeedError(createOp.operationId, withheld)
 	const created = await postFresh(createOp, seeding, scope)
 	const { exchange, sent } = created
 	if (exchange.status >= 300) return adoptOrFail(createOp, { scope, seeding }, created)

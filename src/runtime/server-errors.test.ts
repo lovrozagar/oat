@@ -65,6 +65,15 @@ describe("reportServerErrors", () => {
 		])
 	})
 
+	it("still reports a 5xx a security probe drew, forged or sent to be refused: robustness is judged on every request", () => {
+		const probed = crash("/rows", 500, { operationId: "rows.list", probe: true })
+		const forged = crash("/rows", 502, { forged: true, operationId: "rows.list" })
+		const { findings } = judge([[probed, forged]])
+		expect(findings.findings.map((finding) => [finding.check, finding.evidence])).toEqual([
+			[SERVER_ERROR_CHECK_ID, [probed, forged]],
+		])
+	})
+
 	it("names a request no operation owns by its method and path, on the run", () => {
 		const { findings, grades } = judge([[crash("/health?x=1", 502), crash("/x", 500, { operationId: "ghost.op" })]])
 		expect(findings.findings.map((f) => [f.summary, f.entity, f.operations])).toEqual([

@@ -45,12 +45,23 @@ function shownGone(exchange: Exchange, byCreator: boolean, moved: string | undef
 	)
 }
 
+/*
+ * A record whose entity has no delete. A declared create's entity is listed once as unsupported; an
+ * inferred record is named, since no create in the document warns its reader that the record exists.
+ */
+function undeletable(state: Unwind, item: Disposable): void {
+	if (item.inferred === true) {
+		const reason = `inferred from an answer that named a new ${item.entity}_id; the document declares no delete for ${item.entity}`
+		state.report.failed.push(leftover(item, reason))
+	} else state.unsupported.add(item.entity)
+	state.done += 1
+}
+
 export async function removeOne(state: Unwind, item: Disposable): Promise<void> {
 	const { report } = state
 	const deleteOp = deleteOperationFor(item.entity, state.model)
 	if (deleteOp === null) {
-		state.unsupported.add(item.entity)
-		state.done += 1
+		undeletable(state, item)
 		return
 	}
 

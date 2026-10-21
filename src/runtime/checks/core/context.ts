@@ -31,6 +31,8 @@ export interface Actor {
 	scope: Record<string, string>
 	/** Value the owner puts in an invite body for this principal. */
 	inviteAs: string | undefined
+	/** The config marks the principal read-only: a viewer, whose every write must be refused. */
+	readOnly?: true
 }
 
 /**

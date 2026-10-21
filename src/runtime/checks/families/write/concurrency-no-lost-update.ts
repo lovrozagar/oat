@@ -7,7 +7,7 @@ import type { Record_ } from "../../../world/records.ts"
 import type { CheckContext, WriteContext } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { readRecord, scratchRecord } from "../../isolation/scratch.ts"
-import { requestSchemaOf } from "../../payloads/body.ts"
+import { requestSchemaOf, withheldProperties } from "../../payloads/body.ts"
 import { standDownForFeatureGate, standDownForRateLimit } from "../../planning/stand-down.ts"
 import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
 import { NO_RECORD } from "./records.ts"
@@ -155,8 +155,14 @@ async function raceAndJudge(race: Race, path: string, [first, second]: [string, 
  * when a probe value was written into a `status` enum.
  */
 function writableStringFields(ctx: CheckContext, record: Record_): string[] {
-	/* The identity, and what the update cannot change: immutable and generated fields. */
-	const fixed = new Set([ctx.identity, ...(ctx.updateOp?.immutable ?? []), ...(ctx.updateOp?.generated ?? [])])
+	/* The identity, what the update cannot change (immutable and generated fields), and what an
+	 * ordinary body leaves out (`withheldProperties`). */
+	const fixed = new Set([
+		ctx.identity,
+		...(ctx.updateOp?.immutable ?? []),
+		...(ctx.updateOp?.generated ?? []),
+		...withheldProperties(ctx, ctx.updateOp),
+	])
 	const schema = ctx.updateOp === undefined ? null : requestSchemaOf(ctx, ctx.updateOp)
 	const properties = (schema?.properties ?? {}) as Record<string, Record<string, unknown>>
 

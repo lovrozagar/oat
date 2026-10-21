@@ -1,5 +1,6 @@
 /** The reference in process: requests handed straight to its router, answers parsed back. */
 
+import { issueSession } from "../auth/sessions.ts"
 import { memoryStore } from "../engines.ts"
 import { referenceState } from "../reference.ts"
 import { handle } from "../router.ts"
@@ -8,17 +9,18 @@ import { type Json, referenceRequest } from "../wire.ts"
 
 export type { Json }
 
-export const ALPHA = "tok_alpha"
-export const BETA = "tok_beta"
-export const MEMBER = "tok_alpha_member"
-export const VIEWER = "tok_alpha_viewer"
+/* Who a call acts as, by principal key: each is signed in once, and its access token sent as a bearer JWT. */
+export const ALPHA = "key_alpha"
+export const BETA = "key_beta"
+export const MEMBER = "key_alpha_member"
+export const VIEWER = "key_alpha_viewer"
 
 export const TABLES = "/v1/projects/proj_alpha/tables"
 export const BETA_TABLES = "/v1/projects/proj_beta/tables"
 export const JOBS = "/v1/projects/proj_alpha/jobs"
 
 export interface Sent {
-	/** `null` sends no credential; the owner's otherwise. */
+	/** `null` sends no credential; a principal key sends its access token; any other text is sent as the bearer value. */
 	token?: string | null
 	/** Sent as JSON, or as the raw text when a string. */
 	body?: unknown
@@ -52,11 +54,21 @@ export async function api(options: ReferenceOptions = {}): Promise<Api> {
 	return { call, state, table }
 }
 
+/* The access token a principal key signs in to, issued once per reference; any other text as itself. */
+function bearerOf(state: ReferenceState, sessions: Map<string, string>, token: string): string {
+	const account = state.auth.accounts.get(token)
+	if (account === undefined) return token
+	const issued = sessions.get(token) ?? issueSession(state, account).access_token
+	sessions.set(token, issued)
+	return issued
+}
+
 /* Sends one request to this reference's router, as `token` (the owner's by default), and parses the answer. */
 function caller(state: ReferenceState): Api["call"] {
+	const sessions = new Map<string, string>()
 	return async (method, path, sent = {}) => {
 		const headers: Record<string, string> = {}
-		if (sent.token !== null) headers.authorization = `Bearer ${sent.token ?? ALPHA}`
+		if (sent.token !== null) headers.authorization = `Bearer ${bearerOf(state, sessions, sent.token ?? ALPHA)}`
 		let text = ""
 		if (sent.form !== undefined) {
 			headers["content-type"] = "application/x-www-form-urlencoded"

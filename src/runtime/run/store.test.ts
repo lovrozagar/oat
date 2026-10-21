@@ -1,3 +1,6 @@
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import type { SecurityConfig } from "../../config/types/security.ts"
 import type { Credential } from "../../credentials/store.ts"
@@ -13,6 +16,7 @@ import {
 	withSignup,
 } from "./__fixtures__/api.ts"
 import { keysApi, MINTED } from "./__fixtures__/keys.ts"
+import { seenValue } from "../contract/params.ts"
 
 /* The run's one store, and the ports it sends through: the step engine, the primary client, a token form. */
 
@@ -151,5 +155,187 @@ describe("runStore: tokens and hooks", () => {
 			optionsFor(notesApi(), { sharedCredentials: { mapping: { bearer: "bearer" }, store: primary.store } }),
 		)
 		expect(origin.store).toBe(primary.store)
+	})
+})
+
+const journalOf = (dir: string): string =>
+	readdirSync(join(dir, "exchanges"))
+		.map((file) => readFileSync(join(dir, "exchanges", file), "utf8"))
+		.join("\n")
+
+/* Every exchange file `acquire` left in a fresh journal, as text. */
+async function journaled(options: ReturnType<typeof optionsFor>, key: { principal: string; scheme: string }) {
+	const dir = mkdtempSync(join(tmpdir(), "oat-run-store-"))
+	try {
+		const ctx = await connected({ ...options, exchangeDir: dir })
+		expect(await ctx.store.acquire(key)).not.toHaveProperty("blocked")
+		await ctx.journal?.flush()
+		return journalOf(dir)
+	} finally {
+		rmSync(dir, { force: true, recursive: true })
+	}
+}
+
+/* A login that answers its token under a neutral key no name rule would redact. */
+const neutralLogin: Responder = (_method, path) =>
+	path === "/login" ? { body: { jwt: "neutral-login-value" }, status: 200 } : undefined
+
+/* A mint that answers a key under a neutral field. */
+const neutralMint: Responder = (method, path) =>
+	path === "/projects/p1/keys" && method === "POST"
+		? { body: { id: 7, key: "ak_minted_secret_1" }, status: 201 }
+		: undefined
+
+describe("runStore: a recipe's extracted value is a secret before its answer is journaled", () => {
+	it("scrubs a login's credential, under a key no name rule knows, from the journaled answer", async () => {
+		const security: SecurityConfig = { bearer: { login: { from: "$.jwt", steps: [{ operationId: "auth.login" }] } } }
+		const written = await journaled(optionsFor(overriding(withLogin(), neutralLogin), { security }), {
+			principal: "alpha",
+			scheme: "bearer",
+		})
+		expect(written).toContain('"operationId": "auth.login"')
+		expect(written).not.toContain("neutral-login-value")
+	})
+
+	it("scrubs a minted key from the journaled mint answer", async () => {
+		const options = optionsFor(overriding(keysApi(), neutralMint), {
+			principals: { alpha: { scope: { project_id: "p1" } } },
+			security: MINTED,
+		})
+		const written = await journaled(options, { principal: "alpha", scheme: "key" })
+		expect(written).toContain('"operationId": "keys.create"')
+		expect(written).not.toContain("ak_minted_secret_1")
+	})
+})
+
+/* A login that answers, and a notes read that always refuses, so a 401 would tempt a renewal. */
+const notesUnauthorized: Responder = (method, path) =>
+	path === "/login"
+		? { body: { jwt: "neutral-login-value" }, status: 200 }
+		: method === "GET" && path === "/notes"
+			? { status: 401 }
+			: undefined
+
+describe("runStore: a revoke sends its own session's value", () => {
+	it("sends a revoke's own value as that principal's, never renewed, and counts its 401 as revoked", async () => {
+		const security: SecurityConfig = {
+			bearer: { login: { from: "$.jwt", revoke: "notes.list", steps: [{ operationId: "auth.login" }] } },
+		}
+		const options = optionsFor(overriding(withLogin(), notesUnauthorized), { security })
+		const ctx = await connected(options)
+		const probe = await ctx.store.acquireDedicated({ principal: "alpha", scheme: "bearer" })
+		if ("blocked" in probe) throw new Error(probe.blocked)
+		/* The revoke carried the very session it ends: a 401 says that session is already unusable. */
+		await expect(probe.revoke?.()).resolves.toBeUndefined()
+		const sent = options.seen.filter((request) => request.path === "/notes")
+		expect(sent.map((request) => request.headers.authorization)).toEqual(["Bearer neutral-login-value"])
+		const revoke = ctx.client.transcript.at(-1)
+		expect(revoke).toMatchObject({ operationId: "notes.list", principal: probe.principal, purpose: "auth" })
+		expect(revoke).not.toHaveProperty("forged")
+		expect(ctx.client.redactor.headers(revoke?.requestHeaders ?? {})).toEqual({ Authorization: "Bearer <redacted>" })
+	})
+})
+
+/* The keys API, where each key revoke answers the next of `statuses`, then 204. */
+function revoking(...statuses: number[]): Responder {
+	const keys = keysApi()
+	return (method, path, request) =>
+		method === "DELETE" && path.startsWith("/projects/p1/keys/")
+			? { status: statuses.shift() ?? 204 }
+			: keys(method, path, request)
+}
+
+describe("runStore: a mint revoke its caller is refused", () => {
+	it("renews the caller once and sends the revoke again, which may then succeed", async () => {
+		const options = optionsFor(revoking(401), {
+			principals: { alpha: { scope: { project_id: "p1" } } },
+			security: MINTED,
+		})
+		const ctx = await connected(options)
+		await ctx.store.acquire({ principal: "alpha", scheme: "key" })
+		expect(await ctx.store.revokeAll()).toEqual([])
+		expect(options.seen.filter((request) => request.method === "DELETE")).toHaveLength(2)
+	})
+
+	it("reports the key unremovable when the renewed caller is refused again: the key may still be alive", async () => {
+		const options = optionsFor(revoking(401, 401), {
+			principals: { alpha: { scope: { project_id: "p1" } } },
+			security: MINTED,
+		})
+		const ctx = await connected(options)
+		await ctx.store.acquire({ principal: "alpha", scheme: "key" })
+		expect(await ctx.store.revokeAll()).toEqual([
+			{ principal: "alpha", reason: "revoke keys.revoke answered 401", scheme: "key" },
+		])
+		expect(options.seen.filter((request) => request.method === "DELETE")).toHaveLength(2)
+	})
+})
+
+/* A login that answers `token-<n>`, and a refresh that runs it again, as a rotation would. */
+const ROTATING: SecurityConfig = {
+	bearer: {
+		login: { from: "$.token", steps: [{ operationId: "auth.login" }] },
+		refresh: { from: "$.token", steps: [{ operationId: "auth.login" }] },
+	},
+}
+
+describe("runStore: its exchanges are real ones of documented operations", () => {
+	it("labels a login and a token grant no probe, and a replayed refresh, meant to be refused, one", async () => {
+		const ctx = await connected(optionsFor(withLogin(), { security: ROTATING }))
+		const probe = await ctx.store.acquireDedicated({ principal: "alpha", scheme: "bearer" })
+		if ("blocked" in probe) throw new Error(probe.blocked)
+		const rotated = await (probe.rotate as NonNullable<typeof probe.rotate>)()
+		await rotated.replay()
+		expect(ctx.client.transcript.map((exchange) => [exchange.operationId, exchange.probe])).toEqual([
+			["auth.login", undefined],
+			["auth.login", undefined],
+			["auth.login", true],
+		])
+		const keys = await connected(keyed())
+		await keys.store.acquire({ principal: "alpha", scheme: "oauth" })
+		expect(keys.client.transcript.at(-1)).not.toHaveProperty("probe")
+	})
+
+	it("labels a replayed OAuth 2 refresh grant a probe, and the grants before it none", async () => {
+		const keys = keysApi()
+		let granted = 0
+		const rotating: Responder = (method, path, request) =>
+			path === "/token"
+				? { body: { access_token: `granted-${++granted}`, refresh_token: "r1" }, status: 200 }
+				: keys(method, path, request)
+		const ctx = await connected(
+			optionsFor(rotating, { principals: { alpha: { scope: { project_id: "p1" } } }, security: MINTED }),
+		)
+		const probe = await ctx.store.acquireDedicated({ principal: "alpha", scheme: "oauth" })
+		if ("blocked" in probe) throw new Error(probe.blocked)
+		await (await (probe.rotate as NonNullable<typeof probe.rotate>)()).replay()
+		expect(ctx.client.transcript.map((exchange) => exchange.probe)).toEqual([undefined, undefined, true])
+	})
+
+	it("redacts the token a login answered wherever an exchange quoting it is written down", async () => {
+		const ctx = await connected(optionsFor(withLogin(), { security: LOGIN }))
+		await ctx.store.acquire({ principal: "alpha", scheme: "bearer" })
+		const [login] = ctx.client.transcript
+		expect(ctx.client.redactor.json(login?.responseBody)).toMatchObject({ token: "<redacted>" })
+	})
+})
+
+/* A login that answers an access and a refresh token. */
+const tokens: Responder = (_method, path) =>
+	path === "/login" ? { body: { refresh_token: "ref-1a2b3c4d5e", token: "acc-9f8e7d6c5b" }, status: 200 } : undefined
+
+describe("runStore: a login's tokens never feed a generated value", () => {
+	it("leaves neither the access nor the refresh token a login answered to fill a parameter from seen values", async () => {
+		const security: SecurityConfig = {
+			bearer: {
+				login: { from: "$.token", steps: [{ operationId: "auth.login", saveAs: { refresh: "$.refresh_token" } }] },
+			},
+		}
+		const ctx = await connected(optionsFor(overriding(withLogin(), tokens), { security }))
+		await ctx.store.acquire({ principal: "alpha", scheme: "bearer" })
+		const { redactor, transcript } = ctx.client
+		expect(transcript.map((exchange) => exchange.operationId)).toEqual(["auth.login"])
+		expect(seenValue(transcript, "token", redactor)).toBeUndefined()
+		expect(seenValue(transcript, "refresh_token", redactor)).toBeUndefined()
 	})
 })

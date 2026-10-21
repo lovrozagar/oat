@@ -1,21 +1,30 @@
-import type { PrincipalsConfig, Recipe } from "../config/types/security.ts"
 import { messageOf } from "../errors/message.ts"
-import type { SecurityScheme } from "../spec/security/schemes.ts"
-import { effectiveRecipe, own } from "./effective.ts"
 import { expiresAtOf } from "./expiry.ts"
-import { sendsFor } from "./placement.ts"
+import { acquireDedicated } from "./dedicated.ts"
 import { acquireRecipe, recipeKind } from "./recipes/acquire.ts"
 import { heldLogin } from "./recipes/login.ts"
-import type { AcquireCtx, Issued } from "./recipes/types.ts"
-import { createRenewals, DEFAULT_REFRESH_BUFFER_MS, isStale } from "./refresh.ts"
+import type { Issued } from "./recipes/types.ts"
+import { isStale } from "./refresh.ts"
 import { signsUp } from "./signup.ts"
+import {
+	acquireCtx,
+	blockedBy,
+	type Entry,
+	identityOf,
+	pairOf,
+	type Plan,
+	planOf,
+	record,
+	type Settled,
+	type StoreCtx,
+	storeCtx,
+} from "./store-plan.ts"
 import type {
+	Adopting,
 	Blocked,
-	Credential,
 	CredentialKey,
 	CredentialStore,
 	Held,
-	Adopting,
 	HeldCredential,
 	RevokeFailure,
 	StoreOptions,
@@ -32,72 +41,38 @@ import type {
  *
  * Nothing is retried. A failed acquire is memoized as BLOCKED with its reason, so a login is
  * attempted once per principal and scheme per run. A failed declared refresh falls back to one login
- * (never a signup); a failed renewal blocks the principal × scheme, and other principals carry on. A refresh names the value the refused request
- * carried: when the store already holds a newer one, that is the answer, and nothing is renewed.
+ * (never a signup); a failed renewal blocks the principal × scheme, and other principals carry on. A
+ * refresh names the value the refused request carried: when the store already holds a newer one,
+ * that is the answer, and nothing is renewed.
  *
  * A static credential has nothing to renew: on a 401 its recipe gives the same value again, the one
  * retry gets the same 401, and that refusal is the finding. The no-op is deliberate.
  */
 
-/* Every type the store's contract names, re-exported whole: store-types.ts declares those alone. */
-export type * from "./store-types.ts"
-
-interface Entry {
-	key: HeldCredential
-	credential: Credential
-	issued: Issued
-	/** Epoch ms the store took it in, which with its expiry gives its lifetime. */
-	issuedAt: number
-	/** The value a renewal replaced: refused again, it is not renewed twice, even when the server reissued it. */
-	renewedFrom?: string
-}
-type Settled = Entry | Blocked
-
-interface StoreCtx {
-	options: StoreOptions
-	/** The config's principals and the ones the run enrolled. */
-	principals: PrincipalsConfig
-	now: () => number
-	bufferMs: number
-	entries: Map<string, Promise<Settled>>
-	/** Principal × scheme pairs a failed refresh blocked. */
-	blocked: Map<string, Blocked>
-	/** Identity credentials bound, by principal. */
-	bound: Map<string, Record<string, string>>
-	revokes: Array<{ principal: string; scheme: string; revoke: () => Promise<void> }>
-	renew: (held: Entry, start: () => Promise<Settled>) => Promise<Settled>
-}
-
-interface Plan {
-	principal: string
-	scheme: string
-	spec: SecurityScheme
-	recipe: Partial<Recipe>
-	scopes: readonly string[]
-	pair: string
-	id: string
-}
-
-/* Config keys that grade a principal rather than identify it. */
-const GRADING: ReadonlySet<string> = /* @__PURE__ */ new Set(["created", "fresh", "inviteAs", "rank", "security"])
+export type {
+	Adopting,
+	Blocked,
+	Credential,
+	CredentialKey,
+	CredentialStore,
+	DedicatedHeld,
+	Held,
+	HeldCredential,
+	RevokeFailure,
+	Rotated,
+	StoreOptions,
+} from "./store-types.ts"
 
 /** A credential store for one run. */
 export function createStore(options: StoreOptions): CredentialStore {
-	const ctx: StoreCtx = {
-		blocked: new Map(),
-		bound: new Map(),
-		bufferMs: options.refreshBufferMs ?? DEFAULT_REFRESH_BUFFER_MS,
-		entries: new Map(),
-		now: options.now ?? Date.now,
-		options,
-		principals: { ...options.principals },
-		renew: createRenewals<Entry, Settled>(),
-		revokes: [],
-	}
+	const ctx = storeCtx(options)
 	return {
 		acquire: (key) => acquire(ctx, key),
+		acquireDedicated: (key, use) => acquireDedicated(ctx, key, use),
 		adopt: (input) => adopt(ctx, input),
-		block: (key, reason) => void ctx.blocked.set(`${key.principal}\u0000${key.scheme}`, { blocked: reason }),
+		block: (key, reason) => {
+			ctx.blocked.set(pairOf(key), { blocked: reason })
+		},
 		enroll: (id, entry) => {
 			ctx.principals[id] = entry
 		},
@@ -105,6 +80,7 @@ export function createStore(options: StoreOptions): CredentialStore {
 		principals: ctx.principals,
 		refresh: (request) => refresh(ctx, request),
 		revokeAll: () => revokeAll(ctx),
+		revokeSessions: (of) => revokeSessions(ctx, of),
 		snapshot: () => snapshot(ctx),
 	}
 }
@@ -216,75 +192,38 @@ function heldIssue(
 	return { expiresAt: expiresAtOf({ body: undefined, expiresIn: plan.recipe.expiresIn, now: ctx.now(), value }), value }
 }
 
-/* What blocked a credential, as a report names it: the step (a recipe kind, refresh or adopt), for whom, and why. */
-function blockedBy(step: string, plan: Plan, error: unknown): string {
-	return `${step} for ${plan.principal}/${plan.scheme}: ${messageOf(error)}`
-}
-
-function record(ctx: StoreCtx, plan: Plan, issued: Issued): Entry {
-	const { secrets, sends } = sendsFor(plan.spec, plan.recipe, issued.value)
-	const credential: Credential = { expiresAt: issued.expiresAt, secrets, sends, value: issued.value }
-	if (issued.scopes !== undefined) credential.scopes = issued.scopes
-	if (issued.identity !== undefined) {
-		ctx.bound.set(plan.principal, { ...ctx.bound.get(plan.principal), ...issued.identity })
-	}
-	if (issued.revoke !== undefined) {
-		ctx.revokes.push({ principal: plan.principal, revoke: issued.revoke, scheme: plan.scheme })
-	}
-	const key = { principal: plan.principal, scheme: plan.scheme, scopes: plan.scopes }
-	return { credential, issued, issuedAt: ctx.now(), key: { ...key, credential } }
-}
-
-/* Adopting replaces a credential, so a pair a failed refresh blocked can still take one in. */
-function planOf(ctx: StoreCtx, key: CredentialKey, how: { adopting?: boolean } = {}): Plan | Blocked {
-	const { schemes, security } = ctx.options
-	const entry = own(ctx.principals, key.principal)
-	if (entry === undefined) return { blocked: `no principal "${key.principal}" in the config` }
-	const spec = schemes.get(key.scheme)
-	if (spec === undefined) return { blocked: `the document declares no "${key.scheme}" scheme` }
-	const recipe = effectiveRecipe(own(security, key.scheme), entry.security?.[key.scheme])
-	if (recipe === undefined) {
-		return { blocked: `principal "${key.principal}" has no recipe for the "${key.scheme}" scheme` }
-	}
-	const pair = `${key.principal}\u0000${key.scheme}`
-	const blocked = ctx.blocked.get(pair)
-	if (blocked !== undefined && how.adopting !== true) return blocked
-	const scopes = recipeKind(recipe) === "login" ? [] : [...(key.scopes ?? [])].sort()
-	return {
-		id: `${pair}\u0000${scopes.join(" ")}`,
-		pair,
-		principal: key.principal,
-		recipe,
-		scheme: key.scheme,
-		scopes,
-		spec,
-	}
-}
-
-function acquireCtx(ctx: StoreCtx, plan: Plan): AcquireCtx {
-	return {
-		now: ctx.now,
-		ports: ctx.options.ports,
-		principal: { id: plan.principal, identity: identityOf(ctx, plan.principal) },
-		scheme: plan.spec,
-		scopes: plan.scopes,
-	}
-}
-
-function identityOf(ctx: StoreCtx, principal: string): Readonly<Record<string, unknown>> {
-	const data = Object.entries(own(ctx.principals, principal) ?? {}).filter(([key]) => !GRADING.has(key))
-	return { ...Object.fromEntries(data), ...ctx.bound.get(principal) }
-}
-
 async function snapshot(ctx: StoreCtx): Promise<HeldCredential[]> {
 	const settled = await Promise.all(ctx.entries.values())
 	return settled.flatMap((held) => ("blocked" in held ? [] : [held.key]))
 }
 
+/*
+ * Each principal's own login session, ended by its declared revoke, one at a time: the run's last
+ * call. A dedicated session is revokeAll's, and a mint or a grant has no session to end.
+ */
+async function revokeSessions(ctx: StoreCtx, of: (principal: string) => boolean): Promise<RevokeFailure[]> {
+	const failures: RevokeFailure[] = []
+	for (const held of await Promise.all(ctx.entries.values())) {
+		if ("blocked" in held || held.issued.revoke === undefined) continue
+		const { principal, scheme } = held.key
+		const plan = planOf(ctx, { principal, scheme })
+		if (ctx.dedicated.has(principal) || !of(principal) || "blocked" in plan || recipeKind(plan.recipe) !== "login")
+			continue
+		try {
+			await held.issued.revoke()
+		} catch (error) {
+			failures.push({ principal, reason: messageOf(error), scheme })
+		}
+	}
+	return failures
+}
+
 /* One at a time, so a teardown's revokes reach the backend in the order they were minted. */
 async function revokeAll(ctx: StoreCtx): Promise<RevokeFailure[]> {
 	const failures: RevokeFailure[] = []
-	for (const { principal, revoke, scheme } of ctx.revokes.splice(0)) {
+	const revoking = [...ctx.revokes.values()]
+	ctx.revokes.clear()
+	for (const { principal, revoke, scheme } of revoking) {
 		try {
 			await revoke()
 		} catch (error) {

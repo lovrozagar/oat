@@ -2,6 +2,7 @@ import { createServer, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { runCheck } from "../../src/runtime/checks/core/run.ts"
+import { entityChecks } from "../../src/runtime/checks/core/registry.ts"
 import { CHECKS } from "../../src/runtime/checks/registry.ts"
 import { Client } from "../../src/client/client.ts"
 import { FindingCollector } from "../../src/runtime/finding.ts"
@@ -137,7 +138,7 @@ function spec(): OpenApiDocument {
 }
 
 async function judge(checkId: string, after: number, move: Move): Promise<{ findings: string[] }> {
-	const check = CHECKS.find((candidate) => candidate.id === checkId)
+	const check = entityChecks(CHECKS).find((candidate) => candidate.id === checkId)
 	if (check === undefined) throw new Error(`no check ${checkId}`)
 	const model = buildModel(dereference(spec()).doc)
 	const listOp = model.byOperationId.get("widget.list")

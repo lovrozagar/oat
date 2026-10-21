@@ -43,14 +43,14 @@ export class Ledger {
 	/* Every record ever ledgered, by entity and id, whoever created it. */
 	private readonly held = new Set<string>()
 
-	record({ entity, id, scope }: Created, owner: Owner): void {
+	record({ entity, id, scope, inferred }: Created, owner: Owner): void {
 		if (id === "" || id === "undefined") return
 		/* By principal too: ids are often unique only within a tenant, and each tenant's is its own. */
 		const key = recordKey(entity, id, owner.id)
 		if (this.seen.has(key)) return
 		this.seen.add(key)
 		this.held.add(`${entity}\u0000${id}`)
-		this.items.push({ entity, id, owner, scope: { ...scope } })
+		this.items.push({ entity, id, owner, scope: { ...scope }, ...(inferred === true ? { inferred } : {}) })
 	}
 
 	/** Whether any principal's record of `entity` with `id` was ever ledgered, removed since or not. */

@@ -2,6 +2,7 @@
 
 import type { Handle } from "../../reference/http/node.ts"
 import { routed } from "../harness/routes.ts"
+import { bearerGuarded } from "../harness/security.ts"
 import { answer, guarded, readJson } from "../harness/serve.ts"
 import { extractSpec } from "./spec.ts"
 
@@ -13,6 +14,10 @@ interface Table {
 
 type Row = Pick<Table, "id" | "table_id">
 
+/** The bearer token the extract backend issues, and the only one it accepts. */
+export const EXTRACT_TOKEN = "t"
+
+/** The backend behind its declared bearer: a table list, create and read, row lists, and the extract. */
 export function extractBackend(rowCount: number): Handle {
 	const spec = extractSpec()
 	/* A table and its rows are made together, so a table never lacks its row list. */
@@ -25,48 +30,47 @@ export function extractBackend(rowCount: number): Handle {
 		return table
 	}
 	const list = /^\/v1\/projects\/([^/]+)\/tables$/
-	return guarded(
-		routed([
-			{ method: "GET", path: /^\/v1\/openapi\/spec$/, reply: () => answer(200, spec) },
-			{ method: "GET", path: list, reply: () => answer(200, { tables: [...tables.values()].map((t) => t.table) }) },
-			{
-				method: "POST",
-				path: list,
-				reply: async (_, request) => {
-					const body = (await readJson(request)) as { name?: unknown } | undefined
-					return answer(
-						201,
-						make(typeof body?.name === "string" ? body.name : "n", () => []),
-					)
-				},
+	const routes = routed([
+		{ method: "GET", path: /^\/v1\/openapi\/spec$/, reply: () => answer(200, spec) },
+		{ method: "GET", path: list, reply: () => answer(200, { tables: [...tables.values()].map((t) => t.table) }) },
+		{
+			method: "POST",
+			path: list,
+			reply: async (_, request) => {
+				const body = (await readJson(request)) as { name?: unknown } | undefined
+				return answer(
+					201,
+					make(typeof body?.name === "string" ? body.name : "n", () => []),
+				)
 			},
-			{
-				method: "GET",
-				path: /^\/v1\/projects\/[^/]+\/tables\/([^/]+)$/,
-				reply: (id) => {
-					const found = tables.get(decodeURIComponent(id))
-					return found === undefined ? answer(404) : answer(200, found.table)
-				},
+		},
+		{
+			method: "GET",
+			path: /^\/v1\/projects\/[^/]+\/tables\/([^/]+)$/,
+			reply: (id) => {
+				const found = tables.get(decodeURIComponent(id))
+				return found === undefined ? answer(404) : answer(200, found.table)
 			},
-			{
-				method: "GET",
-				path: /^\/v1\/projects\/[^/]+\/tables\/([^/]+)\/rows$/,
-				reply: (id) => {
-					const found = tables.get(decodeURIComponent(id))
-					return found === undefined ? answer(404) : answer(200, { rows: found.rows })
-				},
+		},
+		{
+			method: "GET",
+			path: /^\/v1\/projects\/[^/]+\/tables\/([^/]+)\/rows$/,
+			reply: (id) => {
+				const found = tables.get(decodeURIComponent(id))
+				return found === undefined ? answer(404) : answer(200, { rows: found.rows })
 			},
-			{
-				method: "POST",
-				path: /^\/v1\/projects\/([^/]+)\/extract$/,
-				reply: () =>
-					answer(
-						200,
-						make("extracted", (id) =>
-							Array.from({ length: rowCount }, (_, i) => ({ id: `r_${id}_${String(i + 1)}`, table_id: id })),
-						),
+		},
+		{
+			method: "POST",
+			path: /^\/v1\/projects\/([^/]+)\/extract$/,
+			reply: () =>
+				answer(
+					200,
+					make("extracted", (id) =>
+						Array.from({ length: rowCount }, (_, i) => ({ id: `r_${id}_${String(i + 1)}`, table_id: id })),
 					),
-			},
-		]),
-	)
+				),
+		},
+	])
+	return guarded(bearerGuarded(routes, EXTRACT_TOKEN))
 }

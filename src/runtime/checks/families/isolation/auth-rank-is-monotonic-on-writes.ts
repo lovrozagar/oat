@@ -2,7 +2,7 @@ import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { fillPath } from "../../../fill-path.ts"
-import { ASSERTED, type Outcome } from "../../../finding.ts"
+import { ASSERTED, asserted, type Outcome } from "../../../finding.ts"
 import type { Actor, WriteContext } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { scratchRecord, updateRequest } from "../../isolation/scratch.ts"
@@ -40,9 +40,11 @@ export const rankIsMonotonicOnWrites = defineCheck<{ home: Actor[] }>({
 	subjects: (entity) => declared(entity.create, entity.update, entity.delete),
 	async run(ctx, { home }): Promise<Outcome> {
 		const writes = new Map<string, Map<string, WriteVerdict>>()
+		const untested: string[] = []
 		for (const actor of home) {
 			const tried = await tryWrites(ctx, this.id, actor)
 			if ("outcome" in tried) return tried.outcome
+			if (tried.withheld !== undefined) untested.push(`${tried.withheld}, so its create is untested`)
 			for (const [kind, verdict] of tried.verdicts) {
 				writes.set(kind, (writes.get(kind) ?? new Map<string, WriteVerdict>()).set(actor.id, verdict))
 			}
@@ -61,21 +63,20 @@ export const rankIsMonotonicOnWrites = defineCheck<{ home: Actor[] }>({
 				evidence: [lo.exchange, hi.exchange],
 			})
 		}
-		return ASSERTED
+		return untested.length === 0 ? ASSERTED : asserted(untested.join("; "))
 	},
 })
 
-type Tried = { verdicts: Array<[string, WriteVerdict]> } | { outcome: Outcome }
+/* Each verdict, and why a create was never sent, when it was not. */
+type Tried = { verdicts: Array<[string, WriteVerdict]>; withheld?: string } | { outcome: Outcome }
 
 /** Each write `actor` tries once — a create, then an update and a delete on a scratch record each. */
 async function tryWrites(ctx: WriteContext, check: string, actor: Actor): Promise<Tried> {
 	const verdicts: Array<[string, WriteVerdict]> = []
 	const createOp = ctx.createOp as OperationModel
 	const schema = requestSchemaOf(ctx, createOp)
-	if (schema !== null) {
-		const { exchange: created } = await createFresh(ctx, createOp, schema, actor.id)
-		verdicts.push(["create", judgeWrite(created)])
-	}
+	const fresh = schema === null ? undefined : await createFresh(ctx, createOp, schema, actor.id)
+	if (fresh !== undefined && "exchange" in fresh) verdicts.push(["create", judgeWrite(fresh.exchange)])
 	const updateOp = ctx.updateOp
 	if (updateOp !== undefined) {
 		const updated = await tryUpdate(ctx, check, actor, updateOp)
@@ -93,7 +94,7 @@ async function tryWrites(ctx: WriteContext, check: string, actor: Actor): Promis
 		})
 		verdicts.push(["delete", judgeWrite(deleted)])
 	}
-	return { verdicts }
+	return fresh !== undefined && "withheld" in fresh ? { verdicts, withheld: fresh.withheld } : { verdicts }
 }
 
 /** `actor` changes one field of a scratch record; no verdict when the record has no field to change. */

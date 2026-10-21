@@ -42,6 +42,11 @@ export function stage(document: OpenApiDocument, respond: Responder, fields: Par
 		acting: { identity: {}, sending: async () => undefined },
 		checksRun: new Set<string>(),
 		client,
+		credentials: {
+			actorFor: async () => ({ untested: "no dedicated credential" }),
+			identityFields: new Map(),
+			operations: new Set<string>(),
+		},
 		findings: new FindingCollector(),
 		grades: new GradeLedger(),
 		hooks: {} as Hooks,

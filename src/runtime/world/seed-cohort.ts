@@ -171,8 +171,18 @@ function cohortRun(start: {
 	}
 }
 
-/** Creates the cohort and returns the server's view of each instance. */
+/**
+ * Creates the cohort and returns the server's view of each instance. A create the principal must not
+ * send (`withheld`) is never sent: seeding stops with the reason.
+ */
 export async function seedCohort(createOp: OperationModel, seeding: Seeding, scope: Scope): Promise<SeededCohort> {
+	const withheld = seeding.options.withheld?.(createOp)
+	if (withheld !== undefined) throw new SeedError(createOp.operationId, withheld)
+	return seedSent(createOp, seeding, scope)
+}
+
+/* The cohort, created. */
+async function seedSent(createOp: OperationModel, seeding: Seeding, scope: Scope): Promise<SeededCohort> {
 	const { model, client, options } = seeding
 	const plan = cohortPlan(createOp, model)
 	let members: CohortMember[]

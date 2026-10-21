@@ -20,4 +20,14 @@ describe("GradeLedger", () => {
 		ledger.prove("table.create", { call: 4 })
 		expect(ledger.evidence.get("table.create")?.call).toBe(2)
 	})
+
+	it("tells an operation only probes graded from one a check judged", () => {
+		const ledger = new GradeLedger()
+		ledger.probedBy(["auth.token", "notes.list"], "auth.anonymous-operation-open")
+		ledger.graded(["notes.list"], "list.read-after-write")
+		expect([...(ledger.ran.get("auth.token") ?? [])]).toEqual(["auth.anonymous-operation-open"])
+		expect(ledger.judged("auth.token")).toBe(false)
+		expect(ledger.judged("notes.list")).toBe(true)
+		expect(ledger.judged("notes.get")).toBe(false)
+	})
 })

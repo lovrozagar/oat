@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { exchange, type Responder } from "../__fixtures__/harness.ts"
-import { notesContext, notesModel } from "../query/__fixtures__/notes.ts"
+import { modelOf } from "../__fixtures__/harness.ts"
+import { notesContext, notesDoc, notesModel } from "../query/__fixtures__/notes.ts"
 import { readRecord, scratchRecord, updateRequest } from "./scratch.ts"
 
 /*
@@ -158,5 +159,58 @@ describe("updateRequest", () => {
 			method: "PUT",
 			options: { body: { name: "b" } },
 		})
+	})
+})
+
+/* Notes whose PUT body marks `plan` x-privileged, required as `required` says. */
+function markedPut(required: string[]) {
+	const doc = structuredClone(notesDoc())
+	const paths = doc.paths as Record<string, Record<string, { requestBody: unknown }>>
+	const put = paths["/notes/{noteId}"]?.patch as { requestBody: unknown }
+	put.requestBody = {
+		content: {
+			"application/json": {
+				schema: {
+					properties: { name: { type: "string" }, plan: { type: "string", "x-privileged": true } },
+					required,
+					type: "object",
+				},
+			},
+		},
+	}
+	const { ctx } = notesContext(undefined, {}, modelOf(doc))
+	return { ctx, updateOp: { ...(ctx.updateOp ?? ctx.listOp), method: "PUT" } }
+}
+
+describe("updateRequest and a property only the highest rank may set", () => {
+	it("leaves an optional one out of a PUT, and keeps a required one", async () => {
+		const record = { id: "n1", name: "a", plan: "gold" }
+		const optional = markedPut([])
+		expect(await updateRequest(optional.ctx, optional.updateOp, record, { name: "b" })).toEqual({
+			method: "PUT",
+			options: { body: { name: "b" } },
+		})
+		const required = markedPut(["plan"])
+		expect((await updateRequest(required.ctx, required.updateOp, record, { name: "b" })).options.body).toEqual({
+			name: "b",
+			plan: "gold",
+		})
+	})
+})
+
+describe("scratchRecord as a principal a higher rank outranks", () => {
+	it("stands down without sending a create whose body requires a property only the highest rank sets", async () => {
+		const { ctx, sent } = notesContext(creating({ body: { id: "n9" }, status: 201 }))
+		const low = { ...ctx.actor, id: "low", rank: 0 }
+		const createOp = { ...(ctx.createOp ?? ctx.listOp), privilegedRequired: ["name"] }
+		const outranked = { ...ctx, actor: low, actors: [{ ...low, id: "top", rank: 1 }, low], createOp }
+		expect(await scratchRecord(outranked, CHECK)).toEqual({
+			outcome: {
+				kind: "stood-down",
+				reason:
+					"note.create requires name, marked x-privileged, which only top (rank 1) may set; low (rank 0) does not send it",
+			},
+		})
+		expect(sent).toEqual([])
 	})
 })

@@ -1,12 +1,36 @@
 {
+  "apiKey.create": [
+    "POST /v1/api-keys [Authorization,content-type] → 201"
+  ],
+  "apiKey.get": [
+    "GET /v1/api-keys/apikey_ID [Authorization] → 200",
+    "GET /v1/api-keys/apikey_ID [Authorization] → 404"
+  ],
+  "apiKey.revoke": [
+    "DELETE /v1/api-keys/apikey_ID [Authorization] → 200"
+  ],
+  "auth.login": [
+    "POST /v1/auth/login [content-type] → 400",
+    "POST /v1/auth/login [content-type] → 401"
+  ],
   "auth.logout": [
     "POST /v1/logout [Authorization] → 200"
   ],
+  "auth.refresh": [
+    "POST /v1/auth/refresh [content-type] → 200",
+    "POST /v1/auth/refresh [content-type] → 400",
+    "POST /v1/auth/refresh [content-type] → 401"
+  ],
   "auth.register": [
-    "POST /v1/register [content-type] → 201"
+    "POST /v1/register [content-type] → 201",
+    "POST /v1/register [content-type] → 400"
+  ],
+  "auth.revoke": [
+    "POST /v1/auth/revoke [Authorization,content-type] → 400"
   ],
   "auth.token": [
-    "POST /v1/auth/token [content-type] → 200"
+    "POST /v1/auth/token [content-type] → 200",
+    "POST /v1/auth/token [content-type] → 400"
   ],
   "gateway.health": [
     "GET /health [] → 200"
@@ -23,22 +47,33 @@
   ],
   "job.delete": [
     "DELETE /v1/projects/proj_alpha/jobs/job_ID [Authorization] → 200",
+    "DELETE /v1/projects/proj_alpha/jobs/job_ID [Authorization] → 401",
     "DELETE /v1/projects/proj_alpha/jobs/job_ID [Authorization] → 403",
     "DELETE /v1/projects/proj_alpha/jobs/job_ID [Authorization] → 404",
+    "DELETE /v1/projects/proj_alpha/jobs/job_ID [] → 401",
     "DELETE /v1/projects/proj_alpha/jobs/oat-absent-NONCE [Authorization] → 404",
     "DELETE /v1/projects/proj_beta/jobs/job_ID [Authorization] → 404"
   ],
   "job.get": [
     "GET /v1/projects/proj_alpha/jobs/job_ID [Authorization] → 200",
+    "GET /v1/projects/proj_alpha/jobs/job_ID [Authorization] → 401",
+    "GET /v1/projects/proj_alpha/jobs/job_ID [Authorization] → 403",
     "GET /v1/projects/proj_alpha/jobs/job_ID [Authorization] → 404",
+    "GET /v1/projects/proj_alpha/jobs/job_ID [] → 401",
     "GET /v1/projects/proj_alpha/jobs/oat-absent-NONCE [Authorization] → 404",
     "GET /v1/projects/proj_beta/jobs/job_ID [Authorization] → 404",
     "GET /v1/projects/proj_beta/jobs/oat-absent-NONCE [Authorization] → 404"
   ],
   "job.inbox": [
-    "GET /v1/projects/proj_alpha/inbox [Authorization] → 200"
+    "GET /v1/projects/proj_alpha/inbox [Authorization] → 200",
+    "GET /v1/projects/proj_alpha/inbox [Authorization] → 401",
+    "GET /v1/projects/proj_alpha/inbox [] → 401"
   ],
   "job.list": [
+    "GET /v1/projects/proj_alpha/jobs [Authorization] → 200",
+    "GET /v1/projects/proj_alpha/jobs [Authorization] → 401",
+    "GET /v1/projects/proj_alpha/jobs [Authorization] → 403",
+    "GET /v1/projects/proj_alpha/jobs [] → 401",
     "GET /v1/projects/proj_alpha/jobs?cursor&limit&order [Authorization] → 200",
     "GET /v1/projects/proj_alpha/jobs?filter&limit [Authorization] → 200",
     "GET /v1/projects/proj_alpha/jobs?filter&limit [Authorization] → 400",
@@ -65,6 +100,7 @@
     "GET /v1/projects/proj_alpha/jobs?limit&q [Authorization] → 200",
     "GET /v1/projects/proj_alpha/jobs?limit&q&search_mode [Authorization] → 200",
     "GET /v1/projects/proj_alpha/jobs?limit&select [Authorization] → 200",
+    "GET /v1/projects/proj_beta/jobs [Authorization] → 200",
     "GET /v1/projects/proj_beta/jobs?filter&limit [Authorization] → 200"
   ],
   "job.notify": [
@@ -76,7 +112,9 @@
   "job.update": [
     "PATCH /v1/projects/proj_alpha/jobs/job_ID [Authorization,content-type] → 200",
     "PATCH /v1/projects/proj_alpha/jobs/job_ID [Authorization,content-type] → 400",
+    "PATCH /v1/projects/proj_alpha/jobs/job_ID [Authorization,content-type] → 401",
     "PATCH /v1/projects/proj_alpha/jobs/job_ID [Authorization,content-type] → 403",
+    "PATCH /v1/projects/proj_alpha/jobs/job_ID [content-type] → 401",
     "PATCH /v1/projects/proj_beta/jobs/job_ID [Authorization,content-type] → 404"
   ],
   "notice.get": [
@@ -85,6 +123,8 @@
   ],
   "notice.list": [
     "GET /v1/notices [Authorization] → 200",
+    "GET /v1/notices [Authorization] → 401",
+    "GET /v1/notices [] → 401",
     "GET /v1/notices?limit_oat_typo [Authorization] → 200",
     "GET /v1/notices?oat_unknown_parameter [Authorization] → 200"
   ],
@@ -98,6 +138,7 @@
   ],
   "project.overview": [
     "GET /v1/projects/proj_alpha/overview [Authorization] → 200",
+    "GET /v1/projects/proj_alpha/overview [Authorization] → 401",
     "GET /v1/projects/proj_alpha/overview [] → 401"
   ],
   "row.create": [
@@ -111,14 +152,19 @@
   "row.delete": [
     "DELETE /v1/projects/proj_alpha/tables/table_ID/rows/oat-absent-NONCE [Authorization] → 404",
     "DELETE /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [Authorization] → 200",
+    "DELETE /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [Authorization] → 401",
     "DELETE /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [Authorization] → 403",
     "DELETE /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [Authorization] → 404",
+    "DELETE /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [] → 401",
     "DELETE /v1/projects/proj_beta/tables/table_ID/rows/row_ID [Authorization] → 404"
   ],
   "row.get": [
     "GET /v1/projects/proj_alpha/tables/table_ID/rows/oat-absent-NONCE [Authorization] → 404",
     "GET /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [Authorization] → 200",
+    "GET /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [Authorization] → 401",
+    "GET /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [Authorization] → 403",
     "GET /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [Authorization] → 404",
+    "GET /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [] → 401",
     "GET /v1/projects/proj_beta/tables/table_ID/rows/oat-absent-NONCE [Authorization] → 404",
     "GET /v1/projects/proj_beta/tables/table_ID/rows/row_ID [Authorization] → 404"
   ],
@@ -155,7 +201,9 @@
   "row.update": [
     "PATCH /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [Authorization,content-type] → 200",
     "PATCH /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [Authorization,content-type] → 400",
+    "PATCH /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [Authorization,content-type] → 401",
     "PATCH /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [Authorization,content-type] → 403",
+    "PATCH /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [content-type] → 401",
     "PATCH /v1/projects/proj_beta/tables/table_ID/rows/row_ID [Authorization,content-type] → 404"
   ],
   "table.create": [
@@ -170,22 +218,34 @@
   "table.delete": [
     "DELETE /v1/projects/proj_alpha/tables/oat-absent-NONCE [Authorization] → 404",
     "DELETE /v1/projects/proj_alpha/tables/table_ID [Authorization] → 200",
+    "DELETE /v1/projects/proj_alpha/tables/table_ID [Authorization] → 401",
     "DELETE /v1/projects/proj_alpha/tables/table_ID [Authorization] → 403",
     "DELETE /v1/projects/proj_alpha/tables/table_ID [Authorization] → 404",
+    "DELETE /v1/projects/proj_alpha/tables/table_ID [] → 401",
     "DELETE /v1/projects/proj_beta/tables/table_ID [Authorization] → 200",
     "DELETE /v1/projects/proj_beta/tables/table_ID [Authorization] → 404"
   ],
   "table.get": [
     "GET /v1/projects/proj_alpha/tables/oat-absent-NONCE [Authorization] → 404",
     "GET /v1/projects/proj_alpha/tables/table_ID [Authorization] → 200",
+    "GET /v1/projects/proj_alpha/tables/table_ID [Authorization] → 401",
+    "GET /v1/projects/proj_alpha/tables/table_ID [Authorization] → 403",
     "GET /v1/projects/proj_alpha/tables/table_ID [Authorization] → 404",
+    "GET /v1/projects/proj_alpha/tables/table_ID [] → 401",
     "GET /v1/projects/proj_beta/tables/oat-absent-NONCE [Authorization] → 404",
     "GET /v1/projects/proj_beta/tables/table_ID [Authorization] → 404"
   ],
   "table.invite": [
-    "POST /v1/projects/proj_alpha/tables/table_ID/invites [Authorization,content-type] → 201"
+    "POST /v1/projects/proj_alpha/tables/table_ID/invites [Authorization,content-type] → 201",
+    "POST /v1/projects/proj_alpha/tables/table_ID/invites [Authorization,content-type] → 401",
+    "POST /v1/projects/proj_alpha/tables/table_ID/invites [Authorization,content-type] → 403",
+    "POST /v1/projects/proj_alpha/tables/table_ID/invites [content-type] → 401"
   ],
   "table.list": [
+    "GET /v1/projects/proj_alpha/tables [Authorization] → 200",
+    "GET /v1/projects/proj_alpha/tables [Authorization] → 401",
+    "GET /v1/projects/proj_alpha/tables [Authorization] → 403",
+    "GET /v1/projects/proj_alpha/tables [] → 401",
     "GET /v1/projects/proj_alpha/tables?cursor&limit&order [Authorization] → 200",
     "GET /v1/projects/proj_alpha/tables?filter&limit [Authorization] → 200",
     "GET /v1/projects/proj_alpha/tables?filter&limit [Authorization] → 400",
@@ -213,6 +273,7 @@
     "GET /v1/projects/proj_alpha/tables?limit&q&search_mode [Authorization] → 200",
     "GET /v1/projects/proj_alpha/tables?limit&select [Authorization] → 200",
     "GET /v1/projects/proj_alpha/tables?limit&select [Authorization] → 400",
+    "GET /v1/projects/proj_beta/tables [Authorization] → 200",
     "GET /v1/projects/proj_beta/tables?filter&limit [Authorization] → 200",
     "GET /v1/projects/proj_beta/tables?limit [Authorization] → 200",
     "GET /v1/projects/proj_beta/tables?limit&page [Authorization] → 200"
@@ -223,8 +284,10 @@
   "table.update": [
     "PATCH /v1/projects/proj_alpha/tables/table_ID [Authorization,content-type] → 200",
     "PATCH /v1/projects/proj_alpha/tables/table_ID [Authorization,content-type] → 400",
+    "PATCH /v1/projects/proj_alpha/tables/table_ID [Authorization,content-type] → 401",
     "PATCH /v1/projects/proj_alpha/tables/table_ID [Authorization,content-type] → 403",
     "PATCH /v1/projects/proj_alpha/tables/table_ID [Authorization,content-type] → 409",
+    "PATCH /v1/projects/proj_alpha/tables/table_ID [content-type] → 401",
     "PATCH /v1/projects/proj_beta/tables/table_ID [Authorization,content-type] → 404"
   ]
 }

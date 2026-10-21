@@ -30,12 +30,15 @@ export interface StepAnswer {
 export interface RunStepsOptions {
 	/** Bindings the chain starts from; copied, never written. */
 	scope?: Readonly<Scope>
+	/** Every hop is meant to be refused, a spent refresh token replayed say: each exchange is labeled a probe. */
+	probe?: true
 }
 
 /** One step's place in the chain and the state it reads and writes. */
 interface Turn {
 	index: number
 	scope: Scope
+	probe: boolean
 }
 
 /** Runs `steps` in order, returning the bound scope and the last answer (none when nothing was sent). */
@@ -48,7 +51,7 @@ export async function runSteps(
 	const sent: Exchange[] = []
 	let last: StepAnswer | undefined
 	for (const [index, step] of steps.entries()) {
-		const turn: Turn = { index, scope }
+		const turn: Turn = { index, probe: options.probe === true, scope }
 		bindLiterals(step, scope)
 		if ("outOfBand" in step) {
 			scope[step.outOfBand.as] = await awaitDelivery(ctx, step, { sent, turn })
@@ -96,10 +99,11 @@ async function send(ctx: StepContext, step: AuthStep, turn: Turn): Promise<Excha
 		...(request.contentType === undefined ? {} : { contentType: request.contentType }),
 		headers: request.headers ?? {},
 		...(request.query === undefined ? {} : { query: request.query }),
-		/* A login or refresh hop acts as nobody, and is never refreshed or retried: a hop that
-		 * refreshed would wait on its own login. What it sends is what the step names. */
+		/* A login or refresh hop acts as nobody, so it is never refreshed or retried: a hop that
+		 * refreshed would wait on its own login. What it sends is what the step names. It is a real
+		 * exchange of its operation, labeled a probe only when it is meant to be refused. */
 		as: { anonymous: true },
-		probe: true,
+		...(turn.probe ? { probe: true } : {}),
 		...("operationId" in step ? { operationId: step.operationId } : {}),
 		...(request.redirect === undefined ? {} : { redirect: request.redirect }),
 	})

@@ -66,7 +66,7 @@ export function saltOf(ctx: CheckContext): string {
  * meant to test something else collides on the identity instead.
  */
 export function reserveClientIdentity(
-	ctx: CheckContext,
+	ctx: Pick<CheckContext, "identity" | "takenIdentities">,
 	body: Record<string, unknown>,
 	schema: Record<string, unknown>,
 	salt: string,
@@ -79,7 +79,11 @@ export function reserveClientIdentity(
  * How a check's create draws its client-chosen identity, and draws it again after a 409: from
  * outside the run's taken identities, when oat chooses one (`choosesIdentity`); else not at all.
  */
-export function clientIdentityOf(ctx: CheckContext, schema: Record<string, unknown>, token: string): ClientIdentity {
+export function clientIdentityOf(
+	ctx: Pick<CheckContext, "identity" | "takenIdentities">,
+	schema: Record<string, unknown>,
+	token: string,
+): ClientIdentity {
 	const taken = ctx.takenIdentities
 	return {
 		identity: taken !== undefined && choosesIdentity(ctx, schema) ? ctx.identity : null,
@@ -90,7 +94,10 @@ export function clientIdentityOf(ctx: CheckContext, schema: Record<string, unkno
 }
 
 /** Whether a create body carries an identity oat chooses and reserves. */
-export function choosesIdentity(ctx: CheckContext, schema: Record<string, unknown>): boolean {
+export function choosesIdentity(
+	ctx: Pick<CheckContext, "identity" | "takenIdentities">,
+	schema: Record<string, unknown>,
+): boolean {
 	return (
 		ctx.takenIdentities !== undefined &&
 		Object.hasOwn((schema.properties ?? {}) as Record<string, unknown>, ctx.identity)

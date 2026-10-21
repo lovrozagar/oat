@@ -13,6 +13,8 @@ export interface PassEvidence {
 /** Which checks graded which operations, filled as checks run. */
 export class GradeLedger {
 	readonly ran = new Map<string, Set<string>>()
+	/** The checks in `ran` that only probed the operation: none of them judged its documented success. */
+	readonly probed = new Map<string, Set<string>>()
 	readonly suppressed = new Map<string, Set<string>>()
 	readonly needs = new Map<string, Set<string>>()
 	readonly evidence = new Map<string, PassEvidence>()
@@ -27,6 +29,21 @@ export class GradeLedger {
 
 	graded(operations: readonly string[], check: string): void {
 		this.#add(this.ran, operations, check)
+	}
+
+	/**
+	 * Graded by a security probe: listed in `ran` for the report, but a probe never judges the
+	 * documented success, so it never stands in for the contract floor or for pass evidence.
+	 */
+	probedBy(operations: readonly string[], check: string): void {
+		this.#add(this.ran, operations, check)
+		this.#add(this.probed, operations, check)
+	}
+
+	/** Whether some check other than a probe graded the operation. */
+	judged(operation: string): boolean {
+		const probed = this.probed.get(operation)
+		return [...(this.ran.get(operation) ?? [])].some((check) => probed?.has(check) !== true)
 	}
 
 	suppress(operations: readonly string[], check: string): void {

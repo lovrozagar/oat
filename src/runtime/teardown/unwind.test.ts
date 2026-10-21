@@ -48,6 +48,15 @@ describe("unwindQueue", () => {
 		expect(report.records.map((record) => `${record.id} ${record.removed}`)).toEqual(["c1 true", "n1 true", "t1 false"])
 	})
 
+	it("marks an inferred record's line, and no other", async () => {
+		const inferred = { ...disposable("tag", "t1"), inferred: true as const }
+		const { report } = await unwind(store(), [inferred, disposable("tag", "t2")], { options: { verify: false } })
+		expect(report.records).toEqual([
+			{ entity: "tag", id: "t2", principal: "alpha", removed: false },
+			{ entity: "tag", id: "t1", inferred: true, principal: "alpha", removed: false },
+		])
+	})
+
 	it("reads back a record its creator never saw, once, before removing it", async () => {
 		const read = disposable("note", "n1")
 		const missing = disposable("note", "n2")

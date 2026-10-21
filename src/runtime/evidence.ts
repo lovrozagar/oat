@@ -245,7 +245,7 @@ export async function proveFromTranscript(input: {
 	grades: GradeLedger
 }): Promise<void> {
 	for (const op of input.model.operations) {
-		if ((input.grades.ran.get(op.operationId)?.size ?? 0) === 0) continue
+		if (!input.grades.judged(op.operationId)) continue
 		if (input.grades.evidence.get(op.operationId)?.observation !== undefined) continue
 		const evidence = await infer(op, input.client)
 		if (evidence !== undefined) input.grades.prove(op.operationId, evidence)

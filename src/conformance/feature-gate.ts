@@ -7,12 +7,12 @@ import type { PrincipalsConfig, SecurityConfig } from "../config/types/security.
 import { messageOf } from "../errors/message.ts"
 import { report } from "../report/console/report.ts"
 import type { Finding } from "../runtime/finding.ts"
-import { run } from "../runtime/run/index.ts"
+import { run } from "./harness/counting.ts"
 import { buildModel } from "../spec/graph/build.ts"
 import type { SpecModel } from "../spec/graph/types.ts"
 import { dereference } from "../spec/load/dereference.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
-import { featureGateHarness, type HarnessOptions } from "./feature-gate/harness.ts"
+import { featureGateHarness, GATE_TOKEN, type HarnessOptions } from "./feature-gate/harness.ts"
 import { webhookSpec } from "./feature-gate/spec.ts"
 import { listening, reach, type Via } from "./harness/launch.ts"
 import type { ParserResult } from "./harness/result.ts"
@@ -30,7 +30,7 @@ interface GateCase {
 }
 
 const PRINCIPALS: PrincipalsConfig = { alpha: { scope: { org_id: "org_1" }, tenant: "org_1" } }
-const SECURITY: SecurityConfig = { bearer: { static: "tok_alpha" } }
+const SECURITY: SecurityConfig = { bearer: { static: GATE_TOKEN } }
 
 const TAG = "x-feature-gate: webhooks"
 

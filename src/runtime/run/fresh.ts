@@ -39,6 +39,7 @@ const RESERVED: ReadonlySet<string> = /* @__PURE__ */ new Set([
 	"fresh",
 	"inviteAs",
 	"rank",
+	"readOnly",
 	"scope",
 	"security",
 	"tenant",

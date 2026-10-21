@@ -59,8 +59,32 @@ describe("authStepOperationIds", () => {
 			beta: { security: { jwt: { login: { from: "$.t", steps: [{ operationId: "auth.otp" }] } } } },
 			gamma: { security: { plain: { holds: ["a"] } } },
 		}
-		expect([...authStepOperationIds({ principals, security })]).toEqual(["auth.register", "auth.refresh", "auth.otp"])
+		expect([...authStepOperationIds({ principals, security })]).toEqual([
+			"auth.register",
+			"auth.refresh",
+			"keys.create",
+			"auth.otp",
+		])
 		expect([...authStepOperationIds({})]).toEqual([])
+	})
+
+	it("names every operation a recipe names: a mint's and its revoke, and a login's revoke", () => {
+		const security: SecurityConfig = {
+			jwt: {
+				login: {
+					from: "$.token",
+					revoke: { body: {}, operationId: "auth.revoke" },
+					steps: [{ operationId: "auth.token" }],
+				},
+			},
+			key: { mint: { from: "$.key", operationId: "apiKey.create", revoke: "apiKey.revoke", with: "jwt" } },
+		}
+		expect([...authStepOperationIds({ security })]).toEqual([
+			"auth.token",
+			"auth.revoke",
+			"apiKey.create",
+			"apiKey.revoke",
+		])
 	})
 })
 
@@ -89,6 +113,14 @@ describe("untestableEntityReason", () => {
 		expect(untestableEntityReason({ ...omit(row, "read"), create: "auth.register" }, model, none)).toBe(
 			'"row" is created by the auth flow and has no item route',
 		)
+	})
+
+	it("never makes an entity lane of one whose read, update, delete or list a recipe names", () => {
+		expect(untestableEntityReason(row, model, new Set(["row.delete"]))).toBe(
+			'"row" holds credentials: a security recipe calls row.delete, so no check may',
+		)
+		expect(untestableEntityReason(row, model, new Set(["row.get", "row.list"]))).toMatch(/recipe calls row\.list/)
+		expect(untestableEntityReason(row, model, new Set(["row.create"]))).toBeNull()
 	})
 
 	it("names what a cohort is missing", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { CHECK_IDS, familyOf } from "../check-ids.ts"
-import { validateRegistry } from "./core/registry.ts"
+import { entityChecks, validateRegistry } from "./core/registry.ts"
 import { CHECKS } from "./registry.ts"
 
 /*
@@ -35,6 +35,6 @@ describe("the check registry", () => {
 			"schema.error-response-matches-document",
 			"spec.declared-rate-limit-is-honoured",
 		])
-		for (const check of CHECKS.slice(-3)) expect(check.judgesTranscript).toBe(true)
+		for (const check of entityChecks(CHECKS).slice(-3)) expect(check.judgesTranscript).toBe(true)
 	})
 })

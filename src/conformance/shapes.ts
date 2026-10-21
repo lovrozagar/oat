@@ -20,7 +20,8 @@ import { defectsFor } from "./matrix/defects.ts"
 import { PRINCIPALS, SECURITY } from "./matrix/principals.ts"
 import { type DefectName, isDefectName } from "../reference/defects/table.ts"
 import { SHAPES } from "../reference/shapes/catalog.ts"
-import { run, type RunResult } from "../runtime/run/index.ts"
+import type { RunResult } from "../runtime/run/index.ts"
+import { run } from "./harness/counting.ts"
 
 export interface ShapeCase {
 	label: string

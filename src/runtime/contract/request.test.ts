@@ -73,7 +73,15 @@ const keyed = {
 	"/projects/{project_id}/jobs": {
 		post: { operationId: "jobs.create", parameters: [pathParam("project_id")], responses: ok() },
 	},
+	"/projects/{project_id}/jobs/{job_id}": {
+		delete: { operationId: "jobs.delete", parameters: [pathParam("project_id"), pathParam("job_id")], responses: ok() },
+		get: { operationId: "jobs.get", parameters: [pathParam("project_id"), pathParam("job_id")], responses: ok() },
+	},
 }
+
+/* `operationId`'s DELETE of `path`, answered `status`. */
+const deleted = (operationId: string, path: string, status = 200) =>
+	exchangeOf({ method: "DELETE", options: { as: { anonymous: true }, operationId }, path }, { status })
 
 /* A success of `operationId` at `path` whose body holds `id`. */
 const answered = (operationId: string | undefined, path: string, id: string) =>
@@ -111,9 +119,39 @@ describe("pathValues: a bare record key", () => {
 	})
 })
 
-/* `operationId`'s DELETE of `path`, answered `status`. */
-const deleted = (operationId: string, path: string, status = 200) =>
-	exchangeOf({ method: "DELETE", options: { as: { anonymous: true }, operationId }, path }, { status })
+/* A job create in project p1 whose body names `job` under `job_id`. */
+const made = (job: string) =>
+	exchangeOf(
+		{ method: "POST", options: { as: { anonymous: true }, operationId: "jobs.create" }, path: "/projects/p1/jobs" },
+		{ body: { job_id: job }, status: 201 },
+	)
+
+describe("pathValues: a live record over a deleted one", () => {
+	it("draws an id no later delete removed, over a newer one the run deleted", async () => {
+		const { input, op, params } = staged(keyed, "keys.get")
+		input.client.transcript.push(
+			answered("keys.create", "/keys", "key_1"),
+			answered("keys.create", "/keys", "key_2"),
+			answered("keys.create", "/keys", "key_3"),
+			deleted("keys.revoke", "/keys/key_3"),
+			deleted("keys.revoke", "/keys/key_1", 404),
+			deleted("jobs.delete", "/projects/p1/jobs/key_2"),
+		)
+		expect(await pathValues(input, { op, params })).toEqual({ id: "key_2" })
+	})
+
+	it("takes a deleted id only when no live one exists", async () => {
+		const { input, op, params } = staged(keyed, "keys.get")
+		input.client.transcript.push(answered("keys.create", "/keys", "key_1"), deleted("keys.revoke", "/keys/key_1"))
+		expect(await pathValues(input, { op, params })).toEqual({ id: "key_1" })
+	})
+
+	it("prefers a live record under a qualified name too", async () => {
+		const { input, op, params } = staged(keyed, "jobs.get", { roots: { project_id: "p1" } })
+		input.client.transcript.push(made("job_1"), made("job_2"), deleted("jobs.delete", "/projects/p1/jobs/job_2"))
+		expect(await pathValues(input, { op, params })).toEqual({ job_id: "job_1", project_id: "p1" })
+	})
+})
 
 /* A list of keys the API already held: records this run did not make. */
 const listed = (...ids: string[]) =>
@@ -134,8 +172,8 @@ function madeOnly(...ids: string[]) {
 
 describe("pathValues: a write goes only to a record this run made", () => {
 	it("draws a record the run made and already deleted over a live foreign one", async () => {
-		const made = madeOnly("key_1", "key_2")
-		const { input, op, params } = staged(keyed, "keys.revoke", { madeByRun: made.madeByRun })
+		const ours = madeOnly("key_1", "key_2")
+		const { input, op, params } = staged(keyed, "keys.revoke", { madeByRun: ours.madeByRun })
 		input.client.transcript.push(
 			answered("keys.create", "/keys", "key_1"),
 			answered("keys.create", "/keys", "key_2"),
@@ -144,7 +182,7 @@ describe("pathValues: a write goes only to a record this run made", () => {
 			listed("foreign_1"),
 		)
 		expect(await pathValues(input, { op, params })).toEqual({ id: "key_1" })
-		expect([...made.asked]).toEqual(["key"])
+		expect([...ours.asked]).toEqual(["key"])
 	})
 
 	it("else a live record the run made, never a foreign one", async () => {
@@ -316,5 +354,43 @@ describe("bodyOf", () => {
 		)
 		const bare = staged(post({ content: { "application/json": {} } }), "p.post")
 		expect(bodyOf(bare.input, { bind: null, op: bare.op, raw: bare.raw })).toEqual({ body: {} })
+	})
+})
+
+describe("bodyOf: a sign-in's identity fields", () => {
+	it("puts an identity no account holds at each nested field a sign-in names the principal in", () => {
+		const schema = {
+			properties: {
+				gone: { type: "null" },
+				name: { type: "string" },
+				profile: {
+					properties: { handle: { type: "string" }, locale: { type: "string" } },
+					required: ["handle", "locale"],
+					type: "object",
+				},
+				tags: { items: { type: "string" }, type: "array" },
+			},
+			required: ["gone", "name", "profile", "tags"],
+			type: "object",
+		}
+		const fields = [
+			["profile", "handle"],
+			["tags", "login"],
+			["gone", "login"],
+			["account", "email"],
+		]
+		const credentials = { ...stage(doc({}), () => undefined).input.credentials }
+		const { input, op, raw } = staged(post(json(schema)), "p.post", {
+			credentials: { ...credentials, identityFields: new Map([["p.post", fields]]) },
+		})
+		const body = bodyOf(input, { bind: null, op, raw })?.body as Record<string, Record<string, unknown>>
+		expect(body).toMatchObject({
+			account: { email: "oat-nonexistent-n0@example.invalid" },
+			gone: { login: "oat-nonexistent-n0" },
+			profile: { handle: "oat-nonexistent-n0" },
+			tags: { login: "oat-nonexistent-n0" },
+		})
+		expect(typeof body.profile?.locale).toBe("string")
+		expect(body.profile?.locale).not.toContain("nonexistent")
 	})
 })

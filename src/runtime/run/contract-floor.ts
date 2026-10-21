@@ -1,8 +1,10 @@
 import { runContractCalls } from "../contract/calls.ts"
+import { madeByRun } from "../contract/made-by-run.ts"
 import { confirmDeletes } from "../contract/deletes.ts"
 import { proveFromTranscript } from "../evidence.ts"
 import type { RunContext } from "./context.ts"
 import { actingOf } from "./acting.ts"
+import { floorCredentials } from "./floor-credentials.ts"
 import { stopped } from "./interrupt.ts"
 
 /**
@@ -29,11 +31,12 @@ export async function contractFloor(ctx: RunContext): Promise<void> {
 		acting: actingOf(ctx, principals.alpha.id),
 		checksRun: state.checksRun,
 		client,
+		credentials: floorCredentials(ctx, principals.alpha.id),
 		findings,
 		grades,
 		hooks: ctx.hooks,
 		inScope,
-		madeByRun: (entity, id) => ctx.ledger.holds(entity, id),
+		madeByRun: madeByRun({ client, held: await ctx.store.snapshot(), ledger: ctx.ledger, model }),
 		mode: scope.mode,
 		model,
 		nonce: ctx.nonce,

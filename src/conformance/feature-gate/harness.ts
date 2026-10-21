@@ -3,9 +3,9 @@
  * feature-gate 403, and invites that never do.
  */
 
-import { bearer } from "../../reference/http/access.ts"
 import type { Handle } from "../../reference/http/node.ts"
 import type { ReferenceRequest, ReferenceResponse } from "../../reference/http/wire.ts"
+import { bearerGuarded } from "../harness/security.ts"
 import { answer, guarded, readJson } from "../harness/serve.ts"
 import { webhookSpec } from "./spec.ts"
 
@@ -112,7 +112,10 @@ function routeOf(method: string, pathname: string): { key: string; id: string } 
 	return { id: "", key: "" }
 }
 
-/** A fresh backend: the document is public, every other route wants a bearer token. */
+/** The bearer token the harness issues, and the only one it accepts. */
+export const GATE_TOKEN = "tok_alpha"
+
+/** A fresh backend: the document is public, every other route wants the token it issued. */
 export function featureGateHarness(options: HarnessOptions): Handle {
 	const spec = webhookSpec(options.specTag)
 	const rows: Rows = { invites: new Map(), seq: 0, webhooks: new Map() }
@@ -120,14 +123,13 @@ export function featureGateHarness(options: HarnessOptions): Handle {
 		rows.webhooks.set("wh_existing", { id: "wh_existing", url: "https://example.test/hook" })
 	const table = routes(options)
 	return guarded(
-		async (request) => {
+		bearerGuarded(async (request) => {
 			const { pathname } = request.url
 			if (pathname === "/v1/openapi/spec" && request.method === "GET") return answer(200, spec)
-			if (bearer(request) === undefined) return answer(401, { error_key: "unauthorized" })
 			const { id, key } = routeOf(request.method, pathname)
 			const route = table[key]
 			return route === undefined ? answer(404, { error_key: "not_found" }) : route(request, id, rows)
-		},
+		}, GATE_TOKEN),
 		answer(500, { error_key: "internal" }),
 	)
 }

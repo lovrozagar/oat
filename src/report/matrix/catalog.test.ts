@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { entityChecks } from "../../runtime/checks/core/registry.ts"
 import { CHECKS } from "../../runtime/checks/registry.ts"
 import { checkCatalog, NODE_ORDER, STRIPS, USES } from "./catalog.ts"
 
@@ -26,7 +27,7 @@ describe("checkCatalog", () => {
 	})
 
 	it("draws a dependsOn edge per registry dependency, then the composition edges", () => {
-		const declared = CHECKS.reduce((n, check) => n + (check.dependsOn?.length ?? 0), 0)
+		const declared = entityChecks(CHECKS).reduce((n, check) => n + (check.dependsOn?.length ?? 0), 0)
 		expect(catalog.edges.filter((e) => e.kind === "dependsOn")).toHaveLength(declared)
 		expect(catalog.edges).toContainEqual({
 			from: "list.read-after-write",

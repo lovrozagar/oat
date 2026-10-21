@@ -110,7 +110,11 @@ function placementOf(resolution: Resolution, { actor, redactor }: { actor: Actor
 		case "sends":
 			redactor.registerPlacement(resolution.secrets)
 			return { forged: false, principal: resolution.principal, schemes: resolution.schemes, sends: resolution.sends }
+		case "held":
+			redactor.registerPlacement(resolution.secrets)
+			return { forged: false, principal: resolution.principal, schemes: resolution.schemes, sends: resolution.sends }
 		case "forged":
+			if (resolution.secrets !== undefined) redactor.registerPlacement(resolution.secrets)
 			return { forged: true, schemes: resolution.schemes, sends: resolution.sends }
 		default:
 			return "principal" in actor

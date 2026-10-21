@@ -3,6 +3,7 @@
  * judged on the call that already reached it.
  */
 
+import { judges } from "../probe-judging.ts"
 import type { OperationObject } from "../../spec/types.ts"
 import type { OperationModel } from "../../spec/graph/types.ts"
 import { readActionBind } from "../effects/bind.ts"
@@ -20,7 +21,7 @@ export async function runContractCalls(input: ContractInput): Promise<void> {
 			!op.destructive &&
 			!input.owned.has(op.operationId) &&
 			(input.mode === "full" || input.inScope(op.operationId)) &&
-			(grades.ran.get(op.operationId)?.size ?? 0) === 0 &&
+			!grades.judged(op.operationId) &&
 			!grades.evidence.has(op.operationId),
 	)
 	if (pending.length === 0) return
@@ -45,7 +46,11 @@ async function callOnce(input: ContractInput, op: OperationModel): Promise<void>
 	/* Already called on the way to something else — signup, a scenario's support step. Grade
 	 * that exchange; calling again would only repeat a side effect. */
 	const earlier = input.client.transcript.findLast(
-		(exchange) => exchange.operationId === op.operationId && exchange.status >= 200 && exchange.status < 300,
+		(exchange) =>
+			exchange.operationId === op.operationId &&
+			exchange.status >= 200 &&
+			exchange.status < 300 &&
+			judges("response.contract-call", exchange),
 	)
 	if (earlier !== undefined) {
 		/* The transcript may have moved the body to disk; judge the body the server sent. */
@@ -65,9 +70,17 @@ async function callOnce(input: ContractInput, op: OperationModel): Promise<void>
 	const built = bodyOf(input, call)
 	if (built === null) return
 	const { body } = built
+	/* A credential operation could end, rotate or spend the principal's own session: never sent with it. */
+	const actor = input.credentials.operations.has(op.operationId)
+		? await input.credentials.actorFor(op)
+		: { as: { principal: input.principal } }
+	if ("untested" in actor) {
+		input.grades.skipped([op.operationId], actor.untested)
+		return
+	}
 	const exchange = await input.client.request(op.method, fillPath(op.path, values), {
 		...(body === undefined ? {} : { body }),
-		as: { principal: input.principal },
+		as: actor.as,
 		operationId: op.operationId,
 		...(Object.keys(query).length === 0 ? {} : { query }),
 	})

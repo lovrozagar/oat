@@ -68,6 +68,11 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.cross-tenant-key-refused",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.scope-enforced",
                 "consistency.projections-agree",
                 "count.consistent-with-returned-page",
                 "count.matches-filtered-set",
@@ -233,6 +238,11 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.cross-tenant-key-refused",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.scope-enforced",
                 "consistency.projections-agree",
                 "count.consistent-with-returned-page",
                 "count.matches-filtered-set",

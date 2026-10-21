@@ -27,6 +27,12 @@ describe("runFuzz", () => {
 		expect(again?.injected).toEqual(result?.injected)
 	}, 120_000)
 
+	it("switches on a drawn defect's opt-in, in the reference and in oat", async () => {
+		/* Seed 49 draws LOGIN_NOT_THROTTLED alone, which shows only with login throttling on. */
+		const [result] = await runFuzz({ cases: 1, maxDefects: 1, seed: 49, via: inProcess })
+		expect(result).toMatchObject({ injected: ["LOGIN_NOT_THROTTLED"], missed: [], ok: true })
+	}, 120_000)
+
 	it("records a run that failed as the case's error", async () => {
 		const results = await runFuzz({ cases: 2, maxDefects: 1, seed: 7, via: unreachable })
 		expect(results.map((result) => [result.ok, result.findings, result.injected.length])).toEqual([

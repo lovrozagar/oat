@@ -25,6 +25,7 @@ const AS_WRITTEN = [
 	"scenarios",
 	"outOfBand",
 	"payloads",
+	"checks",
 	"query",
 	"entities",
 	"network",

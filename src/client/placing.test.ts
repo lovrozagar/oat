@@ -126,6 +126,42 @@ describe("requestCredential: redaction", () => {
 		expect(await probe.next()).toEqual({ forged: true, schemes: ["key"], sends: forged.sends })
 		expect(quiet.url("https://x.test/?k=forged-1")).toBe("https://x.test/?k=forged-1")
 	})
+
+	it("registers what a derived forged value places, since it comes from a real credential", async () => {
+		const redactor = new Redactor()
+		const derived: Resolution = {
+			kind: "forged",
+			schemes: ["key"],
+			secrets: { cookies: [], headers: [], query: ["k"], values: ["derived-1"] },
+			sends: { key: sends({ query: { k: "derived-1" } }) },
+		}
+		const probe = requestCredential(
+			{ controls: createControls(), credentials: sourceOf(derived), redactor },
+			{ actor: { forged: { derived: true, scheme: "key", value: "derived-1" } }, route: R },
+		)
+		expect(await probe.next()).toMatchObject({ forged: true })
+		expect(redactor.url("https://x.test/?k=derived-1")).not.toContain("derived-1")
+	})
+})
+
+describe("requestCredential: a held value", () => {
+	it("places it as the principal's, registers its secrets, and never renews it", async () => {
+		const redactor = new Redactor()
+		const held: Resolution = {
+			kind: "held",
+			principal: "alpha",
+			schemes: ["jwt"],
+			secrets,
+			sends: { jwt: sends({ headers: { Authorization: "Bearer value-one-1" } }) },
+		}
+		const credential = requestCredential(
+			{ controls: createControls(), credentials: sourceOf(held), redactor },
+			{ actor: { principal: "alpha", scheme: "jwt", value: "value-one-1" }, route: R },
+		)
+		expect(await credential.next()).toEqual({ forged: false, principal: "alpha", schemes: ["jwt"], sends: held.sends })
+		expect(redactor.text("value-one-1")).toBe(REDACTED)
+		expect(await credential.renew()).toBe(false)
+	})
 })
 
 describe("requestCredential: renewing after a 401", () => {

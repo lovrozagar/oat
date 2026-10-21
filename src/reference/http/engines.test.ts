@@ -128,8 +128,14 @@ describe("the servers", () => {
 			Array.from({ length: 4 }, () => ({ host: "127.0.0.1", port: 0 })),
 		)
 		const sqlite = fakes.servers[1] as FakeServer
+		const signedIn = await serve(sqlite.listener, {
+			chunks: [JSON.stringify({ key: "key_alpha" })],
+			method: "POST",
+			url: "/api/v1/auth/token",
+		})
+		const { access_token: token } = JSON.parse(signedIn.body) as { access_token: string }
 		const listed = await serve(sqlite.listener, {
-			headers: { authorization: "Bearer tok_alpha" },
+			headers: { authorization: `Bearer ${token}` },
 			url: "/api/v1/projects/proj_alpha/tables",
 		})
 		expect(JSON.parse(listed.body)).toMatchObject({ count: 0, tables: [] })

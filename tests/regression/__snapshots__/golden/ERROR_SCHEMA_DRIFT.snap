@@ -28,7 +28,11 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
+                "auth.scope-enforced",
                 "consistency.projections-agree",
                 "invalidation.declared-route-changes",
                 "response.status-is-documented",
@@ -53,7 +57,11 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
+                "auth.scope-enforced",
                 "consistency.projections-agree",
                 "response.status-is-documented",
                 "tenant.denial-does-not-reveal-existence",
@@ -76,7 +84,11 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
+                "auth.scope-enforced",
                 "consistency.projections-agree",
                 "payload.string-survives",
                 "response.status-is-documented",
@@ -138,6 +150,21 @@
             "operationId": "table.create",
             "reason": null,
             "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 0,
+            "operationId": "auth.revoke",
+            "reason": "unmodeled: no entity owns POST /v1/auth/revoke; contract call returned 400 ({\"detail\":\"the token is not one this server issued\",\"error\":\"invalid_input\"}); a scenario must set the scene",
+            "status": "untested",
+            "why": "unmodeled: no entity owns POST /v1/auth/revoke; contract call returned 400 ({\"detail\":\"the token is not one this server issued\",\"error\":\"invalid_input\"}); a scenario must set the scene"
           }
         ],
         "removed": [
@@ -149,7 +176,11 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
+                "auth.scope-enforced",
                 "consistency.projections-agree",
                 "invalidation.declared-route-changes",
                 "response.status-is-documented",
@@ -177,7 +208,11 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
+                "auth.scope-enforced",
                 "consistency.projections-agree",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -203,7 +238,11 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
+                "auth.scope-enforced",
                 "consistency.projections-agree",
                 "payload.string-survives",
                 "response.status-is-documented",
@@ -276,6 +315,21 @@
             "sufficiency": "verified",
             "tier": "verified",
             "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 0,
+            "operationId": "auth.revoke",
+            "reason": "unmodeled: no entity owns POST /v1/auth/revoke; contract call returned 400 ({\"error_key\":\"invalid_input\",\"message\":\"the token is not one this server issued\",\"status\":400,\"success\":false}); a scenario must set the scene",
+            "status": "untested",
+            "why": "unmodeled: no entity owns POST /v1/auth/revoke; contract call returned 400 ({\"error_key\":\"invalid_input\",\"message\":\"the token is not one this server issued\",\"status\":400,\"success\":false}); a scenario must set the scene"
           }
         ]
       }

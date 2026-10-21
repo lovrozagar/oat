@@ -80,7 +80,15 @@ describe("resolvePrincipals", () => {
 			principals: { alpha: { scope: { org_id: "o1" }, tenant: "t1" }, beta: { tenant: "t1" } },
 		})
 		expect(principals.alpha).toMatchObject({ scope: { org_id: "o1" }, tenant: "t1" })
+		expect(principals.alpha).not.toHaveProperty("readOnly")
 		expect(principals.peerOf(principals.alpha)).toBeUndefined()
+	})
+
+	it("carries a principal the config marks read-only, which never becomes identity data", async () => {
+		const principals = await signedIn(notesApi(), {
+			principals: { alpha: { tenant: "t1" }, viewer: { readOnly: true, tenant: "t1" } },
+		})
+		expect(principals.byId.get("viewer")).toMatchObject({ identity: {}, readOnly: true })
 	})
 
 	it("leaves a mint or a static credential to the first request that needs it", async () => {
@@ -316,5 +324,12 @@ describe("createdByRun", () => {
 			},
 		)
 		expect(createdByRun(await planned(options), "alpha")).toBe(false)
+	})
+})
+
+describe("createdByRun without a signup", () => {
+	it("is no configured account when the document marks no signup at all", async () => {
+		const run = await planned(optionsFor(withLogin(), { security: LOGIN }))
+		expect(createdByRun(run, "alpha")).toBe(false)
 	})
 })

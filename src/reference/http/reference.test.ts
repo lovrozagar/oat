@@ -8,7 +8,18 @@ import { memoryStore } from "./engines.ts"
 import { closeStore, createdIds, createReference, IN_PROCESS_ORIGIN, referenceState, snapshot } from "./reference.ts"
 import { PRINCIPALS } from "./state.ts"
 
-const owner = { authorization: "Bearer tok_alpha", "content-type": "application/json" }
+const JSON_TYPE = { "content-type": "application/json" }
+
+/* Signs `key` in through the reference's own auth.token, and answers the headers that act as it. */
+async function signedIn(send: typeof fetch, url: string, key = "key_alpha"): Promise<Record<string, string>> {
+	const answer = await send(`${url}/v1/auth/token`, {
+		body: JSON.stringify({ key }),
+		headers: JSON_TYPE,
+		method: "POST",
+	})
+	const { access_token: token } = (await answer.json()) as { access_token: string }
+	return { ...JSON_TYPE, authorization: `Bearer ${token}` }
+}
 
 describe("createReference", () => {
 	it("is a transport in process, at the shape's base URL", async () => {
@@ -19,7 +30,7 @@ describe("createReference", () => {
 		const send = reference.fetch
 		const created = await send(`${reference.url}${TABLES}`, {
 			body: JSON.stringify({ name: "t" }),
-			headers: owner,
+			headers: await signedIn(send, reference.url),
 			method: "POST",
 		})
 		expect(created.status).toBe(201)
@@ -94,18 +105,33 @@ describe("createdIds and snapshot", () => {
 	it("ledger a table by its slug, once, and key every record by id", async () => {
 		const reference = await createReference({ shape: "tenant-slugs" }, memoryStore)
 		const send = reference.fetch
-		const post = (path: string, body: unknown, token = "tok_alpha") =>
-			send(`${reference.url}${path}`, {
-				body: JSON.stringify(body),
-				headers: { ...owner, authorization: `Bearer ${token}` },
-				method: "POST",
-			})
+		const owners = {
+			key_alpha: await signedIn(send, reference.url),
+			key_beta: await signedIn(send, reference.url, BETA),
+		}
+		const post = (path: string, body: unknown, key: keyof typeof owners = "key_alpha") =>
+			send(`${reference.url}${path}`, { body: JSON.stringify(body), headers: owners[key], method: "POST" })
 		await post(TABLES, { name: "Plan A" })
 		await post("/v1/projects/proj_beta/tables", { name: "Plan A" }, BETA)
 		const row = (await (await post(rowsOf("plan-a"), { label: "r" })).json()) as { id: string }
 		expect(reference.createdIds()).toEqual({ row: [row.id], table: ["plan-a"] })
 		const tables = (await reference.snapshot()).table ?? []
 		expect(tables.map((table) => table.id)).toEqual(["plan-a", "plan-a"])
+	})
+
+	it("ledger every API key the server issued, under api-key, whoever asked", async () => {
+		const reference = await createReference({}, memoryStore)
+		const send = reference.fetch
+		const mint = async (key: string) => {
+			const answer = await send(`${reference.url}/v1/api-keys`, {
+				body: JSON.stringify({ scopes: [] }),
+				headers: await signedIn(send, reference.url, key),
+				method: "POST",
+			})
+			return ((await answer.json()) as { id: string }).id
+		}
+		const ids = [await mint("key_alpha"), await mint(BETA)]
+		expect(reference.createdIds()).toEqual({ "api-key": ids })
 	})
 
 	it("key a renamed identity as id", async () => {

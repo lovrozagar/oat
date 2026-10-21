@@ -1,6 +1,7 @@
 import type { BaselineEntry, BaselineFile } from "../baseline.ts"
 import type { Client } from "../../client/client.ts"
 import type {
+	CheckSwitches,
 	EntityConfig,
 	OriginSpec,
 	PayloadPolicy,
@@ -89,6 +90,8 @@ export interface RunOptions {
 	outOfBand?: OutOfBandConfig
 	/** How much of the payload catalog to send; see `OatConfig.payloads`. */
 	payloads?: PayloadPolicy
+	/** Checks switched on that do not run by default; see `OatConfig.checks`. */
+	checks?: CheckSwitches
 	/** Skip `teardownPrincipal` — used when this run is a secondary origin sharing accounts. */
 	skipPrincipalTeardown?: boolean
 	/**

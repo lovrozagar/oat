@@ -26,6 +26,7 @@ const FIELD_CHECKS: ReadonlyArray<[string, (value: unknown) => boolean, string]>
 	["fresh", (value) => typeof value === "boolean", "must be true or false"],
 	["inviteAs", (value) => typeof value === "string", "must be a string"],
 	["rank", (value) => Number.isSafeInteger(value), "must be an integer"],
+	["readOnly", (value) => value === true, "must be true, or left out"],
 	["tenant", (value) => typeof value === "string", "must be a string"],
 ]
 

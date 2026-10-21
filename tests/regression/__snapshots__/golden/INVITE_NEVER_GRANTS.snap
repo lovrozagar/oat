@@ -26,13 +26,17 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.role-enforced",
+                "auth.wrong-scheme-refused",
                 "response.status-is-documented"
               ],
               "suppressed": []
             },
             "entity": "table",
             "findings": 1,
-            "operationId": "invite.accept",
+            "operationId": "table.invite",
             "reason": null,
             "status": "failed"
           },
@@ -50,7 +54,7 @@
             },
             "entity": "table",
             "findings": 1,
-            "operationId": "table.invite",
+            "operationId": "invite.accept",
             "reason": null,
             "status": "failed"
           },
@@ -80,14 +84,18 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
                 "auth.invite-grants-then-revokes",
+                "auth.missing-credential-refused",
+                "auth.role-enforced",
+                "auth.wrong-scheme-refused",
                 "response.status-is-documented"
               ],
               "suppressed": []
             },
             "entity": "table",
             "findings": 0,
-            "operationId": "invite.accept",
+            "operationId": "table.invite",
             "reason": null,
             "status": "passed",
             "evidence": {},
@@ -108,7 +116,7 @@
             },
             "entity": "table",
             "findings": 0,
-            "operationId": "table.invite",
+            "operationId": "invite.accept",
             "reason": null,
             "status": "passed",
             "evidence": {},

@@ -20,6 +20,14 @@ describe("handle", () => {
 		})
 	})
 
+	it("sends an item's update and delete to their handlers", async () => {
+		const { call, table } = await api()
+		const at = `${TABLES}/${String((await table("t")).id)}`
+		expect(await call("PATCH", at, { body: { name: "u" } })).toMatchObject({ body: { name: "u" }, status: 200 })
+		expect((await call("DELETE", at)).status).toBe(200)
+		expect((await call("GET", at)).status).toBe(404)
+	})
+
 	it("authenticates every entity route, and binds collections and writes to the caller's tenant", async () => {
 		const { call, table } = await api()
 		const made = await table("t")

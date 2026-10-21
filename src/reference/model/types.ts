@@ -29,6 +29,8 @@ export interface FieldDef {
 	immutable?: boolean
 	/** Accepted at create but not at update. */
 	createOnly?: boolean
+	/** Only the highest rank may set it: emitted as `x-privileged`. */
+	privileged?: boolean
 	required?: boolean
 	filterable?: boolean
 	sortable?: boolean
