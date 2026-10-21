@@ -12,7 +12,12 @@ export const ISOLATION_EXPECTED = {
 		"query.search-and-filter-compose",
 	],
 	CALLER_UPDATE_DROPPED: "auth.self-is-the-caller",
-	DISPOSABLE_KILLS_CALLER: "auth.destructive-spares-the-caller",
+	DISPOSABLE_KILLS_CALLER: [
+		"auth.destructive-spares-the-caller",
+		/* The caller's sessions are dead and every fresh sign-in is refused too, so the control read
+		 * blocks it: the defect's own consequence, named, not a second defect. */
+		"auth.blocked",
+	],
 	ROOT_READ_OPEN: "read.matches-caller-root",
 	ROLE_MONOTONICITY_BROKEN: "auth.rank-is-monotonic",
 	INVITE_NEVER_GRANTS: "auth.invite-grants-then-revokes",

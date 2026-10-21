@@ -86,6 +86,11 @@ describe("judgeDefect's judging", () => {
 		})
 	}, 120_000)
 
+	it("expects the caller a destructive call killed to be blocked, not a spurious finding", async () => {
+		const result = await judgeDefect("DISPOSABLE_KILLS_CALLER", MEMORY, { checkRepros: async () => [] })
+		expect(result).toMatchObject({ detected: true, spurious: [] })
+	}, 120_000)
+
 	it("holds no excused defect to the bystander rule", async () => {
 		const result = await judgeDefect("STALE_LIST", MEMORY, { excused: new Set(["STALE_LIST"]), label: "stale" })
 		expect(result).toMatchObject({ bystanders: [], detected: true })
