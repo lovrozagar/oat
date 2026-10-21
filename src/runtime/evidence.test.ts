@@ -119,6 +119,16 @@ describe("delete evidence through its own route", () => {
 		expect(evidence).toEqual({ call: 1, observation: { absent: true, path: "$", seq: 3, value: ROW } })
 	})
 
+	it("reads each body once across calls", async () => {
+		const { evidence, hydrations } = await evidenceFor("row.remove", [
+			exchange(1, "DELETE /v1/rows/row_first_1", { op: "row.remove" }),
+			exchange(2, `DELETE /v1/rows/${ROW}`, { op: "row.remove" }),
+			exchange(3, "GET /v1/rows", { body: { items: [{ id: "row_first_1" }, { id: ROW }] } }),
+		])
+		expect(evidence).toEqual({ call: 2 })
+		expect(hydrations).toBe(3)
+	})
+
 	it("cannot name an id from a path ending in a slash, and reads one that is no URL whole", async () => {
 		const trailing = await evidenceFor("row.remove", [
 			exchange(1, "DELETE /v1/rows/", { op: "row.remove" }),
@@ -142,6 +152,16 @@ describe("read evidence", () => {
 			exchange(4, `GET /v1/rows/${ROW}`, { body: { data: { id: ROW } }, op: "row.get" }),
 		])
 		expect(evidence).toEqual({ call: 4, observation: { path: "$.data.id", seq: 4, value: ROW } })
+	})
+
+	it("names the earliest write whose value the read holds, whichever value the read lists first", async () => {
+		const { evidence } = await evidenceFor("row.get", [
+			exchange(1, "POST /v1/rows", { body: { id: "row_first_1" } }),
+			exchange(2, "POST /v1/rows", { body: { id: ROW } }),
+			exchange(3, "POST /v1/rows", { body: { id: "row_third_3" } }),
+			exchange(4, `GET /v1/rows/${ROW}`, { body: { a: ROW, b: "row_first_1", c: "row_third_3" }, op: "row.get" }),
+		])
+		expect(evidence).toEqual({ call: 4, observation: { path: "$.b", seq: 4, value: "row_first_1" } })
 	})
 
 	it("keeps only the call when no earlier write shows in it", async () => {
@@ -185,6 +205,45 @@ describe("write evidence", () => {
 		])
 		expect(evidence).toEqual({ call: 2 })
 		expect(hydrations).toBe(3)
+	})
+})
+
+/* Another lane's traffic, as much as ran while this lane waited: its own writes and reads. */
+const otherLane = (from: number) =>
+	Array.from({ length: 450 }, (_, i) =>
+		i % 2 === 0
+			? exchange(from + i, "POST /v1/tables", { body: { id: `tbl_other_${i}` } })
+			: exchange(from + i, "GET /v1/tables/tbl_9", { body: { id: "tbl_9", note: `other ${i}` } }),
+	)
+
+describe("evidence across concurrent lanes", () => {
+	it("finds the write a read shows however much traffic ran between them", async () => {
+		const { evidence } = await evidenceFor("row.get", [
+			exchange(1, "POST /v1/rows", { body: { id: ROW } }),
+			...otherLane(2),
+			exchange(452, `GET /v1/rows/${ROW}`, { body: { data: { id: ROW } }, op: "row.get" }),
+		])
+		expect(evidence).toEqual({ call: 452, observation: { path: "$.data.id", seq: 452, value: ROW } })
+	})
+
+	it("finds the read that shows a write however much traffic ran between them", async () => {
+		const { evidence } = await evidenceFor("row.create", [
+			exchange(1, "POST /v1/rows", { body: { id: ROW }, op: "row.create" }),
+			...otherLane(2),
+			exchange(452, "GET /v1/rows", { body: [{ id: ROW }] }),
+		])
+		expect(evidence).toEqual({ call: 1, observation: { path: "$[*].id", seq: 452, value: ROW } })
+	})
+
+	it("finds the read that shows a delete however much traffic ran between them", async () => {
+		const { evidence } = await evidenceFor("column.remove", [
+			exchange(1, "GET /v1/tables/tbl_1", { body: table(["col_amount", COLUMN]), op: "table.get" }),
+			...otherLane(2),
+			exchange(452, `DELETE /v1/tables/tbl_1/columns/${COLUMN}`, { op: "column.remove" }),
+			...otherLane(453),
+			exchange(903, "GET /v1/tables/tbl_1", { body: table(["col_amount"]), op: "table.get" }),
+		])
+		expect(evidence).toEqual({ call: 452, observation: { absent: true, path: "$", seq: 903, value: COLUMN } })
 	})
 })
 

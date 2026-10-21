@@ -10,8 +10,6 @@ import type { Exchange } from "./exchange.ts"
 import type { GradeLedger, PassEvidence } from "./grades.ts"
 
 const READS: ReadonlySet<string> = /* @__PURE__ */ new Set(["GET", "HEAD"])
-/* How far either side of a call to look. Bounded, so a long run does not reread its whole journal. */
-const WINDOW = 400
 
 function ok(exchange: Exchange): boolean {
 	return exchange.status >= 200 && exchange.status < 300
@@ -89,34 +87,74 @@ function isOkRead(exchange: Exchange): boolean {
 	return isRead(exchange) && ok(exchange)
 }
 
-/** The run's exchanges, with bodies read back through the client once each. */
-class Journal {
+/** Every string `pathTo` can reach in `body`. */
+function stringsIn(body: unknown, into = new Set<string>(), depth = 0): Set<string> {
+	if (depth > 6 || body === null || typeof body !== "object") return into
+	for (const item of Array.isArray(body) ? body : Object.values(body as Record<string, unknown>)) {
+		if (typeof item === "string") into.add(item)
+		else stringsIn(item, into, depth + 1)
+	}
+	return into
+}
+
+/**
+ * Where each value sits in the run, found once. Lanes run side by side, so how many exchanges part
+ * a call from the one that shows it depends on what ran beside it, not on what the call did: every
+ * search spans the whole run, and the index reads each body once rather than once per search.
+ */
+class RunIndex {
 	readonly transcript: Exchange[]
-	readonly #client: Client
-	readonly #cache = new Map<number, Exchange>()
+	readonly client: Client
+	#written: Promise<Map<string, number[]>> | undefined
+	#shown: Promise<Map<string, number[]>> | undefined
 
 	constructor(client: Client) {
-		this.#client = client
+		this.client = client
 		/* Teardown reads check that cleanup worked; they are not evidence for what a check graded. */
 		this.transcript = client.transcript.filter((exchange) => exchange.purpose !== "teardown" || !isRead(exchange))
+	}
+
+	/** Where the ok writes that put each value into the world sit, ascending. */
+	written(): Promise<Map<string, number[]>> {
+		return (this.#written ??= this.#gather((exchange) => !isRead(exchange) && ok(exchange), tokensOf))
+	}
+
+	/** Where the ok reads that show each string sit, ascending. */
+	shown(): Promise<Map<string, number[]>> {
+		return (this.#shown ??= this.#gather(isOkRead, (whole) => stringsIn(whole.responseBody)))
+	}
+
+	async #gather(take: (exchange: Exchange) => boolean, values: (whole: Exchange) => Iterable<string>) {
+		const at = new Map<string, number[]>()
+		for (const [index, exchange] of this.transcript.entries()) {
+			if (!take(exchange)) continue
+			for (const value of values(await this.client.hydrate(exchange))) {
+				const positions = at.get(value)
+				if (positions === undefined) at.set(value, [index])
+				else positions.push(index)
+			}
+		}
+		return at
+	}
+}
+
+/** One operation's view of the run, with bodies read back through the client once each. */
+class Journal {
+	readonly transcript: Exchange[]
+	readonly index: RunIndex
+	readonly #cache = new Map<number, Exchange>()
+
+	constructor(index: RunIndex) {
+		this.index = index
+		this.transcript = index.transcript
 	}
 
 	async whole(exchange: Exchange): Promise<Exchange> {
 		const known = this.#cache.get(exchange.seq)
 		if (known !== undefined) return known
-		const hydrated = await this.#client.hydrate(exchange)
+		const hydrated = await this.index.client.hydrate(exchange)
 		this.#cache.set(exchange.seq, hydrated)
 		return hydrated
-	}
-
-	/** Up to `WINDOW` exchanges before the one at `index`. */
-	before(index: number): Exchange[] {
-		return this.transcript.slice(Math.max(0, index - WINDOW), index)
-	}
-
-	/** Up to `WINDOW` exchanges after the one at `index`. */
-	after(index: number): Exchange[] {
-		return this.transcript.slice(index + 1, index + 1 + WINDOW)
 	}
 
 	async holds(exchange: Exchange, value: string): Promise<boolean> {
@@ -145,7 +183,7 @@ function absent(removal: Removal, read: Exchange): PassEvidence {
 
 /** A later read of the item that is gone, or of its collection that no longer lists it. */
 async function shownByOwnRead(journal: Journal, removal: Removal): Promise<PassEvidence | undefined> {
-	for (const read of journal.after(removal.index)) {
+	for (const read of journal.transcript.slice(removal.index + 1)) {
 		if (!isRead(read)) continue
 		if ((read.status === 404 || read.status === 410) && pathOf(read.url) === removal.path) {
 			return { call: removal.call.seq, observation: { seq: read.seq, status: read.status } }
@@ -159,7 +197,7 @@ async function shownByOwnRead(journal: Journal, removal: Removal): Promise<PassE
 
 /** Whether an earlier read of `path` held the id. */
 async function heldBefore(journal: Journal, removal: Removal, path: string): Promise<boolean> {
-	for (const prior of journal.before(removal.index)) {
+	for (const prior of journal.transcript.slice(0, removal.index)) {
 		if (isOkRead(prior) && pathOf(prior.url) === path && (await journal.holds(prior, removal.id))) return true
 	}
 	return false
@@ -171,7 +209,7 @@ async function heldBefore(journal: Journal, removal: Removal, path: string): Pro
  */
 async function shownByAncestor(journal: Journal, removal: Removal): Promise<PassEvidence | undefined> {
 	if (removal.id === "") return undefined
-	for (const read of journal.after(removal.index)) {
+	for (const read of journal.transcript.slice(removal.index + 1)) {
 		if (!isOkRead(read)) continue
 		const path = pathOf(read.url)
 		if (!isAncestor(path, removal.collection) || (await journal.holds(read, removal.id))) continue
@@ -185,31 +223,37 @@ async function deleteShown(journal: Journal, call: Exchange, index: number): Pro
 	return (await shownByOwnRead(journal, removal)) ?? (await shownByAncestor(journal, removal))
 }
 
-/** A read shows a value an earlier write put into the world. */
-async function readShown(journal: Journal, call: Exchange, index: number): Promise<PassEvidence | undefined> {
-	for (const write of journal.before(index)) {
-		if (isRead(write) || !ok(write)) continue
-		for (const value of tokensOf(await journal.whole(write))) {
-			const path = pathTo(call.responseBody, value)
-			if (path !== null) return { call: call.seq, observation: { path, seq: call.seq, value } }
-		}
+/** The earliest position any of `values` sits at in `at` that `fits`, or undefined. */
+function earliest(at: Map<string, number[]>, values: Iterable<string>, fits: (index: number) => boolean) {
+	let first: number | undefined
+	for (const value of values) {
+		const index = at.get(value)?.find(fits)
+		if (index !== undefined && (first === undefined || index < first)) first = index
 	}
-	return undefined
+	return first
 }
 
-/** A later read shows a value the write put into the world. */
+/** A read shows a value an earlier write put into the world: the earliest such write. */
+async function readShown(journal: Journal, call: Exchange, index: number): Promise<PassEvidence | undefined> {
+	const held = stringsIn(call.responseBody)
+	const first = earliest(await journal.index.written(), held, (at) => at < index)
+	if (first === undefined) return undefined
+	const tokens = tokensOf(await journal.whole(journal.transcript[first] as Exchange))
+	const value = tokens.find((token) => held.has(token)) as string
+	return { call: call.seq, observation: { path: pathTo(call.responseBody, value) as string, seq: call.seq, value } }
+}
+
+/** A later read shows a value the write put into the world: the first such read. */
 async function writeShown(journal: Journal, call: Exchange, index: number): Promise<PassEvidence | undefined> {
 	const values = tokensOf(call)
 	if (values.length === 0) return undefined
-	for (const read of journal.after(index)) {
-		if (!isOkRead(read)) continue
-		const body = (await journal.whole(read)).responseBody
-		for (const value of values) {
-			const path = pathTo(body, value)
-			if (path !== null) return { call: call.seq, observation: { path, seq: read.seq, value } }
-		}
-	}
-	return undefined
+	const first = earliest(await journal.index.shown(), values, (at) => at > index)
+	if (first === undefined) return undefined
+	const read = journal.transcript[first] as Exchange
+	const body = (await journal.whole(read)).responseBody
+	const held = stringsIn(body)
+	const value = values.find((token) => held.has(token)) as string
+	return { call: call.seq, observation: { path: pathTo(body, value) as string, seq: read.seq, value } }
 }
 
 type Shown = (journal: Journal, call: Exchange, index: number) => Promise<PassEvidence | undefined>
@@ -219,8 +263,8 @@ function shownFor(method: string): Shown {
 	return READS.has(method) ? readShown : writeShown
 }
 
-async function infer(op: OperationModel, client: Client): Promise<PassEvidence | undefined> {
-	const journal = new Journal(client)
+async function infer(op: OperationModel, run: RunIndex): Promise<PassEvidence | undefined> {
+	const journal = new Journal(run)
 	const calls = journal.transcript.flatMap((exchange, index) =>
 		exchange.operationId === op.operationId && ok(exchange) ? [{ exchange, index }] : [],
 	)
@@ -236,7 +280,7 @@ async function infer(op: OperationModel, client: Client): Promise<PassEvidence |
 
 /**
  * Evidence for every operation a check graded without naming its exchanges: the call, and the
- * first nearby exchange that holds a value the call put into the world. A write no later read
+ * first exchange anywhere in the run that holds a value the call put into the world. A write no later read
  * shows keeps only its call, and the report calls that pass `contract`.
  */
 export async function proveFromTranscript(input: {
@@ -244,10 +288,11 @@ export async function proveFromTranscript(input: {
 	client: Client
 	grades: GradeLedger
 }): Promise<void> {
+	const run = new RunIndex(input.client)
 	for (const op of input.model.operations) {
 		if (!input.grades.judged(op.operationId)) continue
 		if (input.grades.evidence.get(op.operationId)?.observation !== undefined) continue
-		const evidence = await infer(op, input.client)
+		const evidence = await infer(op, run)
 		if (evidence !== undefined) input.grades.prove(op.operationId, evidence)
 	}
 }
