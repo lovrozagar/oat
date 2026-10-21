@@ -36,9 +36,11 @@ function flag(name) {
 }
 
 /* A deliberately mixed bag: one of each severity, so the report shows how findings are ranked
- * rather than a wall of one kind. */
+ * rather than a wall of one kind. None breaks a foundation other checks stand on (a stale list
+ * would): the checks resting on it would stand down, and a defect injected beside it would go
+ * unreported. tests/integration/demo-defects.test.ts holds the demo to reporting every one. */
 const DEFAULT_DEFECTS = [
-	"STALE_LIST",
+	"IDEMPOTENCY_IGNORED",
 	"PATCH_REPLACES",
 	"TENANT_LEAK_VIA_FILTER",
 	"CREATED_201_AS_200",
@@ -67,9 +69,9 @@ const principals = {
 	beta: { key: "key_beta", scope: { project_id: "proj_beta" }, tenant: "proj_beta" },
 }
 
-/* The reference's bearer scheme: each principal trades its key at auth.token for the token. */
+/* The reference's jwt scheme: each principal trades its key at auth.token for the token. */
 const security = {
-	bearer: {
+	jwt: {
 		login: { from: "$.access_token", steps: [{ body: { key: "{principal.key}" }, operationId: "auth.token" }] },
 	},
 }
