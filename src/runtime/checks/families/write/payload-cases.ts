@@ -1,5 +1,5 @@
 import { requestContent } from "../../../../spec/collection/request.ts"
-import type { OperationModel } from "../../../../spec/graph/types.ts"
+import type { EntityModel, OperationModel, SpecModel } from "../../../../spec/graph/types.ts"
 import { payloadFits, REQUIRED_IDS, STRING_PAYLOADS, type StringPayload } from "../../../payloads.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { propertySchemaOf, requestSchemaOf, withheldProperties } from "../../payloads/body.ts"
@@ -55,11 +55,14 @@ function payloadCandidate(name: string, propertySchema: Schema): (PayloadField &
 	return { maxLength, minLength, name, score }
 }
 
+/** What picking a payload field and keying its write path read: the entity's routes in the document. */
+export type PayloadSubject = Pick<CheckContext, "createOp" | "identity" | "listOp" | "model" | "updateOp">
+
 /**
  * Fields a write through `op` cannot set to an arbitrary value: immutable, server-generated, the
  * identity, or one an ordinary body leaves out (`withheldProperties`).
  */
-function untouchableFields(ctx: CheckContext, op: OperationModel): ReadonlySet<string> {
+function untouchableFields(ctx: PayloadSubject, op: OperationModel): ReadonlySet<string> {
 	return new Set([
 		...(ctx.updateOp?.immutable ?? []),
 		...(ctx.updateOp?.generated ?? []),
@@ -69,7 +72,7 @@ function untouchableFields(ctx: CheckContext, op: OperationModel): ReadonlySet<s
 	])
 }
 
-export function pickPayloadField(ctx: CheckContext, op: OperationModel): PayloadField | null {
+export function pickPayloadField(ctx: PayloadSubject, op: OperationModel): PayloadField | null {
 	const schema = requestSchemaOf(ctx, op)
 	const properties = (schema?.properties ?? {}) as Record<string, Schema>
 	const immutable = untouchableFields(ctx, op)
@@ -90,25 +93,48 @@ export const PAYLOAD_LANES = 4
  * The payload cases one field gets. Under `"per-write-path"`, the whole catalog runs once per
  * write path — the request media type and the field's type and format, which is what decides
  * the code a string goes through — and a field on a path that has had it gets one case of each
- * family. `narrowed` names the entity that ran the whole catalog, when this one did not.
+ * family. `narrowed` names the entity that ran the whole catalog, when this one did not: the first
+ * in plan order to reach the path, however the lanes are timed (`PayloadClaims`).
  */
-export function payloadCases(
+export async function payloadCases(
 	ctx: CheckContext,
 	writeOp: OperationModel,
 	field: PayloadField,
-): { cases: StringPayload[]; narrowed: string | null } {
+): Promise<{ cases: StringPayload[]; narrowed: string | null }> {
 	const fitting = STRING_PAYLOADS.filter((payload) => payloadFits(payload.value, field.maxLength, field.minLength))
 	const policy = ctx.payloads
 	if (policy === undefined || policy.policy === "full") return { cases: fitting, narrowed: null }
-	const raw = ctx.model.rawOperations.get(writeOp.operationId)
-	const mediaType = raw === undefined ? "" : (requestContent(raw)?.mediaType ?? "")
-	const schema = propertySchemaOf(ctx, field.name, writeOp) ?? {}
-	const path = `${mediaType}|${JSON.stringify([schema.type ?? "string", schema.format ?? null])}`
-	const ranOn = policy.ran.get(path)
-	if (ranOn === undefined) {
-		policy.ran.set(path, ctx.entityName)
-		return { cases: fitting, narrowed: null }
-	}
+	const ranOn = await policy.claims.claim(ctx.entityName, writePathOf(ctx, writeOp, field.name))
+	if (ranOn === null) return { cases: fitting, narrowed: null }
 	const representative = new Set<string>(REQUIRED_IDS)
 	return { cases: fitting.filter((payload) => representative.has(payload.id)), narrowed: ranOn }
+}
+
+/**
+ * The write path a field's string goes through: the request media type and the field's type and
+ * format, which is what decides the code a string goes through.
+ */
+export function writePathOf(subject: PayloadSubject, writeOp: OperationModel, field: string): string {
+	const raw = subject.model.rawOperations.get(writeOp.operationId)
+	const mediaType = raw === undefined ? "" : (requestContent(raw)?.mediaType ?? "")
+	const schema = propertySchemaOf(subject, field, writeOp) ?? {}
+	return `${mediaType}|${JSON.stringify([schema.type ?? "string", schema.format ?? null])}`
+}
+
+/**
+ * The write path `entity`'s payload check probes, read from the document alone; null when it has
+ * none. A run that turns out otherwise (an excluded route, a degraded entity) only makes an entity
+ * settle without the catalog, or claim a path no entity before it was planned on.
+ */
+export function plannedWritePath(model: SpecModel, entity: EntityModel): string | null {
+	const route = (operationId: string | undefined) => model.byOperationId.get(operationId ?? "")
+	const listOp = route(entity.list)
+	const createOp = route(entity.create)
+	const updateOp = route(entity.update)
+	if (listOp === undefined || createOp === undefined) return null
+	const writeOp = updateOp ?? createOp
+	if (route(entity.read) === undefined || (updateOp === undefined && route(entity.delete) === undefined)) return null
+	const subject = { createOp, identity: entity.identity ?? "id", listOp, model, updateOp }
+	const field = pickPayloadField(subject, writeOp)
+	return field === null ? null : writePathOf(subject, writeOp, field.name)
 }

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { modelOf } from "../checks/__fixtures__/harness.ts"
 import type { OpenApiDocument } from "../../spec/types.ts"
-import { contextOf, notesApi, notesDoc, optionsFor } from "./__fixtures__/api.ts"
+import { ASCII_PAYLOAD_PROBE } from "../checks/families/write/payload-cases.ts"
+import { contextOf, notesApi, notesDoc, optionsFor, transport } from "./__fixtures__/api.ts"
 import { entityLanes, runLanes } from "./lanes.ts"
 
 /*
@@ -170,4 +171,92 @@ describe("runLanes stopping", () => {
 			expect.objectContaining({ check: "net.unreachable", summary: "skipped 1 remaining entity", verdict: "BLOCKED" }),
 		])
 	})
+})
+
+/* Notes and memos: two collections alike in every route, each in a lane of its own, one write path. */
+const twins = (): ReturnType<typeof notesApi> => {
+	const { paths } = notesDoc() as unknown as { paths: unknown }
+	const doc = notesDoc(JSON.parse(JSON.stringify(paths).replaceAll("note", "memo")) as Record<string, unknown>)
+	const notes = notesApi(doc)
+	const memos = notesApi(doc)
+	return (method, path, options) =>
+		path.startsWith("/memos")
+			? memos(method, path.replace(/^\/memos/, "/notes"), options)
+			: notes(method, path, options)
+}
+
+const nothing = (): void => undefined
+const collection = (name: string | undefined): string => (name === "note" ? "/notes" : "/memos")
+
+describe("runLanes and the payload catalog", () => {
+	it("runs the whole catalog on the first entity in plan order, however late its lane reaches it", async () => {
+		const respond = twins()
+		/* Each entity's collection, by its plan position: set once the plan is known. */
+		const lane = { first: "", second: "" }
+		let release = nothing
+		const released = new Promise<void>((resolve) => {
+			release = resolve
+		})
+		let armed = false
+		let controlWritten = false
+		const { fetch: inner } = transport(respond)
+		/* The plan's first entity waits until the second has read back its ASCII control write: the
+		 * moment before the second asks whether the write path has had the whole catalog. */
+		const gated = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+			const { pathname } = new URL(String(input))
+			if (armed && pathname.startsWith(lane.first)) await released
+			const response = await inner(input, init)
+			if (armed && pathname.startsWith(`${lane.second}/`)) {
+				const method = init?.method ?? "GET"
+				if (method === "PATCH" && String(init?.body).includes(ASCII_PAYLOAD_PROBE)) controlWritten = true
+				else if (method === "GET" && controlWritten) release()
+			}
+			return response
+		}
+		const ctx = await contextOf(optionsFor(respond, { network: { fetch: gated as typeof fetch } }))
+		const [first, second] = ctx.scope.entities.map((entity) => entity.name)
+		expect([first, second].toSorted()).toEqual(["memos", "note"])
+		lane.first = collection(first)
+		lane.second = collection(second)
+		armed = true
+		await runLanes(ctx)
+		expect(ctx.findings.findings.filter((finding) => finding.check === "payload.string-survives")).toEqual([
+			expect.objectContaining({
+				detail: expect.stringContaining(`already ran against this write path on ${first},`),
+				entity: second,
+				verdict: "COVERAGE_GAP",
+			}),
+		])
+	})
+})
+
+describe("runLanes when the plan's first entity never reaches the payload path", () => {
+	/* The timeout is the hang detector: an entity waiting on a claim that never settles would stop here. */
+	it(
+		"gives the whole catalog to the next entity when the plan's first one never reaches the path",
+		{ timeout: 15_000 },
+		async () => {
+			const respond = twins()
+			const lane = { first: "", second: "" }
+			let armed = false
+			const writes: string[] = []
+			const { fetch: inner } = transport(respond)
+			/* Every request of the plan's first entity fails, so its lane ends without claiming the path. */
+			const failing = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+				const { pathname } = new URL(String(input))
+				if (armed && pathname.startsWith(lane.first)) throw new TypeError("fetch failed")
+				if (armed && pathname.startsWith(`${lane.second}/`) && init?.method === "PATCH") writes.push(String(init.body))
+				return inner(input, init)
+			}
+			const ctx = await contextOf(optionsFor(respond, { network: { fetch: failing as typeof fetch } }))
+			const [first, second] = ctx.scope.entities.map((entity) => entity.name)
+			lane.first = collection(first)
+			lane.second = collection(second)
+			armed = true
+			await runLanes(ctx)
+			const payload = ctx.findings.findings.filter((finding) => finding.check === "payload.string-survives")
+			expect(payload.filter((finding) => finding.detail.includes("already ran against this write path"))).toEqual([])
+			expect(writes.some((body) => body.includes(ASCII_PAYLOAD_PROBE))).toBe(true)
+		},
+	)
 })

@@ -1146,6 +1146,12 @@
 		"functions": 100,
 		"lines": 100
 	},
+	"src/runtime/checks/families/write/payload-claims.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
 	"src/runtime/checks/families/write/payload-probe.ts": {
 		"statements": 100,
 		"branches": 100,

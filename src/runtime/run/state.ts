@@ -1,3 +1,4 @@
+import { PayloadClaims } from "../checks/families/write/payload-claims.ts"
 import type { TeardownReport } from "../teardown/types.ts"
 import type { CheckTiming } from "./types.ts"
 
@@ -20,8 +21,8 @@ export interface RunState {
 	takenByEntity: Map<string, Set<string>>
 	/** What checks compute once is shared run-wide. */
 	runMemo: Map<string, unknown>
-	/** Write paths that have had the whole payload catalog, shared by every entity in the run. */
-	payloadPaths: Map<string, string>
+	/** Which entity runs the whole payload catalog on each write path, shared by every entity in the run. */
+	payloadClaims: PayloadClaims
 	interrupted: boolean
 	teardown: TeardownReport | null
 	/** Set once `hooks.verifyRemoved` threw, so the gap is reported once per run. */
@@ -52,7 +53,7 @@ export function emptyState(): RunState {
 		entitiesTested: [],
 		excludedIds: new Set(),
 		interrupted: false,
-		payloadPaths: new Map(),
+		payloadClaims: new PayloadClaims(),
 		profileExclusions: [],
 		runMemo: new Map(),
 		takenByEntity: new Map(),

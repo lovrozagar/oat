@@ -3,7 +3,8 @@ import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { REQUIRED_IDS, STRING_PAYLOADS } from "../../../payloads.ts"
 import { contextFor, modelOf, op } from "../../__fixtures__/harness.ts"
 import type { CheckContext } from "../../core/context.ts"
-import { payloadCases, pickPayloadField } from "./payload-cases.ts"
+import { payloadCases, pickPayloadField, writePathOf } from "./payload-cases.ts"
+import { PayloadClaims } from "./payload-claims.ts"
 import { widgetApi, widgetDoc } from "./__fixtures__/widget-api.ts"
 
 function stage(properties: Record<string, unknown>, update: Partial<OperationModel> = {}) {
@@ -83,18 +84,18 @@ describe("payloadCases", () => {
 	const field = { maxLength: undefined, minLength: undefined, name: "name" }
 	const all = (ctx: CheckContext, writeOp: OperationModel) => payloadCases(ctx, writeOp, field)
 
-	it("sends the whole fitting catalog without a policy, or under the full one", () => {
+	it("sends the whole fitting catalog without a policy, or under the full one", async () => {
 		const { ctx, model } = stage({ name: { type: "string" } })
 		const writeOp = op(model, "updateWidget")
-		expect(all(ctx, writeOp)).toEqual({ cases: [...STRING_PAYLOADS], narrowed: null })
-		const full = { ...ctx, payloads: { policy: "full" as const, ran: new Map() } }
-		expect(all(full, writeOp)).toEqual({ cases: [...STRING_PAYLOADS], narrowed: null })
-		const capped = payloadCases(ctx, writeOp, { ...field, maxLength: 8, minLength: 1 })
+		expect(await all(ctx, writeOp)).toEqual({ cases: [...STRING_PAYLOADS], narrowed: null })
+		const full = { ...ctx, payloads: { claims: new PayloadClaims(), policy: "full" as const } }
+		expect(await all(full, writeOp)).toEqual({ cases: [...STRING_PAYLOADS], narrowed: null })
+		const capped = await payloadCases(ctx, writeOp, { ...field, maxLength: 8, minLength: 1 })
 		expect(capped.cases.length).toBeLessThan(STRING_PAYLOADS.length)
 		expect(capped.cases.every((payload) => payload.value.length >= 1 && [...payload.value].length <= 8)).toBe(true)
 	})
 
-	it("runs the whole catalog once per write path, then one case of each family", () => {
+	it("runs the whole catalog once per write path, then one case of each family", async () => {
 		const { ctx, model } = stage({
 			free: {},
 			mail: { format: "email", type: "string" },
@@ -102,12 +103,16 @@ describe("payloadCases", () => {
 			slug: { type: "integer" },
 		})
 		const writeOp = op(model, "updateWidget")
-		const ran = new Map<string, string>()
-		const first = { ...ctx, entityName: "widget", payloads: { policy: "per-write-path" as const, ran } }
-		expect(all(first, writeOp).narrowed).toBeNull()
-		expect([...ran]).toEqual([['application/json|["string",null]', "widget"]])
+		const path = 'application/json|["string",null]'
+		const claims = new PayloadClaims()
+		claims.plan([
+			{ entity: "widget", path },
+			{ entity: "gadget", path },
+		])
+		const first = { ...ctx, entityName: "widget", payloads: { claims, policy: "per-write-path" as const } }
+		expect((await all(first, writeOp)).narrowed).toBeNull()
 		const second = { ...first, entityName: "gadget" }
-		const narrowed = all(second, writeOp)
+		const narrowed = await all(second, writeOp)
 		expect(narrowed.narrowed).toBe("widget")
 		expect(narrowed.cases.map((payload) => payload.id).sort()).toEqual(
 			STRING_PAYLOADS.filter((payload) => (REQUIRED_IDS as readonly string[]).includes(payload.id))
@@ -115,20 +120,19 @@ describe("payloadCases", () => {
 				.sort(),
 		)
 		/* Another field type or format is another path; a field with no type is a string's. */
-		expect(payloadCases(second, writeOp, { ...field, name: "slug" }).narrowed).toBeNull()
-		expect(payloadCases(second, writeOp, { ...field, name: "free" }).narrowed).toBe("widget")
-		expect(payloadCases(second, writeOp, { ...field, name: "mail" }).narrowed).toBeNull()
-		expect([...ran.keys()]).toContain('application/json|["string","email"]')
+		expect((await payloadCases(second, writeOp, { ...field, name: "slug" })).narrowed).toBeNull()
+		expect((await payloadCases(second, writeOp, { ...field, name: "free" })).narrowed).toBe("widget")
+		expect((await payloadCases(second, writeOp, { ...field, name: "mail" })).narrowed).toBeNull()
+		expect(writePathOf(ctx, writeOp, "mail")).toBe('application/json|["string","email"]')
 		/* A field neither the body nor the item declares is keyed as a plain string. */
-		expect(payloadCases(second, writeOp, { ...field, name: "undeclared" }).narrowed).toBe("widget")
+		expect(writePathOf(ctx, writeOp, "undeclared")).toBe(path)
+		expect((await payloadCases(second, writeOp, { ...field, name: "undeclared" })).narrowed).toBe("widget")
 	})
 
 	it("keys a path with no request body, or no raw operation, by an empty media type", () => {
 		const { ctx, model } = stage({ name: { type: "string" } })
-		const ran = new Map<string, string>()
-		const policed = { ...ctx, payloads: { policy: "per-write-path" as const, ran } }
-		all(policed, op(model, "getWidget"))
-		all({ ...policed, model: { ...model, rawOperations: new Map() } }, op(model, "deleteWidget"))
-		expect([...ran.keys()]).toEqual(['|["string",null]'])
+		expect(writePathOf(ctx, op(model, "getWidget"), "name")).toBe('|["string",null]')
+		const bare = { ...ctx, model: { ...model, rawOperations: new Map() } }
+		expect(writePathOf(bare, op(model, "deleteWidget"), "name")).toBe('|["string",null]')
 	})
 })

@@ -17,7 +17,7 @@ import { reserveClientIdentity, saltOf } from "./identity.ts"
 
 /** The schema of `field` as the item's representation declares it. */
 export function propertySchemaOf(
-	ctx: CheckContext,
+	ctx: Pick<CheckContext, "listOp" | "model">,
 	field: string,
 	op?: OperationModel,
 ): Record<string, unknown> | undefined {
@@ -40,7 +40,7 @@ export function changedValue(ctx: CheckContext, field: string, current: unknown,
  * The properties `op`'s request schema declares that an ordinary body leaves out: readOnly ones, and
  * optional ones marked x-privileged, which only the highest rank may set (`ordinaryRequestSchema`).
  */
-export function withheldProperties(ctx: CheckContext, op: OperationModel | undefined): Set<string> {
+export function withheldProperties(ctx: Pick<CheckContext, "model">, op: OperationModel | undefined): Set<string> {
 	const schema = op === undefined ? null : requestSchemaOf(ctx, op)
 	if (schema === null) return new Set()
 	const ordinary = ordinaryRequestSchema(schema) as { properties?: Record<string, unknown> }
@@ -100,7 +100,7 @@ export function validBody(ctx: CheckContext, schema: Record<string, unknown>): R
 	return reserveClientIdentity(ctx, body, schema, salt)
 }
 
-export function requestSchemaOf(ctx: CheckContext, op: OperationModel): Record<string, unknown> | null {
+export function requestSchemaOf(ctx: Pick<CheckContext, "model">, op: OperationModel): Record<string, unknown> | null {
 	const raw = ctx.model.rawOperations.get(op.operationId)
 	const picked = raw === undefined ? null : requestContent(raw)
 	return picked === null ? null : picked.schema

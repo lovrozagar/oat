@@ -5,6 +5,7 @@ import type { Hooks } from "../../../config/types/hooks.ts"
 import type { Client, ReadClient } from "../../../client/client.ts"
 import type { CredentialStore } from "../../../credentials/store.ts"
 import type { Exchange } from "../../exchange.ts"
+import type { PayloadClaims } from "../families/write/payload-claims.ts"
 import type { FindingCollector } from "../../finding.ts"
 import type { BackoffConfig } from "../../poll.ts"
 import type { Created } from "../../teardown/types.ts"
@@ -123,7 +124,7 @@ export interface CheckContext<C extends ReadClient = ReadClient> {
 	 * by media type and field type, naming the entity that ran it. Optional so a hand-built
 	 * context still works; absent means the whole catalog.
 	 */
-	payloads?: { policy: PayloadPolicy; ran: Map<string, string> }
+	payloads?: { claims: PayloadClaims; policy: PayloadPolicy }
 	/**
 	 * Whether an operation is graded by this run. Always true on a full run. Checks that judge
 	 * several operations consult it before invoking or judging one. Optional so a hand-built

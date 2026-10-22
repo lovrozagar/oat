@@ -4,7 +4,8 @@ import { REQUIRED_IDS, STRING_PAYLOADS } from "../../../payloads.ts"
 import { contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { runCheck } from "../../core/run.ts"
-import { ASCII_PAYLOAD_PROBE } from "./payload-cases.ts"
+import { ASCII_PAYLOAD_PROBE, writePathOf } from "./payload-cases.ts"
+import { PayloadClaims } from "./payload-claims.ts"
 import { stringPayloadSurvives } from "./payload-string-survives.ts"
 import { overriding, type Rows, widgetApi, widgetDoc, type WidgetDocOptions } from "./__fixtures__/widget-api.ts"
 
@@ -182,14 +183,24 @@ describe("payload.string-survives stops and narrowing", () => {
 			reason: "the request was rate limited",
 		})
 	})
+})
 
+describe("payload.string-survives on a write path the whole catalog already ran on", () => {
 	it("sends one case of each family to a write path the whole catalog already ran on", async () => {
 		/* A first entity runs the whole catalog on this path; the second gets the narrowed set. */
-		const ran = new Map<string, string>()
-		const { ctx: first } = stage(widgetApi(), {}, { entityName: "gadget", payloads: { policy: "per-write-path", ran } })
+		const claims = new PayloadClaims()
+		const payloads = { claims, policy: "per-write-path" as const }
+		const { ctx: first, findings: firstFindings } = stage(widgetApi(), {}, { entityName: "gadget", payloads })
+		const { ctx, findings, sent } = stage(widgetApi(), {}, { payloads })
+		const writeOp = first.updateOp
+		if (writeOp === undefined) throw new Error("the widget document has an update")
+		const path = writePathOf(first, writeOp, "note")
+		claims.plan([
+			{ entity: "gadget", path },
+			{ entity: ctx.entityName, path },
+		])
 		await runCheck(stringPayloadSurvives, first)
-		expect([...ran.values()]).toEqual(["gadget"])
-		const { ctx, findings, sent } = stage(widgetApi(), {}, { payloads: { policy: "per-write-path", ran } })
+		expect(firstFindings.byVerdict("COVERAGE_GAP")).toEqual([])
 		expect(await runCheck(stringPayloadSurvives, ctx)).toEqual({ kind: "asserted" })
 		const gap = findings.byVerdict("COVERAGE_GAP")[0]
 		expect(gap?.summary).toMatch(/^\d+ of \d+ payload cases sent to "note"$/)

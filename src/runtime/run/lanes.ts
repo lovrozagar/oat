@@ -1,4 +1,5 @@
 import type { EntityModel, SpecModel } from "../../spec/graph/types.ts"
+import { plannedWritePath } from "../checks/families/write/payload-cases.ts"
 import type { RunContext } from "./context.ts"
 import { testEntity } from "./entity/test-entity.ts"
 import { errorText } from "./errors.ts"
@@ -19,6 +20,7 @@ export async function runLanes(ctx: RunContext): Promise<void> {
 	const queue = scope.entities
 	progress.entityTotal = queue.length
 	const run: LaneRun = { ctx, queue, started: 0, stopNoted: false }
+	state.payloadClaims.plan(queue.map((entity) => ({ entity: entity.name, path: plannedWritePath(model, entity) })))
 	const before = findings.findings.length
 	/* Each entity's errors are caught where it runs: a lane always finishes. */
 	await Promise.all(entityLanes(model, queue).map((lane) => runLane(run, lane)))
@@ -43,12 +45,13 @@ interface LaneRun {
 
 async function runLane(run: LaneRun, lane: readonly EntityModel[]): Promise<void> {
 	const { ctx } = run
+	const claims = ctx.state.payloadClaims
 	for (const entity of lane) {
 		/* Stopped from outside — Ctrl-C, a deadline — or the network is gone. Nothing more is
 		 * tested, and everything made so far is still removed. */
 		if (stopped(ctx)) {
 			noteStop(run)
-			return
+			break
 		}
 		run.started += 1
 		ctx.progress.entityIndex = run.started
@@ -62,7 +65,11 @@ async function runLane(run: LaneRun, lane: readonly EntityModel[]): Promise<void
 				cause: errorText(error),
 			})
 		}
+		/* Done, with the payload catalog or without it: an entity planned after it stops waiting. */
+		claims.settle(entity.name)
 	}
+	/* An entity this lane never started never claims either. */
+	for (const entity of lane) claims.settle(entity.name)
 }
 
 function noteStop(run: LaneRun): void {

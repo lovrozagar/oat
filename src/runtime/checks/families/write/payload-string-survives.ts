@@ -52,7 +52,7 @@ export const stringPayloadSurvives = defineCheck<{
 		const probe: PayloadProbe = { check: this.id, ctx, currents: new Map([[id, current]]), field, id, readOp, writeOp }
 		const control = await controlFailure(probe)
 		if (control !== undefined) return control
-		const { cases, narrowed } = payloadCases(ctx, writeOp, field)
+		const { cases, narrowed } = await payloadCases(ctx, writeOp, field)
 		const results = await runLanes(probe, cases, await laneRecords(probe, cases.length))
 		const stop = results.find((result) => result?.kind === "stop")
 		if (stop?.kind === "stop") return stop.outcome
