@@ -137,43 +137,24 @@ class RunIndex {
 	}
 }
 
-/** One operation's view of the run, with bodies read back through the client once each. */
-class Journal {
-	readonly transcript: Exchange[]
-	readonly index: RunIndex
-	readonly #cache = new Map<number, Exchange>()
-
-	constructor(index: RunIndex) {
-		this.index = index
-		this.transcript = index.transcript
-	}
-
-	async whole(exchange: Exchange): Promise<Exchange> {
-		const known = this.#cache.get(exchange.seq)
-		if (known !== undefined) return known
-		const hydrated = await this.index.client.hydrate(exchange)
-		this.#cache.set(exchange.seq, hydrated)
-		return hydrated
-	}
-
-	async holds(exchange: Exchange, value: string): Promise<boolean> {
-		return pathTo((await this.whole(exchange)).responseBody, value) !== null
-	}
-}
-
-/** A delete as its path states it: the collection it was made on, and the id it removed. */
+/**
+ * A delete as its path states it: the collection it was made on, the id it removed, and where the
+ * ok reads that hold the id sit (`stringsIn` finds what `pathTo` does), so no read is read again.
+ */
 interface Removal {
 	call: Exchange
 	index: number
 	path: string
 	collection: string
 	id: string
+	holding: Set<number>
 }
 
-function removalOf(call: Exchange, index: number): Removal {
+function removalOf(call: Exchange, index: number, shown: Map<string, number[]>): Removal {
 	const path = pathOf(call.url)
 	const cut = path.lastIndexOf("/")
-	return { call, collection: path.slice(0, Math.max(cut, 0)), id: decodeURIComponent(path.slice(cut + 1)), index, path }
+	const id = decodeURIComponent(path.slice(cut + 1))
+	return { call, collection: path.slice(0, Math.max(cut, 0)), holding: new Set(shown.get(id)), id, index, path }
 }
 
 function absent(removal: Removal, read: Exchange): PassEvidence {
@@ -181,23 +162,24 @@ function absent(removal: Removal, read: Exchange): PassEvidence {
 }
 
 /** A later read of the item that is gone, or of its collection that no longer lists it. */
-async function shownByOwnRead(journal: Journal, removal: Removal): Promise<PassEvidence | undefined> {
-	for (const read of journal.transcript.slice(removal.index + 1)) {
+function shownByOwnRead(transcript: Exchange[], removal: Removal): PassEvidence | undefined {
+	for (let index = removal.index + 1; index < transcript.length; index += 1) {
+		const read = transcript[index] as Exchange
 		if (!isRead(read)) continue
 		if ((read.status === 404 || read.status === 410) && pathOf(read.url) === removal.path) {
 			return { call: removal.call.seq, observation: { seq: read.seq, status: read.status } }
 		}
-		if (ok(read) && removal.id !== "" && pathOf(read.url) === removal.collection) {
-			if (!(await journal.holds(read, removal.id))) return absent(removal, read)
+		if (ok(read) && removal.id !== "" && pathOf(read.url) === removal.collection && !removal.holding.has(index)) {
+			return absent(removal, read)
 		}
 	}
 	return undefined
 }
 
 /** Whether an earlier read of `path` held the id. */
-async function heldBefore(journal: Journal, removal: Removal, path: string): Promise<boolean> {
-	for (const prior of journal.transcript.slice(0, removal.index)) {
-		if (isOkRead(prior) && pathOf(prior.url) === path && (await journal.holds(prior, removal.id))) return true
+function heldBefore(transcript: Exchange[], removal: Removal, path: string): boolean {
+	for (const prior of removal.holding) {
+		if (prior < removal.index && pathOf((transcript[prior] as Exchange).url) === path) return true
 	}
 	return false
 }
@@ -206,20 +188,20 @@ async function heldBefore(journal: Journal, removal: Removal, path: string): Pro
  * A nested item with no read of its own (a column inside its table) shows through an ancestor:
  * the same ancestor read held the id before the call and lacks it after.
  */
-async function shownByAncestor(journal: Journal, removal: Removal): Promise<PassEvidence | undefined> {
+function shownByAncestor(transcript: Exchange[], removal: Removal): PassEvidence | undefined {
 	if (removal.id === "") return undefined
-	for (const read of journal.transcript.slice(removal.index + 1)) {
-		if (!isOkRead(read)) continue
+	for (let index = removal.index + 1; index < transcript.length; index += 1) {
+		const read = transcript[index] as Exchange
+		if (!isOkRead(read) || removal.holding.has(index)) continue
 		const path = pathOf(read.url)
-		if (!isAncestor(path, removal.collection) || (await journal.holds(read, removal.id))) continue
-		if (await heldBefore(journal, removal, path)) return absent(removal, read)
+		if (isAncestor(path, removal.collection) && heldBefore(transcript, removal, path)) return absent(removal, read)
 	}
 	return undefined
 }
 
-async function deleteShown(journal: Journal, call: Exchange, index: number): Promise<PassEvidence | undefined> {
-	const removal = removalOf(call, index)
-	return (await shownByOwnRead(journal, removal)) ?? (await shownByAncestor(journal, removal))
+async function deleteShown(run: RunIndex, call: Exchange, index: number): Promise<PassEvidence | undefined> {
+	const removal = removalOf(call, index, await run.shown())
+	return shownByOwnRead(run.transcript, removal) ?? shownByAncestor(run.transcript, removal)
 }
 
 /** The earliest position any of `values` sits at in `at` that `fits`, or undefined. */
@@ -233,29 +215,29 @@ function earliest(at: Map<string, number[]>, values: Iterable<string>, fits: (in
 }
 
 /** A read shows a value an earlier write put into the world: the earliest such write. */
-async function readShown(journal: Journal, call: Exchange, index: number): Promise<PassEvidence | undefined> {
+async function readShown(run: RunIndex, call: Exchange, index: number): Promise<PassEvidence | undefined> {
 	const held = stringsIn(call.responseBody)
-	const first = earliest(await journal.index.written(), held, (at) => at < index)
+	const first = earliest(await run.written(), held, (at) => at < index)
 	if (first === undefined) return undefined
-	const tokens = tokensOf(await journal.whole(journal.transcript[first] as Exchange))
+	const tokens = tokensOf(await run.client.hydrate(run.transcript[first] as Exchange))
 	const value = tokens.find((token) => held.has(token)) as string
 	return { call: call.seq, observation: { path: pathTo(call.responseBody, value) as string, seq: call.seq, value } }
 }
 
 /** A later read shows a value the write put into the world: the first such read. */
-async function writeShown(journal: Journal, call: Exchange, index: number): Promise<PassEvidence | undefined> {
+async function writeShown(run: RunIndex, call: Exchange, index: number): Promise<PassEvidence | undefined> {
 	const values = tokensOf(call)
 	if (values.length === 0) return undefined
-	const first = earliest(await journal.index.shown(), values, (at) => at > index)
+	const first = earliest(await run.shown(), values, (at) => at > index)
 	if (first === undefined) return undefined
-	const read = journal.transcript[first] as Exchange
-	const body = (await journal.whole(read)).responseBody
+	const read = run.transcript[first] as Exchange
+	const body = (await run.client.hydrate(read)).responseBody
 	const held = stringsIn(body)
 	const value = values.find((token) => held.has(token)) as string
 	return { call: call.seq, observation: { path: pathTo(body, value) as string, seq: read.seq, value } }
 }
 
-type Shown = (journal: Journal, call: Exchange, index: number) => Promise<PassEvidence | undefined>
+type Shown = (run: RunIndex, call: Exchange, index: number) => Promise<PassEvidence | undefined>
 
 function shownFor(method: string): Shown {
 	if (method === "DELETE") return deleteShown
@@ -263,15 +245,14 @@ function shownFor(method: string): Shown {
 }
 
 async function infer(op: OperationModel, run: RunIndex): Promise<PassEvidence | undefined> {
-	const journal = new Journal(run)
-	const calls = journal.transcript.flatMap((exchange, index) =>
+	const calls = run.transcript.flatMap((exchange, index) =>
 		exchange.operationId === op.operationId && ok(exchange) ? [{ exchange, index }] : [],
 	)
 	const last = calls.at(-1)
 	if (last === undefined) return undefined
 	const shown = shownFor(op.method.toUpperCase())
 	for (const { exchange, index } of calls.toReversed()) {
-		const evidence = await shown(journal, await journal.whole(exchange), index)
+		const evidence = await shown(run, await run.client.hydrate(exchange), index)
 		if (evidence !== undefined) return evidence
 	}
 	return { call: last.exchange.seq }

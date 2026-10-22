@@ -254,6 +254,32 @@ describe("evidence across concurrent lanes", () => {
 		])
 		expect(evidence).toEqual({ call: 452, observation: { absent: true, path: "$", seq: 903, value: COLUMN } })
 	})
+
+	it("decides a delete from the run's index without reading any read body again", async () => {
+		const grades = new GradeLedger()
+		grades.graded(["row.create", "row.remove"], "some.check")
+		const hydrated: number[] = []
+		const hydrate = async (e: Exchange) => {
+			hydrated.push(e.seq)
+			return e
+		}
+		const transcript = [
+			exchange(1, "POST /v1/rows", { body: { id: ROW }, op: "row.create" }),
+			exchange(2, "GET /v1/rows", { body: { items: [{ id: ROW }] } }),
+			...otherLane(3),
+			exchange(453, `DELETE /v1/rows/${ROW}`, { op: "row.remove" }),
+			...otherLane(454),
+			exchange(904, "GET /v1/rows", { body: { items: [{ id: ROW }] } }),
+			exchange(905, "GET /v1/rows", { body: { items: [] } }),
+		]
+		const client = { hydrate, transcript } as unknown as Client
+		await proveFromTranscript({ client, grades, model: buildModel(dereference(spec).doc) })
+		expect(grades.evidence.get("row.remove")).toEqual({
+			call: 453,
+			observation: { absent: true, path: "$", seq: 905, value: ROW },
+		})
+		expect(hydrated.slice(hydrated.indexOf(453))).toEqual([453])
+	})
 })
 
 describe("which operations are proven", () => {
