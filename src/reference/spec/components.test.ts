@@ -3,15 +3,17 @@ import { ENTITIES } from "../model/entities.ts"
 import { shapedEntities } from "../model/shaped.ts"
 import { TABLE } from "../model/table.ts"
 import { components } from "./components.ts"
+import { paymentSchemas } from "./query-route.ts"
 import { itemSchema } from "./schemas.ts"
 
 describe("components", () => {
-	it("declares the error schemas, the shared Point and recursive TreeNode, and the jwt and apiKey schemes", () => {
+	it("declares the error schemas, the shared Point, recursive TreeNode, the payment branches, and the jwt and apiKey schemes", () => {
 		const declared = components({ entities: ENTITIES, shape: {} }) as {
 			schemas: Record<string, unknown>
 			securitySchemes: unknown
 		}
-		expect(Object.keys(declared.schemas).slice(-3)).toEqual(["Error", "Point", "TreeNode"])
+		expect(Object.keys(declared.schemas).slice(-6)).toEqual(["Error", "Problem", "Point", "TreeNode", "Card", "Bank"])
+		expect(declared.schemas.Card).toEqual(paymentSchemas().Card)
 		expect(declared.schemas.TreeNode).toHaveProperty("properties.children.items", {
 			$ref: "#/components/schemas/TreeNode",
 		})

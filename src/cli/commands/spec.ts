@@ -18,7 +18,7 @@ import { EXIT } from "../../runtime/exit.ts"
 /** The document a command reads, modelled, with what its config said about it. */
 export interface Modelled {
 	model: SpecModel
-	/** `$ref`s to other files, left unresolved. */
+	/** `$ref`s left unresolved: a URL, an anchor, or any ref of a fetched document. */
 	externalRefs: string[]
 	/** Operations the config's `allow` list removed from the document. */
 	removed: string[]

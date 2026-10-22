@@ -43,6 +43,7 @@ export const WRITE_EXPECTED = {
 		 * positive. */
 		"patch.minimality",
 	],
+	ETAG_IGNORED: "concurrency.if-match-enforced",
 	DELETE_KEEPS_ROW: "delete.absent-record-returns-404",
 	IDEMPOTENT_REPLAY_INSERTS: "idempotency.replay-does-not-duplicate",
 	/* A table stored under an id the client was never told cannot parent the rows seeded under it. */

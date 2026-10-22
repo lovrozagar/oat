@@ -1,8 +1,7 @@
 import type { OperationModel } from "../../spec/graph/types.ts"
+import { SAFE } from "../../spec/methods.ts"
 import type { PassEvidence } from "../grades.ts"
 import type { Sufficiency } from "./types.ts"
-
-const SAFE_METHODS: ReadonlySet<string> = /* @__PURE__ */ new Set(["GET", "HEAD", "OPTIONS"])
 
 export function sufficiencyOf(
 	op: Pick<OperationModel, "effects" | "method" | "noEffects">,
@@ -14,7 +13,7 @@ export function sufficiencyOf(
 	if (op.noEffects) {
 		return { sufficiency: "complete", why: "declares no effects, so its contract is the whole promise" }
 	}
-	if (op.effects.length === 0 && SAFE_METHODS.has(op.method.toUpperCase())) {
+	if (op.effects.length === 0 && SAFE.has(op.method.toUpperCase())) {
 		return { sufficiency: "complete", why: "a read with no declared effects: its contract is the whole promise" }
 	}
 	return {

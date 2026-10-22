@@ -79,3 +79,20 @@ describe("doctor as JSON", () => {
 		expect(json.allowRemoved).toBeUndefined()
 	})
 })
+
+describe("doctor on what oat does not exercise", () => {
+	it("names a webhook in text and JSON, without blocking or claiming full coverage", () => {
+		const { model } = modelOf(documentOf({}, { webhooks: { newPet: { post: {} } } }))
+		const { text, blocking } = doctor(model)
+		expect(blocking).toBe(0)
+		expect(text).toContain("    webhooks (1) — not tested: oat makes no inbound or follow-up calls")
+		expect(text).not.toContain("no gaps")
+		expect(JSON.parse(doctor(model, { asJson: true }).text).gaps).toEqual([
+			{
+				detail: "is a call the API sends to a subscriber's URL; oat receives no inbound call",
+				operationId: "webhook newPet",
+				tag: "webhooks",
+			},
+		])
+	})
+})

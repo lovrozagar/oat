@@ -1,5 +1,6 @@
 /** Resolves a request's category from the compiled rulebook and paces it through a shared bucket. */
 
+import { MUTATING } from "../../spec/methods.ts"
 import { RateBucket } from "./bucket.ts"
 import type { CompiledRateLimitRule } from "./rules.ts"
 
@@ -7,10 +8,8 @@ import type { CompiledRateLimitRule } from "./rules.ts"
 export const UNTAGGED_WRITE_CATEGORY = "untagged-write"
 export const UNTAGGED_CATEGORY = "untagged"
 
-const WRITE_METHODS: ReadonlySet<string> = /* @__PURE__ */ new Set(["POST", "PUT", "PATCH", "DELETE"])
-
 function implicitCategory(method: string): string {
-	return WRITE_METHODS.has(method.toUpperCase()) ? UNTAGGED_WRITE_CATEGORY : UNTAGGED_CATEGORY
+	return MUTATING.has(method.toUpperCase()) ? UNTAGGED_WRITE_CATEGORY : UNTAGGED_CATEGORY
 }
 
 /** The reactive rule for an untagged category: no rate of its own, only the cooldown a 429 opened. */

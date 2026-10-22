@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { DEFS_ID } from "../../spec/load/defs.ts"
+import { normalizeSchema } from "../../spec/schema.ts"
 import { enumOf, unionOf, viaRef } from "./branches.ts"
 import { instance } from "./instance.ts"
 import type { At, Context } from "./types.ts"
@@ -67,6 +68,21 @@ describe("unionOf", () => {
 		expect(() => unionOf({ oneOf: [false, { enum: [] }] }, at(), instance)).toThrow(
 			"no branch of the union can be generated: the schema admits no value (false); the enum is empty",
 		)
+	})
+
+	it("turns to the branch the index names, and on past one it cannot make", () => {
+		const oneOf = [{ const: "a" }, false, { const: "c" }]
+		expect([0, 1, 2, 3].map((index) => unionOf({ oneOf }, at({ index }), instance))).toEqual(["a", "c", "c", "a"])
+		expect(unionOf({ anyOf: oneOf }, at({ index: 1 }), instance)).toBe("c")
+	})
+
+	it("writes the tag of the branch it picks, in a discriminated union", () => {
+		const cat = { properties: { kind: { type: "string" }, meow: { const: true } }, required: ["meow"], type: "object" }
+		const dog = { properties: { bark: { const: true }, kind: { type: "string" } }, required: ["bark"], type: "object" }
+		const pet = { oneOf: [cat, dog], "x-oat-discriminator": { propertyName: "kind", values: [["cat"], ["dog"]] } }
+		const schema = normalizeSchema(pet, { direction: "request" })
+		expect(instance(schema, at({ index: 0 }))).toEqual({ kind: "cat", meow: true })
+		expect(instance(schema, at({ index: 1 }))).toEqual({ bark: true, kind: "dog" })
 	})
 
 	it("lets an error that is not about the schema through", () => {

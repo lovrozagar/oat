@@ -978,6 +978,7 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
                 "tenant.denial-does-not-reveal-existence",
@@ -1011,6 +1012,7 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
                 "tenant.denial-does-not-reveal-existence",
@@ -1045,11 +1047,13 @@
                 "auth.rank-is-monotonic-on-writes",
                 "auth.role-enforced",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "request.invalid-body-refused",
                 "response.status-is-documented",
+                "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant"
               ],
               "suppressed": [
@@ -1101,6 +1105,7 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -1257,6 +1262,7 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "consistency.projections-agree",
                 "invalidation.declared-route-changes",
                 "response.status-is-documented",
@@ -1289,6 +1295,7 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "consistency.projections-agree",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -1322,11 +1329,13 @@
                 "auth.rank-is-monotonic-on-writes",
                 "auth.role-enforced",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "request.invalid-body-refused",
                 "response.status-is-documented",
+                "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant",
                 "update.unique-conflict-rejected"
               ],
@@ -1547,6 +1556,7 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "consistency.projections-agree",
                 "payload.string-survives",
                 "response.status-is-documented",
@@ -1770,8 +1780,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 76,
-        "was": 83
+        "now": 79,
+        "was": 86
       }
     },
     "findings": {

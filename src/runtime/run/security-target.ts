@@ -16,6 +16,7 @@ import type { Probed, WriteTarget } from "../checks/core/operation-context.ts"
 import type { Exchange } from "../exchange.ts"
 import { owningEntityOf } from "../../spec/graph/roots.ts"
 import type { OperationModel, SpecModel } from "../../spec/graph/types.ts"
+import { SAFE } from "../../spec/methods.ts"
 import { recordOf } from "../world/records.ts"
 import type { Disposable } from "../teardown/types.ts"
 import type { RunContext } from "./context.ts"
@@ -149,8 +150,6 @@ async function readBack(ctx: RunContext, at: At, reads?: TargetReads): Promise<R
 	const answer = await shared.read
 	return "current" in answer ? { current: structuredClone(answer.current) } : answer
 }
-
-const SAFE: ReadonlySet<string> = /* @__PURE__ */ new Set(["GET", "HEAD", "OPTIONS"])
 
 /*
  * Whether a request since the read may have changed the record: a write, by anyone, whose path names

@@ -12,6 +12,7 @@
  */
 
 import { PRIVILEGED } from "./extensions/privileged.ts"
+import { DISCRIMINATOR_KEY, type Discriminated } from "./load/walk.ts"
 import type { SchemaObject } from "./types.ts"
 
 export type Direction = "request" | "response"
@@ -52,11 +53,12 @@ const MAP: ReadonlySet<string> = /* @__PURE__ */ new Set([
 	"dependentSchemas",
 ])
 
-/** OpenAPI annotations that are not JSON Schema keywords — removed from schema nodes only. */
+/** Annotations that are not JSON Schema keywords, OpenAPI's and oat's — removed from schema nodes only. */
 const OPENAPI_ONLY: ReadonlySet<string> = /* @__PURE__ */ new Set([
 	"nullable",
 	"example",
 	"discriminator",
+	DISCRIMINATOR_KEY,
 	"xml",
 	"externalDocs",
 ])
@@ -92,6 +94,7 @@ function visit(ctx: Normalizing, node: SchemaObject): SchemaObject {
 		if (!OPENAPI_ONLY.has(key)) translate(ctx, out, key, value)
 	}
 	resolveExclusiveBounds(out)
+	pinTags(ctx, node, out)
 	/* Properties that do not travel in this direction are neither allowed nor required. */
 	dropProperties(out, ctx.direction === "request" ? "readOnly" : "writeOnly")
 	if (ctx.ordinary) dropPrivileged(out)
@@ -116,6 +119,45 @@ function translate(ctx: Normalizing, out: SchemaObject, key: string, value: unkn
 
 function visitEach(ctx: Normalizing, items: unknown[]): unknown[] {
 	return items.map((item) => (isSchema(item) ? visit(ctx, item) : item))
+}
+
+/**
+ * A discriminated union, as `dereference` recorded it: each branch requires the tag and allows only
+ * its own values, so a body whose tag names one branch and whose fields fit another fits neither,
+ * and a generated body carries the tag of the branch it was made from. A tag that does not travel
+ * in this direction (`readOnly` in a request) is left alone, along with the union.
+ */
+function pinTags(ctx: Normalizing, node: SchemaObject, out: SchemaObject): void {
+	const tags = node[DISCRIMINATOR_KEY]
+	const key = out.oneOf === undefined ? "anyOf" : "oneOf"
+	const union = out[key]
+	if (!isTags(tags) || !Array.isArray(union) || union.length !== tags.values.length) return
+	const hidden = ctx.direction === "request" ? "readOnly" : "writeOnly"
+	const sources = [node, ...(node[key] as unknown[])]
+	if (sources.some((source) => isSchema(source) && hides(source, tags.propertyName, hidden))) return
+	out[key] = union.map((branch, index) => pinned(branch, tags.propertyName, tags.values[index] as string[]))
+}
+
+function isTags(value: unknown): value is Discriminated {
+	return isSchema(value) && typeof value.propertyName === "string" && Array.isArray(value.values)
+}
+
+function hides(schema: SchemaObject, tag: string, hidden: "readOnly" | "writeOnly"): boolean {
+	const property = isSchema(schema.properties) ? schema.properties[tag] : undefined
+	return isSchema(property) && property[hidden] === true
+}
+
+/* A copy of `branch` whose `tag` is required and holds one of `values`; the branch itself is shared. */
+function pinned(branch: unknown, tag: string, values: string[]): unknown {
+	if (!isSchema(branch)) return branch
+	const properties = isSchema(branch.properties) ? branch.properties : {}
+	const own = properties[tag]
+	const required = Array.isArray(branch.required) ? branch.required : []
+	return {
+		...branch,
+		properties: { ...properties, [tag]: { ...(isSchema(own) ? own : {}), enum: values } },
+		required: required.includes(tag) ? required : [...required, tag],
+	}
 }
 
 function resolveExclusiveBounds(out: SchemaObject): void {

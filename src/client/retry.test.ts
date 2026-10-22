@@ -57,6 +57,7 @@ describe("resilient", () => {
 		for (const [kind, more] of [
 			["refused", { method: "POST" }],
 			["reset", { method: "PUT" }],
+			["reset", { method: "QUERY" }],
 			["timeout", { headers: () => ({ "Idempotency-Key": "k" }), method: "POST" }],
 		] as const) {
 			const sent: number[] = []
@@ -175,6 +176,9 @@ describe("untilAnswered", () => {
 		expect((await settled(untilAnswered(answer(502), { ...write, method: "POST" }))).status).toBe(502)
 		const fine = retrying([])
 		expect((await untilAnswered(answer(200), fine)).status).toBe(200)
-		expect([...write.log, ...fine.log]).toEqual([])
+		/* A QUERY carries its question in a body, which may be a stream already spent. */
+		const query = retrying([])
+		expect((await settled(untilAnswered(answer(502), { ...query, method: "QUERY" }))).status).toBe(502)
+		expect([...write.log, ...fine.log, ...query.log]).toEqual([])
 	})
 })

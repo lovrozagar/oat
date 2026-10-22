@@ -27,13 +27,19 @@ export function viaRef(schema: Schema, at: At, walk: Walk): unknown {
 
 const isNull = (branch: unknown): boolean => isObject(branch) && branch.type === "null"
 
-/* A union keeps its base: `{properties: {kind}, oneOf: [...]}` needs `kind` whichever branch. */
+/**
+ * A union keeps its base: `{properties: {kind}, oneOf: [...]}` needs `kind` whichever branch. The
+ * index picks the branch to start from, as it picks an enum value, so a cohort makes every branch.
+ */
 export function unionOf(schema: Schema, at: At, walk: Walk): unknown {
 	const union = (schema.oneOf ?? schema.anyOf) as unknown[]
 	const { oneOf: _o, anyOf: _a, ...base } = schema
 	if (at.ctx.variant === "null-heavy" && union.some(isNull)) return null
+	const options = union.filter((candidate) => !isNull(candidate))
+	/* With no options the start is NaN, and `slice` reads NaN as 0. */
+	const start = at.ctx.index % options.length
 	const failures: string[] = []
-	for (const branch of union.filter((candidate) => !isNull(candidate))) {
+	for (const branch of [...options.slice(start), ...options.slice(0, start)]) {
 		const candidate = isObject(branch) ? merge(base, branch) : branch
 		try {
 			return walk(candidate, at)

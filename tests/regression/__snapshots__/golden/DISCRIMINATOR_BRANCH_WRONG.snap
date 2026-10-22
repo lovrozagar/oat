@@ -1,0 +1,93 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "1 root-cause finding",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "response.contract-call"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.anonymous-operation-open"
+              ],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 1,
+            "operationId": "search.query",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.anonymous-operation-open",
+                "response.contract-call"
+              ],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 0,
+            "operationId": "search.query",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "complete",
+            "tier": "contract",
+            "why": "a read with no declared effects: its contract is the whole promise"
+          }
+        ]
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "response.contract-call",
+          "detail": "search.query returned 200 with a body that fails the declared schema: /kind must be equal to one of the allowed values; (root) must have required property 'account'; (root) must NOT have additional properties; (root) must match exactly one schema in oneOf",
+          "entity": "search.query",
+          "operations": [
+            "search.query"
+          ],
+          "evidence": [
+            {
+              "method": "QUERY",
+              "status": 200,
+              "url": "http://reference.test/v1/search"
+            }
+          ],
+          "summary": "success response does not match its documented schema",
+          "verdict": "SPEC_BUG"
+        }
+      ]
+    },
+    "summary": {
+      "SPEC_BUG": {
+        "now": 1,
+        "was": null
+      }
+    }
+  }
+}

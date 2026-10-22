@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { loaded, notesApi, optionsFor } from "./__fixtures__/api.ts"
+import { loaded, notesApi, notesDoc, optionsFor } from "./__fixtures__/api.ts"
 import { createExclusion } from "./exclusion.ts"
 
 /* A profile leaves out what it names; the default runs everything. */
@@ -22,6 +22,16 @@ describe("createExclusion", () => {
 		expect(exclusion.excludes("notes.create")).toBe(false)
 		expect(exclusion.excludes("no.such")).toBe(false)
 		expect(create !== undefined && exclusion.readable(create)).toBe(true)
+	})
+
+	it("excludes an operation oat never sends, under every profile, without a profile finding", async () => {
+		const traced = notesDoc({ "/notes/{note_id}/echo": { trace: { operationId: "notes.echo", responses: {} } } })
+		const run = await loaded(optionsFor(notesApi(traced)))
+		const exclusion = createExclusion(run)
+		const echo = run.model.byOperationId.get("notes.echo")
+		expect(exclusion.excludes("notes.echo")).toBe(true)
+		expect(echo !== undefined && exclusion.readable(echo)).toBe(false)
+		expect(run.findings.findings).toEqual([])
 	})
 
 	it("reports an excluded operation once, and excludes it every time", async () => {

@@ -7,6 +7,7 @@
 
 import type { ProgressHandler, ProgressSnapshot } from "../../runtime/progress/types.ts"
 import { run as runOat, type RunOptions, type RunResult } from "../../runtime/run/index.ts"
+import { SAFE } from "../../spec/methods.ts"
 import type { Hosted, Via } from "./launch.ts"
 
 /** What an exchange says about who sent it; a run's transcript holds one per request it made. */
@@ -24,8 +25,6 @@ export interface Mark {
 	at: number
 	stage: string
 }
-
-const SAFE: ReadonlySet<string> = /* @__PURE__ */ new Set(["GET", "HEAD", "OPTIONS"])
 
 /** A request's purpose, when no check or credential store claims it. */
 const BY_PURPOSE: Readonly<Record<string, string>> = {

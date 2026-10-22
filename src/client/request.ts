@@ -8,9 +8,10 @@ import { credentialHeaderNames } from "../security/strip.ts"
 import { answered, failed } from "./answer.ts"
 import type { Pacing, Prepared, Sent, Timed, Wire } from "./attempt.ts"
 import type { Actor } from "./credential-source.ts"
+import { withDeclared } from "./declared.ts"
 import { type FenceAsk, fenceAsker } from "./fence.ts"
 import { requestIdOf, requestMessageBytes } from "./message.ts"
-import { placedNames, placeOn, requestCredential, type Unplaced } from "./placing.ts"
+import { type Placement, placedNames, placeOn, requestCredential, type Unplaced } from "./placing.ts"
 import { sendFollowing } from "./redirect.ts"
 import { addRequiredQuery, carriesMissingValue, encodeBody, requestUrl } from "./serialize.ts"
 import type { NetworkClientOptions, RequestOptions, RequestStart } from "./types.ts"
@@ -22,11 +23,15 @@ import type { NetworkClientOptions, RequestOptions, RequestStart } from "./types
  */
 export function prepare(ctx: Wire, method: string, path: string, options: RequestOptions): Prepared {
 	const verb = method.toUpperCase()
-	const url = requestUrl(ctx.baseUrl, path, options.query)
-	const foreign = url.origin !== new URL(ctx.baseUrl).origin
-	const resolved = foreign ? null : (ctx.operationResolver?.(verb, ctx.relativePath(url)) ?? null)
+	const at = requestUrl(ctx.baseUrl, path)
+	const foreign = at.origin !== new URL(ctx.baseUrl).origin
+	const resolved = foreign ? null : (ctx.operationResolver?.(verb, ctx.relativePath(at)) ?? null)
+	/* The query is written once the operation is known: its styles say how. */
+	const styles = resolved?.paramStyles?.query
+	const writing = { query: options.query, styles }
+	const url = requestUrl(ctx.baseUrl, path, writing)
 	const callerQuery = new Set(url.searchParams.keys())
-	addRequiredQuery(url, resolved?.requiredQuery ?? {}, options.query)
+	addRequiredQuery(url, resolved?.requiredQuery ?? {}, writing)
 	const relative = ctx.relativePath(url)
 	/* A value oat did not have, written as text: nothing goes out. */
 	if (carriesMissingValue(url)) throw new MissingValueError(`${verb} ${relative}`)
@@ -57,7 +62,7 @@ export function prepare(ctx: Wire, method: string, path: string, options: Reques
 export async function sendAttempt(request: Prepared, attempt: number, wire: Wire): Promise<Exchange> {
 	const { options } = request
 	const placement = await request.credential.next()
-	const { headers, url } = placeOn(placement, await unplaced(request, wire))
+	const { headers, url } = placeOn(placement, await unplaced(request, { placement, wire }))
 	const body = encodeBody(options.body, options.contentType)
 	if (body.contentType !== undefined) headers["content-type"] = body.contentType
 	/* The headers each hop sends: redirects strip and add to them, and the fence sees them as they are. */
@@ -78,15 +83,21 @@ export async function sendAttempt(request: Prepared, attempt: number, wire: Wire
 	return answered(landed, { ...sent, pacing }, wire)
 }
 
-/** The attempt before its credential: globals, then `resolveHeaders`, then the caller's headers. */
-async function unplaced(request: Prepared, wire: Wire): Promise<Unplaced> {
+/**
+ * The attempt before its credential: the operation's declared header and cookie values, then
+ * globals, then `resolveHeaders`, then the caller's headers.
+ */
+async function unplaced(
+	request: Prepared,
+	{ placement, wire }: { placement: Placement; wire: Wire },
+): Promise<Unplaced> {
 	const { options } = request
 	const hooked = await wire.resolveHeaders?.({
 		method: request.method,
 		url: request.url.toString(),
 		...(options.operationId === undefined ? {} : { operationId: options.operationId }),
 	})
-	const layers = [wire.headers, hooked ?? {}, request.callerHeaders()]
+	const layers = withDeclared(request.resolved, placement, [wire.headers, hooked ?? {}, request.callerHeaders()])
 	return { callerQuery: request.callerQuery, layers, url: request.url }
 }
 

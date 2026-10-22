@@ -34,14 +34,13 @@ describe("assertOpenApi", () => {
 		expect(assertOpenApi({ ...DOC, openapi: "3.2.0" }, "s")).toBeDefined()
 	})
 
-	it("refuses Swagger 2 and an OpenAPI newer than 3.2 as the caller's mistake, naming the version", () => {
+	it("refuses a version oat does not read through assertVersion, as the caller's mistake", () => {
 		expect(() => assertOpenApi({ paths: {}, swagger: "2.0" }, "s")).toThrow(
-			new UsageError("oat: s is Swagger 2.0; oat reads OpenAPI 3.x — convert it first"),
+			new UsageError("oat: s is Swagger 2.0; oat reads OpenAPI 3.0–3.2 only — convert it first"),
 		)
 		expect(() => assertOpenApi({ ...DOC, openapi: "3.3.0" }, "s")).toThrow(
-			new UsageError("oat: s is OpenAPI 3.3.0, newer than the 3.2 oat reads"),
+			new UsageError("oat: s is OpenAPI 3.3.0; oat reads OpenAPI 3.0–3.2 only"),
 		)
-		expect(() => assertOpenApi({ ...DOC, openapi: "3.10" }, "s")).toThrow(UsageError)
 	})
 
 	it("refuses what parsed as something other than an object, showing what it was", () => {
@@ -53,10 +52,8 @@ describe("assertOpenApi", () => {
 		expect(() => assertOpenApi([1, 2], "s")).toThrow("it parsed as 1,2")
 	})
 
-	it("refuses Swagger 2, a document without a 3.x version, and one without paths", () => {
-		expect(() => assertOpenApi({ paths: {}, swagger: "2.0" }, "s")).toThrow("s is Swagger 2.0")
-		expect(() => assertOpenApi({ openapi: 3, paths: {} }, "s")).toThrow('no "openapi: 3.x" version field')
-		expect(() => assertOpenApi({ openapi: "2.0", paths: {} }, "s")).toThrow('no "openapi: 3.x" version field')
+	it("refuses a document without a version, and one without paths", () => {
+		expect(() => assertOpenApi({ openapi: 3, paths: {} }, "s")).toThrow('no "openapi" version field')
 		for (const paths of [undefined, null, [], "p"]) {
 			expect(() => assertOpenApi({ openapi: "3.1.0", paths }, "s")).toThrow('no "paths" object')
 		}

@@ -47,6 +47,20 @@ See [OpenAPI meta tags](tags.md#openapi-meta-tags). Fallbacks:
 
 No meta tag. If create declares a header matching `Idempotency-Key` / `Idempotence-Key` / `X-Idempotency-Key` (spaces ignored, case-insensitive), `idempotency.replay-does-not-duplicate` runs.
 
+### Methods
+
+oat reads every operation field of an OAS 3.2 Path Item: `get`, `put`, `post`, `delete`, `options`, `head`, `patch`, `trace` and `query`. `GET`, `HEAD`, `OPTIONS`, `TRACE` and `QUERY` are safe: a read-only check may send them, they never count as writes, and a contract call may send one to any record the run saw. `PUT` and `DELETE` are idempotent too, so a network failure resends them, as it does a safe method. A `QUERY` carries its question in a JSON body like any other request body. A `TRACE` operation is listed but never sent, because fetch refuses the method: the contract call records it as untested with that reason, and the model flags it (`unsendable`).
+
+### Parameters
+
+A required parameter the caller leaves unset is sent with the value the document declares for it (`example`, `examples`, `const`, the first `enum` value, or `default`), in the query, as a header, or as a cookie. An object or array value is kept whole. A header parameter named `Accept`, `Content-Type` or a credential header, and the idempotency key, are never sent from the document. A declared header or cookie under a name the operation's credential is placed in is never sent either; a caller's header there still collides with the credential.
+
+Each value is written in the parameter's OAS `style` and `explode`: `form`, `spaceDelimited`, `pipeDelimited` and `deepObject` in the query and cookies, and `simple`, `label` and `matrix` in the path and headers. The OAS defaults hold when the document says nothing: `form` exploded in the query and cookies, `simple` unexploded in the path and headers. Values are percent-encoded per RFC 3986 unless the parameter sets `allowReserved`; a header is never percent-encoded. A urlencoded body's `encoding` uses the same serializer.
+
+### Discriminated unions
+
+A `oneOf` or `anyOf` of `$ref`s beside a `discriminator` pins each branch to its tag: the `mapping` values that reach the branch's schema, or else its component name. Each branch then requires `propertyName` with one of its own values, so a response whose tag names one branch and whose fields fit another fails its schema, and a generated body carries the tag of the branch it was made from. A union's branch turns with the record's index, as an enum value does, so a cohort makes every branch. A union with a branch that is not a `$ref`, or one oat cannot name, stays as JSON Schema reads it. Not read: the `allOf` inheritance pattern, where a parent schema holds the `discriminator` and each child extends the parent with `allOf`; such a parent's tag is not pinned. A `mapping` value that names a schema in another file falls back to that branch's component name, and the union stays unpinned when no name is left. A tag marked `readOnly` (in a request) or `writeOnly` (in a response) leaves the union unpinned, read from the union and each branch's own `properties`, not from inside an `allOf`.
+
 ## Seeding
 
 Per entity, oat POSTs the create body built from the request schema (JSON, multipart, or urlencoded).

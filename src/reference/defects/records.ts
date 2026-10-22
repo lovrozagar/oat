@@ -60,6 +60,13 @@ export const RECORD_DEFECTS = {
 	 * tier holds that body to its schema: auth runs before any check and nothing else grades it.
 	 */
 	TOKEN_EXPIRY_AS_STRING: "the token exchange answers expires_in as a string, not the documented integer",
+	/**
+	 * The search answers a card's fields under the bank tag, or a bank account's under the card tag.
+	 *
+	 * Each field still fits a branch, so only a union pinned by its discriminator rules the body out.
+	 * Nothing but the contract tier calls the search, so its call is the one that grades it.
+	 */
+	DISCRIMINATOR_BRANCH_WRONG: "the search answers a payment method under the other branch's tag",
 	/** The get of a listed row returns a different body than the list. */
 	LISTED_GET_DIFFERS: "the get of a listed row returns a different body",
 	/**
@@ -91,6 +98,8 @@ export const RECORD_DEFECTS = {
 	WRITE_BODY_NOT_VALIDATED: "an update applies what parses of an invalid body instead of refusing it",
 	/** Error bodies do not match the documented error schema. */
 	ERROR_SCHEMA_DRIFT: "error response does not match its documented schema",
+	/** The 412 problem detail names another status than the response's: 400 on a 412. */
+	PROBLEM_JSON_MALFORMED: "a problem detail's status disagrees with the response's status",
 	/** Success bodies carry fields the schema does not declare. */
 	RESPONSE_SCHEMA_DRIFT: "success response carries undeclared fields",
 	/** An equality predicate is parsed and then never applied. */
@@ -136,6 +145,11 @@ export const RECORD_DEFECTS = {
 	 * earlier field's old value — the classic ORM `save(entity)` lost update.
 	 */
 	CONCURRENT_WRITE_LOST: "concurrent writes to different fields lose one of them",
+	/**
+	 * The update ignores If-Match: a write naming an ETag the record has moved past is applied
+	 * instead of refused with 412, so optimistic concurrency protects nothing.
+	 */
+	ETAG_IGNORED: "an update naming a stale ETag in If-Match is applied instead of refused with 412",
 	/**
 	 * A lower-ranked role can read a record that a higher-ranked role in the same tenant cannot.
 	 *

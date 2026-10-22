@@ -529,7 +529,7 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&filter=and%28created_at.eq.CLOCK%2Cor%28description.eq.Quarterly+Report+0%2Cid.eq.table_ID%29%29&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&filter=and%28created_at.eq.CLOCK%2Cor%28description.eq.Quarterly%20Report%200%2Cid.eq.table_ID%29%29&page=1"
             },
             {
               "method": "GET",
@@ -539,7 +539,7 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&filter=description.eq.Quarterly+Report+0&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&filter=description.eq.Quarterly%20Report%200&page=1"
             },
             {
               "method": "GET",
@@ -561,7 +561,7 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&filter=and%28project_id.eq.proj_alpha%2Cor%28name.eq.Quarterly+Report+0%2Cid.eq.job_ID%29%29&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&filter=and%28project_id.eq.proj_alpha%2Cor%28name.eq.Quarterly%20Report%200%2Cid.eq.job_ID%29%29&page=1"
             },
             {
               "method": "GET",
@@ -571,7 +571,7 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&filter=name.eq.Quarterly+Report+0&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&filter=name.eq.Quarterly%20Report%200&page=1"
             },
             {
               "method": "GET",
@@ -593,7 +593,7 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&filter=and%28table_id.eq.table_ID%2Cor%28label.eq.Quarterly+Report+0%2Cid.eq.row_ID%29%29&page=2"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&filter=and%28table_id.eq.table_ID%2Cor%28label.eq.Quarterly%20Report%200%2Cid.eq.row_ID%29%29&page=2"
             },
             {
               "method": "GET",
@@ -603,7 +603,7 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&filter=label.eq.Quarterly+Report+0&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&filter=label.eq.Quarterly%20Report%200&page=1"
             },
             {
               "method": "GET",

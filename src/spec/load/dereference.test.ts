@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { doc, ok } from "../__fixtures__/documents.ts"
 import type { OpenApiDocument } from "../types.ts"
 import { DEFS_KEY, documentDefs } from "./defs.ts"
+import { EXTERNAL_KEY } from "./bundle.ts"
 import { dereference } from "./dereference.ts"
 
 const node = { properties: { child: { $ref: "#/components/schemas/Node" }, id: { type: "string" } }, type: "object" }
@@ -41,6 +42,22 @@ describe("dereference", () => {
 		expect(DEFS_KEY in dereference(doc(paths, { components: { schemas: { Node: { type: "object" } } } })).doc).toBe(
 			false,
 		)
+	})
+
+	it("drops the files bundled beside the document once their refs are inlined, keeping their recursion", () => {
+		const pet = { properties: { parent: { $ref: "#/x-oat-external/pet.yaml/Pet" } }, type: "object" }
+		const refs = { $ref: "#/x-oat-external/pet.yaml/Pet" }
+		const source = doc(
+			{ "/pets": { get: { operationId: "pets.get", responses: ok(refs) } } },
+			{
+				[EXTERNAL_KEY]: { "pet.yaml": { Pet: pet } },
+			},
+		)
+		const { doc: out } = dereference(source)
+		expect(EXTERNAL_KEY in out).toBe(false)
+		expect(documentDefs(out)).toEqual({
+			Pet: { properties: { parent: { $ref: "oat-defs#/$defs/Pet" } }, type: "object" },
+		})
 	})
 
 	it("stores the document itself, without its definitions, when a ref names it", () => {

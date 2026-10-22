@@ -23,6 +23,13 @@ const opAt = (out: OpenApiDocument, path: string, method: string): Record<string
 	(out.paths as Record<string, Record<string, Record<string, unknown>>>)[path]?.[method] ?? {}
 
 describe("applyOverlay", () => {
+	it("patches an OAS 3.2 query operation by its operationId", () => {
+		const out = applyOverlay(doc({ "/search": { query: { operationId: "search" } } }), {
+			operations: { search: { "x-cost": "low" } },
+		})
+		expect(opAt(out, "/search", "query")).toEqual({ operationId: "search", "x-cost": "low" })
+	})
+
 	it("merges objects, replaces arrays and scalars, and deletes on null, on a copy", () => {
 		const original = source()
 		const out = applyOverlay(original, {

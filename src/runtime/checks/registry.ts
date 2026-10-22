@@ -19,6 +19,7 @@ import { querySortAndSelectCompose } from "./families/composition/query-sort-and
 import { unknownParameterConsistent } from "./families/composition/query-unknown-parameter-consistent.ts"
 import { documentedStatusHonoured } from "./families/conformance/response-status-is-documented.ts"
 import { errorSchemaHonoured } from "./families/conformance/schema-error-response-matches-document.ts"
+import { problemJsonShape } from "./families/conformance/schema-problem-json-shape.ts"
 import { successSchemaHonoured } from "./families/conformance/schema-success-response-matches-document.ts"
 import { projectionsAgree } from "./families/consistency/consistency-projections-agree.ts"
 import { declaredInvalidationHappens } from "./families/consistency/invalidation-declared-route-changes.ts"
@@ -110,6 +111,7 @@ import { contentTypeEnforced } from "./families/validation/validation-content-ty
 import { enumValidated } from "./families/validation/validation-enum-enforced.ts"
 import { maxLengthValidated } from "./families/validation/validation-max-length-enforced.ts"
 import { requiredValidated } from "./families/validation/validation-required-enforced.ts"
+import { ifMatchEnforced } from "./families/write/concurrency-if-match-enforced.ts"
 import { noLostUpdate } from "./families/write/concurrency-no-lost-update.ts"
 import { createKeepsSubmittedIdentity } from "./families/write/create-keeps-submitted-identity.ts"
 import { createPersistsFields } from "./families/write/create-persists-submitted-fields.ts"
@@ -268,9 +270,13 @@ export const CHECKS: readonly RegisteredCheck[] = [
 	sideEffectArrives,
 	asyncReachesTerminalState,
 	asyncReceiptIsResolvable,
+	/* The last writer, right before the judges, so they see its 412. Only the judges come after it,
+	 * and they draw no salt, so registering it moved no other check's bodies. */
+	ifMatchEnforced,
 	/* After every other check has written to the transcript — create is owned by
 	 * create.status-matches-document. */
 	documentedStatusHonoured,
 	errorSchemaHonoured,
+	problemJsonShape,
 	declaredRateLimitHonoured,
 ]

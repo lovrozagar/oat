@@ -564,6 +564,7 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "invalidation.declared-route-changes",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -597,6 +598,7 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
                 "tenant.denial-does-not-reveal-existence",
@@ -628,6 +630,7 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -663,6 +666,7 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "consistency.projections-agree",
                 "invalidation.declared-route-changes",
                 "response.status-is-documented",
@@ -695,6 +699,7 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "consistency.projections-agree",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -896,6 +901,7 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "consistency.projections-agree",
                 "payload.string-survives",
                 "response.status-is-documented",
@@ -1062,12 +1068,12 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&filter=description.eq.Quarterly+Report+0&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&filter=description.eq.Quarterly%20Report%200&page=1"
             },
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&filter=description.neq.Quarterly+Report+0&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&filter=description.neq.Quarterly%20Report%200&page=1"
             }
           ],
           "summary": "a predicate and its negation both match the same record",
@@ -1084,12 +1090,12 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&filter=note.eq.Quarterly+Report+0&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&filter=note.eq.Quarterly%20Report%200&page=1"
             },
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&filter=note.neq.Quarterly+Report+0&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&filter=note.neq.Quarterly%20Report%200&page=1"
             }
           ],
           "summary": "a predicate and its negation both match the same record",
@@ -1106,12 +1112,12 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&filter=note.eq.Quarterly+Report+0&page=2"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&filter=note.eq.Quarterly%20Report%200&page=2"
             },
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&filter=note.neq.Quarterly+Report+0&page=2"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&filter=note.neq.Quarterly%20Report%200&page=2"
             }
           ],
           "summary": "a predicate and its negation both match the same record",

@@ -1,6 +1,7 @@
 /** HTTP client with a full transcript, so every finding can cite the exchange that produced it. */
 
 import type { Redactor } from "../security/redact.ts"
+import { SAFE, unsendableReason } from "../spec/methods.ts"
 import type { Exchange } from "../runtime/exchange.ts"
 import { belowBase } from "./curl.ts"
 import { createControls } from "./control.ts"
@@ -11,8 +12,6 @@ import { prepare, sendAttempt } from "./request.ts"
 import { DEFAULT_DEADLINE_MS, resilient, untilAnswered } from "./retry.ts"
 import { Slots } from "./slots.ts"
 import type { ClientOptions, ExchangeContext, RequestOptions, SafeMethod } from "./types.ts"
-
-const SAFE_METHODS: ReadonlySet<string> = /* @__PURE__ */ new Set(["GET", "HEAD", "OPTIONS"])
 
 /** A client that can only read: what a check that does not mutate receives. */
 export interface ReadClient extends Omit<Client, "request" | "view"> {
@@ -96,7 +95,7 @@ export class Client {
 	view(context: ExchangeContext, readOnly = false): Client {
 		const request = (method: string, path: string, options: RequestOptions): Promise<Exchange> => {
 			/* The type already forbids it; this catches a cast or an untyped caller. */
-			if (readOnly && !SAFE_METHODS.has(method.toUpperCase())) {
+			if (readOnly && !SAFE.has(method.toUpperCase())) {
 				return Promise.reject(
 					new Error(`check "${context.check ?? "?"}" does not mutate, but sent ${method.toUpperCase()} ${path}`),
 				)
@@ -122,9 +121,14 @@ export class Client {
 		return this.view(context, true)
 	}
 
-	/** Sends one request as `options.as`, renewing its credential once after a 401 and asking once more. */
+	/**
+	 * Sends one request as `options.as`, renewing its credential once after a 401 and asking once more.
+	 * A method fetch cannot send (TRACE) is refused before anything goes out.
+	 */
 	async request(method: string, path: string, options: RequestOptions): Promise<Exchange> {
-		if (method.toUpperCase() !== "GET" && method.toUpperCase() !== "HEAD") this.writes += 1
+		const unsendable = unsendableReason(method)
+		if (unsendable !== null) throw new Error(`${method.toUpperCase()} ${path} was not sent: ${unsendable}`)
+		if (!SAFE.has(method.toUpperCase())) this.writes += 1
 		const request = prepare(this.wire, method, path, options)
 		const { network, rateLimiter } = this.options
 		const deadline = performance.now() + (network?.deadlineMs ?? DEFAULT_DEADLINE_MS)

@@ -61,5 +61,29 @@ export function errorSchemas(): Json {
 		required: ["error_key", "message", "status", "success"],
 		type: "object",
 	}
+	schemas.Problem = {
+		properties: {
+			detail: { type: "string" },
+			instance: { type: "string" },
+			status: { type: "integer" },
+			title: { type: "string" },
+			type: { type: "string" },
+		},
+		required: ["type", "title", "status"],
+		type: "object",
+	}
 	return schemas
+}
+
+/**
+ * The 412 an update under a stale `If-Match` answers: an RFC 9457 problem detail, declared on its own
+ * under every shape, since it is no part of the error envelope the other refusals share.
+ */
+export function preconditionResponses(): Json {
+	return {
+		"412": {
+			content: { "application/problem+json": { schema: { $ref: "#/components/schemas/Problem" } } },
+			description: "precondition_failed",
+		},
+	}
 }

@@ -85,6 +85,27 @@ describe("runContractCalls", () => {
 	})
 })
 
+describe("runContractCalls and declared styles", () => {
+	it("fills a path in its declared style, and never sends a TRACE, naming why", async () => {
+		const styled = doc({
+			"/m{v}": {
+				get: {
+					operationId: "m.get",
+					parameters: [{ ...pathParam("v", { enum: ["red"] }), style: "matrix" }],
+					responses: ok(),
+				},
+				trace: { operationId: "m.trace", responses: ok() },
+			},
+		})
+		const { input, sent } = stage(styled, () => ({ status: 200 }))
+		await runContractCalls(input)
+		expect(sent.map((request) => `${request.method} ${request.path}`)).toEqual(["GET /m;v=red"])
+		expect([...(input.grades.needs.get("m.trace") ?? [])]).toEqual([
+			"fetch refuses TRACE (a cross-site tracing guard), so oat lists the operation but never sends it",
+		])
+	})
+})
+
 describe("runContractCalls and security probes", () => {
 	it("never takes a security probe's success for the operation's contract call, and calls it itself", async () => {
 		const { input, sent } = stage(things, () => ({ status: 200 }), {

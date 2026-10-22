@@ -1183,6 +1183,13 @@
     "needs": "x-async with an idFrom pointer"
   },
   {
+    "id": "concurrency.if-match-enforced",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a create, an item read that declares an ETag, and an update that declares If-Match"
+  },
+  {
     "id": "response.status-is-documented",
     "dependsOn": [],
     "mutates": false,
@@ -1195,6 +1202,12 @@
     "mutates": false,
     "judgesTranscript": true,
     "needs": "a documented error schema on the item route"
+  },
+  {
+    "id": "schema.problem-json-shape",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": true
   },
   {
     "id": "spec.declared-rate-limit-is-honoured",

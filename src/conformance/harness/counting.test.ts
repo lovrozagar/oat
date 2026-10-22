@@ -143,12 +143,13 @@ describe("sourcesOf", () => {
 			{ method: "POST", purpose: "probe" },
 			{ method: "GET", purpose: "probe" },
 			{ method: "HEAD", purpose: "probe" },
+			{ method: "QUERY", purpose: "probe" },
 		]
 		expect(sourcesOf(sent, [])).toEqual({
 			"check auth.scope-enforced": 1,
 			"check list.read-after-write": 1,
 			credentials: 1,
-			"security overhead": 2,
+			"security overhead": 3,
 			"throwaway creates": 1,
 		})
 	})

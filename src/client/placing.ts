@@ -143,11 +143,18 @@ export function placeOn(placement: Placement, unplaced: Unplaced): { url: URL; h
 	refuseCollisions(placement, unplaced)
 	const url = new URL(unplaced.url)
 	const cookies: string[] = []
+	const query: string[] = []
 	for (const sends of Object.values(placement.sends)) {
 		Object.assign(headers, sends.headers)
-		for (const [name, value] of Object.entries(sends.query)) url.searchParams.set(name, value)
+		for (const [name, value] of Object.entries(sends.query)) {
+			query.push(`${encodeURIComponent(name)}=${encodeURIComponent(value)}`)
+		}
 		for (const [name, value] of Object.entries(sends.cookies)) cookies.push(`${name}=${value}`)
 	}
+	/* Appended as written, not through `searchParams`, which would rewrite the whole query as a form
+	 * (a space as `+`, a reserved character escaped) and undo each parameter's declared style. No
+	 * collision reached here, so appending is setting. */
+	if (query.length > 0) url.search = [url.search.slice(1), ...query].filter(Boolean).join("&")
 	if (cookies.length > 0) {
 		const name = Object.keys(headers).find((key) => key.toLowerCase() === "cookie") ?? "cookie"
 		headers[name] = [headers[name], ...cookies].filter(Boolean).join("; ")

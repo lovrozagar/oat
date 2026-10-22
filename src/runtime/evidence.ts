@@ -5,11 +5,10 @@
  */
 
 import type { OperationModel, SpecModel } from "../spec/graph/types.ts"
+import { READS } from "../spec/methods.ts"
 import type { Client } from "../client/client.ts"
 import type { Exchange } from "./exchange.ts"
 import type { GradeLedger, PassEvidence } from "./grades.ts"
-
-const READS: ReadonlySet<string> = /* @__PURE__ */ new Set(["GET", "HEAD"])
 
 function ok(exchange: Exchange): boolean {
 	return exchange.status >= 200 && exchange.status < 300

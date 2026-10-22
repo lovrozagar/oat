@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { DefectSet } from "../defects/defect-set.ts"
 import { SqlError } from "../store-api.ts"
-import { errorResponse, HttpError } from "./errors.ts"
+import { errorResponse, HttpError, preconditionFailed } from "./errors.ts"
 
 const parsed = (answer: { status: number; body: string }) => ({ body: JSON.parse(answer.body), status: answer.status })
 
@@ -46,5 +46,23 @@ describe("errorResponse", () => {
 			body: { error_key: "internal_error", message: "boom", status: 500, success: false },
 			status: 500,
 		})
+	})
+})
+
+describe("preconditionFailed", () => {
+	it("answers a 412 problem detail, on its own path, whatever reshapes the other refusals", () => {
+		for (const defects of [new DefectSet(), new DefectSet(["ERROR_SCHEMA_DRIFT"])]) {
+			const answer = preconditionFailed(defects, "stale")
+			expect(answer.headers["content-type"]).toBe("application/problem+json")
+			expect(parsed(answer)).toEqual({
+				body: { detail: "stale", status: 412, title: "Precondition Failed", type: "about:blank" },
+				status: 412,
+			})
+		}
+	})
+
+	it("names another status in the problem than the response's under PROBLEM_JSON_MALFORMED", () => {
+		const answer = preconditionFailed(new DefectSet(["PROBLEM_JSON_MALFORMED"]), "stale")
+		expect([answer.status, parsed(answer).body.status]).toEqual([412, 400])
 	})
 })

@@ -70,7 +70,7 @@ describe("commandDoctor and a document oat does not read", () => {
 		const writer = bufferWriter()
 		const spec = json(folder(), "swagger.json", { info: { title: "t", version: "1" }, paths: {}, swagger: "2.0" })
 		expect(await commandDoctor(writer, { spec })).toBe(2)
-		expect(writer.text()).toBe(`oat: ${spec} is Swagger 2.0; oat reads OpenAPI 3.x — convert it first\n`)
+		expect(writer.text()).toBe(`oat: ${spec} is Swagger 2.0; oat reads OpenAPI 3.0–3.2 only — convert it first\n`)
 	})
 })
 

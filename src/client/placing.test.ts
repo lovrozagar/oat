@@ -313,6 +313,16 @@ describe("placeOn", () => {
 		)
 	})
 
+	it("adds a query credential without writing the query it joins in another encoding", () => {
+		const url = new URL("http://api.test/v1/rows?q=a%20b&path=/x:y")
+		const placed = placeOn(placement, { callerQuery: new Set(["q", "path"]), layers: [], url })
+		expect(placed.url.search).toBe("?q=a%20b&path=/x:y&key=k1")
+		const odd = { ...placement, sends: { ...placement.sends, key: sends({ query: { "k y": "a&b c" } }) } }
+		expect(placeOn(odd, { callerQuery: new Set(), layers: [], url: new URL("http://api.test/r") }).url.search).toBe(
+			"?k%20y=a%26b%20c",
+		)
+	})
+
 	it("refuses a caller's query parameter or cookie under a placed name", () => {
 		const url = new URL("http://api.test/v1/rows?key=mine")
 		expect(() => placeOn(placement, { callerQuery: new Set(["key"]), layers: [], url })).toThrow(

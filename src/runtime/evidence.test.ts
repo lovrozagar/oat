@@ -110,6 +110,15 @@ describe("delete evidence through its own route", () => {
 		}
 	})
 
+	it("is a later QUERY that no longer holds the id: QUERY reads", async () => {
+		const { evidence } = await evidenceFor("row.remove", [
+			exchange(1, `DELETE /v1/rows/${ROW}`, { op: "row.remove" }),
+			exchange(2, "QUERY /v1/rows", { body: { items: [{ id: ROW }] } }),
+			exchange(3, "QUERY /v1/rows", { body: { items: [] } }),
+		])
+		expect(evidence).toEqual({ call: 1, observation: { absent: true, path: "$", seq: 3, value: ROW } })
+	})
+
 	it("is a later listing that no longer holds the id, after one that still does", async () => {
 		const { evidence } = await evidenceFor("row.remove", [
 			exchange(1, `DELETE /v1/rows/${ROW}`, { op: "row.remove" }),

@@ -9,6 +9,8 @@ import {
 	isURLSearchParams,
 	utf8Bytes,
 } from "../runtime/exchange.ts"
+import type { ParamStyle } from "../spec/graph/parameters.ts"
+import { serializeParam } from "./param-style.ts"
 import type { RequestOptions } from "./types.ts"
 
 type FetchBody = NonNullable<RequestInit["body"]>
@@ -21,26 +23,57 @@ export interface EncodedBody {
 	bytes: number
 }
 
-/** `path` under `baseUrl` (or as given when absolute), with the caller's query. */
-export function requestUrl(baseUrl: string, path: string, query: RequestOptions["query"]): URL {
+/** A request's query: the caller's values, and each parameter's declared style by name. */
+export interface QueryWriting {
+	query?: RequestOptions["query"]
+	styles?: Readonly<Record<string, ParamStyle>> | undefined
+}
+
+/* Whether the URL already carries `name`, as itself or as a deepObject's `name[key]`. */
+function carries(url: URL, name: string): boolean {
+	return [...url.searchParams.keys()].some((key) => key === name || key.startsWith(`${name}[`))
+}
+
+/* Whether one raw `name=value` pair, its name decoded as a query decodes it, is among `names`. */
+function namedIn(pair: string, names: Readonly<Record<string, unknown>>): boolean {
+	return [...new URLSearchParams(pair).keys()].some((name) => Object.hasOwn(names, name))
+}
+
+/* Appends each parameter's pairs, as its style writes them, already percent-encoded. */
+function appendQuery(url: URL, values: Readonly<Record<string, unknown>>, styles: QueryWriting["styles"] = {}): void {
+	const pairs = Object.entries(values).flatMap(([name, value]) =>
+		serializeParam({ ...styles[name], in: "query", name }, value),
+	)
+	if (pairs.length === 0) return
+	const added = pairs.map(([key, value]) => `${key}=${value}`).join("&")
+	url.search = url.search === "" ? added : `${url.search.slice(1)}&${added}`
+}
+
+/**
+ * `path` under `baseUrl` (or as given when absolute), with the caller's query written in each
+ * parameter's declared style. A value the caller sets replaces one the path already carries.
+ */
+export function requestUrl(baseUrl: string, path: string, { query, styles }: QueryWriting = {}): URL {
 	const url = new URL(isAbsoluteHttpUrl(path) ? path : `${baseUrl}${path}`)
-	for (const [key, value] of Object.entries(query ?? {})) {
-		if (value === undefined) continue
-		if (typeof value === "object") for (const item of value) url.searchParams.append(key, String(item))
-		else url.searchParams.set(key, String(value))
-	}
+	const values = Object.fromEntries(Object.entries(query ?? {}).filter(([, value]) => value !== undefined))
+	/* Pair by pair, not through `searchParams`, which would rewrite the pairs it keeps as a form. */
+	url.search = url.search
+		.slice(1)
+		.split("&")
+		.filter((pair) => pair !== "" && !namedIn(pair, values))
+		.join("&")
+	appendQuery(url, values, styles)
 	return url
 }
 
 /** The operation's required parameters the caller did not set. One the caller names — even as undefined — is theirs. */
 export function addRequiredQuery(
 	url: URL,
-	required: Readonly<Record<string, string>>,
-	query: RequestOptions["query"],
+	required: Readonly<Record<string, unknown>>,
+	{ query, styles }: QueryWriting = {},
 ): void {
-	for (const [name, value] of Object.entries(required)) {
-		if (!(name in (query ?? {})) && !url.searchParams.has(name)) url.searchParams.set(name, value)
-	}
+	const missing = Object.entries(required).filter(([name]) => !(name in (query ?? {})) && !carries(url, name))
+	appendQuery(url, Object.fromEntries(missing), styles)
 }
 
 /* A path segment or query value that is the text of a missing value, never something oat chose. */

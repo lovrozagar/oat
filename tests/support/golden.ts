@@ -43,6 +43,12 @@ export function normalizeText(text: string): string {
 			/* A token first, whole, before any rule below can rewrite a piece of it. */
 			.replaceAll(/\beyJ[\w-]+\.eyJ[\w-]+\.[\w-]+/g, "JWT")
 			.replaceAll(/\bak_[0-9a-f]{32}\b/g, "ak_KEY")
+			/* The reference's strong ETag, a hash of the row whose id and clock depend on lane order, where
+			 * a finding names it: after "ETag", "If-Match:", or a tag it moved from. */
+			.replaceAll(
+				/(?<=(?:\bETag(?: to| moved from| moved again, to)?|\bIf-Match:|"[\w-]{27}" to) )"[\w-]{27}"/g,
+				'"ETAG"',
+			)
 			.replaceAll(/http:\/\/127\.0\.0\.1:\d+/g, "http://reference.test")
 			/* An encoded separator (`%2C`) ends in a letter, and is still a separator. */
 			.replaceAll(/(?<=^|[^A-Za-z]|%[0-9A-F]{2})([a-z]+)_\d{6}\b/g, "$1_ID")

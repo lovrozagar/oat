@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
+import type { OpenApiDocument } from "../../spec/types.ts"
 import { CHECK_IDS, familyOf } from "../check-ids.ts"
+import { contextFor, modelOf, op } from "./__fixtures__/harness.ts"
 import { entityChecks, validateRegistry } from "./core/registry.ts"
+import { runCheck } from "./core/run.ts"
+import { widgetApi, widgetDoc } from "./families/write/__fixtures__/widget-api.ts"
 import { CHECKS } from "./registry.ts"
 
 /*
@@ -29,12 +33,69 @@ describe("the check registry", () => {
 	})
 
 	it("judges the transcript last, after every check that writes to it", () => {
-		const last = CHECKS.slice(-3).map((check) => check.id)
+		const last = CHECKS.slice(-4).map((check) => check.id)
 		expect(last).toEqual([
+			"response.status-is-documented",
+			"schema.error-response-matches-document",
+			"schema.problem-json-shape",
+			"spec.declared-rate-limit-is-honoured",
+		])
+		for (const check of entityChecks(CHECKS).slice(-4)) expect(check.judgesTranscript).toBe(true)
+		/* The precondition check writes the 412 the status and problem judges read. */
+		expect(at("concurrency.if-match-enforced")).toBe(at("response.status-is-documented") - 1)
+	})
+})
+
+/* The checks the precondition checks brought in, and the widget document with a rate each judge reads. */
+const PRECONDITION_CHECKS: ReadonlySet<string> = new Set(["concurrency.if-match-enforced", "schema.problem-json-shape"])
+
+function judgedDocument(): OpenApiDocument {
+	const doc = widgetDoc() as unknown as { paths: Record<string, Record<string, Record<string, unknown>>> }
+	const read = doc.paths["/widgets/{id}"]?.get
+	if (read !== undefined) read["x-rate-limit"] = { category: "reads", rps: 5 }
+	return doc as unknown as OpenApiDocument
+}
+
+describe("registering the precondition checks", () => {
+	/*
+	 * An entity check's salts are drawn from its place among the entity checks, and they are what its
+	 * bodies hold, so a check registered between two others changes what every later one sends. The
+	 * precondition checks sit among the transcript judges only, and no judge draws a salt.
+	 */
+	it("moves no salt: every check whose place moved is a transcript judge that draws none", async () => {
+		const now = entityChecks(CHECKS)
+		const before = now.filter((check) => !PRECONDITION_CHECKS.has(check.id))
+		const moved = before.filter((check, index) => now.indexOf(check) !== index)
+		expect(moved.map((check) => check.id)).toEqual([
 			"response.status-is-documented",
 			"schema.error-response-matches-document",
 			"spec.declared-rate-limit-is-honoured",
 		])
-		for (const check of entityChecks(CHECKS).slice(-3)) expect(check.judgesTranscript).toBe(true)
+		const model = modelOf(judgedDocument())
+		const { ctx } = contextFor(model, "listWidgets", {
+			respond: widgetApi(new Map([["w1", { id: "w1", name: "n" }]])),
+			fields: { createOp: op(model, "createWidget"), readOp: op(model, "getWidget") },
+		})
+		for (const [path, operationId] of [
+			["/widgets", "createWidget"],
+			["/widgets/w1", "getWidget"],
+		] as const) {
+			await ctx.client.request("GET", path, { as: { principal: "alpha" }, operationId })
+		}
+		const drawn: string[] = []
+		const judges = [...moved, ...now.filter((judge) => judge.id === "schema.problem-json-shape")]
+		const outcomes: string[] = []
+		for (const judge of judges) {
+			const outcome = await runCheck(judge, {
+				...ctx,
+				nextSalt: () => {
+					drawn.push(judge.id)
+					return "drawn"
+				},
+			})
+			outcomes.push(`${judge.id}: ${outcome.kind}`)
+		}
+		expect(outcomes).toEqual(judges.map((judge) => `${judge.id}: asserted`))
+		expect(drawn).toEqual([])
 	})
 })

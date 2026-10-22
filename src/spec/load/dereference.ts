@@ -1,4 +1,5 @@
 import type { OpenApiDocument } from "../types.ts"
+import { EXTERNAL_KEY } from "./bundle.ts"
 import { DEFS_KEY } from "./defs.ts"
 import { resolvePointer } from "./pointer.ts"
 import { type Dereferencing, walk } from "./walk.ts"
@@ -31,6 +32,8 @@ export function dereference(doc: OpenApiDocument): {
 	}
 	const out = walk(state, doc) as OpenApiDocument
 	const defs = recursiveSchemas(state, out)
+	/* Every ref into the bundled files is inlined or stored in the definitions by now. */
+	delete (out as Record<string, unknown>)[EXTERNAL_KEY]
 	if (Object.keys(defs).length > 0) (out as Record<string, unknown>)[DEFS_KEY] = defs
 	return { doc: out, externalRefs: [...state.externalRefs] }
 }

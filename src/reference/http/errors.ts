@@ -33,6 +33,20 @@ export function errorResponse(error: unknown, defects: DefectSet): ReferenceResp
 	return failure(500, "internal_error", messageOf(error))
 }
 
+/**
+ * A precondition the request names does not hold: an RFC 9457 problem detail. It is answered here,
+ * not as an `HttpError`, so what reshapes every other refusal leaves it as it is.
+ */
+export function preconditionFailed(defects: DefectSet, detail: string): ReferenceResponse {
+	const problem = {
+		detail,
+		status: defects.has("PROBLEM_JSON_MALFORMED") ? 400 : 412,
+		title: "Precondition Failed",
+		type: "about:blank",
+	}
+	return respond(412, problem, { "content-type": "application/problem+json" })
+}
+
 function failure(status: number, errorKey: string, message: string): ReferenceResponse {
 	return respond(status, { error_key: errorKey, message, status, success: false })
 }

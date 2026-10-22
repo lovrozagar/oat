@@ -8,7 +8,7 @@ import { json, refused, transport } from "./__fixtures__/transport.ts"
 import { fixedSource, sendingHeaders } from "./__fixtures__/source.ts"
 import { BASE, wireOf } from "./__fixtures__/wire.ts"
 import { prepare, sendAttempt } from "./request.ts"
-import type { Actor } from "./credential-source.ts"
+import { type Actor, CredentialCollision } from "./credential-source.ts"
 import type { RequestStart } from "./types.ts"
 
 const ANON: Actor = { anonymous: true }
@@ -60,6 +60,75 @@ describe("prepare", () => {
 		expect(request.url.searchParams.get("tenant")).toBe("t1")
 		expect(prepare(wire, "GET", "/x", { as: ANON, headers: { a: "1" } }).callerHeaders()).toEqual({ a: "1" })
 		expect(prepare(wire, "GET", "/x", { as: ANON }).callerHeaders()).toEqual({})
+	})
+})
+
+const styled = () => ({
+	operationId: "styles.read",
+	paramStyles: { query: { ids: { style: "pipeDelimited" }, range: { style: "deepObject" } } },
+	requiredQuery: { ids: ["a", "b"], range: { max: 5, min: 1 } },
+	template: "/styles",
+})
+
+const declaring = () => ({
+	operationId: "rows.list",
+	paramStyles: { header: { "X-Tags": { explode: true } } },
+	requiredCookies: { lang: "en", sid: "example" },
+	requiredHeaders: { "X-Api-Version": "2", "X-Tags": { a: 1 }, "x-token": "example" },
+	template: "/rows",
+})
+
+describe("prepare: declared styles", () => {
+	it("writes the caller's query and the required one in the operation's declared styles", () => {
+		const wire = wireOf(
+			transport(() => json({})),
+			{ operationResolver: styled },
+		)
+		expect(prepare(wire, "GET", "/styles", { as: ANON }).url.search).toBe("?ids=a|b&range[max]=5&range[min]=1")
+		const caller = prepare(wire, "GET", "/styles", { as: ANON, query: { range: { min: 2 } } })
+		expect(caller.url.search).toBe("?range[min]=2&ids=a|b")
+		expect([...caller.callerQuery]).toEqual(["range[min]"])
+	})
+})
+
+describe("sendAttempt: declared headers and cookies", () => {
+	it("sends each declared value under every layer, and never over the caller's own", async () => {
+		const wire = transport(() => json({}))
+		const ctx = wireOf(wire, { operationResolver: declaring })
+		await sendAttempt(prepare(ctx, "GET", "/rows", { as: ANON }), 0, ctx)
+		expect(wire.sent[0]?.headers).toEqual({
+			"X-Api-Version": "2",
+			"X-Tags": "a=1",
+			cookie: "lang=en; sid=example",
+			"x-token": "example",
+		})
+		const headers = { Cookie: "lang=fr", "x-api-version": "3" }
+		await sendAttempt(prepare(ctx, "GET", "/rows", { as: ANON, headers }), 0, ctx)
+		expect(wire.sent[1]?.headers).toEqual({
+			"X-Tags": "a=1",
+			cookie: "lang=fr; sid=example",
+			"x-api-version": "3",
+			"x-token": "example",
+		})
+	})
+
+	/* Ruling A4: a declared value under a name the credential is placed in is never sent; the caller's still collides. */
+	it("never sends a declared value under a name the credential is placed in, and still refuses the caller's", async () => {
+		const wire = transport(() => json({}))
+		const live = sendingHeaders({ "X-Token": "live" })
+		const placed = { ...live, sends: { jwt: { cookies: { sid: "s1" }, headers: { "X-Token": "live" }, query: {} } } }
+		const ctx = wireOf(wire, { credentials: fixedSource(placed), operationResolver: declaring })
+		const as = { principal: "alpha" }
+		await sendAttempt(prepare(ctx, "GET", "/rows", { as }), 0, ctx)
+		expect(wire.sent[0]?.headers).toEqual({
+			"X-Api-Version": "2",
+			"X-Tags": "a=1",
+			"X-Token": "live",
+			cookie: "lang=en; sid=s1",
+		})
+		const caller = prepare(ctx, "GET", "/rows", { as, headers: { "x-token": "mine" } })
+		await expect(sendAttempt(caller, 0, ctx)).rejects.toThrow(CredentialCollision)
+		expect(wire.sent).toHaveLength(1)
 	})
 })
 

@@ -14,11 +14,12 @@ describe("SECURITY_SCHEMES and ROOT_SECURITY", () => {
 
 describe("securedByEntity", () => {
 	it("takes a JWT or an API key with the entity's read scope for a read, and its write scope otherwise", () => {
-		const item = securedByEntity(TABLE, { delete: { a: 1 }, get: { b: 2 }, patch: { c: 3 } })
+		const item = securedByEntity(TABLE, { delete: { a: 1 }, get: { b: 2 }, patch: { c: 3 }, query: { d: 4 } })
 		expect(item).toEqual({
 			delete: { a: 1, security: [{ jwt: [] }, { apiKey: ["table:write"] }] },
 			get: { b: 2, security: [{ jwt: [] }, { apiKey: ["table:read"] }] },
 			patch: { c: 3, security: [{ jwt: [] }, { apiKey: ["table:write"] }] },
+			query: { d: 4, security: [{ jwt: [] }, { apiKey: ["table:read"] }] },
 		})
 	})
 })

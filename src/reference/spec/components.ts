@@ -1,6 +1,7 @@
 /** The document's `components`: its shared schemas and its security schemes. */
 
 import { errorSchemas } from "./errors.ts"
+import { paymentSchemas } from "./query-route.ts"
 import { itemSchema, schemaName } from "./schemas.ts"
 import { SECURITY_SCHEMES } from "./security.ts"
 import type { Json, SpecContext } from "./types.ts"
@@ -23,6 +24,8 @@ function componentSchemas(ctx: SpecContext): Json {
 		required: ["name"],
 		type: "object",
 	}
+	/* The search's discriminated union refers to its branches here, where a discriminator's mapping can name them. */
+	Object.assign(schemas, paymentSchemas())
 	if (ctx.shape.specLayout === true) {
 		for (const entity of ctx.entities) schemas[schemaName(entity)] = itemSchema(entity)
 	}

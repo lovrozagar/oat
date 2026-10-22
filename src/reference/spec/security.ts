@@ -1,5 +1,6 @@
 /** The document's security: a bearer JWT everywhere by default, or an entity-scoped API key on record routes. */
 
+import { SAFE } from "../../spec/methods.ts"
 import type { EntityDef } from "../model/types.ts"
 import type { Json } from "./types.ts"
 
@@ -16,7 +17,7 @@ export const ROOT_SECURITY: Json[] = [{ jwt: [] }]
 export function securedByEntity(entity: EntityDef, item: Json): Json {
 	const out: Json = {}
 	for (const [method, operation] of Object.entries(item)) {
-		const access = method === "get" ? "read" : "write"
+		const access = SAFE.has(method.toUpperCase()) ? "read" : "write"
 		out[method] = { ...(operation as Json), security: [{ jwt: [] }, { apiKey: [`${entity.name}:${access}`] }] }
 	}
 	return out

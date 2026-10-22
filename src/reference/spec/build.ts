@@ -18,7 +18,9 @@ import { itemPathItem } from "./item.ts"
 import { jobPaths } from "./jobs.ts"
 import { hoistPathParameters } from "./layout.ts"
 import { noticePaths, publicReadPaths } from "./public.ts"
+import { searchPaths } from "./query-route.ts"
 import { ROOT_SECURITY, securedByEntity } from "./security.ts"
+import { stylePaths } from "./styles.ts"
 import type { Json, SpecContext } from "./types.ts"
 
 export type { SpecContext } from "./types.ts"
@@ -39,13 +41,14 @@ function buildPaths(ctx: SpecContext, dialect: Dialect): Json {
 	}
 	Object.assign(paths, callerProfilePaths(ctx), publicReadPaths(ctx), noticePaths(ctx), callerRootPaths(ctx))
 	Object.assign(paths, invitePaths(ctx, entityNamed(ctx, "table")), jobPaths(ctx, entityNamed(ctx, "job")))
-	return Object.assign(paths, authPaths(ctx))
+	return Object.assign(paths, authPaths(ctx), stylePaths(ctx), searchPaths(ctx))
 }
 
 export function buildSpec(dialect: Dialect = POSTGREST, ctx: SpecContext = DEFAULT_CONTEXT): Json {
 	const paths = buildPaths(ctx, dialect)
 	const rest = { security: ROOT_SECURITY }
-	const head = { info: { title: "oat reference backend", version: "1.0.0" }, openapi: "3.1.0" }
+	/* 3.2: the search route is a QUERY operation, a Path Item field since OAS 3.2. */
+	const head = { info: { title: "oat reference backend", version: "1.0.0" }, openapi: "3.2.0" }
 	/* Key order is the layout: a document is free to define its components before its paths, and
 	 * to declare path parameters once on the path item rather than on every operation. */
 	if (ctx.shape.specLayout === true) {

@@ -19,6 +19,24 @@ describe("normalizeText", () => {
 		expect(normalizeText('"access_token":"eyJa.eyJb.c"')).toBe('"access_token":"JWT"')
 	})
 
+	it("hides an entity tag, a hash of a row whose id and clock the lanes' order decides", () => {
+		const a = '"bDm3_VJsPUOpR9A_W0PoDlANbxX"'
+		const b = '"zq9vTHGC6Pmy3aeqWGk-XcMfOg6"'
+		expect(normalizeText(`read with ETag ${a} and updated under If-Match: ${a}, which moved its ETag to ${b}.`)).toBe(
+			'read with ETag "ETAG" and updated under If-Match: "ETAG", which moved its ETag to "ETAG".',
+		)
+		expect(normalizeText(`the record's ETag moved again, to ${a}`)).toBe('the record\'s ETag moved again, to "ETAG"')
+		expect(normalizeText(`the record's ETag moved from ${a} to ${b}`)).toBe(
+			'the record\'s ETag moved from "ETAG" to "ETAG"',
+		)
+	})
+
+	it("leaves a 27-character token alone where no entity tag is named", () => {
+		expect(normalizeText('slug "bDm3_VJsPUOpR9A_W0PoDlANbxX" and key bDm3_VJsPUOpR9A_W0PoDlANbxX')).toBe(
+			'slug "bDm3_VJsPUOpR9A_W0PoDlANbxX" and key bDm3_VJsPUOpR9A_W0PoDlANbxX',
+		)
+	})
+
 	it("hides an issued API key, and leaves a shorter one alone", () => {
 		expect(normalizeText("ApiKey ak_0123456789abcdef0123456789abcdef")).toBe("ApiKey ak_KEY")
 		expect(normalizeText("ak_0123")).toBe("ak_0123")

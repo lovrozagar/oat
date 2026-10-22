@@ -5,27 +5,50 @@ const BASE = "http://api.test/v1"
 
 describe("requestUrl", () => {
 	it("puts a path under the base, and keeps an absolute one", () => {
-		expect(requestUrl(BASE, "/rows", undefined).toString()).toBe("http://api.test/v1/rows")
-		expect(requestUrl(BASE, "https://cdn.test/a", undefined).toString()).toBe("https://cdn.test/a")
+		expect(requestUrl(BASE, "/rows").toString()).toBe("http://api.test/v1/rows")
+		expect(requestUrl(BASE, "https://cdn.test/a").toString()).toBe("https://cdn.test/a")
 	})
 
 	it("sets each query value, repeats an array, and leaves undefined out", () => {
-		const url = requestUrl(BASE, "/rows?keep=1", { f: ["a", 2], g: "c", n: 3, none: undefined })
+		const url = requestUrl(BASE, "/rows?keep=1", { query: { f: ["a", 2], g: "c", n: 3, none: undefined } })
 		expect(url.search).toBe("?keep=1&f=a&f=2&g=c&n=3")
+		expect(requestUrl(BASE, "/rows?g=old&keep=1", { query: { g: "c" } }).search).toBe("?keep=1&g=c")
+		/* The path's own pairs stay as written when one of them is replaced. */
+		expect(requestUrl(BASE, "/rows?a=x%20y&g=old&p=/q:r", { query: { g: "c" } }).search).toBe("?a=x%20y&p=/q:r&g=c")
+	})
+
+	it("writes each value in the style the operation declares, percent-encoded per RFC 3986", () => {
+		const styles = { ids: { explode: false, style: "pipeDelimited" }, range: { style: "deepObject" } }
+		const url = requestUrl(BASE, "/styles", {
+			query: { ids: ["a", "b"], q: "a b*~", range: { max: 5, min: 1 } },
+			styles,
+		})
+		expect(url.search).toBe("?ids=a|b&q=a%20b%2A~&range[max]=5&range[min]=1")
+		expect(url.searchParams.get("range[min]")).toBe("1")
 	})
 })
 
 describe("addRequiredQuery", () => {
 	it("adds a required parameter nobody set", () => {
 		const url = new URL(`${BASE}/rows`)
-		addRequiredQuery(url, { tenant: "t1" }, undefined)
+		addRequiredQuery(url, { tenant: "t1" })
 		expect(url.search).toBe("?tenant=t1")
 	})
 
 	it("leaves one the caller names, even as undefined, or the URL already has", () => {
 		const url = new URL(`${BASE}/rows?page=2`)
-		addRequiredQuery(url, { page: "1", tenant: "t1" }, { tenant: undefined })
+		addRequiredQuery(url, { page: "1", tenant: "t1" }, { query: { tenant: undefined } })
 		expect(url.search).toBe("?page=2")
+	})
+
+	it("writes a declared object or array in its style, once", () => {
+		const url = new URL(`${BASE}/styles`)
+		const styles = { ids: { style: "pipeDelimited" }, range: { style: "deepObject" } }
+		addRequiredQuery(url, { ids: ["a", "b"], range: { min: 1 } }, { styles })
+		expect(url.search).toBe("?ids=a|b&range[min]=1")
+		const deep = new URL(`${BASE}/styles?range[min]=2`)
+		addRequiredQuery(deep, { range: { min: 1 } }, { styles })
+		expect(deep.search).toBe("?range[min]=2")
 	})
 })
 

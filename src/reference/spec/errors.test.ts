@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { ENTITIES } from "../model/entities.ts"
-import { errorResponses, errorSchemas } from "./errors.ts"
+import { errorResponses, errorSchemas, preconditionResponses } from "./errors.ts"
 
 describe("errorResponses", () => {
 	it("declares each requested status, keyed to its own schema", () => {
@@ -25,10 +25,41 @@ describe("errorResponses", () => {
 describe("errorSchemas", () => {
 	it("declares one schema per status, then the catch-all Error", () => {
 		const schemas = errorSchemas()
-		expect(Object.keys(schemas)).toEqual(["Err400", "Err401", "Err403", "Err404", "Err409", "Err415", "Error"])
+		expect(Object.keys(schemas)).toEqual([
+			"Err400",
+			"Err401",
+			"Err403",
+			"Err404",
+			"Err409",
+			"Err415",
+			"Error",
+			"Problem",
+		])
 		expect(schemas.Err409).toMatchObject({
 			properties: { error_key: { enum: ["conflict"] }, status: { enum: [409] }, success: { const: false } },
 		})
 		expect(schemas.Error).toMatchObject({ properties: { status: { type: "integer" } } })
+	})
+})
+
+describe("preconditionResponses", () => {
+	it("declares the 412 as an RFC 9457 problem detail, under every shape", () => {
+		expect(preconditionResponses()).toEqual({
+			"412": {
+				content: { "application/problem+json": { schema: { $ref: "#/components/schemas/Problem" } } },
+				description: "precondition_failed",
+			},
+		})
+		expect(errorSchemas().Problem).toEqual({
+			properties: {
+				detail: { type: "string" },
+				instance: { type: "string" },
+				status: { type: "integer" },
+				title: { type: "string" },
+				type: { type: "string" },
+			},
+			required: ["type", "title", "status"],
+			type: "object",
+		})
 	})
 })

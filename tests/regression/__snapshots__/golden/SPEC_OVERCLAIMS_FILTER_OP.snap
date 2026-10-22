@@ -223,7 +223,7 @@
             {
               "method": "GET",
               "status": 400,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=5&filter=slug.like.Quarterly+Report+0"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=5&filter=slug.like.Quarterly%20Report%200"
             }
           ],
           "summary": "the document declares a filter operator the backend rejects",

@@ -54,6 +54,12 @@ describe("the read operation", () => {
 		})
 	})
 
+	it("declares the strong ETag its answer carries", () => {
+		expect(item({}).get?.responses["200"]).toMatchObject({
+			headers: { ETag: { schema: { type: "string" } } },
+		})
+	})
+
 	it("locates the record under the record envelope", () => {
 		expect(item({ recordEnvelope: true }).get?.["x-entity"]).toHaveProperty("recordPath", "$.data")
 	})
@@ -65,6 +71,18 @@ describe("the update operation", () => {
 		expect(patch?.["x-generated"]).toContain("id")
 		expect(patch?.["x-immutable"]).toEqual(TABLE.fields.filter((f) => f.immutable === true).map((f) => f.name))
 		expect(patch?.["x-invalidate"]).toEqual([`GET ${TABLE.collectionPath}`, `GET ${TABLE.itemPath}`])
-		expect(Object.keys(patch?.responses ?? {})).toEqual(["200", "400", "401", "403", "404", "409", "415"])
+		expect(Object.keys(patch?.responses ?? {})).toEqual(["200", "400", "401", "403", "404", "409", "412", "415"])
+	})
+
+	it("takes an optional If-Match, and declares its 412 under every shape", () => {
+		const parameters = item({}).patch?.parameters as Json[]
+		expect(parameters.at(-1)).toEqual({
+			description: "Apply the update only while the record's ETag is one of these",
+			in: "header",
+			name: "If-Match",
+			required: false,
+			schema: { type: "string" },
+		})
+		expect(Object.keys(item({ rangeStatuses: true }).patch?.responses ?? {})).toEqual(["412", "2XX", "default"])
 	})
 })

@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest"
 import { query } from "../__fixtures__/documents.ts"
 import type { OperationObject, ParameterObject } from "../types.ts"
-import { idempotencyHeader, readRequiredQuery, successResponseHeaders } from "./parameters.ts"
+import {
+	idempotencyHeader,
+	readParamStyles,
+	readRequiredCookies,
+	readRequiredHeaders,
+	readRequiredQuery,
+	successResponseHeaders,
+} from "./parameters.ts"
 
 const required = (name: string, schema: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
 	query(name, schema, { required: true, ...extra })
@@ -21,7 +28,78 @@ describe("readRequiredQuery", () => {
 			query("optional", { example: "x" }),
 			{ example: "x", in: "header", name: "H", required: true },
 		]
-		expect(readRequiredQuery(parameters)).toEqual({ a: "param", b: "7", c: "listed", d: "schema", e: "true", f: "3" })
+		expect(readRequiredQuery(parameters)).toEqual({
+			a: "param",
+			b: 7,
+			c: "listed",
+			d: "schema",
+			e: true,
+			f: { a: 1 },
+			h: { a: 1 },
+		})
+	})
+
+	it("keeps an object or array example whole, for its style to write", () => {
+		const parameters: ParameterObject[] = [
+			required("range", { type: "object" }, { example: { max: 5, min: 1 }, style: "deepObject" }),
+			required("ids", { items: { type: "string" }, type: "array" }, { example: ["a", "b"] }),
+		]
+		expect(readRequiredQuery(parameters)).toEqual({ ids: ["a", "b"], range: { max: 5, min: 1 } })
+	})
+})
+
+const declared = (where: "cookie" | "header", name: string, example: unknown): ParameterObject => ({
+	example,
+	in: where,
+	name,
+	required: true,
+})
+
+describe("readRequiredHeaders and readRequiredCookies", () => {
+	it("takes required header values, never the idempotency key, a content header or a credential's", () => {
+		const op: OperationObject = {
+			parameters: [
+				declared("header", "X-Api-Version", "2"),
+				declared("header", "X-Tags", ["a", "b"]),
+				{ example: "x", in: "header", name: "X-Optional" },
+				{ in: "header", name: "X-Unknown", required: true },
+				declared("header", "Idempotency-Key", "k"),
+				declared("header", "Accept", "text/csv"),
+				declared("header", "content-type", "text/csv"),
+				declared("header", "X-API-Key", "secret"),
+				declared("cookie", "lang", "en"),
+			],
+		}
+		expect(readRequiredHeaders(op)).toEqual({ "X-Api-Version": "2", "X-Tags": ["a", "b"] })
+		expect(readRequiredCookies(op.parameters ?? [])).toEqual({ lang: "en" })
+		expect(readRequiredHeaders({})).toEqual({})
+	})
+})
+
+describe("readParamStyles", () => {
+	it("keeps only what differs from the OAS default, by location and name", () => {
+		const parameters: ParameterObject[] = [
+			{ in: "query", name: "range", style: "deepObject" },
+			{ explode: false, in: "query", name: "ids", style: "pipeDelimited" },
+			{ explode: true, in: "query", name: "plain", style: "form" },
+			{ explode: false, in: "query", name: "joined" },
+			{ allowReserved: true, in: "query", name: "raw" },
+			{ in: "path", name: "id", style: "label" },
+			{ explode: false, in: "path", name: "same", style: "simple" },
+			{ explode: true, in: "header", name: "X-Pairs" },
+			{ in: "cookie", name: "c", style: 3 },
+		]
+		expect(readParamStyles(parameters)).toEqual({
+			header: { "X-Pairs": { explode: true } },
+			path: { id: { style: "label" } },
+			query: {
+				ids: { style: "pipeDelimited" },
+				joined: { explode: false },
+				range: { style: "deepObject" },
+				raw: { allowReserved: true },
+			},
+		})
+		expect(readParamStyles([])).toEqual({})
 	})
 })
 

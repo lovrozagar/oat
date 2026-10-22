@@ -27,6 +27,7 @@
       "auth.scope-enforced",
       "auth.self-is-the-caller",
       "auth.wrong-scheme-refused",
+      "concurrency.if-match-enforced",
       "concurrency.no-lost-update",
       "consistency.projections-agree",
       "count.consistent-with-returned-page",
@@ -87,6 +88,7 @@
       "response.public-get-returns-success",
       "response.status-is-documented",
       "schema.error-response-matches-document",
+      "schema.problem-json-shape",
       "schema.success-response-matches-document",
       "search.case-insensitive",
       "search.empty-q",
@@ -281,6 +283,16 @@
         "check": "auth.alternative-accepted",
         "entity": "row.update",
         "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "search.query",
+        "needs": "an alternative of one scheme besides the first"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "styles.read",
+        "needs": "an alternative of one scheme besides the first"
       },
       {
         "check": "auth.alternative-accepted",
@@ -609,6 +621,16 @@
       },
       {
         "check": "auth.cross-tenant-key-refused",
+        "entity": "search.query",
+        "needs": "a GET; search.query is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "styles.read",
+        "needs": "an alternative that takes an API key alone"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
         "entity": "table.create",
         "needs": "a GET; table.create is probed by the write stage's checks"
       },
@@ -746,6 +768,16 @@
         "check": "auth.invalid-credential-refused",
         "entity": "row.list",
         "needs": "a value for table_id in row.list's path"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "search.query",
+        "needs": "an operation that requires a credential; search.query lets anonymous callers in"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
+        "entity": "styles.read",
+        "needs": "an operation that requires a credential; styles.read lets anonymous callers in"
       },
       {
         "check": "auth.invalid-credential-refused",
@@ -919,6 +951,16 @@
       },
       {
         "check": "auth.login-throttled",
+        "entity": "search.query",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "styles.read",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
         "entity": "table.create",
         "needs": "opt in with checks: { \"auth.login-throttled\": true }"
       },
@@ -1041,6 +1083,16 @@
         "check": "auth.missing-credential-refused",
         "entity": "row.list",
         "needs": "a value for table_id in row.list's path"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "search.query",
+        "needs": "an operation that requires a credential; search.query lets anonymous callers in"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "styles.read",
+        "needs": "an operation that requires a credential; styles.read lets anonymous callers in"
       },
       {
         "check": "auth.missing-credential-refused",
@@ -1196,6 +1248,16 @@
         "check": "auth.privileged-field-ignored",
         "entity": "row.update",
         "needs": "a request body property marked x-privileged; row.update marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "search.query",
+        "needs": "a request body property marked x-privileged; search.query marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "styles.read",
+        "needs": "a request body property marked x-privileged; styles.read marks none"
       },
       {
         "check": "auth.privileged-field-ignored",
@@ -1374,6 +1436,16 @@
       },
       {
         "check": "auth.refresh-reuse-refused",
+        "entity": "search.query",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "styles.read",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
         "entity": "table.create",
         "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
       },
@@ -1544,6 +1616,16 @@
       },
       {
         "check": "auth.revoked-credential-refused",
+        "entity": "search.query",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "styles.read",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
         "entity": "table.create",
         "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
       },
@@ -1704,6 +1786,16 @@
       },
       {
         "check": "auth.role-enforced",
+        "entity": "search.query",
+        "needs": "a write method"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "styles.read",
+        "needs": "a write method"
+      },
+      {
+        "check": "auth.role-enforced",
         "entity": "table.create",
         "needs": "a record this run created that table.create can be sent to"
       },
@@ -1831,6 +1923,16 @@
         "check": "auth.scope-enforced",
         "entity": "row.list",
         "needs": "a value for table_id in row.list's path"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "search.query",
+        "needs": "an operation that requires a credential; search.query lets anonymous callers in"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "styles.read",
+        "needs": "an operation that requires a credential; styles.read lets anonymous callers in"
       },
       {
         "check": "auth.scope-enforced",
@@ -1994,6 +2096,16 @@
       },
       {
         "check": "auth.wrong-scheme-refused",
+        "entity": "search.query",
+        "needs": "an operation that requires a credential; search.query lets anonymous callers in"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "styles.read",
+        "needs": "an operation that requires a credential; styles.read lets anonymous callers in"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
         "entity": "table.create",
         "needs": "a scheme the document uses that table.create does not list"
       },
@@ -2021,6 +2133,11 @@
         "check": "auth.wrong-scheme-refused",
         "entity": "table.update",
         "needs": "a scheme the document uses that table.update does not list"
+      },
+      {
+        "check": "concurrency.if-match-enforced",
+        "entity": "notice",
+        "needs": "a create, an item read that declares an ETag, and an update that declares If-Match"
       },
       {
         "check": "concurrency.no-lost-update",
@@ -2714,6 +2831,16 @@
       },
       {
         "check": "request.invalid-body-refused",
+        "entity": "search.query",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "styles.read",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
         "entity": "table.create",
         "needs": "a write other than its entity's create; table.create is table's create"
       },
@@ -3114,6 +3241,7 @@
               "auth.missing-credential-refused",
               "auth.rank-is-monotonic",
               "auth.scope-enforced",
+              "concurrency.if-match-enforced",
               "consistency.projections-agree",
               "invalidation.declared-route-changes",
               "response.status-is-documented",
@@ -3146,6 +3274,7 @@
               "auth.missing-credential-refused",
               "auth.rank-is-monotonic",
               "auth.scope-enforced",
+              "concurrency.if-match-enforced",
               "consistency.projections-agree",
               "response.status-is-documented",
               "schema.error-response-matches-document",
@@ -3179,11 +3308,13 @@
               "auth.rank-is-monotonic-on-writes",
               "auth.role-enforced",
               "auth.scope-enforced",
+              "concurrency.if-match-enforced",
               "concurrency.no-lost-update",
               "patch.immutable-field-rejected",
               "patch.minimality",
               "request.invalid-body-refused",
               "response.status-is-documented",
+              "schema.problem-json-shape",
               "tenant.item-not-writable-cross-tenant",
               "update.unique-conflict-rejected"
             ],
@@ -3212,11 +3343,13 @@
               "auth.rank-is-monotonic-on-writes",
               "auth.role-enforced",
               "auth.scope-enforced",
+              "concurrency.if-match-enforced",
               "concurrency.no-lost-update",
               "patch.immutable-field-rejected",
               "patch.minimality",
               "request.invalid-body-refused",
               "response.status-is-documented",
+              "schema.problem-json-shape",
               "tenant.item-not-writable-cross-tenant"
             ],
             "suppressed": []
@@ -3426,6 +3559,7 @@
               "auth.missing-credential-refused",
               "auth.rank-is-monotonic",
               "auth.scope-enforced",
+              "concurrency.if-match-enforced",
               "consistency.projections-agree",
               "payload.string-survives",
               "response.status-is-documented",
@@ -3516,6 +3650,48 @@
             "gaps": [],
             "inconclusive": [],
             "passed": [
+              "auth.anonymous-operation-open",
+              "response.contract-call"
+            ],
+            "suppressed": []
+          },
+          "entity": null,
+          "findings": 0,
+          "operationId": "search.query",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "complete",
+          "tier": "contract",
+          "why": "a read with no declared effects: its contract is the whole promise"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.anonymous-operation-open",
+              "response.contract-call"
+            ],
+            "suppressed": []
+          },
+          "entity": null,
+          "findings": 0,
+          "operationId": "styles.read",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "complete",
+          "tier": "contract",
+          "why": "a read with no declared effects: its contract is the whole promise"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
               "auth.destructive-spares-the-caller",
               "auth.revoked-credential-refused"
             ],
@@ -3568,12 +3744,14 @@
               "auth.rank-is-monotonic-on-writes",
               "auth.role-enforced",
               "auth.scope-enforced",
+              "concurrency.if-match-enforced",
               "concurrency.no-lost-update",
               "patch.immutable-field-rejected",
               "patch.minimality",
               "payload.string-survives",
               "request.invalid-body-refused",
               "response.status-is-documented",
+              "schema.problem-json-shape",
               "tenant.item-not-writable-cross-tenant"
             ],
             "suppressed": []
@@ -4326,6 +4504,12 @@
         {
           "entity": "job",
           "id": "job_ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "job",
+          "id": "job_ID",
           "principal": "alpha_member",
           "removed": true
         },
@@ -4482,7 +4666,19 @@
         {
           "entity": "row",
           "id": "row_ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "row",
+          "id": "row_ID",
           "principal": "alpha_member",
+          "removed": true
+        },
+        {
+          "entity": "table",
+          "id": "table_ID",
+          "principal": "alpha",
           "removed": true
         },
         {
@@ -4666,7 +4862,7 @@
           "removed": true
         }
       ],
-      "removed": 83,
+      "removed": 86,
       "unidentified": [],
       "unsupported": []
     },
@@ -4744,6 +4940,9 @@
       },
       {
         "check": "auth.wrong-scheme-refused"
+      },
+      {
+        "check": "concurrency.if-match-enforced"
       },
       {
         "check": "concurrency.no-lost-update"
@@ -4912,6 +5111,9 @@
       },
       {
         "check": "schema.error-response-matches-document"
+      },
+      {
+        "check": "schema.problem-json-shape"
       },
       {
         "check": "schema.success-response-matches-document"
@@ -5099,6 +5301,11 @@
           "check": "auth.self-is-the-caller",
           "ran": 2,
           "skipped": 4
+        },
+        {
+          "check": "concurrency.if-match-enforced",
+          "ran": 5,
+          "skipped": 1
         },
         {
           "check": "concurrency.no-lost-update",

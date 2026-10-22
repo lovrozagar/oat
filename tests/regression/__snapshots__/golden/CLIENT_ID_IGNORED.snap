@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "records may remain: 17 creates answered 2xx with no readable id",
+        "now": "records may remain: 18 creates answered 2xx with no readable id",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -654,6 +654,15 @@
           ]
         },
         {
+          "check": "concurrency.if-match-enforced",
+          "entity": "table",
+          "reason": "a record for this check could not be made: the create answered 201 without an id oat could read",
+          "operations": [
+            "table.get",
+            "table.update"
+          ]
+        },
+        {
           "check": "concurrency.no-lost-update",
           "entity": "table",
           "reason": "a record for this check could not be made: the create answered 201 without an id oat could read",
@@ -749,6 +758,7 @@
               "gaps": [],
               "inconclusive": [
                 "auth.rank-is-monotonic-on-writes",
+                "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
@@ -787,6 +797,7 @@
               "failed": [],
               "gaps": [],
               "inconclusive": [
+                "concurrency.if-match-enforced",
                 "payload.string-survives"
               ],
               "passed": [],
@@ -976,6 +987,7 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "consistency.projections-agree",
                 "invalidation.declared-route-changes",
                 "response.status-is-documented",
@@ -1008,6 +1020,7 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "consistency.projections-agree",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -1041,11 +1054,13 @@
                 "auth.rank-is-monotonic-on-writes",
                 "auth.role-enforced",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "request.invalid-body-refused",
                 "response.status-is-documented",
+                "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant",
                 "update.unique-conflict-rejected"
               ],
@@ -1074,11 +1089,13 @@
                 "auth.rank-is-monotonic-on-writes",
                 "auth.role-enforced",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "request.invalid-body-refused",
                 "response.status-is-documented",
+                "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant"
               ],
               "suppressed": []
@@ -1616,7 +1633,19 @@
           {
             "entity": "row",
             "id": "ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "ID",
             "principal": "alpha_member",
+            "removed": true
+          },
+          {
+            "entity": "table",
+            "id": "ID",
+            "principal": "alpha",
             "removed": true
           },
           {
@@ -1802,11 +1831,18 @@
         ]
       },
       "removed": {
-        "now": 27,
-        "was": 83
+        "now": 28,
+        "was": 86
       },
       "unidentified": {
         "added": [
+          {
+            "entity": "table",
+            "method": "POST",
+            "operationId": "table.create",
+            "status": 201,
+            "url": "http://reference.test/v1/projects/proj_alpha/tables"
+          },
           {
             "entity": "table",
             "method": "POST",
@@ -2135,6 +2171,11 @@
             "check": "auth.self-is-the-caller",
             "ran": 2,
             "skipped": 3
+          },
+          {
+            "check": "concurrency.if-match-enforced",
+            "ran": 4,
+            "skipped": 1
           },
           {
             "check": "concurrency.no-lost-update",
@@ -2672,6 +2713,11 @@
             "check": "auth.self-is-the-caller",
             "ran": 2,
             "skipped": 4
+          },
+          {
+            "check": "concurrency.if-match-enforced",
+            "ran": 5,
+            "skipped": 1
           },
           {
             "check": "concurrency.no-lost-update",

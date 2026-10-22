@@ -1,16 +1,13 @@
 /** The operations a document declares, each with its method, path and the parameters it inherits. */
 
-import type { Endpoint, HttpMethod, OpenApiDocument, OperationObject, ParameterObject } from "./types.ts"
-
-export const HTTP_METHODS: readonly HttpMethod[] = ["get", "put", "post", "delete", "patch", "head", "options"]
-
-export const MUTATING_METHODS: ReadonlySet<string> = /* @__PURE__ */ new Set(["POST", "PUT", "PATCH", "DELETE"])
+import { PATH_ITEM_METHODS } from "./methods.ts"
+import type { Endpoint, OpenApiDocument, OperationObject, ParameterObject } from "./types.ts"
 
 export function listEndpoints(doc: OpenApiDocument): Endpoint[] {
 	const out: Endpoint[] = []
 	for (const [path, item] of Object.entries(doc.paths ?? {})) {
 		if (item === null || typeof item !== "object") continue
-		for (const method of HTTP_METHODS) {
+		for (const method of PATH_ITEM_METHODS) {
 			const op = (item as Record<string, unknown>)[method]
 			if (op === null || typeof op !== "object") continue
 			const operation = withPathParameters(op as OperationObject, (item as { parameters?: unknown }).parameters)

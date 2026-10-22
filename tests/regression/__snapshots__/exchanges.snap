@@ -110,6 +110,8 @@
     "POST /v1/projects/proj_alpha/jobs/start [Authorization,content-type] → 202"
   ],
   "job.update": [
+    "PATCH /v1/projects/proj_alpha/jobs/job_ID [Authorization,If-Match,content-type] → 200",
+    "PATCH /v1/projects/proj_alpha/jobs/job_ID [Authorization,If-Match,content-type] → 412",
     "PATCH /v1/projects/proj_alpha/jobs/job_ID [Authorization,content-type] → 200",
     "PATCH /v1/projects/proj_alpha/jobs/job_ID [Authorization,content-type] → 400",
     "PATCH /v1/projects/proj_alpha/jobs/job_ID [Authorization,content-type] → 401",
@@ -199,12 +201,21 @@
     "GET /v1/projects/proj_beta/tables/table_ID/rows?limit [Authorization] → 404"
   ],
   "row.update": [
+    "PATCH /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [Authorization,If-Match,content-type] → 200",
+    "PATCH /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [Authorization,If-Match,content-type] → 412",
     "PATCH /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [Authorization,content-type] → 200",
     "PATCH /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [Authorization,content-type] → 400",
     "PATCH /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [Authorization,content-type] → 401",
     "PATCH /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [Authorization,content-type] → 403",
     "PATCH /v1/projects/proj_alpha/tables/table_ID/rows/row_ID [content-type] → 401",
     "PATCH /v1/projects/proj_beta/tables/table_ID/rows/row_ID [Authorization,content-type] → 404"
+  ],
+  "search.query": [
+    "QUERY /v1/search [] → 415",
+    "QUERY /v1/search [content-type] → 200"
+  ],
+  "styles.read": [
+    "GET /v1/styles?ids&range[max]&range[min] [] → 200"
   ],
   "table.create": [
     "POST /v1/projects/proj_alpha/tables [Authorization,Idempotency-Key,content-type] → 201",
@@ -283,6 +294,8 @@
     "DELETE /v1/projects/proj_alpha/tables/table_ID/grants/grn_ID [Authorization] → 200"
   ],
   "table.update": [
+    "PATCH /v1/projects/proj_alpha/tables/table_ID [Authorization,If-Match,content-type] → 200",
+    "PATCH /v1/projects/proj_alpha/tables/table_ID [Authorization,If-Match,content-type] → 412",
     "PATCH /v1/projects/proj_alpha/tables/table_ID [Authorization,content-type] → 200",
     "PATCH /v1/projects/proj_alpha/tables/table_ID [Authorization,content-type] → 400",
     "PATCH /v1/projects/proj_alpha/tables/table_ID [Authorization,content-type] → 401",

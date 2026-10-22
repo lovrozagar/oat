@@ -21,6 +21,14 @@ const doc = {
 } as unknown as OpenApiDocument
 
 describe("pruneToAllow", () => {
+	it("reaches an OAS 3.2 query operation like any other", () => {
+		const searchable = { openapi: "3.2.0", paths: { "/search": { query: { operationId: "search" } } } }
+		const { doc: pruned, removed } = pruneToAllow(searchable as OpenApiDocument, [])
+		expect(removed).toEqual(["search"])
+		expect(pruned.paths).toEqual({})
+		expect(pruneToAllow(searchable as OpenApiDocument, ["search"]).removed).toEqual([])
+	})
+
 	it("removes every operation the allowlist leaves out, and path items left empty", () => {
 		const { doc: pruned, removed } = pruneToAllow(doc, ["note.list", "DELETE /notes/{id}"])
 		expect(removed).toEqual(["note.create", "note.read", "tag.list"])

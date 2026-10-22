@@ -1,0 +1,9 @@
+Pet:
+  type: object
+  required: [id]
+  properties:
+    id: { $ref: "#/Id" }
+    tag: { $ref: "./tag.yaml" }
+    owner: { $ref: "../openapi.yaml#/components/schemas/Owner" }
+  example: { id: "7", tag: cat, note: { $ref: "data.yaml" } }
+Id: { type: string, format: uuid }

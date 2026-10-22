@@ -25,10 +25,11 @@ describe("buildSpec", () => {
 
 	it("is the PostgREST document over the default entities when called bare", () => {
 		expect(spec).toEqual(buildSpec(POSTGREST, { entities: ENTITIES, shape: {} }))
-		expect(spec).toMatchObject({ info: { title: "oat reference backend", version: "1.0.0" }, openapi: "3.1.0" })
+		/* 3.2: the search route is a QUERY operation, a Path Item field since OAS 3.2. */
+		expect(spec).toMatchObject({ info: { title: "oat reference backend", version: "1.0.0" }, openapi: "3.2.0" })
 	})
 
-	it("routes every entity, then the caller, public, invite, job, auth and API key routes", () => {
+	it("routes every entity, then the caller, public, invite, job, auth, API key, styles and search routes", () => {
 		const routes = Object.keys(spec.paths as Json)
 		expect(routes.slice(0, 6)).toEqual([TABLE, ROW, JOB].flatMap((entity) => [entity.collectionPath, entity.itemPath]))
 		expect(routes.slice(6)).toEqual([
@@ -51,6 +52,8 @@ describe("buildSpec", () => {
 			"/v1/auth/revoke",
 			"/v1/api-keys",
 			"/v1/api-keys/{id}",
+			"/v1/styles",
+			"/v1/search",
 		])
 	})
 })

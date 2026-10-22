@@ -1,4 +1,5 @@
 import { pathTemplateParams } from "../routes.ts"
+import type { ParamStyles } from "./parameters.ts"
 import type { OperationModel, SpecModel } from "./types.ts"
 
 /** The documented operation a request instances, with the path parameters it carries. */
@@ -7,7 +8,10 @@ export interface ResolvedOperation {
 	template: string
 	entity: string | null
 	redirects: boolean
-	requiredQuery: Record<string, string>
+	requiredQuery: Record<string, unknown>
+	requiredHeaders: Record<string, unknown>
+	requiredCookies: Record<string, unknown>
+	paramStyles: ParamStyles
 	pathParams: Record<string, string>
 }
 
@@ -41,7 +45,10 @@ function resolvedTo(op: OperationModel, pathParams: Record<string, string>): Res
 		entity: op.entity,
 		operationId: op.operationId,
 		pathParams,
+		paramStyles: op.paramStyles,
 		redirects,
+		requiredCookies: op.requiredCookies,
+		requiredHeaders: op.requiredHeaders,
 		requiredQuery: op.requiredQuery,
 		template: op.path,
 	}

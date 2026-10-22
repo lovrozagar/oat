@@ -51,7 +51,7 @@ Calling a route and getting a documented answer is not the same as proving it wo
 | group                    | meaning                                                                                                                                                                      |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Verified**             | a later request shows what the call did (a read returns the written value, a deleted record answers 404)                                                                     |
-| **Complete by contract** | a read (`GET` / `HEAD` / `OPTIONS`) with no declared `x-effects`, or any operation that declares `x-effects: []`: meeting its contract is all it promises                    |
+| **Complete by contract** | a safe method (`GET` / `HEAD` / `OPTIONS` / `QUERY`) with no declared `x-effects`, or any operation that declares `x-effects: []`: meeting its contract is all it promises   |
 | **Effects unproven**     | met its contract, but whatever it changes was never observed. Either something should read the effect back, or the operation has none and should say so with `x-effects: []` |
 
 Operations that did not pass are **Failed** (a check found a defect) or **Blocked** (no verdict: a dependency failed, or no check could reach it), each with its reason. `report.html` shows the five groups worst first, with counts, the reason per row, and links to the call and the observing request in `exchanges/`. `oat-report.md` opens its Operations table with the same counts under **Confidence**.

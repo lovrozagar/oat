@@ -19,10 +19,11 @@ export function createExclusion({ model, profile, state, findings }: Loaded): Ex
 			})
 			return true
 		},
+		/* An operation oat never sends (TRACE) is out under every profile; doctor names it as a gap. */
 		excludes(operationId) {
 			const op = model.byOperationId.get(operationId)
-			return op !== undefined && excludedByProfile(op, profile.spec) !== null
+			return op !== undefined && (op.unsendable !== null || excludedByProfile(op, profile.spec) !== null)
 		},
-		readable: (op) => excludedByProfile(op, profile.spec) === null,
+		readable: (op) => op.unsendable === null && excludedByProfile(op, profile.spec) === null,
 	}
 }

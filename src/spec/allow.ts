@@ -11,9 +11,8 @@
 import type { PrincipalEntry, Recipe } from "../config/types/security.ts"
 import type { Scenario } from "../config/types/steps.ts"
 import { UsageError } from "../errors/usage-error.ts"
+import { PATH_ITEM_METHODS as METHODS } from "./methods.ts"
 import type { OpenApiDocument } from "./types.ts"
-
-const METHODS = ["get", "put", "post", "delete", "options", "head", "patch", "trace"]
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value)

@@ -1,0 +1,23 @@
+openapi: 3.1.0
+info: { title: split, version: "1" }
+paths:
+  /pets/{id}:
+    get:
+      operationId: pets.read
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: "schemas/pet.yaml#/Id" } }
+      responses:
+        "200":
+          description: The pet.
+          content:
+            application/json:
+              schema: { $ref: "./schemas/pet.yaml#/Pet" }
+components:
+  schemas:
+    Owner:
+      type: object
+      properties:
+        name: { type: string }
+        pets:
+          type: array
+          items: { $ref: "schemas/pet.yaml#/Pet" }

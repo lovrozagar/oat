@@ -1,5 +1,9 @@
 /** Minimal structural view of an OpenAPI 3.x document — only what oat reads. */
 
+import type { HttpMethod } from "./methods.ts"
+
+export type { HttpMethod } from "./methods.ts"
+
 export type SchemaObject = Record<string, unknown>
 
 export interface ParameterObject {
@@ -43,8 +47,6 @@ export interface OpenApiDocument {
 	security?: Array<Record<string, string[]>>
 	[k: `x-${string}`]: unknown
 }
-
-export type HttpMethod = "get" | "put" | "post" | "delete" | "patch" | "head" | "options"
 
 /** An operation lifted out of the document with its location attached. */
 export interface Endpoint {

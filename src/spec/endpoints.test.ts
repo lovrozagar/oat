@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { doc } from "./__fixtures__/documents.ts"
-import { listEndpoints, MUTATING_METHODS } from "./endpoints.ts"
+import { listEndpoints } from "./endpoints.ts"
 import type { OperationObject } from "./types.ts"
 
 const id = { in: "path", name: "id", required: true }
@@ -18,7 +18,13 @@ describe("listEndpoints", () => {
 		expect(endpoints.map((e) => [e.method, e.path, e.operationId])).toEqual([
 			["get", "/a", "a.get"],
 			["post", "/a", "POST /a"],
+			["trace", "/a", "t"],
 		])
+	})
+
+	it("lists an OAS 3.2 query operation and a trace operation like any other", () => {
+		const endpoints = listEndpoints(doc({ "/search": { query: {}, trace: {} } }))
+		expect(endpoints.map((e) => e.operationId)).toEqual(["TRACE /search", "QUERY /search"])
 	})
 
 	it("reads a document without paths as having no operations", () => {
@@ -47,11 +53,5 @@ describe("listEndpoints", () => {
 		expect(notList?.op).toBe(bare)
 		const [inherited] = listEndpoints(doc({ "/w/{id}": { get: bare, parameters: [id] } }))
 		expect(inherited?.op.parameters).toEqual([id])
-	})
-})
-
-describe("MUTATING_METHODS", () => {
-	it("names the methods that change state, upper-case", () => {
-		expect([...MUTATING_METHODS]).toEqual(["POST", "PUT", "PATCH", "DELETE"])
 	})
 })

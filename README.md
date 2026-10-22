@@ -63,7 +63,7 @@ Unknown commands, unknown flags, and missing required flags exit `2`.
 
 ## How a run works
 
-1. **Load** the OpenAPI document (URL or path). Internal `$ref`s are inlined. External `$ref`s are reported, never fetched.
+1. **Load** the OpenAPI document (URL or path). Internal `$ref`s are inlined, and a file's relative `$ref`s to files in its own folder are read in. URL `$ref`s are reported, never fetched.
 2. **Model** entities by inverting `x-invalidate` (or path heuristics) into a read surface per entity.
 3. **Authenticate** every configured principal (static headers and/or an auth flow). Credentials refresh on a countdown from `exp` (default 30s buffer) before every dispatch and each async poll.
 4. **Seed** a cohort of records per entity, in parent-before-child order, using each entity's create operation.
@@ -145,7 +145,7 @@ These are deliberate. An agent should not invent a flag for them.
 - **No `servers[]`.** Always set `baseUrl`. Extra hosts are `origins[]`, each with its own `spec`. An app origin that is HTML + `Set-Cookie` is a RequestStep with an absolute URL, not a dummy spec in `origins[]`.
 - **No OCR.** Multipart and file parts are sent as dummy / pool / `each` / `resolveUpload` bytes. oat checks HTTP status and JSON responses, not whether a PDF is a real invoice.
 - **No webhook / callback / link-object following**, except the explicit auth / invite GET of a URL `resolveOutOfBand` returned. A hook-side `fetch` of that URL is not a recorded exchange.
-- **External `$ref`s are not fetched.** In-document `$ref`s are.
+- **URL `$ref`s are not fetched.** In-document `$ref`s are, and so are relative refs to files inside the document's own folder.
 - **`x-idempotent` is not the idempotency check.** The check keys off a documented `Idempotency-Key` header.
 - **Rate-limit pacing only covers requests oat itself sends.** It cannot see traffic from anything else hitting the backend at the same time, so a shared budget can still trip even when oat's own share was within the declared rate.
 - **Equality filter grammar** cannot express `neq` / `gt` / `like` / `and` / `or`. Those checks did-not-apply, they do not fail.

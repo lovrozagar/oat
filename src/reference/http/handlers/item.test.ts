@@ -140,6 +140,47 @@ describe("an update without a lock", () => {
 	})
 })
 
+describe("a version precondition on an update", () => {
+	it("tags a read with a strong ETag that holds still between writes and moves on each one", async () => {
+		const { call, item } = await withTable()
+		const first = (await call("GET", item)).headers.etag
+		expect(first).toMatch(/^"[\w-]+"$/)
+		expect((await call("GET", item)).headers.etag).toBe(first)
+		await call("PATCH", item, { body: { description: "d" } })
+		expect((await call("GET", item)).headers.etag).not.toBe(first)
+	})
+
+	it("applies an update naming the current ETag or *, and refuses a stale one with a 412 problem detail", async () => {
+		const { call, item } = await withTable()
+		const stale = (await call("GET", item)).headers.etag ?? ""
+		expect((await call("PATCH", item, { body: { name: "a" }, headers: { "if-match": stale } })).status).toBe(200)
+		const refused = await call("PATCH", item, { body: { name: "b" }, headers: { "if-match": stale } })
+		expect(refused.status).toBe(412)
+		expect(refused.headers["content-type"]).toBe("application/problem+json")
+		expect(refused.body).toMatchObject({ status: 412, title: "Precondition Failed", type: "about:blank" })
+		expect((await call("GET", item)).body).toMatchObject({ name: "a" })
+		const current = (await call("GET", item)).headers.etag ?? ""
+		const listed = `"other", ${current}`
+		expect((await call("PATCH", item, { body: { name: "c" }, headers: { "if-match": listed } })).status).toBe(200)
+		expect((await call("PATCH", item, { body: { name: "d" }, headers: { "if-match": "*" } })).status).toBe(200)
+	})
+
+	it("leaves the 412 a problem detail under ERROR_SCHEMA_DRIFT", async () => {
+		const { call, item } = await withTable({ defects: ["ERROR_SCHEMA_DRIFT"] })
+		const refused = await call("PATCH", item, { body: { name: "b" }, headers: { "if-match": '"stale"' } })
+		expect([refused.status, refused.body.status]).toEqual([412, 412])
+	})
+
+	it("applies a stale update under ETAG_IGNORED, and misstates the 412 under PROBLEM_JSON_MALFORMED", async () => {
+		const ignored = await withTable({ defects: ["ETAG_IGNORED"] })
+		const sent = { body: { name: "b" }, headers: { "if-match": '"stale"' } }
+		expect((await ignored.call("PATCH", ignored.item, sent)).status).toBe(200)
+		const malformed = await withTable({ defects: ["PROBLEM_JSON_MALFORMED"] })
+		const refused = await malformed.call("PATCH", malformed.item, sent)
+		expect([refused.status, refused.body.status]).toEqual([412, 400])
+	})
+})
+
 describe("the slug of a table", () => {
 	it("is not changed by an update", async () => {
 		const { call } = await api({ defects: ["PATCH_REPLACES"], shape: "tenant-slugs" })

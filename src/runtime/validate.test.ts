@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import type { OperationObject, SchemaObject } from "../spec/types.ts"
+import { dereference } from "../spec/load/dereference.ts"
+import type { OpenApiDocument, OperationObject, SchemaObject } from "../spec/types.ts"
 import { instanceErrors, SchemaValidator } from "./validate.ts"
 
 const ITEM: SchemaObject = {
@@ -63,6 +64,35 @@ describe("SchemaValidator", () => {
 		const result = validator.validate("list", op, { responseBody: Array.from({ length: 20 }, () => 1), status: 200 })
 		expect(result.errors).toHaveLength(12)
 		expect(result.errors[0]).toBe("/0 must be object")
+	})
+})
+
+const petBranch = (field: string): SchemaObject => ({
+	properties: { [field]: { type: "boolean" }, kind: { type: "string" } },
+	required: [field],
+	type: "object",
+})
+
+describe("SchemaValidator discriminator", () => {
+	it("fails a body whose tag names one branch and whose fields fit another", () => {
+		const pet = {
+			discriminator: { propertyName: "kind" },
+			oneOf: ["Cat", "Dog"].map((name) => ({ $ref: `#/components/schemas/${name}` })),
+		}
+		const source = {
+			components: { schemas: { Cat: petBranch("meow"), Dog: petBranch("bark"), Pet: pet } },
+			info: { title: "t", version: "1" },
+			openapi: "3.1.0",
+			paths: {},
+		}
+		const { doc } = dereference(source as unknown as OpenApiDocument)
+		const schema = doc.components?.schemas?.Pet as SchemaObject
+		const validator = new SchemaValidator()
+		const op = returning("200", "application/json", schema)
+		expect(validator.validate("pet", op, { responseBody: { kind: "Dog", bark: true }, status: 200 }).ok).toBe(true)
+		const wrong = validator.validate("pet", op, { responseBody: { kind: "Cat", bark: true }, status: 200 })
+		expect(wrong.ok).toBe(false)
+		expect(wrong.errors).toContain("/kind must be equal to one of the allowed values")
 	})
 })
 

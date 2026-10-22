@@ -1,3 +1,5 @@
+import { mkdirSync } from "node:fs"
+import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { bufferWriter } from "../writer.ts"
 import { folder, json, notesConfig, notesSpec } from "../__fixtures__/files.ts"
@@ -48,6 +50,32 @@ describe("modelled", () => {
 		expect(await modelled(writer, { config: misfit })).toBe(2)
 		expect(writer.text()).toBe(
 			"the config's credentials do not fit the document:\n  security.nope names no scheme in the document. The document declares: bearer\n",
+		)
+	})
+})
+
+describe("modelled and the files a document refers to", () => {
+	it("reads the files a document refers to, and refuses one outside its folder", async () => {
+		const split = join(import.meta.dirname, "..", "..", "spec", "load", "__fixtures__", "split", "openapi.yaml")
+		const read = await modelled(bufferWriter(), { spec: split })
+		if (typeof read === "number") throw new Error(`refused: ${read}`)
+		expect(read.externalRefs).toEqual([])
+		expect(read.model.byOperationId.has("pets.read")).toBe(true)
+		const dir = folder()
+		json(dir, "outside.json", { type: "string" })
+		const response = { content: { "application/json": { schema: { $ref: "../outside.json" } } }, description: "x" }
+		const doc = {
+			info: { title: "t", version: "1" },
+			openapi: "3.1.0",
+			paths: { "/x": { get: { responses: { "200": response } } } },
+		}
+		const inner = join(dir, "inner")
+		mkdirSync(inner)
+		const spec = json(inner, "openapi.json", doc)
+		const writer = bufferWriter()
+		expect(await modelled(writer, { spec })).toBe(2)
+		expect(writer.text()).toBe(
+			`oat: ${spec} refers to ../outside.json, which resolves outside ${inner}; oat reads only files in the document's folder\n`,
 		)
 	})
 

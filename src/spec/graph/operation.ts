@@ -4,7 +4,6 @@ import { ambiguousRows, type CollectionShape, deriveCollectionShape, rowsKeyOf }
 import { documentsEventStream, successSchema } from "../collection/responses.ts"
 import { hasRequestBody, requestSchema } from "../collection/request.ts"
 import { type ConventionSources, deriveQueryConventions } from "../conventions/derive.ts"
-import { MUTATING_METHODS } from "../endpoints.ts"
 import type { GapCollector } from "../extensions/gaps.ts"
 import { pathParameterNames, readRootParams, readTenantParam, readTenantSource } from "../extensions/tenant.ts"
 import { readAsync, readWait } from "../extensions/async.ts"
@@ -24,11 +23,19 @@ import { readInvite } from "../extensions/invite.ts"
 import { readPrivileged, requiredPrivileged } from "../extensions/privileged.ts"
 import { readQueryCapability } from "../extensions/query-tag.ts"
 import { readUnique } from "../extensions/unique.ts"
+import { MUTATING, unsendableReason } from "../methods.ts"
 import { resolveSecurity } from "../security/requirements.ts"
 import { validateTags } from "../tags/validate.ts"
 import type { Endpoint, OpenApiDocument, SchemaObject } from "../types.ts"
 import { operationIdentity } from "./identity.ts"
-import { idempotencyHeader, readRequiredQuery, successResponseHeaders } from "./parameters.ts"
+import {
+	idempotencyHeader,
+	readParamStyles,
+	readRequiredCookies,
+	readRequiredHeaders,
+	readRequiredQuery,
+	successResponseHeaders,
+} from "./parameters.ts"
 import { isParamSegment, segmentsOf } from "./segments.ts"
 import { readStatuses } from "./statuses.ts"
 import type { OperationModel } from "./types.ts"
@@ -152,7 +159,8 @@ function behaviourFacts(reading: Reading) {
 		immutable: readImmutable(op),
 		invalidates: readInvalidate(op),
 		rateLimit: readRateLimit(op),
-		isMutation: MUTATING_METHODS.has(method),
+		isMutation: MUTATING.has(method),
+		unsendable: unsendableReason(method),
 		method,
 		operationId,
 		path,
@@ -168,6 +176,16 @@ function privilegedFacts(reading: Reading): { privileged: string[]; privilegedRe
 	return { privileged, privilegedRequired: requiredPrivileged(body, privileged) }
 }
 
+/** Whether a success response, by its code or the `2XX` range, declares an `ETag` header. */
+function declaresEtag(op: Endpoint["op"]): boolean {
+	const responses = (op.responses ?? {}) as Record<string, { headers?: Record<string, unknown> }>
+	return Object.entries(responses).some(
+		([status, response]) =>
+			/^2(\d\d|XX)$/i.test(status) &&
+			Object.keys(response?.headers ?? {}).some((name) => name.toLowerCase() === "etag"),
+	)
+}
+
 function requestFacts(reading: Reading) {
 	const { endpoint, gaps, collection } = reading
 	const { op, operationId } = endpoint
@@ -181,7 +199,12 @@ function requestFacts(reading: Reading) {
 		}),
 		queryParamNames: parameters.filter((p) => p.in === "query").map((p) => p.name),
 		requiredQuery: readRequiredQuery(parameters),
+		requiredHeaders: readRequiredHeaders(op),
+		requiredCookies: readRequiredCookies(parameters),
+		paramStyles: readParamStyles(parameters),
 		idempotencyHeader: idempotencyHeader(op),
+		etag: declaresEtag(op),
+		ifMatch: parameters.find((p) => p.in === "header" && p.name.toLowerCase() === "if-match")?.name ?? null,
 		rootParams: readRootParams(op),
 		route: `${endpoint.method.toUpperCase()} ${endpoint.path}`,
 		securitySchemes: [...new Set(reading.security.alternatives.flat().map((requirement) => requirement.scheme))],

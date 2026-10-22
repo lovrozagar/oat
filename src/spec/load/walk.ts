@@ -7,6 +7,18 @@ import type { OpenApiDocument } from "../types.ts"
 import { DEFS_ID } from "./defs.ts"
 import { decodeSegment, resolvePointer } from "./pointer.ts"
 
+/**
+ * Where a discriminated union of refs records the tag values of each branch, by branch index, so
+ * `normalizeSchema` can pin each branch's tag once the refs are inlined and their names are gone.
+ */
+export const DISCRIMINATOR_KEY = "x-oat-discriminator"
+
+/** The tag property of a discriminated union, and the values that name each branch. */
+export interface Discriminated {
+	propertyName: string
+	values: string[][]
+}
+
 /** One dereference in progress. */
 export interface Dereferencing {
 	doc: OpenApiDocument
@@ -52,6 +64,8 @@ function walkObject(ctx: Dereferencing, obj: Record<string, unknown>, mode: Mode
 	if (mode === "node") ctx.memo.set(obj, out)
 	ctx.building.add(obj)
 	for (const [key, value] of Object.entries(obj)) out[key] = walkEntry(ctx, key, value, mode)
+	const tags = mode === "node" ? discriminated(ctx, obj) : undefined
+	if (tags !== undefined) out[DISCRIMINATOR_KEY] = tags
 	ctx.building.delete(obj)
 	return out
 }
@@ -97,4 +111,63 @@ function defName(ctx: Dereferencing, ref: string): string {
 	for (let n = 2; taken.has(name); n++) name = `${base}_${n}`
 	ctx.defNames.set(ref, name)
 	return name
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	value !== null && typeof value === "object" && !Array.isArray(value)
+
+const COMPONENT = /^#\/components\/schemas\/([^/]+)$/
+
+/**
+ * The tag values of each branch of a `oneOf` / `anyOf` of internal refs beside a `discriminator`:
+ * the `mapping` values that reach the branch's schema, or else its component name. A branch is
+ * matched by the source node both refs end at, however each is spelled. Nothing is recorded when
+ * any branch is not such a ref or has no value, since a union only partly pinned is not narrower.
+ */
+function discriminated(ctx: Dereferencing, obj: Record<string, unknown>): Discriminated | undefined {
+	const { discriminator } = obj
+	const union = obj.oneOf ?? obj.anyOf
+	if (!isRecord(discriminator) || typeof discriminator.propertyName !== "string" || !Array.isArray(union)) {
+		return undefined
+	}
+	const mapped = mappingTargets(ctx, discriminator.mapping)
+	const values: string[][] = []
+	for (const branch of union) {
+		const ref = isRecord(branch) && typeof branch.$ref === "string" ? branch.$ref : ""
+		const target = ref.startsWith("#/") ? finalTarget(ctx, ref) : undefined
+		/* A mapped node is never undefined, so a branch that reaches nothing matches no value. */
+		const own = mapped.filter(([, node]) => node === target).map(([value]) => value)
+		const name = COMPONENT.exec(ref)?.[1]
+		const named = own.length > 0 ? own : name === undefined ? [] : [decodeSegment(name)]
+		if (named.length === 0) return undefined
+		values.push(named)
+	}
+	return { propertyName: discriminator.propertyName, values }
+}
+
+/** Each mapping value with the node it reaches: a pointer, or a schema name under `components`. */
+function mappingTargets(ctx: Dereferencing, mapping: unknown): [string, unknown][] {
+	if (!isRecord(mapping)) return []
+	const schemas = ctx.doc.components?.schemas ?? {}
+	const out: [string, unknown][] = []
+	for (const [value, ref] of Object.entries(mapping)) {
+		if (typeof ref !== "string") continue
+		const pointer = ref.startsWith("#") ? ref : Object.hasOwn(schemas, ref) ? `#/components/schemas/${ref}` : ""
+		const target = pointer === "" ? undefined : finalTarget(ctx, pointer)
+		if (target !== undefined) out.push([value, target])
+	}
+	return out
+}
+
+/** The node a chain of internal refs ends at, or `undefined` when it ends nowhere or loops. */
+function finalTarget(ctx: Dereferencing, ref: string): unknown {
+	const seen = new Set<string>()
+	let pointer = ref
+	while (!seen.has(pointer)) {
+		seen.add(pointer)
+		const node = resolvePointer(ctx.doc, pointer)
+		if (!isRecord(node) || typeof node.$ref !== "string" || !node.$ref.startsWith("#")) return node
+		pointer = node.$ref
+	}
+	return undefined
 }

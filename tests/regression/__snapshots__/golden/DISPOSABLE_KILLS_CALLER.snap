@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "records may remain: 81 teardown could not show gone",
+        "now": "records may remain: 84 teardown could not show gone",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -287,6 +287,7 @@
               "inconclusive": [],
               "passed": [
                 "auth.rank-is-monotonic",
+                "concurrency.if-match-enforced",
                 "consistency.projections-agree",
                 "invalidation.declared-route-changes",
                 "response.status-is-documented",
@@ -315,6 +316,7 @@
               "inconclusive": [],
               "passed": [
                 "auth.rank-is-monotonic",
+                "concurrency.if-match-enforced",
                 "consistency.projections-agree",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -343,10 +345,12 @@
               "inconclusive": [],
               "passed": [
                 "auth.rank-is-monotonic-on-writes",
+                "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "response.status-is-documented",
+                "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant",
                 "update.unique-conflict-rejected"
               ],
@@ -371,10 +375,12 @@
               "inconclusive": [],
               "passed": [
                 "auth.rank-is-monotonic-on-writes",
+                "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "response.status-is-documented",
+                "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant"
               ],
               "suppressed": []
@@ -417,6 +423,7 @@
               "inconclusive": [],
               "passed": [
                 "auth.rank-is-monotonic",
+                "concurrency.if-match-enforced",
                 "consistency.projections-agree",
                 "payload.string-survives",
                 "response.status-is-documented",
@@ -443,11 +450,13 @@
               "inconclusive": [],
               "passed": [
                 "auth.rank-is-monotonic-on-writes",
+                "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
                 "response.status-is-documented",
+                "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant"
               ],
               "suppressed": []
@@ -607,6 +616,7 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "consistency.projections-agree",
                 "invalidation.declared-route-changes",
                 "response.status-is-documented",
@@ -639,6 +649,7 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "consistency.projections-agree",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -672,11 +683,13 @@
                 "auth.rank-is-monotonic-on-writes",
                 "auth.role-enforced",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "request.invalid-body-refused",
                 "response.status-is-documented",
+                "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant",
                 "update.unique-conflict-rejected"
               ],
@@ -705,11 +718,13 @@
                 "auth.rank-is-monotonic-on-writes",
                 "auth.role-enforced",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "request.invalid-body-refused",
                 "response.status-is-documented",
+                "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant"
               ],
               "suppressed": []
@@ -735,6 +750,7 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "consistency.projections-agree",
                 "payload.string-survives",
                 "response.status-is-documented",
@@ -834,12 +850,14 @@
                 "auth.rank-is-monotonic-on-writes",
                 "auth.role-enforced",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
                 "request.invalid-body-refused",
                 "response.status-is-documented",
+                "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant"
               ],
               "suppressed": []
@@ -1175,6 +1193,12 @@
           {
             "entity": "job",
             "id": "job_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/jobs/job_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (job.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
             "principal": "alpha_member",
             "reason": "DELETE /v1/projects/proj_alpha/jobs/job_ID returned alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (job.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
           },
@@ -1319,8 +1343,20 @@
           {
             "entity": "row",
             "id": "row_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/tables/table_ID/rows/row_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (job.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: 401"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
             "principal": "alpha_member",
             "reason": "DELETE /v1/projects/proj_alpha/tables/table_ID/rows/row_ID returned alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (job.get)), alpha_viewer: 401"
+          },
+          {
+            "entity": "table",
+            "id": "table_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/tables/table_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (job.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
           },
           {
             "entity": "table",
@@ -1635,6 +1671,12 @@
           {
             "entity": "job",
             "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
             "principal": "alpha_member",
             "removed": false
           },
@@ -1779,7 +1821,19 @@
           {
             "entity": "row",
             "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
             "principal": "alpha_member",
+            "removed": false
+          },
+          {
+            "entity": "table",
+            "id": "table_ID",
+            "principal": "alpha",
             "removed": false
           },
           {
@@ -1980,7 +2034,7 @@
       },
       "removed": {
         "now": 4,
-        "was": 83
+        "was": 86
       }
     },
     "findings": {

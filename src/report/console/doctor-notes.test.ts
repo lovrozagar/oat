@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { documentOf, listOp, modelOf, referenceModel } from "./__fixtures__/models.ts"
 import type { QueryCatalog } from "./catalog.ts"
 import { doctorFacts } from "./doctor-facts.ts"
-import { authLines, catalogLines, envelopeLines, externalRefLines, gapLines } from "./doctor-notes.ts"
+import { authLines, catalogLines, envelopeLines } from "./doctor-notes.ts"
 
 const empty = doctorFacts(modelOf(documentOf({})).model)
 
@@ -131,47 +131,5 @@ describe("authLines", () => {
 			"    to the config for each scheme the document declares.",
 			"",
 		])
-	})
-})
-
-describe("externalRefLines", () => {
-	it("lists the references oat did not follow", () => {
-		expect(externalRefLines([])).toEqual([])
-		expect(externalRefLines(["other.yaml#/a"])).toEqual([
-			"  unresolved external $refs (not fetched — a test tool should not follow arbitrary URLs)",
-			"    other.yaml#/a",
-			"",
-		])
-	})
-})
-
-const gap = (tag: string, n: number) => ({ detail: `detail ${n}`, operationId: `op.${n}`, tag })
-
-describe("gapLines", () => {
-	it("lists gaps by tag, most frequent first, four per tag, with the remedy or a pointer to the README", () => {
-		const gapsByTag = new Map([
-			["operationId", [gap("operationId", 1)]],
-			["x-entity", [1, 2, 3, 4, 5, 6].map((n) => gap("x-entity", n))],
-		])
-		expect(gapLines({ ...empty, gapsByTag })).toEqual([
-			"  gaps by tag",
-			"    x-entity (6) — name the entity and action so this operation joins a lifecycle",
-			"      op.1: detail 1",
-			"      op.2: detail 2",
-			"      op.3: detail 3",
-			"      op.4: detail 4",
-			"      … and 2 more",
-			"    operationId (1) — see the README",
-			"      op.1: detail 1",
-			"",
-		])
-		expect(gapLines(empty)).toEqual([])
-	})
-
-	it("reads the gaps a document really has", () => {
-		const duplicated = modelOf(
-			documentOf({ "/a": { get: listOp("a", "same.id") }, "/b": { get: listOp("b", "same.id") } }),
-		).model
-		expect(gapLines(doctorFacts(duplicated))).toContain("    operationId (1) — see the README")
 	})
 })

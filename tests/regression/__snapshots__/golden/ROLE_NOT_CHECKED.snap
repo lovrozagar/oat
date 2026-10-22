@@ -45,11 +45,13 @@
                 "auth.privileged-field-ignored",
                 "auth.rank-is-monotonic-on-writes",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "request.invalid-body-refused",
                 "response.status-is-documented",
+                "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant",
                 "update.unique-conflict-rejected"
               ],
@@ -75,11 +77,13 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic-on-writes",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "request.invalid-body-refused",
                 "response.status-is-documented",
+                "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant"
               ],
               "suppressed": []
@@ -102,12 +106,14 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic-on-writes",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
                 "request.invalid-body-refused",
                 "response.status-is-documented",
+                "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant"
               ],
               "suppressed": []
@@ -234,11 +240,13 @@
                 "auth.rank-is-monotonic-on-writes",
                 "auth.role-enforced",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "request.invalid-body-refused",
                 "response.status-is-documented",
+                "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant",
                 "update.unique-conflict-rejected"
               ],
@@ -267,11 +275,13 @@
                 "auth.rank-is-monotonic-on-writes",
                 "auth.role-enforced",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "request.invalid-body-refused",
                 "response.status-is-documented",
+                "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant"
               ],
               "suppressed": []
@@ -323,12 +333,14 @@
                 "auth.rank-is-monotonic-on-writes",
                 "auth.role-enforced",
                 "auth.scope-enforced",
+                "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
                 "request.invalid-body-refused",
                 "response.status-is-documented",
+                "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant"
               ],
               "suppressed": []
@@ -458,8 +470,8 @@
         ]
       },
       "removed": {
-        "now": 90,
-        "was": 83
+        "now": 93,
+        "was": 86
       }
     },
     "findings": {

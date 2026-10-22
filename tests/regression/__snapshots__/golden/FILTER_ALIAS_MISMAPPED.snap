@@ -223,12 +223,12 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&filter=description.ne.Quarterly+Report+0&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&filter=description.ne.Quarterly%20Report%200&page=1"
             },
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&filter=description.neq.Quarterly+Report+0&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&filter=description.neq.Quarterly%20Report%200&page=1"
             }
           ],
           "summary": "alias ne does not select the same set as neq",

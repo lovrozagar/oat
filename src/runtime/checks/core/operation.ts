@@ -2,15 +2,14 @@
 
 import { isParamSegment, segmentsOf } from "../../../spec/graph/segments.ts"
 import type { OperationModel } from "../../../spec/graph/types.ts"
+import { READS } from "../../../spec/methods.ts"
 import type { OperationCheckBase } from "./check.ts"
 import type { OperationContext, ProbePlacement, Probed, WriteTarget } from "./operation-context.ts"
 import { cannot, type Plan, ready } from "./plan.ts"
 
-const READ_METHODS: ReadonlySet<string> = /* @__PURE__ */ new Set(["GET", "HEAD", "QUERY"])
-
 /** Whether `op` reads: a probe of it may run anywhere. Any other method is a write, probed only on a target. */
 export function isReadMethod(op: OperationModel): boolean {
-	return READ_METHODS.has(op.method.toUpperCase())
+	return READS.has(op.method.toUpperCase())
 }
 
 /**

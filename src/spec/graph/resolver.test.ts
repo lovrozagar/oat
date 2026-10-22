@@ -11,7 +11,12 @@ const resolve = operationResolver(
 		"/tables/archived": {
 			get: {
 				operationId: "tables.archived",
-				parameters: [{ in: "query", name: "v", required: true, schema: { const: "1" } }],
+				parameters: [
+					{ in: "query", name: "v", required: true, schema: { const: "1" } },
+					{ example: { a: 1 }, in: "query", name: "f", required: true, style: "deepObject" },
+					{ example: "2", in: "header", name: "X-Version", required: true },
+					{ example: "en", in: "cookie", name: "lang", required: true },
+				],
 				responses: ok(member),
 			},
 		},
@@ -25,9 +30,12 @@ describe("operationResolver", () => {
 		expect(resolve("get", "/tables/archived")).toEqual({
 			entity: "table",
 			operationId: "tables.archived",
+			paramStyles: { query: { f: { style: "deepObject" } } },
 			pathParams: {},
 			redirects: false,
-			requiredQuery: { v: "1" },
+			requiredCookies: { lang: "en" },
+			requiredHeaders: { "X-Version": "2" },
+			requiredQuery: { f: { a: 1 }, v: "1" },
 			template: "/tables/archived",
 		})
 		expect(resolve("GET", "/tables/t%201")).toMatchObject({ operationId: "tables.get", pathParams: { id: "t 1" } })

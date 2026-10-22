@@ -194,9 +194,9 @@ Resolved in this order, never by guessing the string's "look":
 
 JSON if the first non-space character is `{` or `[`, otherwise YAML. Empty files error. A JSON document with more opening than closing brackets is diagnosed as truncated (proxy / download limit), not as a syntax error.
 
-OpenAPI 3.0 and 3.1 both work. oat reads `paths`, operations, parameters, request/response JSON schemas, and `x-*` extensions. It does not require a particular `openapi:` version string.
+oat reads OpenAPI 3.0–3.2 only. oat reads `paths`, operations, parameters, request/response JSON schemas, and `x-*` extensions. A Swagger 2.0 document, an OpenAPI version below 3.0, or one newer than 3.2 is refused with exit 2, naming its version (`oat: api.json is Swagger 2.0; oat reads OpenAPI 3.0–3.2 only — convert it first`). A document with no `openapi` version string is not an OpenAPI document and fails to load.
 
-Internal `$ref`s are dereferenced. External `$ref`s stay unresolved and show up in `oat doctor` / the JSON `externalRefs` list.
+Internal `$ref`s are dereferenced. When the document is a file, a `$ref` to another file by relative path (`./schemas/pet.yaml#/Pet`) is read too, relative to the file that names it, recursively, so a document split across files loads as one; a cycle across files works like one inside a file. Every such file must resolve inside the document's own folder, compared by real path: a ref by absolute path or `file:` URL, one that climbs out with `..`, or a symlink that points outside is refused with exit 2, as is a ref to a missing file (the error names the file and the file that refers to it). URL refs, anchor refs (`#Name`), and every ref in a document fetched by URL stay unresolved and show up in `oat doctor` / the JSON `externalRefs` list.
 
 ### Principals
 
@@ -306,7 +306,7 @@ Each step is one of:
 }
 ```
 
-`path` is joined to this origin's `baseUrl`, unless it is an absolute `http://` or `https://` URL — then oat dispatches to that URL as a recorded exchange (method, URL, status, redirects, response headers). That is how a consume page on the app origin is a login step when `baseUrl` is the API. Unknown host is allowed. `redirect` defaults to `"follow"` with a per-request cookie jar, so a 303 that sets `Set-Cookie` still leaves that cookie visible to `saveAs`. `redirect: "manual"` stops at the first 3xx (`expect: [303]` then bind from that response). An `operationId` step, and every call oat makes on its own, stops at the first 3xx when that operation documents a 3xx: the redirect is the documented answer, and the page behind it is not. A required query parameter the request leaves unnamed is sent with the value the document declares for it (`example`, `examples`, `const`, the first `enum` value, or `default`); with no declared value it is left out, never invented. Naming it, even as `undefined`, keeps it the caller's.
+`path` is joined to this origin's `baseUrl`, unless it is an absolute `http://` or `https://` URL — then oat dispatches to that URL as a recorded exchange (method, URL, status, redirects, response headers). That is how a consume page on the app origin is a login step when `baseUrl` is the API. Unknown host is allowed. `redirect` defaults to `"follow"` with a per-request cookie jar, so a 303 that sets `Set-Cookie` still leaves that cookie visible to `saveAs`. `redirect: "manual"` stops at the first 3xx (`expect: [303]` then bind from that response). An `operationId` step, and every call oat makes on its own, stops at the first 3xx when that operation documents a 3xx: the redirect is the documented answer, and the page behind it is not. A required query, header or cookie parameter the request leaves unnamed is sent with the value the document declares for it, written in its declared style ([Parameters](model.md#parameters)); with no declared value it is left out, never invented. Naming it, even as `undefined`, keeps it the caller's.
 
 **Out-of-band step** (email link, OTP — oat cannot collect this itself):
 

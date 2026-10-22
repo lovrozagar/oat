@@ -28,6 +28,11 @@ export async function runContractCalls(input: ContractInput): Promise<void> {
 	input.checksRun.add(CONTRACT_CHECK_ID)
 	for (const op of pending) {
 		if (input.stopped()) return
+		/* Listed, never sent: fetch cannot send it. */
+		if (op.unsendable !== null) {
+			grades.skipped([op.operationId], op.unsendable)
+			continue
+		}
 		try {
 			await callOnce(input, op)
 		} catch (error) {
@@ -78,7 +83,7 @@ async function callOnce(input: ContractInput, op: OperationModel): Promise<void>
 		input.grades.skipped([op.operationId], actor.untested)
 		return
 	}
-	const exchange = await input.client.request(op.method, fillPath(op.path, values), {
+	const exchange = await input.client.request(op.method, fillPath(op.path, values, op.paramStyles.path), {
 		...(body === undefined ? {} : { body }),
 		as: actor.as,
 		operationId: op.operationId,

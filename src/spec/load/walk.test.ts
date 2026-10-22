@@ -121,3 +121,77 @@ describe("walk data", () => {
 		expect(out.p.examples.one).not.toBe(out.q.examples.one)
 	})
 })
+
+const KEY = "x-oat-discriminator"
+const schemas = {
+	Cat: { properties: { meow: { type: "boolean" } }, type: "object" },
+	Dog: { properties: { bark: { type: "boolean" } }, type: "object" },
+	Kitten: { $ref: "#/components/schemas/Cat" },
+}
+const union = (extra: Record<string, unknown>, branches = ["Cat", "Dog"]) => ({
+	oneOf: branches.map((name) => ({ $ref: `#/components/schemas/${name}` })),
+	...extra,
+})
+const tags = (pet: Record<string, unknown>) =>
+	walked({ components: { schemas: { ...schemas, Pet: pet } } }).out.components.schemas.Pet[KEY]
+
+describe("walk discriminators", () => {
+	it("names each branch of a union of refs by its component name when nothing maps it", () => {
+		expect(tags(union({ discriminator: { propertyName: "kind" } }))).toEqual({
+			propertyName: "kind",
+			values: [["Cat"], ["Dog"]],
+		})
+		const anyOf = { anyOf: [{ $ref: "#/components/schemas/Dog" }], discriminator: { propertyName: "kind" } }
+		expect(tags(anyOf)).toEqual({ propertyName: "kind", values: [["Dog"]] })
+	})
+
+	it("names a branch by every mapping value that resolves to it, by pointer or by name", () => {
+		const mapping = {
+			cat: "#/components/schemas/Cat",
+			kitty: "Cat",
+			kitten: "Kitten",
+			dog: "#/components/schemas/Dog",
+			stray: "#/components/schemas/Missing",
+			file: "cat.yaml",
+		}
+		expect(tags(union({ discriminator: { mapping, propertyName: "kind" } }, ["Kitten", "Dog"]))).toEqual({
+			propertyName: "kind",
+			values: [["cat", "kitty", "kitten"], ["dog"]],
+		})
+		const partial = { mapping: { cat: "Cat" }, propertyName: "kind" }
+		expect(tags(union({ discriminator: partial }))).toEqual({ propertyName: "kind", values: [["cat"], ["Dog"]] })
+	})
+
+	it("reads a mapping by pointer in a document without components, skipping a value that is not a ref", () => {
+		const pet = {
+			discriminator: { mapping: { cat: "#/defs/Cat", odd: 3 }, propertyName: "kind" },
+			oneOf: [{ $ref: "#/defs/Cat" }],
+		}
+		expect(walked({ defs: { Cat: schemas.Cat }, pet }).out.pet[KEY]).toEqual({
+			propertyName: "kind",
+			values: [["cat"]],
+		})
+	})
+
+	it("records nothing for a union it cannot name every branch of", () => {
+		const named = { discriminator: { propertyName: "kind" } }
+		expect(tags({ ...named, oneOf: [{ $ref: "#/components/schemas/Cat" }, { type: "string" }] })).toBeUndefined()
+		expect(tags({ ...named, oneOf: [{ $ref: "#/components/schemas/Cat" }, { $ref: "dog.yaml" }] })).toBeUndefined()
+		expect(tags({ ...named, oneOf: [{ $ref: "#/components/schemas/Cat/properties/meow" }] })).toBeUndefined()
+		expect(tags({ discriminator: { propertyName: "kind" } })).toBeUndefined()
+		expect(tags(union({ discriminator: { mapping: "Cat" } }))).toBeUndefined()
+		expect(tags(union({ discriminator: "kind" }))).toBeUndefined()
+	})
+
+	it("follows a chain of refs to the schema a branch and a mapping both reach, and stops at a loop", () => {
+		/* A ref loop is only walkable inside data, which is copied, never walked. */
+		const loop = { a: { $ref: "#/components/examples/x/value/a" } }
+		const mapping = { kitty: "Kitten", loop: "#/components/examples/x/value/a" }
+		const pet = union({ discriminator: { mapping, propertyName: "kind" } })
+		const doc = { components: { examples: { x: { value: loop } }, schemas: { ...schemas, Pet: pet } } }
+		expect(walked(doc).out.components.schemas.Pet[KEY]).toEqual({
+			propertyName: "kind",
+			values: [["kitty"], ["Dog"]],
+		})
+	})
+})

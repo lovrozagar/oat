@@ -622,12 +622,12 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&q=Quarterly+Report+0+a7a7a7a7&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&q=Quarterly%20Report%200%20a7a7a7a7&page=1"
             },
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&q=Quarterly+Report+0+a7a7a7a7&select=id%2Cname&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&q=Quarterly%20Report%200%20a7a7a7a7&select=id%2Cname&page=1"
             }
           ],
           "summary": "adding a select changes which records a search returns",
@@ -644,12 +644,12 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&q=Quarterly+Report+0&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&q=Quarterly%20Report%200&page=1"
             },
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&q=Quarterly+Report+0&select=id%2Cname&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&q=Quarterly%20Report%200&select=id%2Cname&page=1"
             }
           ],
           "summary": "adding a select changes which records a search returns",
@@ -666,12 +666,12 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&q=Quarterly+Report+0&page=2"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&q=Quarterly%20Report%200&page=2"
             },
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&q=Quarterly+Report+0&select=id%2Clabel&page=4"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&q=Quarterly%20Report%200&select=id%2Clabel&page=4"
             }
           ],
           "summary": "adding a select changes which records a search returns",

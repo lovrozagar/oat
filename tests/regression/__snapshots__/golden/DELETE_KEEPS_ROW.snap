@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "records may remain: 53 teardown could not show gone",
+        "now": "records may remain: 55 teardown could not show gone",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -287,7 +287,19 @@
           {
             "entity": "job",
             "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
             "principal": "alpha_member",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
             "reason": "delete answered 2xx but the record is still listed"
           },
           {
@@ -609,7 +621,19 @@
           {
             "entity": "job",
             "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
             "principal": "alpha_member",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
             "removed": false
           },
           {
@@ -929,7 +953,19 @@
           {
             "entity": "job",
             "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
             "principal": "alpha_member",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
             "removed": true
           },
           {
@@ -1091,8 +1127,8 @@
         ]
       },
       "removed": {
-        "now": 30,
-        "was": 83
+        "now": 31,
+        "was": 86
       }
     },
     "findings": {

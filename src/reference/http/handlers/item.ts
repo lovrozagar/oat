@@ -1,10 +1,11 @@
 /** One record: read, updated in place or replaced, and deleted outright or softly. */
 
+import { createHash } from "node:crypto"
 import { ROW } from "../../model/row.ts"
 import type { Row } from "../../store-api.ts"
 import { assertWrite, findItem } from "../access.ts"
 import { readJson, requireJson } from "../body.ts"
-import { HttpError } from "../errors.ts"
+import { HttpError, preconditionFailed } from "../errors.ts"
 import { assertPrivileged, keepPrivileged } from "../privileged.ts"
 import { answerRead, answerWritten, hiddenFromCreator, present, replacementDefaults, withDefaults } from "../records.ts"
 import type { ReferenceState } from "../state.ts"
@@ -19,9 +20,28 @@ export async function read(state: ReferenceState, call: ItemCall): Promise<Refer
 	if (state.defects.has("ROLE_MONOTONICITY_BROKEN") && call.principal.rank === 1) {
 		throw new HttpError(403, "forbidden", "role cannot read this record")
 	}
-	const shown = present(state, call.entity, await findItem(state, call))
+	const row = await findItem(state, call)
+	const shown = present(state, call.entity, row)
 	if (state.defects.has("READ_DROPS_FIELD") && call.entity.name === state.table.name) delete shown.description
-	return respond(200, answerRead(state, call.entity, shown))
+	return respond(200, answerRead(state, call.entity, shown), { etag: etagOf(row) })
+}
+
+/**
+ * The stored record's version: a strong tag (RFC 9110 §8.8.3), a hash of the row. Every write stamps
+ * the row anew, so the tag moves on each one, which a timestamp alone would not inside one millisecond.
+ */
+function etagOf(row: Row): string {
+	return `"${createHash("sha256").update(JSON.stringify(row)).digest("base64url").slice(0, 27)}"`
+}
+
+/** Why the update's If-Match fails, when it names versions and none is the record's own; `*` is any. */
+function unmetIfMatch(request: ReferenceRequest, row: Row): string | undefined {
+	const header = request.headers["if-match"]
+	if (header === undefined) return undefined
+	const current = etagOf(row)
+	const named = header.split(",").map((tag) => tag.trim())
+	if (named.includes("*") || named.includes(current)) return undefined
+	return `If-Match ${header} names no current version of this record, which is ${current}`
 }
 
 export async function update(
@@ -34,6 +54,8 @@ export async function update(
 	assertWrite(state, principal, "update")
 	requireJson(request, defects)
 	const existing = await findItem(state, call, "write")
+	const unmet = defects.has("ETAG_IGNORED") ? undefined : unmetIfMatch(request, existing)
+	if (unmet !== undefined) return preconditionFailed(defects, unmet)
 	const replace = request.method === "PUT"
 	const lenient = defects.has("WRITE_BODY_NOT_VALIDATED") && [state.table.name, ROW.name].includes(entity.name)
 	const mode = replace ? "replace" : "update"

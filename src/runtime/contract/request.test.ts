@@ -223,6 +223,35 @@ describe("pathValues: a write goes only to a record this run made", () => {
 	})
 })
 
+describe("pathValues: a safe method reads", () => {
+	it("draws a QUERY's parameter like a read's, from any record an answer showed", async () => {
+		const item = keyed["/keys/{id}"]
+		const searchable = {
+			...keyed,
+			"/keys/{id}": { ...item, query: { operationId: "keys.query", parameters: [pathParam("id")], responses: ok() } },
+		}
+		const { input, op, params } = staged(searchable, "keys.query", { madeByRun: madeOnly().madeByRun })
+		input.client.transcript.push(listed("foreign_1"))
+		expect(await pathValues(input, { op, params })).toEqual({ id: "foreign_1" })
+	})
+})
+
+describe("queryValues: declared objects", () => {
+	it("passes a document's object or array value through whole, for its style to write", () => {
+		const { input, op, params } = staged(
+			queried([
+				{ ...query("range", { type: "object" }), example: { max: 5, min: 1 }, style: "deepObject" },
+				{ ...query("ids", { items: { type: "string" }, type: "array" }), example: ["a", "b"] },
+			]),
+			"q.get",
+		)
+		expect(queryValues(input.grades, { bind: null, op, params })).toEqual({
+			ids: ["a", "b"],
+			range: { max: 5, min: 1 },
+		})
+	})
+})
+
 describe("pathValues: never a credential", () => {
 	it("leaves a parameter unresolved rather than fill it with a token a login answered", async () => {
 		const invite = {

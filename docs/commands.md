@@ -105,6 +105,7 @@ Human output:
 - tags that are absent, and the checks each tag would unlock
 - tags that would **sharpen** checks that already run (`x-query`, `x-tenant`)
 - per-operation gaps (`x-entity` could not be inferred, assumed tenant param, …)
+- what the document declares but oat never calls, one gap each and never blocking: `webhooks` (one per webhook, named `webhook <name>`), an operation's `callbacks`, a response's `links` (naming the status), and OpenAPI 3.2 `additionalOperations`
 - external `$ref`s that were not fetched
 
 `--json` shape:

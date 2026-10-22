@@ -132,7 +132,7 @@ const SURFACES: Readonly<Record<string, Surface>> = {
 		doc: "tags.md",
 		names: tagsRead,
 		written: code,
-		undocumented: ["x-oat-defs"],
+		undocumented: ["x-oat-defs", "x-oat-discriminator", "x-oat-external"],
 	},
 	"public exports": {
 		doc: "api.md",

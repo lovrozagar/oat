@@ -12,6 +12,7 @@ import type { InviteSpec } from "../extensions/invite.ts"
 import type { QueryCapability } from "../extensions/query-tag.ts"
 import type { RateLimitTag } from "../extensions/flags.ts"
 import type { OperationObject } from "../types.ts"
+import type { ParamStyles } from "./parameters.ts"
 
 export interface OperationModel {
 	operationId: string
@@ -42,11 +43,17 @@ export interface OperationModel {
 	rootParams: string[]
 	queryParamNames: string[]
 	/**
-	 * Required query parameters and the value the document declares for each. A request the
-	 * document calls incomplete without one is sent with it; a parameter with no declared value
-	 * is left to the caller, never invented.
+	 * Required query parameters and the value the document declares for each, an object or array
+	 * kept whole. A request the document calls incomplete without one is sent with it; a parameter
+	 * with no declared value is left to the caller, never invented.
 	 */
-	requiredQuery: Record<string, string>
+	requiredQuery: Record<string, unknown>
+	/** Required header parameters and their declared values: never the idempotency key or a credential. */
+	requiredHeaders: Record<string, unknown>
+	/** Required cookie parameters and their declared values. */
+	requiredCookies: Record<string, unknown>
+	/** Each parameter's OAS style, explode and allowReserved, where they differ from the default. */
+	paramStyles: ParamStyles
 	/**
 	 * Header parameter this operation accepts as an idempotency key, when it declares one.
 	 *
@@ -54,6 +61,10 @@ export interface OperationModel {
 	 * safety publishes the header, and the promise is what makes the property testable.
 	 */
 	idempotencyHeader: string | null
+	/** A success response declares an `ETag` header: the record's version a precondition can name. */
+	etag: boolean
+	/** The `If-Match` header parameter the operation declares, under its declared spelling. */
+	ifMatch: string | null
 	/** What this endpoint's query parameters and envelope mean, derived from the document. */
 	conventions: QueryConventions
 	/** Exact status codes the document names. Ranges and `default` live in `statuses`. */
@@ -92,6 +103,11 @@ export interface OperationModel {
 	rateLimit: RateLimitTag | null
 	hasRequestBody: boolean
 	isMutation: boolean
+	/**
+	 * Why oat never sends this operation, or `null` when it can: a TRACE, which fetch refuses. The
+	 * operation is listed, and a check that reaches it sends nothing.
+	 */
+	unsendable: string | null
 }
 
 export interface EntityModel {

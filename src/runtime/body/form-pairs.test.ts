@@ -27,6 +27,12 @@ describe("formPairs, arrays", () => {
 		expect(formPairs("tag", ["a", "b"], { explode: false, style: "spaceDelimited" })).toEqual([["tag", "a b"]])
 		expect(formPairs("tag", ["a", "b"], { explode: false, style: "pipeDelimited" })).toEqual([["tag", "a|b"]])
 	})
+
+	/* OAS 3.1 Encoding Object: explode defaults to true for form only, false for every other style. */
+	it("joins a delimited style that does not say explode, as the OAS default has it", () => {
+		expect(formPairs("tag", ["a", "b"], { style: "pipeDelimited" })).toEqual([["tag", "a|b"]])
+		expect(formPairs("tag", ["a", "b"], { style: "spaceDelimited" })).toEqual([["tag", "a b"]])
+	})
 })
 
 describe("formPairs, objects", () => {

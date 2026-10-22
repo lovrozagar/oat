@@ -18,12 +18,14 @@ import { modelOperation } from "./operation.ts"
 import { collectRoots } from "./roots.ts"
 import { fallBackToSiblings, invertInvalidate, markTrackable } from "./surface.ts"
 import type { EntityModel, OperationModel, SpecModel } from "./types.ts"
+import { recordUnmodelled, recordUnsendable } from "./unmodelled.ts"
 import { parseRouteRef } from "../routes.ts"
 
 export function buildModel(doc: OpenApiDocument): SpecModel {
 	const gaps = new GapCollector()
 	const endpoints = listEndpoints(doc)
 	const operations = endpoints.map((e) => modelOperation(e, doc, gaps))
+	recordUnsendable(operations, gaps)
 
 	const views = demoteNonEntities(operations, gaps)
 	separateSameNamedCollections(operations)
@@ -41,6 +43,7 @@ export function buildModel(doc: OpenApiDocument): SpecModel {
 	const byRoute = new Map(operations.map((o) => [o.route, o]))
 	const entities = buildEntities(operations, byRoute, gaps)
 	reportMissingCleanup(operations, byRoute, gaps)
+	recordUnmodelled(doc, gaps)
 
 	return {
 		byOperationId,

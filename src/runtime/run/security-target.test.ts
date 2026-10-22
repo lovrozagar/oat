@@ -51,10 +51,12 @@ describe("recordTarget: a creator whose credential is BLOCKED", () => {
 	it("is untested, citing the block, when the record cannot be read back as its creator", async () => {
 		const ctx = await running([{ id: "n1", title: "a" }], ["n1"])
 		ctx.store.block({ principal: "alpha", scheme: "bearer" }, "the new credential is refused")
-		expect(await recordTarget(ctx, op(ctx, "notes.update"))).toEqual({
+		const untested = {
 			untested:
 				"notes.update's target could not be read back: alpha's credential is BLOCKED (the new credential is refused)",
-		})
+		}
+		expect(await recordTarget(ctx, op(ctx, "notes.update"))).toEqual(untested)
+		expect(await recordTarget(ctx, op(ctx, "notes.update"), targetReads())).toEqual(untested)
 	})
 })
 

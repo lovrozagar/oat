@@ -10,6 +10,12 @@ describe("the tag tables", () => {
 		expect(Object.keys(TAG_SHARPENS)).toEqual(["x-query", "x-tenant"])
 		expect(Object.values(TAG_REMEDY).every((remedy) => remedy.length > 20)).toBe(true)
 	})
+
+	it("say plainly that what oat never calls is not tested", () => {
+		for (const tag of ["webhooks", "callbacks", "links", "additionalOperations"]) {
+			expect(TAG_REMEDY[tag]).toMatch(/^not tested: oat /)
+		}
+	})
 })
 
 describe("declaredTags", () => {

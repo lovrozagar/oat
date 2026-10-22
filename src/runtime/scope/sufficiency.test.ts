@@ -17,6 +17,7 @@ describe("sufficiencyOf", () => {
 			why: "declares no effects, so its contract is the whole promise",
 		})
 		expect(sufficiencyOf(op("get"), contract).sufficiency).toBe("complete")
+		expect(sufficiencyOf(op("QUERY"), contract).sufficiency).toBe("complete")
 	})
 
 	it("is unproven for a write whose change nothing observed", () => {

@@ -45,6 +45,29 @@ describe("a client's transcript spool", () => {
 	})
 })
 
+describe("safe methods", () => {
+	it("lets a read-only view send QUERY and OPTIONS, and counts neither as a write", async () => {
+		const { client, sent } = clientOf(() => json({}))
+		const reader = client.readOnlyView({ check: "search" })
+		await reader.request("QUERY", "/search", { as: ANON, body: { term: "a" } })
+		await reader.request("OPTIONS", "/search", { as: ANON })
+		expect(sent.map((request) => [request.method, request.body])).toEqual([
+			["QUERY", '{"term":"a"}'],
+			["OPTIONS", undefined],
+		])
+		expect(client.writes).toBe(0)
+		await client.request("PATCH", "/rows/1", { as: ANON, body: {} })
+		expect(client.writes).toBe(1)
+	})
+
+	it("never sends TRACE, and says why", async () => {
+		const { client, sent } = clientOf(() => json({}))
+		await expect(client.request("trace", "/echo", { as: ANON })).rejects.toThrow(/fetch refuses TRACE/)
+		expect(sent).toEqual([])
+		expect(client.transcript).toEqual([])
+	})
+})
+
 describe("a read-only client", () => {
 	it("refuses to send anything that could change server state, through any view of it", async () => {
 		const { client, sent } = clientOf(() => json({}))
@@ -126,6 +149,22 @@ describe("a request with a credential", () => {
 		expect(exchange).toMatchObject({ principal: "alpha", status: 200 })
 		expect(sent.map((request) => request.headers.authorization)).toEqual(["Bearer stale", "Bearer fresh"])
 		expect(client.transcript.map((item) => item.superseded ?? false)).toEqual([true, false])
+	})
+
+	it("sends the control read again when a renewal is refused too, as any request", async () => {
+		const renewed = sendingHeaders({ authorization: "Bearer fresh" })
+		const source = fixedSource(sendingHeaders({ authorization: "Bearer stale" }, { refresh: async () => renewed }))
+		const { client, sent } = clientOf((request) => json({}, request.url.endsWith("/rows") ? 200 : 401), {
+			credentials: source,
+		})
+		await client.get("/rows", { as: { principal: "alpha" } })
+		expect((await client.get("/x", { as: { principal: "alpha" } })).status).toBe(401)
+		expect(sent.map((request) => `${request.url.slice(BASE.length)} ${request.headers.authorization}`)).toEqual([
+			"/rows Bearer stale",
+			"/x Bearer stale",
+			"/x Bearer fresh",
+			"/rows Bearer stale",
+		])
 	})
 
 	it("sends a probe once, whatever it is answered", async () => {

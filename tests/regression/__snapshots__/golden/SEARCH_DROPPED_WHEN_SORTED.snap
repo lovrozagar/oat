@@ -622,12 +622,12 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&order=name.asc&q=Quarterly+Report+0+a7a7a7a7&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&order=name.asc&q=Quarterly%20Report%200%20a7a7a7a7&page=1"
             },
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&q=Quarterly+Report+0+a7a7a7a7&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&q=Quarterly%20Report%200%20a7a7a7a7&page=1"
             }
           ],
           "summary": "adding a sort changes which records a search returns",
@@ -644,12 +644,12 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&order=label.asc&q=Quarterly+Report+0&page=4"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&order=label.asc&q=Quarterly%20Report%200&page=4"
             },
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&q=Quarterly+Report+0&page=2"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&q=Quarterly%20Report%200&page=2"
             }
           ],
           "summary": "adding a sort changes which records a search returns",
@@ -666,12 +666,12 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&order=name.asc&q=Quarterly+Report+0&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&order=name.asc&q=Quarterly%20Report%200&page=1"
             },
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&q=Quarterly+Report+0&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&q=Quarterly%20Report%200&page=1"
             }
           ],
           "summary": "adding a sort changes which records a search returns",

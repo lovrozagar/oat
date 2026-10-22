@@ -3,7 +3,7 @@
 import type { EntityDef } from "../model/types.ts"
 import { fieldsWhere } from "../model/fields.ts"
 import { parentReadRoutes } from "./collection.ts"
-import { errorResponses } from "./errors.ts"
+import { errorResponses, preconditionResponses } from "./errors.ts"
 import { declaredIdentity, entityTag, jsonResponse, ok } from "./operation.ts"
 import { pathParams, tenantParam } from "./params.ts"
 import { bodySchema, located, readSchema, writtenSchema } from "./schemas.ts"
@@ -12,6 +12,18 @@ import type { Json, SpecContext } from "./types.ts"
 /** The routes an entity's own writes change: its listing and its item. */
 function surface(entity: EntityDef): string[] {
 	return [`GET ${entity.collectionPath}`, `GET ${entity.itemPath}`]
+}
+
+/* The version a read answers, which an update's If-Match names. */
+const ETAG: Json = { ETag: { description: "The record's version, a strong tag", schema: { type: "string" } } }
+
+/* Optional, so an update that names no version is applied as before. */
+const IF_MATCH: Json = {
+	description: "Apply the update only while the record's ETag is one of these",
+	in: "header",
+	name: "If-Match",
+	required: false,
+	schema: { type: "string" },
 }
 
 function deleteOperation(ctx: SpecContext, entity: EntityDef): Json {
@@ -37,7 +49,7 @@ function getOperation(ctx: SpecContext, entity: EntityDef): Json {
 		operationId: `${entity.name}.get`,
 		parameters: pathParams(ctx, entity, true),
 		responses: {
-			[ok(ctx, 200)]: jsonResponse(entity.name, readSchema(ctx, entity)),
+			[ok(ctx, 200)]: jsonResponse(entity.name, readSchema(ctx, entity), ETAG),
 			...errorResponses(ctx, [400, 401, 403, 404]),
 		},
 		summary: `Get ${entity.name}`,
@@ -55,7 +67,7 @@ function getOperation(ctx: SpecContext, entity: EntityDef): Json {
 function updateOperation(ctx: SpecContext, entity: EntityDef): Json {
 	return {
 		operationId: `${entity.name}.update`,
-		parameters: pathParams(ctx, entity, true),
+		parameters: [...pathParams(ctx, entity, true), IF_MATCH],
 		requestBody: {
 			content: {
 				"application/json": { schema: bodySchema(entity, "update", ctx.shape.updateMethod === "PUT") },
@@ -65,6 +77,7 @@ function updateOperation(ctx: SpecContext, entity: EntityDef): Json {
 		responses: {
 			[ok(ctx, 200)]: jsonResponse(`Updated ${entity.name}`, writtenSchema(ctx, entity)),
 			...errorResponses(ctx, [400, 401, 403, 404, 409, 415]),
+			...preconditionResponses(),
 		},
 		summary: `Update ${entity.name}`,
 		tags: [entityTag(entity)],

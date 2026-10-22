@@ -28,7 +28,7 @@ export const disposableCheck: Check = {
 }
 
 export function destructiveOps(model: SpecModel): OperationModel[] {
-	return model.operations.filter((op) => op.destructive)
+	return model.operations.filter((op) => op.destructive && op.unsendable === null)
 }
 
 /** The caller reading itself: an `identity: self` read with nothing to fill in. */

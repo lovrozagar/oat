@@ -6,6 +6,7 @@
  */
 
 import { requestContent } from "../../spec/collection/request.ts"
+import { SAFE } from "../../spec/methods.ts"
 import { applyActionBind } from "../effects/bind.ts"
 import { buildCohort, type CohortMember } from "../fixture.ts"
 import { nonexistentIdentity } from "../nonexistent-identity.ts"
@@ -37,9 +38,6 @@ export async function pathValues(
 	return values
 }
 
-/* The methods that change nothing: a read may go to any record the run saw. */
-const READS: ReadonlySet<string> = /* @__PURE__ */ new Set(["GET", "HEAD", "OPTIONS"])
-
 /* A path template with its parameter names dropped: `/projects/{project_id}/jobs` is `/projects/{}/jobs`. */
 const shapeOf = (path: string): string => path.replaceAll(/\{[^}]*\}/g, "{}")
 
@@ -70,7 +68,8 @@ function seenFor(
 	name: string,
 ): string | undefined {
 	const seen = seenOf(input, op, name)
-	if (READS.has(op.method)) return liveValue(input, seen)
+	/* A method that changes nothing may go to any record the run saw. */
+	if (SAFE.has(op.method)) return liveValue(input, seen)
 	return madeValue(input, seen)
 }
 
@@ -89,7 +88,7 @@ function liveValue(input: Pick<ContractInput, "client" | "model">, seen: Seen): 
 
 /* Whether a write's parameter went unresolved though an answer showed a value: one the run did not make. */
 function refusedWrite(input: Pick<ContractInput, "client" | "model">, op: ContractCall["op"], name: string): boolean {
-	return !READS.has(op.method) && seenValue(seenOf(input, op, name).pool, name, input.client.redactor) !== undefined
+	return !SAFE.has(op.method) && seenValue(seenOf(input, op, name).pool, name, input.client.redactor) !== undefined
 }
 
 /* The parameter's collection, and the answers its value may come from. */
@@ -169,14 +168,15 @@ async function askHook(
 /**
  * Every required query parameter's value, or `null` once one cannot be resolved (and the operation
  * is skipped). What the operation names in `x-bind` is a value it accepts; a literal there beats a
- * guess. A pointer reads a record this call has none of, so it binds nothing here.
+ * guess. A pointer reads a record this call has none of, so it binds nothing here. A document's
+ * object or array value stays whole: the client writes it in the parameter's style.
  */
 export function queryValues(
 	grades: GradeLedger,
 	{ op, params, bind }: Pick<ContractCall, "bind" | "op" | "params">,
-): Record<string, string> | null {
+): Record<string, unknown> | null {
 	const bound = applyActionBind(bind, { records: [], beforeBody: undefined }, undefined).query
-	const query: Record<string, string> = {}
+	const query: Record<string, unknown> = {}
 	for (const param of params) {
 		if (param.in !== "query" || param.required !== true) continue
 		/* A built model's query parameters are named: a nameless one fails the build. */

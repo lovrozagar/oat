@@ -1,9 +1,26 @@
-/** What an operation's parameters promise a request: required query values and an idempotency key. */
+/**
+ * What an operation's parameters promise a request: the values its required parameters declare, how
+ * each is written, and an idempotency key.
+ */
 
+import { CREDENTIAL_HEADERS } from "../../security/credential-names.ts"
 import type { OperationObject, ParameterObject } from "../types.ts"
 
+/** Where a parameter goes. */
+export type ParamIn = ParameterObject["in"]
+
+/** How the document says to write a parameter: its OAS `style`, `explode` and `allowReserved`. */
+export interface ParamStyle {
+	style?: string
+	explode?: boolean
+	allowReserved?: boolean
+}
+
+/** Each parameter's non-default style, by location and name. */
+export type ParamStyles = Partial<Record<ParamIn, Record<string, ParamStyle>>>
+
 /** The value a parameter's document gives it: an example first, then a const, enum, or default. */
-function declaredValue(param: ParameterObject): string | undefined {
+function declaredValue(param: ParameterObject): unknown {
 	const schema = param.schema ?? {}
 	const named = param["examples"]
 	const fromNamed =
@@ -12,28 +29,73 @@ function declaredValue(param: ParameterObject): string | undefined {
 			: undefined
 	const listed = Array.isArray(schema["examples"]) ? (schema["examples"] as unknown[])[0] : undefined
 	const enumerated = Array.isArray(schema["enum"]) ? (schema["enum"] as unknown[])[0] : undefined
-	const value = [
-		param["example"],
-		fromNamed,
-		listed,
-		schema["example"],
-		schema["const"],
-		enumerated,
-		schema["default"],
-	].find((candidate) => candidate !== undefined && candidate !== null && typeof candidate !== "object")
-	return value === undefined ? undefined : String(value)
+	return [param["example"], fromNamed, listed, schema["example"], schema["const"], enumerated, schema["default"]].find(
+		(candidate) => candidate !== undefined && candidate !== null,
+	)
+}
+
+/* Required parameters in one location and the value the document declares for each, kept whole. */
+function readRequired(parameters: readonly ParameterObject[], where: ParamIn): Record<string, unknown> {
+	const out: Record<string, unknown> = {}
+	for (const param of parameters) {
+		if (param.in !== where || param.required !== true) continue
+		const value = declaredValue(param)
+		if (value !== undefined) out[param.name] = value
+	}
+	return out
 }
 
 /**
- * Required query parameters and the value the document declares for each. A parameter with no
- * declared value is left to the caller, never invented.
+ * Required query parameters and the value the document declares for each; an object or array is
+ * kept whole for its style to write. A parameter with no declared value is left to the caller,
+ * never invented.
  */
-export function readRequiredQuery(parameters: readonly ParameterObject[]): Record<string, string> {
-	const out: Record<string, string> = {}
+export function readRequiredQuery(parameters: readonly ParameterObject[]): Record<string, unknown> {
+	return readRequired(parameters, "query")
+}
+
+/* OAS 3.1 §4.8.12: a header parameter named Accept, Content-Type or Authorization is ignored. A
+ * credential header is the operation's security to send, never a parameter's example. */
+const IGNORED_HEADERS: ReadonlySet<string> = /* @__PURE__ */ new Set(["accept", "content-type", ...CREDENTIAL_HEADERS])
+
+/**
+ * Required header parameters and their declared values. Never the idempotency key, which the run
+ * mints per request, nor a header OAS ignores or a credential carries.
+ */
+export function readRequiredHeaders(op: OperationObject): Record<string, unknown> {
+	const key = idempotencyHeader(op)
+	const all = readRequired(op.parameters ?? [], "header")
+	return Object.fromEntries(
+		Object.entries(all).filter(([name]) => name !== key && !IGNORED_HEADERS.has(name.toLowerCase())),
+	)
+}
+
+/** Required cookie parameters and their declared values. */
+export function readRequiredCookies(parameters: readonly ParameterObject[]): Record<string, unknown> {
+	return readRequired(parameters, "cookie")
+}
+
+/* What OAS writes a parameter as when it says nothing: form exploded in query and cookie, else simple. */
+const defaultStyle = (where: ParamIn): string => (where === "query" || where === "cookie" ? "form" : "simple")
+
+/* The parts of `param`'s declared style that differ from its location's default, or null when none do. */
+function styleOf(param: ParameterObject): ParamStyle | null {
+	const out: ParamStyle = {}
+	const declared = typeof param["style"] === "string" ? param["style"] : undefined
+	const style = declared ?? defaultStyle(param.in)
+	if (style !== defaultStyle(param.in)) out.style = style
+	const explode = param["explode"]
+	if (typeof explode === "boolean" && explode !== (style === "form")) out.explode = explode
+	if (param["allowReserved"] === true) out.allowReserved = true
+	return Object.keys(out).length === 0 ? null : out
+}
+
+/** Each parameter's style, explode and allowReserved where they differ from the OAS default. */
+export function readParamStyles(parameters: readonly ParameterObject[]): ParamStyles {
+	const out: ParamStyles = {}
 	for (const param of parameters) {
-		if (param.in !== "query" || param.required !== true) continue
-		const value = declaredValue(param)
-		if (value !== undefined) out[param.name] = value
+		const style = styleOf(param)
+		if (style !== null) (out[param.in] ??= {})[param.name] = style
 	}
 	return out
 }

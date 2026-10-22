@@ -85,6 +85,12 @@ export const TAG_REMEDY: Record<string, string> = {
 	"x-effects": "declare create/append/delete with count or min, not both",
 	"x-rate-limit": "declare the rate each category is held to, so a stricter real limit is reported",
 	"x-unique": "declare the column sets that must stay unique so a 409 duplicate can be scored",
+	/* What the document declares but oat never calls: no declaration closes these. */
+	webhooks: "not tested: oat makes no inbound or follow-up calls",
+	callbacks: "not tested: oat makes no inbound or follow-up calls",
+	links: "not tested: oat makes no inbound or follow-up calls",
+	additionalOperations: "not tested: oat sends only the methods OpenAPI fixes on a path item",
+	TRACE: "not tested: fetch cannot send TRACE",
 }
 
 /** The tags the document declares somewhere, as far as `TAG_UNLOCKS` and `TAG_SHARPENS` ask. */

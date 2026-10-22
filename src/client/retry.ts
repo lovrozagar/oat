@@ -13,6 +13,7 @@ import {
 	UNAVAILABLE_WAIT_BUDGET_MS,
 } from "../runtime/rate-limit/retry-after.ts"
 import { headerValue } from "../runtime/headers.ts"
+import { BODILESS_READS, IDEMPOTENT } from "../spec/methods.ts"
 import type { NetworkClientOptions } from "./types.ts"
 
 /** How long one request may take across every attempt and wait, unless configured. */
@@ -20,10 +21,8 @@ export const DEFAULT_DEADLINE_MS = 10 * 60_000
 
 /** Failures that prove the request never reached the server. */
 const NEVER_SENT: ReadonlySet<NetworkKind> = /* @__PURE__ */ new Set(["offline", "dns", "refused", "unreachable"])
-const IDEMPOTENT: ReadonlySet<string> = /* @__PURE__ */ new Set(["GET", "HEAD", "OPTIONS", "PUT", "DELETE"])
 /* Statuses a gateway answers on its own; a read that met one is asked once more. */
 const GATEWAY_STATUSES: ReadonlySet<number> = /* @__PURE__ */ new Set([502, 503, 504])
-const READ_METHODS: ReadonlySet<string> = /* @__PURE__ */ new Set(["GET", "HEAD"])
 
 /** One request's network policy: how it may be resent, and until when. */
 export interface Resending {
@@ -121,10 +120,10 @@ async function afterUnavailable(first: Exchange, retry: StatusRetry): Promise<Ex
 }
 
 /* A gateway in front of the API answers 502, 503 or 504 now and then without the request reaching
- * it. A read is safe to ask again: once, after a pause. A status that persists stands, and a write
- * is never repeated. */
+ * it. A read with no body is safe to ask again: once, after a pause. A status that persists stands,
+ * and a write is never repeated. */
 async function afterGateway(exchange: Exchange, retry: StatusRetry): Promise<Exchange> {
-	if (!GATEWAY_STATUSES.has(exchange.status) || !READ_METHODS.has(retry.method)) return exchange
+	if (!GATEWAY_STATUSES.has(exchange.status) || !BODILESS_READS.has(retry.method)) return exchange
 	await sleep(GATEWAY_RETRY_MS)
 	return retry.again(exchange)
 }

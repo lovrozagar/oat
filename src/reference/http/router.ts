@@ -1,5 +1,6 @@
 /** One request in, one answer out: the fixed routes in order, then the entity model's. */
 
+import { SAFE } from "../../spec/methods.ts"
 import { assertParents, assertTenant } from "./access.ts"
 import { authenticate } from "./auth/credentials.ts"
 import { errorResponse, HttpError } from "./errors.ts"
@@ -12,6 +13,8 @@ import { document, health, me, notices, overview, type Route } from "./handlers/
 import { accept, invite, revoke } from "./handlers/grants.ts"
 import { read, remove, update } from "./handlers/item.ts"
 import { list } from "./handlers/list.ts"
+import { search } from "./handlers/query-route.ts"
+import { styles } from "./handlers/styles.ts"
 import { matchRoute } from "./routes.ts"
 import type { ReferenceState } from "./state.ts"
 import { advanceJobs, typedScope } from "./store-ops.ts"
@@ -39,6 +42,8 @@ const FIXED: readonly Route[] = [
 	logout,
 	overview,
 	me,
+	styles,
+	search,
 ]
 
 /** The answer to `request`; a refusal or failure is an answer too. */
@@ -72,7 +77,7 @@ async function entityRoute(state: ReferenceState, request: ReferenceRequest): Pr
 	if (match === null) throw new HttpError(404, "not_found", `no route for ${url.pathname}`)
 	const { entity } = match
 	/* A record route takes a bearer JWT, or an API key holding the entity's read or write scope. */
-	const access = method === "GET" ? "read" : "write"
+	const access = SAFE.has(method) ? "read" : "write"
 	const principal = authenticate(state, request, {
 		projectId: match.scope.project_id,
 		scope: `${entity.name}:${access}`,

@@ -111,6 +111,15 @@ describe("defectsFor", () => {
 		expect(leaks).toEqual([])
 	})
 
+	it("runs a store- and dialect-blind defect once: in memory, under PostgREST", () => {
+		const where = BACKENDS.flatMap((backend) =>
+			Object.keys(DIALECTS)
+				.filter((dialect) => defectsFor(backend, dialect).includes("DISCRIMINATOR_BRANCH_WRONG"))
+				.map((dialect) => `${backend}/${dialect}`),
+		)
+		expect(where).toEqual(["memory/postgrest"])
+	})
+
 	it("keeps each shape-bound defect where its shape has the feature", () => {
 		const everywhere = new Set(
 			BACKENDS.flatMap((backend) => Object.keys(DIALECTS).flatMap((dialect) => defectsFor(backend, dialect))),

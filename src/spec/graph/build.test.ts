@@ -148,6 +148,22 @@ describe("security on the model", () => {
 })
 
 describe("x-cleanup routes", () => {
+	it("records an operation oat never sends as a gap, and joins it to no entity", () => {
+		const model = modelOf({
+			"/v1/notes": { get: { operationId: "notes.list", responses: ok(list(member)) } },
+			"/v1/notes/{note_id}": {
+				get: { operationId: "notes.get", responses: ok(member) },
+				trace: { operationId: "notes.trace", responses: ok(member), "x-entity": { action: "read", name: "note" } },
+			},
+		})
+		const trace = model.byOperationId.get("notes.trace")
+		expect(trace).toMatchObject({ action: null, entity: null })
+		expect(model.entities.get("note")).toMatchObject({ read: "notes.get", reads: ["notes.get"] })
+		expect(model.gaps.gaps.filter((gap) => gap.tag === "TRACE")).toEqual([
+			{ detail: trace?.unsendable, operationId: "notes.trace", tag: "TRACE" },
+		])
+	})
+
 	it("reports a cleanup route the document does not have, and not one it has", () => {
 		const purge = { post: { operationId: "notes.purge", responses: { "204": { description: "gone" } } } }
 		const model = modelOf({

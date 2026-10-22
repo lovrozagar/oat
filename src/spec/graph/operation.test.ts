@@ -31,6 +31,7 @@ const FIELDS = [
 	"invalidates",
 	"rateLimit",
 	"isMutation",
+	"unsendable",
 	"method",
 	"operationId",
 	"path",
@@ -41,7 +42,12 @@ const FIELDS = [
 	"conventions",
 	"queryParamNames",
 	"requiredQuery",
+	"requiredHeaders",
+	"requiredCookies",
+	"paramStyles",
 	"idempotencyHeader",
+	"etag",
+	"ifMatch",
 	"rootParams",
 	"route",
 	"securitySchemes",
@@ -93,6 +99,50 @@ describe("modelOperation", () => {
 			route: "POST /notes",
 			securitySchemes: ["jwt"],
 		})
+	})
+})
+
+describe("modelOperation methods", () => {
+	it("reads QUERY as a read, and flags TRACE as never sent with the reason", () => {
+		const { operations } = operationsOf({
+			"/search": { query: { operationId: "search" }, trace: { operationId: "echo" } },
+		})
+		const [echo, search] = operations
+		expect(search).toMatchObject({ isMutation: false, method: "QUERY", unsendable: null })
+		expect(echo).toMatchObject({ isMutation: false, method: "TRACE" })
+		expect(echo?.unsendable).toMatch(/^fetch refuses TRACE/)
+	})
+})
+
+describe("modelOperation preconditions", () => {
+	it("reads an ETag a success response declares and the If-Match header the operation takes, by any case", () => {
+		const { operations } = operationsOf({
+			"/notes/{id}": {
+				get: { operationId: "notes.get", responses: { "200": { description: "ok", headers: { etag: {} } } } },
+				patch: {
+					operationId: "notes.update",
+					parameters: [{ in: "header", name: "if-match", schema: { type: "string" } }],
+					responses: { "200": { description: "ok" }, "412": { description: "stale", headers: { ETag: {} } } },
+				},
+				put: {
+					operationId: "notes.replace",
+					parameters: [{ in: "query", name: "If-Match" }],
+					responses: { "200": { description: "ok", headers: { "X-ETag": {} } } },
+				},
+			},
+			"/tags/{id}": {
+				get: { operationId: "tags.get", responses: { "2XX": { description: "ok", headers: { ETag: {} } } } },
+				patch: { operationId: "tags.update", responses: { default: { description: "any", headers: { ETag: {} } } } },
+			},
+		})
+		const byId = new Map(operations.map((operation) => [operation.operationId, operation]))
+		expect(byId.get("notes.get")).toMatchObject({ etag: true, ifMatch: null })
+		/* A 412's ETag is not a success's, and only a header parameter is a precondition. */
+		expect(byId.get("notes.update")).toMatchObject({ etag: false, ifMatch: "if-match" })
+		expect(byId.get("notes.replace")).toMatchObject({ etag: false, ifMatch: null })
+		/* A success range is a success response; `default` is not. */
+		expect(byId.get("tags.get")?.etag).toBe(true)
+		expect(byId.get("tags.update")?.etag).toBe(false)
 	})
 })
 

@@ -3,9 +3,11 @@ import { tmpdir } from "node:os"
 import { join, relative } from "node:path"
 import { pathToFileURL } from "node:url"
 import { describe, expect, it } from "vitest"
+import { dereference } from "./dereference.ts"
 import { loadSpec } from "./source.ts"
 
 const DOC = { info: { title: "t", version: "1" }, openapi: "3.1.0", paths: {} }
+const SPLIT = join(import.meta.dirname, "__fixtures__", "split", "openapi.yaml")
 
 async function file(name: string, text: string): Promise<string> {
 	const dir = await mkdtemp(join(tmpdir(), "oat-load-"))
@@ -57,5 +59,26 @@ describe("loadSpec", () => {
 
 	it("passes on a read failure other than a missing file", async () => {
 		await expect(loadSpec(tmpdir())).rejects.toMatchObject({ code: "EISDIR" })
+	})
+})
+
+describe("loadSpec and the files a document refers to", () => {
+	it("reads the files a document on disk refers to, so no ref is left external", async () => {
+		for (const source of [SPLIT, relative(process.cwd(), SPLIT), pathToFileURL(SPLIT).toString()]) {
+			const { doc, externalRefs } = dereference(await loadSpec(source))
+			expect(externalRefs).toEqual([])
+			expect(doc).toMatchObject({ paths: { "/pets/{id}": { get: { operationId: "pets.read" } } } })
+		}
+	})
+
+	it("leaves every ref of a fetched document unfetched, and reports it", async () => {
+		const response = {
+			content: { "application/json": { schema: { $ref: "schemas/pet.yaml#/Pet" } } },
+			description: "x",
+		}
+		const doc = { ...DOC, paths: { "/x": { get: { responses: { "200": response } } } } }
+		const fetchText = async (): Promise<string> => JSON.stringify(doc)
+		const { externalRefs } = dereference(await loadSpec("https://api.test/openapi.json", { fetchText }))
+		expect(externalRefs).toEqual(["schemas/pet.yaml#/Pet"])
 	})
 })

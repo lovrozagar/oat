@@ -10,6 +10,7 @@
  */
 
 import type { Exchange } from "../runtime/exchange.ts"
+import { READS } from "../spec/methods.ts"
 import type { RequestOptions } from "./types.ts"
 
 /** A read that accepted a principal's credential: what a control sends again. */
@@ -38,8 +39,6 @@ export interface Controls {
 	/** Sends the control for a refused, freshly renewed value, once per value; blocks the pair when it is refused too. */
 	confirm(sent: Sent, send: (read: ControlRead) => Promise<Exchange>): Promise<void>
 }
-
-const READS: ReadonlySet<string> = /* @__PURE__ */ new Set(["GET", "HEAD", "QUERY"])
 
 const pairOf = (principal: string, scheme: string): string => `${principal}\u0000${scheme}`
 

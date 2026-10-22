@@ -9,9 +9,9 @@ import type { NetworkError } from "../errors/network.ts"
 import type { RateLimiter } from "../runtime/rate-limit/limiter.ts"
 import type { Actor, CredentialSource } from "./credential-source.ts"
 import type { SpoolOptions } from "../runtime/transcript/spool.ts"
+import type { ParamStyles } from "../spec/graph/parameters.ts"
 
-/** Methods that cannot change server state. */
-export type SafeMethod = "GET" | "HEAD" | "OPTIONS"
+export type { SafeMethod } from "../spec/methods.ts"
 
 /** Who is asking, and why: carried onto every exchange a view sends. */
 export interface ExchangeContext {
@@ -34,7 +34,12 @@ export interface ResolvedOperation {
 	template: string
 	entity?: string | null
 	redirects?: boolean
-	requiredQuery?: Record<string, string>
+	/** Required parameters the request is sent with unless it sets them: the document's values. */
+	requiredQuery?: Record<string, unknown>
+	requiredHeaders?: Record<string, unknown>
+	requiredCookies?: Record<string, unknown>
+	/** How each parameter is written, where the document says other than the OAS default. */
+	paramStyles?: ParamStyles
 	pathParams?: Record<string, string>
 }
 
@@ -68,8 +73,11 @@ export interface RequestOptions {
 	probe?: boolean
 	/** Non-credential headers only: one under a name the credential is placed in is a `CredentialCollision`. */
 	headers?: Record<string, string> | (() => Record<string, string>)
-	/** An array is sent as the parameter repeated once per item, in order. */
-	query?: Record<string, string | number | readonly (string | number)[] | undefined>
+	/**
+	 * Each value is written in the style the resolved operation declares for it; by default an array
+	 * repeats the parameter once per item, in order, and an object spreads its keys.
+	 */
+	query?: Record<string, unknown>
 	/** Plain object (JSON), FormData, URLSearchParams, or any BodyInit. */
 	body?: unknown
 	/**

@@ -6,8 +6,9 @@
 
 import type { SpecModel } from "../../spec/graph/types.ts"
 import { type DoctorConfig, type DoctorFacts, doctorFacts } from "./doctor-facts.ts"
-import { authLines, catalogLines, envelopeLines, externalRefLines, gapLines } from "./doctor-notes.ts"
+import { authLines, catalogLines, envelopeLines } from "./doctor-notes.ts"
 import { declarationLines, entityLines, summaryLines, tagLines } from "./doctor-text.ts"
+import { externalRefLines, gapLines } from "./gaps.ts"
 
 /** How `doctor` reports: the external refs the document named, JSON or text, and the config beside it. */
 export interface DoctorOptions {

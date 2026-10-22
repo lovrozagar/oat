@@ -174,3 +174,50 @@ describe("normalizeSchema for an ordinary writer", () => {
 		})
 	})
 })
+
+describe("normalizeSchema discriminator", () => {
+	const KEY = "x-oat-discriminator"
+	const cat: SchemaObject = { properties: { kind: { type: "string" }, meow: { type: "boolean" } }, type: "object" }
+	const dog: SchemaObject = { properties: { bark: { type: "boolean" } }, required: ["bark"], type: "object" }
+	const tags = { propertyName: "kind", values: [["cat", "kitty"], ["dog"]] }
+
+	it("pins each branch's tag to its values and requires it, in both directions", () => {
+		const schema = { discriminator: { propertyName: "kind" }, oneOf: [cat, dog], [KEY]: tags }
+		const expected = {
+			oneOf: [
+				{
+					properties: { kind: { enum: ["cat", "kitty"], type: "string" }, meow: { type: "boolean" } },
+					required: ["kind"],
+					type: "object",
+				},
+				{
+					properties: { bark: { type: "boolean" }, kind: { enum: ["dog"] } },
+					required: ["bark", "kind"],
+					type: "object",
+				},
+			],
+		}
+		expect(normalizeSchema(schema, response)).toEqual(expected)
+		expect(normalizeSchema(schema, request)).toEqual(expected)
+		/* The branches themselves, reached elsewhere, are left as they are. */
+		expect((normalizeSchema({ items: [cat, schema] }, response).prefixItems as unknown[])[0]).toEqual(cat)
+	})
+
+	it("tags an anyOf, a branch that is a ref, and keeps a tag already required", () => {
+		const ref = { $ref: "oat-defs#/$defs/Cat", required: ["kind"] }
+		const schema = { anyOf: [ref, false], [KEY]: { propertyName: "kind", values: [["cat"], ["dog"]] } }
+		expect(normalizeSchema(schema, response)).toEqual({
+			anyOf: [{ $ref: "oat-defs#/$defs/Cat", properties: { kind: { enum: ["cat"] } }, required: ["kind"] }, false],
+		})
+	})
+
+	it("leaves the union open when the tag does not travel in this direction, or the record does not fit", () => {
+		const hidden = { properties: { kind: { readOnly: true, type: "string" } } }
+		const schema = { oneOf: [cat, dog], [KEY]: tags }
+		expect(normalizeSchema({ ...schema, ...hidden }, request).oneOf).toEqual([cat, dog])
+		expect((normalizeSchema({ oneOf: [hidden, dog], [KEY]: tags }, request).oneOf as unknown[])[1]).toEqual(dog)
+		expect(normalizeSchema({ oneOf: [cat], [KEY]: tags }, response).oneOf).toEqual([cat])
+		expect(normalizeSchema({ oneOf: [cat, dog], [KEY]: { propertyName: 1 } }, response).oneOf).toEqual([cat, dog])
+		expect(normalizeSchema({ [KEY]: tags }, response)).toEqual({})
+	})
+})

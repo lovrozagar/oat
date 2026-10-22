@@ -529,12 +529,12 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&q=Quarterly&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&q=Quarterly%20aaa&page=1"
             },
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&q=Quarterly+aaa&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&q=Quarterly&page=1"
             },
             {
               "method": "GET",
@@ -556,12 +556,12 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&q=Quarterly&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&q=Quarterly%20aaa&page=1"
             },
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&q=Quarterly+aaa&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&q=Quarterly&page=1"
             },
             {
               "method": "GET",
@@ -583,12 +583,12 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&q=Quarterly&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&q=Quarterly%20aaa&page=1"
             },
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&q=Quarterly+aaa&page=1"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&q=Quarterly&page=1"
             },
             {
               "method": "GET",
