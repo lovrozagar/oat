@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process"
 import { importGraph } from "../support/import-graph.ts"
+import { packedManifests } from "../support/npm-pack.ts"
 import { ENTRY_POINTS } from "../support/coverage-scope.ts"
 import { unshipped } from "../support/shipped.ts"
 import { existsSync, readdirSync, readFileSync } from "node:fs"
@@ -92,8 +93,8 @@ describe("layout", () => {
 			cwd: ROOT,
 			encoding: "utf8",
 		})
-		/* npm 10 prints an array of manifests, npm 12 an object keyed by name. */
-		const manifests = Object.values(JSON.parse(packed.stdout) as object) as Array<{ files: Array<{ path: string }> }>
+		const manifests = packedManifests(packed.stdout)
+		expect(manifests).toHaveLength(1)
 		const shipped = manifests.flatMap((manifest) => manifest.files.map((file) => file.path))
 		expect(shipped.length).toBeGreaterThan(0)
 		expect(shipped.filter((path) => /\.test\.|__fixtures__|^tests\/|^lint\//.test(path))).toEqual([])
