@@ -1,15 +1,27 @@
 import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
+import type { Exchange } from "../../../exchange.ts"
+import { fillPath } from "../../../fill-path.ts"
 import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
 import { headerValue } from "../../../headers.ts"
-import { createdRecordOf } from "../../../created-id.ts"
+import { createdRecordOf, resolveCreatedId } from "../../../created-id.ts"
 import { type Record_ } from "../../../world/records.ts"
+import type { CheckContext } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
+import { readRecord } from "../../isolation/scratch.ts"
 import { createExchange, requestSchemaOf } from "../../payloads/body.ts"
-import { subjectsOf } from "../../planning/subjects.ts"
+import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
 import type { JsonSchema } from "../../../../spec/types.ts"
 
+/**
+ * A create must persist what it was sent. The record read back through the item read, by the id the
+ * create answered (or the client chose), is what was stored; an echoed record speaks for the create
+ * too. A field counts as dropped only when neither holds it as sent: an echo that leaves a field
+ * out is not a lost write once the read shows it, and a read that leaves out what the create echoed
+ * is a read-side disagreement, judged by `consistency.projections-agree`. An acknowledgement-only
+ * create, with no record to read back, gives nothing to judge.
+ */
 export const createPersistsFields: Check<{
 	createOp: OperationModel
 	properties: Record<string, JsonSchema>
@@ -19,8 +31,7 @@ export const createPersistsFields: Check<{
 }>({
 	plan: (ctx) => {
 		const createOp = ctx.createOp
-		/* An acknowledgement-only create never echoes the record: nothing to compare. */
-		if (createOp === undefined || ctx.records.length === 0 || ctx.createAcknowledged) return cannot()
+		if (createOp === undefined || ctx.records.length === 0) return cannot()
 		const schema = requestSchemaOf(ctx, createOp)
 		const properties = (schema?.properties ?? {}) as Record<string, JsonSchema>
 		return ready({ createOp, properties })
@@ -28,38 +39,85 @@ export const createPersistsFields: Check<{
 	dependsOn: ["list.read-after-write"],
 	id: "create.persists-submitted-fields",
 	judgesTranscript: true,
-	needs: "a create operation that echoes the record back",
+	needs: "a create operation that echoes the record back, or an item read to read it back by",
 	subjects: subjectsOf.create,
-	async run(ctx, { properties }): Promise<Outcome> {
+	async run(ctx, { createOp, properties }): Promise<Outcome> {
 		const sent = await createExchange(ctx)
 		if (sent === undefined || sent.requestBody === undefined)
 			return ctx.findings.unresolved(this.id, ctx.entityName, "no create request body was observed")
 		const request = submittedFields(sent.requestBody, headerValue(sent.requestHeaders, "content-type"), properties)
 		if (Object.keys(request).length === 0) return standDown("the create body was empty")
-		const response = createdRecordOf(sent.responseBody ?? {}, ctx.identity, request)
-
-		const dropped = Object.entries(request).filter(([key, value]) => {
-			if (value === null || value === undefined) return false
+		const echoed = createdRecordOf(sent.responseBody ?? {}, ctx.identity, request)
+		const back = await readBack(ctx, createOp, sent, request)
+		const judged = Object.entries(request).filter(
 			/* A writeOnly field is accepted and never returned — a password, a secret. */
-			if (properties[key]?.writeOnly === true) return false
-			if (!Object.hasOwn(response, key)) return true
-			return JSON.stringify(response[key]) !== JSON.stringify(value)
-		})
+			([key, value]) => value !== null && value !== undefined && properties[key]?.writeOnly !== true,
+		)
+		/* The create echoed a record when the answer holds a submitted field beyond the identity. */
+		const echoes = judged.some(([key]) => key !== ctx.identity && Object.hasOwn(echoed, key))
+		if (back.record === undefined && !echoes)
+			return standDown(`${createOp.operationId} answered an acknowledgement, not the record, and ${back.why}`)
+
+		const dropped = judged.filter((field) => !holds(echoed, field) && !(back.record && holds(back.record, field)))
 		if (dropped.length === 0) return ASSERTED
 
+		/* A dropped field is missing from the echo too, so an echoing create is reported by its echo. */
+		const read = echoes || back.record === undefined ? undefined : back
+		const shown = read?.record ?? echoed
+		const where =
+			read === undefined ? "the create response does not carry back" : `the record ${read.via} does not hold`
 		return ctx.findings.backend(this.id, ctx.entityName, {
 			summary: "create silently discards submitted fields",
 			detail:
-				`the create response does not carry back ${dropped.length} submitted field(s): ` +
+				`${where} ${dropped.length} submitted field(s): ` +
 				dropped
 					.slice(0, 4)
-					.map(([key, value]) => `${key} sent ${JSON.stringify(value)}, got ${JSON.stringify(response[key])}`)
+					.map(([key, value]) => `${key} sent ${JSON.stringify(value)}, got ${JSON.stringify(shown[key])}`)
 					.join("; ") +
 				". A write that reports success and drops data is worse than one that fails.",
-			evidence: [sent],
+			evidence: back.exchange === undefined ? [sent] : [sent, back.exchange],
 		})
 	},
 })
+
+/** Whether `record` holds the submitted field as it was sent. */
+function holds(record: Record_, [key, value]: [string, unknown]): boolean {
+	return Object.hasOwn(record, key) && JSON.stringify(record[key]) === JSON.stringify(value)
+}
+
+/** The created record as the item read shows it, or why there is none. */
+type ReadBack =
+	| { record: Record_; via: string; exchange: Exchange }
+	| { record?: undefined; why: string; exchange?: Exchange }
+
+/** The id the create answered, or the one the client chose; read back through the item read. */
+async function readBack(
+	ctx: CheckContext,
+	createOp: OperationModel,
+	sent: Exchange,
+	request: Record_,
+): Promise<ReadBack> {
+	const readOp = ctx.readOp
+	if (readOp === undefined) return { why: "the entity has no item read to read it back by" }
+	const chosen = request[ctx.identity]
+	const id =
+		resolveCreatedId({
+			body: sent.responseBody ?? {},
+			entity: ctx.entityName,
+			identity: ctx.identity,
+			sent: request,
+			source: { createdIdFrom: createOp.createdIdFrom, recordPath: createOp.recordPath },
+		})?.value ?? (typeof chosen === "string" || typeof chosen === "number" ? chosen : undefined)
+	if (id === undefined) return { why: "named no id to read it back by" }
+	const exchange = await ctx.client.get(fillPath(readOp.path, { ...ctx.scope, ...itemParamFor(ctx, String(id)) }), {
+		as: { principal: ctx.actor.id },
+		operationId: readOp.operationId,
+	})
+	const record = exchange.status >= 200 && exchange.status < 300 ? readRecord(readOp, exchange) : undefined
+	if (record === undefined)
+		return { exchange, why: `${readOp.operationId} answered ${exchange.status} for it under ${String(id)}` }
+	return { exchange, record, via: `${readOp.operationId} reads back under ${String(id)}` }
+}
 
 type FormEntry = [string, string]
 

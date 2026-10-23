@@ -29,7 +29,7 @@
     ],
     "mutates": false,
     "judgesTranscript": true,
-    "needs": "a create operation that echoes the record back"
+    "needs": "a create operation that echoes the record back, or an item read to read it back by"
   },
   {
     "id": "create.status-matches-document",

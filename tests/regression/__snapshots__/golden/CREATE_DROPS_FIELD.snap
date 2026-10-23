@@ -591,6 +591,11 @@
           ],
           "evidence": [
             {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID"
+            },
+            {
               "method": "POST",
               "status": 201,
               "url": "http://reference.test/v1/projects/proj_alpha/tables"

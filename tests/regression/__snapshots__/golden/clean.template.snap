@@ -2243,7 +2243,7 @@
       {
         "check": "create.persists-submitted-fields",
         "entity": "notice",
-        "needs": "a create operation that echoes the record back"
+        "needs": "a create operation that echoes the record back, or an item read to read it back by"
       },
       {
         "check": "create.status-matches-document",

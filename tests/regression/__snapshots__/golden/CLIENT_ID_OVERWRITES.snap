@@ -28,6 +28,7 @@
               "passed": [
                 "auth.rank-is-monotonic-on-writes",
                 "create.keeps-submitted-identity",
+                "create.persists-submitted-fields",
                 "create.status-matches-document",
                 "idempotency.replay-does-not-duplicate",
                 "list.read-after-write",
@@ -56,6 +57,7 @@
               "passed": [
                 "auth.rank-is-monotonic-on-writes",
                 "create.keeps-submitted-identity",
+                "create.persists-submitted-fields",
                 "create.status-matches-document",
                 "create.unique-conflict-rejected",
                 "idempotency.replay-does-not-duplicate",

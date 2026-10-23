@@ -99,11 +99,8 @@ export const SHAPES: readonly NamedShape[] = [
 	{ name: "uuid-ids", shape: { ids: "uuid" }, why: "UUID identifiers; a malformed one in a path is a 400" },
 	{ name: "integer-ids", shape: { ids: "integer" }, why: "integer identifiers; a malformed one in a path is a 400" },
 	{
-		cannotRun: {
-			"create.persists-submitted-fields": "the create answers an acknowledgement, not the record, so there is no echo",
-		},
-		/* CREATE_DROPS_FIELD: its check compares the create's echo, and there is none here; the lost
-		 * field instead fails the read-back that would confirm the record. */
+		/* CREATE_DROPS_FIELD: the lost field fails the read-back that would confirm the record, so
+		 * the seed stops before its check reads the record back. */
 		/* READ_DROPS_FIELD: an acknowledged create is confirmed by the read that drops the field, so
 		 * no record is ever confirmed and the seed stops before anything can be judged. */
 		cannotExhibit: ["CREATE_DROPS_FIELD", "READ_DROPS_FIELD"],

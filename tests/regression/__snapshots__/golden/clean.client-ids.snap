@@ -2248,12 +2248,7 @@
       {
         "check": "create.persists-submitted-fields",
         "entity": "notice",
-        "needs": "a create operation that echoes the record back"
-      },
-      {
-        "check": "create.persists-submitted-fields",
-        "entity": "table",
-        "needs": "a create operation that echoes the record back"
+        "needs": "a create operation that echoes the record back, or an item read to read it back by"
       },
       {
         "check": "create.status-matches-document",
@@ -4023,6 +4018,7 @@
             "passed": [
               "auth.rank-is-monotonic-on-writes",
               "create.keeps-submitted-identity",
+              "create.persists-submitted-fields",
               "create.status-matches-document",
               "create.unique-conflict-rejected",
               "idempotency.replay-does-not-duplicate",
@@ -5439,8 +5435,8 @@
         },
         {
           "check": "create.persists-submitted-fields",
-          "ran": 4,
-          "skipped": 2
+          "ran": 5,
+          "skipped": 1
         },
         {
           "check": "create.status-matches-document",
