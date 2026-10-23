@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { setTimeout as wait } from "node:timers/promises"
 import { describe, expect, it } from "vitest"
 import type { ProgressSnapshot } from "../../runtime/progress/types.ts"
 import { bufferWriter } from "../writer.ts"
@@ -21,10 +20,19 @@ const snap = (extra: Partial<ProgressSnapshot>): ProgressSnapshot => ({
 })
 
 async function closed(progress: ReturnType<typeof runProgress>): Promise<void> {
-	progress.close()
-	/* The streams finish writing on the next turns of the loop. */
-	await wait(20)
+	await progress.close()
 }
+
+describe("runProgress closing", () => {
+	it("resolves close once every file is written and shut, so the folder can be removed at once", async () => {
+		const dir = folder()
+		const progress = runProgress(bufferWriter(), dir, { quiet: true, startedAt: Date.now() })
+		progress.onProgress(snap({ message: "openapi.json" }))
+		await progress.close()
+		expect(readFileSync(join(dir, "progress.jsonl"), "utf8").trim().split("\n")).toHaveLength(1)
+		expect(readFileSync(join(dir, "progress.tsv"), "utf8").split("\n")[0]).toContain("\t")
+	})
+})
 
 describe("runProgress", () => {
 	it("writes every move to the run folder and the terminal", async () => {

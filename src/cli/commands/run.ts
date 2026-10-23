@@ -124,12 +124,16 @@ async function started(writer: Writer, start: Start): Promise<number> {
 		result = await deps.run(options)
 	} catch (error) {
 		const code = refused(writer, error)
-		/* Nothing ran: no folder for it, and `latest` stays where it was. */
-		if (code === EXIT.usage) await allocated.rollback()
+		/* Nothing ran: no folder for it, and `latest` stays where it was. The files close first, or
+		 * one still flushing would land in the folder as it is removed. */
+		if (code === EXIT.usage) {
+			await progress.close()
+			await allocated.rollback()
+		}
 		return code
 	} finally {
 		stop.dispose()
-		progress.close()
+		await progress.close()
 	}
 	const finished: Finished = {
 		baseUrl: options.baseUrl,

@@ -1,4 +1,5 @@
 import { createWriteStream, writeFileSync } from "node:fs"
+import { finished } from "node:stream/promises"
 import { resolve } from "node:path"
 import { createProgressPrinter, createProgressPump } from "../../runtime/progress/pump.ts"
 import { formatProgressJsonl, formatProgressLine, formatProgressTsv } from "../../runtime/progress/format.ts"
@@ -9,7 +10,8 @@ import type { Writer } from "../writer.ts"
 /** Where a run's live status goes, and how it is closed once the run ends. */
 export interface RunProgressOut {
 	onProgress(snap: ProgressSnapshot): void
-	close(): void
+	/** Stops the status and shuts the files: resolved once every one is written, however often it is called. */
+	close(): Promise<void>
 }
 
 /** How often `progress.json`, the one file read while the run goes on, is rewritten. */
@@ -41,13 +43,15 @@ export function runProgress(writer: Writer, outDir: string, { quiet, startedAt }
 		lastJsonAt = now
 		writeFileSync(resolve(outDir, "progress.json"), `${JSON.stringify(current(snap, now), null, 2)}\n`)
 	})
+	let closing: Promise<void> | undefined
 	return {
 		close: () => {
-			stderr?.stop()
-			files.stop()
-			log.end()
-			tsv.end()
-			jsonl.end()
+			closing ??= (() => {
+				stderr?.stop()
+				files.stop()
+				return Promise.all([log, tsv, jsonl].map((stream) => finished(stream.end()))).then(() => undefined)
+			})()
+			return closing
 		},
 		onProgress: (snap) => {
 			stderr?.emit(snap)
