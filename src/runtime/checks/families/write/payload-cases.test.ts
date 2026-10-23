@@ -64,6 +64,8 @@ describe("pickPayloadField", () => {
 			nothing: null,
 			owner_id: { type: "string" },
 			secret: { readOnly: true, type: "string" },
+			/* Taken and never returned: no read could show it survived. */
+			sealed: { type: "string", writeOnly: true },
 			stamp: { type: "string" },
 			status: { enum: ["a"], type: "string" },
 			tiny: { maxLength: 7, type: "string" },

@@ -44,6 +44,8 @@ function isNullable(propertySchema: JsonSchema, union: unknown): boolean {
  * be one. A readOnly property never reaches here: `untouchableFields` withholds it.
  */
 function payloadCandidate(name: string, propertySchema: JsonSchema): (PayloadField & { score: number }) | null {
+	/* A server takes a writeOnly field and never returns it: no read could show a payload survived. */
+	if (propertySchema.writeOnly === true) return null
 	const union = propertySchema.oneOf ?? propertySchema.anyOf
 	const stringSchema = unionBranchOf(union, "string") ?? propertySchema
 	if (!isUnconstrainedString(stringSchema)) return null
