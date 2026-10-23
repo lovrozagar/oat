@@ -4,6 +4,7 @@
  * one, so the client, the transcript and the journal share a shape without importing each other.
  */
 
+import { isRaw } from "../config/types/raw.ts"
 import type { NetworkKind } from "../errors/network.ts"
 import type { RedirectHop } from "./cookies/redirect.ts"
 
@@ -106,8 +107,8 @@ export interface FormSnapshot {
 }
 
 export function isBodyRef(value: unknown): value is BodyRef {
-	if (value === null || typeof value !== "object" || Array.isArray(value)) return false
-	const rec = value as Record<string, unknown>
+	if (!isRaw<BodyRef>(value)) return false
+	const rec = value
 	if (typeof rec.sha256 !== "string" || typeof rec.bytes !== "number" || typeof rec.mediaType !== "string") {
 		return false
 	}
@@ -118,10 +119,8 @@ export function isBodyRef(value: unknown): value is BodyRef {
 }
 
 export function isFormSnapshot(value: unknown): value is FormSnapshot {
-	if (value === null || typeof value !== "object" || Array.isArray(value)) return false
-	const rec = value as { parts?: unknown }
-	if (!Array.isArray(rec.parts)) return false
-	return Object.keys(rec).every((key) => key === "parts")
+	if (!isRaw<FormSnapshot>(value) || !Array.isArray(value.parts)) return false
+	return Object.keys(value).every((key) => key === "parts")
 }
 
 export function isFormData(body: unknown): body is FormData {

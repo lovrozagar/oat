@@ -5,6 +5,8 @@
  * the requests that prove it, so trust in a result never rests on a count.
  */
 
+import type { JournalIndexLine } from "../runtime/exchanges/journal.ts"
+import type { RawOf } from "../config/types/raw.ts"
 import type { OperationCoverage, ScopeReport } from "../runtime/scope/types.ts"
 
 export type ConfidenceKey = "failed" | "blocked" | "unproven" | "verified" | "complete"
@@ -145,7 +147,7 @@ export function exchangeFilesFromIndex(index: string): Map<number, string> {
 	for (const line of index.split("\n")) {
 		if (line.trim() === "") continue
 		try {
-			const entry = JSON.parse(line) as { file?: unknown; seq?: unknown }
+			const entry = JSON.parse(line) as RawOf<JournalIndexLine>
 			if (typeof entry.seq === "number" && typeof entry.file === "string") files.set(entry.seq, entry.file)
 		} catch {
 			/* a torn last line from an interrupted run */

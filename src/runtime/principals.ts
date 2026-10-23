@@ -12,6 +12,7 @@ import type { PrincipalEntry, PrincipalsConfig } from "../config/types/security.
 import type { HeldCredential } from "../credentials/store.ts"
 import { isSecretJsonKey } from "../security/credential-names.ts"
 import type { Redactor } from "../security/redact.ts"
+import type { RawOf } from "../config/types/raw.ts"
 
 /** A credential a principal held when the run ended: which, and until when, never its value. */
 export interface PersistedCredential {
@@ -114,14 +115,14 @@ export function keptCredentials(held: readonly HeldCredential[]): KeptCredential
 function listOf(parsed: unknown): unknown[] | null {
 	if (Array.isArray(parsed)) return parsed
 	if (parsed === null || typeof parsed !== "object") return null
-	const { principals } = parsed as PersistedPrincipalsFile
+	const { principals } = parsed as RawOf<PersistedPrincipalsFile>
 	return Array.isArray(principals) ? principals : null
 }
 
 /** One entry as an id and a config principal, or undefined when it has no id to go by. */
 function entryOf(item: unknown): [string, PrincipalEntry] | undefined {
 	if (item === null || typeof item !== "object") return undefined
-	const rec = item as Record<string, unknown>
+	const rec = item as RawOf<PersistedPrincipal>
 	if (typeof rec.id !== "string" || rec.id === "") return undefined
 	const identity = isObject(rec.identity) ? rec.identity : {}
 	const entry: PrincipalEntry = {

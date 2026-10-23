@@ -13,6 +13,7 @@ import { existsSync } from "node:fs"
 import { appendFile, mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import type { Redactor } from "../../security/redact.ts"
+import type { RedirectHop } from "../cookies/redirect.ts"
 import type { Exchange } from "../exchange.ts"
 import { createBlobStore } from "./blobs.ts"
 import { exchangeFileStem } from "./files.ts"
@@ -42,7 +43,25 @@ interface PersistedBodies {
 }
 
 /** The full exchange file: headers and URLs redacted, bodies as persisted. */
-function exchangeFile(exchange: Exchange, bodies: PersistedBodies, redactor: Redactor): Record<string, unknown> {
+export interface JournalExchangeFile {
+	at: number
+	durationMs: number
+	fixture?: string
+	finalUrl?: string
+	method: string
+	operationId?: string
+	requestBody: unknown
+	requestHeaders: Record<string, string>
+	requestId: string
+	responseBody: unknown
+	responseHeaders: Record<string, string>
+	redirects?: RedirectHop[]
+	seq: number
+	status: number
+	url: string
+}
+
+function exchangeFile(exchange: Exchange, bodies: PersistedBodies, redactor: Redactor): JournalExchangeFile {
 	return {
 		at: exchange.at,
 		durationMs: exchange.durationMs,
@@ -76,8 +95,25 @@ interface IndexMeta extends ExchangeMeta {
 }
 
 /** The exchange's line in `exchanges.jsonl`, pointing at its file. */
-function indexLine(exchange: Exchange, meta: IndexMeta, redactor: Redactor): Record<string, unknown> {
-	const line: Record<string, unknown> = {
+export interface JournalIndexLine extends IndexMeta {
+	at: number
+	durationMs: number
+	method: string
+	requestBytes: number
+	requestId: string
+	responseBytes: number
+	seq: number
+	status: number
+	url: string
+	operationId?: string
+	fixture?: string
+	finalUrl?: string
+	/** How many redirects the exchange followed; the hops are in its file. */
+	redirects?: number
+}
+
+function indexLine(exchange: Exchange, meta: IndexMeta, redactor: Redactor): JournalIndexLine {
+	const line: JournalIndexLine = {
 		at: exchange.at,
 		durationMs: exchange.durationMs,
 		file: meta.file,

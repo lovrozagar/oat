@@ -1,5 +1,6 @@
 /** Transcript bodies past a memory budget, moved to disk and read back on request. */
 
+import type { RawOf } from "../../config/types/raw.ts"
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto"
 import { rmSync } from "node:fs"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
@@ -23,6 +24,9 @@ interface SpoolDir {
 	path: string
 	onExit: () => void
 }
+
+/** What a spool file holds: the two bodies of one exchange. */
+type SpooledBodies = Pick<Exchange, "requestBody" | "responseBody">
 
 /** Where a body went when it moved out of memory. */
 export interface SpooledBody {
@@ -77,10 +81,9 @@ export class BodySpool {
 		const seq = (isSpooledBody(exchange.responseBody) ? exchange.responseBody : exchange.requestBody) as SpooledBody
 		/* A marker exists only once a write has made the directory. */
 		const { path } = await (this.dir as Promise<SpoolDir>)
-		const saved = JSON.parse(this.open(await readFile(join(path, `${seq.spooled}.bin`)), seq.spooled)) as {
-			requestBody?: unknown
-			responseBody?: unknown
-		}
+		const saved: RawOf<SpooledBodies> = JSON.parse(
+			this.open(await readFile(join(path, `${seq.spooled}.bin`)), seq.spooled),
+		)
 		return { ...exchange, requestBody: saved.requestBody, responseBody: saved.responseBody }
 	}
 
@@ -104,7 +107,7 @@ export class BodySpool {
 
 	private async write(exchange: Exchange): Promise<void> {
 		const { path } = await (this.dir ??= this.#made())
-		const body = { requestBody: exchange.requestBody, responseBody: exchange.responseBody }
+		const body: SpooledBodies = { requestBody: exchange.requestBody, responseBody: exchange.responseBody }
 		await writeFile(join(path, `${exchange.seq}.bin`), this.seal(JSON.stringify(body)))
 		const marker: SpooledBody = { spooled: exchange.seq }
 		exchange.requestBody = exchange.requestBody === undefined ? undefined : marker

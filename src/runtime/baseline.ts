@@ -9,6 +9,7 @@
 
 import { UsageError } from "../errors/usage-error.ts"
 import { type Finding, isRootCause } from "./finding.ts"
+import type { RawOf } from "../config/types/raw.ts"
 
 export interface BaselineEntry {
 	check: string
@@ -27,17 +28,18 @@ export interface BaselineFile {
 
 const ENTRY_KEYS: ReadonlySet<string> = /* @__PURE__ */ new Set(["check", "entity", "operationId", "reason"])
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
+/** A plain object, read as `T` before any of its values is checked. */
+const isRaw = <T>(value: unknown): value is RawOf<T> =>
 	typeof value === "object" && value !== null && !Array.isArray(value)
 
 /** A baseline file, validated; `where` names it in the error. */
 export function parseBaseline(raw: unknown, where: string): BaselineFile {
-	if (!isRecord(raw)) throw new UsageError(`${where}: a baseline is { "version": 1, "entries": [...] }`)
+	if (!isRaw<BaselineFile>(raw)) throw new UsageError(`${where}: a baseline is { "version": 1, "entries": [...] }`)
 	if (raw.version !== 1) throw new UsageError(`${where}: version must be 1`)
 	if (!Array.isArray(raw.entries)) throw new UsageError(`${where}: entries must be an array`)
 	const entries = raw.entries.map((entry: unknown, index): BaselineEntry => {
 		const at = `${where}: entries[${index}]`
-		if (!isRecord(entry)) throw new UsageError(`${at} must be an object`)
+		if (!isRaw<BaselineEntry>(entry)) throw new UsageError(`${at} must be an object`)
 		for (const key of Object.keys(entry)) {
 			if (!ENTRY_KEYS.has(key)) throw new UsageError(`${at}.${key} is not a baseline key`)
 		}

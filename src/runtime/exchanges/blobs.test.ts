@@ -3,6 +3,8 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { REDACTED, Redactor } from "../../security/redact.ts"
+import type { BodyRef } from "../exchange.ts"
+import type { RawOf } from "../../config/types/raw.ts"
 import { createBlobStore } from "./blobs.ts"
 import { sha256Hex, utf8Encode } from "./bytes.ts"
 import { INLINE_BODY_LIMIT } from "./media.ts"
@@ -75,7 +77,7 @@ describe("BlobStore.spillText / persistJson", () => {
 			password: REDACTED,
 		})
 		const big = { rows: "y".repeat(INLINE_BODY_LIMIT) }
-		const stored = (await store.persistJson(big, "application/vnd.x+json")) as Record<string, unknown>
+		const stored = (await store.persistJson(big, "application/vnd.x+json")) as RawOf<BodyRef>
 		expect([stored.mediaType, stored.bytes, stored.sha256]).toEqual([
 			"application/vnd.x+json",
 			INLINE_BODY_LIMIT + 11,

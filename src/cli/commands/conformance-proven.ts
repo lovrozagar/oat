@@ -2,6 +2,7 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { messageOf } from "../../errors/message.ts"
 import { EXIT } from "../../runtime/exit.ts"
+import type { RawOf } from "../../config/types/raw.ts"
 import type { Writer } from "../writer.ts"
 import type { Toolkit } from "./conformance-toolkit.ts"
 
@@ -43,11 +44,9 @@ export function aggregate(writer: Writer, toolkit: Toolkit, dir: string): number
 	}
 	const proven = new Set<string>()
 	for (const name of files) {
-		const read = JSON.parse(readFileSync(join(dir, name), "utf8")) as Partial<ProvenFile>
-		/* A file this command did not write, or wrote another way: only listed string ids count. */
-		const listed: unknown = read.proven
-		if (!Array.isArray(listed)) continue
-		for (const id of listed) if (typeof id === "string") proven.add(id)
+		const read = JSON.parse(readFileSync(join(dir, name), "utf8")) as RawOf<ProvenFile>
+		if (!Array.isArray(read.proven)) continue
+		for (const id of read.proven) if (typeof id === "string") proven.add(id)
 	}
 	writer.out(`  ${files.length} leg file(s) · ${proven.size} check(s) proven\n`)
 	const unproven = toolkit.suite.renderUnproven(proven)

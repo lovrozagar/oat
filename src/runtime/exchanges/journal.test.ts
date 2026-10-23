@@ -5,19 +5,20 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { REDACTED, Redactor } from "../../security/redact.ts"
-import type { Exchange } from "../exchange.ts"
+import type { Exchange, FormPart } from "../exchange.ts"
+import type { RawOf } from "../../config/types/raw.ts"
 import { exchangeOf } from "./__fixtures__/exchange.ts"
-import { createExchangeJournal } from "./journal.ts"
+import { createExchangeJournal, type JournalExchangeFile, type JournalIndexLine } from "./journal.ts"
 import { INLINE_BODY_LIMIT } from "./media.ts"
 
 let dir = ""
 
-const indexLines = (): Array<Record<string, unknown>> =>
+const indexLines = (): Array<RawOf<JournalIndexLine>> =>
 	readFileSync(join(dir, "exchanges.jsonl"), "utf8")
 		.trim()
 		.split("\n")
-		.map((line) => JSON.parse(line) as Record<string, unknown>)
-const fileOf = <T = Record<string, unknown>>(rel: string): T => JSON.parse(readFileSync(join(dir, rel), "utf8")) as T
+		.map((line) => JSON.parse(line) as RawOf<JournalIndexLine>)
+const fileOf = <T = RawOf<JournalExchangeFile>>(rel: string): T => JSON.parse(readFileSync(join(dir, rel), "utf8")) as T
 
 beforeEach(() => {
 	dir = mkdtempSync(join(tmpdir(), "oat-journal-"))
@@ -320,7 +321,9 @@ async function recordsFormsAndOddTypes(journal: Journal): Promise<void> {
 			seq: 11,
 		},
 	])
-	const empty = fileOf<{ requestBody: { parts: Array<Record<string, unknown>> } }>("exchanges/empty-type.json")
+	const empty = fileOf<{ requestBody: { parts: Array<RawOf<Extract<FormPart, { filename: string }>>> } }>(
+		"exchanges/empty-type.json",
+	)
 	expect(empty.requestBody.parts[0]?.mediaType).toBe("application/octet-stream")
 	const sseCase = fileOf<{ responseBody: unknown }>("exchanges/sse-case.json")
 	expect(sseCase.responseBody).toBe("hello-stream")

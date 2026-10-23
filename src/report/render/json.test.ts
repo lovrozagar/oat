@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest"
+import type { Finding } from "../../runtime/finding.ts"
+import type { RawOf } from "../../config/types/raw.ts"
 import { BASE, exchange, finding, reportOf, scopeOf } from "./__fixtures__/report.ts"
 import { REPORT_SCHEMA_VERSION, renderJson } from "./json.ts"
 
@@ -136,7 +138,7 @@ describe("the JSON report's optional parts", () => {
 describe("the JSON report's absent parts", () => {
 	it("keeps the origin a secondary host's finding came from, so diff tells it from the primary's", () => {
 		const text = renderJson(reportOf({ findings: [finding({ origin: "cdn" }), finding()] }))
-		const [cdn, primary] = (JSON.parse(text) as { findings: Array<Record<string, unknown>> }).findings
+		const [cdn, primary] = (JSON.parse(text) as { findings: Array<RawOf<Finding>> }).findings
 		expect(cdn?.origin).toBe("cdn")
 		expect(primary !== undefined && "origin" in primary).toBe(false)
 	})

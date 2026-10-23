@@ -2,9 +2,10 @@ import { existsSync } from "node:fs"
 import { readFile, realpath, writeFile } from "node:fs/promises"
 import { resolve } from "node:path"
 import { messageOf } from "../../errors/message.ts"
-import { schemaRefusal } from "../../report/diff.ts"
+import { type SavedReport, schemaRefusal } from "../../report/diff.ts"
 import { baselineFrom } from "../../runtime/baseline.ts"
 import { EXIT } from "../../runtime/exit.ts"
+import type { RawOf } from "../../config/types/raw.ts"
 import { type Args, str } from "../flags.ts"
 import type { Writer } from "../writer.ts"
 
@@ -16,7 +17,7 @@ export async function commandBaseline(writer: Writer, flags: Args["flags"]): Pro
 		return EXIT.usage
 	}
 	const out = resolve(str(flags, "out") ?? "oat.baseline.json")
-	let saved: { findings?: unknown; schemaVersion?: unknown }
+	let saved: RawOf<SavedReport>
 	try {
 		/* `latest` is a link: read where it points. */
 		const folder = await realpath(resolve(from))
