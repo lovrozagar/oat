@@ -90,7 +90,12 @@ function excuse(finding: Finding): string {
 	return finding.verdict === "COVERAGE_GAP" ? `coverage gap: ${finding.summary}` : `blocked: ${finding.summary}`
 }
 
-/* One case standing for `findings`: a failure when any fails the run, else skipped with every excuse once. */
+/*
+ * One case standing for `findings`: a failure when any fails the run, else skipped with every excuse
+ * once. A failure is only ever a finding the exit code counts: the scope report grades a check failed
+ * from the same findings (junit.test.ts pins it), so a failed check with none on record is a report
+ * out of step with itself, shown as skipped rather than as a failure the run did not count.
+ */
 function judged(findings: readonly Finding[], redactor: Redactor): Result {
 	const failing = findings.filter(isFailingRootCause)
 	const first = failing[0]
@@ -98,8 +103,7 @@ function judged(findings: readonly Finding[], redactor: Redactor): Result {
 		const body = failing.map((finding) => bodyOf(finding, redactor)).join("\n\n")
 		return { body, kind: "failure", message: first.summary, type: first.verdict }
 	}
-	if (findings.length === 0)
-		return { body: "", kind: "failure", message: "no finding names this check", type: "failed" }
+	if (findings.length === 0) return { kind: "skipped", message: "graded failed, but no finding on record names it" }
 	return { kind: "skipped", message: [...new Set(findings.map(excuse))].join("; ") }
 }
 

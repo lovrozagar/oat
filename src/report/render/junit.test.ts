@@ -221,7 +221,7 @@ describe("renderJunit, a missing record", () => {
 			}),
 		)
 		expect(cases(suite(xml, "row"))).toEqual([
-			"row.list f: failure no finding names this check",
+			"row.list f: skipped graded failed, but no finding on record names it",
 			"row.list g: skipped coverage gap",
 			"row.list i: skipped inconclusive",
 			"row.list s: skipped blocked: waiting on an earlier failure",
