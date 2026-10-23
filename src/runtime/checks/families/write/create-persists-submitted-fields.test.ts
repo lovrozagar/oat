@@ -270,6 +270,37 @@ describe("create.persists-submitted-fields on form bodies", () => {
 	})
 })
 
+describe("create.persists-submitted-fields, against the fields the record declares", () => {
+	const ack = { body: { id: 5, message: "Order sent successfully." }, status: 200 }
+
+	/** `judge` on an acknowledgement read back, with the plan's `declared` fields. */
+	async function judgeDeclared(body: Record<string, unknown>, read: Answer, declared?: readonly string[]) {
+		const stage = await afterCreate({ body }, ack, { read })
+		const outcome = await createPersistsFields.run(stage.ctx, {
+			createOp: MODEL.byOperationId.get("note.create") as never,
+			properties: PROPERTIES,
+			...(declared === undefined ? {} : { declared }),
+		})
+		return { ...stage, outcome }
+	}
+
+	it("judges only a submitted field the record's schema declares: a read that never promises one cannot show it", async () => {
+		const read = { body: { id: 5, name: "a" }, status: 200 }
+		const cleared = await judgeDeclared({ name: "a", product_id: 1 }, read, ["id", "name", "size"])
+		expect(cleared.outcome).toEqual({ kind: "asserted" })
+		const lost = await judgeDeclared({ name: "a", product_id: 1, size: 3 }, read, ["id", "name", "size"])
+		expect(lost.outcome).toEqual({ kind: "finding", verdict: "BACKEND_BUG" })
+		expect(lost.findings.findings[0]?.detail).toContain("1 submitted field(s): size sent 3, got undefined")
+	})
+
+	it("judges every submitted field when the record's schema is unknown", async () => {
+		const read = { body: { id: 5, name: "a" }, status: 200 }
+		const { outcome, findings } = await judgeDeclared({ name: "a", product_id: 1 }, read)
+		expect(outcome).toEqual({ kind: "finding", verdict: "BACKEND_BUG" })
+		expect(findings.findings[0]?.detail).toContain("product_id sent 1, got undefined")
+	})
+})
+
 describe("create.persists-submitted-fields plan", () => {
 	it("plans with the create's request properties", () => {
 		const { ctx } = notesContext(MODEL, () => undefined, { records: COHORT })
@@ -282,6 +313,18 @@ describe("create.persists-submitted-fields plan", () => {
 		const { ctx } = notesContext(model, () => undefined, { records: COHORT })
 		const planned = createPersistsFields.plan(ctx)
 		expect(planned.ok && planned.value.properties).toEqual({})
+	})
+
+	it("plans the fields the record's schema declares", () => {
+		const { ctx } = notesContext(MODEL, () => undefined, { records: COHORT })
+		const planned = createPersistsFields.plan(ctx)
+		expect(planned.ok && planned.value.declared).toEqual(["code", "created_at", "id", "name", "size", "title"])
+	})
+
+	it("plans no declared fields when the record's schema is unknown", () => {
+		const { ctx } = notesContext(MODEL, () => undefined, { records: COHORT })
+		const planned = createPersistsFields.plan({ ...ctx, readOp: undefined, listOp: undefined } as unknown as typeof ctx)
+		expect(planned.ok && planned.value.declared).toBeUndefined()
 	})
 
 	it("does not plan without a create or a cohort", () => {

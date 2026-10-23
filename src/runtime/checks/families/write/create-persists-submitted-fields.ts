@@ -11,9 +11,17 @@ import { type CheckContext, isListed } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { readRecord } from "../../isolation/scratch.ts"
 import { createExchange, requestSchemaOf } from "../../payloads/body.ts"
+import { itemSchemaOf } from "../../payloads/item-schema.ts"
 import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
 import { readSet } from "../../sets/read.ts"
 import type { JsonSchema } from "../../../../spec/types.ts"
+
+interface Plan {
+	createOp: OperationModel
+	properties: Record<string, JsonSchema>
+	/** The fields the record's schema declares; unset when it is unknown, and every field is judged. */
+	declared?: readonly string[]
+}
 
 /**
  * A create must persist what it was sent. The record read back through the item read, by the id the
@@ -23,26 +31,23 @@ import type { JsonSchema } from "../../../../spec/types.ts"
  * is a read-side disagreement, judged by `consistency.projections-agree`. An acknowledgement-only
  * create, with no record to read back, gives nothing to judge.
  */
-export const createPersistsFields: Check<{
-	createOp: OperationModel
-	properties: Record<string, JsonSchema>
-}> = defineCheck<{
-	createOp: OperationModel
-	properties: Record<string, JsonSchema>
-}>({
+export const createPersistsFields: Check<Plan> = defineCheck<Plan>({
 	plan: (ctx) => {
 		const createOp = ctx.createOp
 		if (createOp === undefined || ctx.records.length === 0) return cannot()
 		const schema = requestSchemaOf(ctx, createOp)
 		const properties = (schema?.properties ?? {}) as Record<string, JsonSchema>
-		return ready({ createOp, properties })
+		const record = itemSchemaOf({ listOp: ctx.listOp, model: ctx.model, readOp: ctx.readOp })
+		const fields = record?.properties as Record<string, JsonSchema> | undefined
+		const declared = fields === undefined ? undefined : Object.keys(fields)
+		return ready({ createOp, properties, ...(declared === undefined ? {} : { declared }) })
 	},
 	dependsOn: ["list.read-after-write"],
 	id: "create.persists-submitted-fields",
 	judgesTranscript: true,
 	needs: "a create operation that echoes the record back, or an item read to read it back by",
 	subjects: subjectsOf.create,
-	async run(ctx, { createOp, properties }): Promise<Outcome> {
+	async run(ctx, { createOp, properties, declared }): Promise<Outcome> {
 		const sent = await createExchange(ctx)
 		if (sent === undefined || sent.requestBody === undefined)
 			return ctx.findings.unresolved(this.id, ctx.entityName, "no create request body was observed")
@@ -51,8 +56,15 @@ export const createPersistsFields: Check<{
 		const echoed = createdRecordOf(sent.responseBody ?? {}, ctx.identity, request)
 		const back = await readBack(ctx, createOp, sent, request)
 		const judged = Object.entries(request).filter(
-			/* A writeOnly field is accepted and never returned — a password, a secret. */
-			([key, value]) => value !== null && value !== undefined && properties[key]?.writeOnly !== true,
+			/*
+			 * A writeOnly field is accepted and never returned — a password, a secret. Nor can a read show a
+			 * field its record's schema never declares, a product_id the record answers as product say.
+			 */
+			([key, value]) =>
+				value !== null &&
+				value !== undefined &&
+				properties[key]?.writeOnly !== true &&
+				(declared === undefined || declared.includes(key)),
 		)
 		/* The create echoed a record when the answer holds a submitted field beyond the identity. */
 		const echoes = judged.some(([key]) => key !== ctx.identity && Object.hasOwn(echoed, key))
