@@ -123,7 +123,10 @@ async function started(writer: Writer, start: Start): Promise<number> {
 	try {
 		result = await deps.run(options)
 	} catch (error) {
-		return refused(writer, error)
+		const code = refused(writer, error)
+		/* Nothing ran: no folder for it, and `latest` stays where it was. */
+		if (code === EXIT.usage) await allocated.rollback()
+		return code
 	} finally {
 		stop.dispose()
 		progress.close()

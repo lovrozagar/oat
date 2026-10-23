@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readlink, realpath, rm, writeFile } from "node:fs/promises"
+import { chmod, lstat, mkdir, mkdtemp, readdir, readlink, realpath, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -116,6 +116,38 @@ describe("publishLatest", () => {
 			Object.defineProperty(process, "platform", platform)
 		}
 		expect(await readlink(allocated.latest)).toBe(allocated.stamp)
+	})
+})
+
+describe("rollback", () => {
+	it("removes the folder and points latest back where it was", async () => {
+		const root = await scratch()
+		const done = await allocateRunDir(root, new Date("2026-08-18T12:00:00.000Z"))
+		await publishLatest(done)
+		const refused = await allocateRunDir(root, new Date("2026-08-18T12:00:01.000Z"))
+		await publishLatest(refused)
+		await refused.rollback()
+		expect(await readdir(root)).toEqual([done.stamp, "latest"].toSorted())
+		expect(await readlink(done.latest)).toBe(done.stamp)
+	})
+
+	it("removes the folder and the link when there was no latest before", async () => {
+		const root = await scratch()
+		const refused = await allocateRunDir(root, new Date("2026-08-18T12:00:00.000Z"))
+		await publishLatest(refused)
+		await refused.rollback()
+		expect(await readdir(root)).toEqual([])
+		await expect(lstat(refused.latest)).rejects.toThrow(/ENOENT/)
+	})
+
+	it("leaves latest alone when the run never moved it", async () => {
+		const root = await scratch()
+		const done = await allocateRunDir(root, new Date("2026-08-18T12:00:00.000Z"))
+		await publishLatest(done)
+		const refused = await allocateRunDir(root, new Date("2026-08-18T12:00:01.000Z"))
+		await refused.rollback()
+		expect(await readdir(root)).toEqual([done.stamp, "latest"].toSorted())
+		expect(await readlink(done.latest)).toBe(done.stamp)
 	})
 })
 

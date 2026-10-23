@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events"
-import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync, readlinkSync, realpathSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { UsageError } from "../../errors/usage-error.ts"
@@ -217,6 +217,21 @@ describe("commandRun refusals", () => {
 		const invalid = bufferWriter()
 		expect(await commandRun(invalid, { config: notesConfig(dir, { baseline: "bad.json" }) }, deps())).toBe(EXIT.usage)
 		expect(invalid.text()).toMatch(/^oat: .*bad\.json/)
+	})
+
+	it("leaves no folder and keeps latest when the run refuses its targets", async () => {
+		const out = folder()
+		const unknown = bufferWriter()
+		const refuse = { config: notesConfig(), only: "nosuch", out, quiet: true as const }
+		expect(await commandRun(unknown, refuse, deps())).toBe(EXIT.usage)
+		expect(unknown.text()).toContain('--only "nosuch" names no entity')
+		expect(readdirSync(out)).toEqual([])
+		expect(await commandRun(bufferWriter(), { config: notesConfig(), out, quiet: true }, deps())).toBe(0)
+		const before = readdirSync(out)
+		const target = readlinkSync(join(out, "latest"))
+		expect(await commandRun(bufferWriter(), refuse, deps())).toBe(EXIT.usage)
+		expect(readdirSync(out)).toEqual(before)
+		expect(readlinkSync(join(out, "latest"))).toBe(target)
 	})
 
 	it("refuses a run that was fenced or misconfigured before it started, and passes on anything else", async () => {

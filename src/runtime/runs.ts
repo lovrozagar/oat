@@ -6,7 +6,7 @@
  * always `<root>/<datetime>/`. `latest` is a relative symlink at the root.
  */
 
-import { mkdir, rm, symlink } from "node:fs/promises"
+import { mkdir, readlink, rm, symlink } from "node:fs/promises"
 import { join, resolve } from "node:path"
 
 export const DEFAULT_RUNS_ROOT = ".oat/runs"
@@ -29,6 +29,11 @@ export interface AllocatedRunDir {
 	stamp: string
 	/** Path of the `latest` symlink (always `<root>/latest`). */
 	latest: string
+	/**
+	 * Undoes the allocation for a run that refused to start: removes `runDir`, and points `latest`
+	 * back where it was, or removes it if there was none, when this run had moved it.
+	 */
+	rollback: () => Promise<void>
 }
 
 export async function allocateRunDir(root = DEFAULT_RUNS_ROOT, at = new Date()): Promise<AllocatedRunDir> {
@@ -36,7 +41,25 @@ export async function allocateRunDir(root = DEFAULT_RUNS_ROOT, at = new Date()):
 	await mkdir(resolvedRoot, { recursive: true })
 	const { dir: runDir, stamp } = await mkdirUnique(resolvedRoot, formatRunStamp(at))
 	const latest = join(resolvedRoot, LATEST_LINK)
-	return { latest, root: resolvedRoot, runDir, stamp }
+	const previous = await linkTarget(latest)
+	const rollback = async (): Promise<void> => {
+		await rm(runDir, { force: true, recursive: true })
+		const now = await linkTarget(latest)
+		/* A junction reads back absolute on Windows; resolving compares either form. */
+		if (now === undefined || resolve(resolvedRoot, now) !== runDir) return
+		if (previous === undefined) await rm(latest, { force: true })
+		else await pointLatest(resolvedRoot, previous)
+	}
+	return { latest, rollback, root: resolvedRoot, runDir, stamp }
+}
+
+/** Where the `latest` link points; undefined when there is none, or it is not a link. */
+async function linkTarget(path: string): Promise<string | undefined> {
+	try {
+		return await readlink(path)
+	} catch {
+		return undefined
+	}
 }
 
 async function mkdirUnique(root: string, base: string): Promise<{ dir: string; stamp: string }> {
