@@ -17,6 +17,7 @@ import type { InviteSpec } from "../../../spec/extensions/invite.ts"
 import type { QueryCapability } from "../../../spec/extensions/query-tag.ts"
 import type { OperationModel, SpecModel } from "../../../spec/graph/types.ts"
 import type { EffectiveQueryCapabilities } from "../../../spec/query/effective.ts"
+import type { Withheld } from "../../../spec/query/sendable.ts"
 
 /**
  * A principal as checks see it: who it is, its tenant and its place in the rank lattice, and the
@@ -75,6 +76,12 @@ export interface CheckContext<C extends ReadClient = ReadClient> {
 	query: QueryCapability | null
 	/** Merged filter catalog. Optional so a hand-built context still works. */
 	capabilities?: EffectiveQueryCapabilities
+	/**
+	 * What the capabilities held that no parameter of the list can carry, cut from `capabilities`
+	 * and `query` so no probe is sent to a parameter the operation does not declare. A check that
+	 * stands down for want of them says which parameter is missing.
+	 */
+	withheld?: Withheld[]
 	softDelete: string | null
 	invite: InviteSpec | null
 	/** The principal checks act as: the first. */

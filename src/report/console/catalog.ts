@@ -4,6 +4,7 @@ import type { OperationModel, SpecModel } from "../../spec/graph/types.ts"
 import { describeFilterGrammar } from "../../spec/render/filter-describe.ts"
 import type { EffectiveQueryCapabilities } from "../../spec/query/effective.ts"
 import { mergeQueryCapabilities } from "../../spec/query/merge.ts"
+import { filterIsGuess, sendableCapabilities } from "../../spec/query/sendable.ts"
 import { describeSortGrammar } from "../../spec/render/sort-parse.ts"
 import { catalogCheckPreview } from "./catalog-checks.ts"
 import { listOperation, sortedEntities } from "./describe.ts"
@@ -107,12 +108,15 @@ export function entityQueryCatalogs(
 		if (entity.list === undefined) continue
 		const listOp = listOperation(model, entity.list)
 		const entityQuery = config?.entities?.[entity.name]?.query
-		const caps = mergeQueryCapabilities({
-			itemSchema: listOp.collection?.itemSchema ?? null,
+		const sources = {
 			tag: listOp.query,
 			...(config?.query === undefined ? {} : { global: config.query }),
 			...(entityQuery === undefined ? {} : { entity: entityQuery }),
-		})
+		}
+		const merged = mergeQueryCapabilities({ ...sources, itemSchema: listOp.collection?.itemSchema ?? null })
+		/* What the run sends: only what a declared parameter can carry. A configured hook is asked at run
+		 * time, and whatever it answers is no guess. */
+		const caps = sendableCapabilities(merged, listOp, filterIsGuess(sources, { ...merged, hook })).capabilities
 		catalogs.push(catalogRow(listOp, caps, { entity: entity.name, hook }))
 	}
 	return { catalogs, unknownEntities }

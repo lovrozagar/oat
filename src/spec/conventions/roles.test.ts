@@ -17,6 +17,26 @@ describe("roleName", () => {
 	it("is undefined when no parameter plays the role", () => {
 		expect(roleName([query("x")], "cursor")).toBeUndefined()
 	})
+
+	it("passes over a search alias whose declaration says it takes key:value pairs, not free text", () => {
+		/* Keycloak's users list: `q` searches custom attributes, `search` is the free text. */
+		const attributes: ParameterObject = {
+			...query("q"),
+			description: "A query to search for custom attributes, in the format 'key1:value2 key2:value2'",
+		}
+		expect(roleName([attributes, query("search")], "search")).toBe("search")
+		expect(roleName([attributes], "search")).toBeUndefined()
+		expect(roleName([query("q", { examples: ["role:admin"], type: "string" })], "search")).toBe("q")
+		expect(roleName([query("q", { examples: ["key:value"], type: "string" })], "search")).toBeUndefined()
+		expect(roleName([query("q", { pattern: "^\\w+:\\w+$", type: "string" })], "search")).toBeUndefined()
+		expect(roleName([query("search", { type: "boolean" }), query("term")], "search")).toBe("term")
+		expect(roleName([{ ...query("q"), description: "Free-text search across name and email" }], "search")).toBe("q")
+	})
+
+	it("reads a structured description only for the search role", () => {
+		const structured: ParameterObject = { ...query("filter"), description: "key:value pairs" }
+		expect(roleName([structured], "filter")).toBe("filter")
+	})
 })
 
 describe("parameterNamed and schemaOf", () => {

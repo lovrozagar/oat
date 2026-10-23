@@ -1,20 +1,8 @@
 /** Grammars read off what a parameter's examples and description demonstrate. */
 
 import type { ParameterObject } from "../types.ts"
-import { schemaOf } from "./roles.ts"
+import { demonstrated } from "./roles.ts"
 import type { FilterGrammar, SelectGrammar, SortGrammar } from "./types.ts"
-
-/** What the document shows of a parameter's values: its examples, then its description. */
-function demonstrated(parameter: ParameterObject): string {
-	const schema = schemaOf(parameter)
-	return [
-		...(Array.isArray(schema.examples) ? schema.examples : []),
-		...(schema.example === undefined ? [] : [schema.example]),
-		...(typeof parameter.description === "string" ? [parameter.description] : []),
-	]
-		.filter((value): value is string => typeof value === "string")
-		.join(" ")
-}
 
 /**
  * Infers the filter grammar from the parameter's declared examples, which is where APIs

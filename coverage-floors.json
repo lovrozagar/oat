@@ -1513,6 +1513,7 @@
 	"src/spec/query/parse-blocks.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/query/parse-catalog.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/query/parse-fields.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/spec/query/sendable.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/query/tag.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/query/union.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/render/filter-combine.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },

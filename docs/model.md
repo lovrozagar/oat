@@ -129,6 +129,8 @@ Checks do not look for a parameter _named_ `filter`. They resolve **roles** from
 
 A bracketed suffix is a _value_ in the name (`fields[articles]`, `filter[status]`), not part of the role. `count` is a page size only when it looks like one (has `maximum` or a default); otherwise it is treated as a total.
 
+A search alias whose declaration says it takes structured input is not free text, and oat passes over it for the next alias: a scalar schema that is not a string, a `pattern` containing `:`, or examples or a description that spell `key:value` (`key1:value2` too). Keycloak's `q`, described as `'key1:value2 key2:value2'`, is an attribute query, so its users list searches by `search`. The rule is kept that narrow: a colon in an example (`role:admin`) or the word "attribute" alone can belong to free text.
+
 A bounded integer with a default that matches no alias is still taken as page size. A 1-based integer with no maximum is taken as page number.
 
 **Filter grammars** — how oat **writes** a term:
@@ -158,6 +160,8 @@ Otherwise oat concatenates the filter/order/select parameter's `example`, `examp
 - Select: parameter name or description contains `fields[…]` → bracketed; else csv.
 
 Without `x-query`, if a filter/order/select/search role resolves, oat assumes **every scalar** is filterable/sortable/selectable (`string` / `number` / `integer` / `boolean`, including nullable unions). Sortable-without-tag leaves out the list's own path parameters (`project_id` under `/projects/{project_id}/tables`): every listed record holds the same value, so ordering by it shows nothing. Searchable-without-tag is further narrowed to names matching `name|title|slug|label|description|email`. `doctor` warns. Pagination-only lists stay uncovered.
+
+A query probe goes only to a parameter the list operation declares. Without a declared order, search or select parameter, that axis is empty, whatever `x-query` or config lists for it. Under one parameter per field (`equality`, or a template with `param: "{field}"`), the guessed filterable fields are cut to those the list declares as query parameters; a field `x-query`, config, a harvest or the hook names is kept. A check that needed what was cut does not apply, and its reason names the missing parameter (``the `id` query parameter, which the list operation does not declare``). `doctor` shows the cut map.
 
 That heuristic runs **only** for an axis that was not tagged and not set in config. An explicit empty claim — `filterable: []`, `searchable: null`, `selectable: []`, `sortable: []` — is a claim of none. oat will not infer scalars over it.
 

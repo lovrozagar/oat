@@ -21,7 +21,7 @@ interface Routes {
 export async function checkContext(run: EntityRun, world: World, actors: [Actor, ...Actor[]]): Promise<WriteContext> {
 	const { ctx, entity, listOp } = run
 	const routes = routesOf(run)
-	const { capabilities, query } = await queryOf(run, world.scope.values)
+	const { capabilities, query, withheld } = await queryOf(run, world.scope.values)
 	const peer = peerOf(actors)
 	return {
 		...declaredOps(run),
@@ -61,6 +61,7 @@ export async function checkContext(run: EntityRun, world: World, actors: [Actor,
 		uniqueSets: entity.unique ?? [],
 		uploads: ctx.uploads,
 		validator: ctx.validator,
+		withheld,
 	}
 }
 

@@ -36,6 +36,29 @@ describe("entityQueryCatalogs from the document", () => {
 	})
 })
 
+describe("entityQueryCatalogs and the parameters a list declares", () => {
+	it("lists only what a declared parameter can carry, as the run sends it", () => {
+		/* No `x-query`: a free-text `q` makes oat guess every scalar, one filter parameter each. */
+		const item = { properties: { id: { type: "string" }, name: { type: "string" } }, type: "object" }
+		const doc = documentOf({
+			"/things": {
+				get: {
+					...(listOp("thing", "thing.list") as Record<string, unknown>),
+					parameters: ["q", "name"].map((name) => ({ in: "query", name, schema: { type: "string" } })),
+					responses: {
+						"200": { content: { "application/json": { schema: { items: item, type: "array" } } }, description: "ok" },
+					},
+				},
+			},
+		})
+		const [thing] = entityQueryCatalogs(modelOf(doc).model).catalogs
+		expect(thing?.filterable.map((field) => field.field)).toEqual(["name"])
+		expect(thing?.sortable).toEqual([])
+		expect(thing?.selectable).toEqual([])
+		expect(thing?.searchable).toEqual(["name"])
+	})
+})
+
 describe("entityQueryCatalogs with config", () => {
 	it("lays config over the document, names config entities the document lacks, and notes a hook", async () => {
 		const { model } = await referenceModel({ untagged: true })

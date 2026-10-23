@@ -40,9 +40,44 @@ export function schemaOf(parameter: ParameterObject): JsonSchema {
 	return parameter.schema ?? {}
 }
 
-/** The name of the first query parameter whose name is an alias of `role`. */
+/** What the document shows of a parameter's values: its examples, then its description. */
+export function demonstrated(parameter: ParameterObject): string {
+	const schema = schemaOf(parameter)
+	return [
+		...(Array.isArray(schema.examples) ? schema.examples : []),
+		...(schema.example === undefined ? [] : [schema.example]),
+		...(typeof parameter.description === "string" ? [parameter.description] : []),
+	]
+		.filter((value): value is string => typeof value === "string")
+		.join(" ")
+}
+
+/* `key:value`, `key1:value2`, `key: value` — the spelling a document uses to say it takes pairs. */
+const KEY_VALUE = /\bkey\w*\s*:\s*value\w*/i
+
+/**
+ * Whether a parameter's own declaration says it takes structured input rather than free text: a
+ * scalar that is not a string, a `pattern` with a `:` in it, or examples or a description that spell
+ * out `key:value`. Keycloak names its attribute query `q` and describes it as
+ * `'key1:value2 key2:value2'`; a search probe sent there tests a grammar nobody wrote, and an empty
+ * answer to it reads as a backend whose search is broken. Kept this narrow on purpose: a colon in
+ * an example (`role:admin`) or the word "attribute" alone can belong to free text.
+ */
+function takesStructuredInput(parameter: ParameterObject): boolean {
+	const schema = schemaOf(parameter)
+	const kinds = scalarKinds(schema)
+	if (kinds !== undefined && !kinds.includes("string")) return true
+	if (typeof schema.pattern === "string" && schema.pattern.includes(":")) return true
+	return KEY_VALUE.test(demonstrated(parameter))
+}
+
+/**
+ * The name of the first query parameter whose name is an alias of `role`. A search alias that
+ * takes structured input is passed over: free text is the one thing a search check sends.
+ */
 export function roleName(query: readonly ParameterObject[], role: Role): string | undefined {
-	return query.find((p) => ALIASES[role].includes(normalise(p.name)))?.name
+	return query.find((p) => ALIASES[role].includes(normalise(p.name)) && (role !== "search" || !takesStructuredInput(p)))
+		?.name
 }
 
 /** The first query parameter called `name`. */

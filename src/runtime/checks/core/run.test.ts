@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest"
+import { emptyCapabilities } from "../../../spec/query/merge.ts"
+import { queryOver, type Withheld } from "../../../spec/query/sendable.ts"
 import type { Outcome } from "../../finding.ts"
 import { notesContext } from "../query/__fixtures__/notes.ts"
 import type { Check } from "./check.ts"
+import type { CheckContext } from "./context.ts"
 import { cannot, ready } from "./plan.ts"
 import { checkSalts, NEEDS_LIST, planOn, runCheck, runOn } from "./run.ts"
 
@@ -88,6 +91,70 @@ describe("a check that reads the entity's listing", () => {
 		const { check, ran } = stubCheck(() => ready("item"))
 		expect(await runCheck(check, unlistedContext())).toEqual({ kind: "asserted" })
 		expect(ran).toEqual(["item"])
+	})
+})
+
+/* The list can sort by `name` and filter by `id`, but declares no parameter for either. */
+function withheld() {
+	const { ctx } = notesContext()
+	const capabilities = { ...emptyCapabilities(), filterable: [], sortable: [] }
+	return {
+		...ctx,
+		capabilities,
+		query: queryOver(ctx.query, capabilities),
+		withheld: [
+			{ axis: "filterable", row: { field: "id" } },
+			{ axis: "sortable", row: { field: "name" } },
+		] satisfies Withheld[],
+	}
+}
+
+describe("runCheck with withheld query capabilities", () => {
+	it("stands down naming the parameter whose absence is all that stopped the plan", async () => {
+		const sorts = stubCheck((ctx: CheckContext) =>
+			ctx.query?.sortable[0] === undefined ? cannot("a sortable field") : ready({}),
+		)
+		expect(await runCheck(sorts.check, withheld())).toEqual({
+			kind: "stood-down",
+			reason: "a sort parameter, which the list operation does not declare",
+		})
+		expect(sorts.ran).toEqual([])
+		const filters = stubCheck((ctx: CheckContext) =>
+			ctx.query?.filterable.includes("id") === true ? ready({}) : cannot(),
+		)
+		expect(await runCheck(filters.check, withheld())).toMatchObject({
+			reason: "the `id` query parameter, which the list operation does not declare",
+		})
+	})
+
+	it("names every withheld parameter when the plan needs more than one of them", async () => {
+		const both = stubCheck((ctx: CheckContext) =>
+			(ctx.query?.sortable.length ?? 0) > 0 && (ctx.query?.filterable.length ?? 0) > 0 ? ready({}) : cannot(),
+		)
+		expect(await runCheck(both.check, withheld())).toMatchObject({
+			reason:
+				"the `id` query parameter, which the list operation does not declare; a sort parameter, which the list " +
+				"operation does not declare",
+		})
+	})
+
+	it("still needs a list for a check that reads one, on an entity with none, whatever was withheld", async () => {
+		const sorts: Check = {
+			id: "sort.order-is-applied",
+			lists: true,
+			plan: (ctx) => (ctx.query?.sortable[0] === undefined ? cannot("a sortable field") : ready({})),
+			run: async () => ({ kind: "asserted" }),
+			subjects: () => [],
+		}
+		expect(await runCheck(sorts, { ...withheld(), listOp: undefined })).toEqual({
+			kind: "stood-down",
+			reason: NEEDS_LIST,
+		})
+	})
+
+	it("keeps the plan's own needs when the withheld parameters would not have let it run", async () => {
+		const { check } = stubCheck(() => cannot("a declared defaultOrder"))
+		expect(await runCheck(check, withheld())).toMatchObject({ reason: "a declared defaultOrder" })
 	})
 })
 
