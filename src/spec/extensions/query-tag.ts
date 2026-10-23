@@ -7,6 +7,8 @@
 import type { FilterableField, QueryCapabilities, SortableField } from "../../config/types/query.ts"
 import { deriveQueryConventions } from "../conventions/derive.ts"
 import { parseQueryCatalog } from "../query/parse-catalog.ts"
+import type { QueryTag } from "../query/tag.ts"
+import type { RawOf } from "../../config/types/raw.ts"
 import type { Endpoint, JsonSchema } from "../types.ts"
 import type { GapCollector } from "./gaps.ts"
 import { extObject } from "./tag.ts"
@@ -44,7 +46,7 @@ function scalarProperties(schema: JsonSchema): string[] {
 	return out
 }
 
-function declared(tag: Record<string, unknown>): QueryCapability {
+function declared(tag: RawOf<QueryTag>): QueryCapability {
 	const catalog = parseQueryCatalog(tag)
 	const fields = catalog.filterable ?? []
 	const sortFields = catalog.sortable ?? []
@@ -109,6 +111,6 @@ export function readQueryCapability(
 	itemSchema: JsonSchema | null,
 	gaps?: GapCollector,
 ): QueryCapability | null {
-	const tag = extObject(endpoint.op, "x-query")
+	const tag = extObject<QueryTag>(endpoint.op, "x-query")
 	return tag === undefined ? guessed(endpoint, itemSchema, gaps) : declared(tag)
 }

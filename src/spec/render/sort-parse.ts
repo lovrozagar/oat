@@ -1,5 +1,6 @@
 /** The declared object form of a sort grammar, read and described. */
 
+import type { RawOf } from "../../config/types/raw.ts"
 import { REPEATED_KEYS, type SortGrammarSpec } from "./sort.ts"
 
 export type ParsedSortGrammar = { ok: true; spec: SortGrammarSpec } | { ok: false; error: string }
@@ -10,16 +11,17 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const nonEmpty = (value: unknown): value is string => typeof value === "string" && value.length > 0
 
 /** The declared nulls tokens, `undefined` when none are declared, or an error. */
-function readNulls(raw: unknown): SortGrammarSpec["nulls"] | string {
-	if (raw === undefined) return undefined
-	if (!isRecord(raw) || !nonEmpty(raw.first) || !nonEmpty(raw.last))
-		return "nulls must be { first: token, last: token }"
+function readNulls(value: unknown): SortGrammarSpec["nulls"] | string {
+	if (value === undefined) return undefined
+	const raw: RawOf<NonNullable<SortGrammarSpec["nulls"]>> = isRecord(value) ? value : {}
+	if (!nonEmpty(raw.first) || !nonEmpty(raw.last)) return "nulls must be { first: token, last: token }"
 	return { first: raw.first, last: raw.last }
 }
 
 /** The declared object form of a sort grammar, validated; an error names the key at fault. */
-export function parseSortGrammar(raw: unknown): ParsedSortGrammar {
-	if (!isRecord(raw)) return fail("sortGrammar must be a preset name or an object with a term template")
+export function parseSortGrammar(value: unknown): ParsedSortGrammar {
+	if (!isRecord(value)) return fail("sortGrammar must be a preset name or an object with a term template")
+	const raw: RawOf<SortGrammarSpec> = value
 	if (!nonEmpty(raw.term) || !raw.term.includes("{field}") || !raw.term.includes("{direction}")) {
 		return fail("term must be a template holding {field} and {direction}, such as {field}_{direction}")
 	}

@@ -6,20 +6,19 @@
  * naming the tag that would close it.
  */
 
+import type { RawOf } from "../../config/types/raw.ts"
+import { isObject } from "../tags/checks.ts"
 import type { OperationObject } from "../types.ts"
 
-/** The operation's `key` extension, as the reader expects it to be; `undefined` when absent. */
-export function ext<T>(op: OperationObject, key: string): T | undefined {
-	const value = (op as Record<string, unknown>)[key]
-	return value === undefined ? undefined : (value as T)
+/** The operation's `key` extension as it stands; `undefined` when absent. */
+export function ext(op: OperationObject, key: string): unknown {
+	return (op as Record<string, unknown>)[key]
 }
 
-/** A tag whose value is an object, as every structured x-* tag is; anything else (`null`, a string) is absent. */
-export function extObject(op: OperationObject, key: string): Record<string, unknown> | undefined {
-	const value = (op as Record<string, unknown>)[key]
-	return typeof value === "object" && value !== null && !Array.isArray(value)
-		? (value as Record<string, unknown>)
-		: undefined
+/** The operation's `key` extension when it is an object with the fields of `T`, each unread; else `undefined`. */
+export function extObject<T>(op: OperationObject, key: string): RawOf<T> | undefined {
+	const value = ext(op, key)
+	return isObject(value) ? value : undefined
 }
 
 /** The strings of a list; anything else is none. */

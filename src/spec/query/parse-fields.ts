@@ -4,6 +4,7 @@
  */
 
 import type { FilterableField, FilterOp, Nulls, SortableField } from "../../config/types/query.ts"
+import type { RawOf } from "../../config/types/raw.ts"
 import { isFieldType, isFilterOp, isNulls } from "./ops.ts"
 
 export interface ParsedFields<T> {
@@ -11,13 +12,14 @@ export interface ParsedFields<T> {
 	fields: T[]
 }
 
-type Row = Record<string, unknown>
+/** A row as written: the keys of a filterable or sortable row, each unread. */
+type Row = RawOf<FilterableField & SortableField>
 
 /** One row of a field list: a non-empty name, or an object whose `field` is one. */
 function readRow<T extends { field: string }>(item: unknown, extra: (field: T, rec: Row) => void): T | null {
 	if (typeof item === "string" && item !== "") return { field: item } as T
 	if (item === null || typeof item !== "object") return null
-	const rec = item as Row
+	const rec: Row = item
 	if (typeof rec.field !== "string" || rec.field === "") return null
 	const field = { field: rec.field } as T & { type?: unknown }
 	if (typeof rec.type === "string" && isFieldType(rec.type)) field.type = rec.type

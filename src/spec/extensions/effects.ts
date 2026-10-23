@@ -1,5 +1,7 @@
 /** `x-effects`: the records an operation adds, changes or removes, and how many. */
 
+import type { RawOf } from "../../config/types/raw.ts"
+import { isObject } from "../tags/checks.ts"
 import type { OperationObject } from "../types.ts"
 import type { GapCollector } from "./gaps.ts"
 import { ext } from "./tag.ts"
@@ -20,8 +22,8 @@ const isOp = (value: string): value is EffectSpec["op"] => (OPS as readonly stri
 
 /* One item as an effect, or none: what is wrong with it goes to `report`. */
 function effectOf(item: unknown, report: (detail: string) => void): EffectSpec | undefined {
-	if (item === null || typeof item !== "object") return undefined
-	const rec = item as Record<string, unknown>
+	if (!isObject(item)) return undefined
+	const rec: RawOf<EffectSpec> = item
 	if (typeof rec.entity !== "string" || typeof rec.op !== "string") return undefined
 	if (!isOp(rec.op)) {
 		report(`item for "${rec.entity}" has op "${rec.op}"; use ${OPS.slice(0, -1).join(", ")} or ${OPS.at(-1)}`)
@@ -38,7 +40,7 @@ function effectOf(item: unknown, report: (detail: string) => void): EffectSpec |
 }
 
 export function readEffects(op: OperationObject, operationId?: string, gaps?: GapCollector): EffectSpec[] {
-	const raw = ext<unknown>(op, "x-effects")
+	const raw = ext(op, "x-effects")
 	if (!Array.isArray(raw)) return []
 	const report = (detail: string): void => gaps?.record(operationId ?? "", "x-effects", detail)
 	return raw.flatMap((item) => effectOf(item, report) ?? [])

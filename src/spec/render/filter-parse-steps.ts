@@ -5,10 +5,27 @@
 
 import type { FilterOp } from "../../config/types/query.ts"
 import { FILTER_OPS } from "../query/ops.ts"
+import type { RawOf } from "../../config/types/raw.ts"
 import type { FilterGrammarSpec, TermGroup } from "./filter-types.ts"
 import { PLACEHOLDER } from "./filter-term.ts"
 
-export type Raw = Record<string, unknown>
+/** A declared filter grammar's fields, as `docs/tags.md` documents them. */
+export interface FilterGrammarTag {
+	term: string
+	param: "{filter}" | "{field}"
+	conj: NonNullable<FilterGrammarSpec["conj"]>
+	ops: FilterGrammarSpec["ops"]
+	null: NonNullable<FilterGrammarSpec["null"]>
+	/** The joiner for `in` and `nin` values. */
+	list: string
+	combine: "repeat" | { join: string } | TermGroup
+	or: FilterGrammarSpec["or"]
+	mixed: false
+	escape: Record<string, string>
+	likeMatches: "pattern" | "contains"
+}
+
+export type Raw = RawOf<FilterGrammarTag>
 
 /** The grammar as read so far. `term`, `param` and `names` are known before any step runs. */
 export interface Draft {
@@ -29,7 +46,7 @@ export interface Draft {
 
 export type Step = (draft: Draft) => string | undefined
 
-export const isRecord = (value: unknown): value is Raw =>
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value)
 
 export const nonEmpty = (value: unknown): value is string => typeof value === "string" && value.length > 0
@@ -38,8 +55,9 @@ export function placeholders(template: string): Set<string> {
 	return new Set(Array.from(template.matchAll(PLACEHOLDER), (match) => match[1] as string))
 }
 
-function readGroup(raw: unknown, key: string): TermGroup | string {
-	if (!isRecord(raw) || !nonEmpty(raw.group)) return `${key} must be a group: { group: "…{terms}…", join?: "," }`
+function readGroup(value: unknown, key: string): TermGroup | string {
+	const raw: RawOf<TermGroup> = isRecord(value) ? value : {}
+	if (!nonEmpty(raw.group)) return `${key} must be a group: { group: "…{terms}…", join?: "," }`
 	const names = placeholders(raw.group)
 	if (!names.has("terms") || names.size !== 1) return `${key}.group must hold {terms} and no other placeholder`
 	const join = raw.join ?? ","
@@ -64,9 +82,9 @@ export const readOps: Step = (draft) => {
 }
 
 export const readConj: Step = (draft) => {
-	const conj = draft.raw.conj
-	if (conj !== undefined) {
-		if (!isRecord(conj) || !nonEmpty(conj.and)) return "conj must be { and: token, or?: token }"
+	if (draft.raw.conj !== undefined) {
+		const conj: RawOf<FilterGrammarTag["conj"]> = isRecord(draft.raw.conj) ? draft.raw.conj : {}
+		if (!nonEmpty(conj.and)) return "conj must be { and: token, or?: token }"
 		if (conj.or !== undefined && !nonEmpty(conj.or)) return "conj.or must be a non-empty token"
 		draft.conj = { and: conj.and, ...(conj.or === undefined ? {} : { or: conj.or as string }) }
 	}
@@ -75,9 +93,9 @@ export const readConj: Step = (draft) => {
 }
 
 export const readNull: Step = (draft) => {
-	const terms = draft.raw.null
-	if (terms === undefined) return undefined
-	if (!isRecord(terms) || !nonEmpty(terms.is) || !nonEmpty(terms.not)) {
+	if (draft.raw.null === undefined) return undefined
+	const terms: RawOf<FilterGrammarTag["null"]> = isRecord(draft.raw.null) ? draft.raw.null : {}
+	if (!nonEmpty(terms.is) || !nonEmpty(terms.not)) {
 		return "null must be { is: template, not: template }"
 	}
 	for (const key of ["is", "not"] as const) {
@@ -102,14 +120,19 @@ export const readAnd: Step = (draft) => {
 	if (draft.param === "{field}") {
 		if (combine !== undefined) return "combine does not apply when param is {field}: each field is its own parameter"
 		draft.and = "params"
-	} else if (combine === undefined || combine === "repeat") {
+		return undefined
+	}
+	if (combine === undefined || combine === "repeat") {
 		draft.and = "repeat"
-	} else if (isRecord(combine) && combine.group !== undefined) {
-		const group = readGroup(combine, "combine")
+		return undefined
+	}
+	const written: RawOf<TermGroup> = isRecord(combine) ? combine : {}
+	if (written.group !== undefined) {
+		const group = readGroup(written, "combine")
 		if (typeof group === "string") return group
 		draft.and = group
-	} else if (isRecord(combine) && nonEmpty(combine.join)) {
-		draft.and = { join: combine.join }
+	} else if (nonEmpty(written.join)) {
+		draft.and = { join: written.join }
 	} else {
 		return 'combine must be "repeat", { join: "," } or { group: "…{terms}…" }'
 	}

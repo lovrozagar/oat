@@ -1,19 +1,19 @@
 /** Single-valued operation tags: soft delete, immutable and generated fields, cost, gates, flags, rate limits. */
 
 import type { JsonSchema, OperationObject } from "../types.ts"
-import { ext, strArray } from "./tag.ts"
+import { ext, extObject, strArray } from "./tag.ts"
 
 export function readSoftDelete(op: OperationObject): string | null {
-	const value = ext<unknown>(op, "x-soft-delete")
+	const value = ext(op, "x-soft-delete")
 	return typeof value === "string" ? value : null
 }
 
 export function readImmutable(op: OperationObject): string[] {
-	return strArray(ext<unknown>(op, "x-immutable"))
+	return strArray(ext(op, "x-immutable"))
 }
 
 export function readGenerated(op: OperationObject, bodySchema: unknown): string[] {
-	const declared = strArray(ext<unknown>(op, "x-generated"))
+	const declared = strArray(ext(op, "x-generated"))
 	if (declared.length > 0) return declared
 	/* `readOnly: true` carries the same meaning and is standard OpenAPI. */
 	if (bodySchema === null || typeof bodySchema !== "object") return []
@@ -25,7 +25,7 @@ export function readGenerated(op: OperationObject, bodySchema: unknown): string[
 }
 
 export function readCost(op: OperationObject): "low" | "medium" | "high" {
-	const value = ext<unknown>(op, "x-cost")
+	const value = ext(op, "x-cost")
 	return value === "high" || value === "medium" ? value : "low"
 }
 
@@ -36,7 +36,7 @@ export function readCost(op: OperationObject): "low" | "medium" | "high" {
  * (or a missing tag) is `null`, same defensive read as `readCost` / `readRateLimit`.
  */
 export function readFeatureGate(op: OperationObject): string | null {
-	const value = ext<unknown>(op, "x-feature-gate")
+	const value = ext(op, "x-feature-gate")
 	return typeof value === "string" && value !== "" ? value : null
 }
 
@@ -45,7 +45,7 @@ export function readFeatureGate(op: OperationObject): string | null {
  * — `x-destructive` passes `true`, so a typo never makes a destructive operation look safe.
  */
 export function readFlag(op: OperationObject, key: string, whenMalformed = false): boolean {
-	const value = ext<unknown>(op, key)
+	const value = ext(op, key)
 	if (value === undefined || typeof value === "boolean") return value === true
 	return whenMalformed
 }
@@ -62,10 +62,7 @@ export interface RateLimitTag {
  * (no `rps`) still groups operations sharing one budget; a config-level rate can complete it.
  */
 export function readRateLimit(op: OperationObject): RateLimitTag | null {
-	const value = ext<unknown>(op, "x-rate-limit")
-	if (value === null || typeof value !== "object") return null
-	const category = (value as Record<string, unknown>).category
-	if (typeof category !== "string" || category === "") return null
-	const rps = (value as Record<string, unknown>).rps
-	return { category, rps: typeof rps === "number" && rps > 0 ? rps : null }
+	const tag = extObject<RateLimitTag>(op, "x-rate-limit")
+	if (typeof tag?.category !== "string" || tag.category === "") return null
+	return { category: tag.category, rps: typeof tag.rps === "number" && tag.rps > 0 ? tag.rps : null }
 }

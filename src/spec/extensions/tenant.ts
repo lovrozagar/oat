@@ -12,7 +12,7 @@ export function pathParameterNames(path: string): string[] {
 }
 
 export function readTenantSource(endpoint: Endpoint): "tag" | "heuristic" | null {
-	const tag = ext<unknown>(endpoint.op, "x-tenant")
+	const tag = ext(endpoint.op, "x-tenant")
 	/* `false` is a shared catalogue that happens to sit under a project path. */
 	if (tag === false) return null
 	if (typeof tag === "string") return "tag"
@@ -21,7 +21,7 @@ export function readTenantSource(endpoint: Endpoint): "tag" | "heuristic" | null
 }
 
 export function readTenantParam(endpoint: Endpoint, gaps?: GapCollector): string | null {
-	const tag = ext<unknown>(endpoint.op, "x-tenant")
+	const tag = ext(endpoint.op, "x-tenant")
 	if (tag === false) return null
 	if (typeof tag === "string") return tag
 

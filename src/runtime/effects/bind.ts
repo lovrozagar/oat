@@ -3,6 +3,7 @@
  * its prelude read, or as a literal.
  */
 
+import type { RawOf } from "../../config/types/raw.ts"
 import { nestedParamId, scalarId } from "./ids.ts"
 import { valueAt } from "./pointer.ts"
 
@@ -15,7 +16,7 @@ export interface ActionBind {
 
 export function readActionBind(value: unknown): ActionBind | null {
 	if (value === null || typeof value !== "object" || Array.isArray(value)) return null
-	const rec = value as Record<string, unknown>
+	const rec: RawOf<ActionBind> = value
 	return { path: bindStrings(rec.path), body: bindStrings(rec.body), query: bindStrings(rec.query) }
 }
 

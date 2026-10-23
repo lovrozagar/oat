@@ -11,12 +11,12 @@ function normaliseRouteRef(ref: string): string {
 }
 
 export function readInvalidate(op: OperationObject): string[] {
-	const raw = ext<unknown>(op, "x-invalidate")
+	const raw = ext(op, "x-invalidate")
 	if (!Array.isArray(raw)) return []
 	return raw.filter((r): r is string => typeof r === "string").map(normaliseRouteRef)
 }
 
 export function readCleanup(op: OperationObject): string | null {
-	const value = ext<unknown>(op, "x-cleanup")
+	const value = ext(op, "x-cleanup")
 	return typeof value === "string" ? normaliseRouteRef(value) : null
 }

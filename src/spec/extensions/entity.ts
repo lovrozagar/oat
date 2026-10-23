@@ -2,13 +2,24 @@
 
 import type { Endpoint } from "../types.ts"
 import type { GapCollector } from "./gaps.ts"
-import { ext, extObject } from "./tag.ts"
+import { extObject } from "./tag.ts"
 
-export type EntityAction = "create" | "list" | "read" | "update" | "delete" | "action"
+export const ENTITY_ACTIONS = ["create", "list", "read", "update", "delete", "action"] as const
 
-const ACTIONS: ReadonlySet<string> = /* @__PURE__ */ new Set(["create", "list", "read", "update", "delete", "action"])
+export type EntityAction = (typeof ENTITY_ACTIONS)[number]
 
-const isAction = (value: unknown): value is EntityAction => typeof value === "string" && ACTIONS.has(value)
+const isEntityAction = (value: unknown): value is EntityAction => ENTITY_ACTIONS.some((action) => action === value)
+
+/** The fields `x-entity` documents. */
+export interface EntityTag {
+	name: string
+	action: EntityAction
+	identity: string
+	/** Where the answer keeps the record, or a list's rows. */
+	recordPath: string
+	/** Where a create's answer puts the made record's id. */
+	createdIdFrom: string
+}
 
 export interface EntityRef {
 	name: string
@@ -54,14 +65,10 @@ export function singularise(word: string): string {
 const PARAM_SEGMENT = /^\{[^}]+\}$/
 
 export function readEntity(endpoint: Endpoint, gaps?: GapCollector): EntityRef | null {
-	/* The tag counts only with a name and an action oat knows; anything else is read off the path. */
-	const tag = extObject(endpoint.op, "x-entity")
-	const name = tag?.["name"]
-	const action = tag?.["action"]
-	if (typeof name === "string" && name !== "" && isAction(action)) {
-		const ref: EntityRef = { action, name, source: "tag" }
-		const identity = tag?.["identity"]
-		if (typeof identity === "string") ref.identity = identity
+	const tag = extObject<EntityTag>(endpoint.op, "x-entity")
+	if (typeof tag?.name === "string" && tag.name !== "" && isEntityAction(tag.action)) {
+		const ref: EntityRef = { action: tag.action, name: tag.name, source: "tag" }
+		if (typeof tag.identity === "string") ref.identity = tag.identity
 		return ref
 	}
 
@@ -80,13 +87,13 @@ export function readEntity(endpoint: Endpoint, gaps?: GapCollector): EntityRef |
 
 /** `x-entity.recordPath`: the JSON path where this operation's answer keeps the record (or a list's rows). */
 export function readRecordPath(endpoint: Endpoint): string | null {
-	const path = ext<{ recordPath?: unknown }>(endpoint.op, "x-entity")?.recordPath
+	const path = extObject<EntityTag>(endpoint.op, "x-entity")?.recordPath
 	return typeof path === "string" && path !== "" ? path : null
 }
 
 /** `x-entity.createdIdFrom`: the JSON path where a create's answer puts the made record's id. */
 export function readCreatedIdFrom(endpoint: Endpoint): string | null {
-	const from = ext<{ createdIdFrom?: unknown }>(endpoint.op, "x-entity")?.createdIdFrom
+	const from = extObject<EntityTag>(endpoint.op, "x-entity")?.createdIdFrom
 	return typeof from === "string" && from !== "" ? from : null
 }
 

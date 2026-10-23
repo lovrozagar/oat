@@ -3,7 +3,7 @@
 import { ambiguousRows, type CollectionShape, deriveCollectionShape, rowsKeyOf } from "../collection/shape.ts"
 import { documentsEventStream, successSchema } from "../collection/responses.ts"
 import { hasRequestBody, requestSchema } from "../collection/request.ts"
-import { type ConventionSources, deriveQueryConventions } from "../conventions/derive.ts"
+import { deriveQueryConventions } from "../conventions/derive.ts"
 import type { GapCollector } from "../extensions/gaps.ts"
 import { pathParameterNames, readRootParams, readTenantParam, readTenantSource } from "../extensions/tenant.ts"
 import { readAsync, readWait } from "../extensions/async.ts"
@@ -22,8 +22,10 @@ import { readEffects } from "../extensions/effects.ts"
 import { readInvite } from "../extensions/invite.ts"
 import { readPrivileged, requiredPrivileged } from "../extensions/privileged.ts"
 import { readQueryCapability } from "../extensions/query-tag.ts"
+import { ext, extObject } from "../extensions/tag.ts"
 import { readUnique } from "../extensions/unique.ts"
 import { MUTATING, unsendableReason } from "../methods.ts"
+import type { QueryTag } from "../query/tag.ts"
 import { resolveSecurity } from "../security/requirements.ts"
 import { validateTags } from "../tags/validate.ts"
 import type { Endpoint, OpenApiDocument, JsonSchema } from "../types.ts"
@@ -144,7 +146,7 @@ function contractFacts(reading: Reading): Pick<OperationModel, ContractFacts> {
 function behaviourFacts(reading: Reading) {
 	const { endpoint, gaps } = reading
 	const { op, operationId, path } = endpoint
-	const effects = (op as Record<string, unknown>)["x-effects"]
+	const effects = ext(op, "x-effects")
 	const method = endpoint.method.toUpperCase()
 	return {
 		effects: readEffects(op, operationId, gaps),
@@ -193,7 +195,7 @@ function requestFacts(reading: Reading) {
 	return {
 		query: collection === null ? null : readQueryCapability(endpoint, collection.itemSchema, gaps),
 		conventions: deriveQueryConventions(parameters, collection, {
-			declared: (op as Record<string, unknown>)["x-query"] as ConventionSources["declared"],
+			declared: extObject<QueryTag>(op, "x-query"),
 			onGuess: (message) => gaps.record(operationId, "x-query", message),
 			responseHeaders: successResponseHeaders(op),
 		}),

@@ -5,6 +5,9 @@ export type Check = (value: unknown) => string | null
 /** A tag object's fields, each with the check its value must pass. */
 export type Fields = Readonly<Record<string, Check>>
 
+/** The checks for a tag shaped like `T`: only `T`'s keys, so a misspelled one does not compile. */
+export type FieldsOf<T> = { readonly [K in keyof T]?: Check }
+
 export const isObject = (value: unknown): value is Record<string, unknown> =>
 	value !== null && typeof value === "object" && !Array.isArray(value)
 

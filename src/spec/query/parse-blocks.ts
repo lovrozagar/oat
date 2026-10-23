@@ -4,19 +4,19 @@
  */
 
 import type { FieldType, FilterableFrom, Nulls, QueryCapabilities, SelectRelation } from "../../config/types/query.ts"
+import type { RawOf } from "../../config/types/raw.ts"
 import { isFieldType, isNulls } from "./ops.ts"
+import type { QueryTag } from "./tag.ts"
 
-type Rec = Record<string, unknown>
+type Tag = RawOf<QueryTag>
 type SortBlock = NonNullable<QueryCapabilities["sort"]>
 type SelectBlock = NonNullable<QueryCapabilities["select"]>
 
-const isRecord = (value: unknown): value is Rec => value !== null && typeof value === "object" && !Array.isArray(value)
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	value !== null && typeof value === "object" && !Array.isArray(value)
 
-/** The tag's block under `key` when it is an object, else an empty one. */
-const blockOf = (tag: Rec, key: string): Rec => {
-	const value = tag[key]
-	return isRecord(value) ? value : {}
-}
+/** A block of the tag when it is an object, else an empty one. */
+const blockOf = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {})
 
 const stringOf = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined)
 
@@ -38,13 +38,13 @@ function sortCollation(raw: unknown): SortBlock["collation"] {
 
 /** Keeps the defined entries of `pairs`, in order, or `undefined` when none is. */
 function definedEntries<T extends object>(pairs: ReadonlyArray<readonly [keyof T, unknown]>): T | undefined {
-	const out: Rec = {}
+	const out: Record<string, unknown> = {}
 	for (const [key, value] of pairs) if (value !== undefined) out[key as string] = value
 	return Object.keys(out).length > 0 ? (out as T) : undefined
 }
 
-export function parseSortBlock(tag: Rec): QueryCapabilities["sort"] | undefined {
-	const rec = blockOf(tag, "sort")
+export function parseSortBlock(tag: Tag): QueryCapabilities["sort"] | undefined {
+	const rec: RawOf<SortBlock> = blockOf(tag.sort)
 	const defaultNulls = rec.defaultNulls ?? tag.sortDefaultNulls
 	return definedEntries<SortBlock>([
 		["collation", sortCollation(rec.collation ?? tag.sortCollation)],
@@ -60,16 +60,16 @@ function selectRelations(raw: unknown): SelectRelation[] | undefined {
 	if (!Array.isArray(raw)) return undefined
 	const relations: SelectRelation[] = []
 	for (const item of raw) {
-		if (item === null || typeof item !== "object") continue
-		const rel = item as Rec
+		if (!isRecord(item)) continue
+		const rel: RawOf<SelectRelation> = item
 		if (typeof rel.name !== "string" || !Array.isArray(rel.fields)) continue
 		relations.push({ fields: rel.fields.filter((v): v is string => typeof v === "string"), name: rel.name })
 	}
 	return relations.length > 0 ? relations : undefined
 }
 
-export function parseSelectBlock(tag: Rec): QueryCapabilities["select"] | undefined {
-	const rec = blockOf(tag, "select")
+export function parseSelectBlock(tag: Tag): QueryCapabilities["select"] | undefined {
+	const rec: RawOf<SelectBlock> = blockOf(tag.select)
 	const nested = rec.nested ?? tag.selectNested
 	const unknown = rec.unknown ?? tag.selectUnknown
 	return definedEntries<SelectBlock>([
@@ -91,8 +91,9 @@ function harvestTypeMap(raw: unknown): Record<string, FieldType> | undefined {
 	return typeMap
 }
 
-export function parseFilterableFrom(raw: unknown): FilterableFrom | undefined {
-	if (!isRecord(raw)) return undefined
+export function parseFilterableFrom(value: unknown): FilterableFrom | undefined {
+	if (!isRecord(value)) return undefined
+	const raw: RawOf<FilterableFrom> = value
 	const path = nonEmptyString(raw.path)
 	if (path === undefined) return undefined
 	const from: FilterableFrom = { path }

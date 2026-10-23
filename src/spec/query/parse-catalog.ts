@@ -4,13 +4,16 @@
  */
 
 import type { FieldType, FilterOp, QueryCapabilities } from "../../config/types/query.ts"
+import type { RawOf } from "../../config/types/raw.ts"
 import { isFieldType, isFilterOp } from "./ops.ts"
 import { parseFilterableFrom, parseSelectBlock, parseSortBlock } from "./parse-blocks.ts"
 import { parseFilterable, parseSortable } from "./parse-fields.ts"
+import type { QueryTag } from "./tag.ts"
 
-type Tag = Record<string, unknown>
+type Tag = RawOf<QueryTag>
 
-const isRecord = (value: unknown): value is Tag => value !== null && typeof value === "object" && !Array.isArray(value)
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	value !== null && typeof value === "object" && !Array.isArray(value)
 
 const filterOps = (raw: unknown[]): FilterOp[] =>
 	raw.filter((op): op is FilterOp => typeof op === "string" && isFilterOp(op))
@@ -32,7 +35,7 @@ function axes(tag: Tag): QueryCapabilities {
 	return catalog
 }
 
-function operatorsByType(raw: Tag): Partial<Record<FieldType, FilterOp[]>> {
+function operatorsByType(raw: Record<string, unknown>): Partial<Record<FieldType, FilterOp[]>> {
 	const byType: Partial<Record<FieldType, FilterOp[]>> = {}
 	for (const [key, ops] of Object.entries(raw)) {
 		if (isFieldType(key) && Array.isArray(ops)) byType[key] = filterOps(ops)
@@ -40,7 +43,7 @@ function operatorsByType(raw: Tag): Partial<Record<FieldType, FilterOp[]>> {
 	return byType
 }
 
-function aliases(raw: Tag): Partial<Record<FilterOp, FilterOp>> {
+function aliases(raw: Record<string, unknown>): Partial<Record<FilterOp, FilterOp>> {
 	const out: Partial<Record<FilterOp, FilterOp>> = {}
 	for (const [key, target] of Object.entries(raw)) {
 		if (isFilterOp(key) && typeof target === "string" && isFilterOp(target)) out[key] = target

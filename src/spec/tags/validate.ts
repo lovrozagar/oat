@@ -6,29 +6,46 @@
  * and malformed is a gap naming the tag and what is wrong with it, so `doctor` shows it.
  */
 
+import type { AsyncSpec, WaitSpec } from "../extensions/async.ts"
+import { ENTITY_ACTIONS, type EntityTag } from "../extensions/entity.ts"
+import type { RateLimitTag } from "../extensions/flags.ts"
 import type { GapCollector } from "../extensions/gaps.ts"
+import type { InviteSpec } from "../extensions/invite.ts"
+import type { RawOf } from "../../config/types/raw.ts"
 import type { OperationObject, ParameterObject } from "../types.ts"
-import { type Check, checkShape, type Fields, flag, oneOf, positive, route, text, textMap, texts } from "./checks.ts"
+import {
+	type Check,
+	checkShape,
+	type Fields,
+	type FieldsOf,
+	flag,
+	oneOf,
+	positive,
+	route,
+	text,
+	textMap,
+	texts,
+} from "./checks.ts"
 import { xQuery } from "./query.ts"
 
-const ASYNC: Fields = {
+const ASYNC = {
 	idFrom: text,
 	poll: text,
 	pollIntervalMs: positive,
 	successWhen: text,
 	timeoutMs: positive,
 	until: text,
-}
+} satisfies FieldsOf<AsyncSpec>
 
-const ENTITY: Fields = {
-	action: (value) => oneOf(value, ["create", "list", "read", "update", "delete", "action"]),
+const ENTITY = {
+	action: (value) => oneOf(value, ENTITY_ACTIONS),
 	createdIdFrom: text,
 	identity: text,
 	name: text,
 	recordPath: text,
-}
+} satisfies FieldsOf<EntityTag>
 
-const INVITE: Fields = {
+const INVITE = {
 	accept: text,
 	acceptFrom: (value) => oneOf(value, ["link"]),
 	credentialFrom: text,
@@ -40,20 +57,25 @@ const INVITE: Fields = {
 	tokenFrom: (value) => oneOf(value, ["response", "outOfBand"]),
 	tokenKind: text,
 	tokenPointer: text,
-}
+} satisfies FieldsOf<InviteSpec>
 
 const BIND: Fields = { body: textMap, path: textMap, query: textMap }
 
-const RATE_LIMIT: Fields = { category: text, rps: positive }
+const RATE_LIMIT = { category: text, rps: positive } satisfies FieldsOf<RateLimitTag>
 
-const WAIT: Fields = { operationId: text, pollIntervalMs: positive, timeoutMs: positive, until: text }
+const WAIT = {
+	operationId: text,
+	pollIntervalMs: positive,
+	timeoutMs: positive,
+	until: text,
+} satisfies FieldsOf<WaitSpec>
 
 function entity(value: unknown): string | null {
 	const problem = checkShape(value, ENTITY)
 	if (problem !== null) return problem
 	/* Where the answer keeps the record or its id may be declared alone; naming the entity
 	 * still takes both its name and the operation's action. */
-	const tag = value as Record<string, unknown>
+	const tag = value as RawOf<EntityTag>
 	const located = tag.createdIdFrom !== undefined || tag.recordPath !== undefined
 	if (tag.name === undefined && (tag.action !== undefined || !located)) return 'needs "name"'
 	if (tag.action === undefined && (tag.name !== undefined || !located)) return 'needs "action"'

@@ -1,12 +1,14 @@
 /** `x-query`, as `docs/tags.md` documents it. */
 
 import { parseFilterGrammar } from "../render/filter-parse.ts"
+import type { QueryTag } from "../query/tag.ts"
 import { parseSortGrammar } from "../render/sort-parse.ts"
 import {
 	type Check,
 	checkAxis,
 	checkShape,
 	type Fields,
+	type FieldsOf,
 	flag,
 	integer,
 	isObject,
@@ -35,7 +37,7 @@ function sortGrammar(value: unknown): string | null {
 	return parsed.ok ? null : `is a template oat cannot read: ${parsed.error}`
 }
 
-const X_QUERY: Fields = {
+const X_QUERY = {
 	aliases: textMap,
 	defaultOrder: text,
 	emptyIn: (value) => oneOf(value, ["reject", "match-none"]),
@@ -68,6 +70,6 @@ const X_QUERY: Fields = {
 	sortDefaultNulls: (value) => oneOf(value, ["first", "last"]),
 	sortNulls: texts,
 	stableTiebreak: text,
-}
+} satisfies FieldsOf<QueryTag>
 
 export const xQuery: Check = (value) => checkShape(value, X_QUERY)
