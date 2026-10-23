@@ -1,5 +1,7 @@
 import type { Recipe } from "../../config/types/security.ts"
 import { effectiveRecipe } from "../../credentials/effective.ts"
+import { recipeKind } from "../../credentials/recipes/acquire.ts"
+import type { Credential } from "../../credentials/store.ts"
 import { runDisposableOps } from "../disposable/run.ts"
 import type { DisposableInput, Enrolled } from "../disposable/types.ts"
 import type { Exchange } from "../exchange.ts"
@@ -42,10 +44,33 @@ export function enrollerOf(ctx: RunContext): DisposableInput["enroll"] {
 		if ("blocked" in made) return made
 		const reason = await logIn(ctx, id, {})
 		if (reason !== undefined) return { blocked: reason }
+		if (await callersOwn(ctx, id)) {
+			return {
+				blocked: `every scheme's recipe is static and gives ${id} the suite caller's own credential; a second user needs a login recipe`,
+			}
+		}
 		const enrolled: Enrolled = { ...made, scope: boundOf(ctx.store.identityOf(id)).scope }
 		const scheme = refreshedScheme(ctx.options.security ?? {})
 		return scheme === undefined ? enrolled : { ...enrolled, renew: () => renew(ctx, { id, scheme }) }
 	}
+}
+
+/*
+ * Whether `id` would act as the suite caller: every recipe static, each filling it the value the
+ * caller sends. A destructive call it makes then ends the caller's own session.
+ */
+async function callersOwn(ctx: RunContext, id: string): Promise<boolean> {
+	const security = ctx.options.security ?? {}
+	const schemes = Object.keys(security)
+	if (schemes.length === 0) return false
+	if (Object.values(security).some((recipe) => recipeKind(recipe) !== "static")) return false
+	for (const scheme of schemes) {
+		/* A blocked credential has no value: one blocked for the session alone is not the caller's. */
+		const own = (await ctx.store.acquire({ principal: id, scheme })) as Partial<Credential>
+		const caller = (await ctx.store.acquire({ principal: ctx.principals.alpha.id, scheme })) as Partial<Credential>
+		if (own.value !== caller.value) return false
+	}
+	return true
 }
 
 /* The first scheme whose recipe declares a refresh: the one a session's renewal runs. */

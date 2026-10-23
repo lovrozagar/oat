@@ -137,6 +137,22 @@ describe("enrollerOf", () => {
 		})
 	})
 
+	it("is BLOCKED when every recipe is static and fills the second user the caller's own credential", async () => {
+		const signup = withSignup(() => ({ status: 201 }))
+		const shared = await contextOf(optionsFor(signup, { security: { bearer: { static: "tok" } } }))
+		expect(await enrollerOf(shared)("s")).toEqual({
+			blocked:
+				"every scheme's recipe is static and gives disposable-s the suite caller's own credential; a second user needs a login recipe",
+		})
+		const own = await contextOf(
+			optionsFor(signup, {
+				principals: { alpha: { email: "alpha@x.test" } },
+				security: { bearer: { static: "tok-{principal.email}" } },
+			}),
+		)
+		expect(await enrollerOf(own)("t")).toMatchObject({ id: "disposable-t" })
+	})
+
 	it("signs a session up with no renewal when the config names no recipe", async () => {
 		const { security: _none, ...bare } = optionsFor(withSignup(() => ({ status: 201 })))
 		const enrolled = (await enrollerOf(await contextOf(bare))("z")) as Enrolled
