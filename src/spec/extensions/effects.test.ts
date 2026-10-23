@@ -43,6 +43,18 @@ describe("x-effects", () => {
 		])
 	})
 
+	it("drops an item whose op is not one oat knows, with a gap", () => {
+		const gaps = new GapCollector()
+		expect(readEffects(op([{ entity: "note", op: "craete" }]), "note.create", gaps)).toEqual([])
+		expect(gaps.gaps).toEqual([
+			{
+				detail: 'item for "note" has op "craete"; use create, append, update, delete or replace',
+				operationId: "note.create",
+				tag: "x-effects",
+			},
+		])
+	})
+
 	it("is empty without a list", () => {
 		expect(readEffects({} as OperationObject)).toEqual([])
 		expect(readEffects(op({ entity: "note" }))).toEqual([])
