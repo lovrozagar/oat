@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { SchemaObject } from "../types.ts"
+import type { JsonSchema } from "../types.ts"
 import { ambiguousRows, deriveCollectionShape, rowsKeyOf } from "./shape.ts"
 
 const item = { properties: { id: { type: "string" } }, type: "object" }
@@ -22,7 +22,7 @@ describe("deriveCollectionShape", () => {
 				servers: { items: { properties: { url: { type: "string" } }, type: "object" }, type: "array" },
 			},
 			type: "object",
-		} as SchemaObject
+		} as JsonSchema
 		expect(deriveCollectionShape(document)).toBeNull()
 		expect(
 			deriveCollectionShape({ properties: { config: { additionalProperties: {} }, rows: list() }, type: "object" }),
@@ -42,7 +42,7 @@ describe("deriveCollectionShape: envelopes", () => {
 				total: { type: "integer" },
 			},
 			type: "object",
-		} as SchemaObject
+		} as JsonSchema
 		expect(deriveCollectionShape(envelope)).toEqual({
 			envelopeKeys: ["has_more", "next_cursor", "page_size", "pageNumber", "total"],
 			itemSchema: item,
@@ -66,7 +66,7 @@ describe("deriveCollectionShape: envelopes", () => {
 				meta: { properties: { total: { type: "integer" } }, type: "object" },
 			},
 			type: "object",
-		} as SchemaObject
+		} as JsonSchema
 		expect(deriveCollectionShape(envelope)?.key).toBe("data")
 	})
 })

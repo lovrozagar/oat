@@ -5,7 +5,7 @@
  * boolean; anywhere else, or of any other type, it is a gap and oat ignores it.
  */
 
-import type { OperationObject, SchemaObject } from "../types.ts"
+import type { OperationObject, JsonSchema } from "../types.ts"
 import type { GapCollector } from "./gaps.ts"
 
 /** The marker's name. */
@@ -15,7 +15,7 @@ const TAG = PRIVILEGED
 
 /** Where the marker is read from: the operation's request body, and where its gaps go. */
 export interface PrivilegedSource {
-	body: SchemaObject | null
+	body: JsonSchema | null
 	operationId: string
 	gaps: GapCollector
 }
@@ -38,9 +38,9 @@ export function readPrivileged(op: OperationObject, source: PrivilegedSource): s
  * required where it sits, by the object or one of its allOf members. Only the highest rank can send
  * a create whose body requires one.
  */
-export function requiredPrivileged(body: SchemaObject | null, marked: readonly string[]): string[] {
+export function requiredPrivileged(body: JsonSchema | null, marked: readonly string[]): string[] {
 	return marked.filter((path) => {
-		let at: SchemaObject | undefined = body ?? undefined
+		let at: JsonSchema | undefined = body ?? undefined
 		for (const name of path.split(".")) {
 			if (at === undefined || !requiredAt(at).includes(name)) return false
 			at = propertyAt(at, name)
@@ -50,12 +50,12 @@ export function requiredPrivileged(body: SchemaObject | null, marked: readonly s
 }
 
 /* The names an object schema requires, its allOf members' included. */
-function requiredAt(schema: SchemaObject): unknown[] {
+function requiredAt(schema: JsonSchema): unknown[] {
 	return [schema, ...schemas(schema.allOf)].flatMap((part) => (Array.isArray(part.required) ? part.required : []))
 }
 
 /* The schema of property `name`, declared by the object or one of its allOf members. */
-function propertyAt(schema: SchemaObject, name: string): SchemaObject | undefined {
+function propertyAt(schema: JsonSchema, name: string): JsonSchema | undefined {
 	return [schema, ...schemas(schema.allOf)].map((part) => schemaMap(part.properties)[name]).find(isSchema)
 }
 
@@ -64,11 +64,11 @@ interface Walk {
 	operationId: string
 	marked: string[]
 	prefix: string
-	seen: Set<SchemaObject>
+	seen: Set<JsonSchema>
 }
 
 /* Each property of `schema` and of its allOf members, then each nested object's. */
-function walk(schema: SchemaObject, at: Walk): void {
+function walk(schema: JsonSchema, at: Walk): void {
 	if (at.seen.has(schema)) return
 	at.seen.add(schema)
 	for (const member of schemas(schema.allOf)) walk(member, at)
@@ -83,17 +83,15 @@ function walk(schema: SchemaObject, at: Walk): void {
 	}
 }
 
-function isSchema(value: unknown): value is SchemaObject {
+function isSchema(value: unknown): value is JsonSchema {
 	return value !== null && typeof value === "object" && !Array.isArray(value)
 }
 
-function schemas(value: unknown): SchemaObject[] {
+function schemas(value: unknown): JsonSchema[] {
 	return Array.isArray(value) ? value.filter(isSchema) : []
 }
 
-function schemaMap(value: unknown): Record<string, SchemaObject> {
+function schemaMap(value: unknown): Record<string, JsonSchema> {
 	if (!isSchema(value)) return {}
-	return Object.fromEntries(
-		Object.entries(value).filter((entry): entry is [string, SchemaObject] => isSchema(entry[1])),
-	)
+	return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, JsonSchema] => isSchema(entry[1])))
 }

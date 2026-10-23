@@ -2,8 +2,9 @@
 
 import type { FieldType } from "../../config/types/query.ts"
 import { scalarKinds } from "../schema.ts"
+import type { JsonSchema } from "../types.ts"
 
-export function inferFieldType(schema: Record<string, unknown> | undefined): FieldType | undefined {
+export function inferFieldType(schema: JsonSchema | undefined): FieldType | undefined {
 	if (schema === undefined) return undefined
 	if (Array.isArray(schema.enum) && schema.enum.length > 0) return "enum"
 	const format = typeof schema.format === "string" ? schema.format : ""
@@ -16,13 +17,13 @@ export function inferFieldType(schema: Record<string, unknown> | undefined): Fie
 	return types.size === 1 ? ([...types][0] as FieldType) : undefined
 }
 
-export function inferTypesFromSchema(schema: Record<string, unknown> | null | undefined): Map<string, FieldType> {
+export function inferTypesFromSchema(schema: JsonSchema | null | undefined): Map<string, FieldType> {
 	const out = new Map<string, FieldType>()
 	const props = schema?.properties
 	if (props === null || props === undefined || typeof props !== "object") return out
 	for (const [name, raw] of Object.entries(props as Record<string, unknown>)) {
 		if (raw === null || typeof raw !== "object") continue
-		const type = inferFieldType(raw as Record<string, unknown>)
+		const type = inferFieldType(raw as JsonSchema)
 		if (type !== undefined) out.set(name, type)
 	}
 	return out

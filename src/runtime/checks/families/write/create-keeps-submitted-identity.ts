@@ -10,6 +10,7 @@ import { cannot, ready } from "../../core/plan.ts"
 import { readRecord } from "../../isolation/scratch.ts"
 import { requestSchemaOf } from "../../payloads/body.ts"
 import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
+import type { JsonSchema } from "../../../../spec/types.ts"
 
 /** How many creates with distinct client-chosen ids `create.keeps-submitted-identity` judges. */
 const KEPT_IDENTITY_SAMPLES = 3
@@ -47,9 +48,9 @@ export const createKeepsSubmittedIdentity = defineCheck<{ readOp: OperationModel
 		const createOp = ctx.createOp
 		const readOp = ctx.readOp
 		if (createOp === undefined || readOp === undefined) return cannot()
-		const property = (
-			requestSchemaOf(ctx, createOp)?.properties as Record<string, Record<string, unknown>> | undefined
-		)?.[ctx.identity]
+		const property = (requestSchemaOf(ctx, createOp)?.properties as Record<string, JsonSchema> | undefined)?.[
+			ctx.identity
+		]
 		/* Only an identity the client writes can be kept or ignored. */
 		if (property === undefined || property.readOnly === true) return cannot()
 		return ready({ readOp })

@@ -7,7 +7,7 @@
 import { readFile, realpath } from "node:fs/promises"
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path"
 import { UsageError } from "../../errors/usage-error.ts"
-import type { OpenApiDocument } from "../types.ts"
+import type { JsonSchema, OpenApiDocument } from "../types.ts"
 import { parseText } from "./parse.ts"
 
 /** Where the files a document refers to are stored, by their path in its folder. */
@@ -27,7 +27,7 @@ interface Bundling {
 /** Nodes met while collecting refs: a YAML alias reaches one node twice, or loops back. */
 interface Collecting {
 	seen: Set<object>
-	holders: Record<string, unknown>[]
+	holders: JsonSchema[]
 }
 
 /**
@@ -58,7 +58,7 @@ function collect(ctx: Collecting, node: unknown, mode: "node" | "example"): void
 		for (const item of node) collect(ctx, item, "node")
 		return
 	}
-	const obj = node as Record<string, unknown>
+	const obj = node as JsonSchema
 	if (typeof obj.$ref === "string") ctx.holders.push(obj)
 	for (const [key, value] of Object.entries(obj)) collectEntry(ctx, key, value, mode)
 }

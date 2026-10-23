@@ -7,13 +7,14 @@ import { numberFor } from "./number.ts"
 import { objectFor } from "./object.ts"
 import { stringFor } from "./string.ts"
 import { text } from "./text.ts"
-import type { At, Schema } from "./types.ts"
+import type { JsonSchema } from "../../spec/types.ts"
+import type { At } from "./types.ts"
 import { Unconstructible } from "./unconstructible.ts"
 
 const MAX_DEPTH = 12
 
 /** A value of the schema's first non-null type. */
-function typed(schema: Schema, at: At): unknown {
+function typed(schema: JsonSchema, at: At): unknown {
 	const { ctx, pointer } = at
 	const types = typesOf(schema)
 	if (ctx.variant === "null-heavy" && types.includes("null")) return null

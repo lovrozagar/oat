@@ -5,9 +5,10 @@ import { ROW } from "../model/row.ts"
 import { TABLE } from "../model/table.ts"
 import type { ReferenceShape } from "../shapes/types.ts"
 import { itemPathItem } from "./item.ts"
+import type { JsonSchema } from "../../spec/types.ts"
 import type { Json } from "./types.ts"
 
-type Item = Record<string, Json & { responses: Json; requestBody: { content: Record<string, { schema: Json }> } }>
+type Item = Record<string, Json & { responses: Json; requestBody: { content: Record<string, { schema: JsonSchema }> } }>
 
 function item(shape: ReferenceShape, entity = TABLE): Item {
 	return itemPathItem({ entities: ENTITIES, shape }, entity) as Item

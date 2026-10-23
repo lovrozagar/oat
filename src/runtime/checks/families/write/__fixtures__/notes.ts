@@ -1,7 +1,7 @@
 import type { RequestOptions } from "../../../../../client/types.ts"
 import type { FindingCollector } from "../../../../finding.ts"
 import type { SpecModel } from "../../../../../spec/graph/types.ts"
-import type { OpenApiDocument } from "../../../../../spec/types.ts"
+import type { JsonSchema, OpenApiDocument } from "../../../../../spec/types.ts"
 import { type Answer, contextFor, modelOf, op, type Responder, type Sent } from "../../../__fixtures__/harness.ts"
 import type { CheckContext, WriteContext } from "../../../core/context.ts"
 
@@ -55,7 +55,7 @@ export interface NotesOptions {
 	/** Leave the request body off the create. */
 	createWithoutBody?: boolean
 	/** The item route's identifier schema. */
-	idSchema?: Record<string, unknown>
+	idSchema?: JsonSchema
 	/** `x-generated` on the create and on the update. */
 	generated?: { create?: string[]; update?: string[] }
 }

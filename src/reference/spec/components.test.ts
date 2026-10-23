@@ -13,8 +13,8 @@ describe("components", () => {
 			securitySchemes: unknown
 		}
 		expect(Object.keys(declared.schemas).slice(-6)).toEqual(["Error", "Problem", "Point", "TreeNode", "Card", "Bank"])
-		expect(declared.schemas.Card).toEqual(paymentSchemas().Card)
-		expect(declared.schemas.TreeNode).toHaveProperty("properties.children.items", {
+		expect(declared.schemas["Card"]).toEqual(paymentSchemas().Card)
+		expect(declared.schemas["TreeNode"]).toHaveProperty("properties.children.items", {
 			$ref: "#/components/schemas/TreeNode",
 		})
 		expect(Object.keys(declared.securitySchemes as object)).toEqual(["apiKey", "jwt"])
@@ -26,6 +26,6 @@ describe("components", () => {
 		const entities = shapedEntities(shape)
 		const declared = components({ entities, shape }) as { schemas: Record<string, unknown> }
 		expect(Object.keys(declared.schemas).slice(-3)).toEqual(["Table", "Row", "Job"])
-		expect(declared.schemas.Table).toEqual(itemSchema(entities[0] ?? TABLE))
+		expect(declared.schemas["Table"]).toEqual(itemSchema(entities[0] ?? TABLE))
 	})
 })

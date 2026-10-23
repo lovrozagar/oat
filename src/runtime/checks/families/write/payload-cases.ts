@@ -3,6 +3,7 @@ import type { EntityModel, OperationModel, SpecModel } from "../../../../spec/gr
 import { payloadFits, REQUIRED_IDS, STRING_PAYLOADS, type StringPayload } from "../../../payloads.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { propertySchemaOf, requestSchemaOf, withheldProperties } from "../../payloads/body.ts"
+import type { JsonSchema } from "../../../../spec/types.ts"
 
 export const ASCII_PAYLOAD_PROBE = "oat-payload-probe"
 
@@ -12,19 +13,17 @@ export interface PayloadField {
 	minLength: number | undefined
 }
 
-type Schema = Record<string, unknown>
-
 /** The first branch of a `oneOf`/`anyOf` union whose type is `type`. */
-function unionBranchOf(union: unknown, type: string): Schema | undefined {
+function unionBranchOf(union: unknown, type: string): JsonSchema | undefined {
 	if (!Array.isArray(union)) return undefined
 	return union.find(
 		(candidate) =>
 			candidate !== null && typeof candidate === "object" && (candidate as { type?: unknown }).type === type,
-	) as Schema | undefined
+	) as JsonSchema | undefined
 }
 
 /** A string schema with nothing (enum, pattern, format) that would make an arbitrary string invalid. */
-function isUnconstrainedString(schema: Schema): boolean {
+function isUnconstrainedString(schema: JsonSchema): boolean {
 	const type = schema.type
 	const isString = type === "string" || (Array.isArray(type) && type.includes("string"))
 	if (!isString && type !== undefined) return false
@@ -32,7 +31,7 @@ function isUnconstrainedString(schema: Schema): boolean {
 	return typeof schema.pattern !== "string" && typeof schema.format !== "string"
 }
 
-function isNullable(propertySchema: Schema, union: unknown): boolean {
+function isNullable(propertySchema: JsonSchema, union: unknown): boolean {
 	return (
 		propertySchema.nullable === true ||
 		(Array.isArray(propertySchema.type) && propertySchema.type.includes("null")) ||
@@ -44,7 +43,7 @@ function isNullable(propertySchema: Schema, union: unknown): boolean {
  * The property as a payload target, scored so nullable and roomier fields win; `null` when it cannot
  * be one. A readOnly property never reaches here: `untouchableFields` withholds it.
  */
-function payloadCandidate(name: string, propertySchema: Schema): (PayloadField & { score: number }) | null {
+function payloadCandidate(name: string, propertySchema: JsonSchema): (PayloadField & { score: number }) | null {
 	const union = propertySchema.oneOf ?? propertySchema.anyOf
 	const stringSchema = unionBranchOf(union, "string") ?? propertySchema
 	if (!isUnconstrainedString(stringSchema)) return null
@@ -74,7 +73,7 @@ function untouchableFields(ctx: PayloadSubject, op: OperationModel): ReadonlySet
 
 export function pickPayloadField(ctx: PayloadSubject, op: OperationModel): PayloadField | null {
 	const schema = requestSchemaOf(ctx, op)
-	const properties = (schema?.properties ?? {}) as Record<string, Schema>
+	const properties = (schema?.properties ?? {}) as Record<string, JsonSchema>
 	const immutable = untouchableFields(ctx, op)
 	let best: (PayloadField & { score: number }) | null = null
 	for (const [name, propertySchema] of Object.entries(properties)) {

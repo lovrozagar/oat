@@ -1,6 +1,6 @@
 /** Which query parameter plays which role, by the aliases real APIs use and the schema they declare. */
 
-import type { ParameterObject, SchemaObject } from "../types.ts"
+import type { ParameterObject, JsonSchema } from "../types.ts"
 import { scalarKinds } from "../schema.ts"
 
 export type Role = "filter" | "order" | "select" | "search" | "searchMode" | "limit" | "page" | "offset" | "cursor"
@@ -36,7 +36,7 @@ function normalise(name: string): string {
 	)
 }
 
-export function schemaOf(parameter: ParameterObject): SchemaObject {
+export function schemaOf(parameter: ParameterObject): JsonSchema {
 	return parameter.schema ?? {}
 }
 
@@ -90,7 +90,7 @@ function namedRole(parameter: ParameterObject, roles: PagingRoles): keyof Paging
 }
 
 /** Unnamed but unmistakable: a bounded integer with a default is a page size, one starting at 1 a page. */
-function shapedRole(schema: SchemaObject, roles: PagingRoles): keyof PagingRoles | undefined {
+function shapedRole(schema: JsonSchema, roles: PagingRoles): keyof PagingRoles | undefined {
 	const hasMaximum = typeof schema.maximum === "number"
 	if (roles.limit === undefined && hasMaximum && schema.default !== undefined) return "limit"
 	if (roles.page === undefined && schema.minimum === 1 && !hasMaximum) return "page"

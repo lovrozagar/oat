@@ -18,6 +18,7 @@ import { generate } from "./generate/generate.ts"
 import { isVacuous } from "./generate/algebra.ts"
 import { instanceErrors } from "./validate.ts"
 import { messageOf } from "../errors/message.ts"
+import type { JsonSchema } from "../spec/types.ts"
 
 export type { Variant } from "./generate/types.ts"
 export { isVacuous } from "./generate/algebra.ts"
@@ -42,8 +43,6 @@ export function mulberry32(seed: number): () => number {
 		return ((t ^ (t >>> 14)) >>> 0) / 4294967296
 	}
 }
-
-type Schema = Record<string, unknown>
 
 export interface CohortMember {
 	variant: Variant
@@ -85,7 +84,7 @@ export interface CohortOptions {
 	/** The operation an overflow names; default "unknown". */
 	operationId?: string
 	/** Recursive schemas the document refers to as `oat-defs#/$defs/<name>`. */
-	defs?: Record<string, Schema>
+	defs?: Record<string, JsonSchema>
 	/** Per-run token for values that must not collide with an earlier run's. */
 	nonce?: string
 	/** Top-level fields whose values must be distinct across runs too — the x-unique columns. */
@@ -97,14 +96,16 @@ export interface CohortOptions {
  * marked x-privileged left out, since only the highest rank may set it (`ordinary`). Every body oat
  * makes or cuts from a record is read through this.
  */
-export function ordinaryRequestSchema(schema: Schema | boolean): Schema | boolean {
+export function ordinaryRequestSchema(schema: JsonSchema): JsonSchema
+export function ordinaryRequestSchema(schema: JsonSchema | boolean): JsonSchema | boolean
+export function ordinaryRequestSchema(schema: JsonSchema | boolean): JsonSchema | boolean {
 	return typeof schema === "object" && schema !== null
 		? normalizeSchema(schema, { direction: "request", ordinary: true })
 		: schema
 }
 
 /* The request schema as generation reads it; one that cannot even be read is an overflow naming why. */
-function readable(schema: Schema | boolean, operationId: string): Schema | boolean {
+function readable(schema: JsonSchema | boolean, operationId: string): JsonSchema | boolean {
 	try {
 		return ordinaryRequestSchema(schema)
 	} catch (error) {
@@ -118,7 +119,7 @@ export interface CohortBuild extends CohortOptions {
 }
 
 /** One body per variant, each valid for the schema — or a `FixtureOverflow` naming what is not. */
-export function buildCohort(bodySchema: Schema | boolean, seed: number, options: CohortBuild = {}): CohortMember[] {
+export function buildCohort(bodySchema: JsonSchema | boolean, seed: number, options: CohortBuild = {}): CohortMember[] {
 	const { operationId = "unknown", variants = COHORT } = options
 	const schema = readable(bodySchema, operationId)
 	return variants.map((variant, index) => {
@@ -153,7 +154,7 @@ export interface BodyDraw {
  * callers that report each gap themselves. Optional fields that cannot be made are left out.
  */
 export function generateBody(
-	bodySchema: Schema | boolean,
+	bodySchema: JsonSchema | boolean,
 	draw: BodyDraw,
 ): { body: Record<string, unknown>; missingRequired: string[] } {
 	const schema = ordinaryRequestSchema(bodySchema)
@@ -192,7 +193,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
  */
 /** What a member's unique columns are redrawn from: the body schema, and how cohort values are made. */
 export interface Redrawing extends CohortOptions {
-	schema: Schema | boolean
+	schema: JsonSchema | boolean
 }
 
 export function ensureDistinctUniqueValues(

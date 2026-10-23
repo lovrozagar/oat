@@ -6,7 +6,7 @@ import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import type { Scenario } from "../../src/config/define/types.ts"
 import { run } from "../../src/runtime/run/index.ts"
-import type { OpenApiDocument } from "../../src/spec/types.ts"
+import type { JsonSchema, OpenApiDocument } from "../../src/spec/types.ts"
 
 /*
  * A scenario can belong to a secondary origin: a file store beside the API. Its steps and what it
@@ -20,7 +20,7 @@ afterEach(async () => {
 	await Promise.all(closers.splice(0).map((close) => close()))
 })
 
-const json = (schema: Record<string, unknown>) => ({ "application/json": { schema } })
+const json = (schema: JsonSchema) => ({ "application/json": { schema } })
 
 const mainSpec: OpenApiDocument = {
 	info: { title: "main", version: "1" },

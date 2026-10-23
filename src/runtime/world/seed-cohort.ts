@@ -18,10 +18,11 @@ import { isScalarId, type Record_ } from "./records.ts"
 import { requestSchemaOf } from "./schema.ts"
 import type { Scope, SeededCohort, Seeding } from "./types.ts"
 import { uploadContext } from "./upload-context.ts"
+import type { JsonSchema } from "../../spec/types.ts"
 
 /** What a cohort is generated against: the body schema, the identity, and the unique sets to keep apart. */
 interface CohortPlan {
-	schema: Record<string, unknown>
+	schema: JsonSchema
 	identity: string
 	ownIdentity: string | null
 	/** The create body names its own identity, and no declared unique set covers it alone. */

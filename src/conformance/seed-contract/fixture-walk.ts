@@ -15,7 +15,7 @@ import {
 import { codePointCount } from "../../runtime/payloads.ts"
 import { dereference } from "../../spec/load/dereference.ts"
 import { documentDefs } from "../../spec/load/defs.ts"
-import type { OpenApiDocument } from "../../spec/types.ts"
+import type { JsonSchema, OpenApiDocument } from "../../spec/types.ts"
 import type { ParserResult } from "../harness/result.ts"
 
 /** One fixture-walk case: what it is called, why it matters, and what it found. */
@@ -91,7 +91,7 @@ export const HANDLE_SCHEMA = {
 }
 
 /* Every cohort member's handle matches the pattern and is not `a`, and every name is in [3, 32]. */
-export function boundedPattern(schema: Record<string, unknown>): { ok: boolean; detail: string } {
+export function boundedPattern(schema: JsonSchema): { ok: boolean; detail: string } {
 	const members = buildCohort(schema, 1, { operationId: "user.create" })
 	const re = new RegExp(HANDLE)
 	const ok = members.every(({ body: { handle, name } }) => {

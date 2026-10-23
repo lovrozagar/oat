@@ -10,6 +10,7 @@ import { applyResolveInput } from "../input.ts"
 import { requestSchemaOf } from "../world/schema.ts"
 import { SELF_CHECK_ID } from "./operations.ts"
 import { operation, pathOf } from "./requests.ts"
+import type { JsonSchema } from "../../spec/types.ts"
 
 export interface CreatedCaller {
 	body: Record<string, unknown>
@@ -27,7 +28,7 @@ export interface CallerInput {
 }
 
 /** Optional fields stay out. A create that pairs them (a label without its url) is a different check. */
-function requiredSchema(schema: Record<string, unknown>): Record<string, unknown> {
+function requiredSchema(schema: JsonSchema): JsonSchema {
 	const required = Array.isArray(schema.required)
 		? schema.required.filter((name): name is string => typeof name === "string")
 		: []
@@ -40,7 +41,7 @@ function requiredSchema(schema: Record<string, unknown>): Record<string, unknown
 	return { ...schema, properties: picked, required }
 }
 
-function propertyNames(schema: Record<string, unknown>): Set<string> {
+function propertyNames(schema: JsonSchema): Set<string> {
 	const properties = schema.properties
 	if (properties === null || typeof properties !== "object" || Array.isArray(properties)) return new Set()
 	return new Set(Object.keys(properties as Record<string, unknown>))
@@ -60,7 +61,7 @@ export function callerEchoed(sent: Record<string, unknown>, body: unknown): bool
 /** The create the caller's body is made for: its operation and its request schema. */
 interface CreateRequest {
 	operationId: string
-	schema: Record<string, unknown>
+	schema: JsonSchema
 }
 
 function callerBody(

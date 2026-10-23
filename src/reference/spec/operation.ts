@@ -3,13 +3,14 @@
 import type { Dialect } from "../dialect/types.ts"
 import type { EntityDef } from "../model/types.ts"
 import type { Json, SpecContext } from "./types.ts"
+import type { JsonSchema } from "../../spec/types.ts"
 
 /** A success status as the document spells it — exactly, or as the `2XX` range. */
 export function ok(ctx: SpecContext, status: number): string {
 	return ctx.shape.rangeStatuses === true ? "2XX" : String(status)
 }
 
-export function jsonResponse(description: string, schema: Json, headers?: Json): Json {
+export function jsonResponse(description: string, schema: JsonSchema, headers?: Json): Json {
 	const response: Json = { content: { "application/json": { schema } }, description }
 	if (headers !== undefined) response.headers = headers
 	return response

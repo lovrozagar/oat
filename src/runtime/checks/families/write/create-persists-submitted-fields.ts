@@ -7,17 +7,18 @@ import { type Record_ } from "../../../world/records.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { createExchange, requestSchemaOf } from "../../payloads/body.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
+import type { JsonSchema } from "../../../../spec/types.ts"
 
 export const createPersistsFields = defineCheck<{
 	createOp: OperationModel
-	properties: Record<string, Record<string, unknown>>
+	properties: Record<string, JsonSchema>
 }>({
 	plan: (ctx) => {
 		const createOp = ctx.createOp
 		/* An acknowledgement-only create never echoes the record: nothing to compare. */
 		if (createOp === undefined || ctx.records.length === 0 || ctx.createAcknowledged) return cannot()
 		const schema = requestSchemaOf(ctx, createOp)
-		const properties = (schema?.properties ?? {}) as Record<string, Record<string, unknown>>
+		const properties = (schema?.properties ?? {}) as Record<string, JsonSchema>
 		return ready({ createOp, properties })
 	},
 	dependsOn: ["list.read-after-write"],
@@ -102,7 +103,7 @@ function formValues(body: unknown, contentType?: string): Map<string, string[]> 
 	return out
 }
 
-function coerceFormScalar(value: string, of: Record<string, unknown> | undefined): unknown {
+function coerceFormScalar(value: string, of: JsonSchema | undefined): unknown {
 	const kinds = [of?.type].flat()
 	if (kinds.includes("integer") || kinds.includes("number")) {
 		const number = Number(value)
@@ -117,10 +118,10 @@ function coerceFormScalar(value: string, of: Record<string, unknown> | undefined
  * `1.5`, not `"1.5"`, and a field sent three times is an array of three. Comparing the raw form
  * strings with the typed record reads every non-string field as dropped.
  */
-function coerceFormValue(values: string[], schema: Record<string, unknown> | undefined): unknown {
+function coerceFormValue(values: string[], schema: JsonSchema | undefined): unknown {
 	const types = [schema?.type].flat()
 	if (types.includes("array")) {
-		const items = schema?.items as Record<string, unknown> | undefined
+		const items = schema?.items as JsonSchema | undefined
 		return values.map((value) => coerceFormScalar(value, items))
 	}
 	/* `formValues` never makes a field without a value. */
@@ -131,7 +132,7 @@ function coerceFormValue(values: string[], schema: Record<string, unknown> | und
 function submittedFields(
 	body: unknown,
 	contentType: string | undefined,
-	properties: Record<string, Record<string, unknown>>,
+	properties: Record<string, JsonSchema>,
 ): Record_ {
 	const form = formValues(body, contentType)
 	if (form === null) return isPlainBody(body) ? body : {}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { OpenApiDocument } from "../../../../spec/types.ts"
+import type { JsonSchema, OpenApiDocument } from "../../../../spec/types.ts"
 import type { FindingCollector } from "../../../finding.ts"
 import type { Record_ } from "../../../world/records.ts"
 import { type Serve, wireStage } from "../../__fixtures__/wire.ts"
@@ -29,7 +29,7 @@ const OUTSIDE: Record_[] = [
 	{ amount: 9, id: "x-gt-2", note: "present", tags: ["green"] },
 ]
 
-function itemSchema(): Record<string, unknown> {
+function itemSchema(): JsonSchema {
 	return {
 		properties: {
 			amount: { type: "number" },

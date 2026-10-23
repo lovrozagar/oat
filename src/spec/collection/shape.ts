@@ -6,13 +6,13 @@
  * disables every list-based assertion. The schema already states the answer; read it.
  */
 
-import type { SchemaObject } from "../types.ts"
+import type { JsonSchema } from "../types.ts"
 import { asSchema, effective } from "./effective.ts"
 
 export interface CollectionShape {
 	/** Property holding the array, or null when the response *is* the array. */
 	key: string | null
-	itemSchema: SchemaObject | null
+	itemSchema: JsonSchema | null
 	/** Sibling properties of the collection — `count`, `hasMore`, `nextCursor`, `page`. */
 	envelopeKeys: string[]
 	pagination: {
@@ -40,17 +40,17 @@ const SIDECAR = /^(errors?|warnings?|messages?|meta|links)$/i
 /** Object properties an envelope may carry beside its rows. */
 const PAGE_SIDECAR = /^(errors?|warnings?|messages?|meta|links|filters?|facets)$/i
 
-type Entry = [string, SchemaObject | null]
+type Entry = [string, JsonSchema | null]
 
 interface Candidate {
 	name: string
-	item: SchemaObject
+	item: JsonSchema
 }
 
-const holdsObjects = (item: SchemaObject | null): boolean => item?.type === "object" || item?.properties !== undefined
+const holdsObjects = (item: JsonSchema | null): boolean => item?.type === "object" || item?.properties !== undefined
 
 /** The schema's properties, each read as the instance sees it; `null` when it has none. */
-function propertyEntries(schema: SchemaObject): Entry[] | null {
+function propertyEntries(schema: JsonSchema): Entry[] | null {
 	const props = schema.properties
 	if (props === null || typeof props !== "object") return null
 	return Object.entries(props as Record<string, unknown>).map(([name, value]) => [name, effective(asSchema(value))])
@@ -65,7 +65,7 @@ function propertyEntries(schema: SchemaObject): Entry[] | null {
 function chooseRows(entries: Entry[], rowsKey: string | null | undefined): Candidate | undefined {
 	const candidates = entries
 		.filter(([name, value]) => value?.type === "array" && !SIDECAR.test(name))
-		.map(([name, value]) => ({ item: effective(asSchema((value as SchemaObject).items)), name }))
+		.map(([name, value]) => ({ item: effective(asSchema((value as JsonSchema).items)), name }))
 		.filter((c): c is Candidate => c.item !== null)
 	if (rowsKey !== undefined && rowsKey !== null) return candidates.find((c) => c.name === rowsKey)
 	const objectRows = candidates.filter((c) => holdsObjects(c.item))
@@ -93,7 +93,7 @@ function hasSubstantiveSibling(entries: Entry[], chosen: string): boolean {
 	)
 }
 
-export function deriveCollectionShape(raw: SchemaObject | null, rowsKey?: string | null): CollectionShape | null {
+export function deriveCollectionShape(raw: JsonSchema | null, rowsKey?: string | null): CollectionShape | null {
 	const schema = effective(raw)
 	if (schema === null) return null
 	if (schema.type === "array") {
@@ -116,7 +116,7 @@ export function deriveCollectionShape(raw: SchemaObject | null, rowsKey?: string
  * The arrays of objects a list response could hold its rows in, when there is more than one: a
  * document that leaves this open needs `x-entity.recordPath` on the list. Empty otherwise.
  */
-export function ambiguousRows(raw: SchemaObject | null): string[] {
+export function ambiguousRows(raw: JsonSchema | null): string[] {
 	const schema = effective(raw)
 	if (schema === null || schema.type === "array") return []
 	const entries = propertyEntries(schema) ?? []

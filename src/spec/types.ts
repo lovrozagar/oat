@@ -4,19 +4,83 @@ import type { HttpMethod } from "./methods.ts"
 
 export type { HttpMethod } from "./methods.ts"
 
-export type SchemaObject = Record<string, unknown>
+/**
+ * A JSON Schema node as a spec states it: the keywords oat reads, each still untrusted and checked
+ * where it is read. Extensions (`x-*`) and keywords oat ignores sit behind the index signature.
+ */
+export interface JsonSchema {
+	$ref?: unknown
+	$id?: unknown
+	$schema?: unknown
+	$anchor?: unknown
+	$comment?: unknown
+	$defs?: unknown
+	definitions?: unknown
+	type?: unknown
+	enum?: unknown
+	const?: unknown
+	format?: unknown
+	pattern?: unknown
+	minLength?: unknown
+	maxLength?: unknown
+	minimum?: unknown
+	maximum?: unknown
+	exclusiveMinimum?: unknown
+	exclusiveMaximum?: unknown
+	multipleOf?: unknown
+	properties?: unknown
+	required?: unknown
+	additionalProperties?: unknown
+	patternProperties?: unknown
+	propertyNames?: unknown
+	unevaluatedProperties?: unknown
+	dependentSchemas?: unknown
+	items?: unknown
+	prefixItems?: unknown
+	additionalItems?: unknown
+	unevaluatedItems?: unknown
+	contains?: unknown
+	minItems?: unknown
+	maxItems?: unknown
+	uniqueItems?: unknown
+	allOf?: unknown
+	anyOf?: unknown
+	oneOf?: unknown
+	not?: unknown
+	if?: unknown
+	then?: unknown
+	else?: unknown
+	title?: unknown
+	description?: unknown
+	default?: unknown
+	examples?: unknown
+	deprecated?: unknown
+	readOnly?: unknown
+	writeOnly?: unknown
+	contentEncoding?: unknown
+	contentMediaType?: unknown
+	/* OpenAPI's own schema keywords. */
+	nullable?: unknown
+	example?: unknown
+	discriminator?: unknown
+	xml?: unknown
+	externalDocs?: unknown
+	/* oat's own: the name a file part is sent under. */
+	filename?: unknown
+	[extension: string]: unknown
+}
 
 export interface ParameterObject {
 	name: string
 	in: "path" | "query" | "header" | "cookie"
 	required?: boolean
-	schema?: SchemaObject
+	schema?: JsonSchema
 	description?: string
 	[k: string]: unknown
 }
 
 export interface MediaTypeObject {
-	schema?: SchemaObject
+	schema?: JsonSchema
 	encoding?: Record<string, { contentType?: string }>
 }
 
@@ -43,7 +107,7 @@ export interface OpenApiDocument {
 	info?: Record<string, unknown>
 	servers?: Array<{ url: string }>
 	paths?: Record<string, PathItemObject>
-	components?: { schemas?: Record<string, SchemaObject>; securitySchemes?: Record<string, unknown> }
+	components?: { schemas?: Record<string, JsonSchema>; securitySchemes?: Record<string, unknown> }
 	security?: Array<Record<string, string[]>>
 	[k: `x-${string}`]: unknown
 }

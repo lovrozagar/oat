@@ -1,8 +1,8 @@
 /** What an operation's documented success responses say: the JSON schema it answers with, and whether it streams. */
 
-import type { OperationObject, SchemaObject } from "../types.ts"
+import type { OperationObject, JsonSchema } from "../types.ts"
 
-export function successSchema(op: OperationObject): SchemaObject | null {
+export function successSchema(op: OperationObject): JsonSchema | null {
 	const responses = op.responses ?? {}
 	for (const code of ["200", "201", "202", "2XX", "default"]) {
 		const content = responses[code]?.content

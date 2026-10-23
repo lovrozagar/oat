@@ -1,7 +1,8 @@
 /** A number or integer within the schema's bounds and step. */
 
 import { nonceNumber } from "./nonce.ts"
-import type { At, Schema } from "./types.ts"
+import type { JsonSchema } from "../../spec/types.ts"
+import type { At } from "./types.ts"
 import { Unconstructible } from "./unconstructible.ts"
 
 interface Bounds {
@@ -14,7 +15,7 @@ interface Bounds {
 	exclusiveHi: number | undefined
 }
 
-function boundsOf(schema: Schema, integer: boolean): Bounds {
+function boundsOf(schema: JsonSchema, integer: boolean): Bounds {
 	const step = typeof schema.multipleOf === "number" && schema.multipleOf > 0 ? schema.multipleOf : integer ? 1 : 0
 	const exclusiveLo = typeof schema.exclusiveMinimum === "number" ? schema.exclusiveMinimum : undefined
 	const exclusiveHi = typeof schema.exclusiveMaximum === "number" ? schema.exclusiveMaximum : undefined
@@ -61,7 +62,7 @@ function preferredOf(b: Bounds, at: At): number {
 	return origin + rung + fraction + offset * Math.max(b.step, 1)
 }
 
-export function numberFor(schema: Schema, at: At, integer: boolean): number {
+export function numberFor(schema: JsonSchema, at: At, integer: boolean): number {
 	const b = boundsOf(schema, integer)
 	const preferred = preferredOf(b, at)
 	const { lo, hi, step } = b

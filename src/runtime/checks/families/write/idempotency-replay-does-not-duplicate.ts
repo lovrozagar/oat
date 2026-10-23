@@ -13,6 +13,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { ids } from "../../sets/list.ts"
 import { readSet, type SetRead } from "../../sets/read.ts"
 import { confirmedIdentity } from "./records.ts"
+import type { JsonSchema } from "../../../../spec/types.ts"
 
 /**
  * Replaying a create with the same idempotency key must not create a second record.
@@ -29,7 +30,7 @@ import { confirmedIdentity } from "./records.ts"
 export const idempotentReplay = defineCheck<{
 	createOp: OperationModel
 	header: string
-	schema: Record<string, unknown>
+	schema: JsonSchema
 }>({
 	plan: (ctx) => {
 		const createOp = ctx.createOp

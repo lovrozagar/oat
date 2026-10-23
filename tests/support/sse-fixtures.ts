@@ -1,4 +1,4 @@
-import type { OpenApiDocument } from "../../src/spec/types.ts"
+import type { JsonSchema, OpenApiDocument } from "../../src/spec/types.ts"
 
 /* The batch API behind the SSE tests: a stream that names a batch, optionally polled by x-async. */
 
@@ -15,7 +15,7 @@ export const SSE_ASYNC = {
 	until: "status.eq.complete",
 } as const
 
-export function itemSchema(): Record<string, unknown> {
+export function itemSchema(): JsonSchema {
 	return {
 		properties: { id: { type: "string" }, name: { type: "string" } },
 		required: ["id", "name"],

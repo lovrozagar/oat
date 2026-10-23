@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { bearerSecurity } from "../../src/conformance/harness/security.ts"
 import type { PrincipalsConfig, SecurityConfig } from "../../src/config/types/security.ts"
 import { run } from "../../src/runtime/run/index.ts"
-import type { OpenApiDocument } from "../../src/spec/types.ts"
+import type { JsonSchema, OpenApiDocument } from "../../src/spec/types.ts"
 
 /*
  * An organization invite opens the organization, not the member records: a plain member reads the
@@ -26,7 +26,7 @@ const MEMBER = {
 const ORG_PARAM = { in: "path", name: "org_id", required: true, schema: { type: "string" } }
 const MEMBER_PARAM = { in: "path", name: "member_id", required: true, schema: { type: "string" } }
 
-function jsonContent(schema: Record<string, unknown>): Record<string, unknown> {
+function jsonContent(schema: JsonSchema): Record<string, unknown> {
 	return { "application/json": { schema } }
 }
 

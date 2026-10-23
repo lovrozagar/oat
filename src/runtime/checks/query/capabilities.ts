@@ -8,6 +8,7 @@ import { FILTER_OPS } from "../../../spec/query/ops.ts"
 import type { SortValue } from "../../../spec/render/sort.ts"
 import type { RequestOptions } from "../../../client/types.ts"
 import type { CheckContext } from "../core/context.ts"
+import type { JsonSchema } from "../../../spec/types.ts"
 
 /** The list endpoint's derived conventions — parameter roles and envelope spellings. */
 export function conv(ctx: CheckContext) {
@@ -187,13 +188,10 @@ export const FOUNDATIONS = [
 
 /** The JSON type the item schema gives a property, looking through a nullable union. */
 export function schemaType(ctx: CheckContext, field: string): string | undefined {
-	const properties = (ctx.listOp.collection?.itemSchema?.properties ?? {}) as Record<string, Record<string, unknown>>
+	const properties = (ctx.listOp.collection?.itemSchema?.properties ?? {}) as Record<string, JsonSchema>
 	const propertySchema = properties[field]
 	if (propertySchema === undefined) return undefined
-	const branches = [
-		propertySchema,
-		...((propertySchema.oneOf ?? propertySchema.anyOf ?? []) as Array<Record<string, unknown>>),
-	]
+	const branches = [propertySchema, ...((propertySchema.oneOf ?? propertySchema.anyOf ?? []) as Array<JsonSchema>)]
 	for (const branch of branches) {
 		const type = branch.type
 		if (typeof type === "string" && type !== "null") return type

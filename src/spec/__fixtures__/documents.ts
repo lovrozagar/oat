@@ -1,4 +1,4 @@
-import type { OpenApiDocument, ParameterObject } from "../types.ts"
+import type { JsonSchema, OpenApiDocument, ParameterObject } from "../types.ts"
 
 /* Small builders for the documents the spec modules' tests read. */
 
@@ -19,7 +19,7 @@ export const doc = (paths: Record<string, unknown>, extra: Record<string, unknow
 
 export const query = (
 	name: string,
-	schema: Record<string, unknown> = { type: "string" },
+	schema: JsonSchema = { type: "string" },
 	extra: Record<string, unknown> = {},
 ): ParameterObject => ({ in: "query", name, schema, ...extra })
 

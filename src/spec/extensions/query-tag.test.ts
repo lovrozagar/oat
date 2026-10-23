@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { Endpoint, OperationObject } from "../types.ts"
+import type { Endpoint, JsonSchema, OperationObject } from "../types.ts"
 import { GapCollector } from "./gaps.ts"
 import { readQueryCapability } from "./query-tag.ts"
 
@@ -10,7 +10,7 @@ const listing = (op: Partial<OperationObject>, path = "/rows"): Endpoint => ({
 	path,
 })
 
-const query = (name: string, schema: Record<string, unknown> = { type: "string" }) => ({
+const query = (name: string, schema: JsonSchema = { type: "string" }) => ({
 	in: "query" as const,
 	name,
 	schema,

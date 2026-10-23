@@ -4,7 +4,8 @@ import { codePointCount, sliceCodePoints } from "../payloads.ts"
 import { formatted } from "./format.ts"
 import { matches, matching } from "./pattern.ts"
 import { text } from "./text.ts"
-import type { At, Schema } from "./types.ts"
+import type { JsonSchema } from "../../spec/types.ts"
+import type { At } from "./types.ts"
 import { Unconstructible } from "./unconstructible.ts"
 
 function padFormatted(format: string, value: string, min: number): string {
@@ -53,7 +54,7 @@ function plain(min: number, max: number, at: At): string {
 	return value
 }
 
-export function stringFor(schema: Schema, at: At): string {
+export function stringFor(schema: JsonSchema, at: At): string {
 	const min = typeof schema.minLength === "number" ? schema.minLength : 0
 	const max = typeof schema.maxLength === "number" ? schema.maxLength : Number.POSITIVE_INFINITY
 	if (min > max) throw new Unconstructible(`minLength ${min} exceeds maxLength ${max}`, at.pointer)

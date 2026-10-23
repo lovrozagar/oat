@@ -6,6 +6,7 @@ import { type ClientIdCreate, createWithClientId } from "../../world/client-iden
 import type { WriteContext } from "../core/context.ts"
 import { encodeOpBody, validBody } from "./body.ts"
 import { clientIdentityOf } from "./identity.ts"
+import type { JsonSchema } from "../../../spec/types.ts"
 
 /** A create sent, the body it carried and why it stopped retrying; or why it was never sent. */
 export type Fresh = ClientIdCreate | { withheld: string }
@@ -21,7 +22,7 @@ export type Fresh = ClientIdCreate | { withheld: string }
 export async function createFresh(
 	ctx: WriteContext,
 	createOp: OperationModel,
-	schema: Record<string, unknown>,
+	schema: JsonSchema,
 	principal: string,
 ): Promise<Fresh> {
 	const sender = ctx.actors.find((actor) => actor.id === principal)

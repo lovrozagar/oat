@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest"
 import { dereference } from "../spec/load/dereference.ts"
-import type { OpenApiDocument, OperationObject, SchemaObject } from "../spec/types.ts"
+import type { OpenApiDocument, OperationObject, JsonSchema } from "../spec/types.ts"
 import { instanceErrors, SchemaValidator } from "./validate.ts"
 
-const ITEM: SchemaObject = {
+const ITEM: JsonSchema = {
 	properties: { id: { type: "integer" }, name: { type: "string" } },
 	required: ["id"],
 	type: "object",
 }
 
-function returning(code: string, mediaType: string, schema?: SchemaObject): OperationObject {
+function returning(code: string, mediaType: string, schema?: JsonSchema): OperationObject {
 	return {
 		responses: { [code]: { content: { [mediaType]: schema === undefined ? {} : { schema } }, description: "" } },
 	}
@@ -57,7 +57,7 @@ describe("SchemaValidator", () => {
 	})
 
 	it("reaches recursive definitions and lists at most twelve distinct errors", () => {
-		const node: SchemaObject = { properties: { next: { $ref: "oat-defs#/$defs/Node" } }, type: "object" }
+		const node: JsonSchema = { properties: { next: { $ref: "oat-defs#/$defs/Node" } }, type: "object" }
 		const validator = new SchemaValidator({ Node: node })
 		const op = returning("200", "application/json", { items: { $ref: "oat-defs#/$defs/Node" }, type: "array" })
 		expect(validator.validate("list", op, { responseBody: [{ next: { next: {} } }], status: 200 }).ok).toBe(true)
@@ -67,7 +67,7 @@ describe("SchemaValidator", () => {
 	})
 })
 
-const petBranch = (field: string): SchemaObject => ({
+const petBranch = (field: string): JsonSchema => ({
 	properties: { [field]: { type: "boolean" }, kind: { type: "string" } },
 	required: [field],
 	type: "object",
@@ -86,7 +86,7 @@ describe("SchemaValidator discriminator", () => {
 			paths: {},
 		}
 		const { doc } = dereference(source as unknown as OpenApiDocument)
-		const schema = doc.components?.schemas?.Pet as SchemaObject
+		const schema = doc.components?.schemas?.["Pet"] as JsonSchema
 		const validator = new SchemaValidator()
 		const op = returning("200", "application/json", schema)
 		expect(validator.validate("pet", op, { responseBody: { kind: "Dog", bark: true }, status: 200 }).ok).toBe(true)
@@ -104,13 +104,13 @@ describe("instanceErrors", () => {
 	})
 
 	it("reaches the definitions it is given, and reuses one AJV for them", () => {
-		const defs: Record<string, SchemaObject> = { Id: { type: "integer" } }
+		const defs: Record<string, JsonSchema> = { Id: { type: "integer" } }
 		expect(instanceErrors({ $ref: "oat-defs#/$defs/Id" }, "x", defs)).toEqual(["(root) must be integer"])
 		expect(instanceErrors({ items: { $ref: "oat-defs#/$defs/Id" }, type: "array" }, [1], defs)).toEqual([])
 	})
 
 	it("reports a schema it cannot compile, once compiled or not", () => {
-		const broken: SchemaObject = { $ref: "#/nowhere" }
+		const broken: JsonSchema = { $ref: "#/nowhere" }
 		const [first] = instanceErrors(broken, {})
 		expect(first).toMatch(/^schema cannot be compiled: .*resolve reference/)
 		expect(instanceErrors(broken, {})).toEqual([first])

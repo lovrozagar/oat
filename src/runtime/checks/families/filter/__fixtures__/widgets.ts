@@ -4,7 +4,7 @@ import type { QueryConventions } from "../../../../../spec/conventions/types.ts"
 import { FILTER_PRESETS } from "../../../../../spec/render/filter-presets.ts"
 import type { FilterGrammarSpec } from "../../../../../spec/render/filter-types.ts"
 import type { FilterOp } from "../../../../../config/types/query.ts"
-import type { OpenApiDocument } from "../../../../../spec/types.ts"
+import type { JsonSchema, OpenApiDocument } from "../../../../../spec/types.ts"
 import { contextFor, modelOf, op, type Responder, type Sent } from "../../../__fixtures__/harness.ts"
 import type { CheckContext, WriteContext } from "../../../core/context.ts"
 import { backend, type Behavior, PATH, PROPERTIES } from "./backend.ts"
@@ -22,7 +22,7 @@ export interface DocOptions {
 	/** Whether the listing pages by page number; default false (one page holds the set). */
 	paged?: boolean
 	/** The identity's schema in place of a plain string. */
-	idSchema?: Record<string, unknown>
+	idSchema?: JsonSchema
 }
 
 export function widgetDoc(options: DocOptions = {}): OpenApiDocument {

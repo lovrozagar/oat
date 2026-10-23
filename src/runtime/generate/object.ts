@@ -1,9 +1,10 @@
 import { isObject } from "./algebra.ts"
 import { text } from "./text.ts"
-import type { At, Schema, Walk } from "./types.ts"
+import type { JsonSchema } from "../../spec/types.ts"
+import type { At, Walk } from "./types.ts"
 import { Unconstructible } from "./unconstructible.ts"
 
-export function objectFor(schema: Schema, at: At, walk: Walk): Record<string, unknown> {
+export function objectFor(schema: JsonSchema, at: At, walk: Walk): Record<string, unknown> {
 	const { ctx, pointer } = at
 	const properties = isObject(schema.properties) ? schema.properties : {}
 	const required = new Set(Array.isArray(schema.required) ? (schema.required as string[]) : [])

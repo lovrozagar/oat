@@ -22,7 +22,7 @@ import { buildCohort, type CohortMember } from "../../../fixture.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { requestContent } from "../../../../spec/collection/request.ts"
 import type { ResolvedSecurity } from "../../../../spec/security/requirements.ts"
-import type { OperationObject, SchemaObject } from "../../../../spec/types.ts"
+import type { OperationObject, JsonSchema } from "../../../../spec/types.ts"
 import { defineCheck } from "../../core/define.ts"
 import { isReadMethod, targetPlan } from "../../core/operation.ts"
 import type { OperationContext } from "../../core/operation-context.ts"
@@ -52,7 +52,7 @@ interface InvalidProbe {
 /** The operation's JSON request body: the media type it is sent as, and the choice of what to break. */
 interface Subject {
 	mediaType: string
-	schema: SchemaObject
+	schema: JsonSchema
 	choice: InvalidChoice
 }
 
@@ -90,7 +90,7 @@ function subjectPlan(ctx: OperationContext): Plan<Subject> {
 }
 
 /* The operation's JSON request content, when it documents one. */
-function jsonContent(raw: OperationObject): { mediaType: string; schema: SchemaObject } | null {
+function jsonContent(raw: OperationObject): { mediaType: string; schema: JsonSchema } | null {
 	const json = Object.keys(raw.requestBody?.content ?? {}).find((type) =>
 		(type.split(";")[0] as string).toLowerCase().includes("json"),
 	)

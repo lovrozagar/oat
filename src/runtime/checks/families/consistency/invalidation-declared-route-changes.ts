@@ -12,6 +12,7 @@ import { standDownForFeatureGate } from "../../planning/stand-down.ts"
 import { graded, subjectsOf } from "../../planning/subjects.ts"
 import { forList } from "../../sets/list.ts"
 import { readSet } from "../../sets/read.ts"
+import type { JsonSchema } from "../../../../spec/types.ts"
 
 /**
  * A route the document says a write invalidates must actually change.
@@ -29,7 +30,7 @@ import { readSet } from "../../sets/read.ts"
 export const declaredInvalidationHappens = defineCheck<{
 	createOp: OperationModel
 	foreign: OperationModel[]
-	schema: Record<string, unknown>
+	schema: JsonSchema
 }>({
 	plan: (ctx) => {
 		const createOp = ctx.createOp

@@ -8,6 +8,7 @@
 import { generate } from "./generate/generate.ts"
 import { requestContent } from "../spec/collection/request.ts"
 import type { OperationModel, SpecModel } from "../spec/graph/types.ts"
+import type { JsonSchema } from "../spec/types.ts"
 
 export const UNIQUE_CONFLICT_STATUS = 409
 
@@ -50,12 +51,12 @@ export function bodyPropertyNames(op: OperationModel, model: SpecModel): Set<str
 	return new Set(Object.keys(props as Record<string, unknown>))
 }
 
-function propertySchema(schema: Record<string, unknown> | null, name: string): Record<string, unknown> | undefined {
+function propertySchema(schema: JsonSchema | null, name: string): JsonSchema | undefined {
 	if (schema === null) return undefined
 	const props = schema.properties
 	if (props === null || typeof props !== "object") return undefined
 	const value = (props as Record<string, unknown>)[name]
-	return value !== null && typeof value === "object" ? (value as Record<string, unknown>) : undefined
+	return value !== null && typeof value === "object" ? (value as JsonSchema) : undefined
 }
 
 /**
@@ -100,7 +101,7 @@ export function uniqueTupleCollides(
 
 /** What a fresh unique value is drawn from: the body's schema, and a token no earlier record used. */
 export interface Uniquifier {
-	schema: Record<string, unknown> | null
+	schema: JsonSchema | null
 	token: string
 }
 
@@ -127,7 +128,7 @@ export function uniquifyProbeBody(
  * every one of those. Where the schema admits nothing new, the value is left as it was and the
  * caller's collision check decides.
  */
-function distinctUniqueValue(value: unknown, token: string, schema: Record<string, unknown> | undefined): unknown {
+function distinctUniqueValue(value: unknown, token: string, schema: JsonSchema | undefined): unknown {
 	if (schema === undefined) return value
 	let h = 0
 	for (const ch of token) h = (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0

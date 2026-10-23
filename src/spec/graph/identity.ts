@@ -1,7 +1,7 @@
 /** Which property identifies an operation's records, and how sure oat is of it. */
 
 import { deriveIdentity } from "../collection/identity.ts"
-import type { SchemaObject } from "../types.ts"
+import type { JsonSchema } from "../types.ts"
 import type { OperationModel } from "./types.ts"
 
 type Identity = Pick<OperationModel, "identity" | "identitySource">
@@ -19,7 +19,7 @@ export interface OperationRoute {
 
 export function operationIdentity(
 	declared: string | undefined,
-	itemSchema: SchemaObject | null,
+	itemSchema: JsonSchema | null,
 	{ path, pathParams }: OperationRoute,
 ): Identity {
 	const lastParam = pathParams.at(-1)

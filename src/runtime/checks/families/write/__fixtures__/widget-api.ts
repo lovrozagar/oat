@@ -1,5 +1,12 @@
 import type { RequestOptions } from "../../../../../client/types.ts"
-import type { OpenApiDocument } from "../../../../../spec/types.ts"
+import type {
+	HttpMethod,
+	JsonSchema,
+	MediaTypeObject,
+	OpenApiDocument,
+	OperationObject,
+	ParameterObject,
+} from "../../../../../spec/types.ts"
 import type { Answer, Responder } from "../../../__fixtures__/harness.ts"
 
 /*
@@ -7,11 +14,9 @@ import type { Answer, Responder } from "../../../__fixtures__/harness.ts"
  * on and off, and an in-memory backend that behaves correctly unless a test answers first.
  */
 
-type Schema = Record<string, unknown>
-
 export interface WidgetDocOptions {
 	/** The request and response schema of one widget. */
-	item?: Schema
+	item?: JsonSchema
 	/** The update method, or none. */
 	update?: "patch" | "put" | null
 	read?: boolean
@@ -23,7 +28,7 @@ export interface WidgetDocOptions {
 }
 
 /** A writable widget: a server-issued id and three free strings, one nullable. */
-export const WIDGET: Schema = {
+export const WIDGET: JsonSchema = {
 	properties: {
 		id: { readOnly: true, type: "string" },
 		label: { maxLength: 200, type: "string" },
@@ -34,12 +39,14 @@ export const WIDGET: Schema = {
 	type: "object",
 }
 
-function json(schema: Schema): Schema {
+function json(schema: JsonSchema): { content: Record<string, MediaTypeObject> } {
 	return { content: { "application/json": { schema } } }
 }
 
-function itemRoute(options: WidgetDocOptions, item: Schema): Schema {
-	const route: Schema = { parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }] }
+type ItemRoute = Partial<Record<HttpMethod, OperationObject>> & { parameters: ParameterObject[] }
+
+function itemRoute(options: WidgetDocOptions, item: JsonSchema): ItemRoute {
+	const route: ItemRoute = { parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }] }
 	if (options.read !== false) {
 		route.get = { operationId: "getWidget", responses: { "200": { description: "ok", ...json(item) } } }
 	}

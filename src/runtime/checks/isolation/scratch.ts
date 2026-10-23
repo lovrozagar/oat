@@ -9,6 +9,7 @@ import type { CheckContext, WriteContext } from "../core/context.ts"
 import { encodeOpBody, requestSchemaOf, validBody } from "../payloads/body.ts"
 import { createFresh } from "../payloads/create.ts"
 import { standDownForFeatureGate } from "../planning/stand-down.ts"
+import type { JsonSchema } from "../../../spec/types.ts"
 
 /** The record a single-record answer holds (`x-entity.recordPath`), or `undefined` when there is none. */
 export function readRecord(op: OperationModel, exchange: Exchange): Record_ | undefined {
@@ -90,7 +91,7 @@ export async function updateRequest(
 	if (method !== "PUT") return { method, options: await encodeOpBody(ctx, updateOp, changes) }
 	const schema = requestSchemaOf(ctx, updateOp)
 	/* What any writer may send: never a readOnly property, nor an optional x-privileged one. */
-	const ordinary = schema === null ? {} : (ordinaryRequestSchema(schema) as Record<string, unknown>)
+	const ordinary: JsonSchema = schema === null ? {} : ordinaryRequestSchema(schema)
 	const properties = Object.keys((ordinary.properties ?? {}) as Record<string, unknown>)
 	const kept = Object.fromEntries(
 		properties.filter((key) => current[key] !== undefined).map((key) => [key, current[key]]),

@@ -3,7 +3,7 @@ import { instanceErrors } from "../validate.ts"
 import { dereference } from "../../spec/load/dereference.ts"
 import { documentDefs } from "../../spec/load/defs.ts"
 import { normalizeSchema } from "../../spec/schema.ts"
-import type { OpenApiDocument } from "../../spec/types.ts"
+import type { JsonSchema, OpenApiDocument } from "../../spec/types.ts"
 import { generate } from "./generate.ts"
 import type { Variant } from "./types.ts"
 
@@ -94,7 +94,7 @@ const SCHEMAS: Record<string, Record<string, unknown>> = {
 	},
 }
 
-function documentFor(schema: Record<string, unknown>, version: string): OpenApiDocument {
+function documentFor(schema: JsonSchema, version: string): OpenApiDocument {
 	return {
 		components: {
 			schemas: {
@@ -127,7 +127,7 @@ function documentFor(schema: Record<string, unknown>, version: string): OpenApiD
 	} as OpenApiDocument
 }
 
-function requestSchema(doc: OpenApiDocument): Record<string, unknown> {
+function requestSchema(doc: OpenApiDocument): JsonSchema {
 	const item = (doc.paths?.["/things"] ?? {}) as unknown as {
 		post: { requestBody: { content: Record<string, { schema: unknown }> } }
 	}
@@ -210,7 +210,7 @@ function scalar(d: Draw): Record<string, unknown> {
 		case "integer": {
 			const lo = d.int(-50, 50)
 			const step = d.pick([undefined, 2, 3, 5])
-			const schema: Record<string, unknown> = { maximum: lo + d.int(10, 100), minimum: lo, type: "integer" }
+			const schema: JsonSchema = { maximum: lo + d.int(10, 100), minimum: lo, type: "integer" }
 			if (step !== undefined) schema.multipleOf = step
 			return schema
 		}
@@ -290,7 +290,7 @@ describe("generate", () => {
 	})
 
 	it("reports a schema nested past the stack as too deep, not a crash", () => {
-		let schema: Record<string, unknown> = { type: "string" }
+		let schema: JsonSchema = { type: "string" }
 		for (let level = 0; level < 20_000; level++) schema = { oneOf: [schema] }
 		expect(generate(schema)).toEqual({ ok: false, pointer: "/", reason: "the schema nests too deeply to generate" })
 	})

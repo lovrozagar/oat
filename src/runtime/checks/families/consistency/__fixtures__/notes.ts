@@ -1,4 +1,4 @@
-import type { OpenApiDocument } from "../../../../../spec/types.ts"
+import type { JsonSchema, OpenApiDocument } from "../../../../../spec/types.ts"
 import type { RequestOptions } from "../../../../../client/types.ts"
 import type { Record_ } from "../../../../world/records.ts"
 import type { Answer, Responder } from "../../../__fixtures__/harness.ts"
@@ -23,7 +23,7 @@ const board = { properties: { id: { type: "string" }, count: { type: "integer" }
 
 const ok = (schema: unknown) => ({ "200": { content: { "application/json": { schema } }, description: "ok" } })
 
-const param = (name: string, schema: Record<string, unknown> = { type: "string" }) => ({ in: "query", name, schema })
+const param = (name: string, schema: JsonSchema = { type: "string" }) => ({ in: "query", name, schema })
 
 const itemParam = (name: string) => ({ in: "path", name, required: true, schema: { type: "string" } })
 

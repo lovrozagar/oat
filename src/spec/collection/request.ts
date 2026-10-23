@@ -1,10 +1,10 @@
 /** The request body an operation takes: which media type oat sends, and its schema. */
 
-import type { OperationObject, SchemaObject } from "../types.ts"
+import type { OperationObject, JsonSchema } from "../types.ts"
 
 export interface RequestContent {
 	mediaType: string
-	schema: SchemaObject
+	schema: JsonSchema
 	encoding?: Record<string, { contentType?: string }>
 }
 
@@ -43,7 +43,7 @@ export function hasRequestBody(op: OperationObject): boolean {
 	return content !== undefined && Object.keys(content).length > 0
 }
 
-export function requestSchema(op: OperationObject): SchemaObject | null {
+export function requestSchema(op: OperationObject): JsonSchema | null {
 	const picked = requestContent(op)
 	return picked === null ? null : picked.schema
 }

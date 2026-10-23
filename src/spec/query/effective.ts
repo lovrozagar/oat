@@ -16,6 +16,7 @@ import type {
 	SearchMode,
 	SortableField,
 } from "../../config/types/query.ts"
+import type { JsonSchema } from "../types.ts"
 
 export interface EffectiveFilterField {
 	field: string
@@ -77,5 +78,5 @@ export interface MergeInput {
 	tag: MergeTag | null
 	global?: QueryCapabilities
 	entity?: QueryCapabilities
-	itemSchema?: Record<string, unknown> | null
+	itemSchema?: JsonSchema | null
 }

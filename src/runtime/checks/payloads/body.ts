@@ -14,17 +14,18 @@ import { type Record_ } from "../../world/records.ts"
 import { stringProperties } from "../../world/schema.ts"
 import type { CheckContext } from "../core/context.ts"
 import { reserveClientIdentity, saltOf } from "./identity.ts"
+import type { JsonSchema } from "../../../spec/types.ts"
 
 /** The schema of `field` as the item's representation declares it. */
 export function propertySchemaOf(
 	ctx: Pick<CheckContext, "listOp" | "model">,
 	field: string,
 	op?: OperationModel,
-): Record<string, unknown> | undefined {
+): JsonSchema | undefined {
 	const request = op === undefined ? null : requestSchemaOf(ctx, op)
-	const fromRequest = (request?.properties as Record<string, Record<string, unknown>> | undefined)?.[field]
+	const fromRequest = (request?.properties as Record<string, JsonSchema> | undefined)?.[field]
 	if (fromRequest !== undefined) return normalizeSchema(fromRequest, { direction: "request" })
-	const item = (ctx.listOp.collection?.itemSchema?.properties ?? {}) as Record<string, Record<string, unknown>>
+	const item = (ctx.listOp.collection?.itemSchema?.properties ?? {}) as Record<string, JsonSchema>
 	return item[field] === undefined ? undefined : normalizeSchema(item[field], { direction: "request" })
 }
 
@@ -43,8 +44,7 @@ export function changedValue(ctx: CheckContext, field: string, current: unknown,
 export function withheldProperties(ctx: Pick<CheckContext, "model">, op: OperationModel | undefined): Set<string> {
 	const schema = op === undefined ? null : requestSchemaOf(ctx, op)
 	if (schema === null) return new Set()
-	const ordinary = ordinaryRequestSchema(schema) as { properties?: Record<string, unknown> }
-	const kept = ordinary.properties ?? {}
+	const kept = (ordinaryRequestSchema(schema).properties ?? {}) as object
 	return new Set(Object.keys((schema.properties ?? {}) as object).filter((name) => !Object.hasOwn(kept, name)))
 }
 
@@ -82,7 +82,7 @@ export async function createExchange(ctx: CheckContext): Promise<Exchange | unde
 }
 
 /** Builds a body that should be accepted, for use as the base of a negative probe. */
-export function validBody(ctx: CheckContext, schema: Record<string, unknown>): Record<string, unknown> {
+export function validBody(ctx: CheckContext, schema: JsonSchema): Record<string, unknown> {
 	const salt = `${ctx.nonce}b${saltOf(ctx)}`
 	/* One variant asked for, one member made. */
 	const [member] = buildCohort(schema, ctx.seed, {
@@ -100,7 +100,7 @@ export function validBody(ctx: CheckContext, schema: Record<string, unknown>): R
 	return reserveClientIdentity(ctx, body, schema, salt)
 }
 
-export function requestSchemaOf(ctx: Pick<CheckContext, "model">, op: OperationModel): Record<string, unknown> | null {
+export function requestSchemaOf(ctx: Pick<CheckContext, "model">, op: OperationModel): JsonSchema | null {
 	const raw = ctx.model.rawOperations.get(op.operationId)
 	const picked = raw === undefined ? null : requestContent(raw)
 	return picked === null ? null : picked.schema

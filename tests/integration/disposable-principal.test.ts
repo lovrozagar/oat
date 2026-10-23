@@ -228,7 +228,7 @@ function refreshSpec(): OpenApiDocument {
 	}
 	const created = register.responses["201"]?.content["application/json"].schema
 	if (created === undefined) throw new Error("the register operation documents no 201 body")
-	created.properties.refresh_token = { type: "string" }
+	created.properties["refresh_token"] = { type: "string" }
 	created.required.push("refresh_token")
 	const logout = paths["/v1/logout"]?.post as { requestBody?: unknown }
 	logout.requestBody = {

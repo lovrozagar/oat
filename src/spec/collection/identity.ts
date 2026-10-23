@@ -1,6 +1,6 @@
 /** The property that identifies an instance of an entity. */
 
-import type { SchemaObject } from "../types.ts"
+import type { JsonSchema } from "../types.ts"
 import { effective } from "./effective.ts"
 
 const IDENTITY_CANDIDATES = ["id", "uuid", "slug", "key", "name"]
@@ -16,7 +16,7 @@ function hintedKey(pathParamHint: string | undefined): string | undefined {
 }
 
 /** A required identity-like property, else any identity-like property the schema has. */
-function identityProperty(itemSchema: SchemaObject, names: string[]): string | undefined {
+function identityProperty(itemSchema: JsonSchema, names: string[]): string | undefined {
 	const required = Array.isArray(itemSchema.required) ? (itemSchema.required as string[]) : []
 	return (
 		IDENTITY_CANDIDATES.find((candidate) => required.includes(candidate)) ??
@@ -32,7 +32,7 @@ function identityProperty(itemSchema: SchemaObject, names: string[]): string | u
  * delete path, whose 404 counts as removed while the real record stays behind.
  */
 export function deriveIdentity(
-	raw: SchemaObject | null,
+	raw: JsonSchema | null,
 	pathParamHint?: string,
 	/** The route ends in that parameter, so it names this item rather than a parent. */
 	itemRoute = true,

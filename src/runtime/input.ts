@@ -4,11 +4,12 @@
  */
 
 import type { Hooks, InputRequest } from "../config/types/hooks.ts"
+import type { JsonSchema } from "../spec/types.ts"
 
 /** The operation generated fields are sent to, and the schema they follow. */
 export interface InputTarget {
 	operationId: string
-	schema: Record<string, unknown> | undefined
+	schema: JsonSchema | undefined
 }
 
 export async function applyResolveInput(
@@ -63,7 +64,7 @@ async function walk(value: unknown, { schema, pointer }: Place, resolver: Resolv
 
 function propertiesOf(schema: unknown): Record<string, unknown> {
 	if (schema === null || typeof schema !== "object") return {}
-	const properties = (schema as Record<string, unknown>).properties
+	const properties = (schema as JsonSchema).properties
 	if (properties === null || typeof properties !== "object") return {}
 	return properties as Record<string, unknown>
 }

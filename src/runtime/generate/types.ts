@@ -1,6 +1,6 @@
 /** The shapes value generation works in: schemas, cohort variants, options, results and the walk. */
 
-export type Schema = Record<string, unknown>
+import type { JsonSchema } from "../../spec/types.ts"
 
 export type Variant =
 	| "baseline"
@@ -17,7 +17,7 @@ export interface GenerateOptions {
 	index?: number
 	rand?: () => number
 	/** Recursive schemas a document refers to as `oat-defs#/$defs/<name>`. */
-	defs?: Record<string, Schema>
+	defs?: Record<string, JsonSchema>
 	/** Per-run token mixed into values that must not collide with an earlier run's. */
 	nonce?: string
 	/** Property names, at the top level, whose values must be distinct across runs too. */
@@ -32,7 +32,7 @@ export interface Context {
 	variant: Variant
 	index: number
 	rand: () => number
-	defs: Record<string, Schema>
+	defs: Record<string, JsonSchema>
 	nonce: string | undefined
 	distinct: ReadonlySet<string>
 	optional: "all" | "none"

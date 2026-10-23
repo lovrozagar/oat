@@ -4,9 +4,10 @@ import { isObject, typesOf } from "./algebra.ts"
 import { uuidFrom } from "./format.ts"
 import { generate } from "./generate.ts"
 import { nonceNumber } from "./nonce.ts"
-import type { Generated, Schema } from "./types.ts"
+import type { JsonSchema } from "../../spec/types.ts"
+import type { Generated } from "./types.ts"
 
-function tokenFits(token: string, schema: Schema): boolean {
+function tokenFits(token: string, schema: JsonSchema): boolean {
 	if (typeof schema.minLength === "number" && token.length < schema.minLength) return false
 	if (typeof schema.maxLength === "number" && token.length > schema.maxLength) return false
 	if (typeof schema.pattern !== "string") return true

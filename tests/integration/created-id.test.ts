@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { EXIT, exitCode } from "../../src/runtime/exit.ts"
 import { run } from "../../src/runtime/run/index.ts"
-import type { OpenApiDocument } from "../../src/spec/types.ts"
+import type { JsonSchema, OpenApiDocument } from "../../src/spec/types.ts"
 
 /*
  * A create oat cannot read an id from leaves a record oat cannot remove. Behind a records API
@@ -47,7 +47,7 @@ const entityTag = (action: string, extra: Record<string, unknown> = {}) => ({
 	"x-entity": { action, identity: "ID", name: "note", ...extra },
 })
 
-function createdSchema(mode: Mode): Record<string, unknown> {
+function createdSchema(mode: Mode): JsonSchema {
 	if (mode === "ack") return { properties: { success: { type: "boolean" } }, type: "object" }
 	return {
 		properties: {

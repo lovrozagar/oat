@@ -1,9 +1,9 @@
 /** Schema algebra: what a schema admits at a glance, and `allOf` folded into one schema. */
 
-import type { Schema } from "./types.ts"
+import type { JsonSchema } from "../../spec/types.ts"
 import { Unconstructible } from "./unconstructible.ts"
 
-export function isObject(value: unknown): value is Schema {
+export function isObject(value: unknown): value is JsonSchema {
 	return value !== null && typeof value === "object" && !Array.isArray(value)
 }
 
@@ -35,10 +35,10 @@ export function isVacuous(schema: unknown): boolean {
  * value being generated, `path` the `allOf` within its schema; one that is not a list of schemas
  * admits nothing anyone could construct.
  */
-export function mergeAll(base: Schema, pointer: string, path = "allOf"): Schema {
+export function mergeAll(base: JsonSchema, pointer: string, path = "allOf"): JsonSchema {
 	const branches = base.allOf
 	if (!Array.isArray(branches)) throw new Unconstructible(`${path} is not a list of schemas`, pointer)
-	let out: Schema = { ...base }
+	let out: JsonSchema = { ...base }
 	delete out.allOf
 	for (const [index, branch] of branches.entries()) {
 		if (!isObject(branch)) continue
@@ -74,13 +74,13 @@ const COMBINE: Readonly<Record<string, Combine>> = {
 	minItems: larger,
 	minLength: larger,
 	minimum: larger,
-	properties: (existing, value) => ({ ...(existing as Schema), ...(value as Schema) }),
+	properties: (existing, value) => ({ ...(existing as JsonSchema), ...(value as JsonSchema) }),
 	required: (existing, value) => [...new Set([...(existing as string[]), ...(value as string[])])],
 	type: bothTypes,
 }
 
-export function merge(a: Schema, b: Schema): Schema {
-	const out: Schema = { ...a }
+export function merge(a: JsonSchema, b: JsonSchema): JsonSchema {
+	const out: JsonSchema = { ...a }
 	for (const [key, value] of Object.entries(b)) {
 		const existing = out[key]
 		if (existing === undefined) {
@@ -93,7 +93,7 @@ export function merge(a: Schema, b: Schema): Schema {
 	return out
 }
 
-export function typesOf(schema: Schema): string[] {
+export function typesOf(schema: JsonSchema): string[] {
 	const type = schema.type
 	if (typeof type === "string") return [type]
 	if (Array.isArray(type)) return type.filter((item): item is string => typeof item === "string")

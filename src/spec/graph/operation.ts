@@ -26,7 +26,7 @@ import { readUnique } from "../extensions/unique.ts"
 import { MUTATING, unsendableReason } from "../methods.ts"
 import { resolveSecurity } from "../security/requirements.ts"
 import { validateTags } from "../tags/validate.ts"
-import type { Endpoint, OpenApiDocument, SchemaObject } from "../types.ts"
+import type { Endpoint, OpenApiDocument, JsonSchema } from "../types.ts"
 import { operationIdentity } from "./identity.ts"
 import {
 	idempotencyHeader,
@@ -46,7 +46,7 @@ interface Reading {
 	gaps: GapCollector
 	collection: CollectionShape | null
 	recordPath: string | null
-	bodySchema: SchemaObject | null
+	bodySchema: JsonSchema | null
 	entity: ReturnType<typeof readEntity>
 	pathParams: string[]
 	identity: Pick<OperationModel, "identity" | "identitySource">
@@ -102,7 +102,7 @@ function readOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapCollec
 
 /* The success response's body: its schema, and where `x-entity.recordPath` says the rows are. */
 interface SuccessBody {
-	schema: SchemaObject | null
+	schema: JsonSchema | null
 	recordPath: string | null
 }
 

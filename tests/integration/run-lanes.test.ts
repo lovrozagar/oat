@@ -6,7 +6,7 @@ import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { entityLanes, run } from "../../src/runtime/run/index.ts"
 import { buildModel } from "../../src/spec/graph/build.ts"
 import { dereference } from "../../src/spec/load/dereference.ts"
-import type { OpenApiDocument } from "../../src/spec/types.ts"
+import type { JsonSchema, OpenApiDocument } from "../../src/spec/types.ts"
 
 function send(res: ServerResponse, status: number, body?: unknown): void {
 	if (body === undefined) {
@@ -41,7 +41,7 @@ function readJson(req: IncomingMessage): Promise<unknown> {
 	})
 }
 
-function itemSchema(): Record<string, unknown> {
+function itemSchema(): JsonSchema {
 	return {
 		properties: {
 			id: { type: "string" },

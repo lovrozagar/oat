@@ -50,7 +50,7 @@ export function errorResponses(ctx: SpecContext, codes: number[]): Json {
 export function errorSchemas(): Json {
 	const schemas: Json = {}
 	for (const [status, key] of ERRORS) schemas[`Err${status}`] = errorSchema(status, key)
-	schemas.Error = {
+	schemas["Error"] = {
 		additionalProperties: false,
 		properties: {
 			error_key: { type: "string" },
@@ -61,7 +61,7 @@ export function errorSchemas(): Json {
 		required: ["error_key", "message", "status", "success"],
 		type: "object",
 	}
-	schemas.Problem = {
+	schemas["Problem"] = {
 		properties: {
 			detail: { type: "string" },
 			instance: { type: "string" },

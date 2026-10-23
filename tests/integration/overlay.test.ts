@@ -70,7 +70,7 @@ describe("applyOverlay", () => {
 	it("patches a component schema by name", () => {
 		const patched = applyOverlay(DOC, { schemas: { Note: { properties: { title: { maxLength: 40 } } } } })
 		const schemas = (patched.components?.schemas ?? {}) as Record<string, { properties: Record<string, unknown> }>
-		expect(schemas.Note?.properties.title).toEqual({ maxLength: 40, type: "string" })
+		expect(schemas["Note"]?.properties["title"]).toEqual({ maxLength: 40, type: "string" })
 	})
 
 	it("renames an operation when the patch gives it a new id", () => {

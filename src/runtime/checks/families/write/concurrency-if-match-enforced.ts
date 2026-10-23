@@ -13,6 +13,7 @@ import { requestSchemaOf } from "../../payloads/body.ts"
 import { standDownForFeatureGate, standDownForRateLimit } from "../../planning/stand-down.ts"
 import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
 import { NO_RECORD } from "./records.ts"
+import type { JsonSchema } from "../../../../spec/types.ts"
 
 /** What the check runs on: the item read that tags a version, and the update that takes one. */
 interface Plan {
@@ -191,7 +192,7 @@ function refusal(versions: Versions, exchange: Exchange): Outcome | undefined {
  */
 function writableState(ctx: WriteContext, updateOp: OperationModel, record: Record_): Record_ {
 	const schema = requestSchemaOf(ctx, updateOp)
-	const ordinary = schema === null ? {} : (ordinaryRequestSchema(schema) as Record<string, unknown>)
+	const ordinary: JsonSchema = schema === null ? {} : ordinaryRequestSchema(schema)
 	const fixed = new Set([ctx.identity, ...updateOp.immutable, ...updateOp.generated])
 	const fields = Object.keys((ordinary.properties ?? {}) as Record<string, unknown>)
 	return Object.fromEntries(

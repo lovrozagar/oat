@@ -1,4 +1,4 @@
-import type { OpenApiDocument } from "../../../../../spec/types.ts"
+import type { JsonSchema, OpenApiDocument } from "../../../../../spec/types.ts"
 
 /*
  * A tenant-scoped notes collection: list and create under `/orgs/{org_id}/notes`, read, patch
@@ -25,7 +25,7 @@ export interface NotesOptions {
 	/** A create that takes no request body. */
 	bodilessCreate?: boolean
 	/** Schema of the `note_id` path parameter. */
-	idSchema?: Record<string, unknown>
+	idSchema?: JsonSchema
 }
 
 const NOTE = {
@@ -48,10 +48,7 @@ function json(schema: unknown): Record<string, unknown> {
 	return { content: { "application/json": { schema } } }
 }
 
-function paramsOf(
-	path: string,
-	idSchema: Record<string, unknown> = { type: "string" },
-): Array<Record<string, unknown>> {
+function paramsOf(path: string, idSchema: JsonSchema = { type: "string" }): Array<Record<string, unknown>> {
 	return [...path.matchAll(/\{([^}]+)\}/g)].map((match) => ({
 		in: "path",
 		name: match[1],

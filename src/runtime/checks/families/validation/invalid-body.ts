@@ -7,7 +7,7 @@
  */
 
 import { ordinaryRequestSchema } from "../../../fixture.ts"
-import type { SchemaObject as Schema } from "../../../../spec/types.ts"
+import type { JsonSchema } from "../../../../spec/types.ts"
 
 /** How the body is made invalid: a required property left out, or a property sent the wrong type. */
 export type InvalidChoice = { kind: "missing"; field: string } | { kind: "wrong-type"; field: string; value: unknown }
@@ -36,12 +36,14 @@ export interface ChoiceOptions {
  * type rather than missing a required property.
  */
 export function invalidChoice(
-	schema: Schema | boolean,
+	schema: JsonSchema | boolean,
 	{ merge = false, kept = new Set() }: ChoiceOptions = {},
 ): InvalidChoice | null {
 	const ordinary = ordinaryRequestSchema(schema)
 	if (typeof ordinary !== "object" || ordinary.properties === undefined) return null
-	const properties = Object.entries(ordinary.properties as Record<string, Schema>).filter(([name]) => !kept.has(name))
+	const properties = Object.entries(ordinary.properties as Record<string, JsonSchema>).filter(
+		([name]) => !kept.has(name),
+	)
 	const breakable = new Set(properties.map(([name]) => name))
 	const required = !merge && Array.isArray(ordinary.required) ? (ordinary.required as string[]) : []
 	const missing = required.find((name) => breakable.has(name))

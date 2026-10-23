@@ -7,7 +7,7 @@ import { buildCohort, type CohortMember } from "../../../fixture.ts"
 import { nonexistentIdentity } from "../../../nonexistent-identity.ts"
 import { noSecurityReason } from "../../../no-security.ts"
 import { requestContent } from "../../../../spec/collection/request.ts"
-import type { OperationObject } from "../../../../spec/types.ts"
+import type { JsonSchema, OperationObject } from "../../../../spec/types.ts"
 import { anchoredSchemes } from "./lifecycle.ts"
 
 /**
@@ -21,10 +21,7 @@ export const LOGIN_ATTEMPTS = 8
  * The failed login's body: valid by the schema, every string field naming an identity no account can
  * hold. An email-shaped one is at RFC 2606's reserved `.invalid` domain, which never resolves.
  */
-function nobodyOf(
-	body: Record<string, unknown>,
-	{ nonce, schema }: { nonce: string; schema: Record<string, unknown> },
-) {
+function nobodyOf(body: Record<string, unknown>, { nonce, schema }: { nonce: string; schema: JsonSchema }) {
 	/* A body drawn from a schema with no properties has no field to map. */
 	const properties = schema.properties as Record<string, unknown>
 	return Object.fromEntries(

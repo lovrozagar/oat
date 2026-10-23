@@ -1,6 +1,7 @@
 /** The shapes a request body is encoded through. */
 
 import type { UploadContext } from "../upload.ts"
+import type { JsonSchema } from "../../spec/types.ts"
 
 export interface EncodedBody {
 	body: unknown
@@ -18,7 +19,7 @@ export interface FieldEncoding {
 export interface EncodeOptions {
 	operationId: string
 	mediaType: string
-	schema: Record<string, unknown>
+	schema: JsonSchema
 	encoding?: Record<string, FieldEncoding>
 	fields: Record<string, unknown>
 	variant: string

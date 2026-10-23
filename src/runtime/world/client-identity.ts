@@ -15,6 +15,7 @@ import { SeedError } from "../seed-error.ts"
 import { uniquifyProbeBody } from "../unique.ts"
 import { idOf } from "./records.ts"
 import type { WorldOptions } from "./types.ts"
+import type { JsonSchema } from "../../spec/types.ts"
 
 /** Attempts a create with a client-chosen identity makes before its 409 is the answer. */
 export const CLIENT_ID_ATTEMPTS = 3
@@ -26,7 +27,7 @@ const DRAWS = 16
 export interface ClientIdentity {
 	/** The property that holds the identity; `null` when the body names none of its own. */
 	identity: string | null
-	schema: Record<string, unknown>
+	schema: JsonSchema
 	/** The identities the run's records hold, or that it reserved or had refused: no draw takes one. */
 	taken: Set<string>
 	/** Sets this create's draws apart from every other's. */
@@ -52,11 +53,7 @@ export function takenFor(options: Pick<WorldOptions, "taken">, createOp: Operati
 }
 
 /** The identity `createOp`'s body names of its own entity's, when its schema has the property; else `null`. */
-export function bodyIdentity(
-	model: SpecModel,
-	createOp: OperationModel,
-	schema: Record<string, unknown>,
-): string | null {
+export function bodyIdentity(model: SpecModel, createOp: OperationModel, schema: JsonSchema): string | null {
 	const identity = model.entities.get(createOp.entity ?? "")?.identity ?? null
 	const properties = (schema.properties ?? {}) as Record<string, unknown>
 	return identity !== null && Object.hasOwn(properties, identity) ? identity : null

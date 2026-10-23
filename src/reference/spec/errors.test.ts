@@ -35,10 +35,10 @@ describe("errorSchemas", () => {
 			"Error",
 			"Problem",
 		])
-		expect(schemas.Err409).toMatchObject({
+		expect(schemas["Err409"]).toMatchObject({
 			properties: { error_key: { enum: ["conflict"] }, status: { enum: [409] }, success: { const: false } },
 		})
-		expect(schemas.Error).toMatchObject({ properties: { status: { type: "integer" } } })
+		expect(schemas["Error"]).toMatchObject({ properties: { status: { type: "integer" } } })
 	})
 })
 
@@ -50,7 +50,7 @@ describe("preconditionResponses", () => {
 				description: "precondition_failed",
 			},
 		})
-		expect(errorSchemas().Problem).toEqual({
+		expect(errorSchemas()["Problem"]).toEqual({
 			properties: {
 				detail: { type: "string" },
 				instance: { type: "string" },

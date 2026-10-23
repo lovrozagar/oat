@@ -1,6 +1,6 @@
 /** Single-valued operation tags: soft delete, immutable and generated fields, cost, gates, flags, rate limits. */
 
-import type { OperationObject } from "../types.ts"
+import type { JsonSchema, OperationObject } from "../types.ts"
 import { ext, strArray } from "./tag.ts"
 
 export function readSoftDelete(op: OperationObject): string | null {
@@ -17,7 +17,7 @@ export function readGenerated(op: OperationObject, bodySchema: unknown): string[
 	if (declared.length > 0) return declared
 	/* `readOnly: true` carries the same meaning and is standard OpenAPI. */
 	if (bodySchema === null || typeof bodySchema !== "object") return []
-	const props = (bodySchema as Record<string, unknown>).properties
+	const props = (bodySchema as JsonSchema).properties
 	if (props === null || typeof props !== "object") return []
 	return Object.entries(props as Record<string, unknown>)
 		.filter(([, v]) => v !== null && typeof v === "object" && (v as { readOnly?: unknown }).readOnly === true)

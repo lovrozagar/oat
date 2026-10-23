@@ -4,6 +4,7 @@ import type { UploadFile, UploadRequest } from "../../config/types/hooks.ts"
 import { isUploadFile, resolveUploadFile } from "../upload.ts"
 import { additionalSchema, contentMediaTypeOf, isFilePart } from "./schema.ts"
 import type { EncodeOptions } from "./types.ts"
+import type { JsonSchema } from "../../spec/types.ts"
 
 /** Whether a hook's field override already carries one of the body's file parts. */
 export function overrideIncludesFile(
@@ -21,7 +22,7 @@ export function overrideIncludesFile(
  * names only through a file-typed `additionalProperties`.
  */
 export function filePartNames(
-	properties: Record<string, Record<string, unknown>>,
+	properties: Record<string, JsonSchema>,
 	required: string[],
 	options: EncodeOptions,
 ): string[] {
@@ -36,7 +37,7 @@ export function filePartNames(
 	return []
 }
 
-export function uploadRequest(name: string, schema: Record<string, unknown>, options: EncodeOptions): UploadRequest {
+export function uploadRequest(name: string, schema: JsonSchema, options: EncodeOptions): UploadRequest {
 	const contentMediaType = contentMediaTypeOf(schema, options.encoding?.[name])
 	const request: UploadRequest = {
 		field: name,
@@ -53,11 +54,7 @@ export function uploadRequest(name: string, schema: Record<string, unknown>, opt
 	return request
 }
 
-export async function fileForPart(
-	name: string,
-	schema: Record<string, unknown>,
-	options: EncodeOptions,
-): Promise<UploadFile> {
+export async function fileForPart(name: string, schema: JsonSchema, options: EncodeOptions): Promise<UploadFile> {
 	const request = uploadRequest(name, schema, options)
 	const file = await resolveUploadFile(request, options.uploads)
 	return file

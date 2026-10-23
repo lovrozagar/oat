@@ -9,6 +9,7 @@ import { appendFields, appendFile, appendValue } from "./form-data.ts"
 import { additionalSchema, isFilePart, propertiesOf, requiredOf } from "./schema.ts"
 import type { EncodeOptions } from "./types.ts"
 import { fileForPart, filePartNames, overrideIncludesFile, uploadRequest } from "./upload-parts.ts"
+import type { JsonSchema } from "../../spec/types.ts"
 
 /**
  * The file-typed `additionalProperties` part for the first required field no property sent,
@@ -52,7 +53,7 @@ export async function encodeMultipart(options: EncodeOptions): Promise<FormData>
 			continue
 		}
 		/* A file part is a property, or the required field `additionalProperties` types as a file. */
-		const schema = properties[name] ?? (additionalSchema(options.schema) as Record<string, unknown>)
+		const schema = properties[name] ?? (additionalSchema(options.schema) as JsonSchema)
 		const resolved = await resolveUploadOverride(uploadRequest(name, schema, options), options.uploads)
 		hookHits.set(name, resolved)
 		if (isFieldOverride(resolved)) {

@@ -16,10 +16,11 @@ import { readJsonPathList } from "../spec/query/json-path.ts"
 import { emptyCapabilities, mergeQueryCapabilities } from "../spec/query/merge.ts"
 import type { Client } from "../client/client.ts"
 import { fillPath } from "./fill-path.ts"
+import type { JsonSchema } from "../spec/types.ts"
 
 export async function resolveEntityCapabilities(input: {
 	tag: QueryCapability | null
-	itemSchema?: Record<string, unknown> | null
+	itemSchema?: JsonSchema | null
 	global?: QueryCapabilities
 	entity?: QueryCapabilities
 	hook?: (request: QueryCapabilitiesRequest) => Promise<FilterableField[] | Partial<QueryCapabilities> | null>

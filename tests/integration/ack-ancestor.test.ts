@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { run } from "../../src/runtime/run/index.ts"
-import type { OpenApiDocument } from "../../src/spec/types.ts"
+import type { JsonSchema, OpenApiDocument } from "../../src/spec/types.ts"
 
 /*
  * Two ways a client-chosen identity with an acknowledgement-only create can trip oat:
@@ -41,7 +41,7 @@ const ACK = {
 const FOLDER_ID = { in: "path", name: "folderId", required: true, schema: { type: "integer" } }
 const NOTE_ID = { in: "path", name: "noteId", required: true, schema: { type: "string" } }
 
-function folderSchema(space: number): Record<string, unknown> {
+function folderSchema(space: number): JsonSchema {
 	return {
 		additionalProperties: false,
 		properties: { id: { maximum: space, minimum: 1, type: "integer" }, name: { minLength: 1, type: "string" } },

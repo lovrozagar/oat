@@ -1,14 +1,15 @@
-import type { At, Schema, Walk } from "./types.ts"
+import type { JsonSchema } from "../../spec/types.ts"
+import type { At, Walk } from "./types.ts"
 import { Unconstructible } from "./unconstructible.ts"
 
-function itemBounds(schema: Schema, pointer: string): { min: number; max: number } {
+function itemBounds(schema: JsonSchema, pointer: string): { min: number; max: number } {
 	const min = typeof schema.minItems === "number" ? schema.minItems : 0
 	const max = typeof schema.maxItems === "number" ? schema.maxItems : Number.POSITIVE_INFINITY
 	if (min > max) throw new Unconstructible(`minItems ${min} exceeds maxItems ${max}`, pointer)
 	return { max, min }
 }
 
-export function arrayFor(schema: Schema, at: At, walk: Walk): unknown[] {
+export function arrayFor(schema: JsonSchema, at: At, walk: Walk): unknown[] {
 	const { ctx, pointer } = at
 	const { min, max } = itemBounds(schema, pointer)
 	const prefix = Array.isArray(schema.prefixItems) ? schema.prefixItems : []

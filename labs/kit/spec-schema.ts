@@ -87,7 +87,7 @@ export function itemSchema(entity: Entity): Json {
 	if (parent !== null) properties[parent] = { type: "string" }
 	for (const field of entity.fields) properties[field.name] = fieldSchema(field)
 	for (const derived of entity.derived ?? []) properties[derived.name] = { type: "integer" }
-	if (entity.softDelete === true) properties.deleted_at = { type: ["integer", "null"] }
+	if (entity.softDelete === true) properties["deleted_at"] = { type: ["integer", "null"] }
 	return objectSchema(properties, [
 		"id",
 		"org_id",
@@ -111,7 +111,7 @@ export function writeSchema(entity: Entity, phase: "create" | "update"): Json {
 
 function fieldSchema(field: { type: string; enum?: readonly string[]; maxLength?: number; nullable?: boolean }): Json {
 	const type = field.nullable === true ? [field.type, "null"] : field.type
-	const schema: Json = { type }
+	const schema: { type: string | string[]; enum?: string[]; maxLength?: number } = { type }
 	if (field.enum !== undefined) schema.enum = [...field.enum]
 	if (field.maxLength !== undefined) schema.maxLength = field.maxLength
 	return schema

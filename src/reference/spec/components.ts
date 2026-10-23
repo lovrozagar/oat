@@ -8,7 +8,7 @@ import type { Json, SpecContext } from "./types.ts"
 
 function componentSchemas(ctx: SpecContext): Json {
 	const schemas = errorSchemas()
-	schemas.Point = {
+	schemas["Point"] = {
 		additionalProperties: false,
 		properties: { x: { type: "integer" }, y: { type: "integer" } },
 		required: ["x", "y"],
@@ -16,7 +16,7 @@ function componentSchemas(ctx: SpecContext): Json {
 	}
 	/* Recursive: a node's children are nodes. Real documents describe trees, comment threads and
 	 * org charts this way, and nothing about it is unusual — except to a tool that inlines refs. */
-	schemas.TreeNode = {
+	schemas["TreeNode"] = {
 		properties: {
 			children: { items: { $ref: "#/components/schemas/TreeNode" }, type: "array" },
 			name: { type: "string" },

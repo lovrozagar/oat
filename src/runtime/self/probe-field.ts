@@ -1,5 +1,7 @@
 /** The field an update to the caller changes and reads back: a plain string, or else a boolean. */
 
+import type { JsonSchema } from "../../spec/types.ts"
+
 const PREFERRED_FIELDS: readonly string[] = ["first_name", "display_name", "name", "nickname"]
 
 export interface ProbeField {
@@ -8,18 +10,18 @@ export interface ProbeField {
 	name: string
 }
 
-function asSchema(value: unknown): Record<string, unknown> | null {
+function asSchema(value: unknown): JsonSchema | null {
 	if (value === null || typeof value !== "object" || Array.isArray(value)) return null
-	return value as Record<string, unknown>
+	return value as JsonSchema
 }
 
 /** A nullable union is the non-null branch. `type: ["string", "null"]` is a string. */
-function unwrap(schema: Record<string, unknown>): Record<string, unknown> {
+function unwrap(schema: JsonSchema): JsonSchema {
 	const branches = Array.isArray(schema.anyOf) ? schema.anyOf : Array.isArray(schema.oneOf) ? schema.oneOf : null
 	if (branches !== null) {
 		const nonNull = branches
 			.map(asSchema)
-			.filter((branch): branch is Record<string, unknown> => branch !== null && branch.type !== "null")
+			.filter((branch): branch is JsonSchema => branch !== null && branch.type !== "null")
 		const only = nonNull.length === 1 ? nonNull[0] : undefined
 		if (only !== undefined) return unwrap(only)
 	}
@@ -31,7 +33,7 @@ function unwrap(schema: Record<string, unknown>): Record<string, unknown> {
 }
 
 /** A string the probe can set and read back unchanged: free text, not an enum, a format or a pattern. */
-function freeText(rec: Record<string, unknown>): boolean {
+function freeText(rec: JsonSchema): boolean {
 	if (Array.isArray(rec.enum)) return false
 	if (rec.format === "email" || rec.format === "uri" || rec.format === "date-time") return false
 	return typeof rec.pattern !== "string"

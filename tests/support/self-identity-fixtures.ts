@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { bearerSecurity } from "../../src/conformance/harness/security.ts"
-import type { OpenApiDocument } from "../../src/spec/types.ts"
+import type { OpenApiDocument, JsonSchema } from "../../src/spec/types.ts"
 
 /*
  * Backends for the `identity: self` integration tests: each serves its spec at /openapi.json and
@@ -14,8 +14,6 @@ export type Served = { close: () => Promise<void>; url: string }
 type Call = { method: string; req: IncomingMessage; res: ServerResponse; url: URL }
 
 type Route = (call: Call) => boolean | Promise<boolean>
-
-type Schema = Record<string, unknown>
 
 const UNAUTHORIZED = { error: "unauthorized" }
 
@@ -70,7 +68,7 @@ function selfSpec(paths: OpenApiDocument["paths"], title = "self-boolean"): Open
 	return { ...bearerSecurity(), info: { title, version: "1" }, openapi: "3.1.0", paths } as OpenApiDocument
 }
 
-function ok(schema: Schema, description = "ok") {
+function ok(schema: JsonSchema, description = "ok") {
 	return { content: { "application/json": { schema } }, description }
 }
 
@@ -81,7 +79,7 @@ const missing = { description: "missing" }
 /* What one operation answers, and the body it takes when it takes one. */
 interface OpShape {
 	responses: Record<string, unknown>
-	body?: Schema
+	body?: JsonSchema
 }
 
 /* One `identity: self` operation on the profile entity. */
@@ -97,7 +95,7 @@ function selfOp(operationId: string, action: string, { body, responses }: OpShap
 }
 
 /* A caller profile one read and one update share. */
-function readUpdateSpec(schema: Schema, title?: string): OpenApiDocument {
+function readUpdateSpec(schema: JsonSchema, title?: string): OpenApiDocument {
 	const responses = { "200": ok(schema), "401": unauthorized }
 	return selfSpec(
 		{

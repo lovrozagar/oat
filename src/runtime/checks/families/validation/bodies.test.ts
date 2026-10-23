@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest"
 import { createBodyPlan, findConstrained } from "./bodies.ts"
 import { itemsDocument, stage } from "./__fixtures__/items.ts"
+import type { JsonSchema } from "../../../../spec/types.ts"
 
-const hasEnum = (s: Record<string, unknown>) => Array.isArray(s.enum)
+const hasEnum = (s: JsonSchema) => Array.isArray(s.enum)
 
 describe("createBodyPlan", () => {
 	it("needs nothing it can name when the entity has no create", () => {

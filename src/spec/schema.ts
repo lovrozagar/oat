@@ -13,7 +13,7 @@
 
 import { PRIVILEGED } from "./extensions/privileged.ts"
 import { DISCRIMINATOR_KEY, type Discriminated } from "./load/walk.ts"
-import type { SchemaObject } from "./types.ts"
+import type { JsonSchema } from "./types.ts"
 
 export type Direction = "request" | "response"
 
@@ -73,22 +73,22 @@ const BOUNDS = [
 interface Normalizing {
 	direction: Direction
 	ordinary: boolean
-	seen: Map<object, SchemaObject>
+	seen: Map<object, JsonSchema>
 }
 
-function isSchema(value: unknown): value is SchemaObject {
+function isSchema(value: unknown): value is JsonSchema {
 	return value !== null && typeof value === "object" && !Array.isArray(value)
 }
 
 /** Translates `schema` into JSON Schema 2020-12 as seen in `direction`. Never mutates its input. */
-export function normalizeSchema(schema: SchemaObject, options: NormalizeOptions): SchemaObject {
+export function normalizeSchema(schema: JsonSchema, options: NormalizeOptions): JsonSchema {
 	return visit({ direction: options.direction, ordinary: options.ordinary === true, seen: new Map() }, schema)
 }
 
-function visit(ctx: Normalizing, node: SchemaObject): SchemaObject {
+function visit(ctx: Normalizing, node: JsonSchema): JsonSchema {
 	const cached = ctx.seen.get(node)
 	if (cached !== undefined) return cached
-	const out: SchemaObject = {}
+	const out: JsonSchema = {}
 	ctx.seen.set(node, out)
 	for (const [key, value] of Object.entries(node)) {
 		if (!OPENAPI_ONLY.has(key)) translate(ctx, out, key, value)
@@ -105,13 +105,13 @@ function visit(ctx: Normalizing, node: SchemaObject): SchemaObject {
 }
 
 /** Writes one keyword of a schema node into `out`, translating any subschemas it holds. */
-function translate(ctx: Normalizing, out: SchemaObject, key: string, value: unknown): void {
+function translate(ctx: Normalizing, out: JsonSchema, key: string, value: unknown): void {
 	if (SINGLE.has(key) && isSchema(value)) out[key] = visit(ctx, value)
 	else if (LIST.has(key) && Array.isArray(value)) out[key] = visitEach(ctx, value)
 	/* Draft-04 tuple form: positional item schemas. */
 	else if (key === "items" && Array.isArray(value)) out.prefixItems = visitEach(ctx, value)
 	else if (MAP.has(key) && isSchema(value)) {
-		const map: SchemaObject = {}
+		const map: JsonSchema = {}
 		for (const [name, sub] of Object.entries(value)) map[name] = isSchema(sub) ? visit(ctx, sub) : sub
 		out[key] = map
 	} else out[key] = value
@@ -127,7 +127,7 @@ function visitEach(ctx: Normalizing, items: unknown[]): unknown[] {
  * and a generated body carries the tag of the branch it was made from. A tag that does not travel
  * in this direction (`readOnly` in a request) is left alone, along with the union.
  */
-function pinTags(ctx: Normalizing, node: SchemaObject, out: SchemaObject): void {
+function pinTags(ctx: Normalizing, node: JsonSchema, out: JsonSchema): void {
 	const tags = node[DISCRIMINATOR_KEY]
 	const key = out.oneOf === undefined ? "anyOf" : "oneOf"
 	const union = out[key]
@@ -139,10 +139,11 @@ function pinTags(ctx: Normalizing, node: SchemaObject, out: SchemaObject): void 
 }
 
 function isTags(value: unknown): value is Discriminated {
-	return isSchema(value) && typeof value.propertyName === "string" && Array.isArray(value.values)
+	if (value === null || typeof value !== "object" || !("propertyName" in value) || !("values" in value)) return false
+	return typeof value.propertyName === "string" && Array.isArray(value.values)
 }
 
-function hides(schema: SchemaObject, tag: string, hidden: "readOnly" | "writeOnly"): boolean {
+function hides(schema: JsonSchema, tag: string, hidden: "readOnly" | "writeOnly"): boolean {
 	const property = isSchema(schema.properties) ? schema.properties[tag] : undefined
 	return isSchema(property) && property[hidden] === true
 }
@@ -160,7 +161,7 @@ function pinned(branch: unknown, tag: string, values: string[]): unknown {
 	}
 }
 
-function resolveExclusiveBounds(out: SchemaObject): void {
+function resolveExclusiveBounds(out: JsonSchema): void {
 	for (const [flag, bound] of BOUNDS) {
 		if (typeof out[flag] !== "boolean") continue
 		if (out[flag] === true && typeof out[bound] === "number") {
@@ -170,7 +171,7 @@ function resolveExclusiveBounds(out: SchemaObject): void {
 	}
 }
 
-function dropProperties(out: SchemaObject, hidden: "readOnly" | "writeOnly"): void {
+function dropProperties(out: JsonSchema, hidden: "readOnly" | "writeOnly"): void {
 	if (!isSchema(out.properties)) return
 	const properties = { ...out.properties }
 	const dropped = Object.entries(properties)
@@ -182,7 +183,7 @@ function dropProperties(out: SchemaObject, hidden: "readOnly" | "writeOnly"): vo
 }
 
 /* An optional property marked x-privileged: an ordinary writer never sends it. */
-function dropPrivileged(out: SchemaObject): void {
+function dropPrivileged(out: JsonSchema): void {
 	if (!isSchema(out.properties)) return
 	const required = Array.isArray(out.required) ? out.required : []
 	out.properties = Object.fromEntries(
@@ -193,12 +194,12 @@ function dropPrivileged(out: SchemaObject): void {
 }
 
 /** `schema` or null — by widening `type` and `enum` where that is exact, by a union where not. */
-function nullable(schema: SchemaObject): SchemaObject {
+function nullable(schema: JsonSchema): JsonSchema {
 	const type = schema.type
 	const typed = typeof type === "string" || Array.isArray(type)
 	const composite = ["allOf", "anyOf", "oneOf", "$ref", "not", "const"].some((key) => key in schema)
 	if (typed && !composite) {
-		const out: SchemaObject = { ...schema }
+		const out: JsonSchema = { ...schema }
 		const types = Array.isArray(type) ? [...type] : [type]
 		if (!types.includes("null")) types.push("null")
 		out.type = types
@@ -231,7 +232,7 @@ export function scalarKinds(schema: unknown): ScalarKind[] | undefined {
 }
 
 /* The scalar kinds of `schema`; empty when it admits only null, `undefined` when not a scalar. */
-function kindsOf(schema: SchemaObject): ScalarKind[] | undefined {
+function kindsOf(schema: JsonSchema): ScalarKind[] | undefined {
 	const { type } = schema
 	if (typeof type === "string") return type === "null" ? [] : kindsOfTypes([type])
 	if (Array.isArray(type)) return type.length === 0 ? undefined : kindsOfTypes(type)
@@ -265,7 +266,7 @@ function kindsOfBranches(branches: readonly unknown[]): ScalarKind[] | undefined
 
 function kindsOfAll(branches: readonly unknown[]): ScalarKind[] | undefined {
 	const typed = branches.filter((branch) => isSchema(branch) && TYPING_KEYS.some((key) => key in branch))
-	return typed.length === 1 ? kindsOf(typed[0] as SchemaObject) : undefined
+	return typed.length === 1 ? kindsOf(typed[0] as JsonSchema) : undefined
 }
 
 function kindsOfValues(values: readonly unknown[]): ScalarKind[] | undefined {

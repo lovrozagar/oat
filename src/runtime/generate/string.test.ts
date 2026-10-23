@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { stringFor } from "./string.ts"
 import type { At, Context } from "./types.ts"
 import { Unconstructible } from "./unconstructible.ts"
+import type { JsonSchema } from "../../spec/types.ts"
 
 const at = (fields: Partial<Context> = {}, distinct = false): At => ({
 	ctx: {
@@ -20,7 +21,7 @@ const at = (fields: Partial<Context> = {}, distinct = false): At => ({
 	pointer: "/s",
 })
 
-const refused = (schema: Record<string, unknown>, ctx: At = at()): string => {
+const refused = (schema: JsonSchema, ctx: At = at()): string => {
 	try {
 		stringFor(schema, ctx)
 	} catch (error) {

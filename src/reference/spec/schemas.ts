@@ -3,10 +3,12 @@
 import type { Dialect } from "../dialect/types.ts"
 import type { EntityDef, FieldDef } from "../model/types.ts"
 import { writableFields } from "../model/fields.ts"
+import type { JsonSchema } from "../../spec/types.ts"
 import type { Json, SpecContext } from "./types.ts"
 
-export function fieldSchema(field: FieldDef): Json {
-	const base: Json = field.ref === undefined ? { type: field.type } : { $ref: `#/components/schemas/${field.ref}` }
+export function fieldSchema(field: FieldDef): JsonSchema {
+	const base: JsonSchema =
+		field.ref === undefined ? { type: field.type } : { $ref: `#/components/schemas/${field.ref}` }
 	if (field.type === "array") {
 		base.items = { enum: [...(field.items ?? [])], type: "string" }
 		base.maxItems = 5
@@ -25,7 +27,7 @@ export function fieldSchema(field: FieldDef): Json {
 	return base
 }
 
-export function itemSchema(entity: EntityDef): Json {
+export function itemSchema(entity: EntityDef): JsonSchema {
 	const properties: Json = {}
 	for (const field of entity.fields) properties[field.name] = fieldSchema(field)
 	return {
@@ -41,12 +43,12 @@ export function schemaName(entity: EntityDef): string {
 }
 
 /** An entity's record schema — inline, or a reference into `components` under the layout shape. */
-export function itemSchemaRef(ctx: SpecContext, entity: EntityDef): Json {
+export function itemSchemaRef(ctx: SpecContext, entity: EntityDef): JsonSchema {
 	if (ctx.shape.specLayout === true) return { $ref: `#/components/schemas/${schemaName(entity)}` }
-	const schema = itemSchema(entity) as { properties: Record<string, Json>; required: string[] }
+	const schema = itemSchema(entity) as { properties: Record<string, JsonSchema>; required: string[] }
 	if (ctx.shape.relatedRecord === true) {
 		const id = ctx.shape.identityField ?? "id"
-		schema.properties.Status = {
+		schema.properties["Status"] = {
 			additionalProperties: false,
 			properties: { Name: { type: "string" }, [id]: { type: "integer" } },
 			readOnly: true,
@@ -55,11 +57,11 @@ export function itemSchemaRef(ctx: SpecContext, entity: EntityDef): Json {
 		}
 		schema.required.push("Status")
 	}
-	return schema as Json
+	return schema
 }
 
 /* Under `recordEnvelope`: the answers' shapes, and where the document says the record is. */
-const FIELD_LIST: Json = {
+const FIELD_LIST: JsonSchema = {
 	items: {
 		additionalProperties: false,
 		properties: { name: { type: "string" }, type: { type: "string" } },
@@ -69,7 +71,7 @@ const FIELD_LIST: Json = {
 	type: "array",
 }
 
-function identitySchema(entity: EntityDef): Json {
+function identitySchema(entity: EntityDef): JsonSchema {
 	const field = entity.fields.find((candidate) => candidate.name === entity.identity)
 	return field === undefined ? { type: "string" } : fieldSchema(field)
 }
@@ -77,7 +79,7 @@ function identitySchema(entity: EntityDef): Json {
 function wraps(ctx: SpecContext, entity: EntityDef): boolean {
 	return ctx.shape.recordEnvelope === true && entity.name !== "job"
 }
-export function createdSchema(ctx: SpecContext, entity: EntityDef): Json {
+export function createdSchema(ctx: SpecContext, entity: EntityDef): JsonSchema {
 	if (!wraps(ctx, entity)) return itemSchemaRef(ctx, entity)
 	return {
 		additionalProperties: false,
@@ -91,7 +93,7 @@ export function createdSchema(ctx: SpecContext, entity: EntityDef): Json {
 		type: "object",
 	}
 }
-export function readSchema(ctx: SpecContext, entity: EntityDef): Json {
+export function readSchema(ctx: SpecContext, entity: EntityDef): JsonSchema {
 	if (!wraps(ctx, entity)) return itemSchemaRef(ctx, entity)
 	return {
 		additionalProperties: false,
@@ -100,7 +102,7 @@ export function readSchema(ctx: SpecContext, entity: EntityDef): Json {
 		type: "object",
 	}
 }
-export function writtenSchema(ctx: SpecContext, entity: EntityDef): Json {
+export function writtenSchema(ctx: SpecContext, entity: EntityDef): JsonSchema {
 	if (!wraps(ctx, entity)) return itemSchemaRef(ctx, entity)
 	return {
 		additionalProperties: false,
@@ -114,7 +116,7 @@ export function located(ctx: SpecContext, entity: EntityDef, action: "create" | 
 	return action === "create" ? { createdIdFrom: "$.id", recordPath: "$.data" } : { recordPath: "$.data" }
 }
 
-export function bodySchema(entity: EntityDef, phase: "create" | "update", replace = false): Json {
+export function bodySchema(entity: EntityDef, phase: "create" | "update", replace = false): JsonSchema {
 	const properties: Json = {}
 	for (const field of writableFields(entity, phase)) properties[field.name] = fieldSchema(field)
 	return {
@@ -136,7 +138,7 @@ function collectionKey(entity: EntityDef, dialect: Dialect): string {
 	return dialect.envelope?.collection ?? entity.plural
 }
 
-export function listSchema(ctx: SpecContext, entity: EntityDef, dialect: Dialect): Json {
+export function listSchema(ctx: SpecContext, entity: EntityDef, dialect: Dialect): JsonSchema {
 	const env = dialect.envelope
 	/* No envelope: the response *is* the array. A document that says so is the only place oat can
 	 * learn it, so the schema has to say it rather than describe a wrapper that does not exist. */
@@ -144,7 +146,7 @@ export function listSchema(ctx: SpecContext, entity: EntityDef, dialect: Dialect
 	const key = collectionKey(entity, dialect)
 	const properties: Json = { [key]: { items: itemSchemaRef(ctx, entity), type: "array" } }
 	const required = [key]
-	const declare = (name: string | undefined, schema: Json): void => {
+	const declare = (name: string | undefined, schema: JsonSchema): void => {
 		if (name === undefined) return
 		properties[name] = schema
 		required.push(name)

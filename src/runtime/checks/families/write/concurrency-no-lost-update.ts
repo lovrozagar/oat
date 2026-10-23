@@ -11,6 +11,7 @@ import { requestSchemaOf, withheldProperties } from "../../payloads/body.ts"
 import { standDownForFeatureGate, standDownForRateLimit } from "../../planning/stand-down.ts"
 import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
 import { NO_RECORD } from "./records.ts"
+import type { JsonSchema } from "../../../../spec/types.ts"
 
 /**
  * Concurrent writes to different fields must both survive.
@@ -164,7 +165,7 @@ function writableStringFields(ctx: CheckContext, record: Record_): string[] {
 		...withheldProperties(ctx, ctx.updateOp),
 	])
 	const schema = ctx.updateOp === undefined ? null : requestSchemaOf(ctx, ctx.updateOp)
-	const properties = (schema?.properties ?? {}) as Record<string, Record<string, unknown>>
+	const properties = (schema?.properties ?? {}) as Record<string, JsonSchema>
 
 	/* Where the update body enumerates its properties, that list *is* the set of writable fields —
 	 * a field the request schema does not mention is one the caller was never invited to send, and
@@ -192,7 +193,7 @@ function isFreeStringValue(key: string, value: unknown, fixed: ReadonlySet<strin
 }
 
 /** Whether the schema has grounds to refuse an arbitrary short string: an enum, a pattern, a format, a tight cap. */
-function refusesArbitraryString(propertySchema: Record<string, unknown>): boolean {
+function refusesArbitraryString(propertySchema: JsonSchema): boolean {
 	if (Array.isArray(propertySchema.enum)) return true
 	if (typeof propertySchema.pattern === "string") return true
 	if (typeof propertySchema.format === "string") return true

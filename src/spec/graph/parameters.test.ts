@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { query } from "../__fixtures__/documents.ts"
-import type { OperationObject, ParameterObject } from "../types.ts"
+import type { JsonSchema, OperationObject, ParameterObject } from "../types.ts"
 import {
 	idempotencyHeader,
 	readParamStyles,
@@ -10,7 +10,7 @@ import {
 	successResponseHeaders,
 } from "./parameters.ts"
 
-const required = (name: string, schema: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
+const required = (name: string, schema: JsonSchema, extra: Record<string, unknown> = {}) =>
 	query(name, schema, { required: true, ...extra })
 
 describe("readRequiredQuery", () => {

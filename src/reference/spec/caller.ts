@@ -3,10 +3,11 @@
 import { errorResponses } from "./errors.ts"
 import { jsonResponse, ok } from "./operation.ts"
 import type { Json, SpecContext } from "./types.ts"
+import type { JsonSchema } from "../../spec/types.ts"
 
 /** The signed-up caller is the record. No list, no create, no path id. */
 export function callerProfilePaths(ctx: SpecContext): Json {
-	const schema: Json = {
+	const schema: JsonSchema = {
 		additionalProperties: false,
 		properties: { first_name: { maxLength: 64, type: "string" } },
 		required: ["first_name"],

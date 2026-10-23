@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { afterAll, describe, expect, it } from "vitest"
 import { UsageError } from "../../errors/usage-error.ts"
-import type { OpenApiDocument } from "../types.ts"
+import type { JsonSchema, OpenApiDocument } from "../types.ts"
 import { bundleLocalRefs, EXTERNAL_KEY } from "./bundle.ts"
 import { DEFS_KEY } from "./defs.ts"
 import { dereference } from "./dereference.ts"
@@ -43,7 +43,7 @@ async function bundled(path: string): Promise<OpenApiDocument> {
 	return bundleLocalRefs(await parseDocument(await readFile(path, "utf8"), path), path)
 }
 
-function schemaOf(doc: OpenApiDocument): Record<string, unknown> {
+function schemaOf(doc: OpenApiDocument): JsonSchema {
 	const paths = doc.paths as Record<string, any>
 	return paths["/x"].get.responses["200"].content["application/json"].schema
 }

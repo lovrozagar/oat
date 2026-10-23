@@ -11,7 +11,7 @@ import formatsModule from "ajv-formats"
 import { messageOf } from "../errors/message.ts"
 import { DEFS_ID } from "../spec/load/defs.ts"
 import { normalizeSchema } from "../spec/schema.ts"
-import type { OperationObject, SchemaObject } from "../spec/types.ts"
+import type { OperationObject, JsonSchema } from "../spec/types.ts"
 import type { Exchange } from "./exchange.ts"
 
 /**
@@ -53,7 +53,7 @@ export class SchemaValidator {
 	private readonly cache = new Map<string, ValidateFunction | { failed: string } | null>()
 
 	/** `defs`: the recursive schemas a dereferenced document refers to (see `dereference`). */
-	constructor(defs: Record<string, SchemaObject> = {}) {
+	constructor(defs: Record<string, JsonSchema> = {}) {
 		this.ajv = new Ajv2020({
 			allErrors: true,
 			/* Specs in the wild carry annotations AJV does not know; refusing to compile over a
@@ -64,7 +64,7 @@ export class SchemaValidator {
 		addFormats(this.ajv)
 		/* Recursive schemas are referenced as `oat-defs#/$defs/<name>`, so they are registered
 		 * once under that id and every compiled schema can reach them. */
-		const $defs: Record<string, SchemaObject> = {}
+		const $defs: Record<string, JsonSchema> = {}
 		for (const [name, def] of Object.entries(defs)) $defs[name] = normalizeSchema(def, { direction: "response" })
 		this.ajv.addSchema({ $defs, $id: DEFS_ID })
 	}
@@ -113,7 +113,7 @@ export class SchemaValidator {
 	}
 }
 
-function schemaFor(op: OperationObject, status: number): SchemaObject | null {
+function schemaFor(op: OperationObject, status: number): JsonSchema | null {
 	const responses = op.responses ?? {}
 	const candidates = [String(status), `${Math.floor(status / 100)}XX`, "default"]
 	for (const code of candidates) {
@@ -129,16 +129,16 @@ function schemaFor(op: OperationObject, status: number): SchemaObject | null {
 /* One AJV per set of definitions: each registers them under `oat-defs`, as the document names them. */
 // per-process-constant: compiled-schema
 const instanceAjvs = /* @__PURE__ */ new WeakMap<object, AjvLike>()
-const NO_DEFS: Record<string, SchemaObject> = {}
+const NO_DEFS: Record<string, JsonSchema> = {}
 // per-process-constant: compiled-schema
 const instanceCache = /* @__PURE__ */ new WeakMap<object, ValidateFunction | { failed: string }>()
 
-function ajvFor(defs: Record<string, SchemaObject>): AjvLike {
+function ajvFor(defs: Record<string, JsonSchema>): AjvLike {
 	const existing = instanceAjvs.get(defs)
 	if (existing !== undefined) return existing
 	const ajv = new Ajv2020({ allErrors: true, strict: false, validateFormats: true })
 	addFormats(ajv)
-	const $defs: Record<string, SchemaObject> = {}
+	const $defs: Record<string, JsonSchema> = {}
 	for (const [name, def] of Object.entries(defs)) $defs[name] = normalizeSchema(def, { direction: "request" })
 	ajv.addSchema({ $defs, $id: DEFS_ID })
 	instanceAjvs.set(defs, ajv)
@@ -150,9 +150,9 @@ function ajvFor(defs: Record<string, SchemaObject>): AjvLike {
  * passes before it is sent. Returns AJV's complaints, or `[]`.
  */
 export function instanceErrors(
-	schema: SchemaObject,
+	schema: JsonSchema,
 	value: unknown,
-	defs: Record<string, SchemaObject> = NO_DEFS,
+	defs: Record<string, JsonSchema> = NO_DEFS,
 ): string[] {
 	let compiled = instanceCache.get(schema)
 	if (compiled === undefined) {

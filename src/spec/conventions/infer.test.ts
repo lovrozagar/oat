@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest"
 import { query } from "../__fixtures__/documents.ts"
 import { inferGrammar, inferSelectGrammar, inferSortGrammar } from "./infer.ts"
+import type { JsonSchema } from "../types.ts"
 
 const described = (name: string, description: unknown) => query(name, { type: "string" }, { description })
-const exampled = (name: string, schema: Record<string, unknown>) => query(name, { type: "string", ...schema })
+const exampled = (name: string, schema: JsonSchema) => query(name, { type: "string", ...schema })
 
 describe("inferGrammar", () => {
 	it("reads postgrest from its name, an instance, or its schema written out", () => {

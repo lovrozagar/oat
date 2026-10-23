@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest"
 import { query } from "../__fixtures__/documents.ts"
-import type { ParameterObject } from "../types.ts"
+import type { JsonSchema, ParameterObject } from "../types.ts"
 import { parameterNamed, resolvePagingRoles, roleName, schemaOf } from "./roles.ts"
 
-const int = (name: string, schema: Record<string, unknown> = {}): ParameterObject =>
-	query(name, { type: "integer", ...schema })
+const int = (name: string, schema: JsonSchema = {}): ParameterObject => query(name, { type: "integer", ...schema })
 
 describe("roleName", () => {
 	it("matches aliases whatever their case, separators or bracketed suffix", () => {

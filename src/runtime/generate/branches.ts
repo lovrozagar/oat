@@ -2,14 +2,15 @@
 
 import { DEFS_ID } from "../../spec/load/defs.ts"
 import { isObject, merge } from "./algebra.ts"
-import type { At, Context, Schema, Walk } from "./types.ts"
+import type { JsonSchema } from "../../spec/types.ts"
+import type { At, Context, Walk } from "./types.ts"
 import { Unconstructible } from "./unconstructible.ts"
 
 /** How many times one recursive schema may nest inside itself before generation stops descending. */
 const RECURSION_BOUND = 2
 
 /** The value `schema.$ref` names, with the schema's sibling keywords applied. */
-export function viaRef(schema: Schema, at: At, walk: Walk): unknown {
+export function viaRef(schema: JsonSchema, at: At, walk: Walk): unknown {
 	const { ctx, pointer } = at
 	const ref = schema.$ref as string
 	const name = ref.startsWith(`${DEFS_ID}#/$defs/`) ? ref.slice(`${DEFS_ID}#/$defs/`.length) : undefined
@@ -31,7 +32,7 @@ const isNull = (branch: unknown): boolean => isObject(branch) && branch.type ===
  * A union keeps its base: `{properties: {kind}, oneOf: [...]}` needs `kind` whichever branch. The
  * index picks the branch to start from, as it picks an enum value, so a cohort makes every branch.
  */
-export function unionOf(schema: Schema, at: At, walk: Walk): unknown {
+export function unionOf(schema: JsonSchema, at: At, walk: Walk): unknown {
 	const union = (schema.oneOf ?? schema.anyOf) as unknown[]
 	const { oneOf: _o, anyOf: _a, ...base } = schema
 	if (at.ctx.variant === "null-heavy" && union.some(isNull)) return null

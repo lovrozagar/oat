@@ -15,12 +15,13 @@ import { createdRecord } from "./created-record.ts"
 import { isPlanLimitResponse } from "./plan-limit.ts"
 import type { Record_ } from "./records.ts"
 import type { Scope, SeededCohort, Seeding } from "./types.ts"
+import type { JsonSchema } from "../../spec/types.ts"
 
 export interface CohortRun {
 	createOp: OperationModel
 	seeding: Seeding
 	scope: Scope
-	schema: Record<string, unknown>
+	schema: JsonSchema
 	path: string
 	/** The entity's identity, as its records carry it. */
 	identity: string

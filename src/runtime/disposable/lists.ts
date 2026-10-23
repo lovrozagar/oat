@@ -3,7 +3,7 @@
  * record gone; and the body a destructive call sends.
  */
 
-import type { OperationObject } from "../../spec/types.ts"
+import type { JsonSchema, OperationObject } from "../../spec/types.ts"
 import { effective } from "../../spec/collection/effective.ts"
 import { deriveIdentity } from "../../spec/collection/identity.ts"
 import { successSchema } from "../../spec/collection/responses.ts"
@@ -40,7 +40,7 @@ export function parentList(model: SpecModel, op: OperationModel): OperationModel
 
 /** The generated body with every field the signup already knows by name; none without a schema. */
 export function bodyFor(
-	schema: Record<string, unknown> | null,
+	schema: JsonSchema | null,
 	known: Record<string, unknown>,
 	generated: Record<string, unknown>,
 ): unknown {

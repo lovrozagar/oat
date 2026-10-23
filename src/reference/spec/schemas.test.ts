@@ -86,7 +86,7 @@ describe("record schemas", () => {
 
 	it("nests a read-only related record keyed by the shape's identity field", () => {
 		const renamed = itemSchemaRef(context({ identityField: "ID", relatedRecord: true }), TABLE)
-		expect((renamed.properties as Record<string, unknown>).Status).toEqual({
+		expect((renamed.properties as Record<string, unknown>)["Status"]).toEqual({
 			additionalProperties: false,
 			properties: { ID: { type: "integer" }, Name: { type: "string" } },
 			readOnly: true,
@@ -95,7 +95,7 @@ describe("record schemas", () => {
 		})
 		expect((renamed.required as string[]).at(-1)).toBe("Status")
 		const plain = itemSchemaRef(context({ relatedRecord: true }), TABLE)
-		expect((plain.properties as Record<string, { required: string[] }>).Status?.required).toEqual(["id", "Name"])
+		expect((plain.properties as Record<string, { required: string[] }>)["Status"]?.required).toEqual(["id", "Name"])
 	})
 })
 
@@ -106,7 +106,7 @@ describe("record envelopes", () => {
 	it("answers a create with success, id, message and the record", () => {
 		const schema = createdSchema(wrapped, TABLE)
 		expect(schema.required).toEqual(["success", "id", "message", "data"])
-		expect((schema.properties as Record<string, unknown>).id).toEqual({ readOnly: true, type: "string" })
+		expect((schema.properties as Record<string, unknown>)["id"]).toEqual({ readOnly: true, type: "string" })
 		expect(createdSchema(plain, TABLE)).toEqual(itemSchema(TABLE))
 	})
 
@@ -124,7 +124,7 @@ describe("record envelopes", () => {
 
 	it("declares the id as a string when the identity is not a field", () => {
 		const orphan = { ...TABLE, identity: "missing" }
-		expect((writtenSchema(wrapped, orphan).properties as Record<string, unknown>).id).toEqual({ type: "string" })
+		expect((writtenSchema(wrapped, orphan).properties as Record<string, unknown>)["id"]).toEqual({ type: "string" })
 	})
 
 	it("keeps the async job's answers plain", () => {

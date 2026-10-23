@@ -3,7 +3,7 @@
  * are inlined, and a ref that would recurse becomes a ref into the definitions.
  */
 
-import type { OpenApiDocument } from "../types.ts"
+import type { JsonSchema, OpenApiDocument } from "../types.ts"
 import { DEFS_ID } from "./defs.ts"
 import { decodeSegment, resolvePointer } from "./pointer.ts"
 
@@ -44,7 +44,7 @@ export function walk(ctx: Dereferencing, node: unknown, mode: Mode = "node"): un
 	const cached = mode === "node" ? ctx.memo.get(node) : undefined
 	if (cached !== undefined) return cached
 	if (Array.isArray(node)) return walkArray(ctx, node)
-	const obj = node as Record<string, unknown>
+	const obj = node as JsonSchema
 	/* Not memoized by node: whether a ref recurses depends on the path that reached it. */
 	if (typeof obj.$ref === "string") return walkRef(ctx, obj, obj.$ref)
 	return walkObject(ctx, obj, mode)
@@ -59,7 +59,7 @@ function walkArray(ctx: Dereferencing, node: unknown[]): unknown[] {
 	return out
 }
 
-function walkObject(ctx: Dereferencing, obj: Record<string, unknown>, mode: Mode): Record<string, unknown> {
+function walkObject(ctx: Dereferencing, obj: JsonSchema, mode: Mode): Record<string, unknown> {
 	const out: Record<string, unknown> = {}
 	if (mode === "node") ctx.memo.set(obj, out)
 	ctx.building.add(obj)
@@ -82,7 +82,7 @@ function walkEntry(ctx: Dereferencing, key: string, value: unknown, mode: Mode):
 	return walk(ctx, value)
 }
 
-function walkRef(ctx: Dereferencing, obj: Record<string, unknown>, ref: string): unknown {
+function walkRef(ctx: Dereferencing, obj: JsonSchema, ref: string): unknown {
 	if (ref !== "#" && !ref.startsWith("#/")) {
 		ctx.externalRefs.add(ref)
 		return obj
@@ -116,6 +116,12 @@ function defName(ctx: Dereferencing, ref: string): string {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	value !== null && typeof value === "object" && !Array.isArray(value)
 
+const isSchema = (value: unknown): value is JsonSchema => isRecord(value)
+
+/** An OpenAPI Discriminator Object: the property naming a union's branch, and its value mapping. */
+const isDiscriminator = (value: unknown): value is { propertyName: string; mapping?: unknown } =>
+	value !== null && typeof value === "object" && "propertyName" in value && typeof value.propertyName === "string"
+
 const COMPONENT = /^#\/components\/schemas\/([^/]+)$/
 
 /**
@@ -124,16 +130,14 @@ const COMPONENT = /^#\/components\/schemas\/([^/]+)$/
  * matched by the source node both refs end at, however each is spelled. Nothing is recorded when
  * any branch is not such a ref or has no value, since a union only partly pinned is not narrower.
  */
-function discriminated(ctx: Dereferencing, obj: Record<string, unknown>): Discriminated | undefined {
+function discriminated(ctx: Dereferencing, obj: JsonSchema): Discriminated | undefined {
 	const { discriminator } = obj
 	const union = obj.oneOf ?? obj.anyOf
-	if (!isRecord(discriminator) || typeof discriminator.propertyName !== "string" || !Array.isArray(union)) {
-		return undefined
-	}
+	if (!isDiscriminator(discriminator) || !Array.isArray(union)) return undefined
 	const mapped = mappingTargets(ctx, discriminator.mapping)
 	const values: string[][] = []
 	for (const branch of union) {
-		const ref = isRecord(branch) && typeof branch.$ref === "string" ? branch.$ref : ""
+		const ref = isSchema(branch) && typeof branch.$ref === "string" ? branch.$ref : ""
 		const target = ref.startsWith("#/") ? finalTarget(ctx, ref) : undefined
 		/* A mapped node is never undefined, so a branch that reaches nothing matches no value. */
 		const own = mapped.filter(([, node]) => node === target).map(([value]) => value)
@@ -166,7 +170,7 @@ function finalTarget(ctx: Dereferencing, ref: string): unknown {
 	while (!seen.has(pointer)) {
 		seen.add(pointer)
 		const node = resolvePointer(ctx.doc, pointer)
-		if (!isRecord(node) || typeof node.$ref !== "string" || !node.$ref.startsWith("#")) return node
+		if (!isSchema(node) || typeof node.$ref !== "string" || !node.$ref.startsWith("#")) return node
 		pointer = node.$ref
 	}
 	return undefined

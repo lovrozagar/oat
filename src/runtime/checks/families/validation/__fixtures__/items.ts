@@ -1,5 +1,5 @@
 import type { Exchange } from "../../../../exchange.ts"
-import type { OpenApiDocument } from "../../../../../spec/types.ts"
+import type { JsonSchema, OpenApiDocument } from "../../../../../spec/types.ts"
 import type { CheckContext } from "../../../core/context.ts"
 import { type Answer, contextFor, modelOf } from "../../../__fixtures__/harness.ts"
 
@@ -15,7 +15,7 @@ const listed = {
 
 /** The document, with `create` merged over a JSON create whose request body is `schema`. */
 export function itemsDocument(
-	schema: Record<string, unknown> | null,
+	schema: JsonSchema | null,
 	create: Record<string, unknown> = {},
 	mediaType = "application/json",
 ): OpenApiDocument {

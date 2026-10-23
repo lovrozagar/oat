@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { normalizeSchema, scalarKinds } from "./schema.ts"
-import type { SchemaObject } from "./types.ts"
+import type { JsonSchema } from "./types.ts"
 
 const response = { direction: "response" } as const
 const request = { direction: "request" } as const
@@ -96,10 +96,10 @@ describe("normalizeSchema directions and nulls", () => {
 	})
 
 	it("translates a cyclic schema into a cyclic schema, and never mutates its input", () => {
-		const node: SchemaObject = { example: 1, type: "object" }
+		const node: JsonSchema = { example: 1, type: "object" }
 		node.properties = { child: node }
 		const out = normalizeSchema(node, response)
-		expect((out.properties as Record<string, unknown>).child).toBe(out)
+		expect((out.properties as Record<string, unknown>)["child"]).toBe(out)
 		expect(node.example).toBe(1)
 	})
 })
@@ -177,8 +177,8 @@ describe("normalizeSchema for an ordinary writer", () => {
 
 describe("normalizeSchema discriminator", () => {
 	const KEY = "x-oat-discriminator"
-	const cat: SchemaObject = { properties: { kind: { type: "string" }, meow: { type: "boolean" } }, type: "object" }
-	const dog: SchemaObject = { properties: { bark: { type: "boolean" } }, required: ["bark"], type: "object" }
+	const cat: JsonSchema = { properties: { kind: { type: "string" }, meow: { type: "boolean" } }, type: "object" }
+	const dog: JsonSchema = { properties: { bark: { type: "boolean" } }, required: ["bark"], type: "object" }
 	const tags = { propertyName: "kind", values: [["cat", "kitty"], ["dog"]] }
 
 	it("pins each branch's tag to its values and requires it, in both directions", () => {

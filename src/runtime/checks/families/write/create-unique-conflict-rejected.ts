@@ -25,6 +25,7 @@ import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
 import { pageSize, q } from "../../query/capabilities.ts"
 import { type Listing, listAll } from "../../sets/compare.ts"
 import { liveRecord } from "./records.ts"
+import type { JsonSchema } from "../../../../spec/types.ts"
 
 async function teardownCreatedId(ctx: WriteContext, id: string): Promise<void> {
 	const deleteOp = ctx.deleteOp ?? ctx.model.byOperationId.get(ctx.model.entities.get(ctx.entityName)?.delete ?? "")
@@ -44,7 +45,7 @@ async function teardownCreatedId(ctx: WriteContext, id: string): Promise<void> {
 export const uniqueConflictCreate = defineCheck<{
 	createOp: OperationModel
 	first: Record_
-	schema: Record<string, unknown>
+	schema: JsonSchema
 	sets: string[][]
 }>({
 	plan: (ctx) => {
@@ -95,7 +96,7 @@ export const uniqueConflictCreate = defineCheck<{
 interface CreateProbe {
 	check: string
 	createOp: OperationModel
-	schema: Record<string, unknown>
+	schema: JsonSchema
 	bodyCols: ReadonlySet<string>
 	path: string
 	required: boolean

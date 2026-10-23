@@ -7,7 +7,7 @@
 import type { FilterableField, QueryCapabilities, SortableField } from "../../config/types/query.ts"
 import { deriveQueryConventions } from "../conventions/derive.ts"
 import { parseQueryCatalog } from "../query/parse-catalog.ts"
-import type { Endpoint } from "../types.ts"
+import type { Endpoint, JsonSchema } from "../types.ts"
 import type { GapCollector } from "./gaps.ts"
 import { ext } from "./tag.ts"
 import { scalarKinds } from "../schema.ts"
@@ -33,7 +33,7 @@ export interface QueryCapability {
 	sortableFields?: SortableField[]
 }
 
-function scalarProperties(schema: Record<string, unknown>): string[] {
+function scalarProperties(schema: JsonSchema): string[] {
 	const props = schema.properties
 	if (props === null || typeof props !== "object") return []
 	const out: string[] = []
@@ -69,11 +69,7 @@ function declared(tag: Record<string, unknown>): QueryCapability {
 	return cap
 }
 
-function guessed(
-	endpoint: Endpoint,
-	itemSchema: Record<string, unknown> | null,
-	gaps?: GapCollector,
-): QueryCapability | null {
+function guessed(endpoint: Endpoint, itemSchema: JsonSchema | null, gaps?: GapCollector): QueryCapability | null {
 	const params = (endpoint.op.parameters ?? []).filter((p) => p.in === "query")
 	/* Same aliases the checks already use — `sort`/`fields`/`q`/`per_page`, not only the
 	 * fixture spellings `filter`/`order`/`select`/`limit`. Pagination-only params do not
@@ -110,7 +106,7 @@ function guessed(
 
 export function readQueryCapability(
 	endpoint: Endpoint,
-	itemSchema: Record<string, unknown> | null,
+	itemSchema: JsonSchema | null,
 	gaps?: GapCollector,
 ): QueryCapability | null {
 	const tag = ext<Record<string, unknown>>(endpoint.op, "x-query")

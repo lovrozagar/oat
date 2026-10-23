@@ -11,6 +11,7 @@ import { declarationAnswer } from "../../planning/declarations.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { asTermValue, canUseOp, conv, q, resolvedCaps, schemaType } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
+import type { JsonSchema } from "../../../../spec/types.ts"
 
 /**
  * A capability the document declares must actually exist.
@@ -126,8 +127,8 @@ function capabilityProbe(ctx: CheckContext, name: string): Probe | null {
 }
 
 /** The item schema's declaration of property `name`, when it has one. */
-function propertySchemaOf(ctx: CheckContext, name: string): Record<string, unknown> | undefined {
-	return (ctx.listOp.collection?.itemSchema?.properties as Record<string, Record<string, unknown>> | undefined)?.[name]
+function propertySchemaOf(ctx: CheckContext, name: string): JsonSchema | undefined {
+	return (ctx.listOp.collection?.itemSchema?.properties as Record<string, JsonSchema> | undefined)?.[name]
 }
 
 /** `contains` with an element the cohort holds, or else one drawn from the array's item schema. */

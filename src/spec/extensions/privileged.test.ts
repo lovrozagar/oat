@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest"
-import type { OperationObject, SchemaObject } from "../types.ts"
+import type { OperationObject, JsonSchema } from "../types.ts"
 import { GapCollector } from "./gaps.ts"
 import { readPrivileged, requiredPrivileged } from "./privileged.ts"
 
 /* `x-privileged: true` on a request body property: only the highest-rank principal may set it. */
 
-const table: SchemaObject = {
+const table: JsonSchema = {
 	properties: {
 		meta: {
 			properties: { owner: { type: "string", "x-privileged": true }, tag: { type: "string" } },
@@ -17,7 +17,7 @@ const table: SchemaObject = {
 	type: "object",
 }
 
-const read = (body: SchemaObject | null): string[] =>
+const read = (body: JsonSchema | null): string[] =>
 	readPrivileged({} as OperationObject, { body, gaps: new GapCollector(), operationId: "op" })
 
 describe("readPrivileged", () => {
@@ -31,7 +31,7 @@ describe("readPrivileged", () => {
 	})
 
 	it("reads the properties of each allOf member, a property marked false as unmarked, and no body as none", () => {
-		const merged: SchemaObject = { allOf: [table, { properties: { plan: { "x-privileged": false } } }] }
+		const merged: JsonSchema = { allOf: [table, { properties: { plan: { "x-privileged": false } } }] }
 		expect(read(merged)).toEqual(["meta.owner", "verified"])
 		expect(read(null)).toEqual([])
 		expect(read({ properties: { tags: { items: { type: "string" }, type: "array" } } })).toEqual([])
@@ -39,7 +39,7 @@ describe("readPrivileged", () => {
 
 	it("reports a marker that is not a boolean, or not on a schema property, and does not read it", () => {
 		const gaps = new GapCollector()
-		const body: SchemaObject = {
+		const body: JsonSchema = {
 			properties: { plan: { type: "string", "x-privileged": "admin" } },
 			type: "object",
 			"x-privileged": true,
@@ -66,9 +66,9 @@ describe("readPrivileged", () => {
 	})
 
 	it("stops at a schema it has already walked", () => {
-		const node: SchemaObject = { properties: {}, type: "object" }
-		;(node.properties as Record<string, unknown>).self = node
-		;(node.properties as Record<string, unknown>).flag = { "x-privileged": true }
+		const node: JsonSchema = { properties: {}, type: "object" }
+		;(node.properties as Record<string, unknown>)["self"] = node
+		;(node.properties as Record<string, unknown>)["flag"] = { "x-privileged": true }
 		expect(readPrivileged({} as OperationObject, { body: node, gaps: new GapCollector(), operationId: "op" })).toEqual([
 			"flag",
 		])
@@ -81,7 +81,7 @@ describe("requiredPrivileged", () => {
 		expect(requiredPrivileged(table, marked)).toEqual([])
 		expect(requiredPrivileged({ ...table, required: ["verified", "meta"] }, marked)).toEqual(["verified"])
 		const owner = { properties: { owner: { type: "string", "x-privileged": true } }, required: ["owner"] }
-		const nested: SchemaObject = { allOf: [{ required: ["meta"] }], properties: { meta: { allOf: [owner] } } }
+		const nested: JsonSchema = { allOf: [{ required: ["meta"] }], properties: { meta: { allOf: [owner] } } }
 		expect(requiredPrivileged(nested, marked)).toEqual(["meta.owner"])
 		expect(requiredPrivileged({ properties: { meta: true }, required: ["meta"] }, ["meta.owner"])).toEqual([])
 		expect(requiredPrivileged(null, marked)).toEqual([])

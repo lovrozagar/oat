@@ -41,6 +41,6 @@ export function writableBody(ctx: OperationContext, record: Record_): Record_ {
 	const raw = ctx.model.rawOperations.get(ctx.operation.operationId) as OperationObject
 	const content = requestContent(raw)
 	if (content?.schema.properties === undefined) return { ...record }
-	const { properties } = ordinaryRequestSchema(content.schema) as { properties: Record<string, unknown> }
+	const properties = ordinaryRequestSchema(content.schema).properties as Record<string, unknown>
 	return Object.fromEntries(Object.entries(record).filter(([name]) => Object.hasOwn(properties, name)))
 }

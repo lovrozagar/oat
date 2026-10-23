@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { OpenApiDocument } from "../../../spec/types.ts"
+import type { JsonSchema, OpenApiDocument } from "../../../spec/types.ts"
 import type { Answer, Responder } from "../../checks/__fixtures__/harness.ts"
 import type { Record_ } from "../../world/records.ts"
 import { contextOf, entityRunOf, notesApi, notesDoc, optionsFor, overriding } from "../__fixtures__/api.ts"
@@ -15,11 +15,11 @@ import { seedCreated } from "./seed-cohort.ts"
 type Json = Record<string, unknown>
 
 /** The notes document with its create edited: its tags, and the note schema it sends. */
-function docWith(edit: (create: Json, note: Json) => void): OpenApiDocument {
+function docWith(edit: (create: Json, note: JsonSchema) => void): OpenApiDocument {
 	const doc = structuredClone(notesDoc()) as unknown as { paths: Record<string, Record<string, Json>> }
 	const create = doc.paths["/notes"]?.post as Json
-	const body = create.requestBody as { content: Record<string, { schema: Json }> }
-	edit(create, body.content["application/json"]?.schema as Json)
+	const body = create.requestBody as { content: Record<string, { schema: JsonSchema }> }
+	edit(create, body.content["application/json"]?.schema as JsonSchema)
 	return doc as unknown as OpenApiDocument
 }
 

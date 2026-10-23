@@ -46,7 +46,7 @@ describe("applyOverlay", () => {
 			tags: ["b"],
 			"x-query": { maxLimit: 50, sortable: ["b"] },
 		})
-		expect(out.components?.schemas?.Note).toEqual({
+		expect(out.components?.schemas?.["Note"]).toEqual({
 			properties: { id: { type: "string" }, name: { type: "string" } },
 		})
 		expect(original).toEqual(source())

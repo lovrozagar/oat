@@ -6,6 +6,7 @@
  */
 
 import { nonexistentIdentity } from "../../../nonexistent-identity.ts"
+import type { JsonSchema } from "../../../../spec/types.ts"
 
 const EMAIL: ReadonlySet<string> = /* @__PURE__ */ new Set(["email", "idn-email"])
 const URL_FORMATS: ReadonlySet<string> = /* @__PURE__ */ new Set([
@@ -16,12 +17,10 @@ const URL_FORMATS: ReadonlySet<string> = /* @__PURE__ */ new Set([
 	"iri-reference",
 ])
 
-type Schema = Record<string, unknown>
-
 /** `value` with every address its `schema` declares, at any depth, replaced by one that reaches nothing. */
 export function undeliverable(value: unknown, schema: unknown, nonce: string): unknown {
 	if (schema === null || typeof schema !== "object") return value
-	const node = schema as Schema
+	const node = schema as JsonSchema
 	if (typeof value === "string") return addressed(value, node, nonce)
 	if (Array.isArray(value)) return value.map((item) => undeliverable(item, node.items, nonce))
 	const properties = node.properties
@@ -35,7 +34,7 @@ export function undeliverable(value: unknown, schema: unknown, nonce: string): u
 }
 
 /* A string as its format would have it delivered to nowhere. */
-function addressed(value: string, schema: Schema, nonce: string): string {
+function addressed(value: string, schema: JsonSchema, nonce: string): string {
 	const format = typeof schema.format === "string" ? schema.format : ""
 	if (EMAIL.has(format)) return nonexistentIdentity({ name: "email", schema }, nonce)
 	return URL_FORMATS.has(format) ? `https://oat-nonexistent-${nonce}.invalid/` : value
