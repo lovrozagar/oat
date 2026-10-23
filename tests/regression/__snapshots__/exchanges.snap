@@ -133,6 +133,9 @@
     "GET /v1/notices?limit_oat_typo [Authorization] → 200",
     "GET /v1/notices?oat_unknown_parameter [Authorization] → 200"
   ],
+  "profile.delete": [
+    "DELETE /v1/me [Authorization] → 204"
+  ],
   "profile.get": [
     "GET /v1/me [Authorization] → 200",
     "GET /v1/me [Authorization] → 401",

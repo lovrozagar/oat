@@ -13,6 +13,17 @@ import { DEFAULT_DEADLINE_MS, resilient, untilAnswered } from "./retry.ts"
 import { Slots } from "./slots.ts"
 import type { ClientOptions, ExchangeContext, RequestOptions, SafeMethod } from "./types.ts"
 
+/** A request about to go out, as `setBeforeSend` sees it. */
+export interface Sending {
+	method: string
+	operationId: string | undefined
+	body: unknown
+	as: RequestOptions["as"]
+}
+
+/** Told of each request before it is sent; what it hands back is told of the answer. */
+export type BeforeSend = (sending: Sending) => ((exchange: Exchange) => void) | undefined
+
 /** A client that can only read: what a check that does not mutate receives. */
 export interface ReadClient extends Omit<Client, "request" | "view"> {
 	request(method: SafeMethod, path: string, options: RequestOptions): Promise<Exchange>
@@ -24,6 +35,7 @@ export class Client {
 	writes = 0
 	private seq = 0
 	private afterExchange: ((exchange: Exchange) => Promise<void>) | undefined
+	private beforeSend: BeforeSend | undefined
 	/* Not `#private`: a view is a Proxy, and a private field does not read through one. */
 	private readonly journal: Journal
 	private readonly wire: Wire
@@ -68,6 +80,15 @@ export class Client {
 	 */
 	setAfterExchange(fn: (exchange: Exchange) => Promise<void>): void {
 		this.afterExchange = fn
+	}
+
+	/**
+	 * Called with every request before anything is sent, from whichever view sends it: whatever it
+	 * must record survives a run that dies mid-request. The callback it returns, if any, gets the
+	 * answer, before `setAfterExchange`'s does. A request that never got an answer never calls it.
+	 */
+	setBeforeSend(fn: BeforeSend): void {
+		this.beforeSend = fn
 	}
 
 	/** The path below the base URL — what a documented path template describes. */
@@ -130,6 +151,12 @@ export class Client {
 		if (unsendable !== null) throw new Error(`${method.toUpperCase()} ${path} was not sent: ${unsendable}`)
 		if (!SAFE.has(method.toUpperCase())) this.writes += 1
 		const request = prepare(this.wire, method, path, options)
+		const answered = this.beforeSend?.({
+			as: options.as,
+			body: options.body,
+			method: request.method,
+			operationId: request.operationId,
+		})
 		const { network, rateLimiter } = this.options
 		const deadline = performance.now() + (network?.deadlineMs ?? DEFAULT_DEADLINE_MS)
 		const policy = { deadline, headers: request.callerHeaders, method: request.method, network }
@@ -160,6 +187,7 @@ export class Client {
 			options: control,
 			path,
 		})
+		answered?.(exchange)
 		await this.afterExchange?.(exchange)
 		return exchange
 	}

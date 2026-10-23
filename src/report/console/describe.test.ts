@@ -23,7 +23,7 @@ describe("lifecycleGlyphs", () => {
 		const { model } = await referenceModel()
 		const glyphs = sortedEntities(model).map((entity) => `${entity.name} ${lifecycleGlyphs(entity)}`)
 		expect(glyphs).toContain("table CLRUD")
-		expect(glyphs).toContain("profile ··RU·")
+		expect(glyphs).toContain("profile ··RUD")
 	})
 })
 

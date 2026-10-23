@@ -72,6 +72,17 @@ describe("earlyResult", () => {
 		expect(result.network?.kind).toBe("dns")
 		expect(result.exchanges).toEqual({ count: 0 })
 	})
+
+	it("names each account a sign-up made before it stopped as a leftover", async () => {
+		const run = await planned(optionsFor(notesApi()))
+		const entry = run.accounts.sending("auth.signup", { email: "a@x.test" })
+		run.accounts.answered(entry, { responseBody: {}, status: 201 } as never)
+		const result = await earlyResult(run)
+		expect(result.created).toBe(1)
+		expect(result.teardown?.failed).toEqual([
+			{ entity: "account", id: "a@x.test", principal: "(none)", reason: "the run stopped before teardown" },
+		])
+	})
 })
 
 describe("a journal that cannot be flushed", () => {

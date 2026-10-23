@@ -8,7 +8,7 @@ import { inbox, notify, startJob } from "./handlers/actions.ts"
 import { create } from "./handlers/create.ts"
 import type { ItemCall } from "./handlers/entity.ts"
 import { createKey, readKey, revokeKey } from "./handlers/api-keys.ts"
-import { login, logout, refresh, register, revokeToken, token } from "./handlers/auth.ts"
+import { deleteAccount, deleteSelf, login, logout, refresh, register, revokeToken, token } from "./handlers/auth.ts"
 import { account, document, health, me, notices, overview, type Route } from "./handlers/fixed.ts"
 import { accept, invite, revoke } from "./handlers/grants.ts"
 import { read, remove, update } from "./handlers/item.ts"
@@ -40,6 +40,8 @@ const FIXED: readonly Route[] = [
 	notices,
 	register,
 	logout,
+	deleteSelf,
+	deleteAccount,
 	overview,
 	me,
 	account,

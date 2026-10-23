@@ -16,6 +16,7 @@ import { returnedId } from "./proven-id.ts"
 import { SELF_IDENTITY } from "./self/operations.ts"
 import type { Ledger } from "./teardown/ledger.ts"
 import type { Owner } from "./teardown/types.ts"
+import { makesAccount } from "./accounts/ops.ts"
 import { inferredCreate } from "./inferred-create.ts"
 import { isProbeExchange } from "./probe-judging.ts"
 import { createdRecord } from "./world/created-record.ts"
@@ -107,6 +108,8 @@ async function recordCreate(tracker: Tracker, exchange: Exchange, owned: Tracked
 	const { input, routes } = tracker
 	const { ledger } = input
 	const create = exchange.operationId === undefined ? undefined : routes.creates.get(exchange.operationId)
+	/* The account a sign-up makes is the account ledger's, which removes it as itself or names it. */
+	if (create !== undefined && makesAccount(create.op)) return
 	if (create === undefined) {
 		await recordInferred(tracker, exchange, owned)
 		return

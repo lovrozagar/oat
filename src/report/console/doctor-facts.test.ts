@@ -42,9 +42,9 @@ describe("doctorFacts", () => {
 		expect(facts.inviting.map((entity) => entity.name)).toEqual(["table"])
 		expect(facts.featureGates).toEqual([])
 		expect([...facts.gapsByTag.keys()].sort()).toEqual(["x-entity", "x-tenant"])
-		/* Health, logout, register, the sign-in RPCs (token, login, refresh, revoke), the styles read, the
-		 * search QUERY and the untagged account update: none is a resource. */
-		expect(facts.gapsByTag.get("x-entity")).toHaveLength(10)
+		/* Health, logout, the sign-in RPCs (token, login, refresh, revoke), the styles read, the search
+		 * QUERY and the untagged account update: none is a resource. */
+		expect(facts.gapsByTag.get("x-entity")).toHaveLength(9)
 		expect(facts.catalogs).toHaveLength(4)
 		expect(facts.unknownEntities).toEqual([])
 	})

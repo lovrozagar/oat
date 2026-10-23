@@ -2,8 +2,8 @@
     apiKey     apiKey          header Authorization: ApiKey {credential}   mint · format
     jwt        bearer (JWT)    header Authorization: Bearer {credential}   login
 
-  requirements — 39 operations
-    jwt                            17   alpha
+  requirements — 41 operations
+    jwt                            19   alpha
     anonymous                       7
     jwt | apiKey[job:write]         3   alpha via jwt
     jwt | apiKey[row:write]         3   alpha via jwt

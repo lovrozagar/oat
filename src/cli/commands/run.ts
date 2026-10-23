@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises"
-import { dirname, resolve } from "node:path"
+import { dirname, join, resolve } from "node:path"
 import type { OatConfig } from "../../config/types/config.ts"
 import { messageOf } from "../../errors/message.ts"
 import { UsageError } from "../../errors/usage-error.ts"
@@ -112,6 +112,7 @@ async function started(writer: Writer, start: Start): Promise<number> {
 	const progress = runProgress(writer, outDir, { quiet: flags.quiet === true, startedAt: startedAt.getTime() })
 	const stop = stopOnSignal(writer, deps.signals)
 	const options = runOptionsOf(config, flags, {
+		accountsFile: join(outDir, "accounts.json"),
 		baseline: start.baseline,
 		configPath: start.configPath,
 		exchangeDir: savesExchanges(config, flags) ? outDir : undefined,

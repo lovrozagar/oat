@@ -7,7 +7,7 @@ import type { Account } from "../auth/types.ts"
 import { readFields, readJson } from "../body.ts"
 import { HttpError } from "../errors.ts"
 import type { ReferenceState } from "../state.ts"
-import { type ReferenceRequest, type ReferenceResponse, respond } from "../wire.ts"
+import { noContent, type ReferenceRequest, type ReferenceResponse, respond } from "../wire.ts"
 import type { Route } from "./fixed.ts"
 
 const is = (request: ReferenceRequest, method: string, pathname: string): boolean =>
@@ -76,5 +76,32 @@ export const register: Route = async (state, request) => {
 	const { email } = (await readFields(request, state.defects, { email: "string" })) as { email: string }
 	const account: Account = { email, key: nextId(state.auth, "disp"), projectId: "proj_alpha", rank: 2 }
 	state.auth.accounts.set(account.key, account)
-	return respond(201, { access_token: issueSession(state, account).access_token })
+	state.auth.registered.push(email)
+	return respond(201, { access_token: issueSession(state, account).access_token, account_id: account.key })
+}
+
+/* Gone: no sign-in finds it, and every token it holds is refused. */
+function removeAccount(state: ReferenceState, key: string): void {
+	state.auth.accounts.delete(key)
+	state.auth.killed.add(key)
+}
+
+/** `profile.delete`: the caller deletes its own account. */
+export const deleteSelf: Route = async (state, request) => {
+	if (!is(request, "DELETE", "/v1/me")) return undefined
+	removeAccount(state, authenticate(state, request).key)
+	return noContent()
+}
+
+/** `account.delete`: an admin (rank 2) deletes an account of its own project. */
+export const deleteAccount: Route = async (state, request) => {
+	const match = /^\/v1\/signups\/([^/]+)$/.exec(request.url.pathname)
+	if (match === null || request.method !== "DELETE") return undefined
+	const caller = authenticate(state, request)
+	const target = state.auth.accounts.get(decodeURIComponent(match[1] as string))
+	if (target === undefined || target.projectId !== caller.projectId)
+		throw new HttpError(404, "not_found", "no such account")
+	if (caller.rank < 2) throw new HttpError(403, "forbidden", "only an admin deletes an account")
+	removeAccount(state, target.key)
+	return noContent()
 }

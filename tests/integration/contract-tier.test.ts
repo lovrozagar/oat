@@ -40,7 +40,7 @@ const notePath = { in: "path", name: "note_id", required: true, schema: { type: 
 /* The operations no entity owns: each is graded by the contract tier alone. */
 function loosePaths(): Record<string, unknown> {
 	return {
-		"/v1/accounts/{account_id}/badge": {
+		"/v1/signups/{account_id}/badge": {
 			get: {
 				operationId: "badge.get",
 				parameters: [{ in: "path", name: "account_id", required: true, schema: { type: "string" } }],

@@ -63,6 +63,8 @@ export interface AuthState {
 	sequence: number
 	/** By key: the seeded principals, then whoever registered. */
 	accounts: Map<string, Account>
+	/** The email of every account `auth.register` made, deleted since or not, in order. */
+	registered: string[]
 	/** Revoked token ids. */
 	revoked: Set<string>
 	/** Session families revoked whole, on refresh-token reuse. */

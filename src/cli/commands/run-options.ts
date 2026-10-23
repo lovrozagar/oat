@@ -40,6 +40,8 @@ export interface RunSetting {
 	warn: (message: string) => void
 	/** The run folder, when its exchanges are journaled. */
 	exchangeDir: string | undefined
+	/** Where the run keeps its account ledger: `accounts.json` in the run folder. */
+	accountsFile?: string
 }
 
 /** The flags that override the config, as the run reads them. */
@@ -89,6 +91,7 @@ function setUp(setting: RunSetting): Partial<RunOptions> {
 	return {
 		...(setting.baseline === undefined ? {} : { baseline: setting.baseline }),
 		...(setting.exchangeDir === undefined ? {} : { exchangeDir: setting.exchangeDir }),
+		...(setting.accountsFile === undefined ? {} : { accountsFile: setting.accountsFile }),
 	}
 }
 

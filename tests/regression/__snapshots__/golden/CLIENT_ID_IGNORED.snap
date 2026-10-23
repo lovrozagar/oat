@@ -1837,8 +1837,8 @@
         ]
       },
       "removed": {
-        "now": 28,
-        "was": 86
+        "now": 30,
+        "was": 88
       },
       "unidentified": {
         "added": [
@@ -2161,7 +2161,7 @@
           {
             "check": "auth.alternative-accepted",
             "ran": 0,
-            "skipped": 36
+            "skipped": 38
           },
           {
             "check": "auth.destructive-spares-the-caller",
@@ -2171,7 +2171,7 @@
           {
             "check": "auth.invalid-credential-refused",
             "ran": 0,
-            "skipped": 30
+            "skipped": 32
           },
           {
             "check": "auth.invite-grants-then-revokes",
@@ -2181,7 +2181,7 @@
           {
             "check": "auth.missing-credential-refused",
             "ran": 0,
-            "skipped": 30
+            "skipped": 32
           },
           {
             "check": "auth.rank-is-monotonic",
@@ -2196,12 +2196,12 @@
           {
             "check": "auth.role-enforced",
             "ran": 0,
-            "skipped": 37
+            "skipped": 39
           },
           {
             "check": "auth.scope-enforced",
             "ran": 0,
-            "skipped": 34
+            "skipped": 36
           },
           {
             "check": "auth.self-is-the-caller",
@@ -2211,7 +2211,7 @@
           {
             "check": "auth.wrong-scheme-refused",
             "ran": 0,
-            "skipped": 35
+            "skipped": 37
           },
           {
             "check": "concurrency.if-match-enforced",
@@ -2531,7 +2531,7 @@
           {
             "check": "request.invalid-body-refused",
             "ran": 0,
-            "skipped": 37
+            "skipped": 39
           },
           {
             "check": "response.contract-call",
@@ -2743,7 +2743,7 @@
           {
             "check": "auth.alternative-accepted",
             "ran": 0,
-            "skipped": 34
+            "skipped": 36
           },
           {
             "check": "auth.destructive-spares-the-caller",
@@ -2753,7 +2753,7 @@
           {
             "check": "auth.invalid-credential-refused",
             "ran": 0,
-            "skipped": 23
+            "skipped": 25
           },
           {
             "check": "auth.invite-grants-then-revokes",
@@ -2763,12 +2763,12 @@
           {
             "check": "auth.missing-credential-refused",
             "ran": 0,
-            "skipped": 23
+            "skipped": 25
           },
           {
             "check": "auth.privileged-field-ignored",
             "ran": 0,
-            "skipped": 38
+            "skipped": 40
           },
           {
             "check": "auth.rank-is-monotonic-on-writes",
@@ -2778,12 +2778,12 @@
           {
             "check": "auth.role-enforced",
             "ran": 0,
-            "skipped": 32
+            "skipped": 34
           },
           {
             "check": "auth.scope-enforced",
             "ran": 0,
-            "skipped": 28
+            "skipped": 30
           },
           {
             "check": "auth.self-is-the-caller",
@@ -2793,7 +2793,7 @@
           {
             "check": "auth.wrong-scheme-refused",
             "ran": 0,
-            "skipped": 34
+            "skipped": 36
           },
           {
             "check": "concurrency.if-match-enforced",
@@ -3108,7 +3108,7 @@
           {
             "check": "request.invalid-body-refused",
             "ran": 0,
-            "skipped": 34
+            "skipped": 36
           },
           {
             "check": "response.contract-call",

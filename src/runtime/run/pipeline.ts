@@ -1,3 +1,4 @@
+import { teardownAccounts } from "./accounts.ts"
 import { buildRegistry } from "../checks/core/define.ts"
 import { CHECKS } from "../checks/registry.ts"
 import { connect, disposeClients } from "./client-setup.ts"
@@ -18,14 +19,7 @@ import { scenarios } from "./scenarios.ts"
 import { planScope } from "./scope-plan.ts"
 import { serverErrors } from "./server-errors.ts"
 import { readVersion } from "./target-version.ts"
-import {
-	reportUnremovable,
-	revokeCredentials,
-	revokeSessions,
-	teardownPrincipals,
-	trackCreates,
-	unwind,
-} from "./teardown.ts"
+import { reportUnremovable, revokeCredentials, revokeSessions, trackCreates, unwind } from "./teardown.ts"
 import type { RunOptions, RunResult } from "./types.ts"
 import type { RunFindingId } from "../check-ids.ts"
 
@@ -87,7 +81,7 @@ export async function closeOut(ctx: RunContext, runs: OriginRuns): Promise<void>
 	const { options } = ctx
 	if ((options.origins ?? []).length > 0 && options.skipPrincipalTeardown !== true) await secondaryOrigins(ctx, runs)
 	await revokeCredentials(ctx)
-	await teardownPrincipals(ctx)
+	await teardownAccounts(ctx)
 	await revokeSessions(ctx)
 }
 

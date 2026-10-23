@@ -48,6 +48,16 @@ const DOCUMENT = {
 				...entity("create"),
 			},
 		},
+		"/signup": {
+			post: {
+				operationId: "member.signup",
+				requestBody: { ...json(ITEM), required: true },
+				responses: { "201": { ...json(ITEM), description: "signed up" } },
+				security: [],
+				...entity("create", "member"),
+				"x-fresh-principal": true,
+			},
+		},
 		"/keys": {
 			post: {
 				operationId: "keys.create",
@@ -277,7 +287,14 @@ describe("createTracker, on what it does not ledger", () => {
 		expect(ledger.entries()).toEqual([])
 	})
 
-	it("leaves an account the caller is to teardownPrincipal", async () => {
+	it("leaves an account a sign-up makes to the account ledger", async () => {
+		const { ledger, tracker } = setup()
+		const signup = { operationId: "member.signup", pathParams: {}, template: "/signup", url: "http://x/signup" }
+		await tracker.observe(exchange({ ...signup, responseBody: { id: "m1", name: "member" } }))
+		expect([ledger.entries(), ledger.unidentifiedCreates]).toEqual([[], []])
+	})
+
+	it("leaves an account the caller is to the account ledger", async () => {
 		const { ledger, tracker } = setup()
 		await tracker.observe(
 			exchange({

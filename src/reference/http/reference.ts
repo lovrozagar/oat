@@ -150,12 +150,16 @@ export async function closeStore(state: ReferenceState): Promise<void> {
 
 /* A table's id, under `tableKey: "slug"`, is its slug: what a client could have ledgered. */
 export function createdIds(state: ReferenceState): Record<string, string[]> {
-	return Object.fromEntries(
-		Object.entries(state.ids.caused).map(([name, ids]) => [
-			name,
-			[...new Set(name === state.table.name ? ids.map((id) => state.slugOf.get(id) ?? id) : ids)],
-		]),
-	)
+	return {
+		...Object.fromEntries(
+			Object.entries(state.ids.caused).map(([name, ids]) => [
+				name,
+				[...new Set(name === state.table.name ? ids.map((id) => state.slugOf.get(id) ?? id) : ids)],
+			]),
+		),
+		/* An account by the email it was made with, as teardown names it. */
+		...(state.auth.registered.length === 0 ? {} : { account: [...new Set(state.auth.registered)] }),
+	}
 }
 
 export async function snapshot(state: ReferenceState): Promise<Record<string, Row[]>> {
@@ -171,5 +175,11 @@ export async function snapshot(state: ReferenceState): Promise<Record<string, Ro
 		const known = state.shape.tableKey === "slug" && entity.name === state.table.name ? "slug" : entity.identity
 		out[entity.name] = known === "id" ? rows : rows.map((row) => ({ ...row, id: row[known] }))
 	}
+	/* The accounts the register made, by the email they were made with: a leftover is named by it. */
+	const registered = [...state.auth.accounts.values()].filter(
+		(account) => !PRINCIPALS.some((principal) => principal.key === account.key),
+	)
+	/* The register makes each one with an email. */
+	if (registered.length > 0) out["account"] = registered.map((account) => ({ id: account.email as string }))
 	return out
 }

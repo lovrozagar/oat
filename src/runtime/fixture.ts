@@ -12,6 +12,7 @@
  * request the document forbids.
  */
 
+import { identityNames } from "./accounts/identity.ts"
 import { normalizeSchema } from "../spec/schema.ts"
 import { type Variant } from "./generate/types.ts"
 import { generate } from "./generate/generate.ts"
@@ -122,10 +123,11 @@ export interface CohortBuild extends CohortOptions {
 export function buildCohort(bodySchema: JsonSchema | boolean, seed: number, options: CohortBuild = {}): CohortMember[] {
 	const { operationId = "unknown", variants = COHORT } = options
 	const schema = readable(bodySchema, operationId)
+	const distinct = new Set([...(options.distinct ?? []), ...identityNames(schema)])
 	return variants.map((variant, index) => {
 		const result = generate(schema, {
 			...(options.defs === undefined ? {} : { defs: options.defs }),
-			...(options.distinct === undefined ? {} : { distinct: options.distinct }),
+			...(distinct.size === 0 ? {} : { distinct }),
 			...(options.nonce === undefined ? {} : { nonce: options.nonce }),
 			index,
 			rand: mulberry32(seed + index * 7919),

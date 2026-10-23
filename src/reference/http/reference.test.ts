@@ -141,3 +141,27 @@ describe("createdIds and snapshot", () => {
 		expect((await snapshot(state))["job"]?.[0]).not.toHaveProperty("ID")
 	})
 })
+
+describe("createdIds and snapshot of accounts", () => {
+	it("ledger every account the register made by its email, gone since or not, and snapshot the live ones", async () => {
+		const reference = await createReference({}, memoryStore)
+		const send = reference.fetch
+		const register = async (email: string) => {
+			const answer = await send(`${reference.url}/v1/register`, {
+				body: JSON.stringify({ email }),
+				headers: { "content-type": "application/json" },
+				method: "POST",
+			})
+			return (await answer.json()) as { access_token: string }
+		}
+		expect((await reference.snapshot())["account"]).toBeUndefined()
+		const gone = await register("gone@x.test")
+		await register("kept@x.test")
+		await send(`${reference.url}/v1/me`, {
+			headers: { authorization: `Bearer ${gone.access_token}` },
+			method: "DELETE",
+		})
+		expect(reference.createdIds()).toEqual({ account: ["gone@x.test", "kept@x.test"] })
+		expect((await reference.snapshot())["account"]).toEqual([{ id: "kept@x.test" }])
+	})
+})

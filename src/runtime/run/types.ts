@@ -110,6 +110,12 @@ export interface RunOptions {
 	 */
 	exchangeDir?: string
 	/**
+	 * Where the run keeps its account ledger, rewritten before each account-making request is sent,
+	 * so a run that dies still names every account it made. The CLI puts it in the run's folder as
+	 * `accounts.json`. Omit to keep the ledger in memory only.
+	 */
+	accountsFile?: string
+	/**
 	 * How much of the transcript's bodies each client keeps in memory (default 32 MiB), and where it
 	 * spools the rest, encrypted (default the system's temporary directory). Removed when the run ends.
 	 */

@@ -1,3 +1,4 @@
+import { accountReport } from "./accounts.ts"
 import { applyBaseline } from "../baseline.ts"
 import { type KeptCredential, keptCredentials, type PersistedPrincipal, snapshotPrincipal } from "../principals.ts"
 import { buildScopeReport } from "../scope/report.ts"
@@ -49,7 +50,18 @@ export async function settle(ctx: RunContext): Promise<Settled> {
 /** The result of a run the network cut short before any principal could act. */
 export async function earlyResult(planned: Planned): Promise<RunResult> {
 	await planned.journal?.flush().catch(() => undefined)
-	return { ...resultOf(planned), principals: [], scope: scopeReport(planned), teardown: null }
+	/* Accounts its principals' sign-ups made before it stopped: nothing removes them now. */
+	const accounts = planned.accounts.owed()
+	for (const entry of accounts) {
+		planned.accounts.settle(entry, { note: "the run stopped before teardown", status: "left" })
+	}
+	return {
+		...resultOf(planned),
+		created: accounts.length,
+		principals: [],
+		scope: scopeReport(planned),
+		teardown: accounts.length === 0 ? null : accountReport(accounts),
+	}
 }
 
 /** The result of a run that went the whole way. */
@@ -60,7 +72,7 @@ export function finalResult(ctx: RunContext, settled: Settled, coverage: ScopeRe
 		...resultOf(ctx),
 		...(baselined === undefined ? {} : { baseline: baselined }),
 		...(targetVersion === undefined ? {} : { targetVersion }),
-		created: ledger.recorded,
+		created: ledger.recorded + ctx.accounts.entries().filter((entry) => entry.status !== "refused").length,
 		principals: settled.principals,
 		...(settled.credentials === undefined ? {} : { credentials: settled.credentials }),
 		scope: coverage,

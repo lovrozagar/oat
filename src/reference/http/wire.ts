@@ -32,6 +32,11 @@ export function respond(status: number, body: unknown, extraHeaders: Record<stri
 	}
 }
 
+/** A 204: nothing in the body, so no content type either. */
+export function noContent(): ReferenceResponse {
+	return { body: "", headers: {}, status: 204 }
+}
+
 /** What a request carries beside its method and URL: its headers, and how to read its body. */
 export interface ReferenceInit {
 	headers: Readonly<Record<string, string>>

@@ -20,6 +20,7 @@ export function newAuthState(options: ReferenceOptions): AuthState {
 		clock: options.clock ?? Date.now,
 		failures: new Map(),
 		killed: new Set(),
+		registered: [],
 		revoked: new Set(),
 		revokedFamilies: new Set(),
 		rotated: new Set(),

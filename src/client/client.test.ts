@@ -130,6 +130,27 @@ describe("a client", () => {
 		expect(client.redactor).toBe(redactor)
 	})
 
+	it("tells setBeforeSend of each request before it goes, and what it hands back of the answer", async () => {
+		const seen: string[] = []
+		const { client } = clientOf(() => json({}), {
+			operationResolver: () => ({ entity: "row", operationId: "row.create", template: "/rows" }),
+		})
+		client.setAfterExchange(async (exchange) => void seen.push(`after ${exchange.seq}`))
+		client.setBeforeSend((sending) => {
+			seen.push(`before ${sending.method} ${sending.operationId} ${JSON.stringify(sending.body)}`)
+			return sending.method === "POST" ? (exchange) => void seen.push(`answered ${exchange.status}`) : undefined
+		})
+		await client.request("POST", "/rows", { as: ANON, body: { a: 1 } })
+		await client.get("/rows", { as: ANON })
+		expect(seen).toEqual([
+			'before POST row.create {"a":1}',
+			"answered 200",
+			"after 1",
+			"before GET row.create undefined",
+			"after 2",
+		])
+	})
+
 	it("reads paths below its base, wherever the base sits", () => {
 		const { client } = clientOf(() => json({}))
 		expect(client.relativePath(`${BASE}/rows/1`)).toBe("/rows/1")

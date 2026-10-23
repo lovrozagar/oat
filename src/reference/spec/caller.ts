@@ -40,6 +40,18 @@ export function callerProfilePaths(ctx: SpecContext): Json {
 				"x-entity": { action: "update", identity: "self", name: "profile" },
 				"x-invalidate": ["GET /v1/me"],
 			},
+			delete: {
+				operationId: "profile.delete",
+				responses: {
+					[ok(ctx, 204)]: { description: "The caller's account is gone" },
+					...errorResponses(ctx, [401]),
+				},
+				summary: "Delete the signed-up caller's own account",
+				tags: ["Profile"],
+				"x-destructive": true,
+				"x-entity": { action: "delete", identity: "self", name: "profile" },
+				"x-invalidate": ["GET /v1/me"],
+			},
 		},
 	}
 }
@@ -147,21 +159,41 @@ function registerOperation(ctx: SpecContext): Json {
 		responses: {
 			[ok(ctx, 201)]: jsonResponse("A new caller", {
 				additionalProperties: false,
-				properties: { access_token: { type: "string" } },
-				required: ["access_token"],
+				properties: { access_token: { type: "string" }, account_id: { type: "string" } },
+				required: ["access_token", "account_id"],
 				type: "object",
 			}),
 		},
 		security: [],
 		summary: "Register a caller",
 		tags: ["Profile"],
+		"x-entity": { action: "create", identity: "account_id", name: "signup" },
 		"x-fresh-principal": true,
 	}
 }
 
-/** A read of the caller's own project, its account, plus a register and a logout for the disposable user. */
+/** An admin removing an account of its own project by id. */
+function accountDeleteOperation(ctx: SpecContext): Json {
+	return {
+		operationId: "account.delete",
+		parameters: [{ in: "path", name: "account_id", required: true, schema: { type: "string" } }],
+		responses: {
+			[ok(ctx, 204)]: { description: "The account is gone" },
+			...errorResponses(ctx, [401, 403, 404]),
+		},
+		summary: "Delete an account of the caller's project",
+		tags: ["Profile"],
+		"x-entity": { action: "delete", identity: "account_id", name: "signup" },
+	}
+}
+
+/**
+ * A read of the caller's own project, its account, plus a register and a logout for the disposable
+ * user, and an admin's delete of an account the register made.
+ */
 export function callerRootPaths(ctx: SpecContext): Json {
 	return {
+		"/v1/signups/{account_id}": { delete: accountDeleteOperation(ctx) },
 		"/v1/logout": { post: logoutOperation(ctx) },
 		"/v1/me/account": { put: accountUpdateOperation(ctx) },
 		"/v1/projects/{project_id}/overview": { get: overviewOperation(ctx) },

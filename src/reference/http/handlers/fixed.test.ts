@@ -74,7 +74,7 @@ describe("the caller's own record", () => {
 		expect((await call("PATCH", "/v1/me", { body: { first_name: "Grace" } })).body).toEqual({ first_name: "Grace" })
 		expect((await call("GET", "/v1/me")).body).toEqual({ first_name: "Grace" })
 		expect((await call("GET", "/v1/me", { token: BETA })).body).toEqual({ first_name: "Ada" })
-		expect((await call("DELETE", "/v1/me")).status).toBe(404)
+		expect((await call("PUT", "/v1/me", { body: { first_name: "Grace" } })).status).toBe(404)
 	})
 
 	it("refuses a name that is missing, empty, too long or not a string, and a body that is not JSON", async () => {

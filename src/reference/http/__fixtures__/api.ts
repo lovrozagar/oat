@@ -80,7 +80,8 @@ function caller(state: ReferenceState): Api["call"] {
 		Object.assign(headers, sent.headers)
 		const url = new URL(path, "http://reference.test")
 		const answer = await handle(state, referenceRequest(method, url, { headers, read: async () => text }))
-		const parsed = JSON.parse(answer.body) as unknown
+		/* A 204 carries nothing to parse. */
+		const parsed = (answer.body === "" ? null : JSON.parse(answer.body)) as unknown
 		return {
 			body: parsed as Json,
 			headers: answer.headers,

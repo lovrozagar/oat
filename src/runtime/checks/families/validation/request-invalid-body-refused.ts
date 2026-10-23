@@ -79,7 +79,8 @@ function subjectPlan(ctx: OperationContext): Plan<Subject> {
 		return cannot(`an operation no credential recipe names; ${operationId} is a step of one`)
 	}
 	const entity = operation.entity === null ? undefined : model.entities.get(operation.entity)
-	if (entity?.create === operationId) {
+	/* A sign-up is never seeded as a fixture, so no create check reads its body: this one does. */
+	if (entity?.create === operationId && !operation.freshPrincipal) {
 		return cannot(`a write other than its entity's create; ${operationId} is ${entity.name}'s create`)
 	}
 	/* The path names the record and its parents: the server takes those from it, not from the body. */

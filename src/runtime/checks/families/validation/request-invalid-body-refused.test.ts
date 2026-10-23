@@ -412,3 +412,23 @@ describe("request.invalid-body-refused planning", () => {
 		})
 	})
 })
+
+describe("request.invalid-body-refused on a sign-up", () => {
+	it("probes a sign-up that is its entity's create: no create check reads a body never seeded", () => {
+		const signupModel = modelOf(
+			securedDoc({
+				"/members": {
+					post: {
+						operationId: "member.signup",
+						requestBody: json(account),
+						responses: ok,
+						security: [],
+						"x-entity": { action: "create", name: "member" },
+						"x-fresh-principal": true,
+					},
+				},
+			}),
+		)
+		expect(invalidBodyRefused.plan(operationContextFor(signupModel, "member.signup").ctx)).toMatchObject({ ok: true })
+	})
+})

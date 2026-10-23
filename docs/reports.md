@@ -26,6 +26,7 @@ Written under `--out` (default `./.oat/runs`). Each invocation creates a UTC tim
 | `progress.jsonl`             | same events as JSON                                                                                                                                                       |
 | `progress.tsv`               | same columns, tab-separated. `req_id` is the join key to the exchange journal                                                                                             |
 | `progress.json`              | latest snapshot only (overwritten ~1s)                                                                                                                                    |
+| `accounts.json`              | every account the run asked a backend to make, written before each sign-up was sent: its names (never its password), and whether teardown removed it                      |
 | `exchanges.jsonl`            | one line per request (`seq`, `requestId`, method, url, status, bytes, …). Greppable                                                                                       |
 | `exchanges/<requestId>.json` | full exchange: status, headers, described bodies. Missing id → `seq-<n>.json`. Duplicate id → `-<seq>`                                                                    |
 | `blobs/<sha256>`             | content-addressed file parts and oversized / binary bodies                                                                                                                |

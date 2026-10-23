@@ -8,6 +8,9 @@ import { createExchangeJournal, type ExchangeJournal } from "../exchanges/journa
 import { resolveBackoff } from "../poll.ts"
 import { buildRateLimitRules } from "../rate-limit/rules.ts"
 import { RateLimiter } from "../rate-limit/limiter.ts"
+import { AccountLedger } from "../accounts/ledger.ts"
+import { accountOps } from "../accounts/ops.ts"
+import { watchAccounts } from "../accounts/watch.ts"
 import { Ledger } from "../teardown/ledger.ts"
 import { SchemaValidator } from "../validate.ts"
 import type { Connected, Loaded } from "./context.ts"
@@ -56,9 +59,18 @@ export function connect(loaded: Loaded): Connected {
 		transcript: options.transcript,
 	})
 	progress.countRequests(() => client.transcript.length)
+	/* From the first request: a principal's own sign-up makes an account too. */
+	const accounts = new AccountLedger(options.accountsFile)
+	watchAccounts({
+		client,
+		identityOf: (principal) => store.identityOf(principal),
+		ledger: accounts,
+		ops: accountOps(model),
+	})
 	const originClients = loadOriginClients(loaded, { network: network.client, onExchange, redactor, store })
 	return {
 		...loaded,
+		accounts,
 		client,
 		journal,
 		ledger: new Ledger(),

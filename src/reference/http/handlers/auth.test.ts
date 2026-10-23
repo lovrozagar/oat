@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { api, BETA } from "../__fixtures__/api.ts"
+import { api, BETA, MEMBER } from "../__fixtures__/api.ts"
 import { createApiKey } from "../auth/api-keys.ts"
 import type { ReferenceOptions } from "../state.ts"
 
@@ -141,10 +141,11 @@ describe("auth.logout", () => {
 
 describe("auth.register", () => {
 	it("registers a fresh admin of the first tenant and answers its access token", async () => {
-		const { call } = await world()
+		const { call, state } = await world()
 		const { status, body } = await call("POST", "/v1/register", { body: { email: "new@x.test" }, token: null })
 		expect(status).toBe(201)
-		expect(Object.keys(body)).toEqual(["access_token"])
+		expect(Object.keys(body)).toEqual(["access_token", "account_id"])
+		expect(state.auth.registered).toEqual(["new@x.test"])
 		const token = String(body["access_token"])
 		expect((await call("GET", "/v1/me", { token })).status).toBe(200)
 		expect((await call("GET", "/v1/projects/proj_alpha/tables", { token })).status).toBe(200)
@@ -158,5 +159,30 @@ describe("auth.register", () => {
 			expect((await call("POST", "/v1/register", { body, token: null })).status).toBe(400)
 		}
 		expect(state.auth.accounts.size).toBe(accounts)
+	})
+})
+
+describe("deleting an account", () => {
+	it("removes the caller's own account: no token it holds is accepted, and no sign-in finds it", async () => {
+		const { call, state } = await world()
+		const made = await call("POST", "/v1/register", { body: { email: "gone@x.test" }, token: null })
+		const token = String(made.body["access_token"])
+		expect((await call("DELETE", "/v1/me", { token })).status).toBe(204)
+		expect(state.auth.accounts.has(String(made.body["account_id"]))).toBe(false)
+		expect((await call("GET", "/v1/me", { token })).status).toBe(401)
+		expect((await call("DELETE", "/v1/me", { token: null })).status).toBe(401)
+	})
+
+	it("lets an admin delete an account of its own project by id, and no one else", async () => {
+		const { call, state } = await world()
+		const made = await call("POST", "/v1/register", { body: { email: "member@x.test" }, token: null })
+		const id = String(made.body["account_id"])
+		expect((await call("DELETE", `/v1/signups/${id}`, { token: BETA })).status).toBe(404)
+		expect((await call("DELETE", "/v1/signups/nobody")).status).toBe(404)
+		expect((await call("DELETE", "/v1/signups/key_alpha_member", { token: MEMBER })).status).toBe(403)
+		expect((await call("DELETE", `/v1/signups/${id}`)).status).toBe(204)
+		expect(state.auth.accounts.has(id)).toBe(false)
+		expect((await call("GET", "/v1/me", { token: String(made.body["access_token"]) })).status).toBe(401)
+		expect((await call("PUT", `/v1/signups/${id}`)).status).toBe(404)
 	})
 })

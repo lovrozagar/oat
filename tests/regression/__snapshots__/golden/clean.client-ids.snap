@@ -167,6 +167,11 @@
       },
       {
         "check": "auth.alternative-accepted",
+        "entity": "account.delete",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
         "entity": "account.update",
         "needs": "a read: a write an alternative is accepted on would apply it"
       },
@@ -267,6 +272,11 @@
       },
       {
         "check": "auth.alternative-accepted",
+        "entity": "profile.delete",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
         "entity": "profile.get",
         "needs": "an alternative of one scheme besides the first"
       },
@@ -334,6 +344,11 @@
         "check": "auth.alternative-accepted",
         "entity": "table.update",
         "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "account.delete",
+        "needs": "an operation whose security lets anonymous callers in"
       },
       {
         "check": "auth.anonymous-operation-open",
@@ -427,6 +442,11 @@
       },
       {
         "check": "auth.anonymous-operation-open",
+        "entity": "profile.delete",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
         "entity": "profile.get",
         "needs": "an operation whose security lets anonymous callers in"
       },
@@ -499,6 +519,11 @@
         "check": "auth.anonymous-operation-open",
         "entity": "table.update",
         "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "account.delete",
+        "needs": "a GET; account.delete is probed by the write stage's checks"
       },
       {
         "check": "auth.cross-tenant-key-refused",
@@ -607,6 +632,11 @@
       },
       {
         "check": "auth.cross-tenant-key-refused",
+        "entity": "profile.delete",
+        "needs": "a GET; profile.delete is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
         "entity": "profile.get",
         "needs": "an alternative that takes an API key alone"
       },
@@ -707,6 +737,11 @@
       },
       {
         "check": "auth.invalid-credential-refused",
+        "entity": "account.delete",
+        "needs": "a record this run created that account.delete can be sent to"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
         "entity": "account.update",
         "needs": "a record this run created that account.update can be sent to"
       },
@@ -787,6 +822,11 @@
       },
       {
         "check": "auth.invalid-credential-refused",
+        "entity": "profile.delete",
+        "needs": "a record this run created that profile.delete can be sent to"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
         "entity": "profile.update",
         "needs": "a record this run created that profile.update can be sent to"
       },
@@ -834,6 +874,11 @@
         "check": "auth.invite-grants-then-revokes",
         "entity": "row",
         "needs": "x-invite naming invite/accept/revoke, a peer principal with inviteAs, and an item or list route"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "account.delete",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
       },
       {
         "check": "auth.login-throttled",
@@ -947,6 +992,11 @@
       },
       {
         "check": "auth.login-throttled",
+        "entity": "profile.delete",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
         "entity": "profile.get",
         "needs": "opt in with checks: { \"auth.login-throttled\": true }"
       },
@@ -1032,6 +1082,11 @@
       },
       {
         "check": "auth.missing-credential-refused",
+        "entity": "account.delete",
+        "needs": "a record this run created that account.delete can be sent to"
+      },
+      {
+        "check": "auth.missing-credential-refused",
         "entity": "account.update",
         "needs": "a record this run created that account.update can be sent to"
       },
@@ -1112,6 +1167,11 @@
       },
       {
         "check": "auth.missing-credential-refused",
+        "entity": "profile.delete",
+        "needs": "a record this run created that profile.delete can be sent to"
+      },
+      {
+        "check": "auth.missing-credential-refused",
         "entity": "profile.update",
         "needs": "a record this run created that profile.update can be sent to"
       },
@@ -1144,6 +1204,11 @@
         "check": "auth.missing-credential-refused",
         "entity": "table.revoke",
         "needs": "a record this run created that table.revoke can be sent to"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "account.delete",
+        "needs": "a request body property marked x-privileged; account.delete marks none"
       },
       {
         "check": "auth.privileged-field-ignored",
@@ -1257,6 +1322,11 @@
       },
       {
         "check": "auth.privileged-field-ignored",
+        "entity": "profile.delete",
+        "needs": "a request body property marked x-privileged; profile.delete marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
         "entity": "profile.get",
         "needs": "a request body property marked x-privileged; profile.get marks none"
       },
@@ -1339,6 +1409,11 @@
         "check": "auth.rank-is-monotonic-on-writes",
         "entity": "notice",
         "needs": "two same-tenant principals at different ranks, and a create"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "account.delete",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
       },
       {
         "check": "auth.refresh-reuse-refused",
@@ -1447,6 +1522,11 @@
       },
       {
         "check": "auth.refresh-reuse-refused",
+        "entity": "profile.delete",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
         "entity": "profile.get",
         "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
       },
@@ -1529,6 +1609,11 @@
         "check": "auth.refresh-reuse-refused",
         "entity": "table.update",
         "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "account.delete",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
       },
       {
         "check": "auth.revoked-credential-refused",
@@ -1632,6 +1717,11 @@
       },
       {
         "check": "auth.revoked-credential-refused",
+        "entity": "profile.delete",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
         "entity": "profile.get",
         "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
       },
@@ -1714,6 +1804,11 @@
         "check": "auth.revoked-credential-refused",
         "entity": "table.update",
         "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "account.delete",
+        "needs": "a record this run created that account.delete can be sent to"
       },
       {
         "check": "auth.role-enforced",
@@ -1817,6 +1912,11 @@
       },
       {
         "check": "auth.role-enforced",
+        "entity": "profile.delete",
+        "needs": "a record this run created that profile.delete can be sent to"
+      },
+      {
+        "check": "auth.role-enforced",
         "entity": "profile.get",
         "needs": "a write method"
       },
@@ -1874,6 +1974,11 @@
         "check": "auth.role-enforced",
         "entity": "table.revoke",
         "needs": "a record this run created that table.revoke can be sent to"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "account.delete",
+        "needs": "an alternative that requires a scope"
       },
       {
         "check": "auth.scope-enforced",
@@ -1967,6 +2072,11 @@
       },
       {
         "check": "auth.scope-enforced",
+        "entity": "profile.delete",
+        "needs": "an alternative that requires a scope"
+      },
+      {
+        "check": "auth.scope-enforced",
         "entity": "profile.get",
         "needs": "an alternative that requires a scope"
       },
@@ -2034,6 +2144,11 @@
         "check": "auth.self-is-the-caller",
         "entity": "table",
         "needs": "x-entity.identity: self, and a read or an update"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "account.delete",
+        "needs": "a record this run created that account.delete can be sent to"
       },
       {
         "check": "auth.wrong-scheme-refused",
@@ -2134,6 +2249,11 @@
         "check": "auth.wrong-scheme-refused",
         "entity": "notice.get",
         "needs": "a record this run created that notice.get can be sent to"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "profile.delete",
+        "needs": "a record this run created that profile.delete can be sent to"
       },
       {
         "check": "auth.wrong-scheme-refused",
@@ -2697,6 +2817,11 @@
       },
       {
         "check": "request.invalid-body-refused",
+        "entity": "account.delete",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
         "entity": "account.update",
         "needs": "an action outside a run-created record could apply a side effect the run cannot undo"
       },
@@ -2793,6 +2918,11 @@
       {
         "check": "request.invalid-body-refused",
         "entity": "notice.list",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "profile.delete",
         "needs": "a write that takes a JSON request body"
       },
       {
@@ -3617,7 +3747,7 @@
             ],
             "suppressed": []
           },
-          "entity": null,
+          "entity": "signup",
           "findings": 0,
           "operationId": "auth.register",
           "reason": null,
@@ -3704,6 +3834,26 @@
           "entity": null,
           "findings": 0,
           "operationId": "auth.logout",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "verified",
+          "tier": "verified",
+          "why": "a later exchange shows what this call did"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.destructive-spares-the-caller"
+            ],
+            "suppressed": []
+          },
+          "entity": "profile",
+          "findings": 0,
+          "operationId": "profile.delete",
           "reason": null,
           "status": "passed",
           "evidence": {},
@@ -4331,6 +4481,21 @@
             "passed": [],
             "suppressed": []
           },
+          "entity": "signup",
+          "findings": 0,
+          "operationId": "account.delete",
+          "reason": "entity-not-testable: \"signup\" is created by the auth flow and has no item route; unresolved param account_id: a write is sent only to a record this run created",
+          "status": "untested",
+          "why": "entity-not-testable: \"signup\" is created by the auth flow and has no item route; unresolved param account_id: a write is sent only to a record this run created"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [],
+            "suppressed": []
+          },
           "entity": null,
           "findings": 0,
           "operationId": "auth.login",
@@ -4373,6 +4538,18 @@
     "teardown": {
       "failed": [],
       "records": [
+        {
+          "entity": "account",
+          "id": "oat-baseline-0-a7a7a7a70@example.test",
+          "principal": "disposable-0",
+          "removed": true
+        },
+        {
+          "entity": "account",
+          "id": "oat-baseline-0-a7a7a7a71@example.test",
+          "principal": "alpha",
+          "removed": true
+        },
         {
           "entity": "job",
           "id": "ID",
@@ -4890,7 +5067,7 @@
           "removed": true
         }
       ],
-      "removed": 86,
+      "removed": 88,
       "unidentified": [],
       "unsupported": []
     },
@@ -5331,17 +5508,17 @@
         {
           "check": "auth.alternative-accepted",
           "ran": 0,
-          "skipped": 34
+          "skipped": 36
         },
         {
           "check": "auth.anonymous-operation-open",
           "ran": 0,
-          "skipped": 33
+          "skipped": 35
         },
         {
           "check": "auth.cross-tenant-key-refused",
           "ran": 0,
-          "skipped": 37
+          "skipped": 39
         },
         {
           "check": "auth.destructive-spares-the-caller",
@@ -5351,7 +5528,7 @@
         {
           "check": "auth.invalid-credential-refused",
           "ran": 0,
-          "skipped": 23
+          "skipped": 25
         },
         {
           "check": "auth.invite-grants-then-revokes",
@@ -5361,12 +5538,12 @@
         {
           "check": "auth.missing-credential-refused",
           "ran": 0,
-          "skipped": 23
+          "skipped": 25
         },
         {
           "check": "auth.privileged-field-ignored",
           "ran": 0,
-          "skipped": 38
+          "skipped": 40
         },
         {
           "check": "auth.rank-is-monotonic-on-writes",
@@ -5376,22 +5553,22 @@
         {
           "check": "auth.refresh-reuse-refused",
           "ran": 0,
-          "skipped": 38
+          "skipped": 40
         },
         {
           "check": "auth.revoked-credential-refused",
           "ran": 0,
-          "skipped": 37
+          "skipped": 39
         },
         {
           "check": "auth.role-enforced",
           "ran": 0,
-          "skipped": 32
+          "skipped": 34
         },
         {
           "check": "auth.scope-enforced",
           "ran": 0,
-          "skipped": 28
+          "skipped": 30
         },
         {
           "check": "auth.self-is-the-caller",
@@ -5401,7 +5578,7 @@
         {
           "check": "auth.wrong-scheme-refused",
           "ran": 0,
-          "skipped": 34
+          "skipped": 36
         },
         {
           "check": "concurrency.if-match-enforced",
@@ -5716,7 +5893,7 @@
         {
           "check": "request.invalid-body-refused",
           "ran": 0,
-          "skipped": 34
+          "skipped": 36
         },
         {
           "check": "response.contract-call",

@@ -19,6 +19,11 @@
       "added": [
         {
           "check": "auth.login-throttled",
+          "entity": "account.delete",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
           "entity": "account.update",
           "needs": "the issue operation of a recipe; this check runs on auth.token"
         },
@@ -124,6 +129,11 @@
         },
         {
           "check": "auth.login-throttled",
+          "entity": "profile.delete",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
           "entity": "profile.get",
           "needs": "the issue operation of a recipe; this check runs on auth.token"
         },
@@ -209,6 +219,11 @@
         }
       ],
       "removed": [
+        {
+          "check": "auth.login-throttled",
+          "entity": "account.delete",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
         {
           "check": "auth.login-throttled",
           "entity": "account.update",
@@ -317,6 +332,11 @@
         {
           "check": "auth.login-throttled",
           "entity": "notice.list",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "profile.delete",
           "needs": "opt in with checks: { \"auth.login-throttled\": true }"
         },
         {
@@ -534,7 +554,7 @@
           {
             "check": "auth.login-throttled",
             "ran": 0,
-            "skipped": 38
+            "skipped": 40
           }
         ]
       }

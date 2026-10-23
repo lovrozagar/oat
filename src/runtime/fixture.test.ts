@@ -96,6 +96,27 @@ describe("buildCohort strings", () => {
 	})
 })
 
+describe("buildCohort account names", () => {
+	it("gives every field that names an account the nonce, so no two runs send the same one", () => {
+		const schema = {
+			properties: {
+				email: { format: "email", type: "string" },
+				title: { type: "string" },
+				username: { type: "string" },
+			},
+			required: ["email", "title", "username"],
+			type: "object",
+		}
+		const [first] = buildCohort(schema, 1, { nonce: "n1", variants: ["baseline"] })
+		const [second] = buildCohort(schema, 1, { nonce: "n2", variants: ["baseline"] })
+		expect([first?.body["email"], first?.body["username"]]).not.toEqual([
+			second?.body["email"],
+			second?.body["username"],
+		])
+		expect(first?.body["title"]).toBe(second?.body["title"])
+	})
+})
+
 describe("buildCohort string formats", () => {
 	it("generates format: email that passes a conservative regex", () => {
 		const [member] = buildCohort(

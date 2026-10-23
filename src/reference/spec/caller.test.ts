@@ -24,8 +24,9 @@ describe("callerProfilePaths", () => {
 describe("callerRootPaths", () => {
 	const paths = callerRootPaths(CTX) as Paths
 
-	it("routes a logout, the caller's account, the caller's project and a register", () => {
+	it("routes an admin's account delete, a logout, the caller's account, the caller's project and a register", () => {
 		expect(Object.keys(paths)).toEqual([
+			"/v1/signups/{account_id}",
 			"/v1/logout",
 			"/v1/me/account",
 			"/v1/projects/{project_id}/overview",

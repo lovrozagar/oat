@@ -14,6 +14,7 @@ import type { ResolvedProfile } from "../profile.ts"
 import type { GradeLedger } from "../grades.ts"
 import type { TargetScope } from "../scope/types.ts"
 import type { TargetVersion } from "../target-version.ts"
+import type { AccountLedger } from "../accounts/ledger.ts"
 import type { Ledger } from "../teardown/ledger.ts"
 import type { Created, Owner } from "../teardown/types.ts"
 import type { UploadContext } from "../upload.ts"
@@ -64,6 +65,8 @@ export interface Connected extends Loaded {
 	network: RunNetwork
 	originClients: Map<string, OriginClient>
 	ledger: Ledger
+	/** Every account the run asked a backend to make, ledgered before each request went out. */
+	accounts: AccountLedger
 	validator: SchemaValidator
 	seed: number
 	/** Fresh per run: the seed reproduces a run, the nonce keeps two runs' records apart. */

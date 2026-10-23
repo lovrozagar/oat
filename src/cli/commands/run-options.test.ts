@@ -85,9 +85,10 @@ describe("runOptionsOf overrides", () => {
 				profile: "cheap",
 				seed: "7",
 			},
-			setting({ baseline, exchangeDir: "/runs/1" }),
+			setting({ accountsFile: "/runs/1/accounts.json", baseline, exchangeDir: "/runs/1" }),
 		)
 		expect(options).toMatchObject({
+			accountsFile: "/runs/1/accounts.json",
 			baseline,
 			baseUrl: "http://other.test",
 			exchangeDir: "/runs/1",

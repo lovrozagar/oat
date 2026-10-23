@@ -17,6 +17,7 @@ import type { OperationObject } from "../../spec/types.ts"
 import { buildCohort, type CohortMember } from "../fixture.ts"
 import { applyResolveInput } from "../input.ts"
 import { answerOf } from "../steps/engine.ts"
+import type { Exchange } from "../exchange.ts"
 import type { Connected } from "./context.ts"
 
 /** A principal signed up by the run, and what its signup sent and answered, by name. */
@@ -61,6 +62,19 @@ export async function provision(ctx: Connected, request: FreshRequest): Promise<
 	if (signup.status < 200 || signup.status >= 300) {
 		return { blocked: `signup for ${id} by ${register.operationId}: answered ${signup.status}` }
 	}
+	return { id, known: await bindSignUp(ctx, { body, entry, id, signup }) }
+}
+
+/**
+ * Binds the account a sign-up made as principal `id`: what the body sent becomes its identity, and a
+ * credential the answer carries at a recipe's `from` is held for it; otherwise its recipe acquires
+ * one. What the body sent and the answer's top-level strings, by name.
+ */
+export async function bindSignUp(
+	ctx: Connected,
+	made: { id: string; entry: PrincipalEntry; body: Record<string, unknown>; signup: Exchange },
+): Promise<Record<string, unknown>> {
+	const { id, entry, body, signup } = made
 	const identity = Object.fromEntries(Object.entries(body).filter(([key]) => !RESERVED.has(key)))
 	ctx.store.enroll(id, { ...entry, ...identity })
 	const answer = answerOf(signup)
@@ -72,7 +86,7 @@ export async function provision(ctx: Connected, request: FreshRequest): Promise<
 		/* A value the scheme cannot place is not held, and the recipe's own acquire says why. */
 		if (value !== undefined) await ctx.store.adopt({ principal: id, scheme, scope: saved, value })
 	}
-	return { id, known: { ...saved, ...body } }
+	return { ...saved, ...body }
 }
 
 /* The register operation's body: one baseline member of its schema, then `resolveInput`. */

@@ -242,7 +242,15 @@ Rules that matter:
 - `scope` is the only way a principal binds a parameter. A login can bind `tenant` and `scope.<param>` from its answer with `claims`.
 - `security.<scheme>` overrides the base recipe for this principal alone: one naming a kind replaces it (keeping `format` and `placements`); one naming only options merges over it.
 
-At the end of a run, `hooks.teardownPrincipal` removes exactly the principals the run created, by their identity's `address` or `email`: a `fresh: true` principal, which the run signs up through the operation the document marks `x-fresh-principal`; a principal whose effective login recipe has a step calling that marked operation, so it registers and then signs in; and a principal with `created: true`, the opt-in for a login that registers through an operation the document does not mark. Nothing else is ever torn down, whatever its login binds or answers, so a long-lived test account survives every run.
+Every account the run makes is ledgered before its request goes out, whatever sends it: a `fresh: true` principal, a disposable session, a login recipe whose step calls the operation the document marks `x-fresh-principal`, a scenario, or a check's generated body sent to that operation or to a create of the `identity: self` entity. A principal with `created: true` counts too: it is the opt-in for a login that registers through an operation the document does not mark. The ledger is `accounts.json` in the run folder. It keeps the names each account is found by (email, username, login, handle, phone), never its password, so a run that dies still names what it made.
+
+At the end of a run, each account is removed in this order, each tried only when the one before could not:
+
+1. The document's delete-self (a `DELETE` tagged `x-entity: { identity: self, action: delete }`), sent as the account itself.
+2. The delete of the entity the sign-up creates, by the account's id, as each configured principal the run did not make, strongest first.
+3. `hooks.teardownPrincipal`, with the account's address and the last credential the run holds for it.
+
+An account none of these removes is a leftover and fails the run with exit 4, named by its email or username so a person can remove it. An account whose name a configured principal holds, which the run did not make, is never removed, whatever answered its sign-up, so a long-lived test account survives every run. Teardown never sends a sign-up again to get a credential. Generated values for the fields that name an account carry the run's nonce, so two runs never send the same email.
 
 Example — two tenants plus a same-tenant lattice:
 
@@ -531,7 +539,7 @@ outOfBand: { attempts: 20, initialMs: 1000, maxMs: 8000 }
 
 Worst-case wait is `sum_{i=0}^{attempts-1} min(initialMs × 2^i, maxMs)`. `worstCaseWaitMs()` from the package computes it. Existing configs that omit `outOfBand` do not slow down.
 
-Without `teardownPrincipal`, provisioned accounts are reported as leftover rather than cascade-deleted. Per-record DELETE still runs for seeded rows when a delete (or `x-cleanup`) exists. The hook is called with the last live credential (`ctx.credential`, and `ctx.sends`: its headers, query and cookies as the scheme places them), not an already-cleared one, so authenticated delete-account is expressible without a tester-key god route. One-argument JavaScript callbacks still run.
+Without `teardownPrincipal`, an account no delete removes is reported as a leftover rather than cascade-deleted. Per-record DELETE still runs for seeded rows when a delete (or `x-cleanup`) exists. The hook is called with the last live credential (`ctx.credential`, and `ctx.sends`: its headers, query and cookies as the scheme places them), not an already-cleared one, so authenticated delete-account is expressible without a tester-key god route. One-argument JavaScript callbacks still run.
 
 #### Proving a record gone
 
