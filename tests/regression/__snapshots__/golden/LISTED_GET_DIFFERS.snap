@@ -70,7 +70,7 @@
       "added": [
         {
           "check": "list.item-matches-listed-row",
-          "detail": "notice.get returned a body that does not contain the row notice.list already returned for note_1",
+          "detail": "notice.get returned a body that does not contain the row notice.list already returned for note_1: title listed \"Hello\", got \"Other\"",
           "entity": "notice",
           "operations": [
             "notice.get"

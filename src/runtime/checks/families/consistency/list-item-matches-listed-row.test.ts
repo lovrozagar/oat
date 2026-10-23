@@ -83,13 +83,16 @@ describe("list.item-matches-listed-row run", () => {
 	})
 
 	it("reports a get body that differs from the listed row", async () => {
-		for (const body of [{ ...listed, status: "done" }, [listed], null, "n1"]) {
+		const unlike = "notes.get returned a body that does not contain the row notes.list already returned for n1"
+		for (const [body, detail] of [
+			[{ ...listed, status: "done" }, `${unlike}: status listed "open", got "done"`],
+			[[listed], unlike],
+			[null, unlike],
+			["n1", unlike],
+		] as const) {
 			const staged = stage(answering(body))
 			expect(await drive(staged)).toEqual({ kind: "finding", verdict: "BACKEND_BUG" })
-			expect(staged.findings.findings[0]).toMatchObject({
-				detail: "notes.get returned a body that does not contain the row notes.list already returned for n1",
-				summary: "the get body is not the listed row",
-			})
+			expect(staged.findings.findings[0]).toMatchObject({ detail, summary: "the get body is not the listed row" })
 		}
 	})
 
@@ -98,5 +101,52 @@ describe("list.item-matches-listed-row run", () => {
 		const ctx = { ...staged.ctx, listOp: undefined } as unknown as WriteContext
 		await listedRowIsTheGet.run(ctx, { id: "n1", listed })
 		expect(staged.findings.findings[0]?.detail).toContain("the row the list already returned")
+	})
+})
+
+describe("list.item-matches-listed-row nested values", () => {
+	it("lets the get carry nested fields the listed row leaves out", async () => {
+		const row = { access: { view: true }, id: "n1", mappers: [{ name: "a" }], tags: ["x"] }
+		const body = {
+			access: { configure: true, manage: false, view: true },
+			id: "n1",
+			mappers: [{ name: "a", protocol: "oidc" }],
+			tags: ["x"],
+		}
+		const staged = stage(answering(body), { records: [row] })
+		expect(await drive(staged)).toEqual({ kind: "asserted" })
+	})
+
+	it("reports a nested value that differs by its full path", async () => {
+		const row = { access: { view: true }, id: "n1", mappers: [{ name: "a" }], tags: ["x", "y"], title: "alpha" }
+		const body = {
+			access: { manage: true, view: false },
+			id: "n1",
+			mappers: [{ name: "b" }],
+			tags: ["x"],
+			title: "alpha",
+		}
+		const staged = stage(answering(body), { records: [row] })
+		expect(await drive(staged)).toEqual({ kind: "finding", verdict: "BACKEND_BUG" })
+		expect(staged.findings.findings[0]?.detail).toBe(
+			"notes.get returned a body that does not contain the row notes.list already returned for n1: " +
+				'access.view listed true, got false; mappers[0].name listed "a", got "b"; tags listed ["x","y"], got ["x"]',
+		)
+	})
+
+	it("reports a listed field the get leaves out or answers with another shape", async () => {
+		const row = { access: { view: true }, id: "n1", owner: null, tags: [] }
+		const staged = stage(answering({ access: [true], id: "n1", tags: {} }), { records: [row] })
+		expect(await drive(staged)).toEqual({ kind: "finding", verdict: "BACKEND_BUG" })
+		expect(staged.findings.findings[0]?.detail).toContain(
+			'access listed {"view":true}, got [true]; owner listed null, got nothing; tags listed [], got {}',
+		)
+	})
+
+	it("names at most four differing fields", async () => {
+		const row = { a: 1, b: 1, c: 1, d: 1, e: 1, id: "n1" }
+		const staged = stage(answering({ a: 2, b: 2, c: 2, d: 2, e: 2, id: "n1" }), { records: [row] })
+		await drive(staged)
+		expect(staged.findings.findings[0]?.detail).toMatch(/d listed 1, got 2; and 1 more$/)
 	})
 })
