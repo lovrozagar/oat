@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { Responder } from "../checks/__fixtures__/harness.ts"
+import { FencedError } from "../fence.ts"
 import { accounts, accountsApi, accountsDoc, stageOf } from "./__fixtures__/accounts.ts"
 import { runDisposableOps } from "./run.ts"
 
@@ -136,5 +137,27 @@ describe("runDisposableOps: the second user's credential", () => {
 		/* tokens.rotate is refused at resolve: the shared user's only requests are its signup and the refused read. */
 		expect(seen.map((request) => `${request.method} ${request.path}`)).toEqual(["POST /v1/register", "GET /v1/keys"])
 		expect(input.grades.evidence.has("tokens.rotate")).toBe(false)
+	})
+})
+
+describe("runDisposableOps behind a fence", () => {
+	it("skips an operation a fence refused, with the fence's reason, and goes on to the next", async () => {
+		const api = accountsApi(accounts())
+		const fenced: Responder = (method, path, options) => {
+			if (path === "/v1/logout") {
+				throw new FencedError({
+					method,
+					operationId: "auth.logout",
+					phase: "assertion",
+					reason: "no logouts",
+					url: path,
+				})
+			}
+			return api(method, path, options)
+		}
+		const { input } = await stageOf(accountsDoc(), fenced)
+		await runDisposableOps(input)
+		expect(needs(input, "auth.logout")).toEqual(["fenced: no logouts (POST /v1/logout)"])
+		expect(input.grades.evidence.get("keys.delete")?.observation).toMatchObject({ absent: true, value: "k1" })
 	})
 })

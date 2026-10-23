@@ -4,6 +4,7 @@
  */
 
 import { UnsatisfiedSecurity } from "../../client/credential-source.ts"
+import { FencedError } from "../fence.ts"
 import { callerRead, destructiveOps, DISPOSABLE_CHECK_ID, invalidatesCaller } from "./check.ts"
 import { runOne } from "./one.ts"
 import { signUp } from "./signup.ts"
@@ -40,12 +41,15 @@ export async function runDisposableOps(input: DisposableInput): Promise<void> {
 	}
 }
 
-/* One operation as the second user; a credential it cannot hold (a renewal that would sign up again) skips it, with why. */
+/*
+ * One operation as the second user. A credential it cannot hold (a renewal that would sign up
+ * again), or a request the fence refused, skips it, with why: nothing reached the backend to judge.
+ */
 async function runAsSecondUser(input: DisposableInput, run: Parameters<typeof runOne>[1]): Promise<void> {
 	try {
 		await runOne(input, run)
 	} catch (error) {
-		if (!(error instanceof UnsatisfiedSecurity)) throw error
+		if (!(error instanceof UnsatisfiedSecurity) && !(error instanceof FencedError)) throw error
 		input.grades.skipped([run.op.operationId], error.message)
 	}
 }
