@@ -37,6 +37,32 @@ function sortGrammar(value: unknown): string | null {
 	return parsed.ok ? null : `is a template oat cannot read: ${parsed.error}`
 }
 
+const SORT_BLOCK = {
+	collation: (value) => oneOf(value, ["binary", "case-insensitive", "locale"]),
+	defaultNulls: (value) => oneOf(value, ["first", "last"]),
+	defaultOrder: text,
+	maxKeys: integer,
+	nulls: texts,
+	stableTiebreak: text,
+} satisfies FieldsOf<NonNullable<QueryTag["sort"]>>
+
+const RELATION: Fields = { fields: texts, name: text }
+
+function relations(value: unknown): string | null {
+	if (!Array.isArray(value)) return "must be an array of { name, fields } rows"
+	for (const row of value) {
+		const problem = checkShape(row, RELATION, ["name", "fields"])
+		if (problem !== null) return `has a row that ${problem}`
+	}
+	return null
+}
+
+const SELECT_BLOCK = {
+	nested: flag,
+	relations,
+	unknown: (value) => oneOf(value, ["reject", "ignore"]),
+} satisfies FieldsOf<NonNullable<QueryTag["select"]>>
+
 const X_QUERY = {
 	aliases: textMap,
 	defaultOrder: text,
@@ -58,12 +84,15 @@ const X_QUERY = {
 			: "must map type names to arrays of operators",
 	searchable: (value) => checkAxis(value, FIELD_ROW),
 	searchableFrom: harvest,
+	searchCase: (value) => oneOf(value, ["sensitive", "insensitive"]),
 	searchEmpty: (value) => oneOf(value, ["ignore", "match-all", "reject"]),
 	searchModes: texts,
 	selectable: (value) => checkAxis(value, FIELD_ROW),
 	selectableFrom: harvest,
+	select: (value) => checkShape(value, SELECT_BLOCK),
 	selectNested: flag,
 	selectUnknown: (value) => oneOf(value, ["reject", "ignore"]),
+	sort: (value) => checkShape(value, SORT_BLOCK),
 	sortable: (value) => checkAxis(value, SORTABLE_ROW),
 	sortableFrom: harvest,
 	sortCollation: (value) => oneOf(value, ["binary", "case-insensitive", "locale"]),

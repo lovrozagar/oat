@@ -33,6 +33,17 @@ describe("validateTags", () => {
 	})
 })
 
+describe("validateTags and an x-query block", () => {
+	it("records a malformed sort, select or searchCase as a gap naming the key", () => {
+		expect(gapsOf({ "x-query": { sort: { maxKeys: -1 } } })).toEqual([
+			'x-query: x-query "sort" "maxKeys" must be a positive integer; oat cannot use it',
+		])
+		expect(gapsOf({ "x-query": { searchCase: "loose" } })).toEqual([
+			'x-query: x-query "searchCase" must be one of "sensitive", "insensitive"; oat cannot use it',
+		])
+	})
+})
+
 describe("validateTags malformed tags", () => {
 	it("records every malformed tag, in a fixed order, as one the run cannot use", () => {
 		expect(

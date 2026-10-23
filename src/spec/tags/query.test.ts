@@ -53,3 +53,29 @@ describe("xQuery", () => {
 		for (const field of fields) expect(xQuery({ [field]: "nope" })).toMatch(new RegExp(`^"${field}" must be one of`))
 	})
 })
+
+describe("xQuery's sort, select and searchCase", () => {
+	it("accepts the blocks as docs/tags.md writes them", () => {
+		const sort = {
+			collation: "binary",
+			defaultNulls: "last",
+			defaultOrder: "-created_at",
+			maxKeys: 3,
+			nulls: ["first"],
+		}
+		const select = { nested: false, relations: [{ fields: ["id", "name"], name: "owner" }], unknown: "ignore" }
+		expect(xQuery({ searchCase: "insensitive", select, sort })).toBeNull()
+	})
+
+	it("names the key a malformed block or value is under", () => {
+		expect(xQuery({ sort: "name" })).toBe('"sort" must be an object')
+		expect(xQuery({ sort: { maxKeys: 0 } })).toBe('"sort" "maxKeys" must be a positive integer')
+		expect(xQuery({ sort: { collation: "ascii" } })).toMatch(/^"sort" "collation" must be one of/)
+		expect(xQuery({ select: { nested: "yes" } })).toMatch(/^"select" "nested" /)
+		expect(xQuery({ select: { relations: [{ name: "owner" }] } })).toMatch(/^"select" "relations" /)
+		expect(xQuery({ select: { relations: "owner" } })).toBe(
+			'"select" "relations" must be an array of { name, fields } rows',
+		)
+		expect(xQuery({ searchCase: "loose" })).toBe('"searchCase" must be one of "sensitive", "insensitive"')
+	})
+})
