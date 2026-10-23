@@ -40,6 +40,7 @@ There is no ground-truth database. A filter and its negation must partition the 
 - [Reports](docs/reports.md) — `oat-report.json`, `matrix.json`, repro scripts, progress logs
 - [Programmatic API](docs/api.md)
 - [Assumptions](docs/assumptions.md) — every assumption oat makes about an API, and how to declare an exception
+- [Limits](docs/limits.md) — what oat cannot do yet, what you see when you hit it, and what to do instead
 - [Reference defects](docs/reference-defects.md) — the named lies `oat serve --defects` can tell
 
 ## Install

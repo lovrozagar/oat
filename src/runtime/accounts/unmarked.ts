@@ -1,9 +1,9 @@
 /**
  * An account-making operation the document does not tag `x-fresh-principal`: an open POST named
  * as a sign-up, or an open collection create that takes a password and resets, recovers or changes
- * none. oat ledgers what it sends there
- * like any sign-up, so an account it makes on an untagged document is named, never left silent.
- * Tagging the operation lets oat sign in as the account and remove it.
+ * none. oat ledgers what it sends there like any sign-up, so an account it makes on an untagged
+ * document is named, never left silent. Tagging the operation lets oat sign in as the account and
+ * remove it.
  */
 
 import { requestSchema } from "../../spec/collection/request.ts"
