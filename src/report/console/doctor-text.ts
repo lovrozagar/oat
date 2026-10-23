@@ -63,7 +63,7 @@ export function tagLines(model: SpecModel, facts: DoctorFacts): string[] {
 }
 
 /** Entities a run cannot follow or list, and the roots it needs supplied. */
-export function entityLines(model: SpecModel, facts: DoctorFacts): string[] {
+export function entityLines(facts: DoctorFacts): string[] {
 	const untrackable = facts.entities.filter((e) => !facts.trackable.includes(e))
 	const itemOnly = facts.trackable.filter((e) => e.list === undefined)
 	return [
@@ -84,7 +84,15 @@ export function entityLines(model: SpecModel, facts: DoctorFacts): string[] {
 		),
 		...block(
 			"  roots required in config (no create operation in this document)",
-			model.roots.map((root) => `    ${root}`),
+			facts.roots.required.map((root) => `    ${root}`),
+		),
+		...block(
+			"  roots the config supplies",
+			facts.roots.supplied.map(({ root, by }) => `    ${root.padEnd(20)} ${by}`),
+		),
+		...block(
+			"  ids no operation creates — their operations run once a flow or hooks.resolvePathValue yields one",
+			facts.roots.unmade.map((root) => `    ${root}`),
 		),
 	]
 }

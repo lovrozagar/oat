@@ -1,3 +1,4 @@
+import type { Hooks } from "../../config/types/hooks.ts"
 import { estimateRequests } from "../../runtime/check-costs.ts"
 import { describeRequested } from "../../runtime/scope/plan.ts"
 import { type ScopePlan } from "../../runtime/scope/types.ts"
@@ -14,6 +15,7 @@ import {
 } from "./describe.ts"
 import { type SecurityCredentials, type SecurityFacts, securityFacts, securityJson } from "./security.ts"
 import { planSecurityLines, targetSecurity } from "./security-text.ts"
+import { type Roots, rootsJson, rootsOf } from "./roots.ts"
 
 /** What `plan` shows beside the model: the targeted scope, and the operations the config's recipes send. */
 export interface PlanView {
@@ -24,6 +26,16 @@ export interface PlanView {
 	credentials?: SecurityCredentials | undefined
 	/** Variables the config names that are not set; listed in the JSON, given only with a config. */
 	unsetEnv?: string[] | undefined
+	/** The config's hooks: `resolvePathValue` supplies every root. */
+	hooks?: Pick<Hooks, "resolvePathValue"> | undefined
+}
+
+/* The roots split as `rootsOf` splits them, from what of the config the view carries. */
+function viewRoots(model: SpecModel, view: PlanView): Roots {
+	return rootsOf(model, {
+		...(view.credentials === undefined ? {} : { credentials: view.credentials }),
+		...(view.hooks === undefined ? {} : { hooks: view.hooks }),
+	})
 }
 
 function planJson(model: SpecModel, grammars: DeclaredGrammar[], view: PlanView): string {
@@ -37,7 +49,7 @@ function planJson(model: SpecModel, grammars: DeclaredGrammar[], view: PlanView)
 			})),
 			...(grammars.length === 0 ? {} : { grammars }),
 			operations: model.operations,
-			roots: model.roots,
+			...rootsJson(viewRoots(model, view)),
 			...(scope === undefined ? {} : { scope }),
 			security: securityJson(securityFacts(model, view.credentials)),
 			unique: entities
@@ -82,12 +94,25 @@ function block(title: string, rows: string[]): string[] {
 }
 
 /** What a run needs supplied, and what the document declares about gates, uniqueness, invites and grammars. */
-function declarations(model: SpecModel, entities: EntityModel[], grammars: DeclaredGrammar[]): string[] {
+function declarations(
+	model: SpecModel,
+	entities: EntityModel[],
+	view: { grammars: DeclaredGrammar[]; roots: Roots },
+): string[] {
+	const { grammars, roots } = view
 	const gated = model.operations.filter((op) => op.featureGate !== null)
 	const uniqued = entities.filter((entity) => entity.unique !== null)
 	const invited = entities.filter(hasInvite)
 	return [
-		...block("  roots — no create operation, must be supplied before a run:", model.roots),
+		...block("  roots — no create operation, must be supplied before a run:", roots.required),
+		...block(
+			"  roots the config supplies:",
+			roots.supplied.map(({ root, by }) => `${root.padEnd(20)} ${by}`),
+		),
+		...block(
+			"  ids no operation creates — their operations run once a flow or hooks.resolvePathValue yields one:",
+			roots.unmade,
+		),
 		...block(
 			"  feature gates — a matching 403 is coverage, not a defect:",
 			gated.map((op) => `${op.operationId.padEnd(28)} x-feature-gate: ${op.featureGate}`),
@@ -148,7 +173,7 @@ export function plan(model: SpecModel, asJson: boolean, view: PlanView = {}): st
 	const entities = sortedEntities(model, view.authCreates)
 	return [
 		...entityTable(model, entities),
-		...declarations(model, entities, grammars),
+		...declarations(model, entities, { grammars, roots: viewRoots(model, view) }),
 		...(model.operations.length === 0 ? [] : planSecurityLines(security)),
 		"",
 	].join("\n")

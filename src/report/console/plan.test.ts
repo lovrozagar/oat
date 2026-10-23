@@ -31,11 +31,20 @@ describe("plan as JSON", () => {
 	it("carries entities with their cost, operations, roots, unique sets, and grammars and scope when there are any", async () => {
 		const { model } = await referenceModel({ dialect: "template" })
 		const json = JSON.parse(plan(model, true, { scope: scopePlan() }))
-		expect(Object.keys(json)).toEqual(["entities", "grammars", "operations", "roots", "scope", "security", "unique"])
+		expect(Object.keys(json)).toEqual([
+			"entities",
+			"grammars",
+			"operations",
+			"prefixRoots",
+			"unmadeIds",
+			"scope",
+			"security",
+			"unique",
+		])
 		expect(json.entities.every((entity: { estimatedRequests: number }) => entity.estimatedRequests > 0)).toBe(true)
 		expect(json.unique).toEqual([{ entity: "table", unique: [["name"]] }])
 		const plain = JSON.parse(plan((await referenceModel()).model, true))
-		expect(Object.keys(plain)).toEqual(["entities", "operations", "roots", "security", "unique"])
+		expect(Object.keys(plain)).toEqual(["entities", "operations", "prefixRoots", "unmadeIds", "security", "unique"])
 	})
 })
 
@@ -201,5 +210,18 @@ describe("plan and credentials", () => {
 		const json = JSON.parse(plan(model, true, { credentials, unsetEnv: ["OAT_JWT_TOKEN"] }))
 		expect(json.unsetEnv).toEqual(["OAT_JWT_TOKEN"])
 		expect(json.security.operations[2].satisfiedBy).toEqual({ alternative: 0, principal: "alpha" })
+	})
+})
+
+describe("plan and the roots a config supplies", () => {
+	it("lists a root the config supplies, and blocks on none a hook resolves", async () => {
+		const { model } = await referenceModel()
+		const credentials = { principals: { alpha: { scope: { project_id: "p1" } } }, security: {} }
+		const scoped = plan(model, false, { credentials })
+		expect(scoped).toContain(`    ${"project_id".padEnd(20)} principal scope`)
+		expect(scoped).not.toContain("must be supplied before a run")
+		const hooked = JSON.parse(plan(model, true, { hooks: { resolvePathValue: async () => null } }))
+		expect(hooked.prefixRoots.required).toEqual([])
+		expect(hooked.unmadeIds).toEqual([])
 	})
 })

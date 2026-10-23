@@ -112,6 +112,7 @@ Human output:
 - `security` — each scheme the document declares: its kind, where its credential goes (`header Authorization: Bearer {credential}`), and, with `--config`, the recipe that makes it (`login`, `static · format`, `static · +1 placement`, or `no recipe`). A scheme oat cannot send says why instead.
 - `requirements` — the operations grouped by what they need, most first: `|` is any one alternative, `+` every scheme of one together, `[read,write]` the scopes, and `anonymous` sends nothing. With `--config`, each group names the principal that sends it: the first in config order whose recipes satisfy it, decided as a run decides it (`alpha`, `alpha via jwt` when there is a choice, `beta (alpha: <why not>)`, or `none — <why>`).
 - `no recipe` (with `--config`), `unsupported` and `undeclared` — schemes a run cannot send, each with the operations that need only it.
+- roots — path parameters no create operation makes. A **prefix root** (`/projects/{project_id}/…`: tagged `x-root`, or followed by another parameter or by its entity's collection) is the config's to supply: in every principal's `scope`, a login's `scope.<parameter>` claim, or `hooks.resolvePathValue`. Doctor lists those the config supplies and how, and those it still must. An **unmade id** (`/invites/{token}/accept`, `/grants/{grant_id}`) is one a flow yields during a run; it is listed and never blocks. In JSON: `prefixRoots: { required, supplied }` and `unmadeIds`.
 - `env` — with `--config`, the variables the config reads through `env()` or `${NAME}` that are not set. Nothing is sent, so `doctor` reads such a config and lists them; `run` stops at the first.
 
 `--json` shape:
@@ -123,7 +124,11 @@ Human output:
 	"trackableEntities": 10,
 	"testableEntities": 10,
 	"listableEntities": 8,
-	"roots": ["organization_id"],
+	"prefixRoots": {
+		"required": ["organization_id"],
+		"supplied": [{ "root": "project_id", "by": "principal scope" }]
+	},
+	"unmadeIds": ["token"],
 	"externalRefs": ["https://example.com/shared.yaml"],
 	"gaps": [{ "operationId": "table.list", "tag": "x-query", "detail": "…" }],
 	"security": {
@@ -158,7 +163,7 @@ Human output:
 
 `satisfiedBy`, `alphaUnsatisfied` (the first principal's reason when a later one satisfies the operation), `unsatisfied`, `noRecipe` and `unsetEnv` are there only with `--config`.
 
-Exit `1` if there are **blocking** gaps: entities that are not trackable (no identity / no read), or the document has roots oat cannot create. Advisory gaps (missing `x-query`, no `x-async`) print and still exit `0`. With `--config`, an operation no principal can send also blocks. Unset variables never do: they are a note.
+Exit `1` if there are **blocking** gaps: entities that are not trackable (no identity / no read), or a prefix root nothing in the config supplies. Advisory gaps (missing `x-query`, no `x-async`) print and still exit `0`. With `--config`, an operation no principal can send also blocks. Unset variables never do: they are a note.
 
 ### `oat init`
 
@@ -217,7 +222,7 @@ store               CLRU·  id         2 route(s) (inferred)
 
 `CLRUD` is Create / List / Read / Update / Delete. `·` means that slot is missing. `ident` is the identity property. Read surface is declared (`x-invalidate`) or inferred (sibling collection/item routes).
 
-`--json` is `{ entities, operations, roots }` — the full `SpecModel` maps, including conventions, query capability, async, invite, and path params. Use this when you need to know what oat will call something.
+`--json` is `{ entities, operations, prefixRoots, unmadeIds, security, unique }` (roots split as `doctor` splits them) — the full `SpecModel` maps, including conventions, query capability, async, invite, and path params. Use this when you need to know what oat will call something.
 
 A `security — operation · requirement · principal` section follows the table: every operation, by id, with its requirement and, with `--config`, the principal that sends it. With `--ops` / `--only`, each target row ends with `<requirement> (<principal>)`. `--json` adds the same `security` object as `doctor`, and with `--config` an `unsetEnv` list; the unset variables also print as one `env` line on stderr, so stdout stays the plan.
 

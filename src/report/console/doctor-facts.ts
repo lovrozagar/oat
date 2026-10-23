@@ -1,7 +1,9 @@
+import type { Hooks } from "../../config/types/hooks.ts"
 import type { Gap } from "../../spec/extensions/gaps.ts"
 import type { EntityModel, SpecModel } from "../../spec/graph/types.ts"
 import { type CatalogConfig, entityQueryCatalogs, type QueryCatalog } from "./catalog.ts"
 import { hasInvite, type InvitingEntity, sortedEntities } from "./describe.ts"
+import { type Roots, rootsOf } from "./roots.ts"
 import { type SecurityCredentials, type SecurityFacts, securityFacts } from "./security.ts"
 
 export interface DoctorConfig extends CatalogConfig {
@@ -11,6 +13,7 @@ export interface DoctorConfig extends CatalogConfig {
 	authCreates?: ReadonlySet<string>
 	/** The config's recipes and principals: with them, an operation no principal can send blocks. */
 	credentials?: SecurityCredentials
+	hooks?: Pick<Hooks, "resolveQueryCapabilities" | "resolvePathValue">
 }
 
 /** What `doctor` found in a document, before it is printed as text or JSON. */
@@ -33,6 +36,8 @@ export interface DoctorFacts {
 	catalogs: QueryCatalog[]
 	unknownEntities: string[]
 	security: SecurityFacts
+	/** The document's roots: those the config supplies, and those a run would still lack. */
+	roots: Roots
 }
 
 function gapsByTag(gaps: readonly Gap[]): Map<string, Gap[]> {
@@ -52,8 +57,9 @@ export function doctorFacts(model: SpecModel, config?: DoctorConfig): DoctorFact
 	const gaps = model.gaps.gaps.filter((gap) => !authCreates.has(gap.operationId))
 	const trackable = entities.filter((e) => e.trackable && e.readSurface.length > 0)
 	const security = securityFacts(model, config?.credentials)
+	const roots = rootsOf(model, config ?? {})
 	return {
-		blocking: entities.length - trackable.length + (model.roots.length > 0 ? 1 : 0) + security.blocking,
+		blocking: entities.length - trackable.length + (roots.required.length > 0 ? 1 : 0) + security.blocking,
 		entities,
 		featureGates: model.operations
 			.filter((op) => op.featureGate !== null)
@@ -66,6 +72,7 @@ export function doctorFacts(model: SpecModel, config?: DoctorConfig): DoctorFact
 		uniqueConstraints: entities
 			.filter((entity) => entity.unique !== null)
 			.map((entity) => ({ entity: entity.name, unique: entity.unique })),
+		roots,
 		security,
 		...entityQueryCatalogs(model, config),
 	}

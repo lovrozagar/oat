@@ -25,7 +25,7 @@ Those are disagreements between **projections of the same fact**. That is the ma
 - **foundations** — create landed, the page walk covers the set, equality selects one, sort actually sorts
 - **composition** — filter+sort, filter+select, search+filter, the triples; a filter must apply to the _collection_, not to the current page
 - **writes** — PATCH is minimal, immutable fields stay put, two PATCHes do not clobber, replay does not duplicate
-- **isolation** — a second principal with different `roots`, a same-tenant rank lattice, an invite that grants and then revokes
+- **isolation** — a second principal with a different `tenant`, a same-tenant rank lattice, an invite that grants and then revokes
 - **spec as adversary** — every field you _declared_ filterable / sortable / selectable actually is
 
 There is no ground-truth database. A filter and its negation must partition the set. A page walk must cover the collection without gaps or dupes. List, item, and `id.eq.` must show the same field. One root cause is one finding; checks that depend on a broken primitive are `BLOCKED`, not a page of copies.
@@ -77,7 +77,7 @@ Unknown commands, unknown flags, and missing required flags exit `2`.
 
 Every pass names its tier. `verified`: a later exchange shows a value from the call — the read holding the created id, the list without the deleted one, the session refused after the logout. `contract`: the call got a documented success and its body matched the schema, and nothing later showed more. An operation oat could not call at all stays `untested` with the reason (`unresolved param team_id`, `contract call returned 409 …`); declare a scenario for it.
 
-The first principal is the writer. Isolation needs a second principal with different `roots`. A rank lattice needs two or more principals that share `roots` and differ in `rank`. Invite checks need `x-invite` plus a peer with `inviteAs`.
+The first principal is the writer. Isolation needs a second principal with a different `tenant`. A rank lattice needs two or more principals that share a `tenant` and differ in `rank`. Invite checks need `x-invite` plus a peer with `inviteAs`.
 
 oat never needs ground truth about your data. A filter and its negation must partition the set; a page walk must cover the collection; a record read four ways must read the same.
 

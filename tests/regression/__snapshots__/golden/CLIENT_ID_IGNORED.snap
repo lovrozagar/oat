@@ -878,9 +878,9 @@
             "entity": "row",
             "findings": 0,
             "operationId": "row.delete",
-            "reason": "unresolved param table_id",
+            "reason": "unresolved param table_id: no response this run saw carried one, and hooks.resolvePathValue did not answer",
             "status": "untested",
-            "why": "unresolved param table_id"
+            "why": "unresolved param table_id: no response this run saw carried one, and hooks.resolvePathValue did not answer"
           },
           {
             "checks": {
@@ -893,9 +893,9 @@
             "entity": "row",
             "findings": 0,
             "operationId": "row.get",
-            "reason": "unresolved param table_id",
+            "reason": "unresolved param table_id: no response this run saw carried one, and hooks.resolvePathValue did not answer",
             "status": "untested",
-            "why": "unresolved param table_id"
+            "why": "unresolved param table_id: no response this run saw carried one, and hooks.resolvePathValue did not answer"
           },
           {
             "checks": {
@@ -908,9 +908,9 @@
             "entity": "row",
             "findings": 0,
             "operationId": "row.list",
-            "reason": "unresolved param table_id",
+            "reason": "unresolved param table_id: no response this run saw carried one, and hooks.resolvePathValue did not answer",
             "status": "untested",
-            "why": "unresolved param table_id"
+            "why": "unresolved param table_id: no response this run saw carried one, and hooks.resolvePathValue did not answer"
           },
           {
             "checks": {
@@ -923,9 +923,9 @@
             "entity": "row",
             "findings": 0,
             "operationId": "row.update",
-            "reason": "unresolved param table_id",
+            "reason": "unresolved param table_id: no response this run saw carried one, and hooks.resolvePathValue did not answer",
             "status": "untested",
-            "why": "unresolved param table_id"
+            "why": "unresolved param table_id: no response this run saw carried one, and hooks.resolvePathValue did not answer"
           },
           {
             "checks": {
@@ -938,9 +938,9 @@
             "entity": "table",
             "findings": 0,
             "operationId": "invite.accept",
-            "reason": "unresolved param token",
+            "reason": "unresolved param token: no response this run saw carried one, and hooks.resolvePathValue did not answer",
             "status": "untested",
-            "why": "unresolved param token"
+            "why": "unresolved param token: no response this run saw carried one, and hooks.resolvePathValue did not answer"
           },
           {
             "checks": {
@@ -953,9 +953,9 @@
             "entity": "table",
             "findings": 0,
             "operationId": "table.invite",
-            "reason": "unresolved param table_id",
+            "reason": "unresolved param table_id: no response this run saw carried one, and hooks.resolvePathValue did not answer",
             "status": "untested",
-            "why": "unresolved param table_id"
+            "why": "unresolved param table_id: no response this run saw carried one, and hooks.resolvePathValue did not answer"
           },
           {
             "checks": {
@@ -968,9 +968,9 @@
             "entity": "table",
             "findings": 0,
             "operationId": "table.revoke",
-            "reason": "unresolved param table_id",
+            "reason": "unresolved param table_id: no response this run saw carried one, and hooks.resolvePathValue did not answer",
             "status": "untested",
-            "why": "unresolved param table_id"
+            "why": "unresolved param table_id: no response this run saw carried one, and hooks.resolvePathValue did not answer"
           }
         ],
         "removed": [

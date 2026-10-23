@@ -1,3 +1,6 @@
+import { rootsOf } from "../../report/console/roots.ts"
+import { prefixRoots } from "../../spec/graph/roots.ts"
+import { buildModel } from "../../spec/graph/build.ts"
 import { listEndpoints } from "../../spec/endpoints.ts"
 import { type Placement, placementOf } from "../../spec/security/placement.ts"
 import { resolveSecurity, type Requirement } from "../../spec/security/requirements.ts"
@@ -210,6 +213,29 @@ const NO_SCHEME: readonly Field[] = [
 ]
 
 const PRINCIPAL = "one principal; a second with a different tenant enables the isolation checks"
+const NAMED = 4
+
+/*
+ * The principal's body: a commented `scope` for each prefix root no create operation makes, and the
+ * operations each one unlocks. Ids a flow yields (an invite's token) are a run's to pick up, not the config's.
+ */
+function principalStub(doc: OpenApiDocument): Field[] {
+	const model = buildModel(doc)
+	const prefix = prefixRoots(model)
+	const roots = rootsOf(model).required
+	if (roots.length === 0) return []
+	const unlocks = roots.map((root) => {
+		/* A required root is a prefix root, so its operations are always there. */
+		const operations = prefix.get(root) as string[]
+		const more = operations.length > NAMED ? ` and ${operations.length - NAMED} more` : ""
+		return { comment: `${root} unlocks ${operations.slice(0, NAMED).join(", ")}${more}` }
+	})
+	return [
+		{ comment: "no create operation makes these path parameters; set each to one this principal can reach:" },
+		{ comment: `scope: { ${roots.map((root) => `${root}: ""`).join(", ")} },` },
+		...unlocks,
+	]
+}
 
 /** The config `oat init` writes for `doc`, read from `spec` and written to `out`. */
 export function renderInitConfig(doc: OpenApiDocument, where: { spec: string; out: string }): InitConfig {
@@ -241,7 +267,7 @@ export function renderInitConfig(doc: OpenApiDocument, where: { spec: string; ou
 		{ key: "spec", value: quote(where.spec) },
 		{ key: "baseUrl", value: base === undefined ? env("OAT_BASE_URL") : quote(base) },
 		...(schemes.size === 0 ? NO_SCHEME : [{ key: "security", value: security }]),
-		{ key: "principals", value: [{ comments: [PRINCIPAL], key: "alpha", value: [] }] },
+		{ key: "principals", value: [{ comments: [PRINCIPAL], key: "alpha", value: principalStub(doc) }] },
 	]
 	const next = `oat doctor --config ${where.out}`
 	const header =

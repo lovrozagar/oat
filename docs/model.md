@@ -89,7 +89,7 @@ An operation with `x-invite` is not `entity.create`. oat does not POST a generat
 
 A create whose `operationId` appears in any principal `auth.steps`, or that declares `x-fresh-principal`, is not seeded. Those rows were provisioned by the auth flow.
 
-Parent path parameters are created first (depth-first through the owning entity's create). Config / principal `roots` fill parameters oat cannot create.
+Parent path parameters are created first (depth-first through the owning entity's create). Each principal's `scope` (or a login's `scope.<parameter>` claim, or `hooks.resolvePathValue`) fills parameters oat cannot create.
 
 A create that returns `>= 300` on the first variant fails the entity (downstream checks `BLOCKED`). Later variants that fail just shorten the cohort — a partial cohort is still used.
 

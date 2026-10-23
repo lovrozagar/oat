@@ -302,6 +302,7 @@
 	"src/report/console/doctor.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/report/console/gaps.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/report/console/plan.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/report/console/roots.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/report/console/report.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/report/console/security-text.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/report/console/security.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },

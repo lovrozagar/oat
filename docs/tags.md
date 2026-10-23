@@ -324,7 +324,7 @@ Path parameter that scopes the operation.
 x-root: true
 ```
 
-This resource has no create endpoint; supply it in config `roots` / principal `roots`.
+This resource has no create endpoint; supply it in each principal's `scope`, a login's `scope.<parameter>` claim, or `hooks.resolvePathValue`. `oat init` writes a commented `scope` stub for each one.
 
 **Fallback:** inferred when a path param has no create op; everything beneath is `UNSEEDABLE`.
 

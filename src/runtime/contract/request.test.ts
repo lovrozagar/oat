@@ -115,7 +115,9 @@ describe("pathValues: a bare record key", () => {
 			answered("elsewhere.get", "/keys", "other_1"),
 		)
 		expect(await pathValues(input, { op, params })).toBeNull()
-		expect([...(input.grades.needs.get("keys.get") ?? [])]).toEqual(["unresolved param id"])
+		expect([...(input.grades.needs.get("keys.get") ?? [])]).toEqual([
+			"unresolved param id: no response this run saw carried one, and hooks.resolvePathValue did not answer",
+		])
 	})
 })
 
@@ -219,7 +221,9 @@ describe("pathValues: a write goes only to a record this run made", () => {
 	it("names no write rule when no answer showed a value at all", async () => {
 		const { input, op, params } = staged(keyed, "keys.revoke", { madeByRun: () => true })
 		expect(await pathValues(input, { op, params })).toBeNull()
-		expect([...(input.grades.needs.get("keys.revoke") ?? [])]).toEqual(["unresolved param id"])
+		expect([...(input.grades.needs.get("keys.revoke") ?? [])]).toEqual([
+			"unresolved param id: no response this run saw carried one, and hooks.resolvePathValue did not answer",
+		])
 	})
 })
 
@@ -266,7 +270,9 @@ describe("pathValues: never a credential", () => {
 			}),
 		)
 		expect(await pathValues(input, { op, params })).toBeNull()
-		expect([...(input.grades.needs.get("invite.get") ?? [])]).toEqual(["unresolved param token"])
+		expect([...(input.grades.needs.get("invite.get") ?? [])]).toEqual([
+			"unresolved param token: no response this run saw carried one, and hooks.resolvePathValue did not answer",
+		])
 	})
 })
 
@@ -307,13 +313,17 @@ describe("pathValues: what the hook is told", () => {
 			hooks: { resolvePathValue: async () => null },
 		})
 		expect(await pathValues(input, { op, params })).toBeNull()
-		expect([...(input.grades.needs.get("deep.get") ?? [])]).toEqual(["unresolved param org_id"])
+		expect([...(input.grades.needs.get("deep.get") ?? [])]).toEqual([
+			"unresolved param org_id: set it in the principal's scope, or answer it from hooks.resolvePathValue",
+		])
 	})
 
 	it("works without a hook or a declared parameter", async () => {
 		const { input, op } = staged(paths, "deep.get", { roots: { org_id: "o1" } })
 		expect(await pathValues(input, { op, params: [] })).toBeNull()
-		expect([...(input.grades.needs.get("deep.get") ?? [])]).toEqual(["unresolved param kind"])
+		expect([...(input.grades.needs.get("deep.get") ?? [])]).toEqual([
+			"unresolved param kind: set it in the principal's scope, or answer it from hooks.resolvePathValue",
+		])
 	})
 })
 

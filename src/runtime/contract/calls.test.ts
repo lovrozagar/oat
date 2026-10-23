@@ -60,7 +60,9 @@ describe("runContractCalls", () => {
 		expect(sent.map((request) => request.options.as)).toEqual(Array.from({ length: 3 }, () => ({ principal: "alpha" })))
 		expect(sent[0]?.options).not.toHaveProperty("query")
 		expect(sent[0]?.options).not.toHaveProperty("body")
-		expect([...(input.grades.needs.get("things.get") ?? [])]).toEqual(["unresolved param thing_id"])
+		expect([...(input.grades.needs.get("things.get") ?? [])]).toEqual([
+			"unresolved param thing_id: no response this run saw carried one, and hooks.resolvePathValue did not answer",
+		])
 		expect([...(input.grades.needs.get("things.upload") ?? [])]).toEqual([
 			"needs a text/csv body oat cannot build without a scenario",
 		])

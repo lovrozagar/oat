@@ -22,7 +22,7 @@ would settle it. If one of these produces a finding against a correct backend, t
 | A client-chosen identity names no record the collection already holds                                    | oat avoids every listed id and every id its own records hold; with no free id left, the create is not sent and the check reports a gap                      | `x-unique` on the identity, so a duplicate id is a graded 409                                                   |
 | Two records may share a value the document does not declare unique                                       | a server deriving a key from it (a slug) refuses one; parents and check records oat makes put a run token, per principal, in every string                   | [`x-unique`](tags.md#x-unique) on the field                                                                     |
 | A record oat created can be deleted by its item route                                                    | teardown reports what it left behind                                                                                                                        | [`x-cleanup`](tags.md#x-cleanup)                                                                                |
-| Path parameters oat cannot create are supplied                                                           | the entity cannot be reached                                                                                                                                | [`x-root`](tags.md#x-root), or `roots` in the config                                                            |
+| Path parameters oat cannot create are supplied                                                           | the entity cannot be reached                                                                                                                                | [`x-root`](tags.md#x-root), or each principal's `scope`                                                         |
 | A list answers with an array, or an object holding one                                                   | list checks stand down                                                                                                                                      | the collection schema                                                                                           |
 
 ## Lists and paging
@@ -84,13 +84,13 @@ would settle it. If one of these produces a finding against a correct backend, t
 
 ## Isolation and authorization
 
-| oat assumes                                                             | when it does not hold                                                             | declare                                                |
-| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| A second principal with different `roots` is another tenant             | isolation checks do not apply                                                     | `principals`                                           |
-| The tenant is a path parameter, or declared                             | an inferred tenant makes a cross-tenant read an ambiguity, not a security finding | [`x-tenant`](tags.md#x-tenant)                         |
-| A denial does not depend on whether the record exists                   | —                                                                                 | —                                                      |
-| Higher `rank` can do everything a lower rank can                        | a lower rank seeing more is a finding                                             | `rank` on principals                                   |
-| An invite grants nothing until accepted, and a revoke takes access away | —                                                                                 | [`x-invite`](tags.md#x-invite) and a peer's `inviteAs` |
+| oat assumes                                                               | when it does not hold                                                             | declare                                                |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| A second principal with a different `tenant` or `scope` is another tenant | isolation checks do not apply                                                     | `principals`                                           |
+| The tenant is a path parameter, or declared                               | an inferred tenant makes a cross-tenant read an ambiguity, not a security finding | [`x-tenant`](tags.md#x-tenant)                         |
+| A denial does not depend on whether the record exists                     | —                                                                                 | —                                                      |
+| Higher `rank` can do everything a lower rank can                          | a lower rank seeing more is a finding                                             | `rank` on principals                                   |
+| An invite grants nothing until accepted, and a revoke takes access away   | —                                                                                 | [`x-invite`](tags.md#x-invite) and a peer's `inviteAs` |
 
 ## Async work, effects and pacing
 

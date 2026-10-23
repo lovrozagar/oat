@@ -1,3 +1,5 @@
+import type { OatConfig } from "../../config/types/config.ts"
+import type { PlanView } from "../../report/console/plan.ts"
 import { unsetEnvLines } from "../../report/console/doctor.ts"
 import { report } from "../../report/console/report.ts"
 import type { SpecModel } from "../../spec/graph/types.ts"
@@ -9,6 +11,15 @@ import { ScopeError } from "../../runtime/scope/scope-error.ts"
 import { type Args, list } from "../flags.ts"
 import type { Writer } from "../writer.ts"
 import { modelled } from "./spec.ts"
+
+/* What of the config the plan reads: its recipes and principals, and the hook that supplies roots. */
+function configView(config: OatConfig | undefined): Pick<PlanView, "credentials" | "hooks"> {
+	if (config === undefined) return {}
+	return {
+		credentials: { principals: config.principals ?? {}, security: config.security ?? {} },
+		hooks: config.hooks,
+	}
+}
 
 /** `oat plan`: the test model derived from the document, offline; targeted when `--ops` or `--only` says. */
 export async function commandPlan(writer: Writer, flags: Args["flags"]): Promise<number> {
@@ -33,8 +44,7 @@ export async function commandPlan(writer: Writer, flags: Args["flags"]): Promise
 	writer.out(
 		report.plan(model, flags.json === true, {
 			authCreates,
-			credentials:
-				config === undefined ? undefined : { principals: config.principals ?? {}, security: config.security ?? {} },
+			...configView(config),
 			scope: scope.mode === "targeted" ? scope : undefined,
 			unsetEnv,
 		}),

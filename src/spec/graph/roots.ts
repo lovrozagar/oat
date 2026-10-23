@@ -70,3 +70,30 @@ export function impliedEntityName(param: string): string | null {
 		.toLowerCase()
 	return stripped.length === 0 ? null : stripped.replace(/_/g, "-")
 }
+
+/** What a prefix root is read from: the operations, and the entities whose list and create they are. */
+export type Scoping = { operations: readonly OperationModel[]; entities: ReadonlyMap<string, EntityModel> }
+
+/**
+ * The path parameters `op` hangs below: tagged `x-root`, or followed by another parameter, or by the
+ * collection its entity lists or creates in. An id a route ends on, or acts on (`/invites/{token}/accept`), is none.
+ */
+export function scopingParams(op: OperationModel, model: Scoping): string[] {
+	const segments = segmentsOf(op.path)
+	const entity = op.entity === null ? undefined : model.entities.get(op.entity)
+	const collects = entity !== undefined && (entity.list === op.operationId || entity.create === op.operationId)
+	return op.pathParams.filter((param) => {
+		if (op.rootParams.includes(param)) return true
+		const after = segments.slice(segments.indexOf(`{${param}}`) + 1)
+		return after.some((segment) => segment.startsWith("{")) || (collects && after.length > 0)
+	})
+}
+
+/** The prefix roots a document's routes hang below, each with the operations it scopes. */
+export function prefixRoots(model: Scoping): Map<string, string[]> {
+	const scoped = new Map<string, string[]>()
+	for (const op of model.operations) {
+		for (const root of scopingParams(op, model)) scoped.set(root, [...(scoped.get(root) ?? []), op.operationId])
+	}
+	return scoped
+}

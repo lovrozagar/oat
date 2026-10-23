@@ -96,7 +96,7 @@ describe("tagLines", () => {
 describe("entityLines", () => {
 	it("says why an entity cannot be followed, which have no list, and the roots a run needs", async () => {
 		const edges = modelOf(EDGES).model
-		const lines = entityLines(edges, doctorFacts(edges))
+		const lines = entityLines(doctorFacts(edges))
 		expect(lines).toContain("  not trackable")
 		expect(lines).toContain(
 			`    ${"c".padEnd(20)} no identity property — instances cannot be tracked across projections`,
@@ -105,10 +105,17 @@ describe("entityLines", () => {
 		expect(lines).toContain("  no list — query, pagination and count checks will not run")
 		expect(lines).toContain(`    ${"u".padEnd(20)} GET /u/{id}`)
 		const { model } = await referenceModel()
-		const reference = entityLines(model, doctorFacts(model))
+		const reference = entityLines(doctorFacts(model))
 		expect(reference).toContain(`    ${"profile".padEnd(20)} profile.get`)
 		expect(reference).toContain("  roots required in config (no create operation in this document)")
+		expect(reference).toContain(
+			"  ids no operation creates — their operations run once a flow or hooks.resolvePathValue yields one",
+		)
 		expect(reference).not.toContain("  not trackable")
+		const scoped = { alpha: { scope: { project_id: "proj_alpha" } } }
+		const supplied = entityLines(doctorFacts(model, { credentials: { principals: scoped, security: {} } }))
+		expect(supplied).not.toContain("  roots required in config (no create operation in this document)")
+		expect(supplied).toContain(`    ${"project_id".padEnd(20)} principal scope`)
 	})
 })
 

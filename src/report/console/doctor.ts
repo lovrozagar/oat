@@ -9,6 +9,7 @@ import { type DoctorConfig, type DoctorFacts, doctorFacts } from "./doctor-facts
 import { authLines, catalogLines, envelopeLines } from "./doctor-notes.ts"
 import { declarationLines, entityLines, summaryLines, tagLines } from "./doctor-text.ts"
 import { externalRefLines, gapLines } from "./gaps.ts"
+import { rootsJson } from "./roots.ts"
 import { securityJson } from "./security.ts"
 import { securityLines } from "./security-text.ts"
 
@@ -37,7 +38,7 @@ export function unsetEnvLines(unsetEnv: readonly string[] | undefined): string[]
 	return [`  ${"env".padEnd(11)}${unsetEnv.join(", ")} not set — a run stops until they are`, ""]
 }
 
-function doctorJson({ config, externalRefs, facts, model, unsetEnv }: Diagnosis): string {
+function doctorJson({ config, externalRefs, facts, unsetEnv }: Diagnosis): string {
 	return `${JSON.stringify(
 		{
 			blocking: facts.blocking,
@@ -55,7 +56,7 @@ function doctorJson({ config, externalRefs, facts, model, unsetEnv }: Diagnosis)
 			listableEntities: facts.listable.length,
 			queryCatalog: facts.catalogs,
 			...(config?.allowRemoved === undefined ? {} : { allowRemoved: config.allowRemoved }),
-			roots: model.roots,
+			...rootsJson(facts.roots),
 			security: securityJson(facts.security),
 			testableEntities: facts.trackable.length,
 			trackableEntities: facts.trackable.length,
@@ -77,7 +78,7 @@ function doctorText({ config, externalRefs, facts, model, unsetEnv }: Diagnosis)
 	const lines = [
 		...summaryLines(facts, config),
 		...tagLines(model, facts),
-		...entityLines(model, facts),
+		...entityLines(facts),
 		...declarationLines(facts),
 		...catalogLines(facts),
 		...envelopeLines(model),

@@ -315,3 +315,41 @@ describe("the rendered config", () => {
 		expect(securityProblems(config, specView(buildModel(doc), doc))).toEqual([])
 	})
 })
+
+describe("renderInitConfig and the roots a run cannot create", () => {
+	it("stubs a scope for each prefix root no create makes, naming the operations it unlocks", () => {
+		const { doc } = dereference(buildSpec() as OpenApiDocument)
+		const { text } = renderInitConfig(doc, { out: "oat.config.ts", spec: "openapi.json" })
+		expect(text).toContain(
+			[
+				"\t\talpha: {",
+				"\t\t\t// no create operation makes these path parameters; set each to one this principal can reach:",
+				'\t\t\t// scope: { project_id: "" },',
+				"\t\t\t// project_id unlocks table.list, table.create, table.get, table.delete and 16 more",
+				"\t\t},",
+			].join("\n"),
+		)
+		/* An id a flow yields (the invite's token, its grant) is no root to stub. */
+		expect(text).not.toMatch(/(token|grant_id|\bid): ""|(token|grant_id) unlocks/)
+	})
+
+	it("names every operation a root unlocks when there are few", () => {
+		const rows = { items: { properties: { id: { type: "string" } }, type: "object" }, type: "array" }
+		const list = {
+			get: {
+				operationId: "widget.list",
+				parameters: [{ in: "path", name: "org_id", required: true, schema: { type: "string" } }],
+				responses: { "200": { content: { "application/json": { schema: rows } }, description: "ok" } },
+			},
+		}
+		const paths = { "/orgs/{org_id}/widgets": list }
+		const doc = { info: { title: "t", version: "1" }, openapi: "3.1.0", paths } as unknown as OpenApiDocument
+		const { text } = renderInitConfig(dereference(doc).doc, { out: "oat.config.ts", spec: "openapi.json" })
+		expect(text).toContain("\t\t\t// org_id unlocks widget.list\n")
+	})
+
+	it("writes an empty principal when every route can be seeded", () => {
+		const { text } = renderInitConfig(dereference(keycloak).doc, { out: "oat.config.ts", spec: "openapi.json" })
+		expect(text).toContain("\t\talpha: {},")
+	})
+})

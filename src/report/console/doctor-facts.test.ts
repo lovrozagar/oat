@@ -78,3 +78,19 @@ describe("doctorFacts", () => {
 		expect(facts.gapsByTag.size).toBe(0)
 	})
 })
+
+describe("doctorFacts and the roots a config supplies", () => {
+	it("stops blocking on a root once the config supplies it", async () => {
+		const { model } = await referenceModel()
+		const principals = { alpha: { scope: { project_id: "proj_alpha" } }, beta: { scope: { project_id: "proj_beta" } } }
+		const facts = doctorFacts(model, { credentials: { principals, security: {} } })
+		expect(facts.roots).toEqual({
+			required: [],
+			supplied: [{ by: "principal scope", root: "project_id" }],
+			/* Ids a flow yields (an invite's token and grant, a notice, a minted key) never block. */
+			unmade: ["grant_id", "id", "token"],
+		})
+		const unscoped = doctorFacts(model, { credentials: { principals: { alpha: {}, beta: {} }, security: {} } })
+		expect(facts.blocking).toBe(unscoped.blocking - 1)
+	})
+})

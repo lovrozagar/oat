@@ -6,6 +6,7 @@
  */
 
 import { requestContent } from "../../spec/collection/request.ts"
+import { scopingParams } from "../../spec/graph/roots.ts"
 import { SAFE } from "../../spec/methods.ts"
 import { applyActionBind } from "../effects/bind.ts"
 import { buildCohort, type CohortMember } from "../fixture.ts"
@@ -14,6 +15,21 @@ import type { Exchange } from "../exchange.ts"
 import type { GradeLedger } from "../grades.ts"
 import { exampleOf, newestSeen, seenValue } from "./params.ts"
 import type { ContractCall, ContractInput } from "./types.ts"
+
+/*
+ * Why `{name}` has no value, and what supplies one: a prefix root no create makes is the config's
+ * (a principal's scope, or the hook); any other id comes from a response this run saw, or the hook.
+ */
+function unresolvedBecause(
+	input: Pick<ContractInput, "client" | "model">,
+	op: ContractCall["op"],
+	name: string,
+): string {
+	if (refusedWrite(input, op, name)) return "a write is sent only to a record this run created"
+	if (input.model.roots.includes(name) && scopingParams(op, input.model).includes(name))
+		return "set it in the principal's scope, or answer it from hooks.resolvePathValue"
+	return "no response this run saw carried one, and hooks.resolvePathValue did not answer"
+}
 
 /** Every path parameter's value, or `null` once one cannot be resolved (and the operation is skipped). */
 export async function pathValues(
@@ -29,8 +45,7 @@ export async function pathValues(
 			(await askHook(input, { declared, name, op })) ??
 			seenFor(input, op, name)
 		if (value === undefined || value === null) {
-			const why = refusedWrite(input, op, name) ? ": a write is sent only to a record this run created" : ""
-			input.grades.skipped([op.operationId], `unresolved param ${name}${why}`)
+			input.grades.skipped([op.operationId], `unresolved param ${name}: ${unresolvedBecause(input, op, name)}`)
 			return null
 		}
 		values[name] = value
