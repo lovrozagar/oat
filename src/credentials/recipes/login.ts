@@ -14,7 +14,7 @@ import type { AcquireCtx, Issued } from "./types.ts"
 /*
  * Sign in by running the recipe's steps through the run's step runner, once: a failed login is
  * reported, never retried. The credential is at `from` in the last answer, or a scope key a step
- * saved. `claims` binds JWT claims into the principal's identity. A recipe `refresh` runs its steps
+ * saved. `claims` binds token claims or answer paths into the principal's identity. A recipe `refresh` runs its steps
  * with the scope the last run bound plus `credential`, so a rotated refresh token carries forward. A
  * declared `revoke` ends the session by sending exactly its value to that operation. Steps that
  * read a `{name}` nothing fills are refused before anything is sent, naming it.
@@ -85,7 +85,7 @@ function issue(ctx: AcquireCtx, issuing: Issuing, from: string): Issued {
 	}
 	const expiresAt = expiresAtOf({ body: answerBody(ran.answer), expiresIn: options.expiresIn, now: ctx.now(), value })
 	const issued: Issued = { expiresAt, value }
-	if (login.claims !== undefined) issued.identity = claimsOf(ctx, login.claims, value)
+	if (login.claims !== undefined) issued.identity = claimsOf(ctx, login.claims, { ...ran, value })
 	const { revoke } = login
 	if (revoke !== undefined) issued.revoke = () => revokeSession(ctx, { ran, revoke, value })
 	return renewable(ctx, issuing, issued)
@@ -138,12 +138,30 @@ export function heldLogin(
 	return renewable(ctx, { login: options.login as LoginRecipe, options, ran }, { expiresAt, value })
 }
 
-function claimsOf(ctx: AcquireCtx, claims: Record<string, string>, value: string): Record<string, string> {
-	const decoded = jwtClaims(value)
+/*
+ * A `$` path reads the answer body, as `from` does; any other value names a claim of the token,
+ * which must then be a JWT. Either one missing is refused, naming it.
+ */
+function claimsOf(
+	ctx: AcquireCtx,
+	claims: Record<string, string>,
+	issued: Ran & { value: string },
+): Record<string, string> {
 	const who = `login for "${ctx.principal.id}"`
+	const named = Object.values(claims).some((claim) => !claim.startsWith("$"))
+	const decoded = named ? jwtClaims(issued.value) : {}
 	if (decoded === null) throw new Error(`${who} binds claims, but its credential is not a JWT`)
 	const identity: Record<string, string> = {}
 	for (const [name, path] of Object.entries(claims)) {
+		if (path.startsWith("$")) {
+			const found = readAnswer(issued.answer, path)
+			if (found === undefined) {
+				const type = describeAnswerType(issued.answer.headers)
+				throw new Error(`${who} binds ${name} to "${path}", which the answer does not carry (${type})`)
+			}
+			identity[name] = found
+			continue
+		}
 		const claim = readPath(decoded, path)
 		if (claim === undefined || claim === null) {
 			throw new Error(

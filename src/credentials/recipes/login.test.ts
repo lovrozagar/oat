@@ -71,12 +71,39 @@ describe("acquireLogin", () => {
 	})
 })
 
-describe("acquireLogin: claims, lifetime and refresh", () => {
-	it("binds `claims` from the JWT into identity, and takes its lifetime from `exp`", async () => {
-		const token = jwtOf({ exp: 5000, org: { id: "o9" }, org_id: "o1" })
+describe("acquireLogin: claims", () => {
+	it("binds a claim name from the JWT into identity, and takes its lifetime from `exp`", async () => {
+		const token = jwtOf({ exp: 5000, org_id: "o1", project: "p1" })
 		const { ports } = fakePorts({ run: () => Promise.resolve({ answer: answerOf({ token }), scope: {} }) })
-		const issued = await acquireLogin(ctxOf(ports), { ...login, claims: { org: "$.org.id", tenant: "org_id" } }, {})
-		expect([issued.identity, issued.expiresAt]).toEqual([{ org: "o9", tenant: "o1" }, 5_000_000])
+		const claims = { "scope.project_id": "project", tenant: "org_id" }
+		const issued = await acquireLogin(ctxOf(ports), { ...login, claims }, {})
+		expect([issued.identity, issued.expiresAt]).toEqual([{ "scope.project_id": "p1", tenant: "o1" }, 5_000_000])
+	})
+
+	it("binds a `$` path from the answer body, even when the credential is not a JWT", async () => {
+		const answer = answerOf({ org: { id: "o9" }, project: { id: "p9" }, token: "opaque" })
+		const { ports } = fakePorts({ run: () => Promise.resolve({ answer, scope: {} }) })
+		const claims = { "scope.project_id": "$.project.id", tenant: "$.org.id" }
+		const issued = await acquireLogin(ctxOf(ports), { ...login, claims }, {})
+		expect(issued.identity).toEqual({ "scope.project_id": "p9", tenant: "o9" })
+	})
+
+	it("binds a mix: a claim name from the token, a `$` path from the answer body", async () => {
+		const token = jwtOf({ org_id: "o1" })
+		const answer = answerOf({ project: { id: "p9" }, token })
+		const { ports } = fakePorts({ run: () => Promise.resolve({ answer, scope: {} }) })
+		const claims = { "scope.project_id": "$.project.id", tenant: "org_id" }
+		const issued = await acquireLogin(ctxOf(ports), { ...login, claims }, {})
+		expect(issued.identity).toEqual({ "scope.project_id": "p9", tenant: "o1" })
+	})
+
+	it("refuses a `$` path the answer does not carry, naming it, as it does a missing claim", async () => {
+		const { ports } = fakePorts({ run: () => Promise.resolve({ answer: answerOf({ token: "opaque" }), scope: {} }) })
+		const recipe = { ...login, claims: { "scope.project_id": "$.project.id" } }
+		expect((await rejection(acquireLogin(ctxOf(ports), recipe, {}))).message).toBe(
+			'login for "ann" binds scope.project_id to "$.project.id", which the answer does not carry ' +
+				"(its answer names no content type)",
+		)
 	})
 
 	it("refuses claims from a value that is not a JWT, or a claim it does not carry", async () => {
@@ -92,7 +119,9 @@ describe("acquireLogin: claims, lifetime and refresh", () => {
 			'login for "ann" binds tenant to claim "org_id", which the token does not carry (it has sub)',
 		)
 	})
+})
 
+describe("acquireLogin: lifetime", () => {
 	it("takes `expiresIn` from the issuing answer", async () => {
 		const { ports } = fakePorts({
 			run: () => Promise.resolve({ answer: answerOf({ expires: 60, token: "t" }), scope: {} }),

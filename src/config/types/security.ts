@@ -22,8 +22,9 @@ export interface LoginRecipe {
 	steps: [AuthStep, ...AuthStep[]]
 	from: string
 	/**
-	 * What the answer binds into the principal: its `tenant`, or a `scope.<parameter>`, each from a JWT claim
-	 * name or a JSON path into the answer, e.g. `{ tenant: "org_id", "scope.project_id": "$.project.id" }`.
+	 * What the answer binds into the principal: its `tenant`, or a `scope.<parameter>`. A value starting with
+	 * `$` is a JSON path into the last answer's body, read as `from` is; any other is a JWT claim name,
+	 * e.g. `{ tenant: "org_id", "scope.project_id": "$.project.id" }`.
 	 */
 	claims?: Record<string, string>
 	/**
