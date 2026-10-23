@@ -1,7 +1,7 @@
 /** `x-async` and `x-wait`: operations whose outcome arrives later, and how long to poll for it. */
 
 import type { OperationObject } from "../types.ts"
-import { ext } from "./tag.ts"
+import { extObject } from "./tag.ts"
 
 export interface AsyncSpec {
 	poll: string
@@ -13,7 +13,7 @@ export interface AsyncSpec {
 }
 
 export function readAsync(op: OperationObject): AsyncSpec | null {
-	const tag = ext<Record<string, unknown>>(op, "x-async")
+	const tag = extObject(op, "x-async")
 	if (tag === undefined || typeof tag.poll !== "string") return null
 	const spec: AsyncSpec = {
 		poll: tag.poll,
@@ -39,7 +39,7 @@ export interface WaitSpec {
  * Default timeout 30s. Timeout is a finding, not a coverage gap.
  */
 export function readWait(op: OperationObject): WaitSpec | null {
-	const tag = ext<Record<string, unknown>>(op, "x-wait")
+	const tag = extObject(op, "x-wait")
 	if (tag === undefined || typeof tag.operationId !== "string" || tag.operationId === "") return null
 	const spec: WaitSpec = {
 		operationId: tag.operationId,

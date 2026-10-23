@@ -57,5 +57,6 @@ describe("x-invite", () => {
 		expect(readInvite(op({ ...flow, invite: 1 }))).toBeNull()
 		expect(readInvite(op({ ...flow, accept: undefined }))).toBeNull()
 		expect(readInvite(op({ ...flow, revoke: null }))).toBeNull()
+		expect(readInvite(op(null))).toBeNull()
 	})
 })

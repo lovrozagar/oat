@@ -154,6 +154,15 @@ describe("a guessed capability", () => {
 	})
 })
 
+describe("an x-query that is not an object", () => {
+	it("guesses when the tag is not an object", () => {
+		const gaps = new GapCollector()
+		const guess = readQueryCapability(listing({ parameters: [query("filter")], "x-query": null }), item, gaps)
+		expect(guess?.source).toBe("heuristic")
+		expect(gaps.gaps).toHaveLength(1)
+	})
+})
+
 describe("a guessed capability's scalar fields", () => {
 	it("counts the nullable, untyped and wrapped scalars, and nothing that is only null or empty", () => {
 		const record = {

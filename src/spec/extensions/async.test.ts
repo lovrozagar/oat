@@ -38,6 +38,11 @@ describe("x-async", () => {
 		expect(readAsync(op({}))).toBeNull()
 		expect(readAsync(op({ "x-async": { poll: 1 } }))).toBeNull()
 	})
+
+	it("is null when the tag is not an object", () => {
+		expect(readAsync(op({ "x-async": null }))).toBeNull()
+		expect(readAsync(op({ "x-async": "job.get" }))).toBeNull()
+	})
 })
 
 describe("x-wait", () => {
@@ -68,5 +73,6 @@ describe("x-wait", () => {
 		expect(readWait(op({}))).toBeNull()
 		expect(readWait(op({ "x-wait": { operationId: "" } }))).toBeNull()
 		expect(readWait(op({ "x-wait": { operationId: 1 } }))).toBeNull()
+		expect(readWait(op({ "x-wait": null }))).toBeNull()
 	})
 })

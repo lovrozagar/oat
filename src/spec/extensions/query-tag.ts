@@ -9,7 +9,7 @@ import { deriveQueryConventions } from "../conventions/derive.ts"
 import { parseQueryCatalog } from "../query/parse-catalog.ts"
 import type { Endpoint, JsonSchema } from "../types.ts"
 import type { GapCollector } from "./gaps.ts"
-import { ext } from "./tag.ts"
+import { extObject } from "./tag.ts"
 import { scalarKinds } from "../schema.ts"
 
 export interface QueryCapability {
@@ -109,6 +109,6 @@ export function readQueryCapability(
 	itemSchema: JsonSchema | null,
 	gaps?: GapCollector,
 ): QueryCapability | null {
-	const tag = ext<Record<string, unknown>>(endpoint.op, "x-query")
+	const tag = extObject(endpoint.op, "x-query")
 	return tag === undefined ? guessed(endpoint, itemSchema, gaps) : declared(tag)
 }

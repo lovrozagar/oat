@@ -1,7 +1,7 @@
 /** `x-invite`: the invite, accept and revoke operations of a grant, and where each reads its pieces. */
 
 import type { OperationObject } from "../types.ts"
-import { ext } from "./tag.ts"
+import { extObject } from "./tag.ts"
 
 export interface InviteSpec {
 	invite: string
@@ -38,7 +38,7 @@ const stringOr = (value: unknown, fallback: string): string => (typeof value ===
 const nonEmpty = (value: unknown): value is string => typeof value === "string" && value !== ""
 
 export function readInvite(op: OperationObject): InviteSpec | null {
-	const tag = ext<Record<string, unknown>>(op, "x-invite")
+	const tag = extObject(op, "x-invite")
 	if (tag === undefined) return null
 	const { invite, accept, revoke } = tag
 	if (typeof invite !== "string" || typeof accept !== "string" || typeof revoke !== "string") return null
