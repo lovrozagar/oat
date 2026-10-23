@@ -146,7 +146,7 @@ async function controlBaseline(ctx: WriteContext, read: Read, id: string): Promi
  */
 function driftingFields(writes: OperationModel[], original: Record_, baseline: Record_): Set<string> {
 	const drifting = new Set<string>([
-		...Object.keys(original).filter(isServerTimestamp),
+		...Object.keys(original).filter((key) => isServerTimestamp(key, original[key])),
 		/* A job's progress counter advances on GET without this PATCH having written it. */
 		"progress",
 		/*
@@ -165,11 +165,16 @@ function driftingFields(writes: OperationModel[], original: Record_, baseline: R
 }
 
 /**
- * Whether `key` names the timestamp a server stamps on every write, in any naming convention:
- * `updated_at`, `updatedAt`, `UpdatedAt`, `modified-at`, `lastModified`, `updated`.
+ * Whether `key` names the timestamp a server stamps on every write, in any naming convention —
+ * `updated_at`, `updatedAt`, `modified-at`, `lastModified`, `updateTime` (AIP), `dateModified`
+ * (schema.org), `modifiedDate`, `lastUpdate`, `updated` — and `value` reads as one: a number, or a
+ * string a date parses from. A bare `updated` is as often a flag or a counter, and is judged then.
  */
-function isServerTimestamp(key: string): boolean {
-	return /^(last)?(updated|modified)(at|on)?$/.test(key.replace(/[_-]/g, "").toLowerCase())
+function isServerTimestamp(key: string, value: unknown): boolean {
+	const name = key.replace(/[_-]/g, "").toLowerCase()
+	const named = /^(last)?(update|updated|modified)(at|on|time|date)?$|^date(updated|modified)$/.test(name)
+	const stamp = typeof value === "number" || (typeof value === "string" && !Number.isNaN(Date.parse(value)))
+	return named && stamp
 }
 
 /* Whatever also moved on the untouched control record was not caused by this PATCH. */

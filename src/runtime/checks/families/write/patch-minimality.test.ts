@@ -71,6 +71,22 @@ const stamping =
 const stamped = async (key: string) =>
 	(await runCheck(patchMinimality, backend(stamping(key), { records: [] }).ctx)).kind
 
+/** Each write sets `key` to `value(n)`, for the n-th write. */
+const restamping =
+	(key: string, value: (n: number) => unknown): Override =>
+	(server) => {
+		let writes = 0
+		return (method, path, options) => {
+			if (method === "GET") return undefined
+			const answer = server.respond(method, path, options)
+			writes += 1
+			for (const record of server.records.values()) record[key] = value(writes)
+			return answer
+		}
+	}
+const stampedWith = async (key: string, value: (n: number) => unknown) =>
+	(await runCheck(patchMinimality, backend(restamping(key, value), { records: [] }).ctx)).kind
+
 /* `answer` for the `nth` request of `method` on the scratch record. */
 const onTarget =
 	(method: string, answer: { status: number; body?: unknown }, nth = 1): Override =>
@@ -158,8 +174,21 @@ describe("patch.minimality fields that move on their own", () => {
 		"lastUpdated",
 		"modified",
 		"updated",
+		"updateTime",
+		"update_time",
+		"dateModified",
+		"modifiedDate",
+		"updatedDate",
+		"lastUpdate",
+		"modifiedTime",
 	])("ignores the server timestamp %s moving on a write", async (key) => {
 		expect(await stamped(key)).toBe("asserted")
+	})
+
+	it("ignores a timestamp written as a date, and still judges a flag or text under a timestamp's name", async () => {
+		expect(await stampedWith("updatedAt", (n) => new Date(Date.UTC(2026, 0, n)).toISOString())).toBe("asserted")
+		expect(await stampedWith("updated", (n) => n % 2 === 1)).toBe("finding")
+		expect(await stampedWith("modified", (n) => `rev ${"x".repeat(n)}`)).toBe("finding")
 	})
 
 	it.each(["createdAt", "updater", "modifiedBy", "rev"])("still reports %s moving on a write", async (key) => {
