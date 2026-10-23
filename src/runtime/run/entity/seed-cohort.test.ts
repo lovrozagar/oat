@@ -4,7 +4,7 @@ import type { Answer, Responder } from "../../checks/__fixtures__/harness.ts"
 import type { Record_ } from "../../world/records.ts"
 import { contextOf, entityRunOf, notesApi, notesDoc, optionsFor, overriding } from "../__fixtures__/api.ts"
 import type { RunOptions } from "../types.ts"
-import { seedCreated } from "./seed-cohort.ts"
+import { seedCreated, unverifiedNote } from "./seed-cohort.ts"
 
 /*
  * A cohort seeded through the entity's create: oat's own records; a variant the backend refused,
@@ -190,5 +190,31 @@ describe("seedCreated, from creates that answer without the record", () => {
 		expect(world).toMatchObject({ recordsUnverified: true })
 		expect(world?.records[0]).toMatchObject({ id: "n1", title: expect.any(String) })
 		expect(world?.records[0]).not.toHaveProperty("message")
+	})
+
+	it("notes, once per entity, that its records are the bodies oat sent, and why", async () => {
+		/* The notes API, acknowledging each create, and a read that does not find it yet. */
+		const lagging = (doc: OpenApiDocument): Responder => {
+			const api = notesApi(doc, [])
+			return (method, path, request) => {
+				const answer = api(method, path, request)
+				if (method === "GET" && path.startsWith("/notes/")) return { body: { error: "not yet" }, status: 404 }
+				if (method !== "POST" || path !== "/notes" || answer?.status !== 201) return answer
+				return { body: { id: (answer.body as Json)["id"], message: "created" }, status: 201 }
+			}
+		}
+		const notFound = await seeded(lagging(notesDoc()), none)
+		expect(notFound.world).toMatchObject({ recordsUnverified: true })
+		expect(notFound.ctx.state.checkNotes).toEqual([
+			{ check: "world.seed", entity: "note", note: unverifiedNote("read back answered 404") },
+		])
+		const unread = structuredClone(notesDoc()) as unknown as { paths: Record<string, Record<string, Json>> }
+		delete unread.paths["/notes/{note_id}"]?.["get"]
+		const noRead = await seeded(lagging(unread as unknown as OpenApiDocument), none)
+		expect(noRead.ctx.state.checkNotes).toEqual([
+			{ check: "world.seed", entity: "note", note: unverifiedNote("no item read") },
+		])
+		const read = await seeded(notesApi(notesDoc(), []), none)
+		expect(read.ctx.state.checkNotes).toEqual([])
 	})
 })

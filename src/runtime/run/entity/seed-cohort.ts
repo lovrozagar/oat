@@ -104,11 +104,28 @@ async function worldOf(run: EntityRun, createOp: OperationModel, { cohort, scope
 		return { ...owned(run, cohort, scope), degraded: true, uniqueAdopted: true }
 	}
 	if (cohort.featureGate !== null) return gatedWorld(run, cohort.featureGate.detail)
+	if (cohort.unverified === undefined)
+		return { ...owned(run, cohort, scope), createAcknowledged: cohort.acknowledged === true }
+	/* A note, not a finding: a read that misses a record just made (eventual consistency) stands
+	 * the filter checks down, and the report must say so rather than read as a clean pass. */
+	run.ctx.state.checkNotes.push({
+		check: "world.seed" satisfies RunFindingId,
+		entity: entity.name,
+		note: unverifiedNote(cohort.unverified),
+	})
 	return {
 		...owned(run, cohort, scope),
 		createAcknowledged: cohort.acknowledged === true,
-		...(cohort.unverified === true ? { recordsUnverified: true as const } : {}),
+		recordsUnverified: true,
 	}
+}
+
+/** The note an entity's unverified records leave, naming why they were not read back. */
+export function unverifiedNote(cause: string): string {
+	return (
+		`seeded with the bodies oat sent, unverified (${cause}): ` +
+		"checks that work out stored values from the records stood down"
+	)
 }
 
 /* The cohort's records, and every identity the collection is known to hold. */

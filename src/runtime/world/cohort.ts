@@ -31,8 +31,8 @@ export interface CohortRun {
 	seededMembers: CohortMember[]
 	failedVariants: Array<{ variant: string; exchange: Exchange }>
 	acknowledged: boolean
-	/** A record is the body oat sent, with no read to show what was stored (`readBackCreated`). */
-	unverified: boolean
+	/** Why the first record that is the body oat sent was not read back (`readBackCreated`). */
+	unverified: string | undefined
 	uniqueGap: string | undefined
 	existingIds: string[]
 	lastFail: { member: CohortMember; exchange: Exchange } | undefined
@@ -59,7 +59,7 @@ export async function recordCreated(run: CohortRun, exchange: Exchange, sent: un
 		return null
 	}
 	if (made.acknowledged) run.acknowledged = true
-	if (made.unverified === true) run.unverified = true
+	if (made.unverified !== undefined) run.unverified ??= made.unverified
 	const id = returnedId(made.record, run.identity)
 	if (createOp.entity !== null && id !== undefined) options.onCreate?.(createOp.entity, id, { ...scope.values })
 	return made.record
@@ -111,7 +111,7 @@ export function withGap(run: CohortRun, cohort: SeededCohort): SeededCohort {
 		...(run.uniqueGap === undefined ? {} : { uniqueGap: run.uniqueGap }),
 		...(run.failedVariants.length === 0 ? {} : { failedVariants: run.failedVariants }),
 		...(run.acknowledged ? { acknowledged: run.acknowledged } : {}),
-		...(run.unverified ? { unverified: true } : {}),
+		...(run.unverified === undefined ? {} : { unverified: run.unverified }),
 		...(run.existingIds.length === 0 ? {} : { existingIds: run.existingIds }),
 	}
 }

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { fakeClient, modelOf, op } from "../checks/__fixtures__/harness.ts"
+import { UnsatisfiedSecurity } from "../../client/credential-source.ts"
+import { type Answer, fakeClient, modelOf, op } from "../checks/__fixtures__/harness.ts"
+import { FencedError } from "../fence.ts"
 import { notes } from "./__fixtures__/documents.ts"
 import { answersRecord, expectedFields, readBackCreated } from "./read-back.ts"
 
@@ -47,13 +49,14 @@ describe("expectedFields", () => {
 })
 
 function readBack(input: {
-	read?: { status: number; body?: unknown }
+	read?: { status: number; body?: unknown } | (() => Answer)
 	readable?: boolean
 	document?: object
 	scope?: Record<string, string>
 }) {
 	const model = modelOf(notes(input.document ?? {}))
-	const fake = fakeClient(() => input.read ?? { status: 404 })
+	const { read } = input
+	const fake = fakeClient(() => (typeof read === "function" ? read() : (read ?? { status: 404 })))
 	const result = readBackCreated({
 		client: fake.client,
 		createOp: op(model, "note.create"),
@@ -66,6 +69,9 @@ function readBack(input: {
 	})
 	return { result, sent: fake.sent }
 }
+
+/** The body sent under the id, unverified for `cause`. */
+const unverified = (cause: string) => ({ acknowledged: false, record: { id: "n1", name: "a" }, unverified: cause })
 
 describe("readBackCreated", () => {
 	it("is the record the item read answers under the id, as the creator", async () => {
@@ -82,21 +88,26 @@ describe("readBackCreated", () => {
 	})
 
 	it("is the body sent with the id, unverified, when the read refuses, answers another record or none", async () => {
-		const unverified = { acknowledged: false, record: { id: "n1", name: "a" }, unverified: true }
-		expect(await readBack({ read: { status: 404 } }).result).toEqual(unverified)
-		expect(await readBack({ read: { body: { id: "n2", name: "a" }, status: 200 } }).result).toEqual(unverified)
-		expect(await readBack({ read: { body: [], status: 200 } }).result).toEqual(unverified)
+		expect(await readBack({ read: { status: 404 } }).result).toEqual(unverified("read back answered 404"))
+		expect(await readBack({ read: { body: { id: "n2", name: "a" }, status: 200 } }).result).toEqual(
+			unverified("read back answered 200 with another record"),
+		)
+		expect(await readBack({ read: { body: [], status: 200 } }).result).toEqual(
+			unverified("read back answered 200 without the record"),
+		)
 	})
 
 	it("is unverified, reading nothing, with no item read, one oat may not call, or one it cannot address", async () => {
 		const none = readBack({ document: { read: false } })
-		expect(await none.result).toMatchObject({ unverified: true })
+		expect(await none.result).toMatchObject({ unverified: "no item read" })
 		expect(none.sent).toEqual([])
 		const barred = readBack({ read: { body: { id: "n1" }, status: 200 }, readable: false })
-		expect(await barred.result).toMatchObject({ unverified: true })
+		expect(await barred.result).toMatchObject({ unverified: "no item read" })
 		expect(barred.sent).toEqual([])
 		const unaddressable = readBack({ read: { body: { id: "n1" }, status: 200 }, scope: {} })
-		expect(await unaddressable.result).toMatchObject({ unverified: true })
+		expect(await unaddressable.result).toMatchObject({
+			unverified: "the item read could not be addressed: no value for path parameter {projectId}",
+		})
 		expect(unaddressable.sent).toEqual([])
 	})
 })
@@ -113,6 +124,39 @@ describe("readBackCreated, a body that is not a record", () => {
 			scope,
 			sent: "name=a",
 		})
-		expect(made).toEqual({ acknowledged: false, record: { id: 7 }, unverified: true })
+		expect(made).toEqual({ acknowledged: false, record: { id: 7 }, unverified: "no item read" })
+	})
+})
+
+describe("readBackCreated, a read the creator cannot send", () => {
+	it("is unverified when the creator's credential cannot meet the read's security", async () => {
+		const unmet = readBack({
+			read: () => {
+				throw new UnsatisfiedSecurity("unsatisfied", "no credential for jwt")
+			},
+		})
+		expect(await unmet.result).toEqual({
+			acknowledged: false,
+			record: { id: "n1", name: "a" },
+			unverified: "read back could not be sent: no credential for jwt",
+		})
+	})
+
+	it("is unverified when the fence refuses the read", async () => {
+		const fenced = readBack({
+			read: () => {
+				throw new FencedError({ method: "GET", phase: "seed", reason: "no reads", url: "http://api.test/n1" })
+			},
+		})
+		expect(await fenced.result).toMatchObject({ unverified: expect.stringMatching(/^read back could not be sent: /) })
+	})
+
+	it("lets any other failure, a network error say, end the seed", async () => {
+		const offline = readBack({
+			read: () => {
+				throw new TypeError("fetch failed")
+			},
+		})
+		await expect(offline.result).rejects.toThrow("fetch failed")
 	})
 })

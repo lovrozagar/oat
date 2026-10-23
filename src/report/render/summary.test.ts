@@ -117,3 +117,20 @@ describe("renderConsole's findings and untested checks", () => {
 		])
 	})
 })
+
+describe("renderConsole's seed notes", () => {
+	it("says which entities were seeded with records no read showed stored, and why", () => {
+		const text = renderConsole(
+			reportOf({
+				checkNotes: [
+					{ check: "world.seed", entity: "table", note: "seeded unverified (read back answered 404)" },
+					{ check: "world.seed", entity: "webhook", note: "seeded unverified (no item read)" },
+					{ check: "patch.minimality", entity: "row", note: "PATCH merges" },
+				],
+			}),
+		)
+		expect(text).toContain("  note: table — seeded unverified (read back answered 404)")
+		expect(text).toContain("  note: webhook — seeded unverified (no item read)")
+		expect(text).not.toContain("PATCH merges")
+	})
+})

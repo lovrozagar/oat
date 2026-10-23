@@ -202,7 +202,7 @@ describe("seedCohort with no entity identity", () => {
 			{ cohortSize: 2, create: "pay.start", onUnidentified: (entity) => unidentified.push(entity) },
 		).result
 		/* `{ id }` alone is not the record, and nothing reads it back: what was sent, unverified. */
-		expect(pay).toMatchObject({ records: [{ flag: true, id: "p1", size: 1 }], unverified: true })
+		expect(pay).toMatchObject({ records: [{ flag: true, id: "p1", size: 1 }], unverified: "no item read" })
 		expect(unidentified).toEqual(["pay.start"])
 	})
 
@@ -279,7 +279,10 @@ describe("seeding one record per upload", () => {
 			{ uploads: files },
 		)
 		const seeded = await result
-		expect(seeded).toMatchObject({ records: [{ id: "n1" }, { id: "n2" }], unverified: true })
+		expect(seeded).toMatchObject({
+			records: [{ id: "n1" }, { id: "n2" }],
+			unverified: "read back answered 200 without the record",
+		})
 		expect(sent.filter((request) => request.method === "POST").map((request) => request.options.fixture)).toEqual([
 			"a.pdf",
 			"b.pdf",

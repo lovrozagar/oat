@@ -152,3 +152,11 @@ describe("the JSON report's absent parts", () => {
 		expect(JSON.parse(renderJson(reportOf({ teardown: null }))).teardown).toBeUndefined()
 	})
 })
+
+describe("the JSON report's seed notes", () => {
+	it("keeps what seeding noted among what the run observed", () => {
+		const note = { check: "world.seed", entity: "table", note: "seeded unverified (read back answered 404)" }
+		const report = JSON.parse(renderJson(reportOf({ checkNotes: [note] }))) as { observed: unknown }
+		expect(report.observed).toEqual([note])
+	})
+})

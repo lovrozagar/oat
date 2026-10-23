@@ -48,7 +48,11 @@ describe("createdRecord", () => {
 		})
 		expect(await result).toEqual({ acknowledged: false, record: { id: 9, name: "a" } })
 		const empty = created({ answer: { body: { meta: { ref: 9 } }, status: 201 }, create, sent: { name: "a" } })
-		expect(await empty.result).toEqual({ acknowledged: false, record: { id: 9, name: "a" }, unverified: true })
+		expect(await empty.result).toEqual({
+			acknowledged: false,
+			record: { id: 9, name: "a" },
+			unverified: "read back answered 404",
+		})
 	})
 
 	it("confirms a candidate id by reading under it, as JSON text the probe sent", async () => {
@@ -140,7 +144,11 @@ describe("createdRecord, unconfirmed", () => {
 		expect(await made({ ok: true })).toBeNull()
 		expect(await made({ amount: 1, id: 4 })).toEqual({ acknowledged: false, record: { amount: 1, id: 4 } })
 		/* Nothing to read it back by: what was sent, under the id it names. */
-		expect(await made({ id: 4 })).toEqual({ acknowledged: false, record: { amount: 1, id: 4 }, unverified: true })
+		expect(await made({ id: 4 })).toEqual({
+			acknowledged: false,
+			record: { amount: 1, id: 4 },
+			unverified: "no item read",
+		})
 		expect(await made(null)).toBeNull()
 	})
 })

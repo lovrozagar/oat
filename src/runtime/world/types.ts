@@ -97,9 +97,10 @@ export interface SeededCohort {
 	/**
 	 * A create answered without the record and there was no item read to read it back by: the
 	 * records are the bodies oat sent under the ids the answers gave. Checks that judge stored
-	 * fields against a record stand down.
+	 * fields against a record stand down. It holds why the first such record was not read back:
+	 * `no item read`, `read back answered 404`.
 	 */
-	unverified?: boolean
+	unverified?: string
 	/** Set when extra cohort variants were dropped because unique values could not differ. */
 	uniqueGap?: string
 	/**

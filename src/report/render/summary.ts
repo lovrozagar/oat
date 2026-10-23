@@ -114,6 +114,16 @@ function findingLines(findings: readonly Finding[]): string[] {
 }
 
 /** Console summary — what shows up in CI logs. */
+/*
+ * What seeding noted about an entity's records: ones no read showed stored stand checks down,
+ * and a run that says nothing of it reads as a clean pass.
+ */
+function seedNoteLines(input: ReportInput): string[] {
+	return (input.checkNotes ?? [])
+		.filter((note) => note.check === "world.seed")
+		.map((note) => `  note: ${note.entity} — ${note.note}`)
+}
+
 export function renderConsole(input: ReportInput): string {
 	const { findings } = input
 	const coverage = coverageByCheck(input)
@@ -126,6 +136,7 @@ export function renderConsole(input: ReportInput): string {
 	const knownCount = findings.filter((finding) => finding.known !== undefined).length
 	const fixedCount = input.baseline?.fixed.length ?? 0
 	if (knownCount > 0 || fixedCount > 0) lines.push(`  baseline: ${knownCount} known · ${fixedCount} fixed`)
+	lines.push(...seedNoteLines(input))
 	lines.push("")
 	/* With no findings at all there is no root cause either. */
 	if (findings.length === 0) {

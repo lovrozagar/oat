@@ -10,9 +10,13 @@
  */
 
 import type { Client } from "../../client/client.ts"
+import { UnsatisfiedSecurity } from "../../client/credential-source.ts"
+import { messageOf } from "../../errors/message.ts"
 import type { OperationModel, SpecModel } from "../../spec/graph/types.ts"
 import { itemSchemaOf } from "../checks/payloads/item-schema.ts"
 import type { CreatedId } from "../created-id.ts"
+import type { Exchange } from "../exchange.ts"
+import { FencedError } from "../fence.ts"
 import { fillPath } from "../fill-path.ts"
 import { readRoute } from "./confirm.ts"
 import { idOf, isPlainRecord, type Record_, recordOf } from "./records.ts"
@@ -30,8 +34,11 @@ export interface CreatedRecord {
 	record: Record_
 	/** The answer named no id at all, and the client's own was confirmed by a read. */
 	acknowledged: boolean
-	/** The fields are the body oat sent under the id the answer gave: no read showed them stored. */
-	unverified?: true
+	/**
+	 * The fields are the body oat sent under the id the answer gave, and why no read showed them
+	 * stored: `no item read`, `read back answered 404`.
+	 */
+	unverified?: string
 }
 
 /**
@@ -77,11 +84,11 @@ export async function readBackCreated(input: {
 }): Promise<CreatedRecord> {
 	const { createOp, id, model } = input
 	const identity = (createOp.entity === null ? undefined : model.entities.get(createOp.entity))?.identity ?? "id"
-	const unverified: CreatedRecord = {
+	const unverified = (cause: string): CreatedRecord => ({
 		acknowledged: false,
 		record: { ...(isPlainRecord(input.sent) ? input.sent : {}), [identity]: id.value },
-		unverified: true,
-	}
+		unverified: cause,
+	})
 	const route =
 		createOp.entity === null
 			? null
@@ -90,19 +97,35 @@ export async function readBackCreated(input: {
 					model,
 					...(input.readable === undefined ? {} : { readable: input.readable }),
 				})
-	if (route === null) return unverified
+	if (route === null) return unverified("no item read")
 	let path: string
 	try {
 		path = fillPath(route.readOp.path, { ...input.scope, [route.param]: id.id })
-	} catch {
-		return unverified
+	} catch (error) {
+		return unverified(`the item read could not be addressed: ${messageOf(error)}`)
 	}
-	const read = await input.client.get(path, {
-		as: { principal: input.principal },
-		operationId: route.readOp.operationId,
-	})
-	const record = read.status < 200 || read.status >= 300 ? undefined : recordOf(route.readOp, read.responseBody)
+	const read = await sendable(() =>
+		input.client.get(path, { as: { principal: input.principal }, operationId: route.readOp.operationId }),
+	)
+	if (typeof read === "string") return unverified(`read back could not be sent: ${read}`)
+	if (read.status < 200 || read.status >= 300) return unverified(`read back answered ${read.status}`)
+	const record = recordOf(route.readOp, read.responseBody)
+	if (record === undefined) return unverified(`read back answered ${read.status} without the record`)
 	const readId = idOf(record, identity)
-	if (record === undefined || (readId !== undefined && readId !== id.id)) return unverified
+	if (readId !== undefined && readId !== id.id)
+		return unverified(`read back answered ${read.status} with another record`)
 	return { acknowledged: false, record: readId === undefined ? { ...record, [identity]: id.value } : record }
+}
+
+/*
+ * The read, or why the creator could not send it: a credential that cannot meet its security, or
+ * the fence refusing it. Anything else, a network error among them, ends the seed as it would.
+ */
+async function sendable(send: () => Promise<Exchange>): Promise<Exchange | string> {
+	try {
+		return await send()
+	} catch (error) {
+		if (error instanceof UnsatisfiedSecurity || error instanceof FencedError) return error.message
+		throw error
+	}
 }

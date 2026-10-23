@@ -14,7 +14,7 @@ function cohortRun(respond: Responder, document: NotesOptions = {}, options: Par
 	const events: string[] = []
 	const run: CohortRun = {
 		acknowledged: false,
-		unverified: false,
+		unverified: undefined,
 		createOp: op(model, "note.create"),
 		existingIds: [],
 		failedVariants: [],
