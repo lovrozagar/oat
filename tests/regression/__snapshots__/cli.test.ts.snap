@@ -517,7 +517,7 @@ Flags
 exports[`CLI golden > plan with an overlay naming no operation 1`] = `
 {
   "code": 2,
-  "output": "overlay.operations["nothing.here"] names no operation in the document
+  "output": "overlay.operations "nothing.here" matches no operation.
 ",
 }
 `;

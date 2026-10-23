@@ -1,7 +1,9 @@
 /** Collecting a targeted run's operations: `--ops` patterns and `--only` entities, per origin, under the profile. */
 
 import type { OperationModel, SpecModel } from "../../spec/graph/types.ts"
-import { didYouMean, matchPattern } from "./match.ts"
+import { didYouMean } from "../../errors/suggest.ts"
+import { resolveOperationName } from "../../spec/operation-name.ts"
+import { matchPattern } from "./match.ts"
 import { ScopeError } from "./scope-error.ts"
 import type { ScopeInput } from "./types.ts"
 
@@ -63,7 +65,11 @@ export function targetPattern(t: Targeting, pattern: string): void {
 		return
 	}
 	/* A prefix that names no configured origin, on an id the primary does not have. */
-	if (originId !== undefined && !t.model.byOperationId.has(pattern) && input.origins !== undefined) {
+	if (
+		originId !== undefined &&
+		resolveOperationName(pattern, t.model.byOperationId) === undefined &&
+		input.origins !== undefined
+	) {
 		const known = [...input.origins.keys()]
 		throw new ScopeError(
 			`oat: --ops "${pattern}" names origin "${originId}", which is not configured.` +

@@ -62,22 +62,44 @@ describe("applyOverlay", () => {
 		const renamed = applyOverlay(source(), { operations: { "notes.list": { operationId: "notes.all" } } })
 		expect(opAt(renamed, "/notes", "get")["operationId"]).toBe("notes.all")
 		expect(() => applyOverlay(source(), { operations: { "notes.list": { operationId: "other.put" } } })).toThrow(
-			new UsageError('overlay.operations["notes.list"] renames it to "other.put", which another operation has'),
+			new UsageError('overlay.operations "notes.list" renames it to "other.put", which another operation has'),
 		)
+		const named = applyOverlay(source(), { operations: { "POST /notes": { operationId: "notes.create" } } })
+		expect(opAt(named, "/notes", "post")["operationId"]).toBe("notes.create")
 	})
 
-	it("refuses a patch that names nothing", () => {
-		expect(() => applyOverlay(source(), { operations: { "POST /notes": {} } })).toThrow(
-			'overlay.operations["POST /notes"] names no operation in the document',
+	it("applies an empty overlay to a document without paths", () => {
+		expect(applyOverlay({ openapi: "3.1.0" }, {})).toEqual({ openapi: "3.1.0" })
+	})
+})
+
+describe("applyOverlay by operation name", () => {
+	it("patches an operation without an operationId by METHOD /path, the method in any case", () => {
+		const out = applyOverlay(source(), { operations: { "post /notes": { "x-entity": "note" } } })
+		expect(opAt(out, "/notes", "post")).toEqual({ summary: "unnamed", "x-entity": "note" })
+		expect(opAt(out, "/notes", "get")["x-entity"]).toBeUndefined()
+	})
+
+	it("refuses two patches that name one operation", () => {
+		expect(() =>
+			applyOverlay(source(), { operations: { "POST /notes": { tags: ["a"] }, "post /notes": { tags: ["b"] } } }),
+		).toThrow(new UsageError('overlay.operations "POST /notes" and "post /notes" name the same operation'))
+	})
+
+	it("refuses a patch that names nothing, as an unknown ops entry is refused", () => {
+		expect(() => applyOverlay(source(), { operations: { "notes.lsit": {} } })).toThrow(
+			new UsageError('overlay.operations "notes.lsit" matches no operation. Did you mean: notes.list?'),
+		)
+		expect(() => applyOverlay(source(), { operations: { "GET /notes": {} } })).toThrow(
+			new UsageError('overlay.operations "GET /notes" matches no operation. Did you mean: POST /notes?'),
+		)
+		expect(() => applyOverlay(source(), { operations: { "PATCH /zzzzzzzzzzzz": {} } })).toThrow(
+			new UsageError('overlay.operations "PATCH /zzzzzzzzzzzz" matches no operation.'),
 		)
 		expect(() => applyOverlay(source(), { schemas: { Missing: {} } })).toThrow(
 			'overlay.schemas["Missing"] names no schema under components.schemas',
 		)
 		expect(() => applyOverlay(doc({}), { schemas: { Note: {} } })).toThrow("names no schema")
-	})
-
-	it("applies an empty overlay to a document without paths", () => {
-		expect(applyOverlay({ openapi: "3.1.0" }, {})).toEqual({ openapi: "3.1.0" })
 	})
 })
 

@@ -23,3 +23,9 @@ export function nearest(name: string, candidates: Iterable<string>): string[] {
 		.slice(0, 3)
 		.map((item) => item.candidate)
 }
+
+/** The sentence an error appends to suggest the nearest of `candidates`, or nothing when none is close. */
+export function didYouMean(name: string, candidates: Iterable<string>): string {
+	const close = nearest(name, candidates)
+	return close.length === 0 ? "" : ` Did you mean: ${close.join(", ")}?`
+}

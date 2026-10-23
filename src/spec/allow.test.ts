@@ -40,6 +40,12 @@ describe("pruneToAllow", () => {
 		expect(doc.paths?.["/tags"]).toBeDefined()
 	})
 
+	it("reads METHOD /path in any case of the method, and returns the names it kept", () => {
+		const { kept, removed } = pruneToAllow(doc, ["note.list", "delete /notes/{id}"])
+		expect(removed).toEqual(["note.create", "note.read", "tag.list"])
+		expect([...kept].sort()).toEqual(["DELETE /notes/{id}", "note.list"])
+	})
+
 	it("refuses an allowlist naming an operation the document does not have", () => {
 		expect(() => pruneToAllow(doc, ["note.list", "nope", "GET /x"])).toThrow(
 			new UsageError('allow names "nope", "GET /x", which the document does not have'),
@@ -47,7 +53,7 @@ describe("pruneToAllow", () => {
 	})
 
 	it("reads a document without paths as having no operations", () => {
-		expect(pruneToAllow({ openapi: "3.1.0" }, [])).toEqual({ doc: { openapi: "3.1.0" }, removed: [] })
+		expect(pruneToAllow({ openapi: "3.1.0" }, [])).toEqual({ doc: { openapi: "3.1.0" }, kept: new Set(), removed: [] })
 	})
 })
 

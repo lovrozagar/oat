@@ -1,6 +1,7 @@
 /** The operations a document declares, each with its method, path and the parameters it inherits. */
 
 import { PATH_ITEM_METHODS } from "./methods.ts"
+import { operationName } from "./operation-name.ts"
 import type { Endpoint, OpenApiDocument, OperationObject, ParameterObject } from "./types.ts"
 
 export function listEndpoints(doc: OpenApiDocument): Endpoint[] {
@@ -14,7 +15,7 @@ export function listEndpoints(doc: OpenApiDocument): Endpoint[] {
 			out.push({
 				method,
 				op: operation,
-				operationId: operation.operationId ?? `${method.toUpperCase()} ${path}`,
+				operationId: operationName(method, path, operation.operationId),
 				path,
 			})
 		}

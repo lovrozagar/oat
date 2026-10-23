@@ -1490,6 +1490,7 @@
 	"src/spec/load/version.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/load/walk.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/methods.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/spec/operation-name.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/overlay.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/prepare.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/query/catalog-layers.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },

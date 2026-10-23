@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
+import { buildModel } from "../../spec/graph/build.ts"
+import type { OpenApiDocument } from "../../spec/types.ts"
 import { referenceModel } from "./__fixtures__/models.ts"
-import { didYouMean, matchPattern } from "./match.ts"
+import { matchPattern } from "./match.ts"
 import { ScopeError } from "./scope-error.ts"
 
 const model = referenceModel()
@@ -8,6 +10,16 @@ const model = referenceModel()
 describe("matchPattern", () => {
 	it("matches an exact operationId outright", () => {
 		expect(matchPattern("table.get", model, "table.get")).toEqual({ exact: true, ids: ["table.get"] })
+	})
+
+	it("matches METHOD /path for an operation without an operationId, the method in any case", () => {
+		const unnamed = buildModel({
+			info: { title: "t", version: "1" },
+			openapi: "3.1.0",
+			paths: { "/v1/pay": { post: { responses: { "200": { description: "ok" } } } } },
+		} as unknown as OpenApiDocument)
+		expect(matchPattern("post /v1/pay", unnamed, "post /v1/pay")).toEqual({ exact: true, ids: ["POST /v1/pay"] })
+		expect(() => matchPattern("post /v1/pay/", unnamed, "post /v1/pay/")).toThrow(ScopeError)
 	})
 
 	it("expands a glob within an operationId, escaping everything else", () => {
@@ -28,12 +40,5 @@ describe("matchPattern", () => {
 		)
 		expect(() => matchPattern("zzzzzz", model, "zzzzzz")).toThrow('oat: --ops "zzzzzz" matches no operation.')
 		expect(() => matchPattern("nothing.*", model, "nothing.*")).toThrow('oat: --ops "nothing.*" matches no operation.')
-	})
-})
-
-describe("didYouMean", () => {
-	it("is empty when nothing is close", () => {
-		expect(didYouMean("zzzzzz", ["table"])).toBe("")
-		expect(didYouMean("tabel", ["table"])).toBe(" Did you mean: table?")
 	})
 })

@@ -1,20 +1,22 @@
 /**
  * Patches to a document the tester cannot change, applied from config before anything reads it.
  *
- * An operation is addressed by its `operationId`, a schema by its name under
+ * An operation is addressed as `ops` and `allow` address one: by its `operationId`, or as
+ * `METHOD /path` when the document gives it none. A schema is addressed by its name under
  * `components.schemas`. Objects merge, arrays replace, and `null` deletes the key, so a patch can
  * add a tag, fix a constraint or restate a parameter list without copying the rest. A patch that
- * names nothing is a mistake in the config, and stops the run before it starts.
+ * names nothing is a mistake in the config, and stops the run before it starts; so are two patches
+ * that name one operation (`GET /a` and `get /a`), since neither order is the obvious one.
  *
  * Security is the exception to naming: `securitySchemes` may add a scheme the document never
  * declared, since declaring one is its purpose, and `security` replaces the root requirement.
  */
 
+import { didYouMean } from "../errors/suggest.ts"
 import { UsageError } from "../errors/usage-error.ts"
 import type { SpecOverlay } from "../config/types/config.ts"
-import { PATH_ITEM_METHODS as METHODS } from "./methods.ts"
-import type { OpenApiDocument, OperationObject } from "./types.ts"
-import { isRaw } from "../config/types/raw.ts"
+import { type OperationSlot, operationSlots, resolveOperationName } from "./operation-name.ts"
+import type { OpenApiDocument } from "./types.ts"
 
 export type { SpecOverlay } from "../config/types/config.ts"
 
@@ -39,43 +41,32 @@ export function applyOverlay(doc: OpenApiDocument, overlay: SpecOverlay): OpenAp
 		out.components = { ...out.components, securitySchemes: securitySchemes as Record<string, unknown> }
 	}
 	if (overlay.security !== undefined) out.security = structuredClone(overlay.security)
-	patchOperations(operationsById(out), overlay.operations ?? {})
+	patchOperations(operationSlots((out.paths ?? {}) as Record<string, unknown>), overlay.operations ?? {})
 	patchSchemas((out.components?.schemas ?? {}) as Record<string, unknown>, overlay.schemas ?? {})
 	return out
 }
 
-interface OperationSlot {
-	item: Record<string, unknown>
-	method: string
-}
-
-/** Where each operation with an `operationId` sits: its path item and method. */
-function operationsById(doc: OpenApiDocument): Map<string, OperationSlot> {
-	const byId = new Map<string, OperationSlot>()
-	for (const item of Object.values(doc.paths ?? {})) {
-		if (!isRecord(item)) continue
-		for (const method of METHODS) {
-			const op = item[method]
-			if (isRaw<OperationObject>(op) && typeof op.operationId === "string") byId.set(op.operationId, { item, method })
-		}
-	}
-	return byId
-}
-
+/** Each patch merged into the operation its key names, as the document named it before any patch. */
 function patchOperations(
-	byId: ReadonlyMap<string, OperationSlot>,
+	slots: ReadonlyMap<string, OperationSlot>,
 	patches: Record<string, Record<string, unknown>>,
 ): void {
-	for (const [operationId, patch] of Object.entries(patches)) {
-		const at = byId.get(operationId)
-		if (at === undefined)
-			throw new UsageError(`overlay.operations["${operationId}"] names no operation in the document`)
-		const renamed = patch["operationId"]
-		if (typeof renamed === "string" && renamed !== operationId && byId.has(renamed)) {
-			throw new UsageError(
-				`overlay.operations["${operationId}"] renames it to "${renamed}", which another operation has`,
-			)
+	const keyOf = new Map<string, string>()
+	for (const [key, patch] of Object.entries(patches)) {
+		const name = resolveOperationName(key, slots)
+		if (name === undefined) {
+			throw new UsageError(`overlay.operations "${key}" matches no operation.${didYouMean(key, slots.keys())}`)
 		}
+		const earlier = keyOf.get(name)
+		if (earlier !== undefined) {
+			throw new UsageError(`overlay.operations "${earlier}" and "${key}" name the same operation`)
+		}
+		keyOf.set(name, key)
+		const renamed = patch["operationId"]
+		if (typeof renamed === "string" && renamed !== name && slots.has(renamed)) {
+			throw new UsageError(`overlay.operations "${key}" renames it to "${renamed}", which another operation has`)
+		}
+		const at = slots.get(name) as OperationSlot
 		at.item[at.method] = merge(at.item[at.method], patch)
 	}
 }

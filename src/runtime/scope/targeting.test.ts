@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
+import { buildModel } from "../../spec/graph/build.ts"
 import type { SpecModel } from "../../spec/graph/types.ts"
+import type { OpenApiDocument } from "../../spec/types.ts"
 import { referenceModel } from "./__fixtures__/models.ts"
 import { type Targeting, targetEntity, targetPattern } from "./targeting.ts"
 import type { ScopeInput } from "./types.ts"
@@ -43,6 +45,17 @@ describe("targetPattern", () => {
 		)
 		/* Without origins, a prefixed id is just an id the primary may not have. */
 		expect(() => targetPattern(targeting(), "api:row.get")).toThrow('oat: --ops "api:row.get" matches no operation.')
+	})
+
+	it("reads a colon in an unnamed operation's path as the path, whatever the method's case", () => {
+		const unnamed = buildModel({
+			info: { title: "t", version: "1" },
+			openapi: "3.1.0",
+			paths: { "/jobs/{id}:cancel": { post: { responses: { "200": { description: "ok" } } } } },
+		} as unknown as OpenApiDocument)
+		const t = targeting({ origins: new Map([["cdn", model]]) }, unnamed)
+		targetPattern(t, "post /jobs/{id}:cancel")
+		expect([...t.targets]).toEqual(["POST /jobs/{id}:cancel"])
 	})
 
 	it("refuses an exact target the profile excludes, and drops glob matches it excludes", () => {

@@ -12,39 +12,40 @@ import type { PrincipalEntry, Recipe } from "../config/types/security.ts"
 import type { Scenario } from "../config/types/steps.ts"
 import { UsageError } from "../errors/usage-error.ts"
 import { PATH_ITEM_METHODS as METHODS } from "./methods.ts"
-import type { OpenApiDocument, OperationObject } from "./types.ts"
-import { isRaw } from "../config/types/raw.ts"
+import { operationSlots, resolveOperationName } from "./operation-name.ts"
+import type { OpenApiDocument } from "./types.ts"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value)
 
+/** The document without the operations `allow` leaves out, what it removed, and the names it kept. */
 export function pruneToAllow(
 	doc: OpenApiDocument,
 	allow: readonly string[],
-): { doc: OpenApiDocument; removed: string[] } {
-	const kept = new Set(allow)
+): { doc: OpenApiDocument; removed: string[]; kept: ReadonlySet<string> } {
 	const out = structuredClone(doc)
 	const paths = (out.paths ?? {}) as Record<string, unknown>
-	const seen = new Set<string>()
-	const removed: string[] = []
-	for (const [route, item] of Object.entries(paths)) {
-		if (!isRecord(item)) continue
-		for (const method of METHODS) {
-			const op = item[method]
-			if (!isRaw<OperationObject>(op)) continue
-			const id = typeof op.operationId === "string" ? op.operationId : `${method.toUpperCase()} ${route}`
-			seen.add(id)
-			if (kept.has(id)) continue
-			removed.push(id)
-			delete item[method]
-		}
-		if (!METHODS.some((method) => isRecord(item[method]))) delete paths[route]
+	const slots = operationSlots(paths)
+	const kept = new Set<string>()
+	const unknown: string[] = []
+	for (const ref of allow) {
+		const name = resolveOperationName(ref, slots)
+		if (name === undefined) unknown.push(ref)
+		else kept.add(name)
 	}
-	const unknown = allow.filter((id) => !seen.has(id))
 	if (unknown.length > 0) {
 		throw new UsageError(`allow names ${unknown.map((id) => `"${id}"`).join(", ")}, which the document does not have`)
 	}
-	return { doc: out, removed: removed.sort() }
+	const removed: string[] = []
+	for (const [name, { item, method }] of slots) {
+		if (kept.has(name)) continue
+		removed.push(name)
+		delete item[method]
+	}
+	for (const [route, item] of Object.entries(paths)) {
+		if (isRecord(item) && !METHODS.some((method) => isRecord(item[method]))) delete paths[route]
+	}
+	return { doc: out, kept, removed: removed.sort() }
 }
 
 /** The operations `steps` call on the document itself that the allowlist removed. */

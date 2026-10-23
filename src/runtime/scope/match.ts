@@ -1,17 +1,13 @@
-/** Matching `--ops` patterns to operationIds, with a suggestion when one matches nothing. */
+/** Matching `--ops` patterns to operation names, with a suggestion when one matches nothing. */
 
-import { nearest } from "../../errors/suggest.ts"
+import { didYouMean } from "../../errors/suggest.ts"
 import type { SpecModel } from "../../spec/graph/types.ts"
+import { resolveOperationName } from "../../spec/operation-name.ts"
 import { ScopeError } from "./scope-error.ts"
 
 function globToRegExp(pattern: string): RegExp {
 	const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")
 	return new RegExp(`^${escaped}$`)
-}
-
-export function didYouMean(name: string, candidates: Iterable<string>): string {
-	const close = nearest(name, candidates)
-	return close.length === 0 ? "" : ` Did you mean: ${close.join(", ")}?`
 }
 
 export interface Matched {
@@ -22,7 +18,8 @@ export interface Matched {
 
 export function matchPattern(pattern: string, model: SpecModel, label: string): Matched {
 	if (!pattern.includes("*")) {
-		if (model.byOperationId.has(pattern)) return { exact: true, ids: [pattern] }
+		const id = resolveOperationName(pattern, model.byOperationId)
+		if (id !== undefined) return { exact: true, ids: [id] }
 		throw new ScopeError(
 			`oat: --ops "${label}" matches no operation.${didYouMean(pattern, model.byOperationId.keys())}`,
 		)
