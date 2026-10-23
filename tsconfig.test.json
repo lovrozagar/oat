@@ -13,6 +13,6 @@
 		"declarationMap": false,
 		"sourceMap": false
 	},
-	"include": ["src/**/*.ts", "tests/**/*.ts", "lint/**/*.ts", "labs/**/*.ts"],
+	"include": ["src/**/*.ts", "tests/**/*.ts", "lint/**/*.ts", "labs/**/*.ts", "scripts/**/*.ts"],
 	"exclude": ["dist", "node_modules"]
 }

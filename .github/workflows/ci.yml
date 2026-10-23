@@ -51,8 +51,8 @@ jobs:
       - run: bun run lint
       - run: bun run check
 
-  # Three jobs side by side; they share only the checkout and the install. Timeouts are about 1.5
-  # times what each took on d58aae1: build + unit 2m23s, conformance 36m06s, precision 47s.
+  # Jobs side by side; they share only the checkout and the install. Timeouts are about 1.5 times
+  # what each took on d58aae1: build + unit 2m23s, precision 47s. Conformance is sharded below.
   unit:
     name: unit
     runs-on: ubuntu-latest
@@ -119,12 +119,59 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run build && bun run test:integration
 
-  test:
-    name: conformance
+  # The self-test as shards (src/conformance/shards.ts), each its own job with a timeout of about twice
+  # its time, so no single job runs for an hour. Each writes the checks its defects proved; the
+  # `conformance` job judges their union, the same verdict one full run gives. The matrix is the
+  # script's own list, so a shard added there runs here without an edit.
+  conformance-plan:
+    name: conformance plan
     runs-on: ubuntu-latest
-    timeout-minutes: 55
-    # The Postgres leg is part of the self-test, not an extra: without it the SQL-only defects and
-    # every engine difference go untested, and the suite fails rather than skip it silently.
+    timeout-minutes: 5
+    outputs:
+      shards: ${{ steps.list.outputs.shards }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - id: list
+        run: echo "shards=$(bun scripts/conformance-sharded.ts --list)" >> "$GITHUB_OUTPUT"
+
+  conformance-shard:
+    name: conformance · ${{ matrix.shard.name }}
+    needs: conformance-plan
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ matrix.shard.timeout }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.conformance-plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      # A fresh seed per run, printed in the output, so the combination pass explores new ground
+      # and any failure it finds replays exactly.
+      - name: Conformance
+        run: bun scripts/conformance-sharded.ts --leg "${{ matrix.shard.name }}" --out proven -- --fuzz-seed ${{ github.run_id }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: proven-${{ matrix.shard.name }}
+          path: proven/
+
+  # The Postgres pass, the one shard that needs a server: without it the SQL-only defects and every
+  # engine difference go untested, and the suite fails rather than skip it silently.
+  conformance-postgres:
+    name: conformance · postgres-postgrest
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
     services:
       postgres:
         image: mirror.gcr.io/library/postgres:17 # the official image; Docker Hub and ECR Public run out of anonymous quota
@@ -154,10 +201,41 @@ jobs:
           node-version: "22"
       - run: bun install --frozen-lockfile
       - run: bun run build
-      # A fresh seed per run, printed in the output, so the combination pass explores new ground
-      # and any failure it finds replays exactly.
       - name: Conformance
-        run: node dist/cli.js conformance --fuzz-seed ${{ github.run_id }}
+        run: bun scripts/conformance-sharded.ts --leg postgres-postgrest --out proven
+      - uses: actions/upload-artifact@v4
+        with:
+          name: proven-postgres-postgrest
+          path: proven/
+
+  # Runs even when a shard failed or was cancelled, and fails then: a skipped job counts as a passed
+  # check, so without this a red shard would leave the conformance check green.
+  test:
+    name: conformance
+    needs: [conformance-plan, conformance-shard, conformance-postgres]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every shard ran and passed
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: echo "a conformance shard failed or was cancelled" && exit 1
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: proven-*
+          merge-multiple: true
+          path: proven
+      - name: Every check proved by some shard
+        run: node dist/cli.js conformance --aggregate proven
 
   precision:
     name: precision

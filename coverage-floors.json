@@ -126,6 +126,7 @@
 	"src/conformance/seed-contract/users.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/conformance/serve-tasks.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/conformance/shapes.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/conformance/shards.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/conformance/specs.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/conformance/specs/documents.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/conformance/specs/models.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },

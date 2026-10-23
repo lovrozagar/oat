@@ -6,6 +6,8 @@
  * check no leg proved — the same verdict a single full run gives. Prints each leg's time.
  *
  *   bun run conformance:sharded [--jobs n] [--skip-backend sqlite,postgres] [--out dir]
+ *   bun scripts/conformance-sharded.ts --list            the shards as JSON, for a CI matrix
+ *   bun scripts/conformance-sharded.ts --leg <name> --out dir [-- flags]   one shard, as a CI job
  *
  * Engines that do not answer are left out only when named in --skip-backend, as for a full run.
  */
@@ -14,73 +16,75 @@ import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { parseArgs } from "node:util"
-import { SHAPE_NAMES } from "../src/conformance/shapes.ts"
-import { postgresAvailable, sqliteAvailable } from "../src/conformance/matrix/engines.ts"
+import { postgresStatus, sqliteAvailable } from "../src/conformance/matrix/engines.ts"
+import { conformanceShards, type Shard } from "../src/conformance/shards.ts"
 
-const { values } = parseArgs({
-	options: { jobs: { type: "string" }, out: { type: "string" }, "skip-backend": { type: "string" } },
+const { values, positionals } = parseArgs({
+	allowPositionals: true,
+	options: {
+		jobs: { type: "string" },
+		leg: { type: "string" },
+		list: { type: "boolean" },
+		out: { type: "string" },
+		"skip-backend": { type: "string" },
+	},
 })
 const out = resolve(values.out ?? mkdtempSync(join(tmpdir(), "oat-conformance-")))
 const skip = new Set((values["skip-backend"] ?? "").split(",").filter(Boolean))
 const jobs = values.jobs === undefined ? [] : ["--jobs", values.jobs]
 const cli = resolve(import.meta.dirname, "..", "dist", "cli.js")
 
-/** One leg: its name, and the conformance flags that run it. */
-type Leg = [name: string, flags: string[]]
-
-/** Shapes per recall leg: every defect again behind each, about a minute a shape on three workers. */
-const SHAPES_PER_LEG = 5
-
-/** The shapes and recall behind them, a few shapes per leg. */
-function recallGroups(): Leg[] {
-	return Array.from({ length: Math.ceil(SHAPE_NAMES.length / SHAPES_PER_LEG) }, (_, index): Leg => [
-		`shapes-recall-${index + 1}`,
-		[
-			"--legs",
-			"shapes,recall",
-			"--shapes",
-			SHAPE_NAMES.slice(index * SHAPES_PER_LEG, (index + 1) * SHAPES_PER_LEG).join(","),
-		],
-	])
-}
-
-async function legs(): Promise<Leg[] | string> {
-	const engines: Leg[] = []
-	for (const [backend, available] of [
-		["sqlite", await sqliteAvailable()],
-		["postgres", await postgresAvailable()],
-	] as const) {
-		if (available) engines.push([`${backend}-postgrest`, ["--backend", backend, "--legs", "passes"]])
-		else if (!skip.has(backend)) return `${backend} is not reachable: start it, or pass --skip-backend ${backend}`
-	}
-	return [
-		["suites", ["--legs", "suites"]],
-		["memory-postgrest", ["--backend", "memory", "--dialect", "postgrest", "--legs", "passes,scope"]],
-		...engines,
-		...["classic", "linked", "jsonapi", "plain", "template"].map((dialect): Leg => [
-			`memory-${dialect}`,
-			["--backend", "memory", "--dialect", dialect, "--legs", "passes"],
-		]),
-		...recallGroups(),
-		["combinations", ["--legs", "fuzz"]],
-	]
-}
-
 function conformance(flags: readonly string[]): number {
 	return spawnSync("node", [cli, "conformance", ...flags], { stdio: "inherit" }).status ?? 1
 }
 
-const planned = await legs()
+/* One shard, writing the checks it proved where the aggregate reads them. */
+function runShard(shard: Shard, extra: readonly string[]): number {
+	return conformance([...shard.flags, ...jobs, ...extra, "--proven-out", join(out, `${shard.name}.json`)])
+}
+
+/* The shards this machine can run: an engine that does not answer stops the run unless it is skipped. */
+async function runnable(): Promise<Shard[] | string> {
+	const available = { postgres: (await postgresStatus()) === "ready", sqlite: await sqliteAvailable() }
+	const shards: Shard[] = []
+	for (const shard of conformanceShards()) {
+		const backend = shard.flags[shard.flags.indexOf("--backend") + 1]
+		const engine = backend === "sqlite" || backend === "postgres" ? backend : undefined
+		if (engine === undefined || available[engine]) shards.push(shard)
+		else if (!skip.has(engine)) return `${engine} is not reachable: start it, or pass --skip-backend ${engine}`
+	}
+	return shards
+}
+
+/* The shards CI runs as a matrix: those with nothing to start. One that needs a server is a job of its own. */
+if (values.list === true) {
+	const matrix = conformanceShards()
+		.filter((shard) => shard.needs === undefined)
+		.map(({ name, minutes }) => ({ name, timeout: minutes * 2 }))
+	process.stdout.write(`${JSON.stringify(matrix)}\n`)
+	process.exit(0)
+}
+
+if (values.leg !== undefined) {
+	const shard = conformanceShards().find((candidate) => candidate.name === values.leg)
+	if (shard === undefined) {
+		console.error(`oat: no conformance shard named ${values.leg}`)
+		process.exit(2)
+	}
+	process.exit(runShard(shard, positionals))
+}
+
+const planned = await runnable()
 if (typeof planned === "string") {
 	console.error(`oat: ${planned}`)
 	process.exit(2)
 }
 const timings: Array<{ name: string; code: number; seconds: number }> = []
-for (const [name, flags] of planned) {
-	process.stdout.write(`\n══ ${name} ${"═".repeat(60 - name.length)}\n`)
+for (const shard of planned) {
+	process.stdout.write(`\n══ ${shard.name} ${"═".repeat(60 - shard.name.length)}\n`)
 	const began = performance.now()
-	const code = conformance([...flags, ...jobs, "--proven-out", join(out, `${name}.json`)])
-	timings.push({ code, name, seconds: Math.round((performance.now() - began) / 100) / 10 })
+	const code = runShard(shard, [])
+	timings.push({ code, name: shard.name, seconds: Math.round((performance.now() - began) / 100) / 10 })
 }
 process.stdout.write(`\n══ aggregate ${"═".repeat(51)}\n`)
 const judged = conformance(["--aggregate", out])
