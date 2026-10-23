@@ -1,7 +1,7 @@
 import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { Exchange } from "../../../exchange.ts"
-import { ASSERTED, type Outcome } from "../../../finding.ts"
+import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { ready } from "../../core/plan.ts"
 import { graded, ownOps } from "../../planning/subjects.ts"
@@ -44,6 +44,8 @@ export const problemJsonShape: Check = defineCheck({
 			lines.push(`${operationId} answered ${exchange.status} with ${flaws.join(", ")}`)
 			if (evidence.length < 6) evidence.push(exchange)
 		}
+		/* Nothing served as a problem detail is nothing to judge, not a pass: the report says so. */
+		if (judged.size === 0) return standDown("an answer this entity drew served as application/problem+json")
 		ctx.judged?.([...judged])
 		if (lines.length === 0) return ASSERTED
 		return ctx.findings.attributed([...flawed]).backend(this.id, ctx.entityName, {

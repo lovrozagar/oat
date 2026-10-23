@@ -6,9 +6,19 @@ function finding(check: string, verdict: Verdict = "BACKEND_BUG"): Finding {
 	return { check, detail: `${check} detail`, entity: "widget", evidence: [], summary: `${check} broke`, verdict }
 }
 
-function reported(findings: Finding[], inconclusive: Reported["inconclusive"] = []): Reported {
-	return { findings, inconclusive }
+function reported(
+	findings: Finding[],
+	inconclusive: Reported["inconclusive"] = [],
+	more: Partial<Reported> = {},
+): Reported {
+	return { findings, inconclusive, ...more }
 }
+
+/** A scope whose one operation passed `passed`. */
+const passing = (passed: string[]) =>
+	({
+		operations: [{ checks: { failed: [], gaps: [], inconclusive: [], passed, suppressed: [] } }],
+	}) as unknown as NonNullable<Reported["scope"]>
 
 describe("ancestorsOf", () => {
 	it("follows dependsOn transitively, each check once", () => {
@@ -43,6 +53,23 @@ describe("diagnose", () => {
 		const diagnosis = diagnose(["ORDER_IGNORED"], reported([], inconclusive))
 		expect(diagnosis.unresolved).toEqual([{ defect: "ORDER_IGNORED", reason: "one row" }])
 		expect(diagnosis.ok).toBe(true)
+	})
+
+	it("counts a check that stood down everywhere it ran, and said why, as unresolved", () => {
+		const checksSkipped = [
+			{ check: "schema.problem-json-shape", entity: "widget", needs: "a problem+json answer" },
+			{ check: "schema.problem-json-shape", entity: "gadget", needs: "a problem+json answer" },
+		]
+		const diagnosis = diagnose(["PROBLEM_JSON_MALFORMED"], reported([], [], { checksSkipped, scope: passing([]) }))
+		expect(diagnosis.unresolved).toEqual([{ defect: "PROBLEM_JSON_MALFORMED", reason: "a problem+json answer" }])
+		expect(diagnosis.ok).toBe(true)
+	})
+
+	it("misses a defect whose check passed somewhere, though it stood down elsewhere", () => {
+		const checksSkipped = [{ check: "schema.problem-json-shape", entity: "gadget", needs: "a problem+json answer" }]
+		const scope = passing(["schema.problem-json-shape"])
+		const diagnosis = diagnose(["PROBLEM_JSON_MALFORMED"], reported([], [], { checksSkipped, scope }))
+		expect(diagnosis.missed).toEqual([{ defect: "PROBLEM_JSON_MALFORMED", primary: "schema.problem-json-shape" }])
 	})
 
 	it("fails a defect nothing reported, and a finding no defect justifies", () => {

@@ -15,6 +15,30 @@
         "was": "clean"
       }
     },
+    "checksSkipped": {
+      "added": [
+        {
+          "check": "schema.problem-json-shape",
+          "entity": "job",
+          "needs": "an answer this entity drew served as application/problem+json"
+        },
+        {
+          "check": "schema.problem-json-shape",
+          "entity": "row",
+          "needs": "an answer this entity drew served as application/problem+json"
+        },
+        {
+          "check": "schema.problem-json-shape",
+          "entity": "table",
+          "needs": "an answer this entity drew served as application/problem+json"
+        },
+        {
+          "check": "schema.problem-json-shape",
+          "entity": "webhook",
+          "needs": "an answer this entity drew served as application/problem+json"
+        }
+      ]
+    },
     "scope": {
       "operations": {
         "added": [
@@ -625,6 +649,24 @@
       "BACKEND_BUG": {
         "now": 4,
         "was": null
+      }
+    },
+    "coverage": {
+      "partial": {
+        "added": [
+          {
+            "check": "schema.problem-json-shape",
+            "ran": 2,
+            "skipped": 5
+          }
+        ],
+        "removed": [
+          {
+            "check": "schema.problem-json-shape",
+            "ran": 6,
+            "skipped": 1
+          }
+        ]
       }
     }
   }

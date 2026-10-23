@@ -68,7 +68,10 @@ describe("schema.problem-json-shape", () => {
 		])
 		/* An operation this run does not grade is not judged. */
 		ctx.inScope = (op) => op.operationId !== "deleteWidget"
-		expect(await runCheck(problemJsonShape, ctx)).toEqual({ kind: "asserted" })
+		expect(await runCheck(problemJsonShape, ctx)).toEqual({
+			kind: "stood-down",
+			reason: "an answer this entity drew served as application/problem+json",
+		})
 		expect(judged).toEqual([])
 	})
 

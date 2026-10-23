@@ -31,6 +31,11 @@
     "checksSkipped": {
       "added": [
         {
+          "check": "schema.problem-json-shape",
+          "entity": "table",
+          "needs": "an answer this entity drew served as application/problem+json"
+        },
+        {
           "check": "search.tokens-and",
           "entity": "job",
           "needs": "two discriminating search tokens in the cohort"
@@ -1409,6 +1414,11 @@
             "skipped": 2
           },
           {
+            "check": "schema.problem-json-shape",
+            "ran": 5,
+            "skipped": 2
+          },
+          {
             "check": "search.tokens-and",
             "ran": 3,
             "skipped": 4
@@ -1554,6 +1564,11 @@
             "check": "query.search-and-filter-compose",
             "ran": 5,
             "skipped": 2
+          },
+          {
+            "check": "schema.problem-json-shape",
+            "ran": 6,
+            "skipped": 1
           },
           {
             "check": "search.tokens-and",

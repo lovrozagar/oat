@@ -95,7 +95,11 @@ describe("registering the precondition checks", () => {
 			})
 			outcomes.push(`${judge.id}: ${outcome.kind}`)
 		}
-		expect(outcomes).toEqual(judges.map((judge) => `${judge.id}: asserted`))
+		/* No answer here is a problem detail, so that judge has nothing to judge and stands down. */
+		expect(outcomes).toEqual([
+			...moved.map((judge) => `${judge.id}: asserted`),
+			"schema.problem-json-shape: stood-down",
+		])
 		expect(drawn).toEqual([])
 	})
 })

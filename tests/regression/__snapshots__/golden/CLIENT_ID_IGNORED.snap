@@ -403,6 +403,11 @@
           "needs": "a record this run created that table.update can be sent to"
         },
         {
+          "check": "schema.problem-json-shape",
+          "entity": "table",
+          "needs": "an answer this entity drew served as application/problem+json"
+        },
+        {
           "check": "search.case-insensitive",
           "entity": "table",
           "needs": "a searchable string with a letter"
@@ -2549,6 +2554,11 @@
             "skipped": 4
           },
           {
+            "check": "schema.problem-json-shape",
+            "ran": 4,
+            "skipped": 2
+          },
+          {
             "check": "schema.success-response-matches-document",
             "ran": 5,
             "skipped": 1
@@ -3129,6 +3139,11 @@
             "check": "response.public-get-returns-success",
             "ran": 2,
             "skipped": 5
+          },
+          {
+            "check": "schema.problem-json-shape",
+            "ran": 6,
+            "skipped": 1
           },
           {
             "check": "schema.success-response-matches-document",

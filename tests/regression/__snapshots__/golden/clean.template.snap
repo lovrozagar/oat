@@ -3631,6 +3631,11 @@
         "needs": "a public GET or HEAD with no id, no query, and a documented success status"
       },
       {
+        "check": "schema.problem-json-shape",
+        "entity": "notice",
+        "needs": "an answer this entity drew served as application/problem+json"
+      },
+      {
         "check": "schema.success-response-matches-document",
         "entity": "notice",
         "needs": "a documented success schema on create"
@@ -6874,6 +6879,11 @@
           "check": "response.public-get-returns-success",
           "ran": 2,
           "skipped": 5
+        },
+        {
+          "check": "schema.problem-json-shape",
+          "ran": 6,
+          "skipped": 1
         },
         {
           "check": "schema.success-response-matches-document",

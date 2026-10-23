@@ -47,7 +47,8 @@ export interface PrecisionCase {
 }
 
 /** What a run reported that the diagnosis looks at. */
-export type Reported = Pick<RunResult, "findings" | "inconclusive">
+export type Reported = Pick<RunResult, "findings" | "inconclusive"> &
+	Partial<Pick<RunResult, "checksSkipped" | "scope">>
 
 type Finding = Reported["findings"][number]
 
@@ -84,7 +85,7 @@ export function falsePositives(reported: Reported): PrecisionCase["findings"] {
 export function diagnose(injected: readonly DefectName[], reported: Reported): Diagnosis {
 	const findings = reported.findings.filter(real)
 	const fired = new Set(findings.map((finding) => finding.check))
-	const recall = recallOf(injected, fired, new Map(reported.inconclusive.map((entry) => [entry.check, entry.reason])))
+	const recall = recallOf(injected, fired, statedReasons(reported))
 	/* Anything the injected set can justify — the primaries plus their documented
 	 * consequences. A finding outside this union is oat inventing a defect. */
 	const justified = new Set(injected.flatMap((defect) => acceptableOf(EXPECTED[defect])))
@@ -92,6 +93,18 @@ export function diagnose(injected: readonly DefectName[], reported: Reported): D
 		.filter((finding) => !justified.has(finding.check))
 		.map((finding) => ({ ...brief(finding), detail: finding.detail }))
 	return { ...recall, findings: findings.length, ok: recall.missed.length === 0 && spurious.length === 0, spurious }
+}
+
+/**
+ * Why each check that reached no verdict said it could not: an inconclusive's reason, or a stand-down's
+ * when the check stood down everywhere it ran. One that passed somewhere had a chance and took it.
+ */
+function statedReasons(reported: Reported): Map<string, string> {
+	const passed = new Set((reported.scope?.operations ?? []).flatMap((op) => op.checks.passed))
+	const stated = new Map<string, string>()
+	for (const skip of reported.checksSkipped ?? []) if (!passed.has(skip.check)) stated.set(skip.check, skip.needs)
+	for (const entry of reported.inconclusive) stated.set(entry.check, entry.reason)
+	return stated
 }
 
 /** Each injected defect whose primary check did not fire: cascaded, unresolved, or missed. */
