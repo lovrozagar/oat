@@ -31,7 +31,7 @@ describe("typedScope", () => {
 		const table = await slugs.table("Q Report")
 		expect(await typedScope(slugs.state, { project_id: "proj_alpha", table_id: "q-report" })).toEqual({
 			project_id: "proj_alpha",
-			table_id: table.id,
+			table_id: table["id"],
 		})
 		expect(await typedScope(slugs.state, { table_id: "q-report" })).toEqual({ table_id: "table:missing:q-report" })
 	})
@@ -48,7 +48,7 @@ describe("tableByKey", () => {
 		await slugs.table("Same")
 		await slugs.call("DELETE", `${TABLES}/same`)
 		const live = await slugs.table("Same")
-		expect(await tableByKey(slugs.state, "proj_alpha", "same")).toBe(live.id)
+		expect(await tableByKey(slugs.state, "proj_alpha", "same")).toBe(live["id"])
 	})
 
 	it("finds another project's slug only under FOREIGN_PARENT_ACCEPTED", async () => {
@@ -57,7 +57,7 @@ describe("tableByKey", () => {
 		expect(await tableByKey(strict.state, "proj_alpha", "theirs")).toBe("table:missing:theirs")
 		const lax = await api({ defects: ["FOREIGN_PARENT_ACCEPTED"], shape: "tenant-slugs" })
 		const theirs = await lax.table("Theirs", BETA)
-		expect(await tableByKey(lax.state, "proj_alpha", "theirs")).toBe(theirs.id)
+		expect(await tableByKey(lax.state, "proj_alpha", "theirs")).toBe(theirs["id"])
 	})
 })
 
@@ -67,16 +67,16 @@ describe("liveRows", () => {
 		const kept = await table("kept")
 		const gone = await table("gone")
 		await table("theirs", BETA)
-		await call("DELETE", `${TABLES}/${String(gone.id)}`)
+		await call("DELETE", `${TABLES}/${String(gone["id"])}`)
 		const live = await liveRows(state, state.table, { project_id: "proj_alpha", table_id: "x", unset: undefined })
-		expect(live.map((row) => row.id)).toEqual([kept.id])
+		expect(live.map((row) => row["id"])).toEqual([kept["id"]])
 	})
 
 	it("ranges over every record of an entity without soft delete", async () => {
 		const { state, table, call } = await api()
 		const parent = await table("t")
-		await call("POST", rowsOf(parent.id), { body: { label: "a" } })
-		expect(await liveRows(state, ROW, { table_id: parent.id })).toHaveLength(1)
+		await call("POST", rowsOf(parent["id"]), { body: { label: "a" } })
+		expect(await liveRows(state, ROW, { table_id: parent["id"] })).toHaveLength(1)
 	})
 })
 
@@ -89,7 +89,9 @@ describe("assertUnique", () => {
 			message: "unique constraint violated (name)",
 			status: 409,
 		})
-		await expect(assertUnique(state, { entity: state.table, record: copy }, String(first.id))).resolves.toBeUndefined()
+		await expect(
+			assertUnique(state, { entity: state.table, record: copy }, String(first["id"])),
+		).resolves.toBeUndefined()
 		await expect(
 			assertUnique(state, { entity: state.table, record: { ...copy, project_id: "proj_beta" } }),
 		).resolves.toBe(undefined)
@@ -118,22 +120,22 @@ describe("refreshParentCount", () => {
 	it("keeps a table's row count current after a row write", async () => {
 		const { state, table } = await api()
 		const parent = await table("t")
-		await state.store.insert(ROW, { id: "r1", label: "a", table_id: parent.id })
-		await refreshParentCount(state, ROW, { table_id: String(parent.id) })
-		expect((await state.store.byId(state.table, String(parent.id)))?.row_count).toBe(1)
+		await state.store.insert(ROW, { id: "r1", label: "a", table_id: parent["id"] })
+		await refreshParentCount(state, ROW, { table_id: String(parent["id"]) })
+		expect((await state.store.byId(state.table, String(parent["id"])))?.["row_count"]).toBe(1)
 	})
 
 	it("touches nothing for another entity, a row without a table, or under PARENT_PROJECTION_STALE", async () => {
 		const { state, table } = await api({ defects: ["PARENT_PROJECTION_STALE"] })
 		const parent = await table("t")
-		await state.store.insert(ROW, { id: "r1", label: "a", table_id: parent.id })
-		await refreshParentCount(state, ROW, { table_id: String(parent.id) })
+		await state.store.insert(ROW, { id: "r1", label: "a", table_id: parent["id"] })
+		await refreshParentCount(state, ROW, { table_id: String(parent["id"]) })
 		const clean = await api()
 		const update = vi.spyOn(clean.state.store, "update")
 		await refreshParentCount(clean.state, clean.state.table, { table_id: "t" })
 		await refreshParentCount(clean.state, ROW, {})
 		expect(update).not.toHaveBeenCalled()
-		expect((await state.store.byId(state.table, String(parent.id)))?.row_count).toBe(0)
+		expect((await state.store.byId(state.table, String(parent["id"])))?.["row_count"]).toBe(0)
 	})
 })
 
@@ -141,7 +143,7 @@ describe("readModifyWrite", () => {
 	it("writes the whole record read before the patch", async () => {
 		const { state, table } = await api()
 		const made = await table("t")
-		const updated = await readModifyWrite(state, { entity: state.table, id: String(made.id) }, { position: 9 })
+		const updated = await readModifyWrite(state, { entity: state.table, id: String(made["id"]) }, { position: 9 })
 		expect(updated).toMatchObject({ name: "t", position: 9 })
 		expect(await readModifyWrite(state, { entity: state.table, id: "missing" }, { position: 1 })).toBeNull()
 	})
@@ -186,13 +188,13 @@ describe("prepopulate", () => {
 		const { state } = await api()
 		await prepopulate(state, 11)
 		const tables = await liveRows(state, state.table, {})
-		expect(tables.filter((row) => row.project_id === "proj_alpha")).toHaveLength(11)
-		expect(tables.filter((row) => row.project_id === "proj_beta")).toHaveLength(2)
+		expect(tables.filter((row) => row["project_id"] === "proj_alpha")).toHaveLength(11)
+		expect(tables.filter((row) => row["project_id"] === "proj_beta")).toHaveLength(2)
 		expect(tables[0]).toMatchObject({ description: null, name: "apple 0000", position: 0, status: "active" })
 		expect(tables[1]).toMatchObject({ description: "pre-existing banana record", name: "Banana 0001" })
 		expect(tables.at(-1)).toMatchObject({ name: "Banana beta 0001", slug: "banana-beta-0001" })
 		const jobs = await liveRows(state, state.job, {})
-		expect(jobs.every((job) => job.status === "complete" && job.progress === 100)).toBe(true)
-		expect(jobs.slice(0, 2).map((job) => job.note)).toEqual([null, "Banana"])
+		expect(jobs.every((job) => job["status"] === "complete" && job["progress"] === 100)).toBe(true)
+		expect(jobs.slice(0, 2).map((job) => job["note"])).toEqual([null, "Banana"])
 	})
 })

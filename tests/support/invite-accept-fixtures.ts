@@ -151,7 +151,7 @@ export function inviteSpec(accept: "body" | "path", revoke: "body" | "path" = "p
 /** The body spec with its x-invite extension extended by `extra`. */
 export function inviteSpecWith(extra: Record<string, unknown>): OpenApiDocument {
 	const spec = inviteSpec("body")
-	const invite = spec.paths?.["/v1/orgs/{org_id}/members"]?.post as Record<string, unknown>
+	const invite = spec.paths?.["/v1/orgs/{org_id}/members"]?.["post"] as Record<string, unknown>
 	invite["x-invite"] = { ...(invite["x-invite"] as Record<string, unknown>), ...extra }
 	return spec
 }

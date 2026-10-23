@@ -185,7 +185,7 @@ const hidden = (note: Note) => note.text.includes("HIDE")
 
 async function hiddenFolders(backend: HiddenBackend, req: IncomingMessage, res: ServerResponse) {
 	if ((req.method ?? "GET") === "GET") return reply(res, 200, { items: [...backend.folders.values()] })
-	const folder = { id: `f${++backend.seq}`, text: String((await bodyOf(req)).text ?? "") }
+	const folder = { id: `f${++backend.seq}`, text: String((await bodyOf(req))["text"] ?? "") }
 	backend.folders.set(folder.id, folder)
 	return reply(res, 201, folder)
 }
@@ -212,7 +212,7 @@ async function hiddenNotes(backend: HiddenBackend, folder: { id: string }, { req
 		)
 		return reply(res, 200, { items: shown.map(({ id, text }) => ({ id, text })) })
 	}
-	const note = { folder: folder.id, id: `n${++backend.seq}`, text: String((await bodyOf(req)).text ?? "") }
+	const note = { folder: folder.id, id: `n${++backend.seq}`, text: String((await bodyOf(req))["text"] ?? "") }
 	backend.notes.set(note.id, note)
 	return reply(res, 201, { id: note.id, text: note.text })
 }

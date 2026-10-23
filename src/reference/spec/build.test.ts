@@ -30,7 +30,7 @@ describe("buildSpec", () => {
 	})
 
 	it("routes every entity, then the caller, public, invite, job, auth, API key, styles and search routes", () => {
-		const routes = Object.keys(spec.paths as Json)
+		const routes = Object.keys(spec["paths"] as Json)
 		expect(routes.slice(0, 6)).toEqual([TABLE, ROW, JOB].flatMap((entity) => [entity.collectionPath, entity.itemPath]))
 		expect(routes.slice(6)).toEqual([
 			"/v1/me",
@@ -63,21 +63,21 @@ describe("buildSpec security", () => {
 
 	it("declares jwt auth at the root, and leaves how to obtain it to the config's recipe", () => {
 		expect(Object.keys(spec)).toEqual(["info", "openapi", "paths", "components", "security"])
-		expect(spec.security).toEqual([{ jwt: [] }])
+		expect(spec["security"]).toEqual([{ jwt: [] }])
 		expect(spec).not.toHaveProperty("x-auth-flows")
 	})
 
 	it("lets each record operation take a jwt or an API key scoped to its entity and access", () => {
-		const paths = spec.paths as Record<string, Record<string, Json>>
-		expect(paths[TABLE.collectionPath]?.get?.security).toEqual([{ jwt: [] }, { apiKey: ["table:read"] }])
-		expect(paths[ROW.collectionPath]?.post?.security).toEqual([{ jwt: [] }, { apiKey: ["row:write"] }])
-		expect(paths[JOB.itemPath]?.delete?.security).toEqual([{ jwt: [] }, { apiKey: ["job:write"] }])
-		expect(paths["/v1/me"]?.get).not.toHaveProperty("security")
-		expect(paths["/health"]?.get?.security).toEqual([])
+		const paths = spec["paths"] as Record<string, Record<string, Json>>
+		expect(paths[TABLE.collectionPath]?.["get"]?.["security"]).toEqual([{ jwt: [] }, { apiKey: ["table:read"] }])
+		expect(paths[ROW.collectionPath]?.["post"]?.["security"]).toEqual([{ jwt: [] }, { apiKey: ["row:write"] }])
+		expect(paths[JOB.itemPath]?.["delete"]?.["security"]).toEqual([{ jwt: [] }, { apiKey: ["job:write"] }])
+		expect(paths["/v1/me"]?.["get"]).not.toHaveProperty("security")
+		expect(paths["/health"]?.["get"]?.["security"]).toEqual([])
 	})
 
 	it("marks the table's verified flag x-privileged", () => {
-		const table = (spec.paths as Record<string, Record<string, Json>>)[TABLE.itemPath]?.get
+		const table = (spec["paths"] as Record<string, Record<string, Json>>)[TABLE.itemPath]?.["get"]
 		expect(table).toHaveProperty("responses.200.content.application/json.schema.properties.verified", {
 			type: "boolean",
 			"x-privileged": true,
@@ -95,9 +95,9 @@ describe("buildSpec dialects and layout", () => {
 		const shape = { specLayout: true }
 		const laid = buildSpec(POSTGREST, { entities: shapedEntities(shape), shape })
 		expect(Object.keys(laid)).toEqual(["info", "openapi", "components", "paths", "security"])
-		const item = (laid.paths as Record<string, Json>)[TABLE.itemPath] as { parameters: Json[]; get: Json }
-		expect(item.parameters.map((param) => param.name)).toEqual(["project_id", "table_id"])
-		expect(item.get.parameters).toEqual([])
+		const item = (laid["paths"] as Record<string, Json>)[TABLE.itemPath] as { parameters: Json[]; get: Json }
+		expect(item.parameters.map((param) => param["name"])).toEqual(["project_id", "table_id"])
+		expect(item.get["parameters"]).toEqual([])
 	})
 })
 
@@ -111,8 +111,8 @@ describe("buildUntaggedSpec", () => {
 
 	it("keeps everything else, nulls and arrays included", () => {
 		const untagged = buildUntaggedSpec(POSTGREST, { entities: ENTITIES, shape: {} })
-		expect(untagged.paths).toHaveProperty([TABLE.collectionPath, "get", "operationId"], "table.list")
-		expect(untagged.security).toEqual([{ jwt: [] }])
+		expect(untagged["paths"]).toHaveProperty([TABLE.collectionPath, "get", "operationId"], "table.list")
+		expect(untagged["security"]).toEqual([{ jwt: [] }])
 		expect(untagged).not.toHaveProperty("x-auth-flows")
 	})
 })

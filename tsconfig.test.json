@@ -8,6 +8,8 @@
 		 * checks labs against the source with the build hidden. */
 		"rootDirs": ["src", "dist"],
 		"declaration": false,
+		/* isolatedDeclarations needs declaration emit, which tests skip; tsconfig.json holds src to it. */
+		"isolatedDeclarations": false,
 		"declarationMap": false,
 		"sourceMap": false
 	},

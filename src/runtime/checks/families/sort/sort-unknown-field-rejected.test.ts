@@ -6,7 +6,7 @@ import { sortUnknownFieldRejected } from "./sort-unknown-field-rejected.ts"
 
 /* Accepts the unknown field and serves the cohort reversed, unlike its default order. */
 const reordering: Responder = (method, path, options) =>
-	options.query?.order === undefined
+	options.query?.["order"] === undefined
 		? ignoring("order")(method, path, options)
 		: { body: NOTES.toReversed(), status: 200 }
 

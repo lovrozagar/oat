@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { when } from "../../core/plan.ts"
@@ -6,7 +7,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { filterable, q } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const malformedFilterNot5xx = defineCheck({
+export const malformedFilterNot5xx: Check = defineCheck({
 	plan: (ctx) => when(filterable(ctx)),
 	id: "error.malformed-filter-not-5xx",
 	needs: "a way to express a filter — a filter expression parameter, or filterable fields",

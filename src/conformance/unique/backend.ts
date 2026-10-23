@@ -112,10 +112,10 @@ async function create(state: Widgets, request: ReferenceRequest): Promise<Refere
 	state.seq += 1
 	const id = `w_${String(state.seq)}`
 	const row: Row = {
-		email: text(body.email, `${id}@example.test`),
+		email: text(body["email"], `${id}@example.test`),
 		id,
-		name: text(body.name, id),
-		slug: text(body.slug, id),
+		name: text(body["name"], id),
+		slug: text(body["slug"], id),
 	}
 	state.rows.set(id, row)
 	return answer(201, row)
@@ -127,9 +127,9 @@ async function update(state: Widgets, id: string, request: ReferenceRequest): Pr
 	const body = await received(state, request)
 	const colliding = conflict(state.sets, [...state.rows.values()], { id, values: { ...row, ...body } })
 	if (colliding !== null && (state.options.updateDuplicate ?? "409") === "409") return conflicted()
-	row.email = text(body.email, row.email)
-	row.name = text(body.name, row.name)
-	row.slug = text(body.slug, row.slug)
+	row.email = text(body["email"], row.email)
+	row.name = text(body["name"], row.name)
+	row.slug = text(body["slug"], row.slug)
 	return answer(200, row)
 }
 

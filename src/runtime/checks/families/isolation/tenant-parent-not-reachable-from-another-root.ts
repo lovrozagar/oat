@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { owningEntityOf } from "../../../../spec/graph/roots.ts"
 import type { Exchange } from "../../../exchange.ts"
@@ -23,7 +24,13 @@ import { tenantBoundary } from "./tenant.ts"
  * rows` — must be as unknown as a parent that never existed. Reading the children through it, or
  * writing a child under it, crosses the boundary one level down from where it is usually guarded.
  */
-export const foreignParentRejected = defineCheck<{
+export const foreignParentRejected: Check<{
+	/** The principal of the other tenant, who sends every probe. */
+	peer: string
+	mixed: Record<string, string>
+	tenantParam: string
+	parents: string[]
+}> = defineCheck<{
 	/** The principal of the other tenant, who sends every probe. */
 	peer: string
 	mixed: Record<string, string>

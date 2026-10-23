@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { canWriteFilterOp, filterTerm } from "../../../../spec/conventions/filter.ts"
 import { fieldAllows } from "../../../../spec/query/field-ops.ts"
@@ -9,7 +10,7 @@ import { asTermValue, conv, filterable, FOUNDATIONS, MOVING_FILTER, resolvedCaps
 import { readSettled, sameSet, setOf } from "../../sets/compare.ts"
 import type { SetRead } from "../../sets/read.ts"
 
-export const filterAliasMatchesCanonical = defineCheck({
+export const filterAliasMatchesCanonical: Check = defineCheck({
 	plan: (ctx) => when(Object.keys(resolvedCaps(ctx).aliases).length > 0 && filterable(ctx)),
 	dependsOn: ["query.filter-selects-from-whole-set", ...FOUNDATIONS, "filter.equality-selects-exactly-one"],
 	id: "filter.alias-matches-canonical",

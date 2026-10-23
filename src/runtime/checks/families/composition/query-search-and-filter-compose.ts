@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { andThen, when } from "../../core/plan.ts"
@@ -19,7 +20,7 @@ import { overlapPlan, type Subset } from "./plans.ts"
  * already selected, dropping the filter is invisible — the combined set still equals the
  * intersection. The token is chosen so each axis matches something the other does not.
  */
-export const searchAndFilterCompose = defineCheck<Subset & { token: string }>({
+export const searchAndFilterCompose: Check<Subset & { token: string }> = defineCheck<Subset & { token: string }>({
 	plan: (ctx) =>
 		andThen(
 			when(

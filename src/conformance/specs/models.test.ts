@@ -7,7 +7,7 @@ describe("modelFixtures", () => {
 		expect(fixtures).toHaveLength(7)
 		for (const fixture of fixtures) {
 			expect(fixture.why).not.toBe("")
-			expect(Object.keys(fixture.doc.paths as object).length).toBeGreaterThan(0)
+			expect(Object.keys(fixture.doc["paths"] as object).length).toBeGreaterThan(0)
 		}
 	})
 })

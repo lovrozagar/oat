@@ -28,7 +28,7 @@ describe("filter.like-metacharacters-escaped: run", () => {
 
 	it("is unresolved when the probe is refused, a read is partial, or the listing is empty", async () => {
 		const refused = stage({
-			behavior: { status: (query) => (query.filter === undefined ? undefined : 400) },
+			behavior: { status: (query) => (query["filter"] === undefined ? undefined : 400) },
 			doc: DOC,
 			records: COHORT,
 		})
@@ -36,7 +36,7 @@ describe("filter.like-metacharacters-escaped: run", () => {
 			reason: "the like probe was rejected with 400, so escaping was never exercised",
 		})
 		const baselineRefused = stage({
-			behavior: { status: (query) => (query.filter === undefined ? 400 : undefined) },
+			behavior: { status: (query) => (query["filter"] === undefined ? 400 : undefined) },
 			doc: DOC,
 			records: COHORT,
 		})

@@ -4,7 +4,7 @@ import type { EntityDef } from "../model/types.ts"
 import { SqlError } from "../store-api.ts"
 
 /** `relation(field,field)` inside a sparse fieldset. Both groups take part in every match. */
-export const NESTED = /^([A-Za-z_][\w]*)\(([^()]*)\)$/
+export const NESTED: RegExp = /^([A-Za-z_][\w]*)\(([^()]*)\)$/
 
 /** No sparse fieldset at all: every field is served. */
 export function wholeRow(select: string | undefined): boolean {

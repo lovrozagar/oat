@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
@@ -9,7 +10,10 @@ import { createExchange, requestSchemaOf } from "../../payloads/body.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import type { JsonSchema } from "../../../../spec/types.ts"
 
-export const createPersistsFields = defineCheck<{
+export const createPersistsFields: Check<{
+	createOp: OperationModel
+	properties: Record<string, JsonSchema>
+}> = defineCheck<{
 	createOp: OperationModel
 	properties: Record<string, JsonSchema>
 }>({
@@ -84,7 +88,8 @@ function multipartEntries(body: unknown): FormEntry[] | null {
 	if (body === null || typeof body !== "object" || !Array.isArray((body as { parts?: unknown }).parts)) return null
 	const entries: FormEntry[] = []
 	for (const part of (body as { parts: Array<Record<string, unknown>> }).parts) {
-		if (typeof part.field === "string" && typeof part.value === "string") entries.push([part.field, part.value])
+		if (typeof part["field"] === "string" && typeof part["value"] === "string")
+			entries.push([part["field"], part["value"]])
 	}
 	return entries
 }

@@ -52,7 +52,7 @@ describe("request.invalid-body-refused in the security stage", () => {
 		const writes = options.seen.slice(since).filter((seen) => seen.method !== "GET")
 		expect(writes.filter((seen) => seen.method === "PATCH").map((seen) => seen.path)).toEqual(["/notes/run-1"])
 		expect(writes.filter((seen) => seen.path.includes("pre"))).toEqual([])
-		expect(rows.find((row) => row.id === "pre")).toEqual({ id: "pre", title: "there before" })
+		expect(rows.find((row) => row["id"] === "pre")).toEqual({ id: "pre", title: "there before" })
 	})
 
 	it("never sends to a sign-in the recipe names by method and path, not by operationId", async () => {

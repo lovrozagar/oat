@@ -1,3 +1,4 @@
+import type { OperationCheck } from "../../core/check.ts"
 /*
  * Each alternative an operation documents must work on its own. Every alternative of one scheme
  * besides the first is sent alone, with that scheme, as the principal that may expect it accepted:
@@ -35,7 +36,7 @@ interface Planned {
 	alternatives: Requirement[]
 }
 
-export const alternativeAccepted = defineCheck<Planned>({
+export const alternativeAccepted: OperationCheck<Planned> = defineCheck<Planned>({
 	id: ID,
 	needs: "a read whose security documents a second alternative of one scheme",
 	plan: (ctx) =>

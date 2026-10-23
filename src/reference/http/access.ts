@@ -20,7 +20,7 @@ const notFound = (entity: EntityDef, id: unknown, why = "does not exist"): HttpE
 
 /** The bearer value a request carries, or `undefined`: what the conformance's own small backends read. */
 export function bearer(request: ReferenceRequest): string | undefined {
-	const header = request.headers.authorization
+	const header = request.headers["authorization"]
 	return header?.startsWith("Bearer ") === true ? header.slice(7).trim() : undefined
 }
 

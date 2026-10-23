@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { sortTermWithNulls } from "../../../../spec/conventions/sort.ts"
 import type { EffectiveFilterField } from "../../../../spec/query/effective.ts"
@@ -8,7 +9,11 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, pageSize, resolvedCaps } from "../../query/capabilities.ts"
 import { collectSet } from "../../sets/compare.ts"
 
-export const sortNullsFirstLast = defineCheck<{
+export const sortNullsFirstLast: Check<{
+	field: EffectiveFilterField
+	firstClause: string | null
+	lastClause: string | null
+}> = defineCheck<{
 	field: EffectiveFilterField
 	firstClause: string | null
 	lastClause: string | null

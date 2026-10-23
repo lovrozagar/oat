@@ -156,7 +156,7 @@ function writeRoute(server: NotesServer, { method, id, options }: ItemRequest): 
 	}
 	const next =
 		method === "PUT"
-			? { ...fieldsOf(options), created_at: current.created_at, id }
+			? { ...fieldsOf(options), created_at: current["created_at"], id }
 			: { ...current, ...fieldsOf(options) }
 	server.records.set(id, next)
 	return { body: { ...next }, status: 200 }
@@ -169,7 +169,7 @@ function writeRoute(server: NotesServer, { method, id, options }: ItemRequest): 
 export function notesServer(seed: Note[] = []): NotesServer {
 	let made = 0
 	const server: NotesServer = {
-		records: new Map(seed.map((note) => [String(note.id), note])),
+		records: new Map(seed.map((note) => [String(note["id"]), note])),
 		respond: () => undefined,
 	}
 	server.respond = (method, path, options) => {

@@ -11,7 +11,7 @@ const paths = authPaths(CTX) as Paths
 const op = (path: string, method: string) => paths[path]?.[method] as Json & { responses: Json }
 const statuses = (path: string, method: string) => Object.keys(op(path, method).responses)
 const bodyOf = (path: string, method: string) =>
-	(op(path, method).requestBody as { content: Record<string, { schema: Json }> }).content["application/json"]?.schema
+	(op(path, method)["requestBody"] as { content: Record<string, { schema: Json }> }).content["application/json"]?.schema
 
 describe("authPaths", () => {
 	it("routes the token, login, refresh and revoke operations, then minting, reading and revoking API keys", () => {
@@ -24,7 +24,7 @@ describe("authPaths", () => {
 			"/v1/api-keys/{id}",
 		])
 		expect(
-			Object.entries(paths).flatMap(([, item]) => Object.values(item).map((operation) => operation.operationId)),
+			Object.entries(paths).flatMap(([, item]) => Object.values(item).map((operation) => operation["operationId"])),
 		).toEqual([
 			"auth.token",
 			"auth.login",
@@ -42,7 +42,7 @@ describe("authPaths", () => {
 			expect(statuses(path, "post")).toEqual(["200", "400", "401", "415", "429"])
 			expect(op(path, "post").responses["429"]).toHaveProperty("headers.Retry-After.schema", { type: "integer" })
 		}
-		expect(op("/v1/auth/refresh", "post").security).toEqual([])
+		expect(op("/v1/auth/refresh", "post")["security"]).toEqual([])
 		const session = op("/v1/auth/token", "post").responses["200"] as Json
 		expect(session).toHaveProperty("content.application/json.schema.required", [
 			"access_token",
@@ -56,8 +56,8 @@ describe("authPaths", () => {
 
 	it("spells every status as a range and a default under rangeStatuses", () => {
 		const ranged = authPaths({ entities: ENTITIES, shape: { rangeStatuses: true } }) as Paths
-		expect(Object.keys(ranged["/v1/auth/login"]?.post?.responses ?? {})).toEqual(["429", "2XX", "default"])
-		expect(Object.keys(ranged["/v1/api-keys/{id}"]?.delete?.responses ?? {})).toEqual(["2XX", "default"])
+		expect(Object.keys(ranged["/v1/auth/login"]?.["post"]?.responses ?? {})).toEqual(["429", "2XX", "default"])
+		expect(Object.keys(ranged["/v1/api-keys/{id}"]?.["delete"]?.responses ?? {})).toEqual(["2XX", "default"])
 	})
 })
 

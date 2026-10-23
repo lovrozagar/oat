@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { selectTerm } from "../../../../spec/conventions/select.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -6,7 +7,10 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, q } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const selectProjection = defineCheck<{
+export const selectProjection: Check<{
+	requested: string[]
+	projection: Record<string, string>
+}> = defineCheck<{
 	requested: string[]
 	projection: Record<string, string>
 }>({

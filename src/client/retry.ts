@@ -17,7 +17,7 @@ import { BODILESS_READS, IDEMPOTENT } from "../spec/methods.ts"
 import type { NetworkClientOptions } from "./types.ts"
 
 /** How long one request may take across every attempt and wait, unless configured. */
-export const DEFAULT_DEADLINE_MS = 10 * 60_000
+export const DEFAULT_DEADLINE_MS: number = 10 * 60_000
 
 /** Failures that prove the request never reached the server. */
 const NEVER_SENT: ReadonlySet<NetworkKind> = /* @__PURE__ */ new Set(["offline", "dns", "refused", "unreachable"])

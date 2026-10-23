@@ -1,5 +1,5 @@
 /** `and(...)` or `or(...)`: the combinator and what it holds. Both groups take part in every match. */
-export const GROUP = /^(and|or)\((.*)\)$/s
+export const GROUP: RegExp = /^(and|or)\((.*)\)$/s
 
 /** Splits on commas at paren depth zero — shared by the filter and order grammars. */
 export function splitTopLevel(input: string): string[] {

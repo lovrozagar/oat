@@ -11,7 +11,7 @@
 import { defineConfig } from "../dist/index.js"
 
 /* Overridden by --base-url, which is what `oat serve` prints. */
-const API = process.env.OAT_BASE_URL ?? "http://127.0.0.1:8787"
+const API = process.env["OAT_BASE_URL"] ?? "http://127.0.0.1:8787"
 
 export default defineConfig({
 	baseUrl: API,

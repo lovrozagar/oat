@@ -73,15 +73,15 @@ function suites(xml: string): Element[] {
 }
 
 function suite(xml: string, name: string): Element {
-	return suites(xml).find((s) => s.attrs.name === name) as Element
+	return suites(xml).find((s) => s.attrs["name"] === name) as Element
 }
 
 /** Each case as `classname name: outcome message`. */
 function cases(element: Element): string[] {
 	return element.children.map((c) => {
 		const result = c.children[0]
-		const said = result === undefined ? "passed" : `${result.name} ${result.attrs.message ?? ""}`.trim()
-		return `${c.attrs.classname} ${c.attrs.name}: ${said}`
+		const said = result === undefined ? "passed" : `${result.name} ${result.attrs["message"] ?? ""}`.trim()
+		return `${c.attrs["classname"]} ${c.attrs["name"]}: ${said}`
 	})
 }
 
@@ -111,7 +111,7 @@ describe("renderJunit", () => {
 		const xml = renderJunit(clean())
 		const root = parseXml(xml)
 		expect(root.attrs).toEqual({ errors: "0", failures: "0", name: "oat", tests: "3", time: "1.500" })
-		expect(root.children.map((s) => s.attrs.name)).toEqual(["row", "tag"])
+		expect(root.children.map((s) => s.attrs["name"])).toEqual(["row", "tag"])
 		expect(cases(suite(xml, "row"))).toEqual(["row.list a.check: passed", "row.list b.check: passed"])
 		expect(suite(xml, "row").attrs).toEqual({
 			errors: "0",
@@ -156,7 +156,7 @@ describe("renderJunit", () => {
 				"second",
 			].join("\n"),
 		)
-		expect(suite(xml, "row").attrs.failures).toBe("1")
+		expect(suite(xml, "row").attrs["failures"]).toBe("1")
 		expect(suite(xml, "oat.run")).toBeUndefined()
 	})
 })
@@ -179,7 +179,7 @@ describe("renderJunit, a case per (operation, check)", () => {
 		expect(cases(suite(xml, "row"))).toEqual([
 			"row.list c: skipped known (baseline): tracked in #12; known (baseline): vendor bug",
 		])
-		expect(parseXml(xml).attrs.failures).toBe("0")
+		expect(parseXml(xml).attrs["failures"]).toBe("0")
 	})
 
 	it("gaps, inconclusive and suppressed are skipped with their reason", () => {
@@ -260,7 +260,7 @@ describe("renderJunit, cases outside an operation", () => {
 		)
 		const outcome = suite(xml, "oat.run")
 		expect(cases(outcome)).toEqual(["run outcome: error the network went away before the run finished"])
-		expect((outcome.children[0] as Element).children[0]?.attrs.type).toBe("failed")
+		expect((outcome.children[0] as Element).children[0]?.attrs["type"]).toBe("failed")
 		expect(parseXml(xml).attrs).toMatchObject({ errors: "1", tests: "2" })
 		expect(outcome.attrs).toMatchObject({ errors: "1", failures: "0", tests: "1" })
 	})
@@ -355,7 +355,7 @@ describe("renderJunit, escaping", () => {
 		expect(xml).toContain('message="line one&#10;says &lt;&quot;&amp;&quot;&gt;"')
 		const failure = (suite(xml, "row").children[0] as Element).children[0] as Element
 		expect(failure.text).toBe("a <b> & \"c\" 'd' ]]> efghijkl 😀\ttab\r\nend")
-		expect(failure.attrs.message).toBe('line one\nsays <"&">')
+		expect(failure.attrs["message"]).toBe('line one\nsays <"&">')
 	})
 })
 
@@ -384,7 +384,7 @@ describe("renderJunit, redaction", () => {
 		const xml = renderJunit(input)
 		expect(xml).not.toContain("sk-live-123456")
 		const failure = (suite(xml, "row").children[0] as Element).children[0] as Element
-		expect(failure.attrs.message).toBe("leaks <redacted>")
+		expect(failure.attrs["message"]).toBe("leaks <redacted>")
 		expect(failure.text).toContain("echoed <redacted> back")
 	})
 })
@@ -416,7 +416,7 @@ describe("renderJunit, secondary origins", () => {
 				}),
 			}),
 		)
-		expect(suites(xml).map((s) => s.attrs.name)).toEqual(["billing:invoice", "oat.run"])
+		expect(suites(xml).map((s) => s.attrs["name"])).toEqual(["billing:invoice", "oat.run"])
 		expect(cases(suite(xml, "billing:invoice"))).toEqual([
 			"billing:invoice x: skipped stood down: n",
 			"billing:invoice.get c: failure theirs",

@@ -219,8 +219,8 @@ export interface BackendOptions {
 }
 
 function window(rows: readonly Record_[], query: Record<string, string>): Record_[] {
-	const limit = query.limit === undefined ? rows.length : Number(query.limit)
-	const start = query.page === undefined ? 0 : (Number(query.page) - 1) * limit
+	const limit = query["limit"] === undefined ? rows.length : Number(query["limit"])
+	const start = query["page"] === undefined ? 0 : (Number(query["page"]) - 1) * limit
 	return rows.slice(start, start + limit)
 }
 
@@ -228,12 +228,12 @@ function window(rows: readonly Record_[], query: Record<string, string>): Record
 export function answer(rows: readonly Record_[], query: Record<string, string>, accepted: readonly string[]): Answer {
 	if (Object.keys(query).some((key) => !accepted.includes(key))) return REJECT
 	let result: Record_[] | null = [...rows]
-	if (query.filter !== undefined) result = applyFilter(result, query.filter)
-	if (result !== null && query.q !== undefined) result = applySearch(result, query.q)
-	if (result !== null && query.order !== undefined) result = applyOrder(result, query.order)
+	if (query["filter"] !== undefined) result = applyFilter(result, query["filter"])
+	if (result !== null && query["q"] !== undefined) result = applySearch(result, query["q"])
+	if (result !== null && query["order"] !== undefined) result = applyOrder(result, query["order"])
 	if (result === null) return REJECT
 	result = window(result, query)
-	if (query.select !== undefined) result = applySelect(result, query.select)
+	if (query["select"] !== undefined) result = applySelect(result, query["select"])
 	return result === null ? REJECT : { body: result, status: 200 }
 }
 

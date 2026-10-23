@@ -174,7 +174,7 @@ function expectConsumedThroughRedirect(consumer: Client, urls: { api: string; ap
 	expect(consume?.redirects).toHaveLength(1)
 	expect(consume?.redirects?.[0]?.status).toBe(303)
 	expect(consume?.finalUrl).toContain("/app")
-	expect(consume?.cookies?.session).toBe(session)
+	expect(consume?.cookies?.["session"]).toBe(session)
 }
 
 async function followsRedirectAndBindsCookie(): Promise<void> {
@@ -195,15 +195,15 @@ async function followsRedirectAndBindsCookie(): Promise<void> {
 	const { last, scope } = await signed
 	expect(oob?.address).toBe("a@x.test")
 	expect(oob?.kind).toBe("email-verify")
-	expect(oob?.scope.credential).toBeDefined()
+	expect(oob?.scope["credential"]).toBeDefined()
 	expect(seen).toEqual(["GET /verify", "GET /app"])
 	expect(appCookies).toHaveLength(1)
 	expect(appCookies[0]).toContain("session=")
-	expect(scope.refreshToken).toBe("rt-cookie")
-	expect(scope.orgId).toBe("org_1")
-	expect(scope.projectId).toBe("proj_1")
-	expect(scope.address).toBe("a@x.test")
-	expect(scope.credential).toBe(session)
+	expect(scope["refreshToken"]).toBe("rt-cookie")
+	expect(scope["orgId"]).toBe("org_1")
+	expect(scope["projectId"]).toBe("proj_1")
+	expect(scope["address"]).toBe("a@x.test")
+	expect(scope["credential"]).toBe(session)
 	/* What a login recipe's `from: "cookie:session"` reads out of the last answer. */
 	expect(last === undefined ? undefined : readAnswer(last, "cookie:session")).toBe(session)
 	expectConsumedThroughRedirect(consumer, { api: api.url, app: app.url }, session)
@@ -254,11 +254,11 @@ async function stopsAtManualRedirect(): Promise<void> {
 		linkFlow({ expect: [303], redirect: "manual", saveAs: { credential: "cookie:session" } }),
 		{ hooks: { resolveOutOfBand: async () => `${app.url}/verify` } },
 	)
-	expect((await signed).scope.credential).toBe(session)
+	expect((await signed).scope["credential"]).toBe(session)
 	const consume = consumer.transcript.find((e) => e.url.includes("/verify"))
 	expect(consume?.status).toBe(303)
 	expect(consume?.redirects).toBeUndefined()
-	expect(consume?.cookies?.session).toBe(session)
+	expect(consume?.cookies?.["session"]).toBe(session)
 }
 
 async function interpolatesScopeIntoSaveAs(): Promise<void> {
@@ -281,7 +281,7 @@ async function interpolatesScopeIntoSaveAs(): Promise<void> {
 		],
 		{ hooks: { resolveOutOfBand: async () => `${app.url}/verify` } },
 	)
-	expect((await signed).scope.refreshToken).toBe("rt-u42")
+	expect((await signed).scope["refreshToken"]).toBe("rt-u42")
 }
 
 async function failsClosedOnMissingCookie(): Promise<void> {
@@ -301,7 +301,7 @@ async function bindsResponseHeader(): Promise<void> {
 	const api = await serve(registerApi({ access_token: "reg" }))
 	const hooks = { resolveOutOfBand: async () => `${app.url}/verify` }
 	const alpha = signIn(api.url, linkFlow({ saveAs: { credential: "header:x-session" } }), { hooks })
-	expect((await alpha.signed).scope.credential).toBe("hdr-tok")
+	expect((await alpha.signed).scope["credential"]).toBe("hdr-tok")
 	const missing = linkFlow({ saveAs: { credential: "header:x-missing" } }, "b@x.test")
 	await expect(signIn(api.url, missing, { hooks, principal: "beta" }).signed).rejects.toThrow(/header:x-missing/)
 }
@@ -318,8 +318,8 @@ async function keepsJsonPathSaveAs(): Promise<void> {
 		},
 	])
 	const { scope } = await signed
-	expect(scope.orgId).toBe("org_z")
-	expect(scope.credential).toBe(token)
+	expect(scope["orgId"]).toBe("org_z")
+	expect(scope["credential"]).toBe(token)
 }
 
 describe("absolute URL RequestStep + cookie saveAs", () => {
@@ -349,7 +349,7 @@ describe("resolveOutOfBand extra fields", () => {
 			},
 		)
 		expect(value).toBe("tok")
-		expect(seen[0]?.scope.credential).toBe("live")
+		expect(seen[0]?.scope["credential"]).toBe("live")
 	})
 })
 

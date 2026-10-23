@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { fillPath } from "../../../fill-path.ts"
@@ -9,7 +10,11 @@ import { judgeRefusal } from "../../planning/refusal.ts"
 import { standDownForFeatureGate } from "../../planning/stand-down.ts"
 import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
 
-export const immutableRejected = defineCheck<{
+export const immutableRejected: Check<{
+	field: string
+	updateOp: OperationModel
+	readOp: OperationModel
+}> = defineCheck<{
 	field: string
 	updateOp: OperationModel
 	readOp: OperationModel

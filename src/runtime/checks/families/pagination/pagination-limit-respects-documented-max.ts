@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
@@ -6,7 +7,10 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const limitRespectsMax = defineCheck<{ max: number; limitParam: string }>({
+export const limitRespectsMax: Check<{ max: number; limitParam: string }> = defineCheck<{
+	max: number
+	limitParam: string
+}>({
 	plan: (ctx) => {
 		const max = ctx.query?.maxLimit
 		const limitParam = conv(ctx).limit

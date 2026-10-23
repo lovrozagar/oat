@@ -46,7 +46,7 @@ const places = {
 
 /* A backend that accepts only the token a renewal issued. */
 const secondTokenOnly = (request: { headers: Record<string, string> }): Response =>
-	json({}, request.headers.Authorization === "Bearer token-2" ? 200 : 401)
+	json({}, request.headers["Authorization"] === "Bearer token-2" ? 200 : 401)
 
 /* A backend that sends every request to another origin, echoing the query credential. */
 const elsewhere = (request: { url: string }): Response =>
@@ -181,7 +181,7 @@ describe("bar 5: refresh is single-flight", () => {
 		const { client, sent } = clientOf({ answer: () => json({}, 401), doc: placesDoc, ports, security })
 		expect((await client.get("/me", { as: { principal: "alpha" } })).status).toBe(401)
 		expect([recorded.runs.length, sent.length]).toEqual([2, 2])
-		expect(sent.map((request) => request.headers.Authorization)).toEqual(["Bearer token-1", "Bearer token-2"])
+		expect(sent.map((request) => request.headers["Authorization"])).toEqual(["Bearer token-1", "Bearer token-2"])
 	})
 })
 
@@ -212,7 +212,7 @@ describe("a refused refresh", () => {
 		const { client, sent } = clientOf({ answer: secondTokenOnly, doc: placesDoc, ports, security })
 		expect((await client.get("/me", { as: { principal: "alpha" } })).status).toBe(200)
 		expect(steps).toEqual(["auth.login", "auth.refresh", "auth.login"])
-		expect(sent.map((request) => request.headers.Authorization)).toEqual(["Bearer token-1", "Bearer token-2"])
+		expect(sent.map((request) => request.headers["Authorization"])).toEqual(["Bearer token-1", "Bearer token-2"])
 	})
 
 	it("renews no more for that request when the retry after the login is refused too", async () => {
@@ -372,7 +372,7 @@ describe("forged values and probes", () => {
 		const forged = await client.get("/me", { as: { forged: { scheme: "jwt", value: "nope" } } })
 		const probe = await client.get("/me", { as: { principal: "alpha" }, probe: true })
 		expect([forged.status, probe.status]).toEqual([401, 401])
-		expect(sent.map((request) => request.headers.Authorization)).toEqual(["Bearer nope", "Bearer t-1"])
+		expect(sent.map((request) => request.headers["Authorization"])).toEqual(["Bearer nope", "Bearer t-1"])
 		expect(recorded.runs).toHaveLength(1)
 		expect(client.transcript.some((exchange) => exchange.superseded === true)).toBe(false)
 	})

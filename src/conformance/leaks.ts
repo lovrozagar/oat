@@ -13,12 +13,12 @@ export type StoreSnapshot = Record<string, Array<Record<string, unknown>>>
 export function leftBehind(before: StoreSnapshot, after: StoreSnapshot): string[] {
 	const out: string[] = []
 	for (const [entity, rows] of Object.entries(after)) {
-		const existed = new Set((before[entity] ?? []).map((row) => JSON.stringify(row.id)))
+		const existed = new Set((before[entity] ?? []).map((row) => JSON.stringify(row["id"])))
 		for (const row of rows) {
-			if (existed.has(JSON.stringify(row.id))) continue
+			if (existed.has(JSON.stringify(row["id"]))) continue
 			/* A tombstone is a removal: the API no longer serves it. */
-			if (row.deleted_at !== null && row.deleted_at !== undefined) continue
-			out.push(`${entity} ${String(row.id)}`)
+			if (row["deleted_at"] !== null && row["deleted_at"] !== undefined) continue
+			out.push(`${entity} ${String(row["id"])}`)
 		}
 	}
 	return out
@@ -31,17 +31,17 @@ export function leftBehind(before: StoreSnapshot, after: StoreSnapshot): string[
 export function damagedBystanders(before: StoreSnapshot, after: StoreSnapshot): string[] {
 	const out: string[] = []
 	for (const [entity, rows] of Object.entries(before)) {
-		const now = new Map((after[entity] ?? []).map((row) => [String(row.id), row]))
+		const now = new Map((after[entity] ?? []).map((row) => [String(row["id"]), row]))
 		for (const row of rows) {
-			const later = now.get(String(row.id))
+			const later = now.get(String(row["id"]))
 			if (later === undefined) {
-				out.push(`${entity} ${String(row.id)} deleted`)
+				out.push(`${entity} ${String(row["id"])} deleted`)
 				continue
 			}
 			const changed = [...new Set([...Object.keys(row), ...Object.keys(later)])].filter(
 				(key) => JSON.stringify(row[key]) !== JSON.stringify(later[key]),
 			)
-			if (changed.length > 0) out.push(`${entity} ${String(row.id)} changed ${changed.join(", ")}`)
+			if (changed.length > 0) out.push(`${entity} ${String(row["id"])} changed ${changed.join(", ")}`)
 		}
 	}
 	return out

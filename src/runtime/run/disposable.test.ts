@@ -35,7 +35,7 @@ describe("disposable", () => {
 		)
 		const enrolled = await enrollerOf(ctx)("one")
 		expect(enrolled).toMatchObject({ id: "disposable-one" })
-		const email = String(ctx.store.identityOf("disposable-one").email)
+		const email = String(ctx.store.identityOf("disposable-one")["email"])
 		const held = (await ctx.store.acquire({ principal: "disposable-one", scheme: "bearer" })) as Credential
 		expect([held.value, ctx.principals.byId.has("disposable-one")]).toEqual([`login-${email}`, false])
 	})

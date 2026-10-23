@@ -81,7 +81,7 @@ async function snapshotsRecordedForm() {
 		sha256: sha256Hex(bytes),
 	})
 	expect(existsSync(join(dir, "blobs", sha256Hex(bytes)))).toBe(true)
-	expect(file.requestBody.parts[1]?.sha256).toBe(sha256Hex(bytes))
+	expect(file.requestBody.parts[1]?.["sha256"]).toBe(sha256Hex(bytes))
 }
 
 async function compactsTimedOutAttempt() {

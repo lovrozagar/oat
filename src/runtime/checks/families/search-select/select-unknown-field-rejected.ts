@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { selectTerm } from "../../../../spec/conventions/select.ts"
 import type { EffectiveQueryCapabilities } from "../../../../spec/query/effective.ts"
@@ -8,7 +9,11 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, q, resolvedCaps } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const selectUnknownFieldRejected = defineCheck<{
+export const selectUnknownFieldRejected: Check<{
+	policy: NonNullable<NonNullable<EffectiveQueryCapabilities["select"]>["unknown"]>
+	requested: string[]
+	projection: Record<string, string>
+}> = defineCheck<{
 	policy: NonNullable<NonNullable<EffectiveQueryCapabilities["select"]>["unknown"]>
 	requested: string[]
 	projection: Record<string, string>

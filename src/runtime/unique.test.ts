@@ -127,8 +127,8 @@ describe("uniquifying a probe body", () => {
 	it("draws a new value from each unique column's schema", () => {
 		const body = { email: "a@x.test", slug: "s", title: "t" }
 		const out = uniquifyProbeBody(body, [["email"], ["missing"]], { schema, token: "tok" })
-		expect(out.email).not.toBe("a@x.test")
-		expect(out.email).toMatch(/@/)
+		expect(out["email"]).not.toBe("a@x.test")
+		expect(out["email"]).toMatch(/@/)
 		expect(out).toMatchObject({ slug: "s", title: "t" })
 		expect(out).not.toHaveProperty("missing")
 	})

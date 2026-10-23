@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { sortTerm } from "../../../../spec/conventions/sort.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -10,7 +11,10 @@ import { settlePair } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 import { readSet } from "../../sets/read.ts"
 
-export const sortStableTiebreak = defineCheck<{ primary: string; tiebreak: string }>({
+export const sortStableTiebreak: Check<{ primary: string; tiebreak: string }> = defineCheck<{
+	primary: string
+	tiebreak: string
+}>({
 	plan: (ctx) => {
 		const tiebreak = resolvedCaps(ctx).sort?.stableTiebreak ?? ctx.query?.stableTiebreak
 		if (tiebreak === undefined) return cannot()

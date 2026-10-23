@@ -45,7 +45,7 @@ export function createdRecordOf(response: unknown, identity: string, sent: unkno
 		if (isPlainRecord(inner) && holds(inner) > holds(record)) record = inner
 	}
 	if (record === response || isScalarId(record[identity])) return record
-	const answered = isScalarId(response[identity]) ? response[identity] : response.id
+	const answered = isScalarId(response[identity]) ? response[identity] : response["id"]
 	return isScalarId(answered) ? { ...record, [identity]: answered } : record
 }
 

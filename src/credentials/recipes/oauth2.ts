@@ -30,11 +30,11 @@ export async function acquireOAuth2(ctx: AcquireCtx, oauth2: OAuth2Recipe, optio
 	for (const value of principalValues(ctx.principal, oauth2)) ctx.ports.secrets.register(value)
 	const scopes = ctx.scopes.length > 0 ? ctx.scopes : (filled.scopes ?? [])
 	const client: Record<string, string> = { client_id: filled.clientId }
-	if (filled.clientSecret !== undefined) client.client_secret = filled.clientSecret
-	if (scopes.length > 0) client.scope = scopes.join(" ")
+	if (filled.clientSecret !== undefined) client["client_secret"] = filled.clientSecret
+	if (scopes.length > 0) client["scope"] = scopes.join(" ")
 	const form: Record<string, string> = { ...client, grant_type: GRANT[filled.flow] }
-	if (filled.username !== undefined) form.username = filled.username
-	if (filled.password !== undefined) form.password = filled.password
+	if (filled.username !== undefined) form["username"] = filled.username
+	if (filled.password !== undefined) form["password"] = filled.password
 	const expiresIn = options.expiresIn ?? { from: "$.expires_in" }
 	return token(ctx, { client, expiresIn, scopes, tokenUrl }, form)
 }

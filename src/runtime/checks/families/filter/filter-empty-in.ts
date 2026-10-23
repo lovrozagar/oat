@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import type { EffectiveQueryCapabilities } from "../../../../spec/query/effective.ts"
@@ -9,7 +10,11 @@ import { conv, FOUNDATIONS, pageSize, q, resolvedCaps } from "../../query/capabi
 import { ids, list } from "../../sets/list.ts"
 import { pickFieldForOp } from "./fields.ts"
 
-export const filterEmptyIn = defineCheck<{
+export const filterEmptyIn: Check<{
+	field: string
+	policy: NonNullable<EffectiveQueryCapabilities["emptyIn"]>
+	term: Record<string, string>
+}> = defineCheck<{
 	field: string
 	policy: NonNullable<EffectiveQueryCapabilities["emptyIn"]>
 	term: Record<string, string>

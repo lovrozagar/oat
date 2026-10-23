@@ -112,9 +112,11 @@ describe("confidence rows", () => {
 	it("reads an unclassified pass as unproven, and words each reason it can", () => {
 		const groups = confidenceGroups(many, files)
 		const rows = Object.fromEntries(groups.map((group) => [group.key, group.rows]))
-		expect(rows.unproven).toEqual([{ entity: "note", evidence: [], operation: "api:b.op", why: "no reason recorded" }])
-		expect(rows.failed?.[0]?.why).toBe("failed a check (2 findings)")
-		expect(rows.blocked?.map((r) => [r.operation, r.why, r.evidence])).toEqual([
+		expect(rows["unproven"]).toEqual([
+			{ entity: "note", evidence: [], operation: "api:b.op", why: "no reason recorded" },
+		])
+		expect(rows["failed"]?.[0]?.why).toBe("failed a check (2 findings)")
+		expect(rows["blocked"]?.map((r) => [r.operation, r.why, r.evidence])).toEqual([
 			["a.op", "skipped by --only", []],
 			["d.op", "no reason recorded", []],
 		])

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { api, BETA } from "../__fixtures__/api.ts"
 
 const operations = (spec: Record<string, unknown>) =>
-	Object.values(spec.paths as Record<string, Record<string, Record<string, unknown>>>).flatMap((item) =>
+	Object.values(spec["paths"] as Record<string, Record<string, Record<string, unknown>>>).flatMap((item) =>
 		Object.values(item),
 	)
 
@@ -11,7 +11,7 @@ describe("the document route", () => {
 		const { call } = await api()
 		const { status, body } = await call("GET", "/v1/openapi/spec", { token: null })
 		expect(status).toBe(200)
-		expect(body.openapi).toMatch(/^3\./)
+		expect(body["openapi"]).toMatch(/^3\./)
 		expect(operations(body).some((operation) => "x-entity" in operation)).toBe(true)
 	})
 
@@ -49,7 +49,7 @@ describe("the notices routes", () => {
 
 	it("disagree with the listing under LISTED_GET_DIFFERS", async () => {
 		const { call } = await api({ defects: ["LISTED_GET_DIFFERS"] })
-		expect((await call("GET", "/v1/notices/note_1")).body.title).toBe("Other")
+		expect((await call("GET", "/v1/notices/note_1")).body["title"]).toBe("Other")
 	})
 })
 

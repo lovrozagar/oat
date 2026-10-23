@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { ASSERTED, asserted, type Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
@@ -15,7 +16,10 @@ import { readSet } from "../../sets/read.ts"
  * past the end must hold nothing — a server that serves the last page again there makes every
  * client that pages until an empty page loop forever.
  */
-export const paginationBoundsHandled = defineCheck<{
+export const paginationBoundsHandled: Check<{
+	limit: string | undefined
+	page: string | undefined
+}> = defineCheck<{
 	limit: string | undefined
 	page: string | undefined
 }>({

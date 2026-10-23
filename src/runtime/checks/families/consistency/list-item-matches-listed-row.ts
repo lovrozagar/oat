@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
@@ -11,7 +12,10 @@ function listedRowMatches(listed: Record<string, unknown>, body: unknown): boole
 }
 
 /** A list with no create still has a get. The get body is the row the list already returned. */
-export const listedRowIsTheGet = defineCheck<{ id: string; listed: Record<string, unknown> }>({
+export const listedRowIsTheGet: Check<{ id: string; listed: Record<string, unknown> }> = defineCheck<{
+	id: string
+	listed: Record<string, unknown>
+}>({
 	plan: (ctx) => {
 		if (ctx.readOp === undefined || ctx.createOp !== undefined) return cannot()
 		const listed = ctx.records[0]

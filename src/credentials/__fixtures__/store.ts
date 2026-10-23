@@ -79,7 +79,7 @@ export function harness(faults: Faults = {}) {
 		if ((refreshing ? faults.refresh : faults.login)?.has(call.principal)) {
 			return Promise.reject(new Error(refreshing ? "refresh token reused" : "auth step 1 answered 401"))
 		}
-		const from = call.scope.credential
+		const from = call.scope["credential"]
 		if (refreshing && faults.rotates === true && from !== undefined) {
 			if (refreshed.has(from)) return Promise.reject(new Error("auth step 1 answered 401"))
 			refreshed.add(from)

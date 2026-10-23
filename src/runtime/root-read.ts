@@ -11,7 +11,7 @@ import type { EntityModel, SpecModel } from "../spec/graph/types.ts"
 import { fillPath } from "./fill-path.ts"
 import { noSecurityReason } from "./no-security.ts"
 
-export const ROOT_READ_CHECK_ID = "read.matches-caller-root" as const satisfies CheckId
+export const ROOT_READ_CHECK_ID: Extract<CheckId, "read.matches-caller-root"> = "read.matches-caller-root"
 
 export function rootReadIds(entity: EntityModel): string[] {
 	if (entity.identity !== "root") return []

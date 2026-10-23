@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -10,7 +11,13 @@ import { ids } from "../../sets/list.ts"
 import type { SetRead } from "../../sets/read.ts"
 import { pickOrderedField } from "./fields.ts"
 
-export const filterOrderedTriplePartitions = defineCheck<{
+export const filterOrderedTriplePartitions: Check<{
+	field: string
+	threshold: number
+	lt: Record<string, string>
+	eq: Record<string, string>
+	gt: Record<string, string>
+}> = defineCheck<{
 	field: string
 	threshold: number
 	lt: Record<string, string>

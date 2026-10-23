@@ -115,7 +115,7 @@ async function run(opts: { grows: boolean; gteDropsEqual: boolean }): Promise<Fi
 		const at = new URL(req.url ?? "/", "http://127.0.0.1")
 		const filter = at.searchParams.get("filter")
 		/* Another check creates a later template just before the gt term is read. */
-		if (opts.grows && filter?.includes(".gt.") === true && !store.some((row) => row.id === "t-new")) {
+		if (opts.grows && filter?.includes(".gt.") === true && !store.some((row) => row["id"] === "t-new")) {
 			store.push({ category: "general", created_at: 999, id: "t-new" })
 		}
 		const rows = select(store, filter, opts.gteDropsEqual)

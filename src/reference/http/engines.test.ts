@@ -41,7 +41,7 @@ function stubD1(): D1Call[] {
 	const calls: D1Call[] = []
 	const answer = async (url: string, init: RequestInit) => {
 		const { sql } = JSON.parse(String(init.body)) as { sql: string }
-		calls.push({ authorization: (init.headers as Record<string, string>).authorization ?? "", sql, url })
+		calls.push({ authorization: (init.headers as Record<string, string>)["authorization"] ?? "", sql, url })
 		return Response.json({ result: [{ results: [] }], success: true })
 	}
 	vi.stubGlobal("fetch", answer)

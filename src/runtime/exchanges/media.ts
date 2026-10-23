@@ -1,6 +1,6 @@
 /** Which bodies are kept inline, and which media types are bytes rather than text. */
 
-export const INLINE_BODY_LIMIT = 256 * 1024
+export const INLINE_BODY_LIMIT: number = 256 * 1024
 
 export function primaryMediaType(mediaType: string, fallback: string): string {
 	/* A part that names a type holds a "/", so it is never empty. */

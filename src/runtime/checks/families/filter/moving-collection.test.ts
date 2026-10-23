@@ -63,7 +63,7 @@ function moving(after: number, move: Move): Serve {
 		const rows = filter === null ? store : store.filter((row) => matches(row, filter))
 		const body = { widgets: rows.map((row) => ({ ...row })) }
 		if (filter !== null && ++filtered === after) {
-			const at = store.findIndex((row) => row.id === "s1")
+			const at = store.findIndex((row) => row["id"] === "s1")
 			if (move === "update") Object.assign(store[at] ?? {}, { amount: 70, category: "special", note: null })
 			if (move === "create") store.push({ amount: 3, category: "general", id: "s2", note: null })
 			if (move === "delete") store.splice(at, 1)

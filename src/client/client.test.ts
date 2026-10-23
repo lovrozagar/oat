@@ -145,12 +145,12 @@ describe("a request with a credential", () => {
 		const renewed = sendingHeaders({ authorization: "Bearer fresh" })
 		const source = fixedSource(sendingHeaders({ authorization: "Bearer stale" }, { refresh: async () => renewed }))
 		const { client, sent } = clientOf(
-			(request) => json({}, request.headers.authorization === "Bearer fresh" ? 200 : 401),
+			(request) => json({}, request.headers["authorization"] === "Bearer fresh" ? 200 : 401),
 			{ credentials: source },
 		)
 		const exchange = await client.get("/rows", { as: { principal: "alpha" } })
 		expect(exchange).toMatchObject({ principal: "alpha", status: 200 })
-		expect(sent.map((request) => request.headers.authorization)).toEqual(["Bearer stale", "Bearer fresh"])
+		expect(sent.map((request) => request.headers["authorization"])).toEqual(["Bearer stale", "Bearer fresh"])
 		expect(client.transcript.map((item) => item.superseded ?? false)).toEqual([true, false])
 	})
 
@@ -162,7 +162,7 @@ describe("a request with a credential", () => {
 		})
 		await client.get("/rows", { as: { principal: "alpha" } })
 		expect((await client.get("/x", { as: { principal: "alpha" } })).status).toBe(401)
-		expect(sent.map((request) => `${request.url.slice(BASE.length)} ${request.headers.authorization}`)).toEqual([
+		expect(sent.map((request) => `${request.url.slice(BASE.length)} ${request.headers["authorization"]}`)).toEqual([
 			"/rows Bearer stale",
 			"/x Bearer stale",
 			"/x Bearer fresh",

@@ -5,7 +5,7 @@ import { sortNumericOrderIsNumeric } from "./sort-numeric-order-is-numeric.ts"
 
 /* Orders rank by its text: 10 before 2. */
 const byText: Responder = () => ({
-	body: NOTES.toSorted((a, b) => String(a.rank).localeCompare(String(b.rank))),
+	body: NOTES.toSorted((a, b) => String(a["rank"]).localeCompare(String(b["rank"]))),
 	status: 200,
 })
 
@@ -13,7 +13,7 @@ describe("sort.numeric-order-is-numeric judges", () => {
 	it("passes a backend that orders a number as a number", async () => {
 		const staged = stage(sortNumericOrderIsNumeric)
 		expect(await staged.run()).toEqual({ kind: "asserted" })
-		expect(staged.sent.map((sent) => sent.options.query?.order)).toEqual(["rank.asc"])
+		expect(staged.sent.map((sent) => sent.options.query?.["order"])).toEqual(["rank.asc"])
 	})
 
 	it("fails a backend that orders a number as text", async () => {

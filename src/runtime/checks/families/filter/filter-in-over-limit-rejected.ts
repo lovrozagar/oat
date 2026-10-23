@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import type { Outcome } from "../../../finding.ts"
@@ -8,7 +9,11 @@ import { conv, FOUNDATIONS, q, resolvedCaps } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 import { pickFieldForOp } from "./fields.ts"
 
-export const filterInOverLimitRejected = defineCheck<{
+export const filterInOverLimitRejected: Check<{
+	field: string
+	max: number
+	term: Record<string, string>
+}> = defineCheck<{
 	field: string
 	max: number
 	term: Record<string, string>

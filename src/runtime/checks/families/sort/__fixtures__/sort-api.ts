@@ -43,5 +43,5 @@ export function refusingAfter(after: number, serve: Responder = backend()): Resp
 /** The backend that refuses any listing whose order is `order`, and serves the rest. */
 export function refusingOrder(order: string, serve: Responder = backend()): Responder {
 	return (method, path, options) =>
-		method === "GET" && path === PATH && queryOf(options).order === order ? REJECT : serve(method, path, options)
+		method === "GET" && path === PATH && queryOf(options)["order"] === order ? REJECT : serve(method, path, options)
 }

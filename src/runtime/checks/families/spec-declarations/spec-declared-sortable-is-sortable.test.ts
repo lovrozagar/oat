@@ -47,9 +47,12 @@ describe("spec.declared-sortable-is-sortable run", () => {
 
 	it("cites at most three refusals, and a refusal outweighs a probe turned away", async () => {
 		const respond = refusing(422, "price", "active", "tags", "meta")
-		const { ctx, findings } = stage((m, p, o) => (o.query?.order === "name.asc" ? { status: 503 } : respond(m, p, o)), {
-			query: tagQuery({ sortable: ["name", "price", "active", "tags", "meta"] }),
-		})
+		const { ctx, findings } = stage(
+			(m, p, o) => (o.query?.["order"] === "name.asc" ? { status: 503 } : respond(m, p, o)),
+			{
+				query: tagQuery({ sortable: ["name", "price", "active", "tags", "meta"] }),
+			},
+		)
 		expect(await runCheck(declaredSortableWorks, ctx)).toEqual({ kind: "finding", verdict: "SPEC_BUG" })
 		expect(findings.findings[0]?.detail).toContain("4 field(s)")
 		expect(findings.findings[0]?.evidence).toHaveLength(3)

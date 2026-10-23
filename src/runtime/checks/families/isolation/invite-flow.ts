@@ -198,7 +198,7 @@ export function documentedJsonBody(
 			return body
 		}
 	}
-	if (fields.token !== undefined) return { token: fields.token }
-	if (fields.grant_id !== undefined) return { grant_id: fields.grant_id }
+	if (fields["token"] !== undefined) return { token: fields["token"] }
+	if (fields["grant_id"] !== undefined) return { grant_id: fields["grant_id"] }
 	return { ...fields }
 }

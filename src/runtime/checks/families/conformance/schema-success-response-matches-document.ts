@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { OperationObject } from "../../../../spec/types.ts"
@@ -7,7 +8,11 @@ import { cannot, ready } from "../../core/plan.ts"
 import { createExchange } from "../../payloads/body.ts"
 import { isEventStream, subjectsOf } from "../../planning/subjects.ts"
 
-export const successSchemaHonoured = defineCheck<{
+export const successSchemaHonoured: Check<{
+	createOp: OperationModel
+	validator: SchemaValidator
+	raw: OperationObject
+}> = defineCheck<{
 	createOp: OperationModel
 	validator: SchemaValidator
 	raw: OperationObject

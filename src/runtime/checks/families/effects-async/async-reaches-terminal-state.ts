@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { AsyncSpec } from "../../../../spec/extensions/async.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
@@ -15,7 +16,7 @@ import { standDownForFeatureGate } from "../../planning/stand-down.ts"
 import { isEventStream, subjectsOf } from "../../planning/subjects.ts"
 import { bodyForOp, forOperation, subject } from "./requests.ts"
 
-export const asyncReachesTerminalState = defineCheck({
+export const asyncReachesTerminalState: Check = defineCheck({
 	plan: (ctx) => when(ctx.asyncOps.length > 0),
 	mutates: true,
 	id: "async.reaches-terminal-state",

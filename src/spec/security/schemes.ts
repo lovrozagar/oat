@@ -1,3 +1,4 @@
+import { isRaw, type RawOf } from "../../config/types/raw.ts"
 import type { OpenApiDocument } from "../types.ts"
 
 /*
@@ -48,7 +49,21 @@ const FLOWS: readonly FlowName[] = [
 const FLOW_URLS = ["authorizationUrl", "deviceAuthorizationUrl", "refreshUrl", "tokenUrl"] as const
 const LOCATIONS: ReadonlySet<string> = /* @__PURE__ */ new Set(["header", "query", "cookie"])
 
-type Raw = Record<string, unknown>
+/** A Security Scheme Object's fields as OpenAPI 3.0–3.2 names them, each still unread. */
+type RawScheme = RawOf<{
+	type: unknown
+	description: unknown
+	deprecated: unknown
+	scheme: unknown
+	bearerFormat: unknown
+	in: unknown
+	name: unknown
+	flows: unknown
+	oauth2MetadataUrl: unknown
+	openIdConnectUrl: unknown
+}>
+/** An OAuth Flow Object's fields, each still unread. */
+type RawFlow = RawOf<Record<(typeof FLOW_URLS)[number] | "scopes", unknown>>
 
 const text = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined)
 
@@ -56,7 +71,7 @@ function unsupported(name: string, deprecated: boolean, why: string): SecuritySc
 	return { deprecated, kind: "unsupported", name, unsupported: why }
 }
 
-function readHttp(name: string, raw: Raw, deprecated: boolean): SecurityScheme {
+function readHttp(name: string, raw: RawScheme, deprecated: boolean): SecurityScheme {
 	const scheme = (text(raw.scheme) ?? "").toLowerCase()
 	if (scheme === "basic") return { deprecated, kind: "basic", name }
 	if (scheme === "bearer") {
@@ -67,7 +82,7 @@ function readHttp(name: string, raw: Raw, deprecated: boolean): SecurityScheme {
 	return unsupported(name, deprecated, `http scheme "${scheme}" is not one oat can send`)
 }
 
-function readApiKey(name: string, raw: Raw, deprecated: boolean): SecurityScheme {
+function readApiKey(name: string, raw: RawScheme, deprecated: boolean): SecurityScheme {
 	const location = text(raw.in)
 	const param = text(raw.name)
 	if (location === undefined || !LOCATIONS.has(location) || param === undefined) {
@@ -77,7 +92,7 @@ function readApiKey(name: string, raw: Raw, deprecated: boolean): SecurityScheme
 }
 
 function readFlow(raw: unknown): OAuthFlow {
-	const flow = (raw ?? {}) as Raw
+	const flow: RawFlow = isRaw<RawFlow>(raw) ? raw : {}
 	const scopes = flow.scopes !== null && typeof flow.scopes === "object" ? Object.keys(flow.scopes) : []
 	const out: OAuthFlow = { scopes }
 	for (const key of FLOW_URLS) {
@@ -87,23 +102,23 @@ function readFlow(raw: unknown): OAuthFlow {
 	return out
 }
 
-function readOAuth2(name: string, raw: Raw, deprecated: boolean): SecurityScheme {
-	const declared = (raw.flows ?? {}) as Raw
+function readOAuth2(name: string, raw: RawScheme, deprecated: boolean): SecurityScheme {
+	const declared: RawOf<Record<FlowName, unknown>> = isRaw<Record<FlowName, unknown>>(raw.flows) ? raw.flows : {}
 	const flows: Partial<Record<FlowName, OAuthFlow>> = {}
 	for (const flow of FLOWS) if (declared[flow] !== undefined) flows[flow] = readFlow(declared[flow])
 	const metadata = text(raw.oauth2MetadataUrl)
 	return { deprecated, flows, kind: "oauth2", name, ...(metadata === undefined ? {} : { oauth2MetadataUrl: metadata }) }
 }
 
-function readOpenIdConnect(name: string, raw: Raw, deprecated: boolean): SecurityScheme {
+function readOpenIdConnect(name: string, raw: RawScheme, deprecated: boolean): SecurityScheme {
 	const url = text(raw.openIdConnectUrl)
 	if (url === undefined) return unsupported(name, deprecated, "an openIdConnect scheme needs an `openIdConnectUrl`")
 	return { deprecated, kind: "openIdConnect", name, openIdConnectUrl: url }
 }
 
 function readScheme(name: string, value: unknown): SecurityScheme {
-	if (value === null || typeof value !== "object") return unsupported(name, false, "the scheme is not an object")
-	const raw = value as Raw
+	if (!isRaw<RawScheme>(value)) return unsupported(name, false, "the scheme is not an object")
+	const raw: RawScheme = value
 	const deprecated = raw.deprecated === true
 	switch (raw.type) {
 		case "http":

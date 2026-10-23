@@ -55,7 +55,7 @@ describe("renderSuite on a baseline", () => {
 	})
 
 	it("fails a tagged baseline below its shape's floor and names what did not run", () => {
-		const floor = COVERAGE_FLOOR.postgrest ?? 0
+		const floor = COVERAGE_FLOOR["postgrest"] ?? 0
 		const { failures, text } = renderSuite([tagged({ checksRun: IDS.slice(0, floor - 1) })])
 		expect(failures).toBe(1)
 		expect(text).toContain("VACUOUS")

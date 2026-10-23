@@ -41,7 +41,7 @@ const present = (value: unknown) => value !== null && value !== undefined
 
 /* The ids of the records holding `value` on `field`. */
 const holding = (rows: Record_[], field: string, value: unknown) =>
-	new Set(rows.filter((row) => present(row[field]) && key(row[field]) === key(value)).map((row) => String(row.id)))
+	new Set(rows.filter((row) => present(row[field]) && key(row[field]) === key(value)).map((row) => String(row["id"])))
 
 const isProper = (group: Set<string>, rows: Record_[]) => group.size > 1 && group.size < rows.length
 
@@ -59,17 +59,17 @@ const searched = (rows: Record_[], token: string) =>
 	new Set(
 		rows
 			.filter((row) =>
-				String(row.title ?? "")
+				String(row["title"] ?? "")
 					.toLowerCase()
 					.includes(token.toLowerCase()),
 			)
-			.map((row) => String(row.id)),
+			.map((row) => String(row["id"])),
 	)
 
 /* The tokens the plan may try: a title, its first three letters, its words of two letters or more. */
 const tokens = (rows: Record_[]) =>
 	rows.flatMap((row) => {
-		const title = row.title
+		const title = row["title"]
 		if (typeof title !== "string" || title.length < 2) return []
 		return [
 			title,

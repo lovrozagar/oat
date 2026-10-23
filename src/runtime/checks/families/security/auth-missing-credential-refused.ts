@@ -1,3 +1,4 @@
+import type { OperationCheck } from "../../core/check.ts"
 /*
  * A secured operation must refuse a request that carries no credential. Planned only where the
  * security requires one: an operation that lets anonymous callers in owes no refusal, and a document
@@ -12,7 +13,7 @@ import { type Address, addressOf, judgeRefusals, securedPlan, send } from "./pro
 
 const ID = "auth.missing-credential-refused"
 
-export const missingCredentialRefused = defineCheck<Address>({
+export const missingCredentialRefused: OperationCheck<Address> = defineCheck<Address>({
 	id: ID,
 	mutates: true,
 	needs: "an operation whose security requires a credential",

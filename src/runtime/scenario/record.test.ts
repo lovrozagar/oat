@@ -62,20 +62,20 @@ describe("record: saveClaimsFrom", () => {
 			{ operationId: "auth.token", saveClaimsFrom: { bind: { user: "$.sub" }, token: "$.token" } },
 			{ body: { token }, status: 200 },
 		)
-		expect(run.scope.user).toBe("u1")
-		run.scope.saved = token
+		expect(run.scope["user"]).toBe("u1")
+		run.scope["saved"] = token
 		passed(
 			{ operationId: "notes.list", saveClaimsFrom: { bind: { org: "$.org" }, token: "saved" } },
 			{ body: {}, status: 200 },
 			{ run },
 		)
-		expect(run.scope.org).toBe("o9")
+		expect(run.scope["org"]).toBe("o9")
 		passed(
 			{ operationId: "notes.list", saveClaimsFrom: { bind: { sub: "$.sub" }, token: "token" } },
 			{ body: { token }, status: 200 },
 			{ run },
 		)
-		expect(run.scope.sub).toBe("u1")
+		expect(run.scope["sub"]).toBe("u1")
 	})
 
 	it("fails without a JWT, or without the claim", () => {

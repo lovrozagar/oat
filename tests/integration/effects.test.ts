@@ -132,7 +132,7 @@ describe("declared effects bind the nested list", () => {
 
 	it("uses the bound id on x-wait after the write", async () => {
 		const spec = nestedSpec()
-		const extractOp = spec.paths?.["/v1/projects/{project_id}/extract"]?.post as Record<string, unknown>
+		const extractOp = spec.paths?.["/v1/projects/{project_id}/extract"]?.["post"] as Record<string, unknown>
 		extractOp["x-wait"] = { operationId: "row.list", pollIntervalMs: 20, timeoutMs: 400, until: "$.rows.0" }
 		let polls = 0
 		const world = new TableWorld()

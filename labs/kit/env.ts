@@ -33,8 +33,8 @@ export function requireD1(worldId: string): {
 	databaseId: string
 } {
 	const env = loadDotEnv()
-	const accountId = process.env.CLOUDFLARE_ACCOUNT_ID ?? env.CLOUDFLARE_ACCOUNT_ID
-	const apiToken = process.env.CLOUDFLARE_API_TOKEN ?? env.CLOUDFLARE_API_TOKEN
+	const accountId = process.env["CLOUDFLARE_ACCOUNT_ID"] ?? env["CLOUDFLARE_ACCOUNT_ID"]
+	const apiToken = process.env["CLOUDFLARE_API_TOKEN"] ?? env["CLOUDFLARE_API_TOKEN"]
 	const key = d1EnvKey(worldId)
 	const databaseId = process.env[key] ?? env[key]
 	if (!accountId || !apiToken || !databaseId) {

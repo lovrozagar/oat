@@ -49,7 +49,7 @@ describe("createFresh", () => {
 		expect(sent).toHaveLength(2)
 		const ids = sent.map((request) => (request.options.body as { id: string }).id)
 		expect(new Set(ids).size).toBe(2)
-		expect(made.sent.id).toBe(ids[1])
+		expect(made.sent["id"]).toBe(ids[1])
 	})
 
 	it("gives the 409 back after three identities, says why, and keeps every refused one taken", async () => {
@@ -105,7 +105,7 @@ describe("createFresh with a bounded integer identity", () => {
 		expect(made.exchange.status).toBe(201)
 		expect(sent).toHaveLength(2)
 		expect(ids[1]).not.toBe(ids[0])
-		expect(made.sent.id).toBe(ids[1])
+		expect(made.sent["id"]).toBe(ids[1])
 	})
 
 	it("gives up after three distinct identities, answering the last 409", async () => {

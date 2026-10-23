@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { UnsatisfiedSecurity } from "../../../../client/credential-source.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
@@ -42,7 +43,12 @@ async function teardownCreatedId(ctx: WriteContext, id: string): Promise<void> {
 	}
 }
 
-export const uniqueConflictCreate = defineCheck<{
+export const uniqueConflictCreate: Check<{
+	createOp: OperationModel
+	first: Record_
+	schema: JsonSchema
+	sets: string[][]
+}> = defineCheck<{
 	createOp: OperationModel
 	first: Record_
 	schema: JsonSchema

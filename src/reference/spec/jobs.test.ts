@@ -22,7 +22,7 @@ describe("jobPaths", () => {
 	})
 
 	it("declares the async lifecycle polled on the job's item route", () => {
-		const start = declared[`${JOB.collectionPath}/start`]?.post
+		const start = declared[`${JOB.collectionPath}/start`]?.["post"]
 		expect(start).toMatchObject({
 			operationId: "job.start",
 			"x-async": { idFrom: "$.job_id", poll: `GET ${JOB.itemPath}`, until: "status.in.(complete,failed)" },
@@ -33,15 +33,15 @@ describe("jobPaths", () => {
 	})
 
 	it("declares where a notification's effect arrives and how long to wait", () => {
-		const notify = declared[`${PROJECT}/notifications`]?.post
+		const notify = declared[`${PROJECT}/notifications`]?.["post"]
 		expect(notify?.["x-wait"]).toEqual({ operationId: "job.inbox", timeoutMs: 2000, until: "$.messages[0]" })
-		const inbox = declared[`${PROJECT}/inbox`]?.get
-		expect(inbox?.operationId).toBe("job.inbox")
+		const inbox = declared[`${PROJECT}/inbox`]?.["get"]
+		expect(inbox?.["operationId"]).toBe("job.inbox")
 		expect(Object.keys(inbox?.responses ?? {})).toEqual(["200", "401", "403", "404"])
 	})
 
 	it("documents every answer as 2XX and default under range statuses", () => {
-		const inbox = paths(true)[`${PROJECT}/inbox`]?.get
+		const inbox = paths(true)[`${PROJECT}/inbox`]?.["get"]
 		expect(Object.keys(inbox?.responses ?? {})).toEqual(["2XX", "default"])
 	})
 })

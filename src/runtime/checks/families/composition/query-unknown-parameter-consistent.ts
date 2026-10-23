@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { asserted, type Outcome } from "../../../finding.ts"
@@ -16,7 +17,7 @@ import { readSet } from "../../sets/read.ts"
  * and no error. Two invented names are sent — one plain, one shaped like a real parameter with a
  * typo — and each answer compared, as a whole set, with the listing asked for without it.
  */
-export const unknownParameterConsistent = defineCheck<{ names: string[] }>({
+export const unknownParameterConsistent: Check<{ names: string[] }> = defineCheck<{ names: string[] }>({
 	plan: (ctx) => {
 		if (ctx.records.length === 0) return cannot()
 		const real = conv(ctx).limit ?? conv(ctx).page ?? conv(ctx).order ?? "limit"

@@ -41,6 +41,6 @@ export function decodeJwt(secret: string, token: string): DecodedJwt | null {
 	if (head === undefined || claims === undefined) return null
 	const expected = mac(secret, `${header}.${payload}`)
 	const given = Buffer.from(signature, "base64url")
-	const signed = head.alg === "HS256" && given.length === expected.length && timingSafeEqual(given, expected)
+	const signed = head["alg"] === "HS256" && given.length === expected.length && timingSafeEqual(given, expected)
 	return { claims, signed }
 }

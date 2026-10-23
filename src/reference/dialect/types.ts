@@ -1,3 +1,5 @@
+import type { RawOf } from "../../config/types/raw.ts"
+import type { SortGrammarSpec } from "../../spec/render/sort.ts"
 /** The names, envelope and grammars one API speaks; see `presets.ts` for why there are several. */
 export interface Dialect {
 	name: string
@@ -48,7 +50,7 @@ export interface Dialect {
 	/** How sort directions are written. Defaults to the dotted form when unset. */
 	sortGrammar?: "dotted" | "prefixed" | "colon" | "spaced" | "template"
 	/** The template a `template` sort grammar declares on `x-query.sortGrammar`. */
-	sortTemplate?: Record<string, unknown>
+	sortTemplate?: RawOf<SortGrammarSpec>
 	/** How a sparse fieldset is written. Defaults to comma-separated names. */
 	selectGrammar?: "csv" | "bracketed"
 }

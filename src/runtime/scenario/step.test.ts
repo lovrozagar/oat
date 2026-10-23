@@ -9,7 +9,7 @@ describe("runStep: binds and requests", () => {
 	it("binds names before the step, then sends it", async () => {
 		const run = runOf(notes())
 		await runStep(run, { bind: { label: "for {org}" }, body: { text: "{label}" }, operationId: "notes.create" }, 0)
-		expect(run.scope.label).toBe("for o1")
+		expect(run.scope["label"]).toBe("for o1")
 		expect(run.requests[0]).toMatchObject({ method: "POST", options: { body: { text: "for o1" } }, path: "/notes" })
 		await runStep(run, { bind: undefined, operationId: "notes.list" } as unknown as ScenarioStep, 1)
 		expect(run.requests).toHaveLength(2)
@@ -26,7 +26,7 @@ describe("runStep: a value delivered outside HTTP", () => {
 		const run = runOf(notes(), { hooks: { resolveOutOfBand }, outOfBand: { attempts: 1 } })
 		await runStep(run, { body: { text: "a@b.c" }, operationId: "notes.create" }, 0)
 		await runStep(run, { outOfBand: { address: "a@b.c", as: "code", kind: "otp" } }, 1)
-		expect(run.scope.code).toBe("123456")
+		expect(run.scope["code"]).toBe("123456")
 		expect(asked[0]).toMatchObject({ address: "a@b.c", kind: "otp", scope: { org: "o1" } })
 		expect(asked[0]?.since).toBeTypeOf("number")
 	})

@@ -49,7 +49,7 @@ export const login: Route = async (state, request) => {
 export const refresh: Route = async (state, request) => {
 	if (!is(request, "POST", "/v1/auth/refresh")) return undefined
 	const body = await readFields(request, state.defects, { refresh_token: "string" })
-	return respond(200, rotate(state, body.refresh_token as string))
+	return respond(200, rotate(state, body["refresh_token"] as string))
 }
 
 /** `auth.revoke { token }`: revokes one of the caller's own access or refresh tokens. */
@@ -57,7 +57,7 @@ export const revokeToken: Route = async (state, request) => {
 	if (!is(request, "POST", "/v1/auth/revoke")) return undefined
 	const caller = authenticate(state, request)
 	const body = await readFields(request, state.defects, { token: "string" })
-	revokeJwt(state, caller, body.token as string)
+	revokeJwt(state, caller, body["token"] as string)
 	return respond(200, { revoked: true })
 }
 

@@ -15,8 +15,8 @@ const rows = widgets(3)
 /** A backend that applies `id.eq.<id>` filters, reporting `total` as `count(matched)`. */
 function filtering(count: (matched: number) => number | undefined) {
 	return pagedBackend(rows, (body, query) => {
-		const id = typeof query.filter === "string" ? query.filter.replace("id.eq.", "") : undefined
-		const items = id === undefined ? body.items : body.items.filter((row) => row.id === id)
+		const id = typeof query["filter"] === "string" ? query["filter"].replace("id.eq.", "") : undefined
+		const items = id === undefined ? body.items : body.items.filter((row) => row["id"] === id)
 		return { body: { items, total: count(items.length) }, status: 200 }
 	})
 }

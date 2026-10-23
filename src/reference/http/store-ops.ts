@@ -13,8 +13,8 @@ import { pathId } from "./validation.ts"
 export async function typedScope(state: ReferenceState, raw: Record<string, string>): Promise<Scope> {
 	const scope: Scope = {}
 	for (const [param, value] of Object.entries(raw)) scope[param] = pathId(state.entities, param, value)
-	if (state.shape.tableKey === "slug" && raw.table_id !== undefined) {
-		scope.table_id = await tableByKey(state, String(scope.project_id ?? ""), raw.table_id)
+	if (state.shape.tableKey === "slug" && raw["table_id"] !== undefined) {
+		scope["table_id"] = await tableByKey(state, String(scope["project_id"] ?? ""), raw["table_id"])
 	}
 	return scope
 }
@@ -91,7 +91,7 @@ export async function assertUnique(state: ReferenceState, written: EntityRecord,
  */
 export async function refreshParentCount(state: ReferenceState, entity: EntityDef, scope: Scope): Promise<void> {
 	if (entity.name !== "row" || state.defects.has("PARENT_PROJECTION_STALE")) return
-	const tableId = scope.table_id
+	const tableId = scope["table_id"]
 	if (tableId === undefined) return
 	const total = (await liveRows(state, entity, { table_id: tableId })).length
 	await state.store.update(state.table, tableId, { row_count: total })
@@ -131,7 +131,7 @@ export async function advanceJobs(state: ReferenceState): Promise<void> {
 			state.jobStartedAt.delete(id)
 			continue
 		}
-		if (current.status === status && current.progress === progress) continue
+		if (current["status"] === status && current["progress"] === progress) continue
 		await state.store.update(state.job, id, { progress, status })
 		if (status === "complete") state.jobStartedAt.delete(id)
 	}
@@ -176,7 +176,7 @@ async function prepopulateOne(state: ReferenceState, projectId: string, i: numbe
 		{ entity: state.job, scope },
 		{ kind: ["export", "import", "sync"][i % 3], name, note: i % 4 === 0 ? null : word },
 	)
-	job.status = "complete"
-	job.progress = 100
+	job["status"] = "complete"
+	job["progress"] = 100
 	await state.store.insert(state.job, job)
 }

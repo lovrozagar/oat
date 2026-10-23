@@ -429,7 +429,7 @@ describe("bodyOf: a sign-in's identity fields", () => {
 			profile: { handle: "oat-nonexistent-n0" },
 			tags: { login: "oat-nonexistent-n0" },
 		})
-		expect(typeof body.profile?.locale).toBe("string")
-		expect(body.profile?.locale).not.toContain("nonexistent")
+		expect(typeof body["profile"]?.["locale"]).toBe("string")
+		expect(body["profile"]?.["locale"]).not.toContain("nonexistent")
 	})
 })

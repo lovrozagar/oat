@@ -15,7 +15,7 @@ describe("signUp", () => {
 			principal: "disposable-0",
 			scope: {},
 		})
-		expect(typeof (session as { known: Record<string, unknown> }).known.email).toBe("string")
+		expect(typeof (session as { known: Record<string, unknown> }).known["email"]).toBe("string")
 		expect(session).not.toHaveProperty("renew")
 		expect(await ctx.store.acquire({ principal: "disposable-0", scheme: "session" })).toMatchObject({ value: "t1" })
 	})

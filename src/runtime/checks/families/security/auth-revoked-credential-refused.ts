@@ -1,3 +1,4 @@
+import type { OperationCheck } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationWriteContext } from "../../core/operation-context.ts"
 import { isUntested } from "../../core/operation.ts"
@@ -9,7 +10,7 @@ import { isRefused, type Lifecycle, lifecyclePlan, type SchemeOutcome, settle } 
  * proves it on one read, revokes it through the declared path, and sends it to the same read again,
  * which must now refuse it with 401 or 403.
  */
-export const revokedCredentialRefused = defineCheck<Lifecycle[]>({
+export const revokedCredentialRefused: OperationCheck<Lifecycle[]> = defineCheck<Lifecycle[]>({
 	id: "auth.revoked-credential-refused",
 	mutates: true,
 	mutatesCredentials: true,

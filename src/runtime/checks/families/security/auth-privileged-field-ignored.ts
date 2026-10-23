@@ -1,3 +1,4 @@
+import type { OperationCheck } from "../../core/check.ts"
 import type { Actor } from "../../core/context.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationContext, OperationWriteContext, WriteTarget } from "../../core/operation-context.ts"
@@ -32,7 +33,7 @@ interface PrivilegedProbe {
  * left as it was passes, whether the write drew a 403, a 400 naming it, or a 200; one that changed is
  * the finding. A server error, or a record that cannot be re-read, leaves it unresolved.
  */
-export const privilegedFieldIgnored = defineCheck<PrivilegedProbe>({
+export const privilegedFieldIgnored: OperationCheck<PrivilegedProbe> = defineCheck<PrivilegedProbe>({
 	id: "auth.privileged-field-ignored",
 	mutates: true,
 	needs: "a property marked x-privileged, a principal ranked below the highest, and a run-created record",

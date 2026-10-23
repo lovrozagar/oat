@@ -16,7 +16,7 @@ describe("filter.gte-is-gt-or-eq", () => {
 	})
 
 	it("reports gte implemented as gt", async () => {
-		const { ctx, findings } = stage({ behavior: { ops: { gte: OPS.gt } }, doc: DOC, records: COHORT })
+		const { ctx, findings } = stage({ behavior: { ops: { gte: OPS["gt"] } }, doc: DOC, records: COHORT })
 		expect(await runCheck(check, ctx)).toMatchObject({ kind: "finding" })
 		expect(only(findings)).toMatchObject({ check: "filter.gte-is-gt-or-eq", summary: "gte is not gt ∪ eq" })
 	})

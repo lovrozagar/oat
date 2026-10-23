@@ -21,8 +21,8 @@ describe("writableBody", () => {
 	it("sends the record as it is when the request schema names no properties, or there is no body", () => {
 		const free = securedDoc()
 		const paths = (free as unknown as { paths: Record<string, Record<string, Record<string, unknown>>> }).paths
-		const patch = paths["/projects/{project_id}/notes/{note_id}"]?.patch as Record<string, unknown>
-		patch.requestBody = { content: { "application/json": { schema: { type: "object" } } }, required: true }
+		const patch = paths["/projects/{project_id}/notes/{note_id}"]?.["patch"] as Record<string, unknown>
+		patch["requestBody"] = { content: { "application/json": { schema: { type: "object" } } }, required: true }
 		const record = { id: "n1", title: "first" }
 		expect(writableBody(operationContextFor(modelOf(free), "notes.update").ctx, record)).toEqual(record)
 		expect(writableBody(operationContextFor(model, "notes.delete").ctx, record)).toEqual(record)

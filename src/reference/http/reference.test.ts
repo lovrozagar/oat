@@ -36,7 +36,7 @@ describe("createReference", () => {
 		expect(created.status).toBe(201)
 		const { id } = (await created.json()) as { id: string }
 		expect(reference.createdIds()).toEqual({ table: [id] })
-		expect((await reference.snapshot()).table).toEqual([expect.objectContaining({ id, name: "t" })])
+		expect((await reference.snapshot())["table"]).toEqual([expect.objectContaining({ id, name: "t" })])
 		await expect(reference.close()).resolves.toBeUndefined()
 	})
 
@@ -59,7 +59,7 @@ describe("referenceState", () => {
 			false,
 		])
 		expect(createdIds(state)).toEqual({})
-		expect((await snapshot(state)).table).toHaveLength(3)
+		expect((await snapshot(state))["table"]).toHaveLength(3)
 	})
 
 	it("hands the store the defects and the shape's entities", async () => {
@@ -86,8 +86,8 @@ describe("the listing store under HIDDEN_FROM_CREATOR", () => {
 			shuffleTies: false,
 			where: { kind: "const", value: true },
 		}
-		expect((await state.listingStore.select(row, all)).map((r) => r.id)).toEqual(["r2"])
-		expect((await state.store.select(row, all)).map((r) => r.id)).toEqual(["r1", "r2"])
+		expect((await state.listingStore.select(row, all)).map((r) => r["id"])).toEqual(["r2"])
+		expect((await state.store.select(row, all)).map((r) => r["id"])).toEqual(["r1", "r2"])
 		expect((state.listingStore as unknown as { label: string }).label).toBe("memory")
 		expect(state.listingStore).not.toBe(state.store)
 	})
@@ -115,8 +115,8 @@ describe("createdIds and snapshot", () => {
 		await post("/v1/projects/proj_beta/tables", { name: "Plan A" }, BETA)
 		const row = (await (await post(rowsOf("plan-a"), { label: "r" })).json()) as { id: string }
 		expect(reference.createdIds()).toEqual({ row: [row.id], table: ["plan-a"] })
-		const tables = (await reference.snapshot()).table ?? []
-		expect(tables.map((table) => table.id)).toEqual(["plan-a", "plan-a"])
+		const tables = (await reference.snapshot())["table"] ?? []
+		expect(tables.map((table) => table["id"])).toEqual(["plan-a", "plan-a"])
 	})
 
 	it("ledger every API key the server issued, under api-key, whoever asked", async () => {
@@ -136,8 +136,8 @@ describe("createdIds and snapshot", () => {
 
 	it("key a renamed identity as id", async () => {
 		const state = await referenceState({ shape: "wrapped-records" }, memoryStore)
-		const tables = (await snapshot(state)).table ?? []
+		const tables = (await snapshot(state))["table"] ?? []
 		expect(tables[0]).toMatchObject({ ID: 1, id: 1 })
-		expect((await snapshot(state)).job?.[0]).not.toHaveProperty("ID")
+		expect((await snapshot(state))["job"]?.[0]).not.toHaveProperty("ID")
 	})
 })

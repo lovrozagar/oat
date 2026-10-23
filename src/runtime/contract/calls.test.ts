@@ -206,11 +206,11 @@ describe("runContractCalls and sign-in operations", () => {
 			return sent[0]?.options.body as Record<string, unknown>
 		}
 		const generated = await bodyOf(new Map())
-		expect(generated.email).toBe("admin@company.com")
+		expect(generated["email"]).toBe("admin@company.com")
 		const body = await bodyOf(signInCredentials.identityFields)
 		expect(JSON.stringify(body)).not.toContain("admin@company.com")
 		expect(body).toEqual({
-			client: generated.client,
+			client: generated["client"],
 			email: "oat-nonexistent-n0@example.invalid",
 			password: "oat-nonexistent-n0",
 		})

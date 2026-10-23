@@ -34,7 +34,7 @@ describe("the credential defects, each through the router against a clean refere
 
 	it("TOKEN_NOT_VERIFIED: a JWT with its signature altered authenticates", async () => {
 		const statuses = await contrast("TOKEN_NOT_VERIFIED", async (w) => {
-			const token = (await session(w)).access_token as string
+			const token = (await session(w))["access_token"] as string
 			const forged = `${token.slice(0, -2)}${token.endsWith("AA") ? "BB" : "AA"}`
 			return (await w.call("GET", TABLES, as(`Bearer ${forged}`))).status
 		})
@@ -119,9 +119,9 @@ describe("the role, tenant and privilege defects, each through the router agains
 
 	it("PRIVILEGED_FIELD_WRITABLE: a member's update sets the table's verified flag", async () => {
 		const statuses = await contrast("PRIVILEGED_FIELD_WRITABLE", async (w) => {
-			const item = `${TABLES}/${String((await w.table("t")).id)}`
+			const item = `${TABLES}/${String((await w.table("t"))["id"])}`
 			await w.call("PATCH", item, { body: { verified: true }, token: MEMBER })
-			return (await w.call("GET", item)).body.verified === true ? 1 : 0
+			return (await w.call("GET", item)).body["verified"] === true ? 1 : 0
 		})
 		expect(statuses).toEqual([0, 1])
 	})

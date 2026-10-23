@@ -13,7 +13,7 @@ const byId = breakingBy("id")
 /* Sorted by the requested order, the cohort first laid out as `rows`: ties keep that layout. */
 const servingAs =
 	(rows: readonly Record_[]): Responder =>
-	(_method, _path, options) => ({ body: applyOrder(rows, queryOf(options).order ?? ""), status: 200 })
+	(_method, _path, options) => ({ body: applyOrder(rows, queryOf(options)["order"] ?? ""), status: 200 })
 
 /* Ties on "open" laid out n1, n4, n2: rising, then falling. */
 const scrambled = servingAs([NOTES[0], NOTES[3], NOTES[1], NOTES[2], NOTES[4], NOTES[5]] as Record_[])
@@ -31,7 +31,7 @@ describe("sort.stable-tiebreak judges", () => {
 	it("passes ties broken by the declared tiebreak, read twice afresh", async () => {
 		const staged = stage(sortStableTiebreak, { doc: byId })
 		expect(await staged.run()).toEqual({ kind: "asserted" })
-		expect(staged.sent.map((sent) => sent.options.query?.order)).toEqual(["status.asc", "status.asc"])
+		expect(staged.sent.map((sent) => sent.options.query?.["order"])).toEqual(["status.asc", "status.asc"])
 	})
 
 	it("passes ties broken the other way, and skips null tiebreak values", async () => {
@@ -94,7 +94,7 @@ describe("sort.stable-tiebreak plans", () => {
 
 	it("needs a tied field other than the tiebreak itself", () => {
 		const needs = { needs: "a sortable field with tied values in the cohort", ok: false }
-		const distinct = NOTES.map((row, index) => ({ ...row, rank: index, score: index, status: row.id }))
+		const distinct = NOTES.map((row, index) => ({ ...row, rank: index, score: index, status: row["id"] }))
 		expect(stage(sortStableTiebreak, { doc: byId, rows: distinct }).plan()).toEqual(needs)
 		expect(stage(sortStableTiebreak, { doc: breakingBy("status") }).plan()).toEqual(needs)
 	})

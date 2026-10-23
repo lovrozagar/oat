@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { sortTerm } from "../../../../spec/conventions/sort.ts"
 import type { EffectiveFilterField } from "../../../../spec/query/effective.ts"
@@ -22,7 +23,9 @@ function computeNumericLexicalDisagrees(ctx: CheckContext, field: string): boole
 	return asNumbers.join(",") !== asText.join(",")
 }
 
-export const sortNumericOrderIsNumeric = defineCheck<{ field: EffectiveFilterField }>({
+export const sortNumericOrderIsNumeric: Check<{ field: EffectiveFilterField }> = defineCheck<{
+	field: EffectiveFilterField
+}>({
 	plan: (ctx) => {
 		const field = resolvedCaps(ctx).sortable.find((item) => numericLexicalDisagrees(ctx, item.field))
 		return conv(ctx).order === undefined || field === undefined ? cannot() : ready({ field })

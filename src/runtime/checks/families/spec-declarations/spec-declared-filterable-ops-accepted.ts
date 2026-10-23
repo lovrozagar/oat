@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { canWriteFilterOp, filterTerm } from "../../../../spec/conventions/filter.ts"
 import type { EffectiveFilterField } from "../../../../spec/query/effective.ts"
@@ -44,7 +45,7 @@ function typedSentinel(ctx: CheckContext, field: EffectiveFilterField): string |
 	return made.ok && (typeof made.value === "string" || typeof made.value === "number") ? made.value : null
 }
 
-export const declaredFilterableOpsAccepted = defineCheck({
+export const declaredFilterableOpsAccepted: Check = defineCheck({
 	plan: (ctx) =>
 		when(
 			ctx.query?.source === "tag" &&

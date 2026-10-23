@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { Exchange } from "../../../exchange.ts"
@@ -27,7 +28,11 @@ import type { JsonSchema } from "../../../../spec/types.ts"
  * Both halves are asserted, because either alone is satisfiable by a broken backend: the replay
  * must return the *original* record, and the collection must not have grown.
  */
-export const idempotentReplay = defineCheck<{
+export const idempotentReplay: Check<{
+	createOp: OperationModel
+	header: string
+	schema: JsonSchema
+}> = defineCheck<{
 	createOp: OperationModel
 	header: string
 	schema: JsonSchema

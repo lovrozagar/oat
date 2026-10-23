@@ -1,3 +1,4 @@
+import type { OperationCheck } from "../../core/check.ts"
 import type { Actor } from "../../core/context.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationContext } from "../../core/operation-context.ts"
@@ -24,7 +25,7 @@ interface CrossTenant {
  * must be refused with 401, 403 or 404. Its acceptance in the peer's own tenant proves the refusal
  * was about the tenant, not a broken key.
  */
-export const crossTenantKeyRefused = defineCheck<CrossTenant>({
+export const crossTenantKeyRefused: OperationCheck<CrossTenant> = defineCheck<CrossTenant>({
 	id: "auth.cross-tenant-key-refused",
 	needs: "a peer tenant, and a tenant-scoped GET that takes an API key",
 	plan: (ctx) => {

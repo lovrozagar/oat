@@ -1,8 +1,35 @@
 import type { DefectName } from "../../reference/defects/table.ts"
 import type { FindingId } from "../../runtime/check-ids.ts"
 
+/** The defects with a row in the filter family; a name that is not a defect falls out and fails its row. */
+type FilterDefect = Extract<
+	DefectName,
+	| "FILTER_GROUP_COMBINATOR_SWAPPED"
+	| "ERROR_500_ON_BAD_FILTER"
+	| "FILTER_IGNORED"
+	| "LIKE_UNESCAPED"
+	| "FILTER_EQ_NOT_APPLIED"
+	| "EMPTY_RESULT_RETURNS_ALL"
+	| "NEQ_DROPS_NULLS"
+	| "NUMERIC_COMPARED_AS_TEXT"
+	| "FILTER_IN_FIRST_ONLY"
+	| "FILTER_GTE_IS_GT"
+	| "FILTER_ILIKE_IS_LIKE"
+	| "FILTER_IS_NULL_MATCHES_ALL"
+	| "FILTER_ILLEGAL_OP_IGNORED"
+	| "IGNORES_MALFORMED_FILTER"
+	| "FILTER_ALIAS_MISMAPPED"
+	| "FILTER_CONDITION_CAP_IGNORED"
+	| "FILTER_IN_CAP_IGNORED"
+	| "FILTER_LTE_IS_LT"
+	| "FILTER_LT_IS_LTE"
+	| "FILTER_NESTED_COMBINATOR_LEAKS"
+	| "FILTER_NIN_FIRST_ONLY"
+	| "CONTAINS_MATCHES_SUBSTRING"
+>
+
 /** The defects whose primary check is in the filter family, and the check each must trip. */
-export const FILTER_EXPECTED = {
+export const FILTER_EXPECTED: Record<FilterDefect, FindingId | FindingId[]> = {
 	FILTER_GROUP_COMBINATOR_SWAPPED: [
 		"filter.and-composes-as-intersection",
 		/* Only fires where an or() combinator exists to swap at all — the postgrest-shaped
@@ -71,4 +98,4 @@ export const FILTER_EXPECTED = {
 	FILTER_NESTED_COMBINATOR_LEAKS: "filter.nested-and-or-distributes",
 	FILTER_NIN_FIRST_ONLY: "filter.nin-complements-in",
 	CONTAINS_MATCHES_SUBSTRING: "filter.contains-membership",
-} satisfies Partial<Record<DefectName, FindingId | FindingId[]>>
+}

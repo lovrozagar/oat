@@ -26,14 +26,14 @@ import { rows, served } from "./__fixtures__/serve.ts"
 const byFilter =
 	(pick: () => Record<string, Record_[]>): Responder =>
 	(method, path, options) =>
-		served(pick()[String(options.query?.filter)] ?? [])(method, path, options)
+		served(pick()[String(options.query?.["filter"])] ?? [])(method, path, options)
 
 type Requests = Array<{ options: { query?: Record<string, unknown> } }>
 
 const pageQuery = (sent: Requests, index: number) => sent[index]?.options.query
 
 /** The requests that began a walk: one per set read. */
-const walks = (sent: Requests) => sent.filter((request) => request.options.query?.page === 1)
+const walks = (sent: Requests) => sent.filter((request) => request.options.query?.["page"] === 1)
 
 describe("listAll", () => {
 	it("reads the whole set with the query's order and filters, dropping its paging", async () => {
@@ -153,7 +153,7 @@ const SETS = { a: rows(1), b: rows(2) }
 
 /** Refuses the `b` term and serves the rest. */
 const refusing: Responder = (method, path, options) =>
-	options.query?.filter === "b" ? { status: 400 } : byFilter(() => SETS)(method, path, options)
+	options.query?.["filter"] === "b" ? { status: 400 } : byFilter(() => SETS)(method, path, options)
 
 describe("readSettled", () => {
 	it("hands back the reads when they agree, read once", async () => {

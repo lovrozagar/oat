@@ -40,7 +40,7 @@ describe("starting a job", () => {
 
 	it("answers without the job under EFFECT_NOT_APPLIED, and without its id under ASYNC_RECEIPT_MISSING_ID", async () => {
 		const lost = await api({ defects: ["EFFECT_NOT_APPLIED"] })
-		expect((await lost.call("POST", START, { body: { name: "j" } })).body.job_id).toBe("job_000001")
+		expect((await lost.call("POST", START, { body: { name: "j" } })).body["job_id"]).toBe("job_000001")
 		expect((await lost.call("GET", `${JOBS}/job_000001`)).status).toBe(404)
 		const anonymous = await api({ defects: ["ASYNC_RECEIPT_MISSING_ID"] })
 		expect((await anonymous.call("POST", START, { body: { name: "j" } })).body).toEqual({ accepted: true })

@@ -140,5 +140,5 @@ export function applyJarToHeaders(headers: Record<string, string>, { jar, url, c
 	const fromJar = jar.cookieHeader(url)
 	omitHeader(headers, "cookie")
 	const merged = mergeCookieHeader(callerCookie, fromJar)
-	if (merged !== undefined && merged !== "") headers.cookie = merged
+	if (merged !== undefined && merged !== "") headers["cookie"] = merged
 }

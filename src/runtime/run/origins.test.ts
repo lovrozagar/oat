@@ -136,7 +136,7 @@ describe("loadOriginClients with nothing to map", () => {
 		const { security: _none, ...bare } = optionsFor(notesApi(), { origins: [OPEN] })
 		const ctx = await contextOf(servingAt(bare, OPEN.spec, openDoc()))
 		const answer = await ctx.originClients.get("open")?.client.get("/notes", { as: { principal: "alpha" } })
-		expect(answer?.requestHeaders.authorization).toBeUndefined()
+		expect(answer?.requestHeaders["authorization"]).toBeUndefined()
 	})
 })
 

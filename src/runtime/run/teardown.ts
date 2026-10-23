@@ -198,6 +198,6 @@ export async function teardownPrincipals(ctx: RunContext): Promise<void> {
 
 /* The address the hook removes a made principal by. */
 function addressOf(identity: Readonly<Record<string, unknown>>): string | undefined {
-	const address = identity.address ?? identity.email
+	const address = identity["address"] ?? identity["email"]
 	return typeof address === "string" && address !== "" ? address : undefined
 }

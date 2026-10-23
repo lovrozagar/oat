@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { sortTerm } from "../../../../spec/conventions/sort.ts"
 import type { Outcome } from "../../../finding.ts"
@@ -7,7 +8,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, q } from "../../query/capabilities.ts"
 import { ids, list } from "../../sets/list.ts"
 
-export const sortUnknownFieldRejected = defineCheck({
+export const sortUnknownFieldRejected: Check = defineCheck({
 	plan: (ctx) => when(conv(ctx).order !== undefined),
 	dependsOn: ["error.malformed-filter-not-5xx"],
 	id: "sort.unknown-field-rejected",

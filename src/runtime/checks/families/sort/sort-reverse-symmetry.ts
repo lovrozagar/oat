@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { sortTerm } from "../../../../spec/conventions/sort.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -11,7 +12,7 @@ import { collectSet, settlePair } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 import type { SetRead } from "../../sets/read.ts"
 
-export const sortReverseSymmetry = defineCheck<{ field: string }>({
+export const sortReverseSymmetry: Check<{ field: string }> = defineCheck<{ field: string }>({
 	plan: (ctx) => {
 		if (ctx.records.length <= 1) return cannot()
 		/* A nullable sort key exercises null ordering, where the interesting bugs live. */

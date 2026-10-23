@@ -23,7 +23,7 @@ function filterable(entity: EntityDef, catalog: FilterCatalog | undefined): unkn
 		const def = entity.fields.find((item) => item.name === field)
 		const row: Json = { field, ops: [...ops] }
 		const type = queryFieldType(def)
-		if (type !== undefined) row.type = type
+		if (type !== undefined) row["type"] = type
 		return row
 	})
 }
@@ -34,8 +34,8 @@ function sortable(entity: EntityDef, catalog: FilterCatalog | undefined): unknow
 		const def = entity.fields.find((item) => item.name === field)
 		const row: Json = { field }
 		const type = queryFieldType(def)
-		if (type !== undefined) row.type = type
-		row.nulls = ["first", "last"]
+		if (type !== undefined) row["type"] = type
+		row["nulls"] = ["first", "last"]
 		return row
 	})
 }

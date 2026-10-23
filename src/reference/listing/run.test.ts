@@ -11,9 +11,9 @@ import type { ListingOptions, ListingRequest } from "./types.ts"
 
 const OPTIONS: ListingOptions = { conventions: DEFAULT_CONVENTIONS, scope: { project_id: "proj_alpha" } }
 
-const embed = async (relation: string, row: Row) => ({ name: `${relation}:${String(row.id)}` })
+const embed = async (relation: string, row: Row) => ({ name: `${relation}:${String(row["id"])}` })
 
-const transform = (row: Row): Row => ({ ...row, name: String(row.name).toUpperCase() })
+const transform = (row: Row): Row => ({ ...row, name: String(row["name"]).toUpperCase() })
 
 async function list(request: ListingRequest, defects: DefectName[] = [], options: Partial<ListingOptions> = {}) {
 	const { plans, store } = recording(await seededStore())
@@ -23,7 +23,7 @@ async function list(request: ListingRequest, defects: DefectName[] = [], options
 		options: { ...OPTIONS, ...options },
 		request,
 	})
-	return { ids: result.items.map((item) => item.id), plans, result }
+	return { ids: result.items.map((item) => item["id"]), plans, result }
 }
 
 describe("runListing: a page", () => {

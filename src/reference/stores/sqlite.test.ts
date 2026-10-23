@@ -84,7 +84,7 @@ async function seeded(): Promise<SqlStore> {
 	return store
 }
 
-const ids = (rows: Array<Record<string, unknown>>): unknown[] => rows.map((row) => row.id)
+const ids = (rows: Array<Record<string, unknown>>): unknown[] => rows.map((row) => row["id"])
 
 /* The predicates and orders the engine tests select by. */
 const like = (insensitive: boolean): FilterNode => ({

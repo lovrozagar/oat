@@ -20,13 +20,13 @@ describe("engines", () => {
 	it("calls D1 available only with all three credentials", () => {
 		for (const name of D1) process.env[name] = "x"
 		expect(d1Available()).toBe(true)
-		delete process.env.CLOUDFLARE_API_TOKEN
+		delete process.env["CLOUDFLARE_API_TOKEN"]
 		expect(d1Available()).toBe(false)
 	})
 
 	it("calls Postgres unreachable when no server answers", async () => {
-		process.env.PGHOST = "127.0.0.1"
-		process.env.PGPORT = "1"
+		process.env["PGHOST"] = "127.0.0.1"
+		process.env["PGPORT"] = "1"
 		expect(await postgresStatus()).toBe("unreachable")
 	})
 

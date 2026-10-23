@@ -7,7 +7,7 @@ import { parseSse, SseParser, sseFramesOf } from "../sse.ts"
 import { bodyRef } from "./live.ts"
 import type { ResponsePayload } from "./types.ts"
 
-export function parseSseText(text: string, bodyBytes = utf8Encode(text).byteLength): ResponsePayload {
+export function parseSseText(text: string, bodyBytes: number = utf8Encode(text).byteLength): ResponsePayload {
 	const events = parseSse(text)
 	if (events.length > 0) return { bodyBytes, parsed: sseFramesOf(events) }
 	if (bodyBytes > INLINE_BODY_LIMIT) return { bodyBytes, parsed: bodyRef(utf8Encode(text), "text/event-stream") }

@@ -5,7 +5,7 @@
 
 import type { FieldType, FilterOp, Nulls } from "../../config/types/query.ts"
 
-export const FILTER_OPS = [
+export const FILTER_OPS: readonly FilterOp[] = [
 	"eq",
 	"ne",
 	"neq",
@@ -19,16 +19,9 @@ export const FILTER_OPS = [
 	"ilike",
 	"is",
 	"contains",
-] as const satisfies readonly FilterOp[]
+]
 
-export const FIELD_TYPES = [
-	"string",
-	"number",
-	"boolean",
-	"date",
-	"enum",
-	"array",
-] as const satisfies readonly FieldType[]
+export const FIELD_TYPES: readonly FieldType[] = ["string", "number", "boolean", "date", "enum", "array"]
 
 /** Ops oat already wrote in 0.7.0. Implicit only when nothing declared a closed list. */
 export const IMPLICIT_OPS: readonly FilterOp[] = ["eq", "neq", "gt", "gte", "lt", "lte", "like"]

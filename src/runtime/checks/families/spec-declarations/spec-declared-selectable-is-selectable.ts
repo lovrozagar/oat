@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { selectTerm } from "../../../../spec/conventions/select.ts"
 import type { Exchange } from "../../../exchange.ts"
@@ -13,7 +14,7 @@ import { list } from "../../sets/list.ts"
  * `x-query.selectable` is a promise too, and a sparse fieldset the backend rejects breaks every
  * client generated from the document exactly the same way a rejected filter or sort does.
  */
-export const declaredSelectableWorks = defineCheck({
+export const declaredSelectableWorks: Check = defineCheck({
 	plan: (ctx) =>
 		when(
 			conv(ctx).select !== undefined &&

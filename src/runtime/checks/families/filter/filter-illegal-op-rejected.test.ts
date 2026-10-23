@@ -13,7 +13,7 @@ const POLICED = { closed: { status: ["eq", "in"] } }
 /** amount allows only gt; status is open-ended, so only amount yields a closed-list probe. */
 const MIXED = { xQuery: { filterable: [{ field: "amount", ops: ["gt"] }, "status"] } }
 const REFUSE_GT = {
-	status: (query: Record<string, unknown>) => (String(query.filter).startsWith("amount.gt") ? 403 : undefined),
+	status: (query: Record<string, unknown>) => (String(query["filter"]).startsWith("amount.gt") ? 403 : undefined),
 }
 
 describe("filter.illegal-op-rejected: run", () => {

@@ -13,7 +13,7 @@ function queried(): OpenApiDocument {
 	const doc = structuredClone(notesDoc()) as unknown as {
 		paths: Record<string, Record<string, Record<string, unknown>>>
 	}
-	const listed = doc.paths["/notes"]?.get
+	const listed = doc.paths["/notes"]?.["get"]
 	if (listed !== undefined) listed["x-query"] = { filterable: ["title"], sortable: ["title"] }
 	return doc as unknown as OpenApiDocument
 }

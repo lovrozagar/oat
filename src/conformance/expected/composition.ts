@@ -1,8 +1,25 @@
 import type { DefectName } from "../../reference/defects/table.ts"
 import type { FindingId } from "../../runtime/check-ids.ts"
 
+/** The defects with a row in the composition family; a name that is not a defect falls out and fails its row. */
+type CompositionDefect = Extract<
+	DefectName,
+	| "FILTER_AFTER_PAGINATION"
+	| "FILTER_DROPPED_WHEN_SORTED"
+	| "FILTER_DROPPED_WHEN_SELECTED"
+	| "FILTER_DROPPED_WHEN_SEARCHED"
+	| "FILTER_DROPPED_WHEN_SORTED_AND_SELECTED"
+	| "FILTER_DROPPED_WHEN_SORTED_AND_SEARCHED"
+	| "FILTER_DROPPED_WHEN_SEARCHED_AND_SELECTED"
+	| "FILTER_DROPPED_WHEN_SORTED_SEARCHED_AND_SELECTED"
+	| "SEARCH_DROPPED_WHEN_SELECTED"
+	| "SEARCH_DROPPED_WHEN_SORTED"
+	| "ORDER_DROPPED_WHEN_SELECTED"
+	| "UNKNOWN_PARAM_EMPTIES_LIST"
+>
+
 /** The defects whose primary check is in the composition family, and the check each must trip. */
-export const COMPOSITION_EXPECTED = {
+export const COMPOSITION_EXPECTED: Record<CompositionDefect, FindingId | FindingId[]> = {
 	FILTER_AFTER_PAGINATION: [
 		"query.filter-selects-from-whole-set",
 		/* The same misordering makes a filtered page shorter than the page size, which the
@@ -80,4 +97,4 @@ export const COMPOSITION_EXPECTED = {
 		"query.filter-search-sort-select-compose",
 	],
 	UNKNOWN_PARAM_EMPTIES_LIST: "query.unknown-parameter-consistent",
-} satisfies Partial<Record<DefectName, FindingId | FindingId[]>>
+}

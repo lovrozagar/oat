@@ -98,7 +98,7 @@ describe("exchange model", () => {
 		)
 		const exchange = await client.get("/v1/guarded", { as: { principal: "alpha" } })
 		expect(refreshed).toBe(1)
-		expect(exchange.requestHeaders.authorization).not.toBe(client.transcript[0]?.requestHeaders.authorization)
+		expect(exchange.requestHeaders["authorization"]).not.toBe(client.transcript[0]?.requestHeaders["authorization"])
 		expect(exchange.status).toBe(200)
 		expect(client.transcript.map((item) => [item.status, item.superseded === true])).toEqual([
 			[401, true],

@@ -5,7 +5,7 @@ import { referenceModel } from "./scope/__fixtures__/models.ts"
 
 describe("resolveProfile", () => {
 	it("is the full profile when none is named", () => {
-		expect(resolveProfile(undefined, undefined)).toEqual({ name: "full", spec: BUILTIN_PROFILES.full })
+		expect(resolveProfile(undefined, undefined)).toEqual({ name: "full", spec: BUILTIN_PROFILES["full"] })
 	})
 
 	it("prefers a configured profile over a built-in of the same name", () => {

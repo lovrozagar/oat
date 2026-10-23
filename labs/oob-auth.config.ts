@@ -18,8 +18,8 @@
 
 import { defineConfig, env, type OutOfBandRequest, type Recipe, type TeardownPrincipalContext } from "../dist/index.js"
 
-const API = process.env.OAT_API_URL ?? "https://api.example.com"
-const APP = process.env.OAT_APP_URL ?? "https://app.example.com"
+const API = process.env["OAT_API_URL"] ?? "https://api.example.com"
+const APP = process.env["OAT_APP_URL"] ?? "https://app.example.com"
 const TESTER_KEY = env("OAT_TESTER_KEY")
 const PASSWORD = "OatSpec123!x"
 
@@ -103,8 +103,8 @@ async function resolveOutOfBand({ address, kind, scope }: OutOfBandRequest): Pro
 	url.searchParams.set("email", address)
 	url.searchParams.set("type", kind)
 	const headers: Record<string, string> = { "x-oat-tester-key": TESTER_KEY }
-	if (scope.credential !== undefined && scope.credential !== "") {
-		headers.authorization = `Bearer ${scope.credential}`
+	if (scope["credential"] !== undefined && scope["credential"] !== "") {
+		headers["authorization"] = `Bearer ${scope["credential"]}`
 	}
 	const response = await fetch(url, { headers })
 	if (!response.ok) return null

@@ -55,7 +55,7 @@ type Finding = Reported["findings"][number]
 export type Diagnosis = Pick<FuzzCase, "cascaded" | "findings" | "missed" | "ok" | "spurious" | "unresolved">
 
 /** Every check id reachable from `id` by following `dependsOn`, transitively. */
-export function ancestorsOf(id: string, seen = new Set<string>()): Set<string> {
+export function ancestorsOf(id: string, seen: Set<string> = new Set<string>()): Set<string> {
 	const check = entityChecks(CHECKS).find((candidate) => candidate.id === id)
 	for (const parent of check?.dependsOn ?? []) {
 		if (seen.has(parent)) continue

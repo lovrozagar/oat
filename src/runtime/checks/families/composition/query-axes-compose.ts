@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { sortTerm } from "../../../../spec/conventions/sort.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -21,7 +22,7 @@ import { sortFieldBeside, type Subset, subsetPlan } from "./plans.ts"
  * yield exactly the same *set* as filtering alone — reordered, but never a different membership.
  * A sort is not a predicate, and it must not behave as one.
  */
-export const queryAxesCompose = defineCheck<Subset & { sortField: string }>({
+export const queryAxesCompose: Check<Subset & { sortField: string }> = defineCheck<Subset & { sortField: string }>({
 	plan: (ctx) => {
 		if (!filterable(ctx) || conv(ctx).order === undefined || ctx.records.length <= 2) return cannot()
 		if ((ctx.query?.sortable.length ?? 0) === 0) return cannot()

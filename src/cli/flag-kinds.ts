@@ -1,0 +1,42 @@
+/* What each command-line flag takes, by name: the keys `FLAGS` and a command's `Flags` are typed by. */
+
+/** A switch, a flag that needs a value, or one whose value may be left out. */
+export type FlagKind = "boolean" | "value" | "optional-value"
+
+/** Each flag's kind, by name: the names a command's flags are keyed by. */
+export interface FlagKinds {
+	config: "value"
+	spec: "value"
+	"base-url": "value"
+	ops: "value"
+	only: "value"
+	profile: "value"
+	seed: "value"
+	out: "value"
+	report: "value"
+	"keep-fixtures": "boolean"
+	"keep-credentials": "boolean"
+	"max-in-flight": "value"
+	quiet: "boolean"
+	"save-exchanges": "boolean"
+	"no-save-exchanges": "boolean"
+	untagged: "boolean"
+	defects: "value"
+	backend: "value"
+	dialect: "value"
+	parser: "boolean"
+	fuzz: "optional-value"
+	precision: "optional-value"
+	"max-defects": "value"
+	"fuzz-seed": "value"
+	jobs: "value"
+	"skip-backend": "value"
+	legs: "value"
+	shapes: "value"
+	"proven-out": "value"
+	aggregate: "value"
+	json: "boolean"
+	from: "value"
+	force: "boolean"
+	help: "boolean"
+}

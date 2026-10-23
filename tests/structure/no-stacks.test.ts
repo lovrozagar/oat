@@ -87,7 +87,7 @@ function tokenWire(server: Hosted, form: boolean): { fetch: typeof fetch; issued
 		if (!String(input).endsWith("/v1/auth/token") || response.status !== 200) return response
 		const body = (await response.json()) as Record<string, unknown>
 		const pair = Object.fromEntries(Object.entries(body).map(([key, value]) => [key, String(value)]))
-		pair.refresh_token ??= `rt_${pair.access_token}_refresh`
+		pair["refresh_token"] ??= `rt_${pair["access_token"]}_refresh`
 		for (const key of ["access_token", "refresh_token"]) issued.add(pair[key] as string)
 		const text = form ? new URLSearchParams(pair).toString() : JSON.stringify(pair)
 		const type = form ? "application/x-www-form-urlencoded" : "application/json"
@@ -137,8 +137,8 @@ describe("a run's output directory", () => {
 			/* The token pair the sign-in answered is scrubbed in the file that keeps the body, by key or value. */
 			const tokenFile = files.find((file) => tokenAnswer(file.text))
 			const answer = JSON.parse(tokenFile?.text ?? "{}") as { responseBody?: Record<string, unknown> }
-			expect(answer.responseBody?.access_token).toBe(REDACTED)
-			expect(answer.responseBody?.refresh_token).toBe(REDACTED)
+			expect(answer.responseBody?.["access_token"]).toBe(REDACTED)
+			expect(answer.responseBody?.["refresh_token"]).toBe(REDACTED)
 			/* A dedicated credential's probe principal and a derived forged value never reach a written file. */
 			expect(files.filter((file) => file.text.includes("#probe-")).map((file) => file.path)).toEqual([])
 			/* Every token the sign-ins answered, access and refresh alike, is absent from every file, by value. */

@@ -12,7 +12,7 @@ export function ok(ctx: SpecContext, status: number): string {
 
 export function jsonResponse(description: string, schema: JsonSchema, headers?: Json): Json {
 	const response: Json = { content: { "application/json": { schema } }, description }
-	if (headers !== undefined) response.headers = headers
+	if (headers !== undefined) response["headers"] = headers
 	return response
 }
 

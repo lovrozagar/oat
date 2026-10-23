@@ -51,13 +51,13 @@ function context() {
 describe("validBody", () => {
 	it("builds different identities for bodies made before any request is sent", () => {
 		const ctx = context()
-		const ids = new Set(Array.from({ length: 5 }, () => String(validBody(ctx, NOTE).id)))
+		const ids = new Set(Array.from({ length: 5 }, () => String(validBody(ctx, NOTE)["id"])))
 		expect(ids.size).toBe(5)
 	})
 
 	it("reserves the identity it hands out, so no later body reuses it", () => {
 		const ctx = context()
-		const first = String(validBody(ctx, NOTE).id)
+		const first = String(validBody(ctx, NOTE)["id"])
 		expect(ctx.takenIdentities?.has(first)).toBe(true)
 	})
 })
@@ -67,13 +67,13 @@ describe("reserveClientIdentity", () => {
 		const ctx = context()
 		ctx.takenIdentities?.add("999")
 		const body = reserveClientIdentity(ctx, { id: 999, name: "x" }, NOTE, "probe")
-		expect(String(body.id)).not.toBe("999")
-		expect(body.name).toBe("x")
-		expect(ctx.takenIdentities?.has(String(body.id))).toBe(true)
+		expect(String(body["id"])).not.toBe("999")
+		expect(body["name"]).toBe("x")
+		expect(ctx.takenIdentities?.has(String(body["id"]))).toBe(true)
 	})
 
 	it("leaves a free identity as it is", () => {
 		const ctx = context()
-		expect(reserveClientIdentity(ctx, { id: 7, name: "x" }, NOTE, "probe").id).toBe(7)
+		expect(reserveClientIdentity(ctx, { id: 7, name: "x" }, NOTE, "probe")["id"]).toBe(7)
 	})
 })

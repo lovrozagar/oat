@@ -43,7 +43,7 @@ const over =
 
 /** The collection read with neither a sort nor a sparse fieldset. */
 const plainList = (path: string, query: Record<string, unknown>): boolean =>
-	path === "/notes" && query.sort === undefined && query.fields === undefined
+	path === "/notes" && query["sort"] === undefined && query["fields"] === undefined
 
 /** An item route serving `body` for note n1 beside an empty collection. */
 const itemServes = (body: unknown): Responder =>
@@ -115,7 +115,7 @@ describe("consistency.projections-agree read paths", () => {
 			["/notes", { limit: 5, page: 1, status: "open" }],
 		])
 		/* Whatever the walk reads past its first page is the same filter. */
-		expect(queries.slice(5).every(([, query]) => (query as Record<string, unknown>).status === "open")).toBe(true)
+		expect(queries.slice(5).every(([, query]) => (query as Record<string, unknown>)["status"] === "open")).toBe(true)
 	})
 
 	it("is unresolved when the item route gives no reference value", async () => {
@@ -140,7 +140,7 @@ describe("consistency.projections-agree read paths", () => {
 	it("names every disagreeing projection", async () => {
 		const staged = stage(
 			over(rows(), (path, query) =>
-				path === "/notes" && (query.sort !== undefined || query.fields !== undefined)
+				path === "/notes" && (query["sort"] !== undefined || query["fields"] !== undefined)
 					? { body: [{ id: "n1", status: "stale" }], status: 200 }
 					: undefined,
 			),
@@ -189,7 +189,7 @@ describe("consistency.projections-agree filter membership", () => {
 
 	it("is unresolved when the filter is refused", async () => {
 		const staged = stage(
-			over(rows(), (path, query) => (path === "/notes" && query.status !== undefined ? { status: 400 } : undefined)),
+			over(rows(), (path, query) => (path === "/notes" && query["status"] !== undefined ? { status: 400 } : undefined)),
 		)
 		expect(await drive(staged)).toEqual({ kind: "unresolved", reason: 'filtering on "status" was rejected' })
 	})
@@ -198,7 +198,7 @@ describe("consistency.projections-agree filter membership", () => {
 		const other = { id: "x", status: "open", title: "x" }
 		const staged = stage(
 			over(rows(), (path, query) =>
-				path === "/notes" && query.status !== undefined ? { body: [other], status: 200 } : undefined,
+				path === "/notes" && query["status"] !== undefined ? { body: [other], status: 200 } : undefined,
 			),
 		)
 		expect(await drive(staged)).toEqual({
@@ -210,7 +210,7 @@ describe("consistency.projections-agree filter membership", () => {
 	it("reports a record its own field-value filter does not return", async () => {
 		const staged = stage(
 			over(rows(), (path, query) =>
-				path === "/notes" && query.status !== undefined
+				path === "/notes" && query["status"] !== undefined
 					? { body: servePage(rows(), { ...query, status: "done" }), status: 200 }
 					: undefined,
 			),

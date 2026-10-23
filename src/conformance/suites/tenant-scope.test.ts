@@ -61,7 +61,7 @@ const WORKSPACE = { in: "path", name: "workspace_id", required: true, schema: { 
 function tenanted(spec: { paths: Record<string, Record<string, Record<string, unknown>>> }): unknown {
 	const paths = Object.entries(spec.paths).map(([path, item]) => {
 		const ops = Object.entries(item).map(([method, op]) => {
-			const parameters = [WORKSPACE, ...((op.parameters as unknown[] | undefined) ?? [])]
+			const parameters = [WORKSPACE, ...((op["parameters"] as unknown[] | undefined) ?? [])]
 			return [method, { ...op, parameters, "x-tenant": "workspace_id" }]
 		})
 		return [path.replace("/v1/", "/v1/workspaces/{workspace_id}/"), Object.fromEntries(ops)]

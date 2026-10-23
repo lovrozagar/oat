@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { pathParameterNames } from "../../../../spec/extensions/tenant.ts"
@@ -27,7 +28,11 @@ import type { JsonSchema } from "../../../../spec/types.ts"
  * Only routes belonging to a different entity are probed. This entity's own listing is already
  * covered by read-after-write, and re-asserting it here would report one defect twice.
  */
-export const declaredInvalidationHappens = defineCheck<{
+export const declaredInvalidationHappens: Check<{
+	createOp: OperationModel
+	foreign: OperationModel[]
+	schema: JsonSchema
+}> = defineCheck<{
 	createOp: OperationModel
 	foreign: OperationModel[]
 	schema: JsonSchema

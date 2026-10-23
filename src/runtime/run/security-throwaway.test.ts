@@ -54,7 +54,7 @@ function probing(id: CheckId, sent: string[]): OperationCheck {
 }
 
 const creates = (seen: readonly Seen[]): number => seen.filter((s) => s.method === "POST" && s.path === "/notes").length
-const ids = (rows: readonly Record_[]): unknown[] => rows.map((row) => row.id)
+const ids = (rows: readonly Record_[]): unknown[] => rows.map((row) => row["id"])
 
 describe("a DELETE probe's throwaway target", () => {
 	it("sends a DELETE probe to a throwaway of its own, so the shared record survives; other writes keep it", async () => {
@@ -102,15 +102,15 @@ describe("a DELETE probe's throwaway target", () => {
 /** The notes document, with `edit` applied to its create. */
 function withCreate(edit: (create: Record<string, unknown>) => void): OpenApiDocument {
 	const doc = notesDoc() as unknown as { paths: Record<string, Record<string, Record<string, unknown>>> }
-	edit(doc.paths["/notes"]?.post as Record<string, unknown>)
+	edit(doc.paths["/notes"]?.["post"] as Record<string, unknown>)
 	return doc as unknown as OpenApiDocument
 }
 
 /** The notes document with its create form-encoded, and the title kept unique. */
 function formCreate(): OpenApiDocument {
 	return withCreate((create) => {
-		const { content } = create.requestBody as { content: Record<string, unknown> }
-		create.requestBody = { content: { "application/x-www-form-urlencoded": content["application/json"] } }
+		const { content } = create["requestBody"] as { content: Record<string, unknown> }
+		create["requestBody"] = { content: { "application/x-www-form-urlencoded": content["application/json"] } }
 		create["x-unique"] = [["title"]]
 	})
 }
@@ -137,7 +137,7 @@ describe("a throwaway's body", () => {
 /** The notes document whose create takes no body. */
 function bodilessCreate(): OpenApiDocument {
 	return withCreate((create) => {
-		delete create.requestBody
+		delete create["requestBody"]
 	})
 }
 

@@ -57,7 +57,7 @@ describe("spec.declared-sortable-nulls-accepted run", () => {
 	it("reports the document when the backend refuses a declared token, citing at most three", async () => {
 		const respond = refusing(400, "nullsfirst")
 		const { ctx, findings } = stage(
-			(m, p, o) => (o.query?.order === "id.asc.nullslast" ? { status: 500 } : respond(m, p, o)),
+			(m, p, o) => (o.query?.["order"] === "id.asc.nullslast" ? { status: 500 } : respond(m, p, o)),
 			{
 				capabilities: caps(
 					[{ field: "name" }, { field: "price" }, { field: "active" }, { field: "id" }],

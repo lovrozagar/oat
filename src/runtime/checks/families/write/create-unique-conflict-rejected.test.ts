@@ -18,7 +18,7 @@ type Override = (server: NotesServer) => Responder
 
 /* The unique column a body repeats, if any. */
 function repeats(server: NotesServer, body: Note): boolean {
-	return [...server.records.values()].some((row) => row.name === body.name || row.code === body.code)
+	return [...server.records.values()].some((row) => row["name"] === body["name"] || row["code"] === body["code"])
 }
 
 /* A backend that refuses a duplicate with 409, as it should. */
@@ -72,10 +72,10 @@ describe("create.unique-conflict-rejected verdicts", () => {
 		expect(findings.inconclusive).toEqual([])
 		const [byName, byCode] = posts(sent)
 		/* Each probe collides on its own set and no other. */
-		expect(byName?.name).toBe("taken")
-		expect(byName?.code).not.toBe("c0")
-		expect(byCode?.code).toBe("c0")
-		expect(byCode?.name).not.toBe("taken")
+		expect(byName?.["name"]).toBe("taken")
+		expect(byName?.["code"]).not.toBe("c0")
+		expect(byCode?.["code"]).toBe("c0")
+		expect(byCode?.["name"]).not.toBe("taken")
 		expect(server.records.size).toBe(1)
 	})
 
@@ -148,7 +148,7 @@ describe("create.unique-conflict-rejected collisions", () => {
 	it("collides on the cohort row when its live read fails, and skips a set it holds no value for", async () => {
 		const { ctx, sent } = backend(enforces, { readOp: undefined, records: [{ id: "n0", name: "taken" }] })
 		await runCheck(uniqueConflictCreate, ctx)
-		expect(posts(sent).map((body) => body.name)).toEqual(["taken"])
+		expect(posts(sent).map((body) => body["name"])).toEqual(["taken"])
 		expect(sent.some((s) => s.path === "/notes/n0")).toBe(false)
 	})
 

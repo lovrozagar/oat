@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { andThen, ready, when } from "../../core/plan.ts"
@@ -11,9 +12,9 @@ import { overlapPlan, projectionPlan, type Subset } from "./plans.ts"
  * A filter, a search and a select must compose: projecting columns must not change the
  * intersection of filter and search.
  */
-export const filterSearchSelectCompose = defineCheck<
+export const filterSearchSelectCompose: Check<
 	Subset & { token: string; extra: string; projection: Record<string, string> }
->({
+> = defineCheck<Subset & { token: string; extra: string; projection: Record<string, string> }>({
 	plan: (ctx) =>
 		andThen(
 			when(

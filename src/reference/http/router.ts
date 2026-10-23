@@ -79,7 +79,7 @@ async function entityRoute(state: ReferenceState, request: ReferenceRequest): Pr
 	/* A record route takes a bearer JWT, or an API key holding the entity's read or write scope. */
 	const access = SAFE.has(method) ? "read" : "write"
 	const principal = authenticate(state, request, {
-		projectId: match.scope.project_id,
+		projectId: match.scope["project_id"],
 		scope: `${entity.name}:${access}`,
 	})
 	const scope = await typedScope(state, match.scope)
@@ -88,7 +88,7 @@ async function entityRoute(state: ReferenceState, request: ReferenceRequest): Pr
 	/* Item GET may be a delegated read — a tenant check would 403 a valid grant before the lookup
 	 * can honour it. Collection GET and mutations stay tenant-bound. */
 	if (method !== "GET" || itemId === null) {
-		assertTenant(principal, scope.project_id)
+		assertTenant(principal, scope["project_id"])
 		await assertParents(state, call)
 	}
 	if (entity.name === state.job.name && method === "GET") await advanceJobs(state)

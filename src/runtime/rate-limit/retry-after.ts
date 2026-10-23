@@ -25,7 +25,7 @@ export function describeServerError(status: number, retryAfter: string | undefin
  * `Retry-After` as a wait in ms. Delta-seconds or HTTP-date; anything unparseable is `null`
  * so the caller can fall back to exponential backoff. Capped so a tester cannot hang for an hour.
  */
-export function parseRetryAfter(value: string | undefined, now = Date.now()): number | null {
+export function parseRetryAfter(value: string | undefined, now: number = Date.now()): number | null {
 	if (value === undefined) return null
 	const trimmed = value.trim()
 	if (trimmed === "") return null
@@ -38,7 +38,7 @@ export function parseRetryAfter(value: string | undefined, now = Date.now()): nu
 }
 
 /** Wait before retry `attempt` (0-based) of a 429. Header wins; otherwise 1s, 2s, 4s… capped. */
-export function retryWaitMs(retryAfterHeader: string | undefined, attempt: number, now = Date.now()): number {
+export function retryWaitMs(retryAfterHeader: string | undefined, attempt: number, now: number = Date.now()): number {
 	const parsed = parseRetryAfter(retryAfterHeader, now)
 	if (parsed !== null) return parsed
 	const exp = RETRY_BACKOFF_INITIAL_MS * 2 ** Math.max(0, attempt)

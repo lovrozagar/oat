@@ -180,7 +180,7 @@ describe("requestCredential: renewing after a 401", () => {
 		expect((await credential.next()).sends).toEqual({ jwt: sends({ headers: { Authorization: "Bearer v2" } }) })
 		expect(await credential.renew()).toBe(false)
 		expect(source.asked).toHaveLength(1)
-		expect((await credential.next()).sends.jwt?.headers).toEqual({ Authorization: "Bearer v1" })
+		expect((await credential.next()).sends["jwt"]?.headers).toEqual({ Authorization: "Bearer v1" })
 	})
 
 	it("sends nothing more once the store blocked the renewal: the refusal stands", async () => {

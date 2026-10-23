@@ -18,7 +18,7 @@ import {
 const TERM = "{conj}_{field}_{op}_{value}"
 
 function draft(raw: Record<string, unknown>, over: Partial<Draft> = {}): Draft {
-	const term = typeof raw.term === "string" ? raw.term : TERM
+	const term = typeof raw["term"] === "string" ? raw["term"] : TERM
 	return {
 		and: "repeat",
 		escape: {},

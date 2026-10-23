@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { describeSuccess, documentsStatus } from "../../../../spec/graph/statuses.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
@@ -6,7 +7,10 @@ import { cannot, ready } from "../../core/plan.ts"
 import { createExchange } from "../../payloads/body.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 
-export const createStatusMatchesSpec = defineCheck<{ createOp: OperationModel; success: string[] }>({
+export const createStatusMatchesSpec: Check<{ createOp: OperationModel; success: string[] }> = defineCheck<{
+	createOp: OperationModel
+	success: string[]
+}>({
 	plan: (ctx) => {
 		const createOp = ctx.createOp
 		if (createOp === undefined) return cannot()

@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { sortSpec, sortTerm } from "../../../../spec/conventions/sort.ts"
 import { renderUnknownDirection } from "../../../../spec/render/sort.ts"
@@ -15,7 +16,10 @@ const UNKNOWN_DIRECTION = "oatsideways"
  * A sort direction the declared grammar does not have must be refused. Read as ascending instead,
  * a caller asking for an order the backend cannot give gets a different one and is never told.
  */
-export const sortInvalidDirectionRejected = defineCheck<{ control: string; order: string }>({
+export const sortInvalidDirectionRejected: Check<{ control: string; order: string }> = defineCheck<{
+	control: string
+	order: string
+}>({
 	plan: (ctx) => {
 		const conventions = conv(ctx)
 		if (conventions.order === undefined || conventions.sortDeclared !== true) return cannot()

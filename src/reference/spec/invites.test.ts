@@ -21,7 +21,7 @@ describe("invitePaths", () => {
 	})
 
 	it("ties the three operations together with x-invite", () => {
-		const invite = declared[`${TABLE.itemPath}/invites`]?.post
+		const invite = declared[`${TABLE.itemPath}/invites`]?.["post"]
 		expect(invite).toMatchObject({
 			operationId: "table.invite",
 			"x-entity": { action: "action", identity: "id", name: "table" },
@@ -32,11 +32,11 @@ describe("invitePaths", () => {
 	})
 
 	it("accepts by token alone, and revokes by grant on the table", () => {
-		const accept = declared["/v1/invites/{token}/accept"]?.post
-		expect(accept?.parameters).toEqual([{ in: "path", name: "token", required: true, schema: { type: "string" } }])
+		const accept = declared["/v1/invites/{token}/accept"]?.["post"]
+		expect(accept?.["parameters"]).toEqual([{ in: "path", name: "token", required: true, schema: { type: "string" } }])
 		expect(accept).not.toHaveProperty("x-tenant")
-		const revoke = declared[`${TABLE.itemPath}/grants/{grant_id}`]?.delete
-		expect(((revoke?.parameters ?? []) as Json[]).map((param) => param.name)).toEqual([
+		const revoke = declared[`${TABLE.itemPath}/grants/{grant_id}`]?.["delete"]
+		expect(((revoke?.["parameters"] ?? []) as Json[]).map((param) => param["name"])).toEqual([
 			"project_id",
 			"table_id",
 			"grant_id",
@@ -46,6 +46,6 @@ describe("invitePaths", () => {
 
 	it("names the table by its slug under the slug key", () => {
 		const slugged = paths({ tableKey: "slug" })
-		expect(slugged["/v1/invites/{token}/accept"]?.post?.["x-entity"]).toHaveProperty("identity", "slug")
+		expect(slugged["/v1/invites/{token}/accept"]?.["post"]?.["x-entity"]).toHaveProperty("identity", "slug")
 	})
 })

@@ -3,6 +3,7 @@
  * and fall through — a bad glob must not crash a run.
  */
 
+import { isRaw } from "../config/types/raw.ts"
 import { readdir, readFile, stat } from "node:fs/promises"
 import { basename, join, relative, resolve, sep } from "node:path"
 import type { Hooks, UploadFile, UploadRequest, UploadResolution, Uploads } from "../config/types/hooks.ts"
@@ -98,11 +99,8 @@ export async function resolveUploadOverride(request: UploadRequest, context: Upl
 }
 
 export function isUploadFile(value: unknown): value is UploadFile {
-	if (value === null || typeof value !== "object") return false
-	const record = value as Record<string, unknown>
-	return (
-		record.bytes instanceof Uint8Array && typeof record.filename === "string" && typeof record.mediaType === "string"
-	)
+	if (!isRaw<UploadFile>(value)) return false
+	return value.bytes instanceof Uint8Array && typeof value.filename === "string" && typeof value.mediaType === "string"
 }
 
 export function isFieldOverride(value: unknown): value is { fields: Record<string, string | UploadFile> } {

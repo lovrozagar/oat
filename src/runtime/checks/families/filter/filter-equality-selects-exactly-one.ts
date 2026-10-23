@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -7,7 +8,11 @@ import { NO_IDENTITY, subjectsOf } from "../../planning/subjects.ts"
 import { conv, filterable, filterIdentity, identityIsFilterable, pageSize, q } from "../../query/capabilities.ts"
 import { ids, list } from "../../sets/list.ts"
 
-export const equalityFilterSelectsOne = defineCheck<{
+export const equalityFilterSelectsOne: Check<{
+	id: string
+	field: string
+	term: Record<string, string>
+}> = defineCheck<{
 	id: string
 	field: string
 	term: Record<string, string>

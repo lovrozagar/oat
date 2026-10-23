@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import { selectTerm } from "../../../../spec/conventions/select.ts"
@@ -33,7 +34,12 @@ import { list, type ListResult } from "../../sets/list.ts"
  * This is the criss-cross property: a fact is not "in the database", it is whatever each read
  * path says it is, and a system is only consistent if they say the same thing.
  */
-export const projectionsAgree = defineCheck<{
+export const projectionsAgree: Check<{
+	id: string
+	field: string
+	target: Record_
+	readOp: OperationModel
+}> = defineCheck<{
 	id: string
 	field: string
 	target: Record_

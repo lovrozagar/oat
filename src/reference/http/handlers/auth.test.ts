@@ -22,13 +22,13 @@ describe("auth.token", () => {
 		const { status, body } = await call("POST", "/v1/auth/token", { body: { key: "key_beta" }, token: null })
 		expect(status).toBe(200)
 		expect(body).toMatchObject({ expires_in: 3600, project_id: "proj_beta" })
-		expect(String(body.access_token).split(".")).toHaveLength(3)
-		expect(String(body.refresh_token).split(".")).toHaveLength(3)
-		expect((await call("GET", "/v1/projects/proj_beta/tables", as(`Bearer ${String(body.access_token)}`))).status).toBe(
-			200,
-		)
+		expect(String(body["access_token"]).split(".")).toHaveLength(3)
+		expect(String(body["refresh_token"]).split(".")).toHaveLength(3)
 		expect(
-			(await call("GET", "/v1/projects/proj_alpha/tables", as(`Bearer ${String(body.access_token)}`))).status,
+			(await call("GET", "/v1/projects/proj_beta/tables", as(`Bearer ${String(body["access_token"])}`))).status,
+		).toBe(200)
+		expect(
+			(await call("GET", "/v1/projects/proj_alpha/tables", as(`Bearer ${String(body["access_token"])}`))).status,
 		).toBe(403)
 	})
 
@@ -36,7 +36,7 @@ describe("auth.token", () => {
 		const { call } = await world({ defects: ["TOKEN_EXPIRY_AS_STRING"] })
 		expect((await call("POST", "/v1/auth/token", { body: { key: "nope" } })).status).toBe(401)
 		expect((await call("POST", "/v1/auth/token", { body: {} })).status).toBe(401)
-		expect((await call("POST", "/v1/auth/token", { body: { key: "key_alpha" } })).body.expires_in).toBe("3600")
+		expect((await call("POST", "/v1/auth/token", { body: { key: "key_alpha" } })).body["expires_in"]).toBe("3600")
 		expect((await call("GET", "/v1/auth/token")).status).toBe(404)
 	})
 
@@ -89,11 +89,11 @@ describe("auth.refresh", () => {
 		const first = (await call("POST", "/v1/auth/login", { body: ALPHA_LOGIN, token: null })).body
 		const refresh = (token: unknown) =>
 			call("POST", "/v1/auth/refresh", { body: { refresh_token: token }, token: null })
-		const second = await refresh(first.refresh_token)
+		const second = await refresh(first["refresh_token"])
 		expect(second.status).toBe(200)
-		expect(second.body.refresh_token).not.toBe(first.refresh_token)
-		expect((await refresh(first.refresh_token)).status).toBe(401)
-		expect((await call("GET", "/v1/me", as(`Bearer ${String(second.body.access_token)}`))).status).toBe(401)
+		expect(second.body["refresh_token"]).not.toBe(first["refresh_token"])
+		expect((await refresh(first["refresh_token"])).status).toBe(401)
+		expect((await call("GET", "/v1/me", as(`Bearer ${String(second.body["access_token"])}`))).status).toBe(401)
 		expect((await refresh(42)).status).toBe(400)
 	})
 })
@@ -102,9 +102,9 @@ describe("auth.revoke", () => {
 	it("revokes one of the caller's tokens, and takes only a bearer JWT", async () => {
 		const { call, state } = await world()
 		const session = (await call("POST", "/v1/auth/token", { body: { key: "key_alpha" }, token: null })).body
-		const revoke = await call("POST", "/v1/auth/revoke", { body: { token: session.access_token } })
+		const revoke = await call("POST", "/v1/auth/revoke", { body: { token: session["access_token"] } })
 		expect(revoke).toMatchObject({ body: { revoked: true }, status: 200 })
-		expect((await call("GET", "/v1/me", as(`Bearer ${String(session.access_token)}`))).status).toBe(401)
+		expect((await call("GET", "/v1/me", as(`Bearer ${String(session["access_token"])}`))).status).toBe(401)
 		expect((await call("POST", "/v1/auth/revoke", { body: { token: "x" }, token: null })).status).toBe(401)
 		const key = createApiKey(state, state.auth.accounts.get("key_alpha") as never, [])
 		expect((await call("POST", "/v1/auth/revoke", { body: { token: "x" }, ...as(`ApiKey ${key.value}`) })).status).toBe(
@@ -117,7 +117,7 @@ describe("auth.logout", () => {
 	it("revokes only the caller's access token, and needs one", async () => {
 		const { call } = await world()
 		const session = (await call("POST", "/v1/auth/token", { body: { key: "key_alpha" }, token: null })).body
-		const caller = as(`Bearer ${String(session.access_token)}`)
+		const caller = as(`Bearer ${String(session["access_token"])}`)
 		expect((await call("POST", "/v1/logout", caller)).body).toEqual({ ok: true })
 		expect((await call("GET", "/v1/me", caller)).status).toBe(401)
 		expect((await call("GET", "/v1/me")).status).toBe(200)
@@ -127,11 +127,11 @@ describe("auth.logout", () => {
 	it("signs every account out under DISPOSABLE_KILLS_CALLER, and an API key's logout revokes nothing", async () => {
 		const { call } = await world({ defects: ["DISPOSABLE_KILLS_CALLER"] })
 		const registered = await call("POST", "/v1/register", { body: { email: "d@x.test" }, token: null })
-		const disposable = String(registered.body.access_token)
+		const disposable = String(registered.body["access_token"])
 		await call("POST", "/v1/logout", { token: disposable })
 		expect((await call("GET", "/v1/me")).status).toBe(401)
 		const again = (await call("POST", "/v1/auth/token", { body: { key: "key_alpha" }, token: null })).body
-		expect((await call("GET", "/v1/me", { token: String(again.access_token) })).status).toBe(401)
+		expect((await call("GET", "/v1/me", { token: String(again["access_token"]) })).status).toBe(401)
 		const open = await world({ defects: ["ANY_SCHEME_ACCEPTED"] })
 		const key = createApiKey(open.state, open.state.auth.accounts.get("key_alpha") as never, [])
 		expect((await open.call("POST", "/v1/logout", as(`ApiKey ${key.value}`))).status).toBe(200)
@@ -145,7 +145,7 @@ describe("auth.register", () => {
 		const { status, body } = await call("POST", "/v1/register", { body: { email: "new@x.test" }, token: null })
 		expect(status).toBe(201)
 		expect(Object.keys(body)).toEqual(["access_token"])
-		const token = String(body.access_token)
+		const token = String(body["access_token"])
 		expect((await call("GET", "/v1/me", { token })).status).toBe(200)
 		expect((await call("GET", "/v1/projects/proj_alpha/tables", { token })).status).toBe(200)
 		expect((await call("GET", "/v1/me", { token: BETA })).status).toBe(200)

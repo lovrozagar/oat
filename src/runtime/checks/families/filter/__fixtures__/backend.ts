@@ -194,8 +194,8 @@ function filtered(rows: Record_[], filter: string, behavior: Behavior): Record_[
 }
 
 function paged(rows: Record_[], query: Record<string, unknown>, behavior: Behavior): Record_[] {
-	const limit = Number(query.limit ?? 50)
-	const page = behavior.ignorePage === true ? 1 : Number(query.page ?? 1)
+	const limit = Number(query["limit"] ?? 50)
+	const page = behavior.ignorePage === true ? 1 : Number(query["page"] ?? 1)
 	return rows.slice((page - 1) * limit, page * limit)
 }
 
@@ -209,7 +209,7 @@ export function backend(store: Record_[] | ((call: number) => Record_[]), behavi
 		const forced = behavior.status?.(query, call)
 		if (forced !== undefined) return { body: { error: "forced" }, status: forced }
 		const rows = typeof store === "function" ? store(call) : store
-		const filter = query.filter
+		const filter = query["filter"]
 		const matched = typeof filter === "string" ? filtered(rows, filter, behavior) : rows
 		if (typeof matched === "number") return { body: { error: "refused" }, status: matched }
 		return { body: { widgets: paged(matched, query, behavior) }, status: 200 }

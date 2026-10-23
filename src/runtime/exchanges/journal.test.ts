@@ -273,8 +273,8 @@ async function recordsRawBodies(journal: Journal): Promise<void> {
 		{ requestId: "sse-obj", responseBody: { already: "json" }, responseHeaders: EVENT_STREAM, seq: 7 },
 	])
 	const qs = fileOf<{ requestBody: Record<string, unknown> }>("exchanges/qs.json")
-	expect(qs.requestBody.token).toBe("<redacted>")
-	expect(qs.requestBody.a).toBe("1")
+	expect(qs.requestBody["token"]).toBe("<redacted>")
+	expect(qs.requestBody["a"]).toBe("1")
 	const bin = fileOf<{ requestBody: { sha256: string; bytes: number } }>("exchanges/bin.json")
 	expect(bin.requestBody.bytes).toBe(3)
 	expect(existsSync(join(dir, "blobs", bin.requestBody.sha256))).toBe(true)

@@ -163,7 +163,8 @@ export function notesApi(held: Store): Responder {
 }
 
 function listPage(rows: readonly string[], size: number, query: Record<string, unknown>): Answer {
-	const start = query.page !== undefined ? (Number(query.page) - 1) * size : Number(query.offset ?? query.cursor ?? 0)
+	const start =
+		query["page"] !== undefined ? (Number(query["page"]) - 1) * size : Number(query["offset"] ?? query["cursor"] ?? 0)
 	const items = rows.slice(start, start + size).map((id) => ({ id }))
 	const next = start + size < rows.length ? String(start + size) : ""
 	return { body: { items, next_cursor: next }, status: 200 }

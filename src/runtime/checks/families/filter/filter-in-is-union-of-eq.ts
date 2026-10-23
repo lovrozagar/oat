@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -9,7 +10,14 @@ import { ids } from "../../sets/list.ts"
 import type { SetRead } from "../../sets/read.ts"
 import { pickFieldForOp } from "./fields.ts"
 
-export const filterInIsUnionOfEq = defineCheck<{
+export const filterInIsUnionOfEq: Check<{
+	field: string
+	a: unknown
+	b: unknown
+	inTerm: Record<string, string>
+	eqA: Record<string, string>
+	eqB: Record<string, string>
+}> = defineCheck<{
 	field: string
 	a: unknown
 	b: unknown

@@ -9,7 +9,7 @@ import { UsageError } from "../../errors/usage-error.ts"
 export const POSTGRES_RANGE = "^3.4"
 
 /** What a command says, and exits 2 with, when the Postgres backend is asked for on an install without the driver. */
-export const MISSING_POSTGRES = `oat: --backend postgres needs the postgres package (${POSTGRES_RANGE}): npm install postgres`
+export const MISSING_POSTGRES: string = `oat: --backend postgres needs the postgres package (${POSTGRES_RANGE}): npm install postgres`
 
 /** Whether `error` is Node failing to find the `postgres` package itself, not a module it imports. */
 export function isMissingPostgres(error: unknown): boolean {

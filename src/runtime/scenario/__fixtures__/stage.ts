@@ -71,8 +71,8 @@ export function notesApi(held: Notes): Responder {
 		const body = (options.body ?? {}) as Record<string, unknown>
 		if (`${method} ${path}` === "POST /notes") {
 			const id = `n${held.rows.size + 1}`
-			held.rows.set(id, String(body.text))
-			return { body: { id, text: body.text }, headers: { "set-cookie": `last=${id}`, "x-note": id }, status: 201 }
+			held.rows.set(id, String(body["text"]))
+			return { body: { id, text: body["text"] }, headers: { "set-cookie": `last=${id}`, "x-note": id }, status: 201 }
 		}
 		if (`${method} ${path}` === "GET /notes") {
 			const items = [...held.rows].map(([id, text]) => ({ id, text }))
@@ -81,7 +81,7 @@ export function notesApi(held: Notes): Responder {
 		if (`${method} ${path}` === "POST /token") return { body: { token: jwt({ org: "o1", sub: "u1" }) }, status: 200 }
 		const id = /^\/notes\/([^/]+)$/.exec(path)?.[1] ?? ""
 		if (!held.rows.has(id)) return { status: 404 }
-		if (method === "PATCH") held.rows.set(id, String(body.text))
+		if (method === "PATCH") held.rows.set(id, String(body["text"]))
 		return { body: { id, text: held.rows.get(id) }, status: 200 }
 	}
 }

@@ -21,7 +21,10 @@ export interface SortGrammarSpec {
 	nulls?: { first: string; last: string }
 }
 
-export const SORT_PRESETS = {
+/** The sort grammars oat recognises by name; `sortSpec` reads each `SortGrammar` but a template here. */
+export type SortPreset = "colon" | "dotted" | "prefixed" | "spaced"
+
+export const SORT_PRESETS: Readonly<Record<SortPreset, SortGrammarSpec>> = {
 	colon: { asc: "asc", desc: "desc", join: ",", term: "{field}:{direction}" },
 	dotted: {
 		asc: "asc",
@@ -32,7 +35,7 @@ export const SORT_PRESETS = {
 	},
 	prefixed: { asc: "", desc: "-", join: ",", term: "{direction}{field}" },
 	spaced: { asc: "asc", desc: "desc", join: ",", term: "{field} {direction}" },
-} as const satisfies Record<string, SortGrammarSpec>
+}
 
 export type SortDirection = "asc" | "desc"
 

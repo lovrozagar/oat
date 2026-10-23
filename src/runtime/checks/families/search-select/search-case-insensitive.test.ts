@@ -10,14 +10,14 @@ const INSENSITIVE = { doc: queryDoc({ searchCase: "insensitive" }) }
 function refusingRepeat(): Responder {
 	let reads = 0
 	return (method, path, options) =>
-		queryOf(options).q === "Alpha" && reads++ > 0 ? REJECT : caseSensitive(method, path, options)
+		queryOf(options)["q"] === "Alpha" && reads++ > 0 ? REJECT : caseSensitive(method, path, options)
 }
 
 /* Case-sensitive, and a record lands between the first and the repeat read of "Alpha". */
 function movingSensitive(): Responder {
 	let reads = 0
 	return (method, path, options) => {
-		if (queryOf(options).q === "Alpha") reads += 1
+		if (queryOf(options)["q"] === "Alpha") reads += 1
 		if (reads < 2) return caseSensitive(method, path, options)
 		return backend([...NOTES, { id: "n7", title: "Alpha late" }])(method, path, options)
 	}
@@ -28,7 +28,7 @@ describe("search.case-insensitive judges", () => {
 		const staged = stage(searchCaseInsensitive)
 		expect(staged.plan()).toEqual({ ok: true, value: { flipped: "alpha", token: "Alpha" } })
 		expect(await staged.run()).toEqual({ kind: "asserted" })
-		expect(staged.sent.map((sent) => sent.options.query?.q)).toEqual(["Alpha", "alpha"])
+		expect(staged.sent.map((sent) => sent.options.query?.["q"])).toEqual(["Alpha", "alpha"])
 	})
 
 	it("fails a case-sensitive search when the document declares it insensitive", async () => {

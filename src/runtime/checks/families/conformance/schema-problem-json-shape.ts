@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -22,7 +23,7 @@ const STRING_MEMBERS = ["title", "detail", "instance"] as const
  * every one of them alike. Any answer of this entity's that oat drew is judged, a probe's too: a
  * refusal is right to be one, and still wrong to describe itself falsely.
  */
-export const problemJsonShape = defineCheck({
+export const problemJsonShape: Check = defineCheck({
 	plan: () => ready(undefined),
 	id: "schema.problem-json-shape",
 	judgesTranscript: true,
@@ -68,15 +69,15 @@ function problemFlaws(body: unknown, status: number): string[] {
 	if (body === null || typeof body !== "object" || Array.isArray(body)) return ["a body that is not a JSON object"]
 	const problem = body as Record<string, unknown>
 	const flaws: string[] = []
-	if ("type" in problem && !isUriReference(problem.type))
-		flaws.push(`"type" ${shown(problem.type)}, not a URI reference`)
+	if ("type" in problem && !isUriReference(problem["type"]))
+		flaws.push(`"type" ${shown(problem["type"])}, not a URI reference`)
 	for (const member of STRING_MEMBERS) {
 		if (member in problem && typeof problem[member] !== "string") {
 			flaws.push(`"${member}" ${shown(problem[member])}, not a string`)
 		}
 	}
-	if ("status" in problem && problem.status !== status) {
-		flaws.push(`"status" ${shown(problem.status)}, not the HTTP status ${status}`)
+	if ("status" in problem && problem["status"] !== status) {
+		flaws.push(`"status" ${shown(problem["status"])}, not the HTTP status ${status}`)
 	}
 	return flaws
 }

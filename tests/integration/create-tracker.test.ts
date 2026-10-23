@@ -206,8 +206,8 @@ class TenantBackend {
 	/* `placed` is the id the new record takes, and the table it lands under when it has one. */
 	async #create(call: Call, store: Map<string, Stored>, { id, ...under }: Pick<Stored, "id" | "table">) {
 		const body = await readJson(call.req)
-		if (body === null || typeof body.name !== "string") return send(call.res, 400, { error: "name is required" })
-		const record: Stored = { by: call.caller.who, id, name: body.name, project: call.project, ...under }
+		if (body === null || typeof body["name"] !== "string") return send(call.res, 400, { error: "name is required" })
+		const record: Stored = { by: call.caller.who, id, name: body["name"], project: call.project, ...under }
 		store.set(id, record)
 		return send(call.res, 201, shown(record))
 	}

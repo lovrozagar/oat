@@ -13,7 +13,7 @@ const COHORT = [
 ]
 const DOC = { xQuery: { aliases: { ne: "neq" }, filterable: [{ field: "status", ops: ["eq", "neq"] }] } }
 /** FILTER_ALIAS_MISMAPPED: the ne alias is mapped to eq instead of neq. */
-const MISMAPPED = { ops: { ne: OPS.eq } }
+const MISMAPPED = { ops: { ne: OPS["eq"] } }
 
 describe("filter.alias-matches-canonical", () => {
 	it("asserts when the alias selects the same set as its canonical operator", async () => {

@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { sortTerm } from "../../../../spec/conventions/sort.ts"
 import type { SortValue } from "../../../../spec/render/sort.ts"
@@ -36,7 +37,7 @@ function reportUnstableWalks(
 	})
 }
 
-export const pageWalkCoversSet = defineCheck({
+export const pageWalkCoversSet: Check = defineCheck({
 	/* Walked by whatever the endpoint pages by — a cursor alone is enough. */
 	plan: (ctx) => when((pageable(ctx) || conv(ctx).cursor !== undefined) && ctx.records.length > 2),
 	dependsOn: [

@@ -23,7 +23,7 @@ function anonymousAccept(options: InviteDocOptions = {}) {
 		["/orgs/{org_id}/notes/{note_id}", "get"],
 	] as const) {
 		const operation = doc.paths?.[path]?.[method] as Record<string, unknown> | undefined
-		if (operation !== undefined) operation.security = []
+		if (operation !== undefined) operation["security"] = []
 	}
 	return doc
 }

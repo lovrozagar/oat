@@ -116,7 +116,7 @@ async function run(opts: { grows: boolean; caseSensitive: boolean }): Promise<Fi
 		const search = at.searchParams.get("q")
 		/* Another check creates a matching template just before the flipped search is read. */
 		const flipped = search !== null && search[0] === search[0]?.toLowerCase()
-		if (opts.grows && flipped && !store.some((row) => row.id === "t-new")) {
+		if (opts.grows && flipped && !store.some((row) => row["id"] === "t-new")) {
 			store.push({ category: "general", created_at: 999, id: "t-new", name: "Oat New" })
 		}
 		const rows = select(store, search, opts.caseSensitive)

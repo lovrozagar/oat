@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { Exchange } from "../../../exchange.ts"
@@ -20,7 +21,10 @@ import type { JsonSchema } from "../../../../spec/types.ts"
  * reinstates whatever it read, so the later write silently reverts the earlier one. No error is
  * returned to either caller, which is what makes it so hard to notice from the outside.
  */
-export const noLostUpdate = defineCheck<{ updateOp: OperationModel; readOp: OperationModel }>({
+export const noLostUpdate: Check<{ updateOp: OperationModel; readOp: OperationModel }> = defineCheck<{
+	updateOp: OperationModel
+	readOp: OperationModel
+}>({
 	plan: (ctx) => {
 		const { readOp, updateOp } = ctx
 		if (updateOp === undefined || readOp === undefined || ctx.createOp === undefined) return cannot()

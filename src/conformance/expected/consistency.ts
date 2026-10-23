@@ -1,8 +1,14 @@
 import type { DefectName } from "../../reference/defects/table.ts"
 import type { FindingId } from "../../runtime/check-ids.ts"
 
+/** The defects with a row in the consistency family; a name that is not a defect falls out and fails its row. */
+type ConsistencyDefect = Extract<
+	DefectName,
+	"PARENT_PROJECTION_STALE" | "LIST_DETAIL_DISAGREE" | "STALE_LIST" | "LISTED_GET_DIFFERS"
+>
+
 /** The defects whose primary check is in the consistency family, and the check each must trip. */
-export const CONSISTENCY_EXPECTED = {
+export const CONSISTENCY_EXPECTED: Record<ConsistencyDefect, FindingId | FindingId[]> = {
 	PARENT_PROJECTION_STALE: "invalidation.declared-route-changes",
 	LIST_DETAIL_DISAGREE: [
 		"consistency.projections-agree",
@@ -16,4 +22,4 @@ export const CONSISTENCY_EXPECTED = {
 	],
 	STALE_LIST: "list.read-after-write",
 	LISTED_GET_DIFFERS: "list.item-matches-listed-row",
-} satisfies Partial<Record<DefectName, FindingId | FindingId[]>>
+}

@@ -32,7 +32,7 @@ describe("an ancestor two lanes need at once", () => {
 				resolvePathScope(rowCreate!, { client, model, options }),
 			])
 			expect(created.filter((entry) => entry.startsWith("table "))).toHaveLength(1)
-			expect(first.values.table_id).toBe(second.values.table_id)
+			expect(first.values["table_id"]).toBe(second.values["table_id"])
 		} finally {
 			await server.close()
 		}

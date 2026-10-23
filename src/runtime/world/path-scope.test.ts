@@ -62,7 +62,7 @@ describe("resolvePathScope", () => {
 			resolvePathScope(op(run.model, "row.create"), run.seeding),
 		])
 		const again = await resolvePathScope(op(run.model, "row.create"), run.seeding)
-		expect([first.values.table_id, second.values.table_id, again.values.table_id]).toEqual(["t1", "t1", "t1"])
+		expect([first.values["table_id"], second.values["table_id"], again.values["table_id"]]).toEqual(["t1", "t1", "t1"])
 		expect(run.sent.filter((request) => request.method === "POST")).toHaveLength(1)
 		expect(ancestors.made.get("alpha\u0000table.create\u0000/projects/p1/tables")).toBe("t1")
 		expect(ancestors.creating.size).toBe(0)
@@ -83,7 +83,7 @@ describe("resolvePathScope, refused or adopted", () => {
 			method === "POST" ? { body: { error: "payment_required" }, status: 402 } : { body: [{ id: "t5" }], status: 200 },
 		)
 		const scope = await resolvePathScope(op(run.model, "row.create"), run.seeding)
-		expect(scope.values.table_id).toBe("t5")
+		expect(scope.values["table_id"]).toBe("t5")
 		expect(run.created).toEqual([])
 	})
 

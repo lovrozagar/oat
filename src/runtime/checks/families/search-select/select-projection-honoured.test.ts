@@ -29,7 +29,7 @@ describe("select.projection-honoured judges", () => {
 	it("asks for the identity alone when nothing else is selectable", async () => {
 		const staged = stage(selectProjection, { doc: queryDoc({ selectable: ["id"] }) })
 		expect(await staged.run()).toEqual({ kind: "asserted" })
-		expect(staged.sent[0]?.options.query?.select).toBe("id")
+		expect(staged.sent[0]?.options.query?.["select"]).toBe("id")
 		expect(stage(selectProjection, { fields: { query: null } }).plan()).toMatchObject({
 			value: { requested: ["id"] },
 		})

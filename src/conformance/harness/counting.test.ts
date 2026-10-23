@@ -94,9 +94,9 @@ describe("run, counted by source", () => {
 		const { sources, total } = counted.requests()
 		const sent = Object.values(sources).reduce((sum, count) => sum + count, 0)
 		expect(sent).toBe(total)
-		expect(total - (sources.unattributed ?? 0)).toBe(result.client.transcript.length)
+		expect(total - (sources["unattributed"] ?? 0)).toBe(result.client.transcript.length)
 		/* The document, fetched once before the run has a client to record it. */
-		expect(sources.unattributed).toBe(1)
+		expect(sources["unattributed"]).toBe(1)
 		expect(sources).toMatchObject({
 			"check list.read-after-write": expect.any(Number),
 			seed: expect.any(Number),

@@ -12,7 +12,7 @@ const rewriting =
 	(from: RegExp, to: string): Responder =>
 	(method, path, options) => {
 		const query = queryOf(options)
-		return backend()(method, path, { query: { ...query, order: query.order?.replace(from, to) } })
+		return backend()(method, path, { query: { ...query, order: query["order"]?.replace(from, to) } })
 	}
 
 /* Drops the nulls token: ascending puts nulls last, whatever was asked. */
@@ -26,7 +26,7 @@ describe("sort.nulls-first-last judges", () => {
 	it("passes a backend that places nulls where each clause asks", async () => {
 		const staged = stage(sortNullsFirstLast, { doc: both })
 		expect(await staged.run()).toEqual({ kind: "asserted" })
-		expect(staged.sent.map((sent) => sent.options.query?.order)).toEqual([
+		expect(staged.sent.map((sent) => sent.options.query?.["order"])).toEqual([
 			"score.asc.nullsfirst",
 			"score.asc.nullslast",
 		])
@@ -56,10 +56,10 @@ describe("sort.nulls-first-last judges", () => {
 	it("sends only the clause each declared placement allows", async () => {
 		const first = stage(sortNullsFirstLast, { doc: placing(["first"]) })
 		expect(await first.run()).toEqual({ kind: "asserted" })
-		expect(first.sent.map((sent) => sent.options.query?.order)).toEqual(["score.asc.nullsfirst"])
+		expect(first.sent.map((sent) => sent.options.query?.["order"])).toEqual(["score.asc.nullsfirst"])
 		const last = stage(sortNullsFirstLast, { doc: placing(["last"]) })
 		expect(await last.run()).toEqual({ kind: "asserted" })
-		expect(last.sent.map((sent) => sent.options.query?.order)).toEqual(["score.asc.nullslast"])
+		expect(last.sent.map((sent) => sent.options.query?.["order"])).toEqual(["score.asc.nullslast"])
 	})
 })
 

@@ -36,7 +36,7 @@ describe("runStore: steps", () => {
 		const ctx = await connected(options)
 		expect(((await ctx.store.acquire({ principal: "alpha", scheme: "bearer" })) as Credential).value).toBe("token-1")
 		const login = options.seen.find((request) => request.path === "/login")
-		expect([login?.headers.authorization, ctx.client.transcript[0]?.purpose]).toEqual([undefined, "auth"])
+		expect([login?.headers["authorization"], ctx.client.transcript[0]?.purpose]).toEqual([undefined, "auth"])
 	})
 
 	it("leaves a refused login BLOCKED, with no outage noted", async () => {
@@ -90,7 +90,7 @@ describe("runStore: operations", () => {
 		const key = (await ctx.store.acquire({ principal: "alpha", scheme: "key" })) as Credential
 		expect([key.value, key.sends.headers]).toEqual(["k1", { "x-api-key": "k1" }])
 		const mint = options.seen.find((request) => request.path === "/projects/p1/keys")
-		expect([mint?.headers.authorization, mint?.body]).toEqual(["Bearer alpha-key", { label: "oat" }])
+		expect([mint?.headers["authorization"], mint?.body]).toEqual(["Bearer alpha-key", { label: "oat" }])
 		expect(ctx.client.transcript.at(-1)).toMatchObject({ principal: "alpha", purpose: "auth", schemes: ["bearer"] })
 	})
 
@@ -104,10 +104,9 @@ describe("runStore: operations", () => {
 		expect(await ctx.store.revokeAll()).toEqual([])
 		const revoked = options.seen.filter((request) => request.method === "DELETE").map((request) => request.path)
 		expect(revoked).toEqual(["/projects/p1/keys/1", "/projects/p1/keys/2"])
-		expect(options.seen.filter((request) => request.method === "DELETE").map((r) => r.headers.authorization)).toEqual([
-			"Bearer alpha-key",
-			"Bearer alpha-key",
-		])
+		expect(
+			options.seen.filter((request) => request.method === "DELETE").map((r) => r.headers["authorization"]),
+		).toEqual(["Bearer alpha-key", "Bearer alpha-key"])
 	})
 
 	it("sends as an invited delegate from the delegate's own scope, never the owner's, once it adopts a credential", async () => {
@@ -118,7 +117,7 @@ describe("runStore: operations", () => {
 		await ctx.store.adopt({ principal: "delegate", scheme: "bearer", scope, value: "invited-1" })
 		const key = (await ctx.store.acquire({ principal: "delegate", scheme: "key" })) as Credential
 		const mint = options.seen.filter((request) => request.method === "POST")
-		expect([key.value, mint.map((request) => [request.path, request.headers.authorization])]).toEqual([
+		expect([key.value, mint.map((request) => [request.path, request.headers["authorization"]])]).toEqual([
 			"k-delegate",
 			[["/projects/p2/keys", "Bearer invited-1"]],
 		])
@@ -133,7 +132,7 @@ describe("runStore: tokens and hooks", () => {
 		const granted = (await ctx.store.acquire({ principal: "alpha", scheme: "oauth" })) as Credential
 		expect(granted.value).toBe("granted-1")
 		const post = options.seen.find((request) => request.path === "/token")
-		expect([post?.headers.authorization, post?.headers["content-type"]]).toEqual([
+		expect([post?.headers["authorization"], post?.headers["content-type"]]).toEqual([
 			undefined,
 			"application/x-www-form-urlencoded",
 		])
@@ -228,7 +227,7 @@ describe("runStore: a revoke sends its own session's value", () => {
 		/* The revoke carried the very session it ends: a 401 says that session is already unusable. */
 		await expect(probe.revoke?.()).resolves.toBeUndefined()
 		const sent = options.seen.filter((request) => request.path === "/notes")
-		expect(sent.map((request) => request.headers.authorization)).toEqual(["Bearer neutral-login-value"])
+		expect(sent.map((request) => request.headers["authorization"])).toEqual(["Bearer neutral-login-value"])
 		const revoke = ctx.client.transcript.at(-1)
 		expect(revoke).toMatchObject({ operationId: "notes.list", principal: probe.principal, purpose: "auth" })
 		expect(revoke).not.toHaveProperty("forged")

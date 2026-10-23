@@ -45,7 +45,7 @@ describe("buildCohort on nested and cyclic schemas", () => {
 			{ variants: ["baseline"], operationId: "table.create" },
 		)
 		expect(members[0]?.body).toBeDefined()
-		expect(Array.isArray(members[0]?.body.columns)).toBe(true)
+		expect(Array.isArray(members[0]?.body["columns"])).toBe(true)
 	})
 
 	it("does not throw on a cyclic $ref: # after deref", () => {
@@ -87,7 +87,7 @@ describe("buildCohort strings", () => {
 			1,
 			{ variants: ["unicode"], operationId: "table.create" },
 		)
-		const name = String(member?.body.name ?? "")
+		const name = String(member?.body["name"] ?? "")
 		expect(name).toContain("äöüß")
 		expect(name).toContain("čćžšđ")
 		expect(name).toContain("привет")
@@ -107,7 +107,7 @@ describe("buildCohort string formats", () => {
 			1,
 			{ variants: ["baseline"], operationId: "user.create" },
 		)
-		expect(member?.body.email).toMatch(/^[^@]+@[^@]+\.[^@]+$/)
+		expect(member?.body["email"]).toMatch(/^[^@]+@[^@]+\.[^@]+$/)
 	})
 
 	it("honours minLength and maxLength on every cohort string", () => {
@@ -154,8 +154,8 @@ describe("generateBody", () => {
 			},
 			{ index: 0, rand: mulberry32(1), variant: "baseline" },
 		)
-		expect(body.opt).toBeUndefined()
-		expect(body.req).toBeUndefined()
+		expect(body["opt"]).toBeUndefined()
+		expect(body["req"]).toBeUndefined()
 		expect(missingRequired).toContain("/req")
 	})
 })
@@ -171,7 +171,7 @@ describe("buildCohort padding", () => {
 			1,
 			{ variants: ["baseline"], operationId: "user.create" },
 		)
-		const email = String(member?.body.email ?? "")
+		const email = String(member?.body["email"] ?? "")
 		expect(codePointCount(email)).toBeGreaterThanOrEqual(40)
 		expect(email).toMatch(/^[^@]+@[^@]+\.[^@]+$/)
 	})
@@ -198,7 +198,7 @@ describe("buildCohort padding", () => {
 			},
 			{ index: 0, rand: mulberry32(1), variant: "baseline" },
 		)
-		expect(body.code).toBeUndefined()
+		expect(body["code"]).toBeUndefined()
 		expect(missingRequired).toContain("/code")
 	})
 })
@@ -286,7 +286,7 @@ describe("buildCohort's self-check", () => {
 		const schema = { properties: { name: { $ref: "oat-defs#/$defs/Name" } }, required: ["name"], type: "object" }
 		const options = { defs: { Name: { type: "string" } }, distinct: new Set(["name"]), nonce: "n1" }
 		const [member] = buildCohort(schema, 1, { ...options, variants: ["baseline"] })
-		expect(String(member?.body.name)).toContain("n1")
+		expect(String(member?.body["name"])).toContain("n1")
 	})
 })
 
@@ -341,14 +341,14 @@ describe("bodies an ordinary writer sends", () => {
 	it("leaves out every optional property marked x-privileged, nested ones too, in every member", () => {
 		for (const { body } of buildCohort(marked([]), 7)) {
 			expect(body).not.toHaveProperty("verified")
-			expect(body.nested).not.toHaveProperty("plan")
+			expect(body["nested"]).not.toHaveProperty("plan")
 		}
 		expect(generateBody(marked([]), draw).body).not.toHaveProperty("verified")
 	})
 
 	it("keeps a required one at a schema-valid value: only the highest rank may send that create", () => {
 		const [member] = buildCohort(marked(["verified"]), 7, { variants: ["baseline"] })
-		expect(typeof member?.body.verified).toBe("boolean")
+		expect(typeof member?.body["verified"]).toBe("boolean")
 	})
 })
 
@@ -371,7 +371,7 @@ describe("ensureDistinctUniqueValues", () => {
 		const members = cohort({ code: "a", n: 1 }, { code: "a", n: 1 }, { code: "b", n: 1 })
 		const result = ensureDistinctUniqueValues(members, [["code"], ["n", "code"]], { schema, nonce: "r" })
 		expect(result.gap).toBeNull()
-		expect(new Set(result.members.map((member) => member.body.code)).size).toBe(3)
+		expect(new Set(result.members.map((member) => member.body["code"])).size).toBe(3)
 		expect(result.members.map((member) => member.variant)).toEqual(COHORT.slice(0, 3))
 	})
 

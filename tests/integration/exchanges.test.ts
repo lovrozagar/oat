@@ -174,22 +174,22 @@ async function writesJoinableJson(): Promise<void> {
 	await journal.flush()
 	const jsonl = (await readFile(join(dir, "exchanges.jsonl"), "utf8")).trim().split("\n")
 	const first = JSON.parse(jsonl[0] ?? "{}") as Record<string, unknown>
-	expect(first.requestId).toBe("req-json")
-	expect(first.file).toBe("exchanges/req-json.json")
-	expect(first.check).toBe("effects.declared-effect-occurs")
-	expect(first.entity).toBe("thing")
-	expect(first.phase).toBe("test")
-	expect(first.fixture).toBe("invoice.pdf")
-	expect(first.operationId).toBe("thing.create")
+	expect(first["requestId"]).toBe("req-json")
+	expect(first["file"]).toBe("exchanges/req-json.json")
+	expect(first["check"]).toBe("effects.declared-effect-occurs")
+	expect(first["entity"]).toBe("thing")
+	expect(first["phase"]).toBe("test")
+	expect(first["fixture"]).toBe("invoice.pdf")
+	expect(first["operationId"]).toBe("thing.create")
 	const file = JSON.parse(await readFile(join(dir, "exchanges/req-json.json"), "utf8")) as {
 		requestHeaders: Record<string, string>
 		requestBody: Record<string, unknown>
 		status: number
 	}
 	expect(file.status).toBe(201)
-	expect(file.requestHeaders.authorization).toBe("Bearer <redacted>")
-	expect(file.requestBody.access_token).toBe("<redacted>")
-	expect(file.requestBody.name).toBe("n")
+	expect(file.requestHeaders["authorization"]).toBe("Bearer <redacted>")
+	expect(file.requestBody["access_token"]).toBe("<redacted>")
+	expect(file.requestBody["name"]).toBe("n")
 	const disk = await readFile(join(dir, "exchanges/req-json.json"), "utf8")
 	expect(disk).not.toMatch(/Bearer super-secret/)
 	expect(disk).not.toContain("eyJhbGciOiJ")
@@ -233,7 +233,7 @@ async function contentAddressesFixture(): Promise<void> {
 		mediaType: "image/jpeg",
 		sha256: blobs[0],
 	})
-	expect(one.requestBody.parts[2]?.sha256).toBe(two.requestBody.parts[2]?.sha256)
+	expect(one.requestBody.parts[2]?.["sha256"]).toBe(two.requestBody.parts[2]?.["sha256"])
 	expect(one.requestBody.parts[1]).toEqual({ field: "password", value: "<redacted>" })
 	expect(JSON.stringify(one)).not.toContain("ÿ")
 	const stored = await readFile(join(dir, "blobs", blobs[0] ?? ""))

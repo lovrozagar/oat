@@ -100,7 +100,7 @@ describe("the record envelope", () => {
 		const { state } = await api({ shape: "write-only-field" })
 		const listed = fieldList(state.table)
 		expect(listed).toContainEqual({ name: "name", type: "string" })
-		expect(listed.map((field) => field.name)).not.toContain("secret")
+		expect(listed.map((field) => field["name"])).not.toContain("secret")
 	})
 })
 
@@ -133,12 +133,12 @@ describe("withDefaults", () => {
 	it("pads a large record and derives a table's slug from its name", async () => {
 		const large = await api({ shape: "large-pages" })
 		const padded = withDefaults(large.state, { entity: large.state.table, scope: {} }, { name: "n" })
-		expect(String(padded.padding).length).toBe(49_152)
+		expect(String(padded["padding"]).length).toBe(49_152)
 		const slugs = await api({ shape: "tenant-slugs" })
 		const named = withDefaults(slugs.state, { entity: slugs.state.table, scope: {} }, { name: "Quarterly Report 0" })
-		expect(named.slug).toBe("quarterly-report-0")
-		expect(slugs.state.slugOf.get(String(named.id))).toBe("quarterly-report-0")
-		expect(withDefaults(slugs.state, { entity: slugs.state.table, scope: {} }, {}).slug).toBe("")
+		expect(named["slug"]).toBe("quarterly-report-0")
+		expect(slugs.state.slugOf.get(String(named["id"]))).toBe("quarterly-report-0")
+		expect(withDefaults(slugs.state, { entity: slugs.state.table, scope: {} }, {})["slug"]).toBe("")
 	})
 })
 

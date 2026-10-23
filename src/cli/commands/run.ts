@@ -151,7 +151,7 @@ async function started(writer: Writer, start: Start): Promise<number> {
 	await publishLatest(allocated)
 	writer.out(`  latest: ${allocated.latest}\n\n`)
 	/* Inside GitHub Actions, the job's summary page; the variable is set nowhere else. */
-	await appendStepSummary(writer, input, { path: process.env.GITHUB_STEP_SUMMARY, runDir: outDir })
+	await appendStepSummary(writer, input, { path: process.env["GITHUB_STEP_SUMMARY"], runDir: outDir })
 	const by = stop.by()
 	/* Stopped by a signal: the shell's convention, once teardown and the report are done. */
 	return by === undefined ? exitCode(result) : signalExit(by)

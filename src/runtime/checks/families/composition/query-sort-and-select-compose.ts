@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { selectTerm } from "../../../../spec/conventions/select.ts"
 import { sortTerm } from "../../../../spec/conventions/sort.ts"
@@ -8,7 +9,11 @@ import { conv, q } from "../../query/capabilities.ts"
 import { sortedUnder } from "../../query/order.ts"
 import { list } from "../../sets/list.ts"
 
-export const querySortAndSelectCompose = defineCheck<{
+export const querySortAndSelectCompose: Check<{
+	field: string
+	requested: string[]
+	projection: Record<string, string>
+}> = defineCheck<{
 	field: string
 	requested: string[]
 	projection: Record<string, string>

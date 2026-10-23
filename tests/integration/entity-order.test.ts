@@ -99,7 +99,7 @@ interface Exchange {
 async function createFruit(world: World, entity: "apple" | "banana", { req, res }: Exchange) {
 	const body = await readJson(req)
 	world.seq += 1
-	const row = { id: `${entity}_${world.seq}`, name: String(body.name ?? "n") }
+	const row = { id: `${entity}_${world.seq}`, name: String(body["name"] ?? "n") }
 	world.stores[entity].set(row.id, row)
 	send(res, 201, row)
 }

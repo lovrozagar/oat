@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { filterSpec } from "../../../../spec/conventions/filter.ts"
 import { renderAnd } from "../../../../spec/render/filter-combine.ts"
@@ -10,7 +11,10 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, filterIdentity, FOUNDATIONS, identityIsFilterable, q, resolvedCaps } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const filterConditionCapRejected = defineCheck<{ max: number; overCap: FilterQuery }>({
+export const filterConditionCapRejected: Check<{ max: number; overCap: FilterQuery }> = defineCheck<{
+	max: number
+	overCap: FilterQuery
+}>({
 	plan: (ctx) => {
 		const max = resolvedCaps(ctx).maxFilterConditions
 		const conventions = conv(ctx)

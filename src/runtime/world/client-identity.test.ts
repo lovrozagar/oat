@@ -28,7 +28,7 @@ function server(statuses: number[]) {
 	const sent: Array<Record<string, unknown>> = []
 	const send = async (body: Record<string, unknown>): Promise<Exchange> => {
 		sent.push(body)
-		return exchange("POST", "/tables", { body: { id: body.id }, status: statuses.shift() ?? 409 })
+		return exchange("POST", "/tables", { body: { id: body["id"] }, status: statuses.shift() ?? 409 })
 	}
 	return { send, sent }
 }
@@ -40,10 +40,10 @@ describe("createWithClientId", () => {
 		const made = await createWithClientId({ id: 7, name: "a" }, send, at(taken))
 		expect(made.exchange.status).toBe(201)
 		expect(made.exhausted).toBeUndefined()
-		expect(sent.map((body) => body.name)).toEqual(["a", "a"])
-		expect(sent[0]?.id).toBe(7)
-		expect(["5", "7"]).not.toContain(String(sent[1]?.id))
-		expect([...taken].toSorted()).toEqual(["5", "7", String(sent[1]?.id)].toSorted())
+		expect(sent.map((body) => body["name"])).toEqual(["a", "a"])
+		expect(sent[0]?.["id"]).toBe(7)
+		expect(["5", "7"]).not.toContain(String(sent[1]?.["id"]))
+		expect([...taken].toSorted()).toEqual(["5", "7", String(sent[1]?.["id"])].toSorted())
 		expect(made.sent).toBe(sent[1])
 	})
 
@@ -53,7 +53,7 @@ describe("createWithClientId", () => {
 		const made = await createWithClientId({ id: 7, name: "a" }, send, at(taken))
 		expect(sent).toHaveLength(3)
 		expect(made.exchange.status).toBe(409)
-		const ids = sent.map((body) => String(body.id))
+		const ids = sent.map((body) => String(body["id"]))
 		expect(new Set(ids).size).toBe(3)
 		expect([...taken].toSorted()).toEqual(ids.toSorted())
 		expect(made.exhausted).toBe(
@@ -124,8 +124,8 @@ describe("reserveIdentity", () => {
 	it("draws an identity no record holds, reserves it, and leaves a free one as it is", () => {
 		const taken = new Set(["7"])
 		const drawn = reserveIdentity({ id: 7, name: "a" }, at(taken))
-		expect(drawn.id).not.toBe(7)
-		expect(taken.has(String(drawn.id))).toBe(true)
+		expect(drawn["id"]).not.toBe(7)
+		expect(taken.has(String(drawn["id"]))).toBe(true)
 		expect(reserveIdentity({ id: 8, name: "a" }, at(taken))).toEqual({ id: 8, name: "a" })
 		expect(taken.has("8")).toBe(true)
 		expect(reserveIdentity({ name: "a" }, at(taken))).toEqual({ name: "a" })

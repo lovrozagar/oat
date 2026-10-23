@@ -12,12 +12,12 @@ export interface PassEvidence {
 
 /** Which checks graded which operations, filled as checks run. */
 export class GradeLedger {
-	readonly ran = new Map<string, Set<string>>()
+	readonly ran: Map<string, Set<string>> = new Map<string, Set<string>>()
 	/** The checks in `ran` that only probed the operation: none of them judged its documented success. */
-	readonly probed = new Map<string, Set<string>>()
-	readonly suppressed = new Map<string, Set<string>>()
-	readonly needs = new Map<string, Set<string>>()
-	readonly evidence = new Map<string, PassEvidence>()
+	readonly probed: Map<string, Set<string>> = new Map<string, Set<string>>()
+	readonly suppressed: Map<string, Set<string>> = new Map<string, Set<string>>()
+	readonly needs: Map<string, Set<string>> = new Map<string, Set<string>>()
+	readonly evidence: Map<string, PassEvidence> = new Map<string, PassEvidence>()
 
 	#add(map: Map<string, Set<string>>, operations: readonly string[], value: string): void {
 		for (const op of operations) {

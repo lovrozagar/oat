@@ -18,7 +18,9 @@ type Override = (server: NotesServer) => Responder
 /* Whether a PATCH to `path` would give its record another row's name or code. */
 function collides(server: NotesServer, path: string, body: Note): boolean {
 	const id = path.slice("/notes/".length)
-	return [...server.records.values()].some((row) => row.id !== id && (row.name === body.name || row.code === body.code))
+	return [...server.records.values()].some(
+		(row) => row["id"] !== id && (row["name"] === body["name"] || row["code"] === body["code"]),
+	)
 }
 
 const enforces: Override = (server) => (method, path, options) =>

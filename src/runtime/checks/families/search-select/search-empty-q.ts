@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { EffectiveQueryCapabilities } from "../../../../spec/query/effective.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -7,7 +8,9 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, pageSize, q, resolvedCaps } from "../../query/capabilities.ts"
 import { listAll, sameSet, setOf } from "../../sets/compare.ts"
 
-export const searchEmptyQ = defineCheck<{
+export const searchEmptyQ: Check<{
+	policy: NonNullable<EffectiveQueryCapabilities["searchEmpty"]>
+}> = defineCheck<{
 	policy: NonNullable<EffectiveQueryCapabilities["searchEmpty"]>
 }>({
 	plan: (ctx) => {

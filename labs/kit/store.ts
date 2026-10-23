@@ -85,7 +85,7 @@ export class WorldStore {
 		const next: Row = { ...current, ...patch, updated_at: Date.now() }
 		const extra: string[] = []
 		if (hasDefect(this.world, "widen-patch") && !Object.hasOwn(patch, "kind") && Object.hasOwn(current, "kind")) {
-			next.kind = current.kind === "red" ? "blue" : "red"
+			next["kind"] = current["kind"] === "red" ? "blue" : "red"
 			extra.push("kind")
 		}
 		const cols = hasDefect(this.world, "clobber-patch")
@@ -117,7 +117,7 @@ export class WorldStore {
 
 	async findIdempotent(key: string): Promise<Row | null> {
 		const rows = await this.db.all(`SELECT record FROM idempotency WHERE key = ?`, [key])
-		const raw = rows[0]?.record
+		const raw = rows[0]?.["record"]
 		return typeof raw === "string" ? (JSON.parse(raw) as Row) : null
 	}
 
@@ -182,7 +182,7 @@ export class WorldStore {
 				[parentId],
 			)
 			await this.db.run(`UPDATE "${parent.plural}" SET "${derived.name}" = ?, updated_at = ? WHERE id = ?`, [
-				Number(counted[0]?.n ?? 0),
+				Number(counted[0]?.["n"] ?? 0),
 				Date.now(),
 				parentId,
 			])
@@ -199,12 +199,12 @@ function asSql(value: unknown): string | number | null {
 
 function grantFromRow(row: Row): Grant {
 	return {
-		accepted: Number(row.accepted) === 1,
-		entity: String(row.entity),
-		grantId: String(row.grant_id),
-		granteeKey: String(row.grantee_key),
-		itemId: String(row.item_id),
-		ownerOrg: String(row.owner_org),
-		token: String(row.token),
+		accepted: Number(row["accepted"]) === 1,
+		entity: String(row["entity"]),
+		grantId: String(row["grant_id"]),
+		granteeKey: String(row["grantee_key"]),
+		itemId: String(row["item_id"]),
+		ownerOrg: String(row["owner_org"]),
+		token: String(row["token"]),
 	}
 }

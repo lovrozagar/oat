@@ -36,7 +36,10 @@ export interface AllocatedRunDir {
 	rollback: () => Promise<void>
 }
 
-export async function allocateRunDir(root = DEFAULT_RUNS_ROOT, at = new Date()): Promise<AllocatedRunDir> {
+export async function allocateRunDir(
+	root: string = DEFAULT_RUNS_ROOT,
+	at: Date = new Date(),
+): Promise<AllocatedRunDir> {
 	const resolvedRoot = resolve(root)
 	await mkdir(resolvedRoot, { recursive: true })
 	const { dir: runDir, stamp } = await mkdirUnique(resolvedRoot, formatRunStamp(at))

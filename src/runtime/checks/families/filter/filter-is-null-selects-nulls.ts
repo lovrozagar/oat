@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import type { EffectiveFilterField } from "../../../../spec/query/effective.ts"
@@ -17,7 +18,11 @@ function mixedNullField(ctx: CheckContext, field: string): boolean {
 	return holdsSomeNulls(ctx, field)
 }
 
-export const filterIsNullSelectsNulls = defineCheck<{
+export const filterIsNullSelectsNulls: Check<{
+	field: EffectiveFilterField
+	nullTerm: Record<string, string>
+	notNullTerm: Record<string, string>
+}> = defineCheck<{
 	field: EffectiveFilterField
 	nullTerm: Record<string, string>
 	notNullTerm: Record<string, string>

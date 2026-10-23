@@ -70,7 +70,7 @@ describe("createCredentialSource: alternatives", () => {
 		expect(jwt).toMatchObject({ principal: "alpha", schemes: ["jwt"], sentValues: { jwt: "alpha-jwt-1" } })
 		expect(jwt.sends).toEqual({ jwt: { cookies: {}, headers: { Authorization: "Bearer alpha-jwt-1" }, query: {} } })
 		expect(jwt.secrets).toEqual({ cookies: [], headers: ["Authorization"], query: [], values: ["alpha-jwt-1"] })
-		const keyOnly = sourceOf({ security: { apiKey: security.apiKey } as SecurityConfig })
+		const keyOnly = sourceOf({ security: { apiKey: security["apiKey"] } as SecurityConfig })
 		const key = sending(
 			await keyOnly.source.resolve({ route: ROUTE, actor: { principal: "alpha" }, operationId: "row.list" }),
 		)
@@ -95,9 +95,9 @@ describe("createCredentialSource: alternatives", () => {
 	})
 
 	it("reads a principal's own override as its recipe", async () => {
-		const { source } = sourceOf({ security: { apiKey: security.apiKey } as SecurityConfig })
+		const { source } = sourceOf({ security: { apiKey: security["apiKey"] } as SecurityConfig })
 		const override = { machine: { security: { jwt: { static: "m" } } } } as PrincipalsConfig
-		const own = sourceOf({ principals: override, security: { apiKey: security.apiKey } as SecurityConfig })
+		const own = sourceOf({ principals: override, security: { apiKey: security["apiKey"] } as SecurityConfig })
 		const request = { actor: { principal: "machine" }, operationId: "row.list" }
 		expect(sending(await source.resolve({ route: ROUTE, ...request, actor: { principal: "alpha" } })).schemes).toEqual([
 			"apiKey",
@@ -164,7 +164,7 @@ describe("createCredentialSource: a named scheme", () => {
 
 describe("createCredentialSource: a continuation", () => {
 	const keyed = { operationId: "row.list", schemes: ["apiKey"] } as Exchange
-	const both = { apiKey: security.apiKey, jwt: { static: "j" } } as SecurityConfig
+	const both = { apiKey: security["apiKey"], jwt: { static: "j" } } as SecurityConfig
 
 	it("resolves a followed URL against the operation it matches", async () => {
 		const { calls, source } = sourceOf({ security: both })

@@ -164,7 +164,9 @@ describe("listSchema", () => {
 		const schema = listSchema(ctx, TABLE, POSTGREST)
 		const env = POSTGREST.envelope as Record<string, string>
 		expect(schema.required).toEqual(
-			["tables", env.hasMore, env.limit, env.page, env.total, env.nextCursor].filter((k) => k !== undefined),
+			["tables", env["hasMore"], env["limit"], env["page"], env["total"], env["nextCursor"]].filter(
+				(k) => k !== undefined,
+			),
 		)
 		expect(schema.additionalProperties).toBe(false)
 	})

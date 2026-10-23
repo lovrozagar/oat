@@ -17,7 +17,7 @@ import type { GradeLedger } from "./grades.ts"
 import type { SpecModel } from "../spec/graph/types.ts"
 import { TARGET_VERSION_READ } from "./target-version.ts"
 
-export const SERVER_ERROR_CHECK_ID = "response.no-server-error" as const satisfies CheckId
+export const SERVER_ERROR_CHECK_ID: Extract<CheckId, "response.no-server-error"> = "response.no-server-error"
 
 export const serverErrorCheck: Check = {
 	id: SERVER_ERROR_CHECK_ID,

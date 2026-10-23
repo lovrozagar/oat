@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
@@ -23,7 +24,7 @@ import {
  * A grant that appears before accept, never appears, or survives revoke is a different bug
  * at the same check — the timeline is the property.
  */
-export const inviteGrantsThenRevokes = defineCheck<InvitePlan>({
+export const inviteGrantsThenRevokes: Check<InvitePlan> = defineCheck<InvitePlan>({
 	mutates: true,
 	plan: (ctx) => {
 		const spec = ctx.invite

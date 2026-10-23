@@ -16,15 +16,15 @@ export const startJob: Route = async (state, request) => {
 	if (typeof name !== "string" || name === "") throw new HttpError(400, "invalid_input", 'field "name" is required')
 	if (state.defects.has("ACTION_CRASHES")) throw new HttpError(500, "internal_error", "job runner unavailable")
 	const job = withDefaults(state, { entity: state.job, scope: { project_id: projectId } }, { name })
-	job.status = "pending"
-	job.progress = 0
+	job["status"] = "pending"
+	job["progress"] = 0
 	if (!state.defects.has("EFFECT_NOT_APPLIED")) {
 		await state.store.insert(state.job, job)
-		state.jobStartedAt.set(String(job.id), Date.now())
+		state.jobStartedAt.set(String(job["id"]), Date.now())
 	}
 	return respond(
 		202,
-		state.defects.has("ASYNC_RECEIPT_MISSING_ID") ? { accepted: true } : { accepted: true, job_id: job.id },
+		state.defects.has("ASYNC_RECEIPT_MISSING_ID") ? { accepted: true } : { accepted: true, job_id: job["id"] },
 	)
 }
 

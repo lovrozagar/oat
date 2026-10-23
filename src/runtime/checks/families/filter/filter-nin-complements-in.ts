@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -10,7 +11,12 @@ import { ids } from "../../sets/list.ts"
 import type { SetRead } from "../../sets/read.ts"
 import { pickFieldForOp } from "./fields.ts"
 
-export const filterNinComplementsIn = defineCheck<{
+export const filterNinComplementsIn: Check<{
+	field: string
+	members: Array<string | number>
+	inTerm: Record<string, string>
+	ninTerm: Record<string, string>
+}> = defineCheck<{
 	field: string
 	members: Array<string | number>
 	inTerm: Record<string, string>

@@ -21,7 +21,7 @@ describe("the styles route", () => {
 			"range[min]=1&range[max]=5",
 		]) {
 			const answer = await call("GET", `/v1/styles?${query}`, { token: null })
-			expect([query, answer.status, answer.body.error_key]).toEqual([query, 400, "invalid_input"])
+			expect([query, answer.status, answer.body["error_key"]]).toEqual([query, 400, "invalid_input"])
 		}
 	})
 

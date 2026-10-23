@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { filterSpec, filterTerm } from "../../../../spec/conventions/filter.ts"
 import { renderAndOfOr } from "../../../../spec/render/filter-combine.ts"
@@ -17,7 +18,12 @@ import { readSettled, sameSet, setOf } from "../../sets/compare.ts"
 import type { SetRead } from "../../sets/read.ts"
 import { twoFilterableFields } from "./compound.ts"
 
-export const filterNestedAndOrDistributes = defineCheck<{
+export const filterNestedAndOrDistributes: Check<{
+	nested: Record<string, string>
+	termA: Record<string, string>
+	termB: Record<string, string>
+	termC: Record<string, string>
+}> = defineCheck<{
 	nested: Record<string, string>
 	termA: Record<string, string>
 	termB: Record<string, string>

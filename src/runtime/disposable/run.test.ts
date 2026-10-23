@@ -88,7 +88,7 @@ describe("runDisposableOps: the second user's credential", () => {
 		const { input, seen } = await stageOf(accountsDoc({}, apiKey), accountsApi(accounts()))
 		await runDisposableOps(input)
 		const deleted = seen.find((request) => request.method === "DELETE")
-		expect([deleted?.headers["x-api-key"], deleted?.headers.authorization]).toEqual(["t1", undefined])
+		expect([deleted?.headers["x-api-key"], deleted?.headers["authorization"]]).toEqual(["t1", undefined])
 		expect(input.findings.findings).toEqual([])
 	})
 

@@ -11,13 +11,13 @@ const declaring = (defaultOrder: string) => queryDoc({ sort: { defaultOrder } })
 
 /* Serves one more record whenever an order is given, on every read alike. */
 const widerWhenOrdered: Responder = (method, path, options) =>
-	backend(options.query?.order === undefined ? NOTES : [...NOTES, LATECOMER])(method, path, options)
+	backend(options.query?.["order"] === undefined ? NOTES : [...NOTES, LATECOMER])(method, path, options)
 
 describe("sort.default-order-applied judges", () => {
 	it("passes a listing whose implicit order is the declared default", async () => {
 		const staged = stage(sortDefaultOrderApplied, { doc: declaring("id.asc") })
 		expect(await staged.run()).toEqual({ kind: "asserted" })
-		expect(staged.sent.map((sent) => sent.options.query?.order)).toEqual([undefined, "id.asc"])
+		expect(staged.sent.map((sent) => sent.options.query?.["order"])).toEqual([undefined, "id.asc"])
 	})
 
 	it("fails a listing that ignores its declared default order", async () => {

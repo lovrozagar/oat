@@ -67,7 +67,7 @@ describe("commandPlan", () => {
 
 describe("commandPlan and the config's credentials", () => {
 	it("prints each operation's requirement and principal, and lists an unset env() on stderr and in JSON", async () => {
-		delete process.env.OAT_PLAN_TEST_TOKEN
+		delete process.env["OAT_PLAN_TEST_TOKEN"]
 		const dir = folder()
 		const path = join(dir, "oat.config.mjs")
 		const envModule = join(import.meta.dirname, "..", "..", "config", "env.ts")

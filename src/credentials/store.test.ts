@@ -300,7 +300,7 @@ describe("createStore: a login that signs up", () => {
 
 describe("createStore: revokeAll", () => {
 	it("revokes every credential it minted and returns the failures instead of throwing", async () => {
-		const { recorded, store } = harness({ revoke: (scope) => (scope?.credential === "k2" ? 500 : 204) })
+		const { recorded, store } = harness({ revoke: (scope) => (scope?.["credential"] === "k2" ? 500 : 204) })
 		await store.acquire({ principal: "ann", scheme: "key", scopes: ["a"] })
 		await store.refresh({ principal: "ann", scheme: "key", scopes: ["a"], sentValue: "k1" })
 		await store.acquire({ principal: "bob", scheme: "key", scopes: ["a"] })
@@ -308,7 +308,7 @@ describe("createStore: revokeAll", () => {
 			{ principal: "ann", reason: "revoke apiKey.revoke answered 500", scheme: "key" },
 		])
 		const revoked = recorded.calls.filter((call) => call.operationId === "apiKey.revoke")
-		expect(revoked.map((call) => call.scope?.credential)).toEqual(["k1", "k2", "k3"])
+		expect(revoked.map((call) => call.scope?.["credential"])).toEqual(["k1", "k2", "k3"])
 		expect([await store.revokeAll(), recorded.calls.length]).toEqual([[], 6])
 	})
 })

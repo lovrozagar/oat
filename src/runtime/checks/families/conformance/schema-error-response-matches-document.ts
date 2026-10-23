@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { OperationObject } from "../../../../spec/types.ts"
@@ -13,7 +14,11 @@ import { absentId } from "../../payloads/identity.ts"
 import { asProbe } from "../../planning/refusal.ts"
 import { graded, itemParamFor, ownOps, subjectsOf } from "../../planning/subjects.ts"
 
-export const errorSchemaHonoured = defineCheck<{
+export const errorSchemaHonoured: Check<{
+	readOp: OperationModel
+	validator: SchemaValidator
+	raw: OperationObject
+}> = defineCheck<{
 	readOp: OperationModel
 	validator: SchemaValidator
 	raw: OperationObject

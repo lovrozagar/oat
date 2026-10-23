@@ -220,13 +220,13 @@ async function onTables({ backend, project, method, req, res }: At) {
 	}
 	if (method !== "POST") return send(res, 405)
 	const body = await readJson(req)
-	if (body === null || typeof body.name !== "string") return send(res, 400, { error: "name is required" })
-	const slug = slugOf(body.name)
+	if (body === null || typeof body["name"] !== "string") return send(res, 400, { error: "name is required" })
+	const slug = slugOf(body["name"])
 	if (slug === "") return send(res, 400, { error: "name has no letters" })
 	if ([...backend.tables.values()].some((table) => table.project === project && table.slug === slug)) {
 		return send(res, 409, { error: "slug taken" })
 	}
-	return send(res, 201, shownTable(backend.addTable(project, body.name)))
+	return send(res, 201, shownTable(backend.addTable(project, body["name"])))
 }
 
 function onTable({ backend, project, method, res }: At, table: Table) {
@@ -244,8 +244,8 @@ async function onRows({ backend, project, method, req, res }: At, table: Table, 
 	if (method === "GET") return send(res, 200, { items: [...backend.rows.values()].filter(inTable).map(shownRow) })
 	if (method !== "POST") return send(res, 405)
 	const body = await readJson(req)
-	if (body === null || typeof body.label !== "string") return send(res, 400, { error: "label is required" })
-	const row = { id: backend.nextId("r"), label: body.label, project, table: table.key }
+	if (body === null || typeof body["label"] !== "string") return send(res, 400, { error: "label is required" })
+	const row = { id: backend.nextId("r"), label: body["label"], project, table: table.key }
 	backend.rows.set(row.id, row)
 	return send(res, 201, shownRow(row))
 }

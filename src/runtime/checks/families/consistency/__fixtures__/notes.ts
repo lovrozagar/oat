@@ -93,14 +93,14 @@ export function servePage(rows: readonly Record_[], query: NonNullable<RequestOp
 	const filtered = rows.filter((row) =>
 		["status", "title"].every((field) => query[field] === undefined || String(row[field]) === String(query[field])),
 	)
-	const order = typeof query.sort === "string" ? query.sort.replace(/\.asc$/, "") : undefined
+	const order = typeof query["sort"] === "string" ? query["sort"].replace(/\.asc$/, "") : undefined
 	const sorted =
 		order === undefined ? filtered : filtered.toSorted((a, b) => String(a[order]).localeCompare(String(b[order])))
-	const limit = Number(query.limit ?? 100)
-	const page = Number(query.page ?? 1)
+	const limit = Number(query["limit"] ?? 100)
+	const page = Number(query["page"] ?? 1)
 	const window = sorted.slice((page - 1) * limit, page * limit)
-	if (typeof query.fields !== "string") return window
-	const keep = query.fields.split(",")
+	if (typeof query["fields"] !== "string") return window
+	const keep = query["fields"].split(",")
 	return window.map((row) => Object.fromEntries(Object.entries(row).filter(([key]) => keep.includes(key))))
 }
 
@@ -113,7 +113,7 @@ export function notesBackend(rows: Record_[]): Responder {
 		if (method === "GET" && path === "/notes") return { body: servePage(rows, options.query), status: 200 }
 		const item = /^\/notes\/([^/]+)$/.exec(path)
 		if (method === "GET" && item !== null) {
-			const found = rows.find((row) => row.id === item[1])
+			const found = rows.find((row) => row["id"] === item[1])
 			return found === undefined ? undefined : { body: found, status: 200 }
 		}
 		if (method === "POST" && path === "/notes") {

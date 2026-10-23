@@ -116,7 +116,7 @@ export function accountsApi(state: Accounts): Responder {
 		const fixed = state.answers?.[`${method} ${path}`]
 		if (fixed !== undefined) return fixed
 		const headers = (options.headers ?? {}) as Record<string, string>
-		const token = headers["x-api-key"] ?? (headers.authorization ?? "").replace(/^Bearer /, "")
+		const token = headers["x-api-key"] ?? (headers["authorization"] ?? "").replace(/^Bearer /, "")
 		const body = (options.body ?? {}) as Record<string, unknown>
 		return route(state, { body, method, path, token })
 	}
@@ -137,11 +137,11 @@ const ROUTES: Record<string, (state: Accounts, hit: Hit) => Answer> = {
 	"POST /v1/logout": (state, hit) => {
 		if (state.killCaller === true) state.tokens.clear()
 		else if (state.keepSession !== true) state.tokens.delete(hit.token)
-		if (typeof hit.body.refresh_token === "string") state.revoked.add(hit.body.refresh_token)
+		if (typeof hit.body["refresh_token"] === "string") state.revoked.add(hit.body["refresh_token"])
 		return { body: { ok: true }, status: 200 }
 	},
 	"POST /v1/refresh": (state, hit) => {
-		const refresh = hit.body.refresh_token
+		const refresh = hit.body["refresh_token"]
 		const alive = state.refreshLives === true || (typeof refresh === "string" && !state.revoked.has(refresh))
 		return alive ? { body: { ok: true }, status: 200 } : { status: 401 }
 	},

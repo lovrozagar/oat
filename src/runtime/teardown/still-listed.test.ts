@@ -48,7 +48,11 @@ describe("stillListed: paging", () => {
 			expect(sent.map((request) => request.options.query)).toHaveLength(3)
 		}
 		const { sent } = await relist("offset", store({ alpha: ids(5) }, { pageSize: 2 }), ["n9"])
-		expect(sent.map((request) => (request.options.query as Record<string, unknown>).offset)).toEqual([undefined, 2, 4])
+		expect(sent.map((request) => (request.options.query as Record<string, unknown>)["offset"])).toEqual([
+			undefined,
+			2,
+			4,
+		])
 	})
 
 	it("stops at an empty page, a repeated page, a short page, or a list with no next cursor", async () => {
@@ -98,7 +102,7 @@ const failingAt = (failing: number, answer: () => never | { status: number }): S
 	const held = store({ alpha: ids(4) }, { pageSize: 2 })
 	const full = held
 	held.answers["GET /notes"] = (options: Omit<RequestOptions, "as">) => {
-		const page = Number((options.query as Record<string, unknown>).page ?? 1)
+		const page = Number((options.query as Record<string, unknown>)["page"] ?? 1)
 		if (page === failing) return answer()
 		return {
 			body: { items: (full.notes.get("alpha") ?? []).slice((page - 1) * 2, page * 2).map((id) => ({ id })) },

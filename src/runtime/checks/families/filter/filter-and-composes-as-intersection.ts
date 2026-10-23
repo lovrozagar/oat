@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { andTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -12,7 +13,7 @@ import { type Compound, compoundPlan, readComposed } from "./compound.ts"
  * combinator its own set-algebra property, needing no ground truth just like the rest: a
  * conjunction of two predicates must select exactly the intersection of what each selects alone.
  */
-export const filterAndComposesAsIntersection = defineCheck<Compound>({
+export const filterAndComposesAsIntersection: Check<Compound> = defineCheck<Compound>({
 	plan: (ctx) => (filterable(ctx) && (ctx.query?.filterable.length ?? 0) > 1 ? compoundPlan(ctx, andTerm) : cannot()),
 	dependsOn: [
 		"query.filter-selects-from-whole-set",

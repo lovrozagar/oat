@@ -28,16 +28,16 @@ describe("walk", () => {
 		const shared = { type: "string" }
 		const tags = ["a", "b"]
 		const { out } = walked({ a: shared, b: shared, c: tags, d: tags })
-		expect(out.a).toBe(out.b)
-		expect(out.a).not.toBe(shared)
-		expect(out.c).toBe(out.d)
-		expect(out.c).toEqual(["a", "b"])
+		expect(out["a"]).toBe(out["b"])
+		expect(out["a"]).not.toBe(shared)
+		expect(out["c"]).toBe(out["d"])
+		expect(out["c"]).toEqual(["a", "b"])
 	})
 
 	it("inlines an internal ref, and keeps an external one as it is, recording it", () => {
 		const { out, state } = walked({ a: { type: "string" }, b: { $ref: "#/a" }, c: { $ref: "other.yaml#/X" } })
-		expect(out.b).toEqual({ type: "string" })
-		expect(out.c).toEqual({ $ref: "other.yaml#/X" })
+		expect(out["b"]).toEqual({ type: "string" })
+		expect(out["c"]).toEqual({ $ref: "other.yaml#/X" })
 		expect([...state.externalRefs]).toEqual(["other.yaml#/X"])
 	})
 
@@ -56,16 +56,16 @@ describe("walk refs", () => {
 			b: { $ref: "#/text", description: "here" },
 			c: { $ref: "#/list", description: "here" },
 		})
-		expect(out.a).toEqual({ description: "here", type: "string" })
-		expect(out.obj).toEqual({ type: "string" })
-		expect(out.b).toEqual({ description: "here" })
-		expect(out.c).toEqual({ description: "here" })
+		expect(out["a"]).toEqual({ description: "here", type: "string" })
+		expect(out["obj"]).toEqual({ type: "string" })
+		expect(out["b"]).toEqual({ description: "here" })
+		expect(out["c"]).toEqual({ description: "here" })
 	})
 
 	it("turns a ref back into a node still being built into a ref into the definitions", () => {
 		const { out, state } = walked({ a: { again: { $ref: "#/a" }, self: { $ref: "#/a" } }, list: [{ $ref: "#/list" }] })
-		expect(out.a).toEqual({ again: { $ref: "oat-defs#/$defs/a" }, self: { $ref: "oat-defs#/$defs/a" } })
-		expect(out.list).toEqual([{ $ref: "oat-defs#/$defs/list" }])
+		expect(out["a"]).toEqual({ again: { $ref: "oat-defs#/$defs/a" }, self: { $ref: "oat-defs#/$defs/a" } })
+		expect(out["list"]).toEqual([{ $ref: "oat-defs#/$defs/list" }])
 		expect([...state.defNames]).toEqual([
 			["#/a", "a"],
 			["#/list", "list"],
@@ -101,24 +101,24 @@ describe("walk data", () => {
 			empty: { examples: null },
 			text: { examples: "none" },
 		})
-		expect(out.schema).toEqual({
+		expect(out["schema"]).toEqual({
 			example: { $ref: "#/nowhere" },
 			examples: [{ $ref: "#/nowhere" }],
 			properties: { value: { type: "string" } },
 		})
-		expect(out.param.examples).toEqual({
+		expect(out["param"].examples).toEqual({
 			inline: { summary: { type: "string" }, value: { $ref: "#/nowhere" } },
 			linked: { type: "string" },
 		})
-		expect(out.empty).toEqual({ examples: null })
-		expect(out.text).toEqual({ examples: "none" })
+		expect(out["empty"]).toEqual({ examples: null })
+		expect(out["text"]).toEqual({ examples: "none" })
 	})
 
 	it("walks an Example Object afresh each time it is reached", () => {
 		const one = { summary: "s", value: 1 }
 		const { out } = walked({ p: { examples: { one } }, q: { examples: { one } } })
-		expect(out.p.examples.one).toEqual(one)
-		expect(out.p.examples.one).not.toBe(out.q.examples.one)
+		expect(out["p"].examples.one).toEqual(one)
+		expect(out["p"].examples.one).not.toBe(out["q"].examples.one)
 	})
 })
 
@@ -133,7 +133,7 @@ const union = (extra: Record<string, unknown>, branches = ["Cat", "Dog"]) => ({
 	...extra,
 })
 const tags = (pet: Record<string, unknown>) =>
-	walked({ components: { schemas: { ...schemas, Pet: pet } } }).out.components.schemas.Pet[KEY]
+	walked({ components: { schemas: { ...schemas, Pet: pet } } }).out["components"].schemas.Pet[KEY]
 
 describe("walk discriminators", () => {
 	it("names each branch of a union of refs by its component name when nothing maps it", () => {
@@ -167,7 +167,7 @@ describe("walk discriminators", () => {
 			discriminator: { mapping: { cat: "#/defs/Cat", odd: 3 }, propertyName: "kind" },
 			oneOf: [{ $ref: "#/defs/Cat" }],
 		}
-		expect(walked({ defs: { Cat: schemas.Cat }, pet }).out.pet[KEY]).toEqual({
+		expect(walked({ defs: { Cat: schemas.Cat }, pet }).out["pet"][KEY]).toEqual({
 			propertyName: "kind",
 			values: [["cat"]],
 		})
@@ -189,7 +189,7 @@ describe("walk discriminators", () => {
 		const mapping = { kitty: "Kitten", loop: "#/components/examples/x/value/a" }
 		const pet = union({ discriminator: { mapping, propertyName: "kind" } })
 		const doc = { components: { examples: { x: { value: loop } }, schemas: { ...schemas, Pet: pet } } }
-		expect(walked(doc).out.components.schemas.Pet[KEY]).toEqual({
+		expect(walked(doc).out["components"].schemas.Pet[KEY]).toEqual({
 			propertyName: "kind",
 			values: [["kitty"], ["Dog"]],
 		})

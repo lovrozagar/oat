@@ -52,7 +52,7 @@ describe("runEffectsSuite against the wrong extract", () => {
 describe("runEffectsSuite against a changed backend", () => {
 	it("says there were no findings at all when a document leaves nothing to find", async () => {
 		const tables = "/v1/projects/{project_id}/tables"
-		const listOnly = { ...extractSpec(), paths: { [tables]: { get: extractSpec().paths?.[tables]?.get } } }
+		const listOnly = { ...extractSpec(), paths: { [tables]: { get: extractSpec().paths?.[tables]?.["get"] } } }
 		const results = await runEffectsSuite(
 			changed(
 				(backend) => async (request) =>

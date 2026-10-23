@@ -37,7 +37,7 @@ function columnDefaults(): { ok: boolean; detail: string } {
 	const [body] = buildCohort(schema, 1, { operationId: "table.create", variants: ["baseline"] }).map(
 		(member) => member.body,
 	)
-	return { detail: JSON.stringify(body).slice(0, 120), ok: Array.isArray(body?.columns) }
+	return { detail: JSON.stringify(body).slice(0, 120), ok: Array.isArray(body?.["columns"]) }
 }
 
 function cyclicRef(): { ok: boolean; detail: string } {
@@ -71,7 +71,7 @@ function cyclicRef(): { ok: boolean; detail: string } {
 function emailFormat(): { ok: boolean; detail: string } {
 	const schema = { properties: { email: { format: "email", type: "string" } }, required: ["email"], type: "object" }
 	const [member] = buildCohort(schema, 1, { operationId: "user.create", variants: ["baseline"] })
-	const email = member?.body.email
+	const email = member?.body["email"]
 	return {
 		detail: String(email),
 		ok: typeof email === "string" && /^[^@]+@[^@]+\.[^@]+$/.test(email),
@@ -80,8 +80,23 @@ function emailFormat(): { ok: boolean; detail: string } {
 
 const HANDLE = "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
 
+/** A string bounded in length, following `pattern` when it has one. */
+interface BoundedString {
+	maxLength: number
+	minLength: number
+	pattern?: string
+	type: "string"
+}
+
+/** A sign-up form: a required handle and name, each a bounded string. */
+interface SignUpSchema extends JsonSchema {
+	properties: { handle: BoundedString; name: BoundedString }
+	required: string[]
+	type: "object"
+}
+
 /** The handle and name a sign-up form asks for: a slug pattern with a floor, and a bounded name. */
-export const HANDLE_SCHEMA = {
+export const HANDLE_SCHEMA: SignUpSchema = {
 	properties: {
 		handle: { maxLength: 32, minLength: 3, pattern: HANDLE, type: "string" },
 		name: { maxLength: 32, minLength: 3, type: "string" },
@@ -115,7 +130,7 @@ function impossibleBounds(): { ok: boolean; detail: string } {
 	const { body, missingRequired } = generateBody(schema, { index: 0, rand: mulberry32(1), variant: "baseline" })
 	return {
 		detail: `body=${JSON.stringify(body)} missing=${missingRequired.join(",")}`,
-		ok: body.opt === undefined && body.req === undefined && missingRequired.includes("/req"),
+		ok: body["opt"] === undefined && body["req"] === undefined && missingRequired.includes("/req"),
 	}
 }
 

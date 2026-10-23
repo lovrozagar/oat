@@ -150,10 +150,15 @@ function createdAnswer(mode: Mode, row: Record<string, unknown> & { ID: number }
 
 async function createNote(world: World, req: IncomingMessage, res: ServerResponse): Promise<void> {
 	const body = await readJson(req)
-	if (body === null || typeof body.name !== "string") return send(res, 400, { error: "name is required" })
-	if (body.note !== undefined && typeof body.note !== "string") return send(res, 400, { error: "note is text" })
+	if (body === null || typeof body["name"] !== "string") return send(res, 400, { error: "name is required" })
+	if (body["note"] !== undefined && typeof body["note"] !== "string") return send(res, 400, { error: "note is text" })
 	world.seq += 1
-	const row = { ID: world.seq, Status: { ID: STATUS_ID, Name: "open" }, name: body.name, note: String(body.note ?? "") }
+	const row = {
+		ID: world.seq,
+		Status: { ID: STATUS_ID, Name: "open" },
+		name: body["name"],
+		note: String(body["note"] ?? ""),
+	}
 	world.store.set(row.ID, row)
 	send(res, 201, createdAnswer(world.mode, row, world.seq))
 }
@@ -169,12 +174,12 @@ async function patchNote(world: World, id: number, { req, res }: Exchange): Prom
 	if (row === undefined) return send(res, 404, {})
 	const body = await readJson(req)
 	if (body === null) return send(res, 400, { error: "json" })
-	if (body.name !== undefined && typeof body.name !== "string") return send(res, 400, { error: "name is text" })
-	if (body.note !== undefined && typeof body.note !== "string") return send(res, 400, { error: "note is text" })
+	if (body["name"] !== undefined && typeof body["name"] !== "string") return send(res, 400, { error: "name is text" })
+	if (body["note"] !== undefined && typeof body["note"] !== "string") return send(res, 400, { error: "note is text" })
 	const next = {
 		...row,
-		...(body.name === undefined ? {} : { name: body.name }),
-		...(body.note === undefined ? {} : { note: body.note }),
+		...(body["name"] === undefined ? {} : { name: body["name"] }),
+		...(body["note"] === undefined ? {} : { note: body["note"] }),
 	}
 	world.store.set(id, next)
 	send(res, 200, next)

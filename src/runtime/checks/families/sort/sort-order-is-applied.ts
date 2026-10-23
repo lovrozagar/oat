@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { sortTerm } from "../../../../spec/conventions/sort.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -7,7 +8,7 @@ import { conv, pageSize, q } from "../../query/capabilities.ts"
 import { observeTextOrder, sortedUnder } from "../../query/order.ts"
 import { list } from "../../sets/list.ts"
 
-export const orderChangesResult = defineCheck<{ field: string }>({
+export const orderChangesResult: Check<{ field: string }> = defineCheck<{ field: string }>({
 	plan: (ctx) => {
 		const field = ctx.query?.sortable.find((f) => f !== ctx.identity) ?? ctx.query?.sortable[0]
 		return field === undefined || ctx.records.length <= 2 ? cannot() : ready({ field })

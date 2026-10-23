@@ -1,10 +1,11 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { Outcome } from "../../../finding.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { FOUNDATIONS } from "../../query/capabilities.ts"
 import { assertRangeUnion, rangePlan, type RangeProbe } from "./range.ts"
 
-export const filterLteIsLtOrEq = defineCheck<RangeProbe>({
+export const filterLteIsLtOrEq: Check<RangeProbe> = defineCheck<RangeProbe>({
 	plan: (ctx) => rangePlan(ctx, "lte", "lt"),
 	dependsOn: [
 		"query.filter-selects-from-whole-set",

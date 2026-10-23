@@ -17,8 +17,8 @@ type Json = Record<string, unknown>
 /** The notes document with its create edited: its tags, and the note schema it sends. */
 function docWith(edit: (create: Json, note: JsonSchema) => void): OpenApiDocument {
 	const doc = structuredClone(notesDoc()) as unknown as { paths: Record<string, Record<string, Json>> }
-	const create = doc.paths["/notes"]?.post as Json
-	const body = create.requestBody as { content: Record<string, { schema: JsonSchema }> }
+	const create = doc.paths["/notes"]?.["post"] as Json
+	const body = create["requestBody"] as { content: Record<string, { schema: JsonSchema }> }
 	edit(create, body.content["application/json"]?.schema as JsonSchema)
 	return doc as unknown as OpenApiDocument
 }

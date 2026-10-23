@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { selectTerm } from "../../../../spec/conventions/select.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -6,7 +7,12 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, pageSize, q } from "../../query/capabilities.ts"
 import { listAll, sameSet, setOf } from "../../sets/compare.ts"
 
-export const querySearchAndSelectCompose = defineCheck<{
+export const querySearchAndSelectCompose: Check<{
+	field: string
+	token: string
+	requested: string[]
+	projection: Record<string, string>
+}> = defineCheck<{
 	field: string
 	token: string
 	requested: string[]

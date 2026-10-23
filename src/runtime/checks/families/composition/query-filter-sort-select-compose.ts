@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { sortTerm } from "../../../../spec/conventions/sort.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -17,9 +18,9 @@ import { projectionBeside, sortFieldBeside, type Subset, subsetPlan } from "./pl
  * dropped — passes every pair check. The oracle is the same membership property as the
  * pairs: the filter alone and the filter with both extras must return the same set.
  */
-export const filterSortSelectCompose = defineCheck<
+export const filterSortSelectCompose: Check<
 	Subset & { extra: string; projection: Record<string, string>; sortField: string }
->({
+> = defineCheck<Subset & { extra: string; projection: Record<string, string>; sortField: string }>({
 	plan: (ctx) =>
 		andThen(
 			when(

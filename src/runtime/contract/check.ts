@@ -11,7 +11,7 @@ import type { CheckId } from "../check-ids.ts"
 import type { Check } from "../checks/core/check.ts"
 import { ASSERTED, type Outcome } from "../finding.ts"
 
-export const CONTRACT_CHECK_ID = "response.contract-call" as const satisfies CheckId
+export const CONTRACT_CHECK_ID: Extract<CheckId, "response.contract-call"> = "response.contract-call"
 
 export const contractCallCheck: Check = {
 	id: CONTRACT_CHECK_ID,

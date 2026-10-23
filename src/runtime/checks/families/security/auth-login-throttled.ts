@@ -1,3 +1,4 @@
+import type { OperationCheck } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { andThen, cannot, ready } from "../../core/plan.ts"
 import type { Exchange } from "../../../exchange.ts"
@@ -39,7 +40,7 @@ function nobodyOf(body: Record<string, unknown>, { nonce, schema }: { nonce: str
  * no account can hold (`oat-nonexistent-<nonce>`, at `example.invalid` where the field is an email),
  * never a principal's, until the login answers 429 or the cap.
  */
-export const loginThrottled = defineCheck<Record<string, unknown>>({
+export const loginThrottled: OperationCheck<Record<string, unknown>> = defineCheck<Record<string, unknown>>({
 	id: "auth.login-throttled",
 	mutates: true,
 	mutatesCredentials: true,

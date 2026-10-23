@@ -114,18 +114,18 @@ function matchesFilter(row: Record_, filter: string, compare: CompareMode): bool
 }
 
 function filterStore(opts: StoreOptions, filter: string | null): Record_[] {
-	const known = new Set(COHORT.map((row) => String(row.id)))
+	const known = new Set(COHORT.map((row) => String(row["id"])))
 	let rows =
 		filter === null || filter === ""
 			? [...opts.store]
 			: opts.store.filter((row) => matchesFilter(row, filter, opts.compare))
 	if (opts.dropKnownMatch === true) {
-		const victim = rows.find((row) => known.has(String(row.id)))
-		if (victim !== undefined) rows = rows.filter((row) => row.id !== victim.id)
+		const victim = rows.find((row) => known.has(String(row["id"])))
+		if (victim !== undefined) rows = rows.filter((row) => row["id"] !== victim["id"])
 	}
 	if (opts.includeKnownNonMatch === true) {
-		const included = new Set(rows.filter((row) => known.has(String(row.id))).map((row) => String(row.id)))
-		const extra = COHORT.find((row) => !included.has(String(row.id)))
+		const included = new Set(rows.filter((row) => known.has(String(row["id"]))).map((row) => String(row["id"])))
+		const extra = COHORT.find((row) => !included.has(String(row["id"])))
 		if (extra !== undefined) rows = [...rows, extra]
 	}
 	return rows

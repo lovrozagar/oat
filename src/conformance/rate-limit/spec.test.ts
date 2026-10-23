@@ -26,7 +26,7 @@ describe("the rate-limit suite's documents", () => {
 			"table.list",
 			"table.read",
 		])
-		const created = planLimitSpec().paths?.["/v1/tables"]?.post as OperationObject | undefined
+		const created = planLimitSpec().paths?.["/v1/tables"]?.["post"] as OperationObject | undefined
 		expect(Object.keys(created?.responses ?? {})).toEqual(["201", "402"])
 	})
 })

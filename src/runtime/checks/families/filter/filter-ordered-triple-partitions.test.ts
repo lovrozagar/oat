@@ -24,7 +24,7 @@ describe("filter.ordered-triple-partitions", () => {
 	})
 
 	it("reports lt implemented as lte, which puts the threshold row on two sides", async () => {
-		const { ctx, findings } = stage({ behavior: { ops: { lt: OPS.lte } }, doc: DOC, records: COHORT })
+		const { ctx, findings } = stage({ behavior: { ops: { lt: OPS["lte"] } }, doc: DOC, records: COHORT })
 		expect(await runCheck(check, ctx)).toMatchObject({ kind: "finding" })
 		const finding = only(findings)
 		expect(finding.summary).toBe("lt / eq / gt are not pairwise disjoint")
@@ -32,7 +32,7 @@ describe("filter.ordered-triple-partitions", () => {
 	})
 
 	it("finds an overlap between the last two sides", async () => {
-		const { ctx, findings } = stage({ behavior: { ops: { gt: OPS.gte } }, doc: DOC, records: COHORT })
+		const { ctx, findings } = stage({ behavior: { ops: { gt: OPS["gte"] } }, doc: DOC, records: COHORT })
 		await runCheck(check, ctx)
 		expect(only(findings).summary).toBe("lt / eq / gt are not pairwise disjoint")
 	})
@@ -56,7 +56,7 @@ describe("filter.ordered-triple-partitions", () => {
 			reason: expect.stringContaining("larger than the walk"),
 		})
 		const store = growing(COHORT, 4, { amount: 1, id: "w-6" })
-		const moving = stage({ behavior: { ops: { lt: OPS.lte } }, doc: DOC, records: COHORT, store })
+		const moving = stage({ behavior: { ops: { lt: OPS["lte"] } }, doc: DOC, records: COHORT, store })
 		expect(await runCheck(check, moving.ctx)).toMatchObject({ reason: expect.stringContaining("gained or lost rows") })
 	})
 

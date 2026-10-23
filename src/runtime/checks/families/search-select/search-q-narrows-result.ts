@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
@@ -5,7 +6,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, pageSize, q } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const searchNarrowsResult = defineCheck<{ field: string }>({
+export const searchNarrowsResult: Check<{ field: string }> = defineCheck<{ field: string }>({
 	plan: (ctx) => {
 		const field = ctx.query?.searchable[0]
 		return conv(ctx).search === undefined || field === undefined || ctx.records.length <= 2

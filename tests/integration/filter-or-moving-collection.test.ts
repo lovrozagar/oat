@@ -91,7 +91,7 @@ function select(rows: Record_[], filter: string | null, strangers: boolean): Rec
 	const or = /^or\((.*)\)$/.exec(filter)?.[1]
 	if (or === undefined) return rows.filter((row) => matches(row, filter))
 	const terms = or.split(",")
-	return rows.filter((row) => (strangers && row.id === "t-b") || terms.some((term) => matches(row, term)))
+	return rows.filter((row) => (strangers && row["id"] === "t-b") || terms.some((term) => matches(row, term)))
 }
 
 async function listen(handler: (req: IncomingMessage, res: ServerResponse) => void): Promise<string> {
@@ -113,7 +113,7 @@ async function run(opts: { grows: boolean; strangers: boolean }): Promise<Findin
 		const at = new URL(req.url ?? "/", "http://127.0.0.1")
 		const filter = at.searchParams.get("filter")
 		/* Another check creates a general template just before the or() is read. */
-		if (opts.grows && filter?.startsWith("or(") && !store.some((row) => row.id === "t-new")) {
+		if (opts.grows && filter?.startsWith("or(") && !store.some((row) => row["id"] === "t-new")) {
 			store.push({ category: "general", created_at: 999, id: "t-new" })
 		}
 		const rows = select(store, filter, opts.strangers)

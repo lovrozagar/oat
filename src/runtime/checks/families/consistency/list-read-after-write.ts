@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { fillPath } from "../../../fill-path.ts"
@@ -12,7 +13,7 @@ import { type ListResult } from "../../sets/list.ts"
 
 /* -------------------------------------------------------------------- checks */
 
-export const readAfterWrite = defineCheck<{ id: string }>({
+export const readAfterWrite: Check<{ id: string }> = defineCheck<{ id: string }>({
 	plan: (ctx) => {
 		const id = idOf(ctx.records[0], ctx.identity)
 		return ctx.createOp === undefined || id === undefined ? cannot(NO_IDENTITY) : ready({ id })

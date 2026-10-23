@@ -66,13 +66,13 @@ describe("auth.login-throttled", () => {
 	it("leaves a field that is not a string as the schema draws it", async () => {
 		const doc = securedDoc()
 		const paths = (doc as unknown as { paths: Record<string, Record<string, Record<string, unknown>>> }).paths
-		const login = paths["/auth/login"]?.post as Record<string, unknown>
+		const login = paths["/auth/login"]?.["post"] as Record<string, unknown>
 		const schema = {
 			properties: { remember: { const: true, type: "boolean" }, username: { type: "string" } },
 			required: ["username", "remember"],
 			type: "object",
 		}
-		login.requestBody = { content: { "application/json": { schema } }, required: true }
+		login["requestBody"] = { content: { "application/json": { schema } }, required: true }
 		const stage = operationContextFor(modelOf(doc), "auth.login", {
 			principals: [alpha],
 			probe: { recipes: { jwt: JWT } },

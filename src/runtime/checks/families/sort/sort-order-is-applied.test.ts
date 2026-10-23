@@ -13,11 +13,11 @@ const ignoringOrder =
 		return backend(rows)(method, path, { query: rest })
 	}
 
-const byTitle = NOTES.toSorted((a, b) => (String(a.title) < String(b.title) ? -1 : 1))
+const byTitle = NOTES.toSorted((a, b) => (String(a["title"]) < String(b["title"]) ? -1 : 1))
 
 /* Sorted by title whatever is asked, and refusing a descending order. */
 const refusingDescending: Responder = (method, path, options) =>
-	queryOf(options).order === "title.desc" ? REJECT : ignoringOrder(byTitle)(method, path, options)
+	queryOf(options)["order"] === "title.desc" ? REJECT : ignoringOrder(byTitle)(method, path, options)
 
 /* Every record without its title. */
 const untitled: Responder = () => ({ body: NOTES.map(({ title: _title, ...rest }) => rest), status: 200 })
@@ -26,7 +26,7 @@ describe("sort.order-is-applied judges", () => {
 	it("passes a backend that sorts both ways, and remembers the text order it showed", async () => {
 		const staged = stage(orderChangesResult)
 		expect(await staged.run()).toEqual({ kind: "asserted" })
-		expect(staged.sent.map((sent) => sent.options.query?.order)).toEqual(["title.asc", "title.desc"])
+		expect(staged.sent.map((sent) => sent.options.query?.["order"])).toEqual(["title.asc", "title.desc"])
 		expect(memoTable(staged.ctx.memo.entity, "textOrders").get("title")).toEqual({ text: "binary" })
 		expect(staged.findings.findings).toEqual([])
 	})

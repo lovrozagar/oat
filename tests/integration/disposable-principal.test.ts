@@ -220,7 +220,7 @@ async function serve(killCaller: boolean): Promise<string> {
 function refreshSpec(): OpenApiDocument {
 	const document = spec()
 	const paths = document.paths as Record<string, Record<string, unknown>>
-	const register = paths["/v1/register"]?.post as {
+	const register = paths["/v1/register"]?.["post"] as {
 		responses: Record<
 			string,
 			{ content: { "application/json": { schema: { properties: Record<string, unknown>; required: string[] } } } }
@@ -230,7 +230,7 @@ function refreshSpec(): OpenApiDocument {
 	if (created === undefined) throw new Error("the register operation documents no 201 body")
 	created.properties["refresh_token"] = { type: "string" }
 	created.required.push("refresh_token")
-	const logout = paths["/v1/logout"]?.post as { requestBody?: unknown }
+	const logout = paths["/v1/logout"]?.["post"] as { requestBody?: unknown }
 	logout.requestBody = {
 		content: {
 			"application/json": {

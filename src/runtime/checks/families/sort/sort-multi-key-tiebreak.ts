@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { sortKeys } from "../../../../spec/conventions/sort.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -37,7 +38,11 @@ function computePickMultiKeyPair(ctx: CheckContext): { primary: string; secondar
 	return null
 }
 
-export const sortMultiKeyTiebreak = defineCheck<{
+export const sortMultiKeyTiebreak: Check<{
+	primary: string
+	secondary: string
+	tied: Record_[]
+}> = defineCheck<{
 	primary: string
 	secondary: string
 	tied: Record_[]

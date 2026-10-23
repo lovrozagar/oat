@@ -37,7 +37,7 @@ describe("filter.or-composes-as-union", () => {
 			doc: DOC,
 			records: COHORT,
 			respond: (method, path, options) =>
-				options.query?.filter === OR ? { body: { widgets: COHORT }, status: 200 } : correct(method, path, options),
+				options.query?.["filter"] === OR ? { body: { widgets: COHORT }, status: 200 } : correct(method, path, options),
 		})
 		await runCheck(check, ctx)
 		expect(only(findings).detail).toContain(

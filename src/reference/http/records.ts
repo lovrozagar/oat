@@ -50,8 +50,8 @@ function decorate(defects: DefectSet, record: Row): Row {
  * projection that returned garbage would be caught by schema validation instead.
  */
 export function skewForList(defects: DefectSet, record: Row): Row {
-	if (!defects.has("LIST_DETAIL_DISAGREE") || typeof record.name !== "string") return record
-	return { ...record, name: `${record.name} (listing)` }
+	if (!defects.has("LIST_DETAIL_DISAGREE") || typeof record["name"] !== "string") return record
+	return { ...record, name: `${record["name"]} (listing)` }
 }
 
 /* Under `recordEnvelope`: what each answer carries. The async job is an action's receipt, not a
@@ -87,14 +87,14 @@ export function withDefaults(state: ReferenceState, { entity, scope }: Collectio
 	for (const parent of entity.parents) {
 		if (entity.fields.some((f) => f.name === parent)) record[parent] = scope[parent] ?? null
 	}
-	record.created_at = state.ids.now()
-	record.updated_at = state.ids.now()
+	record["created_at"] = state.ids.now()
+	record["updated_at"] = state.ids.now()
 	if (entity.softDeleteField !== undefined) record[entity.softDeleteField] = null
 	/* A server-generated field large enough that one page of records exceeds 256 KiB. */
-	if (entity.fields.some((field) => field.name === "padding")) record.padding = PADDING
+	if (entity.fields.some((field) => field.name === "padding")) record["padding"] = PADDING
 	if (state.shape.tableKey === "slug" && entity.name === state.table.name) {
-		record.slug = slugify(String(record.name ?? ""))
-		state.slugOf.set(String(record[entity.identity]), record.slug as string)
+		record["slug"] = slugify(String(record["name"] ?? ""))
+		state.slugOf.set(String(record[entity.identity]), record["slug"] as string)
 	}
 	for (const field of entity.fields) {
 		if (record[field.name] === undefined) record[field.name] = emptyValue(field)
@@ -116,5 +116,5 @@ function slugify(name: string): string {
 
 /** The key a collection's STALE_LIST snapshot is kept under. */
 export function snapshotKey(entity: EntityDef, scope: Scope): string {
-	return `${entity.name}:${scope.project_id ?? ""}:${scope.table_id ?? ""}`
+	return `${entity.name}:${scope["project_id"] ?? ""}:${scope["table_id"] ?? ""}`
 }

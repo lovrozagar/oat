@@ -21,7 +21,7 @@ describe("readConfig", () => {
 	})
 
 	it("loads, checks and interpolates a config", async () => {
-		process.env.OAT_CONFIG_TEST_URL = "http://api.test"
+		process.env["OAT_CONFIG_TEST_URL"] = "http://api.test"
 		const path = configFile({ baseUrl: "${OAT_CONFIG_TEST_URL}", principals: { a: {} }, spec: "s.yaml" })
 		expect(await readConfig(path, true)).toEqual({
 			config: { baseUrl: "http://api.test", principals: { a: {} }, spec: "s.yaml" },
@@ -41,7 +41,7 @@ describe("readConfig", () => {
 	})
 
 	it("says which variable a config names that is not set", async () => {
-		delete process.env.OAT_CONFIG_TEST_UNSET
+		delete process.env["OAT_CONFIG_TEST_UNSET"]
 		const read = await readConfig(configFile({ baseUrl: "${OAT_CONFIG_TEST_UNSET}", spec: "s.yaml" }), false)
 		expect("problem" in read && read.problem).toContain("OAT_CONFIG_TEST_UNSET")
 	})
@@ -55,8 +55,8 @@ describe("readConfig", () => {
 
 describe("readConfig deferring env", () => {
 	it("defers an unset variable for doctor and plan, through env() and ${NAME} alike, and lists each once", async () => {
-		delete process.env.OAT_CONFIG_TEST_UNSET
-		delete process.env.OAT_CONFIG_TEST_KEY
+		delete process.env["OAT_CONFIG_TEST_UNSET"]
+		delete process.env["OAT_CONFIG_TEST_KEY"]
 		const path = join(dir(), "oat.config.mjs")
 		const envModule = join(import.meta.dirname, "..", "config", "env.ts")
 		writeFileSync(
@@ -77,8 +77,8 @@ describe("readConfig deferring env", () => {
 	})
 
 	it("never defers ${NAME} for a run, though OAT_DEFER_ENV=1 is exported", async () => {
-		delete process.env.OAT_CONFIG_TEST_UNSET
-		process.env.OAT_DEFER_ENV = "1"
+		delete process.env["OAT_CONFIG_TEST_UNSET"]
+		process.env["OAT_DEFER_ENV"] = "1"
 		try {
 			const read = await readConfig(
 				configFile({ baseUrl: "${OAT_CONFIG_TEST_UNSET}", principals: { a: {} }, spec: "s.yaml" }),
@@ -86,7 +86,7 @@ describe("readConfig deferring env", () => {
 			)
 			expect("problem" in read && read.problem).toContain("OAT_CONFIG_TEST_UNSET")
 		} finally {
-			delete process.env.OAT_DEFER_ENV
+			delete process.env["OAT_DEFER_ENV"]
 		}
 	})
 })

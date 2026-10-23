@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
 import { when } from "../../core/plan.ts"
@@ -5,7 +6,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { pageable, q } from "../../query/capabilities.ts"
 import { envelopeValue, list } from "../../sets/list.ts"
 
-export const hasMoreIsAccurate = defineCheck({
+export const hasMoreIsAccurate: Check = defineCheck({
 	plan: (ctx) => when(pageable(ctx) && ctx.records.length > 2),
 	dependsOn: ["pagination.limit-bounds-page-size"],
 	id: "pagination.has-more-is-accurate",

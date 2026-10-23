@@ -17,7 +17,7 @@ export function knownScopes(state: ReferenceState): string[] {
 export const createKey: Route = async (state, request) => {
 	if (request.method !== "POST" || request.url.pathname !== "/v1/api-keys") return undefined
 	const caller = authenticate(state, request)
-	const scopes = (await readFields(request, state.defects, { scopes: "strings" })).scopes as string[]
+	const scopes = (await readFields(request, state.defects, { scopes: "strings" }))["scopes"] as string[]
 	const known = knownScopes(state)
 	const unknown = scopes.find((scope) => !known.includes(scope))
 	if (unknown !== undefined) throw new HttpError(400, "invalid_input", `unknown scope "${unknown}"`)

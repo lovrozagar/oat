@@ -114,9 +114,9 @@ describe("reserveClientIdentity", () => {
 		const taken = new Set(["n1"])
 		const { ctx } = notesContext(undefined, { takenIdentities: taken })
 		const reserved = reserveClientIdentity(ctx, { id: "n1", name: "a" }, SCHEMA, "s")
-		expect(reserved.id).not.toBe("n1")
-		expect(reserved.name).toBe("a")
-		expect(taken).toEqual(new Set(["n1", reserved.id]))
+		expect(reserved["id"]).not.toBe("n1")
+		expect(reserved["name"]).toBe("a")
+		expect(taken).toEqual(new Set(["n1", reserved["id"]]))
 	})
 
 	it("refuses when no free identity is left", () => {

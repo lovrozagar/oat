@@ -16,9 +16,9 @@ describe("query.filter-selects-from-whole-set judges", () => {
 	it("passes a backend that filters before it pages, walking one row per page", async () => {
 		const staged = stage(filterAndPagingCompose, { doc: PAGED })
 		expect(await staged.run()).toEqual({ kind: "asserted" })
-		expect(staged.sent.every((sent) => sent.options.query?.limit === 1)).toBe(true)
-		expect(staged.sent.some((sent) => sent.options.query?.filter === "status.eq.open")).toBe(true)
-		expect(staged.sent.some((sent) => sent.options.query?.order !== undefined)).toBe(false)
+		expect(staged.sent.every((sent) => sent.options.query?.["limit"] === 1)).toBe(true)
+		expect(staged.sent.some((sent) => sent.options.query?.["filter"] === "status.eq.open")).toBe(true)
+		expect(staged.sent.some((sent) => sent.options.query?.["order"] !== undefined)).toBe(false)
 		expect(staged.findings.findings).toEqual([])
 	})
 
@@ -35,14 +35,14 @@ describe("query.filter-selects-from-whole-set judges", () => {
 	it("walks by the identity where it is sortable", async () => {
 		const staged = stage(filterAndPagingCompose, { doc: PAGED_BY_ID })
 		expect(await staged.run()).toEqual({ kind: "asserted" })
-		expect(staged.sent.every((sent) => sent.options.query?.order === "id.asc")).toBe(true)
+		expect(staged.sent.every((sent) => sent.options.query?.["order"] === "id.asc")).toBe(true)
 	})
 
 	it("walks again unsorted when the sorted walk drops the filter, and judges that walk", async () => {
 		const staged = stage(filterAndPagingCompose, { doc: PAGED_BY_ID, respond: dropping("filter", ["order"]) })
 		expect(await staged.run()).toEqual({ kind: "asserted" })
-		const unsorted = staged.sent.filter((sent) => sent.options.query?.order === undefined)
-		expect(unsorted.some((sent) => sent.options.query?.filter === "status.eq.open")).toBe(true)
+		const unsorted = staged.sent.filter((sent) => sent.options.query?.["order"] === undefined)
+		expect(unsorted.some((sent) => sent.options.query?.["filter"] === "status.eq.open")).toBe(true)
 	})
 
 	it("counts a matching record without an identity as nothing to miss", async () => {

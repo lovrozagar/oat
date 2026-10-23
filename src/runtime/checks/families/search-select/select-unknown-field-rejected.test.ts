@@ -7,10 +7,10 @@ const UNKNOWN = "oat_no_such_select_xyz"
 const policy = (unknown: string) => ({ doc: queryDoc({ select: { unknown } }) })
 
 /* Serves the identity and drops a field it does not know: the ignore policy, followed. */
-const dropsUnknown: Responder = () => ({ body: NOTES.map((row) => ({ id: row.id })), status: 200 })
+const dropsUnknown: Responder = () => ({ body: NOTES.map((row) => ({ id: row["id"] })), status: 200 })
 
 /* Echoes the undeclared name back as a field. */
-const echoesUnknown: Responder = () => ({ body: NOTES.map((row) => ({ id: row.id, [UNKNOWN]: null })), status: 200 })
+const echoesUnknown: Responder = () => ({ body: NOTES.map((row) => ({ id: row["id"], [UNKNOWN]: null })), status: 200 })
 
 /* An empty listing, whatever is asked. */
 const empty: Responder = () => ({ body: [], status: 200 })

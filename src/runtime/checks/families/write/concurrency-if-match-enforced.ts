@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { RequestOptions } from "../../../../client/types.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
@@ -52,7 +53,7 @@ type Write = Awaited<ReturnType<typeof updateRequest>>
  * see even when it is wrongly applied; whether it was applied is told by the ETag the record reads
  * back with afterwards.
  */
-export const ifMatchEnforced = defineCheck<Plan>({
+export const ifMatchEnforced: Check<Plan> = defineCheck<Plan>({
 	plan: (ctx) => {
 		const { readOp, updateOp } = ctx
 		if (readOp === undefined || updateOp === undefined || ctx.createOp === undefined) return cannot()

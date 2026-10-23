@@ -59,9 +59,9 @@ export interface D1Credentials {
  * runs sharing one database would otherwise contaminate each other's results.
  */
 export function d1Store(credentials: D1Credentials = {}): StoreFactory {
-	const accountId = credentials.accountId ?? process.env.CLOUDFLARE_ACCOUNT_ID
-	const databaseId = credentials.databaseId ?? process.env.CLOUDFLARE_D1_DATABASE_ID
-	const apiToken = credentials.apiToken ?? process.env.CLOUDFLARE_API_TOKEN
+	const accountId = credentials.accountId ?? process.env["CLOUDFLARE_ACCOUNT_ID"]
+	const databaseId = credentials.databaseId ?? process.env["CLOUDFLARE_D1_DATABASE_ID"]
+	const apiToken = credentials.apiToken ?? process.env["CLOUDFLARE_API_TOKEN"]
 	const missing = [
 		accountId === undefined ? "CLOUDFLARE_ACCOUNT_ID" : null,
 		databaseId === undefined ? "CLOUDFLARE_D1_DATABASE_ID" : null,

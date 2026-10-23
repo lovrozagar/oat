@@ -53,7 +53,7 @@ describe("bundleLocalRefs", () => {
 		const doc = (await bundled(SPLIT)) as Record<string, any>
 		const pet = doc[EXTERNAL_KEY]["schemas/pet.yaml"]
 		expect(Object.keys(doc[EXTERNAL_KEY])).toEqual(["schemas/pet.yaml", "schemas/tag.yaml"])
-		expect(doc.paths["/pets/{id}"].get.responses["200"].content["application/json"].schema).toEqual({
+		expect(doc["paths"]["/pets/{id}"].get.responses["200"].content["application/json"].schema).toEqual({
 			$ref: `#/${EXTERNAL_KEY}/schemas~1pet.yaml/Pet`,
 		})
 		/* The external file's own `#/` ref, its nested relative ref, and its ref back into the root. */
@@ -70,12 +70,12 @@ describe("bundleLocalRefs", () => {
 		const { doc, externalRefs } = dereference(await bundled(SPLIT))
 		const out = doc as Record<string, any>
 		expect(externalRefs).toEqual([])
-		const pet = out.paths["/pets/{id}"].get.responses["200"].content["application/json"].schema
+		const pet = out["paths"]["/pets/{id}"].get.responses["200"].content["application/json"].schema
 		expect(pet.properties.tag).toEqual({ enum: ["cat", "dog"], type: "string" })
 		expect(pet.properties.id).toEqual({ format: "uuid", type: "string" })
 		expect(pet.properties.owner.properties.pets.items).toEqual({ $ref: "oat-defs#/$defs/Pet" })
 		expect(Object.keys(out[DEFS_KEY])).toEqual(["Pet"])
-		expect(out.paths["/pets/{id}"].get.parameters[0].schema).toEqual({ format: "uuid", type: "string" })
+		expect(out["paths"]["/pets/{id}"].get.parameters[0].schema).toEqual({ format: "uuid", type: "string" })
 	})
 
 	it("reads a file once however often it is named, and follows a cycle between two other files", async () => {
@@ -197,7 +197,7 @@ describe("bundleLocalRefs and a file it cannot use", () => {
 		const doc = { ...referring("#"), paths: { "/x": { get: { responses: { "200": response } } } } }
 		const root = tree({ "ex.json": { value: { id: 1 } }, "openapi.json": doc })
 		const out = (await bundled(join(root, "openapi.json"))) as Record<string, any>
-		const media = out.paths["/x"].get.responses["200"].content["application/json"]
+		const media = out["paths"]["/x"].get.responses["200"].content["application/json"]
 		expect(media.examples).toEqual({ a: { $ref: `#/${EXTERNAL_KEY}/ex.json` }, b: { value: { $ref: "data" } } })
 		expect(media.schema.examples).toEqual([{ $ref: "data" }])
 		expect(out[EXTERNAL_KEY]["ex.json"]).toEqual({ value: { id: 1 } })

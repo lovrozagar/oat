@@ -17,8 +17,8 @@ const ALPHA = { project_id: "proj_alpha" }
 async function rowWorld(options = {}) {
 	const world = await api(options)
 	const table = await world.table("t")
-	const row = (await world.call("POST", rowsOf(table.id), { body: { label: "r" } })).body
-	return { ...world, row, rowScope: { ...ALPHA, table_id: String(table.id) }, tableId: String(table.id) }
+	const row = (await world.call("POST", rowsOf(table["id"]), { body: { label: "r" } })).body
+	return { ...world, row, rowScope: { ...ALPHA, table_id: String(table["id"]) }, tableId: String(table["id"]) }
 }
 
 const request = (authorization?: string) =>
@@ -107,7 +107,7 @@ describe("assertParents", () => {
 		const refused = (scope: Record<string, string>) => assertParents(state, { entity: ROW, principal: OWNER, scope })
 		await expect(refused({ ...ALPHA, table_id: "missing" })).rejects.toMatchObject({ status: 404 })
 		await expect(refused(ALPHA)).rejects.toMatchObject({ message: "table  does not exist" })
-		await expect(refused({ ...ALPHA, table_id: String(theirs.id) })).rejects.toMatchObject({ status: 404 })
+		await expect(refused({ ...ALPHA, table_id: String(theirs["id"]) })).rejects.toMatchObject({ status: 404 })
 		await expect(refused({ project_id: "proj_beta", table_id: tableId })).rejects.toMatchObject({ status: 404 })
 		await call("DELETE", `${TABLES}/${tableId}`)
 		await expect(refused(rowScope)).rejects.toMatchObject({ status: 404 })
@@ -117,7 +117,7 @@ describe("assertParents", () => {
 		const { state, table } = await api({ defects: ["FOREIGN_PARENT_ACCEPTED"] })
 		const theirs = await table("theirs", BETA)
 		const admitted = (scope: Record<string, string>) => assertParents(state, { entity: ROW, principal: OWNER, scope })
-		await expect(admitted({ ...ALPHA, table_id: String(theirs.id) })).resolves.toBeUndefined()
+		await expect(admitted({ ...ALPHA, table_id: String(theirs["id"]) })).resolves.toBeUndefined()
 		await expect(admitted({ ...ALPHA, table_id: "missing" })).rejects.toMatchObject({
 			status: 404,
 		})
@@ -130,7 +130,7 @@ describe("underPath", () => {
 		expect(await underPath(state, { entity: ROW, record: row }, rowScope)).toBe(true)
 		expect(await underPath(state, { entity: ROW, record: row }, { ...rowScope, project_id: "proj_beta" })).toBe(false)
 		const other = await table("other")
-		expect(await underPath(state, { entity: ROW, record: row }, { ...rowScope, table_id: String(other.id) })).toBe(
+		expect(await underPath(state, { entity: ROW, record: row }, { ...rowScope, table_id: String(other["id"]) })).toBe(
 			false,
 		)
 		expect(
@@ -149,13 +149,13 @@ describe("findItem", () => {
 	it("finds the caller's own record, and refuses a missing or deleted one with a 404", async () => {
 		const { state, call, table } = await api()
 		const made = await table("t")
-		const target = { entity: state.table, itemId: String(made.id), principal: OWNER, scope: ALPHA }
+		const target = { entity: state.table, itemId: String(made["id"]), principal: OWNER, scope: ALPHA }
 		expect(await findItem(state, target)).toMatchObject({ name: "t" })
 		await expect(findItem(state, { ...target, itemId: "missing" })).rejects.toMatchObject({
 			message: "table missing does not exist",
 			status: 404,
 		})
-		await call("DELETE", `${TABLES}/${String(made.id)}`)
+		await call("DELETE", `${TABLES}/${String(made["id"])}`)
 		await expect(findItem(state, target)).rejects.toMatchObject({ message: /has been deleted/, status: 404 })
 	})
 
@@ -164,7 +164,7 @@ describe("findItem", () => {
 		const theirs = await clean.table("theirs", BETA)
 		const target = {
 			entity: clean.state.table,
-			itemId: String(theirs.id),
+			itemId: String(theirs["id"]),
 			principal: OWNER,
 			scope: { project_id: "proj_beta" },
 		}
@@ -177,7 +177,7 @@ describe("findItem", () => {
 	it("serves another tenant's record under CROSS_TENANT_READ, and for writing under CROSS_TENANT_WRITE", async () => {
 		const reads = await api({ defects: ["CROSS_TENANT_READ"] })
 		const theirs = await reads.table("theirs", BETA)
-		const target = { entity: reads.state.table, itemId: String(theirs.id), principal: OWNER, scope: ALPHA }
+		const target = { entity: reads.state.table, itemId: String(theirs["id"]), principal: OWNER, scope: ALPHA }
 		expect(await findItem(reads.state, target)).toMatchObject({ name: "theirs" })
 		const writes = await api({ defects: ["CROSS_TENANT_WRITE"] })
 		await writes.table("theirs", BETA)
@@ -194,11 +194,11 @@ describe("findItem through a grant", () => {
 		] as const) {
 			const world = await api({ defects: [...defects] })
 			const theirs = await world.table("shared", BETA)
-			const grant = { accepted: false, entity: "table", granteeKey: "key_alpha", resourceId: String(theirs.id) }
+			const grant = { accepted: false, entity: "table", granteeKey: "key_alpha", resourceId: String(theirs["id"]) }
 			world.state.grants.set("g", { ...grant, grantId: "g", token: "t" })
 			const target = {
 				entity: world.state.table,
-				itemId: String(theirs.id),
+				itemId: String(theirs["id"]),
 				principal: OWNER,
 				scope: { project_id: "proj_beta" },
 			}
@@ -216,7 +216,7 @@ describe("findItem through a grant", () => {
 		const { state, rowScope, tableId, call } = await rowWorld({ defects: ["HIDDEN_FROM_CREATOR"] })
 		const probe = (await call("POST", rowsOf(tableId), { body: { label: "oat-payload-probe" } })).body
 		await expect(
-			findItem(state, { entity: ROW, itemId: String(probe.id), principal: OWNER, scope: rowScope }),
+			findItem(state, { entity: ROW, itemId: String(probe["id"]), principal: OWNER, scope: rowScope }),
 		).rejects.toMatchObject({
 			status: 404,
 		})

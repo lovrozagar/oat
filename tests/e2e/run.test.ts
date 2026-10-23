@@ -180,7 +180,7 @@ describe("the installed bin's verdicts and stores", () => {
 		const missing = oat(["serve", "--backend", "postgres"])
 		expect(missing).toMatchObject({ code: 2 })
 		expect(missing.out).toContain("oat: --backend postgres needs the postgres package (^3.4): npm install postgres")
-		if (process.env.PGHOST === undefined) return
+		if (process.env["PGHOST"] === undefined) return
 		must(
 			sh("npm", ["install", "--no-audit", "--no-fund", "--prefer-offline", "postgres@^3.4"], CONSUMER),
 			"npm install postgres",

@@ -45,7 +45,7 @@ const principal: PrincipalEntry = {
 	security: { jwt: { expiresIn: 60 } },
 	tenant: "t1",
 }
-expectTypeOf(principal.email).toBeUnknown()
+expectTypeOf(principal["email"]).toBeUnknown()
 expectTypeOf(principal.tenant).toEqualTypeOf<string | undefined>()
 
 // @ts-expect-error a tenant is a string

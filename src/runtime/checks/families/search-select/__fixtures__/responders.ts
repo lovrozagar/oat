@@ -26,7 +26,7 @@ export const notPaging: Responder = ignoring("page")
 /** Case-sensitive free-text search over titles. */
 export const caseSensitive: Responder = (method, path, options) => {
 	const { q: search, ...rest } = queryOf(options)
-	const rows = search === undefined ? NOTES : NOTES.filter((row) => String(row.title).includes(search))
+	const rows = search === undefined ? NOTES : NOTES.filter((row) => String(row["title"]).includes(search))
 	return backend(rows)(method, path, { query: rest })
 }
 

@@ -14,7 +14,7 @@ describe("fenceAsker", () => {
 		const headers: Record<string, string> = { a: "1" }
 		const ask = fenceAsker(fence, { headers, operationId: "row.list", placement: NOTHING_PLACED, purpose: "probe" })
 		await ask(new URL("http://api.test/rows"), "GET", undefined)
-		headers.b = "2"
+		headers["b"] = "2"
 		await ask(new URL("http://cdn.test/x"), "GET", { n: 1 })
 		expect(asked).toEqual([
 			{

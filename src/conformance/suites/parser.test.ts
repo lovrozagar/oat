@@ -53,7 +53,7 @@ describe("runParserSuite", () => {
 	it("fails an external ref resolved in silence, and a mangled plural", () => {
 		expect(details("external-ref", EMPTY)).toEqual(["false external $ref was silently resolved instead of reported"])
 		const statuses = articles([])
-		const list = (statuses.paths as Record<string, { get: Record<string, unknown> }>)["/articles"]?.get ?? {}
+		const list = (statuses["paths"] as Record<string, { get: Record<string, unknown> }>)["/articles"]?.get ?? {}
 		list["x-entity"] = { action: "list", identity: "id", name: "statu" }
 		expect(details("irregular-plurals", statuses)).toEqual([expect.stringContaining('entity "statu"')])
 	})

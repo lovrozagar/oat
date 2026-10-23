@@ -11,7 +11,7 @@ import type { CheckContext } from "../core/context.ts"
 import type { JsonSchema } from "../../../spec/types.ts"
 
 /** The list endpoint's derived conventions — parameter roles and envelope spellings. */
-export function conv(ctx: CheckContext) {
+export function conv(ctx: CheckContext): QueryConventions {
 	return ctx.listOp.conventions
 }
 
@@ -168,11 +168,11 @@ export function pageable(ctx: CheckContext): boolean {
 	return c.page !== undefined || c.offset !== undefined
 }
 
-export const MOVING_FILTER =
+export const MOVING_FILTER: string =
 	"the collection gained or lost rows between the term reads and the combined read (something wrote " +
 	"to it while the check ran), so the reads cannot be compared"
 
-export const MOVING =
+export const MOVING: string =
 	"the collection gained or lost rows between two reads in the same direction (something wrote to it " +
 	"while the check ran), so the reads cannot be compared"
 

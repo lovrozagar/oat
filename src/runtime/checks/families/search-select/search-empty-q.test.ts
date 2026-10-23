@@ -11,7 +11,7 @@ describe("search.empty-q under match-all and ignore", () => {
 		for (const declared of ["match-all", "ignore"]) {
 			const staged = stage(searchEmptyQ, policy(declared))
 			expect(await staged.run()).toEqual({ kind: "asserted" })
-			expect(staged.sent.map((sent) => sent.options.query?.q)).toEqual([undefined, ""])
+			expect(staged.sent.map((sent) => sent.options.query?.["q"])).toEqual([undefined, ""])
 		}
 	})
 

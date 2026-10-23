@@ -37,7 +37,7 @@ const actsAsPut: Override = (server) => (method, path, options) => {
 const revisesAll: Override = (server) => (method, path, options) => {
 	if (method === "GET") return undefined
 	const answer = server.respond(method, path, options)
-	for (const record of server.records.values()) record.rev = Number(record.rev ?? 0) + 1
+	for (const record of server.records.values()) record["rev"] = Number(record["rev"] ?? 0) + 1
 	return answer
 }
 
@@ -46,7 +46,7 @@ const paths = (sent: { method: string; path: string }[]) => sent.map((s) => `${s
 /* A record whose view count moves on every read. */
 const counting: Override = (server) => (method, path) => {
 	const record = server.records.get(path.slice("/notes/".length))
-	if (method === "GET" && record !== undefined) record.views = Number(record.views ?? 0) + 1
+	if (method === "GET" && record !== undefined) record["views"] = Number(record["views"] ?? 0) + 1
 	return undefined
 }
 
@@ -54,7 +54,7 @@ const counting: Override = (server) => (method, path) => {
 const ticking: Override = (server) => (method, path, options) => {
 	const answer = revisesAll(server)(method, path, options)
 	const record = server.records.get(path.slice("/notes/".length))
-	if (record !== undefined && method === "PATCH") record.tick = "moved"
+	if (record !== undefined && method === "PATCH") record["tick"] = "moved"
 	return answer
 }
 

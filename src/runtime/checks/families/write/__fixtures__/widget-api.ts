@@ -123,7 +123,7 @@ export function widgetApi(rows: Rows = new Map()): Responder {
 			if (method === "GET") return { body: [...rows.values()], status: 200 }
 			const body = bodyOf(options)
 			issued += 1
-			const id = typeof body.id === "string" || typeof body.id === "number" ? String(body.id) : `w${issued}`
+			const id = typeof body["id"] === "string" || typeof body["id"] === "number" ? String(body["id"]) : `w${issued}`
 			const row = { ...body, id }
 			rows.set(id, row)
 			return { body: row, status: 201 }

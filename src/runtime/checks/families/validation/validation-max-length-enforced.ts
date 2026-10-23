@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { type Outcome, standDown } from "../../../finding.ts"
@@ -9,7 +10,9 @@ import { standDownForFeatureGate } from "../../planning/stand-down.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { type ConstrainedField, type CreateBody, createBodyPlan, findConstrained } from "./bodies.ts"
 
-export const maxLengthValidated = defineCheck<CreateBody & { target: ConstrainedField }>({
+export const maxLengthValidated: Check<CreateBody & { target: ConstrainedField }> = defineCheck<
+	CreateBody & { target: ConstrainedField }
+>({
 	plan: (ctx) =>
 		andThen(createBodyPlan(ctx), (create) => {
 			const target = findConstrained(

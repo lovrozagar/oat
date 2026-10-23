@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
@@ -10,7 +11,10 @@ import { list } from "../../sets/list.ts"
  * A page size the document says is refused when out of range — `limitOutOfRange: reject` — must be
  * refused. Clamping is a fine contract too, which is why nothing is judged without the declaration.
  */
-export const limitBoundsEnforced = defineCheck<{ limitParam: string; max: number }>({
+export const limitBoundsEnforced: Check<{ limitParam: string; max: number }> = defineCheck<{
+	limitParam: string
+	max: number
+}>({
 	plan: (ctx) => {
 		const max = ctx.query?.maxLimit
 		const limitParam = conv(ctx).limit

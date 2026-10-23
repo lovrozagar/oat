@@ -25,9 +25,9 @@ export async function sqliteAvailable(load: LoadSqlite = () => import("node:sqli
  */
 export function d1Available(): boolean {
 	return (
-		process.env.CLOUDFLARE_ACCOUNT_ID !== undefined &&
-		process.env.CLOUDFLARE_D1_DATABASE_ID !== undefined &&
-		process.env.CLOUDFLARE_API_TOKEN !== undefined
+		process.env["CLOUDFLARE_ACCOUNT_ID"] !== undefined &&
+		process.env["CLOUDFLARE_D1_DATABASE_ID"] !== undefined &&
+		process.env["CLOUDFLARE_API_TOKEN"] !== undefined
 	)
 }
 

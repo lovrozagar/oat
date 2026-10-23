@@ -14,7 +14,7 @@ import { runTask } from "./tasks.ts"
 const nothing = { defects: ["NO_SUCH_DEFECT"], kind: "scope", known: {} } as const
 
 afterEach(() => {
-	delete process.env.OAT_HEAP_SNAPSHOTS
+	delete process.env["OAT_HEAP_SNAPSHOTS"]
 })
 
 describe("runTask", () => {
@@ -26,13 +26,13 @@ describe("runTask", () => {
 
 	it("writes a heap snapshot after the task when asked", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "oat-heap-"))
-		process.env.OAT_HEAP_SNAPSHOTS = dir
+		process.env["OAT_HEAP_SNAPSHOTS"] = dir
 		await runTask({ ...nothing, defects: [...nothing.defects] }, 7, inProcess)
 		expect(readdirSync(dir)).toEqual([expect.stringMatching(/^\d+-0007-scope\.heapsnapshot$/)])
 	}, 60_000)
 
 	it("writes none when the folder is empty", async () => {
-		process.env.OAT_HEAP_SNAPSHOTS = ""
+		process.env["OAT_HEAP_SNAPSHOTS"] = ""
 		const answer = await runTask({ ...nothing, defects: [...nothing.defects] }, 2, inProcess)
 		expect(answer.kind).toBe("results")
 	})

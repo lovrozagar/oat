@@ -1,3 +1,4 @@
+import type { OperationCheck } from "../../core/check.ts"
 /*
  * A write must refuse a body its schema rules out. The validation.*-enforced checks grade creates;
  * this one grades every other write that takes a JSON body, by one invalid body each (`invalidChoice`):
@@ -56,7 +57,7 @@ interface Subject {
 	choice: InvalidChoice
 }
 
-export const invalidBodyRefused = defineCheck<InvalidProbe>({
+export const invalidBodyRefused: OperationCheck<InvalidProbe> = defineCheck<InvalidProbe>({
 	id: ID,
 	mutates: true,
 	needs: "a write other than a create that takes a JSON request body",

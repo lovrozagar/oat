@@ -25,7 +25,7 @@ function tagged(route: string, entity: Record<string, string>, extra: Record<str
 		paths: {
 			[path]: {
 				[method]: {
-					operationId: `${entity.name}.${entity.action}`,
+					operationId: `${entity["name"]}.${entity["action"]}`,
 					responses: { "200": { description: "ok", ...json(thing) } },
 					"x-entity": entity,
 					...extra,
@@ -141,7 +141,7 @@ describe("testEntity", () => {
 
 	it("attributes nothing for a listed entity with no create in a full run", async () => {
 		const listOnly = structuredClone(notesDoc()) as unknown as { paths: Record<string, Record<string, unknown>> }
-		delete listOnly.paths["/notes"]?.post
+		delete listOnly.paths["/notes"]?.["post"]
 		const ctx = await contextOf(optionsFor(notesApi(listOnly as unknown as OpenApiDocument)))
 		const run = entityRunOf(ctx)
 		run.findings.gap("world.seed", "note", { summary: "s", detail: "d" })
@@ -152,7 +152,7 @@ describe("testEntity", () => {
 describe("testEntity seed plans", () => {
 	it("makes the parent first for a listed entity whose action declares effects, and not for one without", async () => {
 		const listOnly = structuredClone(notesDoc()) as unknown as { paths: Record<string, Record<string, unknown>> }
-		delete listOnly.paths["/notes"]?.post
+		delete listOnly.paths["/notes"]?.["post"]
 		listOnly.paths["/notes/{note_id}/archive"] = {
 			post: {
 				operationId: "notes.archive",
@@ -181,8 +181,8 @@ describe("testEntity seed plans", () => {
 		const invited = structuredClone(notesDoc()) as unknown as {
 			paths: Record<string, Record<string, Record<string, unknown>>>
 		}
-		delete invited.paths["/notes"]?.post
-		const patch = invited.paths["/notes/{note_id}"]?.patch
+		delete invited.paths["/notes"]?.["post"]
+		const patch = invited.paths["/notes/{note_id}"]?.["patch"]
 		if (patch !== undefined) patch["x-invite"] = { accept: "notes.get", invite: "notes.update", revoke: "notes.delete" }
 		const { ctx, options } = await tested(
 			notesApi(invited as unknown as OpenApiDocument, [{ id: "n1", title: "a" }]),

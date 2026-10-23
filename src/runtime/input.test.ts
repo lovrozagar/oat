@@ -67,7 +67,7 @@ describe("resolveInput on fields the body lacks or keeps", () => {
 			},
 			{ operationId: "billing.subscribe", schema: { properties: { payment_method_id: { type: "string" } } } },
 		)
-		expect(out.payment_method_id).toBe("pm_only_schema")
+		expect(out["payment_method_id"]).toBe("pm_only_schema")
 	})
 
 	it("passes an oversized value through when the hook returns null", async () => {
@@ -77,7 +77,7 @@ describe("resolveInput on fields the body lacks or keeps", () => {
 			async ({ value }) => (value === undefined || (typeof value === "string" && value.length > 64) ? null : "general"),
 			{ operationId: "tableTemplate.create", schema: { properties: { category: { maxLength: 64, type: "string" } } } },
 		)
-		expect(out.category).toBe(over)
+		expect(out["category"]).toBe(over)
 	})
 
 	it("leaves an omitted field omitted when the hook returns null", async () => {

@@ -10,12 +10,12 @@ import { sortMultiKeyTiebreak } from "./sort-multi-key-tiebreak.ts"
 /* Applies only the first sort key; ties keep their stored order. */
 const firstKeyOnly: Responder = (method, path, options) => {
 	const query = queryOf(options)
-	return backend()(method, path, { query: { ...query, order: query.order?.split(",")[0] } })
+	return backend()(method, path, { query: { ...query, order: query["order"]?.split(",")[0] } })
 }
 
 /* Shows only one of the rows tied on status "open". */
 const hidingTies: Responder = (method, path, options) =>
-	backend(NOTES.filter((row) => row.id !== "n2" && row.id !== "n4"))(method, path, options)
+	backend(NOTES.filter((row) => row["id"] !== "n2" && row["id"] !== "n4"))(method, path, options)
 
 const noJoin = { sortGrammar: { asc: "asc", desc: "desc", join: null, term: "{field}:{direction}" } }
 
@@ -23,7 +23,7 @@ describe("sort.multi-key-tiebreak judges", () => {
 	it("passes a backend that orders ties by the second key", async () => {
 		const staged = stage(sortMultiKeyTiebreak)
 		expect(await staged.run()).toEqual({ kind: "asserted" })
-		expect(staged.sent.map((sent) => sent.options.query?.order)).toEqual(["status.asc,title.desc"])
+		expect(staged.sent.map((sent) => sent.options.query?.["order"])).toEqual(["status.asc,title.desc"])
 	})
 
 	it("fails a backend that ignores the second key", async () => {
@@ -63,7 +63,7 @@ describe("sort.multi-key-tiebreak plans", () => {
 	it("pairs the first field with ties and a second that differs within them", () => {
 		const plan = sortMultiKeyTiebreak.plan(stage(sortMultiKeyTiebreak, { doc: queryDoc({ sort: { maxKeys: 3 } }) }).ctx)
 		expect(plan).toMatchObject({ ok: true, value: { primary: "status", secondary: "title" } })
-		expect(plan.ok && plan.value.tied.map((row) => row.id)).toEqual(["n1", "n2", "n4"])
+		expect(plan.ok && plan.value.tied.map((row) => row["id"])).toEqual(["n1", "n2", "n4"])
 	})
 
 	it("passes over the identity, rows missing a key, and ties that agree on the second key", () => {

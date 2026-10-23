@@ -12,12 +12,12 @@ describe("callerProfilePaths", () => {
 
 	it("reads and updates the caller as a record without an id", () => {
 		expect(Object.keys(paths)).toEqual(["/v1/me"])
-		expect(paths["/v1/me"]?.get).toMatchObject({
+		expect(paths["/v1/me"]?.["get"]).toMatchObject({
 			operationId: "profile.get",
 			"x-entity": { action: "read", identity: "self", name: "profile" },
 		})
-		expect(paths["/v1/me"]?.patch).toMatchObject({ operationId: "profile.update", "x-invalidate": ["GET /v1/me"] })
-		expect(Object.keys(paths["/v1/me"]?.patch?.responses ?? {})).toEqual(["200", "400", "401"])
+		expect(paths["/v1/me"]?.["patch"]).toMatchObject({ operationId: "profile.update", "x-invalidate": ["GET /v1/me"] })
+		expect(Object.keys(paths["/v1/me"]?.["patch"]?.responses ?? {})).toEqual(["200", "400", "401"])
 	})
 })
 
@@ -29,18 +29,18 @@ describe("callerRootPaths", () => {
 	})
 
 	it("marks the logout destructive, and the register public and minting a fresh principal", () => {
-		expect(paths["/v1/logout"]?.post).toMatchObject({ operationId: "auth.logout", "x-destructive": true })
-		expect(paths["/v1/register"]?.post).toMatchObject({
+		expect(paths["/v1/logout"]?.["post"]).toMatchObject({ operationId: "auth.logout", "x-destructive": true })
+		expect(paths["/v1/register"]?.["post"]).toMatchObject({
 			operationId: "auth.register",
 			security: [],
 			"x-fresh-principal": true,
 		})
-		expect(paths["/v1/logout"]?.post).not.toHaveProperty("security")
-		expect(Object.keys(paths["/v1/register"]?.post?.responses ?? {})).toEqual(["201"])
+		expect(paths["/v1/logout"]?.["post"]).not.toHaveProperty("security")
+		expect(Object.keys(paths["/v1/register"]?.["post"]?.responses ?? {})).toEqual(["201"])
 	})
 
 	it("reads the caller's project as the root", () => {
-		expect(paths["/v1/projects/{project_id}/overview"]?.get).toMatchObject({
+		expect(paths["/v1/projects/{project_id}/overview"]?.["get"]).toMatchObject({
 			operationId: "project.overview",
 			"x-entity": { action: "read", identity: "root", name: "overview" },
 		})

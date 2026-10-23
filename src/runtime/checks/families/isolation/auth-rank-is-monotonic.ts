@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { Exchange } from "../../../exchange.ts"
@@ -17,7 +18,11 @@ import { itemParamFor, NO_IDENTITY, subjectsOf } from "../../planning/subjects.t
  * lattice is upside down — the failure mode of every hand-rolled role table that inverted
  * a comparison or attached the wrong policy to a name.
  */
-export const rankIsMonotonic = defineCheck<{ id: string; readOp: OperationModel; home: Actor[] }>({
+export const rankIsMonotonic: Check<{ id: string; readOp: OperationModel; home: Actor[] }> = defineCheck<{
+	id: string
+	readOp: OperationModel
+	home: Actor[]
+}>({
 	plan: (ctx) => {
 		const target = ctx.records[0]
 		const primary = ctx.actors[0]

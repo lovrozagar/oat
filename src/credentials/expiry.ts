@@ -21,7 +21,7 @@ export interface ExpiryInput {
 export function expiresAtOf(input: ExpiryInput): number | null {
 	const seconds = secondsOf(input)
 	if (seconds !== undefined) return input.now + seconds * 1000
-	const exp = jwtClaims(input.value)?.exp
+	const exp = jwtClaims(input.value)?.["exp"]
 	return typeof exp === "number" ? exp * 1000 : null
 }
 

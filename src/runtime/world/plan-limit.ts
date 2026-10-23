@@ -1,11 +1,18 @@
 function planLimitSignal(body: unknown): string | null {
 	if (body === null || typeof body !== "object") return null
 	const rec = body as Record<string, unknown>
-	const candidates: unknown[] = [rec.error, rec.error_key, rec.code, rec.type, rec.reason, rec.status_key]
-	const vars = rec.vars
+	const candidates: unknown[] = [
+		rec["error"],
+		rec["error_key"],
+		rec["code"],
+		rec["type"],
+		rec["reason"],
+		rec["status_key"],
+	]
+	const vars = rec["vars"]
 	if (vars !== null && typeof vars === "object") {
 		const inner = vars as Record<string, unknown>
-		candidates.push(inner.type, inner.code, inner.error, inner.error_key)
+		candidates.push(inner["type"], inner["code"], inner["error"], inner["error_key"])
 	}
 	for (const candidate of candidates) {
 		if (typeof candidate !== "string") continue

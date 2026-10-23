@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { sortTerm } from "../../../../spec/conventions/sort.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -7,7 +8,11 @@ import { conv, MOVING, pageSize, q } from "../../query/capabilities.ts"
 import { sortedUnder } from "../../query/order.ts"
 import { listAgain, listAll, sameSet, setOf, settlePair } from "../../sets/compare.ts"
 
-export const querySearchAndSortCompose = defineCheck<{
+export const querySearchAndSortCompose: Check<{
+	searchField: string
+	sortField: string
+	token: string
+}> = defineCheck<{
 	searchField: string
 	sortField: string
 	token: string

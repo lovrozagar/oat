@@ -63,6 +63,6 @@ describe("filter.in-is-union-of-eq", () => {
 			],
 		})
 		expect(check.plan(numeric.ctx)).toMatchObject({ value: { inTerm: { filter: "amount.in.(1,2)" } } })
-		expect(OPS.in?.(1, "(1,2)")).toBe(true)
+		expect(OPS["in"]?.(1, "(1,2)")).toBe(true)
 	})
 })

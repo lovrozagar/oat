@@ -89,7 +89,7 @@ describe("connect wiring", () => {
 		const options = optionsFor(notesApi(), { redact: { headers: ["x-tester-key"] } })
 		const run = await connected(options)
 		await run.client.get("/notes", AS_ALPHA)
-		expect(options.seen.at(-1)?.headers.authorization).toBe(`Bearer ${ALPHA_KEY}`)
+		expect(options.seen.at(-1)?.headers["authorization"]).toBe(`Bearer ${ALPHA_KEY}`)
 		expect(run.client.redactor.isSecretHeader("x-tester-key")).toBe(true)
 	})
 })
@@ -99,7 +99,7 @@ describe("connect: the store", () => {
 		const options = optionsFor(withLogin(), { security: LOGIN })
 		const run = await connected(options)
 		await run.client.get("/notes", AS_ALPHA)
-		expect(options.seen.map((request) => [request.path, request.headers.authorization])).toEqual([
+		expect(options.seen.map((request) => [request.path, request.headers["authorization"]])).toEqual([
 			["/openapi.json", undefined],
 			["/login", undefined],
 			["/notes", "Bearer token-1"],
@@ -119,7 +119,7 @@ describe("connect: the store", () => {
 		})
 		const run = await connected(options)
 		await run.client.get("/notes", AS_ALPHA)
-		expect(options.seen.at(-1)?.headers.authorization).toBe(`Bearer ${ALPHA_KEY}`)
+		expect(options.seen.at(-1)?.headers["authorization"]).toBe(`Bearer ${ALPHA_KEY}`)
 	})
 })
 

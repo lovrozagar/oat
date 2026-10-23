@@ -51,7 +51,7 @@ describe("validateBody", () => {
 	it("keeps only keys it admitted, even when the body grows while it is read", () => {
 		const body: Record<string, unknown> = {
 			get name() {
-				body.smuggled = true
+				body["smuggled"] = true
 				return "a"
 			},
 		}

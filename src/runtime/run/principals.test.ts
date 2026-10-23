@@ -194,7 +194,12 @@ describe("resolvePrincipals: fresh principals", () => {
 			{ principals: { alpha: { fresh: true, rank: 1 } }, security: EMAIL_LOGIN },
 		)
 		const { alpha } = principals
-		expect([alpha.fresh, alpha.rank, typeof alpha.identity.email, alpha.tenant]).toEqual([true, 1, "string", undefined])
+		expect([alpha.fresh, alpha.rank, typeof alpha.identity["email"], alpha.tenant]).toEqual([
+			true,
+			1,
+			"string",
+			undefined,
+		])
 	})
 
 	it("signs in a principal of an API whose config names no recipe at all", async () => {

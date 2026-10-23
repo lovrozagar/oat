@@ -18,13 +18,8 @@ export const SECURITY_CHECK_IDS = [
 	"auth.login-throttled",
 ] as const
 
-/**
- * Every registered check id. `Check.id` and `dependsOn` are typed against this list, so a
- * misspelled dependency fails to compile instead of silently never suppressing anything; the
- * registry is checked against it again when it loads.
- */
-export const CHECK_IDS = [
-	...SECURITY_CHECK_IDS,
+/** Every check id outside the security set: each takes its family from its prefix (`FAMILY_OF_PREFIX`). */
+const PREFIXED_CHECK_IDS = [
 	"async.reaches-terminal-state",
 	"async.receipt-identifies-the-job",
 	"auth.invite-grants-then-revokes",
@@ -139,6 +134,16 @@ export const CHECK_IDS = [
 	"validation.max-length-enforced",
 	"validation.required-enforced",
 ] as const
+
+/**
+ * Every registered check id. `Check.id` and `dependsOn` are typed against this list, so a
+ * misspelled dependency fails to compile instead of silently never suppressing anything; the
+ * registry is checked against it again when it loads.
+ */
+export const CHECK_IDS: readonly [...typeof SECURITY_CHECK_IDS, ...typeof PREFIXED_CHECK_IDS] = [
+	...SECURITY_CHECK_IDS,
+	...PREFIXED_CHECK_IDS,
+]
 
 export type CheckId = (typeof CHECK_IDS)[number]
 

@@ -1,9 +1,9 @@
 /* The command line: every command and flag once, parsed from argv and printed as the help. */
 
-type FlagKind = "boolean" | "value" | "optional-value"
+import type { FlagKind, FlagKinds } from "./flag-kinds.ts"
 
-export interface FlagSpec {
-	kind: FlagKind
+export interface FlagSpec<Kind extends FlagKind = FlagKind> {
+	kind: Kind
 	/** A value that must parse as a number of this kind. */
 	number?: "integer" | "positive"
 	/** How the help names the value: `<file>`, `[n]`. */
@@ -13,7 +13,7 @@ export interface FlagSpec {
 }
 
 /** Every flag, once: whether it takes a value, what kind, and what it is for. Parsing and help both read this. */
-export const FLAGS = {
+export const FLAGS: { readonly [Name in FlagName]: Readonly<FlagSpec<FlagKinds[Name]>> } = {
 	config: { help: "oat config module (.ts/.js/.mjs/.json) with a default export", kind: "value", value: "<file>" },
 	spec: { help: "OpenAPI document, http(s) URL or filesystem path", kind: "value", value: "<url|file>" },
 	"base-url": { help: "backend under test, overriding the config", kind: "value", value: "<url>" },
@@ -137,10 +137,10 @@ export const FLAGS = {
 	from: { help: "baseline: the run folder (or latest) whose findings become known", kind: "value", value: "<run>" },
 	force: { help: "baseline, init: overwrite an existing --out file", kind: "boolean" },
 	help: { help: "print this help", kind: "boolean" },
-} as const satisfies Readonly<Record<string, FlagSpec>>
+}
 
 /** A flag some command takes, by name: a misspelled one does not compile. */
-export type FlagName = keyof typeof FLAGS
+export type FlagName = keyof FlagKinds
 
 /** What parsing leaves for each kind: a switch is `true`, a value its text, an optional value either. */
 interface ValueOfKind {
@@ -151,11 +151,11 @@ interface ValueOfKind {
 
 /** The flags of one kind, by name. */
 type NamesOf<Kind extends FlagKind> = {
-	[Name in FlagName]: (typeof FLAGS)[Name]["kind"] extends Kind ? Name : never
+	[Name in FlagName]: FlagKinds[Name] extends Kind ? Name : never
 }[FlagName]
 
 /** The flags a command was given, each typed by its kind in the table; one not given is absent. */
-export type Flags = { [Name in FlagName]?: ValueOfKind[(typeof FLAGS)[Name]["kind"]] }
+export type Flags = { [Name in FlagName]?: ValueOfKind[FlagKinds[Name]] }
 
 /** The table looked up by a name argv typed, before it is known to be a flag. */
 const SPECS: Readonly<Record<string, FlagSpec>> = FLAGS

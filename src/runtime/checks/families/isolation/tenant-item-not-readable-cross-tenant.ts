@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { fillPath } from "../../../fill-path.ts"
@@ -8,7 +9,11 @@ import { cannot, ready } from "../../core/plan.ts"
 import { itemParamFor, NO_IDENTITY, subjectsOf } from "../../planning/subjects.ts"
 import { tenantBoundary } from "./tenant.ts"
 
-export const crossTenantItemRead = defineCheck<{
+export const crossTenantItemRead: Check<{
+	id: string
+	readOp: OperationModel
+	peer: Actor
+}> = defineCheck<{
 	id: string
 	readOp: OperationModel
 	peer: Actor

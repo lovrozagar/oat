@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { fillPath } from "../../../fill-path.ts"
@@ -8,7 +9,10 @@ import { asProbe } from "../../planning/refusal.ts"
 import { standDownForFeatureGate } from "../../planning/stand-down.ts"
 import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
 
-export const deleteMissingIs404 = defineCheck<{ deleteOp: OperationModel; missing: string }>({
+export const deleteMissingIs404: Check<{ deleteOp: OperationModel; missing: string }> = defineCheck<{
+	deleteOp: OperationModel
+	missing: string
+}>({
 	plan: (ctx) => {
 		if (ctx.deleteOp === undefined) return cannot()
 		const missing = absentId(ctx)

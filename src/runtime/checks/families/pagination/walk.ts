@@ -19,7 +19,7 @@ export async function walkPages(
 	ctx: CheckContext,
 	perPage: number,
 	order?: SortValue,
-	maxPages = MAX_WALK_PAGES,
+	maxPages: number = MAX_WALK_PAGES,
 ): Promise<Walk> {
 	const read = await readSet(ctx, {}, { fresh: true, keepRepeats: true, maxPages, order, size: perPage })
 	return {

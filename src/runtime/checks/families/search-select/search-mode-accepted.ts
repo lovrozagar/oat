@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -7,7 +8,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, q, resolvedCaps } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const searchModeAccepted = defineCheck({
+export const searchModeAccepted: Check = defineCheck({
 	plan: (ctx) =>
 		when(
 			conv(ctx).searchMode !== undefined &&

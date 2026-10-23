@@ -10,7 +10,7 @@ const rows = widgets(3)
 /** Answers a page size of 0 with `zero` and anything else with `over`. */
 function bySize(zero: Answer, over: Answer) {
 	return (_m: string, _p: string, options: Parameters<typeof queryOf>[0]): Answer =>
-		queryOf(options).limit === 0 ? zero : over
+		queryOf(options)["limit"] === 0 ? zero : over
 }
 
 describe("pagination.limit-bounds-enforced", () => {

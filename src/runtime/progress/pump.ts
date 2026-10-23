@@ -75,7 +75,7 @@ export function createProgressPump(
 }
 
 /** Progress lines for a terminal, glossary first, each handed to `write` with its newline. */
-export function createProgressPrinter(write: (text: string) => void, startedAt = Date.now()): ProgressPump {
+export function createProgressPrinter(write: (text: string) => void, startedAt: number = Date.now()): ProgressPump {
 	let headed = false
 	return createProgressPump(startedAt, (snap, now) => {
 		if (!headed) {

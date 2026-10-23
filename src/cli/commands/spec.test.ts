@@ -122,8 +122,8 @@ describe("modelled and the files a document refers to", () => {
 
 describe("modelled and a config whose variables are not set", () => {
 	it("reads it, listing each unset variable, and resolves no document against an unset base URL", async () => {
-		delete process.env.OAT_SPEC_TEST_TOKEN
-		delete process.env.OAT_SPEC_TEST_URL
+		delete process.env["OAT_SPEC_TEST_TOKEN"]
+		delete process.env["OAT_SPEC_TEST_URL"]
 		const dir = folder()
 		const configPath = notesConfig(dir, { security: { bearer: { static: "${OAT_SPEC_TEST_TOKEN}" } } })
 		const read = await modelled(bufferWriter(), { config: configPath })

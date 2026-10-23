@@ -19,13 +19,13 @@ export function isDocumentedFeatureGateDenial(
 	if (op.featureGate === null) return false
 	if (status !== FEATURE_GATE_STATUS) return false
 	if (body === null || typeof body !== "object") return false
-	const vars = (body as Record<string, unknown>).vars
+	const vars = (body as Record<string, unknown>)["vars"]
 	if (vars === null || typeof vars !== "object") return false
 	const rec = vars as Record<string, unknown>
-	if (rec.type !== "feature_gate") return false
+	if (rec["type"] !== "feature_gate") return false
 	/* A string that disagrees with the tag is backend/tag drift — keep today's failure. Absent
 	 * `vars.feature` is enough together with `type`; do not invent a mismatch. */
-	if (typeof rec.feature === "string" && rec.feature !== op.featureGate) return false
+	if (typeof rec["feature"] === "string" && rec["feature"] !== op.featureGate) return false
 	return true
 }
 
@@ -41,7 +41,7 @@ export function describeFeatureGate(op: Pick<OperationModel, "featureGate">, bod
 
 export function featureGateVars(body: unknown): Record<string, unknown> | null {
 	if (body === null || typeof body !== "object") return null
-	const vars = (body as Record<string, unknown>).vars
+	const vars = (body as Record<string, unknown>)["vars"]
 	if (vars === null || typeof vars !== "object") return null
 	return vars as Record<string, unknown>
 }

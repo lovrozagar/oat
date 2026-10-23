@@ -17,7 +17,7 @@ const revoke = async (): Promise<void> => undefined
 describe("storeCtx", () => {
 	it("copies the config's principals, defaulting the clock and the refresh buffer", () => {
 		const ctx = storeCtx({ ports: fakePorts().ports, principals: PRINCIPALS, schemes: SCHEMES, security: SECURITY })
-		ctx.principals.zed = {}
+		ctx.principals["zed"] = {}
 		expect(PRINCIPALS).not.toHaveProperty("zed")
 		expect([ctx.bufferMs, typeof ctx.now(), ctx.probes]).toEqual([30_000, "number", 0])
 	})
@@ -88,7 +88,7 @@ describe("blockedBy and acquireCtx", () => {
 		)
 		expect(acquireCtx(ctx, plan)).toMatchObject({ principal: { id: "ann#probe-2", identity: {} }, scopes: [] })
 		expect(identityOf(ctx, "nobody")).toEqual({})
-		ctx.principals.viewer = { email: "v@x.io", readOnly: true }
+		ctx.principals["viewer"] = { email: "v@x.io", readOnly: true }
 		expect(identityOf(ctx, "viewer")).toEqual({ email: "v@x.io" })
 	})
 })

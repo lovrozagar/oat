@@ -1,8 +1,32 @@
 import type { DefectName } from "../../reference/defects/table.ts"
 import type { FindingId } from "../../runtime/check-ids.ts"
 
+/** The defects with a row in the write family; a name that is not a defect falls out and fails its row. */
+type WriteDefect = Extract<
+	DefectName,
+	| "CREATED_201_AS_200"
+	| "IDEMPOTENCY_IGNORED"
+	| "UNIQUE_NOT_ENFORCED"
+	| "DELETE_MISSING_OK"
+	| "IMMUTABLE_WRITABLE"
+	| "PATCH_REPLACES"
+	| "SOFT_DELETE_LEAK"
+	| "CREATE_DROPS_FIELD"
+	| "READ_DROPS_FIELD"
+	| "STRING_PAYLOAD_MANGLED"
+	| "COLUMN_NAME_MISMATCH"
+	| "CONCURRENT_WRITE_LOST"
+	| "ETAG_IGNORED"
+	| "DELETE_KEEPS_ROW"
+	| "IDEMPOTENT_REPLAY_INSERTS"
+	| "CLIENT_ID_IGNORED"
+	| "CLIENT_ID_OVERWRITES"
+	| "HIDDEN_FROM_CREATOR"
+	| "CREATE_500_ON_NON_ASCII"
+>
+
 /** The defects whose primary check is in the write family, and the check each must trip. */
-export const WRITE_EXPECTED = {
+export const WRITE_EXPECTED: Record<WriteDefect, FindingId | FindingId[]> = {
 	CREATED_201_AS_200: "create.status-matches-document",
 	IDEMPOTENCY_IGNORED: "idempotency.replay-does-not-duplicate",
 	UNIQUE_NOT_ENFORCED: ["create.unique-conflict-rejected", "update.unique-conflict-rejected"],
@@ -60,4 +84,4 @@ export const WRITE_EXPECTED = {
 		"response.status-is-documented",
 		"response.no-server-error",
 	],
-} satisfies Partial<Record<DefectName, FindingId | FindingId[]>>
+}

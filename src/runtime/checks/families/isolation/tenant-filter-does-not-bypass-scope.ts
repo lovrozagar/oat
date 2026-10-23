@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -8,7 +9,12 @@ import { conv, filterable, filterIdentity, identityIsFilterable, pageSize, q } f
 import { ids, list } from "../../sets/list.ts"
 import { tenantBoundary } from "./tenant.ts"
 
-export const crossTenantFilterBypass = defineCheck<{
+export const crossTenantFilterBypass: Check<{
+	id: string
+	tenantTerm: Record<string, string>
+	peer: string
+	peerScope: Record<string, string>
+}> = defineCheck<{
 	id: string
 	tenantTerm: Record<string, string>
 	peer: string

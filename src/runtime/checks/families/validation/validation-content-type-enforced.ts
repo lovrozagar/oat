@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { requestContent } from "../../../../spec/collection/request.ts"
 import type { OperationObject } from "../../../../spec/types.ts"
@@ -11,7 +12,7 @@ import { standDownForFeatureGate } from "../../planning/stand-down.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { type CreateBody, createBodyPlan } from "./bodies.ts"
 
-export const contentTypeEnforced = defineCheck<CreateBody>({
+export const contentTypeEnforced: Check<CreateBody> = defineCheck<CreateBody>({
 	plan: (ctx) =>
 		ctx.createOp !== undefined && documentsStatus(ctx.createOp.statuses, 415) ? createBodyPlan(ctx) : cannot(),
 	mutates: true,

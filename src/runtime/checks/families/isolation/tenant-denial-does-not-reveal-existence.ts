@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { Exchange } from "../../../exchange.ts"
@@ -22,7 +23,11 @@ import { tenantBoundary } from "./tenant.ts"
  * The comparison is what makes this decidable without knowing the backend's policy. Whichever
  * status it picks is fine; picking two different ones is not.
  */
-export const denialDoesNotRevealExistence = defineCheck<{
+export const denialDoesNotRevealExistence: Check<{
+	target: Record_
+	readOp: OperationModel
+	peer: Actor
+}> = defineCheck<{
 	target: Record_
 	readOp: OperationModel
 	peer: Actor

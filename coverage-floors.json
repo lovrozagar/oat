@@ -36,6 +36,7 @@
 	"src/cli/commands/serve.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/cli/commands/spec.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/cli/config.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/cli/flag-kinds.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/cli/flags.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/cli/main.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/cli/writer.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },

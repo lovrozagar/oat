@@ -1,3 +1,4 @@
+import type { OperationCheck } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationWriteContext } from "../../core/operation-context.ts"
 import { isUntested } from "../../core/operation.ts"
@@ -9,7 +10,7 @@ import { type Lifecycle, lifecyclePlan, type SchemeOutcome, settle } from "./lif
  * proves the rotated session on one read, then replays the refresh token the rotation spent. The
  * replay must fail: a stolen refresh token that keeps refreshing is a session that never ends.
  */
-export const refreshReuseRefused = defineCheck<Lifecycle[]>({
+export const refreshReuseRefused: OperationCheck<Lifecycle[]> = defineCheck<Lifecycle[]>({
 	id: "auth.refresh-reuse-refused",
 	mutates: true,
 	mutatesCredentials: true,

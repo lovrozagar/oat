@@ -35,7 +35,7 @@ export function envelopeValue(
 
 /** Parses RFC 8288 `Link` into rel → URL, or null when the response carries no such header. */
 function linkRelations(exchange: Exchange): Map<string, string> | null {
-	const header = exchange.responseHeaders?.link ?? exchange.responseHeaders?.Link
+	const header = exchange.responseHeaders?.["link"] ?? exchange.responseHeaders?.["Link"]
 	if (typeof header !== "string" || header === "") return null
 	const relations = new Map<string, string>()
 	for (const part of header.split(",")) {

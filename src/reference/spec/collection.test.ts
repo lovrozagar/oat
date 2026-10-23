@@ -44,7 +44,9 @@ describe("the list operation", () => {
 			required: false,
 			schema: { default: TABLE.defaultLimit, maximum: TABLE.maxLimit, minimum: 1, type: "integer" },
 		})
-		expect(get.parameters.filter((param) => param.in === "query").every((param) => param.required === false)).toBe(true)
+		expect(
+			get.parameters.filter((param) => param["in"] === "query").every((param) => param["required"] === false),
+		).toBe(true)
 	})
 
 	it("declares the listing, its tag, its query and its rate limit", () => {
@@ -63,8 +65,8 @@ describe("the list operation", () => {
 
 	it("declares Link headers for a dialect without an envelope", () => {
 		const linked = collectionPathItem(CTX, TABLE, LINKED) as { get: Operation }
-		expect(linked.get.responses["200"]?.headers).toHaveProperty("Link")
-		expect(get.responses["200"]?.headers).toBeUndefined()
+		expect(linked.get.responses["200"]?.["headers"]).toHaveProperty("Link")
+		expect(get.responses["200"]?.["headers"]).toBeUndefined()
 	})
 
 	it("omits soft delete where the entity has none", () => {

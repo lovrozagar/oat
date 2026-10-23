@@ -26,7 +26,7 @@ const policy = (allowed: (who: string, kind: string) => boolean) =>
 function privilegedTitle() {
 	const doc = structuredClone(notesDocument())
 	type Create = { requestBody: { content: Record<string, { schema: { properties: Record<string, object> } }> } }
-	const create = (doc.paths as Record<string, Record<string, Create>>)["/orgs/{org_id}/notes"]?.post as Create
+	const create = (doc.paths as Record<string, Record<string, Create>>)["/orgs/{org_id}/notes"]?.["post"] as Create
 	const title = create.requestBody.content["application/json"]?.schema.properties["title"] as Record<string, unknown>
 	title["x-privileged"] = true
 	return modelOf(doc)

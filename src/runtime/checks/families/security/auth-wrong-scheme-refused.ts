@@ -1,3 +1,4 @@
+import type { OperationCheck } from "../../core/check.ts"
 /*
  * A secured operation must refuse a valid credential of a scheme it does not list: a route the
  * document secures with jwt alone takes no API key, however real. For each declared scheme another
@@ -21,7 +22,7 @@ interface Planned {
 	others: Requirement[]
 }
 
-export const wrongSchemeRefused = defineCheck<Planned>({
+export const wrongSchemeRefused: OperationCheck<Planned> = defineCheck<Planned>({
 	id: ID,
 	mutates: true,
 	needs: "an operation whose security requires a credential, and a scheme it does not list",

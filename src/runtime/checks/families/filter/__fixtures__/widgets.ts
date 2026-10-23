@@ -123,7 +123,7 @@ export function growing(rows: Record_[], after: number, extra: Record_): (call: 
 }
 
 /** Every filtered request refused. */
-export const REFUSE_FILTERED: Behavior = { status: (query) => (query.filter === undefined ? undefined : 400) }
+export const REFUSE_FILTERED: Behavior = { status: (query) => (query["filter"] === undefined ? undefined : 400) }
 
 /** `doc`, paged, with every page the first: no whole-set read of it completes. */
 export function endless(doc: DocOptions = {}): Pick<StageOptions, "behavior" | "doc"> {
@@ -132,7 +132,9 @@ export function endless(doc: DocOptions = {}): Pick<StageOptions, "behavior" | "
 
 /** The `filter` value of each request sent, in order; `-` for a request without one. */
 export function filters(sent: Sent[]): string[] {
-	return sent.map((request) => String((request.options.query as Record<string, unknown> | undefined)?.filter ?? "-"))
+	return sent.map((request) =>
+		String((request.options.query as Record<string, unknown> | undefined)?.["filter"] ?? "-"),
+	)
 }
 
 /** The one finding a check reported. */

@@ -137,7 +137,7 @@ function distinctUniqueValue(value: unknown, token: string, schema: JsonSchema |
 		{ distinct: new Set(["value"]), index: h % 1000, nonce: token },
 	)
 	if (!result.ok) return value
-	const next = (result.value as Record<string, unknown>).value
+	const next = (result.value as Record<string, unknown>)["value"]
 	return JSON.stringify(next) === JSON.stringify(value) ? value : next
 }
 

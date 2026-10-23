@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { filterSpec, orTerm } from "../../../../spec/conventions/filter.ts"
 import { canWriteOr } from "../../../../spec/render/filter-term.ts"
@@ -13,7 +14,7 @@ import { type Compound, compoundPlan, readComposed } from "./compound.ts"
  * an `or()` combinator at all — per-field equality and the colon grammar's comma join are both
  * AND-only — so this stands down everywhere else rather than inventing a request to send.
  */
-export const filterOrComposesAsUnion = defineCheck<Compound>({
+export const filterOrComposesAsUnion: Check<Compound> = defineCheck<Compound>({
 	plan: (ctx) =>
 		canWriteOr(filterSpec(conv(ctx))) && (ctx.query?.filterable.length ?? 0) > 1 ? compoundPlan(ctx, orTerm) : cannot(),
 	dependsOn: [

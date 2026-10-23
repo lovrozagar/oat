@@ -51,7 +51,7 @@ const PRECONDITION_CHECKS: ReadonlySet<string> = new Set(["concurrency.if-match-
 
 function judgedDocument(): OpenApiDocument {
 	const doc = widgetDoc() as unknown as { paths: Record<string, Record<string, Record<string, unknown>>> }
-	const read = doc.paths["/widgets/{id}"]?.get
+	const read = doc.paths["/widgets/{id}"]?.["get"]
 	if (read !== undefined) read["x-rate-limit"] = { category: "reads", rps: 5 }
 	return doc as unknown as OpenApiDocument
 }

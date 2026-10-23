@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { sortTerm } from "../../../../spec/conventions/sort.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -15,7 +16,9 @@ import { overlapPlan, sortFieldBeside, type Subset } from "./plans.ts"
  * The search-index path that also tries to honour an ORDER BY is a common place to drop the
  * structured predicate. Pairwise, filter+search and filter+sort both hold; together they do not.
  */
-export const filterSearchSortCompose = defineCheck<Subset & { token: string; sortField: string }>({
+export const filterSearchSortCompose: Check<Subset & { token: string; sortField: string }> = defineCheck<
+	Subset & { token: string; sortField: string }
+>({
 	plan: (ctx) =>
 		andThen(
 			when(

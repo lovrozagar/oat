@@ -64,7 +64,7 @@ describe("sendFollowing", () => {
 			{ responseHeaders: { location: "/b", "set-cookie": "sid=1; Path=/" }, status: 302, url: `${API}/a` },
 		])
 		expect(landed.jar.snapshot()).toEqual({ sid: "1" })
-		expect(sent.map((request) => [request.url, request.headers.cookie, request.redirect])).toEqual([
+		expect(sent.map((request) => [request.url, request.headers["cookie"], request.redirect])).toEqual([
 			[`${API}/a`, "pref=dark", "manual"],
 			[`${API}/b`, "pref=dark; sid=1", "manual"],
 		])

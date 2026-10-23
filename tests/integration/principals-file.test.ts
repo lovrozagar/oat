@@ -69,8 +69,8 @@ describe("principals.json", () => {
 			)
 
 			const persisted = loadPersistedPrincipals(file)
-			expect(persisted.alpha).not.toHaveProperty("password")
-			const second = await signIn({ alpha: { ...persisted.alpha, ...ALPHA } }, "second")
+			expect(persisted["alpha"]).not.toHaveProperty("password")
+			const second = await signIn({ alpha: { ...persisted["alpha"], ...ALPHA } }, "second")
 			expect(second.code).toBe(EXIT.clean)
 			const again = JSON.parse(await readFile(file, "utf8")) as typeof written
 			expect(again.principals[0]).not.toHaveProperty("blocked")

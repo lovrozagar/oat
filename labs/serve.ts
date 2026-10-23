@@ -13,7 +13,7 @@ import { requireD1 } from "./kit/env.ts"
 import { WorldStore } from "./kit/store.ts"
 import { WORLDS } from "./worlds/catalog.ts"
 
-const worldId = process.env.LAB ?? process.argv[2] ?? "tiny"
+const worldId = process.env["LAB"] ?? process.argv[2] ?? "tiny"
 const world = WORLDS[worldId]
 if (world === undefined) {
 	process.stderr.write(`unknown LAB=${worldId}. choose: ${Object.keys(WORLDS).sort().join(", ")}\n`)
@@ -30,7 +30,7 @@ const store = await WorldStore.open(
 	world,
 )
 const app = createWorldApp(world, store)
-const port = Number(process.env.LAB_PORT ?? 8788)
+const port = Number(process.env["LAB_PORT"] ?? 8788)
 serve({ createServer, fetch: app.fetch, port })
 process.stdout.write(
 	`labs/${world.id}  http://127.0.0.1:${port}  entities=${world.entities.length}  store=d1 ${creds.databaseId}\n` +

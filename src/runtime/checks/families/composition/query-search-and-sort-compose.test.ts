@@ -6,7 +6,7 @@ import { backend, NOTES, queryDoc, queryOf, REJECT, stage } from "./__fixtures__
 import { querySearchAndSortCompose } from "./query-search-and-sort-compose.ts"
 
 /* A cohort the first title's whole value finds all of: "memo" in every title. */
-const MEMOS = NOTES.map((row, index) => ({ ...row, title: index === 0 ? "memo" : `memo ${String(row.id)}` }))
+const MEMOS = NOTES.map((row, index) => ({ ...row, title: index === 0 ? "memo" : `memo ${String(row["id"])}` }))
 
 /* Sorted by rank, the one sortable field: ranks the cohort holds out of order. */
 const BY_RANK = queryDoc({ sortable: ["rank"] })

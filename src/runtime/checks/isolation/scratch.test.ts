@@ -166,7 +166,7 @@ describe("updateRequest", () => {
 function markedPut(required: string[]) {
 	const doc = structuredClone(notesDoc())
 	const paths = doc.paths as Record<string, Record<string, { requestBody: unknown }>>
-	const put = paths["/notes/{noteId}"]?.patch as { requestBody: unknown }
+	const put = paths["/notes/{noteId}"]?.["patch"] as { requestBody: unknown }
 	put.requestBody = {
 		content: {
 			"application/json": {

@@ -60,7 +60,7 @@ describe("applyOverlay", () => {
 	it("lets an operation keep or take a fresh id, but not one another operation has", () => {
 		expect(() => applyOverlay(source(), { operations: { "notes.list": { operationId: "notes.list" } } })).not.toThrow()
 		const renamed = applyOverlay(source(), { operations: { "notes.list": { operationId: "notes.all" } } })
-		expect(opAt(renamed, "/notes", "get").operationId).toBe("notes.all")
+		expect(opAt(renamed, "/notes", "get")["operationId"]).toBe("notes.all")
 		expect(() => applyOverlay(source(), { operations: { "notes.list": { operationId: "other.put" } } })).toThrow(
 			new UsageError('overlay.operations["notes.list"] renames it to "other.put", which another operation has'),
 		)

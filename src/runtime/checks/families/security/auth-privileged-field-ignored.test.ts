@@ -115,7 +115,7 @@ describe("auth.privileged-field-ignored (2)", () => {
 		const doc = securedDoc()
 		const paths = (doc as unknown as { paths: Record<string, Record<string, unknown>> }).paths
 		const item = paths["/projects/{project_id}/notes/{note_id}"] as Record<string, unknown>
-		delete item.get
+		delete item["get"]
 		expect(await runOperationCheck(privilegedFieldIgnored, staged("notes.update", { doc }).ctx)).toEqual({
 			kind: "stood-down",
 			reason: "a GET on the write's path, to re-read the record",
@@ -158,7 +158,7 @@ describe("auth.privileged-field-ignored (3)", () => {
 	it("stands down without a marker, a target, its state, a value to change, or a lower rank", async () => {
 		const unmarked = securedDoc()
 		const note = (unmarked as unknown as { paths: Record<string, Record<string, { requestBody: unknown }>> }).paths
-		const update = note["/projects/{project_id}/notes/{note_id}"]?.patch as { requestBody: unknown }
+		const update = note["/projects/{project_id}/notes/{note_id}"]?.["patch"] as { requestBody: unknown }
 		update.requestBody = { content: { "application/json": { schema: { type: "object" } } }, required: true }
 		const outcomes = await Promise.all(
 			[
@@ -197,7 +197,7 @@ describe("auth.privileged-field-ignored (3)", () => {
 function wrappedDoc() {
 	const doc = securedDoc()
 	const paths = (doc as unknown as { paths: Record<string, Record<string, Record<string, unknown>>> }).paths
-	const read = paths["/projects/{project_id}/notes/{note_id}"]?.get as Record<string, unknown>
+	const read = paths["/projects/{project_id}/notes/{note_id}"]?.["get"] as Record<string, unknown>
 	read["x-entity"] = { action: "read", name: "note", recordPath: "$.data" }
 	return doc
 }
@@ -220,9 +220,9 @@ describe("auth.privileged-field-ignored (4)", () => {
 	it("sets a nested marked property by its dotted path, and judges it there", async () => {
 		const doc = securedDoc()
 		const paths = (doc as unknown as { paths: Record<string, Record<string, Record<string, unknown>>> }).paths
-		const patch = paths["/projects/{project_id}/notes/{note_id}"]?.patch as Record<string, unknown>
+		const patch = paths["/projects/{project_id}/notes/{note_id}"]?.["patch"] as Record<string, unknown>
 		const meta = { properties: { locked: { type: "boolean", "x-privileged": true } }, type: "object" }
-		patch.requestBody = {
+		patch["requestBody"] = {
 			content: { "application/json": { schema: { properties: { meta }, type: "object" } } },
 			required: true,
 		}
@@ -245,8 +245,8 @@ describe("auth.privileged-field-ignored (4)", () => {
 	it("skips an alternative of several schemes, and judges the actor's tenant when the owner is no principal", async () => {
 		const doc = securedDoc()
 		const paths = (doc as unknown as { paths: Record<string, Record<string, Record<string, unknown>>> }).paths
-		const patch = paths["/projects/{project_id}/notes/{note_id}"]?.patch as Record<string, unknown>
-		patch.security = [{ apiKey: ["notes:write"], jwt: [] }, { jwt: [] }]
+		const patch = paths["/projects/{project_id}/notes/{note_id}"]?.["patch"] as Record<string, unknown>
+		patch["security"] = [{ apiKey: ["notes:write"], jwt: [] }, { jwt: [] }]
 		const stage = staged("notes.update", {
 			doc,
 			respond: scripted(403, false),

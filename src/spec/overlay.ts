@@ -13,7 +13,8 @@
 import { UsageError } from "../errors/usage-error.ts"
 import type { SpecOverlay } from "../config/types/config.ts"
 import { PATH_ITEM_METHODS as METHODS } from "./methods.ts"
-import type { OpenApiDocument } from "./types.ts"
+import type { OpenApiDocument, OperationObject } from "./types.ts"
+import { isRaw } from "../config/types/raw.ts"
 
 export type { SpecOverlay } from "../config/types/config.ts"
 
@@ -55,7 +56,7 @@ function operationsById(doc: OpenApiDocument): Map<string, OperationSlot> {
 		if (!isRecord(item)) continue
 		for (const method of METHODS) {
 			const op = item[method]
-			if (isRecord(op) && typeof op.operationId === "string") byId.set(op.operationId, { item, method })
+			if (isRaw<OperationObject>(op) && typeof op.operationId === "string") byId.set(op.operationId, { item, method })
 		}
 	}
 	return byId
@@ -69,7 +70,7 @@ function patchOperations(
 		const at = byId.get(operationId)
 		if (at === undefined)
 			throw new UsageError(`overlay.operations["${operationId}"] names no operation in the document`)
-		const renamed = patch.operationId
+		const renamed = patch["operationId"]
 		if (typeof renamed === "string" && renamed !== operationId && byId.has(renamed)) {
 			throw new UsageError(
 				`overlay.operations["${operationId}"] renames it to "${renamed}", which another operation has`,

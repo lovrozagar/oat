@@ -25,18 +25,18 @@ describe("provision", () => {
 		expect(held.value).toBe("signed-up")
 		expect(seen.map((request) => request.path)).toEqual(["/openapi.json", "/signup"])
 		const sent = seen[1]?.body as Record<string, unknown>
-		expect(seen[1]?.headers.authorization).toBeUndefined()
+		expect(seen[1]?.headers["authorization"]).toBeUndefined()
 		expect(made).toEqual({ id: "fresh-1", known: { access_token: "signed-up", ...sent } })
 		const identity = ctx.store.identityOf("fresh-1")
-		expect([identity.email, identity.password]).toEqual([sent.email, sent.password])
+		expect([identity["email"], identity["password"]]).toEqual([sent["email"], sent["password"]])
 		/* A body field named like a grade never sets one. */
-		expect([typeof sent.tenant, identity.tenant]).toEqual(["string", undefined])
+		expect([typeof sent["tenant"], identity["tenant"]]).toEqual(["string", undefined])
 	})
 
 	it("signs it in by its recipe, as the identity it signed up with, when the answer carries no credential", async () => {
 		const { ctx, made, seen } = await provisioned(() => ({ body: ["not", "an", "object"], status: 201 }))
 		const held = (await ctx.store.acquire({ principal: "fresh-1", scheme: "bearer" })) as Credential
-		const email = (seen[1]?.body as Record<string, unknown> | undefined)?.email
+		const email = (seen[1]?.body as Record<string, unknown> | undefined)?.["email"]
 		expect([held.value, seen[2]?.path, (made as { known: object }).known]).toEqual([
 			`login-${String(email)}`,
 			"/login",
@@ -94,7 +94,7 @@ describe("provision, when it cannot or need not read a credential", () => {
 			},
 		)
 		const resolved = await provision(await connected(hooked), { entry: {}, id: "fresh-4", label: "four" })
-		expect((resolved as Provisioned).known.email).toBe("chosen@x.test")
+		expect((resolved as Provisioned).known["email"]).toBe("chosen@x.test")
 	})
 })
 
@@ -116,7 +116,7 @@ describe("provision: what a signup body cannot set", () => {
 			path === "/signup" ? { body: { access_token: "t" }, status: 201 } : notesApi(doc)(method, path, {})
 		const ctx = await connected(optionsFor(respond, { principals: ALPHA, security: EMAIL_LOGIN }))
 		const made = (await provision(ctx, { entry: {}, id: "fresh-5", label: "five" })) as Provisioned
-		expect(made.known.readOnly).toBe(true)
+		expect(made.known["readOnly"]).toBe(true)
 		expect(ctx.store.principals["fresh-5"]).not.toHaveProperty("readOnly")
 	})
 })

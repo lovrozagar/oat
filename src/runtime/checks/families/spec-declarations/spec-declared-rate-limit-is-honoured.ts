@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -16,7 +17,7 @@ import { ownOps } from "../../planning/subjects.ts"
  * Grouped by category rather than reported per request: the point is "the declared rate for X is
  * wrong", once, not one finding for every request that category serves.
  */
-export const declaredRateLimitHonoured = defineCheck({
+export const declaredRateLimitHonoured: Check = defineCheck({
 	plan: (ctx) =>
 		when(
 			ctx.model.operations.some(

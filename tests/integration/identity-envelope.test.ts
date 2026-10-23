@@ -127,10 +127,10 @@ async function createWidget(world: World, req: IncomingMessage, res: ServerRespo
 		return send(res, 415, { error: "json only" })
 	}
 	const body = await readJson(req).catch(() => null)
-	if (body === null || typeof body.name !== "string") return send(res, 400, { error: "name is required" })
-	if (body.note !== undefined && typeof body.note !== "string") return send(res, 400, { error: "note is text" })
+	if (body === null || typeof body["name"] !== "string") return send(res, 400, { error: "name is required" })
+	if (body["note"] !== undefined && typeof body["note"] !== "string") return send(res, 400, { error: "note is text" })
 	world.seq += 1
-	const row = { ID: `W${world.seq}`, name: String(body.name ?? ""), note: String(body.note ?? "") }
+	const row = { ID: `W${world.seq}`, name: String(body["name"] ?? ""), note: String(body["note"] ?? "") }
 	world.store.set(row.ID, row)
 	const { ID, ...rest } = row
 	send(res, 201, { data: world.innerHasId ? row : rest, id: ID, success: true })

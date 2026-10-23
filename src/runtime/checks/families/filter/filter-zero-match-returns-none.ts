@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -7,7 +8,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, filterable, filterIdentity, identityIsFilterable, pageSize, q } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const zeroMatchFilter = defineCheck<{ term: Record<string, string> }>({
+export const zeroMatchFilter: Check<{ term: Record<string, string> }> = defineCheck<{ term: Record<string, string> }>({
 	plan: (ctx) => {
 		if (!filterable(ctx) || !identityIsFilterable(ctx)) return cannot()
 		const missing = absentId(ctx)

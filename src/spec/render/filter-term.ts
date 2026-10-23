@@ -4,7 +4,7 @@ import type { FilterOp } from "../../config/types/query.ts"
 import { MissingValueError } from "../../errors/missing-value.ts"
 import type { FilterGrammarSpec, FilterPredicate, FilterTermValue } from "./filter-types.ts"
 
-export const PLACEHOLDER = /\{(conj|field|op|value|terms)\}/g
+export const PLACEHOLDER: RegExp = /\{(conj|field|op|value|terms)\}/g
 
 export function canWriteOp(spec: FilterGrammarSpec, op: FilterOp): boolean {
 	if (op === "is") return spec.null !== undefined
@@ -72,7 +72,7 @@ export function renderFragment(
 	if (!canWriteOp(spec, op)) return null
 	const pieces: Record<string, string> = { field }
 	const token = spec.conj?.[conj]
-	if (token !== undefined) pieces.conj = token
+	if (token !== undefined) pieces["conj"] = token
 	if (op === "is") {
 		const which = nullToken(value)
 		/* canWriteOp let `is` through only for a grammar with null terms. */
@@ -80,12 +80,12 @@ export function renderFragment(
 		return which === null ? null : fill(templates[which], pieces)
 	}
 	/* canWriteOp found the operator's token. */
-	pieces.op = spec.ops[op] as string
+	pieces["op"] = spec.ops[op] as string
 	const isList = op === "in" || op === "nin"
 	if (!isList && typeof value === "object" && value !== null) return null
 	const spelled = isList ? listValue(spec, value) : scalar(spec, value as string | number | boolean | null)
 	if (spelled === null) return null
-	pieces.value = spelled
+	pieces["value"] = spelled
 	return fill(spec.term, pieces)
 }
 

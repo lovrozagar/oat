@@ -21,7 +21,7 @@ function numberOrNull(value: string): number | null {
 	return value === "-" ? null : Number(value)
 }
 
-export function formatProgressLine(snap: ProgressSnapshot, now = Date.now()): string {
+export function formatProgressLine(snap: ProgressSnapshot, now: number = Date.now()): string {
 	const f = progressFields(snap, now)
 	return logfmt({
 		ts: new Date(now).toISOString(),
@@ -47,7 +47,7 @@ export function formatProgressLine(snap: ProgressSnapshot, now = Date.now()): st
 	})
 }
 
-export function formatProgressTsv(snap: ProgressSnapshot, now = Date.now()): string {
+export function formatProgressTsv(snap: ProgressSnapshot, now: number = Date.now()): string {
 	const f = progressFields(snap, now)
 	return [
 		now,
@@ -73,7 +73,7 @@ export function formatProgressTsv(snap: ProgressSnapshot, now = Date.now()): str
 	].join("\t")
 }
 
-export function formatProgressJsonl(snap: ProgressSnapshot, now = Date.now()): string {
+export function formatProgressJsonl(snap: ProgressSnapshot, now: number = Date.now()): string {
 	const f = progressFields(snap, now)
 	const inflight = snap.inflight !== undefined
 	return JSON.stringify({

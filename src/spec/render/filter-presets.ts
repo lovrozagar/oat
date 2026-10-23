@@ -1,6 +1,7 @@
 /** The filter grammars oat recognises by name, written as the templates a document could declare. */
 
 import type { FilterOp } from "../../config/types/query.ts"
+import type { FilterGrammar } from "../conventions/types.ts"
 import { FILTER_OPS } from "../query/ops.ts"
 import type { FilterGrammarSpec } from "./filter-types.ts"
 
@@ -10,7 +11,7 @@ const identityOps = (ops: readonly FilterOp[]): Partial<Record<FilterOp, string>
 	Object.fromEntries(ops.map((op) => [op, op]))
 
 /** The grammars oat recognises by name, as templates. */
-export const FILTER_PRESETS = {
+export const FILTER_PRESETS: Readonly<Record<Exclude<FilterGrammar, "template">, FilterGrammarSpec>> = {
 	colon: {
 		and: { join: "," },
 		escape: {},
@@ -58,4 +59,4 @@ export const FILTER_PRESETS = {
 		reserved: "",
 		term: "{field}.{op}.{value}",
 	},
-} as const satisfies Record<string, FilterGrammarSpec>
+}

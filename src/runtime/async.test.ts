@@ -127,7 +127,7 @@ describe("driveAsync, reaching a terminal state", () => {
 		})
 		expect(await outcome).toMatchObject({ polls: 3, state: "terminal", succeeded: true, terminal: { status: "done" } })
 		expect(sent.map((request) => request.url)).toEqual(Array(3).fill("http://api.test/jobs/job%201"))
-		expect(sent[0]?.headers.authorization).toBe("Bearer t")
+		expect(sent[0]?.headers["authorization"]).toBe("Bearer t")
 	})
 
 	it("polls the operation poll names by its operationId through to the terminal state", async () => {

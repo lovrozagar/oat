@@ -38,7 +38,7 @@ describe("createReferenceServer", () => {
 		expect(created.status).toBe(201)
 		const { id } = JSON.parse(created.body) as { id: string }
 		expect(reference.createdIds()).toEqual({ table: [id] })
-		expect((await reference.snapshot()).table).toEqual([expect.objectContaining({ id })])
+		expect((await reference.snapshot())["table"]).toEqual([expect.objectContaining({ id })])
 		expect((await serve(listener, { url: "/health" })).status).toBe(404)
 	})
 

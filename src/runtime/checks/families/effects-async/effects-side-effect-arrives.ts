@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { WaitSpec } from "../../../../spec/extensions/async.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
@@ -18,7 +19,7 @@ import { bodyForOp, forOperation, subject } from "./requests.ts"
  * After a write that declares `x-wait`, poll the named GET until a JSON path is occupied
  * (or `awaitSideEffect` returns true). Timeout is a backend finding, not a coverage gap.
  */
-export const sideEffectArrives = defineCheck({
+export const sideEffectArrives: Check = defineCheck({
 	plan: (ctx) => when(ctx.waitOps.length > 0),
 	dependsOn: ["list.read-after-write"],
 	mutates: true,

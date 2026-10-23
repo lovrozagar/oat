@@ -190,9 +190,9 @@ describe("encodeRequest through the client, multipart", () => {
 		const stored = (client.transcript.at(-1)?.requestBody ?? { parts: [] }) as {
 			parts: Array<Record<string, unknown>>
 		}
-		const filePart = stored.parts.find((part) => part.field === "file")
+		const filePart = stored.parts.find((part) => part["field"] === "file")
 		expect(filePart).toMatchObject({ field: "file", mediaType: "application/pdf" })
-		expect(Number(filePart?.bytes)).toBeGreaterThan(0)
+		expect(Number(filePart?.["bytes"])).toBeGreaterThan(0)
 		expect(last().contentType).toMatch(/^multipart\/form-data;/)
 		expect(last().contentType).not.toContain("application/json")
 		expect(last().parts).toContain("file")

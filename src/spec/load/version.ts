@@ -1,5 +1,7 @@
 /** The OpenAPI versions oat reads, and the refusal of every other. */
 
+import type { RawOf } from "../../config/types/raw.ts"
+import type { OpenApiDocument } from "../types.ts"
 import { UsageError } from "../../errors/usage-error.ts"
 
 const READS = "oat reads OpenAPI 3.0–3.2 only"
@@ -9,7 +11,10 @@ const READS = "oat reads OpenAPI 3.0–3.2 only"
  * 3.2 are documents the caller must convert or choose otherwise, so each is a `UsageError` naming
  * its version. A document with no version string is not an OpenAPI document at all.
  */
-export function assertVersion(doc: Record<string, unknown>, source: string): void {
+/** A parsed document's top-level fields before it is known to be OpenAPI: its own, and Swagger 2's marker. */
+export type RawDocument = RawOf<OpenApiDocument & { swagger: unknown }>
+
+export function assertVersion(doc: RawDocument, source: string): void {
 	if (doc.swagger !== undefined) {
 		throw new UsageError(`oat: ${source} is Swagger ${String(doc.swagger)}; ${READS} — convert it first`)
 	}

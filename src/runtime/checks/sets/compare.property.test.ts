@@ -70,7 +70,7 @@ describe("membership and setOf, by property", () => {
 	it("counts each record with a scalar id, and only those", () => {
 		fc.assert(
 			fc.property(records, (rows) => {
-				const members = rows.flatMap((row) => (row.id === undefined ? [] : [String(row.id)]))
+				const members = rows.flatMap((row) => (row["id"] === undefined ? [] : [String(row["id"])]))
 				expect(setOf(rows, "id")).toEqual(new Set(members))
 				expect(membership(rows, "id")).toBe(members.toSorted().join(","))
 			}),

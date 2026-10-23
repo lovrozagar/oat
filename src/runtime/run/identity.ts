@@ -17,13 +17,13 @@ export interface Bound {
 /** The tenant, scope and identity data of what the store holds for a principal. */
 export function boundOf(held: Readonly<Record<string, unknown>>): Bound {
 	const identity: Record<string, unknown> = {}
-	const scope: Record<string, string> = { ...strings(held.scope) }
+	const scope: Record<string, string> = { ...strings(held["scope"]) }
 	for (const [key, value] of Object.entries(held)) {
 		if (key.startsWith(SCOPED)) {
 			if (typeof value === "string") scope[key.slice(SCOPED.length)] = value
 		} else if (key !== "scope" && key !== "tenant") identity[key] = value
 	}
-	return typeof held.tenant === "string" ? { identity, scope, tenant: held.tenant } : { identity, scope }
+	return typeof held["tenant"] === "string" ? { identity, scope, tenant: held["tenant"] } : { identity, scope }
 }
 
 /* The string entries of a plain object; anything else binds none. */

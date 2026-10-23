@@ -15,11 +15,11 @@ const METHOD = {
 
 describe("searchPaths", () => {
 	it("declares a public QUERY whose body and answer are a card or a bank account, told apart by kind", () => {
-		const search = (searchPaths(CTX) as Record<string, Record<string, Json>>)["/v1/search"]?.query
+		const search = (searchPaths(CTX) as Record<string, Record<string, Json>>)["/v1/search"]?.["query"]
 		expect(search).toMatchObject({ operationId: "search.query", security: [], tags: ["Search"] })
-		expect(search?.requestBody).toEqual({ content: { "application/json": { schema: METHOD } }, required: true })
+		expect(search?.["requestBody"]).toEqual({ content: { "application/json": { schema: METHOD } }, required: true })
 		expect(search).toHaveProperty(["responses", "200", "content", "application/json", "schema"], METHOD)
-		expect(Object.keys(search?.responses as Json)).toEqual(["200", "400", "415"])
+		expect(Object.keys(search?.["responses"] as Json)).toEqual(["200", "400", "415"])
 	})
 })
 

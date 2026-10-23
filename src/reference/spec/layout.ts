@@ -6,13 +6,13 @@ function hoistPathItem(item: Json): Json {
 	const shared = new Map<string, Json>()
 	const hoisted: Json = {}
 	for (const [method, operation] of Object.entries(item)) {
-		const parameters = ((operation as Json).parameters ?? []) as Json[]
+		const parameters = ((operation as Json)["parameters"] ?? []) as Json[]
 		for (const parameter of parameters) {
-			if (parameter.in === "path") shared.set(String(parameter.name), parameter)
+			if (parameter["in"] === "path") shared.set(String(parameter["name"]), parameter)
 		}
 		hoisted[method] = {
 			...(operation as Json),
-			parameters: parameters.filter((parameter) => parameter.in !== "path"),
+			parameters: parameters.filter((parameter) => parameter["in"] !== "path"),
 		}
 	}
 	return shared.size === 0 ? item : { parameters: [...shared.values()], ...hoisted }

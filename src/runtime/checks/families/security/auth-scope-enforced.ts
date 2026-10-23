@@ -1,3 +1,4 @@
+import type { OperationCheck } from "../../core/check.ts"
 /*
  * A credential without the scope an operation requires must be refused. For each alternative of one
  * scheme that names scopes, the actor's credential for that scheme issued with no scope at all is
@@ -24,7 +25,7 @@ interface Planned {
 	scoped: Requirement[]
 }
 
-export const scopeEnforced = defineCheck<Planned>({
+export const scopeEnforced: OperationCheck<Planned> = defineCheck<Planned>({
 	id: ID,
 	mutates: true,
 	needs: "an operation that requires a scope, of a scheme a mint recipe issues",

@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import type { EffectiveFilterField } from "../../../../spec/query/effective.ts"
@@ -28,7 +29,7 @@ import type { JsonSchema } from "../../../../spec/types.ts"
  * This also closes a silent-skip: every filter check treats a 4xx as a capability statement and
  * stands down, which is right when the field was merely inferred and wrong when it was declared.
  */
-export const declaredFilterableWorks = defineCheck({
+export const declaredFilterableWorks: Check = defineCheck({
 	plan: (ctx) =>
 		when(
 			conv(ctx).filter !== undefined &&

@@ -130,7 +130,7 @@ describe("seedCohort beside listed records", () => {
 		const { result } = seed(
 			(method, _path, options) => {
 				if (method !== "POST") return { body: [], status: 200 }
-				ids.push(bodyOf(options).id)
+				ids.push(bodyOf(options)["id"])
 				return ids.length === 1 ? { body: { error: "taken" }, status: 409 } : { body: bodyOf(options), status: 200 }
 			},
 			{},
@@ -139,7 +139,7 @@ describe("seedCohort beside listed records", () => {
 		const seeded = await result
 		expect(ids).toHaveLength(2)
 		expect(ids[1]).not.toEqual(ids[0])
-		expect(seeded.records.map((record) => record.id)).toEqual([ids[1]])
+		expect(seeded.records.map((record) => record["id"])).toEqual([ids[1]])
 	})
 
 	it("never sends an identity or a unique value a listed record already holds", async () => {
@@ -162,7 +162,7 @@ describe("seedCohort beside listed records", () => {
 				: { body: [{ id: "x", name: "Quarterly Report 0" }], status: 200 }
 		const { result, sent } = seed(listed, { body: named, create: { "x-unique": [["name"]] } }, { cohortSize: 1 })
 		await result
-		expect(bodyOf((sent[1] as { options: RequestOptions }).options).name).not.toBe("Quarterly Report 0")
+		expect(bodyOf((sent[1] as { options: RequestOptions }).options)["name"]).not.toBe("Quarterly Report 0")
 	})
 })
 
@@ -175,7 +175,7 @@ describe("seedCohort refused for its client-chosen identity", () => {
 		const { result, sent } = seed(refusing, { create: { "x-unique": [["name"]] } }, { cohortSize: 1 })
 		const failed = await result.catch((error: unknown) => error)
 		const posts = sent.filter((request) => request.method === "POST")
-		const ids = posts.map((request) => String(bodyOf(request.options).id))
+		const ids = posts.map((request) => String(bodyOf(request.options)["id"]))
 		expect(posts).toHaveLength(3)
 		expect(failed).toBeInstanceOf(SeedError)
 		expect((failed as SeedError).message).toBe(
@@ -196,7 +196,8 @@ describe("seedCohort with no entity identity", () => {
 		expect(counters.existingIds).toBeUndefined()
 		const unidentified: string[] = []
 		const pay = await seed(
-			(_method, _path, options) => (bodyOf(options).size === 1 ? { body: { id: "p1" }, status: 200 } : { status: 200 }),
+			(_method, _path, options) =>
+				bodyOf(options)["size"] === 1 ? { body: { id: "p1" }, status: 200 } : { status: 200 },
 			PAY,
 			{ cohortSize: 2, create: "pay.start", onUnidentified: (entity) => unidentified.push(entity) },
 		).result

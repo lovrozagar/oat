@@ -1,3 +1,4 @@
+import type { OperationCheck } from "../../core/check.ts"
 /*
  * An operation whose security lets anonymous callers in must not demand a credential. A read is sent
  * with none, where `addressOf` puts it by placement. A write is never really sent anonymously: it
@@ -22,7 +23,7 @@ const ID = "auth.anonymous-operation-open"
 /** A body no JSON parser reads, sent as JSON: nothing a server could apply. */
 export const MALFORMED = "{"
 
-export const anonymousOperationOpen = defineCheck<Address>({
+export const anonymousOperationOpen: OperationCheck<Address> = defineCheck<Address>({
 	id: ID,
 	mutates: true,
 	needs: "an operation whose security lets anonymous callers in",

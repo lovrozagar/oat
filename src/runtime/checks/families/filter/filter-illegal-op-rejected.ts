@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { canWriteFilterOp, filterSpec, filterTerm } from "../../../../spec/conventions/filter.ts"
 import { renderUnknownOp } from "../../../../spec/render/filter-probe.ts"
@@ -35,7 +36,7 @@ type IllegalOpProbe = {
 	control: Record<string, string>
 }
 
-export const filterIllegalOpRejected = defineCheck<{ probes: IllegalOpProbe[] }>({
+export const filterIllegalOpRejected: Check<{ probes: IllegalOpProbe[] }> = defineCheck<{ probes: IllegalOpProbe[] }>({
 	plan: (ctx) => {
 		const probes: IllegalOpProbe[] = []
 		for (const field of resolvedCaps(ctx).filterable) {

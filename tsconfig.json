@@ -17,6 +17,8 @@
 		"noImplicitReturns": true,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
+		"noPropertyAccessFromIndexSignature": true,
+		"isolatedDeclarations": true,
 		"verbatimModuleSyntax": true,
 		"allowImportingTsExtensions": true,
 		"rewriteRelativeImportExtensions": true,

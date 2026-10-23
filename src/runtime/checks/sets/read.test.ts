@@ -12,7 +12,7 @@ import { cursored, rows, served } from "./__fixtures__/serve.ts"
  */
 
 const asked = (sent: Sent[], name: string) => sent.map((request) => request.options.query?.[name])
-const idsOf = (items: Array<Record<string, unknown>>) => items.map((item) => item.id)
+const idsOf = (items: Array<Record<string, unknown>>) => items.map((item) => item["id"])
 
 const ENVELOPED = { envelope: { hasMore: "more", total: "total" } }
 
@@ -36,7 +36,7 @@ describe("readSet by page number", () => {
 
 	it("is unresolved, not ended, when a page is refused", async () => {
 		const { ctx } = notesContext((method, path, options) =>
-			options.query?.page === 2 ? { status: 500 } : served(rows(7))(method, path, options),
+			options.query?.["page"] === 2 ? { status: 500 } : served(rows(7))(method, path, options),
 		)
 		const read = await readSet(ctx)
 		expect(read).toMatchObject({ complete: false, reason: "page 2 was answered with 500", status: "unresolved" })
@@ -66,7 +66,7 @@ describe("readSet by page number", () => {
 
 	it("never lets a page fetched past the end surface its failure", async () => {
 		const { ctx } = notesContext((method, path, options) => {
-			if (Number(options.query?.page) > 2) throw new Error("past the end")
+			if (Number(options.query?.["page"]) > 2) throw new Error("past the end")
 			return served(rows(4))(method, path, options)
 		})
 		expect(await readSet(ctx)).toMatchObject({ complete: true, status: "ok" })

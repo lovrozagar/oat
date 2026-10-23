@@ -10,13 +10,13 @@ import type { CheckId } from "./check-ids.ts"
 import type { Exchange } from "./exchange.ts"
 
 /** The documentation-conformance judges: each compares an answer with what the document says. */
-export const DOCUMENTATION_JUDGES = [
+export const DOCUMENTATION_JUDGES: readonly CheckId[] = [
 	"create.status-matches-document",
 	"response.contract-call",
 	"response.status-is-documented",
 	"schema.error-response-matches-document",
 	"schema.success-response-matches-document",
-] as const satisfies readonly CheckId[]
+]
 
 /** Whether the exchange was a probe: sent as one, or with a forged credential. */
 export function isProbeExchange(exchange: Pick<Exchange, "probe" | "forged">): boolean {

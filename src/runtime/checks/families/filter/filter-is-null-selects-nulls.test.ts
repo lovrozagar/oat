@@ -7,7 +7,9 @@ import { filterIsNullSelectsNulls as check } from "./filter-is-null-selects-null
 const COHORT = [{ id: "w-1", note: "kept" }, { id: "w-2", note: null }, { id: "w-3", note: "kept" }, { note: null }]
 const DOC = { xQuery: { filterable: [{ field: "note", ops: ["eq", "is"] }] } }
 /** FILTER_IS_NULL_MATCHES_ALL: is.null matches every row. */
-const MATCHES_ALL = { ops: { is: (value: unknown, arg: string) => arg === "null" || (OPS.is?.(value, arg) ?? false) } }
+const MATCHES_ALL = {
+	ops: { is: (value: unknown, arg: string) => arg === "null" || (OPS["is"]?.(value, arg) ?? false) },
+}
 
 describe("filter.is-null-selects-nulls: run", () => {
 	it("asserts when is.null selects exactly the null rows and is.notnull none of them", async () => {
@@ -26,7 +28,7 @@ describe("filter.is-null-selects-nulls: run", () => {
 
 	it("reports an is.null that misses the null rows", async () => {
 		const { ctx, findings } = stage({
-			behavior: { ops: { is: (value, arg) => arg !== "null" && (OPS.is?.(value, arg) ?? false) } },
+			behavior: { ops: { is: (value, arg) => arg !== "null" && (OPS["is"]?.(value, arg) ?? false) } },
 			doc: DOC,
 			records: COHORT,
 		})

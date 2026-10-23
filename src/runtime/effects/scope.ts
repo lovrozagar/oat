@@ -67,7 +67,7 @@ export function bindInstanceScope(input: InstanceScopeInput): Record<string, str
 	const param = identityPathParam(input.model, input.entityName)
 	if (scope[param] !== undefined) return { ...scope }
 	for (const record of records) {
-		const id = scalarId(record[identity]) ?? scalarId(record.id) ?? scalarId(record[param])
+		const id = scalarId(record[identity]) ?? scalarId(record["id"]) ?? scalarId(record[param])
 		if (id === undefined) continue
 		return { ...scope, [param]: id }
 	}

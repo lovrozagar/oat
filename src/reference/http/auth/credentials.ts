@@ -14,7 +14,7 @@ export type { ApiKeyNeed } from "./api-keys.ts"
  * it asks of one as `need`, and any other route refuses keys.
  */
 export function authenticate(state: ReferenceState, request: ReferenceRequest, need?: ApiKeyNeed): Principal {
-	const [scheme = "", value = ""] = (request.headers.authorization ?? "").trim().split(/\s+/, 2)
+	const [scheme = "", value = ""] = (request.headers["authorization"] ?? "").trim().split(/\s+/, 2)
 	if (value === "") throw new HttpError(401, "unauthorized", "missing credential")
 	switch (scheme.toLowerCase()) {
 		case "bearer":

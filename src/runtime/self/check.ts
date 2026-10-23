@@ -1,10 +1,11 @@
 import type { EntityModel, SpecModel } from "../../spec/graph/types.ts"
+import type { Check } from "../checks/core/check.ts"
 import type { CheckContext, WriteContext } from "../checks/core/context.ts"
 import type { Outcome } from "../finding.ts"
 import { runSelfIdentity } from "./identity.ts"
 import { entityIsSelf, SELF_CHECK_ID, selfOperationIds } from "./operations.ts"
 
-export const selfIdentityCheck = {
+export const selfIdentityCheck: Check<void> = {
 	id: SELF_CHECK_ID,
 	mutates: true as const,
 	needs: "x-entity.identity: self, and a read or an update",

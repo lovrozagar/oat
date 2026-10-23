@@ -97,7 +97,7 @@ function ordered(rows: Record_[], order: string, shuffleTies: boolean): Record_[
 	return [...rows].sort((a, b) => {
 		const primary = (Number(a[field]) - Number(b[field])) * sign
 		if (primary !== 0) return primary
-		return shuffleTies ? tie() : String(a.id).localeCompare(String(b.id))
+		return shuffleTies ? tie() : String(a["id"]).localeCompare(String(b["id"]))
 	})
 }
 

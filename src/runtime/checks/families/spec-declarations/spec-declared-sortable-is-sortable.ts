@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { sortTerm } from "../../../../spec/conventions/sort.ts"
 import type { Exchange } from "../../../exchange.ts"
@@ -13,7 +14,7 @@ import { list } from "../../sets/list.ts"
  * an `order` value the backend rejects breaks every client generated from the document exactly
  * the same way a rejected filter does.
  */
-export const declaredSortableWorks = defineCheck({
+export const declaredSortableWorks: Check = defineCheck({
 	plan: (ctx) =>
 		when(
 			conv(ctx).order !== undefined &&

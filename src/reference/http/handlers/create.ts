@@ -47,7 +47,7 @@ export async function create(
 	if (defects.has("STALE_LIST") && !state.staleSnapshot.has(key)) {
 		state.staleSnapshot.set(key, await liveRows(state, entity, scope))
 	}
-	if (defects.has("CREATE_DROPS_FIELD")) delete input.description
+	if (defects.has("CREATE_DROPS_FIELD")) delete input["description"]
 	const record = withDefaults(state, { entity, scope }, input)
 	const overwritten = await clientChosenId(state, call, { input, record })
 	if (overwritten !== undefined) return overwritten
@@ -118,7 +118,7 @@ async function clientChosenId(
 	const holder = await state.store.byId(entity, chosen)
 	if (holder === null) return undefined
 	if (state.defects.has("CLIENT_ID_OVERWRITES") && holder[TENANT_FIELD] === made.record[TENANT_FIELD]) {
-		await state.store.update(entity, chosen, { ...made.input, updated_at: made.record.updated_at })
+		await state.store.update(entity, chosen, { ...made.input, updated_at: made.record["updated_at"] })
 		return respond(200, { success: true })
 	}
 	throw new HttpError(409, "conflict", `${entity.identity} ${chosen} is taken`)

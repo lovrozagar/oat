@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
@@ -7,7 +8,9 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, filterable, filterIdentity, identityIsFilterable, pageSize, q } from "../../query/capabilities.ts"
 import { envelopeValue, list } from "../../sets/list.ts"
 
-export const countMatchesWalk = defineCheck<{ countTerm: Record<string, string> }>({
+export const countMatchesWalk: Check<{ countTerm: Record<string, string> }> = defineCheck<{
+	countTerm: Record<string, string>
+}>({
 	plan: (ctx) => {
 		if (ctx.records.length <= 1 || !filterable(ctx) || !identityIsFilterable(ctx)) return cannot()
 		const targetId = idOf(ctx.records[0], ctx.identity)

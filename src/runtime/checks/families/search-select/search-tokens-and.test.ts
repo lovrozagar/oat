@@ -7,15 +7,15 @@ import { searchTokensAnd } from "./search-tokens-and.ts"
 /* Searches by the first token alone and drops the rest. */
 const firstTokenOnly: Responder = (method, path, options) => {
 	const query = queryOf(options)
-	const first = query.q?.split(" ")[0]
+	const first = query["q"]?.split(" ")[0]
 	return backend()(method, path, { query: first === undefined ? query : { ...query, q: first } })
 }
 
 /* Reads several tokens as OR: any one of them selects a record. */
 const tokensAsOr: Responder = (method, path, options) => {
 	const query = queryOf(options)
-	if (query.q !== "Alpha Beta") return backend()(method, path, options)
-	return { body: NOTES.filter((row) => /alpha|beta/i.test(String(row.title))), status: 200 }
+	if (query["q"] !== "Alpha Beta") return backend()(method, path, options)
+	return { body: NOTES.filter((row) => /alpha|beta/i.test(String(row["title"]))), status: 200 }
 }
 
 describe("search.tokens-and judges", () => {
@@ -23,7 +23,7 @@ describe("search.tokens-and judges", () => {
 		const staged = stage(searchTokensAnd)
 		expect(staged.plan()).toEqual({ ok: true, value: { a: "Alpha", b: "Beta" } })
 		expect(await staged.run()).toEqual({ kind: "asserted" })
-		expect(staged.sent.map((sent) => sent.options.query?.q)).toEqual(["Alpha", "Beta", "Alpha Beta"])
+		expect(staged.sent.map((sent) => sent.options.query?.["q"])).toEqual(["Alpha", "Beta", "Alpha Beta"])
 	})
 
 	it("passes tokens applied as OR: the union is an accepted reading", async () => {

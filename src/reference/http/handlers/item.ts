@@ -22,7 +22,7 @@ export async function read(state: ReferenceState, call: ItemCall): Promise<Refer
 	}
 	const row = await findItem(state, call)
 	const shown = present(state, call.entity, row)
-	if (state.defects.has("READ_DROPS_FIELD") && call.entity.name === state.table.name) delete shown.description
+	if (state.defects.has("READ_DROPS_FIELD") && call.entity.name === state.table.name) delete shown["description"]
 	return respond(200, answerRead(state, call.entity, shown), { etag: etagOf(row) })
 }
 
@@ -91,11 +91,11 @@ function changesOf(state: ReferenceState, call: ItemCall, sent: { patch: Row; re
 		: sent.replace
 			? { ...replacementDefaults(entity), ...sent.patch }
 			: { ...sent.patch }
-	changes.updated_at = state.ids.stamp()
+	changes["updated_at"] = state.ids.stamp()
 	delete changes[entity.identity]
 	/* Under `tableKey: "slug"` the slug is the identity a client knows: no write changes it. */
-	if (state.shape.tableKey === "slug" && entity.name === state.table.name) delete changes.slug
-	delete changes.created_at
+	if (state.shape.tableKey === "slug" && entity.name === state.table.name) delete changes["slug"]
+	delete changes["created_at"]
 	if (!defects.has("IMMUTABLE_WRITABLE")) for (const parent of entity.parents) delete changes[parent]
 	return changes
 }

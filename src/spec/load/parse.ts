@@ -2,7 +2,8 @@
 
 import { messageOf } from "../../errors/message.ts"
 import type { OpenApiDocument } from "../types.ts"
-import { assertVersion } from "./version.ts"
+import { assertVersion, type RawDocument } from "./version.ts"
+import { isRaw } from "../../config/types/raw.ts"
 
 /** Parses `text` read from `source`; every failure names the source and what went wrong. */
 export async function parseDocument(text: string, source: string): Promise<OpenApiDocument> {
@@ -47,11 +48,11 @@ async function parseYaml(text: string, source: string): Promise<unknown> {
  * zero operations and reported success.
  */
 export function assertOpenApi(parsed: unknown, source: string): OpenApiDocument {
-	if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+	if (!isRaw<RawDocument>(parsed)) {
 		const shown = typeof parsed === "string" ? JSON.stringify(parsed.slice(0, 60)) : String(parsed)
 		throw new Error(`oat: ${source} is not an OpenAPI document — it parsed as ${shown}`)
 	}
-	const doc = parsed as Record<string, unknown>
+	const doc: RawDocument = parsed
 	assertVersion(doc, source)
 	if (doc.paths === null || typeof doc.paths !== "object" || Array.isArray(doc.paths)) {
 		throw new Error(`oat: ${source} has no "paths" object, so there is nothing to test`)

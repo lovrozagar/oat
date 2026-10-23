@@ -15,7 +15,8 @@ import type { CheckId } from "../check-ids.ts"
 import type { Check } from "../checks/core/check.ts"
 import { ASSERTED, type Outcome } from "../finding.ts"
 
-export const DISPOSABLE_CHECK_ID = "auth.destructive-spares-the-caller" as const satisfies CheckId
+export const DISPOSABLE_CHECK_ID: Extract<CheckId, "auth.destructive-spares-the-caller"> =
+	"auth.destructive-spares-the-caller"
 
 export const disposableCheck: Check = {
 	id: DISPOSABLE_CHECK_ID,

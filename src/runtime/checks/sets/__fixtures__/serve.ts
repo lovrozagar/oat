@@ -36,7 +36,7 @@ export function served(all: Record_[], serving: Serving = {}): Responder {
 /** Rows served two at a time by an opaque cursor, the next one under `next`. */
 export function cursored(all: Record_[], last: unknown = undefined): Responder {
 	return (_method, _path, options) => {
-		const start = Number(options.query?.cursor ?? 0)
+		const start = Number(options.query?.["cursor"] ?? 0)
 		const items = all.slice(start, start + 2)
 		const next = start + 2 < all.length ? String(start + 2) : last
 		return { body: { items, next }, status: 200 }

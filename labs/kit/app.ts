@@ -45,7 +45,7 @@ export function createWorldApp(world: World, store: WorldStore): App {
 	app.get("/v1/openapi/spec", (c) => c.json(spec))
 	app.post("/v1/auth/token", async (c) => {
 		const body = await readJson(c)
-		const key = typeof body.key === "string" ? body.key : ""
+		const key = typeof body["key"] === "string" ? body["key"] : ""
 		const principal = KEYS[key]
 		if (principal === undefined) throw new HttpError(401, "unauthorized", "unknown key")
 		return c.json({ access_token: principal.token, org_id: principal.orgId })
@@ -120,7 +120,7 @@ function mountJobs(app: App, world: World, store: WorldStore): void {
 				created_at: stamp,
 				id: newId("art", stamp),
 				kind: "red",
-				name: `artifact-for-${created.id}`,
+				name: `artifact-for-${created["id"]}`,
 				org_id: c.get("orgId"),
 				status: "active",
 				updated_at: stamp,
@@ -213,11 +213,11 @@ function newRow({ entity, world }: { entity: Entity; world: World }, input: Row,
 		org_id: c.get("orgId"),
 		updated_at: now,
 	}
-	if (entity.softDelete === true) row.deleted_at = null
+	if (entity.softDelete === true) row["deleted_at"] = null
 	const parent = parentIdField(entity)
 	if (parent !== null) row[parent] = c.req.param(parent)
 	for (const derived of entity.derived ?? []) row[derived.name] = 0
-	if (hasDefect(world, "drop-create-field")) delete row.note
+	if (hasDefect(world, "drop-create-field")) delete row["note"]
 	return row
 }
 
@@ -268,7 +268,7 @@ async function inviteRoute(mount: Mount, c: C): Promise<Response> {
 	assertTenant(c)
 	assertWrite(c.get("role"), "create")
 	assertJson(c)
-	const key = (await readJson(c)).key
+	const key = (await readJson(c))["key"]
 	if (typeof key !== "string" || KEYS[key] === undefined) {
 		throw new HttpError(400, "invalid_input", "unknown invitee key")
 	}

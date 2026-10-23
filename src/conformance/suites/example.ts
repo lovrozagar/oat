@@ -74,7 +74,7 @@ function judged([name, why, actual, expected]: Expectation): ParserResult {
 
 /** Checks the document at `path`: the annotated example, unless a test brings another. */
 export async function runExampleSpecSuite(
-	path = new URL("../../../labs/annotated-openapi.yaml", import.meta.url).pathname,
+	path: string = new URL("../../../labs/annotated-openapi.yaml", import.meta.url).pathname,
 ): Promise<ParserResult[]> {
 	let model: Model
 	try {

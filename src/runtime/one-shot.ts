@@ -13,7 +13,8 @@ import type { OperationModel, SpecModel } from "../spec/graph/types.ts"
 import type { GradeLedger } from "./grades.ts"
 import { noSecurityReason } from "./no-security.ts"
 
-export const PUBLIC_GET_CHECK_ID = "response.public-get-returns-success" as const satisfies CheckId
+export const PUBLIC_GET_CHECK_ID: Extract<CheckId, "response.public-get-returns-success"> =
+	"response.public-get-returns-success"
 
 /** A read anyone can make, with nothing to fill in. */
 export function isPublicGet(op: OperationModel): boolean {

@@ -19,15 +19,15 @@ interface Declared {
 function preconditionDoc(options: WidgetDocOptions, declared: Declared): OpenApiDocument {
 	const doc = widgetDoc(options) as unknown as { paths: Record<string, Record<string, Json | undefined>> }
 	const route = doc.paths["/widgets/{id}"] ?? {}
-	const read = route.get as { responses: Record<string, Json> } | undefined
+	const read = route["get"] as { responses: Record<string, Json> } | undefined
 	if (declared.etag !== false && read !== undefined)
 		read.responses["200"] = { ...read.responses["200"], headers: { ETag: {} } }
-	const update = (route.patch ?? route.put) as Json | undefined
+	const update = (route["patch"] ?? route["put"]) as Json | undefined
 	if (update !== undefined && declared.ifMatch !== false) {
-		update.parameters = [{ in: "header", name: "If-Match", schema: { type: "string" } }]
-		;(update.responses as Json)["412"] = { description: "stale" }
+		update["parameters"] = [{ in: "header", name: "If-Match", schema: { type: "string" } }]
+		;(update["responses"] as Json)["412"] = { description: "stale" }
 	}
-	if (update !== undefined && declared.updateBody === false) delete update.requestBody
+	if (update !== undefined && declared.updateBody === false) delete update["requestBody"]
 	return doc as unknown as OpenApiDocument
 }
 
@@ -135,7 +135,7 @@ describe("concurrency.if-match-enforced verdicts", () => {
 		/* Both updates carry the record as read: its writable fields, never its server-issued id. */
 		const [created, , first, , second] = sent
 		const made = created?.options.body as Json
-		expect(first?.options.body).toEqual({ label: made.label, name: made.name, note: made.note })
+		expect(first?.options.body).toEqual({ label: made["label"], name: made["name"], note: made["note"] })
 		expect(second?.options.body).toEqual(first?.options.body)
 	})
 

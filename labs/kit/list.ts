@@ -56,7 +56,7 @@ export async function listEntity(
 	const fields = fieldsOf(entity)
 	const where = whereOf(request, fields, scope)
 	const counted = await request.db.all(`SELECT COUNT(*) AS n FROM "${entity.plural}" ${where.sql}`, where.args)
-	const count = Number(counted[0]?.n ?? 0)
+	const count = Number(counted[0]?.["n"] ?? 0)
 	const compiledOrder = compileOrder(params.order ?? "created_at.desc", {
 		columns: fields.filter.columns,
 		sortable: fields.sortable,
@@ -80,7 +80,7 @@ export async function listEntity(
 		hasMore,
 		items,
 		limit,
-		nextCursor: hasMore && last !== undefined ? encodeCursor(String(last.id)) : null,
+		nextCursor: hasMore && last !== undefined ? encodeCursor(String(last["id"])) : null,
 		page,
 	}
 }
@@ -110,7 +110,7 @@ function whereOf(request: ListRequest, fields: Fields, scope: Record<string, str
 	const args: Array<string | number | null> = []
 	if (!(hasDefect(world, "filter-bypass-tenant") && hasFilter(params))) {
 		where.push(`org_id = ?`)
-		args.push(scope.org_id ?? "")
+		args.push(scope["org_id"] ?? "")
 	}
 	if (entity.softDelete === true && !hasDefect(world, "list-tombstone")) {
 		where.push(`deleted_at IS NULL`)
@@ -183,7 +183,7 @@ async function offsetOf(
 		`SELECT id FROM "${request.entity.plural}" ${at.where.sql} ORDER BY ${at.order.sql}`,
 		at.where.args,
 	)
-	const index = idx.findIndex((row) => String(row.id) === after)
+	const index = idx.findIndex((row) => String(row["id"]) === after)
 	return index === -1 ? 0 : index + 1
 }
 
@@ -192,14 +192,14 @@ async function filterAfterPage(request: ListRequest, fields: Fields, rows: Row[]
 	const { params } = request
 	if (!hasDefect(request.world, "filter-after-page") || !hasFilter(params)) return rows
 	const compiled = compileFilter(params.filter, fields.filter)
-	const ids = rows.map((row) => row.id).filter((id): id is string => typeof id === "string")
+	const ids = rows.map((row) => row["id"]).filter((id): id is string => typeof id === "string")
 	if (ids.length === 0) return []
 	const filtered = await request.db.all(
 		`SELECT * FROM "${request.entity.plural}" WHERE id IN (${ids.map(() => "?").join(", ")}) AND (${compiled.sql})`,
 		[...ids, ...compiled.args],
 	)
-	const keep = new Set(filtered.map((row) => String(row.id)))
-	return rows.filter((row) => keep.has(String(row.id)))
+	const keep = new Set(filtered.map((row) => String(row["id"])))
+	return rows.filter((row) => keep.has(String(row["id"])))
 }
 
 function projectItems(request: ListRequest, fields: Fields, rows: Row[]): Row[] {

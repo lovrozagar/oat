@@ -1,3 +1,4 @@
+import type { OperationCheck } from "../../core/check.ts"
 /*
  * A secured operation must refuse a credential no one issued. For each alternative of one scheme it
  * sends garbage placed like that scheme's credential; where the actor's own credential for the
@@ -41,7 +42,7 @@ interface Planned {
 	schemes: Requirement[]
 }
 
-export const invalidCredentialRefused = defineCheck<Planned>({
+export const invalidCredentialRefused: OperationCheck<Planned> = defineCheck<Planned>({
 	id: ID,
 	mutates: true,
 	needs: "an operation whose security requires a credential",

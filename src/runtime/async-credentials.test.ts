@@ -65,7 +65,7 @@ const signup: Recipe = {
 }
 
 const authOf = (options: Parameters<Responder>[2]): string =>
-	(options.headers as Record<string, string> | undefined)?.authorization ?? ""
+	(options.headers as Record<string, string> | undefined)?.["authorization"] ?? ""
 
 /*
  * A backend whose sign-up token lives `expiresIn` seconds and whose refresh issues t2; job_1 is

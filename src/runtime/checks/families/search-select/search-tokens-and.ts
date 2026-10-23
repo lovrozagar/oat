@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
@@ -5,7 +6,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, pageSize, q } from "../../query/capabilities.ts"
 import { listAll, sameSet, setOf } from "../../sets/compare.ts"
 
-export const searchTokensAnd = defineCheck<{ a: string; b: string }>({
+export const searchTokensAnd: Check<{ a: string; b: string }> = defineCheck<{ a: string; b: string }>({
 	plan: (ctx) => {
 		const field = ctx.query?.searchable[0]
 		if (conv(ctx).search === undefined || field === undefined || ctx.records.length <= 2) return cannot()

@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -35,7 +36,12 @@ import { knownHits } from "./fields.ts"
  * "10" < "9" — so `amount.gt.9` silently omits 10, 20 and 100. The result is a plausible-looking
  * subset rather than an error, which is why it survives in production.
  */
-export const numericComparisonIsNumeric = defineCheck<{
+export const numericComparisonIsNumeric: Check<{
+	field: string
+	threshold: number
+	expected: string[]
+	gtTerm: Record<string, string>
+}> = defineCheck<{
 	field: string
 	threshold: number
 	expected: string[]

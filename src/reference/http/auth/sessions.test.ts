@@ -72,7 +72,7 @@ describe("roles", () => {
 		const { state } = await world()
 		const roundTrip = PRINCIPALS.map((account) => {
 			const token = issueSession(state, account).access_token
-			return [decodeJwt(state.auth.secret, token)?.claims.role, accessPrincipal(state, token).rank]
+			return [decodeJwt(state.auth.secret, token)?.claims["role"], accessPrincipal(state, token).rank]
 		})
 		expect(roundTrip).toEqual([
 			["admin", 2],
@@ -117,8 +117,8 @@ describe("accessPrincipal", () => {
 			const { state } = await world({ defects })
 			const revoked = issueSession(state, ALPHA).access_token
 			const family = issueSession(state, ALPHA).access_token
-			state.auth.revoked.add(String(decodeJwt(state.auth.secret, revoked)?.claims.jti))
-			state.auth.revokedFamilies.add(String(decodeJwt(state.auth.secret, family)?.claims.fam))
+			state.auth.revoked.add(String(decodeJwt(state.auth.secret, revoked)?.claims["jti"]))
+			state.auth.revokedFamilies.add(String(decodeJwt(state.auth.secret, family)?.claims["fam"]))
 			const outcome = (token: string): string => {
 				try {
 					return accessPrincipal(state, token).key

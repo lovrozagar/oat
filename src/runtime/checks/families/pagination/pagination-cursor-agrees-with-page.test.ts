@@ -11,19 +11,19 @@ const rows = widgets(5)
 
 /** The cursor walk's answers go through `edit`; the page walk is served correctly. */
 function byCursor(all: Record_[], edit: (query: Record<string, unknown>) => Answer): Responder {
-	return pagedBackend(all, (body, query) => (query.page === undefined ? edit(query) : { body, status: 200 }))
+	return pagedBackend(all, (body, query) => (query["page"] === undefined ? edit(query) : { body, status: 200 }))
 }
 
 /** Pages from `cursor + shift`: a cursor that resolves to the wrong boundary. */
 function shifted(all: Record_[], shift: number, extra: Record_[] = []) {
 	return (query: Record<string, unknown>): Answer => {
-		const cursor = query.cursor === undefined ? undefined : String(Number(query.cursor) + shift)
+		const cursor = query["cursor"] === undefined ? undefined : String(Number(query["cursor"]) + shift)
 		const body = page(all, { ...query, cursor })
 		return { body: { ...body, items: [...extra, ...body.items] }, status: 200 }
 	}
 }
 
-const idsOnly = (all: Record_[]): Record_[] => all.map((row) => ({ id: row.id }))
+const idsOnly = (all: Record_[]): Record_[] => all.map((row) => ({ id: row["id"] }))
 
 describe("pagination.cursor-agrees-with-page", () => {
 	it("applies with both a cursor and a page parameter, and more than two records", () => {
@@ -39,7 +39,7 @@ describe("pagination.cursor-agrees-with-page", () => {
 		const { ctx, findings, sent } = stage(doc, pagedBackend(rows), rows)
 		expect(await runCheck(cursorAgreesWithPage, ctx)).toEqual({ kind: "asserted" })
 		expect(queryOf(sent[0]!.options)).toEqual({ limit: 2, page: 1, sort: "name.asc" })
-		expect(sent.some((s) => queryOf(s.options).cursor === "4")).toBe(true)
+		expect(sent.some((s) => queryOf(s.options)["cursor"] === "4")).toBe(true)
 		expect(findings.findings).toEqual([])
 	})
 
@@ -84,7 +84,7 @@ describe("pagination.cursor-agrees-with-page: cursor walks that disagree", () =>
 		const extra = (query: Record<string, unknown>): Answer => {
 			const body = page(rows, query)
 			return {
-				body: { ...body, items: query.cursor === undefined ? [...body.items, { id: "w99" }] : body.items },
+				body: { ...body, items: query["cursor"] === undefined ? [...body.items, { id: "w99" }] : body.items },
 				status: 200,
 			}
 		}
@@ -116,7 +116,7 @@ describe("pagination.cursor-agrees-with-page: walks cut short", () => {
 			many,
 		)
 		expect(await runCheck(cursorAgreesWithPage, ctx)).toEqual({ kind: "asserted" })
-		expect(queryOf(sent[0]!.options).sort).toBe("tag.asc")
+		expect(queryOf(sent[0]!.options)["sort"]).toBe("tag.asc")
 	})
 
 	it("passes a cut-short page walk beside an empty cursor walk", async () => {

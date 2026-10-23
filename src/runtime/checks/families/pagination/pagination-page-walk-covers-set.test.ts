@@ -12,16 +12,19 @@ const unsorted = listDoc({ params: ["limit", "page"] })
 function walks(edit: (n: number, body: ReturnType<typeof page>, query: Record<string, unknown>) => Answer): Responder {
 	let n = 0
 	return pagedBackend(rows, (body, query) => {
-		if (query.limit !== 2) return { body, status: 200 }
-		if (query.page === 1) n += 1
+		if (query["limit"] !== 2) return { body, status: 200 }
+		if (query["page"] === 1) n += 1
 		return edit(n, body, query)
 	})
 }
 
 /** Two per page, starting one record late past the first page. */
 function offByOne(body: ReturnType<typeof page>, query: Record<string, unknown>): Answer {
-	if (query.page === 1) return { body, status: 200 }
-	return { body: page(rows, { ...query, page: undefined, offset: ((query.page as number) - 1) * 2 + 1 }), status: 200 }
+	if (query["page"] === 1) return { body, status: 200 }
+	return {
+		body: page(rows, { ...query, page: undefined, offset: ((query["page"] as number) - 1) * 2 + 1 }),
+		status: 200,
+	}
 }
 
 describe("pagination.page-walk-covers-set", () => {
@@ -37,7 +40,7 @@ describe("pagination.page-walk-covers-set", () => {
 		const { ctx, findings, sent } = stage(doc, pagedBackend(rows), rows)
 		expect(await runCheck(pageWalkCoversSet, ctx)).toEqual({ kind: "asserted" })
 		expect(queryOf(sent[0]!.options)).toEqual({ limit: 100, page: 1, sort: "tag.asc" })
-		expect(sent.filter((s) => queryOf(s.options).limit === 2 && queryOf(s.options).page === 1)).toHaveLength(2)
+		expect(sent.filter((s) => queryOf(s.options)["limit"] === 2 && queryOf(s.options)["page"] === 1)).toHaveLength(2)
 		expect(findings.findings).toEqual([])
 	})
 
@@ -51,7 +54,7 @@ describe("pagination.page-walk-covers-set", () => {
 		const many = widgets(23)
 		const { ctx, sent } = stage(doc, pagedBackend(many), many)
 		expect(await runCheck(pageWalkCoversSet, ctx)).toEqual({ kind: "asserted" })
-		expect(sent.some((s) => queryOf(s.options).limit === 5)).toBe(true)
+		expect(sent.some((s) => queryOf(s.options)["limit"] === 5)).toBe(true)
 	})
 })
 
@@ -109,8 +112,8 @@ describe("pagination.page-walk-covers-set: walks that cannot see the whole set",
 	it("does not count records past the page cap as missing", async () => {
 		/* At two per page the backend never ends, so the walk stops at the cap short of the set. */
 		const endless = pagedBackend(rows, (body, query) => {
-			if (query.limit !== 2) return { body, status: 200 }
-			const start = ((query.page as number) - 1) * 2
+			if (query["limit"] !== 2) return { body, status: 200 }
+			const start = ((query["page"] as number) - 1) * 2
 			return {
 				body: {
 					items: [
@@ -127,7 +130,9 @@ describe("pagination.page-walk-covers-set: walks that cannot see the whole set",
 	})
 
 	it("does not count records as missing when the whole set could not be read", async () => {
-		const refused = pagedBackend(rows, (body, query) => (query.limit === 2 ? { body, status: 200 } : { status: 400 }))
+		const refused = pagedBackend(rows, (body, query) =>
+			query["limit"] === 2 ? { body, status: 200 } : { status: 400 },
+		)
 		const { ctx, findings } = stage(doc, refused, rows)
 		expect(await runCheck(pageWalkCoversSet, ctx)).toEqual({ kind: "asserted" })
 		expect(findings.findings).toEqual([])

@@ -27,13 +27,13 @@ describe("filter.ilike-is-case-insensitive", () => {
 	})
 
 	it("reports ilike implemented as like", async () => {
-		const { ctx, findings } = stage({ behavior: { ops: { ilike: OPS.like } }, doc: DOC, records: COHORT })
+		const { ctx, findings } = stage({ behavior: { ops: { ilike: OPS["like"] } }, doc: DOC, records: COHORT })
 		expect(await runCheck(check, ctx)).toMatchObject({ kind: "finding" })
 		expect(only(findings).detail).toBe('ilike on "alpha" did not select the record whose name is "Alpha".')
 	})
 
 	it("is unresolved when like itself ignores case", async () => {
-		const { ctx, findings } = stage({ behavior: { ops: { like: OPS.ilike } }, doc: DOC, records: COHORT })
+		const { ctx, findings } = stage({ behavior: { ops: { like: OPS["ilike"] } }, doc: DOC, records: COHORT })
 		expect(await runCheck(check, ctx)).toMatchObject({
 			reason: "like also matched the case-flipped value — the store may already be case-insensitive",
 		})
@@ -44,7 +44,7 @@ describe("filter.ilike-is-case-insensitive", () => {
 		const refused = stage({ behavior: REFUSE_FILTERED, doc: DOC, records: COHORT })
 		expect(await runCheck(check, refused.ctx)).toMatchObject({ reason: "like/ilike probe was rejected" })
 		const ilikeRefused = stage({
-			behavior: { status: (query) => (String(query.filter).includes("ilike") ? 400 : undefined) },
+			behavior: { status: (query) => (String(query["filter"]).includes("ilike") ? 400 : undefined) },
 			doc: DOC,
 			records: COHORT,
 		})

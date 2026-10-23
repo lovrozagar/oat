@@ -68,7 +68,7 @@ function caller(state: ReferenceState): Api["call"] {
 	const sessions = new Map<string, string>()
 	return async (method, path, sent = {}) => {
 		const headers: Record<string, string> = {}
-		if (sent.token !== null) headers.authorization = `Bearer ${bearerOf(state, sessions, sent.token ?? ALPHA)}`
+		if (sent.token !== null) headers["authorization"] = `Bearer ${bearerOf(state, sessions, sent.token ?? ALPHA)}`
 		let text = ""
 		if (sent.form !== undefined) {
 			headers["content-type"] = "application/x-www-form-urlencoded"

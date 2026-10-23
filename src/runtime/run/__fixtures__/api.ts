@@ -150,7 +150,7 @@ export function notesApi(doc: OpenApiDocument = notesDoc(), rows: Record_[] = []
 			return { body: made, status: 201 }
 		}
 		const id = /^\/notes\/([^/]+)$/.exec(path)?.[1]
-		const at = rows.findIndex((row) => row.id === id)
+		const at = rows.findIndex((row) => row["id"] === id)
 		if (at < 0) return undefined
 		if (method === "GET") return { body: rows[at], status: 200 }
 		if (method === "DELETE") {
@@ -158,7 +158,7 @@ export function notesApi(doc: OpenApiDocument = notesDoc(), rows: Record_[] = []
 			return { status: 204 }
 		}
 		if (!valid(options.body, false)) return { body: { error: "invalid note" }, status: 422 }
-		rows[at] = { ...rows[at], ...(options.body as Record_), id: rows[at]?.id }
+		rows[at] = { ...rows[at], ...(options.body as Record_), id: rows[at]?.["id"] }
 		return { body: rows[at], status: 200 }
 	}
 }
@@ -172,7 +172,7 @@ export function bearerOnly(respond: Responder, key = ALPHA_KEY): Responder {
 	return (method, path, options) => {
 		/* `transport` hands every request its headers as a record. */
 		const headers = options.headers as Record<string, string> | undefined
-		return path === "/openapi.json" || headers?.authorization === `Bearer ${key}`
+		return path === "/openapi.json" || headers?.["authorization"] === `Bearer ${key}`
 			? respond(method, path, options)
 			: { body: { error: "unauthorized" }, status: 401 }
 	}
@@ -241,7 +241,7 @@ export function withSignup(signup: (body: Record<string, unknown>) => Answer): R
 	return (method, path, request) => {
 		const body = (request.body ?? {}) as Record<string, unknown>
 		if (path === "/signup") return signup(body)
-		if (path === "/login") return { body: { access_token: `login-${String(body.email)}` }, status: 200 }
+		if (path === "/login") return { body: { access_token: `login-${String(body["email"])}` }, status: 200 }
 		return notes(method, path, request)
 	}
 }

@@ -1,3 +1,4 @@
+import type { OperationCheck } from "../../core/check.ts"
 import type { Actor } from "../../core/context.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationContext, OperationWriteContext, WriteTarget } from "../../core/operation-context.ts"
@@ -23,7 +24,7 @@ interface RoleProbe {
  * refused with 401 or 403. Unlike
  * auth.rank-is-monotonic-on-writes this fires when every rank may write, which is still monotonic.
  */
-export const roleEnforced = defineCheck<RoleProbe>({
+export const roleEnforced: OperationCheck<RoleProbe> = defineCheck<RoleProbe>({
 	id: "auth.role-enforced",
 	mutates: true,
 	needs: "a principal marked readOnly, and a run-created record in its tenant to write to",

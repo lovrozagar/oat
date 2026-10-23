@@ -34,7 +34,7 @@ function staleList(snapshot: Record_[], pageSizeShows?: number): Responder {
 	return (method, path, options) => {
 		if (path !== "/notes") return notesBackend([created, ...snapshot])(method, path, options)
 		const query = options.query ?? {}
-		const rows = Number(query.limit) === pageSizeShows ? [created, ...snapshot] : snapshot
+		const rows = Number(query["limit"]) === pageSizeShows ? [created, ...snapshot] : snapshot
 		return { body: servePage(rows, query), status: 200 }
 	}
 }
@@ -45,7 +45,7 @@ const goneEverywhere: Responder = (method, path, options) =>
 
 /** STALE_LIST whose walk at a smaller page size is refused. */
 const smallerRefused: Responder = (method, path, options) =>
-	path === "/notes" && options.query?.limit === 4 ? { status: 500 } : staleList(others(1))(method, path, options)
+	path === "/notes" && options.query?.["limit"] === 4 ? { status: 500 } : staleList(others(1))(method, path, options)
 
 const listPaths = (staged: ReturnType<typeof stage>) => staged.sent.filter((sent) => sent.path === "/notes")
 
@@ -81,7 +81,7 @@ describe("list.read-after-write lost writes", () => {
 			"http://api.test/notes/n1",
 		])
 		/* The repeat walks, then one at a smaller page size to move the page boundaries. */
-		expect(listPaths(staged).some((sent) => sent.options.query?.limit === 4)).toBe(true)
+		expect(listPaths(staged).some((sent) => sent.options.query?.["limit"] === 4)).toBe(true)
 	})
 
 	it("reports the record as absent when the item route does not serve it either", async () => {
@@ -117,7 +117,7 @@ describe("list.read-after-write page boundaries", () => {
 		const doc = notesDoc({ listParams: [{ ...limit, schema: { maximum: 1, type: "integer" } }, ...rest] })
 		const staged = stage(staleList(others(1)), {}, doc)
 		expect(await drive(staged)).toEqual({ kind: "finding", verdict: "BACKEND_BUG" })
-		expect(listPaths(staged).every((sent) => sent.options.query?.limit === 1)).toBe(true)
+		expect(listPaths(staged).every((sent) => sent.options.query?.["limit"] === 1)).toBe(true)
 	})
 })
 
@@ -148,8 +148,8 @@ describe("list.read-after-write unresolved walks", () => {
 		const respond: Responder = (method, path, options) => {
 			if (path !== "/notes") return notesBackend([created])(method, path, options)
 			/* Only the default-size walk counts and recovers; the smaller-page walk never shows it. */
-			const repeat = options.query?.limit === 5
-			if (repeat && options.query?.page === 1) walks += 1
+			const repeat = options.query?.["limit"] === 5
+			if (repeat && options.query?.["page"] === 1) walks += 1
 			const rows = repeat && walks >= 2 ? [created] : []
 			return { body: servePage(rows, options.query), status: 200 }
 		}

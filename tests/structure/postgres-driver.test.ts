@@ -59,9 +59,9 @@ describe("the postgres driver", () => {
 			devDependencies: Record<string, string>
 			dependencies?: Record<string, string>
 		}
-		expect(manifest.peerDependencies?.postgres).toBe(POSTGRES_RANGE)
-		expect(manifest.peerDependenciesMeta?.postgres?.optional).toBe(true)
-		expect(manifest.dependencies?.postgres).toBeUndefined()
-		expect(manifest.devDependencies.postgres?.startsWith(POSTGRES_RANGE)).toBe(true)
+		expect(manifest.peerDependencies?.["postgres"]).toBe(POSTGRES_RANGE)
+		expect(manifest.peerDependenciesMeta?.["postgres"]?.optional).toBe(true)
+		expect(manifest.dependencies?.["postgres"]).toBeUndefined()
+		expect(manifest.devDependencies["postgres"]?.startsWith(POSTGRES_RANGE)).toBe(true)
 	})
 })

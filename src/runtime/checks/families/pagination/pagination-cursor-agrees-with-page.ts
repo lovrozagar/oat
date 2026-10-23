@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { sortTerm } from "../../../../spec/conventions/sort.ts"
 import type { SortValue } from "../../../../spec/render/sort.ts"
@@ -82,7 +83,7 @@ function comparablePrefixes(
 	return { cursorItems: clear(cursorWalk.items), pageItems: clear(pageWalk.items) }
 }
 
-export const cursorAgreesWithPage = defineCheck({
+export const cursorAgreesWithPage: Check = defineCheck({
 	plan: (ctx) => when(conv(ctx).cursor !== undefined && pageable(ctx) && ctx.records.length > 2),
 	dependsOn: [
 		"pagination.page-walk-covers-set",

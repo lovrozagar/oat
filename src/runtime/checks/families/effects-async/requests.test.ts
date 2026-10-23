@@ -30,20 +30,20 @@ describe("bodyForOp", () => {
 	it("builds a valid body from the request schema when nothing is an invite", () => {
 		const { ctx } = contextFor(model, "listWidgets", { respond: () => undefined })
 		const body = bodyForOp(ctx, create)
-		expect(typeof body.name).toBe("string")
+		expect(typeof body["name"]).toBe("string")
 		expect(body).not.toHaveProperty("email")
 	})
 
 	it("puts a peer from another tenant in the invite's grantee field before one from the owner's", () => {
 		const actors = [actor("owner", "a"), actor("same", "a", "same@test"), actor("other", "b", "other@test")]
 		const { ctx } = contextFor(model, "listWidgets", { respond: () => undefined, fields: { actors, invite } })
-		expect(bodyForOp(ctx, create).email).toBe("other@test")
+		expect(bodyForOp(ctx, create)["email"]).toBe("other@test")
 	})
 
 	it("falls back to a peer in the owner's tenant when no other tenant has an invitee", () => {
 		const actors = [actor("owner", "a", "owner@test"), actor("same", "a", "same@test")]
 		const { ctx } = contextFor(model, "listWidgets", { respond: () => undefined, fields: { actors, invite } })
-		expect(bodyForOp(ctx, create).email).toBe("same@test")
+		expect(bodyForOp(ctx, create)["email"]).toBe("same@test")
 	})
 
 	it("prefers the operation's own invite over the entity's, and leaves the field alone with no invitee", () => {

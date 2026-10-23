@@ -134,7 +134,7 @@ describe("closeOut", () => {
 					alpha: { email: "a@x.test", scope: { project_id: "p1" } },
 					fresh: { fresh: true, scope: { project_id: "p1" } },
 				},
-				security: { bearer: REVOCABLE_EMAIL, key: MINTED.key as Recipe },
+				security: { bearer: REVOCABLE_EMAIL, key: MINTED["key"] as Recipe },
 			}),
 		)
 		await ctx.client.request("GET", "/secure", { as: { principal: "fresh" } })
@@ -143,7 +143,7 @@ describe("closeOut", () => {
 			throw new Error("origin done")
 		}
 		await closeOut(ctx, { coverage: scopeReport(ctx), runOrigin })
-		const email = String(ctx.principals.byId.get("fresh")?.identity.email)
+		const email = String(ctx.principals.byId.get("fresh")?.identity["email"])
 		expect(events).toEqual([
 			"origin",
 			"revoke /projects/p1/keys/1",

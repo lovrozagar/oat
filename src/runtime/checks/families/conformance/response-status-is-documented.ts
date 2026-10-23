@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { judges } from "../../../probe-judging.ts"
 import { documentsStatus, readStatuses } from "../../../../spec/graph/statuses.ts"
@@ -78,7 +79,7 @@ async function readExchange(
 	return { exchange, operationId, undeclared: exchange.purpose === "probe" ? "probe" : "ordinary" }
 }
 
-export const documentedStatusHonoured = defineCheck({
+export const documentedStatusHonoured: Check = defineCheck({
 	plan: (ctx) => when(ctx.model.operations.some((op) => op.entity === ctx.entityName && op.action !== "create")),
 	id: "response.status-is-documented",
 	judgesTranscript: true,

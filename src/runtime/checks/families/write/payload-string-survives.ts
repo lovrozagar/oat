@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { Exchange } from "../../../exchange.ts"
@@ -21,7 +22,11 @@ import {
 	writeField,
 } from "./payload-probe.ts"
 
-export const stringPayloadSurvives = defineCheck<{
+export const stringPayloadSurvives: Check<{
+	writeOp: OperationModel
+	readOp: OperationModel
+	field: PayloadField
+}> = defineCheck<{
 	writeOp: OperationModel
 	readOp: OperationModel
 	field: PayloadField

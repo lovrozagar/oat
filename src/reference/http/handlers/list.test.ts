@@ -18,8 +18,8 @@ describe("a listing", () => {
 		await table("a")
 		await table("b")
 		const answer = await call("GET", `${TABLES}?limit=1`)
-		expect(answer.items.map((row) => row.name)).toEqual(["b"])
-		expect(answer.headers.link).toBe(`<${TABLES}?limit=1&offset=1>; rel="next"`)
+		expect(answer.items.map((row) => row["name"])).toEqual(["b"])
+		expect(answer.headers["link"]).toBe(`<${TABLES}?limit=1&offset=1>; rel="next"`)
 	})
 
 	it("refuses its first request under RATE_LIMIT_STRICTER_THAN_DECLARED, per entity", async () => {
@@ -34,7 +34,7 @@ describe("a listing", () => {
 		const wrapped = await api({ shape: "wrapped-records" })
 		const { body } = await wrapped.call("GET", TABLES)
 		expect(body).toMatchObject({ data: expect.any(Array), totalCount: 6 })
-		expect(body.fields).toContainEqual({ name: "ID", type: "integer" })
+		expect(body["fields"]).toContainEqual({ name: "ID", type: "integer" })
 		const linked = await api({ dialect: "linked", shape: { recordEnvelope: true } })
 		await linked.table("a")
 		expect((await linked.call("GET", TABLES)).items).toHaveLength(1)
@@ -43,26 +43,26 @@ describe("a listing", () => {
 	it("skews the listed name under LIST_DETAIL_DISAGREE", async () => {
 		const { call, table } = await api({ defects: ["LIST_DETAIL_DISAGREE"] })
 		await table("a")
-		expect((await call("GET", TABLES)).body.tables).toEqual([expect.objectContaining({ name: "a (listing)" })])
+		expect((await call("GET", TABLES)).body["tables"]).toEqual([expect.objectContaining({ name: "a (listing)" })])
 	})
 })
 
 describe("a stale listing", () => {
 	it("replays the collection as it was before the first write, paged as asked", async () => {
 		const { call, table } = await api({ defects: ["STALE_LIST"], shape: { prepopulate: 3 } })
-		expect((await call("GET", TABLES)).body.count).toBe(3)
+		expect((await call("GET", TABLES)).body["count"]).toBe(3)
 		await table("new")
 		expect((await call("GET", TABLES)).body).toMatchObject({ count: 3 })
 		const page = (await call("GET", `${TABLES}?limit=2&page=2`)).body
 		expect(page).toMatchObject({ count: 3, hasMore: false, limit: 2, page: 2 })
-		expect(page.tables).toHaveLength(1)
+		expect(page["tables"]).toHaveLength(1)
 	})
 
 	it("answers a filtered listing live, and sends a bad paging value to be refused", async () => {
 		const { call, table } = await api({ defects: ["STALE_LIST"] })
 		await table("new")
-		expect((await call("GET", TABLES)).body.count).toBe(0)
-		expect((await call("GET", `${TABLES}?filter=name.eq.new`)).body.count).toBe(1)
+		expect((await call("GET", TABLES)).body["count"]).toBe(0)
+		expect((await call("GET", `${TABLES}?filter=name.eq.new`)).body["count"]).toBe(1)
 		expect((await call("GET", `${TABLES}?limit=0`)).status).toBe(400)
 	})
 })
@@ -72,18 +72,18 @@ describe("unknown parameters", () => {
 		const { call, table } = await api({ defects: ["UNKNOWN_PARAM_EMPTIES_LIST"] })
 		await table("a")
 		expect((await call("GET", `${TABLES}?bogus=1`)).body).toMatchObject({ count: 0, hasMore: false, tables: [] })
-		expect((await call("GET", `${TABLES}?limit=5`)).body.count).toBe(1)
+		expect((await call("GET", `${TABLES}?limit=5`)).body["count"]).toBe(1)
 	})
 
 	it("do not include a bracketed fieldset or an equality filter field", async () => {
 		const jsonapi = await api({ defects: ["UNKNOWN_PARAM_EMPTIES_LIST"], dialect: "jsonapi" })
 		await jsonapi.table("a")
-		expect((await jsonapi.call("GET", `${TABLES}?fields[table]=id,name`)).body.data).toEqual([
+		expect((await jsonapi.call("GET", `${TABLES}?fields[table]=id,name`)).body["data"]).toEqual([
 			{ id: "table_000001", name: "a" },
 		])
 		const plain = await api({ defects: ["UNKNOWN_PARAM_EMPTIES_LIST"], dialect: "plain" })
 		await plain.table("a")
-		expect((await plain.call("GET", `${TABLES}?status=active`)).body.items).toHaveLength(1)
+		expect((await plain.call("GET", `${TABLES}?status=active`)).body["items"]).toHaveLength(1)
 	})
 })
 
@@ -120,7 +120,7 @@ describe("filters in each grammar", () => {
 describe("sorting", () => {
 	it("reads a repeated sort parameter in order", async () => {
 		const { call } = await api({ shape: "wrapped-records" })
-		const sorted = (await call("GET", `${TABLES}?sort=status_descending&sort=name_ascending`)).body.data as Array<{
+		const sorted = (await call("GET", `${TABLES}?sort=status_descending&sort=name_ascending`)).body["data"] as Array<{
 			name: string
 			status: string
 		}>
@@ -134,9 +134,9 @@ describe("embedding a related record", () => {
 	it("embeds a row's table, and refuses a relation the row does not declare", async () => {
 		const { call, table } = await api()
 		const parent = await table("parent")
-		const rows = rowsOf(parent.id)
+		const rows = rowsOf(parent["id"])
 		await call("POST", rows, { body: { label: "r" } })
-		expect((await call("GET", `${rows}?select=label,table(name)`)).body.rows).toEqual([
+		expect((await call("GET", `${rows}?select=label,table(name)`)).body["rows"]).toEqual([
 			{ label: "r", table: { name: "parent" } },
 		])
 		expect((await call("GET", `${rows}?select=label,nothing(name)`)).status).toBe(400)
@@ -145,7 +145,7 @@ describe("embedding a related record", () => {
 	it("embeds null where the link is missing, not an id, or names no record or entity", async () => {
 		const { call, state, table } = await api()
 		const parent = await table("parent")
-		const rows = rowsOf(parent.id)
+		const rows = rowsOf(parent["id"])
 		await call("POST", rows, { body: { label: "r" } })
 		const row = state.entities.find((entity) => entity.name === "row") as EntityDef
 		row.relations = {
@@ -154,10 +154,12 @@ describe("embedding a related record", () => {
 			ghost: { entity: "ghost", fields: ["name"], via: "table_id" },
 		}
 		const { body } = await call("GET", `${rows}?select=label,byFlag(name),byLabel(name),ghost(name)`)
-		expect(body.rows).toEqual([{ byFlag: null, byLabel: null, ghost: null, label: "r" }])
+		expect(body["rows"]).toEqual([{ byFlag: null, byLabel: null, ghost: null, label: "r" }])
 		const declared = row.relations
 		let reads = 0
 		Object.defineProperty(row, "relations", { configurable: true, get: () => (reads++ === 0 ? declared : undefined) })
-		expect((await call("GET", `${rows}?select=label,byLabel(name)`)).body.rows).toEqual([{ byLabel: null, label: "r" }])
+		expect((await call("GET", `${rows}?select=label,byLabel(name)`)).body["rows"]).toEqual([
+			{ byLabel: null, label: "r" },
+		])
 	})
 })

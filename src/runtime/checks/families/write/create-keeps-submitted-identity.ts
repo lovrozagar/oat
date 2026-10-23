@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { Exchange } from "../../../exchange.ts"
@@ -43,7 +44,7 @@ async function createExchanges(ctx: CheckContext, max: number): Promise<Exchange
  * acknowledgement-only create gives nothing back to compare, so the record is read back under the
  * id it was sent; a create that answers with an identity must answer with the one it was sent.
  */
-export const createKeepsSubmittedIdentity = defineCheck<{ readOp: OperationModel }>({
+export const createKeepsSubmittedIdentity: Check<{ readOp: OperationModel }> = defineCheck<{ readOp: OperationModel }>({
 	plan: (ctx) => {
 		const createOp = ctx.createOp
 		const readOp = ctx.readOp

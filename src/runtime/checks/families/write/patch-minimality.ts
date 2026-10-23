@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { fillPath } from "../../../fill-path.ts"
@@ -12,7 +13,11 @@ import { standDownForFeatureGate } from "../../planning/stand-down.ts"
 import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
 import { NO_RECORD } from "./records.ts"
 
-export const patchMinimality = defineCheck<{
+export const patchMinimality: Check<{
+	createOp: OperationModel
+	updateOp: OperationModel
+	readOp: OperationModel
+}> = defineCheck<{
 	createOp: OperationModel
 	updateOp: OperationModel
 	readOp: OperationModel

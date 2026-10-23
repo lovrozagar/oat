@@ -91,7 +91,7 @@ describe("a mint recipe", () => {
 	it("mints an API key with the jwt, sends it as ApiKey for the scope it needs, and revokes it", async () => {
 		const { log, result } = await againstReference({
 			ops: ["table.list"],
-			principals: { alpha: PRINCIPALS.alpha as PrincipalEntry },
+			principals: { alpha: PRINCIPALS["alpha"] as PrincipalEntry },
 			security: SECURITY,
 		})
 		const minted = log.entries.filter((entry) => entry.path === "/v1/api-keys" && entry.status === 201)

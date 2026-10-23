@@ -14,14 +14,14 @@ async function seeded(): Promise<MemoryStore> {
 	return store
 }
 
-const ids = (rows: Array<Record<string, unknown>>): unknown[] => rows.map((row) => row.id)
+const ids = (rows: Array<Record<string, unknown>>): unknown[] => rows.map((row) => row["id"])
 
 describe("MemoryStore", () => {
 	it("keeps rows per entity, by identity, and hands out copies", async () => {
 		const store = await seeded()
 		const read = await store.byId(ITEM, "a")
 		expect(read).toEqual({ id: "a", rank: 2 })
-		if (read !== null) read.rank = 99
+		if (read !== null) read["rank"] = 99
 		expect(await store.byId(ITEM, "a")).toEqual({ id: "a", rank: 2 })
 		expect(await store.byId(OTHER, "a")).toBeNull()
 	})

@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { when } from "../../core/plan.ts"
@@ -5,7 +6,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, q } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const limitBoundsPageSize = defineCheck({
+export const limitBoundsPageSize: Check = defineCheck({
 	plan: (ctx) => when(conv(ctx).limit !== undefined && ctx.records.length > 2),
 	dependsOn: ["list.read-after-write"],
 	id: "pagination.limit-bounds-page-size",

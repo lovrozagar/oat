@@ -12,7 +12,7 @@ const scored = NOTES.map((row, index) => ({ ...row, score: index }))
 const bending =
 	(bend: (rows: Record_[]) => Record_[], asc: (rows: Record_[]) => Record_[] = (rows) => rows): Responder =>
 	(_method, _path, options) => {
-		const order = queryOf(options).order ?? ""
+		const order = queryOf(options)["order"] ?? ""
 		const rows = applyOrder(NOTES, order) ?? []
 		return { body: order.endsWith(".desc") ? bend(rows) : asc(rows), status: 200 }
 	}
@@ -25,7 +25,7 @@ const doubledAsc = bending(
 	(rows) => [...rows.slice(1), rows[1] as Record_],
 )
 const sameBothWays: Responder = (_method, _path, options) => ({
-	body: applyOrder(NOTES, (queryOf(options).order ?? "").replace(".desc", ".asc")),
+	body: applyOrder(NOTES, (queryOf(options)["order"] ?? "").replace(".desc", ".asc")),
 	status: 200,
 })
 
@@ -33,13 +33,13 @@ describe("sort.reverse-symmetry passes", () => {
 	it("passes a nullable field whose values reverse, wherever the tied nulls land", async () => {
 		const staged = stage(sortReverseSymmetry)
 		expect(await staged.run()).toEqual({ kind: "asserted" })
-		expect(staged.sent.map((sent) => sent.options.query?.order)).toEqual(["score.asc", "score.desc"])
+		expect(staged.sent.map((sent) => sent.options.query?.["order"])).toEqual(["score.asc", "score.desc"])
 	})
 
 	it("passes a field whose records reverse exactly", async () => {
 		const staged = stage(sortReverseSymmetry, { rows: scored })
 		expect(await staged.run()).toEqual({ kind: "asserted" })
-		expect(staged.sent.map((sent) => sent.options.query?.order)).toEqual(["title.asc", "title.desc"])
+		expect(staged.sent.map((sent) => sent.options.query?.["order"])).toEqual(["title.asc", "title.desc"])
 	})
 })
 

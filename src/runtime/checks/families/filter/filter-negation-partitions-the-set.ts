@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -16,7 +17,12 @@ import { nullableField } from "../../query/order.ts"
 import { collectSet } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 
-export const negationPartitions = defineCheck<{
+export const negationPartitions: Check<{
+	field: string
+	value: string
+	eqTerm: Record<string, string>
+	neqTerm: Record<string, string>
+}> = defineCheck<{
 	field: string
 	value: string
 	eqTerm: Record<string, string>

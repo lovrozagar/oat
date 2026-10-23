@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { selectTerm } from "../../../../spec/conventions/select.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
@@ -7,7 +8,11 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, q, resolvedCaps } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const selectNestedHonoured = defineCheck<{
+export const selectNestedHonoured: Check<{
+	relation: { name: string; fields: string[] }
+	first: string
+	projection: Record<string, string>
+}> = defineCheck<{
 	relation: { name: string; fields: string[] }
 	first: string
 	projection: Record<string, string>

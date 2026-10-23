@@ -2,7 +2,7 @@ import type { DefectSet } from "../defects/defect-set.ts"
 import type { EntityDef } from "../model/types.ts"
 import type { Collation, SearchMode } from "../query-types.ts"
 
-export const SEARCH_MODES = ["contains", "prefix"] as const satisfies readonly SearchMode[]
+export const SEARCH_MODES: readonly SearchMode[] = ["contains", "prefix"]
 
 /** Behaviour of a correct backend that varies between real APIs — see `ReferenceShape`. */
 export interface QueryConventions {

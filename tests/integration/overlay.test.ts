@@ -46,7 +46,7 @@ const DOC = {
 } as unknown as OpenApiDocument
 
 const listOf = (doc: OpenApiDocument): Record<string, unknown> =>
-	((doc.paths ?? {})["/notes"] as Record<string, Record<string, unknown>> | undefined)?.get ?? {}
+	((doc.paths ?? {})["/notes"] as Record<string, Record<string, unknown>> | undefined)?.["get"] ?? {}
 
 describe("applyOverlay", () => {
 	it("merges objects, replaces arrays and deletes on null", () => {
@@ -60,11 +60,11 @@ describe("applyOverlay", () => {
 			},
 		})
 		const list = listOf(patched)
-		expect(list.parameters).toEqual([{ in: "query", name: "c", schema: { type: "string" } }])
+		expect(list["parameters"]).toEqual([{ in: "query", name: "c", schema: { type: "string" } }])
 		expect(list).not.toHaveProperty("summary")
 		expect(list["x-query"]).toEqual({ filterable: ["title"], maxLimit: 20, sortable: ["title"] })
 		/* The document it was given is left as it was. */
-		expect(listOf(DOC).summary).toBe("List notes")
+		expect(listOf(DOC)["summary"]).toBe("List notes")
 	})
 
 	it("patches a component schema by name", () => {
@@ -75,7 +75,7 @@ describe("applyOverlay", () => {
 
 	it("renames an operation when the patch gives it a new id", () => {
 		const patched = applyOverlay(DOC, { operations: { "notes.list": { operationId: "note.list" } } })
-		expect(listOf(patched).operationId).toBe("note.list")
+		expect(listOf(patched)["operationId"]).toBe("note.list")
 	})
 
 	it("refuses a patch that names nothing, saying which", () => {

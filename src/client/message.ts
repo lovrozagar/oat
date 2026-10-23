@@ -15,7 +15,7 @@ export function requestMessageBytes(
 	body: { bytes: number; text?: string | undefined },
 ): number {
 	const sent = { ...headers }
-	if (!hasHeader(sent, "host")) sent.host = url.host
+	if (!hasHeader(sent, "host")) sent["host"] = url.host
 	if (body.bytes > 0 && !hasHeader(sent, "content-length")) sent["content-length"] = String(body.bytes)
 	const start = `${method} ${url.pathname}${url.search} HTTP/1.1`
 	if (body.text !== undefined) return headBytes(start, sent) + utf8Bytes(body.text)

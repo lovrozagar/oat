@@ -112,7 +112,7 @@ interface Call {
 /* A request a live credential authenticated. */
 function secured(ledger: Ledger, { method, path, sent, tenant }: Call): Answer | undefined {
 	if (path === "/auth/revoke") {
-		const session = ledger.sessions.get(String(sent.token))
+		const session = ledger.sessions.get(String(sent["token"]))
 		if (session !== undefined) session.live = false
 		return { body: {}, status: 200 }
 	}
@@ -136,9 +136,9 @@ function backend(): { respond: Responder; ledger: Ledger } {
 	const respond: Responder = (method, path, { body, headers }) => {
 		const sent = (body ?? {}) as Record<string, unknown>
 		if (path === "/openapi.json") return { body: doc(), status: 200 }
-		if (path === "/auth/login") return issue(ledger, String(sent.email).endsWith("@a.test") ? "proj_a" : "proj_b")
-		if (path === "/auth/refresh") return rotate(ledger, String(sent.refresh_token))
-		const tenant = tenantOf(ledger, (headers as Record<string, string> | undefined)?.authorization)
+		if (path === "/auth/login") return issue(ledger, String(sent["email"]).endsWith("@a.test") ? "proj_a" : "proj_b")
+		if (path === "/auth/refresh") return rotate(ledger, String(sent["refresh_token"]))
+		const tenant = tenantOf(ledger, (headers as Record<string, string> | undefined)?.["authorization"])
 		return tenant === undefined ? { status: 401 } : secured(ledger, { method, path, sent, tenant })
 	}
 	return { ledger, respond }

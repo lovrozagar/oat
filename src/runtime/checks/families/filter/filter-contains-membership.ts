@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { canWriteFilterOp, filterTerm } from "../../../../spec/conventions/filter.ts"
 import type { EffectiveFilterField } from "../../../../spec/query/effective.ts"
@@ -23,7 +24,11 @@ function containsField(ctx: CheckContext): EffectiveFilterField | undefined {
 	)
 }
 
-export const filterContainsMembership = defineCheck<{
+export const filterContainsMembership: Check<{
+	field: EffectiveFilterField
+	element: string
+	term: Record<string, string>
+}> = defineCheck<{
 	field: EffectiveFilterField
 	element: string
 	term: Record<string, string>

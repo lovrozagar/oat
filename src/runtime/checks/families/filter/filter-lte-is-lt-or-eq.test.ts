@@ -16,7 +16,7 @@ describe("filter.lte-is-lt-or-eq", () => {
 	})
 
 	it("reports lte implemented as lt", async () => {
-		const { ctx, findings } = stage({ behavior: { ops: { lte: OPS.lt } }, doc: DOC, records: COHORT })
+		const { ctx, findings } = stage({ behavior: { ops: { lte: OPS["lt"] } }, doc: DOC, records: COHORT })
 		expect(await runCheck(check, ctx)).toMatchObject({ kind: "finding" })
 		expect(only(findings)).toMatchObject({
 			check: "filter.lte-is-lt-or-eq",

@@ -131,7 +131,7 @@ function envConfig(dir: string, variable: string): string {
 
 describe("commandDoctor and a config whose secrets are not set", () => {
 	it("doctor --config with an unset env() lists it and exits 0 or 1, not 2", async () => {
-		delete process.env.OAT_DOCTOR_TEST_TOKEN
+		delete process.env["OAT_DOCTOR_TEST_TOKEN"]
 		const config = envConfig(folder(), "OAT_DOCTOR_TEST_TOKEN")
 		const writer = bufferWriter()
 		const code = await commandDoctor(writer, { config })
@@ -161,7 +161,7 @@ describe("commandDoctor and the config's principals", () => {
 				get: { operationId: "legacy.get", responses: { "200": { description: "ok" } }, security: [{ legacy: [] }] },
 			},
 		}) as unknown as { components: { securitySchemes: Record<string, unknown> } }
-		doc.components.securitySchemes.legacy = { in: "header", name: "X-Legacy", type: "apiKey" }
+		doc.components.securitySchemes["legacy"] = { in: "header", name: "X-Legacy", type: "apiKey" }
 		const dir = folder()
 		const config = json(dir, "oat.config.json", {
 			principals: { alpha: {} },

@@ -103,12 +103,12 @@ describe("checkContext", () => {
 describe("checkContext declared operations", () => {
 	it("gives the operations that declare async work, effects or waits, and the soft-delete field", async () => {
 		const doc = tagged((paths) => {
-			const del = paths["/notes/{note_id}"]?.delete as Json
+			const del = paths["/notes/{note_id}"]?.["delete"] as Json
 			del["x-soft-delete"] = "deleted_at"
 			del["x-effects"] = [{ entity: "note", op: "delete" }]
-			const patch = paths["/notes/{note_id}"]?.patch as Json
+			const patch = paths["/notes/{note_id}"]?.["patch"] as Json
 			patch["x-wait"] = { operationId: "notes.get", until: "title.eq.x" }
-			const post = paths["/notes"]?.post as Json
+			const post = paths["/notes"]?.["post"] as Json
 			post["x-async"] = { idFrom: "$.id", poll: "notes.get", successWhen: "title.eq.x", until: "title.eq.x" }
 		})
 		const { checks } = await contextFor(doc, fresh)

@@ -79,7 +79,7 @@ describe("spec.declared-filterable-ops-accepted verdicts over many probes", () =
 		const ops = ["eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "in"] as const
 		const respond = refusing(400, "name.")
 		const { ctx, findings } = stage(
-			(m, p, o) => (String(o.query?.filter).startsWith("tags") ? { status: 500 } : respond(m, p, o)),
+			(m, p, o) => (String(o.query?.["filter"]).startsWith("tags") ? { status: 500 } : respond(m, p, o)),
 			{
 				capabilities: caps([
 					{ field: "name", ops: [...ops] },

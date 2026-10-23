@@ -57,8 +57,8 @@ export function issueSession(state: ReferenceState, principal: Principal, family
 /* The claims, when every one the server issues is there with its type. */
 function asClaims(raw: Record<string, unknown>): Claims | undefined {
 	const strings = ["sub", "project_id", "typ", "fam", "jti"].every((name) => typeof raw[name] === "string")
-	const numbers = typeof raw.exp === "number" && typeof raw.iat === "number"
-	return strings && numbers && ROLES.includes(raw.role as Claims["role"]) ? (raw as unknown as Claims) : undefined
+	const numbers = typeof raw["exp"] === "number" && typeof raw["iat"] === "number"
+	return strings && numbers && ROLES.includes(raw["role"] as Claims["role"]) ? (raw as unknown as Claims) : undefined
 }
 
 /* A token's claims, once it holds: signed (unless TOKEN_NOT_VERIFIED), of `typ`, unexpired and unrevoked. */
@@ -102,8 +102,9 @@ export function revokeJwt(state: ReferenceState, caller: Principal, token: strin
 	if (decoded === null || !decoded.signed) {
 		throw new HttpError(400, "invalid_input", "the token is not one this server issued")
 	}
-	if (decoded.claims.sub !== caller.key) throw new HttpError(403, "forbidden", "the token belongs to another principal")
-	state.auth.revoked.add(String(decoded.claims.jti))
+	if (decoded.claims["sub"] !== caller.key)
+		throw new HttpError(403, "forbidden", "the token belongs to another principal")
+	state.auth.revoked.add(String(decoded.claims["jti"]))
 }
 
 /** Refuses every account's tokens from now on, whenever issued: the whole user base is signed out. */

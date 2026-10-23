@@ -27,8 +27,8 @@ export function keysDoc(): OpenApiDocument {
 		"/secure": { get: { operationId: "secure.get", responses: ok, security: [{ key: [] }] } },
 		"/granted": { get: { operationId: "granted.get", responses: ok, security: [{ oauth: [] }] } },
 	}) as unknown as { components: { securitySchemes: Record<string, unknown> } }
-	doc.components.securitySchemes.key = { in: "header", name: "x-api-key", type: "apiKey" }
-	doc.components.securitySchemes.oauth = {
+	doc.components.securitySchemes["key"] = { in: "header", name: "x-api-key", type: "apiKey" }
+	doc.components.securitySchemes["oauth"] = {
 		flows: { clientCredentials: { scopes: {}, tokenUrl: "http://api.test/token" } },
 		type: "oauth2",
 	}

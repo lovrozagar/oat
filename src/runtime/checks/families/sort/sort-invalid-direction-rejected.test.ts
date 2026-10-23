@@ -9,13 +9,13 @@ const declared = queryDoc({ sortGrammar: "dotted" })
 /* Reads a direction it does not know as ascending. */
 const guessing: Responder = (method, path, options) => {
 	const query = queryOf(options)
-	return backend()(method, path, { query: { ...query, order: query.order?.replace("oatsideways", "asc") } })
+	return backend()(method, path, { query: { ...query, order: query["order"]?.replace("oatsideways", "asc") } })
 }
 
 /* Accepts a direction it does not know, and serves the cohort in its own order. */
 const shrugging: Responder = (method, path, options) => {
 	const query = queryOf(options)
-	return query.order?.endsWith("oatsideways") === true
+	return query["order"]?.endsWith("oatsideways") === true
 		? { body: NOTES.toReversed(), status: 200 }
 		: backend()(method, path, options)
 }
@@ -28,7 +28,7 @@ describe("sort.invalid-direction-rejected judges", () => {
 	it("passes a backend that refuses a direction its grammar lacks", async () => {
 		const staged = stage(sortInvalidDirectionRejected, { doc: declared })
 		expect(await staged.run()).toEqual({ kind: "asserted" })
-		expect(staged.sent.map((sent) => sent.options.query?.order)).toEqual(["title.oatsideways"])
+		expect(staged.sent.map((sent) => sent.options.query?.["order"])).toEqual(["title.oatsideways"])
 	})
 
 	it("fails a backend that reads an unknown direction as ascending", async () => {
@@ -39,7 +39,7 @@ describe("sort.invalid-direction-rejected judges", () => {
 			"order=title.oatsideways returned 200 in ascending order, so the direction was read as ascending. " +
 				"A direction the declared grammar does not have must be refused, not guessed.",
 		)
-		expect(staged.sent.map((sent) => sent.options.query?.order)).toEqual(["title.oatsideways", "title.asc"])
+		expect(staged.sent.map((sent) => sent.options.query?.["order"])).toEqual(["title.oatsideways", "title.asc"])
 	})
 
 	it("fails a backend that accepts an unknown direction in some other order", async () => {

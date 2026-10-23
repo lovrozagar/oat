@@ -56,7 +56,7 @@ describe("assertRangeUnion", () => {
 	})
 
 	it("reports a closed range that leaves out the threshold", async () => {
-		const { probe, staged } = probeFor({ behavior: { ops: { gte: OPS.gt } }, doc: DOC, records: COHORT })
+		const { probe, staged } = probeFor({ behavior: { ops: { gte: OPS["gt"] } }, doc: DOC, records: COHORT })
 		expect(await assertRangeUnion(staged.ctx, CHECK, probe)).toMatchObject({ kind: "finding" })
 		const finding = only(staged.findings)
 		expect(finding.summary).toBe("gte is not gt ∪ eq")
@@ -75,7 +75,7 @@ describe("assertRangeUnion", () => {
 			reason: "the collection is larger than the walk covers",
 		})
 		const store = growing(COHORT, 3, { amount: 3, id: "w-7" })
-		const moving = probeFor({ behavior: { ops: { gte: OPS.gt } }, doc: DOC, records: COHORT, store })
+		const moving = probeFor({ behavior: { ops: { gte: OPS["gt"] } }, doc: DOC, records: COHORT, store })
 		expect(await assertRangeUnion(moving.staged.ctx, CHECK, moving.probe)).toMatchObject({
 			reason: expect.stringContaining("gained or lost rows"),
 		})

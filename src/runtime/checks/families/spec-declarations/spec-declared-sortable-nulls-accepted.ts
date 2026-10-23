@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { sortTermWithNulls } from "../../../../spec/conventions/sort.ts"
 import { fieldAllowsNulls } from "../../../../spec/query/field-ops.ts"
@@ -9,7 +10,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, q, resolvedCaps } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const declaredSortableNullsAccepted = defineCheck({
+export const declaredSortableNullsAccepted: Check = defineCheck({
 	plan: (ctx) =>
 		when(
 			conv(ctx).order !== undefined &&

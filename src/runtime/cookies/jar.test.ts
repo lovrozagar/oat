@@ -16,7 +16,7 @@ describe("CookieJar", () => {
 		expect(jar.cookieHeader(new URL("https://other.example.com/"))).toBeUndefined()
 		expect(jar.snapshot()).toEqual({ refresh: "r1", session: "abc" })
 		jar.absorb(new URL("https://app.example.com/"), ["session=new"])
-		expect(jar.snapshot().session).toBe("new")
+		expect(jar.snapshot()["session"]).toBe("new")
 	})
 
 	it("forgets a cookie the server deletes", () => {
@@ -79,16 +79,16 @@ describe("applyJarToHeaders", () => {
 		jar.absorb(new URL("https://app.example.com/"), ["session=new"])
 		const headers: Record<string, string> = { authorization: "Bearer x", cookie: "pre=1" }
 		applyJarToHeaders(headers, { callerCookie: "pre=1", jar, url: new URL("https://app.example.com/") })
-		expect(headers.cookie).toBe("pre=1; session=new")
+		expect(headers["cookie"]).toBe("pre=1; session=new")
 		/* Rebuilt per hop, never appended to: a second hop does not repeat the first. */
 		applyJarToHeaders(headers, { callerCookie: "pre=1", jar, url: new URL("https://app.example.com/") })
-		expect(headers.cookie).toBe("pre=1; session=new")
+		expect(headers["cookie"]).toBe("pre=1; session=new")
 		const empty: Record<string, string> = {}
 		applyJarToHeaders(empty, { jar, url: new URL("https://other.example.com/") })
-		expect(empty.cookie).toBeUndefined()
+		expect(empty["cookie"]).toBeUndefined()
 		applyJarToHeaders(empty, { callerCookie: "", jar, url: new URL("https://other.example.com/") })
-		expect(empty.cookie).toBeUndefined()
+		expect(empty["cookie"]).toBeUndefined()
 		applyJarToHeaders(empty, { jar, url: new URL("https://app.example.com/") })
-		expect(empty.cookie).toBe("session=new")
+		expect(empty["cookie"]).toBe("session=new")
 	})
 })

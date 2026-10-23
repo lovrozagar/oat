@@ -78,7 +78,7 @@ function namesStem(key: string, stem: string): boolean {
 function firstRowId(rows: readonly unknown[]): string | undefined {
 	for (const item of rows) {
 		if (item === null || typeof item !== "object" || Array.isArray(item)) continue
-		const id = scalarId((item as Record<string, unknown>).id)
+		const id = scalarId((item as Record<string, unknown>)["id"])
 		if (id !== undefined) return id
 	}
 	return undefined

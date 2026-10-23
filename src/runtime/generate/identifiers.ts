@@ -59,5 +59,5 @@ export function filterSentinel(schema: unknown, nonce: string): Generated {
 		{ properties: { value: s }, required: ["value"], type: "object" },
 		{ distinct: new Set(["value"]), index: 4242, nonce, variant: "lexical-last" },
 	)
-	return wrapped.ok ? { ok: true, value: (wrapped.value as Record<string, unknown>).value } : wrapped
+	return wrapped.ok ? { ok: true, value: (wrapped.value as Record<string, unknown>)["value"] } : wrapped
 }

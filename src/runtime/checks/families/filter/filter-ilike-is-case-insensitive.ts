@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import type { EffectiveFilterField } from "../../../../spec/query/effective.ts"
@@ -10,7 +11,13 @@ import { listAll } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 import { fieldsAllowing } from "./fields.ts"
 
-export const filterIlikeIsCaseInsensitive = defineCheck<{
+export const filterIlikeIsCaseInsensitive: Check<{
+	field: EffectiveFilterField
+	sample: string
+	flipped: string
+	likeTerm: Record<string, string>
+	ilikeTerm: Record<string, string>
+}> = defineCheck<{
 	field: EffectiveFilterField
 	sample: string
 	flipped: string

@@ -96,7 +96,7 @@ async function answered(task: ConformanceTask, via: Via): Promise<Unmeasured> {
 export async function runTask(task: ConformanceTask, sequence: number, via: Via): Promise<ConformanceAnswer> {
 	const counted = counting(via)
 	const answer = await answered(task, counted.via)
-	const dir = process.env.OAT_HEAP_SNAPSHOTS
+	const dir = process.env["OAT_HEAP_SNAPSHOTS"]
 	if (dir !== undefined && dir !== "")
 		writeHeapSnapshot(join(dir, `${process.pid}-${String(sequence).padStart(4, "0")}-${task.kind}.heapsnapshot`))
 	const { heapUsed, rss } = process.memoryUsage()

@@ -36,7 +36,7 @@ describe("filter.and-composes-as-intersection", () => {
 			doc: DOC,
 			records: COHORT,
 			respond: (method, path, options) =>
-				options.query?.filter === AND ? { body: { widgets: [] }, status: 200 } : correct(method, path, options),
+				options.query?.["filter"] === AND ? { body: { widgets: [] }, status: 200 } : correct(method, path, options),
 		})
 		await runCheck(check, ctx)
 		expect(only(findings).detail).toContain(

@@ -12,7 +12,8 @@ import type { PrincipalEntry, Recipe } from "../config/types/security.ts"
 import type { Scenario } from "../config/types/steps.ts"
 import { UsageError } from "../errors/usage-error.ts"
 import { PATH_ITEM_METHODS as METHODS } from "./methods.ts"
-import type { OpenApiDocument } from "./types.ts"
+import type { OpenApiDocument, OperationObject } from "./types.ts"
+import { isRaw } from "../config/types/raw.ts"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value)
@@ -30,7 +31,7 @@ export function pruneToAllow(
 		if (!isRecord(item)) continue
 		for (const method of METHODS) {
 			const op = item[method]
-			if (!isRecord(op)) continue
+			if (!isRaw<OperationObject>(op)) continue
 			const id = typeof op.operationId === "string" ? op.operationId : `${method.toUpperCase()} ${route}`
 			seen.add(id)
 			if (kept.has(id)) continue

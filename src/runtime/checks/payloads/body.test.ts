@@ -91,7 +91,7 @@ describe("pickWritableStringField", () => {
 	it("passes over a property only the highest rank may set: an ordinary writer never changes it", () => {
 		const doc = structuredClone(notesDoc())
 		const paths = doc.paths as Record<string, Record<string, { requestBody: unknown }>>
-		const update = paths["/notes/{noteId}"]?.patch as { requestBody: unknown }
+		const update = paths["/notes/{noteId}"]?.["patch"] as { requestBody: unknown }
 		const properties = { name: { type: "string" }, plan: { type: "string", "x-privileged": true } }
 		update.requestBody = { content: { "application/json": { schema: { properties, type: "object" } } } }
 		const { ctx } = notesContext(undefined, {}, modelOf(doc))
@@ -102,7 +102,7 @@ describe("pickWritableStringField", () => {
 	it("withholds nothing from a request schema that names no properties, or an operation with none", () => {
 		const doc = structuredClone(notesDoc())
 		const paths = doc.paths as Record<string, Record<string, { requestBody: unknown }>>
-		const update = paths["/notes/{noteId}"]?.patch as { requestBody: unknown }
+		const update = paths["/notes/{noteId}"]?.["patch"] as { requestBody: unknown }
 		update.requestBody = { content: { "application/json": { schema: { type: "object" } } } }
 		const { ctx } = notesContext(undefined, {}, modelOf(doc))
 		expect(withheldProperties(ctx, ctx.updateOp)).toEqual(new Set())
@@ -151,8 +151,8 @@ describe("validBody", () => {
 		const { ctx } = notesContext()
 		const first = validBody(ctx, schema(ctx))
 		const second = validBody(ctx, schema(ctx))
-		expect(typeof first.name).toBe("string")
-		expect(first.name).not.toBe(second.name)
+		expect(typeof first["name"]).toBe("string")
+		expect(first["name"]).not.toBe(second["name"])
 	})
 
 	it("makes each unique set distinct, and reserves a client-chosen identity", () => {
@@ -160,8 +160,8 @@ describe("validBody", () => {
 		const { ctx } = notesContext(undefined, { takenIdentities: taken, uniqueSets: [["name"]] })
 		const withId = { properties: { id: { type: "string" }, name: { type: "string" } }, required: ["id", "name"] }
 		const body = validBody(ctx, withId)
-		expect(taken).toEqual(new Set([body.id]))
-		expect(validBody(ctx, withId).name).not.toBe(body.name)
+		expect(taken).toEqual(new Set([body["id"]]))
+		expect(validBody(ctx, withId)["name"]).not.toBe(body["name"])
 	})
 
 	it("builds without a create operation or unique sets", () => {

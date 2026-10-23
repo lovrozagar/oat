@@ -20,14 +20,14 @@ function description(dialect: Dialect, name: string): string | undefined {
 }
 
 function rowIdSchemas(shape: ReferenceShape): unknown[] {
-	return pathParams({ entities: shapedEntities(shape), shape }, ROW, true).map((param) => param.schema)
+	return pathParams({ entities: shapedEntities(shape), shape }, ROW, true).map((param) => param["schema"])
 }
 
 describe("pathParams", () => {
 	it("names the parents, marks the project as the root, and adds the item when asked", () => {
 		const ctx = { entities: ENTITIES, shape: {} }
-		expect(pathParams(ctx, ROW, false).map((param) => param.name)).toEqual(["project_id", "table_id"])
-		expect(pathParams(ctx, ROW, true).map((param) => param.name)).toEqual(["project_id", "table_id", "row_id"])
+		expect(pathParams(ctx, ROW, false).map((param) => param["name"])).toEqual(["project_id", "table_id"])
+		expect(pathParams(ctx, ROW, true).map((param) => param["name"])).toEqual(["project_id", "table_id", "row_id"])
 		expect(pathParams(ctx, ROW, true).map((param) => param["x-root"])).toEqual([true, undefined, undefined])
 	})
 

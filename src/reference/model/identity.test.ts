@@ -10,7 +10,7 @@ describe("renameIdentity", () => {
 		expect(renamed.fields.map((field) => field.name)).toContain("ID")
 		expect(renamed.fields.map((field) => field.name)).not.toContain("id")
 		expect(Object.keys(renamed.filterCatalog?.opsByField ?? {})).toContain("ID")
-		expect(renamed.filterCatalog?.opsByField?.ID).toBe(TABLE.filterCatalog?.opsByField?.id)
+		expect(renamed.filterCatalog?.opsByField?.["ID"]).toBe(TABLE.filterCatalog?.opsByField?.["id"])
 		expect(renamed.filterCatalog?.aliases).toEqual({ ne: "neq" })
 		expect(renamed.unique).toEqual([["name"], ["ID", "name"]])
 	})

@@ -76,7 +76,7 @@ describe("trackCreates", () => {
 		trackCreates(ctx)
 		await ctx.client.request("POST", "/notes", { ...AS_ALPHA, body: { title: "x" } })
 		expect(ctx.ledger.size).toBe(1)
-		expect(taken).toEqual(new Set([String(rows[0]?.id)]))
+		expect(taken).toEqual(new Set([String(rows[0]?.["id"])]))
 	})
 
 	it("ledgers a create of an entity no seeding has started", async () => {
@@ -289,7 +289,7 @@ describe("teardownPrincipals", () => {
 			hooks: { teardownPrincipal: async (address, held) => void removed.push([address, held]) },
 		})
 		await teardownPrincipals(ctx)
-		const email = String(ctx.principals.byId.get("fresh")?.identity.email)
+		const email = String(ctx.principals.byId.get("fresh")?.identity["email"])
 		expect(removed).toEqual([
 			[
 				email,
@@ -420,7 +420,7 @@ describe("revokeSessions", () => {
 		const ctx = await contextOf(options)
 		await revokeSessions(ctx)
 		const revoke = options.seen.filter((request) => request.path === "/notes")
-		expect(revoke.map((request) => request.headers.authorization)).toEqual(["Bearer token-1"])
+		expect(revoke.map((request) => request.headers["authorization"])).toEqual(["Bearer token-1"])
 		expect(ctx.client.transcript.at(-1)).toMatchObject({ issuedBy: "credentials", operationId: "notes.list" })
 		expect(ctx.state.teardown).toBeNull()
 	})
@@ -464,6 +464,6 @@ describe("revokeSessions", () => {
 		await ctx.store.acquire({ principal: "fresh", scheme: "bearer" })
 		await revokeSessions(ctx)
 		const revoke = options.seen.filter((request) => request.method === "GET" && request.path === "/notes")
-		expect(revoke.map((request) => request.headers.authorization)).toEqual(["Bearer login-alpha@x.test"])
+		expect(revoke.map((request) => request.headers["authorization"])).toEqual(["Bearer login-alpha@x.test"])
 	})
 })

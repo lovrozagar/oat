@@ -60,7 +60,7 @@ async function readsUpdatesAndRefuses() {
 	expect(update?.status).toBe("passed")
 	expect(read?.checks.passed).toContain("auth.self-is-the-caller")
 	const anonymous = result.client.transcript.find((exchange) => exchange.status === 401)
-	expect(anonymous?.requestHeaders.authorization).toBeUndefined()
+	expect(anonymous?.requestHeaders["authorization"]).toBeUndefined()
 	const patched = result.client.transcript.find((exchange) => exchange.method === "PATCH")
 	expect(patched?.requestBody).toEqual({ first_name: "Oat" })
 }

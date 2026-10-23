@@ -1,8 +1,24 @@
 import type { DefectName } from "../../reference/defects/table.ts"
 import type { FindingId } from "../../runtime/check-ids.ts"
 
+/** The defects with a row in the pagination family; a name that is not a defect falls out and fails its row. */
+type PaginationDefect = Extract<
+	DefectName,
+	| "COUNT_IGNORES_FILTER"
+	| "CURSOR_DRIFT"
+	| "OFF_BY_ONE_PAGE"
+	| "UNSTABLE_SORT"
+	| "LIMIT_IGNORED"
+	| "LIMIT_EXCEEDS_MAX"
+	| "LIMIT_OUT_OF_RANGE_SERVED"
+	| "HASMORE_ALWAYS_FALSE"
+	| "COUNT_ALWAYS_ZERO"
+	| "COLLATION_INCONSISTENT"
+	| "PAGE_PAST_END_REPEATS"
+>
+
 /** The defects whose primary check is in the pagination family, and the check each must trip. */
-export const PAGINATION_EXPECTED = {
+export const PAGINATION_EXPECTED: Record<PaginationDefect, FindingId | FindingId[]> = {
 	COUNT_IGNORES_FILTER: "count.matches-filtered-set",
 	CURSOR_DRIFT: "pagination.cursor-agrees-with-page",
 	OFF_BY_ONE_PAGE: "pagination.page-walk-covers-set",
@@ -22,4 +38,4 @@ export const PAGINATION_EXPECTED = {
 	COLLATION_INCONSISTENT: "pagination.cursor-agrees-with-page",
 	/* A walk whose last page is full asks once more, and sees the repeat. */
 	PAGE_PAST_END_REPEATS: ["pagination.bounds-handled", "pagination.page-walk-covers-set"],
-} satisfies Partial<Record<DefectName, FindingId | FindingId[]>>
+}

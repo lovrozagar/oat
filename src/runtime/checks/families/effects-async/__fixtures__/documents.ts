@@ -88,7 +88,8 @@ export function withOperation(
 	const paths = doc.paths as Record<string, Record<string, unknown>>
 	const params = [...path.matchAll(/\{([^}]+)\}/g)].map((m) => idParam(m[1] ?? ""))
 	paths[path] = { ...paths[path], [method]: { responses: ok({ type: "object" }), ...operation } }
-	if (params.length > 0 && paths[path]?.parameters === undefined) paths[path] = { ...paths[path], parameters: params }
+	if (params.length > 0 && paths[path]?.["parameters"] === undefined)
+		paths[path] = { ...paths[path], parameters: params }
 	return doc
 }
 

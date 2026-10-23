@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { EffectSpec } from "../../../../spec/extensions/effects.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
@@ -20,7 +21,7 @@ import { type ActionRun, judgeEffects, missingParams, type Reporter, reportGap }
 import { currentRecords, listOpFor, type Observation, observe } from "./observe.ts"
 import { bodyForOp, forOperation } from "./requests.ts"
 
-export const declaredEffectsOccur = defineCheck({
+export const declaredEffectsOccur: Check = defineCheck({
 	plan: (ctx) => when(ctx.effectOps.length > 0),
 	/* An effect is counted by reading whole sets before and after, across pages. */
 	dependsOn: ["list.read-after-write", "pagination.page-walk-covers-set"],

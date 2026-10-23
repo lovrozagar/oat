@@ -1,8 +1,31 @@
 import type { DefectName } from "../../reference/defects/table.ts"
 import type { FindingId } from "../../runtime/check-ids.ts"
 
+/** The defects with a row in the other family; a name that is not a defect falls out and fails its row. */
+type OtherDefect = Extract<
+	DefectName,
+	| "SPEC_OVERCLAIMS_FILTERABLE"
+	| "SPEC_OVERCLAIMS_SORTABLE"
+	| "SPEC_OVERCLAIMS_SELECTABLE"
+	| "SELECT_IGNORED"
+	| "SEARCH_IGNORED"
+	| "EFFECT_NOT_APPLIED"
+	| "SELECT_FIELD_MISSING"
+	| "ASYNC_NEVER_COMPLETES"
+	| "ASYNC_RECEIPT_MISSING_ID"
+	| "SEARCH_CASE_SENSITIVE"
+	| "SEARCH_EMPTY_MATCHES_NONE"
+	| "SEARCH_ONLY_FIRST_TOKEN"
+	| "SELECT_UNKNOWN_IGNORED"
+	| "SPEC_OVERCLAIMS_FILTER_OP"
+	| "SEARCH_MODE_REJECTED"
+	| "NESTED_SELECT_IGNORED"
+	| "SIDE_EFFECT_NEVER_ARRIVES"
+	| "RATE_LIMIT_STRICTER_THAN_DECLARED"
+>
+
 /** The defects whose primary check is in the other family, and the check each must trip. */
-export const OTHER_EXPECTED = {
+export const OTHER_EXPECTED: Record<OtherDefect, FindingId | FindingId[]> = {
 	SPEC_OVERCLAIMS_FILTERABLE: "spec.declared-filterable-is-filterable",
 	SPEC_OVERCLAIMS_SORTABLE: ["spec.declared-sortable-is-sortable", "spec.declared-sortable-nulls-accepted"],
 	SPEC_OVERCLAIMS_SELECTABLE: "spec.declared-selectable-is-selectable",
@@ -25,4 +48,4 @@ export const OTHER_EXPECTED = {
 	NESTED_SELECT_IGNORED: "select.nested-honoured",
 	SIDE_EFFECT_NEVER_ARRIVES: "effects.side-effect-arrives",
 	RATE_LIMIT_STRICTER_THAN_DECLARED: "spec.declared-rate-limit-is-honoured",
-} satisfies Partial<Record<DefectName, FindingId | FindingId[]>>
+}

@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { fillPath } from "../../../fill-path.ts"
@@ -21,7 +22,11 @@ import { pageSize, q } from "../../query/capabilities.ts"
 import { type Listing, listAll } from "../../sets/compare.ts"
 import { liveRecord } from "./records.ts"
 
-export const uniqueConflictUpdate = defineCheck<{
+export const uniqueConflictUpdate: Check<{
+	first: Record_
+	sets: string[][]
+	updateOp: OperationModel
+}> = defineCheck<{
 	first: Record_
 	sets: string[][]
 	updateOp: OperationModel

@@ -106,6 +106,6 @@ describe("driveWait, with until or a hook", () => {
 		expect(source.asked).toEqual([
 			{ actor: { principal: "alpha" }, operationId: "inbox.list", probe: false, route: "GET /inbox/u1" },
 		])
-		expect(sent[0]?.headers.authorization).toBe("Bearer t")
+		expect(sent[0]?.headers["authorization"]).toBe("Bearer t")
 	})
 })

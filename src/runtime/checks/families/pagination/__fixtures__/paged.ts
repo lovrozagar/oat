@@ -102,16 +102,16 @@ export function page(
 	rows: Record_[],
 	query: Record<string, unknown>,
 ): { items: Record_[]; total: number; hasMore: boolean; nextCursor: string | null } {
-	const field = sortField(query.sort)
+	const field = sortField(query["sort"])
 	const ordered = field === undefined ? rows : rows.toSorted((a, b) => String(a[field]).localeCompare(String(b[field])))
-	const size = typeof query.limit === "number" ? query.limit : 100
+	const size = typeof query["limit"] === "number" ? query["limit"] : 100
 	const start =
-		typeof query.cursor === "string"
-			? Number(query.cursor)
-			: typeof query.page === "number"
-				? (query.page - 1) * size
-				: typeof query.offset === "number"
-					? query.offset
+		typeof query["cursor"] === "string"
+			? Number(query["cursor"])
+			: typeof query["page"] === "number"
+				? (query["page"] - 1) * size
+				: typeof query["offset"] === "number"
+					? query["offset"]
 					: 0
 	const items = ordered.slice(start, start + size)
 	const end = start + items.length

@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { fillPath } from "../../../fill-path.ts"
@@ -9,7 +10,7 @@ import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
 import { ids } from "../../sets/list.ts"
 import { readSet } from "../../sets/read.ts"
 
-export const softDeleteHidden = defineCheck<{ deleteOp: OperationModel }>({
+export const softDeleteHidden: Check<{ deleteOp: OperationModel }> = defineCheck<{ deleteOp: OperationModel }>({
 	plan: (ctx) => {
 		if (ctx.deleteOp === undefined || ctx.softDelete === null || ctx.createOp === undefined) return cannot()
 		return ready({ deleteOp: ctx.deleteOp })

@@ -5,8 +5,8 @@ import { ALPHA, api, BETA, JOBS, MEMBER, rowsOf, TABLES, VIEWER } from "../__fix
 async function withTable(options = {}) {
 	const world = await api(options)
 	const made = await world.table("t")
-	await world.call("PATCH", `${TABLES}/${String(made.id)}`, { body: { description: "d", position: 2 } })
-	return { ...world, item: `${TABLES}/${String(made.id)}`, made }
+	await world.call("PATCH", `${TABLES}/${String(made["id"])}`, { body: { description: "d", position: 2 } })
+	return { ...world, item: `${TABLES}/${String(made["id"])}`, made }
 }
 
 describe("reading a record", () => {
@@ -29,7 +29,7 @@ describe("reading a record", () => {
 		const { call, item } = await withTable({ defects: ["READ_DROPS_FIELD"] })
 		expect((await call("GET", item)).body).not.toHaveProperty("description")
 		const job = (await call("POST", JOBS, { body: { name: "j", note: "n" } })).body
-		expect((await call("GET", `${JOBS}/${String(job.id)}`)).body).toMatchObject({ note: "n" })
+		expect((await call("GET", `${JOBS}/${String(job["id"])}`)).body).toMatchObject({ note: "n" })
 	})
 
 	it("wraps the record beside its fields under recordEnvelope", async () => {
@@ -73,7 +73,7 @@ describe("updating a record", () => {
 		const { call, item, made } = await withTable({ defects: ["PATCH_REPLACES"] })
 		expect((await call("PATCH", item, { body: { name: "r" } })).body).toMatchObject({
 			description: null,
-			id: made.id,
+			id: made["id"],
 			name: "r",
 			position: 0,
 			project_id: "proj_alpha",
@@ -89,7 +89,7 @@ describe("updating a record", () => {
 	it("writes another tenant's record under CROSS_TENANT_WRITE", async () => {
 		const { call, table } = await api({ defects: ["CROSS_TENANT_WRITE"] })
 		const theirs = await table("theirs", BETA)
-		const path = `${TABLES}/${String(theirs.id)}`
+		const path = `${TABLES}/${String(theirs["id"])}`
 		expect((await call("PATCH", path, { body: { name: "mine" } })).body).toMatchObject({ name: "mine" })
 	})
 })
@@ -99,12 +99,12 @@ describe("an update under WRITE_BODY_NOT_VALIDATED", () => {
 		const { call, item, made } = await withTable({ defects: ["WRITE_BODY_NOT_VALIDATED"] })
 		const table = await call("PATCH", item, { body: { description: "kept", name: 7 } })
 		expect(table).toMatchObject({ body: { description: "kept", name: "t" }, status: 200 })
-		const rows = rowsOf(made.id)
+		const rows = rowsOf(made["id"])
 		const row = (await call("POST", rows, { body: { amount: 3, label: "r" } })).body
-		const patched = await call("PATCH", `${rows}/${String(row.id)}`, { body: { amount: "many", label: "s" } })
+		const patched = await call("PATCH", `${rows}/${String(row["id"])}`, { body: { amount: "many", label: "s" } })
 		expect(patched).toMatchObject({ body: { amount: 3, label: "s" }, status: 200 })
 		const job = (await call("POST", JOBS, { body: { name: "j" } })).body
-		expect((await call("PATCH", `${JOBS}/${String(job.id)}`, { body: { name: 7 } })).status).toBe(400)
+		expect((await call("PATCH", `${JOBS}/${String(job["id"])}`, { body: { name: 7 } })).status).toBe(400)
 	})
 
 	it("still refuses a field no writer may send, and validates nothing it was not asked to skip", async () => {
@@ -143,23 +143,23 @@ describe("an update without a lock", () => {
 describe("a version precondition on an update", () => {
 	it("tags a read with a strong ETag that holds still between writes and moves on each one", async () => {
 		const { call, item } = await withTable()
-		const first = (await call("GET", item)).headers.etag
+		const first = (await call("GET", item)).headers["etag"]
 		expect(first).toMatch(/^"[\w-]+"$/)
-		expect((await call("GET", item)).headers.etag).toBe(first)
+		expect((await call("GET", item)).headers["etag"]).toBe(first)
 		await call("PATCH", item, { body: { description: "d" } })
-		expect((await call("GET", item)).headers.etag).not.toBe(first)
+		expect((await call("GET", item)).headers["etag"]).not.toBe(first)
 	})
 
 	it("applies an update naming the current ETag or *, and refuses a stale one with a 412 problem detail", async () => {
 		const { call, item } = await withTable()
-		const stale = (await call("GET", item)).headers.etag ?? ""
+		const stale = (await call("GET", item)).headers["etag"] ?? ""
 		expect((await call("PATCH", item, { body: { name: "a" }, headers: { "if-match": stale } })).status).toBe(200)
 		const refused = await call("PATCH", item, { body: { name: "b" }, headers: { "if-match": stale } })
 		expect(refused.status).toBe(412)
 		expect(refused.headers["content-type"]).toBe("application/problem+json")
 		expect(refused.body).toMatchObject({ status: 412, title: "Precondition Failed", type: "about:blank" })
 		expect((await call("GET", item)).body).toMatchObject({ name: "a" })
-		const current = (await call("GET", item)).headers.etag ?? ""
+		const current = (await call("GET", item)).headers["etag"] ?? ""
 		const listed = `"other", ${current}`
 		expect((await call("PATCH", item, { body: { name: "c" }, headers: { "if-match": listed } })).status).toBe(200)
 		expect((await call("PATCH", item, { body: { name: "d" }, headers: { "if-match": "*" } })).status).toBe(200)
@@ -168,7 +168,7 @@ describe("a version precondition on an update", () => {
 	it("leaves the 412 a problem detail under ERROR_SCHEMA_DRIFT", async () => {
 		const { call, item } = await withTable({ defects: ["ERROR_SCHEMA_DRIFT"] })
 		const refused = await call("PATCH", item, { body: { name: "b" }, headers: { "if-match": '"stale"' } })
-		expect([refused.status, refused.body.status]).toEqual([412, 412])
+		expect([refused.status, refused.body["status"]]).toEqual([412, 412])
 	})
 
 	it("applies a stale update under ETAG_IGNORED, and misstates the 412 under PROBLEM_JSON_MALFORMED", async () => {
@@ -177,7 +177,7 @@ describe("a version precondition on an update", () => {
 		expect((await ignored.call("PATCH", ignored.item, sent)).status).toBe(200)
 		const malformed = await withTable({ defects: ["PROBLEM_JSON_MALFORMED"] })
 		const refused = await malformed.call("PATCH", malformed.item, sent)
-		expect([refused.status, refused.body.status]).toEqual([412, 400])
+		expect([refused.status, refused.body["status"]]).toEqual([412, 400])
 	})
 })
 
@@ -188,8 +188,8 @@ describe("the slug of a table", () => {
 		const updated = await call("PATCH", `${TABLES}/first-name`, { body: { name: "Second" } })
 		expect(updated.body).toMatchObject({ name: "Second", slug: "first-name" })
 		const row = await call("POST", rowsOf("first-name"), { body: { label: "r" } })
-		expect(row.body.table_id).toBe(made.id)
-		expect((await call("PATCH", `${rowsOf("first-name")}/${String(row.body.id)}`, { body: {} })).status).toBe(200)
+		expect(row.body["table_id"]).toBe(made["id"])
+		expect((await call("PATCH", `${rowsOf("first-name")}/${String(row.body["id"])}`, { body: {} })).status).toBe(200)
 	})
 })
 
@@ -197,10 +197,10 @@ describe("the slug of a table", () => {
 async function updatedOrder(between: boolean): Promise<unknown[]> {
 	const { call, table } = await api()
 	const [first, second] = [await table("first"), await table("second")]
-	await call("PATCH", `${TABLES}/${String(second.id)}`, { body: { description: "x" } })
+	await call("PATCH", `${TABLES}/${String(second["id"])}`, { body: { description: "x" } })
 	if (between) await call("POST", JOBS, { body: { name: "j" } })
-	await call("PATCH", `${TABLES}/${String(first.id)}`, { body: { description: "y" } })
-	const listed = (await call("GET", `${TABLES}?order=updated_at.asc&limit=100`)).body.tables as Array<{
+	await call("PATCH", `${TABLES}/${String(first["id"])}`, { body: { description: "y" } })
+	const listed = (await call("GET", `${TABLES}?order=updated_at.asc&limit=100`)).body["tables"] as Array<{
 		name: string
 	}>
 	return listed.map((record) => record.name).filter((name) => name === "first" || name === "second")
@@ -216,23 +216,23 @@ describe("ordering by when a record was written", () => {
 describe("deleting a record", () => {
 	it("soft-deletes a table: it reads as gone and stays stored", async () => {
 		const { call, item, state, made } = await withTable()
-		const written = (await call("GET", item)).body.updated_at
+		const written = (await call("GET", item)).body["updated_at"]
 		const { status, body } = await call("DELETE", item)
 		expect(status).toBe(200)
 		/* A delete is a write of its own: stamped after the last one. */
-		expect(body.deleted_at).toBeGreaterThan(Number(written))
-		expect(body.updated_at).toBe(body.deleted_at)
+		expect(body["deleted_at"]).toBeGreaterThan(Number(written))
+		expect(body["updated_at"]).toBe(body["deleted_at"])
 		expect((await call("GET", item)).status).toBe(404)
-		expect(await state.store.byId(state.table, String(made.id))).not.toBeNull()
+		expect(await state.store.byId(state.table, String(made["id"]))).not.toBeNull()
 	})
 
 	it("removes a row outright and refreshes its table's count", async () => {
 		const { call, item } = await withTable()
 		const rows = `${item}/rows`
 		const row = (await call("POST", rows, { body: { label: "r" } })).body
-		expect((await call("DELETE", `${rows}/${String(row.id)}`)).body).toMatchObject({ label: "r" })
-		expect((await call("GET", `${rows}/${String(row.id)}`)).status).toBe(404)
-		expect((await call("GET", item)).body.row_count).toBe(0)
+		expect((await call("DELETE", `${rows}/${String(row["id"])}`)).body).toMatchObject({ label: "r" })
+		expect((await call("GET", `${rows}/${String(row["id"])}`)).status).toBe(404)
+		expect((await call("GET", item)).body["row_count"]).toBe(0)
 	})
 
 	it("refuses a member, a viewer, a missing record and another tenant's", async () => {
@@ -240,8 +240,8 @@ describe("deleting a record", () => {
 		const theirs = await table("theirs", BETA)
 		expect((await call("DELETE", item, { token: MEMBER })).status).toBe(403)
 		expect((await call("DELETE", item, { token: VIEWER })).status).toBe(403)
-		expect((await call("DELETE", `${TABLES}/missing`)).body.message).toBe("table missing does not exist")
-		expect((await call("DELETE", `${TABLES}/${String(theirs.id)}`)).status).toBe(404)
+		expect((await call("DELETE", `${TABLES}/missing`)).body["message"]).toBe("table missing does not exist")
+		expect((await call("DELETE", `${TABLES}/${String(theirs["id"])}`)).status).toBe(404)
 	})
 
 	it("answers 200 for a missing record under DELETE_MISSING_OK, and keeps the row under DELETE_KEEPS_ROW", async () => {
@@ -256,8 +256,8 @@ describe("deleting a record", () => {
 		const { call, item, state } = await withTable({ defects: ["HIDDEN_FROM_CREATOR"] })
 		const rows = `${item}/rows`
 		const probe = (await call("POST", rows, { body: { label: "oat-payload-probe" } })).body
-		expect((await call("DELETE", `${rows}/${String(probe.id)}`)).status).toBe(200)
-		expect(await state.store.byId(state.entities[1] as never, String(probe.id))).not.toBeNull()
+		expect((await call("DELETE", `${rows}/${String(probe["id"])}`)).status).toBe(200)
+		expect(await state.store.byId(state.entities[1] as never, String(probe["id"]))).not.toBeNull()
 	})
 
 	it("answers what it found when the tombstone lands on nothing, and wraps the answer under recordEnvelope", async () => {

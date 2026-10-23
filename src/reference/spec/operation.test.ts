@@ -18,7 +18,7 @@ describe("jsonResponse", () => {
 			content: { "application/json": { schema: { type: "object" } } },
 			description: "one",
 		})
-		expect(jsonResponse("one", {}, { Link: {} }).headers).toEqual({ Link: {} })
+		expect(jsonResponse("one", {}, { Link: {} })["headers"]).toEqual({ Link: {} })
 	})
 })
 

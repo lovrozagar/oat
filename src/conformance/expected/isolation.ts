@@ -1,8 +1,25 @@
 import type { DefectName } from "../../reference/defects/table.ts"
 import type { FindingId } from "../../runtime/check-ids.ts"
 
+/** The defects with a row in the isolation family; a name that is not a defect falls out and fails its row. */
+type IsolationDefect = Extract<
+	DefectName,
+	| "CROSS_TENANT_READ"
+	| "EXISTENCE_LEAK_VIA_STATUS"
+	| "TENANT_LEAK_VIA_FILTER"
+	| "CALLER_UPDATE_DROPPED"
+	| "DISPOSABLE_KILLS_CALLER"
+	| "ROOT_READ_OPEN"
+	| "ROLE_MONOTONICITY_BROKEN"
+	| "INVITE_NEVER_GRANTS"
+	| "REVOKE_IGNORED"
+	| "CROSS_TENANT_WRITE"
+	| "ROLE_WRITE_INVERTED"
+	| "FOREIGN_PARENT_ACCEPTED"
+>
+
 /** The defects whose primary check is in the isolation family, and the check each must trip. */
-export const ISOLATION_EXPECTED = {
+export const ISOLATION_EXPECTED: Record<IsolationDefect, FindingId | FindingId[]> = {
 	CROSS_TENANT_READ: "tenant.item-not-readable-cross-tenant",
 	EXISTENCE_LEAK_VIA_STATUS: "tenant.denial-does-not-reveal-existence",
 	TENANT_LEAK_VIA_FILTER: [
@@ -36,4 +53,4 @@ export const ISOLATION_EXPECTED = {
 		"auth.role-enforced",
 	],
 	FOREIGN_PARENT_ACCEPTED: "tenant.parent-not-reachable-from-another-root",
-} satisfies Partial<Record<DefectName, FindingId | FindingId[]>>
+}

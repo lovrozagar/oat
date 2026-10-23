@@ -9,7 +9,7 @@ import { join } from "node:path"
 import type { Exchange } from "../exchange.ts"
 
 /** Bytes of transcript bodies kept in memory before the oldest move to disk. */
-export const TRANSCRIPT_BODY_BUDGET = 32 * 1024 * 1024
+export const TRANSCRIPT_BODY_BUDGET: number = 32 * 1024 * 1024
 
 /** How much of the transcript's bodies stays in memory, and where the rest goes. */
 export interface SpoolOptions {

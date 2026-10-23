@@ -38,7 +38,7 @@ describe("filter.malformed-term-rejected: run", () => {
 			doc: DECLARED,
 			records: COHORT,
 			respond: (method, path, options) =>
-				options.query?.filter === "status.open"
+				options.query?.["filter"] === "status.open"
 					? { body: { widgets: [] }, status: 200 }
 					: correct(method, path, options),
 		})

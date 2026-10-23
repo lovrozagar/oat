@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
@@ -6,7 +7,7 @@ import { MOVING, pageSize, resolvedCaps } from "../../query/capabilities.ts"
 import { collectSet, settlePair } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 
-export const sortDefaultOrderApplied = defineCheck<{ defaultOrder: string }>({
+export const sortDefaultOrderApplied: Check<{ defaultOrder: string }> = defineCheck<{ defaultOrder: string }>({
 	plan: (ctx) => {
 		const defaultOrder = resolvedCaps(ctx).sort?.defaultOrder ?? ctx.query?.defaultOrder
 		return defaultOrder === undefined || ctx.records.length <= 1 ? cannot() : ready({ defaultOrder })

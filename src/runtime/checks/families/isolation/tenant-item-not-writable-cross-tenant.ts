@@ -1,3 +1,4 @@
+import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { Exchange } from "../../../exchange.ts"
@@ -19,7 +20,12 @@ import { tenantBoundary } from "./tenant.ts"
  * on a record made for it: the other tenant patches a field, then deletes the record, and the
  * owner reads it back. A refusal of either is right; a change or a deletion that took is the leak.
  */
-export const crossTenantItemWrite = defineCheck<{
+export const crossTenantItemWrite: Check<{
+	readOp: OperationModel
+	peer: Actor
+	updateOp: OperationModel | undefined
+	deleteOp: OperationModel | undefined
+}> = defineCheck<{
 	readOp: OperationModel
 	peer: Actor
 	updateOp: OperationModel | undefined
