@@ -1,6 +1,7 @@
 import { readFileSync, symlinkSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
+import type { Flags } from "../flags.ts"
 import { bufferWriter } from "../writer.ts"
 import { folder, json, savedRun } from "../__fixtures__/files.ts"
 import { commandBaseline } from "./baseline.ts"
@@ -48,7 +49,7 @@ describe("commandBaseline", () => {
 
 	it("refuses without a run, with an unreadable or listless report, and over an existing file", async () => {
 		const dir = folder()
-		const refusals: Array<[Record<string, string | true>, RegExp]> = [
+		const refusals: Array<[Flags, RegExp]> = [
 			[{}, /^oat: baseline needs --from/],
 			[{ from: join(dir, "missing") }, /^oat: cannot read .*oat-report\.json: /],
 			[{ from: savedRun(dir, "empty", { findings: "none" }) }, /holds no findings list/],

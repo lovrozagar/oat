@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 import { main } from "../../src/cli/main.ts"
-import { isKnownFlag, parseArgs, unknownFlag, USAGE } from "../../src/cli/flags.ts"
+import { isKnownFlag, parseArgs, USAGE } from "../../src/cli/flags.ts"
 import { PRINCIPALS, SECURITY } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import type { ReferenceServer } from "../../src/reference/http/server.ts"
@@ -18,8 +18,8 @@ describe("CLI flags", () => {
 	})
 
 	it("treats --concurrency as unknown (exit 2)", async () => {
-		const { flags } = parseArgs(["run", "--config", "oat.config.ts", "--concurrency", "1"])
-		expect(unknownFlag(flags)).toBe("concurrency")
+		const { error } = parseArgs(["run", "--config", "oat.config.ts", "--concurrency", "1"])
+		expect(error).toBe('unknown flag "--concurrency"')
 		expect(isKnownFlag("concurrency")).toBe(false)
 		const argv = process.argv
 		process.argv = ["node", "oat", "run", "--concurrency", "1"]
@@ -31,8 +31,8 @@ describe("CLI flags", () => {
 	})
 
 	it("still accepts --max-in-flight", () => {
-		const { flags } = parseArgs(["run", "--config", "oat.config.ts", "--max-in-flight", "8"])
-		expect(unknownFlag(flags)).toBeUndefined()
+		const { error, flags } = parseArgs(["run", "--config", "oat.config.ts", "--max-in-flight", "8"])
+		expect(error).toBeUndefined()
 		expect(flags["max-in-flight"]).toBe("8")
 	})
 
@@ -40,10 +40,10 @@ describe("CLI flags", () => {
 		expect(USAGE).toContain("--save-exchanges")
 		expect(USAGE).toContain("--no-save-exchanges")
 		const on = parseArgs(["run", "--config", "oat.config.ts", "--save-exchanges"])
-		expect(unknownFlag(on.flags)).toBeUndefined()
+		expect(on.error).toBeUndefined()
 		expect(on.flags["save-exchanges"]).toBe(true)
 		const off = parseArgs(["run", "--config", "oat.config.ts", "--no-save-exchanges"])
-		expect(unknownFlag(off.flags)).toBeUndefined()
+		expect(off.error).toBeUndefined()
 		expect(off.flags["no-save-exchanges"]).toBe(true)
 	})
 })

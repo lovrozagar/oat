@@ -13,7 +13,7 @@ export interface FlagSpec {
 }
 
 /** Every flag, once: whether it takes a value, what kind, and what it is for. Parsing and help both read this. */
-export const FLAGS: Readonly<Record<string, FlagSpec>> = {
+export const FLAGS = {
 	config: { help: "oat config module (.ts/.js/.mjs/.json) with a default export", kind: "value", value: "<file>" },
 	spec: { help: "OpenAPI document, http(s) URL or filesystem path", kind: "value", value: "<url|file>" },
 	"base-url": { help: "backend under test, overriding the config", kind: "value", value: "<url>" },
@@ -137,11 +137,36 @@ export const FLAGS: Readonly<Record<string, FlagSpec>> = {
 	from: { help: "baseline: the run folder (or latest) whose findings become known", kind: "value", value: "<run>" },
 	force: { help: "baseline, init: overwrite an existing --out file", kind: "boolean" },
 	help: { help: "print this help", kind: "boolean" },
+} as const satisfies Readonly<Record<string, FlagSpec>>
+
+/** A flag some command takes, by name: a misspelled one does not compile. */
+export type FlagName = keyof typeof FLAGS
+
+/** What parsing leaves for each kind: a switch is `true`, a value its text, an optional value either. */
+interface ValueOfKind {
+	boolean: true
+	value: string
+	"optional-value": string | true
 }
 
+/** The flags of one kind, by name. */
+type NamesOf<Kind extends FlagKind> = {
+	[Name in FlagName]: (typeof FLAGS)[Name]["kind"] extends Kind ? Name : never
+}[FlagName]
+
+/** The flags a command was given, each typed by its kind in the table; one not given is absent. */
+export type Flags = { [Name in FlagName]?: ValueOfKind[(typeof FLAGS)[Name]["kind"]] }
+
+/** The table looked up by a name argv typed, before it is known to be a flag. */
+const SPECS: Readonly<Record<string, FlagSpec>> = FLAGS
+
 /** Whether some command takes `--name`. */
-export function isKnownFlag(name: string): boolean {
+export function isKnownFlag(name: string): name is FlagName {
 	return Object.hasOwn(FLAGS, name)
+}
+
+function isKind<Kind extends FlagKind>(name: string, kind: Kind): name is NamesOf<Kind> {
+	return isKnownFlag(name) && SPECS[name]?.kind === kind
 }
 
 /** Every command: how it is called, and what it does. */
@@ -165,7 +190,7 @@ export const USAGE: string = /* @__PURE__ */ usage()
 function usage(): string {
 	const column = Math.max(...COMMANDS.map((command) => command.usage.length)) + 3
 	const commands = COMMANDS.map((command) => `  oat ${command.usage.padEnd(column)}${command.help}`)
-	const named = Object.entries(FLAGS).map(([name, spec]) => [
+	const named = Object.entries(SPECS).map(([name, spec]) => [
 		`--${name}${spec.value === undefined ? "" : ` ${spec.value}`}`,
 		spec.help,
 	])
@@ -177,7 +202,7 @@ function usage(): string {
 /** A command and its flags, as parsed. */
 export interface Args {
 	command: string
-	flags: Record<string, string | true>
+	flags: Flags
 	/** Arguments that are not flags or flag values, in order: `oat diff <runA> <runB>`. Absent when none. */
 	positionals?: string[]
 }
@@ -186,14 +211,16 @@ export interface Args {
  * `oat <command> [--flag value | --flag=value | --switch] …`. A value flag must have its value;
  * a switch takes none; a numeric value must be one. The first problem is returned as `error`
  * rather than guessed around: `--max-in-flight -1` once hung a run, `--seed abc` seeded strings
- * with `NaN`, and a flag followed by another flag silently became `true`.
+ * with `NaN`, and a flag followed by another flag silently became `true`. A flag no command
+ * knows is the problem reported first, wherever it stands.
  */
 export function parseArgs(argv: readonly string[]): Args & { error?: string } {
 	const leadingFlag = argv[0]?.startsWith("--") === true
 	const command = leadingFlag ? "help" : (argv[0] ?? "help")
 	const rest = leadingFlag ? argv : argv.slice(1)
-	const flags: Record<string, string | true> = {}
+	const flags: Flags = {}
 	const positionals: string[] = []
+	let unknown: string | undefined
 	let error: string | undefined
 	for (let i = 0; i < rest.length; i++) {
 		const token = rest[i] as string
@@ -203,9 +230,11 @@ export function parseArgs(argv: readonly string[]): Args & { error?: string } {
 		}
 		const read = readFlag(token, rest[i + 1])
 		if (read.consumed) i++
+		if (!isKnownFlag(read.key)) unknown ??= read.key
 		error ??= read.error
-		flags[read.key] = read.value
+		keep(flags, read.key, read.value)
 	}
+	if (unknown !== undefined) error = `unknown flag "--${unknown}"`
 	const extra = positionals.length === 0 ? {} : { positionals }
 	return error === undefined ? { command, flags, ...extra } : { command, error, flags, ...extra }
 }
@@ -218,7 +247,7 @@ function readFlag(
 	const equals = token.indexOf("=")
 	const key = equals === -1 ? token.slice(2) : token.slice(2, equals)
 	const inline = equals === -1 ? undefined : token.slice(equals + 1)
-	const spec = FLAGS[key]
+	const spec = SPECS[key]
 	if (spec === undefined || spec.kind === "boolean") {
 		const error = inline !== undefined && spec !== undefined ? `--${key} takes no value` : undefined
 		return { consumed: false, error, key, value: inline ?? true }
@@ -235,6 +264,13 @@ function readFlag(
 	}
 }
 
+/** Keeps a flag whose value fits its kind; any other is unknown or already the error. */
+function keep(flags: Flags, name: string, value: string | true): void {
+	if (isKind(name, "boolean") && value === true) flags[name] = value
+	else if (isKind(name, "value") && value !== true) flags[name] = value
+	else if (isKind(name, "optional-value")) flags[name] = value
+}
+
 function numberProblem(key: string, spec: FlagSpec, value: string): string | undefined {
 	if (spec.number === undefined) return undefined
 	const parsed = Number(value)
@@ -243,20 +279,18 @@ function numberProblem(key: string, spec: FlagSpec, value: string): string | und
 	return `--${key} must be ${spec.number === "positive" ? "a positive" : "an"} integer, got "${value}"`
 }
 
-/** The first flag no command knows, when there is one. */
-export function unknownFlag(flags: Record<string, string | true>): string | undefined {
-	return Object.keys(flags).find((key) => !isKnownFlag(key))
-}
+/** The flags that can carry a value. */
+type ValueName = NamesOf<"value" | "optional-value">
 
 /** A flag's value as given, or nothing when it is absent or a bare switch. */
-export function str(flags: Args["flags"], key: string): string | undefined {
-	const value = flags[key]
+export function str(flags: Flags, name: ValueName): string | undefined {
+	const value = flags[name]
 	return typeof value === "string" ? value : undefined
 }
 
 /** A comma-separated flag's items, trimmed, without empty ones. */
-export function list(flags: Args["flags"], key: string): string[] | undefined {
-	return str(flags, key)
+export function list(flags: Flags, name: ValueName): string[] | undefined {
+	return str(flags, name)
 		?.split(",")
 		.map((item) => item.trim())
 		.filter(Boolean)

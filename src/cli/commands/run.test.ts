@@ -7,6 +7,7 @@ import { EXIT } from "../../runtime/exit.ts"
 import { FencedError } from "../../runtime/fence.ts"
 import { bearerOnly, notesApi, optionsFor } from "../../runtime/run/__fixtures__/api.ts"
 import type { RunOptions } from "../../runtime/run/index.ts"
+import type { Flags } from "../flags.ts"
 import { bufferWriter } from "../writer.ts"
 import { folder, json, notesConfig } from "../__fixtures__/files.ts"
 import { commandRun, type RunDeps, runPipeline } from "./run.ts"
@@ -127,7 +128,7 @@ describe("commandRun", () => {
 describe("commandRun journaling", () => {
 	it("journals exchanges unless the flag, the config or a cheap profile says not to", async () => {
 		const out = folder()
-		const asked = async (flags: Record<string, string | true>, extra: Record<string, unknown> = {}) => {
+		const asked = async (flags: Flags, extra: Record<string, unknown> = {}) => {
 			const run = deps()
 			await commandRun(bufferWriter(), { config: notesConfig(folder(), extra), out, quiet: true, ...flags }, run)
 			return run.asked[0]?.exchangeDir !== undefined

@@ -1,7 +1,7 @@
 import type { PostgresStatus } from "../../conformance/matrix/engines.ts"
 import { MISSING_POSTGRES } from "../../reference/stores/postgres-driver.ts"
 import { EXIT } from "../../runtime/exit.ts"
-import { type Args, list, str } from "../flags.ts"
+import { type Args, type FlagName, list, str } from "../flags.ts"
 import type { Writer } from "../writer.ts"
 import {
 	BACKENDS,
@@ -58,9 +58,11 @@ function verdict(failures: number): number {
 	return failures > 0 ? 1 : 0
 }
 
+const SELECTORS = ["backend", "dialect", "only", "legs", "parser"] as const satisfies readonly FlagName[]
+
 /** No selector at all: the whole self-test, which alone can say a check was never proven. */
 function isFull(flags: Args["flags"]): boolean {
-	return ["backend", "dialect", "only", "legs", "parser"].every((name) => flags[name] === undefined)
+	return SELECTORS.every((name) => flags[name] === undefined)
 }
 
 /**
@@ -100,11 +102,10 @@ function refusal(flags: Args["flags"], toolkit: Toolkit): string | undefined {
 function listRefusal(flags: Args["flags"], toolkit: Toolkit): string | undefined {
 	const legs = list(flags, "legs")
 	const strayLegs = (legs ?? []).filter((leg) => !(LEGS as readonly string[]).includes(leg))
-	if (flags.legs === true || legs?.length === 0) return `--legs needs a comma-separated list of ${LEGS.join(", ")}`
+	if (legs?.length === 0) return `--legs needs a comma-separated list of ${LEGS.join(", ")}`
 	if (strayLegs.length > 0) return `--legs names no leg: ${strayLegs.join(", ")} — expected ${LEGS.join(", ")}`
 	const only = str(flags, "only")?.split(",").filter(Boolean)
-	if (flags.only === true || (only !== undefined && only.length === 0))
-		return "--only needs a comma-separated list of defect names"
+	if (only?.length === 0) return "--only needs a comma-separated list of defect names"
 	const unknown = (only ?? []).filter((name) => !toolkit.defects.isDefectName(name))
 	if (unknown.length > 0) return `--only names no defect: ${unknown.join(", ")}`
 	const strayShapes = (list(flags, "shapes") ?? []).filter((name) => !toolkit.shapes.SHAPE_NAMES.includes(name))

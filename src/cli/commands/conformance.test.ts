@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
+import type { Flags } from "../flags.ts"
 import { bufferWriter } from "../writer.ts"
 import { folder } from "../__fixtures__/files.ts"
 import { fakeToolkit, type ToolkitOptions } from "../__fixtures__/toolkit.ts"
@@ -12,7 +13,7 @@ import { commandConformance } from "./conformance.ts"
  * asked for — or the precision or fuzz question in place of the matrix.
  */
 
-async function conformance(flags: Record<string, string | true>, options: ToolkitOptions = {}) {
+async function conformance(flags: Flags, options: ToolkitOptions = {}) {
 	const { toolkit, log } = fakeToolkit(options)
 	const writer = bufferWriter()
 	const code = await commandConformance(writer, flags, async () => toolkit)
@@ -34,16 +35,14 @@ const SUITES = [
 
 describe("commandConformance refusals", () => {
 	it("refuses a selector it does not know before running anything", async () => {
-		const refusals: Array<[Record<string, string | true>, string]> = [
+		const refusals: Array<[Flags, string]> = [
 			[{ backend: "nope" }, 'oat: unknown --backend "nope" — expected memory, sqlite, postgres, d1\n'],
 			[{ dialect: "nope" }, 'oat: unknown --dialect "nope" — expected classic, postgrest\n'],
-			[{ legs: true }, "oat: --legs needs a comma-separated list of suites, passes, shapes, recall, scope, fuzz\n"],
 			[{ legs: "," }, "oat: --legs needs a comma-separated list of suites, passes, shapes, recall, scope, fuzz\n"],
 			[
 				{ legs: "passes,tea" },
 				"oat: --legs names no leg: tea — expected suites, passes, shapes, recall, scope, fuzz\n",
 			],
-			[{ only: true }, "oat: --only needs a comma-separated list of defect names\n"],
 			[{ only: "," }, "oat: --only needs a comma-separated list of defect names\n"],
 			[{ only: "A,Z,Y" }, "oat: --only names no defect: Z, Y\n"],
 			[{ shapes: "prefix,nope" }, "oat: --shapes names no shape: nope\n"],

@@ -13,7 +13,7 @@ import { commandInit } from "./commands/init.ts"
 import { commandPlan } from "./commands/plan.ts"
 import { commandRun, type RunDeps } from "./commands/run.ts"
 import { commandServe, type ServeDeps } from "./commands/serve.ts"
-import { parseArgs, unknownFlag, USAGE } from "./flags.ts"
+import { type Flags, parseArgs, USAGE } from "./flags.ts"
 import { processWriter, type Writer } from "./writer.ts"
 
 /** What the commands reach outside the process through; each defaults to the real thing. */
@@ -24,7 +24,7 @@ export interface CliDeps {
 	toolkit?: () => Promise<Toolkit>
 }
 
-type Command = (deps: CliDeps, flags: Record<string, string | true>, positionals: readonly string[]) => Promise<number>
+type Command = (deps: CliDeps, flags: Flags, positionals: readonly string[]) => Promise<number>
 
 /** Every command, by name. */
 const COMMANDS: Readonly<Record<string, Command>> = {
@@ -45,11 +45,6 @@ export async function main(
 ): Promise<number> {
 	const { writer } = deps
 	const { command, error, flags, positionals } = parseArgs(argv)
-	const unknown = unknownFlag(flags)
-	if (unknown !== undefined) {
-		writer.err(`oat: unknown flag "--${unknown}"\n\n${USAGE}`)
-		return EXIT.usage
-	}
 	if (error !== undefined) {
 		writer.err(`oat: ${error}\n\n${USAGE}`)
 		return EXIT.usage
