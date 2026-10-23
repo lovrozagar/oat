@@ -353,3 +353,17 @@ describe("renderInitConfig and the roots a run cannot create", () => {
 		expect(text).toContain("\t\talpha: {},")
 	})
 })
+
+/** The config init writes for a document served at `spec` whose only server is `url`. */
+const servedAt = (url: string, spec: string): string =>
+	renderInitConfig({ ...keycloak, servers: [{ url }] }, { out: "oat.config.ts", spec }).text
+
+describe("renderInitConfig and a relative server", () => {
+	it("resolves it against the document's URL, as OpenAPI says, and leaves it to env for a file", () => {
+		const remote = "https://petstore.test/api/v3/openapi.json"
+		expect(servedAt("/api/v3", remote)).toContain('baseUrl: "https://petstore.test/api/v3",')
+		expect(servedAt("./v4", remote)).toContain('baseUrl: "https://petstore.test/api/v3/v4",')
+		expect(servedAt("v4", remote)).toContain('baseUrl: "https://petstore.test/api/v3/v4",')
+		expect(servedAt("/api/v3", "./openapi.json")).toContain('baseUrl: env("OAT_BASE_URL"),')
+	})
+})

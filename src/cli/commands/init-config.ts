@@ -191,14 +191,21 @@ function described(raw: unknown): string {
 }
 
 /** The first absolute http(s) server URL, its variables filled with their defaults. */
-function serverUrl(doc: OpenApiDocument): string | undefined {
+/**
+ * The first server oat can call: absolute once its variables take their defaults, or relative and
+ * resolved against the document's own URL, as OpenAPI says. A document read from a file gives a
+ * relative server no base, so the config asks for one.
+ */
+function serverUrl(doc: OpenApiDocument, spec: string): string | undefined {
+	const base = /^https?:\/\//.test(spec) ? spec : undefined
 	for (const server of doc.servers ?? []) {
 		const variables = ((server as { variables?: unknown }).variables ?? {}) as Record<string, { default?: unknown }>
-		const url = server.url.replace(/\{([^}]*)\}/g, (whole, name: string) => {
+		const filled = server.url.replace(/\{([^}]*)\}/g, (whole, name: string) => {
 			const fill = variables[name]?.default
 			return typeof fill === "string" ? fill : whole
 		})
-		if (/^https?:\/\/[^{}]+$/.test(url)) return url
+		const url = /^https?:\/\//.test(filled) || base === undefined ? filled : new URL(filled, base).href
+		if (/^https?:\/\/[^{}]+$/.test(url)) return url.replace(/\/$/, "")
 	}
 	return undefined
 }
@@ -243,7 +250,7 @@ export function renderInitConfig(doc: OpenApiDocument, where: { spec: string; ou
 	const schemes = readSchemes(doc)
 	const usage = usageOf(doc)
 	const stemOf = envStems()
-	const base = serverUrl(doc)
+	const base = serverUrl(doc, where.spec)
 	const names: string[] = base === undefined ? ["OAT_BASE_URL"] : []
 	const unsupported: UnsupportedScheme[] = []
 	const security: Field[] = []
