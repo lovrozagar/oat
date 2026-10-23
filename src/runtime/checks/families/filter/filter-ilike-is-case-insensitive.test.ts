@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { runCheck } from "../../core/run.ts"
+import { STORED_FIELDS_UNKNOWN } from "../../planning/stand-down.ts"
 import { OPS } from "./__fixtures__/backend.ts"
 import { endless, filters, only, REFUSE_FILTERED, reserving, stage } from "./__fixtures__/widgets.ts"
 import { filterIlikeIsCaseInsensitive as check } from "./filter-ilike-is-case-insensitive.ts"
@@ -64,5 +65,13 @@ describe("filter.ilike-is-case-insensitive", () => {
 			needs: "a filter grammar that can express like and ilike",
 			ok: false,
 		})
+	})
+})
+
+describe("filter.ilike-is-case-insensitive: records oat sent, never read back", () => {
+	it("stands down, since what the server stored is not known", () => {
+		const { ctx } = stage({ doc: DOC, records: COHORT })
+		expect(check.plan(ctx).ok).toBe(true)
+		expect(check.plan({ ...ctx, recordsUnverified: true })).toEqual({ needs: STORED_FIELDS_UNKNOWN, ok: false })
 	})
 })

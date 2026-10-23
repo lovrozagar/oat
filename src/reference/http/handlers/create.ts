@@ -33,7 +33,7 @@ export async function create(
 	 * each other's result back. */
 	const idempotencyKey = request.headers["idempotency-key"] ?? ""
 	const replayKey = idempotencyKey === "" ? null : `${principal.projectId}:${entity.name}:${idempotencyKey}`
-	const replay = replayKey === null ? undefined : await replayed(state, call, replayKey)
+	const replay = replayKey === null ? undefined : await replayed(state, call, { replayKey, request })
 	if (replay !== undefined) return replay
 	const received = form ? formFields(entity, await request.text()) : await readJson(request)
 	/* The crash happens on the bytes as received, before anything sanitizes them. */
@@ -55,8 +55,37 @@ export async function create(
 	const created = await state.store.insert(entity, record)
 	await refreshParentCount(state, entity, call.scope)
 	if (replayKey !== null) state.idempotent.set(replayKey, created)
-	if (acknowledged(state, call)) return respond(createdStatus(state), { success: true })
-	return respond(createdStatus(state), answerCreated(state, entity, present(state, entity, created)))
+	return createdAnswer(state, { call, created, request })
+}
+
+/* What a create answers: the record, `{ success }` under ackCreate, or what `createAnswer` names. */
+function createdAnswer(
+	state: ReferenceState,
+	{ call, created, request }: { call: EntityCall; created: Row; request: ReferenceRequest },
+): ReferenceResponse {
+	const { entity } = call
+	const status = createdStatus(state)
+	if (acknowledged(state, call)) return respond(status, { success: true })
+	const answer = entity.name === state.job.name ? undefined : state.shape.createAnswer
+	if (answer === "id-message") return respond(status, { id: created[entity.identity], message: "created" })
+	if (answer === "location")
+		return { body: "", headers: { location: locationOf(state, { call, created, request }) }, status }
+	return respond(status, answerCreated(state, entity, present(state, entity, created)))
+}
+
+/* The new record's absolute URL, as a server that answers only `Location` gives it. */
+function locationOf(
+	state: ReferenceState,
+	{ call, created, request }: { call: EntityCall; created: Row; request: ReferenceRequest },
+): string {
+	const { entity, principal } = call
+	const scope: Record<string, unknown> = { ...call.scope, project_id: principal.projectId }
+	const params = [...entity.itemPath.matchAll(/\{([^}]+)\}/g)].map((match) => match[1])
+	const last = params.at(-1)
+	const path = entity.itemPath.replace(/\{([^}]+)\}/g, (_, name: string) =>
+		encodeURIComponent(String(name === last ? created[entity.identity] : scope[name])),
+	)
+	return new URL(`${state.shape.basePath ?? ""}${path}`, request.url).href
 }
 
 function nonAscii(received: Row): boolean {
@@ -69,7 +98,7 @@ function nonAscii(received: Row): boolean {
 async function replayed(
 	state: ReferenceState,
 	call: EntityCall,
-	replayKey: string,
+	{ replayKey, request }: { replayKey: string; request: ReferenceRequest },
 ): Promise<ReferenceResponse | undefined> {
 	if (state.defects.has("IDEMPOTENCY_IGNORED")) return undefined
 	const previous = state.idempotent.get(replayKey)
@@ -86,10 +115,7 @@ async function replayed(
 			withDefaults(state, { entity, scope: { ...call.scope, project_id: principal.projectId } }, copy),
 		)
 	}
-	const body = acknowledged(state, call)
-		? { success: true }
-		: answerCreated(state, entity, present(state, entity, previous))
-	return respond(createdStatus(state), body)
+	return createdAnswer(state, { call, created: previous, request })
 }
 
 /*

@@ -169,3 +169,26 @@ describe("seedCreated identities", () => {
 		expect(run.taken.size).toBe(0)
 	})
 })
+
+describe("seedCreated, from creates that answer without the record", () => {
+	it("seeds what the read returns for an acknowledged create, and the bodies sent, unverified, with no read", async () => {
+		/* The notes API, answering each create with only its id and a message. */
+		const acknowledging = (doc: OpenApiDocument): Responder => {
+			const api = notesApi(doc, [])
+			return (method, path, request) => {
+				const answer = api(method, path, request)
+				if (method !== "POST" || path !== "/notes" || answer?.status !== 201) return answer
+				return { body: { id: (answer.body as Json)["id"], message: "created" }, status: 201 }
+			}
+		}
+		const read = await seeded(acknowledging(notesDoc()), none)
+		expect(read.world?.records[0]).toMatchObject({ id: "n1", title: expect.any(String) })
+		expect(read.world).not.toHaveProperty("recordsUnverified")
+		const unread = structuredClone(notesDoc()) as unknown as { paths: Record<string, Record<string, Json>> }
+		delete unread.paths["/notes/{note_id}"]?.["get"]
+		const { world } = await seeded(acknowledging(unread as unknown as OpenApiDocument), none)
+		expect(world).toMatchObject({ recordsUnverified: true })
+		expect(world?.records[0]).toMatchObject({ id: "n1", title: expect.any(String) })
+		expect(world?.records[0]).not.toHaveProperty("message")
+	})
+})

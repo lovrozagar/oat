@@ -5,6 +5,7 @@ import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { idOf } from "../../../world/records.ts"
 import type { Listed } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
+import { storedFieldsUnknown } from "../../planning/stand-down.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, filterable } from "../../query/capabilities.ts"
 import { ids } from "../../sets/list.ts"
@@ -47,6 +48,8 @@ export const numericComparisonIsNumeric: Check<{
 	gtTerm: Record<string, string>
 }>({
 	plan: (ctx) => {
+		const unverified = storedFieldsUnknown(ctx)
+		if (unverified !== undefined) return unverified
 		const field = filterable(ctx) && ctx.records.length > 2 ? numericFilterField(ctx) : null
 		if (field === null) return cannot()
 		/* `numericFilterField` picks a field at least three cohort records hold a number in. */

@@ -180,6 +180,7 @@ async function recordPrelude(
 		principal: ctx.actor.id,
 		scope: beforeScope,
 		sent: beforeInvoked.requestBody,
+		wants: "id",
 	})
 	const id = created === null ? undefined : returnedId(created.record, made.identity ?? "id")
 	if (id === undefined) ctx.recordUnidentified?.(made.name, beforeOp.operationId, beforeInvoked)

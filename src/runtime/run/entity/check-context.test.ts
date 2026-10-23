@@ -63,6 +63,7 @@ describe("checkContext", () => {
 		expect(checks.uniqueCreateOp).toBeUndefined()
 		expect(checks.inScope?.(ctx.model.byOperationId.get("notes.list") as never)).toBe(true)
 		expect(checks).not.toHaveProperty("peer")
+		expect(checks).not.toHaveProperty("recordsUnverified")
 		/* An invite's delegate holds what the accept issued, in the run's own store. */
 		expect(checks.credentials).toBe(ctx.store)
 	})
@@ -178,5 +179,12 @@ describe("checkContext extras", () => {
 			undefined,
 			null,
 		])
+	})
+})
+
+describe("checkContext, over records oat sent", () => {
+	it("says when the records are the bodies oat sent, never read back", async () => {
+		const { checks } = await contextFor(notesDoc(), { ...fresh, recordsUnverified: true })
+		expect(checks.recordsUnverified).toBe(true)
 	})
 })

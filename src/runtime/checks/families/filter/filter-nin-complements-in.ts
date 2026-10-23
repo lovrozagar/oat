@@ -4,6 +4,7 @@ import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { idOf } from "../../../world/records.ts"
 import { cannot, ready } from "../../core/plan.ts"
+import { storedFieldsUnknown } from "../../planning/stand-down.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { asTermValue, canUseOp, conv, filterable, FOUNDATIONS, MOVING_FILTER } from "../../query/capabilities.ts"
 import { readSettled, setOf } from "../../sets/compare.ts"
@@ -23,6 +24,8 @@ export const filterNinComplementsIn: Check<{
 	ninTerm: Record<string, string>
 }>({
 	plan: (ctx) => {
+		const unverified = storedFieldsUnknown(ctx)
+		if (unverified !== undefined) return unverified
 		if (!filterable(ctx)) return cannot()
 		/* Two members where the cohort has them: a list of one cannot tell "every member" from
 		 * "the first member" apart. */

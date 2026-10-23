@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { runCheck } from "../../core/run.ts"
+import { STORED_FIELDS_UNKNOWN } from "../../planning/stand-down.ts"
 import { members } from "./__fixtures__/backend.ts"
 import { endless, filters, growing, only, REFUSE_FILTERED, reserving, stage } from "./__fixtures__/widgets.ts"
 import { filterNinComplementsIn as check } from "./filter-nin-complements-in.ts"
@@ -71,5 +72,13 @@ describe("filter.nin-complements-in", () => {
 			needs: "a filter grammar that can express in and nin",
 			ok: false,
 		})
+	})
+})
+
+describe("filter.nin-complements-in: records oat sent, never read back", () => {
+	it("stands down, since what the server stored is not known", () => {
+		const { ctx } = stage({ doc: DOC, records: COHORT })
+		expect(check.plan(ctx).ok).toBe(true)
+		expect(check.plan({ ...ctx, recordsUnverified: true })).toEqual({ needs: STORED_FIELDS_UNKNOWN, ok: false })
 	})
 })

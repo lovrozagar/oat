@@ -14,6 +14,7 @@ function created(input: {
 	create?: Record<string, unknown>
 	operation?: string
 	readable?: (op: OperationModel) => boolean
+	wants?: "id"
 }) {
 	const model = modelOf(notes({ create: input.create ?? {} }))
 	const fake = fakeClient(() => input.read ?? { status: 404 })
@@ -26,6 +27,7 @@ function created(input: {
 		scope,
 		sent: input.sent,
 		...(input.readable === undefined ? {} : { readable: input.readable }),
+		...(input.wants === undefined ? {} : { wants: input.wants }),
 	})
 	return { result, sent: fake.sent }
 }
@@ -46,7 +48,7 @@ describe("createdRecord", () => {
 		})
 		expect(await result).toEqual({ acknowledged: false, record: { id: 9, name: "a" } })
 		const empty = created({ answer: { body: { meta: { ref: 9 } }, status: 201 }, create, sent: { name: "a" } })
-		expect(await empty.result).toEqual({ acknowledged: false, record: { id: 9 } })
+		expect(await empty.result).toEqual({ acknowledged: false, record: { id: 9, name: "a" }, unverified: true })
 	})
 
 	it("confirms a candidate id by reading under it, as JSON text the probe sent", async () => {
@@ -61,6 +63,43 @@ describe("createdRecord", () => {
 		const read = { body: { id: "c1", name: "a" }, status: 200 }
 		const { result } = created({ answer: { status: 200 }, read, sent: { id: "c1", name: "a" } })
 		expect(await result).toEqual({ acknowledged: true, record: { id: "c1", name: "a" } })
+	})
+})
+
+describe("createdRecord, from an answer that is not the record", () => {
+	const read = { body: { id: "n1", name: "a", size: 2 }, status: 200 }
+
+	it("reads an acknowledgement's record back by the id it names, and seeds what the read returns", async () => {
+		const { result, sent } = created({
+			answer: { body: { id: "n1", message: "created" }, status: 201 },
+			read,
+			sent: { name: "a" },
+		})
+		expect(await result).toEqual({ acknowledged: false, record: { id: "n1", name: "a", size: 2 } })
+		expect(sent.map((request) => request.path)).toEqual(["/projects/p1/notes/n1"])
+	})
+
+	it("reads back an echo that leaves out a field the create sent", async () => {
+		const { result } = created({
+			answer: { body: { id: "n1", name: "a" }, status: 201 },
+			read,
+			sent: { name: "a", size: 2 },
+		})
+		expect(await result).toEqual({ acknowledged: false, record: read.body })
+	})
+
+	it("reads an empty 201 back by the id its Location names", async () => {
+		const answer = { headers: { location: "https://api.test/projects/p1/notes/n1" }, status: 201 }
+		const { result, sent } = created({ answer, read, sent: { name: "a" } })
+		expect(await result).toEqual({ acknowledged: false, record: read.body })
+		expect(sent.map((request) => request.path)).toEqual(["/projects/p1/notes/n1"])
+	})
+
+	it("reads nothing back when only the id is wanted", async () => {
+		const answer = { headers: { Location: "/projects/p1/notes/n1/" }, status: 201 }
+		const { result, sent } = created({ answer, read, sent: { name: "a" }, wants: "id" })
+		expect(await result).toEqual({ acknowledged: false, record: { id: "n1" } })
+		expect(sent).toEqual([])
 	})
 })
 
@@ -99,7 +138,9 @@ describe("createdRecord, unconfirmed", () => {
 				sent: { amount: 1 },
 			})
 		expect(await made({ ok: true })).toBeNull()
-		expect(await made({ id: 4 })).toEqual({ acknowledged: false, record: { id: 4 } })
+		expect(await made({ amount: 1, id: 4 })).toEqual({ acknowledged: false, record: { amount: 1, id: 4 } })
+		/* Nothing to read it back by: what was sent, under the id it names. */
+		expect(await made({ id: 4 })).toEqual({ acknowledged: false, record: { amount: 1, id: 4 }, unverified: true })
 		expect(await made(null)).toBeNull()
 	})
 })

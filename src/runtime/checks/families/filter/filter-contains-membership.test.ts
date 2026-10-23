@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { runCheck } from "../../core/run.ts"
+import { STORED_FIELDS_UNKNOWN } from "../../planning/stand-down.ts"
 import { resolvedCaps } from "../../query/capabilities.ts"
 import { endless, filters, only, REFUSE_FILTERED, reserving, stage, without } from "./__fixtures__/widgets.ts"
 import { filterContainsMembership as check } from "./filter-contains-membership.ts"
@@ -76,5 +77,13 @@ describe("filter.contains-membership", () => {
 			needs: "a filter grammar with a contains operator",
 			ok: false,
 		})
+	})
+})
+
+describe("filter.contains-membership: records oat sent, never read back", () => {
+	it("stands down, since what the server stored is not known", () => {
+		const { ctx } = stage({ doc: DOC, records: COHORT })
+		expect(check.plan(ctx).ok).toBe(true)
+		expect(check.plan({ ...ctx, recordsUnverified: true })).toEqual({ needs: STORED_FIELDS_UNKNOWN, ok: false })
 	})
 })

@@ -4,7 +4,7 @@ import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
-import { createdRecordOf } from "../../../created-id.ts"
+import { answeredIdOf } from "../../../created-id.ts"
 import { idOf, type Record_ } from "../../../world/records.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
@@ -108,8 +108,13 @@ async function judgeCreate(
 	readOp: OperationModel,
 	{ created, sent }: SentCreate,
 ): Promise<Outcome | undefined> {
-	const answered = createdRecordOf(created.responseBody, ctx.identity, created.requestBody)[ctx.identity]
-	if (answered !== undefined && answered !== null) {
+	const answered = answeredIdOf({
+		createOp: { entity: ctx.entityName },
+		exchange: created,
+		identity: ctx.identity,
+		model: ctx.model,
+	})
+	if (answered !== undefined) {
 		if (String(answered) === String(sent)) return undefined
 		return ctx.findings.backend(check, ctx.entityName, {
 			summary: "create answers with an identity other than the one it was sent",

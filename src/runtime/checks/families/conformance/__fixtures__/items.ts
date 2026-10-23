@@ -37,7 +37,7 @@ export interface ItemsOptions {
 	missing?: unknown
 	/** The schema of the read's `{id}` path parameter. */
 	id?: unknown
-	/** The create's 201 body schema. */
+	/** The create's 201 body schema; `null` documents a 201 with no body. */
 	created?: unknown
 	/** The create's 409 body schema. */
 	conflict?: unknown
@@ -60,7 +60,10 @@ export function itemsDocument(options: ItemsOptions = {}): OpenApiDocument {
 				post: {
 					operationId: "item.create",
 					requestBody: { content: { "application/json": { schema: ITEM } } },
-					responses: { "201": json(options.created ?? ITEM), "409": json(options.conflict ?? ERROR) },
+					responses: {
+						"201": options.created === null ? { description: "created" } : json(options.created ?? ITEM),
+						"409": json(options.conflict ?? ERROR),
+					},
 					"x-unique": ["name"],
 					...entity("create"),
 				},

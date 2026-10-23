@@ -111,12 +111,26 @@ export class SchemaValidator {
 	documents(op: OperationObject, status: number): boolean {
 		return schemaFor(op, status) !== null
 	}
+
+	/**
+	 * True when the response the document gives this status — exact, its range, else `default` —
+	 * declares no body: a 201 that names the record only in `Location`, say.
+	 */
+	documentsNoBody(op: OperationObject, status: number): boolean {
+		const responses = op.responses ?? {}
+		const code = responseKeys(status).find((key) => responses[key] !== undefined)
+		return code !== undefined && Object.keys(responses[code]?.content ?? {}).length === 0
+	}
+}
+
+/* The response keys a status falls under, most specific first. */
+function responseKeys(status: number): string[] {
+	return [String(status), `${Math.floor(status / 100)}XX`, "default"]
 }
 
 function schemaFor(op: OperationObject, status: number): JsonSchema | null {
 	const responses = op.responses ?? {}
-	const candidates = [String(status), `${Math.floor(status / 100)}XX`, "default"]
-	for (const code of candidates) {
+	for (const code of responseKeys(status)) {
 		const content = responses[code]?.content
 		if (content === undefined) continue
 		for (const [mediaType, media] of Object.entries(content)) {

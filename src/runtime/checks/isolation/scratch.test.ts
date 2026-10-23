@@ -17,6 +17,10 @@ const creating =
 	(method) =>
 		method === "POST" ? answer : undefined
 
+/* A create that answers with the record it was sent, under the id n9. */
+const echoing: Responder = (method, _path, options) =>
+	method === "POST" ? { body: { ...(options.body as object), id: "n9" }, status: 201 } : undefined
+
 describe("readRecord", () => {
 	it("is the record a single-record answer holds", () => {
 		const { ctx } = notesContext()
@@ -27,9 +31,10 @@ describe("readRecord", () => {
 
 describe("scratchRecord", () => {
 	it("makes a record of the check's own and names it", async () => {
-		const { ctx, sent } = notesContext(creating({ body: { id: "n9", name: "x" }, status: 201 }))
+		const { ctx, sent } = notesContext(echoing)
 		const made = await scratchRecord(ctx, CHECK)
-		expect(made).toMatchObject({ scratch: { id: "n9", record: { id: "n9", name: "x" } } })
+		const name = (sent[0]?.options.body as { name?: string } | undefined)?.name
+		expect(made).toMatchObject({ scratch: { id: "n9", record: { id: "n9", name } } })
 		expect("scratch" in made ? made.scratch.exchange.status : 0).toBe(201)
 		expect(sent.map((request) => `${request.method} ${request.path}`)).toEqual(["POST /notes"])
 		expect(sent[0]?.options.as).toEqual({ principal: ctx.actor.id })

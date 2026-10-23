@@ -36,6 +36,9 @@ export const successSchemaHonoured: Check<{
 		if (exchange === undefined)
 			return ctx.findings.unresolved(this.id, ctx.entityName, "no successful create was observed")
 		if (isEventStream(exchange, createOp)) return standDown("the create answers with an event stream")
+		/* A create documented to answer with no body — a 201 naming the record in `Location` — and
+		 * answering none matches its document. */
+		if (validator.documentsNoBody(raw, exchange.status) && emptyBody(exchange.responseBody)) return ASSERTED
 		if (!validator.documents(raw, exchange.status)) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -64,3 +67,7 @@ export const successSchemaHonoured: Check<{
 		})
 	},
 })
+
+function emptyBody(body: unknown): boolean {
+	return body === null || body === undefined || body === ""
+}

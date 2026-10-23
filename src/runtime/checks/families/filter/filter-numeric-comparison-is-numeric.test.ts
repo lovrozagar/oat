@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { runCheck } from "../../core/run.ts"
+import { STORED_FIELDS_UNKNOWN } from "../../planning/stand-down.ts"
 import { endless, filters, only, REFUSE_FILTERED, reserving, stage } from "./__fixtures__/widgets.ts"
 import { numericComparisonIsNumeric as check } from "./filter-numeric-comparison-is-numeric.ts"
 
@@ -96,5 +97,13 @@ describe("filter.numeric-comparison-is-numeric: plan", () => {
 	it("leaves a record without an identity out of what it expects", () => {
 		const records = [...COHORT, { amount: 20 }, { amount: 1, id: "n-min" }]
 		expect(check.plan(stage({ doc: DOC, records }).ctx)).toMatchObject({ value: { expected: ["n-high"] } })
+	})
+})
+
+describe("filter.numeric-comparison-is-numeric: records oat sent, never read back", () => {
+	it("stands down, since what the server stored is not known", () => {
+		const { ctx } = stage({ doc: DOC, records: COHORT })
+		expect(check.plan(ctx).ok).toBe(true)
+		expect(check.plan({ ...ctx, recordsUnverified: true })).toEqual({ needs: STORED_FIELDS_UNKNOWN, ok: false })
 	})
 })

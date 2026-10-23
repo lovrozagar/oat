@@ -6,11 +6,15 @@
  * answer, names the record by contract. Anything else is a candidate: the record under an
  * envelope, or a conventional id key found by walking the answer — which can just as well be a
  * related record's (`Status: { ID: 1 }`). A candidate counts only once a read under it shows what
- * was sent (`confirmSubmitted`).
+ * was sent (`confirmSubmitted`). A create whose body names no id at all may still name the record by
+ * its URL, in `Location` (`createdIdOf`).
  */
 
 import { createdIdKeys, findCreatedId } from "./effects/ids.ts"
 import { readPath } from "../client/read-path.ts"
+import type { OperationModel, SpecModel } from "../spec/graph/types.ts"
+import type { Exchange } from "./exchange.ts"
+import { headerValue } from "./headers.ts"
 import { type ProvenId, createdId } from "./proven-id.ts"
 
 type Record_ = Record<string, unknown>
@@ -95,4 +99,108 @@ export function resolveCreatedId(input: {
 		asCreatedId(createdRecordOf(body, identity, input.sent)[identity], false) ??
 		asCreatedId(findCreatedId(body, createdIdKeys(input.entity, identity)), false)
 	)
+}
+
+/* A path segment as it was meant: percent-decoded, or as sent when it is not valid encoding. */
+function decoded(segment: string): string {
+	try {
+		return decodeURIComponent(segment)
+	} catch {
+		return segment
+	}
+}
+
+/**
+ * The id a `Location` header names: the segment the item route's last parameter takes, with the
+ * route laid over the URL's path from its end, so a mount or a base path in front does not matter
+ * and a URL to anything else (a literal segment that differs) names nothing. Without an item route
+ * it is the last segment. A relative Location resolves against `base`, the create's own URL.
+ */
+export function locatedId(
+	location: string | undefined,
+	template: string | undefined,
+	base?: string,
+): string | undefined {
+	if (location === undefined) return undefined
+	let pathname: string
+	try {
+		pathname = new URL(location, base ?? "http://oat.invalid/").pathname
+	} catch {
+		return undefined
+	}
+	const segments = pathname.split("/").filter(Boolean).map(decoded)
+	if (template === undefined) return segments.at(-1)
+	const route = template.split("/").filter(Boolean)
+	const at = route.findLastIndex((segment) => segment.startsWith("{"))
+	const offset = segments.length - route.length
+	if (at + offset < 0) return undefined
+	for (let index = Math.max(0, -offset); index < route.length; index++) {
+		const segment = route[index] as string
+		if (!segment.startsWith("{") && segment !== segments[index + offset]) return undefined
+	}
+	return segments[at + offset]
+}
+
+/* The route one record of the entity lives at: its read's, else its delete's or its update's. */
+function itemPathOf(model: Pick<SpecModel, "byOperationId" | "entities">, entity: string | null): string | undefined {
+	const routes = entity === null ? undefined : model.entities.get(entity)
+	const itemOp = [routes?.read, routes?.delete, routes?.update]
+		.map((operationId) => (operationId === undefined ? undefined : model.byOperationId.get(operationId)))
+		.find((op) => op !== undefined)
+	return itemOp?.path
+}
+
+/**
+ * The id a create's answer gives the record it made: its body's (`resolveCreatedId`), else the one
+ * its `Location` header names under the entity's item route. A Location is the record's URL by
+ * contract, so its id is trusted as a declared one is. Every reader of a created id goes through here.
+ */
+export function createdIdOf(input: {
+	exchange: Pick<Exchange, "responseBody" | "responseHeaders" | "url">
+	createOp: Pick<OperationModel, "createdIdFrom" | "entity" | "recordPath">
+	model: Pick<SpecModel, "byOperationId" | "entities">
+	sent: unknown
+}): CreatedId | undefined {
+	const { createOp, exchange, model } = input
+	const entity = createOp.entity
+	const identity = (entity === null ? undefined : model.entities.get(entity))?.identity ?? "id"
+	const answered = resolveCreatedId({
+		body: exchange.responseBody ?? {},
+		entity: entity ?? "",
+		identity,
+		sent: input.sent,
+		source: { createdIdFrom: createOp.createdIdFrom, recordPath: createOp.recordPath },
+	})
+	return answered ?? locatedCreatedId(input)
+}
+
+/**
+ * The id a create's `Location` header names under the entity's item route, trusted: a Location is
+ * the record's URL by contract. A reader that takes the id from the body its own way falls back to
+ * this one; every other reader takes both through `createdIdOf`.
+ */
+export function locatedCreatedId(input: {
+	exchange: Pick<Exchange, "responseHeaders" | "url">
+	createOp: Pick<OperationModel, "entity">
+	model: Pick<SpecModel, "byOperationId" | "entities">
+}): CreatedId | undefined {
+	const { exchange } = input
+	const location = headerValue(exchange.responseHeaders, "location")
+	return asCreatedId(locatedId(location, itemPathOf(input.model, input.createOp.entity), exchange.url), true)
+}
+
+/**
+ * The id a create's answer names for the record it made, read the way a check reads an echo: the
+ * answered record's identity (`createdRecordOf`), never a candidate found deeper in the answer,
+ * else the one its `Location` names.
+ */
+export function answeredIdOf(input: {
+	exchange: Pick<Exchange, "requestBody" | "responseBody" | "responseHeaders" | "url">
+	identity: string
+	createOp: Pick<OperationModel, "entity">
+	model: Pick<SpecModel, "byOperationId" | "entities">
+}): string | number | undefined {
+	const { exchange, identity } = input
+	const echoed = createdRecordOf(exchange.responseBody ?? {}, identity, exchange.requestBody)[identity]
+	return isScalarId(echoed) ? echoed : locatedCreatedId(input)?.value
 }

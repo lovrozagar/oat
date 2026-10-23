@@ -1,9 +1,10 @@
 import type { Client } from "../../client/client.ts"
 import type { OperationModel, SpecModel } from "../../spec/graph/types.ts"
-import { createdRecordOf, resolveCreatedId } from "../created-id.ts"
+import { createdIdOf, createdRecordOf } from "../created-id.ts"
 import type { Exchange } from "../exchange.ts"
 import { confirmSubmitted } from "./confirm.ts"
-import { type Record_, recordOf } from "./records.ts"
+import { answersRecord, type CreatedRecord, expectedFields, readBackCreated } from "./read-back.ts"
+import { recordOf } from "./records.ts"
 
 function jsonText(sent: unknown): unknown {
 	if (typeof sent !== "string") return sent
@@ -17,10 +18,13 @@ function jsonText(sent: unknown): unknown {
 /**
  * The record a create made, carrying an id oat may delete by, or `null` when none can be read.
  *
- * An id the answer names by contract (a declared `createdIdFrom`, or its own identity) stands. A
- * candidate — the record under an envelope, an id key found deeper in the answer — stands once a
- * read under it shows what was sent; so does an id the client chose, for a create that answers
- * only an acknowledgement. `acknowledged` says the answer named no id at all.
+ * An id the answer names by contract (a declared `createdIdFrom`, its own identity, or its
+ * `Location`) stands. A candidate — the record under an envelope, an id key found deeper in the
+ * answer — stands once a read under it shows what was sent; so does an id the client chose, for a
+ * create that answers only an acknowledgement. `acknowledged` says the answer named no id at all.
+ *
+ * An answer under a trusted id that is not the record (`answersRecord`) is read back by that id
+ * (`readBackCreated`), unless the caller `wants` only the id: a ledger needs nothing else.
  */
 export async function createdRecord(input: {
 	client: Pick<Client, "get">
@@ -32,7 +36,9 @@ export async function createdRecord(input: {
 	/** The principal that created it, which reads it back: `as: { principal }`. */
 	principal: string
 	readable?: (op: OperationModel) => boolean
-}): Promise<{ record: Record_; acknowledged: boolean } | null> {
+	/** `"id"` when only the id matters: an answer that is not the record is then never read back. */
+	wants?: "id"
+}): Promise<CreatedRecord | null> {
 	const { createOp, model } = input
 	const entity = createOp.entity
 	const identity = (entity === null ? undefined : model.entities.get(entity))?.identity ?? "id"
@@ -41,14 +47,13 @@ export async function createdRecord(input: {
 	const sent = jsonText(input.sent)
 	/* A declared record path wins; without one, the envelope is inferred from what was sent. */
 	const record = createOp.recordPath === null ? createdRecordOf(body, identity, sent) : (recordOf(createOp, body) ?? {})
-	const resolved = resolveCreatedId({
-		body,
-		entity: entity ?? "",
-		identity,
-		sent,
-		source: { createdIdFrom: createOp.createdIdFrom, recordPath: createOp.recordPath },
-	})
-	if (resolved?.trusted === true) return { acknowledged: false, record: { ...record, [identity]: resolved.value } }
+	const resolved = createdIdOf({ createOp, exchange: input.exchange, model, sent })
+	if (resolved?.trusted === true) {
+		const answered = { ...record, [identity]: resolved.value }
+		if (input.wants === "id" || answersRecord(answered, expectedFields(model, createOp, sent)))
+			return { acknowledged: false, record: answered }
+		return readBackCreated({ ...input, id: resolved, sent })
+	}
 	if (entity === null) return null
 	const confirmed = await confirmSubmitted({
 		client: input.client,

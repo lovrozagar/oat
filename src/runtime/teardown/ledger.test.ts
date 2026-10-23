@@ -3,6 +3,7 @@ import { exchange } from "../checks/__fixtures__/harness.ts"
 import { listedIds, type ProvenId } from "../proven-id.ts"
 import { notesClient, notesModel, owner, store } from "./__fixtures__/notes.ts"
 import { Ledger } from "./ledger.ts"
+import { NEVER_SEEN } from "./never-seen.ts"
 
 /* An id as a listing gave it back. */
 function id(value: string): ProvenId {
@@ -71,6 +72,28 @@ describe("Ledger: unwinding", () => {
 			"DELETE /notes/n2",
 		])
 		expect(second.removed).toBe(1)
+	})
+
+	it("does not count a sighting its creator's later read took back", async () => {
+		const ledger = new Ledger()
+		ledger.record({ entity: "note", id: id("n1"), scope: {} }, owner("alpha"))
+		ledger.sighted("note", "n1", "alpha")
+		ledger.unsighted("note", "n1", "beta")
+		ledger.unsighted("note", "n1", "alpha")
+		const { client } = notesClient(store())
+		const report = await ledger.unwind(notesModel(), client, { fallbacks: () => [] })
+		expect(report.failed.map((entry) => entry.reason)).toEqual([NEVER_SEEN])
+	})
+
+	it("keeps a sighting a 404 after the record's own accepted delete would take back", async () => {
+		const ledger = new Ledger()
+		ledger.record({ entity: "note", id: id("n1"), scope: {} }, owner("alpha"))
+		ledger.sighted("note", "n1", "alpha")
+		ledger.deleted("note", "n1")
+		ledger.unsighted("note", "n1", "alpha")
+		const { client } = notesClient(store())
+		const report = await ledger.unwind(notesModel(), client, { fallbacks: () => [] })
+		expect(report.failed).toEqual([])
 	})
 
 	it("does not take its creator's 404 for a record a write moved away", async () => {

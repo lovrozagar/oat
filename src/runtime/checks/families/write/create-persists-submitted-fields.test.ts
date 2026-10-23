@@ -25,10 +25,18 @@ const PROPERTIES = {
 }
 
 /** A context whose transcript holds one create: `options` sent, `answer` returned; no item read. */
-async function afterCreate(options: Omit<RequestOptions, "as">, answer: Answer, read?: Answer) {
-	const respond = (method: string) => (method === "GET" ? read : answer)
+async function afterCreate(
+	options: Omit<RequestOptions, "as">,
+	answer: Answer,
+	{ listed, read }: { read?: Answer | undefined; listed?: Answer | null } = {},
+) {
+	const listing = (path: string) => listed !== undefined && listed !== null && /^\/notes(\?|$)/.test(path)
+	const respond = (method: string, path: string) =>
+		method !== "GET" ? answer : listing(path) ? (listed ?? undefined) : read
 	const readOp = read === undefined ? { readOp: undefined } : {}
-	const stage = notesContext(MODEL, respond, { records: COHORT, ...readOp })
+	/* `listed: null` is an entity with no listing at all. */
+	const listOp = listed === null ? ({ listOp: undefined } as unknown as Record<string, never>) : {}
+	const stage = notesContext(MODEL, respond, { records: COHORT, ...readOp, ...listOp })
 	await stage.ctx.client.request("POST", "/notes", {
 		...options,
 		as: { principal: "alpha" },
@@ -38,7 +46,16 @@ async function afterCreate(options: Omit<RequestOptions, "as">, answer: Answer, 
 }
 
 async function judge(options: Omit<RequestOptions, "as">, answer: Answer, read?: Answer) {
-	const stage = await afterCreate(options, answer, read)
+	return judgeSeen(options, answer, { read })
+}
+
+/** `judge`, with the listing answering `listed` beside the item read. */
+async function judgeSeen(
+	options: Omit<RequestOptions, "as">,
+	answer: Answer,
+	witnesses: { read?: Answer | undefined; listed?: Answer | null },
+) {
+	const stage = await afterCreate(options, answer, witnesses)
 	const outcome = await createPersistsFields.run(stage.ctx, {
 		createOp: MODEL.byOperationId.get("note.create") as never,
 		properties: PROPERTIES,
@@ -120,6 +137,14 @@ describe("create.persists-submitted-fields on acknowledgement-only creates", () 
 			"the record note.get reads back under 5 does not hold 1 submitted field(s): size sent 3, got undefined",
 		)
 		expect(findings.findings[0]?.evidence).toHaveLength(2)
+	})
+
+	it("reads an empty 201 back by the id its Location names", async () => {
+		const body = { name: "a", size: 3 }
+		const located = { headers: { location: "http://api.test/notes/n8?view=full" }, status: 201 }
+		const { outcome, sent } = await judge({ body }, located, { body: { ...body, id: "n8" }, status: 200 })
+		expect(outcome).toEqual({ kind: "asserted" })
+		expect(sent.at(-1)).toMatchObject({ method: "GET", path: "/notes/n8" })
 	})
 
 	it("reads back under the identity the client sent when the answer names none", async () => {
@@ -268,5 +293,32 @@ describe("create.persists-submitted-fields plan", () => {
 	it("plans for an acknowledgement-only create, which is read back", () => {
 		const { ctx } = notesContext(MODEL, () => undefined, { records: COHORT })
 		expect(createPersistsFields.plan({ ...ctx, createAcknowledged: true }).ok).toBe(true)
+	})
+})
+
+describe("create.persists-submitted-fields, with the listing as a witness", () => {
+	const ack = { body: { id: 5, message: "created" }, status: 201 }
+
+	it("does not blame the create for a field the item read leaves out and the listing holds", async () => {
+		const body = { name: "a", size: 3 }
+		const read = { body: { id: 5, name: "a" }, status: 200 }
+		const listed = {
+			body: [
+				{ id: 0, name: "z" },
+				{ ...body, id: 5 },
+			],
+			status: 200,
+		}
+		const cleared = await judgeSeen({ body }, ack, { listed, read })
+		expect(cleared.outcome).toEqual({ kind: "asserted" })
+		expect(cleared.findings.findings).toEqual([])
+		const lost = await judgeSeen({ body }, ack, {
+			listed: { body: [{ id: 5, name: "a", size: null }], status: 200 },
+			read,
+		})
+		expect(lost.outcome).toEqual({ kind: "finding", verdict: "BACKEND_BUG" })
+		expect(lost.findings.findings[0]?.detail).toContain("size sent 3, got undefined")
+		const unlisted = await judgeSeen({ body }, ack, { listed: null, read })
+		expect(unlisted.outcome).toEqual({ kind: "finding", verdict: "BACKEND_BUG" })
 	})
 })

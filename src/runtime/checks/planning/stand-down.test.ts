@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest"
 import { exchange } from "../__fixtures__/harness.ts"
 import { notesContext } from "../query/__fixtures__/notes.ts"
-import { standDownForFeatureGate, standDownForRateLimit } from "./stand-down.ts"
+import {
+	STORED_FIELDS_UNKNOWN,
+	standDownForFeatureGate,
+	standDownForRateLimit,
+	storedFieldsUnknown,
+} from "./stand-down.ts"
 
 /*
  * Two answers a check that needed a success stands down on instead of judging: a feature gate the
@@ -50,5 +55,17 @@ describe("standDownForRateLimit", () => {
 				reason: "the request was rate-limited (429) after retries, so this check could not complete",
 			},
 		])
+	})
+})
+
+describe("storedFieldsUnknown", () => {
+	it("stands down on records oat sent and never read back, and on nothing else", () => {
+		const { ctx } = notesContext()
+		expect(storedFieldsUnknown(ctx)).toBeUndefined()
+		expect(storedFieldsUnknown({ ...ctx, recordsUnverified: true })).toEqual({
+			needs: STORED_FIELDS_UNKNOWN,
+			ok: false,
+		})
+		expect(STORED_FIELDS_UNKNOWN).toMatch(/^records read back from the server/)
 	})
 })

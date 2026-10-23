@@ -127,3 +127,15 @@ describe("the create operation", () => {
 		})
 	})
 })
+
+describe("the create under a createAnswer shape", () => {
+	it("documents { id, message } under ack-create, and an empty 201 with Location under location-create", () => {
+		const ack = operations({ createAnswer: "id-message" }).post.responses["201"]
+		expect(ack).toHaveProperty("content.application/json.schema.required", ["id", "message"])
+		const located = operations({ createAnswer: "location" }, "row").post.responses["201"]
+		expect(located).not.toHaveProperty("content")
+		expect(located).toHaveProperty("headers.Location.schema.type", "string")
+		const job = operations({ createAnswer: "location" }, "job").post.responses["201"]
+		expect(job).toHaveProperty("content.application/json")
+	})
+})

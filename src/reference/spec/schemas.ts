@@ -93,6 +93,15 @@ export function createdSchema(ctx: SpecContext, entity: EntityDef): JsonSchema {
 		type: "object",
 	}
 }
+/** Under `createAnswer: "id-message"`: the acknowledgement a create answers instead of the record. */
+export function acknowledgementSchema(entity: EntityDef): JsonSchema {
+	return {
+		additionalProperties: false,
+		properties: { id: identitySchema(entity), message: { type: "string" } },
+		required: ["id", "message"],
+		type: "object",
+	}
+}
 export function readSchema(ctx: SpecContext, entity: EntityDef): JsonSchema {
 	if (!wraps(ctx, entity)) return itemSchemaRef(ctx, entity)
 	return {

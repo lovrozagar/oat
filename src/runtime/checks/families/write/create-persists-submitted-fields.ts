@@ -5,13 +5,14 @@ import type { Exchange } from "../../../exchange.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
 import { headerValue } from "../../../headers.ts"
-import { createdRecordOf, resolveCreatedId } from "../../../created-id.ts"
-import { type Record_ } from "../../../world/records.ts"
-import type { CheckContext } from "../../core/context.ts"
+import { createdIdOf, createdRecordOf } from "../../../created-id.ts"
+import { idOf, type Record_ } from "../../../world/records.ts"
+import { type CheckContext, isListed } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { readRecord } from "../../isolation/scratch.ts"
 import { createExchange, requestSchemaOf } from "../../payloads/body.ts"
 import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
+import { readSet } from "../../sets/read.ts"
 import type { JsonSchema } from "../../../../spec/types.ts"
 
 /**
@@ -58,7 +59,7 @@ export const createPersistsFields: Check<{
 		if (back.record === undefined && !echoes)
 			return standDown(`${createOp.operationId} answered an acknowledgement, not the record, and ${back.why}`)
 
-		const dropped = judged.filter((field) => !holds(echoed, field) && !(back.record && holds(back.record, field)))
+		const dropped = await droppedFields(ctx, judged, { back, echoed })
 		if (dropped.length === 0) return ASSERTED
 
 		/* A dropped field is missing from the echo too, so an echoing create is reported by its echo. */
@@ -85,12 +86,35 @@ function holds(record: Record_, [key, value]: [string, unknown]): boolean {
 	return Object.hasOwn(record, key) && JSON.stringify(record[key]) === JSON.stringify(value)
 }
 
-/** The created record as the item read shows it, or why there is none. */
+/** The created record as the item read shows it, or why there is none; `id` is what it was read under. */
 type ReadBack =
-	| { record: Record_; via: string; exchange: Exchange }
-	| { record?: undefined; why: string; exchange?: Exchange }
+	| { record: Record_; via: string; exchange: Exchange; id: string }
+	| { record?: undefined; why: string; exchange?: Exchange; id?: string }
 
-/** The id the create answered, or the one the client chose; read back through the item read. */
+/**
+ * The submitted fields no witness holds as sent: the echo, the record read back, or the row the
+ * listing shows under the same id. A field the listing holds was stored, and an item read leaving
+ * it out is a read-side disagreement; behind an acknowledgement the read is the only other witness.
+ */
+async function droppedFields(
+	ctx: CheckContext,
+	judged: Array<[string, unknown]>,
+	{ back, echoed }: { back: ReadBack; echoed: Record_ },
+): Promise<Array<[string, unknown]>> {
+	const unseen = judged.filter((field) => !holds(echoed, field) && !(back.record && holds(back.record, field)))
+	if (unseen.length === 0 || back.id === undefined) return unseen
+	const listed = await listedRow(ctx, back.id)
+	return listed === undefined ? unseen : unseen.filter((field) => !holds(listed, field))
+}
+
+/** The listed row under `id`, when the entity has a listing that shows it. */
+async function listedRow(ctx: CheckContext, id: string): Promise<Record_ | undefined> {
+	if (!isListed(ctx)) return undefined
+	const listing = await readSet(ctx)
+	return listing.items.find((row) => idOf(row, ctx.identity) === id)
+}
+
+/** The id the create answered, in its body or its Location, or the one the client chose; read back through the item read. */
 async function readBack(
 	ctx: CheckContext,
 	createOp: OperationModel,
@@ -101,13 +125,8 @@ async function readBack(
 	if (readOp === undefined) return { why: "the entity has no item read to read it back by" }
 	const chosen = request[ctx.identity]
 	const id =
-		resolveCreatedId({
-			body: sent.responseBody ?? {},
-			entity: ctx.entityName,
-			identity: ctx.identity,
-			sent: request,
-			source: { createdIdFrom: createOp.createdIdFrom, recordPath: createOp.recordPath },
-		})?.value ?? (typeof chosen === "string" || typeof chosen === "number" ? chosen : undefined)
+		createdIdOf({ createOp, exchange: sent, model: ctx.model, sent: request })?.value ??
+		(typeof chosen === "string" || typeof chosen === "number" ? chosen : undefined)
 	if (id === undefined) return { why: "named no id to read it back by" }
 	const exchange = await ctx.client.get(fillPath(readOp.path, { ...ctx.scope, ...itemParamFor(ctx, String(id)) }), {
 		as: { principal: ctx.actor.id },
@@ -115,8 +134,12 @@ async function readBack(
 	})
 	const record = exchange.status >= 200 && exchange.status < 300 ? readRecord(readOp, exchange) : undefined
 	if (record === undefined)
-		return { exchange, why: `${readOp.operationId} answered ${exchange.status} for it under ${String(id)}` }
-	return { exchange, record, via: `${readOp.operationId} reads back under ${String(id)}` }
+		return {
+			exchange,
+			id: String(id),
+			why: `${readOp.operationId} answered ${exchange.status} for it under ${String(id)}`,
+		}
+	return { exchange, id: String(id), record, via: `${readOp.operationId} reads back under ${String(id)}` }
 }
 
 type FormEntry = [string, string]

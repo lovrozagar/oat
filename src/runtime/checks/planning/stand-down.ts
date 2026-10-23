@@ -2,8 +2,24 @@ import type { OperationModel } from "../../../spec/graph/types.ts"
 import type { Exchange } from "../../exchange.ts"
 import { describeFeatureGate, isDocumentedFeatureGateDenial } from "../../feature-gate.ts"
 import type { CheckContext } from "../core/context.ts"
+import { cannot, type Plan } from "../core/plan.ts"
 
 /* ------------------------------------------------------------------- helpers */
+
+/** What a check that predicts stored values from the cohort's fields needs, when the records are what oat sent. */
+export const STORED_FIELDS_UNKNOWN: string =
+	"records read back from the server: the create answered without the record and there was no item read, " +
+	"so the cohort holds only the bodies oat sent"
+
+/**
+ * The stand-down for a check that works out from a record's fields what the server must answer —
+ * which records a filter selects, which hold a null — when the records are the bodies oat sent
+ * (`recordsUnverified`): a field the server defaulted or normalized would read as a defect.
+ * `undefined` when the records are the server's.
+ */
+export function storedFieldsUnknown(ctx: Pick<CheckContext, "recordsUnverified">): Plan<never> | undefined {
+	return ctx.recordsUnverified === true ? cannot(STORED_FIELDS_UNKNOWN) : undefined
+}
 
 /**
  * A documented feature-gate 403 is not a 2xx-check failure and not SECURITY.

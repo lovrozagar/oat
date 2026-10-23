@@ -7,6 +7,7 @@ import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { idOf } from "../../../world/records.ts"
 import type { Listed } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
+import { storedFieldsUnknown } from "../../planning/stand-down.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { asTermValue, conv, FOUNDATIONS, pageSize, resolvedCaps, schemaType } from "../../query/capabilities.ts"
 import { collectSet, sameSet } from "../../sets/compare.ts"
@@ -34,6 +35,8 @@ export const filterContainsMembership: Check<{
 	term: Record<string, string>
 }>({
 	plan: (ctx) => {
+		const unverified = storedFieldsUnknown(ctx)
+		if (unverified !== undefined) return unverified
 		const field = containsField(ctx)
 		if (field === undefined) return cannot()
 		/* The most telling element is one that also occurs inside another element's text: an

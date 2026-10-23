@@ -7,9 +7,11 @@ import { type NotesOptions, notesDocument } from "./__fixtures__/notes.ts"
 import { crossTenantItemWrite } from "./tenant-item-not-writable-cross-tenant.ts"
 
 const MEMBERS = { other: "o2", owner: "o1" }
-/** A create that answers with `record` and nothing else. */
-const creating = (record: Record<string, unknown>) => (method: string) =>
-	method === "POST" ? { body: record, status: 201 } : { status: 404 }
+/** A create that answers with `record`, and a read that answers it back; nothing else. */
+const creating = (record: Record<string, unknown>) => (method: string, path: string) =>
+	method === "POST" || (method === "GET" && path.endsWith(`/${String(record["id"])}`))
+		? { body: record, status: method === "POST" ? 201 : 200 }
+		: { status: 404 }
 /* A note whose only string is empty, and one whose string field the request schema does not know. */
 const createsBlank = creating({ id: "s1", title: "" })
 const createsUnschemed = creating({ id: "s1", slug: "made" })
@@ -80,13 +82,13 @@ describe("tenant.item-not-writable-cross-tenant: writes that did not take", () =
 	it("tries no update when the record has no field it could change", async () => {
 		const { ctx, sent } = notesContext(modelWith({ without: ["deleteNote"] }), createsBlank)
 		expect(await runCheck(crossTenantItemWrite, ctx)).toEqual({ kind: "asserted" })
-		expect(sent.map((s) => s.method)).toEqual(["POST"])
+		expect(sent.map((s) => s.method)).toEqual(["POST", "GET"])
 	})
 
 	it("tries no update when no changed value can be made for the field", async () => {
 		const { ctx, sent } = notesContext(modelWith({ without: ["deleteNote"] }), createsUnschemed)
 		expect(await runCheck(crossTenantItemWrite, ctx)).toEqual({ kind: "asserted" })
-		expect(sent.map((s) => s.method)).toEqual(["POST"])
+		expect(sent.map((s) => s.method)).toEqual(["POST", "GET"])
 	})
 })
 

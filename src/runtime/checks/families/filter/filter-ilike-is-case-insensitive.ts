@@ -5,6 +5,7 @@ import type { EffectiveFilterField } from "../../../../spec/query/effective.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { idOf } from "../../../world/records.ts"
 import { cannot, ready } from "../../core/plan.ts"
+import { storedFieldsUnknown } from "../../planning/stand-down.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { canUseOp, conv, FOUNDATIONS, pageSize, q } from "../../query/capabilities.ts"
 import { listAll } from "../../sets/compare.ts"
@@ -25,6 +26,8 @@ export const filterIlikeIsCaseInsensitive: Check<{
 	ilikeTerm: Record<string, string>
 }>({
 	plan: (ctx) => {
+		const unverified = storedFieldsUnknown(ctx)
+		if (unverified !== undefined) return unverified
 		const field = fieldsAllowing(ctx, "ilike").find((item) => canUseOp(ctx, item, "like"))
 		if (field === undefined) return cannot()
 		const sample = ctx.records

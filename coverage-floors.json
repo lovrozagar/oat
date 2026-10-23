@@ -1438,6 +1438,7 @@
 	"src/runtime/world/path-scope.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/world/plan-limit.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/world/probe-fixtures.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/world/read-back.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/world/records.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/world/schema.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/world/seed-cohort.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },

@@ -50,6 +50,8 @@ export interface World {
 	uniqueAdopted: boolean
 	/** The create answered with an acknowledgement rather than the record. */
 	createAcknowledged: boolean
+	/** The records are the bodies oat sent: no read showed what the server stored. */
+	recordsUnverified?: true
 }
 
 /** A world of records oat did not create: read from what the list already returns. */

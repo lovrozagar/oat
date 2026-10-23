@@ -57,6 +57,28 @@ describe("a create in another shape", () => {
 		expect((await call("POST", JOBS, { body: { name: "j" } })).body).toMatchObject({ name: "j" })
 	})
 
+	it("answers only { id, message } under ack-create, and a job's receipt as before", async () => {
+		const { call } = await api({ shape: "ack-create" })
+		const created = await call("POST", TABLES, { body: { name: "a" } })
+		expect(created).toMatchObject({ body: { id: "table_000001", message: "created" }, status: 201 })
+		expect(Object.keys(created.body)).toEqual(["id", "message"])
+		expect((await call("POST", JOBS, { body: { name: "j" } })).body).toMatchObject({ name: "j" })
+	})
+
+	it("answers an empty 201 naming the record's absolute URL in Location under location-create", async () => {
+		const { call } = await api({ shape: "location-create" })
+		const created = await call("POST", TABLES, { body: { name: "l" } })
+		expect(created).toMatchObject({ body: null, status: 201 })
+		const location = new URL(created.headers["location"] ?? "")
+		expect(location.pathname).toBe(`${TABLES}/table_000001`)
+		expect((await call("GET", location.pathname)).body).toMatchObject({ id: "table_000001", name: "l" })
+		const replay = await call("POST", TABLES, { body: { name: "l" }, headers: KEY })
+		const again = await call("POST", TABLES, { body: { name: "l" }, headers: KEY })
+		expect(again.headers["location"]).toBe(replay.headers["location"])
+		const row = await call("POST", rowsOf("table_000001"), { body: { label: "r" } })
+		expect(new URL(row.headers["location"] ?? "").pathname).toMatch(/\/tables\/table_000001\/rows\/[^/]+$/)
+	})
+
 	it("wraps the record under recordEnvelope", async () => {
 		const { call } = await api({ shape: "wrapped-records" })
 		const { body } = await call("POST", TABLES, { body: { name: "w" } })

@@ -5,7 +5,7 @@ import type { Exchange } from "../../../exchange.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
 import { listedIds } from "../../../proven-id.ts"
-import { createdRecordOf } from "../../../created-id.ts"
+import { answeredIdOf } from "../../../created-id.ts"
 import type { Client } from "../../../../client/client.ts"
 import type { CheckContext, Listed } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
@@ -104,8 +104,13 @@ interface Replay {
 }
 
 function identityOf(ctx: CheckContext, exchange: Exchange): string | undefined {
-	const value = createdRecordOf(exchange.responseBody ?? {}, ctx.identity, exchange.requestBody)[ctx.identity]
-	return typeof value === "string" || typeof value === "number" ? String(value) : undefined
+	const value = answeredIdOf({
+		createOp: { entity: ctx.entityName },
+		exchange,
+		identity: ctx.identity,
+		model: ctx.model,
+	})
+	return value === undefined ? undefined : String(value)
 }
 
 /** Why a create cannot be judged — a documented feature gate, or any status from 300 up — or `undefined`. */

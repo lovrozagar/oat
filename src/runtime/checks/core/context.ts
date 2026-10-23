@@ -112,6 +112,12 @@ export interface CheckContext<C extends ReadClient = ReadClient> {
 	uniqueAdopted: boolean
 	/** The create acknowledged without the record; the records are the bodies oat submitted. */
 	createAcknowledged: boolean
+	/**
+	 * The records are the bodies oat sent under the ids the creates answered: the create answered
+	 * without the record and there was no item read to read it back by. A check that predicts what
+	 * the server stored from a record's fields stands down (`storedFieldsUnknown`).
+	 */
+	recordsUnverified?: true
 	/** Identities the collection is known to hold: a body oat generates never names one. */
 	takenIdentities?: Set<string>
 	/** Create operation for unique probes — still set after unique-409 adopt. */

@@ -110,6 +110,16 @@ export const SHAPES: readonly NamedShape[] = [
 		why: "the client picks a table's integer id and the create only acknowledges, with tables already present",
 	},
 	{
+		name: "ack-create",
+		shape: { createAnswer: "id-message" },
+		why: 'a create answers only an acknowledgement, { "id": ..., "message": "created" }, never the record',
+	},
+	{
+		name: "location-create",
+		shape: { createAnswer: "location" },
+		why: "a create answers 201 with an empty body, naming the new record only in its Location header",
+	},
+	{
 		cannotRun: {
 			"create.unique-conflict-rejected": "the document declares nothing unique",
 			"update.unique-conflict-rejected": "the document declares nothing unique",

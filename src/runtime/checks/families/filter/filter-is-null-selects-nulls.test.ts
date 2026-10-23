@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { runCheck } from "../../core/run.ts"
+import { STORED_FIELDS_UNKNOWN } from "../../planning/stand-down.ts"
 import { OPS } from "./__fixtures__/backend.ts"
 import { endless, filters, grammar, growing, only, REFUSE_FILTERED, stage } from "./__fixtures__/widgets.ts"
 import { filterIsNullSelectsNulls as check } from "./filter-is-null-selects-nulls.ts"
@@ -72,5 +73,13 @@ describe("filter.is-null-selects-nulls: plan", () => {
 			needs: "a filter grammar that can express is.null",
 			ok: false,
 		})
+	})
+})
+
+describe("filter.is-null-selects-nulls: records oat sent, never read back", () => {
+	it("stands down, since what the server stored is not known", () => {
+		const { ctx } = stage({ doc: DOC, records: COHORT })
+		expect(check.plan(ctx).ok).toBe(true)
+		expect(check.plan({ ...ctx, recordsUnverified: true })).toEqual({ needs: STORED_FIELDS_UNKNOWN, ok: false })
 	})
 })

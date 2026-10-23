@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { runCheck } from "../../core/run.ts"
+import { STORED_FIELDS_UNKNOWN } from "../../planning/stand-down.ts"
 import { OPS } from "./__fixtures__/backend.ts"
 import { endless, filters, growing, only, REFUSE_FILTERED, reserving, stage } from "./__fixtures__/widgets.ts"
 import { filterOrderedTriplePartitions as check } from "./filter-ordered-triple-partitions.ts"
@@ -68,5 +69,13 @@ describe("filter.ordered-triple-partitions", () => {
 			needs: "a filter grammar that can express lt, eq and gt",
 			ok: false,
 		})
+	})
+})
+
+describe("filter.ordered-triple-partitions: records oat sent, never read back", () => {
+	it("stands down, since what the server stored is not known", () => {
+		const { ctx } = stage({ doc: DOC, records: COHORT })
+		expect(check.plan(ctx).ok).toBe(true)
+		expect(check.plan({ ...ctx, recordsUnverified: true })).toEqual({ needs: STORED_FIELDS_UNKNOWN, ok: false })
 	})
 })

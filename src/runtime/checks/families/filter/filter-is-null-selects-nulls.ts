@@ -6,6 +6,7 @@ import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { idOf } from "../../../world/records.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
+import { storedFieldsUnknown } from "../../planning/stand-down.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, FOUNDATIONS, MOVING_FILTER } from "../../query/capabilities.ts"
 import { holdsSomeNulls } from "../../query/order.ts"
@@ -28,6 +29,8 @@ export const filterIsNullSelectsNulls: Check<{
 	notNullTerm: Record<string, string>
 }>({
 	plan: (ctx) => {
+		const unverified = storedFieldsUnknown(ctx)
+		if (unverified !== undefined) return unverified
 		const field = fieldsAllowing(ctx, "is").find((item) => mixedNullField(ctx, item.field))
 		if (field === undefined) return cannot()
 		const conventions = conv(ctx)

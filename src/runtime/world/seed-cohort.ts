@@ -169,6 +169,7 @@ function cohortRun(start: {
 		seededMembers: [],
 		seeding: start.seeding,
 		uniqueGap: start.uniqueGap,
+		unverified: false,
 	}
 }
 

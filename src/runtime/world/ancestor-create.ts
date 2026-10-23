@@ -146,6 +146,7 @@ export async function createOne(
 		principal: options.principal,
 		scope: { ...options.roots, ...scope.values },
 		sent,
+		wants: "id",
 		...(options.readable === undefined ? {} : { readable: options.readable }),
 	})
 	if (made !== null) return { adopted: false, record: made.record }

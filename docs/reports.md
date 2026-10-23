@@ -60,7 +60,7 @@ Operations that did not pass are **Failed** (a check found a defect) or **Blocke
 
 ### Leftovers
 
-A create that answered 2xx but named no id oat could read or confirm left a record teardown cannot remove. `oat-report.md` lists each under **Leftovers** (method, URL, operation, status and exchange number), the console prints `leftovers: N create(s) answered 2xx but no id could be read`, `oat-report.json` holds them as `"teardown": { "unidentified": [...] }`, and the run exits `4`. Declare `x-entity.createdIdFrom` where the answer keeps the id.
+A create that answered 2xx but named no id oat could read or confirm, in its body or its `Location` header, left a record teardown cannot remove. `oat-report.md` lists each under **Leftovers** (method, URL, operation, status and exchange number), the console prints `leftovers: N create(s) answered 2xx but no id could be read`, `oat-report.json` holds them as `"teardown": { "unidentified": [...] }`, and the run exits `4`. Declare `x-entity.createdIdFrom` where the answer keeps the id.
 
 A record oat identified but could not show gone — its delete was refused, or it is still listed after a 2xx delete — is listed under **Leftovers** too, and the run exits `4`. It reads ``- table `t9` · as beta · DELETE … returned beta: 403``. Every record names the principal that created it, since that principal's tenant is where it remains: the console prints `table t9 (as beta): …`, and `oat-report.json` carries `principal` on each `teardown.failed` and `teardown.records` entry.
 

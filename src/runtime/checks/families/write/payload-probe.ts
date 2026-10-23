@@ -3,7 +3,7 @@ import type { Exchange } from "../../../exchange.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { type Outcome, standDown } from "../../../finding.ts"
 import type { StringPayload } from "../../../payloads.ts"
-import { createdRecordOf } from "../../../created-id.ts"
+import { answeredIdOf } from "../../../created-id.ts"
 import { createWithClientId } from "../../../world/client-identity.ts"
 import { type Record_ } from "../../../world/records.ts"
 import type { WriteContext } from "../../core/context.ts"
@@ -95,8 +95,13 @@ export async function removeRecord(probe: PayloadProbe, recordId: string): Promi
 
 export async function identityOf(probe: PayloadProbe, exchange: Exchange): Promise<string | undefined> {
 	const { ctx } = probe
-	const value = createdRecordOf(exchange.responseBody, ctx.identity, exchange.requestBody)[ctx.identity]
-	if (value !== undefined && value !== null) return String(value)
+	const value = answeredIdOf({
+		createOp: { entity: ctx.entityName },
+		exchange,
+		identity: ctx.identity,
+		model: ctx.model,
+	})
+	if (value !== undefined) return String(value)
 	/* Only a successful write made a record, and only the read under the id it was sent proves
 	 * which; the field under test is left out, since mangling it is what this check measures. */
 	if (exchange.status < 200 || exchange.status >= 300) return undefined

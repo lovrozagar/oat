@@ -63,6 +63,14 @@ describe("schema.success-response-matches-document run", () => {
 		expect(findings.inconclusive[0]?.reason).toContain("create returned 200, which the document declares no schema for")
 	})
 
+	it("asserts an empty body for a status the document answers with no body", async () => {
+		const { findings, outcome } = await judge({ headers: { location: "/items/1" }, status: 201 }, { created: null })
+		expect(outcome).toEqual({ kind: "asserted" })
+		expect(findings.findings).toEqual([])
+		const echoed = await judge({ body: { id: "1" }, status: 201 }, { created: null })
+		expect(echoed.outcome.kind).toBe("unresolved")
+	})
+
 	it("stands down on an event stream", async () => {
 		const streamed = { body: "data: {}", headers: { "content-type": "text/event-stream" }, status: 201 }
 		expect((await judge(streamed)).outcome).toEqual({

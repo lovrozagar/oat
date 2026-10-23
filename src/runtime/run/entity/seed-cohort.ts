@@ -104,7 +104,11 @@ async function worldOf(run: EntityRun, createOp: OperationModel, { cohort, scope
 		return { ...owned(run, cohort, scope), degraded: true, uniqueAdopted: true }
 	}
 	if (cohort.featureGate !== null) return gatedWorld(run, cohort.featureGate.detail)
-	return { ...owned(run, cohort, scope), createAcknowledged: cohort.acknowledged === true }
+	return {
+		...owned(run, cohort, scope),
+		createAcknowledged: cohort.acknowledged === true,
+		...(cohort.unverified === true ? { recordsUnverified: true as const } : {}),
+	}
 }
 
 /* The cohort's records, and every identity the collection is known to hold. */

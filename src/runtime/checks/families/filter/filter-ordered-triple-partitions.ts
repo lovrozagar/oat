@@ -4,6 +4,7 @@ import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { idOf } from "../../../world/records.ts"
 import { cannot, ready } from "../../core/plan.ts"
+import { storedFieldsUnknown } from "../../planning/stand-down.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, FOUNDATIONS, MOVING_FILTER } from "../../query/capabilities.ts"
 import { readSettled, setOf } from "../../sets/compare.ts"
@@ -25,6 +26,8 @@ export const filterOrderedTriplePartitions: Check<{
 	gt: Record<string, string>
 }>({
 	plan: (ctx) => {
+		const unverified = storedFieldsUnknown(ctx)
+		if (unverified !== undefined) return unverified
 		const picked = pickOrderedField(ctx)
 		if (picked === null) return cannot()
 		const threshold = [...new Set(picked.values)].sort((a, b) => a - b)[Math.floor(picked.values.length / 2)]

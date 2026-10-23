@@ -19,7 +19,9 @@ export interface ConfirmInput {
 }
 
 /** The entity's read and the path parameter that names the record, when oat may call it. */
-function readRoute(input: ConfirmInput): { readOp: OperationModel; param: string } | null {
+export function readRoute(
+	input: Pick<ConfirmInput, "entity" | "model" | "readable">,
+): { readOp: OperationModel; param: string } | null {
 	const readId = input.model.entities.get(input.entity)?.read
 	const readOp = readId === undefined ? undefined : input.model.byOperationId.get(readId)
 	const param = readOp?.pathParams.at(-1)

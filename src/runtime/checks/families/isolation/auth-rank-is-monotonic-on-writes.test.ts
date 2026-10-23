@@ -16,7 +16,9 @@ const MEMBERS = { owner: "o1", stranger: "o2", viewer: "o1" }
 const modelWith = (options: NotesOptions = {}) => modelOf(notesDocument(options))
 
 /* Every create answers a note whose only string is empty: nothing an update could change. */
-const blank = (method: string) => (method === "POST" ? { body: { id: "s1", title: "" }, status: 201 } : { status: 204 })
+/* A create, and the read of what it made, answering a note whose only field is an empty title. */
+const blank = (method: string, path: string) =>
+	method === "POST" || path.endsWith("/s1") ? { body: { id: "s1", title: "" }, status: 201 } : { status: 204 }
 
 /** A backend where `allowed` says who may do what; the owner's own scratch creates always pass. */
 const policy = (allowed: (who: string, kind: string) => boolean) =>
@@ -156,7 +158,7 @@ describe("auth.rank-is-monotonic-on-writes with nothing to try", () => {
 	it("tries no update when the scratch record has no field to change", async () => {
 		const { ctx, sent } = notesContext(modelWith({ without: ["deleteNote"] }), blank, { actors: [owner, viewer] })
 		expect(await runCheck(rankIsMonotonicOnWrites, ctx)).toEqual({ kind: "asserted" })
-		expect(sent.map((s) => s.method)).toEqual(["POST", "POST", "POST", "POST"])
+		expect(sent.map((s) => s.method)).toEqual(["POST", "POST", "GET", "POST", "POST", "GET"])
 	})
 
 	it("stands down without principals, a create, or two ranks in one tenant", () => {

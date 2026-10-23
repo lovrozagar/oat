@@ -115,6 +115,14 @@ class WatchedLedger extends Ledger {
 		this.readBack.push(`${name} ${id} ${principal}`)
 		super.sighted(name, id, principal)
 	}
+	override unsighted(name: string, id: string, principal: string): void {
+		this.readBack.push(`lost ${name} ${id} ${principal}`)
+		super.unsighted(name, id, principal)
+	}
+	override deleted(name: string, id: string): void {
+		this.readBack.push(`deleted ${name} ${id}`)
+		super.deleted(name, id)
+	}
 }
 
 function setup() {
@@ -338,6 +346,36 @@ describe("createTracker, on what a principal reads back", () => {
 		await tracker.observe(read({ operationId: "table.list", responseBody: [{ id: "r1" }, { name: "no id" }] }))
 		await tracker.observe(read({ operationId: "log.list", responseBody: [{ id: "l1", message: "m" }] }))
 		expect(ledger.readBack).toEqual(["column c1 beta", "table r1 beta", "log l1 beta"])
+	})
+
+	it("takes back a sighting when its reader's later read of the record answers that it is not there", async () => {
+		const { ledger, tracker } = setup()
+		const column = { operationId: "column.read", pathParams: { column_id: "c1" }, template: "/columns/{column_id}" }
+		await tracker.observe(read(column))
+		await tracker.observe(read({ ...column, status: 404 }))
+		await tracker.observe(read({ ...column, status: 410 }))
+		/* A refusal or a failure says nothing of whether the record is there; a listing names no one record. */
+		await tracker.observe(read({ ...column, status: 403 }))
+		await tracker.observe(read({ operationId: "table.list", status: 404 }))
+		await tracker.observe(read({ ...column, purpose: "teardown", status: 404 }))
+		const unnamed: Partial<Exchange> = read({ status: 404 })
+		delete unnamed.operationId
+		await tracker.observe(unnamed as Exchange)
+		expect(ledger.readBack).toEqual(["column c1 beta", "lost column c1 beta", "lost column c1 beta"])
+	})
+
+	it("notes a delete the backend accepted for the record it names, whoever sent it", async () => {
+		const { ledger, tracker } = setup()
+		const remove = {
+			method: "DELETE",
+			operationId: "table.delete",
+			pathParams: { project_id: "p1", table_id: "t1" },
+			template: "/projects/{project_id}/tables/{table_id}",
+		}
+		await tracker.observe(exchange({ ...remove, status: 204 }))
+		await tracker.observe(exchange({ ...remove, status: 404 }))
+		await tracker.observe(exchange({ ...remove, operationId: "column.read", status: 204 }))
+		expect(ledger.readBack).toEqual(["deleted table t1"])
 	})
 
 	it("sights nothing a read names no id for, and nothing that is not a read or a listing", async () => {

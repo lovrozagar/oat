@@ -73,6 +73,22 @@ const petBranch = (field: string): JsonSchema => ({
 	type: "object",
 })
 
+describe("SchemaValidator.documentsNoBody", () => {
+	it("is true when the response the status falls under declares no body, exactly, by range or by default", () => {
+		const validator = new SchemaValidator()
+		expect(validator.documentsNoBody({ responses: { "201": { description: "made" } } }, 201)).toBe(true)
+		expect(validator.documentsNoBody({ responses: { "2XX": { content: {}, description: "" } } }, 201)).toBe(true)
+		expect(validator.documentsNoBody({ responses: { default: { description: "" } } }, 204)).toBe(true)
+	})
+
+	it("is false for a response with a body, and for a status nothing documents", () => {
+		const validator = new SchemaValidator()
+		expect(validator.documentsNoBody(returning("201", "application/json", ITEM), 201)).toBe(false)
+		expect(validator.documentsNoBody({ responses: { "200": { description: "" } } }, 201)).toBe(false)
+		expect(validator.documentsNoBody({}, 201)).toBe(false)
+	})
+})
+
 describe("SchemaValidator discriminator", () => {
 	it("fails a body whose tag names one branch and whose fields fit another", () => {
 		const pet = {

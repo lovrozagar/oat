@@ -43,6 +43,12 @@ export interface ReferenceShape {
 	clientIds?: { min: number; max: number }
 	/** The table's create answers `{ success: true }` instead of the record it made. */
 	ackCreate?: boolean
+	/**
+	 * What every record's create answers instead of the record (an async job's receipt stays as it
+	 * is): `id-message` an acknowledgement `{ id, message: "created" }`, `location` a 201 with an
+	 * empty body and the new record's URL in `Location`.
+	 */
+	createAnswer?: "id-message" | "location"
 	/** Each record's identity is a field of this name (`ID`) instead of `id`. */
 	identityField?: string
 	/**

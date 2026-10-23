@@ -94,6 +94,12 @@ export interface SeededCohort {
 	 * oat submitted (client-chosen identity). Checks that judge the create's echo stand down.
 	 */
 	acknowledged?: boolean
+	/**
+	 * A create answered without the record and there was no item read to read it back by: the
+	 * records are the bodies oat sent under the ids the answers gave. Checks that judge stored
+	 * fields against a record stand down.
+	 */
+	unverified?: boolean
 	/** Set when extra cohort variants were dropped because unique values could not differ. */
 	uniqueGap?: string
 	/**

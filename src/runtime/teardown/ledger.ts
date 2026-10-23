@@ -40,6 +40,8 @@ export class Ledger {
 	private readonly movedAway = new Map<string, string>()
 	/* Records a principal read back — `entity, id, principal` — wherever the read came from. */
 	private readonly sightings = new Set<string>()
+	/* Records a delete the backend accepted removed, by entity and id, whoever sent it. */
+	private readonly deletes = new Set<string>()
 	/* Every record ever ledgered, by entity and id, whoever created it. */
 	private readonly held = new Set<string>()
 
@@ -85,6 +87,21 @@ export class Ledger {
 	 */
 	sighted(entity: string, id: string, principal: string): void {
 		this.sightings.add(recordKey(entity, id, principal))
+	}
+
+	/**
+	 * A principal's read under the record's id answered that it is not there. Only the latest read
+	 * counts: once its creator lost sight of a record oat never deleted, a later 404 shows nothing.
+	 * After a delete the backend accepted for it, the 404 is that delete, and the sighting stands.
+	 */
+	unsighted(entity: string, id: string, principal: string): void {
+		if (this.deletes.has(`${entity}\u0000${id}`)) return
+		this.sightings.delete(recordKey(entity, id, principal))
+	}
+
+	/** A delete the backend accepted for the record, under any path and as anyone. */
+	deleted(entity: string, id: string): void {
+		this.deletes.add(`${entity}\u0000${id}`)
 	}
 
 	private seenByCreator(item: Disposable): boolean {
