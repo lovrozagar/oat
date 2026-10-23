@@ -1,5 +1,6 @@
 import type { OperationModel } from "../../../spec/graph/types.ts"
 import { type Actor, checkMemo, type WriteContext } from "../../checks/core/context.ts"
+import { ownRecordsOf } from "../own-records.ts"
 import { peerOf } from "./actors.ts"
 import { queryOf } from "./capabilities.ts"
 import type { EntityRun, World } from "./state.ts"
@@ -45,6 +46,7 @@ export async function checkContext(run: EntityRun, world: World, actors: [Actor,
 		model: ctx.model,
 		nonce: ctx.nonce,
 		outOfBand: ctx.outOfBand,
+		ownRecords: ownRecordsOf(ctx),
 		payloads: { claims: ctx.state.payloadClaims, policy: ctx.options.payloads ?? "per-write-path" },
 		query,
 		recordCreated: ctx.principals.recordCreated,

@@ -23,6 +23,7 @@ export const selfIdentityCheck: Check<void> = {
 			entity: ctx.model.entities.get(ctx.entityName) as EntityModel,
 			findings: ctx.findings,
 			model: ctx.model,
+			...(ctx.ownRecords === undefined ? {} : { ownRecords: ctx.ownRecords }),
 		})
 	},
 	subjects: (entity: EntityModel, model?: SpecModel): string[] => selfOperationIds(entity, model),

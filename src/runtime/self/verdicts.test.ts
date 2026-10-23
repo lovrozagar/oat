@@ -86,7 +86,7 @@ describe("the answers on the caller's routes", () => {
 describe("the update the check sends", () => {
 	it("picks the field and the value to set it to", () => {
 		const { run, model } = selfRun()
-		expect(updateProbe(run, model, answer(200, { display_name: "Oat" }))).toMatchObject({
+		expect(updateProbe(run, model, { avoid: new Set(), read: answer(200, { display_name: "Oat" }) })).toMatchObject({
 			field: { name: "display_name" },
 			path: "/me",
 			value: "Xot",
@@ -94,11 +94,13 @@ describe("the update the check sends", () => {
 	})
 
 	it("ends without one when there is no update, it needs an id, or it has no field to change", () => {
-		expect(updateProbe(selfRun(me({ update: false })).run, selfRun().model, answer(200))).toBe(ASSERTED)
+		expect(
+			updateProbe(selfRun(me({ update: false })).run, selfRun().model, { avoid: new Set(), read: answer(200) }),
+		).toBe(ASSERTED)
 		const pathed = selfRun(me({ updatePath: "/me/{slot}" }))
-		expect(updateProbe(pathed.run, pathed.model, answer(200))).toBe(ASSERTED)
+		expect(updateProbe(pathed.run, pathed.model, { avoid: new Set(), read: answer(200) })).toBe(ASSERTED)
 		const fieldless = selfRun(me({ update: { properties: { size: { type: "integer" } }, type: "object" } }))
-		expect(updateProbe(fieldless.run, fieldless.model, answer(200))).toEqual({
+		expect(updateProbe(fieldless.run, fieldless.model, { avoid: new Set(), read: answer(200) })).toEqual({
 			kind: "unresolved",
 			reason: "the update has no plain string or boolean field to change",
 		})

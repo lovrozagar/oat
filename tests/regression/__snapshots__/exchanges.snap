@@ -1,4 +1,7 @@
 {
+  "account.update": [
+    "PUT /v1/me/account [Authorization,content-type] → 200"
+  ],
   "apiKey.create": [
     "POST /v1/api-keys [Authorization,content-type] → 201"
   ],

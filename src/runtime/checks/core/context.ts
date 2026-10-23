@@ -7,6 +7,7 @@ import type { CredentialStore } from "../../../credentials/store.ts"
 import type { Exchange } from "../../exchange.ts"
 import type { PayloadClaims } from "../families/write/payload-claims.ts"
 import type { FindingCollector } from "../../finding.ts"
+import type { OwnRecords } from "../../own-record.ts"
 import type { BackoffConfig } from "../../poll.ts"
 import type { Created } from "../../teardown/types.ts"
 import type { UploadContext } from "../../upload.ts"
@@ -119,6 +120,8 @@ export interface CheckContext<C extends ReadClient = ReadClient> {
 	waitOps: OperationModel[]
 	hooks: Hooks
 	outOfBand: BackoffConfig
+	/** What guards each principal's own record: a check's write there never changes how it signs in. */
+	ownRecords?: OwnRecords
 	/**
 	 * The payload policy, and the write paths that have had the whole catalog this run — keyed
 	 * by media type and field type, naming the entity that ran it. Optional so a hand-built

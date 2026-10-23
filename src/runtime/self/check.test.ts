@@ -38,4 +38,11 @@ describe("selfIdentityCheck", () => {
 		expect(selfIdentityCheck.subjects(model.entities.get("profile") as never, model)).toEqual(["me.get", "me.update"])
 		expect(selfIdentityCheck).toMatchObject({ id: "auth.self-is-the-caller", mutates: true })
 	})
+
+	it("hands the run's own-record guard to the self check", async () => {
+		const { ctx, sent } = contextFor("profile")
+		const ownRecords = { disposable: async () => "d", identityOf: () => undefined, signIn: new Set<string>() }
+		await selfIdentityCheck.run({ ...ctx, ownRecords })
+		expect(sent[0]?.path).toBe("/me")
+	})
 })

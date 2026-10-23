@@ -28,6 +28,15 @@ const throwing = (error: unknown) => async () => {
 	throw error
 }
 
+/** A check body that PATCHes `path` as alpha with a password and a title, then asserts. */
+const write = (path: string) => async (view: { client: unknown }) => {
+	await (view.client as Client).view({}).request("PATCH", path, {
+		as: { principal: "alpha" },
+		body: { password: "x", title: "t" },
+	})
+	return { kind: "asserted" } as const
+}
+
 describe("runCheck outcomes", () => {
 	it("grades every subject of a check that asserted, timing it and keeping its note", async () => {
 		const { ctx, outcome } = await ran({ id: "c.pass", run: async () => ({ kind: "asserted", note: "policy seen" }) })
@@ -90,6 +99,22 @@ describe("runCheck clients", () => {
 		})
 		expect(outcome?.kind).toBe("stood-down")
 		expect(ctx.findings.findings[0]?.detail).toMatch(/does not mutate/)
+	})
+
+	it("gives a mutating check a client that never changes how a principal signs in", async () => {
+		const ctx = await contextOf(optionsFor(notesApi(), { principals: { alpha: { uid: "n-7" } } }))
+		const loop = await loopOf(ctx)
+		const own = checkOf({ id: "c.own", mutates: true, run: write("/notes/n-7") })
+		await runCheck(loop, { check: own, graded: GRADED })
+		expect(loop.outcomes.get("c.own")).toEqual({
+			kind: "unresolved",
+			reason:
+				"notes.update would change password on alpha's own record, which alpha signs in with: oat never sends that",
+		})
+		const other = checkOf({ id: "c.other", mutates: true, run: write("/notes/n-8") })
+		await runCheck(loop, { check: other, graded: GRADED })
+		expect(loop.outcomes.get("c.other")).toEqual({ kind: "asserted" })
+		expect(ctx.client.transcript.map((exchange) => new URL(exchange.url).pathname)).not.toContain("/notes/n-7")
 	})
 
 	it("gives a mutating check a client that writes", async () => {

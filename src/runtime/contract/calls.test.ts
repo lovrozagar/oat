@@ -169,6 +169,108 @@ describe("runContractCalls and credential operations", () => {
 	})
 })
 
+/* The caller's own account, untagged, and another user's: what the principal signs in with is on both. */
+const account = (required: string[] = []) =>
+	json({
+		properties: {
+			display_name: { type: "string" },
+			email: { format: "email", type: "string" },
+			password: { minLength: 8, type: "string" },
+		},
+		required,
+		type: "object",
+	})
+const accounts = (required?: string[]) =>
+	doc({
+		"/users/me": { put: { operationId: "me.update", requestBody: account(required), responses: ok() } },
+		"/users/{id}": {
+			put: {
+				operationId: "user.update",
+				parameters: [pathParam("id")],
+				requestBody: account(required),
+				responses: ok(),
+			},
+		},
+	})
+const guarding = (more: { identity?: Record<string, unknown>; disposable?: string } = {}) => ({
+	ownRecords: {
+		disposable: async () => more.disposable ?? { blocked: "the document marks no x-fresh-principal operation" },
+		identityOf: (principal: string) => (principal === "alpha" ? (more.identity ?? { id: "u-1" }) : undefined),
+		signIn: new Set(["email"]),
+	},
+})
+
+describe("runContractCalls and the principal's own record", () => {
+	it("leaves out what the principal signs in with, on its own record and nowhere else", async () => {
+		const { input, sent } = stage(accounts(), () => ({ status: 200 }), {
+			...guarding(),
+			hooks: { resolvePathValue: async () => "u-2" },
+			madeByRun: () => true,
+		})
+		await runContractCalls(input)
+		expect(sent.map((request) => [request.path, Object.keys(request.options.body as object).toSorted()])).toEqual([
+			["/users/me", ["display_name"]],
+			["/users/u-2", ["display_name", "email", "password"]],
+		])
+	})
+
+	it("sends one it cannot go without as the disposable principal, when the route names no record", async () => {
+		const { input, sent } = stage(accounts(["password"]), () => ({ status: 200 }), {
+			...guarding({ disposable: "disposable-own-record" }),
+			hooks: { resolvePathValue: async () => "u-1" },
+		})
+		await runContractCalls(input)
+		expect(
+			sent.map((request) => [request.path, request.options.as, Object.keys(request.options.body as object).toSorted()]),
+		).toEqual([["/users/me", { principal: "disposable-own-record" }, ["display_name", "email", "password"]]])
+		expect([...(input.grades.needs.get("user.update") ?? [])]).toEqual([
+			"user.update would change password on alpha's own record, which alpha signs in with: oat never sends that, and its path names the principal's own record",
+		])
+	})
+
+	it("skips it, naming the field, with no disposable principal", async () => {
+		const { input, sent } = stage(accounts(["email"]), () => ({ status: 200 }), {
+			...guarding(),
+			inScope: (id) => id === "me.update",
+			mode: "targeted",
+		})
+		await runContractCalls(input)
+		expect(sent).toEqual([])
+		expect([...(input.grades.needs.get("me.update") ?? [])]).toEqual([
+			"me.update would change email on alpha's own record, which alpha signs in with: oat never sends that, and no disposable principal could send it: the document marks no x-fresh-principal operation",
+		])
+	})
+})
+
+describe("runContractCalls and whom the own-record guard covers", () => {
+	it("guards nobody it does not know, and no recipe's own operation", async () => {
+		const { input, sent } = stage(accounts(), () => ({ status: 200 }), {
+			...guarding(),
+			credentials: {
+				actorFor: async () => ({ as: { principal: "alpha" } }),
+				identityFields: new Map(),
+				operations: new Set(["me.update"]),
+			},
+			inScope: (id) => id === "me.update",
+			mode: "targeted",
+		})
+		await runContractCalls(input)
+		expect(Object.keys(sent[0]?.options.body as object).toSorted()).toEqual(["display_name", "email", "password"])
+		const anyone = stage(accounts(), () => ({ status: 200 }), {
+			...guarding(),
+			inScope: (id) => id === "me.update",
+			mode: "targeted",
+			principal: "beta",
+		})
+		await runContractCalls(anyone.input)
+		expect(Object.keys(anyone.sent[0]?.options.body as object).toSorted()).toEqual([
+			"display_name",
+			"email",
+			"password",
+		])
+	})
+})
+
 /* A sign-in whose document examples name a real-looking account, which failed attempts could lock. */
 const signIn = doc({
 	"/auth/login": {

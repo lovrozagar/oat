@@ -24,8 +24,21 @@ describe("callerProfilePaths", () => {
 describe("callerRootPaths", () => {
 	const paths = callerRootPaths(CTX) as Paths
 
-	it("routes a logout, the caller's project and a register", () => {
-		expect(Object.keys(paths)).toEqual(["/v1/logout", "/v1/projects/{project_id}/overview", "/v1/register"])
+	it("routes a logout, the caller's account, the caller's project and a register", () => {
+		expect(Object.keys(paths)).toEqual([
+			"/v1/logout",
+			"/v1/me/account",
+			"/v1/projects/{project_id}/overview",
+			"/v1/register",
+		])
+	})
+
+	it("updates the caller's account, untagged, with the email and password it signs in by", () => {
+		const update = paths["/v1/me/account"]?.["put"] as Json & { requestBody: Json; responses: Json }
+		expect(update).toMatchObject({ operationId: "account.update" })
+		expect(Object.keys(update).filter((key) => key.startsWith("x-"))).toEqual([])
+		expect(JSON.stringify(update.requestBody)).toContain('"password":{"minLength":8,"type":"string"}')
+		expect(Object.keys(update.responses)).toEqual(["200", "400", "401"])
 	})
 
 	it("marks the logout destructive, and the register public and minting a fresh principal", () => {

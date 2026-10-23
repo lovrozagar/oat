@@ -3,7 +3,7 @@
 import { buildSpec, buildUntaggedSpec } from "../../spec/build.ts"
 import { assertTenant } from "../access.ts"
 import { authenticate } from "../auth/credentials.ts"
-import type { Principal } from "../auth/types.ts"
+import type { Account, Principal } from "../auth/types.ts"
 import { readJson, requireJson } from "../body.ts"
 import { HttpError } from "../errors.ts"
 import type { ReferenceState } from "../state.ts"
@@ -62,6 +62,42 @@ export const me: Route = async (state, request) => {
 	if (state.defects.has("CALLER_UPDATE_DROPPED")) return respond(200, current)
 	state.profiles.set(principal.key, next)
 	return respond(200, next)
+}
+
+/* What `account.update` may set: each a string, the email an address and the password 8 or more long. */
+const ACCOUNT_FIELDS: Readonly<Record<string, (value: string) => boolean>> = {
+	display_name: (value) => value.length <= 64,
+	email: (value) => /^[^@\s]+@[^@\s]+$/.test(value),
+	password: (value) => value.length >= 8,
+}
+
+/** `account.update`: the caller's own sign-in email and password, and its display name; the next login reads them. */
+export const account: Route = async (state, request) => {
+	if (!is(request, "PUT", "/v1/me/account")) return undefined
+	const principal = authenticate(state, request)
+	requireJson(request, state.defects)
+	const body = await readJson(request)
+	if (body === null || typeof body !== "object" || Array.isArray(body)) {
+		throw new HttpError(400, "invalid_input", "request body must be an object")
+	}
+	for (const [name, value] of Object.entries(body)) {
+		const valid = ACCOUNT_FIELDS[name]
+		if (valid === undefined) throw new HttpError(400, "invalid_input", `field "${name}" is not allowed`)
+		if (typeof value !== "string" || !valid(value))
+			throw new HttpError(400, "invalid_input", `field "${name}" is invalid`)
+	}
+	const { display_name: displayName, email, password } = body as Record<string, string | undefined>
+	/* An authenticated caller is an account. The accounts are shared constants: replace, never mutate. */
+	const current = state.auth.accounts.get(principal.key) as Account
+	const next: Account = {
+		...current,
+		...(displayName === undefined ? {} : { displayName }),
+		...(email === undefined ? {} : { email }),
+		...(password === undefined ? {} : { password }),
+	}
+	state.auth.accounts.set(principal.key, next)
+	/* A field the account has no value for is left out of the JSON. */
+	return respond(200, { display_name: next.displayName, email: next.email })
 }
 
 /** A project-scoped route: the caller and the project the path names, which must be theirs. */

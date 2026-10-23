@@ -6,6 +6,7 @@ import type { Actor } from "../../client/credential-source.ts"
 import type { ActionBind } from "../effects/bind.ts"
 import type { FindingCollector } from "../finding.ts"
 import type { GradeLedger } from "../grades.ts"
+import type { OwnRecords } from "../own-record.ts"
 import type { SchemaValidator } from "../validate.ts"
 import type { Parameter } from "./params.ts"
 
@@ -53,6 +54,8 @@ export interface ContractInput {
 	principal: string
 	acting: Acting
 	credentials: FloorCredentials
+	/** What guards the principal's own record: a write there never changes how it signs in. */
+	ownRecords: OwnRecords
 	roots: Record<string, string>
 	hooks: Hooks
 	inScope: (operationId: string) => boolean

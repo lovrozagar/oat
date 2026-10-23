@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import type { RequestOptions } from "../../client/types.ts"
 import type { Answer, Responder } from "../checks/__fixtures__/harness.ts"
 import { ASSERTED } from "../finding.ts"
+import type { OwnRecords } from "../own-record.ts"
 import { type MeOptions, me, selfInput } from "./__fixtures__/me.ts"
 import { runSelfIdentity } from "./identity.ts"
 
@@ -156,5 +157,57 @@ describe("runSelfIdentity's update", () => {
 		const lost = check(ignored)
 		expect(await lost.result).toEqual({ kind: "finding", verdict: "BACKEND_BUG" })
 		expect(lost.findings.findings[0]?.summary).toBe("an update to the caller did not stick")
+	})
+})
+
+/** alpha's own-record guard: it signs in with its email; `disposable` is what a write that needs it gets. */
+const records = (disposable: string | { blocked: string }): OwnRecords => ({
+	disposable: async () => disposable,
+	identityOf: (principal) => (principal === "alpha" ? { email: "ann@x.io" } : undefined),
+	signIn: new Set(["email"]),
+})
+
+describe("runSelfIdentity and what the caller signs in with", () => {
+	const ACCOUNT = { properties: { password: { type: "string" }, bio: { type: "string" } }, type: "object" }
+	const ONLY_PASSWORD = { properties: { password: { type: "string" } }, type: "object" }
+	const SIGNS_UP = { properties: { email: { type: "string" } }, required: ["email"], type: "object" }
+	const NONE = { blocked: "the document marks no x-fresh-principal operation" }
+
+	function guarded(respond: Responder, document: MeOptions, disposable: string | { blocked: string } = NONE) {
+		const { input, findings, sent } = selfInput(respond, me(document), { ownRecords: records(disposable) })
+		return { findings, result: runSelfIdentity(input), sent }
+	}
+
+	it("changes a field the caller does not sign in with, never its password", async () => {
+		const { result, sent } = guarded(stored({ bio: "Ada", password: "p" }), { update: ACCOUNT })
+		expect(await result).toBe(ASSERTED)
+		const writes = sent.filter((request) => request.method === "PATCH")
+		expect(writes.map((request) => request.options.body)).toEqual([{ bio: "Oat" }, { bio: "Ada" }])
+		expect(writes.map((request) => request.options.as)).toEqual([{ principal: "alpha" }, { principal: "alpha" }])
+	})
+
+	it("acts as the disposable principal when the only field to change is one the caller signs in with", async () => {
+		const { result, sent } = guarded(stored({ password: "p" }), { update: ONLY_PASSWORD }, "disposable-own-record")
+		expect(await result).toBe(ASSERTED)
+		const signed = sent.filter((request) => request.options.probe !== true)
+		expect(new Set(signed.map((request) => JSON.stringify(request.options.as)))).toEqual(
+			new Set([JSON.stringify({ principal: "disposable-own-record" })]),
+		)
+		expect(signed.find((request) => request.method === "PATCH")?.options.body).toEqual({ password: "Oat" })
+	})
+
+	it("stands down, naming the field, with no disposable principal", async () => {
+		const update = guarded(stored({ password: "p" }), { update: ONLY_PASSWORD })
+		expect(await update.result).toEqual({
+			kind: "unresolved",
+			reason:
+				"me.update would change password on alpha's own record, which alpha signs in with: oat never sends that, and no disposable principal could send it: the document marks no x-fresh-principal operation",
+		})
+		expect(update.sent.filter((request) => request.method !== "GET")).toEqual([])
+		const create = guarded(stored({}), { create: SIGNS_UP })
+		expect(await create.result).toMatchObject({
+			kind: "unresolved",
+			reason: expect.stringContaining("me.create would change email on alpha's own record"),
+		})
 	})
 })

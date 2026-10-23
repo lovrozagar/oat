@@ -5,6 +5,7 @@ import { proveFromTranscript } from "../evidence.ts"
 import type { RunContext } from "./context.ts"
 import { actingOf } from "./acting.ts"
 import { floorCredentials } from "./floor-credentials.ts"
+import { ownRecordsOf } from "./own-records.ts"
 import { stopped } from "./interrupt.ts"
 
 /**
@@ -41,6 +42,7 @@ export async function contractFloor(ctx: RunContext): Promise<void> {
 		model,
 		nonce: ctx.nonce,
 		owned: ctx.scenarioOwned,
+		ownRecords: ownRecordsOf(ctx),
 		principal: principals.alpha.id,
 		roots: { ...principals.alpha.scope },
 		seed: ctx.seed,

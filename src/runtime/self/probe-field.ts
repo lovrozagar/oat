@@ -51,7 +51,8 @@ function fieldOf(name: string, value: unknown): ProbeField | null {
 	return maxLength < 4 ? null : { kind: "string", maxLength, name }
 }
 
-export function probeField(schema: unknown): ProbeField | null {
+/** The field an update to the caller changes, never one of `avoid`. */
+export function probeField(schema: unknown, avoid: ReadonlySet<string> = new Set()): ProbeField | null {
 	const root = asSchema(schema)
 	if (root === null) return null
 	const properties = unwrap(root).properties
@@ -62,7 +63,7 @@ export function probeField(schema: unknown): ProbeField | null {
 		...Object.keys(record).filter((name) => !PREFERRED_FIELDS.includes(name)),
 	]
 	let boolean: ProbeField | null = null
-	for (const name of names) {
+	for (const name of names.filter((one) => !avoid.has(one))) {
 		const field = fieldOf(name, record[name])
 		if (field?.kind === "string") return field
 		if (field !== null) boolean ??= field

@@ -5,6 +5,7 @@
  * cannot be built leaves the operation untested with the reason.
  */
 
+import type { Actor } from "../../client/credential-source.ts"
 import { requestContent } from "../../spec/collection/request.ts"
 import { scopingParams } from "../../spec/graph/roots.ts"
 import { SAFE } from "../../spec/methods.ts"
@@ -13,6 +14,7 @@ import { buildCohort, type CohortMember } from "../fixture.ts"
 import { nonexistentIdentity } from "../nonexistent-identity.ts"
 import type { Exchange } from "../exchange.ts"
 import type { GradeLedger } from "../grades.ts"
+import { guardWrite, protectedReason } from "../own-record.ts"
 import { exampleOf, newestSeen, seenValue } from "./params.ts"
 import type { ContractCall, ContractInput } from "./types.ts"
 
@@ -236,6 +238,43 @@ export function bodyOf(
 	const fields = input.credentials.identityFields.get(op.operationId) ?? []
 	for (const path of fields) placeIdentity(body, { nonce: input.nonce, path, schema: content.schema })
 	return { body }
+}
+
+/** Who sends a floor call, and the body it carries. */
+export interface Sending {
+	as: Actor
+	body: unknown
+}
+
+/**
+ * Who sends the call and what it carries, once its write to the principal's own record is guarded
+ * (`guardWrite`): the fields that would change how the principal signs in left out, or, when its
+ * schema requires one, the call sent as the run's disposable principal. Only a route that names no
+ * record can go to the disposable's own record instead; any other, or no disposable, leaves the
+ * operation skipped, naming the field. A recipe's own operation is not guarded. `null` once skipped.
+ */
+export async function guardedSend(
+	input: Pick<ContractInput, "credentials" | "grades" | "ownRecords">,
+	{ op, raw }: Pick<ContractCall, "op" | "raw">,
+	sending: Sending & { values: Readonly<Record<string, string>> },
+): Promise<Sending | null> {
+	const { as, body, values } = sending
+	/* A recipe's own operation signs in, never as the principal: its identity fields are `placeIdentity`'s. */
+	const principal = "principal" in as && !input.credentials.operations.has(op.operationId) ? as.principal : undefined
+	const identity = principal === undefined ? undefined : input.ownRecords.identityOf(principal)
+	if (identity === undefined) return { as, body }
+	const schema = requestContent(raw)?.schema
+	const guarded = guardWrite(input.ownRecords.signIn, { identity, op, path: values }, { body, schema })
+	if ("body" in guarded) return { as, body: guarded.body }
+	const reason = protectedReason(op.operationId, principal as string, guarded.needs)
+	if (op.pathParams.length > 0) {
+		input.grades.skipped([op.operationId], `${reason}, and its path names the principal's own record`)
+		return null
+	}
+	const disposable = await input.ownRecords.disposable()
+	if (typeof disposable === "string") return { as: { principal: disposable }, body }
+	input.grades.skipped([op.operationId], `${reason}, and no disposable principal could send it: ${disposable.blocked}`)
+	return null
 }
 
 /* The nonexistent identity at `path`, made where the generated body left the field out. */

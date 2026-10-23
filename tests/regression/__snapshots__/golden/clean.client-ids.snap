@@ -167,6 +167,11 @@
       },
       {
         "check": "auth.alternative-accepted",
+        "entity": "account.update",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
         "entity": "apiKey.create",
         "needs": "a read: a write an alternative is accepted on would apply it"
       },
@@ -332,6 +337,11 @@
       },
       {
         "check": "auth.anonymous-operation-open",
+        "entity": "account.update",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
         "entity": "apiKey.create",
         "needs": "an operation whose security lets anonymous callers in"
       },
@@ -489,6 +499,11 @@
         "check": "auth.anonymous-operation-open",
         "entity": "table.update",
         "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "account.update",
+        "needs": "a GET; account.update is probed by the write stage's checks"
       },
       {
         "check": "auth.cross-tenant-key-refused",
@@ -692,6 +707,11 @@
       },
       {
         "check": "auth.invalid-credential-refused",
+        "entity": "account.update",
+        "needs": "a record this run created that account.update can be sent to"
+      },
+      {
+        "check": "auth.invalid-credential-refused",
         "entity": "apiKey.create",
         "needs": "a record this run created that apiKey.create can be sent to"
       },
@@ -814,6 +834,11 @@
         "check": "auth.invite-grants-then-revokes",
         "entity": "row",
         "needs": "x-invite naming invite/accept/revoke, a peer principal with inviteAs, and an item or list route"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "account.update",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
       },
       {
         "check": "auth.login-throttled",
@@ -1007,6 +1032,11 @@
       },
       {
         "check": "auth.missing-credential-refused",
+        "entity": "account.update",
+        "needs": "a record this run created that account.update can be sent to"
+      },
+      {
+        "check": "auth.missing-credential-refused",
         "entity": "apiKey.create",
         "needs": "a record this run created that apiKey.create can be sent to"
       },
@@ -1114,6 +1144,11 @@
         "check": "auth.missing-credential-refused",
         "entity": "table.revoke",
         "needs": "a record this run created that table.revoke can be sent to"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "account.update",
+        "needs": "a request body property marked x-privileged; account.update marks none"
       },
       {
         "check": "auth.privileged-field-ignored",
@@ -1307,6 +1342,11 @@
       },
       {
         "check": "auth.refresh-reuse-refused",
+        "entity": "account.update",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
         "entity": "apiKey.create",
         "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
       },
@@ -1492,6 +1532,11 @@
       },
       {
         "check": "auth.revoked-credential-refused",
+        "entity": "account.update",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
         "entity": "apiKey.create",
         "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
       },
@@ -1669,6 +1714,11 @@
         "check": "auth.revoked-credential-refused",
         "entity": "table.update",
         "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "account.update",
+        "needs": "a record this run created that account.update can be sent to"
       },
       {
         "check": "auth.role-enforced",
@@ -1827,6 +1877,11 @@
       },
       {
         "check": "auth.scope-enforced",
+        "entity": "account.update",
+        "needs": "an alternative that requires a scope"
+      },
+      {
+        "check": "auth.scope-enforced",
         "entity": "apiKey.create",
         "needs": "an alternative that requires a scope"
       },
@@ -1979,6 +2034,11 @@
         "check": "auth.self-is-the-caller",
         "entity": "table",
         "needs": "x-entity.identity: self, and a read or an update"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "account.update",
+        "needs": "a record this run created that account.update can be sent to"
       },
       {
         "check": "auth.wrong-scheme-refused",
@@ -2639,6 +2699,11 @@
         "check": "read.matches-caller-root",
         "entity": "table",
         "needs": "x-entity.identity: root and a read"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "account.update",
+        "needs": "an action outside a run-created record could apply a side effect the run cannot undo"
       },
       {
         "check": "request.invalid-body-refused",
@@ -4221,6 +4286,26 @@
           "sufficiency": "complete",
           "tier": "contract",
           "why": "a read with no declared effects: its contract is the whole promise"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "response.contract-call"
+            ],
+            "suppressed": []
+          },
+          "entity": null,
+          "findings": 0,
+          "operationId": "account.update",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "unproven",
+          "tier": "contract",
+          "why": "met its contract, but no later read observed what it changed"
         },
         {
           "checks": {

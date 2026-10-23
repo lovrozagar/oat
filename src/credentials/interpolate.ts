@@ -40,8 +40,8 @@ export function principalValues(principal: CredentialPrincipal, value: unknown):
 	const found = new Set<string>()
 	const walk = (item: unknown): void => {
 		if (typeof item === "string") {
-			for (const [, key] of item.matchAll(PLACEHOLDER)) {
-				const text = scalarText(principal.identity[key as string])
+			for (const key of principalKeysIn(item)) {
+				const text = scalarText(principal.identity[key])
 				if (text !== undefined) found.add(text)
 			}
 		} else if (Array.isArray(item)) item.forEach(walk)
@@ -49,6 +49,11 @@ export function principalValues(principal: CredentialPrincipal, value: unknown):
 	}
 	walk(value)
 	return [...found]
+}
+
+/** The identity keys `text`'s `{principal.<key>}` placeholders read, in order. */
+export function principalKeysIn(text: string): string[] {
+	return [...text.matchAll(PLACEHOLDER)].map(([, key]) => key as string)
 }
 
 /** The value with the credential wherever `{credential}` stands, deep through arrays and plain objects. */

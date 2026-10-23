@@ -51,6 +51,22 @@ describe("probeField", () => {
 	})
 })
 
+describe("probeField and the fields it must leave alone", () => {
+	it("never picks one of them, falling back to the next field or nothing", () => {
+		const schema = {
+			properties: { dismissed: { type: "boolean" }, name: { type: "string" }, password: { type: "string" } },
+			type: "object",
+		}
+		expect(probeField(schema, new Set(["name"]))).toEqual({ kind: "string", maxLength: 64, name: "password" })
+		expect(probeField(schema, new Set(["name", "password"]))).toEqual({
+			kind: "boolean",
+			maxLength: 0,
+			name: "dismissed",
+		})
+		expect(probeField(schema, new Set(["name", "password", "dismissed"]))).toBeNull()
+	})
+})
+
 describe("nextValue", () => {
 	it("flips a boolean and alternates between two short strings", () => {
 		expect(nextValue({ kind: "boolean", maxLength: 0, name: "f" }, true)).toBe(false)

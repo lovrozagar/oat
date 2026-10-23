@@ -38,6 +38,7 @@ describe("buildSpec", () => {
 			"/v1/notices",
 			"/v1/notices/{id}",
 			"/v1/logout",
+			"/v1/me/account",
 			"/v1/projects/{project_id}/overview",
 			"/v1/register",
 			`${TABLE.itemPath}/invites`,

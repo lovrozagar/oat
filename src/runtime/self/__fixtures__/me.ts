@@ -1,7 +1,7 @@
 import { type Responder, fakeClient, modelOf } from "../../checks/__fixtures__/harness.ts"
 import { FindingCollector } from "../../finding.ts"
 import type { OpenApiDocument } from "../../../spec/types.ts"
-import type { SelfInput } from "../identity.ts"
+import type { SelfInput } from "../input.ts"
 
 /*
  * The signed-up caller as an API serves it: `/me` to read and update, a create, a second read,

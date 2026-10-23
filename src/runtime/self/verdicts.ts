@@ -77,13 +77,18 @@ export interface UpdateProbe {
 	value: boolean | string
 }
 
-/** The update to send, or how the check ends without one. */
-export function updateProbe(ctx: SelfRun, model: SpecModel, read: Exchange): UpdateProbe | Outcome {
+/** The update to send, never changing a field of `avoid`; or how the check ends without one. */
+export function updateProbe(
+	ctx: SelfRun,
+	model: SpecModel,
+	at: { read: Exchange; avoid: ReadonlySet<string> },
+): UpdateProbe | Outcome {
+	const { read } = at
 	const { updateOp } = ctx
 	if (updateOp === undefined) return ASSERTED
 	const path = pathOf(updateOp)
 	if (path === null) return ASSERTED
-	const field = probeField(requestContentOf(updateOp, model)?.schema)
+	const field = probeField(requestContentOf(updateOp, model)?.schema, at.avoid)
 	if (field === null) {
 		return ctx.findings.unresolved(
 			SELF_CHECK_ID,

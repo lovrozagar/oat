@@ -581,6 +581,21 @@
             },
             "entity": null,
             "findings": 0,
+            "operationId": "account.update",
+            "reason": "unmodeled: no entity owns PUT /v1/me/account; contract call could not be sent: signed in again, and the new credential is refused where the old one was accepted (job.get)",
+            "status": "untested",
+            "why": "unmodeled: no entity owns PUT /v1/me/account; contract call could not be sent: signed in again, and the new credential is refused where the old one was accepted (job.get)"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 0,
             "operationId": "auth.refresh",
             "reason": "graded by checks, but no request to auth.refresh succeeded",
             "status": "untested",
@@ -994,6 +1009,26 @@
             "sufficiency": "complete",
             "tier": "contract",
             "why": "a read with no declared effects: its contract is the whole promise"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "response.contract-call"
+              ],
+              "suppressed": []
+            },
+            "entity": null,
+            "findings": 0,
+            "operationId": "account.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "unproven",
+            "tier": "contract",
+            "why": "met its contract, but no later read observed what it changed"
           },
           {
             "checks": {

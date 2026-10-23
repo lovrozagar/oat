@@ -85,6 +85,54 @@ describe("the caller's own record", () => {
 		expect((await call("PATCH", "/v1/me", { form: "first_name=Grace" })).status).toBe(415)
 		expect((await call("PATCH", "/v1/me", { body: {}, token: null })).status).toBe(401)
 	})
+})
+
+describe("the caller's own record, by what it may change", () => {
+	it("changes the email and password the caller signs in by, and its display name", async () => {
+		const { call } = await api()
+		const login = (email: string, password: string) =>
+			call("POST", "/v1/auth/login", { body: { email, password }, token: null })
+		expect((await login("alpha@reference.test", "alpha-password")).status).toBe(200)
+		const changed = { display_name: "Ada", email: "new@reference.test", password: "new-password" }
+		expect((await call("PUT", "/v1/me/account", { body: changed })).body).toEqual({
+			display_name: "Ada",
+			email: "new@reference.test",
+		})
+		expect((await login("alpha@reference.test", "alpha-password")).status).toBe(401)
+		expect((await login("new@reference.test", "new-password")).status).toBe(200)
+		/* A fresh server signs alpha in as it always did: the change was this server's alone. */
+		expect(
+			(
+				await (
+					await api()
+				).call("POST", "/v1/auth/login", {
+					body: { email: "alpha@reference.test", password: "alpha-password" },
+					token: null,
+				})
+			).status,
+		).toBe(200)
+		expect((await call("PUT", "/v1/me/account", { body: {} })).body).toEqual({
+			display_name: "Ada",
+			email: "new@reference.test",
+		})
+	})
+
+	it("refuses an account field it does not know, of the wrong type or invalid, and no credential", async () => {
+		const { call } = await api()
+		for (const body of [
+			"null",
+			{ name: "x" },
+			{ email: 3 },
+			{ email: "nobody" },
+			{ password: "short" },
+			{ display_name: "x".repeat(65) },
+		]) {
+			expect((await call("PUT", "/v1/me/account", { body })).status).toBe(400)
+		}
+		expect((await call("PUT", "/v1/me/account", { form: "email=a@b.c" })).status).toBe(415)
+		expect((await call("PUT", "/v1/me/account", { body: {}, token: null })).status).toBe(401)
+		expect((await call("GET", "/v1/me/account")).status).toBe(404)
+	})
 
 	it("acknowledges an update it drops under CALLER_UPDATE_DROPPED", async () => {
 		const { call } = await api({ defects: ["CALLER_UPDATE_DROPPED"] })

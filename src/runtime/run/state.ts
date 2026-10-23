@@ -1,3 +1,4 @@
+import type { OwnRecords } from "../own-record.ts"
 import { PayloadClaims } from "../checks/families/write/payload-claims.ts"
 import type { TeardownReport } from "../teardown/types.ts"
 import type { CheckTiming } from "./types.ts"
@@ -27,6 +28,8 @@ export interface RunState {
 	teardown: TeardownReport | null
 	/** Set once `hooks.verifyRemoved` threw, so the gap is reported once per run. */
 	verifyHookFailed: boolean
+	/** The guard over the principals' own records, made the first time a write needs it. */
+	ownRecords?: OwnRecords
 }
 
 /**

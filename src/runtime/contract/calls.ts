@@ -11,7 +11,7 @@ import { fillPath } from "../fill-path.ts"
 import { CONTRACT_CHECK_ID } from "./check.ts"
 import { judge } from "./judge.ts"
 import { parametersOf } from "./params.ts"
-import { bodyOf, pathValues, queryValues } from "./request.ts"
+import { bodyOf, guardedSend, pathValues, queryValues } from "./request.ts"
 import type { ContractCall, ContractInput } from "./types.ts"
 
 export async function runContractCalls(input: ContractInput): Promise<void> {
@@ -74,7 +74,6 @@ async function callOnce(input: ContractInput, op: OperationModel): Promise<void>
 	if (query === null) return
 	const built = bodyOf(input, call)
 	if (built === null) return
-	const { body } = built
 	/* A credential operation could end, rotate or spend the principal's own session: never sent with it. */
 	const actor = input.credentials.operations.has(op.operationId)
 		? await input.credentials.actorFor(op)
@@ -83,9 +82,12 @@ async function callOnce(input: ContractInput, op: OperationModel): Promise<void>
 		input.grades.skipped([op.operationId], actor.untested)
 		return
 	}
+	const sending = await guardedSend(input, call, { as: actor.as, body: built.body, values })
+	if (sending === null) return
+	const { as, body } = sending
 	const exchange = await input.client.request(op.method, fillPath(op.path, values, op.paramStyles.path), {
 		...(body === undefined ? {} : { body }),
-		as: actor.as,
+		as,
 		operationId: op.operationId,
 		...(Object.keys(query).length === 0 ? {} : { query }),
 	})

@@ -38,8 +38,8 @@ export function credentialOperations(ctx: FloorContext): Set<string> {
 	return new Set(recipesOf(ctx).flatMap((recipe) => namedBy(recipe, operationOf)))
 }
 
-/* Every principal's effective recipe, for every scheme the config covers. */
-function recipesOf({ options, store }: FloorContext): Partial<Recipe>[] {
+/** Every principal's effective recipe, for every scheme the config covers. */
+export function recipesOf({ options, store }: FloorContext): Partial<Recipe>[] {
 	return Object.entries(options.security ?? {}).flatMap(([scheme, base]) =>
 		/* A configured base always yields a recipe. */
 		Object.values(store.principals).map((entry) => effectiveRecipe(base, entry.security?.[scheme]) as Partial<Recipe>),

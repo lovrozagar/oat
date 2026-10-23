@@ -18,10 +18,12 @@ import type { OperationWriteContext, ProbePlacement, Probed, WriteTarget } from 
 import { CHECKS } from "../checks/registry.ts"
 import type { Client } from "../../client/client.ts"
 import { type Outcome, standDown } from "../finding.ts"
+import { guardedClient } from "../own-record.ts"
 import type { OperationModel } from "../../spec/graph/types.ts"
 import type { RunContext } from "./context.ts"
 import { unresolvedBy } from "./entity/run-check.ts"
 import { credentialOperations } from "./floor-credentials.ts"
+import { ownRecordsOf } from "./own-records.ts"
 import { probeCredentials } from "./probe-credentials.ts"
 import { recordTarget, type TargetReads, targetReads } from "./security-target.ts"
 import { isDelete, settle, throwawayTarget, type Throwaways, throwaways } from "./security-throwaway.ts"
@@ -112,7 +114,10 @@ async function outcomeOf(ctx: RunContext, probe: Probe, context: OperationWriteC
 async function contextOf(ctx: RunContext, probe: Probe, stage?: Stage): Promise<OperationWriteContext> {
 	const { check, operation, placement } = probe
 	const stamp = { check: check.id, purpose: "assertion", subject: operation.operationId } as const
-	const client = placement === "write" ? ctx.client.view(stamp) : (ctx.client.readOnlyView(stamp) as Client)
+	const client =
+		placement === "write"
+			? guardedClient(ctx.client.view(stamp), ownRecordsOf(ctx), ctx.model)
+			: (ctx.client.readOnlyView(stamp) as Client)
 	const actors = actorsOf(ctx)
 	const context: OperationWriteContext = {
 		actor: actors[0],

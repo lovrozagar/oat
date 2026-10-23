@@ -7,6 +7,8 @@ import { CHECKS } from "../../checks/registry.ts"
 import type { Client } from "../../../client/client.ts"
 import { UnsatisfiedSecurity } from "../../../client/credential-source.ts"
 import { FencedError } from "../../fence.ts"
+import { guardedClient, ProtectedWriteError } from "../../own-record.ts"
+import { ownRecordsOf } from "../own-records.ts"
 import { type FindingCollector, isRootCause, type Outcome } from "../../finding.ts"
 import { isNetworkError } from "../../../errors/network.ts"
 import type { RunContext } from "../context.ts"
@@ -88,11 +90,12 @@ function viewFor(
 	{ check, attributed }: Running,
 	judged: (operationIds: readonly string[]) => void,
 ): WriteContext {
-	const { client } = loop.run.ctx
+	const { client, model } = loop.run.ctx
 	const stamp = { check: check.id, purpose: "assertion", subject: loop.run.entity.name } as const
+	const writes = (): Client => guardedClient(client.view(stamp), ownRecordsOf(loop.run.ctx), model)
 	return {
 		...loop.context,
-		client: check.mutates === true ? client.view(stamp) : (client.readOnlyView(stamp) as Client),
+		client: check.mutates === true ? writes() : (client.readOnlyView(stamp) as Client),
 		findings: attributed.ownedBy(check.id),
 		judged,
 		nextSalt: checkSalts(saltIndex(check), loop.run.index),
@@ -136,7 +139,8 @@ export interface Stopped {
 
 /**
  * Why an error left a check unresolved, reported where it is a cause: the network down, a fenced
- * request, a value oat did not have, a credential that would not refresh. `undefined` for any other
+ * request, a value oat did not have, a write that would change how a principal signs in, a
+ * credential that would not refresh. `undefined` for any other
  * error, which the caller reports as a check that could not complete.
  */
 export async function unresolvedBy(stopped: Stopped, error: unknown): Promise<string | undefined> {
@@ -153,7 +157,7 @@ export async function unresolvedBy(stopped: Stopped, error: unknown): Promise<st
 		})
 		return "a request was fenced"
 	}
-	if (error instanceof MissingValueError) return error.message
+	if (error instanceof MissingValueError || error instanceof ProtectedWriteError) return error.message
 	if (!(error instanceof UnsatisfiedSecurity)) return undefined
 	/* No credential meets the operation's security: untested, with the reason. */
 	if (error.kind === "unsatisfied") return error.reason

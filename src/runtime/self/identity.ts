@@ -1,11 +1,11 @@
-import type { Hooks } from "../../config/types/hooks.ts"
-import type { Client } from "../../client/client.ts"
-import type { EntityModel, OperationModel, SpecModel } from "../../spec/graph/types.ts"
+import type { OperationModel } from "../../spec/graph/types.ts"
 import type { Exchange } from "../exchange.ts"
-import { ASSERTED, type FindingCollector, type Outcome } from "../finding.ts"
+import { ASSERTED, type Outcome } from "../finding.ts"
 import { noSecurityReason } from "../no-security.ts"
 import { runSelfActions } from "./actions.ts"
 import { createCaller, failedToCreate } from "./create.ts"
+import { actingAs } from "./guard.ts"
+import type { SelfInput } from "./input.ts"
 import { SELF_CHECK_ID, selfOperationIds, selfReadIds } from "./operations.ts"
 import { operation, pathOf, sendUpdate } from "./requests.ts"
 import {
@@ -19,18 +19,6 @@ import {
 	updateProbe,
 	writeRefused,
 } from "./verdicts.ts"
-
-export interface SelfInput {
-	/** The principal it sends as: `as: { principal }`, the operation's security choosing the scheme. */
-	principal: string
-	client: Client
-	entity: EntityModel
-	findings: FindingCollector
-	model: SpecModel
-	nonce?: string
-	resolveInput?: Hooks["resolveInput"]
-	seed?: number
-}
 
 /** The operations the check calls, or why it cannot call them. */
 function selfRun(input: SelfInput): SelfRun | Outcome {
@@ -51,9 +39,9 @@ function selfRun(input: SelfInput): SelfRun | Outcome {
 	return { entity, findings, probe, probePath, readOp, readOps, updateOp }
 }
 
-export async function runSelfIdentity(input: SelfInput): Promise<Outcome> {
-	const { client, principal } = input
-	const run = selfRun(input)
+export async function runSelfIdentity(caller: SelfInput): Promise<Outcome> {
+	const { client } = caller
+	const run = selfRun(caller)
 	if ("kind" in run) return run
 	const { findings, probe, probePath, readOp } = run
 	const anonymous = await client.request(probe.method, probePath, {
@@ -62,6 +50,10 @@ export async function runSelfIdentity(input: SelfInput): Promise<Outcome> {
 		probe: true,
 	})
 	if (anonymous.status !== 401) return answeredWithoutToken(run, anonymous)
+	const acting = await actingAs(caller, run)
+	if ("kind" in acting) return acting
+	const { principal } = acting
+	const input = { ...caller, principal }
 	if (readOp === undefined) {
 		/* No read: the probe is the update. */
 		const wrote = await sendUpdate(input, { op: probe, path: probePath }, { note: "Oat" })
@@ -88,7 +80,7 @@ export async function runSelfIdentity(input: SelfInput): Promise<Outcome> {
 	const acted = await runSelfActions(input, findings, created)
 	if (acted !== null) return acted
 
-	const update = updateProbe(run, input.model, read)
+	const update = updateProbe(run, input.model, { avoid: acting.avoid, read })
 	if ("kind" in update) return update
 	const { field } = update
 	const wrote = await sendUpdate(input, update, { [field.name]: update.value })

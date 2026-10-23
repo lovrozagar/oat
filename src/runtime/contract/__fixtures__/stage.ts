@@ -56,6 +56,11 @@ export function stage(document: OpenApiDocument, respond: Responder, fields: Par
 		model,
 		nonce: "n0",
 		owned: new Set<string>(),
+		ownRecords: {
+			disposable: async () => ({ blocked: "the document marks no x-fresh-principal operation" }),
+			identityOf: (principal: string) => (principal === "alpha" ? {} : undefined),
+			signIn: new Set<string>(),
+		},
 		principal: "alpha",
 		roots: {},
 		seed: 1,

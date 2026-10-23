@@ -19,6 +19,11 @@
       "added": [
         {
           "check": "auth.login-throttled",
+          "entity": "account.update",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
           "entity": "apiKey.create",
           "needs": "the issue operation of a recipe; this check runs on auth.token"
         },
@@ -204,6 +209,11 @@
         }
       ],
       "removed": [
+        {
+          "check": "auth.login-throttled",
+          "entity": "account.update",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
         {
           "check": "auth.login-throttled",
           "entity": "apiKey.create",

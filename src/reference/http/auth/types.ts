@@ -16,6 +16,8 @@ export interface Principal {
 export interface Account extends Principal {
 	email?: string
 	password?: string
+	/** What `account.update` last set as its display name. */
+	displayName?: string
 }
 
 /** An API key: bound to its creator's tenant and rank, and to the scopes it was made with. */
