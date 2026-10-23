@@ -253,3 +253,15 @@ describe("patch.minimality plan", () => {
 		expect(planned.ok ? undefined : planned.needs).toBe("an update by PATCH, which promises a partial write")
 	})
 })
+
+/* Null on the create, a date from the first write on. */
+const stampedLater = (n: number) => (n === 1 ? null : new Date(Date.UTC(2026, 0, n)).toISOString())
+
+describe("patch.minimality on a timestamp unset until the first write", () => {
+	it("ignores an unambiguous timestamp a first write stamps from null, and judges a bare name that was null", async () => {
+		for (const key of ["updatedAt", "modified_on", "updateTime", "modifiedDate", "lastUpdated", "dateModified"]) {
+			expect(await stampedWith(key, stampedLater)).toBe("asserted")
+		}
+		for (const key of ["updated", "modified"]) expect(await stampedWith(key, stampedLater)).toBe("finding")
+	})
+})

@@ -167,14 +167,19 @@ function driftingFields(writes: OperationModel[], original: Record_, baseline: R
 /**
  * Whether `key` names the timestamp a server stamps on every write, in any naming convention —
  * `updated_at`, `updatedAt`, `modified-at`, `lastModified`, `updateTime` (AIP), `dateModified`
- * (schema.org), `modifiedDate`, `lastUpdate`, `updated` — and `value` reads as one: a number, or a
- * string a date parses from. A bare `updated` is as often a flag or a counter, and is judged then.
+ * (schema.org), `modifiedDate`, `lastUpdate`, `updated` — and `value` reads as one: a number, a
+ * string a date parses from, or null under a name with a timestamp's prefix or suffix, which a
+ * record carries until its first write. A bare `updated` is as often a flag or a counter, and is
+ * judged then.
  */
 function isServerTimestamp(key: string, value: unknown): boolean {
 	const name = key.replace(/[_-]/g, "").toLowerCase()
 	const named = /^(last)?(update|updated|modified)(at|on|time|date)?$|^date(updated|modified)$/.test(name)
-	const stamp = typeof value === "number" || (typeof value === "string" && !Number.isNaN(Date.parse(value)))
-	return named && stamp
+	if (!named) return false
+	if (typeof value === "number") return true
+	if (typeof value === "string") return !Number.isNaN(Date.parse(value))
+	/* Unset until the first write stamps it: only a name nothing else could mean. */
+	return value === null && /^(last|date)|(at|on|time|date)$/.test(name)
 }
 
 /* Whatever also moved on the untouched control record was not caused by this PATCH. */
