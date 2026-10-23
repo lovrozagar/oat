@@ -2,9 +2,13 @@
 
 import type { Endpoint } from "../types.ts"
 import type { GapCollector } from "./gaps.ts"
-import { ext } from "./tag.ts"
+import { ext, extObject } from "./tag.ts"
 
 export type EntityAction = "create" | "list" | "read" | "update" | "delete" | "action"
+
+const ACTIONS: ReadonlySet<string> = /* @__PURE__ */ new Set(["create", "list", "read", "update", "delete", "action"])
+
+const isAction = (value: unknown): value is EntityAction => typeof value === "string" && ACTIONS.has(value)
 
 export interface EntityRef {
 	name: string
@@ -50,14 +54,14 @@ export function singularise(word: string): string {
 const PARAM_SEGMENT = /^\{[^}]+\}$/
 
 export function readEntity(endpoint: Endpoint, gaps?: GapCollector): EntityRef | null {
-	const tag = ext<{ name?: string; action?: string; identity?: string }>(endpoint.op, "x-entity")
-	if (tag?.name && tag.action) {
-		const ref: EntityRef = {
-			action: tag.action as EntityAction,
-			name: tag.name,
-			source: "tag",
-		}
-		if (tag.identity !== undefined) ref.identity = tag.identity
+	/* The tag counts only with a name and an action oat knows; anything else is read off the path. */
+	const tag = extObject(endpoint.op, "x-entity")
+	const name = tag?.["name"]
+	const action = tag?.["action"]
+	if (typeof name === "string" && name !== "" && isAction(action)) {
+		const ref: EntityRef = { action, name, source: "tag" }
+		const identity = tag?.["identity"]
+		if (typeof identity === "string") ref.identity = identity
 		return ref
 	}
 

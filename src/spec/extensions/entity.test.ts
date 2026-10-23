@@ -41,6 +41,18 @@ describe("x-entity", () => {
 		})
 	})
 
+	it("infers from the path when the tag names no action it knows, or no name", () => {
+		const inferred = { action: "list", name: "note", source: "heuristic" }
+		expect(readEntity(at("get", "/notes", { "x-entity": { action: "browse", name: "memo" } }))).toEqual(inferred)
+		expect(readEntity(at("get", "/notes", { "x-entity": { action: "list", name: 7 } }))).toEqual(inferred)
+		expect(readEntity(at("get", "/notes", { "x-entity": null }))).toEqual(inferred)
+		expect(readEntity(at("get", "/notes", { "x-entity": { action: "list", identity: 7, name: "memo" } }))).toEqual({
+			action: "list",
+			name: "memo",
+			source: "tag",
+		})
+	})
+
 	it("infers CRUD from the path and method otherwise", () => {
 		const action = (method: HttpMethod, path: string) => readEntity(at(method, path))?.action
 		expect(action("get", "/v1/notes")).toBe("list")
