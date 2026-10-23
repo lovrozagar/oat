@@ -39,7 +39,8 @@ export class PayloadClaims {
 
 	/**
 	 * Null when `entity` runs the whole catalog on `path`; otherwise the entity before it in plan
-	 * order that ran it there. An entity outside the plan has no entity before it.
+	 * order that ran it there. An entity outside the plan has no entity before it. A claimant settles
+	 * the path only once it has run the catalog to its end; one that stops partway passes it on.
 	 */
 	async claim(entity: string, path: string): Promise<string | null> {
 		const at = this.planned.findIndex((planned) => planned.entity === entity)
@@ -47,7 +48,6 @@ export class PayloadClaims {
 			if (earlier.path !== path) continue
 			if ((await this.outcomes.get(earlier.entity)?.path) === path) return earlier.entity
 		}
-		this.settle(entity, path)
 		return null
 	}
 

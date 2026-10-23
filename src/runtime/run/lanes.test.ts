@@ -221,11 +221,12 @@ describe("runLanes and the payload catalog", () => {
 		lane.second = collection(second)
 		armed = true
 		await runLanes(ctx)
-		expect(ctx.findings.findings.filter((finding) => finding.check === "payload.string-survives")).toEqual([
+		/* The path had the whole catalog, so the second's narrowing is a note on the run, not a finding. */
+		expect(ctx.findings.findings.filter((finding) => finding.check === "payload.string-survives")).toEqual([])
+		expect(ctx.state.checkNotes.filter((note) => note.check === "payload.string-survives")).toEqual([
 			expect.objectContaining({
-				detail: expect.stringContaining(`already ran against this write path on ${first},`),
 				entity: second,
-				verdict: "COVERAGE_GAP",
+				note: expect.stringContaining(`already ran against this write path on ${first},`),
 			}),
 		])
 	})

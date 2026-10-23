@@ -2,14 +2,14 @@ import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { Exchange } from "../../../exchange.ts"
-import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
+import { ASSERTED, asserted, type Outcome, standDown } from "../../../finding.ts"
 import { STRING_PAYLOADS } from "../../../payloads.ts"
 import type { Record_ } from "../../../world/records.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { scratchRecord } from "../../isolation/scratch.ts"
 import { standDownForFeatureGate, standDownForRateLimit } from "../../planning/stand-down.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
-import { ASCII_PAYLOAD_PROBE, payloadCases, type PayloadField, pickPayloadField } from "./payload-cases.ts"
+import { ASCII_PAYLOAD_PROBE, payloadCases, type PayloadField, pickPayloadField, writePathOf } from "./payload-cases.ts"
 import {
 	type CaseResult,
 	identityOf,
@@ -61,15 +61,18 @@ export const stringPayloadSurvives: Check<{
 		const results = await runLanes(probe, cases, await laneRecords(probe, cases.length))
 		const stop = results.find((result) => result?.kind === "stop")
 		if (stop?.kind === "stop") return stop.outcome
-		if (narrowed !== null) {
-			ctx.findings.gap(this.id, ctx.entityName, {
-				summary: `${cases.length} of ${STRING_PAYLOADS.length} payload cases sent to "${field.name}"`,
-				detail:
-					`the whole catalog already ran against this write path on ${narrowed}, so this field got one ` +
-					'case of each family. Set `payloads: "full"` to send every case to every field.',
-			})
-		}
-		return verdict(probe, results)
+		const judged = verdict(probe, results)
+		/* Every case ran: the path has had the whole catalog, and an entity after this one narrows. */
+		const whole = narrowed === null && !results.some((result) => result?.kind === "lost-auth")
+		if (whole && ctx.payloads?.policy === "per-write-path")
+			ctx.payloads.claims.settle(ctx.entityName, writePathOf(ctx, writeOp, field.name))
+		/* The path's coverage is whole, so the narrowing is a note on the run, not a gap. */
+		if (narrowed === null || judged.kind !== "asserted") return judged
+		return asserted(
+			`${cases.length} of ${STRING_PAYLOADS.length} payload cases sent to "${field.name}": the whole catalog ` +
+				`already ran against this write path on ${narrowed}, so this field got one case of each family. ` +
+				'Set `payloads: "full"` to send every case to every field.',
+		)
 	},
 })
 

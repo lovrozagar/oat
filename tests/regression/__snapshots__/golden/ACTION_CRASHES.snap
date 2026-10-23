@@ -159,15 +159,15 @@
       ]
     },
     "summary": {
-      "COVERAGE_GAP": {
-        "now": 4,
-        "was": 3
-      },
       "BACKEND_BUG": {
         "now": 1,
         "was": null
       },
       "SPEC_BUG": {
+        "now": 1,
+        "was": null
+      },
+      "COVERAGE_GAP": {
         "now": 1,
         "was": null
       }

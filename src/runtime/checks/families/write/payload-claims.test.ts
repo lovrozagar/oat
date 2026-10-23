@@ -24,6 +24,7 @@ describe("PayloadClaims", () => {
 		await drained()
 		expect(answered).toBe(false)
 		expect(await claims.claim("a", path)).toBeNull()
+		claims.settle("a", path)
 		expect(await later).toBe("a")
 	})
 
@@ -38,6 +39,7 @@ describe("PayloadClaims", () => {
 		const b = claims.claim("b", path)
 		claims.settle("a")
 		expect(await b).toBeNull()
+		claims.settle("b", path)
 		expect(await c).toBe("b")
 	})
 
@@ -50,6 +52,26 @@ describe("PayloadClaims", () => {
 		])
 		expect(await claims.claim("c", path)).toBeNull()
 		expect(await claims.claim("d", path)).toBeNull()
+	})
+})
+
+describe("PayloadClaims settling", () => {
+	it("holds a later claim until the claimant has run the whole catalog, not just claimed it", async () => {
+		const claims = new PayloadClaims()
+		claims.plan([
+			{ entity: "a", path },
+			{ entity: "b", path },
+		])
+		expect(await claims.claim("a", path)).toBeNull()
+		const later = claims.claim("b", path)
+		let answered = false
+		void later.then(() => {
+			answered = true
+		})
+		await drained()
+		expect(answered).toBe(false)
+		claims.settle("a", path)
+		expect(await later).toBe("a")
 	})
 })
 

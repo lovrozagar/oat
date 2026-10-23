@@ -204,7 +204,8 @@ const payloadRequests = async (payloads: "full" | "per-write-path") => {
 			spec: `${server.url}/v1/openapi/spec`,
 		})
 		return {
-			gaps: result.findings.filter((f) => f.check === "payload.string-survives" && f.verdict === "COVERAGE_GAP"),
+			findings: result.findings.filter((f) => f.check === "payload.string-survives"),
+			notes: result.checkNotes.filter((n) => n.check === "payload.string-survives"),
 			requests: result.client.transcript.filter((e) => e.check === "payload.string-survives").length,
 		}
 	} finally {
@@ -213,12 +214,13 @@ const payloadRequests = async (payloads: "full" | "per-write-path") => {
 }
 
 describe("the payload catalog", () => {
-	it("sends a subset per write path by default and says what it skipped", async () => {
+	it("sends a subset per write path by default and notes what it skipped, the path's catalog being whole", async () => {
 		const narrowed = await payloadRequests("per-write-path")
 		const full = await payloadRequests("full")
 		expect(narrowed.requests).toBeGreaterThan(0)
 		expect(full.requests).toBeGreaterThan(narrowed.requests)
-		expect(narrowed.gaps.some((gap) => /of 159 payload cases/.test(gap.summary))).toBe(true)
-		expect(full.gaps).toEqual([])
+		expect(narrowed.findings).toEqual([])
+		expect(narrowed.notes.some((note) => /of 159 payload cases/.test(note.note))).toBe(true)
+		expect(full.notes).toEqual([])
 	}, 120_000)
 })

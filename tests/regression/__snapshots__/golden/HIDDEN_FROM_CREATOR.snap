@@ -82,9 +82,7 @@
           {
             "checks": {
               "failed": [],
-              "gaps": [
-                "payload.string-survives"
-              ],
+              "gaps": [],
               "inconclusive": [],
               "passed": [
                 "auth.alternative-accepted",
@@ -94,6 +92,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "consistency.projections-agree",
+                "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
                 "tenant.denial-does-not-reveal-existence",
@@ -115,9 +114,7 @@
           {
             "checks": {
               "failed": [],
-              "gaps": [
-                "payload.string-survives"
-              ],
+              "gaps": [],
               "inconclusive": [],
               "passed": [
                 "auth.invalid-credential-refused",
@@ -129,6 +126,7 @@
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
+                "payload.string-survives",
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
@@ -200,27 +198,18 @@
           "summary": "an ordinary ASCII write did not persist exactly",
           "verdict": "BACKEND_BUG"
         }
-      ],
+      ]
+    },
+    "observed": {
       "removed": [
         {
           "check": "payload.string-survives",
-          "detail": "the whole catalog already ran against this write path on job, so this field got one case of each family. Set `payloads: \"full\"` to send every case to every field.",
           "entity": "row",
-          "operations": [
-            "row.get",
-            "row.update"
-          ],
-          "evidence": [],
-          "summary": "12 of 159 payload cases sent to \"note\"",
-          "verdict": "COVERAGE_GAP"
+          "note": "12 of 159 payload cases sent to \"note\": the whole catalog already ran against this write path on job, so this field got one case of each family. Set `payloads: \"full\"` to send every case to every field."
         }
       ]
     },
     "summary": {
-      "COVERAGE_GAP": {
-        "now": 2,
-        "was": 3
-      },
       "BACKEND_BUG": {
         "now": 1,
         "was": null

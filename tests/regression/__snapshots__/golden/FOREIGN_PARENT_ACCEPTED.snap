@@ -23,9 +23,7 @@
               "failed": [
                 "tenant.parent-not-reachable-from-another-root"
               ],
-              "gaps": [
-                "payload.string-survives"
-              ],
+              "gaps": [],
               "inconclusive": [],
               "passed": [
                 "auth.alternative-accepted",
@@ -35,6 +33,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "consistency.projections-agree",
+                "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
                 "tenant.denial-does-not-reveal-existence",
@@ -157,9 +156,7 @@
           {
             "checks": {
               "failed": [],
-              "gaps": [
-                "payload.string-survives"
-              ],
+              "gaps": [],
               "inconclusive": [],
               "passed": [
                 "auth.alternative-accepted",
@@ -169,6 +166,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "consistency.projections-agree",
+                "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
                 "tenant.denial-does-not-reveal-existence",

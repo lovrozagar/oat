@@ -35,9 +35,7 @@
               "failed": [
                 "auth.role-enforced"
               ],
-              "gaps": [
-                "payload.string-survives"
-              ],
+              "gaps": [],
               "inconclusive": [],
               "passed": [
                 "auth.invalid-credential-refused",
@@ -49,6 +47,7 @@
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
+                "payload.string-survives",
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
@@ -60,68 +59,6 @@
             "entity": "table",
             "findings": 1,
             "operationId": "table.update",
-            "reason": null,
-            "status": "failed"
-          },
-          {
-            "checks": {
-              "failed": [
-                "auth.role-enforced"
-              ],
-              "gaps": [
-                "payload.string-survives"
-              ],
-              "inconclusive": [],
-              "passed": [
-                "auth.invalid-credential-refused",
-                "auth.missing-credential-refused",
-                "auth.rank-is-monotonic-on-writes",
-                "auth.scope-enforced",
-                "concurrency.if-match-enforced",
-                "concurrency.no-lost-update",
-                "patch.immutable-field-rejected",
-                "patch.minimality",
-                "request.invalid-body-refused",
-                "response.status-is-documented",
-                "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
-              ],
-              "suppressed": []
-            },
-            "entity": "row",
-            "findings": 1,
-            "operationId": "row.update",
-            "reason": null,
-            "status": "failed"
-          },
-          {
-            "checks": {
-              "failed": [
-                "auth.role-enforced"
-              ],
-              "gaps": [
-                "payload.string-survives"
-              ],
-              "inconclusive": [],
-              "passed": [
-                "auth.invalid-credential-refused",
-                "auth.missing-credential-refused",
-                "auth.rank-is-monotonic-on-writes",
-                "auth.scope-enforced",
-                "concurrency.if-match-enforced",
-                "concurrency.no-lost-update",
-                "patch.immutable-field-rejected",
-                "patch.minimality",
-                "request.invalid-body-refused",
-                "response.status-is-documented",
-                "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
-              ],
-              "suppressed": []
-            },
-            "entity": "webhook",
-            "findings": 1,
-            "operationId": "webhook.update",
             "reason": null,
             "status": "failed"
           },
@@ -152,6 +89,66 @@
             "entity": "job",
             "findings": 1,
             "operationId": "job.update",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "auth.role-enforced"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "payload.string-survives",
+                "request.invalid-body-refused",
+                "response.status-is-documented",
+                "schema.problem-json-shape",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 1,
+            "operationId": "row.update",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "auth.role-enforced"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "payload.string-survives",
+                "request.invalid-body-refused",
+                "response.status-is-documented",
+                "schema.problem-json-shape",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 1,
+            "operationId": "webhook.update",
             "reason": null,
             "status": "failed"
           },
@@ -284,110 +281,6 @@
           {
             "checks": {
               "failed": [],
-              "gaps": [
-                "payload.string-survives"
-              ],
-              "inconclusive": [],
-              "passed": [
-                "auth.invalid-credential-refused",
-                "auth.missing-credential-refused",
-                "auth.privileged-field-ignored",
-                "auth.rank-is-monotonic-on-writes",
-                "auth.role-enforced",
-                "auth.scope-enforced",
-                "concurrency.if-match-enforced",
-                "concurrency.no-lost-update",
-                "patch.immutable-field-rejected",
-                "patch.minimality",
-                "request.invalid-body-refused",
-                "response.status-is-documented",
-                "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant",
-                "update.unique-conflict-rejected"
-              ],
-              "suppressed": []
-            },
-            "entity": "table",
-            "findings": 0,
-            "operationId": "table.update",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "verified",
-            "tier": "verified",
-            "why": "a later exchange shows what this call did"
-          },
-          {
-            "checks": {
-              "failed": [],
-              "gaps": [
-                "payload.string-survives"
-              ],
-              "inconclusive": [],
-              "passed": [
-                "auth.invalid-credential-refused",
-                "auth.missing-credential-refused",
-                "auth.rank-is-monotonic-on-writes",
-                "auth.role-enforced",
-                "auth.scope-enforced",
-                "concurrency.if-match-enforced",
-                "concurrency.no-lost-update",
-                "patch.immutable-field-rejected",
-                "patch.minimality",
-                "request.invalid-body-refused",
-                "response.status-is-documented",
-                "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
-              ],
-              "suppressed": []
-            },
-            "entity": "row",
-            "findings": 0,
-            "operationId": "row.update",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "verified",
-            "tier": "verified",
-            "why": "a later exchange shows what this call did"
-          },
-          {
-            "checks": {
-              "failed": [],
-              "gaps": [
-                "payload.string-survives"
-              ],
-              "inconclusive": [],
-              "passed": [
-                "auth.invalid-credential-refused",
-                "auth.missing-credential-refused",
-                "auth.rank-is-monotonic-on-writes",
-                "auth.role-enforced",
-                "auth.scope-enforced",
-                "concurrency.if-match-enforced",
-                "concurrency.no-lost-update",
-                "patch.immutable-field-rejected",
-                "patch.minimality",
-                "request.invalid-body-refused",
-                "response.status-is-documented",
-                "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
-              ],
-              "suppressed": []
-            },
-            "entity": "webhook",
-            "findings": 0,
-            "operationId": "webhook.update",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "verified",
-            "tier": "verified",
-            "why": "a later exchange shows what this call did"
-          },
-          {
-            "checks": {
-              "failed": [],
               "gaps": [],
               "inconclusive": [],
               "passed": [
@@ -419,6 +312,41 @@
               "passed": [
                 "auth.invalid-credential-refused",
                 "auth.missing-credential-refused",
+                "auth.privileged-field-ignored",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "payload.string-survives",
+                "request.invalid-body-refused",
+                "response.status-is-documented",
+                "schema.problem-json-shape",
+                "tenant.item-not-writable-cross-tenant",
+                "update.unique-conflict-rejected"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic-on-writes",
                 "auth.role-enforced",
                 "auth.scope-enforced",
@@ -437,6 +365,72 @@
             "entity": "job",
             "findings": 0,
             "operationId": "job.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "payload.string-survives",
+                "request.invalid-body-refused",
+                "response.status-is-documented",
+                "schema.problem-json-shape",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "payload.string-survives",
+                "request.invalid-body-refused",
+                "response.status-is-documented",
+                "schema.problem-json-shape",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 0,
+            "operationId": "webhook.update",
             "reason": null,
             "status": "passed",
             "evidence": {},

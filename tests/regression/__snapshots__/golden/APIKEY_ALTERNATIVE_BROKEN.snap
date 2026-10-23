@@ -51,94 +51,6 @@
               "failed": [
                 "auth.alternative-accepted"
               ],
-              "gaps": [
-                "payload.string-survives"
-              ],
-              "inconclusive": [],
-              "passed": [
-                "auth.invalid-credential-refused",
-                "auth.missing-credential-refused",
-                "auth.rank-is-monotonic",
-                "auth.scope-enforced",
-                "concurrency.if-match-enforced",
-                "consistency.projections-agree",
-                "invalidation.declared-route-changes",
-                "response.status-is-documented",
-                "schema.error-response-matches-document",
-                "tenant.denial-does-not-reveal-existence",
-                "tenant.item-not-readable-cross-tenant"
-              ],
-              "suppressed": []
-            },
-            "entity": "table",
-            "findings": 1,
-            "operationId": "table.get",
-            "reason": null,
-            "status": "failed"
-          },
-          {
-            "checks": {
-              "failed": [
-                "auth.alternative-accepted"
-              ],
-              "gaps": [
-                "payload.string-survives"
-              ],
-              "inconclusive": [],
-              "passed": [
-                "auth.invalid-credential-refused",
-                "auth.missing-credential-refused",
-                "auth.rank-is-monotonic",
-                "auth.scope-enforced",
-                "concurrency.if-match-enforced",
-                "consistency.projections-agree",
-                "response.status-is-documented",
-                "schema.error-response-matches-document",
-                "tenant.denial-does-not-reveal-existence",
-                "tenant.item-not-readable-cross-tenant",
-                "tenant.parent-not-reachable-from-another-root"
-              ],
-              "suppressed": []
-            },
-            "entity": "row",
-            "findings": 1,
-            "operationId": "row.get",
-            "reason": null,
-            "status": "failed"
-          },
-          {
-            "checks": {
-              "failed": [
-                "auth.alternative-accepted"
-              ],
-              "gaps": [
-                "payload.string-survives"
-              ],
-              "inconclusive": [],
-              "passed": [
-                "auth.invalid-credential-refused",
-                "auth.missing-credential-refused",
-                "auth.rank-is-monotonic",
-                "auth.scope-enforced",
-                "concurrency.if-match-enforced",
-                "response.status-is-documented",
-                "schema.error-response-matches-document",
-                "tenant.denial-does-not-reveal-existence",
-                "tenant.item-not-readable-cross-tenant"
-              ],
-              "suppressed": []
-            },
-            "entity": "webhook",
-            "findings": 1,
-            "operationId": "webhook.get",
-            "reason": null,
-            "status": "failed"
-          },
-          {
-            "checks": {
-              "failed": [
-                "auth.alternative-accepted"
-              ],
               "gaps": [],
               "inconclusive": [
                 "auth.cross-tenant-key-refused"
@@ -315,6 +227,64 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "consistency.projections-agree",
+                "invalidation.declared-route-changes",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 1,
+            "operationId": "table.get",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "auth.alternative-accepted"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "consistency.projections-agree",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant",
+                "tenant.parent-not-reachable-from-another-root"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 1,
+            "operationId": "row.get",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "auth.alternative-accepted"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "consistency.projections-agree",
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -326,6 +296,33 @@
             "entity": "job",
             "findings": 1,
             "operationId": "job.get",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "auth.alternative-accepted"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 1,
+            "operationId": "webhook.get",
             "reason": null,
             "status": "failed"
           },
@@ -356,103 +353,6 @@
           {
             "checks": {
               "failed": [],
-              "gaps": [
-                "payload.string-survives"
-              ],
-              "inconclusive": [],
-              "passed": [
-                "auth.alternative-accepted",
-                "auth.invalid-credential-refused",
-                "auth.missing-credential-refused",
-                "auth.rank-is-monotonic",
-                "auth.scope-enforced",
-                "concurrency.if-match-enforced",
-                "consistency.projections-agree",
-                "invalidation.declared-route-changes",
-                "response.status-is-documented",
-                "schema.error-response-matches-document",
-                "tenant.denial-does-not-reveal-existence",
-                "tenant.item-not-readable-cross-tenant"
-              ],
-              "suppressed": []
-            },
-            "entity": "table",
-            "findings": 0,
-            "operationId": "table.get",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "verified",
-            "tier": "verified",
-            "why": "a later exchange shows what this call did"
-          },
-          {
-            "checks": {
-              "failed": [],
-              "gaps": [
-                "payload.string-survives"
-              ],
-              "inconclusive": [],
-              "passed": [
-                "auth.alternative-accepted",
-                "auth.invalid-credential-refused",
-                "auth.missing-credential-refused",
-                "auth.rank-is-monotonic",
-                "auth.scope-enforced",
-                "concurrency.if-match-enforced",
-                "consistency.projections-agree",
-                "response.status-is-documented",
-                "schema.error-response-matches-document",
-                "tenant.denial-does-not-reveal-existence",
-                "tenant.item-not-readable-cross-tenant",
-                "tenant.parent-not-reachable-from-another-root"
-              ],
-              "suppressed": []
-            },
-            "entity": "row",
-            "findings": 0,
-            "operationId": "row.get",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "verified",
-            "tier": "verified",
-            "why": "a later exchange shows what this call did"
-          },
-          {
-            "checks": {
-              "failed": [],
-              "gaps": [
-                "payload.string-survives"
-              ],
-              "inconclusive": [],
-              "passed": [
-                "auth.alternative-accepted",
-                "auth.invalid-credential-refused",
-                "auth.missing-credential-refused",
-                "auth.rank-is-monotonic",
-                "auth.scope-enforced",
-                "concurrency.if-match-enforced",
-                "response.status-is-documented",
-                "schema.error-response-matches-document",
-                "tenant.denial-does-not-reveal-existence",
-                "tenant.item-not-readable-cross-tenant"
-              ],
-              "suppressed": []
-            },
-            "entity": "webhook",
-            "findings": 0,
-            "operationId": "webhook.get",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "verified",
-            "tier": "verified",
-            "why": "a later exchange shows what this call did"
-          },
-          {
-            "checks": {
-              "failed": [],
               "gaps": [],
               "inconclusive": [],
               "passed": [
@@ -634,6 +534,70 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "consistency.projections-agree",
+                "invalidation.declared-route-changes",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "consistency.projections-agree",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant",
+                "tenant.parent-not-reachable-from-another-root"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "consistency.projections-agree",
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -645,6 +609,36 @@
             "entity": "job",
             "findings": 0,
             "operationId": "job.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 0,
+            "operationId": "webhook.get",
             "reason": null,
             "status": "passed",
             "evidence": {},

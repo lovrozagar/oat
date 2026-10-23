@@ -113,6 +113,8 @@ describe("payloadCases", () => {
 		])
 		const first = { ...ctx, entityName: "widget", payloads: { claims, policy: "per-write-path" as const } }
 		expect((await all(first, writeOp)).narrowed).toBeNull()
+		/* The first runs the catalog to its end, then settles the path. */
+		claims.settle("widget", path)
 		const second = { ...first, entityName: "gadget" }
 		const narrowed = await all(second, writeOp)
 		expect(narrowed.narrowed).toBe("widget")

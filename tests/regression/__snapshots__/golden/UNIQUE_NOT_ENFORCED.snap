@@ -50,9 +50,7 @@
               "failed": [
                 "update.unique-conflict-rejected"
               ],
-              "gaps": [
-                "payload.string-survives"
-              ],
+              "gaps": [],
               "inconclusive": [],
               "passed": [
                 "auth.invalid-credential-refused",
@@ -65,6 +63,7 @@
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
+                "payload.string-survives",
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
@@ -83,9 +82,7 @@
           {
             "checks": {
               "failed": [],
-              "gaps": [
-                "payload.string-survives"
-              ],
+              "gaps": [],
               "inconclusive": [],
               "passed": [
                 "auth.invalid-credential-refused",
@@ -98,6 +95,7 @@
                 "concurrency.no-lost-update",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
+                "payload.string-survives",
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",

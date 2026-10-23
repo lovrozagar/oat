@@ -201,11 +201,36 @@ describe("payload.string-survives on a write path the whole catalog already ran 
 		])
 		await runCheck(stringPayloadSurvives, first)
 		expect(firstFindings.byVerdict("COVERAGE_GAP")).toEqual([])
-		expect(await runCheck(stringPayloadSurvives, ctx)).toEqual({ kind: "asserted" })
-		const gap = findings.byVerdict("COVERAGE_GAP")[0]
-		expect(gap?.summary).toMatch(/^\d+ of \d+ payload cases sent to "note"$/)
-		expect(gap?.detail).toContain("on gadget")
+		/* The path's coverage is whole: the narrowing is a note on the run, not a gap. */
+		const outcome = await runCheck(stringPayloadSurvives, ctx)
+		expect(outcome).toEqual({
+			kind: "asserted",
+			note: expect.stringMatching(/^\d+ of \d+ payload cases sent to "note"/),
+		})
+		expect(outcome.kind === "asserted" && outcome.note).toContain("on gadget")
+		expect(findings.findings).toEqual([])
 		expect(sent.filter((s) => s.method === "PATCH").length).toBeLessThanOrEqual(REQUIRED_IDS.length + 1)
+	})
+
+	it("runs the whole catalog itself when the entity before it stopped partway through", async () => {
+		const claims = new PayloadClaims()
+		const payloads = { claims, policy: "per-write-path" as const }
+		const { ctx: first } = stage(writing(GERMAN, { status: 429 }), {}, { entityName: "gadget", payloads })
+		const { ctx, findings, sent } = stage(widgetApi(), {}, { payloads })
+		const writeOp = first.updateOp
+		if (writeOp === undefined) throw new Error("the widget document has an update")
+		const path = writePathOf(first, writeOp, "note")
+		claims.plan([
+			{ entity: "gadget", path },
+			{ entity: ctx.entityName, path },
+		])
+		expect(await runCheck(stringPayloadSurvives, first)).toMatchObject({ kind: "stood-down" })
+		/* The lane settles an entity once it is done; the first never ran the catalog to its end. */
+		claims.settle("gadget")
+		expect(await runCheck(stringPayloadSurvives, ctx)).toEqual({ kind: "asserted" })
+		expect(findings.findings).toEqual([])
+		const patched = sent.filter((s) => s.method === "PATCH").map((s) => noteOf(s.options.body))
+		expect(new Set(patched.slice(1))).toEqual(new Set(STRING_PAYLOADS.map((payload) => payload.value)))
 	})
 })
 
