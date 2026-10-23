@@ -8,6 +8,7 @@ import { keysApi, MINTED } from "./__fixtures__/keys.ts"
 import type { RunContext } from "./context.ts"
 import { reportUnremovable, revokeCredentials, revokeSessions, trackCreates, unwind } from "./teardown.ts"
 import type { RunOptions } from "./types.ts"
+import type { Responder } from "../checks/__fixtures__/harness.ts"
 import { anonymousOperationOpen } from "../checks/families/security/auth-anonymous-operation-open.ts"
 import { runWriteSecurity } from "./security.ts"
 
@@ -250,6 +251,50 @@ describe("revokeCredentials", () => {
 			null,
 			[{}, {}],
 		])
+	})
+})
+
+/* Alpha's minted key `k1` (id 1), over `respond`: by default an API that answers 400 to a DELETE of a key already gone. */
+async function keyedBy(respond: Responder = keysApi()) {
+	const options = optionsFor(respond, { principals: { alpha: { scope: { project_id: "p1" } } }, security: MINTED })
+	const ctx = await contextOf(options)
+	expect(await ctx.store.acquire({ principal: "alpha", scheme: "key" })).not.toHaveProperty("blocked")
+	const sent = (method: string) => options.seen.filter((request) => request.method === method).map(({ path }) => path)
+	return { ctx, sent }
+}
+
+const KEY_1 = "/projects/p1/keys/1"
+
+describe("revokeCredentials: a key the run already removed", () => {
+	it("never revokes a key an accepted DELETE removed during the run, and counts it no leftover", async () => {
+		const { ctx, sent } = await keyedBy()
+		expect((await ctx.client.request("DELETE", KEY_1, AS_ALPHA)).status).toBe(204)
+		await revokeCredentials(ctx)
+		expect([ctx.state.teardown, sent("DELETE")]).toEqual([null, [KEY_1]])
+	})
+
+	it("still revokes a key whose DELETE was refused, or when another key was deleted", async () => {
+		const { ctx, sent } = await keyedBy(keysApi(204, { readable: true }))
+		await ctx.client.request("DELETE", "/projects/p1/keys/9", AS_ALPHA)
+		await revokeCredentials(ctx)
+		expect([ctx.state.teardown, sent("DELETE")]).toEqual([null, ["/projects/p1/keys/9", KEY_1]])
+	})
+
+	it("reads a key back when its revoke is refused with a 4xx: one the read shows gone is no leftover", async () => {
+		const read = (method: string, path: string) => (method === "GET" && path === KEY_1 ? { status: 404 } : undefined)
+		const gone = overriding(keysApi(400, { readable: true }), read)
+		const { ctx, sent } = await keyedBy(gone)
+		await revokeCredentials(ctx)
+		expect([ctx.state.teardown, sent("GET")]).toEqual([null, ["/openapi.json", KEY_1]])
+	})
+
+	it("keeps a key the read shows still present a leftover", async () => {
+		const { ctx, sent } = await keyedBy(keysApi(400, { readable: true }))
+		await revokeCredentials(ctx)
+		expect(ctx.state.teardown?.failed).toEqual([
+			{ entity: "credential", id: "alpha/key", principal: "alpha", reason: "revoke keys.revoke answered 400" },
+		])
+		expect(sent("GET")).toEqual(["/openapi.json", KEY_1])
 	})
 })
 

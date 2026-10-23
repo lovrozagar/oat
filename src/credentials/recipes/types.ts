@@ -1,6 +1,6 @@
 import type { CredentialPrincipal } from "../../config/types/hooks.ts"
 import type { SecurityScheme } from "../../spec/security/schemes.ts"
-import type { CredentialPorts, Hop } from "../ports.ts"
+import type { CredentialPorts, CredentialRecord, Hop } from "../ports.ts"
 
 /** What a recipe acquires a credential with: the run's ports, who it is for, and what it must carry. */
 export interface AcquireCtx {
@@ -23,6 +23,8 @@ export interface Issued {
 	refresh?: (hop?: Hop) => Promise<Issued>
 	/** Revokes it when the run is done with it. */
 	revoke?: () => Promise<void>
+	/** The record its revoke removes, for a minted credential: one the run removed already is not revoked again. */
+	record?: CredentialRecord
 	/** Identity the credential bound, e.g. a login's `claims`. */
 	identity?: Record<string, string>
 	/** The scopes it was issued for, when the recipe asked for them. */

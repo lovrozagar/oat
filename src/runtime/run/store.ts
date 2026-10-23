@@ -2,7 +2,8 @@
  * One credential store per run, and the ports it is lent: login and refresh steps run through the
  * step engine as nobody, a mint or revoke calls its operation through the primary client as the
  * principal sending the `with` scheme, an OAuth 2 grant posts its form as nobody, and
- * `hooks.resolveCredential` answers a `{ hook: true }` recipe. An identity value a recipe sends
+ * `hooks.resolveCredential` answers a `{ hook: true }` recipe. A minted key's record is judged gone
+ * from the primary client's transcript, or read back through it. An identity value a recipe sends
  * registers on the run's redactor. The document's `x-fresh-principal` operation is the store's
  * signup, which a login without a refresh never re-runs. The ports send through the run's clients,
  * which are built over the store, so they reach them only once the run is connected.
@@ -21,6 +22,7 @@ import { answerOf } from "../steps/engine.ts"
 import type { OriginClient } from "../steps/request.ts"
 import { stepRunner } from "../steps/runner.ts"
 import type { Loaded } from "./context.ts"
+import { credentialRecords } from "./credential-records.ts"
 import { boundOf } from "./identity.ts"
 import type { RunNetwork } from "./network.ts"
 
@@ -92,6 +94,7 @@ function runPorts(loaded: Loaded, wiring: PortWiring): CredentialPorts {
 					return stepRunner({ ...shared, originClients: origins }).run(steps, at)
 				}),
 		},
+		records: credentialRecords({ client: () => wiring.clients().client, model, scopeOf: wiring.scopeOf }),
 		secrets: { register: (value) => wiring.redactor.registerSecret(value) },
 		tokens: {
 			post: (url, form, hop) => noted(() => postForm(auth(OAUTH2_TOKENS), { form, url, ...hop })),

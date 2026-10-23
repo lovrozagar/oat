@@ -2,6 +2,7 @@ import type { PrincipalsConfig, SecurityConfig } from "../../config/types/securi
 import type { SecurityScheme } from "../../spec/security/schemes.ts"
 import { probeOwner } from "../probe-principal.ts"
 import { createStore } from "../store.ts"
+import type { CredentialRecord } from "../ports.ts"
 import type { SignupOperation } from "../signup.ts"
 import { jwtOf } from "./jwt.ts"
 import { answerOf, BEARER, fakePorts, NOW, type RunCall } from "./ports.ts"
@@ -61,6 +62,10 @@ export interface Faults {
 	refresh?: Set<string>
 	mint?: (count: number) => boolean
 	revoke?: (scope: Readonly<Record<string, string>> | undefined) => number
+	/** Whether the run already saw a minted key's record removed. Default: never. */
+	removed?: (record: CredentialRecord) => boolean
+	/** Whether a minted key's record reads back gone. Default: never. */
+	gone?: (record: CredentialRecord) => boolean
 	/** Status a logout answers. Default: 204. */
 	logout?: () => number
 	/** A refresh from a credential already refreshed is refused, as a rotating server's reuse detection does. */
@@ -101,6 +106,8 @@ export function harness(faults: Faults = {}) {
 			mints++
 			return Promise.resolve(faults.mint?.(mints) ? answerOf({}, 500) : answerOf({ id: mints, key: `k${mints}` }))
 		},
+		gone: (record) => Promise.resolve(faults.gone?.(record) ?? false),
+		removed: (record) => faults.removed?.(record) ?? false,
 		run: signIn,
 	})
 	const store = createStore({

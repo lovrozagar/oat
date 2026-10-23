@@ -1316,6 +1316,7 @@
 	"src/runtime/run/client-setup.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/run/context.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/run/contract-floor.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/run/credential-records.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/run/disposable.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/run/entity/actors.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/run/entity/capabilities.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },

@@ -41,6 +41,7 @@ export function actingClient(setup: ActingSetup): Client {
 	const holder: { client?: Client } = {}
 	const ports: CredentialPorts = {
 		operations: { call: unused },
+		records: { gone: unused, removed: unused },
 		steps: {
 			run: (steps, at) =>
 				stepRunner({ client: holder.client as Client, hooks: setup.hooks ?? {}, model }).run(steps, at),

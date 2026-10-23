@@ -1,17 +1,17 @@
 {
-  "exitCode": 4,
+  "exitCode": 1,
   "report": {
     "outcome": {
       "exitCode": {
-        "now": 4,
+        "now": 1,
         "was": 0
       },
       "reason": {
-        "now": "records may remain: 1 teardown could not show gone",
+        "now": "6 root-cause findings",
         "was": "no defects found in what was graded"
       },
       "result": {
-        "now": "leftovers",
+        "now": "defects",
         "was": "clean"
       }
     },
@@ -672,18 +672,6 @@
             "sufficiency": "verified",
             "tier": "verified",
             "why": "a later exchange shows what this call did"
-          }
-        ]
-      }
-    },
-    "teardown": {
-      "failed": {
-        "added": [
-          {
-            "entity": "credential",
-            "id": "alpha/apiKey",
-            "principal": "alpha",
-            "reason": "revoke apiKey.revoke answered 404"
           }
         ]
       }

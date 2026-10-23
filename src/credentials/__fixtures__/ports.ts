@@ -1,6 +1,6 @@
 import type { AuthStep } from "../../config/types/steps.ts"
 import type { SecurityScheme } from "../../spec/security/schemes.ts"
-import type { CredentialPorts, StepAnswer } from "../ports.ts"
+import type { CredentialPorts, CredentialRecord, StepAnswer } from "../ports.ts"
 import type { AcquireCtx } from "../recipes/types.ts"
 
 /* Fake ports that record every call, so tests count logins, refreshes, mints and revokes. */
@@ -25,6 +25,8 @@ export interface Recorded {
 	hooks: Array<{ scheme: string; principal: string }>
 	/** Each value a recipe registered as a secret, in order. */
 	secrets: string[]
+	/** Each minted credential's record read back, in order. */
+	reads: CredentialRecord[]
 }
 
 type Answers = {
@@ -34,6 +36,10 @@ type Answers = {
 	hook?: CredentialPorts["resolveCredential"]
 	/** Where a registered secret goes besides the record: a real redactor, say. */
 	register?: (value: string) => void
+	/** Whether the run already saw a minted credential's record removed. Default: never. */
+	removed?: (record: CredentialRecord) => boolean
+	/** Whether a minted credential's record reads back gone. Default: never. */
+	gone?: (record: CredentialRecord) => Promise<boolean>
 }
 
 function unexpected(what: string): () => Promise<never> {
@@ -42,13 +48,20 @@ function unexpected(what: string): () => Promise<never> {
 
 /** Ports that answer as told and record what they were asked. */
 export function fakePorts(answers: Answers = {}): { ports: CredentialPorts; recorded: Recorded } {
-	const recorded: Recorded = { calls: [], hooks: [], posts: [], runs: [], secrets: [] }
+	const recorded: Recorded = { calls: [], hooks: [], posts: [], reads: [], runs: [], secrets: [] }
 	const ports: CredentialPorts = {
 		operations: {
 			call: (input) => {
 				recorded.calls.push(input)
 				return (answers.call ?? unexpected("call"))(input.operationId, input.body, input.as)
 			},
+		},
+		records: {
+			gone: (record) => {
+				recorded.reads.push(record)
+				return answers.gone?.(record) ?? Promise.resolve(false)
+			},
+			removed: (record) => answers.removed?.(record) ?? false,
 		},
 		secrets: {
 			register: (value) => {

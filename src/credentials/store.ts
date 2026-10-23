@@ -2,6 +2,7 @@ import { messageOf } from "../errors/message.ts"
 import { expiresAtOf } from "./expiry.ts"
 import { acquireDedicated } from "./dedicated.ts"
 import { acquireRecipe, recipeKind } from "./recipes/acquire.ts"
+import { RefusedAnswer } from "./recipes/answer.ts"
 import { heldLogin } from "./recipes/login.ts"
 import type { Issued } from "./recipes/types.ts"
 import { isStale } from "./refresh.ts"
@@ -218,17 +219,28 @@ async function revokeSessions(ctx: StoreCtx, of: (principal: string) => boolean)
 	return failures
 }
 
-/* One at a time, so a teardown's revokes reach the backend in the order they were minted. */
+/*
+ * One at a time, so a teardown's revokes reach the backend in the order they were minted. A minted
+ * key whose record an accepted DELETE already removed is not revoked again, and one whose revoke a
+ * 4xx refused is no failure when a read of its record shows it gone.
+ */
 async function revokeAll(ctx: StoreCtx): Promise<RevokeFailure[]> {
+	const { records } = ctx.options.ports
 	const failures: RevokeFailure[] = []
 	const revoking = [...ctx.revokes.values()]
 	ctx.revokes.clear()
-	for (const { principal, revoke, scheme } of revoking) {
+	for (const { principal, record: minted, revoke, scheme } of revoking) {
+		if (minted !== undefined && records.removed(minted)) continue
 		try {
 			await revoke()
 		} catch (error) {
+			if (minted !== undefined && refusedByClient(error) && (await records.gone(minted))) continue
 			failures.push({ principal, reason: messageOf(error), scheme })
 		}
 	}
 	return failures
+}
+
+function refusedByClient(error: unknown): boolean {
+	return error instanceof RefusedAnswer && error.status >= 400 && error.status < 500
 }

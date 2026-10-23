@@ -280,6 +280,7 @@ function stackOf(harness: Harness, recipe: Recipe): Stack {
 		stepRunner({ client: (wired.client as Client).view({ purpose: "auth" }), hooks: {}, model })
 	const ports: CredentialPorts = {
 		operations: { call: unused },
+		records: { gone: unused, removed: () => false },
 		steps: { run: (list, at) => steps().run(list, at) },
 		secrets: { register: () => undefined },
 		tokens: { post: unused },

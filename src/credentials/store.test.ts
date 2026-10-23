@@ -311,6 +311,34 @@ describe("createStore: revokeAll", () => {
 		expect(revoked.map((call) => call.scope?.["credential"])).toEqual(["k1", "k2", "k3"])
 		expect([await store.revokeAll(), recorded.calls.length]).toEqual([[], 6])
 	})
+
+	it("never revokes a key whose record the run already saw removed, and counts it no failure", async () => {
+		const { recorded, store } = harness({ removed: (record) => record.scope["credential"] === "k1" })
+		await store.acquire({ principal: "ann", scheme: "key", scopes: ["a"] })
+		await store.acquire({ principal: "bob", scheme: "key", scopes: ["a"] })
+		expect(await store.revokeAll()).toEqual([])
+		const revoked = recorded.calls.filter((call) => call.operationId === "apiKey.revoke")
+		expect(revoked.map((call) => call.scope?.["credential"])).toEqual(["k2"])
+	})
+
+	it("reads a key back when its revoke is refused with a 4xx: one shown gone is no failure", async () => {
+		const { recorded, store } = harness({ gone: (record) => record.scope["credential"] === "k1", revoke: () => 400 })
+		await store.acquire({ principal: "ann", scheme: "key", scopes: ["a"] })
+		await store.acquire({ principal: "bob", scheme: "key", scopes: ["a"] })
+		expect(await store.revokeAll()).toEqual([
+			{ principal: "bob", reason: "revoke apiKey.revoke answered 400", scheme: "key" },
+		])
+		expect(recorded.reads.map((record) => record.scope["credential"])).toEqual(["k1", "k2"])
+	})
+
+	it("reads nothing back after a revoke that failed otherwise than with a 4xx", async () => {
+		const { recorded, store } = harness({ gone: () => true, revoke: () => 500 })
+		await store.acquire({ principal: "ann", scheme: "key", scopes: ["a"] })
+		expect(await store.revokeAll()).toEqual([
+			{ principal: "ann", reason: "revoke apiKey.revoke answered 500", scheme: "key" },
+		])
+		expect(recorded.reads).toEqual([])
+	})
 })
 
 describe("createStore: what blocked a credential", () => {

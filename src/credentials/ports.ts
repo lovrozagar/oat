@@ -61,6 +61,24 @@ export interface OperationCaller {
 	}): Promise<StepAnswer>
 }
 
+/**
+ * The record a minted credential is, named as its declared revoke would remove it: the revoke
+ * operation, the scope that fills its path, and who sends it.
+ */
+export interface CredentialRecord {
+	operationId: string
+	scope: Readonly<Record<string, string>>
+	as: { principal: string; scheme: string }
+}
+
+/** What the run knows of a minted credential's record, so teardown never revokes a key twice. */
+export interface CredentialRecords {
+	/** Whether the run already saw an accepted DELETE remove the record. */
+	removed(record: CredentialRecord): boolean
+	/** Whether the document's read of the record shows it gone; false when nothing can read it. */
+	gone(record: CredentialRecord): Promise<boolean>
+}
+
 /** POSTs a form, `application/x-www-form-urlencoded`, to an OAuth 2 token URL. */
 export interface TokenPoster {
 	post(url: string, form: Readonly<Record<string, string>>, hop?: Hop): Promise<StepAnswer>
@@ -81,6 +99,7 @@ export type CredentialHook = NonNullable<Hooks["resolveCredential"]>
 export interface CredentialPorts {
 	steps: StepRunner
 	operations: OperationCaller
+	records: CredentialRecords
 	tokens: TokenPoster
 	secrets: SecretRegistry
 	resolveCredential?: CredentialHook

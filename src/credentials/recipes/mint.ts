@@ -2,7 +2,6 @@ import type { MintRecipe, Recipe } from "../../config/types/security.ts"
 import { expiresAtOf } from "../expiry.ts"
 import { fillPrincipal, principalValues } from "../interpolate.ts"
 import { answerBody } from "../../runtime/cookies/save-as.ts"
-import type { StepAnswer } from "../ports.ts"
 import { answered, valueAt } from "./answer.ts"
 import type { AcquireCtx, Issued } from "./types.ts"
 
@@ -29,21 +28,16 @@ export async function acquireMint(ctx: AcquireCtx, mint: MintRecipe, options: Pa
 		value,
 	}
 	const revoke = mint.revoke
-	if (revoke !== undefined) issued.revoke = () => revokeMinted(ctx, { answer, mint, revoke, value })
+	if (revoke === undefined) return issued
+	/* The revoke operation's path parameters come from the minted value and the mint answer's own fields. */
+	const record = {
+		as: asWith(ctx, mint),
+		operationId: revoke,
+		scope: { ...scalarFields(answer.body), credential: value },
+	}
+	issued.record = record
+	issued.revoke = async () => answered(await ctx.ports.operations.call(record), `revoke ${revoke}`)
 	return issued
-}
-
-interface Minted {
-	mint: MintRecipe
-	revoke: string
-	answer: StepAnswer
-	value: string
-}
-
-/* The revoke operation's path parameters come from the minted value and the mint answer's own fields. */
-async function revokeMinted(ctx: AcquireCtx, { answer, mint, revoke, value }: Minted): Promise<void> {
-	const scope = { ...scalarFields(answer.body), credential: value }
-	answered(await ctx.ports.operations.call({ as: asWith(ctx, mint), operationId: revoke, scope }), `revoke ${revoke}`)
 }
 
 /* The principal, sending the scheme the recipe mints with. */

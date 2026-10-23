@@ -12,6 +12,7 @@ import { sendsFor } from "./placement.ts"
 import { probeOwner, withoutProbes } from "./probe-principal.ts"
 import { recipeKind } from "./recipes/acquire.ts"
 import { createRenewals, DEFAULT_REFRESH_BUFFER_MS } from "./refresh.ts"
+import type { CredentialRecord } from "./ports.ts"
 import type { AcquireCtx, Issued } from "./recipes/types.ts"
 import type { Blocked, Credential, CredentialKey, DedicatedHeld, HeldCredential, StoreOptions } from "./store-types.ts"
 
@@ -34,6 +35,8 @@ export interface Revoking {
 	principal: string
 	scheme: string
 	revoke: () => Promise<void>
+	/** The record the revoke removes, for a minted credential. */
+	record?: CredentialRecord
 }
 
 export interface StoreCtx {
@@ -122,7 +125,8 @@ export function record(ctx: StoreCtx, plan: Plan, issued: Issued): Entry {
 	if (issued.revoke !== undefined && (!login || ctx.dedicated.has(plan.principal))) {
 		/* A session is one credential however often it rotates; each mint is a key of its own. */
 		entry.revokeKey = login ? plan.id : `${plan.id}\u0000${ctx.registered}`
-		registerRevoke(ctx, plan, { key: entry.revokeKey, revoke: issued.revoke })
+		const removes = issued.record === undefined ? {} : { record: issued.record }
+		registerRevoke(ctx, plan, { key: entry.revokeKey, revoke: issued.revoke, ...removes })
 	}
 	return entry
 }
@@ -131,10 +135,10 @@ export function record(ctx: StoreCtx, plan: Plan, issued: Issued): Entry {
 export function registerRevoke(
 	ctx: StoreCtx,
 	plan: Plan,
-	revoking: { key: string; revoke: () => Promise<void> },
+	{ key, ...revoking }: { key: string } & Omit<Revoking, "principal" | "scheme">,
 ): void {
 	ctx.registered += 1
-	ctx.revokes.set(revoking.key, { principal: probeOwner(plan.principal), revoke: revoking.revoke, scheme: plan.scheme })
+	ctx.revokes.set(key, { ...revoking, principal: probeOwner(plan.principal), scheme: plan.scheme })
 }
 
 /** What a block holds for: the principal × scheme, whatever the scopes. */

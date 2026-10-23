@@ -44,6 +44,7 @@ const unexpected = (what: string) => Promise.reject(new Error(`unexpected ${what
 function renewalRefused(steps: string[]): CredentialPorts {
 	return {
 		operations: { call: () => unexpected("call") },
+		records: { gone: () => unexpected("read"), removed: () => false },
 		steps: {
 			run: async (run) => {
 				const step = run.map((one) => ("operationId" in one ? one.operationId : "?")).join(",")

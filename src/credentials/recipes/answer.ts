@@ -5,9 +5,19 @@ import type { AcquireCtx } from "./types.ts"
 
 /* What every recipe asks of an answer and of the scopes it is acquiring for. */
 
+/** A call answered with a status other than 2xx, which it keeps. */
+export class RefusedAnswer extends Error {
+	constructor(
+		what: string,
+		readonly status: number,
+	) {
+		super(`${what} answered ${status}`)
+	}
+}
+
 /** Refuses an answer that is not 2xx: `what` says which call it was. */
 export function answered(answer: StepAnswer, what: string): void {
-	if (answer.status < 200 || answer.status >= 300) throw new Error(`${what} answered ${answer.status}`)
+	if (answer.status < 200 || answer.status >= 300) throw new RefusedAnswer(what, answer.status)
 }
 
 /** The credential at `from` in an answer, or a reason naming where it was looked for and the answer's type. */

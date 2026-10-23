@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { MintRecipe } from "../../config/types/security.ts"
 import { answerOf, ctxOf, fakePorts, NOW, rejection } from "../__fixtures__/ports.ts"
+import { RefusedAnswer } from "./answer.ts"
 import { acquireMint } from "./mint.ts"
 
 const mint: MintRecipe = {
@@ -68,9 +69,11 @@ describe("acquireMint: revoke and failures", () => {
 			operationId: "apiKey.revoke",
 			scope: { credential: "k1", id: "7", key: "k1" },
 		})
-		expect((await rejection((issued.revoke as () => Promise<void>)())).message).toBe(
+		const refused = await rejection((issued.revoke as () => Promise<void>)())
+		expect([refused.message, refused instanceof RefusedAnswer && refused.status]).toEqual([
 			"revoke apiKey.revoke answered 404",
-		)
+			404,
+		])
 	})
 
 	it("revokes a key minted into a header with the minted value alone as its scope", async () => {
@@ -102,5 +105,19 @@ describe("acquireMint: revoke and failures", () => {
 	it("fails with the caller's reason when the `with` scheme has no credential", async () => {
 		const { ports } = fakePorts({ call: () => Promise.reject(new Error('principal "ann" is blocked for jwt')) })
 		expect((await rejection(acquireMint(ctxOf(ports), mint, {}))).message).toBe('principal "ann" is blocked for jwt')
+	})
+})
+
+describe("acquireMint: the record a revoke removes", () => {
+	it("names the record its revoke removes: the revoke operation, its scope, and who sends it", async () => {
+		const { ports } = fakePorts({ call: () => Promise.resolve(answerOf({ id: 7, key: "k1" }, 201)) })
+		const issued = await acquireMint(ctxOf(ports), mint, {})
+		expect(issued.record).toEqual({
+			as: AS_JWT,
+			operationId: "apiKey.revoke",
+			scope: { credential: "k1", id: "7", key: "k1" },
+		})
+		const bare = await acquireMint(ctxOf(ports), { from: "$.key", operationId: "apiKey.create", with: "jwt" }, {})
+		expect(bare.record).toBeUndefined()
 	})
 })
