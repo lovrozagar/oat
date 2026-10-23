@@ -128,17 +128,17 @@ describe("untestableEntityReason", () => {
 			'"row" has no records oat can identify after create',
 		)
 		expect(untestableEntityReason(omit(row, "create", "list"), model, none)).toBe(
-			'"row" has no a list operation and no a create operation',
+			'"row" has no list operation and no create operation',
 		)
 		const profile = entityOf(model, "profile")
 		expect(untestableEntityReason(omit(profile, "read", "update"), model, none)).toBe(
-			'"profile" has no a list operation and no a create operation',
+			'"profile" has no list operation and no create operation',
 		)
 		const overview = entityOf(model, "overview")
-		expect(untestableEntityReason(omit(overview, "read"), model, none)).toMatch(/has no a list operation/)
+		expect(untestableEntityReason(omit(overview, "read"), model, none)).toMatch(/has no list operation/)
 		const table = entityOf(model, "table")
 		expect(untestableEntityReason({ ...omit(table, "create", "list"), invite: null }, model, none)).toMatch(
-			/has no a list operation/,
+			/has no list operation/,
 		)
 	})
 

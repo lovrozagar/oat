@@ -104,8 +104,8 @@ export function untestableEntityReason(
 	if (owned !== null) return owned
 	if (testableOtherwise(entity, model)) return null
 	const missing = [
-		...(entity.list === undefined ? ["a list operation"] : []),
-		...(entity.create === undefined ? ["a create operation"] : []),
+		...(entity.list === undefined ? ["list operation"] : []),
+		...(entity.create === undefined ? ["create operation"] : []),
 		...(entity.list !== undefined && entity.create !== undefined && !entity.trackable
 			? ["records oat can identify after create"]
 			: []),
