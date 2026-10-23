@@ -134,6 +134,13 @@ describe("the JSON report's optional parts", () => {
 })
 
 describe("the JSON report's absent parts", () => {
+	it("keeps the origin a secondary host's finding came from, so diff tells it from the primary's", () => {
+		const text = renderJson(reportOf({ findings: [finding({ origin: "cdn" }), finding()] }))
+		const [cdn, primary] = (JSON.parse(text) as { findings: Array<Record<string, unknown>> }).findings
+		expect(cdn?.origin).toBe("cdn")
+		expect(primary !== undefined && "origin" in primary).toBe(false)
+	})
+
 	it("names the checks that applied nowhere", () => {
 		const input = reportOf({ checksSkipped: [{ check: "never", entity: "row", needs: "x" }] })
 		expect(JSON.parse(renderJson(input)).coverage).toEqual({ neverApplied: ["never"], partial: [] })

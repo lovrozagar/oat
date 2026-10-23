@@ -31,6 +31,7 @@ function findingJson(finding: Finding, redactor: Redactor): Record<string, unkno
 		check: finding.check,
 		detail: finding.detail,
 		entity: finding.entity,
+		...(finding.origin === undefined ? {} : { origin: finding.origin }),
 		...(finding.fixture === undefined ? {} : { fixture: finding.fixture }),
 		...(finding.operations === undefined ? {} : { operations: finding.operations }),
 		...(finding.known === undefined ? {} : { known: finding.known }),
