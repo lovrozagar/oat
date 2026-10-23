@@ -53,6 +53,18 @@ describe("unmarkedSignUp by body", () => {
 			expect([id, signsUp(model, id)]).toEqual([id, true])
 	})
 
+	it("is not a password reset, forgotten, recovered or changed, though it takes a password", () => {
+		const model = modelOf({
+			"/password-reset": { post: { operationId: "passwordReset", ...OPEN, ...body({ password: {}, token: {} }) } },
+			"/password/forgot": { post: { operationId: "forgot.create", ...OPEN, ...body({ password: {} }) } },
+			"/accounts/recover": { post: { operationId: "recoverAccount", ...OPEN, ...body({ password: {} }) } },
+			"/me/change-password": { post: { operationId: "changes.create", ...OPEN, ...body({ password: {} }) } },
+		})
+		for (const id of ["passwordReset", "forgot.create", "recoverAccount", "changes.create"]) {
+			expect([id, signsUp(model, id)]).toEqual([id, false])
+		}
+	})
+
 	it("is not a sign-in, an item write, or a create that takes no password", () => {
 		const model = modelOf({
 			"/auth/token": { post: { operationId: "token.create", ...OPEN, ...body({ password: {} }) } },

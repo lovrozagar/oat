@@ -1,6 +1,7 @@
 /**
  * An account-making operation the document does not tag `x-fresh-principal`: an open POST named
- * as a sign-up, or an open collection create that takes a password. oat ledgers what it sends there
+ * as a sign-up, or an open collection create that takes a password and resets, recovers or changes
+ * none. oat ledgers what it sends there
  * like any sign-up, so an account it makes on an untagged document is named, never left silent.
  * Tagging the operation lets oat sign in as the account and remove it.
  */
@@ -21,6 +22,9 @@ function words(name: string): string {
 }
 
 const SIGN_UP = /(?:^| )(?:register|registration|signup|sign up)$/
+
+/* The words of a route that sets a password on an account that already exists. */
+const PASSWORD_ONLY = /(?:^| )(?:reset|forgot|recover|change)(?: |$)/
 
 /* The path's last segment, unless it is a parameter. */
 function lastSegment(path: string): string | undefined {
@@ -49,6 +53,8 @@ export function unmarkedSignUp(op: OperationModel, model: SpecModel): boolean {
 	if (names.some((name) => SIGN_UP.test(words(name)))) return true
 	/* A collection create, not a sign-in: an item route's POST changes a record, not who exists. */
 	if (segment === undefined || names.some((name) => SIGN_IN.test(name))) return false
+	/* A password reset, forgotten, recovered or changed takes one too, and makes no account. */
+	if (names.some((name) => PASSWORD_ONLY.test(words(name)))) return false
 	/* Every operation of a built model has its raw operation. */
 	return takesPassword(requestSchema(model.rawOperations.get(op.operationId) as OperationObject))
 }
