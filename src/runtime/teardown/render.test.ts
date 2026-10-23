@@ -26,6 +26,11 @@ describe("renderTeardown", () => {
 		expect(renderTeardown(report({ removed: 2 }), 2)).toEqual(["  cleaned up 2/2 created record(s)"])
 	})
 
+	it("says what was left in place when no teardown ran, never that it was cleaned up", () => {
+		expect(renderTeardown(null, 0)).toEqual([])
+		expect(renderTeardown(null, 3)).toEqual(["  left 3 created record(s) in place: teardown did not run"])
+	})
+
 	it("lists unsupported entities and at most five leftovers", () => {
 		const failed = Array.from({ length: 7 }, (_, at) => ({
 			entity: "note",

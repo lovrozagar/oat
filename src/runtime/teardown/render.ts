@@ -4,7 +4,10 @@
 
 import type { TeardownReport, UnidentifiedCreate } from "./types.ts"
 
-export function renderTeardown(report: TeardownReport, created: number): string[] {
+/** `report` is null when no teardown ran: `keepFixtures`, or nothing was made. */
+export function renderTeardown(report: TeardownReport | null, created: number): string[] {
+	if (report === null)
+		return created === 0 ? [] : [`  left ${created} created record(s) in place: teardown did not run`]
 	const lines = renderUnidentified(report.unidentified)
 	if (created === 0) return lines
 

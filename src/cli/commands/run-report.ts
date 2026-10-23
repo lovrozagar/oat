@@ -137,8 +137,7 @@ export function printSummary(writer: Writer, finished: Finished, input: ReportIn
 	const { result, outDir } = finished
 	const at = (name: string): string => resolve(outDir, name)
 	writer.out(renderConsole(input))
-	const teardown = result.teardown ?? { failed: [], records: [], removed: 0, unidentified: [], unsupported: [] }
-	for (const line of renderTeardown(teardown, result.created)) writer.out(`${line}\n`)
+	for (const line of renderTeardown(result.teardown, result.created)) writer.out(`${line}\n`)
 	writer.out(`  confidence: ${at("report.html")}\n`)
 	writer.out(`  report: ${at("oat-report.md")}\n`)
 	writer.out(`  matrix: ${at("matrix.html")}\n`)
