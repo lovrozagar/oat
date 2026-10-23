@@ -239,3 +239,20 @@ describe("modelOperation x-query", () => {
 		})
 	})
 })
+
+describe("modelOperation and a malformed x-entity", () => {
+	it("reports what is wrong with the tag, and uses what of it is sound or reads the path instead", () => {
+		const cases = [
+			{ entity: "note", tag: { action: "list" }, wrong: /^x-entity needs "name"/ },
+			{ entity: "note", tag: { action: "browse", name: "memo" }, wrong: /^x-entity "action" must be one of/ },
+			{ entity: "memo", tag: { action: "list", identity: 7, name: "memo" }, wrong: /^x-entity "identity" must be/ },
+		]
+		for (const { entity, tag, wrong } of cases) {
+			const { gaps, operations } = operationsOf({ "/notes": { get: { ...list("note"), "x-entity": tag } } })
+			expect(gaps.gaps.filter((gap) => gap.tag === "x-entity").map((gap) => gap.detail)).toEqual([
+				expect.stringMatching(wrong),
+			])
+			expect(operations[0]?.entity).toBe(entity)
+		}
+	})
+})
