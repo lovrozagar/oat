@@ -9,11 +9,11 @@
 import { CREDENTIAL_HEADERS } from "../security/credential-names.ts"
 import { principalMapProblems, REMOVED_KEYS, removedProblems } from "../credentials/validate/principals.ts"
 import { securityMapProblems } from "../credentials/validate/security.ts"
+import { isRaw, isRecord, type RawOf } from "./types/raw.ts"
+import type { OatConfig } from "./types/config.ts"
+import type { Hooks } from "./types/hooks.ts"
 
 type Rule = (value: unknown, path: string) => string[]
-type Raw = Record<string, unknown>
-
-const isRecord = (value: unknown): value is Raw => value !== null && typeof value === "object" && !Array.isArray(value)
 
 const string: Rule = (value, path) => (typeof value === "string" ? [] : [`${path} must be a string`])
 const boolean: Rule = (value, path) => (typeof value === "boolean" ? [] : [`${path} must be true or false`])
@@ -143,9 +143,9 @@ const REMOVED_HOOKS: Readonly<Record<string, string>> = {
 }
 
 /* Keys a 0.25.0 credential recipe replaced: a credential header in globalHeaders, a hook no recipe calls. */
-function carrierProblems(config: Raw): string[] {
+function carrierProblems(config: RawOf<OatConfig>): string[] {
 	const headers = isRecord(config.globalHeaders) ? Object.keys(config.globalHeaders) : []
-	const hooks = isRecord(config.hooks) ? config.hooks : {}
+	const hooks: RawOf<Hooks> = isRaw<Hooks>(config.hooks) ? config.hooks : {}
 	return [
 		...headers
 			.filter((name) => CREDENTIAL_HEADERS.has(name.toLowerCase()))
@@ -157,7 +157,7 @@ function carrierProblems(config: Raw): string[] {
 }
 
 /* The credentials config, by the validators that also run against the document, minus what needs it. */
-function credentialProblems(config: Raw): string[] {
+function credentialProblems(config: RawOf<OatConfig>): string[] {
 	return [
 		...(config.principals === undefined ? [] : principalMapProblems(config)),
 		...securityMapProblems(config),

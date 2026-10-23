@@ -4,14 +4,15 @@
  */
 
 import { effectiveRecipe } from "../effective.ts"
-import type { Recipe } from "../../config/types/security.ts"
+import { isRaw, isRecord, type RawOf } from "../../config/types/raw.ts"
+import type { OatConfig } from "../../config/types/config.ts"
+import type { PrincipalEntry, Recipe } from "../../config/types/security.ts"
 import { requestSchema } from "../../spec/collection/request.ts"
 import type { SpecModel } from "../../spec/graph/types.ts"
 import type { OperationObject } from "../../spec/types.ts"
 
-type Raw = Record<string, unknown>
-
-const isRecord = (value: unknown): value is Raw => value !== null && typeof value === "object" && !Array.isArray(value)
+type Config = RawOf<OatConfig>
+type Entry = RawOf<PrincipalEntry>
 
 /* What replaces each field 0.25.0 removed from a principal, said for the principal at `path`. */
 const REMOVED_ON_PRINCIPAL: Readonly<Record<string, (path: string) => string>> = {
@@ -52,7 +53,7 @@ function scopeProblems(path: string, scope: unknown): string[] {
 		.map(([name]) => `${path}.scope.${name} must be a string`)
 }
 
-function entryProblems(id: string, entry: Raw): string[] {
+function entryProblems(id: string, entry: Entry): string[] {
 	const path = `principals.${id}`
 	const problems: string[] = []
 	for (const [field, why] of Object.entries(REMOVED_ON_PRINCIPAL)) {
@@ -72,7 +73,7 @@ export function declaredSchemes(schemes: Iterable<string>): string {
 }
 
 /* Overrides for a scheme the document does not declare. */
-function overrideSchemeProblems(id: string, entry: Raw, schemes: ReadonlySet<string>): string[] {
+function overrideSchemeProblems(id: string, entry: Entry, schemes: ReadonlySet<string>): string[] {
 	const overrides = isRecord(entry.security) ? Object.keys(entry.security) : []
 	const declared = declaredSchemes(schemes)
 	return overrides
@@ -96,7 +97,7 @@ export function freshView(model: Pick<SpecModel, "operations" | "rawOperations">
 }
 
 /* Placeholders of the recipes this principal will use, by scheme, that its entry has no key for. */
-function missingKeys(entry: Raw, security: Raw): Array<[scheme: string, key: string]> {
+function missingKeys(entry: Entry, security: Record<string, unknown>): Array<[scheme: string, key: string]> {
 	const overrides = isRecord(entry.security) ? entry.security : {}
 	const schemes = new Set([...Object.keys(security), ...Object.keys(overrides)])
 	return [...schemes].flatMap((scheme) => {
@@ -109,7 +110,7 @@ function missingKeys(entry: Raw, security: Raw): Array<[scheme: string, key: str
  * Placeholders the recipes use that the principal's config data lacks. A fresh principal's identity
  * is its signup body too, which only the document says, so `freshProblems` checks it against that.
  */
-function placeholderProblems(id: string, entry: Raw, security: Raw): string[] {
+function placeholderProblems(id: string, entry: Entry, security: Record<string, unknown>): string[] {
 	if (entry.fresh === true) return []
 	return missingKeys(entry, security).map(
 		([scheme, key]) => `principals.${id} has no "${key}", which security.${scheme} uses as {principal.${key}}`,
@@ -117,7 +118,11 @@ function placeholderProblems(id: string, entry: Raw, security: Raw): string[] {
 }
 
 /* A fresh principal needs the document's signup, and each placeholder from its entry or that signup's body. */
-function freshProblems(id: string, entry: Raw, against: { security: Raw; fresh: FreshView | undefined }): string[] {
+function freshProblems(
+	id: string,
+	entry: Entry,
+	against: { security: Record<string, unknown>; fresh: FreshView | undefined },
+): string[] {
 	if (entry.fresh !== true) return []
 	const { fresh } = against
 	if (fresh === undefined) {
@@ -133,7 +138,7 @@ function freshProblems(id: string, entry: Raw, against: { security: Raw; fresh: 
 }
 
 /* The principals' entries, when `config.principals` is a non-empty map; otherwise why it is not. */
-function entriesOf(config: Raw): Array<[string, unknown]> | string {
+function entriesOf(config: Config): Array<[string, unknown]> | string {
 	const principals = config.principals
 	if (Array.isArray(principals))
 		return "principals is a map of id → identity data now: { alpha: { email: …, tenant: … } }"
@@ -143,12 +148,12 @@ function entriesOf(config: Raw): Array<[string, unknown]> | string {
 }
 
 /** What is wrong with `config.principals` that needs no document: its shape, removed fields and placeholders. */
-export function principalMapProblems(config: Raw): string[] {
+export function principalMapProblems(config: Config): string[] {
 	const entries = entriesOf(config)
 	if (typeof entries === "string") return [entries]
 	const security = isRecord(config.security) ? config.security : {}
 	return entries.flatMap(([id, entry]) =>
-		isRecord(entry)
+		isRaw<PrincipalEntry>(entry)
 			? [...entryProblems(id, entry), ...placeholderProblems(id, entry, security)]
 			: [`principals.${id} must be an object of identity data`],
 	)
@@ -158,7 +163,7 @@ export function principalMapProblems(config: Raw): string[] {
  * What is wrong with `config.principals`, against the declared schemes, the recipes and the
  * document's signup (`fresh`, absent when it marks none).
  */
-export function principalProblems(config: Raw, schemes: ReadonlySet<string>, fresh?: FreshView): string[] {
+export function principalProblems(config: Config, schemes: ReadonlySet<string>, fresh?: FreshView): string[] {
 	/* Only a run needs principals, and configProblems asks for them there; doctor and plan read a config without. */
 	if (config.principals === undefined) return []
 	const entries = entriesOf(config)
@@ -168,7 +173,9 @@ export function principalProblems(config: Raw, schemes: ReadonlySet<string>, fre
 		typeof entries === "string"
 			? []
 			: entries.flatMap(([id, entry]) =>
-					isRecord(entry) ? [...overrideSchemeProblems(id, entry, schemes), ...freshProblems(id, entry, against)] : [],
+					isRaw<PrincipalEntry>(entry)
+						? [...overrideSchemeProblems(id, entry, schemes), ...freshProblems(id, entry, against)]
+						: [],
 				)
 	return [...principalMapProblems(config), ...documented]
 }
@@ -183,8 +190,8 @@ const REMOVED_TOP_LEVEL: Readonly<Record<string, string>> = {
 /** The top-level config keys 0.25.0 removed. */
 export const REMOVED_KEYS: readonly string[] = /* @__PURE__ */ Object.keys(REMOVED_TOP_LEVEL)
 
-/** Top-level fields 0.25.0 removed, with their replacement. */
-export function removedProblems(config: Raw): string[] {
+/** Top-level fields 0.25.0 removed, with their replacement: keys the current config type no longer has. */
+export function removedProblems(config: object): string[] {
 	return Object.entries(REMOVED_TOP_LEVEL)
 		.filter(([key]) => key in config)
 		.map(([key, replacement]) => `${key} was removed in 0.25.0: ${replacement}`)

@@ -1,4 +1,7 @@
-import type { ExtraPlacement, Recipe } from "../../config/types/security.ts"
+import { isRaw, isRawUnion, isRecord, type RawOf } from "../../config/types/raw.ts"
+import type { OatConfig, OriginSpec } from "../../config/types/config.ts"
+import type { Hooks } from "../../config/types/hooks.ts"
+import type { LoginRecipe, MintRecipe, OAuth2Recipe, PrincipalEntry, Recipe } from "../../config/types/security.ts"
 import { nearest } from "../../errors/suggest.ts"
 import { UsageError } from "../../errors/usage-error.ts"
 import type { SpecModel } from "../../spec/graph/types.ts"
@@ -9,7 +12,13 @@ import type { OpenApiDocument } from "../../spec/types.ts"
 import { effectiveRecipe } from "../effective.ts"
 import { declaredSchemes, type FreshView, freshView, principalProblems, removedProblems } from "./principals.ts"
 import { documentProblems } from "./document.ts"
-import { kindProblems, kindShapeProblems } from "./recipe-shape.ts"
+import {
+	kindProblems,
+	kindShapeProblems,
+	optionProblems,
+	type RevokeOperation,
+	validPlacement,
+} from "./recipe-shape.ts"
 
 /*
  * The 0.25.0 credentials config, checked against the documents it runs on: one recipe of one kind
@@ -37,45 +46,9 @@ export function specView(model: ModelView, doc: OpenApiDocument): SpecView {
 	return fresh === undefined ? view : { ...view, fresh }
 }
 
-type Raw = Record<string, unknown>
+type Config = RawOf<OatConfig>
 
-const LOCATIONS: ReadonlySet<unknown> = /* @__PURE__ */ new Set(["header", "query", "cookie"])
-
-const isRecord = (value: unknown): value is Raw => value !== null && typeof value === "object" && !Array.isArray(value)
-
-const validExpiry = (value: unknown): boolean =>
-	typeof value === "number" ? value > 0 : isRecord(value) && typeof value.from === "string"
-
-const validPlacement = (value: unknown): value is ExtraPlacement =>
-	isRecord(value) &&
-	LOCATIONS.has(value.in) &&
-	typeof value.name === "string" &&
-	(value.template === undefined || (typeof value.template === "string" && value.template.includes("{credential}")))
-
-function optionProblems(path: string, recipe: Raw): string[] {
-	const problems: string[] = []
-	if (recipe.expiresIn !== undefined && !validExpiry(recipe.expiresIn)) {
-		problems.push(`${path}.expiresIn must be seconds above 0 or { from: <json path> }`)
-	}
-	const holds = recipe.holds
-	if (holds !== undefined && !(Array.isArray(holds) && holds.every((scope) => typeof scope === "string"))) {
-		problems.push(`${path}.holds must be a list of scope names`)
-	}
-	if (recipe.placements !== undefined && !Array.isArray(recipe.placements)) {
-		problems.push(`${path}.placements must be a list`)
-	}
-	const placements: unknown[] = Array.isArray(recipe.placements) ? recipe.placements : []
-	placements.forEach((placement, index) => {
-		if (!validPlacement(placement)) {
-			problems.push(
-				`${path}.placements[${index}] must be { in: header | query | cookie, name, template? containing {credential} }`,
-			)
-		}
-	})
-	return problems
-}
-
-function oauth2Problems(path: string, oauth2: Raw, scheme: SecurityScheme): string[] {
+function oauth2Problems(path: string, oauth2: RawOf<OAuth2Recipe>, scheme: SecurityScheme): string[] {
 	if (scheme.kind !== "oauth2") return [`${path}.oauth2 needs an oauth2 scheme; ${scheme.name} is ${scheme.kind}`]
 	const flow = scheme.flows[oauth2.flow as keyof typeof scheme.flows]
 	return flow?.tokenUrl === undefined
@@ -84,7 +57,7 @@ function oauth2Problems(path: string, oauth2: Raw, scheme: SecurityScheme): stri
 }
 
 /** The chain of `mint.with` from `start`, ending where it leaves the mints or returns to `start`. */
-function mintChain(start: string, security: Raw): string[] {
+function mintChain(start: string, security: Record<string, unknown>): string[] {
 	const chain = [start]
 	let at = start
 	for (;;) {
@@ -98,7 +71,7 @@ function mintChain(start: string, security: Raw): string[] {
 
 /** What a recipe is checked against: the base recipes, the document, and whether a credential hook exists. */
 interface Against {
-	security: Raw
+	security: Record<string, unknown>
 	spec: SpecView
 	hasHook: boolean
 }
@@ -107,12 +80,12 @@ const names = (spec: SpecView, operationId: string): boolean =>
 	spec.operations.some((op) => op.operationId === operationId)
 /* A declared revoke, a mint's or a login's (alone, or `{ operationId, body }`), names an operation of the document. */
 function revokeProblems(spec: SpecView, path: string, revoke: unknown): string[] {
-	const id = isRecord(revoke) ? revoke.operationId : revoke
+	const id = isRaw<RevokeOperation>(revoke) ? revoke.operationId : revoke
 	return typeof id === "string" && !names(spec, id) ? [`${path}.revoke "${id}" names no operation`] : []
 }
 
 /* References a mint makes, once its fields are strings: the shape check reports them otherwise. */
-function mintProblems(ctx: Against, path: string, name: string, mint: Raw): string[] {
+function mintProblems(ctx: Against, path: string, name: string, mint: RawOf<MintRecipe>): string[] {
 	const { security, spec } = ctx
 	const problems: string[] = []
 	if (typeof mint.with === "string" && !isRecord(security[mint.with])) {
@@ -137,12 +110,12 @@ function mintProblems(ctx: Against, path: string, name: string, mint: Raw): stri
 const NOT_A_MAP = "security must be a map of scheme → recipe"
 
 /** What is wrong with `config.security` that needs no document: its shape, and each recipe's kind and options. */
-export function securityMapProblems(config: Raw): string[] {
+export function securityMapProblems(config: Config): string[] {
 	if (config.security === undefined) return []
 	if (!isRecord(config.security)) return [NOT_A_MAP]
 	return Object.entries(config.security).flatMap(([name, recipe]) => {
 		const path = `security.${name}`
-		if (!isRecord(recipe)) return [`${path} must be a recipe object`]
+		if (!isRawUnion<Recipe>(recipe)) return [`${path} must be a recipe object`]
 		const kind = kindProblems(path, recipe)
 		return kind.length > 0 ? kind : optionProblems(path, recipe)
 	})
@@ -157,23 +130,23 @@ function recipeProblems(ctx: Against, path: string, name: string, recipe: unknow
 		return [`${path} names no scheme in the document.${hint} ${declaredSchemes(spec.schemes.keys())}`]
 	}
 	if (scheme.kind === "unsupported") return [`${path}: ${scheme.unsupported}`]
-	if (!isRecord(recipe)) return [`${path} must be a recipe object`]
+	if (!isRawUnion<Recipe>(recipe)) return [`${path} must be a recipe object`]
 	const kind = kindProblems(path, recipe)
 	if (kind.length > 0) return kind
 	return [
 		...optionProblems(path, recipe),
 		...kindShapeProblems(path, recipe, { hasHook: ctx.hasHook, scheme, signsUp: spec.fresh !== undefined }),
-		...(isRecord(recipe.oauth2) ? oauth2Problems(path, recipe.oauth2, scheme) : []),
-		...(isRecord(recipe.mint) ? mintProblems(ctx, path, name, recipe.mint) : []),
-		...(isRecord(recipe.login) ? revokeProblems(ctx.spec, `${path}.login`, recipe.login.revoke) : []),
+		...(isRaw<OAuth2Recipe>(recipe.oauth2) ? oauth2Problems(path, recipe.oauth2, scheme) : []),
+		...(isRaw<MintRecipe>(recipe.mint) ? mintProblems(ctx, path, name, recipe.mint) : []),
+		...(isRaw<LoginRecipe>(recipe.login) ? revokeProblems(ctx.spec, `${path}.login`, recipe.login.revoke) : []),
 	]
 }
 
 /* Each principal's override, checked as the recipe that principal will actually use. */
-function overrideProblems(config: Raw, against: Against): string[] {
+function overrideProblems(config: Config, against: Against): string[] {
 	const principals = isRecord(config.principals) ? config.principals : {}
 	return Object.entries(principals).flatMap(([id, entry]) => {
-		const overrides = isRecord(entry) && isRecord(entry.security) ? entry.security : {}
+		const overrides = isRaw<PrincipalEntry>(entry) && isRecord(entry.security) ? entry.security : {}
 		return Object.entries(overrides)
 			.filter(([scheme]) => against.spec.schemes.has(scheme))
 			.flatMap(([scheme, override]) => {
@@ -185,11 +158,11 @@ function overrideProblems(config: Raw, against: Against): string[] {
 }
 
 function originProblems(
-	config: Raw,
+	config: Config,
 	origins: Readonly<Record<string, SpecView>>,
 	recipes: ReadonlySet<string>,
 ): string[] {
-	const declared = Array.isArray(config.origins) ? (config.origins as Raw[]) : []
+	const declared = Array.isArray(config.origins) ? config.origins.filter((origin) => isRaw<OriginSpec>(origin)) : []
 	return Object.entries(origins).flatMap(([id, view]) => {
 		const mapping = declared.find((origin) => origin.id === id)?.security
 		const mapped = isRecord(mapping) ? mapping : {}
@@ -210,14 +183,19 @@ interface HeaderPlace {
 }
 
 /* Every header a declared scheme, an origin's scheme or a recipe's extra placement puts a credential in. */
-function headerPlaces(security: Raw, spec: SpecView, origins: Readonly<Record<string, SpecView>>): HeaderPlace[] {
+function headerPlaces(
+	security: Record<string, unknown>,
+	spec: SpecView,
+	origins: Readonly<Record<string, SpecView>>,
+): HeaderPlace[] {
 	const ofSchemes = (view: SpecView, owner: (scheme: string) => string, fix: (scheme: string) => string) =>
 		[...view.schemes].flatMap(([scheme, declared]) => {
 			const place = placementOf(declared)
 			return place?.in === "header" ? [{ fix: fix(scheme), name: place.name, owner: owner(scheme) }] : []
 		})
 	const extra = Object.entries(security).flatMap(([scheme, recipe]) => {
-		const placements: unknown[] = isRecord(recipe) && Array.isArray(recipe.placements) ? recipe.placements : []
+		const placements: unknown[] =
+			isRawUnion<Recipe>(recipe) && Array.isArray(recipe.placements) ? recipe.placements : []
 		return placements.flatMap((placement, index) =>
 			validPlacement(placement) && placement.in === "header"
 				? [{ fix: "remove it", name: placement.name, owner: `security.${scheme}.placements[${index}]` }]
@@ -242,7 +220,7 @@ function headerPlaces(security: Raw, spec: SpecView, origins: Readonly<Record<st
 }
 
 /* globalHeaders never carry a credential: an entry in a place a credential goes would collide with it. */
-function globalHeaderProblems(config: Raw, places: readonly HeaderPlace[]): string[] {
+function globalHeaderProblems(config: Config, places: readonly HeaderPlace[]): string[] {
 	const headers = isRecord(config.globalHeaders) ? Object.keys(config.globalHeaders) : []
 	return headers.flatMap((header) =>
 		places
@@ -253,12 +231,12 @@ function globalHeaderProblems(config: Raw, places: readonly HeaderPlace[]): stri
 
 /** Every problem with a config's `security` and `principals`, against the primary document and each origin's. */
 export function securityProblems(
-	config: Raw,
+	config: Config,
 	spec: SpecView,
 	origins: Readonly<Record<string, SpecView>> = {},
 ): string[] {
 	const security = isRecord(config.security) ? config.security : {}
-	const hooks = isRecord(config.hooks) ? config.hooks : {}
+	const hooks: RawOf<Hooks> = isRaw<Hooks>(config.hooks) ? config.hooks : {}
 	const against: Against = { hasHook: typeof hooks.resolveCredential === "function", security, spec }
 	const shape = config.security === undefined || isRecord(config.security) ? [] : [NOT_A_MAP]
 	return [
@@ -281,7 +259,7 @@ export interface ModelledDocument {
 
 /** Throws a UsageError naming every `securityProblems` problem against the primary document and each origin's. */
 export function assertSecurity(
-	config: Raw,
+	config: Config,
 	primary: ModelledDocument,
 	origins: ReadonlyMap<string, ModelledDocument> = new Map(),
 ): void {

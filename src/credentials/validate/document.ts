@@ -5,10 +5,11 @@
  * `targetVersion.scheme` names one the primary document declares.
  */
 
+import { isRaw, isRawUnion, type RawOf } from "../../config/types/raw.ts"
+import type { OatConfig, TargetVersionSpec } from "../../config/types/config.ts"
+import type { Scenario, ScenarioStep } from "../../config/types/steps.ts"
 import { nearest } from "../../errors/suggest.ts"
 import { declaredSchemes } from "./principals.ts"
-
-type Raw = Record<string, unknown>
 
 /** The parts of a document's view these checks read. */
 export interface DocumentView {
@@ -16,18 +17,18 @@ export interface DocumentView {
 	schemes: ReadonlyMap<string, unknown>
 }
 
-const isRecord = (value: unknown): value is Raw => value !== null && typeof value === "object" && !Array.isArray(value)
-
 /** Problems a config has with the primary document and each origin's that no recipe check sees. */
 export function documentProblems(
-	config: Raw,
+	config: RawOf<OatConfig>,
 	spec: DocumentView,
 	origins: Readonly<Record<string, DocumentView>> = {},
 ): string[] {
 	const tagged = spec.authFlows
 		? ["the document's x-auth-flows tag is no longer read: declare a security.<scheme> recipe in config"]
 		: []
-	const scenarios = Array.isArray(config.scenarios) ? config.scenarios.filter(isRecord) : []
+	const scenarios = Array.isArray(config.scenarios)
+		? config.scenarios.filter((scenario) => isRaw<Scenario>(scenario))
+		: []
 	return [
 		...tagged,
 		...scenarios.flatMap((scenario) => stepSchemeProblems(scenario, { origins, spec })),
@@ -36,8 +37,8 @@ export function documentProblems(
 }
 
 /* The scheme an undocumented version path is read under, against the primary document. */
-function targetVersionProblems(config: Raw, spec: DocumentView): string[] {
-	const scheme = isRecord(config.targetVersion) ? config.targetVersion.scheme : undefined
+function targetVersionProblems(config: RawOf<OatConfig>, spec: DocumentView): string[] {
+	const scheme = isRaw<TargetVersionSpec>(config.targetVersion) ? config.targetVersion.scheme : undefined
 	if (typeof scheme !== "string" || spec.schemes.has(scheme)) return []
 	return [unknownScheme({ path: "targetVersion.scheme", scheme, view: spec, where: "the document" })]
 }
@@ -61,12 +62,12 @@ function unknownScheme({ path, scheme, view, where }: SchemeReference): string {
 
 /* Each step's `scheme`, against the document the step goes to. An unknown origin is reported elsewhere. */
 function stepSchemeProblems(
-	scenario: Raw,
+	scenario: RawOf<Scenario>,
 	documents: { spec: DocumentView; origins: Readonly<Record<string, DocumentView>> },
 ): string[] {
 	const steps = Array.isArray(scenario.steps) ? scenario.steps : []
 	return steps.flatMap((step: unknown, index) => {
-		if (!isRecord(step) || typeof step.scheme !== "string") return []
+		if (!isRawUnion<ScenarioStep>(step) || typeof step.scheme !== "string") return []
 		const origin = typeof step.origin === "string" ? step.origin : scenario.origin
 		const view = typeof origin === "string" ? documents.origins[origin] : documents.spec
 		if (view === undefined || view.schemes.has(step.scheme)) return []

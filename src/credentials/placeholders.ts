@@ -6,7 +6,10 @@
  * before a request leaves. `{principal.<key>}` is the principal's identity, filled apart.
  */
 
-type Raw = Record<string, unknown>
+import { isRaw, isRawUnion, isRecord, type RawOf, type RawOfUnion } from "../config/types/raw.ts"
+import type { AuthStep, OutOfBandStep, RequestStep } from "../config/types/steps.ts"
+
+type Step = RawOfUnion<AuthStep>
 
 /** A `{name}` a step reads that nothing before it fills: the step, counted from 1, and the name. */
 export interface Unfilled {
@@ -14,8 +17,13 @@ export interface Unfilled {
 	name: string
 }
 
-const isRecord = (value: unknown): value is Raw => value !== null && typeof value === "object" && !Array.isArray(value)
-const recordOf = (value: unknown): Raw => (isRecord(value) ? value : {})
+/* A map the user keys, such as `bind` or `saveAs`; empty when it is not one. */
+const recordOf = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {})
+const stepOf = (value: unknown): Step => (isRawUnion<AuthStep>(value) ? value : {})
+const outOfBandOf = (step: Step): RawOf<OutOfBandStep["outOfBand"]> =>
+	isRaw<OutOfBandStep["outOfBand"]>(step.outOfBand) ? step.outOfBand : {}
+const claimsOf = (step: Step): RawOf<NonNullable<RequestStep["saveClaimsFrom"]>> =>
+	isRaw<NonNullable<RequestStep["saveClaimsFrom"]>>(step.saveClaimsFrom) ? step.saveClaimsFrom : {}
 
 /** Every `{name}` in the text of a value, deep through arrays and plain objects, in order. */
 function namesIn(value: unknown): string[] {
@@ -25,9 +33,8 @@ function namesIn(value: unknown): string[] {
 }
 
 /* What a step's request reads: a raw step's path, and its body, headers and query. An operation's path is the document's. */
-function requestReads(step: Raw): string[] {
-	const out = recordOf(step.outOfBand)
-	if (step.outOfBand !== undefined) return namesIn(out.address)
+function requestReads(step: Step): string[] {
+	if (step.outOfBand !== undefined) return namesIn(outOfBandOf(step).address)
 	return namesIn([step.method === undefined ? null : step.path, step.body, step.headers, step.query])
 }
 
@@ -41,7 +48,7 @@ export function unfilledIn(steps: readonly unknown[], given: Iterable<string>): 
 	const bound = new Set(given)
 	const missing = (value: unknown): string | undefined => namesIn(value).find((name) => !bound.has(name))
 	for (const [index, value] of steps.entries()) {
-		const step = recordOf(value)
+		const step = stepOf(value)
 		const name = unfilledStep(step, { bound, missing })
 		if (name !== undefined) return { name, step: index + 1 }
 	}
@@ -50,7 +57,7 @@ export function unfilledIn(steps: readonly unknown[], given: Iterable<string>): 
 
 /* One step in the engine's order: its binds, its request, its saveAs addresses, then its claims and out-of-band value. */
 function unfilledStep(
-	step: Raw,
+	step: Step,
 	at: { bound: Set<string>; missing: (value: unknown) => string | undefined },
 ): string | undefined {
 	const { bound, missing } = at
@@ -71,16 +78,16 @@ function unfilledStep(
 }
 
 /* What a step binds once it is answered, beside `saveAs`: its claims, or the out-of-band value. */
-function boundAfter(step: Raw): string[] {
-	const out = recordOf(step.outOfBand)
-	return [...Object.keys(recordOf(recordOf(step.saveClaimsFrom).bind)), ...(typeof out.as === "string" ? [out.as] : [])]
+function boundAfter(step: Step): string[] {
+	const out = outOfBandOf(step)
+	return [...Object.keys(recordOf(claimsOf(step).bind)), ...(typeof out.as === "string" ? [out.as] : [])]
 }
 
 /** Every name a chain of steps binds: what a refresh after it may read. */
 export function capturedBy(steps: readonly unknown[]): Set<string> {
 	return new Set(
 		steps.flatMap((value) => {
-			const step = recordOf(value)
+			const step = stepOf(value)
 			return [...Object.keys(recordOf(step.bind)), ...Object.keys(recordOf(step.saveAs)), ...boundAfter(step)]
 		}),
 	)
