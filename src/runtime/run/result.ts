@@ -34,12 +34,14 @@ export interface Settled {
  */
 export async function settle(ctx: RunContext): Promise<Settled> {
 	await ctx.journal?.flush().catch(() => undefined)
-	const { principals, store } = ctx
+	const { principals, store, client } = ctx
 	const held = await store.snapshot()
 	/* A BLOCKED principal is kept too, with why: a persisted run says who it went on without. */
 	const blocked = principals.blocked.map(({ id, reason }) => ({ ...runPrincipal(store, id), blocked: reason }))
 	return {
-		principals: [...principals.all, ...blocked].map((principal) => snapshotPrincipal(principal, held)),
+		principals: [...principals.all, ...blocked].map((principal) =>
+			snapshotPrincipal(principal, { held, redactor: client.redactor }),
+		),
 		...(ctx.options.keepCredentials === true ? { credentials: keptCredentials(held) } : {}),
 	}
 }

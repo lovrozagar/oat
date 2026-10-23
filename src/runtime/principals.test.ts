@@ -3,10 +3,12 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import type { HeldCredential } from "../credentials/store.ts"
+import { Redactor } from "../security/redact.ts"
 import { keptCredentials, loadPersistedPrincipals, parsePersistedPrincipals, snapshotPrincipal } from "./principals.ts"
 
 const sends = { cookies: {}, headers: { Authorization: "Bearer secret-1" }, query: {} }
 const secrets = { cookies: [], headers: ["Authorization"], query: [], values: ["secret-1"] }
+const NONE = new Redactor()
 const HELD: HeldCredential[] = [
 	{ credential: { expiresAt: 5000, secrets, sends, value: "secret-1" }, principal: "alpha", scheme: "jwt", scopes: [] },
 	{
@@ -29,7 +31,7 @@ describe("snapshotPrincipal", () => {
 				scope: { project_id: "p1" },
 				tenant: "t1",
 			},
-			HELD,
+			{ held: HELD, redactor: NONE },
 		)
 		expect(snap).toEqual({
 			credentials: [
@@ -48,7 +50,12 @@ describe("snapshotPrincipal", () => {
 
 	it("says why a principal the run could not sign in was BLOCKED", () => {
 		const reason = "login for beta/jwt: auth step 1 answered 401"
-		expect(snapshotPrincipal({ blocked: reason, id: "beta", identity: {}, rank: 0, scope: {} }, HELD)).toEqual({
+		expect(
+			snapshotPrincipal(
+				{ blocked: reason, id: "beta", identity: {}, rank: 0, scope: {} },
+				{ held: HELD, redactor: NONE },
+			),
+		).toEqual({
 			blocked: reason,
 			credentials: [{ expiresAt: null, scheme: "jwt", scopes: [] }],
 			id: "beta",
@@ -59,13 +66,35 @@ describe("snapshotPrincipal", () => {
 	})
 
 	it("omits a tenant and an invite value it does not have", () => {
-		expect(snapshotPrincipal({ id: "solo", identity: {}, rank: 0, scope: {} }, [])).toEqual({
+		expect(snapshotPrincipal({ id: "solo", identity: {}, rank: 0, scope: {} }, { held: [], redactor: NONE })).toEqual({
 			credentials: [],
 			id: "solo",
 			identity: {},
 			rank: 0,
 			scope: {},
 		})
+	})
+})
+
+describe("snapshotPrincipal identity", () => {
+	it("drops every credential-named identity key and every value the run holds as a secret", () => {
+		const redactor = new Redactor()
+		redactor.registerSecret("pin-123456")
+		const identity = {
+			api_key: "k-1",
+			apiKey: "k-2",
+			email: "a@x.test",
+			name: "Alpha",
+			password: "alpha-password",
+			pin: "pin-123456",
+			profile: { clientSecret: "s-1", team: "red" },
+			refreshToken: "r-1",
+			secret: "s-2",
+			token: "t-1",
+		}
+		const snap = snapshotPrincipal({ id: "alpha", identity, rank: 0, scope: {} }, { held: [], redactor })
+		expect(snap.identity).toEqual({ email: "a@x.test", name: "Alpha", profile: { team: "red" } })
+		expect(JSON.stringify(snap)).not.toMatch(/alpha-password|pin-123456|k-1|k-2|s-1|s-2|r-1|t-1/)
 	})
 })
 
