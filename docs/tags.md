@@ -423,7 +423,7 @@ properties:
     x-privileged: true
 ```
 
-On a request body property: only the highest-rank principal may set it. A lower-rank principal's write that includes it must be refused, or leave it unchanged. Nested properties are named by dotted path. Every body oat makes for its own creates and updates leaves an optional marked property out; only `auth.privileged-field-ignored` sends one. When a create's body requires one, only the highest rank of each tenant sends that create, and a lower rank's create of it is untested with the reason. The marker is a boolean on a schema property; on the operation, on the body itself, or of any other type, it is a gap `doctor` shows, and oat ignores it. A document that lacks it takes it by overlay: `overlay: { schemas: { Table: { properties: { verified: { "x-privileged": true } } } } }`.
+On a request body property: only the highest-rank principal may set it. A lower-rank principal's write that includes it must be refused, or leave it unchanged. Nested properties are named by dotted path. Every body oat makes for its own creates and updates leaves an optional marked property out; only `auth.privileged-field-ignored` sends one, on a record the run created and on one sign-up of its own. When a create's body requires one, only the highest rank of each tenant sends that create, and a lower rank's create of it is untested with the reason. The marker is a boolean on a schema property; on the operation, on the body itself, or of any other type, it is a gap `doctor` shows, and oat ignores it. A document that lacks it takes it by overlay: `overlay: { schemas: { Table: { properties: { verified: { "x-privileged": true } } } } }`.
 
 ### `--profile` — cost gating
 

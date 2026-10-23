@@ -52,6 +52,7 @@ describe("buildSpec", () => {
 			"/health",
 			"/v1/notices",
 			"/v1/notices/{id}",
+			"/v1/signups",
 			"/v1/signups/{account_id}",
 			"/v1/logout",
 			"/v1/me/account",

@@ -179,6 +179,11 @@
         },
         {
           "check": "auth.login-throttled",
+          "entity": "signup.list",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
           "entity": "styles.read",
           "needs": "the issue operation of a recipe; this check runs on auth.token"
         },
@@ -406,6 +411,11 @@
         },
         {
           "check": "auth.login-throttled",
+          "entity": "signup.list",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
           "entity": "styles.read",
           "needs": "opt in with checks: { \"auth.login-throttled\": true }"
         },
@@ -594,7 +604,7 @@
           {
             "check": "auth.login-throttled",
             "ran": 0,
-            "skipped": 44
+            "skipped": 45
           }
         ]
       }

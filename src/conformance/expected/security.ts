@@ -15,6 +15,7 @@ type SecurityDefect = Extract<
 	| "ROLE_NOT_CHECKED"
 	| "CROSS_TENANT_KEY_ACCEPTED"
 	| "PRIVILEGED_FIELD_WRITABLE"
+	| "PRIVILEGED_FIELD_ON_SIGNUP"
 	| "LOGIN_NOT_THROTTLED"
 >
 
@@ -41,5 +42,6 @@ export const SECURITY_EXPECTED: Record<SecurityDefect, FindingId | FindingId[]> 
 	ROLE_NOT_CHECKED: "auth.role-enforced",
 	CROSS_TENANT_KEY_ACCEPTED: "auth.cross-tenant-key-refused",
 	PRIVILEGED_FIELD_WRITABLE: "auth.privileged-field-ignored",
+	PRIVILEGED_FIELD_ON_SIGNUP: "auth.privileged-field-ignored",
 	LOGIN_NOT_THROTTLED: "auth.login-throttled",
 }

@@ -18,6 +18,8 @@ export interface Account extends Principal {
 	password?: string
 	/** What `account.update` last set as its display name. */
 	displayName?: string
+	/** What `auth.register` made it with: an account it made has one, a seeded principal none. */
+	signup?: { staff: boolean }
 }
 
 /** An API key: bound to its creator's tenant and rank, and to the scopes it was made with. */

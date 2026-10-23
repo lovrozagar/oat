@@ -220,6 +220,11 @@
     "QUERY /v1/search [] → 415",
     "QUERY /v1/search [content-type] → 200"
   ],
+  "signup.list": [
+    "GET /v1/signups [Authorization] → 200",
+    "GET /v1/signups [Authorization] → 401",
+    "GET /v1/signups [] → 401"
+  ],
   "styles.read": [
     "GET /v1/styles?ids&range[max]&range[min] [] → 200"
   ],

@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "18 root-cause findings",
+        "now": "19 root-cause findings",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -591,6 +591,26 @@
             "entity": "overview",
             "findings": 1,
             "operationId": "project.overview",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "auth.invalid-credential-refused"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.missing-credential-refused",
+                "auth.wrong-scheme-refused",
+                "response.contract-call"
+              ],
+              "suppressed": []
+            },
+            "entity": "signup",
+            "findings": 1,
+            "operationId": "signup.list",
             "reason": null,
             "status": "failed"
           },
@@ -1293,6 +1313,29 @@
                 "auth.invalid-credential-refused",
                 "auth.missing-credential-refused",
                 "auth.wrong-scheme-refused",
+                "response.contract-call"
+              ],
+              "suppressed": []
+            },
+            "entity": "signup",
+            "findings": 0,
+            "operationId": "signup.list",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "complete",
+            "tier": "contract",
+            "why": "a read with no declared effects: its contract is the whole promise"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.wrong-scheme-refused",
                 "response.status-is-documented"
               ],
               "suppressed": []
@@ -1313,8 +1356,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 117,
-        "was": 113
+        "now": 118,
+        "was": 114
       }
     },
     "findings": {
@@ -1508,6 +1551,23 @@
         },
         {
           "check": "auth.invalid-credential-refused",
+          "detail": "signup.list answered 200 to alpha's jwt JWT with its signature altered. The document requires jwt.",
+          "entity": "signup.list",
+          "operations": [
+            "signup.list"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/signups"
+            }
+          ],
+          "summary": "a secured operation accepted a JWT whose signature was altered",
+          "verdict": "SECURITY"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
           "detail": "table.delete answered 200 to alpha's jwt JWT with its signature altered. The document requires jwt, or apiKey with table:write.",
           "entity": "table.delete",
           "operations": [
@@ -1629,7 +1689,7 @@
     },
     "summary": {
       "SECURITY": {
-        "now": 18,
+        "now": 19,
         "was": null
       }
     }

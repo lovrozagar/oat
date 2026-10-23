@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { OperationObject, JsonSchema } from "../types.ts"
 import { GapCollector } from "./gaps.ts"
-import { readPrivileged, requiredPrivileged } from "./privileged.ts"
+import { propertySchema, readPrivileged, requiredPrivileged } from "./privileged.ts"
 
 /* `x-privileged: true` on a request body property: only the highest-rank principal may set it. */
 
@@ -85,5 +85,17 @@ describe("requiredPrivileged", () => {
 		expect(requiredPrivileged(nested, marked)).toEqual(["meta.owner"])
 		expect(requiredPrivileged({ properties: { meta: true }, required: ["meta"] }, ["meta.owner"])).toEqual([])
 		expect(requiredPrivileged(null, marked)).toEqual([])
+	})
+})
+
+describe("propertySchema", () => {
+	it("finds the schema at a marked path, through allOf members, and nothing where the path leads nowhere", () => {
+		expect(propertySchema(table, "verified")).toEqual({ type: "boolean", "x-privileged": true })
+		expect(propertySchema(table, "meta.owner")).toEqual({ type: "string", "x-privileged": true })
+		const composed: JsonSchema = { allOf: [{ properties: { role: { const: "admin" } } }] }
+		expect(propertySchema(composed, "role")).toEqual({ const: "admin" })
+		expect(propertySchema(table, "meta.missing")).toBeUndefined()
+		expect(propertySchema(table, "verified.deeper")).toBeUndefined()
+		expect(propertySchema(null, "verified")).toBeUndefined()
 	})
 })

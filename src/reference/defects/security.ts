@@ -22,6 +22,8 @@ export const SECURITY_DEFECTS = {
 	CROSS_TENANT_KEY_ACCEPTED: "an API key works in another tenant",
 	/** A table's `verified`, marked `x-privileged`, is set by a member's or a viewer's write. */
 	PRIVILEGED_FIELD_WRITABLE: "a non-admin's write sets a field only admin may set",
+	/** The register's `staff`, marked `x-privileged`, is granted to whoever signs up asking for it. */
+	PRIVILEGED_FIELD_ON_SIGNUP: "a sign-up grants the x-privileged staff flag its body sets",
 	/** With `throttleLogins` on, failed logins never answer 429. */
 	LOGIN_NOT_THROTTLED: "login throttling is on but repeated failed logins never answer 429",
 } as const

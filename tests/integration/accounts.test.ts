@@ -60,7 +60,8 @@ describe("the accounts a run signs up", () => {
 		/* A session of its own for each destructive operation that ends one: logout, and the delete-self. */
 		expect(made(ledger).length).toBeGreaterThanOrEqual(2)
 		/* Generated, each carries the run's nonce: no two runs send the same one. */
-		for (const email of emails(ledger)) expect(email).toMatch(/^oat-baseline-0-[0-9a-f]{8}\d+@example\.test$/)
+		for (const email of emails(ledger))
+			expect(email).toMatch(/^oat-baseline-0-[0-9a-f]{8}(\d+|privileged)@example\.test$/)
 		expect(new Set(emails(ledger)).size).toBe(made(ledger).length)
 		expect(made(ledger).map((entry) => entry.status)).toEqual(made(ledger).map(() => "removed"))
 		expect(leaked).toEqual([])

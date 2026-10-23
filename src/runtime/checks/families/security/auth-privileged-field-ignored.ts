@@ -10,12 +10,14 @@ import { requestContent } from "../../../../spec/collection/request.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { OperationObject } from "../../../../spec/types.ts"
 import { unlessUnsatisfied } from "./lifecycle.ts"
+import { isSignUp, signUpAndJudge, type SignUpProbe, signUpPlan } from "./privileged-signup.ts"
 import { currentOf, readOf, recordAt, writableBody } from "./writable.ts"
 
 type Fields = Record<string, unknown>
 
 /** The record written to, how it is re-read, who writes, who outranks it, and the body it sends. */
-interface PrivilegedProbe {
+interface RecordProbe {
+	kind: "record"
 	target: WriteTarget
 	read: OperationModel
 	/** What any writer may send of the record as it is now; the marked properties are set on it. */
@@ -25,19 +27,25 @@ interface PrivilegedProbe {
 	changes: ReadonlyArray<[path: string, value: unknown]>
 }
 
+/** A write to a record the run created, or a sign-up of an account of its own. */
+type PrivilegedProbe = RecordProbe | SignUpProbe
+
 /**
  * Only the highest rank may set a property the document marks `x-privileged: true`. A principal
  * ranked below it writes a record this run created, through a dedicated credential (never its own
  * session): the record's current state cut to what the request body accepts, each marked property
  * changed. The verdict is the record as its owner re-reads it, not the status: a marked property
  * left as it was passes, whether the write drew a 403, a 400 naming it, or a 200; one that changed is
- * the finding. A server error, or a record that cannot be re-read, leaves it unresolved.
+ * the finding. A server error, or a record that cannot be re-read, leaves it unresolved. A sign-up,
+ * which anyone may send, must not grant one either: see `privileged-signup.ts`.
  */
 export const privilegedFieldIgnored: OperationCheck<PrivilegedProbe> = defineCheck<PrivilegedProbe>({
 	id: "auth.privileged-field-ignored",
 	mutates: true,
-	needs: "a property marked x-privileged, a principal ranked below the highest, and a run-created record",
+	needs:
+		"a property marked x-privileged, and a sign-up or a run-created record with a principal ranked below the highest",
 	plan: (ctx) => {
+		if (ctx.operation.privileged.length > 0 && isSignUp(ctx)) return signUpPlan(ctx)
 		const undeclared = noSecurityReason(ctx.operation)
 		if (undeclared !== undefined) return cannot(undeclared)
 		if (ctx.operation.privileged.length === 0) {
@@ -55,12 +63,13 @@ export const privilegedFieldIgnored: OperationCheck<PrivilegedProbe> = defineChe
 			if (record === undefined) return cannot("the target record's current state, for a harmless body")
 			const body = writableBody(ctx, record)
 			return andThen(changesOf(ctx, { body, record }), (changes) =>
-				andThen(writerOf(ctx, target), (pair) => ready({ ...pair, body, changes, read, target })),
+				andThen(writerOf(ctx, target), (pair) => ready({ ...pair, body, changes, kind: "record", read, target })),
 			)
 		})
 	},
 	subject: "operation",
 	async run(ctx, probe) {
+		if (probe.kind === "signup") return signUpAndJudge(ctx, probe)
 		const reasons: string[] = []
 		for (const set of ctx.operation.security.alternatives) {
 			const scheme = set.length === 1 ? set[0] : undefined
@@ -89,7 +98,7 @@ const CHECK = "auth.privileged-field-ignored"
 
 async function writeAndJudge(
 	ctx: OperationWriteContext,
-	{ as, probe }: { as: { principal: string; scheme: string }; probe: PrivilegedProbe },
+	{ as, probe }: { as: { principal: string; scheme: string }; probe: RecordProbe },
 ) {
 	const { changes, read, target, top, writer } = probe
 	const { method, operationId, requiredQuery: query } = ctx.operation

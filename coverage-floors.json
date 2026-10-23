@@ -950,6 +950,12 @@
 		"functions": 100,
 		"lines": 100
 	},
+	"src/runtime/checks/families/security/privileged-signup.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
 	"src/runtime/checks/families/security/probing.ts": {
 		"statements": 100,
 		"branches": 100,
@@ -1313,6 +1319,7 @@
 	"src/runtime/root-read.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/run/accounts.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/run/acting.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/run/check-accounts.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/run/client-setup.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/run/context.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/run/contract-floor.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },

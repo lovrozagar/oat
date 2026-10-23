@@ -723,6 +723,21 @@
               "passed": [],
               "suppressed": []
             },
+            "entity": "signup",
+            "findings": 0,
+            "operationId": "signup.list",
+            "reason": "graded by checks, but no request to signup.list succeeded",
+            "status": "untested",
+            "why": "graded by checks, but no request to signup.list succeeded"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [],
+              "suppressed": []
+            },
             "entity": null,
             "findings": 0,
             "operationId": "account.update",
@@ -1204,6 +1219,29 @@
             "sufficiency": "verified",
             "tier": "verified",
             "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.wrong-scheme-refused",
+                "response.contract-call"
+              ],
+              "suppressed": []
+            },
+            "entity": "signup",
+            "findings": 0,
+            "operationId": "signup.list",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "complete",
+            "tier": "contract",
+            "why": "a read with no declared effects: its contract is the whole promise"
           },
           {
             "checks": {
@@ -2604,12 +2642,23 @@
         ]
       },
       "removed": {
-        "now": 6,
-        "was": 113
+        "now": 7,
+        "was": 114
       }
     },
     "findings": {
       "added": [
+        {
+          "check": "auth.blocked",
+          "detail": "blocked by signed in again, and the new credential is refused where the old one was accepted (profile.get). auth.privileged-field-ignored could not complete.",
+          "entity": "auth.register",
+          "operations": [
+            "auth.register"
+          ],
+          "evidence": [],
+          "summary": "auth.privileged-field-ignored needed a credential that is BLOCKED",
+          "verdict": "BLOCKED"
+        },
         {
           "check": "auth.blocked",
           "detail": "blocked by signed in again, and the new credential is refused where the old one was accepted (profile.get). row.get was not sent to read /v1/projects/proj_alpha/tables/table_ID/rows/row_ID back after row.delete.",
@@ -2659,9 +2708,6 @@
     "costByCheck": {
       "removed": [
         {
-          "check": "auth.privileged-field-ignored"
-        },
-        {
           "check": "auth.refresh-reuse-refused"
         },
         {
@@ -2678,14 +2724,13 @@
         "was": null
       },
       "BLOCKED": {
-        "now": 2,
+        "now": 3,
         "was": null
       }
     },
     "coverage": {
       "neverApplied": {
         "added": [
-          "auth.privileged-field-ignored",
           "auth.refresh-reuse-refused",
           "auth.revoked-credential-refused",
           "auth.role-enforced"
@@ -2696,7 +2741,7 @@
           {
             "check": "auth.alternative-accepted",
             "ran": 0,
-            "skipped": 43
+            "skipped": 44
           },
           {
             "check": "auth.invalid-credential-refused",
@@ -2709,9 +2754,14 @@
             "skipped": 39
           },
           {
+            "check": "auth.privileged-field-ignored",
+            "ran": 0,
+            "skipped": 45
+          },
+          {
             "check": "auth.scope-enforced",
             "ran": 0,
-            "skipped": 43
+            "skipped": 44
           },
           {
             "check": "auth.wrong-scheme-refused",
@@ -2721,14 +2771,14 @@
           {
             "check": "request.invalid-body-refused",
             "ran": 0,
-            "skipped": 44
+            "skipped": 45
           }
         ],
         "removed": [
           {
             "check": "auth.alternative-accepted",
             "ran": 0,
-            "skipped": 39
+            "skipped": 40
           },
           {
             "check": "auth.invalid-credential-refused",
@@ -2748,22 +2798,22 @@
           {
             "check": "auth.refresh-reuse-refused",
             "ran": 0,
-            "skipped": 44
+            "skipped": 45
           },
           {
             "check": "auth.revoked-credential-refused",
             "ran": 0,
-            "skipped": 43
+            "skipped": 44
           },
           {
             "check": "auth.role-enforced",
             "ran": 0,
-            "skipped": 36
+            "skipped": 37
           },
           {
             "check": "auth.scope-enforced",
             "ran": 0,
-            "skipped": 31
+            "skipped": 32
           },
           {
             "check": "auth.wrong-scheme-refused",
@@ -2773,7 +2823,7 @@
           {
             "check": "request.invalid-body-refused",
             "ran": 0,
-            "skipped": 39
+            "skipped": 40
           }
         ]
       }

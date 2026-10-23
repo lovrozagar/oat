@@ -126,6 +126,15 @@ describe("the role, tenant and privilege defects, each through the router agains
 		expect(statuses).toEqual([0, 1])
 	})
 
+	it("PRIVILEGED_FIELD_ON_SIGNUP: a sign-up that asks for the staff flag gets it", async () => {
+		const statuses = await contrast("PRIVILEGED_FIELD_ON_SIGNUP", async (w) => {
+			await w.call("POST", "/v1/register", { body: { email: "s@x.test", staff: true }, token: null })
+			const [made] = (await w.call("GET", "/v1/signups")).body["signups"] as Array<{ staff: boolean }>
+			return made?.staff === true ? 1 : 0
+		})
+		expect(statuses).toEqual([0, 1])
+	})
+
 	it("LOGIN_NOT_THROTTLED: under throttleLogins, the sixth failed login is not a 429", async () => {
 		const statuses = await contrast(
 			"LOGIN_NOT_THROTTLED",

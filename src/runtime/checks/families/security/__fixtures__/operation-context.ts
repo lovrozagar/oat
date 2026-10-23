@@ -1,11 +1,13 @@
 import type { RequestOptions } from "../../../../../client/types.ts"
 import type { RecipeAnchors } from "../../../../../credentials/anchors.ts"
 import { FindingCollector } from "../../../../finding.ts"
-import type { SpecModel } from "../../../../../spec/graph/types.ts"
+import type { OperationModel, SpecModel } from "../../../../../spec/graph/types.ts"
 import { type Answer, fakeClient, op, type Sent } from "../../../__fixtures__/harness.ts"
 import type { Actor } from "../../../core/context.ts"
 import { placementOf } from "../../../core/operation.ts"
+import type { Exchange } from "../../../../exchange.ts"
 import type {
+	CheckAccounts,
 	DedicatedCredential,
 	OperationWriteContext,
 	ProbeCredentials,
@@ -41,6 +43,8 @@ export interface ProbeCalls {
 	dedicated: ProbeRequest[]
 	held: ProbeRequest[]
 	recipe: Array<{ principal: string; scheme: string }>
+	/** The sign-up answers, by seq, a check asked to sign in as, and the read each was for. */
+	signIn: Array<{ read: string; seq: number }>
 }
 
 function probeOf(script: ProbeScript, calls: ProbeCalls): ProbeCredentials {
@@ -60,10 +64,24 @@ function probeOf(script: ProbeScript, calls: ProbeCalls): ProbeCredentials {
 	}
 }
 
+/** Who the account a check's sign-up made is held as, by the sign-up's answer and the read it is for. */
+export type AccountScript = (signUp: Exchange, read: OperationModel) => Probed<{ principal: string }>
+
+function accountsOf(script: AccountScript | undefined, calls: ProbeCalls): CheckAccounts {
+	return {
+		signIn: async (signUp, read) => {
+			calls.signIn.push({ read: read.operationId, seq: signUp.seq })
+			return script?.(signUp, read) ?? { untested: "no account sign-in in this test" }
+		},
+	}
+}
+
 /** How a staged operation check is answered, and what its context carries. */
 export interface OperationStage {
 	respond?: SentResponder
 	probe?: ProbeScript
+	/** How the account a check's own sign-up made is signed in as. */
+	accounts?: AccountScript
 	principals?: [Actor, ...Actor[]]
 	peer?: Actor
 	target?: WriteTarget
@@ -88,10 +106,11 @@ export function operationContextFor(
 		respond({ method, options: options as RequestOptions, path }),
 	)
 	const findings = new FindingCollector()
-	const calls: ProbeCalls = { dedicated: [], held: [], recipe: [] }
+	const calls: ProbeCalls = { dedicated: [], held: [], recipe: [], signIn: [] }
 	const operation = op(model, operationId)
 	const principals = stage.principals ?? [actorOf("alpha")]
 	const ctx: OperationWriteContext = {
+		accounts: accountsOf(stage.accounts, calls),
 		actor: principals[0],
 		client,
 		findings,

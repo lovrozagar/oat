@@ -20,6 +20,7 @@ import type { Client } from "../../client/client.ts"
 import { type Outcome, standDown } from "../finding.ts"
 import { guardedClient } from "../own-record.ts"
 import type { OperationModel } from "../../spec/graph/types.ts"
+import { checkAccounts } from "./check-accounts.ts"
 import type { RunContext } from "./context.ts"
 import { unresolvedBy } from "./entity/run-check.ts"
 import { credentialOperations } from "./floor-credentials.ts"
@@ -120,6 +121,7 @@ async function contextOf(ctx: RunContext, probe: Probe, stage?: Stage): Promise<
 			: (ctx.client.readOnlyView(stamp) as Client)
 	const actors = actorsOf(ctx)
 	const context: OperationWriteContext = {
+		accounts: checkAccounts(ctx),
 		actor: actors[0],
 		client,
 		findings: ctx.findings.attributed([operation.operationId]).ownedBy(check.id),

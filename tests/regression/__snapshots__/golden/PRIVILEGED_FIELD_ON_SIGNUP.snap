@@ -1,0 +1,102 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "1 root-cause finding",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "auth.privileged-field-ignored"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.anonymous-operation-open",
+                "request.invalid-body-refused",
+                "response.contract-call"
+              ],
+              "suppressed": []
+            },
+            "entity": "signup",
+            "findings": 1,
+            "operationId": "auth.register",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.anonymous-operation-open",
+                "auth.privileged-field-ignored",
+                "request.invalid-body-refused",
+                "response.contract-call"
+              ],
+              "suppressed": []
+            },
+            "entity": "signup",
+            "findings": 0,
+            "operationId": "auth.register",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "unproven",
+            "tier": "contract",
+            "why": "met its contract, but no later read observed what it changed"
+          }
+        ]
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "auth.privileged-field-ignored",
+          "detail": "An anonymous sign-up by auth.register set staff to true, marked x-privileged; auth.register answered 201 and signup.list as alpha shows the account holding it. Anyone who signs up gets a privilege only the highest rank may grant.",
+          "entity": "auth.register",
+          "operations": [
+            "auth.register"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/signups"
+            },
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/register"
+            }
+          ],
+          "summary": "auth.register grants staff, marked x-privileged, to whoever signs up",
+          "verdict": "SECURITY"
+        }
+      ]
+    },
+    "summary": {
+      "SECURITY": {
+        "now": 1,
+        "was": null
+      }
+    }
+  }
+}

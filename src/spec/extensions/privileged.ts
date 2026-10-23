@@ -49,6 +49,13 @@ export function requiredPrivileged(body: JsonSchema | null, marked: readonly str
 	})
 }
 
+/** The schema of the property at a dotted path, a marked one say, allOf members included; undefined when none. */
+export function propertySchema(body: JsonSchema | null, path: string): JsonSchema | undefined {
+	let at: JsonSchema | undefined = body ?? undefined
+	for (const name of path.split(".")) at = at === undefined ? undefined : propertyAt(at, name)
+	return at
+}
+
 /* The names an object schema requires, its allOf members' included. */
 function requiredAt(schema: JsonSchema): unknown[] {
 	return [schema, ...schemas(schema.allOf)].flatMap((part) => (Array.isArray(part.required) ? part.required : []))

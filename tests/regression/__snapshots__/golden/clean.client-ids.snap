@@ -327,6 +327,11 @@
       },
       {
         "check": "auth.alternative-accepted",
+        "entity": "signup.list",
+        "needs": "an alternative of one scheme besides the first"
+      },
+      {
+        "check": "auth.alternative-accepted",
         "entity": "styles.read",
         "needs": "an alternative of one scheme besides the first"
       },
@@ -508,6 +513,11 @@
       {
         "check": "auth.anonymous-operation-open",
         "entity": "row.update",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "signup.list",
         "needs": "an operation whose security lets anonymous callers in"
       },
       {
@@ -724,6 +734,11 @@
         "check": "auth.cross-tenant-key-refused",
         "entity": "search.query",
         "needs": "a GET; search.query is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "signup.list",
+        "needs": "an alternative that takes an API key alone"
       },
       {
         "check": "auth.cross-tenant-key-refused",
@@ -1122,6 +1137,11 @@
       },
       {
         "check": "auth.login-throttled",
+        "entity": "signup.list",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
         "entity": "styles.read",
         "needs": "opt in with checks: { \"auth.login-throttled\": true }"
       },
@@ -1352,11 +1372,6 @@
       },
       {
         "check": "auth.privileged-field-ignored",
-        "entity": "auth.register",
-        "needs": "a request body property marked x-privileged; auth.register marks none"
-      },
-      {
-        "check": "auth.privileged-field-ignored",
         "entity": "auth.revoke",
         "needs": "a request body property marked x-privileged; auth.revoke marks none"
       },
@@ -1474,6 +1489,11 @@
         "check": "auth.privileged-field-ignored",
         "entity": "search.query",
         "needs": "a request body property marked x-privileged; search.query marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "signup.list",
+        "needs": "a request body property marked x-privileged; signup.list marks none"
       },
       {
         "check": "auth.privileged-field-ignored",
@@ -1697,6 +1717,11 @@
       },
       {
         "check": "auth.refresh-reuse-refused",
+        "entity": "signup.list",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
         "entity": "styles.read",
         "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
       },
@@ -1912,6 +1937,11 @@
       },
       {
         "check": "auth.revoked-credential-refused",
+        "entity": "signup.list",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
         "entity": "styles.read",
         "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
       },
@@ -2117,6 +2147,11 @@
       },
       {
         "check": "auth.role-enforced",
+        "entity": "signup.list",
+        "needs": "a write method"
+      },
+      {
+        "check": "auth.role-enforced",
         "entity": "styles.read",
         "needs": "a write method"
       },
@@ -2279,6 +2314,11 @@
         "check": "auth.scope-enforced",
         "entity": "search.query",
         "needs": "an operation that requires a credential; search.query lets anonymous callers in"
+      },
+      {
+        "check": "auth.scope-enforced",
+        "entity": "signup.list",
+        "needs": "an alternative that requires a scope"
       },
       {
         "check": "auth.scope-enforced",
@@ -3447,6 +3487,11 @@
       },
       {
         "check": "request.invalid-body-refused",
+        "entity": "signup.list",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
         "entity": "styles.read",
         "needs": "a write that takes a JSON request body"
       },
@@ -4440,14 +4485,15 @@
             "inconclusive": [],
             "passed": [
               "auth.anonymous-operation-open",
-              "auth.refresh-reuse-refused",
+              "auth.privileged-field-ignored",
+              "request.invalid-body-refused",
               "response.contract-call"
             ],
             "suppressed": []
           },
-          "entity": null,
+          "entity": "signup",
           "findings": 0,
-          "operationId": "auth.refresh",
+          "operationId": "auth.register",
           "reason": null,
           "status": "passed",
           "evidence": {},
@@ -4462,14 +4508,14 @@
             "inconclusive": [],
             "passed": [
               "auth.anonymous-operation-open",
-              "request.invalid-body-refused",
+              "auth.refresh-reuse-refused",
               "response.contract-call"
             ],
             "suppressed": []
           },
-          "entity": "signup",
+          "entity": null,
           "findings": 0,
-          "operationId": "auth.register",
+          "operationId": "auth.refresh",
           "reason": null,
           "status": "passed",
           "evidence": {},
@@ -4818,6 +4864,29 @@
           "sufficiency": "verified",
           "tier": "verified",
           "why": "a later exchange shows what this call did"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.invalid-credential-refused",
+              "auth.missing-credential-refused",
+              "auth.wrong-scheme-refused",
+              "response.contract-call"
+            ],
+            "suppressed": []
+          },
+          "entity": "signup",
+          "findings": 0,
+          "operationId": "signup.list",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "complete",
+          "tier": "contract",
+          "why": "a read with no declared effects: its contract is the whole promise"
         },
         {
           "checks": {
@@ -5323,6 +5392,12 @@
           "entity": "account",
           "id": "oat-baseline-0-a7a7a7a71@example.test",
           "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "account",
+          "id": "oat-baseline-0-a7a7a7a7privileged@example.test",
+          "principal": "account-4",
           "removed": true
         },
         {
@@ -5992,7 +6067,7 @@
           "removed": true
         }
       ],
-      "removed": 113,
+      "removed": 114,
       "unidentified": [],
       "unsupported": []
     },
@@ -6445,17 +6520,17 @@
         {
           "check": "auth.alternative-accepted",
           "ran": 0,
-          "skipped": 39
+          "skipped": 40
         },
         {
           "check": "auth.anonymous-operation-open",
           "ran": 0,
-          "skipped": 39
+          "skipped": 40
         },
         {
           "check": "auth.cross-tenant-key-refused",
           "ran": 0,
-          "skipped": 43
+          "skipped": 44
         },
         {
           "check": "auth.destructive-spares-the-caller",
@@ -6490,22 +6565,22 @@
         {
           "check": "auth.refresh-reuse-refused",
           "ran": 0,
-          "skipped": 44
+          "skipped": 45
         },
         {
           "check": "auth.revoked-credential-refused",
           "ran": 0,
-          "skipped": 43
+          "skipped": 44
         },
         {
           "check": "auth.role-enforced",
           "ran": 0,
-          "skipped": 36
+          "skipped": 37
         },
         {
           "check": "auth.scope-enforced",
           "ran": 0,
-          "skipped": 31
+          "skipped": 32
         },
         {
           "check": "auth.self-is-the-caller",
@@ -6835,7 +6910,7 @@
         {
           "check": "request.invalid-body-refused",
           "ran": 0,
-          "skipped": 39
+          "skipped": 40
         },
         {
           "check": "response.contract-call",

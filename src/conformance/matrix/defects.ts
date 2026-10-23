@@ -183,6 +183,7 @@ const DIALECT_INSENSITIVE: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<Def
 	"CREATE_500_ON_NON_ASCII",
 	"SIDE_EFFECT_NEVER_ARRIVES",
 	"RATE_LIMIT_STRICTER_THAN_DECLARED",
+	"PRIVILEGED_FIELD_ON_SIGNUP",
 ])
 
 /** Defects that need a page-number parameter to be seen. */
@@ -197,6 +198,8 @@ const ONE_ENGINE: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<DefectName>(
 	"DISCRIMINATOR_BRANCH_WRONG",
 	"ACTION_CRASHES",
 	"LISTED_GET_DIFFERS",
+	/* The register keeps its accounts in the auth state, never the store. */
+	"PRIVILEGED_FIELD_ON_SIGNUP",
 ])
 
 /** Every defect this backend and dialect can exhibit, narrowed to `filter` when one is given. */

@@ -155,10 +155,49 @@ describe("auth.register", () => {
 	it("refuses a body it cannot read, or one without an email, with a 400, and adds no account", async () => {
 		const { call, state } = await world()
 		const accounts = state.auth.accounts.size
-		for (const body of ["{", {}, { email: 5 }, { email: "a@x.test", role: "admin" }]) {
+		for (const body of [
+			"{",
+			{},
+			{ email: 5 },
+			{ email: "a@x.test", role: "admin" },
+			{ email: "a@x.test", staff: "yes" },
+		]) {
 			expect((await call("POST", "/v1/register", { body, token: null })).status).toBe(400)
 		}
 		expect(state.auth.accounts.size).toBe(accounts)
+	})
+})
+
+/* The sign-ups alpha's project lists, after one registered asking to be staff. */
+async function listedAfterAsking(defects: ReferenceOptions["defects"] = []) {
+	const { call } = await world({ defects })
+	const made = await call("POST", "/v1/register", { body: { email: "s@x.test", staff: true }, token: null })
+	expect(made.status).toBe(201)
+	return { listed: await call("GET", "/v1/signups"), made }
+}
+
+describe("auth.register's staff flag, which only an operator grants", () => {
+	it("is ignored: the account is made, and the listing shows it without the flag", async () => {
+		const { listed, made } = await listedAfterAsking()
+		expect(listed).toMatchObject({ status: 200 })
+		expect(listed.body).toEqual({ signups: [{ account_id: made.body["account_id"], email: "s@x.test", staff: false }] })
+	})
+
+	it("is granted under PRIVILEGED_FIELD_ON_SIGNUP", async () => {
+		const { listed } = await listedAfterAsking(["PRIVILEGED_FIELD_ON_SIGNUP"])
+		expect(listed.body).toMatchObject({ signups: [{ email: "s@x.test", staff: true }] })
+	})
+})
+
+describe("signup.list", () => {
+	it("lists only the accounts the register made in the caller's project, and only to a caller with a credential", async () => {
+		const { call } = await world()
+		expect((await call("GET", "/v1/signups")).body).toEqual({ signups: [] })
+		await call("POST", "/v1/register", { body: { email: "n@x.test" }, token: null })
+		expect((await call("GET", "/v1/signups")).body).toMatchObject({ signups: [{ email: "n@x.test", staff: false }] })
+		expect((await call("GET", "/v1/signups", { token: BETA })).body).toEqual({ signups: [] })
+		expect((await call("GET", "/v1/signups", { token: null })).status).toBe(401)
+		expect((await call("POST", "/v1/signups")).status).not.toBe(200)
 	})
 })
 

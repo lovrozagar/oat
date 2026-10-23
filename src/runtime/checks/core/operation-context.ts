@@ -2,6 +2,7 @@
 
 import type { Client, ReadClient } from "../../../client/client.ts"
 import type { CheckSwitches } from "../../../config/types/config.ts"
+import type { Exchange } from "../../exchange.ts"
 import type { FindingCollector } from "../../finding.ts"
 import type { OperationModel, SpecModel } from "../../../spec/graph/types.ts"
 import type { ResolvedSecurity } from "../../../spec/security/requirements.ts"
@@ -87,6 +88,17 @@ export interface ProbeCredentials {
 	recipe(request: { principal: string; scheme: string }): Probed<RecipeAnchors>
 }
 
+/** The accounts a check's own sign-up made, as the run's ledger holds them. */
+export interface CheckAccounts {
+	/**
+	 * The account the sign-up answered by `signUp` made, held as a principal of its own the way
+	 * teardown holds it, to send `read` as that account: its id, or why it cannot be. A credential
+	 * that is not the account's own (a static recipe's, another principal's) is refused, since `read`
+	 * would answer for whoever owns it.
+	 */
+	signIn(signUp: Exchange, read: OperationModel): Promise<Probed<{ principal: string }>>
+}
+
 /** Where a probe runs: see `placementOf`. */
 export type ProbePlacement = "read" | "item-read" | "write"
 
@@ -111,6 +123,8 @@ export interface OperationContext<C extends ReadClient = ReadClient> {
 	/** The operation's security, as the document resolves it. */
 	security: ResolvedSecurity
 	probe: ProbeCredentials
+	/** The accounts the check's own sign-up made. */
+	accounts: CheckAccounts
 	options: { checks: CheckSwitches }
 	/** Where this probe runs, which decides its client and whether it has a `target`. */
 	placement: ProbePlacement

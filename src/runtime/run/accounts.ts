@@ -58,7 +58,7 @@ export async function teardownAccounts(ctx: RunContext): Promise<void> {
 }
 
 /* How a person finds the account: by its email, else by how it was made. */
-function labelOf(entry: AccountEntry): string {
+export function labelOf(entry: AccountEntry): string {
 	return accountLabel(entry.identity) ?? `#${entry.n} by ${entry.operationId}`
 }
 
@@ -138,7 +138,7 @@ async function removeAccount(ctx: RunContext, ops: AccountOps, entry: AccountEnt
  * delete-self sent with it would remove whoever the credential belongs to. Judged on the schemes the
  * client picks for `op`, not on every credential the principal holds.
  */
-async function borrowedFor(ctx: RunContext, principal: string, op: OperationModel): Promise<string | undefined> {
+export async function borrowedFor(ctx: RunContext, principal: string, op: OperationModel): Promise<string | undefined> {
 	const route = `${op.method.toUpperCase()} ${op.path}`
 	const resolution = await ctx.client.credentialFor({ actor: { principal }, operationId: op.operationId, route })
 	if (resolution.kind === "unsatisfied" || resolution.kind === "blocked") {
@@ -176,12 +176,12 @@ async function borrowed(
 }
 
 /* The principal the run holds this account as, by the names it was made with. */
-function holder(ctx: RunContext, entry: AccountEntry): string | undefined {
+export function holder(ctx: RunContext, entry: AccountEntry): string | undefined {
 	if (entry.principal !== undefined) return entry.principal
 	return Object.keys(ctx.store.principals).find((id) => names(entry, ctx.store.identityOf(id)))
 }
 
-function configuredNotMade(ctx: RunContext, id: string): boolean {
+export function configuredNotMade(ctx: RunContext, id: string): boolean {
 	return Object.hasOwn(ctx.options.principals, id) && !createdByRun(ctx, id)
 }
 
@@ -190,7 +190,7 @@ function configuredNotMade(ctx: RunContext, id: string): boolean {
  * answered. A credential the answer carried is enough; otherwise its recipes sign it in, unless one
  * of them signs up, which would make another account to remove.
  */
-async function signIn(ctx: RunContext, entry: AccountEntry): Promise<string | undefined> {
+export async function signIn(ctx: RunContext, entry: AccountEntry): Promise<string | undefined> {
 	const signUp = ctx.accounts.signUpOf(entry)
 	const body = signUp?.body
 	if (signUp?.answer === undefined || body === null || typeof body !== "object" || Array.isArray(body)) return undefined

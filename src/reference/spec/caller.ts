@@ -148,7 +148,11 @@ function registerOperation(ctx: SpecContext): Json {
 				"application/json": {
 					schema: {
 						additionalProperties: false,
-						properties: { email: { format: "email", type: "string" } },
+						properties: {
+							email: { format: "email", type: "string" },
+							/* Only an operator makes an account staff. */
+							staff: { type: "boolean", "x-privileged": true },
+						},
 						required: ["email"],
 						type: "object",
 					},
@@ -169,6 +173,32 @@ function registerOperation(ctx: SpecContext): Json {
 		tags: ["Profile"],
 		"x-entity": { action: "create", identity: "account_id", name: "signup" },
 		"x-fresh-principal": true,
+		"x-invalidate": ["GET /v1/signups"],
+	}
+}
+
+/** The accounts the register made in the caller's project, each with the staff flag only an operator grants. */
+function signupListOperation(ctx: SpecContext): Json {
+	const row = {
+		additionalProperties: false,
+		properties: { account_id: { type: "string" }, email: { type: "string" }, staff: { type: "boolean" } },
+		required: ["account_id", "email", "staff"],
+		type: "object",
+	}
+	return {
+		operationId: "signup.list",
+		responses: {
+			[ok(ctx, 200)]: jsonResponse("The accounts registered into the caller's project", {
+				additionalProperties: false,
+				properties: { signups: { items: row, type: "array" } },
+				required: ["signups"],
+				type: "object",
+			}),
+			...errorResponses(ctx, [401]),
+		},
+		summary: "List the accounts registered into the caller's project",
+		tags: ["Profile"],
+		"x-entity": { action: "list", identity: "account_id", name: "signup" },
 	}
 }
 
@@ -184,15 +214,17 @@ function accountDeleteOperation(ctx: SpecContext): Json {
 		summary: "Delete an account of the caller's project",
 		tags: ["Profile"],
 		"x-entity": { action: "delete", identity: "account_id", name: "signup" },
+		"x-invalidate": ["GET /v1/signups"],
 	}
 }
 
 /**
  * A read of the caller's own project, its account, plus a register and a logout for the disposable
- * user, and an admin's delete of an account the register made.
+ * user, the accounts the register made, and an admin's delete of one.
  */
 export function callerRootPaths(ctx: SpecContext): Json {
 	return {
+		"/v1/signups": { get: signupListOperation(ctx) },
 		"/v1/signups/{account_id}": { delete: accountDeleteOperation(ctx) },
 		"/v1/logout": { post: logoutOperation(ctx) },
 		"/v1/me/account": { put: accountUpdateOperation(ctx) },

@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "4 root-cause findings",
+        "now": "5 root-cause findings",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -88,6 +88,26 @@
             "entity": "overview",
             "findings": 1,
             "operationId": "project.overview",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "auth.wrong-scheme-refused"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "response.contract-call"
+              ],
+              "suppressed": []
+            },
+            "entity": "signup",
+            "findings": 1,
+            "operationId": "signup.list",
             "reason": null,
             "status": "failed"
           },
@@ -245,6 +265,29 @@
                 "auth.invalid-credential-refused",
                 "auth.missing-credential-refused",
                 "auth.wrong-scheme-refused",
+                "response.contract-call"
+              ],
+              "suppressed": []
+            },
+            "entity": "signup",
+            "findings": 0,
+            "operationId": "signup.list",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "complete",
+            "tier": "contract",
+            "why": "a read with no declared effects: its contract is the whole promise"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.wrong-scheme-refused",
                 "response.status-is-documented"
               ],
               "suppressed": []
@@ -331,12 +374,29 @@
           ],
           "summary": "an operation accepted a credential of a scheme it does not list",
           "verdict": "SECURITY"
+        },
+        {
+          "check": "auth.wrong-scheme-refused",
+          "detail": "signup.list answered 200 to alpha's apiKey credential, a scheme it does not list. The document requires jwt.",
+          "entity": "signup.list",
+          "operations": [
+            "signup.list"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/signups"
+            }
+          ],
+          "summary": "an operation accepted a credential of a scheme it does not list",
+          "verdict": "SECURITY"
         }
       ]
     },
     "summary": {
       "SECURITY": {
-        "now": 4,
+        "now": 5,
         "was": null
       }
     }

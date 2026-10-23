@@ -78,4 +78,16 @@ describe("readFields", () => {
 	it("refuses a body that is not JSON with a 415", async () => {
 		await expect(readFields(request("{}", "text/plain"), CLEAN, {})).rejects.toMatchObject({ status: 415 })
 	})
+
+	it("reads an optional boolean when the body holds one, and goes without it otherwise", async () => {
+		const optional = { email: "string", staff: "boolean?" } as const
+		expect(await readFields(request('{"email":"a","staff":true}', JSON_TYPE), CLEAN, optional)).toEqual({
+			email: "a",
+			staff: true,
+		})
+		expect(await readFields(request('{"email":"a"}', JSON_TYPE), CLEAN, optional)).toEqual({ email: "a" })
+		await expect(readFields(request('{"email":"a","staff":"yes"}', JSON_TYPE), CLEAN, optional)).rejects.toThrow(
+			'field "staff" has the wrong type',
+		)
+	})
 })

@@ -139,6 +139,7 @@ Comma-separated. Each is one named lie the demo API can tell. Primary check is w
 | `ROLE_NOT_CHECKED`                                 | `auth.role-enforced`                            | a viewer can create, update and delete                                                                                  |
 | `CROSS_TENANT_KEY_ACCEPTED`                        | `auth.cross-tenant-key-refused`                 | an API key is honored under another tenant's project                                                                    |
 | `PRIVILEGED_FIELD_WRITABLE`                        | `auth.privileged-field-ignored`                 | a member's or a viewer's write sets a table's `x-privileged` `verified`                                                 |
+| `PRIVILEGED_FIELD_ON_SIGNUP`                       | `auth.privileged-field-ignored`                 | a sign-up that sets the register's `x-privileged` `staff` gets it, as `signup.list` shows                               |
 | `LOGIN_NOT_THROTTLED`                              | `auth.login-throttled`                          | with `throttleLogins` on, failed logins never answer 429                                                                |
 
 ```bash

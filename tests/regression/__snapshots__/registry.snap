@@ -1017,7 +1017,7 @@
     "dependsOn": [],
     "mutates": true,
     "judgesTranscript": false,
-    "needs": "a property marked x-privileged, a principal ranked below the highest, and a run-created record"
+    "needs": "a property marked x-privileged, and a sign-up or a run-created record with a principal ranked below the highest"
   },
   {
     "id": "auth.login-throttled",

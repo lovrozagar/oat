@@ -70,14 +70,39 @@ export const logout: Route = async (state, request) => {
 	return respond(200, { ok: true })
 }
 
-/** `auth.register { email }`: a fresh admin of the first tenant, signed in at once. A body it cannot read is a 400. */
+/**
+ * `auth.register { email, staff? }`: a fresh admin of the first tenant, signed in at once. A body it
+ * cannot read is a 400. Only an operator makes an account staff, so the body's `staff` is ignored,
+ * unless PRIVILEGED_FIELD_ON_SIGNUP grants it.
+ */
 export const register: Route = async (state, request) => {
 	if (!is(request, "POST", "/v1/register")) return undefined
-	const { email } = (await readFields(request, state.defects, { email: "string" })) as { email: string }
-	const account: Account = { email, key: nextId(state.auth, "disp"), projectId: "proj_alpha", rank: 2 }
+	const body = await readFields(request, state.defects, { email: "string", staff: "boolean?" })
+	const email = body["email"] as string
+	const staff = state.defects.has("PRIVILEGED_FIELD_ON_SIGNUP") && body["staff"] === true
+	const account: Account = {
+		email,
+		key: nextId(state.auth, "disp"),
+		projectId: "proj_alpha",
+		rank: 2,
+		signup: { staff },
+	}
 	state.auth.accounts.set(account.key, account)
 	state.auth.registered.push(email)
 	return respond(201, { access_token: issueSession(state, account).access_token, account_id: account.key })
+}
+
+/** `signup.list`: the accounts the register made in the caller's project, each with its staff flag. */
+export const signups: Route = async (state, request) => {
+	if (!is(request, "GET", "/v1/signups")) return undefined
+	const caller = authenticate(state, request)
+	const made = [...state.auth.accounts.values()].filter(
+		(account): account is Account & Required<Pick<Account, "signup">> =>
+			account.signup !== undefined && account.projectId === caller.projectId,
+	)
+	return respond(200, {
+		signups: made.map((account) => ({ account_id: account.key, email: account.email, staff: account.signup.staff })),
+	})
 }
 
 /* Gone: no sign-in finds it, and every token it holds is refused. */

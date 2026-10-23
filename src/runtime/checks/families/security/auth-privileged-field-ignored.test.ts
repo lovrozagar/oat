@@ -272,3 +272,52 @@ describe("auth.privileged-field-ignored: a re-read the run cannot send", () => {
 		expect(stage.findings.findings).toEqual([])
 	})
 })
+
+describe("auth.privileged-field-ignored on a sign-up", () => {
+	const admin = { admin: { type: "boolean" } }
+	const register = {
+		"/register": {
+			post: {
+				operationId: "auth.register",
+				requestBody: {
+					content: {
+						"application/json": {
+							schema: {
+								properties: { ...admin, admin: { type: "boolean", "x-privileged": true }, email: { type: "string" } },
+							},
+						},
+					},
+					required: true,
+				},
+				responses: {
+					"201": { content: { "application/json": { schema: { properties: admin } } }, description: "made" },
+				},
+				security: [],
+				"x-fresh-principal": true,
+			},
+		},
+	}
+
+	it("signs an account up with the field set and judges the account, whatever security the document declares", async () => {
+		const open = { info: { title: "open", version: "1" }, openapi: "3.1.0", paths: register }
+		const stage = operationContextFor(modelOf(open as unknown as ReturnType<typeof securedDoc>), "auth.register", {
+			respond: (sent) => (sent.method === "POST" ? { body: { admin: true }, status: 201 } : undefined),
+		})
+		expect(await runOperationCheck(privilegedFieldIgnored, stage.ctx)).toMatchObject({ kind: "finding" })
+		expect(stage.sent.map((sent) => [sent.method, sent.path, sender(sent)])).toEqual([
+			["POST", "/register", "anonymous"],
+		])
+		expect(stage.findings.findings[0]?.summary).toBe(
+			"auth.register grants admin, marked x-privileged, to whoever signs up",
+		)
+	})
+
+	it("passes when the sign-up's answer shows the field unset, and leaves the record writes to the record probe", async () => {
+		const stage = staged("auth.register", {
+			doc: securedDoc(register),
+			respond: (sent) => (sent.method === "POST" ? { body: { admin: false }, status: 201 } : undefined),
+		})
+		expect(await runOperationCheck(privilegedFieldIgnored, stage.ctx)).toEqual({ kind: "asserted" })
+		expect(stage.calls.dedicated).toEqual([])
+	})
+})

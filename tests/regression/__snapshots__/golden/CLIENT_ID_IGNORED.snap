@@ -1842,8 +1842,8 @@
         ]
       },
       "removed": {
-        "now": 55,
-        "was": 113
+        "now": 56,
+        "was": 114
       },
       "unidentified": {
         "added": [
@@ -2055,9 +2055,6 @@
     "costByCheck": {
       "removed": [
         {
-          "check": "auth.privileged-field-ignored"
-        },
-        {
           "check": "create.unique-conflict-rejected"
         },
         {
@@ -2146,11 +2143,6 @@
       }
     },
     "coverage": {
-      "neverApplied": {
-        "added": [
-          "auth.privileged-field-ignored"
-        ]
-      },
       "partial": {
         "added": [
           {
@@ -2166,7 +2158,7 @@
           {
             "check": "auth.alternative-accepted",
             "ran": 0,
-            "skipped": 41
+            "skipped": 42
           },
           {
             "check": "auth.destructive-spares-the-caller",
@@ -2189,6 +2181,11 @@
             "skipped": 33
           },
           {
+            "check": "auth.privileged-field-ignored",
+            "ran": 0,
+            "skipped": 45
+          },
+          {
             "check": "auth.rank-is-monotonic",
             "ran": 5,
             "skipped": 1
@@ -2201,12 +2198,12 @@
           {
             "check": "auth.role-enforced",
             "ran": 0,
-            "skipped": 41
+            "skipped": 42
           },
           {
             "check": "auth.scope-enforced",
             "ran": 0,
-            "skipped": 37
+            "skipped": 38
           },
           {
             "check": "auth.self-is-the-caller",
@@ -2536,7 +2533,7 @@
           {
             "check": "request.invalid-body-refused",
             "ran": 0,
-            "skipped": 42
+            "skipped": 43
           },
           {
             "check": "response.contract-call",
@@ -2753,7 +2750,7 @@
           {
             "check": "auth.alternative-accepted",
             "ran": 0,
-            "skipped": 39
+            "skipped": 40
           },
           {
             "check": "auth.destructive-spares-the-caller",
@@ -2788,12 +2785,12 @@
           {
             "check": "auth.role-enforced",
             "ran": 0,
-            "skipped": 36
+            "skipped": 37
           },
           {
             "check": "auth.scope-enforced",
             "ran": 0,
-            "skipped": 31
+            "skipped": 32
           },
           {
             "check": "auth.self-is-the-caller",
@@ -3123,7 +3120,7 @@
           {
             "check": "request.invalid-body-refused",
             "ran": 0,
-            "skipped": 39
+            "skipped": 40
           },
           {
             "check": "response.contract-call",

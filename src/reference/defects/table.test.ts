@@ -18,7 +18,7 @@ describe("DEFECTS", () => {
 			SECURITY_DEFECTS,
 		]
 		expect(Object.keys(DEFECTS)).toEqual(families.flatMap((family) => Object.keys(family)))
-		expect(Object.keys(DEFECTS)).toHaveLength(132)
+		expect(Object.keys(DEFECTS)).toHaveLength(133)
 		expect(DEFECTS.UNSTABLE_SORT).toBe(CORE_DEFECTS.UNSTABLE_SORT)
 	})
 

@@ -24,8 +24,9 @@ describe("callerProfilePaths", () => {
 describe("callerRootPaths", () => {
 	const paths = callerRootPaths(CTX) as Paths
 
-	it("routes an admin's account delete, a logout, the caller's account, the caller's project and a register", () => {
+	it("routes the listing of sign-ups, an admin's account delete, a logout, the caller's account, the caller's project and a register", () => {
 		expect(Object.keys(paths)).toEqual([
+			"/v1/signups",
 			"/v1/signups/{account_id}",
 			"/v1/logout",
 			"/v1/me/account",
@@ -51,6 +52,24 @@ describe("callerRootPaths", () => {
 		})
 		expect(paths["/v1/logout"]?.["post"]).not.toHaveProperty("security")
 		expect(Object.keys(paths["/v1/register"]?.["post"]?.responses ?? {})).toEqual(["201"])
+	})
+
+	it("marks the register's staff flag x-privileged, and lists each sign-up with it", () => {
+		expect(JSON.stringify(paths["/v1/register"]?.["post"])).toContain('"staff":{"type":"boolean","x-privileged":true}')
+		const list = paths["/v1/signups"]?.["get"] as Json & { responses: Record<string, Json> }
+		expect(list).toMatchObject({
+			operationId: "signup.list",
+			"x-entity": { action: "list", identity: "account_id", name: "signup" },
+		})
+		expect(list).not.toHaveProperty("security")
+		expect(paths["/v1/register"]?.["post"]).toMatchObject({ "x-invalidate": ["GET /v1/signups"] })
+		expect(paths["/v1/signups/{account_id}"]?.["delete"]).toMatchObject({ "x-invalidate": ["GET /v1/signups"] })
+		expect(Object.keys(list.responses)).toEqual(["200", "401"])
+		expect(JSON.stringify(list.responses)).toContain(
+			'"signups":{"items":{"additionalProperties":false,"properties":{"account_id":{"type":"string"},' +
+				'"email":{"type":"string"},"staff":{"type":"boolean"}},"required":["account_id","email","staff"],' +
+				'"type":"object"},"type":"array"}',
+		)
 	})
 
 	it("reads the caller's project as the root", () => {
