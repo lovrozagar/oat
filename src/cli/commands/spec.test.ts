@@ -108,14 +108,24 @@ describe("modelled and the files a document refers to", () => {
 	})
 
 	it("passes on an error that is not the caller's to fix", async () => {
+		const doc = { info: { title: "t", version: "1" }, paths: {} }
+		await expect(modelled(bufferWriter(), { spec: json(folder(), "broken.json", doc) })).rejects.toThrow(
+			/has no "openapi" version field/,
+		)
+	})
+
+	it("models a document whose refs point at nothing, naming each pointer once", async () => {
 		const missing = { $ref: "#/components/responses/missing" }
 		const doc = {
 			info: { title: "t", version: "1" },
 			openapi: "3.1.0",
-			paths: { "/x": { get: { responses: { "200": missing } } } },
+			paths: { "/x": { get: { operationId: "x.get", responses: { "200": missing, "404": missing } } } },
 		}
-		await expect(modelled(bufferWriter(), { spec: json(folder(), "broken.json", doc) })).rejects.toThrow(
-			/unresolvable \$ref/,
+		const read = await modelled(bufferWriter(), { spec: json(folder(), "dangling.json", doc) })
+		if (typeof read === "number") throw new Error(`refused: ${read}`)
+		expect(read.danglingRefs).toEqual(["#/components/responses/missing"])
+		expect(read.model.byOperationId.get("x.get")?.unsendable).toBe(
+			"$ref #/components/responses/missing points at nothing",
 		)
 	})
 })

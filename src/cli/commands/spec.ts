@@ -21,6 +21,8 @@ export interface Modelled {
 	model: SpecModel
 	/** `$ref`s left unresolved: a URL, an anchor, or any ref of a fetched document. */
 	externalRefs: string[]
+	/** Internal `$ref`s that point at nothing: the model reads each per operation. */
+	danglingRefs: string[]
 	/** Operations the config's `allow` list removed from the document. */
 	removed: string[]
 	config: OatConfig | undefined
@@ -78,7 +80,9 @@ export async function modelled(writer: Writer, flags: Args["flags"]): Promise<Mo
 			dir: flagged === undefined ? configDir : undefined,
 			fetchText: fetchSpecText,
 		})
-		const { doc, externalRefs } = dereference(prepareDocument(raw, config ?? {}, (ids) => (removed = ids)))
+		const { danglingRefs, doc, externalRefs } = dereference(
+			prepareDocument(raw, config ?? {}, (ids) => (removed = ids)),
+		)
 		const model = buildModel(doc)
 		if (config !== undefined) {
 			applyGrammarOverrides(model, config)
@@ -91,7 +95,7 @@ export async function modelled(writer: Writer, flags: Args["flags"]): Promise<Mo
 		}
 		/* A create whose fixtures cannot be built is recorded on the model as a gap. */
 		probeCreateFixtures(model)
-		return { config, configPath, externalRefs, model, removed, unsetEnv }
+		return { config, configPath, danglingRefs, externalRefs, model, removed, unsetEnv }
 	} catch (error) {
 		if (!(error instanceof UsageError)) throw error
 		writer.err(`${error.message}\n`)

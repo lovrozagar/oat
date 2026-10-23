@@ -10,7 +10,7 @@ import { modelled } from "./spec.ts"
 export async function commandDoctor(writer: Writer, flags: Args["flags"]): Promise<number> {
 	const read = await modelled(writer, flags)
 	if (typeof read === "number") return read
-	const { model, externalRefs, config, configPath, removed, unsetEnv } = read
+	const { model, danglingRefs, externalRefs, config, configPath, removed, unsetEnv } = read
 	const output = report.doctor(model, {
 		asJson: flags.json === true,
 		config:
@@ -24,6 +24,7 @@ export async function commandDoctor(writer: Writer, flags: Args["flags"]): Promi
 						authCreates: authStepOperationIds(config),
 						credentials: { principals: config.principals ?? {}, security: config.security ?? {} },
 					},
+		danglingRefs,
 		externalRefs,
 		unsetEnv,
 	})

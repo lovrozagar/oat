@@ -1465,6 +1465,7 @@
 	"src/spec/extensions/unique.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/grammar-overrides.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/graph/build.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/spec/graph/dangling.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/graph/demote.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/graph/entities.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/graph/identity.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },

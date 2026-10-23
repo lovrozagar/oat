@@ -16,6 +16,7 @@ describe("specFixtures", () => {
 			"allof-composed-response",
 			"deeply-nested-path",
 			"external-ref",
+			"dangling-ref",
 			"query-roles-by-alias",
 			"pagination-only-is-not-query",
 		])

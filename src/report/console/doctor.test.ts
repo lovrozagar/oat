@@ -22,6 +22,13 @@ describe("doctor as text", () => {
 		expect(text).not.toContain("no gaps")
 	})
 
+	it("lists the refs that point at nothing beside the ones oat did not fetch", () => {
+		const { text } = doctor(modelOf(documentOf({})).model, { danglingRefs: ["#/missing"], externalRefs: ["x.yaml"] })
+		expect(text).toContain(
+			"    x.yaml\n\n  dangling $refs (nothing in the document is at these pointers; see the $ref gaps)\n    #/missing\n",
+		)
+	})
+
 	it("says a document with nothing missing has full coverage available", () => {
 		const { text, blocking } = doctor(modelOf(documentOf({})).model, { config: { allowRemoved: [] } })
 		expect(blocking).toBe(0)
@@ -36,6 +43,7 @@ describe("doctor as JSON", () => {
 		const { text, blocking } = doctor(model, {
 			asJson: true,
 			config: { allowRemoved: ["a.b"], entities: { ghost: {} } },
+			danglingRefs: ["#/missing"],
 			externalRefs: ["x.yaml"],
 		})
 		const json = JSON.parse(text)
@@ -43,6 +51,7 @@ describe("doctor as JSON", () => {
 			"blocking",
 			"entities",
 			"externalRefs",
+			"danglingRefs",
 			"featureGates",
 			"invites",
 			"uniqueConstraints",
@@ -61,6 +70,7 @@ describe("doctor as JSON", () => {
 		expect(json).toMatchObject({
 			allowRemoved: ["a.b"],
 			blocking,
+			danglingRefs: ["#/missing"],
 			entities: 7,
 			externalRefs: ["x.yaml"],
 			invites: [{ accept: "invite.accept", acceptFrom: "token", entity: "table" }],

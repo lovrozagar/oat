@@ -11,6 +11,7 @@ export function modelFixtures(): SpecFixture[] {
 		allofComposedResponse(),
 		deeplyNestedPath(),
 		externalRef(),
+		danglingRef(),
 		queryRolesByAlias(),
 		paginationOnlyIsNotQuery(),
 	]
@@ -140,6 +141,32 @@ function externalRef(): SpecFixture {
 		expectOperations: 1,
 		name: "external-ref",
 		why: "external refs must be reported, never fetched — a test tool should not follow URLs",
+	}
+}
+
+function danglingRef(): SpecFixture {
+	return {
+		doc: {
+			components: {
+				schemas: { Payment: { properties: { fee: { $ref: "#/components/schemas/Fee" } }, type: "object" } },
+			},
+			openapi: "3.0.0",
+			paths: {
+				"/payments": {
+					get: { operationId: "payment.list", responses: okResponse({ $ref: "#/components/schemas/Payment" }) },
+				},
+				"/refunds": {
+					get: {
+						operationId: "refund.list",
+						parameters: [{ $ref: "#/components/parameters/Missing" }],
+						responses: okResponse({ type: "object" }),
+					},
+				},
+			},
+		},
+		expectOperations: 2,
+		name: "dangling-ref",
+		why: "Square's published spec refers to schemas it never defines; the rest of the document must still model",
 	}
 }
 

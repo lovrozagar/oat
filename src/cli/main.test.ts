@@ -133,3 +133,42 @@ describe("invokedDirectly", () => {
 		expect(invokedDirectly(missing, pathToFileURL(missing).href)).toBe(true)
 	})
 })
+
+const ok = (schema: unknown) => ({ "200": { content: { "application/json": { schema } }, description: "ok" } })
+
+describe("start and a document whose refs point at nothing", () => {
+	const argv = process.argv
+	afterEach(() => {
+		process.argv = argv
+		process.exitCode = undefined
+	})
+
+	it("reports a document whose refs point at nothing, rather than failing on it", async () => {
+		const spec = join(mkdtempSync(join(tmpdir(), "oat-main-")), "dangling.json")
+		const fee = { $ref: "#/components/schemas/AppFeeAllocation" }
+		const doc = {
+			components: { schemas: { Order: { properties: { fee }, type: "object" } } },
+			info: { title: "t", version: "1" },
+			openapi: "3.1.0",
+			paths: {
+				"/orders": { get: { operationId: "orders.list", responses: ok({ $ref: "#/components/schemas/Order" }) } },
+				"/refunds": {
+					get: {
+						operationId: "refunds.list",
+						parameters: [{ $ref: "#/components/parameters/Missing" }],
+						responses: ok({}),
+					},
+				},
+			},
+		}
+		writeFileSync(spec, JSON.stringify(doc))
+		process.argv = ["node", "oat", "doctor", "--spec", spec]
+		const writer = bufferWriter()
+		await start({ writer })
+		expect([EXIT.clean, EXIT.defects]).toContain(process.exitCode)
+		expect(writer.text()).toContain("    #/components/schemas/AppFeeAllocation\n    #/components/parameters/Missing\n")
+		expect(writer.text()).toContain(
+			"      refunds.list: $ref #/components/parameters/Missing points at nothing; oat leaves",
+		)
+	})
+})

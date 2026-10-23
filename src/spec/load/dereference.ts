@@ -7,7 +7,8 @@ import { type Dereferencing, walk } from "./walk.ts"
 /**
  * Resolves internal `$ref`s, producing a document with no references left in it except the ones
  * that must stay: external refs, reported by the caller as a coverage gap, and refs that would
- * otherwise recurse forever.
+ * otherwise recurse forever. A ref that points at nothing becomes a `DANGLING_KEY` node, also
+ * reported, which the model reads operation by operation.
  *
  * Every source node maps to exactly one output node, so the result is the same whatever order the
  * document lists its keys in — `components` before `paths` or after. Sibling keys beside a `$ref`
@@ -22,9 +23,11 @@ import { type Dereferencing, walk } from "./walk.ts"
 export function dereference(doc: OpenApiDocument): {
 	doc: OpenApiDocument
 	externalRefs: string[]
+	danglingRefs: string[]
 } {
 	const state: Dereferencing = {
 		building: new Set(),
+		danglingRefs: new Set(),
 		defNames: new Map(),
 		doc,
 		externalRefs: new Set(),
@@ -35,7 +38,7 @@ export function dereference(doc: OpenApiDocument): {
 	/* Every ref into the bundled files is inlined or stored in the definitions by now. */
 	delete (out as Record<string, unknown>)[EXTERNAL_KEY]
 	if (Object.keys(defs).length > 0) (out as Record<string, unknown>)[DEFS_KEY] = defs
-	return { doc: out, externalRefs: [...state.externalRefs] }
+	return { danglingRefs: [...state.danglingRefs], doc: out, externalRefs: [...state.externalRefs] }
 }
 
 /**

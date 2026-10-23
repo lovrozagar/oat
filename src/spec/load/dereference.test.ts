@@ -4,6 +4,7 @@ import type { OpenApiDocument } from "../types.ts"
 import { DEFS_KEY, documentDefs } from "./defs.ts"
 import { EXTERNAL_KEY } from "./bundle.ts"
 import { dereference } from "./dereference.ts"
+import { DANGLING_KEY } from "./walk.ts"
 
 const node = { properties: { child: { $ref: "#/components/schemas/Node" }, id: { type: "string" } }, type: "object" }
 const paths = { "/nodes": { get: { operationId: "nodes.get", responses: ok({ $ref: "#/components/schemas/Node" }) } } }
@@ -72,5 +73,24 @@ describe("dereference", () => {
 		const loop = { value: 1, "x-loop": { $ref: "#/components/examples/Loop" } }
 		const { doc: out } = dereference(doc({}, { components: { examples: { Loop: loop } } }))
 		expect(documentDefs(out)).toEqual({ Loop: { value: 1, "x-loop": { $ref: "oat-defs#/$defs/Loop" } } })
+	})
+})
+
+describe("dereference and a ref to nothing", () => {
+	it("reads a schema that points at nothing as unconstrained, and reports its pointer once", () => {
+		const fee = { $ref: "#/components/schemas/AppFeeAllocation" }
+		const order = { properties: { fee, fees: { items: fee, type: "array" } }, type: "object" }
+		const source = doc(
+			{ "/nodes": { get: { operationId: "nodes.get", responses: ok({ $ref: "#/components/schemas/Order" }) } } },
+			{ components: { schemas: { Order: order } } },
+		)
+		const { doc: out, danglingRefs, externalRefs } = dereference(source)
+		const missing = { [DANGLING_KEY]: "#/components/schemas/AppFeeAllocation" }
+		expect(nodesSchema(out)).toEqual({
+			properties: { fee: missing, fees: { items: missing, type: "array" } },
+			type: "object",
+		})
+		expect(danglingRefs).toEqual(["#/components/schemas/AppFeeAllocation"])
+		expect(externalRefs).toEqual([])
 	})
 })

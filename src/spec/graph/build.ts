@@ -11,6 +11,7 @@ import { GapCollector } from "../extensions/gaps.ts"
 import { documentDefs } from "../load/defs.ts"
 import { readSchemes } from "../security/schemes.ts"
 import type { OpenApiDocument } from "../types.ts"
+import { recordDangling } from "./dangling.ts"
 import { demoteNonEntities } from "./demote.ts"
 import { registerOperations } from "./entities.ts"
 import { separateSameNamedCollections } from "./naming.ts"
@@ -26,6 +27,8 @@ export function buildModel(doc: OpenApiDocument): SpecModel {
 	const endpoints = listEndpoints(doc)
 	const operations = endpoints.map((e) => modelOperation(e, doc, gaps))
 	recordUnsendable(operations, gaps)
+	const defs = documentDefs(doc)
+	recordDangling(endpoints, operations, { defs, gaps })
 
 	const views = demoteNonEntities(operations, gaps)
 	separateSameNamedCollections(operations)
@@ -54,7 +57,7 @@ export function buildModel(doc: OpenApiDocument): SpecModel {
 		operations,
 		/* First wins, like `byOperationId`. */
 		rawOperations: new Map(endpoints.toReversed().map((e) => [e.operationId, e.op])),
-		defs: documentDefs(doc),
+		defs,
 		roots: collectRoots(operations, entities),
 		securitySchemes: Object.keys(doc.components?.securitySchemes ?? {}),
 		schemes: readSchemes(doc),

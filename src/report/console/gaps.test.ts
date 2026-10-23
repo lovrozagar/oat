@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { documentOf, listOp, modelOf } from "./__fixtures__/models.ts"
 import { doctorFacts } from "./doctor-facts.ts"
-import { externalRefLines, gapLines } from "./gaps.ts"
+import { danglingRefLines, externalRefLines, gapLines } from "./gaps.ts"
 
 const empty = doctorFacts(modelOf(documentOf({})).model)
 
@@ -11,6 +11,17 @@ describe("externalRefLines", () => {
 		expect(externalRefLines(["other.yaml#/a"])).toEqual([
 			"  unresolved external $refs (not fetched — a test tool should not follow arbitrary URLs)",
 			"    other.yaml#/a",
+			"",
+		])
+	})
+})
+
+describe("danglingRefLines", () => {
+	it("lists each internal reference that points at nothing, once", () => {
+		expect(danglingRefLines([])).toEqual([])
+		expect(danglingRefLines(["#/components/schemas/Fee"])).toEqual([
+			"  dangling $refs (nothing in the document is at these pointers; see the $ref gaps)",
+			"    #/components/schemas/Fee",
 			"",
 		])
 	})
@@ -69,5 +80,17 @@ describe("gapLines", () => {
 		]) {
 			expect(lines).toContain(expected)
 		}
+	})
+})
+
+describe("gapLines and a dangling $ref", () => {
+	it("says what defining a dangling $ref closes", () => {
+		const doc = documentOf({ "/a": { get: { ...(listOp("a", "a.list") as object), parameters: [{ $ref: "#/x" }] } } })
+		expect(gapLines(doctorFacts(modelOf(doc).model))).toEqual(
+			expect.arrayContaining([
+				"    $ref (1) — define what each pointer names: a missing schema reads as unconstrained, a missing anything else leaves its operation untested",
+				"      a.list: $ref #/x points at nothing; oat leaves this operation untested",
+			]),
+		)
 	})
 })

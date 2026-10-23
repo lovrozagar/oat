@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest"
 import type { OpenApiDocument } from "../types.ts"
-import { type Dereferencing, walk } from "./walk.ts"
+import { DANGLING_KEY, type Dereferencing, walk } from "./walk.ts"
 
 function start(doc: Record<string, unknown>): Dereferencing {
 	return {
 		building: new Set(),
 		defNames: new Map(),
 		doc: doc as OpenApiDocument,
+		danglingRefs: new Set(),
 		externalRefs: new Set(),
 		memo: new Map(),
 	}
@@ -41,8 +42,11 @@ describe("walk", () => {
 		expect([...state.externalRefs]).toEqual(["other.yaml#/X"])
 	})
 
-	it("refuses a ref to nothing", () => {
-		expect(() => walked({ a: { $ref: "#/missing" } })).toThrow("oat: unresolvable $ref #/missing")
+	it("reads a ref to nothing as an empty node naming it, siblings laid over, and records it", () => {
+		const { out, state } = walked({ a: { $ref: "#/missing" }, b: { $ref: "#/missing", description: "here" } })
+		expect(out["a"]).toEqual({ [DANGLING_KEY]: "#/missing" })
+		expect(out["b"]).toEqual({ [DANGLING_KEY]: "#/missing", description: "here" })
+		expect([...state.danglingRefs]).toEqual(["#/missing"])
 	})
 })
 

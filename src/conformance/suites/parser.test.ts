@@ -45,9 +45,13 @@ describe("runParserSuite", () => {
 	})
 
 	it("fails a fixture the parser throws on", () => {
-		expect(details("broken", { openapi: "3.1.0", paths: { "/a": { $ref: "#/missing" } } })).toEqual([
-			expect.stringMatching(/^false threw: /),
-		])
+		const unreadable = {
+			openapi: "3.1.0",
+			get paths(): never {
+				throw new Error("unreadable")
+			},
+		}
+		expect(details("broken", unreadable)).toEqual(["false threw: unreadable"])
 	})
 
 	it("fails an external ref resolved in silence, and a mangled plural", () => {
@@ -84,6 +88,15 @@ describe("runParserSuite", () => {
 		expect(details("query-roles-by-alias", articles(["sort"]))).toEqual([expect.stringContaining("order=sort")])
 		expect(details("query-roles-by-alias", articles(["sort", "fields", "per_page"]))).toEqual([
 			expect.stringContaining("order=sort select=fields search="),
+		])
+	})
+})
+
+describe("runParserSuite and a dangling ref", () => {
+	it("fails one read as a schema with no gap, or as a parameter the operation is sent with", () => {
+		expect(details("dangling-ref", EMPTY)).toEqual([
+			"false payment.list has no gap for the schema its $ref names but the document lacks; " +
+				"refund.list was modelled with a parameter its $ref names but the document lacks",
 		])
 	})
 })

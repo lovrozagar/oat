@@ -40,7 +40,20 @@ function rolesByAlias(model: Model): string[] {
 	return [...querySource(op), ...maxLimit(op), ...roles(op)]
 }
 
+/* A schema ref to nothing reads as unconstrained with a gap; a parameter ref to nothing leaves its operation untested. */
+function danglingRef(model: Model): string[] {
+	const problems: string[] = []
+	if (!model.gaps.gaps.some((gap) => gap.tag === "$ref" && gap.operationId === "payment.list")) {
+		problems.push("payment.list has no gap for the schema its $ref names but the document lacks")
+	}
+	if (model.byOperationId.get("refund.list")?.unsendable == null) {
+		problems.push("refund.list was modelled with a parameter its $ref names but the document lacks")
+	}
+	return problems
+}
+
 const PROBES: Readonly<Record<string, Probe>> = {
+	"dangling-ref": danglingRef,
 	"external-ref": (_, externalRefs) =>
 		externalRefs.length === 0 ? ["external $ref was silently resolved instead of reported"] : [],
 	"irregular-plurals": (model) =>

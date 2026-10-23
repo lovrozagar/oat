@@ -20,6 +20,11 @@ describe("normalizeSchema", () => {
 		})
 	})
 
+	it("reads a schema whose ref pointed at nothing as unconstrained", () => {
+		const schema = { properties: { fee: { "x-oat-dangling": "#/components/schemas/Missing" } }, type: "object" }
+		expect(normalizeSchema(schema, response)).toEqual({ properties: { fee: {} }, type: "object" })
+	})
+
 	it("translates every subschema it holds, and leaves anything else where a subschema could be", () => {
 		const schema = {
 			additionalProperties: false,

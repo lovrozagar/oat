@@ -13,6 +13,13 @@ import { decodeSegment, resolvePointer } from "./pointer.ts"
  */
 export const DISCRIMINATOR_KEY = "x-oat-discriminator"
 
+/**
+ * What an internal ref that points at nothing reads as: an empty node naming the pointer. As a
+ * schema it is unconstrained (`normalizeSchema` drops the key); anywhere else the model leaves the
+ * operation that holds it untested.
+ */
+export const DANGLING_KEY = "x-oat-dangling"
+
 /** The tag property of a discriminated union, and the values that name each branch. */
 export interface Discriminated {
 	propertyName: string
@@ -24,6 +31,8 @@ export interface Dereferencing {
 	doc: OpenApiDocument
 	/** External refs met, reported by the caller as a coverage gap. */
 	externalRefs: Set<string>
+	/** Internal refs that point at nothing, each read as a `DANGLING_KEY` node. */
+	danglingRefs: Set<string>
 	/** source object → its resolved output, so a node is resolved once wherever it is reached */
 	memo: Map<object, unknown>
 	/** source nodes whose output is still being built: reaching one again is a cycle, whether it
@@ -88,11 +97,11 @@ function walkRef(ctx: Dereferencing, obj: JsonSchema, ref: string): unknown {
 		return obj
 	}
 	const target = resolvePointer(ctx.doc, ref)
-	if (target === undefined) throw new Error(`oat: unresolvable $ref ${ref}`)
 	if (target !== null && typeof target === "object" && ctx.building.has(target)) {
 		return { $ref: `${DEFS_ID}#/$defs/${defName(ctx, ref)}` }
 	}
-	const resolved = walk(ctx, target)
+	if (target === undefined) ctx.danglingRefs.add(ref)
+	const resolved = target === undefined ? { [DANGLING_KEY]: ref } : walk(ctx, target)
 	const siblings = Object.entries(obj).filter(([key]) => key !== "$ref")
 	if (siblings.length === 0) return resolved
 	const base = resolved !== null && typeof resolved === "object" && !Array.isArray(resolved) ? resolved : {}

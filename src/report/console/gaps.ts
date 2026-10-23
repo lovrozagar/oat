@@ -1,4 +1,4 @@
-/** The `doctor` sections for what oat could not read or test: unfollowed external refs and the gaps by tag. */
+/** The `doctor` sections for what oat could not read or test: unfollowed and dangling refs, and the gaps by tag. */
 
 import type { DoctorFacts } from "./doctor-facts.ts"
 import { block } from "./doctor-text.ts"
@@ -12,6 +12,14 @@ export function externalRefLines(externalRefs: string[]): string[] {
 	return block(
 		"  unresolved external $refs (not fetched — a test tool should not follow arbitrary URLs)",
 		externalRefs.map((ref) => `    ${ref}`),
+	)
+}
+
+/** The internal refs that point at nothing, each once; the `$ref` gaps say what each costs. */
+export function danglingRefLines(danglingRefs: string[]): string[] {
+	return block(
+		"  dangling $refs (nothing in the document is at these pointers; see the $ref gaps)",
+		danglingRefs.map((ref) => `    ${ref}`),
 	)
 }
 

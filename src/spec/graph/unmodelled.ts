@@ -60,10 +60,16 @@ export function recordUnsendable(operations: readonly OperationModel[], gaps: Ga
 	for (const op of operations) {
 		if (op.unsendable === null) continue
 		gaps.record(op.operationId, op.method, op.unsendable)
-		op.entity = null
-		op.entitySource = null
-		op.action = null
+		leaveUntested(op, op.unsendable)
 	}
+}
+
+/** Marks `op` never sent, for `reason`, and takes it out of every lifecycle. */
+export function leaveUntested(op: OperationModel, reason: string): void {
+	op.unsendable = reason
+	op.entity = null
+	op.entitySource = null
+	op.action = null
 }
 
 /** Records a gap for every webhook, callback, response link and additional operation the document declares. */

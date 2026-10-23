@@ -12,7 +12,7 @@
  */
 
 import { PRIVILEGED } from "./extensions/privileged.ts"
-import { DISCRIMINATOR_KEY, type Discriminated } from "./load/walk.ts"
+import { DANGLING_KEY, DISCRIMINATOR_KEY, type Discriminated } from "./load/walk.ts"
 import type { JsonSchema } from "./types.ts"
 
 export type Direction = "request" | "response"
@@ -59,6 +59,7 @@ const OPENAPI_ONLY: ReadonlySet<string> = /* @__PURE__ */ new Set([
 	"example",
 	"discriminator",
 	DISCRIMINATOR_KEY,
+	DANGLING_KEY,
 	"xml",
 	"externalDocs",
 ])
