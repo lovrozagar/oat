@@ -55,6 +55,28 @@ function writeOnly(schema: JsonSchema | null, name: string): boolean {
 	return property?.writeOnly === true
 }
 
+/** What the create answered, short of the record: only the fields the record's own schema has. */
+function answeredOf(input: { answered?: unknown }): Record<string, unknown> {
+	return isPlainRecord(input.answered) ? input.answered : {}
+}
+
+/**
+ * The fields of a create's answer the entity's record declares: an acknowledgement's `message` is
+ * no field of the record, and is never seeded as one. Nothing, when the record declares none.
+ */
+export function declaredFields(
+	model: SpecModel,
+	createOp: OperationModel,
+	answer: Record<string, unknown>,
+): Record<string, unknown> {
+	const entity = createOp.entity === null ? undefined : model.entities.get(createOp.entity)
+	const opOf = (operationId: string | undefined): OperationModel | undefined =>
+		operationId === undefined ? undefined : model.byOperationId.get(operationId)
+	const item = itemSchemaOf({ listOp: opOf(entity?.list), model, readOp: opOf(entity?.read) })
+	const properties = (item?.properties ?? {}) as Record<string, unknown>
+	return Object.fromEntries(Object.entries(answer).filter(([name]) => Object.hasOwn(properties, name)))
+}
+
 /** The fields the create's answer must name to be the record (`answersRecord`). */
 export function expectedFields(model: SpecModel, createOp: OperationModel, sent: unknown): ExpectedFields {
 	const entity = createOp.entity === null ? undefined : model.entities.get(createOp.entity)
@@ -70,13 +92,19 @@ export function expectedFields(model: SpecModel, createOp: OperationModel, sent:
 	return { required: (item?.required ?? []) as string[], submitted }
 }
 
-/** The created record as the item read shows it under `id`, or what was sent, unverified. */
+/**
+ * The created record as the item read shows it under `id`, over what the create answered; or,
+ * unverified, what the create answered over what was sent: the answer is the server's, the body only
+ * what oat asked for.
+ */
 export async function readBackCreated(input: {
 	client: Pick<Client, "get">
 	model: SpecModel
 	createOp: OperationModel
 	id: CreatedId
 	sent: unknown
+	/** What the create answered, short of the record: kept in an unverified one. */
+	answered?: unknown
 	scope: Record<string, string>
 	/** The principal that created it, which reads it back: `as: { principal }`. */
 	principal: string
@@ -86,7 +114,11 @@ export async function readBackCreated(input: {
 	const identity = (createOp.entity === null ? undefined : model.entities.get(createOp.entity))?.identity ?? "id"
 	const unverified = (cause: string): CreatedRecord => ({
 		acknowledged: false,
-		record: { ...(isPlainRecord(input.sent) ? input.sent : {}), [identity]: id.value },
+		record: {
+			...(isPlainRecord(input.sent) ? input.sent : {}),
+			...answeredOf(input),
+			[identity]: id.value,
+		},
 		unverified: cause,
 	})
 	const route =
@@ -114,7 +146,8 @@ export async function readBackCreated(input: {
 	const readId = idOf(record, identity)
 	if (readId !== undefined && readId !== id.id)
 		return unverified(`read back answered ${read.status} with another record`)
-	return { acknowledged: false, record: readId === undefined ? { ...record, [identity]: id.value } : record }
+	/* The read shows what is stored; a field it leaves out keeps what the create answered. */
+	return { acknowledged: false, record: { ...answeredOf(input), ...record, [identity]: readId ?? id.value } }
 }
 
 /*

@@ -3,7 +3,7 @@ import { UnsatisfiedSecurity } from "../../client/credential-source.ts"
 import { type Answer, fakeClient, modelOf, op } from "../checks/__fixtures__/harness.ts"
 import { FencedError } from "../fence.ts"
 import { notes } from "./__fixtures__/documents.ts"
-import { answersRecord, expectedFields, readBackCreated } from "./read-back.ts"
+import { answersRecord, expectedFields, declaredFields, readBackCreated } from "./read-back.ts"
 
 const scope = { projectId: "p1" }
 
@@ -109,6 +109,56 @@ describe("readBackCreated", () => {
 			unverified: "the item read could not be addressed: no value for path parameter {projectId}",
 		})
 		expect(unaddressable.sent).toEqual([])
+	})
+})
+
+describe("declaredFields", () => {
+	it("keeps the fields of an answer the record declares, never an acknowledgement's message", () => {
+		const model = modelOf(notes({}))
+		expect(declaredFields(model, op(model, "note.create"), { id: "n1", message: "created", name: "a" })).toEqual({
+			id: "n1",
+			name: "a",
+		})
+		const bare = modelOf(notes({ body: null, list: false, read: false }))
+		expect(declaredFields(bare, op(bare, "note.create"), { id: "n1", name: "a" })).toEqual({})
+	})
+})
+
+describe("readBackCreated, what the create answered", () => {
+	it("lays the read over what the create answered: a field the read leaves out keeps the answer's", async () => {
+		const model = modelOf(notes({}))
+		const fake = fakeClient(() => ({ body: { id: "n1", name: "stored" }, status: 200 }))
+		const made = await readBackCreated({
+			answered: { columns: [{ id: "c1" }], name: "answered" },
+			client: fake.client,
+			createOp: op(model, "note.create"),
+			id: { id: "n1" as never, trusted: true, value: "n1" },
+			model,
+			principal: "alpha",
+			scope,
+			sent: { name: "a" },
+		})
+		expect(made).toEqual({ acknowledged: false, record: { columns: [{ id: "c1" }], id: "n1", name: "stored" } })
+	})
+
+	it("keeps what the create answered in an unverified record, over the body it sent", async () => {
+		const model = modelOf(notes({}))
+		const fake = fakeClient(() => ({ status: 404 }))
+		const made = await readBackCreated({
+			answered: { columns: [{ id: "c1" }], name: "server-named" },
+			client: fake.client,
+			createOp: op(model, "note.create"),
+			id: { id: "n1" as never, trusted: true, value: "n1" },
+			model,
+			principal: "alpha",
+			scope,
+			sent: { name: "a", title: "t" },
+		})
+		expect(made).toEqual({
+			acknowledged: false,
+			record: { columns: [{ id: "c1" }], id: "n1", name: "server-named", title: "t" },
+			unverified: "read back answered 404",
+		})
 	})
 })
 

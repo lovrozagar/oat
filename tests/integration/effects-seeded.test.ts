@@ -93,7 +93,10 @@ function addColumnUpdate(paths: Paths): void {
 	} as never
 }
 
-/* One table t1 with one column c1; `seen` records the column add and each column update. */
+/*
+ * One table t1 with one column c1; `seen` records the column add and each column update. The create
+ * answers the record, with the name it was sent, so the seeded instance is that answer.
+ */
 function columnRoutes(seen: string[]): Route[] {
 	return [
 		({ method, res, url }) =>
@@ -103,7 +106,7 @@ function columnRoutes(seen: string[]): Route[] {
 		({ method, res, url }) =>
 			url.pathname.endsWith("/tables") &&
 			method === "POST" &&
-			reply(res, 201, { id: "t1", columns_json: [{ id: "c1", name: "aa0" }] }),
+			reply(res, 201, { columns_json: [{ id: "c1", name: "aa0" }], id: "t1", name: "t" }),
 		({ method, res, url }) => {
 			if (!url.pathname.endsWith("/columns") || method !== "POST") return false
 			seen.push("add")

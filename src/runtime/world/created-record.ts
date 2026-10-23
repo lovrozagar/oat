@@ -3,7 +3,7 @@ import type { OperationModel, SpecModel } from "../../spec/graph/types.ts"
 import { createdIdOf, createdRecordOf } from "../created-id.ts"
 import type { Exchange } from "../exchange.ts"
 import { confirmSubmitted } from "./confirm.ts"
-import { answersRecord, type CreatedRecord, expectedFields, readBackCreated } from "./read-back.ts"
+import { answersRecord, type CreatedRecord, declaredFields, expectedFields, readBackCreated } from "./read-back.ts"
 import { recordOf } from "./records.ts"
 
 function jsonText(sent: unknown): unknown {
@@ -52,7 +52,7 @@ export async function createdRecord(input: {
 		const answered = { ...record, [identity]: resolved.value }
 		if (input.wants === "id" || answersRecord(answered, expectedFields(model, createOp, sent)))
 			return { acknowledged: false, record: answered }
-		return readBackCreated({ ...input, id: resolved, sent })
+		return readBackCreated({ ...input, answered: declaredFields(model, createOp, record), id: resolved, sent })
 	}
 	if (entity === null) return null
 	const confirmed = await confirmSubmitted({
