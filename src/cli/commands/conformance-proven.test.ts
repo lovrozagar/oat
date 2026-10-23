@@ -28,6 +28,15 @@ describe("aggregate", () => {
 		expect(writer.text()).toContain("3 leg file(s) · 2 check(s) proven")
 	})
 
+	it("counts only the check ids a leg file lists as strings", () => {
+		const dir = folder()
+		writeFileSync(join(dir, "a.json"), JSON.stringify({ legs: ["passes"], proven: ["check.a", 7] }))
+		writeFileSync(join(dir, "b.json"), JSON.stringify({ legs: ["recall"], proven: 5 }))
+		const writer = bufferWriter()
+		expect(aggregate(writer, fakeToolkit({ unproven: ["check.a"] }).toolkit, dir)).toBe(0)
+		expect(writer.text()).toContain("2 leg file(s) · 1 check(s) proven")
+	})
+
 	it("fails on a check no leg proved", () => {
 		const dir = folder()
 		writeProven(join(dir, "a.json"), ["passes"], new Set(["check.a"]))

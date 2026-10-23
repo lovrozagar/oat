@@ -44,7 +44,10 @@ export function aggregate(writer: Writer, toolkit: Toolkit, dir: string): number
 	const proven = new Set<string>()
 	for (const name of files) {
 		const read = JSON.parse(readFileSync(join(dir, name), "utf8")) as Partial<ProvenFile>
-		for (const id of read.proven ?? []) proven.add(id)
+		/* A file this command did not write, or wrote another way: only listed string ids count. */
+		const listed: unknown = read.proven
+		if (!Array.isArray(listed)) continue
+		for (const id of listed) if (typeof id === "string") proven.add(id)
 	}
 	writer.out(`  ${files.length} leg file(s) · ${proven.size} check(s) proven\n`)
 	const unproven = toolkit.suite.renderUnproven(proven)
