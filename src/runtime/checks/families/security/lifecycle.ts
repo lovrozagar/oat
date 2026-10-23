@@ -1,14 +1,17 @@
 /*
  * What the credential-lifecycle checks share. A session's issue, refresh and revoke are properties of
  * the credential, not of a route, so each check anchors once per scheme on the operation the actor's
- * recipe names for that step. It proves the credential on one read: the first GET in document order
- * that takes the scheme alone and whose path the actor's scope fills. Per-route guard coverage is the
- * missing- and invalid-credential checks'.
+ * recipe names for that step. It proves the credential on one read oat can send whole (`readRoute`).
+ * Per-route guard coverage is the missing- and invalid-credential checks'.
  */
 
 import { UnsatisfiedSecurity } from "../../../../client/credential-source.ts"
 import type { RecipeAnchors } from "../../../../credentials/anchors.ts"
+import { unfilledRequired } from "../../../../spec/graph/parameters.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
+import type { SafeMethod } from "../../../../spec/methods.ts"
+import type { OperationObject } from "../../../../spec/types.ts"
+import { SELF_IDENTITY } from "../../../self/operations.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { ASSERTED, asserted, type Outcome, standDown } from "../../../finding.ts"
 import { noSecurityReason } from "../../../no-security.ts"
@@ -65,26 +68,68 @@ export function anchoredSchemes(ctx: OperationContext, anchoring: Anchoring): Pl
 /** The one read a lifecycle check proves a credential on. */
 export interface ReadRoute {
 	operation: OperationModel
+	/** The method it is sent with: GET or HEAD. */
+	method: SafeMethod
 	/** Its path, filled from the scope of the principal the credential is proven as (`acceptorOf`). */
 	path: string
 	/** The scopes the scheme's alternative asks for, which a minted credential must carry. */
 	scopes: string[]
 }
 
+/** The safe methods a credential is proven with: neither carries a body. */
+const PROVING: ReadonlySet<string> = /* @__PURE__ */ new Set(["GET", "HEAD"])
+
 /**
- * The first GET in document order that takes `scheme` alone and whose path the scope fills of the
- * principal a lifecycle probe acts as: the target's creator, which expects acceptance, else the actor.
+ * The read a lifecycle probe proves a credential on: a GET or HEAD that takes `scheme` alone and that
+ * oat can send whole. Its path is filled from the scope of the principal the probe acts as (the
+ * target's creator, which expects acceptance, else the actor), or a path parameter's declared enum;
+ * every required query, header and cookie parameter has a declared value (`unfilledRequired`). A
+ * read that cannot be sent whole never answers 2xx, and the check could never conclude. Among the
+ * reads that can, the first in document order of the best rank (`rankOf`).
  */
 export function readRoute(ctx: OperationContext, scheme: string): ReadRoute | undefined {
 	const { scope } = acceptorOf(ctx)
+	let best: { rank: number; route: ReadRoute } | undefined
 	for (const operation of ctx.model.operations) {
-		if (operation.method.toUpperCase() !== "GET" || operation.security.source === "none") continue
-		if (!operation.pathParams.every((name) => name in scope)) continue
+		if (!PROVING.has(operation.method.toUpperCase()) || operation.security.source === "none") continue
 		const alone = operation.security.alternatives.find((set) => set.length === 1 && set[0]?.scheme === scheme)?.[0]
 		if (alone === undefined) continue
-		return { operation, path: fillPath(operation.path, scope), scopes: [...alone.scopes] }
+		const raw = ctx.model.rawOperations.get(operation.operationId) as OperationObject
+		const values = pathValues(operation, raw, scope)
+		if (values === undefined || unfilledRequired(raw).length > 0) continue
+		const rank = rankOf(operation, raw)
+		if (best !== undefined && best.rank <= rank) continue
+		const path = fillPath(operation.path, values)
+		const method = operation.method.toUpperCase() as SafeMethod
+		best = { rank, route: { method, operation, path, scopes: [...alone.scopes] } }
 	}
-	return undefined
+	return best?.route
+}
+
+/* Each path parameter's value from the scope, else its declared enum's first; undefined once one has neither. */
+function pathValues(
+	operation: OperationModel,
+	raw: OperationObject,
+	scope: Readonly<Record<string, string>>,
+): Record<string, string> | undefined {
+	const values: Record<string, string> = {}
+	for (const name of operation.pathParams) {
+		const enumerated = raw.parameters?.find((param) => param.in === "path" && param.name === name)?.schema?.["enum"]
+		const value = Object.hasOwn(scope, name) ? scope[name] : Array.isArray(enumerated) ? enumerated[0] : undefined
+		if (value === undefined || value === null) return undefined
+		values[name] = String(value)
+	}
+	return values
+}
+
+/*
+ * Lower is better: a read that needs no parameter at all, then the caller's own read or a list, which
+ * any credential of the scheme should be let into, over a read of one record it may not reach.
+ */
+function rankOf(operation: OperationModel, raw: OperationObject): number {
+	const bare = operation.pathParams.length === 0 && !(raw.parameters ?? []).some((param) => param.required === true)
+	const open = operation.identity === SELF_IDENTITY || operation.action === "list"
+	return (bare ? 0 : 2) + (open ? 0 : 1)
 }
 
 /** One scheme a lifecycle check runs for, the read it proves the credential on, and whose credential it is. */
@@ -94,6 +139,9 @@ export interface Lifecycle {
 	/** The principal whose dedicated credential is proven, then revoked or rotated (`acceptorOf`). */
 	actor: string
 }
+
+/** Why a lifecycle check stands down when no scheme it anchors has a read `readRoute` can send. */
+export const NO_READ = "no read this credential protects that oat can send"
 
 /**
  * A lifecycle check's plan: the schemes anchored on this operation, each with its read. A scheme
@@ -108,9 +156,7 @@ export function lifecyclePlan(ctx: OperationContext, kind: AnchorKind): Plan<Lif
 			const route = readRoute(ctx, scheme)
 			return route === undefined ? [] : [{ actor, route, scheme }]
 		})
-		return planned.length > 0
-			? ready(planned)
-			: cannot(`a GET that accepts ${schemes.join(" or ")} alone and whose path parameters ${actor}'s scope fills`)
+		return planned.length > 0 ? ready(planned) : cannot(NO_READ)
 	})
 }
 

@@ -30,14 +30,14 @@ async function rotateAndReplay(
 	ctx: OperationWriteContext,
 	{ actor, route, scheme }: Lifecycle,
 ): Promise<SchemeOutcome> {
-	const { operation, path, scopes } = route
+	const { method, operation, path, scopes } = route
 	const reads = operation.operationId
 	const dedicated = await ctx.probe.dedicated({ principal: actor, scheme, scopes })
 	if (isUntested(dedicated)) return { untested: `${scheme}: ${dedicated.untested}` }
 	if (dedicated.rotate === undefined) return { untested: `${scheme}: the dedicated credential has no declared refresh` }
 	const rotation = await dedicated.rotate()
 	const as = { principal: dedicated.actor.principal, scheme }
-	const proven = await ctx.client.get(path, { as, operationId: reads, query: operation.requiredQuery })
+	const proven = await ctx.client.request(method, path, { as, operationId: reads, query: operation.requiredQuery })
 	if (proven.status >= 300) {
 		const reason =
 			`the rotated ${scheme} session was refused (${proven.status}) on ${reads}, ` +

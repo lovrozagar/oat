@@ -3,8 +3,8 @@ import type { OpenApiDocument } from "../../../../../spec/types.ts"
 /*
  * A small secured API: jwt sessions issued by a login, refreshed and revoked, and API keys behind a
  * scope. Notes live under a project; reads take jwt OR a notes:read key, writes jwt OR notes:write.
- * `verified` is marked `x-privileged`. Two reads qualify as a lifecycle check's route, the list
- * first, so a test can show the first in document order is the one used.
+ * `verified` is marked `x-privileged`. Two reads qualify as a lifecycle check's route: the feed
+ * first in document order, then the notes list, so a test can show a list outranks it.
  */
 
 const json = (schema: unknown) => ({ content: { "application/json": { schema } } })

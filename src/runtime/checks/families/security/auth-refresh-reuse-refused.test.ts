@@ -62,7 +62,7 @@ describe("auth.refresh-reuse-refused", () => {
 	it("passes when the reused refresh token is refused, after proving the rotated session on one read", async () => {
 		const stage = staged("auth.refresh", {})
 		expect(await run(stage)).toEqual({ kind: "asserted" })
-		expect(stage.events).toEqual(["rotate", "GET /projects/proj_a/feed", "replay"])
+		expect(stage.events).toEqual(["rotate", "GET /projects/proj_a/notes", "replay"])
 		expect(stage.calls.dedicated).toEqual([{ principal: "alpha", scheme: "jwt", scopes: [] }])
 		expect(stage.sent[0]?.options.as).toEqual({ principal: "alpha#probe-1", scheme: "jwt" })
 		expect([refreshReuseRefused.mutates, refreshReuseRefused.mutatesCredentials]).toEqual([true, true])
@@ -74,7 +74,7 @@ describe("auth.refresh-reuse-refused", () => {
 		expect(stage.findings.findings).toMatchObject([
 			{
 				check: "auth.refresh-reuse-refused",
-				detail: expect.stringMatching(/alpha's jwt session.*auth\.refresh.*proven on feed\.list/),
+				detail: expect.stringMatching(/alpha's jwt session.*auth\.refresh.*proven on notes\.list/),
 				summary: "a rotated jwt refresh token refreshes again",
 			},
 		])
@@ -84,7 +84,7 @@ describe("auth.refresh-reuse-refused", () => {
 		const stage = staged("auth.refresh", { rotated: 401 })
 		expect(await run(stage)).toEqual({
 			kind: "unresolved",
-			reason: "the rotated jwt session was refused (401) on feed.list, so a refused reuse would prove nothing",
+			reason: "the rotated jwt session was refused (401) on notes.list, so a refused reuse would prove nothing",
 		})
 		expect(stage.events).not.toContain("replay")
 	})
@@ -140,6 +140,6 @@ describe("auth.refresh-reuse-refused on a record another principal created", () 
 		if (!planned.ok) throw new Error(planned.needs)
 		expect(await refreshReuseRefused.run(stage.ctx, planned.value)).toEqual({ kind: "asserted" })
 		expect(stage.calls.dedicated).toEqual([{ principal: "beta", scheme: "jwt", scopes: [] }])
-		expect(stage.sent.map((s) => [s.path, sender(s)])).toEqual([["/projects/proj_b/feed", "beta#probe-1"]])
+		expect(stage.sent.map((s) => [s.path, sender(s)])).toEqual([["/projects/proj_b/notes", "beta#probe-1"]])
 	})
 })

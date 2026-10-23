@@ -148,7 +148,7 @@
         },
         {
           "check": "auth.revoked-credential-refused",
-          "detail": "alpha's jwt credential, issued for this probe alone and revoked through auth.logout, was still accepted: table.list answered 200. A credential that survives its revoke cannot be taken back from whoever holds it.",
+          "detail": "alpha's jwt credential, issued for this probe alone and revoked through auth.logout, was still accepted: profile.get answered 200. A credential that survives its revoke cannot be taken back from whoever holds it.",
           "entity": "auth.logout",
           "operations": [
             "auth.logout"
@@ -157,12 +157,12 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables"
+              "url": "http://reference.test/v1/me"
             },
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables"
+              "url": "http://reference.test/v1/me"
             }
           ],
           "summary": "a revoked jwt credential still authenticates",

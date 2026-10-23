@@ -68,7 +68,7 @@
       "added": [
         {
           "check": "auth.refresh-reuse-refused",
-          "detail": "alpha's jwt session, issued for this probe alone, was rotated through auth.refresh and proven on table.list; the refresh token that rotation spent then refreshed again. Reuse of a rotated refresh token must fail, and should revoke the whole session.",
+          "detail": "alpha's jwt session, issued for this probe alone, was rotated through auth.refresh and proven on profile.get; the refresh token that rotation spent then refreshed again. Reuse of a rotated refresh token must fail, and should revoke the whole session.",
           "entity": "auth.refresh",
           "operations": [
             "auth.refresh"
@@ -77,7 +77,7 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables"
+              "url": "http://reference.test/v1/me"
             },
             {
               "method": "POST",

@@ -49,8 +49,8 @@ describe("auth.revoked-credential-refused", () => {
 		expect(await run(stage)).toEqual({ kind: "asserted" })
 		expect(stage.calls.dedicated).toEqual([{ principal: "alpha", scheme: "jwt", scopes: [] }])
 		expect(stage.sent.map((s) => [s.method, s.path, s.options.operationId, s.options.probe])).toEqual([
-			["GET", "/projects/proj_a/feed", "feed.list", undefined],
-			["GET", "/projects/proj_a/feed", "feed.list", true],
+			["GET", "/projects/proj_a/notes", "notes.list", undefined],
+			["GET", "/projects/proj_a/notes", "notes.list", true],
 		])
 		expect(stage.sent.map((s) => s.options.as)).toEqual([
 			{ principal: "alpha#probe-1", scheme: "jwt" },
@@ -65,7 +65,7 @@ describe("auth.revoked-credential-refused", () => {
 		expect(stage.findings.findings).toMatchObject([
 			{
 				check: "auth.revoked-credential-refused",
-				detail: expect.stringMatching(/alpha's jwt credential.*auth\.revoke.*feed\.list answered 200/),
+				detail: expect.stringMatching(/alpha's jwt credential.*auth\.revoke.*notes\.list answered 200/),
 				summary: "a revoked jwt credential still authenticates",
 			},
 		])
@@ -76,13 +76,13 @@ describe("auth.revoked-credential-refused", () => {
 		const early = staged("auth.revoke", { after: 401, before: 401 })
 		expect(await run(early)).toEqual({
 			kind: "unresolved",
-			reason: "a fresh jwt credential was refused (401) on feed.list before its revoke",
+			reason: "a fresh jwt credential was refused (401) on notes.list before its revoke",
 		})
 		expect(early.sent).toHaveLength(1)
 		const odd = staged("auth.revoke", { after: 500 })
 		expect(await run(odd)).toEqual({
 			kind: "unresolved",
-			reason: "after its revoke, a jwt credential drew 500 on feed.list, neither a refusal nor a success",
+			reason: "after its revoke, a jwt credential drew 500 on notes.list, neither a refusal nor a success",
 		})
 	})
 })
@@ -143,8 +143,64 @@ describe("auth.revoked-credential-refused on a record another principal created"
 		expect(await run(stage)).toEqual({ kind: "asserted" })
 		expect(stage.calls.dedicated).toEqual([{ principal: "beta", scheme: "jwt", scopes: [] }])
 		expect(stage.sent.map((s) => [s.path, sender(s)])).toEqual([
-			["/projects/proj_b/feed", "beta#probe-1"],
-			["/projects/proj_b/feed", "beta#probe-1"],
+			["/projects/proj_b/notes", "beta#probe-1"],
+			["/projects/proj_b/notes", "beta#probe-1"],
 		])
+	})
+})
+
+/*
+ * Immich's shape: the first read the credential protects needs an `albumId` the document gives no
+ * value for, so it can never answer 2xx; a later read needs nothing. `extra` adds more paths.
+ */
+function immichDoc(paths: Record<string, unknown>) {
+	const ok = { "200": { description: "ok" } }
+	return modelOf({
+		components: { securitySchemes: { jwt: { scheme: "bearer", type: "http" } } },
+		info: { title: "immich", version: "1" },
+		openapi: "3.1.0",
+		paths: { "/auth/revoke": { post: { operationId: "auth.revoke", responses: ok } }, ...paths },
+		security: [{ jwt: [] }],
+	} as never)
+}
+const albumId = { in: "query", name: "albumId", required: true, schema: { format: "uuid", type: "string" } }
+const activities = {
+	get: { operationId: "getActivities", parameters: [albumId], responses: { "200": { description: "ok" } } },
+}
+const me = { get: { operationId: "getMyUser", responses: { "200": { description: "ok" } } } }
+
+describe("auth.revoked-credential-refused on a read oat can send", () => {
+	it("skips a read with a required query parameter oat cannot fill, and concludes on one it can send", async () => {
+		const immich = immichDoc({ "/activities": activities, "/users/me": me })
+		let revoked = false
+		const stage = operationContextFor(immich, "auth.revoke", {
+			principals: [alpha],
+			probe: {
+				dedicated: () => ({
+					...betaCredential(),
+					actor: { principal: "alpha#probe-1" },
+					owner: "alpha",
+					revoke: async () => void (revoked = true),
+				}),
+				recipes: { jwt: JWT },
+			},
+			respond: (sent) => ({ status: sent.path === "/activities" ? 400 : revoked ? 401 : 200 }),
+		})
+		expect(await run(stage)).toEqual({ kind: "asserted" })
+		expect(stage.sent.map((s) => [s.method, s.path, s.options.operationId])).toEqual([
+			["GET", "/users/me", "getMyUser"],
+			["GET", "/users/me", "getMyUser"],
+		])
+	})
+
+	it("stands down when no read the credential protects can be sent", () => {
+		const stage = operationContextFor(immichDoc({ "/activities": activities }), "auth.revoke", {
+			principals: [alpha],
+			probe: { recipes: { jwt: JWT } },
+		})
+		expect(revokedCredentialRefused.plan(stage.ctx)).toEqual({
+			needs: "no read this credential protects that oat can send",
+			ok: false,
+		})
 	})
 })

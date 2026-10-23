@@ -8,6 +8,7 @@ import {
 	readRequiredHeaders,
 	readRequiredQuery,
 	successResponseHeaders,
+	unfilledRequired,
 } from "./parameters.ts"
 
 const required = (name: string, schema: JsonSchema, extra: Record<string, unknown> = {}) =>
@@ -129,5 +130,27 @@ describe("successResponseHeaders", () => {
 		} as unknown as OperationObject
 		expect(successResponseHeaders(op)).toEqual(["Link", "X-Total"])
 		expect(successResponseHeaders({})).toEqual([])
+	})
+})
+
+describe("unfilledRequired", () => {
+	it("names each required query, header or cookie parameter with no declared value the run does not supply", () => {
+		const op: OperationObject = {
+			parameters: [
+				{ in: "path", name: "id", required: true },
+				required("albumId", { format: "uuid", type: "string" }),
+				required("kind", { enum: ["photo"] }),
+				query("optional", { type: "string" }),
+				{ in: "header", name: "X-Tenant", required: true },
+				{ example: "v2", in: "header", name: "X-Version", required: true },
+				{ in: "header", name: "Idempotency-Key", required: true },
+				{ in: "header", name: "Authorization", required: true },
+				{ in: "cookie", name: "hint", required: true },
+				{ example: "1", in: "cookie", name: "seen", required: true },
+			],
+			responses: {},
+		}
+		expect(unfilledRequired(op)).toEqual(["albumId", "X-Tenant", "hint"])
+		expect(unfilledRequired({ responses: {} })).toEqual([])
 	})
 })

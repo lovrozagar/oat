@@ -81,13 +81,13 @@ describe("anchoredSchemes (2)", () => {
 })
 
 describe("readRoute", () => {
-	it("picks the first GET in document order that takes the scheme alone and whose path the actor's scope fills", () => {
+	it("picks a list over a GET of the same rank before it, takes the scheme alone and fills the path from the scope", () => {
 		const ctx = stage("auth.revoke", {})
 		expect(readRoute(ctx, "jwt")).toMatchObject({
-			operation: { operationId: "feed.list" },
-			path: "/projects/proj_a/feed",
+			operation: { operationId: "notes.list" },
+			path: "/projects/proj_a/notes",
 		})
-		expect(readRoute(ctx, "apiKey")).toMatchObject({ operation: { operationId: "feed.list" }, scopes: ["notes:read"] })
+		expect(readRoute(ctx, "apiKey")).toMatchObject({ operation: { operationId: "notes.list" }, scopes: ["notes:read"] })
 		expect(readRoute(ctx, "basic")).toBeUndefined()
 	})
 
@@ -99,12 +99,84 @@ describe("readRoute", () => {
 	})
 })
 
+/* A jwt document of the given reads, each protected by the document's security; `auth.revoke` anchors. */
+function readsDoc(paths: Record<string, unknown>) {
+	return modelOf({
+		components: { securitySchemes: { jwt: { scheme: "bearer", type: "http" } } },
+		info: { title: "reads", version: "1" },
+		openapi: "3.1.0",
+		paths: { "/auth/revoke": { post: { operationId: "auth.revoke", responses: OK } }, ...paths },
+		security: [{ jwt: [] }],
+	} as never)
+}
+const OK = { "200": { description: "ok" } }
+const required = (where: string, name: string, schema: Record<string, unknown> = { type: "string" }) => ({
+	in: where,
+	name,
+	required: true,
+	schema,
+})
+const routeIn = (paths: Record<string, unknown>) =>
+	readRoute(operationContextFor(readsDoc(paths), "auth.revoke", { principals: [alpha] }).ctx, "jwt")
+const read = (operationId: string, parameters: unknown[]) => ({ get: { operationId, parameters, responses: OK } })
+const STATS = {
+	"/projects/{project_id}/stats": {
+		get: { operationId: "stats.get", parameters: [required("path", "project_id")], responses: OK },
+	},
+}
+const STATUS = { "/status": { get: { operationId: "status.get", responses: OK } } }
+const ME = {
+	"/users/me": {
+		get: { operationId: "users.me", responses: OK, "x-entity": { action: "read", identity: "self", name: "me" } },
+	},
+}
+
+describe("readRoute picks a read oat can send", () => {
+	it("prefers a read with no required parameters, and among those the caller's own read or a list", () => {
+		expect(routeIn({ ...STATS, ...STATUS, ...ME })).toMatchObject({ operation: { operationId: "users.me" } })
+		expect(routeIn({ ...ME, ...STATUS })).toMatchObject({ operation: { operationId: "users.me" } })
+		expect(routeIn({ ...STATS, ...STATUS })).toMatchObject({ operation: { operationId: "status.get" } })
+		expect(routeIn(STATS)).toMatchObject({ path: "/projects/proj_a/stats" })
+	})
+
+	it("skips a required query, header or cookie parameter with no declared value, and sends one with a value", () => {
+		expect(
+			routeIn({
+				"/a": read("a.query", [required("query", "albumId")]),
+				"/b": read("b.header", [required("header", "X-Tenant")]),
+				"/c": read("c.cookie", [required("cookie", "session-hint")]),
+			}),
+		).toBeUndefined()
+		expect(
+			routeIn({
+				"/d": read("d.declared", [
+					required("query", "kind", { enum: ["photo"], type: "string" }),
+					required("header", "Idempotency-Key"),
+					required("header", "Authorization"),
+				]),
+			}),
+		).toMatchObject({ operation: { operationId: "d.declared" } })
+	})
+
+	it("fills a path parameter from a declared enum, and takes a HEAD as readily as a GET", () => {
+		const region = required("path", "region", { enum: ["eu", "us"], type: "string" })
+		expect(
+			routeIn({ "/regions/{region}": { get: { operationId: "regions.get", parameters: [region], responses: OK } } }),
+		).toMatchObject({ path: "/regions/eu" })
+		expect(routeIn({ "/ping": { head: { operationId: "ping.head", responses: OK } } })).toMatchObject({
+			method: "HEAD",
+			operation: { operationId: "ping.head" },
+			path: "/ping",
+		})
+	})
+})
+
 describe("lifecyclePlan", () => {
 	it("pairs each anchored scheme with its route, and stands down without either", () => {
 		const recipes = { apiKey: KEY, jwt: JWT }
 		expect(lifecyclePlan(stage("auth.revoke", recipes), "revoke")).toMatchObject({
 			ok: true,
-			value: [{ route: { operation: { operationId: "feed.list" } }, scheme: "jwt" }],
+			value: [{ route: { operation: { operationId: "notes.list" } }, scheme: "jwt" }],
 		})
 		expect(lifecyclePlan(stage("notes.list", recipes), "revoke").ok).toBe(false)
 		const unscoped = operationContextFor(model, "auth.revoke", {
@@ -112,7 +184,7 @@ describe("lifecyclePlan", () => {
 			probe: { recipes: recipes as never },
 		}).ctx
 		expect(lifecyclePlan(unscoped, "revoke")).toEqual({
-			needs: "a GET that accepts jwt alone and whose path parameters alpha's scope fills",
+			needs: "no read this credential protects that oat can send",
 			ok: false,
 		})
 	})

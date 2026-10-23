@@ -100,6 +100,29 @@ export function readParamStyles(parameters: readonly ParameterObject[]): ParamSt
 	return out
 }
 
+/**
+ * The required query, header and cookie parameters a request cannot carry: the document declares no
+ * value for them, and the run supplies none itself (the idempotency key, a credential, a header OAS
+ * ignores). An operation with one cannot be sent whole, so its answer judges the request.
+ */
+export function unfilledRequired(op: OperationObject): string[] {
+	const parameters = op.parameters ?? []
+	const declared: Record<Exclude<ParamIn, "path">, Record<string, unknown>> = {
+		cookie: readRequiredCookies(parameters),
+		header: readRequiredHeaders(op),
+		query: readRequiredQuery(parameters),
+	}
+	const key = idempotencyHeader(op)
+	const supplied = (name: string): boolean => name === key || IGNORED_HEADERS.has(name.toLowerCase())
+	return parameters
+		.filter(
+			(param): param is ParameterObject & { in: Exclude<ParamIn, "path"> } =>
+				param.required === true && param.in !== "path",
+		)
+		.filter(({ in: where, name }) => !Object.hasOwn(declared[where], name) && !(where === "header" && supplied(name)))
+		.map(({ name }) => name)
+}
+
 /** The header parameter `op` accepts as an idempotency key, when it declares one. */
 export function idempotencyHeader(op: OperationObject): string | null {
 	return (
