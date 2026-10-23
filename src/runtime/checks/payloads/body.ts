@@ -49,12 +49,24 @@ export function withheldProperties(ctx: Pick<CheckContext, "model">, op: Operati
 	return new Set(Object.keys((schema.properties ?? {}) as object).filter((name) => !Object.hasOwn(kept, name)))
 }
 
-/** The first non-empty string field of `record` the update may change: not fixed, not withheld. */
+/** The properties `op`'s request schema marks writeOnly: a server takes them and never returns them. */
+function writeOnlyProperties(ctx: Pick<CheckContext, "model">, op: OperationModel | undefined): string[] {
+	const schema = op === undefined ? null : requestSchemaOf(ctx, op)
+	const properties = (schema?.properties ?? {}) as Record<string, { writeOnly?: unknown }>
+	return Object.keys(properties).filter((name) => properties[name]?.writeOnly === true)
+}
+
+/**
+ * The first non-empty string field of `record` the update may change: not fixed, not withheld, and
+ * one a read can return — never one the create or the update marks writeOnly, a secret say.
+ */
 export function pickWritableStringField(ctx: CheckContext, record: Record_): string | null {
 	const immutable = new Set([
 		...(ctx.updateOp?.immutable ?? []),
 		...(ctx.updateOp?.generated ?? []),
 		...withheldProperties(ctx, ctx.updateOp),
+		...writeOnlyProperties(ctx, ctx.createOp),
+		...writeOnlyProperties(ctx, ctx.updateOp),
 	])
 	for (const [key, value] of Object.entries(record)) {
 		if (immutable.has(key) || key === ctx.identity) continue

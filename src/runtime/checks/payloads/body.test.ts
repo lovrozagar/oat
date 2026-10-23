@@ -99,6 +99,17 @@ describe("pickWritableStringField", () => {
 		expect(pickWritableStringField(ctx, { plan: "gold" })).toBeNull()
 	})
 
+	it("passes over a property the create marks writeOnly: no read ever returns it", () => {
+		const doc = structuredClone(notesDoc())
+		const paths = doc.paths as Record<string, Record<string, { requestBody: unknown }>>
+		const create = paths["/notes"]?.["post"] as { requestBody: unknown }
+		const properties = { name: { type: "string" }, value: { type: "string", writeOnly: true } }
+		create.requestBody = { content: { "application/json": { schema: { properties, type: "object" } } } }
+		const { ctx } = notesContext(undefined, {}, modelOf(doc))
+		expect(pickWritableStringField(ctx, { value: "secret", name: "a" })).toBe("name")
+		expect(pickWritableStringField({ ...ctx, updateOp: undefined }, { value: "secret" })).toBeNull()
+	})
+
 	it("withholds nothing from a request schema that names no properties, or an operation with none", () => {
 		const doc = structuredClone(notesDoc())
 		const paths = doc.paths as Record<string, Record<string, { requestBody: unknown }>>
