@@ -3,6 +3,7 @@ import { entityChecks } from "../../checks/core/registry.ts"
 import { planOn } from "../../checks/core/run.ts"
 import { CHECKS } from "../../checks/registry.ts"
 import { isRootCause } from "../../finding.ts"
+import { planNeeds } from "../../checks/core/run.ts"
 import { type Check, type CheckLoop, type PlannedCheck, runCheck, withLostVariants } from "./run-check.ts"
 import type { EntityRun } from "./state.ts"
 
@@ -79,7 +80,7 @@ function planned(loop: CheckLoop, check: Check): string[] | null {
 		loop.plans.set(check.id, plan.value)
 		return graded
 	}
-	const needs = withLostVariants(run, plan.needs ?? check.needs ?? "an unstated precondition")
+	const needs = withLostVariants(run, planNeeds(check, loop.context, plan))
 	ctx.state.checksSkipped.push({ check: check.id, entity: entity.name, needs })
 	ctx.grades.skipped(graded, needs)
 	return null

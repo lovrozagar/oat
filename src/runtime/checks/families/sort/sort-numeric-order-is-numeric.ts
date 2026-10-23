@@ -3,18 +3,13 @@ import { defineCheck } from "../../core/define.ts"
 import { sortTerm } from "../../../../spec/conventions/sort.ts"
 import type { EffectiveFilterField } from "../../../../spec/query/effective.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
-import type { CheckContext, Listed } from "../../core/context.ts"
+import type { Listed } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, resolvedCaps } from "../../query/capabilities.ts"
-import { cohortFact } from "../../sets/compare.ts"
 import { readSet } from "../../sets/read.ts"
 
 function numericLexicalDisagrees(ctx: Listed, field: string): boolean {
-	return cohortFact(ctx, `numeric-lexical:${field}`, () => computeNumericLexicalDisagrees(ctx, field))
-}
-
-function computeNumericLexicalDisagrees(ctx: CheckContext, field: string): boolean {
 	const values = ctx.records.map((row) => row[field]).filter((v): v is number => typeof v === "number")
 	if (values.length < 3) return false
 	const unique = [...new Set(values)]

@@ -3,7 +3,6 @@ import type { Responder } from "../__fixtures__/harness.ts"
 import { notesContext, withConventions } from "../query/__fixtures__/notes.ts"
 import type { Record_ } from "../../world/records.ts"
 import {
-	cohortFact,
 	collectSet,
 	duplicates,
 	listAgain,
@@ -209,20 +208,5 @@ describe("set helpers", () => {
 		expect(sameSet(new Set(["1", "2"]), new Set(["2", "1"]))).toBe(true)
 		expect(sameSet(new Set(["1"]), new Set(["1", "2"]))).toBe(false)
 		expect(sameSet(new Set(["1", "3"]), new Set(["1", "2"]))).toBe(false)
-	})
-})
-
-describe("cohortFact", () => {
-	it("computes a fact once per list operation and keeps it", () => {
-		const { ctx } = notesContext()
-		let computed = 0
-		const fact = () => {
-			computed += 1
-			return computed
-		}
-		expect(cohortFact(ctx, "f", fact)).toBe(1)
-		expect(cohortFact(ctx, "f", fact)).toBe(1)
-		expect(cohortFact({ ...ctx, listOp: { ...ctx.listOp, operationId: "other.list" } }, "f", fact)).toBe(2)
-		expect(cohortFact(ctx, "g", () => null)).toBeNull()
 	})
 })

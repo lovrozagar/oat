@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { Outcome } from "../../finding.ts"
-import { contextOf, notesApi, optionsFor } from "../__fixtures__/api.ts"
+import type { OpenApiDocument } from "../../../spec/types.ts"
+import { contextOf, notesApi, notesDoc, optionsFor } from "../__fixtures__/api.ts"
 import { checkOf, loopOf } from "../__fixtures__/checks.ts"
 import type { RunOptions } from "../types.ts"
 import { runChecks } from "./check-loop.ts"
@@ -12,8 +13,8 @@ import type { Check } from "./run-check.ts"
  * not apply recorded, never dropped.
  */
 
-async function looped(checks: readonly Check[], extra: Partial<RunOptions> = {}) {
-	const ctx = await contextOf(optionsFor(notesApi(), extra))
+async function looped(checks: readonly Check[], extra: Partial<RunOptions> = {}, doc: OpenApiDocument = notesDoc()) {
+	const ctx = await contextOf(optionsFor(notesApi(doc), extra))
 	const loop = await loopOf(ctx)
 	await runChecks(loop.run, loop.context, checks)
 	return ctx
@@ -118,6 +119,23 @@ describe("runChecks planning", () => {
 			"an update route",
 			"a search field",
 			"an unstated precondition",
+		])
+	})
+
+	it("names the parameter a check needed when the list declares none to carry it", async () => {
+		/* The list says it sorts by `title`, but declares no sort parameter: no order can be sent. */
+		const doc = structuredClone(notesDoc()) as unknown as {
+			paths: Record<string, Record<string, Record<string, unknown>>>
+		}
+		const listed = doc.paths["/notes"]?.["get"]
+		if (listed !== undefined) listed["x-query"] = { sortable: ["title"] }
+		const sorts: Check = {
+			...checkOf({ id: "sorts", needs: "a sortable field" }),
+			plan: (ctx) => ((ctx.query?.sortable.length ?? 0) > 0 ? { ok: true, value: null } : { ok: false }),
+		}
+		const ctx = await looped([sorts], {}, doc as unknown as OpenApiDocument)
+		expect(ctx.state.checksSkipped.map((skip) => skip.needs)).toEqual([
+			"a sort parameter, which the list operation does not declare",
 		])
 	})
 

@@ -1,5 +1,4 @@
 import type { CheckContext, Listed } from "../core/context.ts"
-import { cohortFact } from "../sets/compare.ts"
 import { memoTable } from "../sets/read.ts"
 import { resolvedCaps } from "./capabilities.ts"
 
@@ -8,10 +7,6 @@ import { resolvedCaps } from "./capabilities.ts"
  * with distinct keys every implementation looks correct, because there is only one valid order.
  */
 export function tiedSortField(ctx: Listed): string | null {
-	return cohortFact(ctx, "tied-sort", () => computeTiedSortField(ctx))
-}
-
-function computeTiedSortField(ctx: CheckContext): string | null {
 	for (const field of ctx.query?.sortable ?? []) {
 		if (field === ctx.identity) continue
 		const values = ctx.records.map((r) => JSON.stringify(r[field]))
@@ -29,10 +24,6 @@ function computeTiedSortField(ctx: CheckContext): string | null {
  * column, which is never null, cannot see any of it.
  */
 export function nullableField(ctx: Listed, candidates: readonly string[]): string | null {
-	return cohortFact(ctx, `nullable:${candidates.join(",")}`, () => computeNullableField(ctx, candidates))
-}
-
-function computeNullableField(ctx: CheckContext, candidates: readonly string[]): string | null {
 	return candidates.find((field) => field !== ctx.identity && holdsSomeNulls(ctx, field)) ?? null
 }
 

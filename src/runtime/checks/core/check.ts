@@ -12,7 +12,16 @@ export interface CheckBase<T, X extends CheckContext = CheckContext> {
 	id: CheckId
 	/** What the check is planned on: an entity and its cohort. The default; see `OperationCheck`. */
 	subject?: "entity"
-	/** Decides whether the check applies to this entity, and gathers what `run` needs if it does. */
+	/**
+	 * Decides whether the check applies to this entity, and gathers what `run` needs if it does.
+	 *
+	 * Has no side effects: it sends nothing, records no finding or gap, writes no memo, and changes
+	 * neither the context nor the model, so the same context always plans the same way. The scheduler
+	 * relies on that: it plans a check that stood down again, with withheld query capabilities put
+	 * back, to name the parameter it was missing (`planNeeds`, through `planOn`). Anything a check learns by asking the
+	 * backend, or keeps for later, belongs in `run`. `tests/structure/plan-purity.test.ts` holds every
+	 * registered plan to this.
+	 */
 	plan(ctx: X): Plan<T>
 	/**
 	 * Check ids whose failure makes this one's result meaningless. When any has already fired for
@@ -77,7 +86,11 @@ export type Check<T = unknown> = UnlistedCheck<T> | ListingCheck<T>
 export interface OperationCheckBase<T> {
 	id: CheckId
 	subject: "operation"
-	/** Decides whether the check applies to this operation, and gathers what `run` needs if it does. */
+	/**
+	 * Decides whether the check applies to this operation, and gathers what `run` needs if it does.
+	 * Has no side effects, as `CheckBase.plan`: reading a principal's recipe is a lookup, but minting
+	 * or reading a credential belongs in `run`.
+	 */
 	plan(ctx: OperationContext): Plan<T>
 	/** What the check needs in order to run at all, in the reader's terms; see `CheckBase.needs`. */
 	needs?: string

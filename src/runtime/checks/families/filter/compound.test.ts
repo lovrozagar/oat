@@ -19,12 +19,12 @@ function planned(options: Parameters<typeof stage>[0]) {
 }
 
 describe("twoFilterableFields", () => {
-	it("finds the first record with values on two non-identity fields, once per cohort", () => {
+	it("finds the first record with values on two non-identity fields, the same each time", () => {
 		const records = [{ id: "w-0", name: null, status: "open" }, ...COHORT]
 		const { ctx } = stage({ doc: DOC, records })
 		const first = twoFilterableFields(ctx)
 		expect(first).toEqual({ fieldA: "status", fieldB: "name", target: COHORT[0] })
-		expect(twoFilterableFields(ctx)).toBe(first)
+		expect(twoFilterableFields(ctx)).toEqual(first)
 	})
 
 	it("is null when no record holds two such values", () => {

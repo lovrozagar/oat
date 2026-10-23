@@ -4,7 +4,7 @@ import type { Record_ } from "../../../world/records.ts"
 import type { Listed } from "../../core/context.ts"
 import { cannot, type Plan, ready } from "../../core/plan.ts"
 import { conv, filterableNames, filterIdentity, pageSize } from "../../query/capabilities.ts"
-import { cohortFact, collectSet, membership } from "../../sets/compare.ts"
+import { collectSet, membership } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 import type { SetRead } from "../../sets/read.ts"
 
@@ -63,10 +63,6 @@ export async function readComposed(
  * minimum needed to build a compound predicate that is guaranteed to match at least that record.
  */
 export function twoFilterableFields(ctx: Listed): { fieldA: string; fieldB: string; target: Record_ } | null {
-	return cohortFact(ctx, "two-filterable", () => computeTwoFilterableFields(ctx))
-}
-
-function computeTwoFilterableFields(ctx: Listed): { fieldA: string; fieldB: string; target: Record_ } | null {
 	const skip = new Set([ctx.identity, filterIdentity(ctx)])
 	const candidates = filterableNames(ctx).filter((f) => !skip.has(f))
 	for (const target of ctx.records) {

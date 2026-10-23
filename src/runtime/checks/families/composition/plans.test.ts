@@ -46,11 +46,10 @@ describe("subsetPlan", () => {
 		expect(plan).toEqual({ ok: true, value: { field: "score", target: rows[2], term: { filter: "score.eq.5" } } })
 	})
 
-	it("decides once per cohort: the answer holds after the records change", () => {
+	it("reads the cohort it is given: a plan made again on other records answers for them", () => {
 		const ctx = contextOf()
-		const first = subsetPlan(ctx)
-		ctx.records = []
-		expect(subsetPlan(ctx)).toEqual(first)
+		expect(subsetPlan(ctx).ok).toBe(true)
+		expect(subsetPlan({ ...ctx, records: [] }).ok).toBe(false)
 	})
 
 	it("stands down without a proper subset, or a grammar that writes equality", () => {

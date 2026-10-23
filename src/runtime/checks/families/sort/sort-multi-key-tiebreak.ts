@@ -3,18 +3,14 @@ import { defineCheck } from "../../core/define.ts"
 import { sortKeys } from "../../../../spec/conventions/sort.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import type { Record_ } from "../../../world/records.ts"
-import type { CheckContext, Listed } from "../../core/context.ts"
+import type { Listed } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, pageSize, resolvedCaps } from "../../query/capabilities.ts"
 import { sortedUnder } from "../../query/order.ts"
-import { cohortFact, collectSet } from "../../sets/compare.ts"
+import { collectSet } from "../../sets/compare.ts"
 
 function pickMultiKeyPair(ctx: Listed): { primary: string; secondary: string; tied: Record_[] } | null {
-	return cohortFact(ctx, "multi-key", () => computePickMultiKeyPair(ctx))
-}
-
-function computePickMultiKeyPair(ctx: CheckContext): { primary: string; secondary: string; tied: Record_[] } | null {
 	const fields = ctx.query?.sortable ?? []
 	for (const primary of fields) {
 		for (const secondary of fields) {

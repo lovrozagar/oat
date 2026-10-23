@@ -50,11 +50,19 @@ describe("tiedSortField", () => {
 		expect(tiedSortField({ ...ctx, query: { ...query, sortable: ["id", "name"] } })).toBeNull()
 	})
 
-	it("is decided once per cohort", () => {
+	it("is read from the context it is given, never remembered across plans", () => {
 		const ctx = withRecords([{ name: "a" }, { name: "a" }])
 		expect(tiedSortField(ctx)).toBe("name")
-		ctx.records.push({ name: "b" })
-		expect(tiedSortField({ ...ctx, records: [{ name: "a" }, { name: "b" }] })).toBe("name")
+		expect(
+			tiedSortField({
+				...ctx,
+				records: [
+					{ name: "a", rank: 1 },
+					{ name: "b", rank: 2 },
+				],
+			}),
+		).toBeNull()
+		expect(tiedSortField({ ...ctx, query: ctx.query === null ? null : { ...ctx.query, sortable: [] } })).toBeNull()
 	})
 })
 

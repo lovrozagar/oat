@@ -3,11 +3,10 @@ import { defineCheck } from "../../core/define.ts"
 import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { idOf } from "../../../world/records.ts"
-import type { CheckContext, Listed } from "../../core/context.ts"
+import type { Listed } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, filterable } from "../../query/capabilities.ts"
-import { cohortFact } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 import { readSet } from "../../sets/read.ts"
 import { knownHits } from "./fields.ts"
@@ -117,10 +116,6 @@ export const numericComparisonIsNumeric: Check<{
 })
 
 function numericFilterField(ctx: Listed): string | null {
-	return cohortFact(ctx, "numeric-filter", () => computeNumericFilterField(ctx))
-}
-
-function computeNumericFilterField(ctx: CheckContext): string | null {
 	for (const field of ctx.query?.filterable ?? []) {
 		if (field === ctx.identity) continue
 		const values = ctx.records.map((r) => r[field])

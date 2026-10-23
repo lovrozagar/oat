@@ -5,7 +5,7 @@ import { FILTER_OPS, ORDERED_TYPES } from "../../../../spec/query/ops.ts"
 import type { Record_ } from "../../../world/records.ts"
 import type { CheckContext, Listed } from "../../core/context.ts"
 import { canUseOp, conv, resolvedCaps } from "../../query/capabilities.ts"
-import { cohortFact, setOf } from "../../sets/compare.ts"
+import { setOf } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 
 export function fieldsAllowing(ctx: Listed, op: (typeof FILTER_OPS)[number]): EffectiveFilterField[] {
@@ -46,10 +46,6 @@ export function pickFieldForOp(
 }
 
 export function pickOrderedField(ctx: Listed): { field: EffectiveFilterField; values: number[] } | null {
-	return cohortFact(ctx, "ordered", () => computePickOrderedField(ctx))
-}
-
-function computePickOrderedField(ctx: Listed): { field: EffectiveFilterField; values: number[] } | null {
 	const caps = resolvedCaps(ctx)
 	for (const field of caps.filterable) {
 		if (field.type !== undefined && !ORDERED_TYPES.has(field.type)) continue

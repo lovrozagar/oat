@@ -4,7 +4,7 @@ import type { Record_ } from "../../world/records.ts"
 import type { Listed } from "../core/context.ts"
 import { conv, pageSize, type Query } from "../query/capabilities.ts"
 import { ids, type ListResult } from "./list.ts"
-import { memoTable, readSet, type SetRead } from "./read.ts"
+import { readSet, type SetRead } from "./read.ts"
 
 /** A whole set in the shape of one listed page: `items` holds every record, `exchange` is the last page read. */
 export type Listing = ListResult & { complete: boolean }
@@ -144,18 +144,4 @@ export function sameSet(a: Set<string>, b: Set<string>): boolean {
 	if (a.size !== b.size) return false
 	for (const item of a) if (!b.has(item)) return false
 	return true
-}
-
-/**
- * A fact about the seeded cohort — a tied sort field, a proper-subset filter, an overlapping
- * search token. The cohort is never written after seeding, so the answer cannot go stale; keyed
- * by list operation too, because a fact about one listing's capabilities is not one about another.
- */
-export function cohortFact<T>(ctx: Listed, name: string, compute: () => T): T {
-	const facts = memoTable<unknown>(ctx.memo.entity, "cohortFacts")
-	const key = `${ctx.listOp.operationId}:${name}`
-	if (facts.has(key)) return facts.get(key) as T
-	const value = compute()
-	facts.set(key, value)
-	return value
 }

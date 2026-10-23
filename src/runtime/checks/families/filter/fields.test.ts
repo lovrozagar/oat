@@ -48,7 +48,7 @@ describe("pickFieldForOp", () => {
 })
 
 describe("pickOrderedField", () => {
-	it("picks a numeric field allowing gt, lt and eq with three numbers, once per cohort", () => {
+	it("picks a numeric field allowing gt, lt and eq with three numbers, the same each time", () => {
 		const doc = {
 			xQuery: {
 				filterable: [
@@ -67,7 +67,7 @@ describe("pickOrderedField", () => {
 		const { ctx } = stage({ doc, records })
 		const picked = pickOrderedField(ctx)
 		expect(picked).toMatchObject({ field: { field: "amount" }, values: [1, 2, 3] })
-		expect(pickOrderedField(ctx)).toBe(picked)
+		expect(pickOrderedField(ctx)).toEqual(picked)
 	})
 
 	it("is null without three numbers on such a field", () => {

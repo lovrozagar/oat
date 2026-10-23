@@ -4,7 +4,6 @@ import { idOf, type Record_ } from "../../../world/records.ts"
 import type { CheckContext, Listed } from "../../core/context.ts"
 import { cannot, type Plan, ready } from "../../core/plan.ts"
 import { conv } from "../../query/capabilities.ts"
-import { cohortFact } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 
 /** A filter selecting a proper subset of the cohort, and the record it was built from. */
@@ -65,10 +64,6 @@ export function sortFieldBeside(ctx: CheckContext, field: string): string {
 
 /** A filterable field whose value selects a proper subset of the cohort. */
 function properSubsetFilter(ctx: Listed): { field: string; target: Record_ } | null {
-	return cohortFact(ctx, "proper-subset", () => findProperSubset(ctx))
-}
-
-function findProperSubset(ctx: CheckContext): { field: string; target: Record_ } | null {
 	for (const candidate of ctx.query?.filterable ?? []) {
 		if (candidate === ctx.identity) continue
 		const values = ctx.records.map((record) => JSON.stringify(record[candidate]))
@@ -87,10 +82,6 @@ function findProperSubset(ctx: CheckContext): { field: string; target: Record_ }
  * changes the intersection.
  */
 function overlappingFilterAndSearch(ctx: Listed): { field: string; target: Record_; token: string } | null {
-	return cohortFact(ctx, "overlap", () => findOverlap(ctx))
-}
-
-function findOverlap(ctx: CheckContext): { field: string; target: Record_; token: string } | null {
 	if (ctx.query === null) return null
 	const searchable = ctx.query.searchable
 	for (const candidate of ctx.query.filterable) {
