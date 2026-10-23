@@ -97,9 +97,22 @@ function readOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapCollec
 		identity: operationIdentity(entity?.identity, itemSchema, { path, pathParams }),
 		pathParams,
 		recordPath,
-		security: resolveSecurity(op, doc),
+		security: readSecurity(endpoint, doc, gaps),
 		statuses: readStatuses(op.responses),
 	}
+}
+
+/* The operation's requirement, with a gap for each scheme whose scopes are not a list. */
+function readSecurity({ op, operationId }: Endpoint, doc: OpenApiDocument, gaps: GapCollector): Reading["security"] {
+	const security = resolveSecurity(op, doc)
+	for (const scheme of security.malformedScopes) {
+		gaps.record(
+			operationId,
+			"security",
+			`security requirement "${scheme}" gives its scopes as something other than a list; oat reads it as no scopes`,
+		)
+	}
+	return security
 }
 
 /* The success response's body: its schema, and where `x-entity.recordPath` says the rows are. */

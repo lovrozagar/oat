@@ -83,6 +83,20 @@ describe("gapLines", () => {
 	})
 })
 
+describe("gapLines and a scope list that is not an array", () => {
+	it("says what listing the scopes closes", () => {
+		const doc = documentOf({
+			"/a": { get: { ...(listOp("a", "a.list") as object), security: [{ oauth2: null }] } },
+		})
+		expect(gapLines(doctorFacts(modelOf(doc).model))).toEqual(
+			expect.arrayContaining([
+				"    security (1) — give each scheme in a security requirement a list of scopes, [] for none",
+				'      a.list: security requirement "oauth2" gives its scopes as something other than a list; oat reads it as no scopes',
+			]),
+		)
+	})
+})
+
 describe("gapLines and a dangling $ref", () => {
 	it("says what defining a dangling $ref closes", () => {
 		const doc = documentOf({ "/a": { get: { ...(listOp("a", "a.list") as object), parameters: [{ $ref: "#/x" }] } } })

@@ -31,7 +31,12 @@ describe("bearerSecurity", () => {
 			...bearerSecurity(),
 		} as OpenApiDocument
 		const security = buildModel(dereference(doc).doc).byOperationId.get("thing.list")?.security
-		expect(security).toEqual({ alternatives: [[{ scheme: "bearer", scopes: [] }]], source: "root", undeclared: [] })
+		expect(security).toEqual({
+			alternatives: [[{ scheme: "bearer", scopes: [] }]],
+			malformedScopes: [],
+			source: "root",
+			undeclared: [],
+		})
 	})
 })
 

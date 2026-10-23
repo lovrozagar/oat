@@ -85,6 +85,7 @@ export const TAG_REMEDY: Record<string, string> = {
 	"x-effects": "declare create/append/delete with count or min, not both",
 	"x-rate-limit": "declare the rate each category is held to, so a stricter real limit is reported",
 	"x-unique": "declare the column sets that must stay unique so a 409 duplicate can be scored",
+	security: "give each scheme in a security requirement a list of scopes, [] for none",
 	$ref: "define what each pointer names: a missing schema reads as unconstrained, a missing anything else leaves its operation untested",
 	/* What the document declares but oat never calls: no declaration closes these. */
 	webhooks: "not tested: oat makes no inbound or follow-up calls",

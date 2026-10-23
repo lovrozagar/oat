@@ -100,3 +100,13 @@ describe("runParserSuite and a dangling ref", () => {
 		])
 	})
 })
+
+describe("runParserSuite and a scope list that is not an array", () => {
+	it("fails one the requirement drops, or that leaves no gap", () => {
+		const revoke = { operationId: "RevokeToken", responses: {}, security: [{ other: [] }] }
+		expect(details("scopes-not-a-list", { openapi: "3.1.0", paths: { "/r": { post: revoke } } })).toEqual([
+			'false RevokeToken\'s requirement read as [[{"scheme":"other","scopes":[]}]], expected oauth2 with no scopes; ' +
+				"RevokeToken has no gap for the oauth2 scopes that are not a list",
+		])
+	})
+})

@@ -17,6 +17,7 @@ describe("specFixtures", () => {
 			"deeply-nested-path",
 			"external-ref",
 			"dangling-ref",
+			"scopes-not-a-list",
 			"query-roles-by-alias",
 			"pagination-only-is-not-query",
 		])

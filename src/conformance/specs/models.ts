@@ -12,6 +12,7 @@ export function modelFixtures(): SpecFixture[] {
 		deeplyNestedPath(),
 		externalRef(),
 		danglingRef(),
+		scopesNotAList(),
 		queryRolesByAlias(),
 		paginationOnlyIsNotQuery(),
 	]
@@ -167,6 +168,23 @@ function danglingRef(): SpecFixture {
 		expectOperations: 2,
 		name: "dangling-ref",
 		why: "Square's published spec refers to schemas it never defines; the rest of the document must still model",
+	}
+}
+
+function scopesNotAList(): SpecFixture {
+	return {
+		doc: {
+			components: { securitySchemes: { oauth2: { flows: {}, type: "oauth2" } } },
+			openapi: "3.0.0",
+			paths: {
+				"/oauth2/revoke": {
+					post: { operationId: "RevokeToken", responses: okResponse({ type: "object" }), security: [{ oauth2: null }] },
+				},
+			},
+		},
+		expectOperations: 1,
+		name: "scopes-not-a-list",
+		why: "Square's published spec gives RevokeToken's oauth2 requirement null for its scopes; the operation must still model",
 	}
 }
 

@@ -256,3 +256,21 @@ describe("modelOperation and a malformed x-entity", () => {
 		}
 	})
 })
+
+describe("modelOperation and a scope list that is not an array", () => {
+	it("models the operation with no scopes and records a security gap naming the scheme", () => {
+		const revoke = { operationId: "RevokeToken", responses: {}, security: [{ oauth2: null }] }
+		const { gaps, operations } = operationsOf({ "/oauth2/revoke": { post: revoke } })
+		expect(operations.map((op) => [op.operationId, op.unsendable, op.security.alternatives])).toEqual([
+			["RevokeToken", null, [[{ scheme: "oauth2", scopes: [] }]]],
+		])
+		expect(gaps.gaps.filter((gap) => gap.tag === "security")).toEqual([
+			{
+				detail:
+					'security requirement "oauth2" gives its scopes as something other than a list; oat reads it as no scopes',
+				operationId: "RevokeToken",
+				tag: "security",
+			},
+		])
+	})
+})

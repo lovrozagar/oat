@@ -52,6 +52,19 @@ function danglingRef(model: Model): string[] {
 	return problems
 }
 
+/* A requirement whose scopes are not a list reads as needing none, with a gap naming the scheme. */
+function scopesNotAList(model: Model): string[] {
+	const problems: string[] = []
+	const scopes = model.byOperationId.get("RevokeToken")?.security.alternatives
+	if (JSON.stringify(scopes) !== JSON.stringify([[{ scheme: "oauth2", scopes: [] }]])) {
+		problems.push(`RevokeToken's requirement read as ${JSON.stringify(scopes)}, expected oauth2 with no scopes`)
+	}
+	if (!model.gaps.gaps.some((gap) => gap.tag === "security" && gap.operationId === "RevokeToken")) {
+		problems.push("RevokeToken has no gap for the oauth2 scopes that are not a list")
+	}
+	return problems
+}
+
 const PROBES: Readonly<Record<string, Probe>> = {
 	"dangling-ref": danglingRef,
 	"external-ref": (_, externalRefs) =>
@@ -67,6 +80,7 @@ const PROBES: Readonly<Record<string, Probe>> = {
 		return query === null ? [] : [`query capability inferred from page/limit/status: ${query?.source ?? "unknown"}`]
 	},
 	"query-roles-by-alias": rolesByAlias,
+	"scopes-not-a-list": scopesNotAList,
 }
 
 /** The operation and entity counts a fixture expects, where it states them. */
