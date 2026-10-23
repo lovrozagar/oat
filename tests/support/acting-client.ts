@@ -40,6 +40,7 @@ export function actingClient(setup: ActingSetup): Client {
 			run: (steps, at) =>
 				stepRunner({ client: holder.client as Client, hooks: setup.hooks ?? {}, model }).run(steps, at),
 		},
+		secrets: { register: () => undefined },
 		tokens: { post: unused },
 	}
 	const store = createStore({

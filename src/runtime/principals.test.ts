@@ -96,6 +96,16 @@ describe("snapshotPrincipal identity", () => {
 		expect(snap.identity).toEqual({ email: "a@x.test", name: "Alpha", profile: { team: "red" } })
 		expect(JSON.stringify(snap)).not.toMatch(/alpha-password|pin-123456|k-1|k-2|s-1|s-2|r-1|t-1/)
 	})
+
+	it("drops an invite value the run holds as a secret, and keeps any other", () => {
+		const redactor = new Redactor()
+		redactor.registerSecret("key_beta")
+		const run = { held: [], redactor }
+		const secret = snapshotPrincipal({ id: "beta", identity: {}, inviteAs: "key_beta", rank: 0, scope: {} }, run)
+		expect("inviteAs" in secret).toBe(false)
+		const plain = snapshotPrincipal({ id: "beta", identity: {}, inviteAs: "b@x.test", rank: 0, scope: {} }, run)
+		expect(plain.inviteAs).toBe("b@x.test")
+	})
 })
 
 describe("keptCredentials", () => {

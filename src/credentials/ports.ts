@@ -66,6 +66,14 @@ export interface TokenPoster {
 	post(url: string, form: Readonly<Record<string, string>>, hop?: Hop): Promise<StepAnswer>
 }
 
+/**
+ * The run's redactor, as a recipe registers a value it sends from a principal's identity: never
+ * printed from then on, whatever its key is called. Too-short values are ignored, as for any secret.
+ */
+export interface SecretRegistry {
+	register(value: string): void
+}
+
 /** `hooks.resolveCredential`, as a `{ hook: true }` recipe calls it. */
 export type CredentialHook = NonNullable<Hooks["resolveCredential"]>
 
@@ -74,5 +82,6 @@ export interface CredentialPorts {
 	steps: StepRunner
 	operations: OperationCaller
 	tokens: TokenPoster
+	secrets: SecretRegistry
 	resolveCredential?: CredentialHook
 }

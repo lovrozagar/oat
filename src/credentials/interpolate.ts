@@ -31,6 +31,26 @@ function fill(principal: CredentialPrincipal, value: unknown): unknown {
 	return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, fill(principal, item)]))
 }
 
+/**
+ * Each identity value a `{principal.<key>}` in `value` fills, once, deep through arrays and plain
+ * objects. The id `{principal.id}` falls back to is the principal's name, which every report prints,
+ * so it is not one; a key the principal lacks is `fillPrincipal`'s to refuse.
+ */
+export function principalValues(principal: CredentialPrincipal, value: unknown): string[] {
+	const found = new Set<string>()
+	const walk = (item: unknown): void => {
+		if (typeof item === "string") {
+			for (const [, key] of item.matchAll(PLACEHOLDER)) {
+				const text = scalarText(principal.identity[key as string])
+				if (text !== undefined) found.add(text)
+			}
+		} else if (Array.isArray(item)) item.forEach(walk)
+		else if (item !== null && typeof item === "object") Object.values(item).forEach(walk)
+	}
+	walk(value)
+	return [...found]
+}
+
 /** The value with the credential wherever `{credential}` stands, deep through arrays and plain objects. */
 export function fillCredential(value: unknown, credential: string): unknown {
 	if (typeof value === "string") return value.replaceAll("{credential}", credential)
@@ -40,7 +60,13 @@ export function fillCredential(value: unknown, credential: string): unknown {
 }
 
 function textOf(principal: CredentialPrincipal, key: string): string {
-	const value = principal.identity[key] ?? (key === "id" ? principal.id : undefined)
-	if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value)
-	throw new MissingIdentityError(principal.id, key)
+	const text = scalarText(principal.identity[key] ?? (key === "id" ? principal.id : undefined))
+	if (text === undefined) throw new MissingIdentityError(principal.id, key)
+	return text
+}
+
+function scalarText(value: unknown): string | undefined {
+	return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+		? String(value)
+		: undefined
 }

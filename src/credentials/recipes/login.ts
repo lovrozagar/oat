@@ -1,7 +1,7 @@
 import type { LoginRecipe, Recipe } from "../../config/types/security.ts"
 import type { AuthStep } from "../../config/types/steps.ts"
 import { expiresAtOf } from "../expiry.ts"
-import { fillCredential, fillPrincipal } from "../interpolate.ts"
+import { fillCredential, fillPrincipal, principalValues } from "../interpolate.ts"
 import { jwtClaims } from "../jwt.ts"
 import { unfilledIn } from "../placeholders.ts"
 import { readPath } from "../../client/read-path.ts"
@@ -17,7 +17,8 @@ import type { AcquireCtx, Issued } from "./types.ts"
  * saved. `claims` binds token claims or answer paths into the principal's identity. A recipe `refresh` runs its steps
  * with the scope the last run bound plus `credential`, so a rotated refresh token carries forward. A
  * declared `revoke` ends the session by sending exactly its value to that operation. Steps that
- * read a `{name}` nothing fills are refused before anything is sent, naming it.
+ * read a `{name}` nothing fills are refused before anything is sent, naming it. Each identity value a
+ * login or refresh step sends is registered as a secret before it is sent, whatever its key is called.
  */
 
 type LoginRevoke = NonNullable<LoginRecipe["revoke"]>
@@ -64,7 +65,15 @@ async function run(
 		secrets: at.secrets,
 		...(at.probe ? { probe: at.probe } : {}),
 	}
-	return ctx.ports.steps.run(fillPrincipal(ctx.principal, steps), input)
+	const filled = fillPrincipal(ctx.principal, steps)
+	for (const value of principalValues(ctx.principal, steps.map(sentBy))) ctx.ports.secrets.register(value)
+	return ctx.ports.steps.run(filled, input)
+}
+
+/* What a step sends, or binds for a later one to send; an out-of-band address never reaches the wire. */
+function sentBy(step: AuthStep): unknown {
+	if ("outOfBand" in step) return null
+	return [step.bind, step.body, step.headers, step.query, "path" in step ? step.path : null]
 }
 
 /* Every address a login or its refresh reads a value from: each is a credential, or what renews one. */

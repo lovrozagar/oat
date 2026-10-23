@@ -1,6 +1,6 @@
 import type { MintRecipe, Recipe } from "../../config/types/security.ts"
 import { expiresAtOf } from "../expiry.ts"
-import { fillPrincipal } from "../interpolate.ts"
+import { fillPrincipal, principalValues } from "../interpolate.ts"
 import { answerBody } from "../../runtime/cookies/save-as.ts"
 import type { StepAnswer } from "../ports.ts"
 import { answered, valueAt } from "./answer.ts"
@@ -9,7 +9,8 @@ import type { AcquireCtx, Issued } from "./types.ts"
 /*
  * Make a credential by calling an operation as the principal with another scheme's credential: an
  * API key created with a session, say. `{scopes}` in the body is the scope set the operation needs, as an array where
- * it is the whole value and space-joined inside text. The minted credential records how to revoke it.
+ * it is the whole value and space-joined inside text. Each identity value the body sends is registered
+ * as a secret before it is sent. The minted credential records how to revoke it.
  */
 
 const SCOPES = "{scopes}"
@@ -18,6 +19,7 @@ const SCOPES = "{scopes}"
 export async function acquireMint(ctx: AcquireCtx, mint: MintRecipe, options: Partial<Recipe>): Promise<Issued> {
 	const body = mint.body === undefined ? {} : { body: withScopes(fillPrincipal(ctx.principal, mint.body), ctx.scopes) }
 	const call = { as: asWith(ctx, mint), operationId: mint.operationId, secrets: [mint.from], ...body }
+	for (const value of principalValues(ctx.principal, mint.body)) ctx.ports.secrets.register(value)
 	const answer = await ctx.ports.operations.call(call)
 	answered(answer, `mint ${mint.operationId}`)
 	const value = valueAt(answer, mint.from, `mint ${mint.operationId}`)

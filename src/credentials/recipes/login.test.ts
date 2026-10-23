@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { LoginRecipe } from "../../config/types/security.ts"
 import type { AuthStep } from "../../config/types/steps.ts"
+import { Redactor, REDACTED } from "../../security/redact.ts"
 import { jwtOf } from "../__fixtures__/jwt.ts"
 import { answerOf, ctxOf, fakePorts, NOW, rejection } from "../__fixtures__/ports.ts"
 import { acquireLogin, heldLogin } from "./login.ts"
@@ -68,6 +69,71 @@ describe("acquireLogin", () => {
 		expect((await rejection(acquireLogin(ctxOf(ports), login, {}))).message).toBe(
 			'login for "ann" answered no credential at $.token (its answer names no content type)',
 		)
+	})
+})
+
+const ok = () => Promise.resolve({ answer: answerOf({ token: "t1" }), scope: {} })
+
+describe("acquireLogin: identity values it sends", () => {
+	it("registers each identity value a step sends as a secret before it runs, and none an out-of-band step only reads", async () => {
+		const principal = {
+			id: "ann",
+			identity: { handle: "ann-h", key: "key_ann", org: "org-1", phone: "+1555", q: "q-1" },
+		}
+		let before: string[] = []
+		const { ports, recorded } = fakePorts({
+			run: () => {
+				before = [...recorded.secrets]
+				return ok()
+			},
+		})
+		const sending: LoginRecipe = {
+			from: "$.token",
+			steps: [
+				{ outOfBand: { address: "{principal.phone}", as: "otp", kind: "sms" } },
+				{
+					body: { key: "{principal.key}" },
+					headers: { "x-org": "{principal.org}" },
+					operationId: "auth.token",
+					query: { q: "{principal.q}" },
+				},
+				{ bind: { who: "{principal.key}" }, method: "POST", path: "/users/{principal.handle}" },
+			],
+		}
+		await acquireLogin(ctxOf(ports, { principal }), sending, {})
+		expect(before).toEqual(["key_ann", "org-1", "q-1", "ann-h"])
+		expect(recorded.secrets).toEqual(before)
+	})
+
+	it("registers what the refresh steps send when they run, a held credential's refresh included", async () => {
+		const { ports, recorded } = fakePorts({ run: ok })
+		const refreshSteps: [AuthStep, ...AuthStep[]] = [{ body: { as: "{principal.email}" }, operationId: "auth.refresh" }]
+		const refresh = { from: "$.token", steps: refreshSteps }
+		const issued = await acquireLogin(
+			ctxOf(ports),
+			{ from: "$.token", steps: [{ operationId: "auth.login" }] },
+			{ refresh },
+		)
+		expect(recorded.secrets).toEqual([])
+		await (issued.refresh as () => Promise<unknown>)()
+		expect(recorded.secrets).toEqual(["ann@x.io"])
+		const held = heldLogin(ctxOf(ports), { scope: {}, value: "h1" }, { login, refresh })
+		await (held.refresh as () => Promise<unknown>)()
+		expect(recorded.secrets).toEqual(["ann@x.io", "ann@x.io"])
+	})
+})
+
+describe("acquireLogin: identity values and the redactor", () => {
+	it("registers through the redactor's own gate: a short value stays readable, a long one never prints", async () => {
+		const redactor = new Redactor()
+		const { ports } = fakePorts({ register: (value) => redactor.registerSecret(value), run: ok })
+		const principal = { id: "ann", identity: { key: "key_alpha", pin: "abc" } }
+		const recipe: LoginRecipe = {
+			from: "$.token",
+			steps: [{ body: { key: "{principal.key}", pin: "{principal.pin}" }, operationId: "auth.token" }],
+		}
+		await acquireLogin(ctxOf(ports, { principal }), recipe, {})
+		expect(redactor.text("abc: a cabcade for key_alpha")).toBe(`abc: a cabcade for ${REDACTED}`)
 	})
 })
 
@@ -169,6 +235,19 @@ describe("acquireLogin: refresh", () => {
 				[{ body: { by: "ann@x.io", token: "{refreshToken}" }, operationId: "auth.refresh" }],
 			],
 		])
+	})
+})
+
+describe("acquireLogin: refresh as a probe", () => {
+	it("sends a refresh meant to be refused as a probe hop", async () => {
+		const { ports, recorded } = fakePorts({
+			run: () => Promise.resolve({ answer: answerOf({ token: "t1" }), scope: {} }),
+		})
+		const refreshSteps: [AuthStep, ...AuthStep[]] = [{ operationId: "auth.refresh" }]
+		const refresh = { from: "$.token", steps: refreshSteps }
+		const issued = await acquireLogin(ctxOf(ports), login, { refresh })
+		await (issued.refresh as (hop: { probe: true }) => Promise<unknown>)({ probe: true })
+		expect(recorded.runs.map((run) => run.probe)).toEqual([undefined, true])
 	})
 })
 

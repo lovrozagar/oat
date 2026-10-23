@@ -32,6 +32,18 @@ describe("acquireMint", () => {
 		])
 	})
 
+	it("registers each identity value its body sends as a secret before it calls", async () => {
+		let before: string[] = []
+		const { ports, recorded } = fakePorts({
+			call: () => {
+				before = [...recorded.secrets]
+				return Promise.resolve(answerOf({ key: "k1" }))
+			},
+		})
+		await acquireMint(ctxOf(ports), mint, {})
+		expect([before, recorded.secrets]).toEqual([["ann@x.io"], ["ann@x.io"]])
+	})
+
 	it("sends no body when the recipe has none, and takes `expiresIn`", async () => {
 		const { ports, recorded } = fakePorts({ call: () => Promise.resolve(answerOf({ key: "k" })) })
 		const bare: MintRecipe = { from: "$.key", operationId: "apiKey.create", with: "jwt" }
@@ -41,6 +53,7 @@ describe("acquireMint", () => {
 			undefined,
 			{ as: AS_JWT, operationId: "apiKey.create", secrets: ["$.key"] },
 		])
+		expect(recorded.secrets).toEqual([])
 	})
 })
 

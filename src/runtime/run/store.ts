@@ -2,9 +2,10 @@
  * One credential store per run, and the ports it is lent: login and refresh steps run through the
  * step engine as nobody, a mint or revoke calls its operation through the primary client as the
  * principal sending the `with` scheme, an OAuth 2 grant posts its form as nobody, and
- * `hooks.resolveCredential` answers a `{ hook: true }` recipe. The document's `x-fresh-principal`
- * operation is the store's signup, which a login without a refresh never re-runs. The ports send through the run's
- * clients, which are built over the store, so they reach them only once the run is connected.
+ * `hooks.resolveCredential` answers a `{ hook: true }` recipe. An identity value a recipe sends
+ * registers on the run's redactor. The document's `x-fresh-principal` operation is the store's
+ * signup, which a login without a refresh never re-runs. The ports send through the run's clients,
+ * which are built over the store, so they reach them only once the run is connected.
  */
 
 import type { Client } from "../../client/client.ts"
@@ -12,6 +13,7 @@ import type { CredentialPorts, Hop, StepAnswer } from "../../credentials/ports.t
 import { createStore, type CredentialStore } from "../../credentials/store.ts"
 import { signupOf } from "../../credentials/signup.ts"
 import { isNetworkError } from "../../errors/network.ts"
+import type { Redactor } from "../../security/redact.ts"
 import type { OperationModel } from "../../spec/graph/types.ts"
 import { fillPath } from "../fill-path.ts"
 import { resolveBackoff } from "../poll.ts"
@@ -30,6 +32,8 @@ export interface RunClients {
 
 export interface StoreWiring {
 	network: RunNetwork
+	/** The run's, which every client scrubs with. */
+	redactor: Pick<Redactor, "registerSecret">
 	/** Called only when a port sends, which is after the run is connected. */
 	clients: () => RunClients
 }
@@ -88,6 +92,7 @@ function runPorts(loaded: Loaded, wiring: PortWiring): CredentialPorts {
 					return stepRunner({ ...shared, originClients: origins }).run(steps, at)
 				}),
 		},
+		secrets: { register: (value) => wiring.redactor.registerSecret(value) },
 		tokens: {
 			post: (url, form, hop) => noted(() => postForm(auth(OAUTH2_TOKENS), { form, url, ...hop })),
 		},

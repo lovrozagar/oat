@@ -15,6 +15,7 @@ export interface RunCall {
 	steps: readonly AuthStep[]
 	principal: string
 	scope: Readonly<Record<string, string>>
+	probe?: true
 }
 
 export interface Recorded {
@@ -22,6 +23,8 @@ export interface Recorded {
 	calls: Array<Parameters<CredentialPorts["operations"]["call"]>[0]>
 	posts: Array<{ url: string; form: Readonly<Record<string, string>> }>
 	hooks: Array<{ scheme: string; principal: string }>
+	/** Each value a recipe registered as a secret, in order. */
+	secrets: string[]
 }
 
 type Answers = {
@@ -29,6 +32,8 @@ type Answers = {
 	call?: (operationId: string, body: unknown, as: { principal: string; scheme: string }) => Promise<StepAnswer>
 	post?: (form: Readonly<Record<string, string>>) => Promise<StepAnswer>
 	hook?: CredentialPorts["resolveCredential"]
+	/** Where a registered secret goes besides the record: a real redactor, say. */
+	register?: (value: string) => void
 }
 
 function unexpected(what: string): () => Promise<never> {
@@ -37,7 +42,7 @@ function unexpected(what: string): () => Promise<never> {
 
 /** Ports that answer as told and record what they were asked. */
 export function fakePorts(answers: Answers = {}): { ports: CredentialPorts; recorded: Recorded } {
-	const recorded: Recorded = { calls: [], hooks: [], posts: [], runs: [] }
+	const recorded: Recorded = { calls: [], hooks: [], posts: [], runs: [], secrets: [] }
 	const ports: CredentialPorts = {
 		operations: {
 			call: (input) => {
@@ -45,9 +50,20 @@ export function fakePorts(answers: Answers = {}): { ports: CredentialPorts; reco
 				return (answers.call ?? unexpected("call"))(input.operationId, input.body, input.as)
 			},
 		},
+		secrets: {
+			register: (value) => {
+				recorded.secrets.push(value)
+				answers.register?.(value)
+			},
+		},
 		steps: {
 			run: (steps, input) => {
-				const call = { principal: input.principal, scope: input.scope, steps }
+				const call = {
+					principal: input.principal,
+					scope: input.scope,
+					steps,
+					...(input.probe ? { probe: input.probe } : {}),
+				}
 				recorded.runs.push(call)
 				return (answers.run ?? unexpected("run"))(call)
 			},

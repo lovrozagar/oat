@@ -281,6 +281,7 @@ function stackOf(harness: Harness, recipe: Recipe): Stack {
 	const ports: CredentialPorts = {
 		operations: { call: unused },
 		steps: { run: (list, at) => steps().run(list, at) },
+		secrets: { register: () => undefined },
 		tokens: { post: unused },
 	}
 	let now = Date.now()

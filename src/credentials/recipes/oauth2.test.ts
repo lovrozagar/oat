@@ -52,6 +52,7 @@ describe("acquireOAuth2", () => {
 			form: { client_id: "cid", grant_type: "password", password: "pw", scope: "openid", username: "ann@x.io" },
 			url: "/oauth/token",
 		})
+		expect(recorded.secrets).toEqual(["pw", "ann@x.io"])
 	})
 
 	it("sends no scope when neither the operation nor the recipe names one", async () => {
@@ -62,6 +63,21 @@ describe("acquireOAuth2", () => {
 			{},
 		)
 		expect([issued.scopes, recorded.posts[0]?.form]).toEqual([[], { client_id: "c", grant_type: "client_credentials" }])
+	})
+})
+
+describe("acquireOAuth2: identity values it sends", () => {
+	it("registers each identity value the grant sends before it posts, and no literal", async () => {
+		let before: string[] = []
+		const { ports, recorded } = fakePorts({
+			post: () => {
+				before = [...recorded.secrets]
+				return Promise.resolve(answerOf({ access_token: "a3" }))
+			},
+		})
+		const recipe = { clientId: "{principal.email}", clientSecret: "client-secret", flow: "clientCredentials" as const }
+		await acquireOAuth2(ctxOf(ports, { scheme: OAUTH }), recipe, {})
+		expect([before, recorded.secrets]).toEqual([["ann@x.io"], ["ann@x.io"]])
 	})
 })
 

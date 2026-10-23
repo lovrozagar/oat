@@ -185,6 +185,7 @@ function renewalRefused(steps: string[]): CredentialPorts {
 				return { answer: { body: { token: "token-1" }, cookies: {}, headers: {}, status: 200 }, scope: {} }
 			},
 		},
+		secrets: { register: () => undefined },
 		tokens: { post: () => unexpected("post") },
 	}
 }

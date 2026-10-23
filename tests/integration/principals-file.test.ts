@@ -9,7 +9,9 @@ import { oat, referenceConfig, type SavedRunReport, tempDirs } from "../support/
 /*
  * `principals.json` lands in every run folder, often a CI artifact: a principal that signs in with a
  * password from its config leaves the password out of it, and out of every other file of the run.
- * A second run reuses the file with the config's own entry laid over it, and signs in again.
+ * Any identity value a sign-in sends is held the same way, whatever its key is called: the
+ * reference's `key`. A second run reuses the file with the config's own entry laid over it, and
+ * signs in again.
  */
 
 const dirs = tempDirs("oat-principals-file-")
@@ -56,8 +58,10 @@ describe("principals.json", () => {
 			const written = JSON.parse(await readFile(file, "utf8")) as {
 				principals: { id: string; identity: Record<string, unknown>; blocked?: string }[]
 			}
-			expect(written.principals).toEqual([expect.objectContaining({ id: "alpha", identity: { email: ALPHA.email } })])
+			/* The email is a value the sign-in sends, so it is held as a secret too. */
+			expect(written.principals).toEqual([expect.objectContaining({ id: "alpha", identity: {} })])
 			expect(await holding(join(runs, "latest"), PASSWORD)).toEqual([])
+			expect(await holding(join(runs, "latest"), ALPHA.email)).toEqual([])
 			/* Redaction is what the run writes down: the check that compares the caller still read the raw answers. */
 			const report = JSON.parse(await readFile(join(runs, "latest", "oat-report.json"), "utf8")) as SavedRunReport
 			expect(report.scope.operations.find((op) => op.operationId === "profile.get")?.checks.passed).toContain(
@@ -71,6 +75,24 @@ describe("principals.json", () => {
 			const again = JSON.parse(await readFile(file, "utf8")) as typeof written
 			expect(again.principals[0]).not.toHaveProperty("blocked")
 			expect(again.principals[0]).toMatchObject({ credentials: [{ scheme: "jwt" }], id: "alpha" })
+		} finally {
+			await server.close()
+		}
+	}, 60_000)
+
+	it("holds a key the reference's login sends from identity out of principals.json and every file of the run", async () => {
+		const server = await createMemoryServer()
+		try {
+			const dir = await dirs.make()
+			const runs = join(dir, "runs")
+			const config = await referenceConfig(dir, server.url)
+			const run = await oat(["run", "--config", config, "--out", runs, "--quiet", "--ops", "profile.get"])
+			expect(run.code).toBe(EXIT.clean)
+			const written = JSON.parse(await readFile(join(runs, "latest", "principals.json"), "utf8")) as {
+				principals: { id: string; identity: Record<string, unknown> }[]
+			}
+			expect(written.principals.find((principal) => principal.id === "alpha")?.identity).toEqual({})
+			expect(await holding(join(runs, "latest"), "key_alpha")).toEqual([])
 		} finally {
 			await server.close()
 		}

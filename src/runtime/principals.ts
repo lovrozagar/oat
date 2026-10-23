@@ -83,7 +83,7 @@ export function snapshotPrincipal(input: SnapshotInput, { held, redactor }: Snap
 		scope: { ...input.scope },
 	}
 	if (input.tenant !== undefined) snap.tenant = input.tenant
-	if (input.inviteAs !== undefined) snap.inviteAs = input.inviteAs
+	if (input.inviteAs !== undefined && !redactor.holdsSecret(input.inviteAs)) snap.inviteAs = input.inviteAs
 	if (input.blocked !== undefined) snap.blocked = input.blocked
 	return snap
 }

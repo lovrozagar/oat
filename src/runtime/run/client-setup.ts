@@ -29,7 +29,7 @@ export function connect(loaded: Loaded): Connected {
 	const onExchange = answered(journal, progress)
 	const network = createRunNetwork(loaded)
 	/* The ports reach the clients only when they send, by which time both exist. */
-	const store = runStore(loaded, { clients: () => ({ client, origins: originClients }), network })
+	const store = runStore(loaded, { clients: () => ({ client, origins: originClients }), network, redactor })
 	const mapping = options.sharedCredentials?.mapping
 	const client = new Client({
 		baseUrl: options.baseUrl,
